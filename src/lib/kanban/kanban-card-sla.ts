@@ -15,7 +15,18 @@ export type SlaKanbanResult = {
   slaTipo?: SlaTipo;
 };
 
-/** Bolinha compacta para cards — atrasado = vermelho + dias úteis; atenção = dourado + dias restantes. */
+/** Tag textual padronizada para cards — SLA atenção / SLA ATRASADO (ok não exibe tag). */
+export function tagSlaKanbanParaExibicao(
+  sla: SlaKanbanResult,
+): { texto: string; variante: 'ok' | 'atencao' | 'atrasado' } | null {
+  if (sla.pausado || sla.status === 'ok') return null;
+  return {
+    texto: sla.label,
+    variante: sla.status,
+  };
+}
+
+/** @deprecated Preferir tagSlaKanbanParaExibicao — mantido para follow-up (FU). */
 export function indicadorBolinhaSlaKanban(
   sla: SlaKanbanResult,
 ): { variante: 'atrasado' | 'atencao'; numero: number; title: string } | null {

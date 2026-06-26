@@ -67,6 +67,19 @@ export function formatLocalYmd(data: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Soma meses de calendário a uma data `YYYY-MM-DD` (ajusta overflow de dia, ex.: 31/jan → 28/fev). */
+export function adicionarMesesCalendarioYmd(
+  ymd: string | null | undefined,
+  meses: number,
+): string | null {
+  const base = parseIsoDateOnlyLocal(ymd);
+  if (!base || !Number.isFinite(meses)) return null;
+  const dia = base.getDate();
+  const alvo = new Date(base.getFullYear(), base.getMonth() + meses, dia);
+  if (alvo.getDate() !== dia) alvo.setDate(0);
+  return formatLocalYmd(alvo);
+}
+
 function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
@@ -90,6 +103,24 @@ export function normalizarSlaTipo(value: string | null | undefined): SlaTipo {
 
 export function rotuloUnidadeSla(tipo: SlaTipo | string | null | undefined): 'd.u.' | 'd.c.' {
   return normalizarSlaTipo(tipo) === 'corridos' ? 'd.c.' : 'd.u.';
+}
+
+/** Sigla em maiúsculas para tags de SLA nos cards (ex.: D.U., D.C.). */
+export function rotuloUnidadeSlaTag(tipo: SlaTipo | string | null | undefined): 'D.U.' | 'D.C.' {
+  return normalizarSlaTipo(tipo) === 'corridos' ? 'D.C.' : 'D.U.';
+}
+
+/** Rótulo padronizado de tag SLA em funis e kanbans. */
+export function labelTagSlaFunil(
+  status: 'ok' | 'atencao' | 'atrasado',
+  opts?: { diasAtraso?: number; slaTipo?: SlaTipo | string | null },
+): string {
+  if (status === 'atrasado') {
+    const n = Math.max(1, opts?.diasAtraso ?? 1);
+    return `SLA ATRASADO - ${n} ${rotuloUnidadeSlaTag(opts?.slaTipo)}`;
+  }
+  if (status === 'atencao') return 'SLA atenção';
+  return 'SLA ok';
 }
 
 export type RotuloSlaAtividadeVariante = 'atrasado' | 'atencao' | 'ok' | 'nenhum';
@@ -163,22 +194,23 @@ export function rotuloSlaAtividadeDiasUteis(
 }
 
 /**
- * Calcula quantos dias úteis existem entre duas datas
- * @param dataInicio Data inicial (inclusive)
+ * Calcula quantos dias úteis existem entre duas datas.
+ * Regra global: a contagem começa no dia útil seguinte ao início (início não entra no total).
+ * @param dataInicio Data inicial (marco — não conta como 1º dia útil)
  * @param dataFim Data final (inclusive)
- * @returns Número de dias úteis
+ * @returns Número de dias úteis decorridos
  */
 export function calcularDiasUteis(dataInicio: Date, dataFim: Date): number {
   if (dataFim < dataInicio) return 0;
 
-  let diasUteis = 0;
   const atual = new Date(dataInicio);
   const fim = new Date(dataFim);
 
-  // Normaliza para meia-noite para comparação correta
   atual.setHours(0, 0, 0, 0);
   fim.setHours(0, 0, 0, 0);
+  atual.setDate(atual.getDate() + 1);
 
+  let diasUteis = 0;
   while (atual <= fim) {
     if (isDiaUtil(atual)) {
       diasUteis++;
@@ -250,7 +282,7 @@ export function calcularStatusSLACorridos(
     const diasAtraso = calcularDiasCorridos(dataVencimento, hoje);
     return {
       status: 'atrasado',
-      label: `Atrasado ${diasAtraso} d.c.`,
+      label: labelTagSlaFunil('atrasado', { diasAtraso, slaTipo: 'corridos' }),
       classe: 'moni-tag-atrasado',
       diasAtraso,
       slaTipo: 'corridos',
@@ -260,7 +292,7 @@ export function calcularStatusSLACorridos(
   if (dataVencimento.getTime() === hoje.getTime()) {
     return {
       status: 'atencao',
-      label: 'Vence hoje',
+      label: labelTagSlaFunil('atencao'),
       classe: 'moni-tag-atencao',
       diasRestantes: 0,
       slaTipo: 'corridos',
@@ -271,7 +303,7 @@ export function calcularStatusSLACorridos(
   if (diasRestantes === 1) {
     return {
       status: 'atencao',
-      label: 'Vence em 1 d.c.',
+      label: labelTagSlaFunil('atencao'),
       classe: 'moni-tag-atencao',
       diasRestantes: 1,
       slaTipo: 'corridos',
@@ -280,8 +312,8 @@ export function calcularStatusSLACorridos(
 
   return {
     status: 'ok',
-    label: `${diasRestantes} d.c. restantes`,
-    classe: '',
+    label: labelTagSlaFunil('ok'),
+    classe: 'moni-tag-concluido',
     diasRestantes,
     slaTipo: 'corridos',
   };
@@ -337,7 +369,7 @@ export function calcularStatusSLA(
     const diasAtraso = calcularDiasUteis(dataVencimento, hoje);
     return {
       status: 'atrasado',
-      label: `Atrasado ${diasAtraso} d.u.`,
+      label: labelTagSlaFunil('atrasado', { diasAtraso, slaTipo: 'uteis' }),
       classe: 'moni-tag-atrasado',
       diasAtraso,
     };
@@ -347,7 +379,7 @@ export function calcularStatusSLA(
   if (dataVencimento.getTime() === hoje.getTime()) {
     return {
       status: 'atencao',
-      label: 'Vence hoje',
+      label: labelTagSlaFunil('atencao'),
       classe: 'moni-tag-atencao',
       diasRestantes: 0,
     };
@@ -357,7 +389,7 @@ export function calcularStatusSLA(
   if (diasUteisRestantes === 1) {
     return {
       status: 'atencao',
-      label: 'Vence em 1 d.u.',
+      label: labelTagSlaFunil('atencao'),
       classe: 'moni-tag-atencao',
       diasRestantes: 1,
     };
@@ -366,8 +398,8 @@ export function calcularStatusSLA(
   // Tudo certo (2+ dias úteis restantes)
   return {
     status: 'ok',
-    label: `${diasUteisRestantes} d.u. restantes`,
-    classe: '',
+    label: labelTagSlaFunil('ok'),
+    classe: 'moni-tag-concluido',
     diasRestantes: diasUteisRestantes,
   };
 }

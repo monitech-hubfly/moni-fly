@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useMemo, useRef, useState, useTransition, type DragEvent } from 'react';
+import { ArrowUpDown, ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react';
+import { useRef, useState, useTransition, type DragEvent } from 'react';
 import {
   calcularSlaKanbanCard,
   creditoObraAguardandoDocumentacao,
@@ -28,6 +29,7 @@ import {
   cardLoteadoresPrecisaJustificativaSla,
   faseLoteadoresExigeJustificativaSla,
 } from '@/lib/kanban/loteadores-sla-justificativa';
+import { fundingTipoBadgeClass } from '@/lib/kanban/funding-card-fields';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanColumnProps = {
@@ -48,6 +50,12 @@ export type KanbanColumnProps = {
   hipotesesOrdemMin?: number | null;
   /** Habilita arrastar cards entre fases e reordenar na coluna. */
   dragEnabled?: boolean;
+  /** Última fase ativa do funil (header com tom distinto). */
+  isUltimaFaseAtiva?: boolean;
+  /** Botão «Adicionar card» no rodapé da coluna (primeira fase). */
+  exibirAdicionarCard?: boolean;
+  /** Href do modal de novo card (`?novo=true`). */
+  novoCardHref?: string;
 };
 
 type DragPayload = {
@@ -126,12 +134,15 @@ export function KanbanColumn({
   listaVaziaPorFiltro = false,
   basePath,
   cardQueryParam = 'card',
-  userRole,
-  columnAccent = 'var(--moni-kanban-stepone)',
+  userRole: _userRole,
+  columnAccent: _columnAccent = 'var(--moni-kanban-stepone)',
   kanbanId,
   kanbanNome,
   hipotesesOrdemMin = null,
   dragEnabled = false,
+  isUltimaFaseAtiva = false,
+  exibirAdicionarCard = false,
+  novoCardHref = '',
 }: KanbanColumnProps) {
   const faseSlug = fase.slug?.trim() ?? '';
   const router = useRouter();
@@ -141,8 +152,13 @@ export function KanbanColumn({
   const [dragInsertBefore, setDragInsertBefore] = useState(true);
   const [columnDragOver, setColumnDragOver] = useState(false);
 
-  const accent = useMemo(() => columnAccent, [columnAccent]);
   const dndAtivo = dragEnabled && !pending;
+  const subtituloFase = (fase.instrucoes ?? '').trim();
+
+  const abrirCard = (card: KanbanCardBrief) => {
+    if (suppressClickRef.current) return;
+    router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem));
+  };
 
   const handleDragOverColumn = (e: DragEvent<HTMLDivElement>) => {
     if (!dndAtivo) return;
@@ -326,45 +342,42 @@ export function KanbanColumn({
 
   return (
     <div
-      className="moni-kanban-column w-80 shrink-0 overflow-hidden rounded-xl bg-white shadow-sm"
-      style={{
-        border: '0.5px solid var(--moni-border-default)',
-        borderTop: `3px solid ${accent}`,
-        outline: columnDragOver && dndAtivo ? '2px solid var(--moni-navy-300)' : undefined,
-        outlineOffset: columnDragOver && dndAtivo ? '-2px' : undefined,
-      }}
+      className={`moni-kanban-column ${columnDragOver && dndAtivo ? 'moni-kanban-column--drag-over' : ''}`}
     >
       <div
-        className="border-b px-4 py-3"
-        style={{
-          background: 'var(--moni-navy-50)',
-          borderBottom: '0.5px solid var(--moni-border-default)',
-        }}
+        className={`moni-kanban-column-hd ${isUltimaFaseAtiva ? 'moni-kanban-column-hd--fin' : ''}`}
       >
-        <h2 className="font-semibold" style={{ color: 'var(--moni-navy-800)' }}>
-          {fase.nome}
-        </h2>
-        <div className="mt-0.5 flex items-center justify-between">
-          <p className="text-xs" style={{ color: 'var(--moni-navy-600)' }}>
-            {cards.length} card(s)
-          </p>
-          {fase.sla_dias ? (
-            <span
-              className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={{
-                background: 'rgba(255, 255, 255, 0.7)',
-                color: 'var(--moni-navy-800)',
-                border: '0.5px solid var(--moni-navy-200)',
-              }}
-            >
-              SLA: {fase.sla_dias} {rotuloUnidadeSla(fase.sla_tipo)}
+        <div className="moni-kanban-column-hd-top">
+          <div className="moni-kanban-column-hd-text">
+            <h2 className="moni-kanban-column-title">{fase.nome}</h2>
+            {subtituloFase ? (
+              <p className="moni-kanban-column-subtitle">{subtituloFase}</p>
+            ) : null}
+          </div>
+          <div className="moni-kanban-column-hd-actions">
+            <span className="moni-kanban-col-count" aria-label={`${cards.length} cards`}>
+              {cards.length}
             </span>
-          ) : null}
+            {fase.sla_dias ? (
+              <span className="moni-kanban-col-sla">
+                {fase.sla_dias}d {rotuloUnidadeSla(fase.sla_tipo)}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className="moni-kanban-col-sort"
+              aria-hidden
+              tabIndex={-1}
+              title="Ordenação da coluna"
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
         </div>
       </div>
 
       <div
-        className="max-h-[70vh] space-y-2 overflow-y-auto p-3"
+        className="moni-kanban-column-body"
         onDragOver={handleDragOverColumn}
         onDragLeave={handleDragLeaveColumn}
         onDrop={(e) => handleDrop(e, null)}
@@ -393,13 +406,14 @@ export function KanbanColumn({
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
           const motivo = (card.motivo_arquivamento ?? '').trim();
-          const opacidadeCard = arquivado || concluido ? 'opacity-60' : '';
           const hasAvatar = Boolean(card.responsavel_fase_nome?.trim());
           const hasBadge = arquivado || concluido;
-          const paddingTitulo = hasBadge && hasAvatar ? 'pr-24' : hasBadge ? 'pr-20' : hasAvatar ? 'pr-8' : '';
+          const paddingTitulo = hasBadge || hasAvatar ? 'pr-14' : '';
           const podeArrastar = dndAtivo;
           const insertBeforeThis =
             dragOverCardId === card.id && dragInsertBefore && dndAtivo;
+          const subtituloCard =
+            card.subtitulo?.trim() || card.profiles?.full_name?.trim() || '';
 
           const chipsParalelas = montarChipsParalelas(
             {
@@ -414,19 +428,18 @@ export function KanbanColumn({
               temFilhoJuridico: card.tem_filho_juridico,
               temFilhoAcoplamento: card.tem_filho_acoplamento,
               filhoAcoplamentoArquivado: card.filho_acoplamento_arquivado,
+              temFilhoOperacoes: card.tem_filho_operacoes,
+              filhoOperacoesArquivado: card.filho_operacoes_arquivado,
+              operacoesFilhoConcluido: card.operacoes_filho_concluido,
+              operacoesFilhoFaseRotulo: card.operacoes_filho_fase_rotulo,
+              juridicoFilhoFaseRotulo: card.juridico_filho_fase_nome,
             },
             { labelsCompletos: false },
           );
 
           return (
-            <div key={card.id} className="relative">
-              {insertBeforeThis ? (
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute -top-1 left-0 right-0 z-10 h-0.5 rounded-full"
-                  style={{ background: 'var(--moni-navy-500)' }}
-                />
-              ) : null}
+            <div key={card.id} className="moni-kanban-card-wrap">
+              {insertBeforeThis ? <div aria-hidden className="moni-kanban-card-drop-line" /> : null}
               <div
                 draggable={podeArrastar}
                 onDragStart={(e) => {
@@ -476,23 +489,23 @@ export function KanbanColumn({
                   const beforeCardId = before ? card.id : cards[i + 1]?.id ?? null;
                   executarDrop(payload, beforeCardId);
                 }}
-                className={`relative block w-full p-3 text-left shadow-sm transition hover:shadow-md ${opacidadeCard} ${
-                  pending ? 'pointer-events-none opacity-70' : ''
-                } ${podeArrastar ? 'cursor-grab active:cursor-grabbing' : ''}`}
-                style={{
-                  border: arquivado
-                    ? '1px dashed var(--moni-status-archived-border)'
-                    : concluido
-                      ? '1px dashed var(--moni-green-400)'
-                      : dragOverCardId === card.id && !dragInsertBefore && dndAtivo
-                        ? '2px solid var(--moni-navy-300)'
-                        : '0.5px solid var(--moni-border-default)',
-                  borderRadius: 'var(--moni-radius-lg)',
-                  background: 'var(--moni-surface-0)',
-                }}
+                className={[
+                  'moni-kanban-card',
+                  arquivado ? 'moni-kanban-card--archived' : '',
+                  concluido ? 'moni-kanban-card--done' : '',
+                  arquivado || concluido ? 'moni-kanban-card--muted' : '',
+                  pending ? 'moni-kanban-card--pending' : '',
+                  podeArrastar ? 'moni-kanban-card--draggable' : '',
+                  dragOverCardId === card.id && !dragInsertBefore && dndAtivo
+                    ? 'moni-kanban-card--drag-target'
+                    : '',
+                  chipsParalelas.length > 0 ? 'moni-kanban-card--com-paralelas' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
               >
                 {dndAtivo ? (
-                  <div className="absolute left-2 top-2 z-10 flex flex-col gap-0">
+                  <div className="moni-kanban-card-sort">
                     <button
                       type="button"
                       disabled={!vizinhoAcimaId || pending}
@@ -502,7 +515,7 @@ export function KanbanColumn({
                         e.stopPropagation();
                         handleReorder(card, 'up', i, vizinhoAcimaId);
                       }}
-                      className="rounded p-0.5 text-stone-400 hover:bg-stone-200 hover:text-stone-700 disabled:pointer-events-none disabled:opacity-30"
+                      className="moni-kanban-card-sort-btn"
                       title="Mover para cima na coluna"
                       aria-label="Mover card para cima na coluna"
                     >
@@ -517,7 +530,7 @@ export function KanbanColumn({
                         e.stopPropagation();
                         handleReorder(card, 'down', i, vizinhoAcimaId);
                       }}
-                      className="rounded p-0.5 text-stone-400 hover:bg-stone-200 hover:text-stone-700 disabled:pointer-events-none disabled:opacity-30"
+                      className="moni-kanban-card-sort-btn"
                       title="Mover para baixo na coluna"
                       aria-label="Mover card para baixo na coluna"
                     >
@@ -525,76 +538,76 @@ export function KanbanColumn({
                     </button>
                   </div>
                 ) : null}
+                {chipsParalelas.length > 0 ? (
+                  <KanbanParalelasChips chips={chipsParalelas} mode="board" />
+                ) : null}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (suppressClickRef.current) return;
-                    router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem));
-                  }}
-                  className={`block w-full text-left ${dndAtivo ? 'pl-7' : ''}`}
+                  onClick={() => abrirCard(card)}
+                  className="moni-kanban-card-menu"
+                  aria-label="Abrir card"
                 >
+                  <MoreHorizontal className="h-4 w-4" aria-hidden />
+                </button>
                 {hasBadge || hasAvatar ? (
-                  <div className="absolute right-2 top-2 z-10 flex items-center justify-end gap-1.5">
+                  <div className="moni-kanban-card-badges">
                     {arquivado ? (
-                      <span
-                        className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                        style={{
-                          background: 'var(--moni-status-archived-bg)',
-                          color: 'var(--moni-status-archived-text)',
-                          border: '0.5px solid var(--moni-status-archived-border)',
-                        }}
-                      >
+                      <span className="moni-kanban-card-status-badge moni-kanban-card-status-badge--archived">
                         ARQUIVADO
                       </span>
                     ) : concluido ? (
-                      <span
-                        className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                        style={{
-                          background: 'var(--moni-green-50)',
-                          color: 'var(--moni-green-800)',
-                          border: '0.5px solid var(--moni-green-400)',
-                        }}
-                      >
+                      <span className="moni-kanban-card-status-badge moni-kanban-card-status-badge--done">
                         CONCLUÍDO
                       </span>
                     ) : null}
                     <ResponsavelFaseAvatar nome={card.responsavel_fase_nome} />
                   </div>
                 ) : null}
-                <p className={`line-clamp-2 text-sm font-medium text-stone-800 ${paddingTitulo}`}>{card.titulo}</p>
-                <KanbanParalelasChips chips={chipsParalelas} compact />
-                {arquivado && motivo ? (
-                  <p className="mt-1 line-clamp-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                    {motivo}
-                  </p>
-                ) : null}
-                {card.subtitulo ? (
-                  <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.subtitulo}</p>
-                ) : card.profiles?.full_name ? (
-                  <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
-                ) : null}
-                <KanbanCardBoardTags tags={card.tagsCard} className="mt-1.5" />
-                {!arquivado && !concluido && aguardandoDoc ? (
-                  <span className={`mt-1 inline-block ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>
-                    {TAG_AGUARDANDO_DOCUMENTACAO}
-                  </span>
-                ) : null}
-                {!arquivado && !concluido && !aguardandoDoc ? (
-                  <KanbanCardPrazoIndicadores
-                    sla={sla}
-                    dataReuniao={card.data_reuniao}
-                    dataFollowup={card.data_followup}
-                  />
-                ) : null}
+                <button
+                  type="button"
+                  onClick={() => abrirCard(card)}
+                  className={`moni-kanban-card-open ${dndAtivo ? 'moni-kanban-card-open--dnd' : ''}`}
+                >
+                  <p className={`moni-kanban-card-title ${paddingTitulo}`}>{card.titulo}</p>
+                  {(() => {
+                    const fundingBadgeCls = fundingTipoBadgeClass(card.funding_tipo);
+                    return fundingBadgeCls ? (
+                      <span className={`mt-1 inline-block ${fundingBadgeCls}`}>{card.funding_tipo}</span>
+                    ) : null;
+                  })()}
+                  {subtituloCard ? (
+                    <p className="moni-kanban-card-subtitle">{subtituloCard}</p>
+                  ) : null}
+                  {arquivado && motivo ? (
+                    <p className="moni-kanban-card-section-value line-clamp-2">{motivo}</p>
+                  ) : null}
+                  <KanbanCardBoardTags tags={card.tagsCard} className="mt-1" />
+                  {!arquivado && !concluido && aguardandoDoc ? (
+                    <span className={`mt-1 inline-block ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>
+                      {TAG_AGUARDANDO_DOCUMENTACAO}
+                    </span>
+                  ) : null}
+                  {!arquivado && !concluido && !aguardandoDoc ? (
+                    <KanbanCardPrazoIndicadores
+                      sla={sla}
+                      dataReuniao={card.data_reuniao}
+                      dataFollowup={card.data_followup}
+                    />
+                  ) : null}
                 </button>
               </div>
             </div>
           );
         })}
         {cards.length === 0 ? (
-          <p className="py-6 text-center text-xs text-stone-400">
+          <p className="moni-kanban-column-empty">
             {listaVaziaPorFiltro ? 'Nenhum card com os filtros atuais' : 'Nenhum card'}
           </p>
+        ) : null}
+        {exibirAdicionarCard && novoCardHref ? (
+          <Link href={novoCardHref} className="moni-kanban-add-card">
+            + Adicionar card
+          </Link>
         ) : null}
       </div>
     </div>

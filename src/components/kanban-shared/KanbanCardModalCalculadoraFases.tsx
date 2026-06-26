@@ -1,11 +1,16 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, Pencil } from 'lucide-react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
   CALCULADORA_STATUS_LABEL,
   calcularResumoExecutivoCalculadoraFases,
+  calculadoraHojeYmd,
+  type CalculadoraResumoExecutivo,
+  faseUltrapassouSlaCalculadora,
+  labelSufixoDataCalculadora,
+  labelSufixoDataCalculadoraFase,
   type CalculadoraFaseLinha,
   type CalculadoraStatusGeral,
   type FaseTimelineStatus,
@@ -20,10 +25,19 @@ import {
 } from '@/lib/kanban/calculadora-fases-marcos';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import type { KanbanFase } from '@/components/kanban-shared/types';
+import type { NegociacaoLinha } from '@/lib/kanban/negociacao-linhas';
+import {
+  resolverNegociacaoLinhasCalculadora,
+  inserirNegociacaoNaTimeline,
+  type NegociacaoLinhaCalculadora,
+} from '@/lib/kanban/calculadora-negociacao';
+import { fmtMoedaKanban } from '@/lib/kanban/kanban-card-modal-detalhes';
 import { useCalculadoraShareLink } from '@/hooks/useCalculadoraShareLink';
 
 type Props = {
   linhas: CalculadoraFaseLinha[];
+  /** Resumo pré-calculado (sync group) — evita recalcular com contexto local do card. */
+  resumo?: CalculadoraResumoExecutivo;
   faseAtualId: string | null;
   cardConcluido?: boolean;
   visits?: FaseVisit[];
@@ -36,6 +50,16 @@ type Props = {
   cardId?: string;
   /** Leitura pública via token — oculta ações internas. */
   modoPublico?: boolean;
+  /** Admin/team — habilita edição manual de datas. */
+  podeEditarDatas?: boolean;
+  /** Persiste override manual (início ou fim) para uma fase. */
+  onSalvarData?: (
+    faseId: string,
+    campo: 'inicio' | 'fim',
+    valor: string | null,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  /** Linhas de negociação — intercaladas na timeline como condições. */
+  negociacaoLinhas?: NegociacaoLinha[];
 };
 
 function fmtData(iso: string | null): string {
@@ -105,11 +129,59 @@ function statusBadgeClass(status: FaseTimelineStatus): string {
   return `${base} moni-calc-badge-fut`;
 }
 
+/** Marcos: status sempre texto simples (sem pill), com cor de atraso quando aplicável. */
+function marcoStatusBadgeClass(status: FaseTimelineStatus): string {
+  const base = 'moni-calculadora-fase-status';
+  if (status === 'concluida' || status === 'concluida_atraso') {
+    return `${base} moni-calc-badge-pass`;
+  }
+  if (status === 'atual_atrasada') {
+    return `${base} moni-calc-badge-atraso-text`;
+  }
+  if (status === 'atual') return `${base} moni-calc-badge-pass`;
+  return `${base} moni-calc-badge-fut`;
+}
+
+function CalculadoraStatusLabel({
+  status,
+  atrasado,
+}: {
+  status: FaseTimelineStatus;
+  atrasado?: boolean;
+}) {
+  if (status === 'atual_atrasada') {
+    return (
+      <>
+        <span className="moni-calc-status-stacked-line">Em andamento</span>
+        <span className="moni-calc-status-stacked-sub">(atrasado)</span>
+      </>
+    );
+  }
+  if (status === 'concluida_atraso') {
+    return (
+      <>
+        <span className="moni-calc-status-stacked-line">Concluída</span>
+        <span className="moni-calc-status-stacked-sub">(atrasado)</span>
+      </>
+    );
+  }
+  if (status === 'futura' && atrasado) {
+    return (
+      <>
+        <span className="moni-calc-status-stacked-line">Futura</span>
+        <span className="moni-calc-status-stacked-sub">(atrasado)</span>
+      </>
+    );
+  }
+  return <>{CALCULADORA_STATUS_LABEL[status]}</>;
+}
+
 function prazoPillClass(atrasada: boolean): string {
   return `moni-calc-prazo-pill${atrasada ? ' at' : ' undef'}`;
 }
 
-function funilEsteiraKind(label: string): 'stepone' | 'portfolio' | 'operacoes' {
+function funilEsteiraKind(label: string): 'stepone' | 'portfolio' | 'operacoes' | 'negociacao' {
+  if (/negocia/i.test(label)) return 'negociacao';
   if (/step\s*one|stepone/i.test(label)) return 'stepone';
   if (/portf[oó]lio/i.test(label)) return 'portfolio';
   return 'operacoes';
@@ -133,7 +205,7 @@ function CalculadoraResumoExecutivo({
   resumo,
   linhaAtual,
 }: {
-  resumo: ReturnType<typeof calcularResumoExecutivoCalculadoraFases>;
+  resumo: CalculadoraResumoExecutivo;
   linhaAtual: CalculadoraFaseLinha | undefined;
 }) {
   const atrasada = resumo.statusGeral === 'atrasado';
@@ -143,9 +215,17 @@ function CalculadoraResumoExecutivo({
   return (
     <div className="moni-calculadora-resumo">
       <div className="moni-calculadora-resumo-top">
-        <p className="moni-calculadora-resumo-fase truncate" title={resumo.faseAtualNome ?? undefined}>
-          {resumo.faseAtualNome ?? '—'}
-        </p>
+        <div className="moni-calculadora-resumo-headline">
+          <p className="moni-calculadora-resumo-fase truncate" title={resumo.faseAtualNome ?? undefined}>
+            {resumo.faseAtualNome ?? '—'}
+          </p>
+          <span
+            className="moni-calculadora-resumo-meta truncate"
+            title={`${funilLabel} · ${slaLabel}`}
+          >
+            {funilLabel} · {slaLabel}
+          </span>
+        </div>
         <div className="moni-calculadora-resumo-badges">
           {resumo.dadosParciais ? (
             <span className="moni-calculadora-badge-parcial">⚠ Dados parciais</span>
@@ -158,9 +238,6 @@ function CalculadoraResumoExecutivo({
           </span>
         </div>
       </div>
-      <p className="moni-calculadora-resumo-meta truncate">
-        {funilLabel} · {slaLabel}
-      </p>
 
       <div className="moni-calculadora-resumo-progress-row">
         <div className="moni-calc-prog-track min-w-0 flex-1">
@@ -212,21 +289,317 @@ function marcoDisplayLabel(marco: CalculadoraMarco): string {
   return marco.label;
 }
 
-function CalculadoraMarcoSep({ marco }: { marco: CalculadoraMarco }) {
+function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   const id = marco.id as CalculadoraMarcoId;
-  const dataFmt = marco.data ? fmtData(marco.data) : null;
+  const somenteRotulo = marco.somenteRotulo === true;
+
+  if (somenteRotulo) {
+    const dataLimite =
+      marco.dataFimReal ?? marco.dataFimEstimada ?? marco.dataFim ?? marco.data;
+    const limiteLabel = labelSufixoDataCalculadora(
+      Boolean(marco.dataFimReal || marco.limiteContratoReal),
+    );
+    const exibirData = Boolean(dataLimite) || marco.isPrevisto;
+
+    return (
+      <div
+        className={`moni-calculadora-marco-row moni-calculadora-marco-row--${id} moni-calculadora-marco-row--somente-rotulo${exibirData ? ' moni-calculadora-marco-row--somente-rotulo-com-limite' : ''}`}
+        role="separator"
+      >
+        <div className="moni-calculadora-marco-col min-w-0">
+          <div className="moni-calculadora-marco-label-wrap">
+            <span className={`moni-calculadora-marco-dot moni-calculadora-marco-dot--${id}`} aria-hidden />
+            <span
+              className={`moni-calculadora-marco-label moni-calculadora-marco-label--${id}`}
+              title={marcoDisplayLabel(marco)}
+            >
+              {marcoDisplayLabel(marco)}
+            </span>
+            <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
+          </div>
+        </div>
+
+        {exibirData ? (
+          <>
+            <div aria-hidden />
+            <div aria-hidden />
+            <div className="moni-calculadora-fase-data-cell">
+              <span
+                className={`moni-calculadora-fase-data fd-val${!dataLimite ? ' fd-val--empty' : ''}`}
+              >
+                {fmtData(dataLimite)}
+              </span>
+              <span className="moni-calculadora-fase-data-label">{limiteLabel}</span>
+            </div>
+            <div aria-hidden />
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
+  const limiteContrato = marco.dataLimiteContrato;
+  const isM4ComLimite = id === 'M4' && Boolean(limiteContrato);
+  const inicio = isM4ComLimite
+    ? limiteContrato!
+    : marco.dataInicioReal ?? marco.dataInicio;
+  const fim =
+    marco.dataFimReal ??
+    marco.dataFimEstimada ??
+    marco.dataFim ??
+    marco.data;
+  const inicioLabel = isM4ComLimite
+    ? marco.limiteContratoReal
+      ? 'real'
+      : 'est. · limite'
+    : labelSufixoDataCalculadora(Boolean(marco.dataInicioReal));
+  const fimLabel = labelSufixoDataCalculadora(Boolean(marco.dataFimReal));
+  const fimAtraso =
+    marco.status === 'atual_atrasada' ||
+    (marco.status === 'concluida_atraso' && Boolean(marco.dataFimReal));
+  const custo = String(marco.custo ?? '').trim();
+  const temCusto = custo.length > 0 && custo !== '—';
 
   return (
-    <div className={`moni-calc-marco-sep moni-calc-marco-sep--${id}`} role="separator">
-      <div className="moni-calc-marco-line" aria-hidden />
-      <div className={`moni-calc-marco-pill moni-calc-marco-pill--${id}`}>
-        <span className={`moni-calc-marco-dot moni-calc-marco-dot--${id}`} aria-hidden />
-        <span>{marcoDisplayLabel(marco)}</span>
-        {dataFmt ? <span className="moni-calc-marco-data">{dataFmt}</span> : null}
-        <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
+    <div className={`moni-calculadora-marco-row moni-calculadora-marco-row--${id}`} role="separator">
+      <div className="moni-calculadora-marco-col min-w-0">
+        <div className="moni-calculadora-marco-label-wrap">
+          <span className={`moni-calculadora-marco-dot moni-calculadora-marco-dot--${id}`} aria-hidden />
+          <span className={`moni-calculadora-marco-label moni-calculadora-marco-label--${id}`} title={marcoDisplayLabel(marco)}>
+            {marcoDisplayLabel(marco)}
+          </span>
+          <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
+        </div>
       </div>
-      <div className="moni-calc-marco-line" aria-hidden />
+
+      <div aria-hidden />
+
+      <div className="moni-calculadora-fase-data-cell">
+        <span className={`moni-calculadora-fase-data fd-val${!inicio ? ' fd-val--empty' : ''}`}>
+          {fmtData(inicio)}
+        </span>
+        <span className="moni-calculadora-fase-data-label">{inicioLabel}</span>
+      </div>
+
+      <div className="moni-calculadora-fase-data-cell">
+        <span
+          className={`moni-calculadora-fase-data fd-val${fimAtraso ? ' fd-val--atraso' : ''}${!fim ? ' fd-val--empty' : ''}`}
+        >
+          {fmtData(fim)}
+        </span>
+        <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
+      </div>
+
+      <div className="moni-calculadora-fase-status-col">
+        {marco.status ? (
+          <span className={marcoStatusBadgeClass(marco.status)}>
+            <CalculadoraStatusLabel status={marco.status} />
+          </span>
+        ) : null}
+      </div>
+
+      {temCusto ? (
+        <div className="moni-calc-fcusto-block" title={custo}>
+          <span className="moni-calc-fcusto-label">Custo</span>
+          <ul className="moni-calc-fcusto-list">
+            {custo.split(' · ').map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function CalculadoraNegociacaoRow({ negociacao }: { negociacao: NegociacaoLinhaCalculadora }) {
+  const titulo = negociacao.condicao.trim() || '—';
+  const fim = negociacao.dataPagamentoResolvida;
+  const fimLabel = labelSufixoDataCalculadora(!negociacao.dataPagamentoPrevista);
+  const valorFmt = fmtMoedaKanban(negociacao.valor);
+  const status = negociacao.status;
+
+  return (
+    <div
+      className={`moni-calculadora-fase-row moni-calculadora-fase-row--no-expand moni-calculadora-negociacao-row ${statusRowClass(status)}`}
+    >
+      <div className="moni-calculadora-fase-col min-w-0">
+        <div className="moni-calculadora-fase-nome-wrap">
+          <span className="moni-calculadora-fase-nome fn" title={titulo}>
+            {titulo}
+          </span>
+          <span className="moni-calculadora-negociacao-badge">Negociação</span>
+        </div>
+        {valorFmt ? (
+          <div className="moni-calculadora-fase-sla-wrap">
+            <div className="moni-calculadora-fase-sla fsla">{valorFmt}</div>
+          </div>
+        ) : null}
+      </div>
+
+      <div aria-hidden />
+
+      <div aria-hidden />
+
+      <div className="moni-calculadora-fase-data-cell">
+        <span className={`moni-calculadora-fase-data fd-val${!fim ? ' fd-val--empty' : ''}`}>
+          {fmtData(fim)}
+        </span>
+        <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
+      </div>
+
+      <div className="moni-calculadora-fase-status-col">
+        <span className={statusBadgeClass(status)}>
+          <CalculadoraStatusLabel status={status} />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function fmtDataInput(iso: string | null): string {
+  if (!iso) return '';
+  const head = String(iso).trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : '';
+}
+
+function CalculadoraFaseDataCell({
+  faseId,
+  campo,
+  valor,
+  label,
+  atraso,
+  editando,
+  onSalvarData,
+}: {
+  faseId: string;
+  campo: 'inicio' | 'fim';
+  valor: string | null;
+  label: string;
+  atraso?: boolean;
+  editando: boolean;
+  onSalvarData?: Props['onSalvarData'];
+}) {
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const valorInput = fmtDataInput(valor);
+
+  const stop = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  };
+
+  if (!editando || !onSalvarData) {
+    return (
+      <div className="moni-calculadora-fase-data-cell">
+        <span
+          className={`moni-calculadora-fase-data fd-val${atraso ? ' fd-val--atraso' : ''}${!valor ? ' fd-val--empty' : ''}`}
+          title={valor ? fmtData(valor) : undefined}
+        >
+          {fmtData(valor)}
+        </span>
+        <span className="moni-calculadora-fase-data-label">{label}</span>
+      </div>
+    );
+  }
+
+  const salvar = async (next: string | null) => {
+    if (next === valorInput) return;
+    setErro(null);
+    setSalvando(true);
+    try {
+      const result = await onSalvarData(faseId, campo, next);
+      if (!result.ok) {
+        setErro(result.error ?? 'Não foi possível salvar a data.');
+      }
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div className="moni-calculadora-fase-data-cell moni-calculadora-fase-data-cell--edit" onClick={stop} onKeyDown={stop}>
+      <input
+        type="date"
+        className={`moni-calculadora-fase-data-input${atraso ? ' moni-calculadora-fase-data-input--atraso' : ''}${salvando ? ' moni-calculadora-fase-data-input--saving' : ''}${erro ? ' moni-calculadora-fase-data-input--erro' : ''}`}
+        defaultValue={valorInput}
+        key={`${faseId}-${campo}-${valorInput}`}
+        disabled={salvando}
+        aria-label={`${campo === 'inicio' ? 'Início' : 'Fim'} — ${label}`}
+        aria-invalid={erro ? true : undefined}
+        onClick={stop}
+        onChange={(e) => {
+          void salvar(e.target.value.trim() || null);
+        }}
+      />
+      <span className="moni-calculadora-fase-data-label">{erro ?? label}</span>
+    </div>
+  );
+}
+
+function CalculadoraFaseStatusCell({
+  row,
+  editandoDatas,
+  ordemAtual,
+  onSalvarData,
+}: {
+  row: CalculadoraFaseLinha;
+  editandoDatas: boolean;
+  ordemAtual: number;
+  onSalvarData?: Props['onSalvarData'];
+}) {
+  const editavel =
+    editandoDatas &&
+    onSalvarData &&
+    (row.status === 'futura' ||
+      ((row.status === 'concluida' || row.status === 'concluida_atraso') &&
+        row.ordem > ordemAtual &&
+        Boolean(row.dataFimReal)));
+
+  const [salvando, setSalvando] = useState(false);
+
+  if (!editavel) {
+    const atrasado = faseUltrapassouSlaCalculadora(
+      row.status,
+      row.dataFimEstimada,
+      row.dataFimReal,
+      calculadoraHojeYmd(),
+    );
+    return (
+      <span className={statusBadgeClass(row.status)}>
+        <CalculadoraStatusLabel status={row.status} atrasado={atrasado} />
+      </span>
+    );
+  }
+
+  const selectValue = row.status === 'futura' ? 'futura' : 'concluida';
+
+  return (
+    <select
+      className="moni-calculadora-fase-status-select"
+      value={selectValue}
+      disabled={salvando}
+      aria-label={`Status — ${row.faseNome}`}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => {
+        void (async () => {
+          const next = e.target.value;
+          if (!onSalvarData) return;
+          setSalvando(true);
+          try {
+            if (next === 'concluida') {
+              await onSalvarData(row.faseId, 'fim', calculadoraHojeYmd());
+            } else {
+              await onSalvarData(row.faseId, 'fim', null);
+            }
+          } finally {
+            setSalvando(false);
+          }
+        })();
+      }}
+    >
+      <option value="futura">Futura</option>
+      <option value="concluida">Concluída</option>
+    </select>
   );
 }
 
@@ -235,25 +608,36 @@ function CalculadoraFaseRow({
   faseMeta,
   expanded,
   onToggle,
+  editandoDatas,
+  ordemAtual,
+  onSalvarData,
 }: {
   row: CalculadoraFaseLinha;
   faseMeta: KanbanFase | undefined;
   expanded: boolean;
   onToggle: () => void;
+  editandoDatas: boolean;
+  ordemAtual: number;
+  onSalvarData?: Props['onSalvarData'];
 }) {
   const steps = parseFaseSteps(faseMeta);
   const custo = String(row.custo ?? '').trim();
   const temCusto = custo.length > 0 && custo !== '—';
   const hasExpand = steps.length > 0;
   const isGargalo = row.atrasoDias !== null && row.atrasoDias > 0;
+  const hoje = calculadoraHojeYmd();
+  const inicioData = row.dataInicioReal;
   const fimData = row.dataFimReal ?? row.dataFimEstimada;
-  const fimLabel = row.dataFimReal ? 'real' : 'est.';
-  const inicioLabel = row.status === 'futura' ? 'prev.' : 'início';
+  const inicioLabel = labelSufixoDataCalculadoraFase(row.status, 'inicio', Boolean(row.dataInicioReal));
+  const fimLabel = labelSufixoDataCalculadoraFase(row.status, 'fim', Boolean(row.dataFimReal));
   const unidadeAtraso = row.slaTipo === 'corridos' ? 'd.c.' : 'd.u.';
 
-  const fimAtraso =
-    row.status === 'atual_atrasada' ||
-    (row.status === 'concluida_atraso' && row.atrasoDias !== null && row.atrasoDias > 0);
+  const fimAtraso = faseUltrapassouSlaCalculadora(
+    row.status,
+    row.dataFimEstimada,
+    row.dataFimReal,
+    hoje,
+  );
 
   return (
     <div
@@ -302,24 +686,32 @@ function CalculadoraFaseRow({
         </span>
       </div>
 
-      <div>
-        <span className="moni-calculadora-fase-data fd-val">{fmtData(row.dataInicioReal)}</span>
-        <span className="moni-calculadora-fase-data-label">{inicioLabel}</span>
-      </div>
+      <CalculadoraFaseDataCell
+        faseId={row.faseId}
+        campo="inicio"
+        valor={inicioData}
+        label={inicioLabel}
+        editando={editandoDatas}
+        onSalvarData={onSalvarData}
+      />
 
-      <div>
-        <span
-          className={`moni-calculadora-fase-data fd-val${fimAtraso ? ' fd-val--atraso' : ''}`}
-        >
-          {fmtData(fimData)}
-        </span>
-        <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
-      </div>
+      <CalculadoraFaseDataCell
+        faseId={row.faseId}
+        campo="fim"
+        valor={fimData}
+        label={fimLabel}
+        atraso={fimAtraso}
+        editando={editandoDatas}
+        onSalvarData={onSalvarData}
+      />
 
       <div className="moni-calculadora-fase-status-col">
-        <span className={statusBadgeClass(row.status)}>
-          {CALCULADORA_STATUS_LABEL[row.status]}
-        </span>
+        <CalculadoraFaseStatusCell
+          row={row}
+          editandoDatas={editandoDatas}
+          ordemAtual={ordemAtual}
+          onSalvarData={onSalvarData}
+        />
       </div>
 
       {temCusto ? (
@@ -346,6 +738,42 @@ function CalculadoraFaseRow({
   );
 }
 
+function isStatusConcluido(status: FaseTimelineStatus): boolean {
+  return status === 'concluida' || status === 'concluida_atraso';
+}
+
+/** Fases e marcos com status (ex. M0 Contrato) contam como etapas visíveis do funil. */
+function etapasVisiveisFunil(items: CalculadoraTimelineItem[]): CalculadoraTimelineItem[] {
+  return items.filter(
+    (i) =>
+      i.kind === 'fase' ||
+      (i.kind === 'marco' && !i.marco.somenteRotulo && i.marco.status != null),
+  );
+}
+
+function etapaVisivelConcluida(item: CalculadoraTimelineItem): boolean {
+  if (item.kind === 'fase') return isStatusConcluido(item.linha.status);
+  if (item.kind === 'negociacao') return isStatusConcluido(item.negociacao.status);
+  if (item.marco.somenteRotulo || item.marco.status == null) return true;
+  return isStatusConcluido(item.marco.status);
+}
+
+function funilTotalmenteConcluido(items: CalculadoraTimelineItem[]): boolean {
+  const etapasVisiveis = etapasVisiveisFunil(items);
+  if (etapasVisiveis.length === 0) return false;
+  return etapasVisiveis.every(etapaVisivelConcluida);
+}
+
+function collapsedFunisIniciais(
+  grupos: { label: string; items: CalculadoraTimelineItem[] }[],
+): Set<string> {
+  const out = new Set<string>();
+  for (const grupo of grupos) {
+    if (funilTotalmenteConcluido(grupo.items)) out.add(grupo.label);
+  }
+  return out;
+}
+
 function CalculadoraFunilGroup({
   label,
   items,
@@ -354,6 +782,9 @@ function CalculadoraFunilGroup({
   onToggle,
   expandedFases,
   onToggleFase,
+  editandoDatas,
+  ordemAtual,
+  onSalvarData,
 }: {
   label: string;
   items: CalculadoraTimelineItem[];
@@ -362,15 +793,15 @@ function CalculadoraFunilGroup({
   onToggle: () => void;
   expandedFases: Set<string>;
   onToggleFase: (faseId: string) => void;
+  editandoDatas: boolean;
+  ordemAtual: number;
+  onSalvarData?: Props['onSalvarData'];
 }) {
-  const faseItems = items.filter((i) => i.kind === 'fase');
-  const concluidas = faseItems.filter(
-    (i) =>
-      i.kind === 'fase' &&
-      (i.linha.status === 'concluida' || i.linha.status === 'concluida_atraso'),
-  ).length;
-
+  const etapasVisiveis = etapasVisiveisFunil(items);
+  const concluidas = etapasVisiveis.filter(etapaVisivelConcluida).length;
+  const condicoesNegociacao = items.filter((i) => i.kind === 'negociacao');
   const esteira = funilEsteiraKind(label);
+  const isFunilNegociacao = esteira === 'negociacao';
 
   return (
     <section
@@ -384,7 +815,9 @@ function CalculadoraFunilGroup({
         <span className={`moni-calculadora-funil-dot moni-calculadora-funil-dot--${esteira}`} aria-hidden />
         <span className="moni-calculadora-funil-title">{label.replace(/^Funil /i, '')}</span>
         <span className="moni-calculadora-funil-count">
-          {faseItems.length} fases · {concluidas} concluídas
+          {isFunilNegociacao && condicoesNegociacao.length > 0
+            ? `${condicoesNegociacao.length} condição${condicoesNegociacao.length === 1 ? '' : 'ões'}`
+            : `${etapasVisiveis.length} fases · ${concluidas} concluídas`}
         </span>
         <span className="moni-calculadora-funil-chev" aria-hidden>
           <ChevronDown size={14} strokeWidth={2} />
@@ -399,19 +832,36 @@ function CalculadoraFunilGroup({
           <span>Fim</span>
           <span>Status</span>
         </div>
-        {items.map((item) =>
-          item.kind === 'marco' ? (
-            <CalculadoraMarcoSep key={`marco-${item.marco.id}`} marco={item.marco} />
-          ) : (
+        {items.map((item) => {
+          if (item.kind === 'marco') {
+            return (
+              <CalculadoraMarcoRow
+                key={`marco-${item.marco.id}-${item.marco.dataFim ?? ''}`}
+                marco={item.marco}
+              />
+            );
+          }
+          if (item.kind === 'negociacao') {
+            return (
+              <CalculadoraNegociacaoRow
+                key={`negociacao-${item.index}-${item.negociacao.condicao}`}
+                negociacao={item.negociacao}
+              />
+            );
+          }
+          return (
             <CalculadoraFaseRow
               key={item.linha.faseId}
               row={item.linha}
               faseMeta={fasesMeta.get(item.linha.faseId)}
               expanded={expandedFases.has(item.linha.faseId)}
               onToggle={() => onToggleFase(item.linha.faseId)}
+              editandoDatas={editandoDatas}
+              ordemAtual={ordemAtual}
+              onSalvarData={onSalvarData}
             />
-          ),
-        )}
+          );
+        })}
       </div>
     </section>
   );
@@ -419,6 +869,7 @@ function CalculadoraFunilGroup({
 
 export function KanbanCardModalCalculadoraFases({
   linhas,
+  resumo: resumoProp,
   faseAtualId,
   cardConcluido,
   visits = [],
@@ -428,9 +879,14 @@ export function KanbanCardModalCalculadoraFases({
   variant = 'compact',
   cardId,
   modoPublico = false,
+  podeEditarDatas = false,
+  onSalvarData,
+  negociacaoLinhas = [],
 }: Props) {
   const [collapsedFunis, setCollapsedFunis] = useState<Set<string>>(new Set());
   const [expandedFases, setExpandedFases] = useState<Set<string>>(new Set());
+  const [editandoDatas, setEditandoDatas] = useState(false);
+  const cardInicializadoRef = useRef<string | null>(null);
   const { loading: shareLoading, copied: shareCopied, gerarECopiar } = useCalculadoraShareLink(
     cardId ?? '',
   );
@@ -441,21 +897,49 @@ export function KanbanCardModalCalculadoraFases({
   }, [fasesMeta, fases]);
 
   const resumo = useMemo(
-    () => calcularResumoExecutivoCalculadoraFases(linhas, { cardConcluido, visits }),
-    [linhas, cardConcluido, visits],
+    () =>
+      resumoProp ??
+      calcularResumoExecutivoCalculadoraFases(linhas, { cardConcluido, visits }),
+    [resumoProp, linhas, cardConcluido, visits],
   );
 
   const linhaAtual = useMemo(
-    () => linhas.find((l) => l.faseId === faseAtualId || l.status === 'atual' || l.status === 'atual_atrasada'),
+    () =>
+      linhas.find(
+        (l) =>
+          l.faseId === faseAtualId || l.status === 'atual' || l.status === 'atual_atrasada',
+      ),
     [linhas, faseAtualId],
   );
 
-  const timelineItems = useMemo(
-    () => montarTimelineCalculadoraComMarcos(linhas, fases, marcos ?? { visits }),
-    [linhas, fases, marcos, visits],
-  );
+  const ordemAtual = useMemo(() => {
+    const porId = linhas.find((l) => l.faseId === faseAtualId)?.ordem;
+    if (porId != null) return porId;
+    return (
+      linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada')?.ordem ??
+      Number.MAX_SAFE_INTEGER
+    );
+  }, [linhas, faseAtualId]);
+
+  const timelineItems = useMemo(() => {
+    const base = montarTimelineCalculadoraComMarcos(linhas, fases, marcos ?? { visits });
+    const resolvida = resolverNegociacaoLinhasCalculadora(negociacaoLinhas, linhas, base);
+    return inserirNegociacaoNaTimeline(base, resolvida);
+  }, [linhas, fases, marcos, visits, negociacaoLinhas]);
 
   const gruposFunil = useMemo(() => agruparTimelinePorFunil(timelineItems), [timelineItems]);
+
+  useEffect(() => {
+    const cid = cardId?.trim() ?? '';
+    const initKey = modoPublico ? '__publico__' : cid;
+    if (!initKey || gruposFunil.length === 0) return;
+    if (cardInicializadoRef.current === initKey) return;
+
+    cardInicializadoRef.current = initKey;
+    setCollapsedFunis(collapsedFunisIniciais(gruposFunil));
+    setExpandedFases(new Set());
+    setEditandoDatas(false);
+  }, [cardId, modoPublico, gruposFunil]);
 
   const toggleFunil = (label: string) => {
     setCollapsedFunis((prev) => {
@@ -483,28 +967,42 @@ export function KanbanCardModalCalculadoraFases({
     );
   }
 
+  const podeEditarDatasEfetivo = podeEditarDatas && !modoPublico && Boolean(onSalvarData);
+
   return (
-    <div className={variant === 'painel' ? 'flex h-full min-h-0 flex-col gap-2' : 'space-y-2'}>
+    <div
+      className={`${variant === 'painel' ? 'flex h-full min-h-0 flex-col gap-2' : 'space-y-2'}${modoPublico ? ' moni-calculadora--modo-publico' : ''}${editandoDatas ? ' moni-calculadora--modo-edicao-datas' : ''}`}
+    >
       {!modoPublico && cardId ? (
         <div className="moni-calculadora-section-header">
           <span className="moni-calculadora-section-title">Calculadora de fases</span>
-          <button
-            type="button"
-            onClick={() => void gerarECopiar()}
-            disabled={shareLoading}
-            className="moni-calculadora-share-btn"
-            aria-label="Copiar link público da calculadora"
-          >
-            {shareLoading ? '...' : shareCopied ? '✓ Copiado' : '⤴ Compartilhar'}
-          </button>
+          <div className="moni-calculadora-section-actions">
+            {podeEditarDatasEfetivo ? (
+              <button
+                type="button"
+                onClick={() => setEditandoDatas((v) => !v)}
+                className={`moni-calculadora-share-btn moni-calculadora-edit-datas-btn${editandoDatas ? ' moni-calculadora-edit-datas-btn--active' : ''}`}
+                aria-pressed={editandoDatas}
+                aria-label={editandoDatas ? 'Concluir edição de datas' : 'Editar datas manualmente'}
+              >
+                <Pencil size={11} strokeWidth={2} aria-hidden />
+                {editandoDatas ? 'Concluir' : 'Editar datas'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void gerarECopiar()}
+              disabled={shareLoading}
+              className="moni-calculadora-share-btn"
+              aria-label="Copiar link público da calculadora"
+            >
+              {shareLoading ? '...' : shareCopied ? '✓ Copiado' : '⤴ Compartilhar'}
+            </button>
+          </div>
         </div>
       ) : null}
 
       <CalculadoraResumoExecutivo resumo={resumo} linhaAtual={linhaAtual} />
-
-      <p className="moni-calculadora-footnote">
-        SLA em d.u. (dias úteis) e d.c. (dias corridos). Clique no funil para recolher.
-      </p>
 
       <div className={variant === 'painel' ? 'flex min-h-0 flex-1 flex-col' : undefined}>
         <div
@@ -525,6 +1023,9 @@ export function KanbanCardModalCalculadoraFases({
                 onToggle={() => toggleFunil(grupo.label)}
                 expandedFases={expandedFases}
                 onToggleFase={toggleFase}
+                editandoDatas={editandoDatas && podeEditarDatasEfetivo}
+                ordemAtual={ordemAtual}
+                onSalvarData={onSalvarData}
               />
             </div>
           ))}

@@ -34,10 +34,6 @@ if (process.env.SUPABASE_PROD_SERVICE_ROLE_KEY?.trim()) {
   process.env.SUPABASE_DEV_SERVICE_ROLE_KEY = prodKey;
 }
 
-const FASE_IDS = {
-  PORTFOLIO_PASSAGEM_WAYSER: '5f48a367-699b-4dc4-a310-377fc7d0ff88',
-};
-
 const BASTOES_ESPERADOS: Record<
   string,
   { kanbanId: string; faseSlug: string; kanbanNome: string }[]
@@ -80,7 +76,6 @@ const TESTS = [
     kanbanNome: 'Funil Portfólio',
     faseAnteriorSlug: 'step_7',
     faseGatilhoSlug: 'passagem_wayser',
-    completarChecklistPassagemWayser: true,
   },
   {
     id: 2,
@@ -145,22 +140,6 @@ async function pickFranqueadoId(db: ReturnType<typeof admin>) {
   if (error) throw new Error(error.message);
   if (!data?.id) throw new Error('Nenhum perfil admin/team');
   return data.id;
-}
-
-async function completarChecklistPassagemWayser(db: ReturnType<typeof admin>, cardId: string) {
-  const { data: itens, error } = await db
-    .from('kanban_fase_checklist_itens')
-    .select('id')
-    .eq('fase_id', FASE_IDS.PORTFOLIO_PASSAGEM_WAYSER)
-    .eq('obrigatorio', true);
-  if (error) throw new Error(error.message);
-  for (const item of itens ?? []) {
-    const { error: upErr } = await db.from('kanban_fase_checklist_respostas').upsert(
-      { card_id: cardId, item_id: item.id, valor: 'true' },
-      { onConflict: 'card_id,item_id' },
-    );
-    if (upErr) throw new Error(upErr.message);
-  }
 }
 
 async function verificarFilho(
@@ -242,11 +221,6 @@ async function runTest(
 
   const cardId = card.id;
   console.log(`  Card pai: ${cardId} (${test.kanbanNome}, ${faseInicial.slug} → ${faseGatilho.slug})`);
-
-  if (test.completarChecklistPassagemWayser) {
-    await completarChecklistPassagemWayser(db, cardId);
-    console.log('  Checklist passagem_wayser: OK');
-  }
 
   const { error: updErr } = await db
     .from('kanban_cards')

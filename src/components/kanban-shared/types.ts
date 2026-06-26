@@ -7,7 +7,8 @@ export type KanbanNomeDisplay =
   | 'Funil Portfólio'
   | 'Funil Acoplamento'
   | 'Funil Jurídico'
-  | 'Funil Moní Capital'
+  | 'Funil Divify'
+  | 'Funding'
   | 'Funil Contratações'
   | 'Funil Produto'
   | 'Funil Modelo Virtual'
@@ -17,7 +18,7 @@ export type KanbanNomeDisplay =
   | 'Funil Projetos Legais'
   | 'Funil Pré Obra e Obra'
   | 'Funil Contabilidade'
-  | 'Funil Crédito Obra';
+  | 'Funil Cash Me';
 
 export type KanbanFaseMaterialTipo = 'link' | 'documento' | 'video';
 
@@ -90,9 +91,19 @@ export type KanbanCardBrief = {
   tem_filho_acoplamento?: boolean;
   /** Portfolio: filho Acoplamento arquivado (sem filho ativo). */
   filho_acoplamento_arquivado?: boolean;
+  /** Portfolio: existe card filho no Funil Pré Obra e Obra. */
+  tem_filho_operacoes?: boolean;
+  /** Portfolio: filho Pré Obra e Obra arquivado (sem filho ativo). */
+  filho_operacoes_arquivado?: boolean;
+  /** Portfolio: rótulo da fase do filho em Pré Obra e Obra. */
+  operacoes_filho_fase_rotulo?: string | null;
+  /** Portfolio: filho Pré Obra e Obra concluído. */
+  operacoes_filho_concluido?: boolean;
+  /** Portfolio: fase atual do filho Jurídico. */
+  juridico_filho_fase_nome?: string | null;
   /** Ordem na coluna (menor = mais acima). Nativo: `kanban_cards.ordem_coluna`; legado: `processo_step_one.ordem_coluna_painel`. */
   ordem_coluna?: number | null;
-  /** Funil Crédito Obra — fase co_documentacao_alvara */
+  /** Funil Cash Me — fase co_documentacao_alvara */
   alvara_url?: string | null;
   docs_terreno_url?: string | null;
   /** Entrada na fase atual — base do SLA por fase (migration 213). */
@@ -102,6 +113,12 @@ export type KanbanCardBrief = {
   /** Responsável preenchido no checklist da fase atual (`responsavel_fase`). */
   responsavel_fase_id?: string | null;
   responsavel_fase_nome?: string | null;
+  /** Funil Funding */
+  funding_tipo?: 'Investidor' | 'Broker' | null;
+  funding_localizacao?: string | null;
+  funding_descritivo?: string | null;
+  funding_proxima_atividade?: string | null;
+  funding_prazo_atividade?: string | null;
 };
 
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */

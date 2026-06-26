@@ -12,11 +12,11 @@ export default async function CalculadoraPublicaPage({ params }: Props) {
 
   if (!pack) notFound();
 
-  const { card, linhas, fasesFlat, fasesMeta, marcos } = pack;
+  const { card, linhas, resumo, faseAtualIdCanonico, cardConcluidoCanonico, fasesFlat, fasesMeta, marcos, negociacaoLinhas } = pack;
 
   return (
     <div
-      className="min-h-screen"
+      className="moni-calculadora--modo-publico min-h-screen"
       style={{
         maxWidth: 760,
         margin: '0 auto',
@@ -52,11 +52,13 @@ export default async function CalculadoraPublicaPage({ params }: Props) {
 
       <KanbanCardModalCalculadoraFases
         linhas={linhas}
-        faseAtualId={card.fase_id}
-        cardConcluido={card.concluido}
+        resumo={resumo}
+        faseAtualId={faseAtualIdCanonico}
+        cardConcluido={cardConcluidoCanonico}
         fases={fasesFlat}
         fasesMeta={fasesMeta}
         marcos={marcos}
+        negociacaoLinhas={negociacaoLinhas}
         variant="painel"
         modoPublico
       />

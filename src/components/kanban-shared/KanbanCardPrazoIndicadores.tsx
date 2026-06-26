@@ -2,109 +2,67 @@
 
 import type { ReactNode } from 'react';
 import type { SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
-import { indicadorBolinhaSlaKanban } from '@/lib/kanban/kanban-card-sla';
+import { tagSlaKanbanParaExibicao } from '@/lib/kanban/kanban-card-sla';
 import type { IndicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
 import { formatDataPtBr, indicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
 
-type BolinhaProps = {
-  variante: 'atrasado' | 'atencao';
-  numero: number;
-  title: string;
-  /** Sigla opcional abaixo da bolinha (ex.: Fase, FU, R). */
-  sigla?: string;
+const TITULO_POR_TIPO: Record<IndicadorDataKanban['tipo'], string> = {
+  reuniao: 'Reunião',
+  followup: 'Follow-up',
 };
 
-export function KanbanPrazoBolinha({ variante, numero, title, sigla }: BolinhaProps) {
-  const atrasado = variante === 'atrasado';
-  const tooltipText = sigla ? `${sigla} — ${title}` : title;
+function classeTagSlaKanban(variante: 'ok' | 'atencao' | 'atrasado'): string {
+  if (variante === 'atrasado') return 'moni-kanban-card-sla moni-kanban-card-sla--atrasado';
+  if (variante === 'atencao') return 'moni-kanban-card-sla moni-kanban-card-sla--atencao';
+  return 'moni-kanban-card-sla moni-kanban-card-sla--ok';
+}
 
+/** Tag textual de SLA — padrão em todos os funis/kanbans. */
+export function KanbanSlaTag({
+  sla,
+  className = '',
+}: {
+  sla: SlaKanbanResult;
+  className?: string;
+}) {
+  const tag = tagSlaKanbanParaExibicao(sla);
+  if (!tag) return null;
   return (
-    <span className="group/bol relative inline-flex shrink-0 items-center justify-center">
-      <span
-        className="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-0.5 text-[8px] font-semibold tabular-nums leading-none"
-        style={{
-          background: atrasado ? 'var(--moni-status-overdue-bg)' : 'var(--moni-status-attention-bg)',
-          color: atrasado ? 'var(--moni-status-overdue-text)' : 'var(--moni-status-attention-text)',
-          border: atrasado
-            ? '0.5px solid var(--moni-status-overdue-border)'
-            : '0.5px solid var(--moni-status-attention-border)',
-        }}
-        title={tooltipText}
-        aria-label={tooltipText}
-      >
-        {numero}
-      </span>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute bottom-[calc(100%+5px)] left-1/2 z-30 w-max max-w-[220px] -translate-x-1/2 rounded-md px-2 py-1 text-center text-[10px] font-medium leading-snug opacity-0 transition-opacity duration-150 group-hover/bol:opacity-100"
-        style={{
-          background: 'var(--moni-navy-800)',
-          color: 'var(--moni-surface-0)',
-          border: '0.5px solid var(--moni-border-default)',
-        }}
-      >
-        {tooltipText}
-      </span>
+    <span className={`${classeTagSlaKanban(tag.variante)} ${className}`.trim()} title={tag.texto}>
+      <span className="moni-kanban-card-sla-dot" aria-hidden />
+      {tag.texto}
     </span>
   );
 }
 
-function estiloTextoDataVariante(variante: IndicadorDataKanban['variante']): React.CSSProperties {
-  if (variante === 'atrasado') {
-    return {
-      color: 'var(--moni-status-overdue-text)',
-      background: 'var(--moni-status-overdue-bg)',
-      border: '0.5px solid var(--moni-status-overdue-border)',
-    };
-  }
-  if (variante === 'atencao') {
-    return {
-      color: 'var(--moni-status-attention-text)',
-      background: 'var(--moni-status-attention-bg)',
-      border: '0.5px solid var(--moni-status-attention-border)',
-    };
-  }
-  return {
-    color: 'var(--moni-text-secondary)',
-    background: 'var(--moni-surface-100)',
-    border: '0.5px solid var(--moni-border-subtle)',
-  };
+function estiloTextoDataVariante(variante: IndicadorDataKanban['variante']): string {
+  if (variante === 'atrasado') return 'moni-kanban-card-sla moni-kanban-card-sla--atrasado';
+  if (variante === 'atencao') return 'moni-kanban-card-sla moni-kanban-card-sla--atencao';
+  return 'moni-kanban-card-sla moni-kanban-card-sla--ok';
 }
 
-/** Reunião sempre em texto — nunca bolinha (todos os funis/kanbans). */
-export function TextoReuniaoCard({ dataIso }: { dataIso: string }) {
-  const ind = indicadorDataKanban('reuniao', dataIso);
+/** Tag textual de data (reunião / follow-up) — mesmo tamanho das tags de SLA. */
+function TextoDataCard({ tipo, dataIso }: { tipo: IndicadorDataKanban['tipo']; dataIso: string }) {
+  const ind = indicadorDataKanban(tipo, dataIso);
   if (!ind) return null;
   const dataFmt = formatDataPtBr(dataIso);
-  const texto = `Reunião: ${dataFmt}`;
+  const texto = `${TITULO_POR_TIPO[tipo]}: ${dataFmt}`;
 
   return (
-    <span
-      className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium leading-tight"
-      style={estiloTextoDataVariante(ind.variante)}
-      title={ind.title}
-    >
+    <span className={estiloTextoDataVariante(ind.variante)} title={ind.title}>
+      <span className="moni-kanban-card-sla-dot" aria-hidden />
       {texto}
     </span>
   );
 }
 
-function ChipDataOk({ ind }: { ind: IndicadorDataKanban }) {
-  const sigla = 'FU';
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium"
-      style={{
-        color: 'var(--moni-text-secondary)',
-        background: 'var(--moni-surface-100)',
-        border: '0.5px solid var(--moni-border-subtle)',
-      }}
-      title={ind.title}
-    >
-      <span style={{ color: 'var(--moni-text-tertiary)' }}>{sigla}</span>
-      {ind.rotuloCurto}
-    </span>
-  );
+/** Reunião sempre em texto — nunca bolinha compacta (todos os funis/kanbans). */
+export function TextoReuniaoCard({ dataIso }: { dataIso: string }) {
+  return <TextoDataCard tipo="reuniao" dataIso={dataIso} />;
+}
+
+function TextoFollowupCard({ dataIso }: { dataIso: string }) {
+  return <TextoDataCard tipo="followup" dataIso={dataIso} />;
 }
 
 type IndicadoresProps = {
@@ -126,15 +84,9 @@ export function KanbanCardPrazoIndicadores({
   const itens: ReactNode[] = [];
 
   if (!ocultarSla) {
-    const slaBol = indicadorBolinhaSlaKanban(sla);
-    if (slaBol) {
-      itens.push(
-        <KanbanPrazoBolinha
-          key="sla"
-          {...slaBol}
-          sigla="SLA"
-        />,
-      );
+    const slaTag = tagSlaKanbanParaExibicao(sla);
+    if (slaTag) {
+      itens.push(<KanbanSlaTag key="sla" sla={sla} />);
     }
   }
 
@@ -142,47 +94,19 @@ export function KanbanCardPrazoIndicadores({
     itens.push(<TextoReuniaoCard key="reuniao" dataIso={dataReuniao} />);
   }
 
-  const followup = dataFollowup ? indicadorDataKanban('followup', dataFollowup) : null;
-  if (followup) {
-    if (followup.variante === 'atrasado' || followup.variante === 'atencao') {
-      itens.push(
-        <KanbanPrazoBolinha
-          key="followup"
-          variante={followup.variante}
-          numero={followup.numero}
-          title={followup.title}
-          sigla="FU"
-        />,
-      );
-    } else {
-      itens.push(<ChipDataOk key="followup" ind={followup} />);
-    }
+  if (dataFollowup && indicadorDataKanban('followup', dataFollowup)) {
+    itens.push(<TextoFollowupCard key="followup" dataIso={dataFollowup} />);
   }
 
   if (itens.length === 0) return null;
 
   return (
-    <div className={`mt-1.5 flex flex-wrap items-center gap-1 ${className}`.trim()}>{itens}</div>
+    <div className={`moni-kanban-card-indicators ${className}`.trim()}>{itens}</div>
   );
 }
 
 function renderIndicadorData(tipo: IndicadorDataKanban['tipo'], dataIso: string) {
-  if (tipo === 'reuniao') {
-    return <TextoReuniaoCard dataIso={dataIso} />;
-  }
-  const ind = indicadorDataKanban(tipo, dataIso);
-  if (!ind) return null;
-  if (ind.variante === 'atrasado' || ind.variante === 'atencao') {
-    return (
-      <KanbanPrazoBolinha
-        variante={ind.variante}
-        numero={ind.numero}
-        title={ind.title}
-        sigla="FU"
-      />
-    );
-  }
-  return <ChipDataOk ind={ind} />;
+  return <TextoDataCard tipo={tipo} dataIso={dataIso} />;
 }
 
 /** Indicador inline de reunião ou follow-up (modal, campos editáveis). */
@@ -196,19 +120,20 @@ export function KanbanDataIndicador({
   return renderIndicadorData(tipo, dataIso);
 }
 
-/** SLA isolado — útil em cards legados (Painel Step One, etc.). */
+/** SLA isolado — útil em cards legados (Painel Step One, modal, etc.). */
 export function KanbanCardSlaBolinha({
   sla,
   className = '',
 }: {
-  sla: Pick<SlaKanbanResult, 'status' | 'label' | 'diasAtraso' | 'diasRestantes'> & { pausado?: boolean };
+  sla: Pick<SlaKanbanResult, 'status' | 'label'> &
+    Partial<Pick<SlaKanbanResult, 'diasAtraso' | 'diasRestantes' | 'pausado' | 'slaTipo' | 'classe'>>;
   className?: string;
 }) {
-  const bol = indicadorBolinhaSlaKanban({ pausado: false, ...sla } as SlaKanbanResult);
-  if (!bol) return null;
+  const full: SlaKanbanResult = { pausado: false, classe: '', ...sla };
+  if (full.pausado) return null;
   return (
-    <div className={`mt-1.5 flex items-center gap-1 ${className}`.trim()}>
-      <KanbanPrazoBolinha {...bol} sigla="SLA" />
+    <div className={`moni-kanban-card-indicators ${className}`.trim()}>
+      <KanbanSlaTag sla={full} />
     </div>
   );
 }

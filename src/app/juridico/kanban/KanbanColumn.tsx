@@ -37,7 +37,10 @@ export function KanbanColumn({
 
   return (
     <div className="w-72 shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-      <div className="border-b border-stone-200 bg-stone-100 px-4 py-3">
+      <div
+        className="border-b border-stone-200 px-4 py-3"
+        style={{ background: 'var(--moni-kanban-col-hd)' }}
+      >
         <h2 className="font-semibold text-stone-800">{title}</h2>
         <p className="mt-0.5 text-xs text-stone-500">{tickets.length} ticket(s)</p>
       </div>

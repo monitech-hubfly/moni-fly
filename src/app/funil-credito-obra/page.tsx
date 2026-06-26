@@ -30,7 +30,7 @@ export default async function PainelCreditoPage({
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const snapshot = await fetchKanbanBoardSnapshot(supabase, 'Funil Crédito Obra', user.id);
+  const snapshot = await fetchKanbanBoardSnapshot(supabase, 'Funil Cash Me', user.id);
 
   const primeiro = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const modalOuProcessoAberto = Boolean(
@@ -48,7 +48,7 @@ export default async function PainelCreditoPage({
         basePath="/funil-credito-obra"
         isAdmin={snapshot.isAdmin}
         kanbanId={snapshot.kanban.id}
-        kanbanNome="Funil Crédito Obra"
+        kanbanNome="Funil Cash Me"
         fases={snapshot.fases}
         cardQueryParam="kanbanCard"
         enableNovoCardModal
@@ -77,7 +77,7 @@ export default async function PainelCreditoPage({
           ) : (
             <main className="mx-auto max-w-[1600px] px-6 py-8">
               <PainelPerformance
-                kanbanNome="Funil Crédito Obra"
+                kanbanNome="Funil Cash Me"
                 kanbanId={snapshot.kanban.id}
                 fases={snapshot.fases}
                 cards={snapshot.cards}

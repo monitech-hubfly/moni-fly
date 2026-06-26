@@ -19,10 +19,11 @@ import { validarMotivoArquivamento } from '@/lib/kanban/motivos-arquivamento';
 import type { PortfolioConfirmacaoFaseTipo } from '@/lib/kanban/portfolio-confirmacao-fase';
 import type { OperacoesConfirmacaoFaseTipo } from '@/lib/kanban/operacoes-confirmacao-fase';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
-import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
 import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
+import type { FundingTipo } from '@/lib/kanban/funding-card-fields';
 import {
   deveValidarGatePortfolioStep5,
   deveValidarGateLoteadoresComite,
@@ -64,7 +65,11 @@ import {
 } from '@/lib/kanban/chamados-validacao';
 import type { FaseChecklistItem } from './candidato-actions';
 import { fetchFaseChecklistItens } from '@/lib/kanban/fase-checklist-select';
-import { executarBastaoDeVolta, executarBastoes } from '@/lib/actions/kanban-bastoes';
+import {
+  executarBastaoDeVolta,
+  executarBastoes,
+  garantirBastaoPassagemWayser,
+} from '@/lib/actions/kanban-bastoes';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
 import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
@@ -1844,6 +1849,17 @@ export type CriarCardKanbanInput = {
   origemTipo?: 'hipotese_direta';
 };
 
+export type CriarCardFundingInput = {
+  fase_id: string;
+  basePath?: string;
+  funding_nome: string;
+  funding_tipo: FundingTipo;
+  funding_localizacao: string;
+  funding_descritivo?: string;
+  funding_proxima_atividade?: string;
+  funding_prazo_atividade?: string;
+};
+
 /** Card nativo no kanban (`franqueado_id` = utilizador autenticado). */
 export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResult> {
   const supabase = await createClient();
@@ -1962,6 +1978,79 @@ const KANBAN_CARD_STAFF_ROLES = new Set(['admin', 'team', 'consultor', 'supervis
 
 function isKanbanCardStaffRole(role: string | null | undefined): boolean {
   return KANBAN_CARD_STAFF_ROLES.has(String(role ?? '').trim());
+}
+
+/** Card manual no Funil Funding — staff only (página já restringe `?novo=true`). */
+export async function criarCardFunding(input: CriarCardFundingInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para criar o card.' };
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (!isKanbanCardStaffRole((profile as { role?: string } | null)?.role)) {
+    return { ok: false, error: 'Sem permissão para criar cards no Funding.' };
+  }
+
+  const titulo = String(input.funding_nome ?? '').trim();
+  if (!titulo) return { ok: false, error: 'Informe o nome.' };
+
+  const tipo = String(input.funding_tipo ?? '').trim();
+  if (tipo !== 'Investidor' && tipo !== 'Broker') {
+    return { ok: false, error: 'Selecione o tipo.' };
+  }
+
+  const localizacao = String(input.funding_localizacao ?? '').trim();
+  if (!localizacao) return { ok: false, error: 'Informe a localização.' };
+
+  const faseId = String(input.fase_id ?? '').trim();
+  if (!faseId) return { ok: false, error: 'Fase inválida.' };
+
+  const { data: faseRow, error: faseErr } = await supabase
+    .from('kanban_fases')
+    .select('id')
+    .eq('id', faseId)
+    .eq('kanban_id', KANBAN_IDS.FUNDING)
+    .eq('ativo', true)
+    .maybeSingle();
+  if (faseErr) return { ok: false, error: faseErr.message };
+  if (!faseRow) return { ok: false, error: 'Fase não pertence ao funil Funding.' };
+
+  const insertPayload: Record<string, unknown> = {
+    kanban_id: KANBAN_IDS.FUNDING,
+    fase_id: faseId,
+    franqueado_id: user.id,
+    titulo,
+    status: 'ativo',
+    funding_tipo: tipo,
+    funding_localizacao: localizacao,
+    funding_descritivo: String(input.funding_descritivo ?? '').trim() || null,
+    funding_proxima_atividade: String(input.funding_proxima_atividade ?? '').trim() || null,
+    funding_prazo_atividade: timestampCampoCalendarioIso(input.funding_prazo_atividade),
+  };
+
+  const { data: cardRow, error } = await supabase
+    .from('kanban_cards')
+    .insert(insertPayload as never)
+    .select('id')
+    .single();
+  if (error) return { ok: false, error: error.message };
+
+  const cardId = String((cardRow as { id: string }).id);
+  const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
+    await import('@/lib/kanban/responsavel-fase-checklist');
+  await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, KANBAN_IDS.FUNDING, user.id);
+  await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
+
+  const bp = String(input.basePath ?? '/funil-funding').trim() || '/funil-funding';
+  revalidatePath(bp);
+  revalidatePath('/');
+  return { ok: true };
 }
 
 /** Card manual no Funil Step One — cria `kanban_cards` + `processo_step_one` vinculado. */
@@ -4015,6 +4104,77 @@ export async function salvarDadosPreObraOperacoes(
   return { ok: true };
 }
 
+export type SalvarDadosFundingInput = {
+  cardId: string;
+  funding_nome?: string | null;
+  funding_tipo?: FundingTipo | '' | null;
+  funding_localizacao?: string | null;
+  funding_descritivo?: string | null;
+  funding_proxima_atividade?: string | null;
+  funding_prazo_atividade?: string | null;
+  basePath?: string;
+};
+
+/** Salva campos específicos do Funil Funding em `kanban_cards`. */
+export async function salvarDadosFunding(input: SalvarDadosFundingInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.FUNDING) {
+    return { ok: false, error: 'Campos Funding aplicáveis apenas ao funil Funding.' };
+  }
+
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (input.funding_nome !== undefined) {
+    const nome = String(input.funding_nome ?? '').trim();
+    if (!nome) return { ok: false, error: 'Informe o nome.' };
+    update.titulo = nome;
+  }
+  if (input.funding_tipo !== undefined) {
+    const t = String(input.funding_tipo ?? '').trim();
+    if (t !== '' && t !== 'Investidor' && t !== 'Broker') {
+      return { ok: false, error: 'Tipo inválido.' };
+    }
+    update.funding_tipo = t === '' ? null : t;
+  }
+  if (input.funding_localizacao !== undefined) {
+    const v = String(input.funding_localizacao ?? '').trim();
+    update.funding_localizacao = v === '' ? null : v;
+  }
+  if (input.funding_descritivo !== undefined) {
+    const v = String(input.funding_descritivo ?? '').trim();
+    update.funding_descritivo = v === '' ? null : v;
+  }
+  if (input.funding_proxima_atividade !== undefined) {
+    const v = String(input.funding_proxima_atividade ?? '').trim();
+    update.funding_proxima_atividade = v === '' ? null : v;
+  }
+  if (input.funding_prazo_atividade !== undefined) {
+    update.funding_prazo_atividade = timestampCampoCalendarioIso(input.funding_prazo_atividade);
+  }
+
+  const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
 export async function registrarConfirmacaoFaseOperacoes(input: {
   cardId: string;
   tipo: OperacoesConfirmacaoFaseTipo;
@@ -4759,6 +4919,11 @@ export async function upsertFaseChecklistResposta(input: {
     { onConflict: 'item_id,card_id' },
   );
   if (error) return { ok: false, error: error.message };
+
+  const faseIdItem = String((itemRow as { fase_id?: string | null } | null)?.fase_id ?? '').trim();
+  if (faseIdItem === FASE_IDS.PORTFOLIO_PASSAGEM_WAYSER) {
+    void garantirBastaoPassagemWayser(input.card_id);
+  }
 
   const campoSlug = String((itemRow as { campo_slug?: string | null } | null)?.campo_slug ?? '').trim();
   if (campoSlug && ['preco_atratividade', 'produto_atratividade', 'showroom_interesse', 'linhas_receita'].includes(campoSlug)) {

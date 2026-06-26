@@ -97,12 +97,12 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
     <div className="space-y-2">
       {filhoId ? (
         <p className="text-[10px] leading-snug text-stone-500">
-          Card Crédito Obra vinculado · fase atual:{' '}
+          Card Cash Me vinculado · fase atual:{' '}
           <span className="font-medium text-stone-700">{filhoFase ?? '—'}</span>
         </p>
       ) : (
         <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-900">
-          Nenhum card filho no Funil Crédito Obra. Abra a esteira antes de concluir vínculos.
+          Nenhum card filho no Funil Cash Me. Abra a esteira antes de concluir vínculos.
         </p>
       )}
       <ul className="space-y-1">
@@ -236,7 +236,7 @@ export function KanbanCardModalOperacoesTrancheVinculoForm({
 
   async function handleConcluir() {
     if (!cfg) return;
-    if (!confirm(`Concluir "${cfg.nome}" e mover o card Crédito Obra para "${cfg.faseDestinoLabel}"?`)) {
+    if (!confirm(`Concluir "${cfg.nome}" e mover o card Cash Me para "${cfg.faseDestinoLabel}"?`)) {
       return;
     }
     setErro(null);
@@ -256,7 +256,7 @@ export function KanbanCardModalOperacoesTrancheVinculoForm({
         return;
       }
       setConcluidoEm(new Date().toISOString());
-      setOkMsg(`Vínculo concluído. Card Crédito Obra movido para "${cfg.faseDestinoLabel}".`);
+      setOkMsg(`Vínculo concluído. Card Cash Me movido para "${cfg.faseDestinoLabel}".`);
       onConcluido();
     } finally {
       setConcluindo(false);
@@ -277,12 +277,12 @@ export function KanbanCardModalOperacoesTrancheVinculoForm({
       <div>
         <h4 className="text-sm font-semibold text-stone-900">{cfg.nome}</h4>
         <p className="mt-1 text-xs text-stone-600">
-          Ao concluir, o card filho no Funil Crédito Obra será movido para{' '}
+          Ao concluir, o card filho no Funil Cash Me será movido para{' '}
           <strong className="font-medium">{cfg.faseDestinoLabel}</strong>.
         </p>
         {filhoFaseNome ? (
           <p className="mt-1 text-[11px] text-stone-500">
-            Fase atual do Crédito Obra: <span className="font-medium text-stone-700">{filhoFaseNome}</span>
+            Fase atual do Cash Me: <span className="font-medium text-stone-700">{filhoFaseNome}</span>
           </p>
         ) : null}
         {concluidoEm ? (

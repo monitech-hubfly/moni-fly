@@ -15,6 +15,7 @@
   -------------------------------------------------- */
 
   /* Verde Naval */
+  --moni-navy-25:  #f4f7f8;   /* entre branco e navy-50 — fundos sutis */
   --moni-navy-50:  #e8eef1;
   --moni-navy-100: #c0d0d9;
   --moni-navy-200: #94afc0;
@@ -55,6 +56,10 @@
   --moni-surface-50:  #f9f7f4;   /* fundo da página */
   --moni-surface-100: #f2ede8;   /* cards em repouso */
   --moni-surface-200: #e8e2da;   /* hover / separadores */
+
+  /* Neutro — headers de coluna kanban */
+  --moni-neutral-100: #c8cac8;
+  --moni-neutral-200: #b4b6b4;
 
   /* Alias semântico (KPIs / painéis) */
   --color-background-secondary: var(--moni-surface-100);
@@ -191,6 +196,63 @@
   --moni-kanban-credito-light:  var(--moni-gold-50);
   --moni-kanban-credito-accent: var(--moni-gold-400);
 
+  /* Funding — badges tipo Investidor / Broker */
+  --moni-funding-investidor-bg:   #E6F1FB;
+  --moni-funding-investidor-text: #185FA5;
+  --moni-funding-investidor-border: #185FA5;
+  --moni-funding-broker-bg:       #FAEEDA;
+  --moni-funding-broker-text:     #854F0B;
+  --moni-funding-broker-border:   #854F0B;
+
+  /* Kanban board — paleta compartilhada (redesign 2026) */
+  --moni-kanban-board-bg:       #eceae6;
+  --moni-kanban-col-bg:         #e4e2de;
+  --moni-kanban-col-hd:         var(--moni-neutral-100);
+  --moni-kanban-col-hd-fin:     var(--moni-neutral-200);
+  --moni-kanban-col-accent:     var(--moni-green-800);
+  --moni-kanban-col-accent-fin: var(--moni-green-600);
+  --moni-kanban-lime:           #d4edaa;
+  --moni-kanban-lime-dim:       rgba(212, 237, 170, 0.6);
+  --moni-kanban-t1:             #191917;
+  --moni-kanban-t2:             #555550;
+  --moni-kanban-tm:             #9a9991;
+  --moni-kanban-bd:             rgba(0, 0, 0, 0.09);
+  --moni-kanban-bds:            rgba(0, 0, 0, 0.16);
+  --moni-kanban-card-hover-bd:  rgba(28, 58, 43, 0.3);
+  --moni-kanban-sla-ok-bg:      #eaf3de;
+  --moni-kanban-sla-ok-text:    #3b6d11;
+  --moni-kanban-sla-ok-border:  #639922;
+  --moni-kanban-sla-ok-dot:     #639922;
+  --moni-kanban-drawer-header:  var(--moni-green-50);
+  --moni-kanban-drawer-header-text: var(--moni-green-800);
+  --moni-kanban-drawer-header-muted: var(--moni-green-400);
+  --moni-kanban-drawer-header-border: var(--moni-green-400);
+  --moni-kanban-drawer-tabs-bg: var(--moni-green-50);
+  --moni-kanban-drawer-tab-text: var(--moni-green-400);
+  --moni-kanban-drawer-tab-text-hover: var(--moni-green-800);
+  --moni-kanban-drawer-tab-active-bg: var(--moni-surface-0);
+  --moni-kanban-drawer-tab-active-text: var(--moni-green-800);
+  --moni-kanban-drawer-tab-active-border: var(--moni-green-400);
+  --moni-kanban-drawer-footer:  #f4f3f0;
+
+  /* Bolinhas — vínculos paralelos no board */
+  --moni-paralela-tooltip-bg:       #1c3a2b;
+  --moni-paralela-fallback:           #888780;
+  --moni-paralela-acoplamento:        #1d9e75;
+  --moni-paralela-credito-terreno:    #378add;
+  --moni-paralela-credito-obra:       #185fa5;
+  --moni-paralela-contabilidade:      #7f77dd;
+  --moni-paralela-juridico:           #ba7517;
+  --moni-paralela-moni-capital:       #3b6d11;
+  --moni-paralela-projeto-legal:      #854f0b;
+  --moni-paralela-projetos-locais:    #d85a30;
+  --moni-paralela-projetos-legais:    #993c1d;
+  --moni-paralela-hdm-modelo:         #d4537e;
+  --moni-paralela-hdm-homolog:        #993556;
+  --moni-paralela-hdm-produto:        #888780;
+  --moni-paralela-portfolio:          #2f4a3a;
+  --moni-paralela-operacoes:          #365848;
+
   /* --------------------------------------------------
      REDE DE FRANQUEADOS — gráficos, mapa e filtros
      (mesma identidade que Painéis: Step One / verde médio Moní)
@@ -247,8 +309,8 @@
   --moni-card-width-kanban:   280px;   /* largura do card na coluna */
   --moni-card-width-min:      240px;
   --moni-card-modal-max:      1180px;  /* largura máx do modal de detalhe */
-  --moni-card-modal-acoes-width: 11.5rem; /* coluna direita (tags, fase, arquivar) */
-  --moni-column-width:        300px;   /* largura da coluna no board */
+  --moni-card-modal-acoes-width: 13rem; /* coluna direita (tags, fase, movimentação) */
+  --moni-column-width:        224px;   /* largura da coluna no board */
 
   /* Carômetro — layout de página e headlines */
   --carometro-page-bg: #f4f5f0;
@@ -303,61 +365,82 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 6px;
+  padding: 2px 8px;
   border-radius: var(--moni-radius-pill);
   font-size: var(--moni-text-tag-sla);
   line-height: 1.25;
   font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
   background: var(--moni-status-attention-bg);
   color: var(--moni-status-attention-text);
-  border: 0.5px solid var(--moni-status-attention-border);
+  border: var(--moni-border-width) solid var(--moni-status-attention-border);
 }
 
 .moni-tag-atrasado {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 6px;
+  padding: 2px 8px;
   border-radius: var(--moni-radius-pill);
   font-size: var(--moni-text-tag-sla);
   line-height: 1.25;
   font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
   background: var(--moni-status-overdue-bg);
   color: var(--moni-status-overdue-text);
-  border: 0.5px solid var(--moni-status-overdue-border);
+  border: var(--moni-border-width) solid var(--moni-status-overdue-border);
 }
 
 .moni-tag-concluido {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   padding: 2px 8px;
   border-radius: var(--moni-radius-pill);
-  font-size: var(--moni-text-xs);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
   font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
   background: var(--moni-status-done-bg);
   color: var(--moni-status-done-text);
-  border: 0.5px solid var(--moni-status-done-border);
+  border: var(--moni-border-width) solid var(--moni-status-done-border);
 }
 
 .moni-tag-arquivado {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   padding: 2px 8px;
   border-radius: var(--moni-radius-pill);
-  font-size: var(--moni-text-xs);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
   font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
   background: var(--moni-status-archived-bg);
   color: var(--moni-status-archived-text);
-  border: 0.5px solid var(--moni-status-archived-border);
+  border: var(--moni-border-width) solid var(--moni-status-archived-border);
+}
+
+.moni-tag-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-status-active-bg);
+  color: var(--moni-status-active-text);
+  border: var(--moni-border-width) solid var(--moni-status-active-border);
 }
 
 .moni-tag-especial {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 6px;
+  padding: 2px 8px;
   border-radius: var(--moni-radius-pill);
   font-size: var(--moni-text-tag-sla);
   line-height: 1.25;
@@ -365,7 +448,22 @@
   font-family: var(--moni-font-sans);
   background: var(--moni-gold-50);
   color: var(--moni-gold-800);
-  border: 0.5px solid var(--moni-gold-400);
+  border: var(--moni-border-width) solid var(--moni-gold-400);
+}
+
+/* Tag customizada (cor do cadastro) — contorno pill em todos os funis */
+.moni-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: var(--moni-weight-medium);
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 /* Calculadora Global de Fases — tokens e componentes */
@@ -454,6 +552,7 @@
   --moni-calc-custo-amber: var(--moni-text-secondary);
   --moni-calc-custo-text: var(--moni-text-secondary);
   --moni-calc-custo-label: var(--moni-text-tertiary);
+  --moni-calc-custo-bg: var(--moni-navy-25);
   --moni-calc-row-pass-bg: var(--moni-surface-100);
   --moni-calc-row-atu-border: var(--moni-border-strong);
   --moni-calc-row-atu-at-border: var(--moni-calc-at-border);
@@ -543,9 +642,18 @@
 
 .moni-calculadora-resumo-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+}
+
+.moni-calculadora-resumo-headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  flex: 1;
   min-width: 0;
 }
 
@@ -673,15 +781,16 @@
   font-weight: 600;
   color: var(--moni-navy-800);
   line-height: 1.25;
-  flex: 1;
   min-width: 0;
+  flex-shrink: 0;
 }
 
 .moni-calculadora-resumo-meta {
   font-size: 9px;
   color: var(--moni-text-tertiary);
   line-height: 1.25;
-  margin-top: 1px;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .moni-calculadora-resumo-progress-row {
@@ -772,6 +881,12 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--moni-calc-col-header);
+}
+
+.moni-calculadora-table-header span:nth-child(3),
+.moni-calculadora-table-header span:nth-child(4),
+.moni-calculadora-table-header span:nth-child(5) {
+  text-align: right;
 }
 
 .moni-calculadora-fase-row {
@@ -877,8 +992,51 @@
   min-width: 0;
   overflow: visible;
   display: flex;
-  justify-content: flex-end;
-  align-items: flex-start;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  width: 100%;
+}
+
+.moni-calculadora-fase-status-col .moni-calculadora-fase-status,
+.moni-calculadora-fase-status-col .moni-calc-badge-pass,
+.moni-calculadora-fase-status-col .moni-calc-badge-fut,
+.moni-calculadora-fase-status-col .moni-calc-badge-atu,
+.moni-calculadora-fase-status-col .moni-calc-badge-atu-at,
+.moni-calculadora-fase-status-col .moni-calc-badge-atraso-text {
+  align-self: flex-end;
+  text-align: right;
+}
+
+.moni-calculadora-fase-status-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 6px;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--moni-text-primary);
+  background: var(--moni-surface-50);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+  cursor: pointer;
+  text-align: right;
+  text-align-last: right;
+}
+
+.moni-calculadora-fase-status-select:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (min-width: 641px) {
+  .moni-calculadora-fase-status-select {
+    min-height: 0;
+    font-size: 9px;
+    padding: 3px 4px;
+  }
 }
 
 .moni-calc-fcusto-block {
@@ -891,7 +1049,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  background: var(--moni-surface-100);
+  background: var(--moni-calc-custo-bg);
   border: var(--moni-border-width) solid var(--moni-border-default);
   border-radius: var(--moni-radius-md);
 }
@@ -1074,6 +1232,130 @@
   line-height: 1.2;
 }
 
+.moni-calculadora-fase-data-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  text-align: right;
+  align-items: flex-end;
+}
+
+.moni-calculadora-fase-data-cell--edit {
+  align-items: stretch;
+}
+
+.moni-calculadora-fase-data-cell--edit .moni-calculadora-fase-data-input {
+  text-align: right;
+}
+
+.moni-calculadora-fase-data-cell .fd-val {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.moni-calculadora-fase-data-cell .fd-val--empty {
+  color: var(--moni-text-tertiary);
+}
+
+.moni-calculadora-fase-data-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 20px;
+  padding: 0 2px;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-calc-text-default);
+  background: var(--moni-surface-0, #fff);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-sm, 5px);
+  line-height: 1.2;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.moni-calculadora-fase-data-input::-webkit-calendar-picker-indicator {
+  width: 10px;
+  height: 10px;
+  margin: 0;
+  padding: 0;
+  opacity: 0.45;
+  cursor: pointer;
+}
+
+.moni-calculadora-fase-data-input:hover {
+  border-color: var(--moni-navy-800);
+}
+
+.moni-calculadora-fase-data-input:focus {
+  outline: none;
+  border-color: var(--moni-navy-800);
+  box-shadow: 0 0 0 1px var(--moni-navy-800);
+}
+
+.moni-calculadora-fase-data-input--atraso {
+  color: var(--moni-calc-fim-atraso);
+}
+
+.moni-calculadora-fase-data-input--saving {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.moni-calculadora-fase-data-input--erro {
+  border-color: var(--moni-calc-fim-atraso);
+  box-shadow: 0 0 0 1px var(--moni-calc-fim-atraso);
+}
+
+.moni-calculadora-edit-hint {
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  color: var(--moni-text-tertiary);
+  line-height: 1.35;
+}
+
+.moni-calculadora-section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.moni-calculadora-edit-datas-btn--active {
+  border-color: var(--moni-navy-800);
+  background: var(--moni-navy-800);
+  color: #fff;
+}
+
+.moni-calculadora-edit-datas-btn--active:hover:not(:disabled) {
+  background: var(--moni-navy-800);
+  opacity: 0.92;
+}
+
+.moni-calculadora--modo-edicao-datas .moni-calculadora-table-header,
+.moni-calculadora--modo-edicao-datas .moni-calculadora-fase-row,
+.moni-calculadora--modo-edicao-datas .moni-calculadora-marco-row {
+  grid-template-columns: minmax(0, 1fr) 72px 64px 72px 104px;
+}
+
+@media (max-width: 640px) {
+  .moni-calculadora-fase-data-input {
+    min-height: 44px;
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+
+  .moni-calculadora--modo-edicao-datas .moni-calculadora-table-header,
+  .moni-calculadora--modo-edicao-datas .moni-calculadora-fase-row,
+  .moni-calculadora--modo-edicao-datas .moni-calculadora-marco-row {
+    grid-template-columns: minmax(0, 1fr) 56px 60px 64px 88px;
+  }
+}
+
 .moni-calculadora-fase-status {
   display: inline-flex;
   align-items: center;
@@ -1111,6 +1393,8 @@
 }
 
 .moni-calc-badge-atu-at {
+  flex-direction: column;
+  align-items: flex-end;
   justify-content: flex-end;
   padding: 1px 5px;
   border-radius: var(--moni-radius-pill);
@@ -1122,6 +1406,36 @@
   background: var(--moni-calc-at-bg);
   color: var(--moni-calc-at-text);
   border: 0.5px solid var(--moni-calc-at-border);
+}
+
+/* Marcos — atraso sem pill (texto simples com cor) */
+.moni-calc-badge-atraso-text {
+  flex-direction: column;
+  align-items: flex-end;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-weight: 500;
+  color: var(--moni-calc-at-text);
+  text-transform: none;
+  letter-spacing: normal;
+  justify-content: flex-end;
+  text-align: right;
+  white-space: normal;
+  font-size: 9px;
+  line-height: 1.25;
+}
+
+.moni-calc-status-stacked-line {
+  display: block;
+  line-height: 1.2;
+}
+
+.moni-calc-status-stacked-sub {
+  display: block;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 1.15;
 }
 
 /* Legado — mantido para compatibilidade */
@@ -1195,7 +1509,29 @@
 
 .moni-calculadora-marco-row,
 .moni-calc-row-marco {
-  display: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 60px 80px 96px;
+  align-items: start;
+  gap: 6px;
+  padding: 6px 8px;
+  margin: 2px 0;
+  border-radius: var(--moni-radius-md, 6px);
+  border: 0.5px solid var(--moni-calc-marco-row-border);
+  background: var(--moni-calc-marco-row-bg);
+  font-family: var(--moni-font-sans);
+}
+
+.moni-calculadora-marco-row--somente-rotulo:not(.moni-calculadora-marco-row--somente-rotulo-com-limite) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* MIG / somenteRotulo — título longo + badge Marco na mesma linha (como M4) */
+.moni-calculadora-marco-row--somente-rotulo .moni-calculadora-marco-label-wrap {
+  flex-wrap: nowrap;
+}
+
+.moni-calculadora-marco-row--somente-rotulo .moni-calculadora-marco-label {
+  min-width: 0;
 }
 
 /* Marcos v4 — separador horizontal */
@@ -1339,6 +1675,11 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex-wrap: wrap;
+}
+
+.moni-calculadora-marco-label-wrap .moni-calculadora-marco-badge {
+  flex-shrink: 0;
 }
 
 .moni-calculadora-marco-dot {
@@ -1400,6 +1741,11 @@
 
 .moni-calculadora-marco-fim-cell {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: right;
+  align-items: flex-end;
 }
 
 .moni-calculadora-marco-fim-val {
@@ -1491,6 +1837,27 @@
   border: none;
 }
 
+.moni-calculadora-negociacao-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: var(--moni-radius-pill);
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  color: var(--moni-text-tertiary);
+  background: var(--moni-surface-100);
+  font-family: var(--moni-font-sans);
+}
+
+.moni-calculadora-fase-row.moni-calculadora-negociacao-row .moni-calculadora-fase-sla.fsla {
+  color: var(--moni-text-primary);
+  font-weight: 500;
+}
+
 .moni-calculadora-funil-header {
   display: flex;
   align-items: center;
@@ -1517,6 +1884,10 @@
   background: var(--moni-calc-funil-operacoes-header-bg);
 }
 
+.moni-calculadora-funil-header--negociacao {
+  background: var(--moni-surface-100);
+}
+
 .moni-calculadora-funil-dot {
   width: 8px;
   height: 8px;
@@ -1534,6 +1905,10 @@
 
 .moni-calculadora-funil-dot--operacoes {
   background: var(--moni-calc-funil-operacoes);
+}
+
+.moni-calculadora-funil-dot--negociacao {
+  background: var(--moni-gold-400);
 }
 
 .moni-calculadora-funil-title {
@@ -1629,6 +2004,12 @@
     gap: 6px;
   }
 
+  .moni-calculadora-resumo-headline {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
   .moni-calculadora-resumo-badges {
     justify-content: flex-start;
     max-width: none;
@@ -1649,7 +2030,8 @@
   }
 
   .moni-calculadora-table-header,
-  .moni-calculadora-fase-row {
+  .moni-calculadora-fase-row,
+  .moni-calculadora-marco-row {
     grid-template-columns: minmax(0, 1fr) 56px 52px 64px 76px;
     gap: 4px;
     font-size: 10px;
@@ -1677,6 +2059,173 @@
   }
 }
 
+/* Calculadora — modo público / link compartilhável (tipografia ampliada) */
+.moni-calculadora--modo-publico .moni-calculadora-resumo {
+  padding: 14px 16px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-fase {
+  font-size: 18px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-meta {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-progress-label {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-stat-lbl {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-stat-val {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-badge-parcial,
+.moni-calculadora--modo-publico .moni-calculadora-badge-prazo,
+.moni-calculadora--modo-publico .moni-calculadora-badge-atrasada {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-table-header {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-row,
+.moni-calculadora--modo-publico .moni-calculadora-marco-row {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-nome {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-sla {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-responsavel {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-data,
+.moni-calculadora--modo-publico .moni-calculadora-fase-data.fd-val,
+.moni-calculadora--modo-publico .moni-calculadora-fase-data-cell .fd-val {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-table-header,
+.moni-calculadora--modo-publico .moni-calculadora-fase-row,
+.moni-calculadora--modo-publico .moni-calculadora-marco-row {
+  grid-template-columns: minmax(0, 1fr) 76px 64px 92px 108px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-data-cell .fd-val {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-data-label {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-status,
+.moni-calculadora--modo-publico .moni-calc-badge-atu,
+.moni-calculadora--modo-publico .moni-calc-badge-atu-at,
+.moni-calculadora--modo-publico .moni-calc-badge-atraso-text {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calc-status-stacked-sub {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-funil-title,
+.moni-calculadora--modo-publico .moni-calculadora-funil-count {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-marco-label {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-marco-badge {
+  font-size: 9px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-gargalo-badge {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-step {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calc-fcusto-label,
+.moni-calculadora--modo-publico .moni-calc-fcusto-list {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico > header span:first-child {
+  font-size: 17px;
+}
+
+.moni-calculadora--modo-publico > header span:last-child {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico > p:last-child {
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .moni-calculadora--modo-publico .moni-calculadora-resumo-fase {
+    font-size: 17px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-resumo-stat-val {
+    font-size: 12px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-table-header,
+  .moni-calculadora--modo-publico .moni-calculadora-fase-row,
+  .moni-calculadora--modo-publico .moni-calculadora-marco-row {
+    font-size: 12px;
+    grid-template-columns: minmax(0, 1fr) 56px 52px 82px 96px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-nome {
+    font-size: 12px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data,
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data.fd-val,
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data-cell .fd-val {
+    font-size: 12px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data-label {
+    font-size: 9px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-status,
+  .moni-calculadora--modo-publico .moni-calc-badge-atu,
+  .moni-calculadora--modo-publico .moni-calc-badge-atu-at {
+    font-size: 10px;
+  }
+
+  .moni-calculadora--modo-publico > header span:first-child {
+    font-size: 16px;
+  }
+
+  .moni-calculadora--modo-publico > header span:last-child {
+    font-size: 12px;
+  }
+}
+
 /* Identificadores de Kanban */
 .moni-kanban-id--stepone   { background: var(--moni-kanban-stepone-light);   color: var(--moni-kanban-stepone);   border-color: var(--moni-kanban-stepone-accent); }
 .moni-kanban-id--portfolio { background: var(--moni-kanban-portfolio-light); color: var(--moni-kanban-portfolio); border-color: var(--moni-kanban-portfolio-accent); }
@@ -1688,26 +2237,18 @@
   overflow-x: auto;
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable;
+  scrollbar-width: none;
 }
 
 .moni-kanban-board-scroll::-webkit-scrollbar {
-  height: 8px;
-}
-
-.moni-kanban-board-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.moni-kanban-board-scroll::-webkit-scrollbar-thumb {
-  background: var(--moni-navy-200, #cbd5e1);
-  border-radius: 999px;
+  display: none;
+  height: 0;
 }
 
 .moni-kanban-board-scroll-hint {
   background: linear-gradient(
     to right,
-    var(--moni-surface-50, #fafaf9) 0%,
+    var(--moni-kanban-board-bg) 0%,
     transparent 100%
   );
 }
@@ -1715,9 +2256,796 @@
 .moni-kanban-board-scroll-hint--right {
   background: linear-gradient(
     to left,
-    var(--moni-surface-50, #fafaf9) 0%,
+    var(--moni-kanban-board-bg) 0%,
     transparent 100%
   );
+}
+
+.moni-kanban-board {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px;
+  background: var(--moni-kanban-board-bg);
+  border-radius: var(--moni-radius-lg);
+  min-width: max-content;
+}
+
+/* Toolbar do board — filtros e busca */
+.moni-kanban-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.moni-kanban-fpill {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 14px;
+  border: var(--moni-border-width) solid var(--moni-kanban-bd);
+  border-radius: var(--moni-radius-pill);
+  background: var(--moni-surface-0);
+  color: var(--moni-kanban-t2);
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: var(--moni-weight-medium);
+  line-height: 1.2;
+  transition: border-color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-fpill:hover {
+  border-color: var(--moni-kanban-bds);
+  background: var(--moni-surface-50);
+}
+
+.moni-kanban-fpill--search {
+  width: 16rem;
+  max-width: 100%;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.moni-kanban-fpill--search::placeholder {
+  color: var(--moni-kanban-tm);
+}
+
+.moni-kanban-fpill--search:focus {
+  outline: none;
+  border-color: var(--moni-kanban-col-accent);
+}
+
+/* Coluna do kanban */
+.moni-kanban-column {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--moni-column-width);
+  min-width: var(--moni-column-width);
+  overflow: hidden;
+  border-radius: var(--moni-radius-lg);
+  background: var(--moni-kanban-col-bg);
+}
+
+.moni-kanban-column--drag-over {
+  outline: 2px solid var(--moni-kanban-col-accent);
+  outline-offset: -2px;
+}
+
+.moni-kanban-column-hd {
+  box-sizing: border-box;
+  padding: 10px 10px 9px;
+  background: var(--moni-kanban-col-hd);
+  border-bottom: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
+}
+
+.moni-kanban-column-hd--fin {
+  background: var(--moni-kanban-col-hd-fin);
+}
+
+.moni-kanban-column-hd-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.moni-kanban-column-hd-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.moni-kanban-column-title {
+  margin: 0;
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: var(--moni-weight-bold);
+  line-height: 1.3;
+  color: var(--moni-kanban-drawer-header-text);
+}
+
+.moni-kanban-column-subtitle {
+  margin: 2px 0 0;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--moni-kanban-drawer-header-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.moni-kanban-column-hd-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.moni-kanban-col-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--moni-radius-pill);
+  border: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
+  background: var(--moni-surface-0);
+  color: var(--moni-kanban-drawer-header-text);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.moni-kanban-col-sla {
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--moni-kanban-drawer-header-muted);
+  white-space: nowrap;
+}
+
+.moni-kanban-col-sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: var(--moni-kanban-drawer-header-muted);
+  cursor: default;
+  transition: color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-col-sort:hover {
+  color: var(--moni-kanban-drawer-header-text);
+  background: var(--moni-surface-0);
+}
+
+.moni-kanban-column-body {
+  box-sizing: border-box;
+  flex: 1;
+  max-height: 70vh;
+  padding: 8px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.moni-kanban-column-body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+}
+
+/* Scroll invisível — reutilizável em painéis legados */
+.moni-scrollbar-hidden {
+  scrollbar-width: none;
+}
+
+.moni-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.moni-kanban-column-empty {
+  padding: 24px 8px;
+  text-align: center;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  color: var(--moni-kanban-tm);
+}
+
+.moni-kanban-add-card {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: var(--moni-border-width) dashed var(--moni-kanban-bd);
+  border-radius: var(--moni-radius-md);
+  background: transparent;
+  color: var(--moni-kanban-t2);
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color var(--moni-transition-fast), color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-add-card:hover {
+  border-color: var(--moni-kanban-col-accent);
+  color: var(--moni-kanban-col-accent);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* Card do kanban */
+.moni-kanban-card-wrap {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.moni-kanban-card-wrap:last-child {
+  margin-bottom: 0;
+}
+
+.moni-kanban-card-drop-line {
+  pointer-events: none;
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--moni-kanban-col-accent);
+}
+
+.moni-kanban-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: var(--moni-border-width) solid var(--moni-kanban-bd);
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-surface-0);
+  text-align: left;
+  transition:
+    border-color var(--moni-transition-fast),
+    box-shadow var(--moni-transition-fast),
+    transform var(--moni-transition-fast);
+}
+
+.moni-kanban-card:hover {
+  border-color: var(--moni-kanban-card-hover-bd);
+  box-shadow: var(--moni-shadow-card);
+  transform: translateY(-1px);
+}
+
+.moni-kanban-card--archived {
+  border-style: dashed;
+  border-color: var(--moni-status-archived-border);
+}
+
+.moni-kanban-card--done {
+  border-style: dashed;
+  border-color: var(--moni-green-400);
+}
+
+.moni-kanban-card--drag-target {
+  border-color: var(--moni-kanban-col-accent);
+  border-width: 2px;
+}
+
+.moni-kanban-card--muted {
+  opacity: 0.6;
+}
+
+.moni-kanban-card--pending {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.moni-kanban-card--draggable {
+  cursor: grab;
+}
+
+.moni-kanban-card--draggable:active {
+  cursor: grabbing;
+}
+
+.moni-kanban-card-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+
+.moni-kanban-card-open--dnd {
+  padding-left: 22px;
+}
+
+.moni-kanban-card-menu {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: var(--moni-kanban-t2);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-card:hover .moni-kanban-card-menu {
+  opacity: 1;
+}
+
+.moni-kanban-card-menu:hover {
+  background: var(--moni-surface-100);
+}
+
+.moni-kanban-card-badges {
+  position: absolute;
+  top: 6px;
+  right: 28px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.moni-kanban-card-sort {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.moni-kanban-card-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px;
+  border: none;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: var(--moni-kanban-tm);
+  cursor: pointer;
+  transition: color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-card-sort-btn:hover:not(:disabled) {
+  color: var(--moni-kanban-t2);
+  background: var(--moni-surface-100);
+}
+
+.moni-kanban-card-sort-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.moni-kanban-card-title {
+  margin: 0;
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--moni-kanban-t1);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.moni-kanban-card-subtitle {
+  margin: 3px 0 0;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--moni-kanban-tm);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.moni-kanban-card-divider {
+  margin: 7px 0 6px;
+  border: none;
+  border-top: var(--moni-border-width) solid var(--moni-kanban-bd);
+}
+
+.moni-kanban-card-section-label {
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moni-kanban-tm);
+}
+
+.moni-kanban-card-section-value {
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--moni-kanban-t2);
+}
+
+.moni-kanban-card-status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--moni-radius-pill);
+  padding: 2px 8px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: var(--moni-border-width) solid transparent;
+}
+
+.moni-kanban-card-status-badge--archived {
+  background: var(--moni-status-archived-bg);
+  color: var(--moni-status-archived-text);
+  border: var(--moni-border-width) solid var(--moni-status-archived-border);
+}
+
+.moni-kanban-card-status-badge--done {
+  background: var(--moni-green-50);
+  color: var(--moni-green-800);
+  border: var(--moni-border-width) solid var(--moni-green-400);
+}
+
+.moni-funding-tipo-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: var(--moni-weight-medium);
+  line-height: 1.25;
+  border: var(--moni-border-width) solid transparent;
+}
+
+.moni-funding-tipo-badge--investidor {
+  background: var(--moni-funding-investidor-bg);
+  color: var(--moni-funding-investidor-text);
+  border-color: var(--moni-funding-investidor-border);
+}
+
+.moni-funding-tipo-badge--broker {
+  background: var(--moni-funding-broker-bg);
+  color: var(--moni-funding-broker-text);
+  border-color: var(--moni-funding-broker-border);
+}
+
+/* Tags SLA / reunião / follow-up — tamanho único nos cards */
+.moni-kanban-card-sla {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 18px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: var(--moni-weight-medium);
+  line-height: 1.3;
+  border: var(--moni-border-width) solid transparent;
+  white-space: nowrap;
+}
+
+.moni-kanban-card-sla-dot {
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.moni-kanban-card-sla--ok {
+  background: var(--moni-kanban-sla-ok-bg);
+  color: var(--moni-kanban-sla-ok-text);
+  border-color: var(--moni-kanban-sla-ok-border);
+}
+
+.moni-kanban-card-sla--ok .moni-kanban-card-sla-dot {
+  background: var(--moni-kanban-sla-ok-dot);
+}
+
+.moni-kanban-card-sla--atencao {
+  background: var(--moni-status-attention-bg);
+  color: var(--moni-status-attention-text);
+  border-color: var(--moni-status-attention-border);
+}
+
+.moni-kanban-card-sla--atencao .moni-kanban-card-sla-dot {
+  background: var(--moni-gold-400);
+}
+
+.moni-kanban-card-sla--atrasado {
+  background: var(--moni-status-overdue-bg);
+  color: var(--moni-status-overdue-text);
+  border-color: var(--moni-status-overdue-border);
+  font-weight: var(--moni-weight-bold);
+}
+
+.moni-kanban-card-sla--atrasado .moni-kanban-card-sla-dot {
+  background: var(--moni-status-overdue-border);
+}
+
+.moni-kanban-card-indicators {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+/* Bolinhas de vínculos paralelos — lateral direita do card */
+.moni-kanban-card--com-paralelas {
+  padding-right: 22px;
+}
+
+.moni-kanban-paralelas-bolinhas {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.moni-kanban-paralela-bolinha-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.moni-kanban-paralela-bolinha {
+  box-sizing: border-box;
+  display: block;
+  width: 7px;
+  height: 7px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+}
+
+.moni-kanban-paralela-tooltip {
+  pointer-events: none;
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  z-index: 50;
+  width: max-content;
+  max-width: 220px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--moni-paralela-tooltip-bg);
+  color: var(--moni-surface-0);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 0.12s ease;
+}
+
+.moni-kanban-paralela-tooltip::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 4px solid transparent;
+  border-left-color: var(--moni-paralela-tooltip-bg);
+}
+
+.moni-kanban-paralela-tooltip-fase {
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.moni-kanban-paralela-bolinha-wrap:hover .moni-kanban-paralela-tooltip {
+  opacity: 1;
+}
+
+/* Drawer / modal de card */
+.moni-kanban-drawer.moni-card-modal-split {
+  border: var(--moni-border-width) solid var(--moni-kanban-bd);
+}
+
+.moni-kanban-drawer-header {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px 12px;
+  background: var(--moni-kanban-drawer-header);
+  border-bottom: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
+  border-top-left-radius: var(--moni-radius-xl);
+  border-top-right-radius: var(--moni-radius-xl);
+}
+
+.moni-kanban-drawer-header-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.moni-kanban-drawer-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--moni-kanban-drawer-header-muted);
+}
+
+.moni-kanban-drawer-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.moni-kanban-drawer-title {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--moni-font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--moni-kanban-drawer-header-text);
+}
+
+.moni-kanban-drawer-badge {
+  flex-shrink: 0;
+  border-radius: var(--moni-radius-pill);
+  padding: 2px 8px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
+  color: var(--moni-kanban-drawer-header-text);
+  background: var(--moni-surface-0);
+}
+
+.moni-kanban-drawer-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--moni-radius-md);
+  background: rgba(47, 74, 58, 0.08);
+  color: var(--moni-kanban-drawer-header-muted);
+  cursor: pointer;
+  transition: background var(--moni-transition-fast), color var(--moni-transition-fast);
+}
+
+.moni-kanban-drawer-close:hover {
+  background: rgba(47, 74, 58, 0.14);
+  color: var(--moni-kanban-drawer-header-text);
+}
+
+.moni-kanban-drawer-body {
+  padding-top: 72px;
+}
+
+.moni-kanban-drawer-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-kanban-drawer-tabs-bg);
+  border: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
+}
+
+.moni-kanban-drawer-tab {
+  flex: 1;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: var(--moni-border-width) solid transparent;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: var(--moni-kanban-drawer-tab-text);
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--moni-transition-fast),
+    color var(--moni-transition-fast),
+    border-color var(--moni-transition-fast);
+}
+
+.moni-kanban-drawer-tab:hover {
+  color: var(--moni-kanban-drawer-tab-text-hover);
+}
+
+.moni-kanban-drawer-tab--active {
+  background: var(--moni-kanban-drawer-tab-active-bg);
+  border-color: var(--moni-kanban-drawer-tab-active-border);
+  color: var(--moni-kanban-drawer-tab-active-text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(47, 74, 58, 0.06);
+}
+
+.moni-kanban-drawer-footer {
+  padding: 10px 8px;
+  border: var(--moni-border-width) solid var(--moni-kanban-bd);
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-kanban-drawer-footer);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn {
+  background: var(--moni-surface-0);
+  border-color: var(--moni-kanban-bd);
+  color: var(--moni-kanban-t1);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn:hover:not(:disabled) {
+  background: var(--moni-surface-50);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn--proxima {
+  background: var(--moni-kanban-col-accent);
+  border-color: var(--moni-kanban-col-accent);
+  color: var(--moni-surface-0);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn--proxima:hover:not(:disabled) {
+  background: var(--moni-kanban-col-accent-fin);
+  opacity: 1;
 }
 
 /* Tabelas largas — scroll horizontal nativo + barra fixa na base da tela */
@@ -2106,6 +3434,82 @@
   font-size: var(--moni-text-base);
   line-height: var(--moni-leading-body);
   color: var(--moni-text-secondary);
+}
+
+/* Card modal — Movimentação (Anterior · Arquivar · Próxima) */
+.moni-card-modal-movimentacao-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.moni-card-modal-movimentacao-btn {
+  box-sizing: border-box;
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 3px;
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-surface-0);
+  color: var(--moni-text-primary);
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.moni-card-modal-movimentacao-btn:hover:not(:disabled) {
+  background: var(--moni-surface-100);
+}
+
+.moni-card-modal-movimentacao-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.moni-card-modal-movimentacao-btn--proxima {
+  background: var(--moni-green-50);
+  color: var(--moni-green-800);
+  border-color: var(--moni-green-400);
+}
+
+.moni-card-modal-movimentacao-btn--proxima:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.moni-card-modal-movimentacao-btn-icon {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+}
+
+.moni-card-modal-movimentacao-btn-label {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 641px) {
+  .moni-card-modal-movimentacao-btn {
+    min-height: 0;
+    flex-direction: row;
+    gap: 3px;
+    padding: 7px 4px;
+    font-size: 10px;
+  }
 }
 
 /* --------------------------------------------------

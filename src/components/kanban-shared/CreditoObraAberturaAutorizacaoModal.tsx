@@ -57,7 +57,7 @@ export function CreditoObraAberturaAutorizacaoModal({
         aria-labelledby="credito-obra-abertura-titulo"
       >
         <h3 id="credito-obra-abertura-titulo" className="text-base font-semibold text-stone-900">
-          Abrir card no Funil Crédito Obra?
+          Abrir card no Funil Cash Me?
         </h3>
         <p className="mt-2 text-sm text-stone-600">
           O card <span className="font-medium text-stone-800">{tituloCard}</span> está na fase{' '}
@@ -65,7 +65,7 @@ export function CreditoObraAberturaAutorizacaoModal({
           <span className="font-medium">{dataLabel}</span>) foi atingida.
         </p>
         <p className="mt-2 text-sm text-stone-600">
-          Autoriza a criação automática de um card na esteira <strong>Funil Crédito Obra</strong> (fase Novo
+          Autoriza a criação automática de um card na esteira <strong>Funil Cash Me</strong> (fase Novo
           Projeto)?
         </p>
 

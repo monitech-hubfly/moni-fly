@@ -25,12 +25,12 @@ export const PARALELOS_ESTEIRA_LINHAS = [
   },
   {
     id: 'moni_capital',
-    label: 'Moní Capital',
+    label: 'Divify',
     kanbanIds: [KANBAN_IDS.MONI_CAPITAL],
   },
   {
     id: 'credito_obra',
-    label: 'Crédito Obra',
+    label: 'Cash Me',
     kanbanIds: [KANBAN_IDS.CREDITO_OBRA],
   },
   {

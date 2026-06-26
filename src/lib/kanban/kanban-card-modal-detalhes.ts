@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import type { NegocioPrazoModo } from '@/lib/kanban/dados-negocio-prazo';
+import { parseNegociacaoLinhasFromDb, type NegociacaoLinha, type NegociacaoLinhaDb } from '@/lib/kanban/negociacao-linhas';
 import type { SlaTipo } from '@/lib/dias-uteis';
 
 /** Linha `rede_franqueados` para o painel esquerdo do modal Kanban. */
@@ -78,6 +79,9 @@ export type ProcessoModalNegocioPreObra = {
   prazo_instrumento_garantidor_modo: NegocioPrazoModo | null;
   prazo_instrumento_garantidor_fase_id: string | null;
   prazo_instrumento_garantidor_data: string | null;
+  calculadora_ancora_fase_slug: string | null;
+  calculadora_ancora_data_fim: string | null;
+  negociacao_linhas: NegociacaoLinha[];
 };
 
 const REDE_SELECT = [
@@ -163,7 +167,14 @@ const PROCESSO_SELECT_PRAZO = [
   'prazo_instrumento_garantidor_data',
 ].join(',');
 
-const PROCESSO_SELECT = `${PROCESSO_SELECT_LEGACY},${PROCESSO_SELECT_EXTENDED},${PROCESSO_SELECT_PRAZO}`;
+const PROCESSO_SELECT_CALCULADORA_ANCORA = [
+  'calculadora_ancora_fase_slug',
+  'calculadora_ancora_data_fim',
+].join(',');
+
+const PROCESSO_SELECT_NEGOCIACAO = ['negociacao_linhas'].join(',');
+
+const PROCESSO_SELECT = `${PROCESSO_SELECT_LEGACY},${PROCESSO_SELECT_EXTENDED},${PROCESSO_SELECT_PRAZO},${PROCESSO_SELECT_CALCULADORA_ANCORA},${PROCESSO_SELECT_NEGOCIACAO}`;
 
 function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
@@ -200,6 +211,7 @@ export type ProcessoNegocioUpdatePayload = {
   prazo_instrumento_garantidor_modo?: NegocioPrazoModo | null;
   prazo_instrumento_garantidor_fase_id?: string | null;
   prazo_instrumento_garantidor_data?: string | null;
+  negociacao_linhas?: NegociacaoLinhaDb[] | null;
   /** Gerenciados pela seção Dados do Condomínio — omitir ao salvar negócio. */
   nome_condominio?: string | null;
   quadra?: string | null;
@@ -251,6 +263,13 @@ function pickPayload(
   return out;
 }
 
+function pickNegociacaoLinhas(
+  payload: ProcessoNegocioUpdatePayload,
+): Record<string, unknown> | null {
+  if (payload.negociacao_linhas === undefined) return null;
+  return { negociacao_linhas: payload.negociacao_linhas };
+}
+
 /** Atualiza dados do negócio; faz fallback se colunas novas ainda não existirem no banco. */
 export async function updateProcessoNegocioCampos(
   supabase: SupabaseClient,
@@ -261,6 +280,7 @@ export async function updateProcessoNegocioCampos(
     ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
     ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
     ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
+    ...pickNegociacaoLinhas(payload),
   };
   const { error } = await supabase.from('processo_step_one').update(full as never).eq('id', processoId);
   if (!error) return { ok: true };
@@ -381,6 +401,9 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     prazo_instrumento_garantidor_modo: modo('prazo_instrumento_garantidor_modo'),
     prazo_instrumento_garantidor_fase_id: g('prazo_instrumento_garantidor_fase_id'),
     prazo_instrumento_garantidor_data: g('prazo_instrumento_garantidor_data')?.slice(0, 10) ?? null,
+    calculadora_ancora_fase_slug: g('calculadora_ancora_fase_slug'),
+    calculadora_ancora_data_fim: g('calculadora_ancora_data_fim')?.slice(0, 10) ?? null,
+    negociacao_linhas: parseNegociacaoLinhasFromDb(r.negociacao_linhas),
   };
 }
 

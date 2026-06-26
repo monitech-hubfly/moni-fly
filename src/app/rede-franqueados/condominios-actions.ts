@@ -50,6 +50,10 @@ function cleanPatch(patch: CondominioPatch): Record<string, unknown> {
   setNum('estimativa_casas_vendidas_ano', patch.estimativa_casas_vendidas_ano);
   setText('extrato_como_eram_casas', patch.extrato_como_eram_casas);
   setText('extrato_tempo_venda', patch.extrato_tempo_venda);
+  setNum('prazo_aprovacao_condominio_dias', patch.prazo_aprovacao_condominio_dias);
+  setText('prazo_aprovacao_condominio_sla_tipo', patch.prazo_aprovacao_condominio_sla_tipo);
+  setNum('prazo_aprovacao_prefeitura_dias', patch.prazo_aprovacao_prefeitura_dias);
+  setText('prazo_aprovacao_prefeitura_sla_tipo', patch.prazo_aprovacao_prefeitura_sla_tipo);
   return out;
 }
 

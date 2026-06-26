@@ -5,6 +5,7 @@ import { Loader2, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
   cadastrarCondominioEVincularCard,
+  salvarPrazosAprovacaoCondominio,
   vincularCondominioAoCard,
   salvarQuadraLoteCard,
 } from '@/lib/actions/kanban-card-condominio';
@@ -20,6 +21,11 @@ import {
   type CondominioFormDraft,
 } from '@/lib/condominios-form';
 import { CondominioCamposForm } from './CondominioCamposForm';
+import { CondominioPrazosAprovacaoFields } from './CondominioPrazosAprovacaoFields';
+import {
+  prazosAprovacaoDraftFromRow,
+  type CondominioPrazosAprovacaoDraft,
+} from '@/lib/kanban/condominio-prazos-aprovacao';
 
 type Props = {
   cardId: string;
@@ -64,6 +70,9 @@ export function KanbanCardModalCondominio({
   const [lote, setLote] = useState(loteInicial ?? '');
   const [modoNovo, setModoNovo] = useState(false);
   const [draftNovo, setDraftNovo] = useState<CondominioFormDraft>(emptyCondominioFormDraft());
+  const [prazoDraft, setPrazoDraft] = useState<CondominioPrazosAprovacaoDraft>(
+    prazosAprovacaoDraftFromRow(null),
+  );
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -125,6 +134,10 @@ export function KanbanCardModalCondominio({
       setCondominioRow(null);
     }
   }, [condominioId, lista, modoNovo, nomeCondominioLegado, resolverCondominio]);
+
+  useEffect(() => {
+    setPrazoDraft(prazosAprovacaoDraftFromRow(condominioRow));
+  }, [condominioRow?.id, condominioRow?.prazo_aprovacao_condominio_dias, condominioRow?.prazo_aprovacao_prefeitura_dias]);
 
   const opcoesFiltradas = useMemo(() => {
     const q = busca.trim();
@@ -194,6 +207,31 @@ export function KanbanCardModalCondominio({
       setModoNovo(false);
       await carregarLista();
       notificarChecklist(res.condominioId ?? condominioId, quadra, lote);
+      onSalvo();
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function handleSalvarPrazosAprovacao() {
+    if (!condominioId) {
+      setErro('Selecione um condomínio cadastrado antes de salvar os prazos.');
+      return;
+    }
+    setSalvando(true);
+    setErro(null);
+    try {
+      const res = await salvarPrazosAprovacaoCondominio({
+        condominioId,
+        draft: prazoDraft,
+        basePath,
+      });
+      if (!res.ok) {
+        setErro(res.error);
+        return;
+      }
+      await carregarLista();
+      await resolverCondominio(condominioId);
       onSalvo();
     } finally {
       setSalvando(false);
@@ -390,9 +428,29 @@ export function KanbanCardModalCondominio({
       ) : null}
 
       {vinculado && condominioRow ? (
-        <div className="border-t border-stone-100 pt-2">
+        <div className="border-t border-stone-100 pt-2 space-y-2">
           <p className="mb-1 text-[11px] font-semibold text-stone-600">Dados do cadastro</p>
           <CondominioCamposForm readOnly row={condominioRow} draft={draftNovo} onChange={() => {}} />
+          <div className="border-t border-stone-100 pt-2">
+            <p className="mb-2 text-[11px] font-semibold text-stone-600">Prazos de aprovação</p>
+            <CondominioPrazosAprovacaoFields
+              draft={prazoDraft}
+              onChange={(p) => setPrazoDraft((d) => ({ ...d, ...p }))}
+              readOnly={!editavel}
+              row={condominioRow}
+              disabled={salvando}
+            />
+            {editavel ? (
+              <button
+                type="button"
+                disabled={salvando}
+                onClick={() => void handleSalvarPrazosAprovacao()}
+                className="mt-2 rounded border border-stone-200 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50 disabled:opacity-50 min-h-[44px] sm:min-h-0"
+              >
+                {salvando ? 'Salvando…' : 'Salvar prazos de aprovação'}
+              </button>
+            ) : null}
+          </div>
           <div className="mt-2 grid grid-cols-2 gap-x-2">
             <div>
               <div className="text-[11px] font-medium text-stone-500">Quadra</div>

@@ -1,6 +1,10 @@
 import type { createAdminClient } from '@/lib/supabase/admin';
 import type { createClient } from '@/lib/supabase/server';
 import { isKanbanFunilLoteadoresRef, sincronizarTituloCardLoteadores } from '@/lib/kanban/loteadores-card-titulo';
+import {
+  cardKanbanNaEsteiraPrincipalCalculadora,
+  segmentoEsteiraCardCalculadora,
+} from '@/lib/kanban/calculadora-fases-esteira';
 
 type SyncDb = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
 
@@ -365,8 +369,12 @@ async function expandirProcessoShadow(db: SyncDb, ids: Set<string>): Promise<voi
   for (const pid of processoIds) {
     ids.add(pid);
 
-    const { data: porProjeto } = await db.from('kanban_cards').select('id').eq('projeto_id', pid);
-    for (const row of porProjeto ?? []) {
+    const { data: porProcesso } = await db
+      .from('kanban_cards')
+      .select('id')
+      .or(`projeto_id.eq.${pid},processo_step_one_id.eq.${pid}`);
+
+    for (const row of porProcesso ?? []) {
       const id = String((row as { id?: string }).id ?? '').trim();
       if (id) ids.add(id);
     }
@@ -385,6 +393,26 @@ export async function listarCardIdsSyncGroup(db: SyncDb, startCardId: string): P
   await expandirVinculos(db, ids);
   await expandirProcessoShadow(db, ids);
   return [...ids];
+}
+
+/** Apenas ids de linhas reais em `kanban_cards` (exclui shadow `processo_step_one.id`). */
+export async function listarKanbanCardIdsSyncGroup(db: SyncDb, startCardId: string): Promise<string[]> {
+  const cid = String(startCardId ?? '').trim();
+  if (!cid) return [];
+
+  const ids = await listarCardIdsSyncGroup(db, cid);
+  if (ids.length === 0) return [cid];
+
+  const { data: rows, error } = await db.from('kanban_cards').select('id').in('id', ids);
+  if (error) {
+    console.error('[listarKanbanCardIdsSyncGroup]', error.message);
+    return [cid];
+  }
+
+  const out = (rows ?? [])
+    .map((r) => String((r as { id?: string }).id ?? '').trim())
+    .filter(Boolean);
+  return out.length > 0 ? out : [cid];
 }
 
 export async function contarOutrosCardsSyncGroup(db: SyncDb, cardId: string): Promise<number> {
@@ -851,4 +879,516 @@ export async function reconciliarFranqueadoNoSyncGroup(
   }
 
   return { ok: true, atualizados };
+}
+
+/** Campos de `kanban_cards` replicados do pai para filho de bastão (calculadora global). */
+export const KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA = [
+  'processo_step_one_id',
+  'projeto_id',
+  'opcao_assinada',
+  'opcao_assinada_em',
+  'comite_aprovado',
+  'comite_aprovado_em',
+  'contrato_assinado',
+  'contrato_assinado_em',
+  'obra_iniciada',
+  'obra_iniciada_em',
+  'obra_finalizada',
+  'obra_finalizada_em',
+  'prefeitura_aprovada',
+  'prefeitura_aprovada_em',
+] as const;
+
+const BASTAO_CALCULADORA_ANTI_NULL = new Set<string>([
+  'processo_step_one_id',
+  'projeto_id',
+  'opcao_assinada_em',
+  'comite_aprovado_em',
+  'contrato_assinado_em',
+  'obra_iniciada_em',
+  'obra_finalizada_em',
+  'prefeitura_aprovada_em',
+]);
+
+function coalesceBooleanMarco(atual: unknown, candidato: unknown): boolean | undefined {
+  if (candidato === true) return true;
+  if (atual === true) return true;
+  if (candidato === false) return false;
+  if (atual === false) return false;
+  return undefined;
+}
+
+function coalesceTextoMarco(atual: unknown, candidato: unknown): string | null | undefined {
+  const c = String(candidato ?? '').trim();
+  if (c) return c;
+  const a = String(atual ?? '').trim();
+  return a || undefined;
+}
+
+/** Sobe `origem_card_id` e retorna ids do mais novo ao mais antigo (filho → raiz). */
+async function listarCadeiaOrigemCardIds(db: SyncDb, startCardId: string): Promise<string[]> {
+  const ids: string[] = [];
+  let cur = String(startCardId ?? '').trim();
+  for (let depth = 0; depth < 32 && cur; depth++) {
+    ids.push(cur);
+    const { data: row } = await db
+      .from('kanban_cards')
+      .select('origem_card_id')
+      .eq('id', cur)
+      .maybeSingle();
+    const pai = String((row as { origem_card_id?: string | null } | null)?.origem_card_id ?? '').trim();
+    if (!pai || ids.includes(pai)) break;
+    cur = pai;
+  }
+  return ids;
+}
+
+/** Coalesce marcos/processo/projeto da cadeia `origem_card_id` (filho → raiz). */
+async function resolverCamposCalculadoraCanonicosCadeia(
+  db: SyncDb,
+  cardPaiId: string,
+): Promise<Record<string, unknown>> {
+  const chainIds = await listarCadeiaOrigemCardIds(db, cardPaiId);
+  if (chainIds.length === 0) return {};
+
+  const selectCols = ['id', 'created_at', 'titulo', 'rede_franqueado_id', ...KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA].join(
+    ', ',
+  );
+
+  const { data: rows, error } = await db
+    .from('kanban_cards')
+    .select(selectCols)
+    .in('id', chainIds);
+  if (error) throw new Error(error.message);
+
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const row of (rows ?? []) as unknown as Record<string, unknown>[]) {
+    const id = String(row.id ?? '').trim();
+    if (id) byId.set(id, row);
+  }
+
+  const merged: Record<string, unknown> = {};
+  let createdAtCanonico: string | null = null;
+  let redeFranqueadoId: string | null = null;
+
+  for (const cid of [...chainIds].reverse()) {
+    const row = byId.get(cid);
+    if (!row) continue;
+
+    const rowCreated = String(row.created_at ?? '').trim();
+    if (rowCreated && (!createdAtCanonico || new Date(rowCreated) < new Date(createdAtCanonico))) {
+      createdAtCanonico = rowCreated;
+    }
+
+    const redeRow = String(row.rede_franqueado_id ?? '').trim();
+    if (redeRow) redeFranqueadoId = redeRow;
+
+    for (const k of KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA) {
+      const val = row[k];
+      if (k.endsWith('_em')) {
+        const coalesced = coalesceTextoMarco(merged[k], val);
+        if (coalesced !== undefined) merged[k] = coalesced;
+      } else if (typeof val === 'boolean' || val === null) {
+        const coalesced = coalesceBooleanMarco(merged[k], val);
+        if (coalesced !== undefined) merged[k] = coalesced;
+      } else {
+        const coalesced = coalesceTextoMarco(merged[k], val);
+        if (coalesced !== undefined) merged[k] = coalesced;
+      }
+    }
+  }
+
+  if (createdAtCanonico) merged.created_at = createdAtCanonico;
+
+  const procResolvido = await resolverProcessoStepOneIdDoCard(db, {
+    cardProcessoStepOneId: merged.processo_step_one_id as string | null | undefined,
+    cardProjetoId: merged.projeto_id as string | null | undefined,
+    redeFranqueadoId,
+    cardTitulo: String(byId.get(chainIds[0]!)?.titulo ?? '').trim() || null,
+  });
+  if (procResolvido) merged.processo_step_one_id = procResolvido;
+
+  return merged;
+}
+
+export type MarcosCanonicosCalculadora = {
+  contrato_assinado_em: string | null;
+  obra_iniciada_em: string | null;
+  obra_finalizada_em: string | null;
+  opcao_assinada_em: string | null;
+  concluido_em: string | null;
+};
+
+export type ContextoCalculadoraSyncGroup = {
+  createdAtCanonico: string | null;
+  marcosCanonicos: MarcosCanonicosCalculadora;
+  condominioIdCanonico: string | null;
+  kanbanIdCanonico: string;
+  faseIdCanonico: string;
+  faseSlugCanonico: string | null;
+  cardCalcCanonico: {
+    fase_id: string;
+    created_at: string;
+    entered_fase_at: string | null;
+    concluido: boolean;
+    concluido_em: string | null;
+  };
+};
+
+function mergeCamposCalculadoraRows(rows: Record<string, unknown>[]): {
+  merged: Record<string, unknown>;
+  createdAtCanonico: string | null;
+} {
+  const merged: Record<string, unknown> = {};
+  let createdAtCanonico: string | null = null;
+
+  for (const row of rows) {
+    const rowCreated = String(row.created_at ?? '').trim();
+    if (rowCreated && (!createdAtCanonico || new Date(rowCreated) < new Date(createdAtCanonico))) {
+      createdAtCanonico = rowCreated;
+    }
+
+    for (const k of KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA) {
+      const val = row[k];
+      if (k.endsWith('_em')) {
+        const coalesced = coalesceTextoMarco(merged[k], val);
+        if (coalesced !== undefined) merged[k] = coalesced;
+      } else if (typeof val === 'boolean' || val === null) {
+        const coalesced = coalesceBooleanMarco(merged[k], val);
+        if (coalesced !== undefined) merged[k] = coalesced;
+      } else {
+        const coalesced = coalesceTextoMarco(merged[k], val);
+        if (coalesced !== undefined) merged[k] = coalesced;
+      }
+    }
+
+    const concluidoEm = coalesceTextoMarco(merged.concluido_em, row.concluido_em);
+    if (concluidoEm !== undefined) merged.concluido_em = concluidoEm;
+  }
+
+  if (createdAtCanonico) merged.created_at = createdAtCanonico;
+  return { merged, createdAtCanonico };
+}
+
+function marcosCanonicosFromMerged(merged: Record<string, unknown>): MarcosCanonicosCalculadora {
+  const pick = (k: string): string | null => {
+    const v = merged[k];
+    if (v == null || String(v).trim() === '') return null;
+    return String(v).trim();
+  };
+  return {
+    contrato_assinado_em: pick('contrato_assinado_em'),
+    obra_iniciada_em: pick('obra_iniciada_em'),
+    obra_finalizada_em: pick('obra_finalizada_em'),
+    opcao_assinada_em: pick('opcao_assinada_em'),
+    concluido_em: pick('concluido_em'),
+  };
+}
+
+/** Contexto canônico da calculadora global para todo o grupo de sync. */
+export async function fetchContextoCalculadoraSyncGroup(
+  db: SyncDb,
+  cardId: string,
+): Promise<ContextoCalculadoraSyncGroup | null> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return null;
+
+  const kanbanCardIds = await listarKanbanCardIdsSyncGroup(db, cid);
+  if (kanbanCardIds.length === 0) return null;
+
+  const selectCols = [
+    'id',
+    'kanban_id',
+    'fase_id',
+    'created_at',
+    'entered_fase_at',
+    'concluido',
+    'concluido_em',
+    'titulo',
+    'rede_franqueado_id',
+    'condominio_id',
+    ...KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA,
+  ].join(', ');
+
+  const { data: rows, error } = await db
+    .from('kanban_cards')
+    .select(selectCols)
+    .in('id', kanbanCardIds);
+  if (error || !rows?.length) {
+    if (error) console.error('[fetchContextoCalculadoraSyncGroup]', error.message);
+    return null;
+  }
+
+  const typedRows = rows as unknown as Record<string, unknown>[];
+  const { merged, createdAtCanonico } = mergeCamposCalculadoraRows(typedRows);
+  const marcosCanonicos = marcosCanonicosFromMerged(merged);
+
+  const esteiraRows = typedRows.filter((r) =>
+    cardKanbanNaEsteiraPrincipalCalculadora(String(r.kanban_id ?? '')),
+  );
+  const candidatos = esteiraRows.length > 0 ? esteiraRows : typedRows;
+
+  const faseIds = [
+    ...new Set(candidatos.map((r) => String(r.fase_id ?? '').trim()).filter(Boolean)),
+  ];
+  const ordemPorFase = new Map<string, number>();
+  if (faseIds.length > 0) {
+    const { data: faseRows } = await db
+      .from('kanban_fases')
+      .select('id, ordem')
+      .in('id', faseIds);
+    for (const fr of faseRows ?? []) {
+      const fid = String((fr as { id?: string }).id ?? '').trim();
+      const ordem = Number((fr as { ordem?: number }).ordem ?? 0);
+      if (fid) ordemPorFase.set(fid, ordem);
+    }
+  }
+
+  let cardAvancado = candidatos[0]!;
+  let maxSegmento = -1;
+  let maxOrdemFase = -1;
+
+  for (const row of candidatos) {
+    const kid = String(row.kanban_id ?? '').trim();
+    const fid = String(row.fase_id ?? '').trim();
+    const segmento = segmentoEsteiraCardCalculadora(kid);
+    const ordemFase = ordemPorFase.get(fid) ?? 0;
+
+    if (
+      segmento > maxSegmento ||
+      (segmento === maxSegmento && ordemFase > maxOrdemFase)
+    ) {
+      maxSegmento = segmento;
+      maxOrdemFase = ordemFase;
+      cardAvancado = row;
+    }
+  }
+
+  const kanbanIdCanonico = String(cardAvancado.kanban_id ?? '').trim();
+  const faseIdCanonico = String(cardAvancado.fase_id ?? '').trim();
+  if (!kanbanIdCanonico || !faseIdCanonico) return null;
+
+  let faseSlugCanonico: string | null = null;
+  const { data: faseRow } = await db
+    .from('kanban_fases')
+    .select('slug')
+    .eq('id', faseIdCanonico)
+    .maybeSingle();
+  faseSlugCanonico = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim() || null;
+
+  const createdAt =
+    (createdAtCanonico ?? String(cardAvancado.created_at ?? '').trim()) ||
+    new Date().toISOString();
+
+  let condominioIdCanonico: string | null | undefined = undefined;
+  let redeFranqueadoIdCanonico: string | null | undefined = undefined;
+  for (const row of typedRows) {
+    condominioIdCanonico = coalesceTextoMarco(condominioIdCanonico, row.condominio_id);
+    redeFranqueadoIdCanonico = coalesceTextoMarco(redeFranqueadoIdCanonico, row.rede_franqueado_id);
+  }
+
+  let condominioIdResolvido = condominioIdCanonico ?? null;
+  if (!condominioIdResolvido) {
+    const procId = await resolverProcessoStepOneIdDoCard(db, {
+      cardProcessoStepOneId: merged.processo_step_one_id as string | null | undefined,
+      cardProjetoId: merged.projeto_id as string | null | undefined,
+      redeFranqueadoId: redeFranqueadoIdCanonico ?? null,
+      cardTitulo: String(cardAvancado.titulo ?? '').trim() || null,
+    });
+    if (procId) {
+      const { data: proc } = await db
+        .from('processo_step_one')
+        .select('condominio_id')
+        .eq('id', procId)
+        .maybeSingle();
+      condominioIdResolvido =
+        String((proc as { condominio_id?: string | null } | null)?.condominio_id ?? '').trim() || null;
+    }
+  }
+
+  return {
+    createdAtCanonico: createdAt,
+    marcosCanonicos,
+    condominioIdCanonico: condominioIdResolvido,
+    kanbanIdCanonico,
+    faseIdCanonico,
+    faseSlugCanonico,
+    cardCalcCanonico: {
+      fase_id: faseIdCanonico,
+      created_at: createdAt,
+      entered_fase_at:
+        cardAvancado.entered_fase_at != null ? String(cardAvancado.entered_fase_at) : null,
+      concluido: cardAvancado.concluido === true,
+      concluido_em:
+        cardAvancado.concluido_em != null ? String(cardAvancado.concluido_em) : null,
+    },
+  };
+}
+
+async function espelharHistoricoCalculadoraCadeiaPai(
+  db: SyncDb,
+  cardFilhoId: string,
+  cardPaiId: string,
+  faseDestinoId: string,
+  faseDestinoSlug: string,
+): Promise<void> {
+  const filhoId = String(cardFilhoId ?? '').trim();
+  const paiId = String(cardPaiId ?? '').trim();
+  if (!filhoId || !paiId) return;
+
+  const { data: existenteMov } = await db
+    .from('kanban_historico')
+    .select('id')
+    .eq('card_id', filhoId)
+    .in('acao', ['fase_avancada', 'fase_retrocedida'])
+    .limit(1);
+  if ((existenteMov ?? []).length > 0) return;
+
+  const chainIds = (await listarCadeiaOrigemCardIds(db, paiId)).filter((id) => id !== filhoId);
+  if (chainIds.length === 0) return;
+
+  const { data: rows, error } = await db
+    .from('kanban_historico')
+    .select('acao, usuario_id, usuario_nome, detalhe, criado_em')
+    .in('card_id', chainIds)
+    .in('acao', ['fase_avancada', 'fase_retrocedida'])
+    .order('criado_em', { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const seen = new Set<string>();
+  const inserts: Record<string, unknown>[] = [];
+  for (const row of rows ?? []) {
+    const det = (row as { detalhe?: Record<string, unknown> | null }).detalhe ?? null;
+    const ant = String(det?.fase_anterior_id ?? '').trim();
+    const nov = String(det?.fase_nova_id ?? '').trim();
+    const criado = String((row as { criado_em?: string }).criado_em ?? '').trim();
+    const acao = String((row as { acao?: string }).acao ?? '').trim();
+    const key = `${criado}|${acao}|${ant}|${nov}`;
+    if (!criado || seen.has(key)) continue;
+    seen.add(key);
+    inserts.push({
+      card_id: filhoId,
+      acao,
+      usuario_id: (row as { usuario_id?: string | null }).usuario_id ?? null,
+      usuario_nome: (row as { usuario_nome?: string | null }).usuario_nome ?? null,
+      detalhe: det,
+      criado_em: criado,
+    });
+  }
+
+  if (inserts.length > 0) {
+    const { error: insErr } = await db.from('kanban_historico').insert(inserts as never);
+    if (insErr) throw new Error(insErr.message);
+  }
+
+  const { data: jaCriado } = await db
+    .from('kanban_historico')
+    .select('id')
+    .eq('card_id', filhoId)
+    .eq('acao', 'card_criado')
+    .limit(1);
+  if (!(jaCriado ?? []).length) {
+    const now = new Date().toISOString();
+    const { error: criadoErr } = await db.from('kanban_historico').insert({
+      card_id: filhoId,
+      acao: 'card_criado',
+      usuario_nome: 'Sistema',
+      detalhe: { fase_id: faseDestinoId, fase_slug: faseDestinoSlug },
+      criado_em: now,
+    } as never);
+    if (criadoErr) throw new Error(criadoErr.message);
+  }
+}
+
+async function espelharDatasManuaisCalculadoraDoPai(
+  db: SyncDb,
+  cardPaiId: string,
+  cardFilhoId: string,
+): Promise<void> {
+  const paiId = String(cardPaiId ?? '').trim();
+  const filhoId = String(cardFilhoId ?? '').trim();
+  if (!paiId || !filhoId || paiId === filhoId) return;
+
+  const { data: paiRows, error: errPai } = await db
+    .from('kanban_calculadora_fase_datas')
+    .select('fase_id, data_inicio, data_fim, editado_por, editado_em')
+    .eq('card_id', paiId);
+  if (errPai) throw new Error(errPai.message);
+  if (!(paiRows ?? []).length) return;
+
+  const { data: filhoRows } = await db
+    .from('kanban_calculadora_fase_datas')
+    .select('fase_id')
+    .eq('card_id', filhoId);
+  const fasesFilho = new Set(
+    (filhoRows ?? []).map((r) => String((r as { fase_id?: string }).fase_id ?? '').trim()).filter(Boolean),
+  );
+
+  const inserts: Record<string, unknown>[] = [];
+  for (const row of paiRows ?? []) {
+    const faseId = String((row as { fase_id?: string }).fase_id ?? '').trim();
+    if (!faseId || fasesFilho.has(faseId)) continue;
+    inserts.push({
+      card_id: filhoId,
+      fase_id: faseId,
+      data_inicio: (row as { data_inicio?: string | null }).data_inicio ?? null,
+      data_fim: (row as { data_fim?: string | null }).data_fim ?? null,
+      editado_por: (row as { editado_por?: string | null }).editado_por ?? null,
+      editado_em: (row as { editado_em?: string | null }).editado_em ?? new Date().toISOString(),
+    });
+  }
+
+  if (inserts.length === 0) return;
+  const { error: insErr } = await db
+    .from('kanban_calculadora_fase_datas')
+    .upsert(inserts as never, { onConflict: 'card_id,fase_id', ignoreDuplicates: true });
+  if (insErr) throw new Error(insErr.message);
+}
+
+/**
+ * Replica campos da calculadora global do pai (e cadeia `origem_card_id`) para card filho de bastão.
+ * Idempotente — não apaga dados existentes no filho (coalesce).
+ */
+export async function sincronizarCamposCalculadoraBastaoFilho(
+  db: SyncDb,
+  cardPaiId: string,
+  cardFilhoId: string,
+  options?: { faseDestinoId?: string; faseDestinoSlug?: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const paiId = String(cardPaiId ?? '').trim();
+  const filhoId = String(cardFilhoId ?? '').trim();
+  if (!paiId || !filhoId) return { ok: false, error: 'Card pai ou filho inválido.' };
+
+  try {
+    const canon = await resolverCamposCalculadoraCanonicosCadeia(db, paiId);
+    const patch: Record<string, unknown> = {};
+
+    for (const k of KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA) {
+      if (!Object.prototype.hasOwnProperty.call(canon, k)) continue;
+      const v = canon[k];
+      if (BASTAO_CALCULADORA_ANTI_NULL.has(k) && (v == null || String(v).trim() === '')) continue;
+      patch[k] = v;
+    }
+
+    const createdAt = String(canon.created_at ?? '').trim();
+    if (createdAt) patch.created_at = createdAt;
+
+    if (Object.keys(patch).length > 0) {
+      const { error: updErr } = await db.from('kanban_cards').update(patch as never).eq('id', filhoId);
+      if (updErr) return { ok: false, error: updErr.message };
+    }
+
+    const faseDestinoId = String(options?.faseDestinoId ?? '').trim();
+    const faseDestinoSlug = String(options?.faseDestinoSlug ?? '').trim();
+    if (faseDestinoId && faseDestinoSlug) {
+      await espelharHistoricoCalculadoraCadeiaPai(db, filhoId, paiId, faseDestinoId, faseDestinoSlug);
+    }
+
+    await espelharDatasManuaisCalculadoraDoPai(db, paiId, filhoId);
+
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
 }

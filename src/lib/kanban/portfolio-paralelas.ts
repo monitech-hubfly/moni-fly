@@ -19,7 +19,7 @@ export const PORTFOLIO_PARALELAS: {
   { flag: 'credito_terreno_ok', label: 'Crédito Terreno', labelCurto: 'Créd. Terreno' },
   { flag: 'contabilidade_ok', label: 'Contabilidade', labelCurto: 'Contab.' },
   { flag: 'juridico_ok', label: 'Jurídico', labelCurto: 'Jurídico' },
-  { flag: 'capital_ok', label: 'Moní Capital', labelCurto: 'Capital' },
+  { flag: 'capital_ok', label: 'Divify', labelCurto: 'Divify' },
 ];
 
 export type PortfolioParalelasFlags = Partial<Record<PortfolioParalelaFlag, boolean | null | undefined>>;

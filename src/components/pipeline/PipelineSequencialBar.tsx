@@ -547,12 +547,5 @@ export function pipelineBadgeInlineStyle(status: PipelineCardBadgeStatus): React
 
 export function labelSlaResumidoPipeline(card: PipelineCardDisplay): string {
   if (card.sla.pausado) return card.sla.label;
-  if (card.sla.status === 'atrasado') {
-    const n = card.sla.diasAtraso ?? 0;
-    return n > 0 ? `${n} d.u. em atraso` : 'SLA atrasado';
-  }
-  if (card.sla.label === 'Vence hoje') return 'vence hoje';
-  const rest = card.sla.diasRestantes;
-  if (rest != null) return `${rest} d.u. restantes`;
   return card.sla.label || '—';
 }

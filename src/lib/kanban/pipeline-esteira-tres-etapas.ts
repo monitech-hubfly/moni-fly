@@ -23,7 +23,7 @@ export const ESTEIRA_TRES_ETAPAS = [
 export const FUNIS_PARALELOS_ESTEIRA = [
   { id: 'acoplamento', label: 'Acoplamento', kanbanIds: [KANBAN_IDS.ACOPLAMENTO] },
   { id: 'contabilidade', label: 'Contabilidade', kanbanIds: [KANBAN_IDS.CONTABILIDADE] },
-  { id: 'credito_obra', label: 'Crédito Obra', kanbanIds: [KANBAN_IDS.CREDITO_OBRA] },
+  { id: 'credito_obra', label: 'Cash Me', kanbanIds: [KANBAN_IDS.CREDITO_OBRA] },
   { id: 'juridico', label: 'Jurídico', kanbanIds: [KANBAN_IDS.JURIDICO] },
   { id: 'projeto_legal', label: 'Projeto Legal', kanbanIds: [KANBAN_IDS.PROJETO_LEGAL] },
   { id: 'projetos_locais', label: 'Projetos Locais', kanbanIds: [KANBAN_IDS.PROJETOS_LOCAIS] },
@@ -32,7 +32,7 @@ export const FUNIS_PARALELOS_ESTEIRA = [
   { id: 'hdm_homologacoes', label: 'Homologações', kanbanIds: [KANBAN_IDS.HDM_HOMOLOGACOES] },
   { id: 'hdm_produto', label: 'Produto HDM', kanbanIds: [KANBAN_IDS.HDM_PRODUTO] },
   { id: 'contratacoes', label: 'Contratações', kanbanIds: [KANBAN_IDS.CONTRATACOES] },
-  { id: 'moni_capital', label: 'Moní Capital', kanbanIds: [KANBAN_IDS.MONI_CAPITAL] },
+  { id: 'moni_capital', label: 'Divify', kanbanIds: [KANBAN_IDS.MONI_CAPITAL] },
 ] as const;
 
 const KANBAN_PARA_INDICE_MAIN = new Map<string, number>();

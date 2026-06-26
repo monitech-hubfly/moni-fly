@@ -165,14 +165,10 @@ export function PainelCard({
         </div>
         <div className={`block pr-10 ${reorderEnabled ? 'pl-7' : ''}`}>
           {p.trava_painel && (
-            <span className="mb-1 inline-block rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
-              Travado
-            </span>
+            <span className="mb-1 inline-block moni-tag-atencao">Travado</span>
           )}
           {etapaKey === 'step_1' && p.status === 'concluido' && (
-            <span className="mb-1 inline-block rounded bg-green-200 px-1.5 py-0.5 text-[10px] font-medium text-green-900">
-              Finalizado
-            </span>
+            <span className="mb-1 inline-block moni-tag-concluido">Finalizado</span>
           )}
           {!isCancelado && !isRemovido && hasAtrasado && (
             <span className="mb-1 ml-1 moni-tag-atrasado">Checklist atrasado</span>
@@ -181,13 +177,11 @@ export function PainelCard({
             <span className="mb-1 ml-1 moni-tag-atencao">Checklist em atenção</span>
           )}
           {!isCancelado && !isRemovido && hasComiteAprovado && (
-            <span className="mb-1 ml-1 inline-block rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800">
-              Aprovado em Comitê
-            </span>
+            <span className="mb-1 ml-1 inline-block moni-tag-info">Aprovado em Comitê</span>
           )}
           {isCancelado && (
             <span
-              className="mb-1 ml-1 inline-block rounded bg-red-200 px-1.5 py-0.5 text-[10px] font-medium text-red-900"
+              className="mb-1 ml-1 inline-block moni-tag-atrasado"
               title={motivoCancelado ?? 'Cancelado'}
             >
               Cancelado
@@ -195,7 +189,7 @@ export function PainelCard({
           )}
           {isRemovido && (
             <span
-              className="mb-1 ml-1 inline-block rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-900"
+              className="mb-1 ml-1 inline-block moni-tag-arquivado"
               title={motivoRemovido ?? 'Excluído'}
             >
               Excluído

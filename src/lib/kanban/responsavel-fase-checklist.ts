@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { listarKanbanCardIdsSyncGroup } from '@/lib/kanban/card-sync-group';
 import {
   tipoResponsavelDaFasePorSlug,
   type TipoResponsavelDaFasePadrao,
@@ -55,6 +56,13 @@ export function isKanbanFunilStepOneId(kanbanId: string | null | undefined): boo
   return String(kanbanId ?? '').trim() === KANBAN_IDS.STEP_ONE;
 }
 
+export function isKanbanFunilLoteadoresId(kanbanId: string | null | undefined): boolean {
+  return String(kanbanId ?? '').trim() === KANBAN_IDS.LOTEADORES;
+}
+
+/** Responsável legado do Funil Loteadores (antes de Helenna Luz). */
+export const EMAIL_RESPONSAVEL_LOTEADORES_ANTIGO = 'kim@moni.casa';
+
 /** E-mail do responsável padrão por funil (exceto Step One — usa franqueado da rede). */
 export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>> = {
   [KANBAN_IDS.PORTFOLIO]: 'renata.silva@moni.casa',
@@ -63,10 +71,11 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>
   [KANBAN_IDS.PROJETO_LEGAL]: 'elisabete.nucci@moni.casa',
   [KANBAN_IDS.PROJETOS_LOCAIS]: 'larissa.lima@moni.casa',
   [KANBAN_IDS.MONI_CAPITAL]: 'kim@moni.casa',
+  [KANBAN_IDS.FUNDING]: 'kim@moni.casa',
   [KANBAN_IDS.CREDITO_OBRA]: 'kim@moni.casa',
   [KANBAN_IDS.CONTABILIDADE]: 'kim@moni.casa',
   [KANBAN_IDS.JURIDICO]: 'elisabete.nucci@moni.casa',
-  [KANBAN_IDS.LOTEADORES]: 'kim@moni.casa',
+  [KANBAN_IDS.LOTEADORES]: 'helenna.luz@moni.casa',
   [KANBAN_IDS.CONTRATACOES]: 'renata.silva@moni.casa',
   [KANBAN_IDS.HDM_PRODUTO]: 'elisabete.nucci@moni.casa',
   [KANBAN_IDS.HDM_MODELO_VIRTUAL]: 'elisabete.nucci@moni.casa',
@@ -110,6 +119,29 @@ async function buscarProfileIdPorEmail(
 
   profileIdPorEmailCache.set(cacheKey, escolhido);
   return escolhido;
+}
+
+async function buscarIdsCorrecaoResponsavelLoteadores(
+  supabase: SupabaseClient,
+): Promise<{ thaisId: string | null; helennaId: string | null }> {
+  const [thaisId, helennaId] = await Promise.all([
+    buscarProfileIdPorEmail(supabase, EMAIL_RESPONSAVEL_LOTEADORES_ANTIGO),
+    resolverResponsavelPadraoPorKanban(supabase, KANBAN_IDS.LOTEADORES),
+  ]);
+  return { thaisId, helennaId };
+}
+
+/** Substitui Thais Kim (legado) por Helenna Luz no Funil Loteadores. */
+export async function substituirThaisPorHelennaSeLoteadores(
+  supabase: SupabaseClient,
+  kanbanId: string | null | undefined,
+  userId: string | null | undefined,
+): Promise<string | null> {
+  const uid = valorResponsavelValido(userId);
+  if (!uid || !isKanbanFunilLoteadoresId(kanbanId)) return uid;
+  const { thaisId, helennaId } = await buscarIdsCorrecaoResponsavelLoteadores(supabase);
+  if (!thaisId || !helennaId || uid !== thaisId) return uid;
+  return helennaId;
 }
 
 async function isProfileIdStaff(
@@ -514,6 +546,48 @@ export async function sincronizarResponsavelFaseStepOne(
   return null;
 }
 
+/** Loteadores: corrige responsável legado (Thais Kim) e persiste Helenna Luz. */
+export async function sincronizarResponsavelFaseLoteadores(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseId: string,
+  kanbanId: string | null | undefined,
+  preenchidoPor?: string | null,
+): Promise<string | null> {
+  if (!isKanbanFunilLoteadoresId(kanbanId)) return null;
+
+  const cid = cardId.trim();
+  const fid = faseId.trim();
+  if (!cid || !fid) return null;
+
+  const itemId = await buscarItemIdResponsavelFaseEdicao(supabase, fid);
+  if (!itemId) return null;
+
+  const { data: respAtual } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('valor')
+    .eq('card_id', cid)
+    .eq('item_id', itemId)
+    .maybeSingle();
+
+  const valorAtual = valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor);
+  const corrigido = await substituirThaisPorHelennaSeLoteadores(supabase, kanbanId, valorAtual);
+  if (!corrigido) return valorAtual;
+  if (corrigido === valorAtual) return valorAtual;
+
+  await supabase.from('kanban_fase_checklist_respostas').upsert(
+    {
+      item_id: itemId,
+      card_id: cid,
+      valor: corrigido,
+      preenchido_por: preenchidoPor ?? null,
+      preenchido_em: new Date().toISOString(),
+    },
+    { onConflict: 'item_id,card_id' },
+  );
+  return corrigido;
+}
+
 type FaseOrdemRow = { id: string; ordem: number; slug?: string | null };
 
 type ChecklistItemResponsavelRow = {
@@ -790,6 +864,27 @@ export async function buscarResponsavelDaFaseSalvoPorFases(
   return out;
 }
 
+/** Mescla «Responsável da fase» de todos os cards kanban do grupo de sync (calculadora unificada). */
+export async function buscarResponsavelDaFaseSalvoPorFasesSyncGroup(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseIds: string[],
+): Promise<Map<string, string>> {
+  const kanbanCardIds = await listarKanbanCardIdsSyncGroup(supabase, cardId);
+  if (kanbanCardIds.length <= 1) {
+    return buscarResponsavelDaFaseSalvoPorFases(supabase, cardId, faseIds);
+  }
+
+  const merged = new Map<string, string>();
+  for (const cid of kanbanCardIds) {
+    const parcial = await buscarResponsavelDaFaseSalvoPorFases(supabase, cid, faseIds);
+    for (const [fid, valor] of parcial) {
+      if (!merged.has(fid)) merged.set(fid, valor);
+    }
+  }
+  return merged;
+}
+
 function valorResponsavelValido(valor: string | null | undefined): string | null {
   const v = String(valor ?? '').trim();
   return v || null;
@@ -902,7 +997,9 @@ export async function buscarValorResponsavelFaseAnterior(
   for (const fase of anteriores) {
     const itemIds = await itemIdsResponsavelPorFase(supabase, fase.id);
     const valor = await buscarRespostaValor(supabase, cid, itemIds);
-    if (valor) return valor;
+    if (valor) {
+      return substituirThaisPorHelennaSeLoteadores(supabase, kanbanId, valor);
+    }
   }
 
   return resolverResponsavelPadraoPorKanban(supabase, kanbanId);
@@ -1265,10 +1362,29 @@ function resolverValorResponsavelCardComHistorico(
   itemPorFase: Map<string, string>,
   respPorCardItem: Map<string, string>,
 ): string | null {
+  const itemIdAtual = itemPorFase.get(faseIdAtual);
+  if (itemIdAtual) {
+    const atual = respPorCardItem.get(`${cardId}:${itemIdAtual}`);
+    if (atual) return atual;
+  }
+
+  // Responsável do card pode ter sido gravado em fase posterior — usa o mais avançado no funil.
+  let melhorOrdem = -1;
+  let melhorValor: string | null = null;
+  for (const [fid, itemId] of itemPorFase) {
+    const v = respPorCardItem.get(`${cardId}:${itemId}`);
+    if (!v) continue;
+    const ordem = faseOrdemPorId.get(fid) ?? -1;
+    if (ordem > melhorOrdem) {
+      melhorOrdem = ordem;
+      melhorValor = v;
+    }
+  }
+  if (melhorValor) return melhorValor;
+
   const ordemAtual = faseOrdemPorId.get(faseIdAtual);
   if (ordemAtual == null) {
-    const itemId = itemPorFase.get(faseIdAtual);
-    return itemId ? respPorCardItem.get(`${cardId}:${itemId}`) ?? null : null;
+    return itemIdAtual ? respPorCardItem.get(`${cardId}:${itemIdAtual}`) ?? null : null;
   }
 
   const fasesDesc = [...faseOrdemPorId.entries()]
@@ -1398,6 +1514,17 @@ export async function enrichCardsComResponsavelFase(
   for (const { cardId, kanbanId } of outrosSemResposta) {
     const uid = padraoPorKanban.get(kanbanId);
     if (uid) valorPorCard.set(cardId, uid);
+  }
+
+  if (kanbanIds.includes(KANBAN_IDS.LOTEADORES)) {
+    const { thaisId, helennaId } = await buscarIdsCorrecaoResponsavelLoteadores(supabase);
+    if (thaisId && helennaId) {
+      for (const card of cards) {
+        if (!isKanbanFunilLoteadoresId(card.kanban_id)) continue;
+        const uid = valorPorCard.get(card.id);
+        if (uid === thaisId) valorPorCard.set(card.id, helennaId);
+      }
+    }
   }
 
   await enriquecerStepOneCardsBatch(

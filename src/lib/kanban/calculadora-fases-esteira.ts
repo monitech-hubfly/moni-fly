@@ -1,17 +1,31 @@
 import type { KanbanFase } from '@/components/kanban-shared/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import type { CondominioPrazosAprovacaoSla } from '@/lib/kanban/condominio-prazos-aprovacao';
 import {
   calcularLinhasCalculadoraFases,
   inferirFimRealPorProximaFase,
+  aplicarAncoraCalculadoraLinhas,
+  aplicarDatasManuaisCalculadoraLinhas,
+  normalizarIntervaloDatasCalculadoraLinhas,
+  calcularResumoExecutivoCalculadoraFases,
+  type CalculadoraAncora,
+  type CalculadoraResumoExecutivo,
+  type CalculadoraFaseDataManualOverride,
   type CalculadoraFaseLinha,
   type CalculadoraFasesInput,
 } from '@/lib/kanban/calculadora-fases';
 import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import { indiceEsteiraTresEtapas } from '@/lib/kanban/pipeline-esteira-tres-etapas';
+import type { ContextoCalculadoraSyncGroup } from '@/lib/kanban/card-sync-group';
 import { filterStepOneCalculadoraFases, isCalculadoraExcludedStepOneFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slugs';
+import {
+  filterPortfolioCalculadoraFases,
+  isCalculadoraExcludedPortfolioFaseSlug,
+} from '@/lib/kanban/portfolio-fase-slugs';
+import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 
 /** Ordem fixa da calculadora global: Step One → Portfólio → Pré Obra e Obra. */
 export const CALCULADORA_ESTEIRA_FUNIS = [
@@ -21,6 +35,11 @@ export const CALCULADORA_ESTEIRA_FUNIS = [
 ] as const;
 
 export const CALCULADORA_ESTEIRA_KANBAN_IDS = CALCULADORA_ESTEIRA_FUNIS.map((f) => f.kanbanId);
+
+/** Mapa de fases carregado para todos os funis da esteira (evita calculadora parcial por kanban). */
+export function esteiraFasesMapPronto(map: Map<string, KanbanFase[]>): boolean {
+  return CALCULADORA_ESTEIRA_KANBAN_IDS.every((id) => (map.get(id)?.length ?? 0) > 0);
+}
 
 export type CalculadoraFaseEsteiraMeta = KanbanFase & {
   kanbanId: string;
@@ -55,8 +74,13 @@ function filtrarFasesOperacoes(fases: KanbanFase[]): KanbanFase[] {
   return filterOperacoesCalculadoraFases(fases);
 }
 
+function filtrarFasesPortfolio(fases: KanbanFase[]): KanbanFase[] {
+  return filterPortfolioCalculadoraFases(fases);
+}
+
 function filtrarFasesCalculadoraEsteira(kanbanId: string, fases: KanbanFase[]): KanbanFase[] {
   if (kanbanId === KANBAN_IDS.STEP_ONE) return filtrarFasesStepOne(fases);
+  if (kanbanId === KANBAN_IDS.PORTFOLIO) return filtrarFasesPortfolio(fases);
   if (kanbanId === KANBAN_IDS.OPERACOES) return filtrarFasesOperacoes(fases);
   return fases;
 }
@@ -187,6 +211,15 @@ function resolverFaseIdParaCalculo(
     if (primeiraIncluida) return primeiraIncluida.id;
   }
 
+  if (isCalculadoraExcludedPortfolioFaseSlug(cardFaseSlug)) {
+    const passagem = meta.find(
+      (m) => m.segmentoEsteira === 1 && m.slug === FASE_SLUGS.PASSAGEM_WAYSER,
+    );
+    if (passagem) return passagem.id;
+    const primeiraPortfolio = meta.find((m) => m.segmentoEsteira === 1);
+    if (primeiraPortfolio) return primeiraPortfolio.id;
+  }
+
   const primeiraDoSegmento = meta.find((m) => m.segmentoEsteira === segmentoCard);
   return primeiraDoSegmento?.id ?? cardFaseId;
 }
@@ -216,6 +249,9 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
   card: CalculadoraFasesInput['card'];
   visits: FaseVisit[];
   hoje?: Date;
+  ancora?: CalculadoraAncora | null;
+  overrides?: Map<string, CalculadoraFaseDataManualOverride>;
+  slaCondominio?: CondominioPrazosAprovacaoSla | null;
 }): CalculadoraFaseLinha[] {
   const meta = montarFasesCalculadoraEsteira(input.fasesPorKanban);
   if (meta.length === 0) return [];
@@ -235,22 +271,50 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
     ordem: m.ordemGlobal,
   }));
 
-  const visits =
-    cardNaEsteira && meta.some((m) => m.id === input.card.fase_id) ? input.visits : [];
+  const visits = input.visits.length > 0 ? input.visits : [];
 
   const linhas = calcularLinhasCalculadoraFases({
     fases: fasesGlobais,
     card: { ...input.card, fase_id: faseIdCalc },
     visits,
     hoje: input.hoje,
+    slaCondominio: input.slaCondominio,
   });
 
   const comSegmento = aplicarRegrasSegmentoEsteira(linhas, meta, segmentoCard);
   const faseOrdemRelativa =
     meta.some((m) => m.id === input.card.fase_id) ? input.card.fase_id : faseIdCalc;
-  return inferirFimRealPorProximaFase(
-    aplicarOrdemRelativaFaseAtual(comSegmento, meta, faseOrdemRelativa),
+  const cardCalc = { ...input.card, fase_id: faseOrdemRelativa };
+  const comOrdem = aplicarOrdemRelativaFaseAtual(comSegmento, meta, faseOrdemRelativa);
+  const comInferencia = inferirFimRealPorProximaFase(comOrdem);
+  const comAncora = aplicarAncoraCalculadoraLinhas(comInferencia, input.ancora, cardCalc, input.hoje);
+  const comDatasManuais = aplicarDatasManuaisCalculadoraLinhas(
+    comAncora,
+    input.overrides ?? new Map(),
+    cardCalc,
+    input.hoje,
   );
+  return normalizarIntervaloDatasCalculadoraLinhas(comDatasManuais, cardCalc, input.hoje);
+}
+
+/** Resumo executivo idêntico em todos os cards vinculados do sync group. */
+export function calcularResumoExecutivoCalculadoraSyncGroup(
+  linhasEncadeadas: CalculadoraFaseLinha[],
+  ctx: ContextoCalculadoraSyncGroup | null | undefined,
+  opts?: {
+    cardConcluido?: boolean;
+    visits?: FaseVisit[];
+    ancora?: CalculadoraAncora | null;
+    hoje?: Date;
+  },
+): CalculadoraResumoExecutivo {
+  const cardConcluido = ctx?.cardCalcCanonico.concluido ?? opts?.cardConcluido === true;
+  return calcularResumoExecutivoCalculadoraFases(linhasEncadeadas, {
+    cardConcluido,
+    visits: opts?.visits,
+    ancora: opts?.ancora,
+    hoje: opts?.hoje,
+  });
 }
 
 /** Mescla fases já carregadas do kanban atual no mapa (fallback enquanto busca a esteira). */
@@ -260,9 +324,14 @@ export function mesclarFasesKanbanAtualNoMapa(
   fasesAtuais: KanbanFase[],
 ): Map<string, KanbanFase[]> {
   const next = new Map(map);
-  if (fasesAtuais.length > 0 && (CALCULADORA_ESTEIRA_KANBAN_IDS as readonly string[]).includes(kanbanId)) {
-    const list = filtrarFasesCalculadoraEsteira(kanbanId, fasesAtuais);
-    next.set(kanbanId, list);
+  const kid = String(kanbanId ?? '').trim();
+  if (
+    fasesAtuais.length > 0 &&
+    (CALCULADORA_ESTEIRA_KANBAN_IDS as readonly string[]).includes(kid)
+  ) {
+    const list = filtrarFasesCalculadoraEsteira(kid, fasesAtuais);
+    // Não sobrescrever fases já carregadas quando o filtro não reconhece slugs do kanban errado.
+    if (list.length > 0) next.set(kid, list);
   }
   return next;
 }
@@ -297,6 +366,9 @@ export async function completarMapaCalculadoraEsteira(
 
   if (next.has(KANBAN_IDS.STEP_ONE)) {
     next.set(KANBAN_IDS.STEP_ONE, filtrarFasesStepOne(next.get(KANBAN_IDS.STEP_ONE)!));
+  }
+  if (next.has(KANBAN_IDS.PORTFOLIO)) {
+    next.set(KANBAN_IDS.PORTFOLIO, filtrarFasesPortfolio(next.get(KANBAN_IDS.PORTFOLIO)!));
   }
   if (next.has(KANBAN_IDS.OPERACOES)) {
     next.set(KANBAN_IDS.OPERACOES, filtrarFasesOperacoes(next.get(KANBAN_IDS.OPERACOES)!));

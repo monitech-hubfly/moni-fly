@@ -404,7 +404,7 @@ export async function concluirTrancheVinculoOperacoes(input: {
   if (!filho) {
     return {
       ok: false,
-      error: 'Não há card filho no Funil Crédito Obra vinculado a este card de Operações.',
+      error: 'Não há card filho no Funil Cash Me vinculado a este card de Operações.',
     };
   }
 
@@ -437,7 +437,7 @@ export async function concluirTrancheVinculoOperacoes(input: {
       cardId: filho.id,
       novaFaseId: faseDestinoId,
       basePath: '/funil-credito-obra',
-      kanbanNome: 'Funil Crédito Obra',
+      kanbanNome: 'Funil Cash Me',
     });
 
     if (!moveRes.ok) {

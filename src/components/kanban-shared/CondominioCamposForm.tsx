@@ -10,6 +10,7 @@ import {
 import type { CondominioFormDraft } from '@/lib/condominios-form';
 import { UFS_BRASIL } from '@/lib/uf';
 import { SearchableSelect } from '@/components/SearchableSelect';
+import { CondominioPrazosAprovacaoFields } from './CondominioPrazosAprovacaoFields';
 
 const inputCls =
   'mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800';
@@ -51,6 +52,10 @@ export function CondominioCamposForm({ draft, onChange, readOnly = false, row }:
         />
         <FieldView label="Extrato — Como eram essas casas" value={row.extrato_como_eram_casas ?? ''} />
         <FieldView label="Extrato — Tempo para vender" value={row.extrato_tempo_venda ?? ''} />
+        <div className="col-span-2 border-t border-stone-100 pt-2">
+          <p className="mb-2 text-[11px] font-semibold text-stone-600">Prazos de aprovação</p>
+          <CondominioPrazosAprovacaoFields draft={draft} onChange={() => {}} readOnly row={row} />
+        </div>
       </div>
     );
   }
@@ -187,6 +192,18 @@ export function CondominioCamposForm({ draft, onChange, readOnly = false, row }:
           className={inputCls}
         />
       </label>
+      <div className="col-span-2 border-t border-stone-100 pt-2">
+        <p className="mb-2 text-[11px] font-semibold text-stone-600">Prazos de aprovação</p>
+        <CondominioPrazosAprovacaoFields
+          draft={{
+            prazo_aprovacao_condominio_dias: draft.prazo_aprovacao_condominio_dias,
+            prazo_aprovacao_condominio_sla_tipo: draft.prazo_aprovacao_condominio_sla_tipo,
+            prazo_aprovacao_prefeitura_dias: draft.prazo_aprovacao_prefeitura_dias,
+            prazo_aprovacao_prefeitura_sla_tipo: draft.prazo_aprovacao_prefeitura_sla_tipo,
+          }}
+          onChange={onChange}
+        />
+      </div>
     </div>
   );
 }
