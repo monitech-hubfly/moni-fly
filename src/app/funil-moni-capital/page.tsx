@@ -1,5 +1,5 @@
 /**
- * Kanban **Funil Moní Capital** (`kanbans.nome`): nativo (`kanban_cards`), mesmos componentes que Funil Acoplamento.
+ * Kanban **Funil Divify** (`kanbans.nome`): nativo (`kanban_cards`), mesmos componentes que Funil Acoplamento.
  * Cards manuais: admin/team. Bastões automáticos: `origem_card_id` preenchido.
  */
 import { renderKanbanDatabasePage } from '@/components/kanban-shared/renderKanbanDatabasePage';
@@ -15,10 +15,10 @@ export default async function FunilMoniCapitalPage({
   await requireFunisInternosNegocioAccess();
 
   return renderKanbanDatabasePage(searchParams, {
-    kanbanNomeDb: 'Funil Moní Capital',
-    kanbanNomeDisplay: 'Funil Moní Capital',
+    kanbanNomeDb: 'Funil Divify',
+    kanbanNomeDisplay: 'Funil Divify',
     basePath: '/funil-moni-capital',
-    pageTitle: 'Kanban Funil Moní Capital',
+    pageTitle: 'Kanban Funil Divify',
     tabsVariant: 'moniCapital',
     columnAccent: 'var(--moni-navy-700)',
     novoCardApenasStaff: true,

@@ -54,9 +54,9 @@ const NOVOS_NEGOCIOS_SUBITENS_FRANK: NavItem[] = [
   { href: '/portfolio', label: 'Funil Portfolio' },
 ];
 const CREDITO_JURIDICO_SUBITENS: NavItem[] = [
-  { href: '/funil-moni-capital', label: 'Moní Capital' },
+  { href: '/funil-moni-capital', label: 'Funil Divify' },
   { href: '/funil-funding', label: 'Funding' },
-  { href: '/funil-credito-obra', label: 'Crédito Obra' },
+  { href: '/funil-credito-obra', label: 'Funil Cash Me' },
   { href: '/painel-contabilidade', label: 'Funil Contabilidade' },
 ];
 const PRE_OBRA_SUBITENS: NavItem[] = [
@@ -413,7 +413,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
         {showCreditoJuridicoNav &&
           renderMacro(
             'creditoJuridico',
-            'Crédito e Contabilidade',
+            'Moní Capital',
             isCreditoJuridicoActive(pathname ?? ''),
             creditoJuridicoOpen,
             setCreditoJuridicoOpen,

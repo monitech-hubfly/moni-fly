@@ -193,7 +193,7 @@ export function montarChipsParalelas(
       }
     }
     if (slug === FASE_SLUGS.CAPTACAO_CAPITAL) {
-      chips.push(chipEsteira('Moní Capital', 'Capital', boolFlag(f.capital_ok), opts));
+      chips.push(chipEsteira('Divify', 'Divify', boolFlag(f.capital_ok), opts));
     }
     if (
       !emStep4OuAcoplamento &&
@@ -226,7 +226,7 @@ export function montarChipsParalelas(
   }
 
   if (kid === KANBAN_IDS.OPERACOES && slug === FASE_SLUGS.AGUARDANDO_CREDITO) {
-    chips.push(chipEsteira('Crédito Obra', 'Créd. Obra', boolFlag(f.credito_obra_ok), opts));
+    chips.push(chipEsteira('Cash Me', 'Cash Me', boolFlag(f.credito_obra_ok), opts));
   }
 
   if (kid === KANBAN_IDS.ACOPLAMENTO) {

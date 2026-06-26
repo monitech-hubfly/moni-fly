@@ -25,10 +25,16 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Portfólio': KANBAN_IDS.PORTFOLIO,
   'Funil Acoplamento': KANBAN_IDS.ACOPLAMENTO,
   'Funil Contabilidade': KANBAN_IDS.CONTABILIDADE,
+  'Funil Cash Me': KANBAN_IDS.CREDITO_OBRA,
+  /** @deprecated legado — preferir Funil Cash Me */
   'Funil Crédito Obra': KANBAN_IDS.CREDITO_OBRA,
+  /** @deprecated legado (migration 114) */
+  'Funil Crédito': KANBAN_IDS.CREDITO_OBRA,
   'Funil Loteadores': KANBAN_IDS.LOTEADORES,
   'Funil Operações': KANBAN_IDS.OPERACOES,
   'Funil Jurídico': KANBAN_IDS.JURIDICO,
+  'Funil Divify': KANBAN_IDS.MONI_CAPITAL,
+  /** @deprecated legado — preferir Funil Divify */
   'Funil Moní Capital': KANBAN_IDS.MONI_CAPITAL,
   'Funding': KANBAN_IDS.FUNDING,
   'Funil Contratações': KANBAN_IDS.CONTRATACOES,
@@ -236,7 +242,7 @@ export const KANBANS_INTERNOS = [
 /** Nomes em `kanbans.nome` alinhados a `KANBANS_INTERNOS`. */
 export const KANBANS_INTERNOS_NOMES = [
   'Funil Jurídico',
-  'Funil Moní Capital',
+  'Funil Divify',
   'Funding',
   'Funil Contratações',
   'Funil Produto',

@@ -7,7 +7,7 @@ export type KanbanNomeDisplay =
   | 'Funil Portfólio'
   | 'Funil Acoplamento'
   | 'Funil Jurídico'
-  | 'Funil Moní Capital'
+  | 'Funil Divify'
   | 'Funding'
   | 'Funil Contratações'
   | 'Funil Produto'
@@ -18,7 +18,7 @@ export type KanbanNomeDisplay =
   | 'Funil Projetos Legais'
   | 'Funil Pré Obra e Obra'
   | 'Funil Contabilidade'
-  | 'Funil Crédito Obra';
+  | 'Funil Cash Me';
 
 export type KanbanFaseMaterialTipo = 'link' | 'documento' | 'video';
 
@@ -99,7 +99,7 @@ export type KanbanCardBrief = {
   operacoes_filho_fase_rotulo?: string | null;
   /** Ordem na coluna (menor = mais acima). Nativo: `kanban_cards.ordem_coluna`; legado: `processo_step_one.ordem_coluna_painel`. */
   ordem_coluna?: number | null;
-  /** Funil Crédito Obra — fase co_documentacao_alvara */
+  /** Funil Cash Me — fase co_documentacao_alvara */
   alvara_url?: string | null;
   docs_terreno_url?: string | null;
   /** Entrada na fase atual — base do SLA por fase (migration 213). */

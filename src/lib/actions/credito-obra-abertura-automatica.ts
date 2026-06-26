@@ -159,7 +159,7 @@ export async function consultarAberturaCreditoObraPendente(
       dataEnvioExibicao: null,
       tituloCard,
       processoId,
-      motivoNaoExibir: 'Já existe card no Funil Crédito Obra.',
+      motivoNaoExibir: 'Já existe card no Funil Cash Me.',
     };
   }
 
@@ -218,7 +218,7 @@ export type CreditoObraAberturaAcaoResult =
   | { ok: true; cardFilhoId?: string; dataEnvio?: string | null }
   | { ok: false; error: string };
 
-/** Autoriza a abertura do card filho no Funil Crédito Obra (fase Novo Projeto). */
+/** Autoriza a abertura do card filho no Funil Cash Me (fase Novo Projeto). */
 export async function autorizarAberturaCreditoObra(
   cardId: string,
   basePath?: string,
@@ -248,7 +248,7 @@ export async function autorizarAberturaCreditoObra(
     });
 
     if (!filho?.id) {
-      return { ok: false, error: 'Já existe um card no Funil Crédito Obra para este projeto.' };
+      return { ok: false, error: 'Já existe um card no Funil Cash Me para este projeto.' };
     }
 
     const path = basePath?.trim() || '/';

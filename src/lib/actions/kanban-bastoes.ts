@@ -1011,13 +1011,13 @@ const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
 const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'Acoplamento (aprovado)',
   [FASE_SLUGS.ACOPLAMENTO_REPROVADO]: 'Acoplamento (paralisado)',
-  [FASE_SLUGS.CO_OUTRO_PARCEIRO]: 'Crédito Obra (outro parceiro)',
-  [FASE_SLUGS.CREDITO_OBRA_APROVADO]: 'Crédito Obra (aprovado)',
-  [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'Crédito Obra (reprovado)',
+  [FASE_SLUGS.CO_OUTRO_PARCEIRO]: 'Cash Me (outro parceiro)',
+  [FASE_SLUGS.CREDITO_OBRA_APROVADO]: 'Cash Me (aprovado)',
+  [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'Cash Me (reprovado)',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'Contabilidade',
   [FASE_SLUGS.JURIDICO_CONCLUIDO]: 'Jurídico',
-  [FASE_SLUGS.CAPITAL_CONCLUIDO]: 'Moní Capital (concluído)',
-  [FASE_SLUGS.CAPITAL_NAO_ELEGIVEL]: 'Moní Capital (não elegível)',
+  [FASE_SLUGS.CAPITAL_CONCLUIDO]: 'Divify (concluído)',
+  [FASE_SLUGS.CAPITAL_NAO_ELEGIVEL]: 'Divify (não elegível)',
   [FASE_SLUGS.PROJETOS_LOCAIS_CONCLUIDO]: 'Projetos Locais',
   [FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO]: 'Projetos Legais',
 };

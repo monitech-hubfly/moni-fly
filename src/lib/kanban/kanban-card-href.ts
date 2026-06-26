@@ -6,6 +6,8 @@ const KANBAN_NOME_DB_PARA_APP: Record<string, { basePath: string; cardQueryParam
   'Funil Operações': { basePath: '/operacoes', cardQueryParam: 'card' },
   'Funil Acoplamento': { basePath: '/funil-acoplamento', cardQueryParam: 'card' },
   'Funil Jurídico': { basePath: '/funil-juridico', cardQueryParam: 'card' },
+  'Funil Divify': { basePath: '/funil-moni-capital', cardQueryParam: 'card' },
+  /** @deprecated legado */
   'Funil Moní Capital': { basePath: '/funil-moni-capital', cardQueryParam: 'card' },
   'Funding': { basePath: '/funil-funding', cardQueryParam: 'card' },
   'Funil Contratações': { basePath: '/funil-contratacoes', cardQueryParam: 'card' },
@@ -16,6 +18,8 @@ const KANBAN_NOME_DB_PARA_APP: Record<string, { basePath: string; cardQueryParam
   'Funil Projetos Locais': { basePath: '/projetos-locais', cardQueryParam: 'card' },
   'Funil Projetos Legais': { basePath: '/projetos-legais', cardQueryParam: 'card' },
   'Funil Contabilidade': { basePath: '/painel-contabilidade', cardQueryParam: 'kanbanCard' },
+  'Funil Cash Me': { basePath: '/funil-credito-obra', cardQueryParam: 'kanbanCard' },
+  /** @deprecated legado */
   'Funil Crédito Obra': { basePath: '/funil-credito-obra', cardQueryParam: 'kanbanCard' },
   /** Nome legado (migration 114) — mesmo funil que Crédito Obra. */
   'Funil Crédito': { basePath: '/funil-credito-obra', cardQueryParam: 'kanbanCard' },

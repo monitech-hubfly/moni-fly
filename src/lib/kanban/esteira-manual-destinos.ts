@@ -28,7 +28,7 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
     faseDestinoSlug: 'contabilidade_incorporadora',
   },
   credito_obra: {
-    label: 'Crédito Obra',
+    label: 'Cash Me',
     kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA,
     faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
   },
@@ -38,7 +38,7 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
     faseDestinoSlug: 'juridico_recebimento',
   },
   moni_capital: {
-    label: 'Moní Capital',
+    label: 'Divify',
     kanbanDestinoId: KANBAN_IDS.MONI_CAPITAL,
     faseDestinoSlug: 'capital_recebimento',
   },
