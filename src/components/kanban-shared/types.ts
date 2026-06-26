@@ -97,6 +97,8 @@ export type KanbanCardBrief = {
   filho_operacoes_arquivado?: boolean;
   /** Portfolio: rótulo da fase do filho em Pré Obra e Obra. */
   operacoes_filho_fase_rotulo?: string | null;
+  /** Portfolio: fase atual do filho Jurídico. */
+  juridico_filho_fase_nome?: string | null;
   /** Ordem na coluna (menor = mais acima). Nativo: `kanban_cards.ordem_coluna`; legado: `processo_step_one.ordem_coluna_painel`. */
   ordem_coluna?: number | null;
   /** Funil Cash Me — fase co_documentacao_alvara */

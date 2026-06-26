@@ -393,6 +393,7 @@ type Card = {
   tem_filho_operacoes?: boolean;
   filho_operacoes_arquivado?: boolean;
   operacoes_filho_fase_rotulo?: string | null;
+  juridico_filho_fase_nome?: string | null;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
   processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
@@ -1454,6 +1455,7 @@ export function KanbanCardModal({
             tem_filho_operacoes: enrichedRow.tem_filho_operacoes,
             filho_operacoes_arquivado: enrichedRow.filho_operacoes_arquivado,
             operacoes_filho_fase_rotulo: enrichedRow.operacoes_filho_fase_rotulo,
+            juridico_filho_fase_nome: enrichedRow.juridico_filho_fase_nome,
             acoplamento_filho_fase_nome: enrichedRow.filho_acoplamento_arquivado
               ? enrichedRow.acoplamento_filho_fase_nome ?? null
               : enrichedRow.acoplamento_filho_fase_nome ?? cardParaEstado.acoplamento_filho_fase_nome,
@@ -4109,6 +4111,7 @@ export function KanbanCardModal({
             temFilhoOperacoes: card.tem_filho_operacoes,
             filhoOperacoesArquivado: card.filho_operacoes_arquivado,
             operacoesFilhoFaseRotulo: card.operacoes_filho_fase_rotulo,
+            juridicoFilhoFaseRotulo: card.juridico_filho_fase_nome,
           },
           { labelsCompletos: true },
         )

@@ -4,8 +4,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   PORTFOLIO_PARALELAS,
   type PortfolioParalelasFlags,
+  type PortfolioParalelaFlag,
   listarEsteirasParalelasPendentes,
 } from '@/lib/kanban/portfolio-paralelas';
+import { PARALELA_KANBAN_CREDITO_TERRENO, nomeFunilParalela } from '@/lib/kanban/kanban-paralelas-cores';
 import { labelChipAcoplamentoPai, FASE_EXIBICAO_CARD_ARQUIVADO } from '@/lib/kanban/acoplamento-tag-pai';
 import {
   HIPOTESES_FASE_SLUGS,
@@ -23,6 +25,10 @@ export type ParalelaChip = {
   icone?: string;
   /** `vinculo` = chip informativo (ex.: Portfolio no Step One). */
   variant?: 'esteira' | 'vinculo';
+  /** Funil filho — cor e tooltip no board. */
+  kanbanId?: string;
+  funilNome?: string;
+  faseNome?: string;
 };
 
 export type CardParalelasFlags = {
@@ -58,6 +64,8 @@ export type MontarChipsParalelasInput = {
   filhoOperacoesArquivado?: boolean;
   /** Portfolio: fase atual do filho em Pré Obra e Obra (tag de vínculo). */
   operacoesFilhoFaseRotulo?: string | null;
+  /** Portfolio: fase atual do filho Jurídico. */
+  juridicoFilhoFaseRotulo?: string | null;
 };
 
 export type MontarChipsParalelasOptions = {
@@ -69,11 +77,36 @@ function boolFlag(v: boolean | null | undefined): boolean {
   return Boolean(v);
 }
 
-function chipEsteira(label: string, labelCurto: string, concluido: boolean, opts?: MontarChipsParalelasOptions): ParalelaChip {
+function faseParalelaFallback(concluido: boolean, fase?: string | null): string {
+  const f = String(fase ?? '').trim();
+  if (f) return f;
+  return concluido ? 'Concluído' : 'Em andamento';
+}
+
+const FLAG_KANBAN_ID: Record<PortfolioParalelaFlag, string> = {
+  acoplamento_concluido: KANBAN_IDS.ACOPLAMENTO,
+  credito_terreno_ok: PARALELA_KANBAN_CREDITO_TERRENO,
+  contabilidade_ok: KANBAN_IDS.CONTABILIDADE,
+  juridico_ok: KANBAN_IDS.JURIDICO,
+  capital_ok: KANBAN_IDS.MONI_CAPITAL,
+};
+
+function chipEsteira(
+  kanbanId: string,
+  funilNome: string,
+  faseNome: string | null | undefined,
+  label: string,
+  labelCurto: string,
+  concluido: boolean,
+  opts?: MontarChipsParalelasOptions,
+): ParalelaChip {
   return {
     label: opts?.labelsCompletos ? label : labelCurto,
     concluido,
     variant: 'esteira',
+    kanbanId,
+    funilNome,
+    faseNome: faseParalelaFallback(concluido, faseNome),
   };
 }
 
@@ -94,13 +127,20 @@ function pushChipAcoplamentoPortfolio(
   const faseNomeChip = filhoArquivado
     ? null
     : flags.acoplamento_filho_fase_nome;
+  const concluido = filhoArquivado ? false : boolFlag(flags.acoplamento_concluido);
+  const faseExib = filhoArquivado
+    ? FASE_EXIBICAO_CARD_ARQUIVADO
+    : faseParalelaFallback(concluido, faseNomeChip);
   chips.push({
     label: labelChipAcoplamentoPai(faseNomeChip, {
       labelsCompletos: opts?.labelsCompletos,
       arquivado: filhoArquivado,
     }),
-    concluido: filhoArquivado ? false : boolFlag(flags.acoplamento_concluido),
+    concluido,
     variant: 'esteira',
+    kanbanId: KANBAN_IDS.ACOPLAMENTO,
+    funilNome: nomeFunilParalela(KANBAN_IDS.ACOPLAMENTO),
+    faseNome: faseExib,
   });
 }
 
@@ -155,6 +195,9 @@ export function montarChipsParalelas(
       concluido: true,
       icone: '📋',
       variant: 'vinculo',
+      kanbanId: KANBAN_IDS.PORTFOLIO,
+      funilNome: nomeFunilParalela(KANBAN_IDS.PORTFOLIO),
+      faseNome: rot,
     });
     return chips;
   }
@@ -189,11 +232,32 @@ export function montarChipsParalelas(
           pushChipAcoplamentoPortfolio(chips, f, chipAcoplamentoOpts);
           continue;
         }
-        chips.push(chipEsteira(p.label, p.labelCurto, boolFlag(f[p.flag]), opts));
+        const kanbanId = FLAG_KANBAN_ID[p.flag];
+        chips.push(
+          chipEsteira(
+            kanbanId,
+            nomeFunilParalela(kanbanId, p.label),
+            null,
+            p.label,
+            p.labelCurto,
+            boolFlag(f[p.flag]),
+            opts,
+          ),
+        );
       }
     }
     if (slug === FASE_SLUGS.CAPTACAO_CAPITAL) {
-      chips.push(chipEsteira('Divify', 'Divify', boolFlag(f.capital_ok), opts));
+      chips.push(
+        chipEsteira(
+          KANBAN_IDS.MONI_CAPITAL,
+          nomeFunilParalela(KANBAN_IDS.MONI_CAPITAL),
+          null,
+          'Divify',
+          'Divify',
+          boolFlag(f.capital_ok),
+          opts,
+        ),
+      );
     }
     if (
       !emStep4OuAcoplamento &&
@@ -204,7 +268,17 @@ export function montarChipsParalelas(
       pushChipAcoplamentoPortfolio(chips, f, chipAcoplamentoOpts);
     }
     if (input.temFilhoJuridico || boolFlag(f.juridico_ok)) {
-      chips.push(chipEsteira('Jurídico', 'Jurídico', boolFlag(f.juridico_ok), opts));
+      chips.push(
+        chipEsteira(
+          KANBAN_IDS.JURIDICO,
+          nomeFunilParalela(KANBAN_IDS.JURIDICO),
+          input.juridicoFilhoFaseRotulo,
+          'Jurídico',
+          'Jurídico',
+          boolFlag(f.juridico_ok),
+          opts,
+        ),
+      );
     }
     const emPassagemWayser = slug === FASE_SLUGS.PASSAGEM_WAYSER;
     const temFilhoOperacoes = Boolean(input.temFilhoOperacoes);
@@ -220,13 +294,26 @@ export function montarChipsParalelas(
         concluido: temFilhoOperacoes,
         icone: '🔗',
         variant: 'vinculo',
+        kanbanId: KANBAN_IDS.OPERACOES,
+        funilNome: nomeFunilParalela(KANBAN_IDS.OPERACOES),
+        faseNome: rotuloFase,
       });
     }
     return chips;
   }
 
   if (kid === KANBAN_IDS.OPERACOES && slug === FASE_SLUGS.AGUARDANDO_CREDITO) {
-    chips.push(chipEsteira('Cash Me', 'Cash Me', boolFlag(f.credito_obra_ok), opts));
+    chips.push(
+      chipEsteira(
+        KANBAN_IDS.CREDITO_OBRA,
+        nomeFunilParalela(KANBAN_IDS.CREDITO_OBRA),
+        null,
+        'Cash Me',
+        'Cash Me',
+        boolFlag(f.credito_obra_ok),
+        opts,
+      ),
+    );
   }
 
   if (kid === KANBAN_IDS.ACOPLAMENTO) {
@@ -447,8 +534,9 @@ export async function enrichCardsParalelasContext(
     ] = await Promise.all([
       supabase
         .from('kanban_cards')
-        .select('origem_card_id')
+        .select('origem_card_id, concluido, kanban_fases ( nome, slug )')
         .eq('kanban_id', KANBAN_IDS.JURIDICO)
+        .eq('arquivado', false)
         .in('origem_card_id', cardIds),
       supabase
         .from('kanban_cards')
@@ -477,9 +565,18 @@ export async function enrichCardsParalelasContext(
     ]);
 
     const comFilhoJuridico = new Set<string>();
+    const filhoJuridicoPorPai = new Map<string, string>();
     for (const row of filhosJuridico ?? []) {
       const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
-      if (oid) comFilhoJuridico.add(oid);
+      if (!oid) continue;
+      comFilhoJuridico.add(oid);
+      if (!filhoJuridicoPorPai.has(oid)) {
+        const fase = unwrapFase(
+          (row as { kanban_fases?: FaseJoin | FaseJoin[] | null }).kanban_fases ?? null,
+        );
+        const faseNome = String(fase?.nome ?? '').trim();
+        if (faseNome) filhoJuridicoPorPai.set(oid, faseNome);
+      }
     }
 
     const filhoAcoplamentoPorPai = new Map<
@@ -542,7 +639,11 @@ export async function enrichCardsParalelasContext(
       }
 
       const patch: Partial<KanbanCardBrief> = {};
-      if (temJuridico) patch.tem_filho_juridico = true;
+      if (temJuridico) {
+        patch.tem_filho_juridico = true;
+        const faseJur = filhoJuridicoPorPai.get(c.id);
+        if (faseJur) patch.juridico_filho_fase_nome = faseJur;
+      }
       if (temFilhoAcoplamento) patch.tem_filho_acoplamento = true;
       if (filhoArquivado) patch.filho_acoplamento_arquivado = true;
       if (temFilhoOperacoes) {

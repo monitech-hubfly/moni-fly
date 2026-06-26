@@ -2728,6 +2728,60 @@
   margin-top: 6px;
 }
 
+/* Bolinhas de vínculos paralelos — lateral direita do card */
+.moni-kanban-card--com-paralelas {
+  padding-right: 22px;
+}
+
+.moni-kanban-paralelas-bolinhas {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.moni-kanban-paralela-bolinha {
+  box-sizing: border-box;
+  display: block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+
+.moni-kanban-paralela-tooltip {
+  pointer-events: none;
+  position: absolute;
+  right: calc(100% + 6px);
+  top: 50%;
+  z-index: 50;
+  width: max-content;
+  max-width: 220px;
+  padding: 4px 8px;
+  border-radius: var(--moni-radius-sm);
+  background: var(--moni-green-800);
+  color: var(--moni-surface-0);
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+
+.group\/par:hover .moni-kanban-paralela-tooltip {
+  opacity: 1;
+}
+
 /* Drawer / modal de card */
 .moni-kanban-drawer.moni-card-modal-split {
   border: var(--moni-border-width) solid var(--moni-kanban-bd);

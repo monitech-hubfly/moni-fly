@@ -431,6 +431,7 @@ export function KanbanColumn({
               temFilhoOperacoes: card.tem_filho_operacoes,
               filhoOperacoesArquivado: card.filho_operacoes_arquivado,
               operacoesFilhoFaseRotulo: card.operacoes_filho_fase_rotulo,
+              juridicoFilhoFaseRotulo: card.juridico_filho_fase_nome,
             },
             { labelsCompletos: false },
           );
@@ -497,6 +498,7 @@ export function KanbanColumn({
                   dragOverCardId === card.id && !dragInsertBefore && dndAtivo
                     ? 'moni-kanban-card--drag-target'
                     : '',
+                  chipsParalelas.length > 0 ? 'moni-kanban-card--com-paralelas' : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -535,6 +537,9 @@ export function KanbanColumn({
                     </button>
                   </div>
                 ) : null}
+                {chipsParalelas.length > 0 ? (
+                  <KanbanParalelasChips chips={chipsParalelas} mode="board" />
+                ) : null}
                 <button
                   type="button"
                   onClick={() => abrirCard(card)}
@@ -571,9 +576,6 @@ export function KanbanColumn({
                   })()}
                   {subtituloCard ? (
                     <p className="moni-kanban-card-subtitle">{subtituloCard}</p>
-                  ) : null}
-                  {chipsParalelas.length > 0 ? (
-                    <KanbanParalelasChips chips={chipsParalelas} compact />
                   ) : null}
                   {arquivado && motivo ? (
                     <p className="moni-kanban-card-section-value line-clamp-2">{motivo}</p>
