@@ -122,44 +122,6 @@ export const CALCULADORA_STATUS_GERAL_LABEL: Record<CalculadoraStatusGeral, stri
   concluido: 'Concluído',
 };
 
-/** Slug da fase marco final do Funil Portfólio (substituída por MW na timeline). */
-export function isCalculadoraFaseMarcoPassagemWayser(slug: string | null | undefined): boolean {
-  return String(slug ?? '').trim() === FASE_SLUGS.PASSAGEM_WAYSER;
-}
-
-/** Normaliza linha passagem_wayser: marco concluído/futuro, fora do resumo operacional. */
-export function normalizarLinhaMarcoPassagemWayser(linha: CalculadoraFaseLinha): CalculadoraFaseLinha {
-  if (!isCalculadoraFaseMarcoPassagemWayser(linha.faseSlug)) return linha;
-
-  if (linha.status === 'futura') {
-    return { ...linha, faseAtiva: false, atrasoDias: null };
-  }
-
-  let status: FaseTimelineStatus = 'concluida';
-  if (
-    (linha.dataFimReal &&
-      linha.dataFimEstimada &&
-      linha.dataFimReal > linha.dataFimEstimada) ||
-    linha.status === 'atual_atrasada' ||
-    linha.status === 'concluida_atraso'
-  ) {
-    status = 'concluida_atraso';
-  }
-
-  return {
-    ...linha,
-    status,
-    faseAtiva: false,
-    atrasoDias: null,
-  };
-}
-
-export function normalizarLinhasMarcoPassagemWayser(
-  linhas: CalculadoraFaseLinha[],
-): CalculadoraFaseLinha[] {
-  return linhas.map(normalizarLinhaMarcoPassagemWayser);
-}
-
 /** Sufixo de coluna de data na calculadora: est. (previsão) ou real (registrada). */
 export function labelSufixoDataCalculadora(temDataReal: boolean): 'est.' | 'real' {
   return temDataReal ? 'real' : 'est.';
@@ -939,19 +901,28 @@ export function aplicarDatasManuaisCalculadoraLinhas(
 type EncadeamentoMarcoContratoInput = { contrato_assinado_em?: string | null };
 
 /**
- * Fim real do marco M0 (Contrato): movimento no kanban tem prioridade sobre assinatura registrada.
+ * Fim real do marco M0 (Contrato): saída da fase no histórico ou edição manual após sair.
+ * Não usa contrato_assinado_em — essa data é registro de assinatura, não saída da fase.
  */
 export function resolverFimRealMarcoContrato(
   linhaContrato: CalculadoraFaseLinha,
   idxContrato: number,
   linhas: CalculadoraFaseLinha[],
   visits: FaseVisit[] | undefined,
-  contratoAssinadoEm: string | null | undefined,
+  overrides?: Map<string, CalculadoraFaseDataManualOverride>,
 ): string | null {
+  const ov = overrides?.get(linhaContrato.faseId);
+  if (ov && 'dataFim' in ov && ov.dataFim) {
+    const fimManual = toYmd(ov.dataFim);
+    if (fimManual) return fimManual;
+  }
+
   if (visits?.length) {
     const visitSaiu = toYmd(lastVisitPerFase(visits).get(linhaContrato.faseId)?.saiu);
     if (visitSaiu) return visitSaiu;
   }
+
+  if (linhaContrato.dataFimReal) return linhaContrato.dataFimReal;
 
   for (let i = idxContrato + 1; i < linhas.length; i++) {
     const prox = linhas[i]!;
@@ -960,9 +931,7 @@ export function resolverFimRealMarcoContrato(
     if (inicio) return inicio;
   }
 
-  if (linhaContrato.dataFimReal) return linhaContrato.dataFimReal;
-
-  return toYmd(contratoAssinadoEm);
+  return null;
 }
 
 function idxFasePorSlugOuNome(
@@ -979,7 +948,7 @@ function idxFasePorSlugOuNome(
 }
 
 /**
- * Encadeia M0 (Contrato) após Diligência e recalcula Passagem para Wayser e fases posteriores.
+ * Encadeia M0 (Contrato) após Diligência e recalcula fases posteriores.
  */
 export function aplicarEncadeamentoMarcoContratoNasLinhas(
   linhas: CalculadoraFaseLinha[],
@@ -998,7 +967,7 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
     slugs,
     (slug, nome) => slug === FASE_SLUGS.STEP_7 || /^contrato$/i.test(nome.trim()),
   );
-  if (idxContrato < 0) return normalizarLinhasMarcoPassagemWayser(linhas);
+  if (idxContrato < 0) return linhas;
 
   const idxDiligencia = idxFasePorSlugOuNome(
     linhas,
@@ -1030,7 +999,7 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
     idxContrato,
     out,
     visits,
-    marcosInput.contrato_assinado_em,
+    overrides,
   );
   const fimEstimado =
     inicioContrato && rowContrato.slaDias != null && rowContrato.slaDias > 0
@@ -1069,9 +1038,7 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
   };
 
   const propagadas = propagarLinhasCalculadoraForward(out, idxContrato, card, ordemAtual, hoje);
-  let result = normalizarLinhasMarcoPassagemWayser(
-    recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef),
-  );
+  let result = recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef);
   if (overrides && overrides.size > 0) {
     result = aplicarDatasManuaisCalculadoraLinhas(result, overrides, card, hojeRef);
   }
@@ -1182,7 +1149,6 @@ function resolverMaiorGargalo(linhas: CalculadoraFaseLinha[]): CalculadoraMaiorG
   let melhorAtraso: CalculadoraMaiorGargalo | null = null;
 
   for (const row of linhas) {
-    if (isCalculadoraFaseMarcoPassagemWayser(row.faseSlug)) continue;
     if (faseContribuiAtrasoAcumulado(row.status) && row.atrasoDias != null && row.atrasoDias > 0) {
       if (!melhorAtraso || row.atrasoDias > melhorAtraso.dias) {
         melhorAtraso = {
@@ -1263,9 +1229,7 @@ export function calcularResumoExecutivoCalculadoraFases(
     }
 
     const linhaAtual = linhas.find(
-      (l) =>
-        (l.status === 'atual' || l.status === 'atual_atrasada') &&
-        !isCalculadoraFaseMarcoPassagemWayser(l.faseSlug),
+      (l) => l.status === 'atual' || l.status === 'atual_atrasada',
     );
     const diasNaFase =
       linhaAtual?.dataInicioReal != null

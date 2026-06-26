@@ -23,7 +23,6 @@ import {
 export type CalculadoraMarcoId =
   | 'M0'
   | 'M4'
-  | 'MW'
   | 'M24'
   | 'MO'
   | 'MIG'
@@ -105,7 +104,7 @@ type MarcoDatas = {
 };
 
 const MARCO_DEFS: {
-  id: Extract<CalculadoraMarcoId, 'M0' | 'M4' | 'MW'>;
+  id: Extract<CalculadoraMarcoId, 'M0' | 'M4'>;
   label: string;
   funilLabel: string;
   custo?: string | null;
@@ -132,15 +131,6 @@ const MARCO_DEFS: {
     match: (slug, nome) =>
       slug === FASE_SLUGS.PROCESSOS_CARTORARIOS ||
       /transfer[eê]ncia.*terreno/i.test(nome.trim()),
-  },
-  {
-    id: 'MW',
-    label: 'Passagem para Wayser',
-    funilLabel: 'Funil Portfólio',
-    anchor: 'replace',
-    match: (slug, nome) =>
-      slug === FASE_SLUGS.PASSAGEM_WAYSER || /passagem.*wayser/i.test(nome.trim()),
-    statusMarco: true,
   },
 ];
 
@@ -350,7 +340,7 @@ function marcoFromDatas(
   };
 }
 
-/** Marcos substitutos (M0, MW): concluída ou futura — nunca em andamento operacional. */
+/** Marco substituto M0: concluída ou futura — nunca em andamento operacional. */
 function resolverStatusMarcoSubstituto(
   linhaAnchora: CalculadoraFaseLinha,
 ): FaseTimelineStatus {
@@ -394,7 +384,7 @@ function enriquecerMarcoComLinhaAnchora(
 }
 
 function resolverDatasMarco(
-  id: Extract<CalculadoraMarcoId, 'M0' | 'M4' | 'MW'>,
+  id: Extract<CalculadoraMarcoId, 'M0' | 'M4'>,
   input: CalculadoraMarcosInput,
   linhas: CalculadoraFaseLinha[],
   slugs: Map<string, string | null | undefined>,
@@ -421,9 +411,10 @@ function resolverDatasMarco(
         return inicioAposFaseAnterior(linhas, idx, slugs);
       })();
     const fimReal =
-      linha && idx >= 0
-        ? resolverFimRealMarcoContrato(linha, idx, linhas, input.visits, input.contrato_assinado_em)
-        : null;
+      linha?.dataFimReal ??
+      (linha && idx >= 0
+        ? resolverFimRealMarcoContrato(linha, idx, linhas, input.visits)
+        : null);
     const dataFim = fimReal ?? linha?.dataFimEstimada ?? dataFimRef(linha);
     return {
       dataInicio,
@@ -432,7 +423,7 @@ function resolverDatasMarco(
     };
   }
 
-  if (id === 'M4' || id === 'MW') {
+  if (id === 'M4') {
     const dataFim = dataFimRef(linha);
     return {
       dataInicio: inicioAposFaseAnterior(linhas, idx, slugs),
