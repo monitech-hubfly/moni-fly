@@ -7,6 +7,7 @@ export const SLA_CALCULADORA_CANONICO_POR_SLUG: Record<
   { dias: number; tipo: Extract<SlaTipo, 'corridos' | 'uteis'> }
 > = {
   aguardando_credito: { dias: 30, tipo: 'corridos' },
+  em_obra: { dias: 180, tipo: 'corridos' },
 };
 
 /** SLAs padrão da calculadora quando a fase não tem sla_dias no banco. */
