@@ -852,6 +852,7 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
   card: CalculadoraFasesInput['card'],
   visits?: FaseVisit[],
   hojeRef?: Date,
+  overrides?: Map<string, CalculadoraFaseDataManualOverride>,
 ): CalculadoraFaseLinha[] {
   if (linhas.length === 0) return linhas;
 
@@ -922,9 +923,13 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
   };
 
   const propagadas = propagarLinhasCalculadoraForward(out, idxContrato, card, ordemAtual, hoje);
-  return normalizarLinhasMarcoPassagemWayser(
+  let result = normalizarLinhasMarcoPassagemWayser(
     recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef),
   );
+  if (overrides && overrides.size > 0) {
+    result = aplicarDatasManuaisCalculadoraLinhas(result, overrides, card, hojeRef);
+  }
+  return result;
 }
 
 /** Preenche fim real a partir da entrada na fase seguinte (quando o histórico não registrou saída). */

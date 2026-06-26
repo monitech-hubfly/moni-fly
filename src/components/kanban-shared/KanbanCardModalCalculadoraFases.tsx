@@ -486,6 +486,8 @@ function CalculadoraFaseDataCell({
   onSalvarData?: Props['onSalvarData'];
 }) {
   const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const valorInput = fmtDataInput(valor);
 
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -505,29 +507,36 @@ function CalculadoraFaseDataCell({
     );
   }
 
+  const salvar = async (next: string | null) => {
+    if (next === valorInput) return;
+    setErro(null);
+    setSalvando(true);
+    try {
+      const result = await onSalvarData(faseId, campo, next);
+      if (!result.ok) {
+        setErro(result.error ?? 'Não foi possível salvar a data.');
+      }
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   return (
     <div className="moni-calculadora-fase-data-cell moni-calculadora-fase-data-cell--edit" onClick={stop} onKeyDown={stop}>
       <input
         type="date"
-        className={`moni-calculadora-fase-data-input${atraso ? ' moni-calculadora-fase-data-input--atraso' : ''}${salvando ? ' moni-calculadora-fase-data-input--saving' : ''}`}
-        value={fmtDataInput(valor)}
+        className={`moni-calculadora-fase-data-input${atraso ? ' moni-calculadora-fase-data-input--atraso' : ''}${salvando ? ' moni-calculadora-fase-data-input--saving' : ''}${erro ? ' moni-calculadora-fase-data-input--erro' : ''}`}
+        defaultValue={valorInput}
+        key={`${faseId}-${campo}-${valorInput}`}
         disabled={salvando}
         aria-label={`${campo === 'inicio' ? 'Início' : 'Fim'} — ${label}`}
+        aria-invalid={erro ? true : undefined}
         onClick={stop}
         onChange={(e) => {
-          void (async () => {
-            const next = e.target.value.trim() || null;
-            if (next === fmtDataInput(valor)) return;
-            setSalvando(true);
-            try {
-              await onSalvarData(faseId, campo, next);
-            } finally {
-              setSalvando(false);
-            }
-          })();
+          void salvar(e.target.value.trim() || null);
         }}
       />
-      <span className="moni-calculadora-fase-data-label">{label}</span>
+      <span className="moni-calculadora-fase-data-label">{erro ?? label}</span>
     </div>
   );
 }

@@ -222,6 +222,8 @@ async function montarCalculadoraPack(
       concluido_em: card.concluido_em,
     },
     visits,
+    undefined,
+    overrides,
   );
 
   const fasesMeta = new Map<string, KanbanFase>();

@@ -1216,6 +1216,11 @@
   pointer-events: none;
 }
 
+.moni-calculadora-fase-data-input--erro {
+  border-color: var(--moni-calc-fim-atraso);
+  box-shadow: 0 0 0 1px var(--moni-calc-fim-atraso);
+}
+
 .moni-calculadora-edit-hint {
   font-family: var(--moni-font-sans);
   font-size: 10px;
