@@ -2117,6 +2117,17 @@
   font-size: 13px;
 }
 
+.moni-calculadora--modo-publico .moni-calculadora-table-header,
+.moni-calculadora--modo-publico .moni-calculadora-fase-row,
+.moni-calculadora--modo-publico .moni-calculadora-marco-row {
+  grid-template-columns: minmax(0, 1fr) 76px 64px 92px 108px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-data-cell .fd-val {
+  overflow: visible;
+  text-overflow: clip;
+}
+
 .moni-calculadora--modo-publico .moni-calculadora-fase-data-label {
   font-size: 10px;
 }
