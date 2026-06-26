@@ -972,15 +972,15 @@ export function resolverFimRealMarcoContrato(
   visits: FaseVisit[] | undefined,
   overrides?: Map<string, CalculadoraFaseDataManualOverride>,
 ): string | null {
+  if (visits?.length) {
+    const visitSaiu = toYmd(lastVisitPerFase(visits).get(linhaContrato.faseId)?.saiu);
+    if (visitSaiu) return visitSaiu;
+  }
+
   const ov = overrides?.get(linhaContrato.faseId);
   if (ov && 'dataFim' in ov && ov.dataFim) {
     const fimManual = toYmd(ov.dataFim);
     if (fimManual) return fimManual;
-  }
-
-  if (visits?.length) {
-    const visitSaiu = toYmd(lastVisitPerFase(visits).get(linhaContrato.faseId)?.saiu);
-    if (visitSaiu) return visitSaiu;
   }
 
   if (linhaContrato.dataFimReal) return linhaContrato.dataFimReal;
@@ -1105,7 +1105,20 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
   const propagadas = propagarLinhasCalculadoraForward(out, idxContrato, card, ordemAtual, hoje);
   let result = recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef);
   if (overrides && overrides.size > 0) {
-    result = aplicarDatasManuaisCalculadoraLinhas(result, overrides, card, hojeRef);
+    let overridesPosEncadeamento = overrides;
+    const visitSaiuContrato = toYmd(
+      visits?.length ? lastVisitPerFase(visits).get(rowContrato.faseId)?.saiu : null,
+    );
+    if (visitSaiuContrato && overrides.has(rowContrato.faseId)) {
+      overridesPosEncadeamento = new Map(overrides);
+      const ovContrato = overridesPosEncadeamento.get(rowContrato.faseId);
+      if (ovContrato && 'dataFim' in ovContrato) {
+        const { dataFim: _omit, ...rest } = ovContrato;
+        if (Object.keys(rest).length > 0) overridesPosEncadeamento.set(rowContrato.faseId, rest);
+        else overridesPosEncadeamento.delete(rowContrato.faseId);
+      }
+    }
+    result = aplicarDatasManuaisCalculadoraLinhas(result, overridesPosEncadeamento, card, hojeRef);
   }
   return normalizarIntervaloDatasCalculadoraLinhas(result, card, hojeRef);
 }

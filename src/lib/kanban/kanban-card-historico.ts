@@ -4,6 +4,11 @@ import type { HistoricoItem } from '@/components/kanban-shared/kanban-card-modal
 import { fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
 import { CALCULADORA_ESTEIRA_KANBAN_IDS, fetchCalculadoraEsteiraFasesMap } from '@/lib/kanban/calculadora-fases-esteira';
 import { listarCardIdsSyncGroup } from '@/lib/kanban/card-sync-group';
+import {
+  buildNativeFaseVisits,
+  mergeFaseVisitsSyncGroup,
+  type FaseVisit,
+} from '@/lib/kanban/kanban-card-timeline';
 
 type ProcessoEventoRow = {
   id: string;
@@ -163,4 +168,59 @@ export async function loadHistoricoCalculadoraEsteira(
   }
 
   return dedupeHistoricoItems(merged);
+}
+
+/** Visitas agregadas por card do sync group — cada card com seu histórico, mescladas por fase. */
+export async function buildVisitsCalculadoraEsteiraSyncGroup(
+  supabase: SupabaseClient,
+  cardId: string,
+  origem: 'legado' | 'nativo',
+  fasesPorKanban: Map<string, KanbanFase[]>,
+): Promise<FaseVisit[]> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return [];
+
+  let fasesMap = fasesPorKanban;
+  if ([...fasesMap.values()].every((list) => list.length === 0)) {
+    fasesMap = await fetchCalculadoraEsteiraFasesMap(supabase);
+  }
+
+  const fasesFlat: KanbanFase[] = [];
+  for (const kid of CALCULADORA_ESTEIRA_KANBAN_IDS) {
+    fasesFlat.push(...(fasesMap.get(kid) ?? []));
+  }
+  if (fasesFlat.length === 0) return [];
+
+  const groupIds = await listarCardIdsSyncGroup(supabase, cid);
+  const { data: cardRows } = await supabase
+    .from('kanban_cards')
+    .select('id, kanban_id, created_at, fase_id')
+    .in('id', groupIds)
+    .in('kanban_id', [...CALCULADORA_ESTEIRA_KANBAN_IDS]);
+
+  const allVisits: FaseVisit[] = [];
+  for (const row of cardRows ?? []) {
+    const id = String((row as { id?: string | null }).id ?? '').trim();
+    const kid = String((row as { kanban_id?: string | null }).kanban_id ?? '').trim();
+    if (!id || !kid) continue;
+    const fases = fasesMap.get(kid) ?? [];
+    const hist = await loadHistoricoCardModal(supabase, id, origem, fases, kid);
+    const movimentos = hist.map((h) => ({
+      acao: h.acao,
+      detalhe: h.detalhe,
+      criado_em: h.criado_em,
+    }));
+    allVisits.push(
+      ...buildNativeFaseVisits(
+        fasesFlat,
+        {
+          created_at: String((row as { created_at?: string }).created_at ?? ''),
+          fase_id: String((row as { fase_id?: string }).fase_id ?? ''),
+        },
+        movimentos,
+      ),
+    );
+  }
+
+  return mergeFaseVisitsSyncGroup(allVisits);
 }

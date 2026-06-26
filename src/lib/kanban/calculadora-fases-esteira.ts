@@ -266,8 +266,7 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
     ordem: m.ordemGlobal,
   }));
 
-  const visits =
-    cardNaEsteira && meta.some((m) => m.id === input.card.fase_id) ? input.visits : [];
+  const visits = input.visits.length > 0 ? input.visits : [];
 
   const linhas = calcularLinhasCalculadoraFases({
     fases: fasesGlobais,

@@ -231,7 +231,7 @@ import { KanbanCardDatasFields } from './KanbanCardDatasFields';
 import { KanbanCardSlaBolinha } from './KanbanCardPrazoIndicadores';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, augmentKanbanFasesComFasesDosCards, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
-import { loadHistoricoCardModal, loadHistoricoCalculadoraEsteira } from '@/lib/kanban/kanban-card-historico';
+import { loadHistoricoCardModal, loadHistoricoCalculadoraEsteira, buildVisitsCalculadoraEsteiraSyncGroup } from '@/lib/kanban/kanban-card-historico';
 import {
   listarComentariosKanbanCard,
   publicarComentarioKanbanCard,
@@ -595,6 +595,8 @@ export function KanbanCardModal({
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [historicoCalculadora, setHistoricoCalculadora] = useState<HistoricoItem[]>([]);
+  const [visitsCalculadora, setVisitsCalculadora] = useState<import('@/lib/kanban/kanban-card-timeline').FaseVisit[]>([]);
+  const [visitsCalculadoraCarregado, setVisitsCalculadoraCarregado] = useState(false);
   const [contextoCalculadoraSyncGroup, setContextoCalculadoraSyncGroup] =
     useState<ContextoCalculadoraSyncGroup | null>(null);
   const [contextoCalculadoraCarregado, setContextoCalculadoraCarregado] = useState(false);
@@ -1658,6 +1660,7 @@ export function KanbanCardModal({
       }
 
       try {
+        setVisitsCalculadoraCarregado(false);
         const hist = await loadHistoricoCardModal(
           supabase,
           cardId,
@@ -1674,11 +1677,24 @@ export function KanbanCardModal({
             fasesEsteiraCalculadora,
           );
           setHistoricoCalculadora(histCalc);
+          const visitsCalc = await buildVisitsCalculadoraEsteiraSyncGroup(
+            supabase,
+            cardId,
+            'nativo',
+            fasesEsteiraCalculadora,
+          );
+          setVisitsCalculadora(visitsCalc);
+          setVisitsCalculadoraCarregado(true);
         } else {
           setHistoricoCalculadora(hist);
+          setVisitsCalculadora([]);
+          setVisitsCalculadoraCarregado(true);
         }
       } catch {
         setHistorico([]);
+        setHistoricoCalculadora([]);
+        setVisitsCalculadora([]);
+        setVisitsCalculadoraCarregado(false);
       }
 
       try {
@@ -3425,15 +3441,9 @@ export function KanbanCardModal({
   const calculadoraFasesPack = useMemo(() => {
     if (!card) return { linhas: [], visits: [], faseIds: [] as string[] };
     try {
-      if (!contextoCalculadoraCarregado) {
+      if (!contextoCalculadoraCarregado || (origem !== 'legado' && !visitsCalculadoraCarregado)) {
         return { linhas: [], visits: [], faseIds: [] as string[] };
       }
-
-      const historicoMovs = (historicoCalculadora.length > 0 ? historicoCalculadora : historico).map((h) => ({
-        acao: h.acao,
-        detalhe: h.detalhe,
-        criado_em: h.criado_em,
-      }));
 
       const ctx = contextoCalculadoraSyncGroup;
       const kanbanIdCalc = ctx?.kanbanIdCanonico ?? card.kanban_id;
@@ -3462,17 +3472,12 @@ export function KanbanCardModal({
           ? buildLegadoFaseVisits(
               fasesParaVisitas,
               {
-                created_at: visitCardBase.created_at,
-                fase_id: visitCardBase.fase_id,
+                ...visitCardBase,
                 etapa_slug: card.etapa_slug ?? null,
               },
               legadoCronologiaMoves,
             )
-          : buildNativeFaseVisits(
-              fasesParaVisitas,
-              visitCardBase,
-              historicoMovs,
-            );
+          : visitsCalculadora;
 
       const cardFaseSlug =
         ctx?.faseSlugCanonico ??
@@ -3538,7 +3543,7 @@ export function KanbanCardModal({
     } catch {
       return { linhas: [], visits: [], faseIds: [] as string[] };
     }
-  }, [card, fases, fasesEsteiraCalculadora, historico, historicoCalculadora, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio, contextoCalculadoraSyncGroup, contextoCalculadoraCarregado]);
+  }, [card, fases, fasesEsteiraCalculadora, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio, contextoCalculadoraSyncGroup, contextoCalculadoraCarregado, visitsCalculadora, visitsCalculadoraCarregado]);
 
   const calculadoraAncora = useMemo(
     () => calculadoraAncoraFromProcesso(modalDetalhes.processo),

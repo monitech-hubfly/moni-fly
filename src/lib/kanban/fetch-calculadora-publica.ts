@@ -20,13 +20,11 @@ import {
   calcularResumoExecutivoCalculadoraSyncGroup,
   fetchCalculadoraEsteiraFasesMap,
   mesclarFasesKanbanAtualNoMapa,
-  montarFasesFlatCalculadoraVisitas,
 } from '@/lib/kanban/calculadora-fases-esteira';
 import { buscarDatasManuaisCalculadoraSyncGroup } from '@/lib/kanban/calculadora-fase-datas';
 import { fetchContextoCalculadoraSyncGroup } from '@/lib/kanban/card-sync-group';
 import { fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
-import { loadHistoricoCalculadoraEsteira } from '@/lib/kanban/kanban-card-historico';
-import { buildNativeFaseVisits } from '@/lib/kanban/kanban-card-timeline';
+import { buildVisitsCalculadoraEsteiraSyncGroup } from '@/lib/kanban/kanban-card-historico';
 import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slugs';
 import { filterPortfolioCalculadoraFases } from '@/lib/kanban/portfolio-fase-slugs';
 import { buscarResponsavelDaFaseSalvoPorFases } from '@/lib/kanban/responsavel-fase-checklist';
@@ -103,29 +101,13 @@ async function montarCalculadoraPack(
   const ctx = await fetchContextoCalculadoraSyncGroup(supabase, card.id);
   const kanbanIdCalc = ctx?.kanbanIdCanonico ?? kanbanId;
 
-  const [fasesEsteiraMap, fasesKanban, historico] = await Promise.all([
+  const [fasesEsteiraMap, fasesKanban, visits] = await Promise.all([
     fetchCalculadoraEsteiraFasesMap(supabase),
     fetchKanbanFasesAtivas(supabase, kanbanId),
-    loadHistoricoCalculadoraEsteira(supabase, card.id, 'nativo', new Map()),
+    buildVisitsCalculadoraEsteiraSyncGroup(supabase, card.id, 'nativo', new Map()),
   ]);
 
   const fasesMap = mesclarFasesKanbanAtualNoMapa(fasesEsteiraMap, kanbanId, fasesKanban);
-  const fasesParaVisitas = montarFasesFlatCalculadoraVisitas(fasesMap, fasesKanban, kanbanId);
-
-  const historicoMovs = historico.map((h) => ({
-    acao: h.acao,
-    detalhe: h.detalhe,
-    criado_em: h.criado_em,
-  }));
-
-  const visitCardBase = ctx
-    ? {
-        created_at: ctx.createdAtCanonico ?? card.created_at,
-        fase_id: ctx.faseIdCanonico,
-      }
-    : { created_at: card.created_at, fase_id: card.fase_id };
-
-  const visits = buildNativeFaseVisits(fasesParaVisitas, visitCardBase, historicoMovs);
 
   const cardFaseSlug =
     ctx?.faseSlugCanonico ??

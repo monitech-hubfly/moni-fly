@@ -56,6 +56,36 @@ function linhasPorVisitas(sortedFases: KanbanFase[], visits: FaseVisit[]): Linha
   });
 }
 
+/** Mescla visitas de vários cards vinculados — prioriza saída registrada no histórico. */
+export function mergeFaseVisitsSyncGroup(visits: FaseVisit[]): FaseVisit[] {
+  if (visits.length === 0) return [];
+
+  const byFase = new Map<string, FaseVisit[]>();
+  for (const v of visits) {
+    const list = byFase.get(v.faseId) ?? [];
+    list.push(v);
+    byFase.set(v.faseId, list);
+  }
+
+  const merged: FaseVisit[] = [];
+  for (const list of byFase.values()) {
+    const comSaiu = list.filter((v) => v.saiu != null);
+    if (comSaiu.length > 0) {
+      comSaiu.sort((a, b) => {
+        const diffSaiu = new Date(b.saiu!).getTime() - new Date(a.saiu!).getTime();
+        if (diffSaiu !== 0) return diffSaiu;
+        return new Date(b.entrou).getTime() - new Date(a.entrou).getTime();
+      });
+      merged.push(comSaiu[0]!);
+      continue;
+    }
+    list.sort((a, b) => new Date(b.entrou).getTime() - new Date(a.entrou).getTime());
+    merged.push(list[0]!);
+  }
+
+  return merged;
+}
+
 /** Última passagem por fase (MVP retrocessos — Calculadora de Fases). */
 export function lastVisitPerFase(visits: FaseVisit[]): Map<string, FaseVisit> {
   const map = new Map<string, FaseVisit>();

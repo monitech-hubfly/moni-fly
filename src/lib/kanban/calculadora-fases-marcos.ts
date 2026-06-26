@@ -420,10 +420,9 @@ function resolverDatasMarco(
         return inicioAposFaseAnterior(linhas, idx, slugs);
       })();
     const fimReal =
-      linha?.dataFimReal ??
-      (linha && idx >= 0
+      linha && idx >= 0
         ? resolverFimRealMarcoContrato(linha, idx, linhas, input.visits)
-        : null);
+        : null;
     const dataFim = fimReal ?? linha?.dataFimEstimada ?? dataFimRef(linha);
     return {
       dataInicio,
