@@ -101,12 +101,12 @@ async function montarCalculadoraPack(
 
   const [fasesEsteiraMap, fasesKanban, historico] = await Promise.all([
     fetchCalculadoraEsteiraFasesMap(supabase),
-    fetchKanbanFasesAtivas(supabase, kanbanIdCalc),
+    fetchKanbanFasesAtivas(supabase, kanbanId),
     loadHistoricoCalculadoraEsteira(supabase, card.id, 'nativo', new Map()),
   ]);
 
-  const fasesMap = mesclarFasesKanbanAtualNoMapa(fasesEsteiraMap, kanbanIdCalc, fasesKanban);
-  const fasesParaVisitas = montarFasesFlatCalculadoraVisitas(fasesMap, fasesKanban, kanbanIdCalc);
+  const fasesMap = mesclarFasesKanbanAtualNoMapa(fasesEsteiraMap, kanbanId, fasesKanban);
+  const fasesParaVisitas = montarFasesFlatCalculadoraVisitas(fasesMap, fasesKanban, kanbanId);
 
   const historicoMovs = historico.map((h) => ({
     acao: h.acao,

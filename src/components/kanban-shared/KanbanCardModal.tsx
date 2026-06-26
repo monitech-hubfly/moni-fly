@@ -3437,14 +3437,14 @@ export function KanbanCardModal({
 
       const fasesEsteiraMap = mesclarFasesKanbanAtualNoMapa(
         fasesEsteiraCalculadora,
-        kanbanIdCalc,
+        card.kanban_id,
         fases,
       );
 
       const fasesParaVisitas = montarFasesFlatCalculadoraVisitas(
         fasesEsteiraMap,
         fases,
-        kanbanIdCalc,
+        card.kanban_id,
       );
 
       const visitCardBase = ctx
