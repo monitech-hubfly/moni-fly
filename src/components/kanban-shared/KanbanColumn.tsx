@@ -414,6 +414,9 @@ export function KanbanColumn({
               temFilhoJuridico: card.tem_filho_juridico,
               temFilhoAcoplamento: card.tem_filho_acoplamento,
               filhoAcoplamentoArquivado: card.filho_acoplamento_arquivado,
+              temFilhoOperacoes: card.tem_filho_operacoes,
+              filhoOperacoesArquivado: card.filho_operacoes_arquivado,
+              operacoesFilhoFaseRotulo: card.operacoes_filho_fase_rotulo,
             },
             { labelsCompletos: false },
           );

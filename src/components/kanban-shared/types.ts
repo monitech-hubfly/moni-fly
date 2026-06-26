@@ -90,6 +90,12 @@ export type KanbanCardBrief = {
   tem_filho_acoplamento?: boolean;
   /** Portfolio: filho Acoplamento arquivado (sem filho ativo). */
   filho_acoplamento_arquivado?: boolean;
+  /** Portfolio: existe card filho no Funil Pré Obra e Obra. */
+  tem_filho_operacoes?: boolean;
+  /** Portfolio: filho Pré Obra e Obra arquivado (sem filho ativo). */
+  filho_operacoes_arquivado?: boolean;
+  /** Portfolio: rótulo da fase do filho em Pré Obra e Obra. */
+  operacoes_filho_fase_rotulo?: string | null;
   /** Ordem na coluna (menor = mais acima). Nativo: `kanban_cards.ordem_coluna`; legado: `processo_step_one.ordem_coluna_painel`. */
   ordem_coluna?: number | null;
   /** Funil Crédito Obra — fase co_documentacao_alvara */

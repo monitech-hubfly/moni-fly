@@ -224,7 +224,7 @@ import { KanbanCardDatasFields } from './KanbanCardDatasFields';
 import { KanbanCardSlaBolinha } from './KanbanCardPrazoIndicadores';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, augmentKanbanFasesComFasesDosCards, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
-import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
+import { loadHistoricoCardModal, loadHistoricoCalculadoraEsteira } from '@/lib/kanban/kanban-card-historico';
 import {
   listarComentariosKanbanCard,
   publicarComentarioKanbanCard,
@@ -317,6 +317,7 @@ import {
 import {
   calcularLinhasCalculadoraFasesEsteira,
   CALCULADORA_ESTEIRA_KANBAN_IDS,
+  cardKanbanNaEsteiraPrincipalCalculadora,
   fetchCalculadoraEsteiraFasesMap,
   mesclarFasesKanbanAtualNoMapa,
   montarFasesFlatCalculadoraVisitas,
@@ -374,6 +375,9 @@ type Card = {
   tem_filho_juridico?: boolean;
   tem_filho_acoplamento?: boolean;
   filho_acoplamento_arquivado?: boolean;
+  tem_filho_operacoes?: boolean;
+  filho_operacoes_arquivado?: boolean;
+  operacoes_filho_fase_rotulo?: string | null;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
   processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
@@ -575,6 +579,7 @@ export function KanbanCardModal({
   });
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
+  const [historicoCalculadora, setHistoricoCalculadora] = useState<HistoricoItem[]>([]);
   const [comentariosCard, setComentariosCard] = useState<ComentarioCardRow[]>([]);
   const [novoComentarioCard, setNovoComentarioCard] = useState('');
   const [comentarioPendingAnexos, setComentarioPendingAnexos] = useState<File[]>([]);
@@ -1390,6 +1395,9 @@ export function KanbanCardModal({
             tem_filho_juridico: enrichedRow.tem_filho_juridico,
             tem_filho_acoplamento: enrichedRow.tem_filho_acoplamento,
             filho_acoplamento_arquivado: enrichedRow.filho_acoplamento_arquivado,
+            tem_filho_operacoes: enrichedRow.tem_filho_operacoes,
+            filho_operacoes_arquivado: enrichedRow.filho_operacoes_arquivado,
+            operacoes_filho_fase_rotulo: enrichedRow.operacoes_filho_fase_rotulo,
             acoplamento_filho_fase_nome: enrichedRow.filho_acoplamento_arquivado
               ? enrichedRow.acoplamento_filho_fase_nome ?? null
               : enrichedRow.acoplamento_filho_fase_nome ?? cardParaEstado.acoplamento_filho_fase_nome,
@@ -1611,6 +1619,20 @@ export function KanbanCardModal({
           loaded.kanban_id,
         );
         setHistorico(hist);
+        if (
+          origem !== 'legado' &&
+          cardKanbanNaEsteiraPrincipalCalculadora(String(loaded.kanban_id ?? ''))
+        ) {
+          const histCalc = await loadHistoricoCalculadoraEsteira(
+            supabase,
+            cardId,
+            'nativo',
+            fasesEsteiraCalculadora,
+          );
+          setHistoricoCalculadora(histCalc);
+        } else {
+          setHistoricoCalculadora(hist);
+        }
       } catch {
         setHistorico([]);
       }
@@ -3333,7 +3355,7 @@ export function KanbanCardModal({
   const calculadoraFasesPack = useMemo(() => {
     if (!card) return { linhas: [], visits: [], faseIds: [] as string[] };
     try {
-      const historicoMovs = historico.map((h) => ({
+      const historicoMovs = (historicoCalculadora.length > 0 ? historicoCalculadora : historico).map((h) => ({
         acao: h.acao,
         detalhe: h.detalhe,
         criado_em: h.criado_em,
@@ -3427,7 +3449,7 @@ export function KanbanCardModal({
     } catch {
       return { linhas: [], visits: [], faseIds: [] as string[] };
     }
-  }, [card, fases, fasesEsteiraCalculadora, historico, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio]);
+  }, [card, fases, fasesEsteiraCalculadora, historico, historicoCalculadora, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio]);
 
   const calculadoraAncora = useMemo(
     () => calculadoraAncoraFromProcesso(modalDetalhes.processo),
@@ -3924,6 +3946,9 @@ export function KanbanCardModal({
             temFilhoJuridico: card.tem_filho_juridico,
             temFilhoAcoplamento: card.tem_filho_acoplamento,
             filhoAcoplamentoArquivado: card.filho_acoplamento_arquivado,
+            temFilhoOperacoes: card.tem_filho_operacoes,
+            filhoOperacoesArquivado: card.filho_operacoes_arquivado,
+            operacoesFilhoFaseRotulo: card.operacoes_filho_fase_rotulo,
           },
           { labelsCompletos: true },
         )

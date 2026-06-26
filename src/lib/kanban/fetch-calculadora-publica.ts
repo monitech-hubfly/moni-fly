@@ -21,7 +21,7 @@ import {
 } from '@/lib/kanban/calculadora-fases-esteira';
 import { buscarDatasManuaisCalculadoraPorFases } from '@/lib/kanban/calculadora-fase-datas';
 import { fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
-import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
+import { loadHistoricoCardModal, loadHistoricoCalculadoraEsteira } from '@/lib/kanban/kanban-card-historico';
 import { buildNativeFaseVisits } from '@/lib/kanban/kanban-card-timeline';
 import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slugs';
 import { filterPortfolioCalculadoraFases } from '@/lib/kanban/portfolio-fase-slugs';
@@ -96,7 +96,7 @@ async function montarCalculadoraPack(
   const [fasesEsteiraMap, fasesKanban, historico] = await Promise.all([
     fetchCalculadoraEsteiraFasesMap(supabase),
     fetchKanbanFasesAtivas(supabase, kanbanId),
-    loadHistoricoCardModal(supabase, card.id, 'nativo', [], kanbanId),
+    loadHistoricoCalculadoraEsteira(supabase, card.id, 'nativo', new Map()),
   ]);
 
   const fasesMap = mesclarFasesKanbanAtualNoMapa(fasesEsteiraMap, kanbanId, fasesKanban);

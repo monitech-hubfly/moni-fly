@@ -113,7 +113,7 @@ async function sincronizarFilhoOperacoesComPai(
     .eq('id', paiId)
     .maybeSingle();
 
-  if (errPai || !paiRow?.id) return;
+  if (errPai || !paiRow) return;
 
   const pai = paiRow as CamposSyncFilhoOperacoes;
   const { data: filhoRow } = await db
