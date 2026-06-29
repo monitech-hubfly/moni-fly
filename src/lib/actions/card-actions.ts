@@ -551,7 +551,6 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
   const titulo = (input.titulo ?? '').trim();
   const descricao = (input.descricao ?? '').trim();
   if (!titulo) return { ok: false, error: 'Informe o título do chamado.' };
-  if (!descricao) return { ok: false, error: 'Informe a descrição do chamado.' };
 
   const admin = createAdminClient();
   const timesIds = await resolvePersistableTimesIds(
@@ -669,7 +668,6 @@ export async function criarChamadoSireneComAtividade(
   const titulo = (input.titulo ?? '').trim();
   const descricao = (input.descricao ?? '').trim();
   if (!titulo) return { ok: false, error: 'Informe o título do chamado.' };
-  if (!descricao) return { ok: false, error: 'Informe a descrição do chamado.' };
 
   const admin = createAdminClient();
   const timesIds = await resolvePersistableTimesIds(
