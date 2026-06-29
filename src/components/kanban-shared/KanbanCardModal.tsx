@@ -618,6 +618,7 @@ export function KanbanCardModal({
   const [novaTagCor, setNovaTagCor] = useState('#F5A100');
   const [criandoTag, setCriandoTag] = useState(false);
   const [editandoNegocio, setEditandoNegocio] = useState(false);
+  const [editandoFunding, setEditandoFunding] = useState(false);
   const [negocioDraft, setNegocioDraft] = useState<{
     tipo_aquisicao_terreno: string;
     valor_terreno: string;
@@ -892,6 +893,7 @@ export function KanbanCardModal({
       negociacao_linhas: negociacaoLinhasDraftPadrao(),
     });
     setEditandoNegocio(false);
+    setEditandoFunding(false);
     setEditandoFranqueado(false);
     setFranqueadosLista([]);
     setNovoFranqueadoId('');
@@ -3059,6 +3061,7 @@ export function KanbanCardModal({
       }
       await loadCard({ silencioso: true });
       router.refresh();
+      setEditandoFunding(false);
     } catch {
       alert('Erro ao salvar dados Funding.');
     } finally {
@@ -7123,6 +7126,21 @@ export function KanbanCardModal({
             {secaoHead(
               'novoNegocio',
               'Dados do Negócio',
+              ehFunilFunding && !isLegado ? (
+                <KanbanCardModalDadosFunding
+                  draft={fundingDraft}
+                  onChange={(patch) => setFundingDraft((d) => ({ ...d, ...patch }))}
+                  onSalvar={() => void handleSalvarFunding()}
+                  salvando={salvandoFunding}
+                  podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                  editando={editandoFunding}
+                  onEditar={() => setEditandoFunding(true)}
+                  onCancelar={() => {
+                    setEditandoFunding(false);
+                    if (card) setFundingDraft(fundingDraftFromRow(card));
+                  }}
+                />
+              ) : (
               <div className="space-y-2">
                 {!proc ? (
                     <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
@@ -7302,7 +7320,8 @@ export function KanbanCardModal({
                     )}
                   </>
                 )}
-              </div>,
+              </div>
+              ),
             )}
             {secaoHead(
               'dadosEmpresas',
@@ -7317,19 +7336,6 @@ export function KanbanCardModal({
                 onSalvo={() => void loadCard({ silencioso: true })}
               />,
             )}
-            {ehFunilFunding && !isLegado
-              ? secaoHead(
-                  'dadosFunding',
-                  'Dados Funding',
-                  <KanbanCardModalDadosFunding
-                    draft={fundingDraft}
-                    onChange={(patch) => setFundingDraft((d) => ({ ...d, ...patch }))}
-                    onSalvar={() => void handleSalvarFunding()}
-                    salvando={salvandoFunding}
-                    podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                  />,
-                )
-              : null}
             {secaoHead(
               'preObra',
               'Dados Pré Obra',
