@@ -1985,10 +1985,6 @@ export function KanbanCardModal({
 
   async function handleAdicionarInteracao() {
     if (!card || !novaInteracao.titulo.trim()) return;
-    if (!novaInteracao.descricao.trim()) {
-      alert('Informe a descrição do chamado.');
-      return;
-    }
     const ativ = novaInteracao.atividade;
     if (!novaAtividadeAberta || !ativ.nome.trim()) {
       alert('Abra "+ Atividade" e preencha a primeira atividade.');
@@ -2099,10 +2095,6 @@ export function KanbanCardModal({
     if (!editingId) return;
     if (!editDraft.titulo.trim()) {
       alert('Informe o título do chamado.');
-      return;
-    }
-    if (!editDraft.descricao.trim()) {
-      alert('Informe a descrição do chamado.');
       return;
     }
     setSalvandoEdicao(true);
