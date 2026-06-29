@@ -26,12 +26,19 @@ export default async function RelatorioPage({
     .select('id, card_id, chamado_numero, card_titulo, kanban_nome, kanban_id, responsavel_id, responsavel_nome, tipo, titulo, descricao, atividade_status, data_vencimento, time_nome, franqueado_nome, criado_em, sla_status, fase_nome')
     .order('data_vencimento', { ascending: true, nullsFirst: false });
 
-  const { data: tags } = await supabase
-    .from('kanban_card_tags')
-    .select('card_id, tag_nome')
-    .in('tag_nome', ['Especial', 'especial']);
+  // kanban_tags tem uma linha por funil — busca todos os IDs da tag "⭐Especial"
+  const { data: tagRows } = await supabase
+    .from('kanban_tags')
+    .select('id')
+    .eq('nome', '⭐Especial');
 
-  const tagSet = new Set((tags ?? []).map((t) => t.card_id));
+  const tagIds = (tagRows ?? []).map((t) => t.id);
+
+  const { data: cardTagRows } = tagIds.length > 0
+    ? await supabase.from('kanban_card_tags').select('card_id').in('tag_id', tagIds)
+    : { data: [] };
+
+  const tagSet = new Set((cardTagRows ?? []).map((t) => t.card_id));
 
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
