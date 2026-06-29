@@ -5,6 +5,7 @@ import { useState, useMemo } from 'react';
 type Atividade = {
   id: string;
   card_id: string | null;
+  chamado_numero: number | null;
   card_titulo: string | null;
   kanban_nome: string;
   kanban_id: string;
@@ -43,9 +44,10 @@ function PrazoTag({ urgencia, diffDias }: { urgencia: string; diffDias: number |
 }
 
 function StatusTag({ status }: { status: string }) {
-  if (status === 'concluido' || status === 'aprovado') return <span className="inline-flex items-center rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Concluído</span>;
+  if (status === 'concluido' || status === 'aprovado' || status === 'concluida') return <span className="inline-flex items-center rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Concluído</span>;
   if (status === 'em_andamento') return <span className="inline-flex items-center rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">Em andamento</span>;
-  return <span className="inline-flex items-center rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] font-medium text-stone-600">Não iniciado</span>;
+  if (status === 'pendente') return <span className="inline-flex items-center rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] font-medium text-stone-600">A fazer</span>;
+  return <span className="inline-flex items-center rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] font-medium text-stone-600">{status}</span>;
 }
 
 export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, searchParams }: Props) {
@@ -150,6 +152,7 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
                     </div>
                   </td>
                   <td className="px-3 py-2.5">
+                    {a.chamado_numero && <span className="mr-1 text-[10px] text-stone-400">#{a.chamado_numero}</span>}
                     <span className="rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] text-stone-600">{a.card_titulo ?? '—'}</span>
                   </td>
                   <td className="px-3 py-2.5 text-stone-600">{a.kanban_nome}</td>

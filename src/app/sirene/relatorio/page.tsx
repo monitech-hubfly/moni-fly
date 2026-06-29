@@ -23,8 +23,7 @@ export default async function RelatorioPage({
 
   const { data: atividades } = await supabase
     .from('v_atividades_unificadas')
-    .select('id, card_id, card_titulo, kanban_nome, kanban_id, responsavel_id, responsavel_nome, tipo, titulo, descricao, atividade_status, data_vencimento, time_nome, franqueado_nome, criado_em, sla_status, fase_nome')
-    .eq('arquivado', false)
+    .select('id, card_id, chamado_numero, card_titulo, kanban_nome, kanban_id, responsavel_id, responsavel_nome, tipo, titulo, descricao, atividade_status, data_vencimento, time_nome, franqueado_nome, criado_em, sla_status, fase_nome')
     .order('data_vencimento', { ascending: true, nullsFirst: false });
 
   const { data: tags } = await supabase
