@@ -62,7 +62,12 @@
       "PowerShell(git push *)",
       "PowerShell(npx tsc --noEmit*)",
       "PowerShell(npx tsc --noEmit 2>&1; Write-Host \"EXIT:$LASTEXITCODE\")",
-      "PowerShell(git *)"
+      "PowerShell(git *)",
+      "PowerShell(New-Item *)",
+      "PowerShell(node scripts/_copy-remaining.mjs)",
+      "PowerShell(echo s | node scripts/_copy-remaining.mjs --retry)",
+      "PowerShell(node _run-migrations.mjs)",
+      "PowerShell(node scripts/_fix-dev-profile.mjs)"
     ]
   }
 }

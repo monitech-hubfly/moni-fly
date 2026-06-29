@@ -396,6 +396,7 @@ export function InteracoesLista({
   const [commentsOpenByRow, setCommentsOpenByRow] = useState<Record<string, boolean>>({});
   const [commentsFetchedByCard, setCommentsFetchedByCard] = useState<Record<string, boolean>>({});
   const [commentsByCardId, setCommentsByCardId] = useState<Record<string, ComentarioCardSireneRow[]>>({});
+  const [commentsBySireneId, setCommentsBySireneId] = useState<Record<string, ComentarioCardSireneRow[]>>({});
   const [commentsLoading, setCommentsLoading] = useState<Record<string, boolean>>({});
   const [novoComentarioPorCard, setNovoComentarioPorCard] = useState<Record<string, string>>({});
   const [salvandoComentario, setSalvandoComentario] = useState<Record<string, boolean>>({});
@@ -1007,15 +1008,19 @@ export function InteracoesLista({
     if (willOpen) {
       setCommentsLoading((l) => ({ ...l, [commentKey]: true }));
       if (cid) {
-        void listarComentariosCardSirene(cid).then((res) => {
+        Promise.all([
+          listarComentariosCardSirene(cid),
+          scid != null ? listarComentariosSireneChamado(scid) : Promise.resolve({ ok: true as const, items: [] }),
+        ]).then(([resCard, resSirene]) => {
           setCommentsLoading((l) => ({ ...l, [commentKey]: false }));
-          if (res.ok) setCommentsByCardId((c) => ({ ...c, [commentKey]: res.items }));
-          else setMsgErro(res.error);
+          if (resCard.ok) setCommentsByCardId((c) => ({ ...c, [commentKey]: resCard.items }));
+          else setMsgErro(resCard.error);
+          if (resSirene.ok) setCommentsBySireneId((c) => ({ ...c, [commentKey]: resSirene.items }));
         });
       } else if (scid != null) {
         void listarComentariosSireneChamado(scid).then((res) => {
           setCommentsLoading((l) => ({ ...l, [commentKey]: false }));
-          if (res.ok) setCommentsByCardId((c) => ({ ...c, [commentKey]: res.items }));
+          if (res.ok) setCommentsBySireneId((c) => ({ ...c, [commentKey]: res.items }));
           else setMsgErro(res.error);
         });
       }
@@ -1505,31 +1510,77 @@ export function InteracoesLista({
                           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
                             {/* meta chips */}
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--moni-text-tertiary)]">
-                              {row.origem === 'sirene' ? (() => {
+                              {/* Aberto por */}
+                              {(() => {
                                 const nomeAberto = (row.criado_por ? nomePorUserId.get(row.criado_por) : null)
                                   ?? row.sirene_abertura_responsavel_nome
                                   ?? null;
                                 return nomeAberto ? (
-                                  <span className="flex items-center gap-1">
-                                    <span className="text-[color:var(--moni-text-tertiary)]">Aberto por</span>
-                                    <span className="text-[color:var(--moni-text-secondary)]">{nomeAberto}</span>
+                                  <span className="text-[11px] text-[color:var(--moni-text-tertiary)]">
+                                    Aberto por <strong className="font-medium text-[color:var(--moni-text-secondary)]">{nomeAberto}</strong>
                                   </span>
                                 ) : null;
-                              })() : null}
-                              {row.franqueado_nome ? (
-                                <>
-                                  {((row.criado_por ? nomePorUserId.get(row.criado_por) : null) ?? row.sirene_abertura_responsavel_nome) ? <span className="text-[color:var(--moni-border-default)]">·</span> : null}
-                                  <span className="text-[color:var(--moni-text-secondary)]">{row.franqueado_nome}</span>
-                                </>
-                              ) : null}
-                              {row.card_titulo ? (
-                                <>
-                                  <span className="text-[color:var(--moni-border-default)]">·</span>
-                                  <span className="truncate text-[color:var(--moni-text-tertiary)]">Card: {row.card_titulo.trim()}</span>
-                                </>
-                              ) : (
-                                <span className="text-[color:var(--moni-text-tertiary)]">{row.kanban_nome}</span>
-                              )}
+                              })()}
+
+                              {/* Linha de contexto: Funil · Card · Franqueado */}
+                              {(() => {
+                                const funil = row.processo_kanban_nome ?? row.kanban_nome ?? null;
+                                const cardNome = row.processo_titulo ?? row.card_titulo ?? null;
+                                const franqueado = row.franqueado_nome ?? null;
+                                const temContexto = funil || cardNome || franqueado;
+                                if (!temContexto) return null;
+                                return (
+                                  <span className="flex items-center gap-1 text-[11px] text-[color:var(--moni-text-tertiary)]">
+                                    <span className="text-[color:var(--moni-text-tertiary)]">·</span>
+                                    {funil && (
+                                      <span className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">
+                                        {funil}
+                                      </span>
+                                    )}
+                                    {cardNome && (
+                                      <>
+                                        <span className="text-[color:var(--moni-text-tertiary)]">·</span>
+                                        <strong className="font-medium text-[color:var(--moni-text-secondary)]">{cardNome}</strong>
+                                      </>
+                                    )}
+                                    {franqueado && (
+                                      <>
+                                        <span className="text-[color:var(--moni-text-tertiary)]">·</span>
+                                        <span>{franqueado}</span>
+                                      </>
+                                    )}
+                                  </span>
+                                );
+                              })()}
+
+                              {/* Badge de prazo */}
+                              {(() => {
+                                if (!row.data_vencimento) return null;
+                                const hoje = new Date();
+                                hoje.setHours(0, 0, 0, 0);
+                                const prazo = new Date(row.data_vencimento);
+                                prazo.setHours(0, 0, 0, 0);
+                                const diffDias = Math.round((prazo.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+                                if (diffDias < 0) {
+                                  return (
+                                    <span className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                                      ⏰ Atrasado {Math.abs(diffDias)} d.u.
+                                    </span>
+                                  );
+                                }
+                                if (diffDias <= 3) {
+                                  return (
+                                    <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                                      ⏰ Vence em {diffDias} d.u.
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className="inline-flex items-center gap-1 rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
+                                    ⏰ Vence em {diffDias} d.u.
+                                  </span>
+                                );
+                              })()}
                             </div>
 
                             {/* ações */}
@@ -1665,42 +1716,51 @@ export function InteracoesLista({
                           {commentsLoading[commentKey] ? (
                             <p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>
                           ) : (
-                            <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">
-                              {[...(commentsByCardId[commentKey] ?? [])]
-                                .sort(
-                                  (a, b) =>
-                                    new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-                                )
-                                .map((c) => (
-                                  <li
-                                    key={c.id}
-                                    className="flex gap-2 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-2 text-[color:var(--moni-text-secondary)]"
-                                  >
-                                    <span
-                                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] text-[10px] font-semibold text-[color:var(--moni-text-secondary)]"
-                                      aria-hidden
-                                    >
-                                      {iniciaisNome(c.autor_nome ?? '')}
-                                    </span>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-xs leading-snug">
-                                        <span className="font-medium text-[color:var(--moni-text-primary)]">
-                                          {(c.autor_nome ?? '—').trim() || '—'}
-                                        </span>
-                                        {c.created_at ? (
-                                          <>
-                                            {' '}
-                                            <span className="tabular-nums text-[color:var(--moni-text-tertiary)]">
-                                              {new Date(c.created_at).toLocaleString('pt-BR')}
-                                            </span>
-                                          </>
-                                        ) : null}
-                                      </p>
-                                      <p className="mt-1 whitespace-pre-wrap text-sm text-[color:var(--moni-text-primary)]">{c.texto}</p>
-                                    </div>
-                                  </li>
-                                ))}
-                            </ul>
+                            <>
+                              {(commentsByCardId[commentKey] ?? []).length > 0 && (
+                                <>
+                                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do card</p>
+                                  <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">
+                                    {[...(commentsByCardId[commentKey] ?? [])]
+                                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                                      .map((c) => (
+                                        <li key={c.id} className="flex gap-2 rounded bg-white p-2">
+                                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-200 text-xs font-medium text-stone-600">
+                                            {iniciaisNome(c.autor_nome ?? '')}
+                                          </span>
+                                          <div>
+                                            <p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p>
+                                            <p className="mt-0.5 text-stone-700">{c.texto}</p>
+                                          </div>
+                                        </li>
+                                      ))}
+                                  </ul>
+                                </>
+                              )}
+                              {(commentsBySireneId[commentKey] ?? []).length > 0 && (
+                                <>
+                                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do chamado</p>
+                                  <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">
+                                    {[...(commentsBySireneId[commentKey] ?? [])]
+                                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                                      .map((c) => (
+                                        <li key={`sirene-${c.id}`} className="flex gap-2 rounded bg-white p-2">
+                                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">
+                                            {iniciaisNome(c.autor_nome ?? '')}
+                                          </span>
+                                          <div>
+                                            <p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p>
+                                            <p className="mt-0.5 text-stone-700">{c.texto}</p>
+                                          </div>
+                                        </li>
+                                      ))}
+                                  </ul>
+                                </>
+                              )}
+                              {(commentsByCardId[commentKey] ?? []).length === 0 && (commentsBySireneId[commentKey] ?? []).length === 0 && (
+                                <p className="mb-3 text-xs text-stone-400">Nenhum comentário ainda.</p>
+                              )}
+                            </>
                           )}
                           <div className="flex flex-col gap-2">
                             <div

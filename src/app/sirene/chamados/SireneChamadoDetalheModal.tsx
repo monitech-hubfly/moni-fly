@@ -341,6 +341,16 @@ export function SireneChamadoDetalheModal({
               {row.titulo}
             </h2>
           </div>
+          {row.sirene_chamado_id != null ? (
+            <Link
+              href={`/sirene/${row.sirene_chamado_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 rounded border border-[color:var(--moni-border-default)] px-2 py-1 text-xs text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)] hover:text-[color:var(--moni-text-primary)]"
+            >
+              Ver completo ↗
+            </Link>
+          ) : null}
           <button
             type="button"
             onClick={onClose}

@@ -22,11 +22,36 @@ import {
 } from '@/components/kanban-shared/KanbanAtividadeFormFields';
 import { uploadAnexosAtividadePendentes } from '@/lib/kanban/upload-anexos-atividade';
 
-type Props = { onClose: () => void; onSuccess?: () => void };
+const GRUPOS_FUNIL: { label: string; nomes: string[] }[] = [
+  {
+    label: 'Novos Negócios',
+    nomes: ['Funil Step One', 'Funil Loteadores', 'Funil Acoplamento', 'Funil Portfólio', 'Funil Cash Me', 'Funil Divify'],
+  },
+  {
+    label: 'Operações',
+    nomes: ['Funil Operações', 'Funil Projeto Legal', 'Funil Projetos Legais', 'Funil Projetos Locais', 'Funil Modelo Virtual'],
+  },
+  {
+    label: 'Crédito & Contabilidade',
+    nomes: ['Funil Contabilidade', 'Funding'],
+  },
+  {
+    label: 'Interno',
+    nomes: ['Funil Jurídico', 'Funil Contratações', 'Funil Homologações', 'Funil Produto'],
+  },
+];
 
-export function ModalNovoChamado({ onClose, onSuccess }: Props) {
+function grupoDoFunil(nome: string): string {
+  for (const g of GRUPOS_FUNIL) {
+    if (g.nomes.includes(nome)) return g.label;
+  }
+  return 'Outros';
+}
+
+type Props = { onClose: () => void; onSuccess?: () => void; initialCard?: SireneVinculoCardBuscaItem };
+
+export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
   const [titulo, setTitulo] = useState('');
-  const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState<'chamado' | 'melhoria'>('chamado');
   const [trava, setTrava] = useState(false);
   const [atividades, setAtividades] = useState<AtividadeFormDraft[]>([]);
@@ -42,10 +67,11 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
   // Vinculo card — funil-first
   const [funisList, setFunisList] = useState<SireneFunilItem[]>([]);
   const [funilSelecionado, setFunilSelecionado] = useState<SireneFunilItem | null>(null);
+  const [grupoSelecionado, setGrupoSelecionado] = useState<string | null>(null);
   const [carregandoFunis, setCarregandoFunis] = useState(false);
   const [cardOpcoes, setCardOpcoes] = useState<SireneVinculoCardBuscaItem[]>([]);
   const [carregandoCards, setCarregandoCards] = useState(false);
-  const [cardVinculo, setCardVinculo] = useState<SireneVinculoCardBuscaItem | null>(null);
+  const [cardVinculo, setCardVinculo] = useState<SireneVinculoCardBuscaItem | null>(initialCard ?? null);
 
   useEffect(() => {
     void (async () => {
@@ -123,12 +149,12 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
 
   function limparRascunho() {
     setTitulo('');
-    setDescricao('');
     setCategoria('chamado');
     setTrava(false);
     setAtividades([]);
     setCardVinculo(null);
     setFunilSelecionado(null);
+    setGrupoSelecionado(null);
     setError(null);
   }
 
@@ -137,10 +163,6 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     setError(null);
     if (!titulo.trim()) {
       setError('Informe o título do chamado.');
-      return;
-    }
-    if (!descricao.trim()) {
-      setError('Informe a descrição do chamado.');
       return;
     }
     if (atividades.length === 0 || !atividades[0]!.nome.trim()) {
@@ -169,7 +191,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
       const pendingAnexos = primeiraAtiv.pendingAnexos ?? [];
       const result = await criarChamadoSireneComAtividade({
         titulo: titulo.trim(),
-        descricao: descricao.trim(),
+        descricao: '',
         categoria,
         status: 'pendente',
         trava,
@@ -249,7 +271,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     }
   }
 
-  const temRascunho = titulo.trim() || descricao.trim() || cardVinculo || atividades.length > 0;
+  const temRascunho = titulo.trim() || cardVinculo || atividades.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -297,57 +319,85 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
               </div>
             ) : (
               <>
-                {/* Step 1: Selecionar funil */}
-                <select
-                  value={funilSelecionado?.id ?? ''}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    if (!id) {
-                      setFunilSelecionado(null);
-                      setCardVinculo(null);
-                      return;
-                    }
-                    const funil = funisList.find((f) => f.id === id) ?? null;
-                    setFunilSelecionado(funil);
-                    setCardVinculo(null);
-                  }}
-                  disabled={carregandoFunis}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-                >
-                  <option value="">{carregandoFunis ? 'Carregando fúnis…' : 'Selecione o Funil…'}</option>
-                  {funisList.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.nome}
-                      {f.origem === 'legado' ? ' (legado)' : ''}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Step 2: Listar cards do funil */}
-                {funilSelecionado && (
-                  <ul className="mt-1 max-h-48 overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow">
-                    {carregandoCards ? (
-                      <li className="px-3 py-2 text-sm text-stone-500">Carregando cards…</li>
-                    ) : cardOpcoes.length === 0 ? (
-                      <li className="px-3 py-2 text-sm text-stone-400">Nenhum card encontrado.</li>
-                    ) : (
-                      cardOpcoes.map((c) => (
-                        <li key={`${c.origem}-${c.card_id ?? c.processo_id}`}>
-                          <button
-                            type="button"
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-stone-100"
-                            onClick={() => setCardVinculo(c)}
-                          >
-                            {c.etapa ? (
-                              <span className="mr-1 text-xs text-stone-500">[{c.etapa}]</span>
-                            ) : null}
-                            {c.titulo}
-                            <span className="block text-xs text-stone-400">{c.kanban_nome}</span>
-                          </button>
-                        </li>
-                      ))
-                    )}
-                  </ul>
+                {/* Step 0: Selecionar grupo */}
+                {!grupoSelecionado ? (
+                  <select
+                    value=""
+                    onChange={(e) => setGrupoSelecionado(e.target.value || null)}
+                    className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">Selecione o Grupo...</option>
+                    {GRUPOS_FUNIL.map((g) => (
+                      <option key={g.label} value={g.label}>{g.label}</option>
+                    ))}
+                  </select>
+                ) : !funilSelecionado ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setGrupoSelecionado(null); setFunilSelecionado(null); setCardVinculo(null); }}
+                        className="text-xs text-stone-500 hover:text-stone-700 hover:underline"
+                      >
+                        ← {grupoSelecionado}
+                      </button>
+                    </div>
+                    <select
+                      value={funilSelecionado ? (funilSelecionado as SireneFunilItem).id : ''}
+                      onChange={(e) => {
+                        const funil = funisList.find((f) => f.id === e.target.value) ?? null;
+                        setFunilSelecionado(funil);
+                        setCardVinculo(null);
+                      }}
+                      disabled={carregandoFunis}
+                      className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">{carregandoFunis ? 'Carregando fúnis…' : 'Selecione o Funil...'}</option>
+                      {funisList
+                        .filter((f) => grupoDoFunil(f.nome) === grupoSelecionado)
+                        .map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.nome}{f.origem === 'legado' ? ' (legado)' : ''}
+                          </option>
+                        ))}
+                    </select>
+                  </>
+                ) : (
+                  /* Step 2: lista de cards do funil selecionado */
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <button
+                        type="button"
+                        onClick={() => { setFunilSelecionado(null); setCardVinculo(null); }}
+                        className="text-xs text-stone-500 hover:text-stone-700 hover:underline"
+                      >
+                        ← {funilSelecionado.nome}
+                      </button>
+                    </div>
+                    <ul className="mt-1 max-h-48 overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow">
+                      {carregandoCards ? (
+                        <li className="px-3 py-2 text-sm text-stone-500">Carregando cards…</li>
+                      ) : cardOpcoes.length === 0 ? (
+                        <li className="px-3 py-2 text-sm text-stone-400">Nenhum card encontrado.</li>
+                      ) : (
+                        cardOpcoes.map((c) => (
+                          <li key={`${c.origem}-${c.card_id ?? c.processo_id}`}>
+                            <button
+                              type="button"
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-stone-100"
+                              onClick={() => setCardVinculo(c)}
+                            >
+                              {c.etapa ? (
+                                <span className="mr-1 text-xs text-stone-500">[{c.etapa}]</span>
+                              ) : null}
+                              {c.titulo}
+                              <span className="block text-xs text-stone-400">{c.kanban_nome}</span>
+                            </button>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
                 )}
               </>
             )}
@@ -364,14 +414,6 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             onChange={(e) => setTitulo(e.target.value)}
             placeholder="Título / assunto *"
             className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-            required
-          />
-          <textarea
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            placeholder="Descrição *"
-            rows={3}
-            className="w-full resize-y rounded-lg border border-stone-300 px-3 py-2 text-sm"
             required
           />
           <select
@@ -454,7 +496,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             </button>
             <button
               type="submit"
-              disabled={loading || !titulo.trim() || !descricao.trim()}
+              disabled={loading || !titulo.trim()}
               className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {loading ? 'Salvando…' : 'Criar chamado'}

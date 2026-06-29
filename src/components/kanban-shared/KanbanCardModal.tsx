@@ -339,6 +339,7 @@ import {
   buildNativeFaseVisits,
   type ProcessoCardMoveEvt,
 } from '@/lib/kanban/kanban-card-timeline';
+import { ModalNovoChamado } from '@/app/sirene/ModalNovoChamado';
 
 type Card = {
   id: string;
@@ -720,6 +721,7 @@ export function KanbanCardModal({
     atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
   });
   const [novoChamadoFormAberto, setNovoChamadoFormAberto] = useState(false);
+  const [modalNovoChamadoAberto, setModalNovoChamadoAberto] = useState(false);
   const [novaAtividadeAberta, setNovaAtividadeAberta] = useState(false);
   const [subInteracoesPorPai, setSubInteracoesPorPai] = useState<Record<string, SubInteracaoModal[]>>({});
   const [subExpandida, setSubExpandida] = useState<Record<string, boolean>>({});
@@ -5513,7 +5515,7 @@ export function KanbanCardModal({
                 {!novoChamadoFormAberto ? (
                   <button
                     type="button"
-                    onClick={() => setNovoChamadoFormAberto(true)}
+                    onClick={() => setModalNovoChamadoAberto(true)}
                     className="text-left text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
                   >
                     + Novo Chamado
@@ -7896,6 +7898,18 @@ export function KanbanCardModal({
       onClose={() => setConclusaoInteracaoId(null)}
       onConfirm={(p) => void confirmarConclusaoInteracaoCard(p)}
     />
+
+    {modalNovoChamadoAberto && card && (
+      <ModalNovoChamado
+        onClose={() => setModalNovoChamadoAberto(false)}
+        onSuccess={() => { setModalNovoChamadoAberto(false); router.refresh(); }}
+        initialCard={
+          origem === 'legado'
+            ? { card_id: null, processo_id: card.id, titulo: card.titulo ?? '', kanban_nome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome), etapa: card.etapa_slug ?? null, origem: 'legado' }
+            : { card_id: card.id, titulo: card.titulo ?? '', kanban_nome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome), etapa: card.etapa_slug ?? null, origem: 'nativo' }
+        }
+      />
+    )}
     </>
   );
 }
