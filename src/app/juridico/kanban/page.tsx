@@ -50,9 +50,10 @@ export default async function JuridicoKanbanPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl overflow-x-auto px-4 py-6">
+      <main className="mx-auto max-w-7xl px-4 py-6">
         <h1 className="mb-4 text-xl font-bold text-moni-dark">Kanban Jurídico</h1>
-        <div className="flex min-w-max gap-4">
+        <div className="moni-kanban-board-scroll w-full min-w-0">
+          <div className="flex min-w-max gap-4">
           {COLUMNS.map((col) => (
             <KanbanColumn
               key={col.key}
@@ -61,6 +62,7 @@ export default async function JuridicoKanbanPage() {
               tickets={byStatus[col.key] ?? []}
             />
           ))}
+          </div>
         </div>
       </main>
       <MoniFooter />

@@ -27,7 +27,7 @@ export function PainelFlowBoard({
   cardBasePath,
 }: Props) {
   return (
-    <div className="flex items-stretch gap-4 overflow-x-auto pb-4 pt-2">
+    <div className="moni-kanban-board-scroll flex items-stretch gap-4 pb-2 pt-2">
       {PAINEL_FLOW_ROWS.map((row, rowIndex) => {
         const isParallel = row.type === 'parallel' && row.keys.length > 1;
         const keys = row.keys;

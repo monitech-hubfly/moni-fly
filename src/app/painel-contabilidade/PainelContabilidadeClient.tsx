@@ -82,7 +82,7 @@ export function PainelContabilidadeClient({ byEtapa, initialOpenProcessId }: Pro
         </select>
       </div>
 
-      <div className="flex items-stretch gap-4 overflow-x-auto pb-4 pt-2">
+      <div className="moni-kanban-board-scroll flex items-stretch gap-4 pb-2 pt-2">
         <StepsKanbanColumn
           title={colIncorp?.title ?? 'Abertura da Incorporadora'}
           subtitle={colIncorp?.subtitle}
