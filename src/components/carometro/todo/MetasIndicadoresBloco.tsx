@@ -300,7 +300,7 @@ function IndicadorLinha({ ind, podeEditar, isAdmin, onLancar, onEditarIndicador,
   if (confirmExcl) {
     return (
       <div className="flex items-center gap-2 px-2 py-1 rounded bg-red-50 border border-red-100 text-xs text-red-600">
-        <span className="flex-1">Excluir "{ind.nome}"?</span>
+        <span className="flex-1">Excluir &ldquo;{ind.nome}&rdquo;?</span>
         <button type="button" onClick={handleExcluir} disabled={salvandoExcl}
           className="font-medium hover:underline disabled:opacity-50">{salvandoExcl ? '…' : 'Confirmar'}</button>
         <button type="button" onClick={() => setConfirmExcl(false)} className="text-gray-400 hover:text-gray-600">Cancelar</button>
