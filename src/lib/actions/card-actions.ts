@@ -742,7 +742,7 @@ export async function criarChamadoSireneComAtividade(
   const { data: inserted, error: kaErr } = await admin
     .from('kanban_atividades')
     .insert({
-      card_id: cardId,
+      card_id: cardId ?? processoId,
       titulo,
       descricao,
       categoria: input.categoria,
