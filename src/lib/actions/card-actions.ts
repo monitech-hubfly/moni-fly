@@ -81,7 +81,6 @@ import {
   propagarCamposKanbanCards,
   propagarCamposProcesso,
   reconciliarFranqueadoNoSyncGroup,
-  resolverProcessoStepOneIdDoCard,
   type KanbanCardCamposSync,
 } from '@/lib/kanban/card-sync-group';
 import {
@@ -2451,19 +2450,39 @@ export async function uploadProcessoNegocioAnexo(
 
   const { data: cardRow } = await admin
     .from('kanban_cards')
-    .select('projeto_id, rede_franqueado_id, titulo')
+    .select('processo_step_one_id, rede_franqueado_id, titulo')
     .eq('id', cardOrigemId)
     .maybeSingle();
 
-  const resolvedProcessoId = await resolverProcessoStepOneIdDoCard(admin, {
-    cardProjetoId: (cardRow as { projeto_id?: string | null } | null)?.projeto_id,
-    redeFranqueadoId: (cardRow as { rede_franqueado_id?: string | null } | null)?.rede_franqueado_id,
-    cardTitulo: String((cardRow as { titulo?: string | null } | null)?.titulo ?? ''),
-  });
+  const card = cardRow as {
+    processo_step_one_id?: string | null;
+    rede_franqueado_id?: string | null;
+    titulo?: string | null;
+  } | null;
 
-  const processoId =
-    resolvedProcessoId ?? String(formData.get('processoId') ?? '').trim();
-  if (!processoId) return { ok: false, error: 'Processo inválido.' };
+  const redeId = String(card?.rede_franqueado_id ?? '').trim();
+  let redeProcessoId: string | null = null;
+  if (redeId) {
+    const { data: redeRow } = await admin
+      .from('rede_franqueados')
+      .select('processo_id')
+      .eq('id', redeId)
+      .maybeSingle();
+    redeProcessoId = String((redeRow as { processo_id?: string | null } | null)?.processo_id ?? '').trim() || null;
+  }
+
+  const processoIdForm = String(formData.get('processoId') ?? '').trim();
+  const { garantirProcessoNegocioDedicadoAoCard } = await import('@/lib/kanban/processo-step-one-card');
+  const dedicado = await garantirProcessoNegocioDedicadoAoCard(admin, cardOrigemId, {
+    userId: user.id,
+    processoIdAtual: String(card?.processo_step_one_id ?? '').trim() || processoIdForm,
+    redeProcessoId,
+    titulo: card?.titulo ?? undefined,
+    redeFranqueadoId: redeId || null,
+  });
+  if (!dedicado.ok) return dedicado;
+
+  const processoId = dedicado.processoId;
 
   const file = formData.get('file');
   if (!file || !(file instanceof File) || file.size === 0) return { ok: false, error: 'Selecione um arquivo.' };
