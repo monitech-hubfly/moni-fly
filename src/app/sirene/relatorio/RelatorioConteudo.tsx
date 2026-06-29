@@ -57,6 +57,7 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
   const [filtroCard, setFiltroCard] = useState(searchParams?.card ?? 'todos');
   const [filtroPrazo, setFiltroPrazo] = useState(searchParams?.prazo ?? 'todos');
   const [filtroTag, setFiltroTag] = useState(searchParams?.tag ?? 'todos');
+  const [filtroSituacao, setFiltroSituacao] = useState('aberto');
 
   const funis = useMemo(() => [...new Set(atividades.map((a) => a.kanban_nome))].sort(), [atividades]);
   const cards = useMemo(() => {
@@ -73,9 +74,11 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
       if (filtroPrazo === 'atrasado' && a.urgencia !== 'atrasado') return false;
       if (filtroPrazo === 'alerta' && a.urgencia !== 'alerta') return false;
       if (filtroPrazo === 'sem_prazo' && a.urgencia !== 'sem_prazo') return false;
+      if (filtroSituacao === 'aberto' && (a.atividade_status === 'concluido' || a.atividade_status === 'concluida' || a.atividade_status === 'aprovado')) return false;
+      if (filtroSituacao === 'concluido' && a.atividade_status !== 'concluido' && a.atividade_status !== 'concluida' && a.atividade_status !== 'aprovado') return false;
       return true;
     });
-  }, [atividades, filtroResp, filtroFunil, filtroCard, filtroTag, filtroPrazo, currentUserId]);
+  }, [atividades, filtroResp, filtroFunil, filtroCard, filtroTag, filtroPrazo, filtroSituacao, currentUserId]);
 
   const atrasadas = filtradas.filter((a) => a.urgencia === 'atrasado');
   const alerta = filtradas.filter((a) => a.urgencia === 'alerta');
@@ -119,6 +122,11 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
         <select value={filtroTag} onChange={(e) => setFiltroTag(e.target.value)} className="h-8 rounded border border-stone-300 bg-white px-2 text-xs text-stone-700">
           <option value="todos">Todas as tags</option>
           <option value="especial">⭐ Especial</option>
+        </select>
+        <select value={filtroSituacao} onChange={(e) => setFiltroSituacao(e.target.value)} className="h-8 rounded border border-stone-300 bg-white px-2 text-xs text-stone-700">
+          <option value="aberto">Em aberto</option>
+          <option value="concluido">Concluídas</option>
+          <option value="todos">Todas</option>
         </select>
         <div className="ml-auto flex overflow-hidden rounded border border-stone-300">
           <button type="button" onClick={() => setVisao('atividade')} className={`px-3 py-1 text-xs ${visao === 'atividade' ? 'bg-stone-100 font-medium text-stone-800' : 'bg-white text-stone-500'}`}>Por atividade</button>
