@@ -5077,7 +5077,7 @@ export function KanbanCardModal({
                                   </p>
                                 </div>
                                 {subsVisiveis.length > 0 ? (
-                                  <ul className="mb-2 space-y-1.5">
+                                  <ul className="mb-2 max-h-80 space-y-1.5 overflow-y-auto pr-0.5">
                                     {subsVisiveis.map((sub) => {
                                       const subDetalheAberto = subAtividadeExpandida[sub.id] === true;
                                       const podePastel = usuarioPodeMarcarPastelSubInteracao(
