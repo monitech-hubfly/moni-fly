@@ -14,32 +14,24 @@ export function dataIsoInputValida(valor: string | null | undefined): boolean {
 }
 
 export function calcularCorDataBadge(dataIso: string): string {
-  if (!dataIsoInputValida(dataIso)) return 'text-stone-600 bg-stone-50 border-stone-200';
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const data = new Date(`${dataIso}T00:00:00`);
-  const diffDias = Math.floor((data.getTime() - hoje.getTime()) / 86400000);
+  const diffDias = diffDiasCalendario(dataIso);
+  if (diffDias == null) return 'text-stone-600 bg-stone-50 border-stone-200';
   if (diffDias < 0) return 'text-red-700 bg-red-50 border-red-200';
   if (diffDias <= 1) return 'text-amber-800 bg-amber-50 border-amber-200';
   return 'text-stone-600 bg-stone-50 border-stone-200';
 }
 
 export function calcularCorDataTexto(dataIso: string): string {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const data = new Date(`${dataIso}T00:00:00`);
-  const diffDias = Math.floor((data.getTime() - hoje.getTime()) / 86400000);
+  const diffDias = diffDiasCalendario(dataIso);
+  if (diffDias == null) return 'text-stone-500';
   if (diffDias < 0) return 'text-red-600';
   if (diffDias <= 1) return 'text-yellow-600';
   return 'text-stone-500';
 }
 
 export function labelRelativoData(dataIso: string): string {
-  if (!dataIsoInputValida(dataIso)) return '—';
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const data = new Date(`${dataIso}T00:00:00`);
-  const diffDias = Math.floor((data.getTime() - hoje.getTime()) / 86400000);
+  const diffDias = diffDiasCalendario(dataIso);
+  if (diffDias == null) return '—';
   if (diffDias < 0) return `Atrasado ${Math.abs(diffDias)}d`;
   if (diffDias === 0) return 'Hoje';
   if (diffDias === 1) return 'Amanhã';
@@ -63,12 +55,27 @@ export type IndicadorDataKanban = {
   title: string;
 };
 
-function diffDiasCalendario(dataIso: string): number | null {
-  if (!dataIsoInputValida(dataIso)) return null;
+function partesDataIso(dataIso: string): { y: number; m: number; d: number } | null {
+  const s = String(dataIso ?? '').trim().slice(0, 10);
+  if (!dataIsoInputValida(s)) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
+}
+
+function partesDataLocal(): { y: number; m: number; d: number } {
   const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const data = new Date(`${dataIso}T00:00:00`);
-  return Math.floor((data.getTime() - hoje.getTime()) / 86400000);
+  return { y: hoje.getFullYear(), m: hoje.getMonth() + 1, d: hoje.getDate() };
+}
+
+/** Diferença em dias de calendário (data alvo − hoje local), sem deslocamento de fuso. */
+function diffDiasCalendario(dataIso: string): number | null {
+  const target = partesDataIso(dataIso);
+  if (!target) return null;
+  const today = partesDataLocal();
+  const targetMs = Date.UTC(target.y, target.m - 1, target.d);
+  const todayMs = Date.UTC(today.y, today.m - 1, today.d);
+  return Math.round((targetMs - todayMs) / 86400000);
 }
 
 const TITULO_DATA: Record<IndicadorDataKanbanTipo, string> = {
@@ -88,6 +95,16 @@ export function indicadorDataKanban(
 
   if (diff < 0) {
     const n = Math.abs(diff);
+    // Reunião agendada: passou o dia, mas não é prazo de SLA — destaque atenção, não vermelho.
+    if (tipo === 'reuniao') {
+      return {
+        tipo,
+        variante: 'atencao',
+        numero: n,
+        rotuloCurto: dataFmt,
+        title: `${titulo}: ${dataFmt} — preencha a ata`,
+      };
+    }
     return {
       tipo,
       variante: 'atrasado',
