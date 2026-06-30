@@ -136,34 +136,32 @@ import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociaca
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
-  NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO,
-  NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO,
   faseLabelFromOpcoes,
   formatNegocioPrazoDisplay,
   negocioPrazoDbPatchFromValores,
   negocioPrazoDraftFromValores,
-  negocioPrazoOpcaoDraftFromProcesso,
-  negocioPrazoInstrumentoDraftFromProcesso,
   negocioPrazoValoresFromDraft,
   negocioPrazoValoresFromProcessoModal,
   type FaseNegocioPrazoOpcao,
   type NegocioPrazoDraft,
 } from '@/lib/kanban/dados-negocio-prazo';
 import {
-  negociacaoLinhasDraftFromLinhas,
-  negociacaoLinhasDraftPadrao,
   negociacaoLinhasToDb,
   parseVinculoCalculadoraNegociacao,
   type NegociacaoLinha,
-  type NegociacaoLinhaDraft,
 } from '@/lib/kanban/negociacao-linhas';
+import {
+  negocioDraftFromProcesso,
+  negocioDraftVazio,
+  type NegocioDraftKanban,
+} from '@/lib/kanban/negocio-draft';
+import { opcoesTipoNegociacaoComValorAtual } from '@/lib/kanban/tipo-negociacao-terreno';
 import {
   buildOpcoesVinculoCalculadora,
   resolverDataPagamentoNegociacao,
   resolverNegociacaoLinhasCalculadora,
 } from '@/lib/kanban/calculadora-negociacao';
 import { montarTimelineCalculadoraComMarcos } from '@/lib/kanban/calculadora-fases-marcos';
-import { moedaCampoValorInicial } from '@/lib/kanban/moeda-campo';
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
 import { KanbanCardModalCalculadoraFases } from './KanbanCardModalCalculadoraFases';
 import {
@@ -618,45 +616,8 @@ export function KanbanCardModal({
   const [novatagsNome, setNovaTagNome] = useState('');
   const [novaTagCor, setNovaTagCor] = useState('#F5A100');
   const [criandoTag, setCriandoTag] = useState(false);
-  const [editandoNegocio, setEditandoNegocio] = useState(false);
   const [editandoFunding, setEditandoFunding] = useState(false);
-  const [negocioDraft, setNegocioDraft] = useState<{
-    tipo_aquisicao_terreno: string;
-    valor_terreno: string;
-    vgv_pretendido: string;
-    produto_modelo_casa: string;
-    link_pasta_drive: string;
-    link_bca: string;
-    link_gbox: string;
-    link_mapa_competidores: string;
-    link_acoplamento: string;
-    link_apresentacao_comite: string;
-    link_moni_capital_seguro_garantia: string;
-    comentario_moni_capital_seguro_garantia: string;
-    link_moni_capital_gastos_aporte_inicial: string;
-    comentario_moni_capital_gastos_aporte_inicial: string;
-    prazo_opcao: NegocioPrazoDraft;
-    prazo_instrumento_garantidor: NegocioPrazoDraft;
-    negociacao_linhas: NegociacaoLinhaDraft[];
-  }>({
-    tipo_aquisicao_terreno: '',
-    valor_terreno: '',
-    vgv_pretendido: '',
-    produto_modelo_casa: '',
-    link_pasta_drive: '',
-    link_bca: '',
-    link_gbox: '',
-    link_mapa_competidores: '',
-    link_acoplamento: '',
-    link_apresentacao_comite: '',
-    link_moni_capital_seguro_garantia: '',
-    comentario_moni_capital_seguro_garantia: '',
-    link_moni_capital_gastos_aporte_inicial: '',
-    comentario_moni_capital_gastos_aporte_inicial: '',
-    prazo_opcao: { ...NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO },
-    prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO },
-    negociacao_linhas: negociacaoLinhasDraftPadrao(),
-  });
+  const [negocioDraft, setNegocioDraft] = useState<NegocioDraftKanban>(() => negocioDraftVazio());
   const [fasesNegocioPrazo, setFasesNegocioPrazo] = useState<FaseNegocioPrazoOpcao[]>([]);
   const [salvandoNegocio, setSalvandoNegocio] = useState(false);
   const [editandoFranqueado, setEditandoFranqueado] = useState(false);
@@ -875,26 +836,7 @@ export function KanbanCardModal({
       descricao: '',
       categoria: 'chamado',
     });
-    setNegocioDraft({
-      tipo_aquisicao_terreno: '',
-      valor_terreno: '',
-      vgv_pretendido: '',
-      produto_modelo_casa: '',
-      link_pasta_drive: '',
-      link_bca: '',
-      link_gbox: '',
-      link_mapa_competidores: '',
-      link_acoplamento: '',
-      link_apresentacao_comite: '',
-      link_moni_capital_seguro_garantia: '',
-      comentario_moni_capital_seguro_garantia: '',
-      link_moni_capital_gastos_aporte_inicial: '',
-      comentario_moni_capital_gastos_aporte_inicial: '',
-      prazo_opcao: { ...NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO },
-      prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO },
-      negociacao_linhas: negociacaoLinhasDraftPadrao(),
-    });
-    setEditandoNegocio(false);
+    setNegocioDraft(negocioDraftVazio());
     setEditandoFunding(false);
     setEditandoFranqueado(false);
     setFranqueadosLista([]);
@@ -1589,10 +1531,14 @@ export function KanbanCardModal({
           }
         }
         setModalDetalhes(det);
+        const opcoesNegocioPrazo = await fetchFasesNegocioPrazoOpcoes(supabase);
+        setFasesNegocioPrazo(opcoesNegocioPrazo);
         setPreObraDraft(preObraDraftFromProcesso(det.processo));
+        setNegocioDraft(negocioDraftFromProcesso(det.processo, opcoesNegocioPrazo));
       } catch {
         setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
         setPreObraDraft(preObraDraftFromProcesso(null));
+        setNegocioDraft(negocioDraftVazio());
       }
 
       const mapFaseRow = mapKanbanFaseRow;
@@ -3154,10 +3100,9 @@ export function KanbanCardModal({
       });
       if (!upd.ok) throw new Error(upd.error);
 
-      setEditandoNegocio(false);
       await loadCard();
-    } catch {
-      alert('Erro ao salvar dados do negócio.');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erro ao salvar dados do negócio.');
     } finally {
       setSalvandoNegocio(false);
     }
@@ -3860,7 +3805,11 @@ export function KanbanCardModal({
   );
 
   const negociacaoLinhasCalculadora = useMemo((): NegociacaoLinha[] => {
-    if (editandoNegocio) {
+    const fundingCard =
+      card?.kanban_id === KANBAN_IDS.FUNDING || kanbanNome === 'Funding';
+    const usaDraftNegocio =
+      !ocultarGestaoCard && Boolean(modalDetalhes.processo) && !(fundingCard && origem !== 'legado');
+    if (usaDraftNegocio) {
       return negocioDraft.negociacao_linhas.map(
         ({ condicao, valor, dataPagamento, vinculoCalculadora }) => ({
           condicao,
@@ -3871,7 +3820,14 @@ export function KanbanCardModal({
       );
     }
     return modalDetalhes.processo?.negociacao_linhas ?? [];
-  }, [editandoNegocio, negocioDraft.negociacao_linhas, modalDetalhes.processo?.negociacao_linhas]);
+  }, [
+    card?.kanban_id,
+    kanbanNome,
+    ocultarGestaoCard,
+    origem,
+    negocioDraft.negociacao_linhas,
+    modalDetalhes.processo,
+  ]);
 
   const negociacaoDatasResolvidas = useMemo(() => {
     const map = new Map<string, { data: string | null; prevista: boolean }>();
@@ -4139,6 +4095,8 @@ export function KanbanCardModal({
 
   const rede = modalDetalhes.rede;
   const proc = modalDetalhes.processo;
+  const podeEditarNegocio =
+    !ocultarGestaoCard && Boolean(proc) && !(ehFunilFunding && !isLegado);
   const condominioIdSidebar = card.condominio_id ?? proc?.condominio_id ?? null;
   const condominioIdChecklistLegal =
     card.condominio_id?.trim() || proc?.condominio_id?.trim() || null;
@@ -4435,36 +4393,6 @@ export function KanbanCardModal({
         )}
       </div>
     );
-  }
-
-  function abrirEdicaoNegocio() {
-    if (!proc) return;
-    void (async () => {
-      const supabase = createClient();
-      const opcoes = await fetchFasesNegocioPrazoOpcoes(supabase);
-      setFasesNegocioPrazo(opcoes);
-      setNegocioDraft({
-        tipo_aquisicao_terreno: proc.tipo_aquisicao_terreno ?? '',
-        valor_terreno: moedaCampoValorInicial(proc.valor_terreno),
-        vgv_pretendido: proc.vgv_pretendido != null ? String(proc.vgv_pretendido) : '',
-        produto_modelo_casa: proc.produto_modelo_casa ?? '',
-        link_pasta_drive: proc.link_pasta_drive ?? '',
-        link_bca: proc.link_bca ?? '',
-        link_gbox: proc.link_gbox ?? '',
-        link_mapa_competidores: proc.link_mapa_competidores ?? '',
-        link_acoplamento: proc.link_acoplamento ?? '',
-        link_apresentacao_comite: proc.link_apresentacao_comite ?? '',
-        link_moni_capital_seguro_garantia: proc.link_moni_capital_seguro_garantia ?? '',
-        comentario_moni_capital_seguro_garantia: proc.comentario_moni_capital_seguro_garantia ?? '',
-        link_moni_capital_gastos_aporte_inicial: proc.link_moni_capital_gastos_aporte_inicial ?? '',
-        comentario_moni_capital_gastos_aporte_inicial:
-          proc.comentario_moni_capital_gastos_aporte_inicial ?? '',
-        prazo_opcao: negocioPrazoOpcaoDraftFromProcesso(proc, opcoes),
-        prazo_instrumento_garantidor: negocioPrazoInstrumentoDraftFromProcesso(proc, opcoes),
-        negociacao_linhas: negociacaoLinhasDraftFromLinhas(proc.negociacao_linhas ?? []),
-      });
-      setEditandoNegocio(true);
-    })();
   }
 
   const secaoHead = (id: SecaoEsquerdaId, label: string, body: ReactNode) => (
@@ -7137,8 +7065,8 @@ export function KanbanCardModal({
               ) : (
               <div className="space-y-2">
                 {!proc ? (
-                    <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
-                ) : editandoNegocio ? (
+                  <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
+                ) : podeEditarNegocio ? (
                   <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
                       <label className="block">
@@ -7148,12 +7076,7 @@ export function KanbanCardModal({
                           onChange={(v) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: v }))}
                           placeholder="Selecione"
                           className="mt-0.5"
-                          options={[
-                            { value: 'Permuta parcial', label: 'Permuta parcial' },
-                            { value: '100% Permuta', label: '100% Permuta' },
-                            { value: '100% Compra e Venda Moní', label: '100% Compra e Venda Moní' },
-                            { value: '100% Compra e Venda Frank', label: '100% Compra e Venda Frank' },
-                          ]}
+                          options={opcoesTipoNegociacaoComValorAtual(negocioDraft.tipo_aquisicao_terreno)}
                         />
                       </label>
                       <label className="block">
@@ -7217,20 +7140,24 @@ export function KanbanCardModal({
                       datasResolvidas={negociacaoDatasResolvidas}
                     />
                     {renderDadosNegocioLinksEAnexos(true)}
-                    <div className="flex gap-2 pt-1">
+                    <div className="flex flex-wrap gap-2 pt-1">
                       <button
+                        type="button"
                         onClick={() => void handleSalvarNegocio()}
                         disabled={salvandoNegocio}
-                        className="rounded bg-moni-primary px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                        className="flex-1 rounded-lg border border-moni-primary bg-moni-primary px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {salvandoNegocio ? 'Salvando…' : 'Salvar'}
+                        {salvandoNegocio ? 'Salvando…' : 'Salvar dados do negócio'}
                       </button>
                       <button
-                        onClick={() => setEditandoNegocio(false)}
+                        type="button"
+                        onClick={() =>
+                          setNegocioDraft(negocioDraftFromProcesso(proc, fasesNegocioPrazo))
+                        }
                         disabled={salvandoNegocio}
-                        className="rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 disabled:opacity-50"
+                        className="rounded-lg border border-stone-200 px-3 py-2 text-xs text-stone-600 hover:bg-stone-50 disabled:opacity-50"
                       >
-                        Cancelar
+                        Descartar alterações
                       </button>
                     </div>
                   </div>
@@ -7303,15 +7230,6 @@ export function KanbanCardModal({
                       linhasLeitura={negociacaoLinhasLeituraResolvidas}
                     />
                     {renderDadosNegocioLinksEAnexos(false)}
-                    {modalSessao.ehAdminOuTeam && (
-                      <button
-                        type="button"
-                        onClick={() => abrirEdicaoNegocio()}
-                        className="mt-1 rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 hover:bg-stone-50"
-                      >
-                        Editar dados do negócio
-                      </button>
-                    )}
                   </>
                 )}
               </div>
