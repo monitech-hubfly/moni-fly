@@ -26,6 +26,46 @@ export default async function RelatorioPage({
     .select('id, card_id, chamado_numero, card_titulo, kanban_nome, kanban_id, responsavel_id, responsavel_nome, tipo, titulo, descricao, atividade_status, data_vencimento, time_nome, franqueado_nome, criado_em, sla_status, fase_nome')
     .order('data_vencimento', { ascending: true, nullsFirst: false });
 
+  const { data: topicosSirene } = await supabase
+    .from('sirene_topicos')
+    .select(`
+      id, nome, status, data_fim, responsavel_id,
+      chamado:sirene_chamados!inner(
+        id, numero, tipo, arquivado, card_id, processo_id, processo_titulo, processo_kanban_nome, aberto_por_nome
+      )
+    `)
+    .eq('chamado.arquivado', false);
+
+  const { data: responsaveisTopicos } = await supabase
+    .from('profiles')
+    .select('id, full_name');
+
+  const nomePorId = new Map((responsaveisTopicos ?? []).map((p) => [p.id, p.full_name]));
+
+  const topicosNormalizados = (topicosSirene ?? [])
+    .filter((t: any) => t.chamado?.card_id || t.chamado?.processo_id)
+    .map((t: any) => ({
+      id: `topico-${t.id}`,
+      card_id: t.chamado.card_id ?? t.chamado.processo_id,
+      chamado_numero: t.chamado.numero,
+      card_titulo: t.chamado.processo_titulo,
+      kanban_nome: t.chamado.processo_kanban_nome ?? 'Sem funil',
+      kanban_id: '',
+      responsavel_id: t.responsavel_id,
+      responsavel_nome: t.responsavel_id ? nomePorId.get(t.responsavel_id) ?? null : null,
+      tipo: t.chamado.tipo ?? 'sirene',
+      titulo: t.nome,
+      descricao: null,
+      atividade_status: t.status,
+      data_vencimento: t.data_fim,
+      time_nome: null,
+      franqueado_nome: t.chamado.aberto_por_nome ?? null,
+      criado_em: '',
+      sla_status: null,
+      fase_nome: null,
+      origemDado: 'sirene' as const,
+    }));
+
   // kanban_tags tem uma linha por funil — busca todos os IDs da tag "⭐Especial"
   const { data: tagRows } = await supabase
     .from('kanban_tags')
@@ -43,7 +83,12 @@ export default async function RelatorioPage({
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
-  const atividadesComPrazo = (atividades ?? []).map((a) => {
+  const atividadesBase = [
+    ...(atividades ?? []).map((a) => ({ ...a, origemDado: 'kanban' as const })),
+    ...topicosNormalizados,
+  ];
+
+  const atividadesComPrazo = atividadesBase.map((a) => {
     const prazo = a.data_vencimento ? new Date(a.data_vencimento) : null;
     if (prazo) prazo.setHours(0, 0, 0, 0);
     const diffDias = prazo ? Math.round((prazo.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)) : null;
