@@ -33,6 +33,7 @@ import {
   faseLoteadoresExigeJustificativaSla,
 } from '@/lib/kanban/loteadores-sla-justificativa';
 import { fundingTipoBadgeClass } from '@/lib/kanban/funding-card-fields';
+import { FundingAtividadeDot } from './FundingAtividadeDot';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanColumnProps = {
@@ -190,6 +191,7 @@ export function KanbanColumn({
 
   const dndAtivo = dragEnabled && !pending;
   const subtituloFase = (fase.instrucoes ?? '').trim();
+  const isFunding = kanbanId === KANBAN_IDS.FUNDING || kanbanId === KANBAN_IDS.MONI_CAPITAL;
 
   const abrirCard = (card: KanbanCardBrief) => {
     if (suppressClickRef.current) return;
@@ -636,6 +638,16 @@ export function KanbanColumn({
                     />
                   ) : null}
                 </button>
+                {isFunding && !arquivado && !concluido && card.funding_proxima_atividade ? (
+                  <div className="absolute bottom-2 right-2 z-10">
+                    <FundingAtividadeDot
+                      cardId={card.id}
+                      proximaAtividade={card.funding_proxima_atividade}
+                      prazoAtividade={card.funding_prazo_atividade ?? null}
+                      basePath={basePath}
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
           );
