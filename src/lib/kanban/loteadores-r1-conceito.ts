@@ -10,6 +10,7 @@ export const LOTEADORES_R1_CONCEITO_CAMPOS = {
   showroomQual: 'showroom_descricao',
   linhasReceita: 'linhas_receita',
   casaQueVende: 'casa_que_vende',
+  comentarios: 'comentarios',
 } as const;
 
 export const LOTEADORES_R1_CONCEITO_CAMPOS_VISIVEIS = Object.values(LOTEADORES_R1_CONCEITO_CAMPOS);
@@ -18,7 +19,6 @@ export const LOTEADORES_R1_CONCEITO_CAMPOS_VISIVEIS = Object.values(LOTEADORES_R
 export const LOTEADORES_R1_CONCEITO_CAMPOS_REMOVIDOS = [
   'restricoes',
   'oportunidades',
-  'comentarios',
   'score_loteador',
   'classificacao_loteador',
 ] as const;
@@ -49,7 +49,8 @@ export function isLoteadoresR1ConceitoCampoVisivel(item: {
     label === 'Linhas de receita para o loteador' ||
     label === 'Linhas de receita' ||
     label === 'Como é a casa que vende lá?' ||
-    label === 'Casa que vende'
+    label === 'Casa que vende' ||
+    label === 'Comentários'
   );
 }
 
