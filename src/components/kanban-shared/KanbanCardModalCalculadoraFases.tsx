@@ -514,6 +514,41 @@ function CalculadoraFaseDataCell({
     [],
   );
 
+  const salvar = useCallback(
+    async (next: string | null) => {
+      if (!onSalvarData) return;
+      const normalizado = next?.trim() || null;
+      const atual = ultimoSalvoRef.current || null;
+      if (normalizado === atual) return;
+      setErro(null);
+      setSalvando(true);
+      try {
+        const result = await onSalvarData(faseId, campo, normalizado);
+        if (!result.ok) {
+          setErro(result.error ?? 'Não foi possível salvar a data.');
+          setDraft(ultimoSalvoRef.current);
+        } else {
+          ultimoSalvoRef.current = normalizado ?? '';
+        }
+      } finally {
+        setSalvando(false);
+      }
+    },
+    [onSalvarData, faseId, campo],
+  );
+  salvarFnRef.current = salvar;
+
+  useEffect(() => {
+    if (!editando || !onRegistrarFlush) return;
+    return onRegistrarFlush(async () => {
+      if (debounceSalvarRef.current) {
+        clearTimeout(debounceSalvarRef.current);
+        debounceSalvarRef.current = null;
+      }
+      await salvarFnRef.current(draftRef.current.trim() || null);
+    });
+  }, [editando, onRegistrarFlush]);
+
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
   };
@@ -531,37 +566,6 @@ function CalculadoraFaseDataCell({
       </div>
     );
   }
-
-  const salvar = async (next: string | null) => {
-    const normalizado = next?.trim() || null;
-    const atual = ultimoSalvoRef.current || null;
-    if (normalizado === atual) return;
-    setErro(null);
-    setSalvando(true);
-    try {
-      const result = await onSalvarData(faseId, campo, normalizado);
-      if (!result.ok) {
-        setErro(result.error ?? 'Não foi possível salvar a data.');
-        setDraft(ultimoSalvoRef.current);
-      } else {
-        ultimoSalvoRef.current = normalizado ?? '';
-      }
-    } finally {
-      setSalvando(false);
-    }
-  };
-  salvarFnRef.current = salvar;
-
-  useEffect(() => {
-    if (!editando || !onRegistrarFlush) return;
-    return onRegistrarFlush(async () => {
-      if (debounceSalvarRef.current) {
-        clearTimeout(debounceSalvarRef.current);
-        debounceSalvarRef.current = null;
-      }
-      await salvarFnRef.current(draftRef.current.trim() || null);
-    });
-  }, [editando, onRegistrarFlush]);
 
   const agendarSalvar = (next: string | null) => {
     if (debounceSalvarRef.current) clearTimeout(debounceSalvarRef.current);
@@ -1039,16 +1043,6 @@ export function KanbanCardModalCalculadoraFases({
     });
   };
 
-  if (linhas.length === 0) {
-    return (
-      <p className="text-[11px] text-[var(--moni-text-tertiary)]" style={{ fontFamily: 'var(--moni-font-sans)' }}>
-        Nenhuma fase configurada para a esteira principal.
-      </p>
-    );
-  }
-
-  const podeEditarDatasEfetivo = podeEditarDatas && !modoPublico && Boolean(onSalvarData);
-
   const registrarFlushEdicaoData = useCallback<FlushEdicaoDataRegistrar>((fn) => {
     flushEdicaoDatasRef.current.add(fn);
     return () => {
@@ -1066,6 +1060,16 @@ export function KanbanCardModalCalculadoraFases({
     await Promise.all([...flushEdicaoDatasRef.current].map((fn) => fn()));
     setEditandoDatas(false);
   }, [editandoDatas]);
+
+  if (linhas.length === 0) {
+    return (
+      <p className="text-[11px] text-[var(--moni-text-tertiary)]" style={{ fontFamily: 'var(--moni-font-sans)' }}>
+        Nenhuma fase configurada para a esteira principal.
+      </p>
+    );
+  }
+
+  const podeEditarDatasEfetivo = podeEditarDatas && !modoPublico && Boolean(onSalvarData);
 
   return (
     <div
