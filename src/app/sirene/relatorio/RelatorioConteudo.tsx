@@ -194,13 +194,20 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
         <div className="space-y-2">
           {Object.entries(
             filtradas.reduce<Record<string, Atividade[]>>((acc, a) => {
-              const key = a.card_titulo ?? 'Chamado direto';
+              // Agrupa pela identidade real do chamado/card, não pelo título — evita split
+              // de atividades do mesmo chamado em grupos distintos por card_titulo divergente.
+              const key = a.card_id
+                ?? (a.chamado_numero != null ? `sirene-${a.chamado_numero}` : null)
+                ?? a.card_titulo
+                ?? 'sem-id';
               if (!acc[key]) acc[key] = [];
               acc[key].push(a);
               return acc;
             }, {})
-          ).map(([cardTitulo, ativs]) => (
-            <div key={cardTitulo} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+          ).map(([, ativs]) => {
+            const cardTitulo = ativs[0]?.card_titulo ?? 'Chamado direto';
+            return (
+            <div key={ativs[0]?.card_id ?? ativs[0]?.chamado_numero ?? cardTitulo} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
               <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 px-4 py-2.5">
                 <span className="font-medium text-stone-800">{cardTitulo}</span>
                 {ativs[0]?.chamado_numero && ativs[0]?.card_id
@@ -224,7 +231,8 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
                 ))}
               </div>
             </div>
-          ))}
+            );
+          })}
           {filtradas.length === 0 && (
             <div className="rounded-xl border border-stone-200 bg-white px-4 py-8 text-center text-sm text-stone-400">Nenhuma atividade com os filtros atuais.</div>
           )}
