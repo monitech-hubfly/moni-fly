@@ -312,7 +312,7 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -3762,7 +3762,15 @@ export function KanbanCardModal({
       undefined,
       datasManuaisCalculadora,
     );
-    return normalizarIntervaloDatasCalculadoraLinhas(encadeadas, cardEncadeamento);
+    const comOverrides =
+      datasManuaisCalculadora.size > 0
+        ? aplicarDatasManuaisCalculadoraLinhas(
+            encadeadas,
+            datasManuaisCalculadora,
+            cardEncadeamento,
+          )
+        : encadeadas;
+    return normalizarIntervaloDatasCalculadoraLinhas(comOverrides, cardEncadeamento);
   }, [
     card,
     contextoCalculadoraSyncGroup,

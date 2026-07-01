@@ -863,6 +863,74 @@ export function propagarLinhasCalculadoraForward(
   return inferirFimRealPorProximaFase(out);
 }
 
+function aplicarOverrideManualEmLinhaCalculadora(
+  linha: CalculadoraFaseLinha,
+  ov: CalculadoraFaseDataManualOverride,
+  card: CalculadoraFasesInput['card'],
+  ordemAtual: number,
+  hoje: string,
+): CalculadoraFaseLinha {
+  let dataInicioReal = linha.dataInicioReal;
+  let dataFimReal = linha.dataFimReal;
+  let dataFimEstimada = linha.dataFimEstimada;
+
+  if ('dataInicio' in ov) {
+    dataInicioReal = ov.dataInicio ? toYmd(ov.dataInicio) : null;
+    if (dataInicioReal && linha.slaDias != null && linha.slaDias > 0) {
+      dataFimEstimada = fimEstimadaPorSla(dataInicioReal, linha.slaDias, linha.slaTipo);
+    }
+  }
+
+  if ('dataFim' in ov) {
+    const fimManual = ov.dataFim ? toYmd(ov.dataFim) : null;
+    const editarEstimada =
+      !dataFimReal &&
+      (linha.status === 'atual' ||
+        linha.status === 'atual_atrasada' ||
+        linha.status === 'futura');
+    if (editarEstimada) {
+      dataFimEstimada = fimManual;
+    } else if (fimManual) {
+      dataFimReal = fimManual;
+    } else {
+      dataFimReal = null;
+    }
+  }
+
+  dataInicioReal = reconciliarInicioComFimReal(dataInicioReal, dataFimReal);
+
+  const status = resolveStatus(
+    linha.faseId,
+    card,
+    dataInicioReal,
+    dataFimReal,
+    dataFimEstimada,
+    linha.ordem,
+    ordemAtual,
+    hoje,
+    linha.slaDias,
+    linha.slaTipo,
+  );
+  const atrasoDias = resolveAtraso(
+    status,
+    dataInicioReal,
+    dataFimEstimada,
+    dataFimReal,
+    hoje,
+    linha.slaTipo,
+    linha.slaDias,
+  );
+
+  return {
+    ...linha,
+    dataInicioReal,
+    dataFimReal,
+    dataFimEstimada,
+    status,
+    atrasoDias,
+  };
+}
+
 /** Aplica overrides manuais de datas e recalcula estimativas das fases posteriores. */
 export function aplicarDatasManuaisCalculadoraLinhas(
   linhas: CalculadoraFaseLinha[],
@@ -882,78 +950,20 @@ export function aplicarDatasManuaisCalculadoraLinhas(
   let out = linhas.map((linha) => {
     const ov = overrides.get(linha.faseId);
     if (!ov) return linha;
-
-    let dataInicioReal = linha.dataInicioReal;
-    let dataFimReal = linha.dataFimReal;
-    let dataFimEstimada = linha.dataFimEstimada;
-
-    if ('dataInicio' in ov) {
-      dataInicioReal = ov.dataInicio ? toYmd(ov.dataInicio) : null;
-      if (dataInicioReal && linha.slaDias != null && linha.slaDias > 0) {
-        dataFimEstimada = fimEstimadaPorSla(dataInicioReal, linha.slaDias, linha.slaTipo);
-      }
-    }
-
-    if ('dataFim' in ov) {
-      const fimManual = ov.dataFim ? toYmd(ov.dataFim) : null;
-      const editarEstimada =
-        !dataFimReal &&
-        (linha.status === 'atual' ||
-          linha.status === 'atual_atrasada' ||
-          linha.status === 'futura');
-      if (editarEstimada) {
-        dataFimEstimada = fimManual;
-      } else if (fimManual) {
-        dataFimReal = fimManual;
-      } else {
-        dataFimReal = null;
-      }
-    }
-
-    dataInicioReal = reconciliarInicioComFimReal(dataInicioReal, dataFimReal);
-
-    const status = resolveStatus(
-      linha.faseId,
-      card,
-      dataInicioReal,
-      dataFimReal,
-      dataFimEstimada,
-      linha.ordem,
-      ordemAtual,
-      hoje,
-      linha.slaDias,
-      linha.slaTipo,
-    );
-    const atrasoDias = resolveAtraso(
-      status,
-      dataInicioReal,
-      dataFimEstimada,
-      dataFimReal,
-      hoje,
-      linha.slaTipo,
-      linha.slaDias,
-    );
-
-    return {
-      ...linha,
-      dataInicioReal,
-      dataFimReal,
-      dataFimEstimada,
-      status,
-      atrasoDias,
-    };
+    return aplicarOverrideManualEmLinhaCalculadora(linha, ov, card, ordemAtual, hoje);
   });
 
-  let propagateIdx = -1;
-  for (let i = out.length - 1; i >= 0; i--) {
-    if (overrides.has(out[i]!.faseId)) {
-      propagateIdx = i;
-      break;
-    }
-  }
+  const indicesOverride = out
+    .map((l, i) => (overrides.has(l.faseId) ? i : -1))
+    .filter((i) => i >= 0)
+    .sort((a, b) => a - b);
 
-  if (propagateIdx >= 0) {
-    out = propagarLinhasCalculadoraForward(out, propagateIdx, card, ordemAtual, hoje);
+  for (const idx of indicesOverride) {
+    const ov = overrides.get(out[idx]!.faseId);
+    if (ov) {
+      out[idx] = aplicarOverrideManualEmLinhaCalculadora(out[idx]!, ov, card, ordemAtual, hoje);
+    }
+    out = propagarLinhasCalculadoraForward(out, idx, card, ordemAtual, hoje);
   }
 
   return recomputarStatusAtrasoLinhasCalculadora(out, card, hojeRef);

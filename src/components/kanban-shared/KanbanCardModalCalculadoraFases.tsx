@@ -522,8 +522,8 @@ function CalculadoraFaseDataCell({
     async (next: string | null) => {
       if (!onSalvarData) return;
       const normalizado = next?.trim() || null;
-      const atual = ultimoSalvoRef.current || null;
-      if (normalizado === atual) return;
+      const persistido = valorInput || null;
+      if (normalizado === persistido && normalizado === (ultimoSalvoRef.current || null)) return;
       setErro(null);
       setSalvando(true);
       try {
@@ -538,7 +538,7 @@ function CalculadoraFaseDataCell({
         setSalvando(false);
       }
     },
-    [onSalvarData, faseId, campo],
+    [onSalvarData, faseId, campo, valorInput],
   );
   salvarFnRef.current = salvar;
 
@@ -572,14 +572,6 @@ function CalculadoraFaseDataCell({
     );
   }
 
-  const agendarSalvar = (next: string | null) => {
-    if (debounceSalvarRef.current) clearTimeout(debounceSalvarRef.current);
-    debounceSalvarRef.current = setTimeout(() => {
-      debounceSalvarRef.current = null;
-      void salvar(next);
-    }, 500);
-  };
-
   return (
     <div className="moni-calculadora-fase-data-cell moni-calculadora-fase-data-cell--edit" onClick={stop} onKeyDown={stop}>
       <input
@@ -595,7 +587,7 @@ function CalculadoraFaseDataCell({
           const v = e.target.value;
           setErro(null);
           setDraft(v);
-          if (dataIsoInputCompleta(v)) agendarSalvar(v);
+          if (dataIsoInputCompleta(v)) void salvar(v);
         }}
         onBlur={() => {
           if (debounceSalvarRef.current) {
