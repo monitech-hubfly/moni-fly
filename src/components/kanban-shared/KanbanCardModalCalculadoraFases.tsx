@@ -58,6 +58,12 @@ type Props = {
     campo: 'inicio' | 'fim',
     valor: string | null,
   ) => Promise<{ ok: boolean; error?: string }>;
+  /** Atualiza override local imediatamente (recálculo otimista antes do persist). */
+  onAplicarOverrideLocal?: (
+    faseId: string,
+    campo: 'inicio' | 'fim',
+    valor: string | null,
+  ) => void;
   /** Linhas de negociação — intercaladas na timeline como condições. */
   negociacaoLinhas?: NegociacaoLinha[];
 };
@@ -478,6 +484,7 @@ function CalculadoraFaseDataCell({
   editando,
   onSalvarData,
   onRegistrarFlush,
+  onAplicarOverrideLocal,
 }: {
   faseId: string;
   campo: 'inicio' | 'fim';
@@ -487,6 +494,7 @@ function CalculadoraFaseDataCell({
   editando: boolean;
   onSalvarData?: Props['onSalvarData'];
   onRegistrarFlush?: FlushEdicaoDataRegistrar;
+  onAplicarOverrideLocal?: Props['onAplicarOverrideLocal'];
 }) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -587,7 +595,10 @@ function CalculadoraFaseDataCell({
           const v = e.target.value;
           setErro(null);
           setDraft(v);
-          if (dataIsoInputCompleta(v)) void salvar(v);
+          if (dataIsoInputCompleta(v)) {
+            onAplicarOverrideLocal?.(faseId, campo, v);
+            void salvar(v);
+          }
         }}
         onBlur={() => {
           if (debounceSalvarRef.current) {
@@ -686,6 +697,7 @@ function CalculadoraFaseRow({
   ordemAtual,
   onSalvarData,
   onRegistrarFlush,
+  onAplicarOverrideLocal,
 }: {
   row: CalculadoraFaseLinha;
   faseMeta: KanbanFase | undefined;
@@ -695,6 +707,7 @@ function CalculadoraFaseRow({
   ordemAtual: number;
   onSalvarData?: Props['onSalvarData'];
   onRegistrarFlush?: FlushEdicaoDataRegistrar;
+  onAplicarOverrideLocal?: Props['onAplicarOverrideLocal'];
 }) {
   const steps = parseFaseSteps(faseMeta);
   const custo = String(row.custo ?? '').trim();
@@ -770,6 +783,7 @@ function CalculadoraFaseRow({
         editando={editandoDatas}
         onSalvarData={onSalvarData}
         onRegistrarFlush={onRegistrarFlush}
+        onAplicarOverrideLocal={onAplicarOverrideLocal}
       />
 
       <CalculadoraFaseDataCell
@@ -781,6 +795,7 @@ function CalculadoraFaseRow({
         editando={editandoDatas}
         onSalvarData={onSalvarData}
         onRegistrarFlush={onRegistrarFlush}
+        onAplicarOverrideLocal={onAplicarOverrideLocal}
       />
 
       <div className="moni-calculadora-fase-status-col">
@@ -864,6 +879,7 @@ function CalculadoraFunilGroup({
   ordemAtual,
   onSalvarData,
   onRegistrarFlush,
+  onAplicarOverrideLocal,
 }: {
   label: string;
   items: CalculadoraTimelineItem[];
@@ -876,6 +892,7 @@ function CalculadoraFunilGroup({
   ordemAtual: number;
   onSalvarData?: Props['onSalvarData'];
   onRegistrarFlush?: FlushEdicaoDataRegistrar;
+  onAplicarOverrideLocal?: Props['onAplicarOverrideLocal'];
 }) {
   const etapasVisiveis = etapasVisiveisFunil(items);
   const concluidas = etapasVisiveis.filter(etapaVisivelConcluida).length;
@@ -940,6 +957,7 @@ function CalculadoraFunilGroup({
               ordemAtual={ordemAtual}
               onSalvarData={onSalvarData}
               onRegistrarFlush={onRegistrarFlush}
+              onAplicarOverrideLocal={onAplicarOverrideLocal}
             />
           );
         })}
@@ -962,6 +980,7 @@ export function KanbanCardModalCalculadoraFases({
   modoPublico = false,
   podeEditarDatas = false,
   onSalvarData,
+  onAplicarOverrideLocal,
   negociacaoLinhas = [],
 }: Props) {
   const [collapsedFunis, setCollapsedFunis] = useState<Set<string>>(new Set());
@@ -1127,6 +1146,7 @@ export function KanbanCardModalCalculadoraFases({
                 ordemAtual={ordemAtual}
                 onSalvarData={onSalvarData}
                 onRegistrarFlush={registrarFlushEdicaoData}
+                onAplicarOverrideLocal={onAplicarOverrideLocal}
               />
             </div>
           ))}

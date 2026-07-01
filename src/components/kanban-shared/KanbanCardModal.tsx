@@ -312,7 +312,7 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -3465,7 +3465,6 @@ export function KanbanCardModal({
         card: cardCalcInput,
         visits,
         ancora: calculadoraAncora,
-        overrides: datasManuaisCalculadora,
         slaCondominio: calculadoraSlaCondominio,
       });
 
@@ -3493,7 +3492,6 @@ export function KanbanCardModal({
         card: cardCalcInput,
         visits,
         ancora: calculadoraAncora,
-        overrides: datasManuaisCalculadora,
         slaCondominio: calculadoraSlaCondominio,
       });
       return {
@@ -3504,7 +3502,7 @@ export function KanbanCardModal({
     } catch {
       return { linhas: [], visits: [], faseIds: [] as string[] };
     }
-  }, [card, fases, fasesEsteiraCalculadora, fasesEsteiraCalculadoraCarregado, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio, contextoCalculadoraSyncGroup, contextoCalculadoraCarregado, visitsCalculadora, visitsCalculadoraCarregado]);
+  }, [card, fases, fasesEsteiraCalculadora, fasesEsteiraCalculadoraCarregado, legadoCronologiaMoves, origem, modalDetalhes.processo, calculadoraSlaCondominio, contextoCalculadoraSyncGroup, contextoCalculadoraCarregado, visitsCalculadora, visitsCalculadoraCarregado]);
 
   const calculadoraAncora = useMemo(
     () => calculadoraAncoraFromProcesso(modalDetalhes.processo),
@@ -3676,6 +3674,24 @@ export function KanbanCardModal({
   const podeEditarDatasCalculadora =
     modalSessao.roleNorm === 'admin' || modalSessao.roleNorm === 'team';
 
+  const aplicarOverrideCalculadoraLocal = useCallback(
+    (faseId: string, campo: 'inicio' | 'fim', valor: string | null) => {
+      const idx = calculadoraFasesPack.faseIds.indexOf(faseId);
+      const fasesPosteriores = idx >= 0 ? calculadoraFasesPack.faseIds.slice(idx + 1) : [];
+      ultimaEdicaoDatasManuaisRef.current = Date.now();
+      setDatasManuaisCalculadora((prev) => {
+        const next = new Map(prev);
+        const cur = { ...(next.get(faseId) ?? {}) };
+        if (campo === 'inicio') cur.dataInicio = valor;
+        else cur.dataFim = valor;
+        next.set(faseId, cur);
+        for (const fid of fasesPosteriores) next.delete(fid);
+        return next;
+      });
+    },
+    [calculadoraFasesPack.faseIds],
+  );
+
   const salvarDataCalculadora = useCallback(
     async (faseId: string, campo: 'inicio' | 'fim', valor: string | null) => {
       const cardId = card?.id?.trim();
@@ -3684,20 +3700,7 @@ export function KanbanCardModal({
       const idx = calculadoraFasesPack.faseIds.indexOf(faseId);
       const fasesPosteriores = idx >= 0 ? calculadoraFasesPack.faseIds.slice(idx + 1) : [];
 
-      const aplicarOverrideLocal = () => {
-        setDatasManuaisCalculadora((prev) => {
-          const next = new Map(prev);
-          const cur = { ...(next.get(faseId) ?? {}) };
-          if (campo === 'inicio') cur.dataInicio = valor;
-          else cur.dataFim = valor;
-          next.set(faseId, cur);
-          for (const fid of fasesPosteriores) next.delete(fid);
-          return next;
-        });
-      };
-
-      ultimaEdicaoDatasManuaisRef.current = Date.now();
-      aplicarOverrideLocal();
+      aplicarOverrideCalculadoraLocal(faseId, campo, valor);
 
       const supabase = createClient();
       const patch = campo === 'inicio' ? { dataInicio: valor } : { dataFim: valor };
@@ -3729,6 +3732,7 @@ export function KanbanCardModal({
       card?.id,
       modalSessao.userId,
       calculadoraFasesPack.faseIds,
+      aplicarOverrideCalculadoraLocal,
     ],
   );
 
@@ -3770,7 +3774,11 @@ export function KanbanCardModal({
             cardEncadeamento,
           )
         : encadeadas;
-    return normalizarIntervaloDatasCalculadoraLinhas(comOverrides, cardEncadeamento);
+    const sincronizadas = sincronizarEstimativasFuturasAPartirFaseAtual(
+      comOverrides,
+      cardEncadeamento,
+    );
+    return normalizarIntervaloDatasCalculadoraLinhas(sincronizadas, cardEncadeamento);
   }, [
     card,
     contextoCalculadoraSyncGroup,
@@ -5636,6 +5644,7 @@ export function KanbanCardModal({
                     cardId={card.id}
                     podeEditarDatas={podeEditarDatasCalculadora}
                     onSalvarData={salvarDataCalculadora}
+                    onAplicarOverrideLocal={aplicarOverrideCalculadoraLocal}
                   />
                 </div>
               </div>

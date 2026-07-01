@@ -798,6 +798,40 @@ export function aplicarAncoraCalculadoraLinhas(
   return inferirFimRealPorProximaFase(out);
 }
 
+/** Índice da fase atual do card na timeline (fase_id ou status em andamento). */
+export function idxFaseAtualCalculadoraLinhas(
+  linhas: CalculadoraFaseLinha[],
+  card: CalculadoraFasesInput['card'],
+): number {
+  const porId = linhas.findIndex((l) => l.faseId === card.fase_id);
+  if (porId >= 0) return porId;
+  return linhas.findIndex((l) => l.status === 'atual' || l.status === 'atual_atrasada');
+}
+
+/**
+ * Recalcula estimativas das fases futuras a partir da fase atual — corrige quebra de encadeamento
+ * após o marco Contrato (ex.: Pré Obra com datas desalinhadas).
+ */
+export function sincronizarEstimativasFuturasAPartirFaseAtual(
+  linhas: CalculadoraFaseLinha[],
+  card: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+): CalculadoraFaseLinha[] {
+  if (linhas.length === 0) return linhas;
+  const idxAtual = idxFaseAtualCalculadoraLinhas(linhas, card);
+  if (idxAtual < 0 || idxAtual >= linhas.length - 1) return linhas;
+
+  const hoje = hojeYmd(hojeRef);
+  const ordemAtual =
+    linhas.find((l) => l.faseId === card.fase_id)?.ordem ??
+    linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada')?.ordem ??
+    linhas.find((l) => l.status === 'futura')?.ordem ??
+    Number.MAX_SAFE_INTEGER;
+
+  const propagadas = propagarLinhasCalculadoraForward(linhas, idxAtual, card, ordemAtual, hoje);
+  return recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef);
+}
+
 /** Recalcula início/estimativa (e fim real de concluídas) a partir de uma fase âncora. */
 export function propagarLinhasCalculadoraForward(
   linhas: CalculadoraFaseLinha[],
@@ -808,8 +842,11 @@ export function propagarLinhasCalculadoraForward(
 ): CalculadoraFaseLinha[] {
   const out = linhas.map((l) => ({ ...l }));
   const ancRow = out[desdeIdx]!;
+  const fimAncoraEfetivo = ancRow.dataFimReal ?? ancRow.dataFimEstimada;
   let fimFaseAnteriorReal: string | null = ancRow.dataFimReal;
-  let fimFaseAnteriorEstimado: string | null = ancRow.dataFimEstimada;
+  let fimFaseAnteriorEstimado: string | null = ancRow.dataFimReal
+    ? ancRow.dataFimEstimada
+    : fimAncoraEfetivo;
 
   for (let i = desdeIdx + 1; i < out.length; i++) {
     const row = out[i]!;
