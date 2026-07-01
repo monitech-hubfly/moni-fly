@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
+import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 
 type Atividade = {
   id: string;
@@ -52,7 +54,7 @@ function StatusTag({ status }: { status: string }) {
 }
 
 export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, searchParams }: Props) {
-  const [visao, setVisao] = useState<'atividade' | 'chamado'>(searchParams?.visao === 'chamado' ? 'chamado' : 'atividade');
+  const [visao, setVisao] = useState<'atividade' | 'chamado'>(searchParams?.visao === 'atividade' ? 'atividade' : 'chamado');
   const [filtroResp, setFiltroResp] = useState(searchParams?.resp ?? 'todos');
   const [filtroFunil, setFiltroFunil] = useState(searchParams?.funil ?? 'todos');
   const [filtroCard, setFiltroCard] = useState(searchParams?.card ?? 'todos');
@@ -168,7 +170,11 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
                     </div>
                   </td>
                   <td className="px-3 py-2.5">
-                    {a.chamado_numero && <span className="mr-1 text-[10px] text-stone-400">#{a.chamado_numero}</span>}
+                    {a.chamado_numero && a.card_id
+                      ? <Link href={hrefAbrirCardKanban(a.kanban_nome, a.card_id)} className="mr-1 text-[10px] text-blue-600 hover:underline">#{a.chamado_numero}</Link>
+                      : a.chamado_numero
+                        ? <span className="mr-1 text-[10px] text-stone-400">#{a.chamado_numero}</span>
+                        : null}
                     <span className="rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] text-stone-600">{a.card_titulo ?? '—'}</span>
                   </td>
                   <td className="px-3 py-2.5 text-stone-600">{a.kanban_nome}</td>
@@ -197,6 +203,11 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
             <div key={cardTitulo} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
               <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 px-4 py-2.5">
                 <span className="font-medium text-stone-800">{cardTitulo}</span>
+                {ativs[0]?.chamado_numero && ativs[0]?.card_id
+                  ? <Link href={hrefAbrirCardKanban(ativs[0].kanban_nome, ativs[0].card_id)} className="text-[11px] text-blue-600 hover:underline">#{ativs[0].chamado_numero}</Link>
+                  : ativs[0]?.chamado_numero
+                    ? <span className="text-[11px] text-stone-400">#{ativs[0].chamado_numero}</span>
+                    : null}
                 <span className="text-stone-400">·</span>
                 <span className="text-xs text-stone-500">{ativs[0]?.kanban_nome}</span>
                 {ativs[0]?.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">⭐ Especial</span>}
