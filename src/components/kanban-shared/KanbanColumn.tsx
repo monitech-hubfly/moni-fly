@@ -378,7 +378,7 @@ export function KanbanColumn({
 
   return (
     <div
-      className={`moni-kanban-column ${columnDragOver && dndAtivo ? 'moni-kanban-column--drag-over' : ''}`}
+      className={`moni-kanban-column${isUltimaFaseAtiva ? ' moni-kanban-column--fin' : ''}${columnDragOver && dndAtivo ? ' moni-kanban-column--drag-over' : ''}`}
     >
       <div
         className={`moni-kanban-column-hd ${isUltimaFaseAtiva ? 'moni-kanban-column-hd--fin' : ''}`}

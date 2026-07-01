@@ -208,7 +208,8 @@
   --moni-kanban-board-bg:       #eceae6;
   --moni-kanban-col-bg:         #e4e2de;
   --moni-kanban-col-hd:         var(--moni-neutral-100);
-  --moni-kanban-col-hd-fin:     var(--moni-neutral-200);
+  --moni-kanban-col-hd-fin:     color-mix(in srgb, var(--moni-neutral-100) 42%, transparent);
+  --moni-kanban-col-bg-fin:     color-mix(in srgb, var(--moni-kanban-col-bg) 30%, transparent);
   --moni-kanban-col-accent:     var(--moni-green-800);
   --moni-kanban-col-accent-fin: var(--moni-green-600);
   --moni-kanban-lime:           #d4edaa;
@@ -2351,6 +2352,10 @@
   outline-offset: -2px;
 }
 
+.moni-kanban-column--fin {
+  background: var(--moni-kanban-col-bg-fin);
+}
+
 .moni-kanban-column-hd {
   box-sizing: border-box;
   padding: 10px 10px 9px;
@@ -2358,8 +2363,27 @@
   border-bottom: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
 }
 
-.moni-kanban-column-hd--fin {
+.moni-kanban-column-hd--fin,
+.moni-kanban-column--fin .moni-kanban-column-hd {
   background: var(--moni-kanban-col-hd-fin);
+  border-bottom-color: color-mix(in srgb, var(--moni-kanban-drawer-header-border) 28%, transparent);
+}
+
+.moni-kanban-column--fin .moni-kanban-column-title {
+  color: var(--moni-text-tertiary);
+  font-weight: var(--moni-weight-medium);
+}
+
+.moni-kanban-column--fin .moni-kanban-column-subtitle,
+.moni-kanban-column--fin .moni-kanban-col-sla,
+.moni-kanban-column--fin .moni-kanban-col-sort {
+  color: var(--moni-text-tertiary);
+}
+
+.moni-kanban-column--fin .moni-kanban-col-count {
+  opacity: 0.65;
+  border-color: color-mix(in srgb, var(--moni-kanban-drawer-header-border) 35%, transparent);
+  background: color-mix(in srgb, var(--moni-surface-0) 50%, transparent);
 }
 
 .moni-kanban-column-hd-top {
