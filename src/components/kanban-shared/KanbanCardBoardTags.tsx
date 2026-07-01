@@ -52,16 +52,18 @@ export function KanbanCardBoardTags({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  const ok = window.confirm(`Remover a tag "${t.nome}" deste card?`);
+                  if (!ok) return;
                   onRemoveTag?.(t.id);
                 }}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                 }}
-                className="shrink-0 rounded-full p-0.5 text-current opacity-60 transition hover:bg-black/5 hover:opacity-100"
+                className="moni-kanban-board-tag-remove shrink-0 rounded-full p-0 text-current opacity-50 transition hover:bg-black/5 hover:opacity-100"
                 aria-label={`Remover tag ${t.nome}`}
               >
-                <X className="h-3 w-3" aria-hidden />
+                <X className="h-2 w-2" strokeWidth={2.5} aria-hidden />
               </button>
             ) : null}
           </span>

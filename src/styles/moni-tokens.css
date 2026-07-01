@@ -466,6 +466,11 @@
   white-space: nowrap;
 }
 
+.moni-kanban-board-tag-remove {
+  margin-left: 1px;
+  line-height: 0;
+}
+
 /* Calculadora Global de Fases — tokens e componentes */
 :root {
   --moni-calc-prazo-bg: var(--moni-status-done-bg);
