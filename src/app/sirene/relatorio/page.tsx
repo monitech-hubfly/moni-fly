@@ -39,18 +39,39 @@ export default async function RelatorioPage({
     `)
     .eq('chamado.arquivado', false);
 
+  // Resolve kanban_nome via card_id → kanban_cards → kanbans
+  const cardIds = (topicosSireneRaw ?? [])
+    .map((t: any) => t.chamado?.card_id)
+    .filter(Boolean);
+
   const processoIds = (topicosSireneRaw ?? [])
     .map((t: any) => t.chamado?.processo_id)
     .filter(Boolean);
 
-  const { data: processoCards } = processoIds.length > 0
+  const { data: kanbanCards } = cardIds.length > 0
     ? await adminClient
-        .from('v_processo_como_kanban_cards')
-        .select('id, kanban_nome')
-        .in('id', processoIds)
+        .from('kanban_cards')
+        .select('id, kanban_id')
+        .in('id', cardIds)
     : { data: [] };
 
-  const kanbanPorProcessoId = new Map((processoCards ?? []).map((c: any) => [c.id, c.kanban_nome]));
+  const kanbanIds = [...new Set((kanbanCards ?? []).map((c: any) => c.kanban_id))];
+
+  const { data: kanbanRows } = kanbanIds.length > 0
+    ? await adminClient
+        .from('kanbans')
+        .select('id, nome')
+        .in('id', kanbanIds)
+    : { data: [] };
+
+  const kanbanNomePorId = new Map((kanbanRows ?? []).map((k: any) => [k.id, k.nome]));
+  const kanbanIdPorCardId = new Map((kanbanCards ?? []).map((c: any) => [c.id, c.kanban_id]));
+  const kanbanPorCardId = new Map(
+    (kanbanCards ?? []).map((c: any) => [c.id, kanbanNomePorId.get(c.kanban_id) ?? null])
+  );
+
+  // Mantém resolução via processo_id como fallback
+  const kanbanPorProcessoId = new Map<string, string | null>();
 
   const topicosSirene = topicosSireneRaw;
 
@@ -61,13 +82,15 @@ export default async function RelatorioPage({
   const nomePorId = new Map((responsaveisTopicos ?? []).map((p) => [p.id, p.full_name]));
 
   const topicosNormalizados = (topicosSirene ?? [])
-    .filter((t: any) => t.chamado?.card_id || t.chamado?.processo_id)
     .map((t: any) => ({
       id: `topico-${t.id}`,
-      card_id: t.chamado.card_id ?? t.chamado.processo_id,
+      card_id: t.chamado.card_id ?? t.chamado.processo_id ?? null,
       chamado_numero: t.chamado.numero,
-      card_titulo: t.chamado.processo_titulo,
-      kanban_nome: t.chamado.processo_kanban_nome ?? kanbanPorProcessoId.get(t.chamado.processo_id ?? '') ?? t.chamado.card_id ? 'Sirene' : 'Sem funil',
+      card_titulo: t.chamado.processo_titulo ?? null,
+      kanban_nome: t.chamado.processo_kanban_nome
+        ?? (t.chamado.card_id ? kanbanPorCardId.get(t.chamado.card_id) : null)
+        ?? (t.chamado.processo_id ? kanbanPorProcessoId.get(t.chamado.processo_id) : null)
+        ?? 'Sirene',
       kanban_id: '',
       responsavel_id: t.responsavel_id,
       responsavel_nome: t.responsavel_id ? nomePorId.get(t.responsavel_id) ?? null : null,
