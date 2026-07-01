@@ -88,8 +88,7 @@ export function useBacklog(): UseBacklogResult {
             prazo_proposto,
             status,
             chamado_id,
-            prioridade,
-            sirene_chamados!left(numero)
+            sirene_chamados!left(numero, prioridade)
           `)
           .eq('responsavel_id', effectiveProfileId)
           .in('status', ['nao_iniciado', 'em_andamento'])
@@ -114,8 +113,7 @@ export function useBacklog(): UseBacklogResult {
         prazo_proposto: string | null;
         status: string;
         chamado_id: string | null;
-        prioridade: string | null;
-        sirene_chamados: { numero: string } | { numero: string }[] | null;
+        sirene_chamados: { numero: string; prioridade: string | null } | { numero: string; prioridade: string | null }[] | null;
       };
 
       const sireneArr: SireneItem[] = ((sireneRes.data ?? []) as unknown as SireneRaw[]).map(row => {
@@ -132,7 +130,7 @@ export function useBacklog(): UseBacklogResult {
           status:          row.status,
           chamado_id:      row.chamado_id,
           chamado_numero:  chamado?.numero ?? null,
-          prioridade:      row.prioridade,
+          prioridade:      chamado?.prioridade ?? null,
         };
       });
 
