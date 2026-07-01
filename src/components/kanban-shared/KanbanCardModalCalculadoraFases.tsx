@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
@@ -467,6 +467,8 @@ function dataIsoInputCompleta(valor: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(valor.trim());
 }
 
+type FlushEdicaoDataRegistrar = (fn: () => Promise<void>) => () => void;
+
 function CalculadoraFaseDataCell({
   faseId,
   campo,
@@ -475,6 +477,7 @@ function CalculadoraFaseDataCell({
   atraso,
   editando,
   onSalvarData,
+  onRegistrarFlush,
 }: {
   faseId: string;
   campo: 'inicio' | 'fim';
@@ -483,6 +486,7 @@ function CalculadoraFaseDataCell({
   atraso?: boolean;
   editando: boolean;
   onSalvarData?: Props['onSalvarData'];
+  onRegistrarFlush?: FlushEdicaoDataRegistrar;
 }) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -492,6 +496,7 @@ function CalculadoraFaseDataCell({
   const draftRef = useRef(valorInput);
   const debounceSalvarRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ultimoSalvoRef = useRef(valorInput);
+  const salvarFnRef = useRef<(next: string | null) => Promise<void>>(async () => {});
 
   useEffect(() => {
     draftRef.current = draft;
@@ -545,6 +550,18 @@ function CalculadoraFaseDataCell({
       setSalvando(false);
     }
   };
+  salvarFnRef.current = salvar;
+
+  useEffect(() => {
+    if (!editando || !onRegistrarFlush) return;
+    return onRegistrarFlush(async () => {
+      if (debounceSalvarRef.current) {
+        clearTimeout(debounceSalvarRef.current);
+        debounceSalvarRef.current = null;
+      }
+      await salvarFnRef.current(draftRef.current.trim() || null);
+    });
+  }, [editando, onRegistrarFlush]);
 
   const agendarSalvar = (next: string | null) => {
     if (debounceSalvarRef.current) clearTimeout(debounceSalvarRef.current);
@@ -666,6 +683,7 @@ function CalculadoraFaseRow({
   editandoDatas,
   ordemAtual,
   onSalvarData,
+  onRegistrarFlush,
 }: {
   row: CalculadoraFaseLinha;
   faseMeta: KanbanFase | undefined;
@@ -674,6 +692,7 @@ function CalculadoraFaseRow({
   editandoDatas: boolean;
   ordemAtual: number;
   onSalvarData?: Props['onSalvarData'];
+  onRegistrarFlush?: FlushEdicaoDataRegistrar;
 }) {
   const steps = parseFaseSteps(faseMeta);
   const custo = String(row.custo ?? '').trim();
@@ -748,6 +767,7 @@ function CalculadoraFaseRow({
         label={inicioLabel}
         editando={editandoDatas}
         onSalvarData={onSalvarData}
+        onRegistrarFlush={onRegistrarFlush}
       />
 
       <CalculadoraFaseDataCell
@@ -758,6 +778,7 @@ function CalculadoraFaseRow({
         atraso={fimAtraso}
         editando={editandoDatas}
         onSalvarData={onSalvarData}
+        onRegistrarFlush={onRegistrarFlush}
       />
 
       <div className="moni-calculadora-fase-status-col">
@@ -840,6 +861,7 @@ function CalculadoraFunilGroup({
   editandoDatas,
   ordemAtual,
   onSalvarData,
+  onRegistrarFlush,
 }: {
   label: string;
   items: CalculadoraTimelineItem[];
@@ -851,6 +873,7 @@ function CalculadoraFunilGroup({
   editandoDatas: boolean;
   ordemAtual: number;
   onSalvarData?: Props['onSalvarData'];
+  onRegistrarFlush?: FlushEdicaoDataRegistrar;
 }) {
   const etapasVisiveis = etapasVisiveisFunil(items);
   const concluidas = etapasVisiveis.filter(etapaVisivelConcluida).length;
@@ -914,6 +937,7 @@ function CalculadoraFunilGroup({
               editandoDatas={editandoDatas}
               ordemAtual={ordemAtual}
               onSalvarData={onSalvarData}
+              onRegistrarFlush={onRegistrarFlush}
             />
           );
         })}
@@ -941,6 +965,7 @@ export function KanbanCardModalCalculadoraFases({
   const [collapsedFunis, setCollapsedFunis] = useState<Set<string>>(new Set());
   const [expandedFases, setExpandedFases] = useState<Set<string>>(new Set());
   const [editandoDatas, setEditandoDatas] = useState(false);
+  const flushEdicaoDatasRef = useRef(new Set<() => Promise<void>>());
   const cardInicializadoRef = useRef<string | null>(null);
   const { loading: shareLoading, copied: shareCopied, gerarECopiar } = useCalculadoraShareLink(
     cardId ?? '',
@@ -1024,6 +1049,24 @@ export function KanbanCardModalCalculadoraFases({
 
   const podeEditarDatasEfetivo = podeEditarDatas && !modoPublico && Boolean(onSalvarData);
 
+  const registrarFlushEdicaoData = useCallback<FlushEdicaoDataRegistrar>((fn) => {
+    flushEdicaoDatasRef.current.add(fn);
+    return () => {
+      flushEdicaoDatasRef.current.delete(fn);
+    };
+  }, []);
+
+  const alternarEdicaoDatas = useCallback(async () => {
+    if (!editandoDatas) {
+      setEditandoDatas(true);
+      return;
+    }
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+    await Promise.all([...flushEdicaoDatasRef.current].map((fn) => fn()));
+    setEditandoDatas(false);
+  }, [editandoDatas]);
+
   return (
     <div
       className={`${variant === 'painel' ? 'flex h-full min-h-0 flex-col gap-2' : 'space-y-2'}${modoPublico ? ' moni-calculadora--modo-publico' : ''}${editandoDatas ? ' moni-calculadora--modo-edicao-datas' : ''}`}
@@ -1035,7 +1078,7 @@ export function KanbanCardModalCalculadoraFases({
             {podeEditarDatasEfetivo ? (
               <button
                 type="button"
-                onClick={() => setEditandoDatas((v) => !v)}
+                onClick={() => void alternarEdicaoDatas()}
                 className={`moni-calculadora-share-btn moni-calculadora-edit-datas-btn${editandoDatas ? ' moni-calculadora-edit-datas-btn--active' : ''}`}
                 aria-pressed={editandoDatas}
                 aria-label={editandoDatas ? 'Concluir edição de datas' : 'Editar datas manualmente'}
@@ -1081,6 +1124,7 @@ export function KanbanCardModalCalculadoraFases({
                 editandoDatas={editandoDatas && podeEditarDatasEfetivo}
                 ordemAtual={ordemAtual}
                 onSalvarData={onSalvarData}
+                onRegistrarFlush={registrarFlushEdicaoData}
               />
             </div>
           ))}

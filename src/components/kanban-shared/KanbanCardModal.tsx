@@ -317,7 +317,6 @@ import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
   salvarDataManualCalculadoraSyncGroup,
-  CALCULADORA_FASE_SLUG_PROPAGA_FORWARD,
   type CalculadoraFaseDataManual,
 } from '@/lib/kanban/calculadora-fase-datas';
 import {
@@ -3684,10 +3683,6 @@ export function KanbanCardModal({
 
       const idx = calculadoraFasesPack.faseIds.indexOf(faseId);
       const fasesPosteriores = idx >= 0 ? calculadoraFasesPack.faseIds.slice(idx + 1) : [];
-      const slugFase = String(calculadoraFasesMeta.get(faseId)?.slug ?? '').trim();
-      const propagaForward =
-        slugFase === CALCULADORA_FASE_SLUG_PROPAGA_FORWARD ||
-        faseId === FASE_IDS.PORTFOLIO_PASSAGEM_WAYSER;
 
       const aplicarOverrideLocal = () => {
         setDatasManuaisCalculadora((prev) => {
@@ -3696,9 +3691,7 @@ export function KanbanCardModal({
           if (campo === 'inicio') cur.dataInicio = valor;
           else cur.dataFim = valor;
           next.set(faseId, cur);
-          if (propagaForward) {
-            for (const fid of fasesPosteriores) next.delete(fid);
-          }
+          for (const fid of fasesPosteriores) next.delete(fid);
           return next;
         });
       };
@@ -3726,7 +3719,7 @@ export function KanbanCardModal({
         return result;
       }
 
-      if (propagaForward && fasesPosteriores.length > 0) {
+      if (fasesPosteriores.length > 0) {
         await limparDatasManuaisCalculadoraSyncGroup(supabase, cardId, fasesPosteriores);
       }
 
@@ -3736,7 +3729,6 @@ export function KanbanCardModal({
       card?.id,
       modalSessao.userId,
       calculadoraFasesPack.faseIds,
-      calculadoraFasesMeta,
     ],
   );
 

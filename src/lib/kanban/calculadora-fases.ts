@@ -88,14 +88,11 @@ export type CalculadoraFasesInput = {
   /** Referência para fase atual atrasada (default: hoje). */
   hoje?: Date;
   ancora?: CalculadoraAncora | null;
-  /** Overrides manuais por fase_id — por padrão não propagam; exceção: passagem_wayser. */
+  /** Overrides manuais por fase_id — recalculam estimativas das fases posteriores. */
   overrides?: Map<string, CalculadoraFaseDataManualOverride>;
   /** SLA customizado do cadastro de condomínio (aprovacao_condominio / aprovacao_prefeitura). */
   slaCondominio?: CondominioPrazosAprovacaoSla | null;
 };
-
-/** Slugs cujo override manual recalcula início/fim estimado das fases posteriores. */
-const SLUGS_OVERRIDE_PROPAGA_FORWARD = new Set<string>([FASE_SLUGS.PASSAGEM_WAYSER]);
 
 export function calculadoraAncoraFromProcesso(proc: {
   calculadora_ancora_fase_slug?: string | null;
@@ -866,10 +863,7 @@ export function propagarLinhasCalculadoraForward(
   return inferirFimRealPorProximaFase(out);
 }
 
-/**
- * Aplica overrides manuais de datas — por padrão só a linha editada;
- * em Passagem para Wayser, recalcula SLA das fases posteriores.
- */
+/** Aplica overrides manuais de datas e recalcula estimativas das fases posteriores. */
 export function aplicarDatasManuaisCalculadoraLinhas(
   linhas: CalculadoraFaseLinha[],
   overrides: Map<string, CalculadoraFaseDataManualOverride>,
@@ -953,8 +947,7 @@ export function aplicarDatasManuaisCalculadoraLinhas(
 
   let propagateIdx = -1;
   for (let i = 0; i < out.length; i++) {
-    const slug = String(out[i]!.faseSlug ?? '').trim();
-    if (SLUGS_OVERRIDE_PROPAGA_FORWARD.has(slug) && overrides.has(out[i]!.faseId)) {
+    if (overrides.has(out[i]!.faseId)) {
       propagateIdx = i;
       break;
     }
