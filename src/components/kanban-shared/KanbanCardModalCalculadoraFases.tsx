@@ -483,6 +483,11 @@ function CalculadoraFaseDataCell({
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const valorInput = fmtDataInput(valor);
+  const [draft, setDraft] = useState(valorInput);
+
+  useEffect(() => {
+    if (!salvando) setDraft(valorInput);
+  }, [valorInput, salvando]);
 
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -503,13 +508,16 @@ function CalculadoraFaseDataCell({
   }
 
   const salvar = async (next: string | null) => {
-    if (next === valorInput) return;
+    const normalizado = next?.trim() || null;
+    const atual = valorInput || null;
+    if (normalizado === atual) return;
     setErro(null);
     setSalvando(true);
     try {
-      const result = await onSalvarData(faseId, campo, next);
+      const result = await onSalvarData(faseId, campo, normalizado);
       if (!result.ok) {
         setErro(result.error ?? 'Não foi possível salvar a data.');
+        setDraft(valorInput);
       }
     } finally {
       setSalvando(false);
@@ -521,14 +529,23 @@ function CalculadoraFaseDataCell({
       <input
         type="date"
         className={`moni-calculadora-fase-data-input${atraso ? ' moni-calculadora-fase-data-input--atraso' : ''}${salvando ? ' moni-calculadora-fase-data-input--saving' : ''}${erro ? ' moni-calculadora-fase-data-input--erro' : ''}`}
-        defaultValue={valorInput}
-        key={`${faseId}-${campo}-${valorInput}`}
+        value={draft}
         disabled={salvando}
         aria-label={`${campo === 'inicio' ? 'Início' : 'Fim'} — ${label}`}
         aria-invalid={erro ? true : undefined}
         onClick={stop}
         onChange={(e) => {
+          setErro(null);
+          setDraft(e.target.value);
+        }}
+        onBlur={(e) => {
           void salvar(e.target.value.trim() || null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
         }}
       />
       <span className="moni-calculadora-fase-data-label">{erro ?? label}</span>

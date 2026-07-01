@@ -1,7 +1,7 @@
 'use client';
 
 import type { ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   X,
@@ -3671,29 +3671,14 @@ export function KanbanCardModal({
       const cardId = card?.id?.trim();
       if (!cardId) return { ok: false, error: 'Card não encontrado.' };
 
-      const supabase = createClient();
-      const patch =
-        campo === 'inicio' ? { dataInicio: valor } : { dataFim: valor };
-      const result = await salvarDataManualCalculadoraSyncGroup(
-        supabase,
-        cardId,
-        faseId,
-        patch,
-        modalSessao.userId,
-      );
+      const idx = calculadoraFasesPack.faseIds.indexOf(faseId);
+      const fasesPosteriores = idx >= 0 ? calculadoraFasesPack.faseIds.slice(idx + 1) : [];
+      const slugFase = String(calculadoraFasesMeta.get(faseId)?.slug ?? '').trim();
+      const propagaForward =
+        slugFase === CALCULADORA_FASE_SLUG_PROPAGA_FORWARD ||
+        faseId === FASE_IDS.PORTFOLIO_PASSAGEM_WAYSER;
 
-      if (result.ok) {
-        const idx = calculadoraFasesPack.faseIds.indexOf(faseId);
-        const fasesPosteriores = idx >= 0 ? calculadoraFasesPack.faseIds.slice(idx + 1) : [];
-        const slugFase = String(calculadoraFasesMeta.get(faseId)?.slug ?? '').trim();
-        const propagaForward =
-          slugFase === CALCULADORA_FASE_SLUG_PROPAGA_FORWARD ||
-          faseId === FASE_IDS.PORTFOLIO_PASSAGEM_WAYSER;
-
-        if (propagaForward && fasesPosteriores.length > 0) {
-          await limparDatasManuaisCalculadoraSyncGroup(supabase, cardId, fasesPosteriores);
-        }
-
+      const aplicarOverrideLocal = () => {
         setDatasManuaisCalculadora((prev) => {
           const next = new Map(prev);
           const cur = { ...(next.get(faseId) ?? {}) };
@@ -3705,6 +3690,32 @@ export function KanbanCardModal({
           }
           return next;
         });
+      };
+
+      startTransition(aplicarOverrideLocal);
+
+      const supabase = createClient();
+      const patch = campo === 'inicio' ? { dataInicio: valor } : { dataFim: valor };
+      const result = await salvarDataManualCalculadoraSyncGroup(
+        supabase,
+        cardId,
+        faseId,
+        patch,
+        modalSessao.userId,
+      );
+
+      if (!result.ok) {
+        const map = await buscarDatasManuaisCalculadoraSyncGroup(
+          supabase,
+          cardId,
+          calculadoraFasesPack.faseIds,
+        );
+        startTransition(() => setDatasManuaisCalculadora(map));
+        return result;
+      }
+
+      if (propagaForward && fasesPosteriores.length > 0) {
+        await limparDatasManuaisCalculadoraSyncGroup(supabase, cardId, fasesPosteriores);
       }
 
       return result;
