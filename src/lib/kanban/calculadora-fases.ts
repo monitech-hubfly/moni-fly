@@ -896,9 +896,8 @@ export function aplicarDatasManuaisCalculadoraLinhas(
 
     if ('dataFim' in ov) {
       const fimManual = ov.dataFim ? toYmd(ov.dataFim) : null;
-      const tinhaFimReal = Boolean(linha.dataFimReal);
       const editarEstimada =
-        !tinhaFimReal &&
+        !dataFimReal &&
         (linha.status === 'atual' ||
           linha.status === 'atual_atrasada' ||
           linha.status === 'futura');
@@ -946,7 +945,7 @@ export function aplicarDatasManuaisCalculadoraLinhas(
   });
 
   let propagateIdx = -1;
-  for (let i = 0; i < out.length; i++) {
+  for (let i = out.length - 1; i >= 0; i--) {
     if (overrides.has(out[i]!.faseId)) {
       propagateIdx = i;
       break;

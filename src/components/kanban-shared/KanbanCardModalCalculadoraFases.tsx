@@ -503,9 +503,13 @@ function CalculadoraFaseDataCell({
   }, [draft]);
 
   useEffect(() => {
+    if (editando) {
+      if (!focused && !salvando) ultimoSalvoRef.current = valorInput;
+      return;
+    }
     ultimoSalvoRef.current = valorInput;
-    if (!salvando && !focused) setDraft(valorInput);
-  }, [valorInput, salvando, focused]);
+    setDraft(valorInput);
+  }, [valorInput, salvando, focused, editando]);
 
   useEffect(
     () => () => {
@@ -545,7 +549,8 @@ function CalculadoraFaseDataCell({
         clearTimeout(debounceSalvarRef.current);
         debounceSalvarRef.current = null;
       }
-      await salvarFnRef.current(draftRef.current.trim() || null);
+      const pending = draftRef.current.trim() || null;
+      await salvarFnRef.current(pending);
     });
   }, [editando, onRegistrarFlush]);
 
@@ -597,8 +602,9 @@ function CalculadoraFaseDataCell({
             clearTimeout(debounceSalvarRef.current);
             debounceSalvarRef.current = null;
           }
+          const pending = draftRef.current.trim() || null;
           setFocused(false);
-          void salvar(draftRef.current.trim() || null);
+          void salvar(pending);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
@@ -1055,9 +1061,9 @@ export function KanbanCardModalCalculadoraFases({
       setEditandoDatas(true);
       return;
     }
+    await Promise.all([...flushEdicaoDatasRef.current].map((fn) => fn()));
     const active = document.activeElement;
     if (active instanceof HTMLElement) active.blur();
-    await Promise.all([...flushEdicaoDatasRef.current].map((fn) => fn()));
     setEditandoDatas(false);
   }, [editandoDatas]);
 
