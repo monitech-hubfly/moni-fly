@@ -99,9 +99,6 @@ const CAROMETRO_SUBITENS_TEAM: NavItem[] = [
   { href: '/carometro', label: 'Carômetro' },
   { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
   { href: '/carometro/todo', label: 'TO DO' },
-  { href: '/carometro/todo-planning', label: 'TO DO & Planning' },
-  { href: '/carometro/pre-bone-day', label: 'Plano Boné Day' },
-  { href: '/carometro/fechamento-bone-day', label: 'Fechamento Boné Day' },
 ];
 
 const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);

@@ -1,5 +1,6 @@
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import { RelatorioConteudo } from './RelatorioConteudo';
 
@@ -26,7 +27,9 @@ export default async function RelatorioPage({
     .select('id, card_id, chamado_numero, card_titulo, kanban_nome, kanban_id, responsavel_id, responsavel_nome, tipo, titulo, descricao, atividade_status, data_vencimento, time_nome, franqueado_nome, criado_em, sla_status, fase_nome')
     .order('data_vencimento', { ascending: true, nullsFirst: false });
 
-  const { data: topicosSirene } = await supabase
+  const adminClient = createAdminClient();
+
+  const { data: topicosSireneRaw } = await adminClient
     .from('sirene_topicos')
     .select(`
       id, nome, status, data_fim, responsavel_id,
@@ -35,6 +38,21 @@ export default async function RelatorioPage({
       )
     `)
     .eq('chamado.arquivado', false);
+
+  const processoIds = (topicosSireneRaw ?? [])
+    .map((t: any) => t.chamado?.processo_id)
+    .filter(Boolean);
+
+  const { data: processoCards } = processoIds.length > 0
+    ? await adminClient
+        .from('v_processo_como_kanban_cards')
+        .select('id, kanban_nome')
+        .in('id', processoIds)
+    : { data: [] };
+
+  const kanbanPorProcessoId = new Map((processoCards ?? []).map((c: any) => [c.id, c.kanban_nome]));
+
+  const topicosSirene = topicosSireneRaw;
 
   const { data: responsaveisTopicos } = await supabase
     .from('profiles')
@@ -49,7 +67,7 @@ export default async function RelatorioPage({
       card_id: t.chamado.card_id ?? t.chamado.processo_id,
       chamado_numero: t.chamado.numero,
       card_titulo: t.chamado.processo_titulo,
-      kanban_nome: t.chamado.processo_kanban_nome ?? 'Sem funil',
+      kanban_nome: t.chamado.processo_kanban_nome ?? kanbanPorProcessoId.get(t.chamado.processo_id ?? '') ?? t.chamado.card_id ? 'Sirene' : 'Sem funil',
       kanban_id: '',
       responsavel_id: t.responsavel_id,
       responsavel_nome: t.responsavel_id ? nomePorId.get(t.responsavel_id) ?? null : null,
