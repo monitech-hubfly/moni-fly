@@ -3,7 +3,10 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowUpDown, ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react';
-import { useRef, useState, useTransition, type DragEvent } from 'react';
+import { useRef, useState, useTransition, useEffect, useCallback, type DragEvent } from 'react';
+import {
+  desvincularTagCard,
+} from '@/lib/actions/card-actions';
 import {
   calcularSlaKanbanCard,
   creditoObraAguardandoDocumentacao,
@@ -151,6 +154,39 @@ export function KanbanColumn({
   const [dragOverCardId, setDragOverCardId] = useState<string | null>(null);
   const [dragInsertBefore, setDragInsertBefore] = useState(true);
   const [columnDragOver, setColumnDragOver] = useState(false);
+  const [tagsRemovidas, setTagsRemovidas] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setTagsRemovidas(new Set());
+  }, [cards]);
+
+  const removerTagDoCard = useCallback(
+    (cardTagId: string) => {
+      const id = cardTagId.trim();
+      if (!id) return;
+      setTagsRemovidas((prev) => new Set(prev).add(id));
+      startTransition(async () => {
+        const res = await desvincularTagCard(id, basePath);
+        if (!res.ok) {
+          setTagsRemovidas((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+          window.alert(`Não foi possível remover a tag: ${res.error}`);
+          return;
+        }
+        router.refresh();
+      });
+    },
+    [basePath, router],
+  );
+
+  const tagsVisiveisCard = useCallback(
+    (card: KanbanCardBrief) =>
+      (card.tagsCard ?? []).filter((t) => t.id && !tagsRemovidas.has(t.id)),
+    [tagsRemovidas],
+  );
 
   const dndAtivo = dragEnabled && !pending;
   const subtituloFase = (fase.instrucoes ?? '').trim();
@@ -581,7 +617,12 @@ export function KanbanColumn({
                   {arquivado && motivo ? (
                     <p className="moni-kanban-card-section-value line-clamp-2">{motivo}</p>
                   ) : null}
-                  <KanbanCardBoardTags tags={card.tagsCard} className="mt-1" />
+                  <KanbanCardBoardTags
+                    tags={tagsVisiveisCard(card)}
+                    className="mt-1"
+                    editable
+                    onRemoveTag={removerTagDoCard}
+                  />
                   {!arquivado && !concluido && aguardandoDoc ? (
                     <span className={`mt-1 inline-block ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>
                       {TAG_AGUARDANDO_DOCUMENTACAO}

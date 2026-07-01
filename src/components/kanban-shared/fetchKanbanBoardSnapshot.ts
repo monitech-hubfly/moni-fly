@@ -1118,7 +1118,7 @@ export async function fetchKanbanBoardSnapshot(
     allCardIds.length > 0
       ? supabase
           .from('kanban_card_tags')
-          .select('card_id, tag_id, kanban_tags(nome, cor)')
+          .select('id, card_id, tag_id, kanban_tags(nome, cor)')
           .in('card_id', allCardIds)
       : Promise.resolve({ data: [] as { card_id: string; tag_id: string; kanban_tags: { nome: string | null; cor: string | null } | null }[] }),
   ]);
@@ -1137,16 +1137,17 @@ export async function fetchKanbanBoardSnapshot(
   // Tags (nativo): agrega em lote e acopla ao card brief
   if (allCardIds.length > 0) {
     const rows = tagsRes.data;
-    const byCardId = new Map<string, { tag_id: string; nome: string; cor: string }[]>();
+    const byCardId = new Map<string, { id: string; tag_id: string; nome: string; cor: string }[]>();
     (rows ?? []).forEach((r) => {
       const cid = String((r as { card_id?: string | null }).card_id ?? '').trim();
       if (!cid) return;
+      const id = String((r as { id?: string | null }).id ?? '').trim();
       const tag_id = String((r as { tag_id?: string | null }).tag_id ?? '').trim();
       const nome = String(((r as { kanban_tags?: { nome?: string | null } | null }).kanban_tags as { nome?: string | null } | null)?.nome ?? '');
       const cor = String(((r as { kanban_tags?: { cor?: string | null } | null }).kanban_tags as { cor?: string | null } | null)?.cor ?? '#cccccc');
-      if (!tag_id) return;
+      if (!id || !tag_id) return;
       const arr = byCardId.get(cid) ?? [];
-      arr.push({ tag_id, nome, cor });
+      arr.push({ id, tag_id, nome, cor });
       byCardId.set(cid, arr);
     });
     const cardsTagged = cards.map((c) => ({ ...c, tagsCard: byCardId.get(c.id) ?? [] }));

@@ -56,7 +56,7 @@ export type KanbanCardBrief = {
   franqueado_id: string;
   kanban_id?: string;
   projeto_id?: string | null;
-  tagsCard?: { tag_id: string; nome: string; cor: string }[];
+  tagsCard?: { id: string; tag_id: string; nome: string; cor: string }[];
   /** Cards nativos arquivados (`kanban_cards.arquivado`). Legado: ausente / false. */
   arquivado?: boolean;
   motivo_arquivamento?: string | null;
