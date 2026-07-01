@@ -225,8 +225,8 @@ function KpiCard({
           className="mt-1 text-xl font-semibold tabular-nums tracking-tight"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
         >
-          {value}
-        </p>
+        {value}
+      </p>
         {progressPct != null ? <SlaProgressBar pct={progressPct} /> : null}
       </div>
       {hint ? (
@@ -1334,7 +1334,7 @@ function PortfolioEspecificidadesSection({
               <span className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
                 Moní reprova
               </span>
-            </div>
+    </div>
             <div className="flex flex-col items-center gap-1">
               <UserX className="h-6 w-6" style={{ color: 'var(--moni-navy-800)' }} aria-hidden />
               <span className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
@@ -1369,7 +1369,7 @@ function StepOneEspecificidadesSection({
 }) {
   return (
     <section className="space-y-3">
-      <div>
+          <div>
         <h2
           className="text-base font-semibold"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
@@ -1379,7 +1379,7 @@ function StepOneEspecificidadesSection({
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
           Histórico de fases, conversão para o Portfólio e permanência nas etapas intermediárias
         </p>
-      </div>
+          </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {data.taxaAprovacaoHipoteses != null ? (
@@ -1439,7 +1439,7 @@ function StepOneEspecificidadesSection({
                         limite + 1,
                       );
                       const acimaLimite = item.diasNaFase > limite;
-                      return (
+              return (
                         <tr
                           key={item.cardId}
                           className="transition-colors hover:bg-[var(--moni-surface-50)]"
@@ -1467,7 +1467,7 @@ function StepOneEspecificidadesSection({
                             >
                               <div
                                 className="h-full rounded-full"
-                                style={{
+                  style={{
                                   width: `${maxDias > 0 ? Math.max(4, Math.round((item.diasNaFase / maxDias) * 100)) : 0}%`,
                                   background: acimaLimite
                                     ? 'var(--moni-status-overdue-border)'
@@ -1477,13 +1477,13 @@ function StepOneEspecificidadesSection({
                             </div>
                           </td>
                         </tr>
-                      );
-                    })}
+              );
+            })}
                   </tbody>
                 </table>
-              </div>
-            ) : null}
           </div>
+            ) : null}
+        </div>
         ) : null}
       </div>
 
@@ -1497,7 +1497,7 @@ function StepOneEspecificidadesSection({
             <DegradeNote>
               Vínculo com Portfólio indisponível — conversões podem estar subestimadas.
             </DegradeNote>
-          ) : null}
+        ) : null}
           <DataTable
             headers={['Franquia', 'Hipóteses', 'Gerou Portfólio', 'Taxa']}
             emptyMessage="Sem cards com franquia identificada no recorte."
@@ -1544,7 +1544,7 @@ function StepOneEspecificidadesSection({
                       }
                     />
                   ))}
-                </div>
+          </div>
               );
             })()
           )}
@@ -1565,7 +1565,7 @@ function StepOneEspecificidadesSection({
 function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEspecificidades }) {
   return (
     <section className="space-y-3">
-      <div>
+            <div>
         <h2
           className="text-base font-semibold"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
@@ -1575,7 +1575,7 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
           Aprovação na 1ª tentativa, origem do card e permanência nas fases técnicas
         </p>
-      </div>
+              </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {data.taxaAprovacaoTentativa != null ? (
@@ -1613,7 +1613,7 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
                 />
               </div>
             )}
-          </div>
+              </div>
         ) : null}
 
         {data.paralisadosPct != null ? (
@@ -1634,7 +1634,7 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
             ) : null}
           </div>
         ) : null}
-      </div>
+            </div>
 
       {data.acoplamentosPorOrigem != null ? (
         <PanelBox title="Acoplamentos por funil de origem">
@@ -1682,7 +1682,7 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
                       barColor="var(--moni-navy-800)"
                     />
                   ))}
-                </div>
+            </div>
               );
             })()
           )}
@@ -1734,7 +1734,7 @@ function OperacoesEspecificidadesSection({
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
           Tempos de aprovação por praça, retrabalho BCA e gargalos de crédito no funil Pré Obra e Obra
         </p>
-      </div>
+            </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {data.taxaRetrabalhoBca != null ? (
@@ -1749,7 +1749,7 @@ function OperacoesEspecificidadesSection({
               <MiniKpi label="Total retrabalho" value={formatInt(data.taxaRetrabalhoBca.comRetrabalho)} />
               <MiniKpi label="Total em obra" value={formatInt(data.taxaRetrabalhoBca.totalEmObra)} />
               <MiniKpi label="%" value={formatPct(data.taxaRetrabalhoBca.percentual)} />
-            </div>
+          </div>
             {data.taxaRetrabalhoBca.totalEmObra === 0 ? (
               <DegradeNote>Sem cards ativos em obra no recorte analisado.</DegradeNote>
             ) : data.taxaRetrabalhoBca.comRetrabalho === 0 ? (
@@ -1801,7 +1801,7 @@ function OperacoesEspecificidadesSection({
                   ? 0
                   : sorted[Math.floor(sorted.length / 2)]!.mediaDias ?? 0;
               const maxDias = Math.max(...sorted.map((r) => r.mediaDias ?? 0), 1);
-              return (
+                    return (
                 <div className="space-y-1">
                   {sorted.map((r) => {
                     const acima = (r.mediaDias ?? 0) > mediana;
@@ -1818,12 +1818,12 @@ function OperacoesEspecificidadesSection({
                         trailing={
                           <span className="w-8 shrink-0 text-right text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
                             n={formatInt(r.amostras)}
-                          </span>
+                            </span>
                         }
                       />
                     );
                   })}
-                </div>
+                          </div>
               );
             })()
           )}
@@ -1831,7 +1831,7 @@ function OperacoesEspecificidadesSection({
             Referência para o time de Acoplamento priorizar praças.
           </p>
         </PanelBox>
-      ) : null}
+                ) : null}
 
       {data.tempoAprovacaoPrefeitura != null ? (
         <PanelBox title="Tempo médio de Aprovação na Prefeitura por cidade">
@@ -1858,7 +1858,7 @@ function OperacoesEspecificidadesSection({
                   ? 0
                   : sorted[Math.floor(sorted.length / 2)]!.mediaDias ?? 0;
               const maxDias = Math.max(...sorted.map((r) => r.mediaDias ?? 0), 1);
-              return (
+                    return (
                 <div className="space-y-1">
                   {sorted.map((r) => {
                     const acima = (r.mediaDias ?? 0) > mediana;
@@ -1875,12 +1875,12 @@ function OperacoesEspecificidadesSection({
                         trailing={
                           <span className="w-8 shrink-0 text-right text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
                             n={formatInt(r.amostras)}
-                          </span>
+                        </span>
                         }
                       />
                     );
                   })}
-                </div>
+            </div>
               );
             })()
           )}
@@ -1911,7 +1911,7 @@ function OperacoesEspecificidadesSection({
           </ul>
         </PanelBox>
       ) : null}
-    </section>
+      </section>
   );
 }
 
@@ -1934,7 +1934,7 @@ function LoteadoresEspecificidadesSection({
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
           Conversão por parceiro, ciclo R1 → Contrato e gargalos em Viabilidade
         </p>
-      </div>
+              </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {data.tempoR1AteContrato != null ? (
@@ -1960,7 +1960,7 @@ function LoteadoresEspecificidadesSection({
             {data.tempoR1AteContrato.amostras === 0 ? (
               <DegradeNote>Sem pares R1 → Contrato registrados no recorte.</DegradeNote>
             ) : null}
-          </div>
+              </div>
         ) : null}
 
         {data.viabilidadeSemMovimentacao15Dias != null ? (
@@ -1976,13 +1976,13 @@ function LoteadoresEspecificidadesSection({
                 label="Parados"
                 value={formatInt(data.viabilidadeSemMovimentacao15Dias.acima15Dias)}
               />
-            </div>
+              </div>
             {data.viabilidadeSemMovimentacao15Dias.acima15Dias === 0 ? (
               <DegradeNote>Nenhum card parado em Viabilidade além do limite no recorte.</DegradeNote>
             ) : null}
-          </div>
+              </div>
         ) : null}
-      </div>
+            </div>
 
       {data.conversaoPorLoteador != null ? (
         <PanelBox title="Taxa de conversão por loteador">
@@ -2022,7 +2022,7 @@ function LoteadoresEspecificidadesSection({
                   <CountRiskBadge count={r.cardsAtivos} threshold={3} />
                 </div>
               ))}
-            </div>
+                </div>
           )}
         </PanelBox>
       ) : null}
@@ -2074,7 +2074,7 @@ function CreditoObraEspecificidadesSection({
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
           Ciclo por tranche, aprovação da 1ª tranche, espera entre fases co_* e correlação com Operações
         </p>
-      </div>
+                </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {data.taxaAprovacaoPrimeiraTranche != null ? (
@@ -2099,13 +2099,13 @@ function CreditoObraEspecificidadesSection({
                 label="Taxa"
                 value={formatPct(data.taxaAprovacaoPrimeiraTranche.pctPrimeiraTentativa)}
               />
-            </div>
+                </div>
             {data.taxaAprovacaoPrimeiraTranche.aprovadosPrimeiraTentativa +
               data.taxaAprovacaoPrimeiraTranche.aprovadosComRevisoes ===
             0 ? (
               <DegradeNote>Nenhum card com 1ª tranche concluída no recorte.</DegradeNote>
             ) : null}
-          </div>
+                </div>
         ) : null}
 
         {data.correlacaoAtrasoOperacoes != null ? (
@@ -2122,8 +2122,8 @@ function CreditoObraEspecificidadesSection({
               <DegradeNote>
                 Cards de Operações vinculados ao mesmo projeto indisponíveis.
               </DegradeNote>
-            ) : (
-              <>
+                ) : (
+                  <>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <p
                     className="text-3xl font-semibold tabular-nums tracking-tight"
@@ -2134,9 +2134,9 @@ function CreditoObraEspecificidadesSection({
                   {data.correlacaoAtrasoOperacoes.projetosDuploAtraso > 0 ? (
                     <span className="moni-tag-atrasado inline-flex rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide">
                       duplo atraso
-                    </span>
+                      </span>
                   ) : null}
-                </div>
+                    </div>
                 <p className="mt-2 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
                   Indica que o atraso no crédito está impactando a obra.
                 </p>
@@ -2151,11 +2151,11 @@ function CreditoObraEspecificidadesSection({
                     Ver cards com atraso
                   </Link>
                 ) : null}
-              </>
-            )}
-          </div>
+                  </>
+                )}
+              </div>
         ) : null}
-      </div>
+            </div>
 
       {data.tempoMedioPorTranche != null ? (
         <PanelBox title="Tempo médio por tranche">
@@ -2192,7 +2192,7 @@ function CreditoObraEspecificidadesSection({
                       }
                     />
                   ))}
-                </div>
+        </div>
               );
             })()
           )}
@@ -2234,7 +2234,7 @@ function CreditoObraEspecificidadesSection({
           )}
         </PanelBox>
       ) : null}
-    </section>
+      </section>
   );
 }
 
@@ -2253,7 +2253,7 @@ function ContabilidadeEspecificidadesSection({
 }) {
   return (
     <section className="space-y-3">
-      <div>
+                <div>
         <h2
           className="text-base font-semibold"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
@@ -2317,7 +2317,7 @@ function ContabilidadeEspecificidadesSection({
             <div
               key={r.tipo}
               className="flex min-h-[100px] flex-col justify-between px-4 py-4"
-              style={{
+                            style={{
                 ...panelStyle,
                 ...(r.acimaSla
                   ? {
@@ -2346,10 +2346,10 @@ function ContabilidadeEspecificidadesSection({
               </div>
               <span className={`mt-2 self-start ${r.acimaSla ? 'moni-tag-atrasado' : 'moni-tag-concluido'} inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium`}>
                 {r.acimaSla ? 'Acima do SLA' : 'Dentro do SLA'}
-              </span>
-            </div>
+                          </span>
+                </div>
           ))}
-        </div>
+              </div>
       ) : null}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -2422,7 +2422,7 @@ function ContabilidadeEspecificidadesSection({
                 <span className="shrink-0 tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
                   {item.tipoAbertura}
                 </span>
-              </li>
+                  </li>
             ))}
           </ul>
         </PanelBox>
@@ -2460,7 +2460,7 @@ function InsightCard({ ins }: { ins: PainelInsight }) {
   const sev = insightSeveridade(ins.tipo);
   const accent = insightSeverityAccent(sev);
 
-  return (
+                    return (
     <li
       className="rounded-lg px-3 py-3"
       style={{
@@ -2475,7 +2475,7 @@ function InsightCard({ ins }: { ins: PainelInsight }) {
           className={`mr-2 inline-flex align-middle rounded-md px-1.5 py-0.5 text-[10px] font-medium ${insightCategoryBadgeClass(sev)}`}
         >
           {ins.tipoLabel}
-        </span>
+                            </span>
         {ins.texto}
       </p>
     </li>
@@ -2857,7 +2857,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           <p className="mt-1 text-[11px] sm:text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
             Análise operacional · {periodLabel}
           </p>
-        </div>
+                          </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
           <div
@@ -2885,7 +2885,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                 </button>
               );
             })}
-          </div>
+                          </div>
 
           <div className="flex flex-1 flex-wrap gap-3">
             {opcoesFiltros.temFranquia ? (
@@ -2927,7 +2927,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
       {dataset.mode === 'legado' ? (
         <p
           className="rounded-lg px-3 py-2 text-[11px]"
-          style={{
+                                style={{
             border: '0.5px solid var(--moni-border-default)',
             background: 'var(--moni-surface-0)',
             color: 'var(--moni-text-secondary)',
@@ -2935,12 +2935,12 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
         >
           Modo legado: histórico de fases limitado; métricas usam posição atual e movimentos disponíveis.
         </p>
-      ) : null}
+                            ) : null}
 
       {!analise.conversao.faseConversaoConfigurada ? (
         <p
           className="rounded-lg px-3 py-2 text-[11px]"
-          style={{
+                                style={{
             color: 'var(--moni-text-secondary)',
             background: 'var(--moni-surface-100)',
             border: '0.5px solid var(--moni-border-subtle)',
@@ -2950,7 +2950,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           Fase de conversão não configurada — configure em Admin → Fases de conversão para destacar a etapa de
           conversão.
         </p>
-      ) : null}
+                            ) : null}
 
       {/* KPIs fixos */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -2964,7 +2964,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           hint="Cards ativos com meta de fase"
           progressPct={analise.operacao.pctSlaDentro}
         />
-      </div>
+                          </div>
 
       {/* Abas */}
       <div
@@ -2998,7 +2998,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
             </button>
           );
         })}
-      </div>
+          </div>
 
       {tab === 'operacao' ? (
         <div className="space-y-6">
@@ -3092,24 +3092,24 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                             className="block truncate hover:underline"
                             style={{ color: 'var(--moni-navy-800)' }}
                           >
-                            {r.titulo}
+                        {r.titulo}
                           </Link>
                           {r.fasesLabel && r.fasesLabel !== 'Retrocesso de fase' ? (
                             <p className="mt-0.5 truncate" style={{ color: 'var(--moni-text-tertiary)' }}>
-                              {r.fasesLabel}
-                            </p>
+                        {r.fasesLabel}
+                      </p>
                           ) : null}
-                        </div>
+                    </div>
                         <div className="flex shrink-0 items-center gap-1.5">
                           {diasAdicionados != null ? (
                             <span className="moni-tag-atencao tabular-nums">+{diasAdicionados}d</span>
                           ) : null}
                           <span className="moni-tag-atencao tabular-nums">{r.count}×</span>
                         </div>
-                      </li>
+                  </li>
                     );
                   })}
-                </ul>
+            </ul>
               </PanelBox>
             ) : null}
           </section>
@@ -3165,7 +3165,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                   ])}
                 />
               </CollapsiblePanelBox>
-            </div>
+          </div>
 
             <div className="space-y-4">
               <PanelBox title="Chamados">
@@ -3174,7 +3174,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                   <MiniKpi label="Concluídos" value={formatInt(analise.chamados.concluidos)} />
                   <MiniKpi label="Vencidos" value={formatInt(analise.chamados.vencidos)} />
                   <MiniKpi label="Com trava" value={formatInt(analise.chamados.comTrava)} />
-                </div>
+        </div>
                 <ChamadosPorFaseUnifiedTable rows={chamadosPorFaseUnificado} />
               </PanelBox>
 
@@ -3216,14 +3216,14 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                   style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
                 >
                   Arquivamentos
-                </h2>
+              </h2>
                 <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                   Perdas por arquivamento — {periodLabel}
                 </p>
               </div>
               {arquivadosDrawerRows.length > 0 ? (
-                <button
-                  type="button"
+              <button
+                type="button"
                   onClick={() => setArquivadosDrawerOpen(true)}
                   className="min-h-[44px] rounded-md px-3 py-2 text-[11px] font-medium sm:min-h-[36px]"
                   style={{
@@ -3233,15 +3233,15 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                   }}
                 >
                   Ver cards arquivados ({formatInt(arquivadosDrawerRows.length)})
-                </button>
+              </button>
               ) : null}
             </div>
 
             {analise.arquivamento.perdas.totalArquivados === 0 ? (
               <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                 Nenhum card arquivado no recorte analisado.
-              </p>
-            ) : (
+                </p>
+              ) : (
               <>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
                   <KpiCard label="Total arquivados" value={formatInt(analise.arquivamento.perdas.totalArquivados)} />
@@ -3409,7 +3409,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                     <DegradeNote>
                       Campo de cidade indisponível no recorte — vincule cards à rede ou projeto com área de atuação.
                     </DegradeNote>
-                  ) : null}
+                          ) : null}
                   <DataTable
                     headers={['Cidade', 'Entradas', 'Conv.', 'Taxa', 'Tempo médio']}
                     emptyMessage="Sem entradas no período."
@@ -3589,7 +3589,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                       {ch.atrasado ? <Pill label="Vencido" tone="ambar" /> : null}
                       {ch.emPastelaria ? <Pill label="Pastelaria" tone="roxo" /> : null}
                       <span style={{ color: 'var(--moni-text-tertiary)' }}>· {ch.faseNome}</span>
-                    </li>
+                      </li>
                   ))}
                 </ul>
               </PanelBox>
@@ -3617,10 +3617,10 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                   .map((ins) => (
                     <InsightCard key={`${ins.tipo}-${ins.texto.slice(0, 40)}`} ins={ins} />
                   ))}
-              </ul>
-            )}
+                </ul>
+              )}
           </section>
-        </div>
+            </div>
       )}
 
       <p className="text-center text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
