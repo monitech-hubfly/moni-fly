@@ -572,6 +572,7 @@ export function KanbanCardModal({
   const [datasManuaisCalculadora, setDatasManuaisCalculadora] = useState<
     Map<string, CalculadoraFaseDataManual>
   >(() => new Map());
+  const ultimaEdicaoDatasManuaisRef = useRef(0);
   const [calculadoraSlaCondominio, setCalculadoraSlaCondominio] =
     useState<CondominioPrazosAprovacaoSla | null>(null);
   const [responsavelDaFaseSalvoPorFase, setResponsavelDaFaseSalvoPorFase] = useState<Map<string, string>>(
@@ -3617,7 +3618,17 @@ export function KanbanCardModal({
     void (async () => {
       const supabase = createClient();
       const map = await buscarDatasManuaisCalculadoraSyncGroup(supabase, cardId, faseIds);
-      if (!cancelado) setDatasManuaisCalculadora(map);
+      if (!cancelado) {
+        setDatasManuaisCalculadora((prev) => {
+          const editadoRecentemente = Date.now() - ultimaEdicaoDatasManuaisRef.current < 10_000;
+          if (editadoRecentemente && prev.size > 0) {
+            const merged = new Map(map);
+            for (const [k, v] of prev) merged.set(k, v);
+            return merged;
+          }
+          return map;
+        });
+      }
     })();
 
     return () => {
@@ -3692,7 +3703,8 @@ export function KanbanCardModal({
         });
       };
 
-      startTransition(aplicarOverrideLocal);
+      ultimaEdicaoDatasManuaisRef.current = Date.now();
+      aplicarOverrideLocal();
 
       const supabase = createClient();
       const patch = campo === 'inicio' ? { dataInicio: valor } : { dataFim: valor };

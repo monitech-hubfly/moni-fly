@@ -902,7 +902,15 @@ export function aplicarDatasManuaisCalculadoraLinhas(
 
     if ('dataFim' in ov) {
       const fimManual = ov.dataFim ? toYmd(ov.dataFim) : null;
-      if (fimManual) {
+      const tinhaFimReal = Boolean(linha.dataFimReal);
+      const editarEstimada =
+        !tinhaFimReal &&
+        (linha.status === 'atual' ||
+          linha.status === 'atual_atrasada' ||
+          linha.status === 'futura');
+      if (editarEstimada) {
+        dataFimEstimada = fimManual;
+      } else if (fimManual) {
         dataFimReal = fimManual;
       } else {
         dataFimReal = null;

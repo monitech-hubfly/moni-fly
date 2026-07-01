@@ -463,6 +463,10 @@ function fmtDataInput(iso: string | null): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : '';
 }
 
+function dataIsoInputCompleta(valor: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(valor.trim());
+}
+
 function CalculadoraFaseDataCell({
   faseId,
   campo,
@@ -482,12 +486,28 @@ function CalculadoraFaseDataCell({
 }) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [focused, setFocused] = useState(false);
   const valorInput = fmtDataInput(valor);
   const [draft, setDraft] = useState(valorInput);
+  const draftRef = useRef(valorInput);
+  const debounceSalvarRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ultimoSalvoRef = useRef(valorInput);
 
   useEffect(() => {
-    if (!salvando) setDraft(valorInput);
-  }, [valorInput, salvando]);
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    ultimoSalvoRef.current = valorInput;
+    if (!salvando && !focused) setDraft(valorInput);
+  }, [valorInput, salvando, focused]);
+
+  useEffect(
+    () => () => {
+      if (debounceSalvarRef.current) clearTimeout(debounceSalvarRef.current);
+    },
+    [],
+  );
 
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -509,7 +529,7 @@ function CalculadoraFaseDataCell({
 
   const salvar = async (next: string | null) => {
     const normalizado = next?.trim() || null;
-    const atual = valorInput || null;
+    const atual = ultimoSalvoRef.current || null;
     if (normalizado === atual) return;
     setErro(null);
     setSalvando(true);
@@ -517,11 +537,21 @@ function CalculadoraFaseDataCell({
       const result = await onSalvarData(faseId, campo, normalizado);
       if (!result.ok) {
         setErro(result.error ?? 'Não foi possível salvar a data.');
-        setDraft(valorInput);
+        setDraft(ultimoSalvoRef.current);
+      } else {
+        ultimoSalvoRef.current = normalizado ?? '';
       }
     } finally {
       setSalvando(false);
     }
+  };
+
+  const agendarSalvar = (next: string | null) => {
+    if (debounceSalvarRef.current) clearTimeout(debounceSalvarRef.current);
+    debounceSalvarRef.current = setTimeout(() => {
+      debounceSalvarRef.current = null;
+      void salvar(next);
+    }, 500);
   };
 
   return (
@@ -534,12 +564,20 @@ function CalculadoraFaseDataCell({
         aria-label={`${campo === 'inicio' ? 'Início' : 'Fim'} — ${label}`}
         aria-invalid={erro ? true : undefined}
         onClick={stop}
+        onFocus={() => setFocused(true)}
         onChange={(e) => {
+          const v = e.target.value;
           setErro(null);
-          setDraft(e.target.value);
+          setDraft(v);
+          if (dataIsoInputCompleta(v)) agendarSalvar(v);
         }}
-        onBlur={(e) => {
-          void salvar(e.target.value.trim() || null);
+        onBlur={() => {
+          if (debounceSalvarRef.current) {
+            clearTimeout(debounceSalvarRef.current);
+            debounceSalvarRef.current = null;
+          }
+          setFocused(false);
+          void salvar(draftRef.current.trim() || null);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
