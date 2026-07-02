@@ -2,7 +2,8 @@
 -- de chamados Sirene vinculados a cards de funis. Agora resolve o nome real do funil
 -- via kanban_cards → kanbans quando a origem é 'sirene' e card_id está preenchido.
 
-CREATE OR REPLACE VIEW v_atividades_unificadas AS
+DROP VIEW IF EXISTS public.v_atividades_unificadas;
+CREATE VIEW public.v_atividades_unificadas AS
 SELECT a.id,
    a.card_id,
    a.numero AS chamado_numero,
@@ -42,7 +43,8 @@ SELECT a.id,
            WHEN a.data_vencimento < CURRENT_DATE THEN 'atrasado'::text
            WHEN a.data_vencimento = CURRENT_DATE THEN 'vence_hoje'::text
            ELSE 'ok'::text
-       END AS sla_status
+       END AS sla_status,
+   a.origem
   FROM kanban_atividades a
     LEFT JOIN kanban_cards kc ON kc.id = a.card_id AND a.origem = 'nativo'::text
     LEFT JOIN v_processo_como_kanban_cards vmap ON vmap.id = a.card_id AND a.origem = 'legado'::text
@@ -57,3 +59,6 @@ SELECT a.id,
     OR a.origem = 'legado'::text AND vmap.id IS NOT NULL
     OR a.origem = 'sirene'::text
     OR a.origem = 'externo'::text;
+
+GRANT SELECT ON public.v_atividades_unificadas TO authenticated, anon, service_role;
+NOTIFY pgrst, 'reload schema';
