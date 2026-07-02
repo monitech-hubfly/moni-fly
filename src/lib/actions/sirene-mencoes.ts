@@ -27,11 +27,13 @@ async function buscarPerfisPorNomesMencionados(
   const db = await dbParaMencoes(supabase);
   const perfis = new Map<string, PerfilMencao>();
   for (const nome of nomes) {
+    // Usa as primeiras 2 palavras com wildcard — evita falha quando o regex capturou palavras extras
+    const prefixoBusca = nome.split(/\s+/).slice(0, 2).join(' ');
     const { data: exatos } = await db
       .from('profiles')
       .select('id, full_name')
-      .ilike('full_name', nome)
-      .limit(5);
+      .ilike('full_name', `${prefixoBusca}%`)
+      .limit(10);
     for (const row of exatos ?? []) {
       const id = String(row.id);
       const n = String((row as { full_name?: string | null }).full_name ?? '').trim();
@@ -69,9 +71,9 @@ export async function notificarMencoesSirene(input: {
   referenciaPath: string;
   contextoTitulo: string;
   autorId: string;
+  /** IDs adicionais a notificar (aberto_por, responsaveis_ids, etc.) — sem @menção no texto. */
+  extraDestinatarios?: string[];
 }): Promise<void> {
-  if (input.mencoesIds.length === 0) return;
-
   const supabase = await createClient();
   const { data: profAutor } = await supabase
     .from('profiles')
@@ -87,8 +89,15 @@ export async function notificarMencoesSirene(input: {
     input.plain.length > 120 ? `${input.plain.slice(0, 120)}…` : input.plain;
   const referenciaPath = String(input.referenciaPath ?? '').trim() || '/sirene/chamados';
 
-  for (const uid of input.mencoesIds) {
-    if (uid === input.autorId) continue;
+  // Deduplicação: @mencionados têm alerta específico; extras (sem @) recebem alerta genérico
+  const mencionadosSemAutor = input.mencoesIds.filter(uid => uid !== input.autorId);
+  const mencionadosSet = new Set(mencionadosSemAutor);
+  const extrasSemAutor = (input.extraDestinatarios ?? []).filter(
+    uid => uid && uid !== input.autorId && !mencionadosSet.has(uid),
+  );
+
+  // Alertas por @menção
+  for (const uid of mencionadosSemAutor) {
     await supabase.from('alertas').insert({
       user_id: uid,
       tipo: 'mencao_sirene',
@@ -97,10 +106,20 @@ export async function notificarMencoesSirene(input: {
     });
   }
 
-  if (input.mencoesIds.length > 0) {
+  // Alertas para demais envolvidos (sem @menção)
+  for (const uid of extrasSemAutor) {
+    await supabase.from('alertas').insert({
+      user_id: uid,
+      tipo: 'kanban_atividade_atualizada',
+      mensagem: `${autorNome} adicionou atividade em "${titulo}" (Sirene): "${preview}"`,
+      referencia_path: referenciaPath,
+    });
+  }
+
+  if (mencionadosSemAutor.length > 0) {
     const { enviarEmailsMencaoUsuarios } = await import('@/lib/mencoes/enviar-email-mencao');
     void enviarEmailsMencaoUsuarios({
-      userIds: input.mencoesIds,
+      userIds: mencionadosSemAutor,
       autorId: input.autorId,
       cardTitulo: titulo,
       autorNome,

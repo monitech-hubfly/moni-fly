@@ -1533,13 +1533,18 @@ export async function adicionarTopicoChamadoPainel(
   const incendioCh = String((chamadoFull as { incendio?: string | null }).incendio ?? '').trim();
   const contextoTitulo = temaCh || incendioCh || `Chamado #${numero}`;
 
-  await notificarMencoesSirene({
-    mencoesIds,
-    plain: desc,
-    referenciaPath: `/sirene/${chamadoId}`,
-    contextoTitulo,
-    autorId: me.userId,
-  });
+  const chamadoArquivado = Boolean((chamadoFull as { arquivado?: boolean | null }).arquivado);
+  if (!chamadoArquivado) {
+    const abertoPorId = String((chamadoFull as { aberto_por?: string | null }).aberto_por ?? '').trim();
+    await notificarMencoesSirene({
+      mencoesIds,
+      plain: desc,
+      referenciaPath: `/sirene/${chamadoId}`,
+      contextoTitulo,
+      autorId: me.userId,
+      extraDestinatarios: [...respIds, abertoPorId].filter(Boolean),
+    });
+  }
 
   revalidatePath('/sirene/chamados');
   revalidatePath(`/sirene/${chamadoId}`);

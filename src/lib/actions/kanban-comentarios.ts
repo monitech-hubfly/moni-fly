@@ -147,11 +147,14 @@ async function buscarPerfisPorNomesMencionados(
   const db = await dbParaMencoes(supabase);
   const perfis = new Map<string, PerfilMencao>();
   for (const nome of nomes) {
+    // Usa as primeiras 2 palavras com wildcard de prefixo — evita falha quando o regex
+    // capturou palavras extras além do nome (ex: "Elisabete Nucci verificar" → busca "Elisabete Nucci%")
+    const prefixoBusca = nome.split(/\s+/).slice(0, 2).join(' ');
     const { data: exatos } = await db
       .from('profiles')
       .select('id, full_name')
-      .ilike('full_name', nome)
-      .limit(5);
+      .ilike('full_name', `${prefixoBusca}%`)
+      .limit(10);
     for (const row of exatos ?? []) {
       const id = String(row.id);
       const n = String((row as { full_name?: string | null }).full_name ?? '').trim();
@@ -252,8 +255,47 @@ export async function publicarComentarioKanbanCard(input: {
   const basePath = input.basePath?.trim() || '/';
   const preview = plain.length > 120 ? `${plain.slice(0, 120)}…` : plain;
 
-  for (const uid of mencoesIds) {
-    if (uid === user.id) continue;
+  // Resolve participantes adicionais do card (franqueado + responsáveis de atividades)
+  const participantesExtras: string[] = [];
+  try {
+    // 1. Dono do card (franqueado_id) — se arquivado, interrompe notificações
+    const { data: cardRow } = await supabase
+      .from('kanban_cards')
+      .select('franqueado_id, arquivado')
+      .eq('id', cardId)
+      .maybeSingle();
+    if ((cardRow as { arquivado?: boolean | null })?.arquivado) {
+      // Card arquivado — salva o comentário mas não notifica ninguém
+      revalidatePath(input.basePath?.trim() || '/');
+      revalidatePath('/alertas');
+      return { ok: true, comentarioId: String(comentario.id) };
+    }
+    const fid = String((cardRow as { franqueado_id?: string | null })?.franqueado_id ?? '').trim();
+    if (fid) participantesExtras.push(fid);
+
+    // 2. Responsáveis das atividades abertas do card (responsavel_id + responsaveis_ids[])
+    const { data: ativRows } = await supabase
+      .from('kanban_atividades')
+      .select('responsavel_id, responsaveis_ids')
+      .eq('card_id', cardId)
+      .not('status', 'in', '("concluida","cancelada")');
+    for (const atv of (ativRows ?? []) as { responsavel_id?: string | null; responsaveis_ids?: string[] | null }[]) {
+      const rid = String(atv.responsavel_id ?? '').trim();
+      if (rid) participantesExtras.push(rid);
+      for (const r of atv.responsaveis_ids ?? []) {
+        const rs = String(r ?? '').trim();
+        if (rs) participantesExtras.push(rs);
+      }
+    }
+  } catch { /* participantes extras não bloqueiam */ }
+
+  // Deduplicação: @mencionados têm prioridade; participantes extras recebem alerta separado
+  const mencionadosSemAutor = mencoesIds.filter(uid => uid !== user.id);
+  const mencionadosSet = new Set(mencionadosSemAutor);
+  const extrasSemAutor = participantesExtras.filter(uid => uid !== user.id && !mencionadosSet.has(uid));
+
+  // Alertas por @menção
+  for (const uid of mencionadosSemAutor) {
     await supabase.from('alertas').insert({
       user_id: uid,
       tipo: 'mencao_kanban_card',
@@ -263,11 +305,22 @@ export async function publicarComentarioKanbanCard(input: {
     });
   }
 
-  if (mencoesIds.length > 0) {
+  // Alertas para demais participantes (sem @menção)
+  for (const uid of extrasSemAutor) {
+    await supabase.from('alertas').insert({
+      user_id: uid,
+      tipo: 'kanban_atividade_atualizada',
+      mensagem: `${autorNome} comentou em "${cardTitulo}" (${kanbanNome}): "${preview}"`,
+      referencia_card_id: cardId,
+      referencia_path: basePath,
+    });
+  }
+
+  if (mencionadosSemAutor.length > 0) {
     const { enviarEmailsMencaoUsuarios } = await import('@/lib/mencoes/enviar-email-mencao');
     const linkPath = `${basePath}?card=${encodeURIComponent(cardId)}`;
     void enviarEmailsMencaoUsuarios({
-      userIds: mencoesIds,
+      userIds: mencionadosSemAutor,
       autorId: user.id,
       cardTitulo,
       autorNome,
