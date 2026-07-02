@@ -24,7 +24,7 @@ export default async function RelatorioPage({
 
   const { data: atividades } = await supabase
     .from('v_atividades_unificadas')
-    .select('id, card_id, chamado_numero, card_titulo, kanban_nome, kanban_id, responsavel_id, responsavel_nome, tipo, titulo, descricao, atividade_status, data_vencimento, time_nome, franqueado_nome, criado_em, sla_status, fase_nome, origem')
+    .select('id, card_id, chamado_numero, card_titulo, kanban_nome, kanban_id, responsavel_id, responsaveis_ids, responsavel_nome, tipo, titulo, descricao, atividade_status, data_vencimento, time_nome, franqueado_nome, criado_em, sla_status, fase_nome, origem')
     .order('data_vencimento', { ascending: true, nullsFirst: false });
 
   const adminClient = createAdminClient();
@@ -36,11 +36,11 @@ export default async function RelatorioPage({
   const [{ data: topicosComChamadoId }, { data: topicosInteracaoRaw }] = await Promise.all([
     adminClient
       .from('sirene_topicos')
-      .select(`id, nome, status, data_fim, responsavel_id, chamado:sirene_chamados!inner(${CHAMADO_SELECT})`)
+      .select(`id, nome, status, data_fim, responsavel_id, responsaveis_ids, chamado:sirene_chamados!inner(${CHAMADO_SELECT})`)
       .eq('chamado.arquivado', false),
     adminClient
       .from('sirene_topicos')
-      .select('id, nome, status, data_fim, responsavel_id, interacao_id')
+      .select('id, nome, status, data_fim, responsavel_id, responsaveis_ids, interacao_id')
       .is('chamado_id', null)
       .not('interacao_id', 'is', null),
   ]);
@@ -75,7 +75,7 @@ export default async function RelatorioPage({
       if (!sireneId) return null;
       const chamado = chamadoPorId.get(sireneId);
       if (!chamado) return null;
-      return { id: t.id, nome: t.nome, status: t.status, data_fim: t.data_fim, responsavel_id: t.responsavel_id, chamado };
+      return { id: t.id, nome: t.nome, status: t.status, data_fim: t.data_fim, responsavel_id: t.responsavel_id, responsaveis_ids: (t.responsaveis_ids as string[] | null) ?? [], chamado };
     })
     .filter((t: any): t is NonNullable<typeof t> => t !== null);
 
@@ -94,7 +94,7 @@ export default async function RelatorioPage({
   const { data: kanbanCards } = cardIds.length > 0
     ? await adminClient
         .from('kanban_cards')
-        .select('id, kanban_id')
+        .select('id, kanban_id, titulo')
         .in('id', cardIds)
     : { data: [] };
 
@@ -111,6 +111,9 @@ export default async function RelatorioPage({
   const kanbanPorCardId = new Map(
     (kanbanCards ?? []).map((c: any) => [c.id, kanbanNomePorId.get(c.kanban_id) ?? null])
   );
+  const tituloPorCardId = new Map(
+    (kanbanCards ?? []).map((c: any) => [String(c.id), (c.titulo as string | null) ?? null])
+  );
 
   // Mantém resolução via processo_id como fallback
   const kanbanPorProcessoId = new Map<string, string | null>();
@@ -126,13 +129,14 @@ export default async function RelatorioPage({
       id: `topico-${t.id}`,
       card_id: t.chamado.card_id ?? t.chamado.processo_id ?? null,
       chamado_numero: t.chamado.numero,
-      card_titulo: t.chamado.processo_titulo ?? null,
+      card_titulo: (t.chamado.card_id ? tituloPorCardId.get(t.chamado.card_id) : null) ?? t.chamado.processo_titulo ?? null,
       kanban_nome: t.chamado.processo_kanban_nome
         ?? (t.chamado.card_id ? kanbanPorCardId.get(t.chamado.card_id) : null)
         ?? (t.chamado.processo_id ? kanbanPorProcessoId.get(t.chamado.processo_id) : null)
         ?? 'Sirene',
       kanban_id: '',
       responsavel_id: t.responsavel_id,
+      responsaveis_ids: (t.responsaveis_ids as string[] | null) ?? [],
       responsavel_nome: t.responsavel_id ? nomePorId.get(t.responsavel_id) ?? null : null,
       tipo: t.chamado.tipo ?? 'sirene',
       titulo: t.nome ?? t.descricao ?? (t.chamado.incendio as string | null) ?? (t.chamado.tipo as string | null) ?? 'Atividade sem nome',
