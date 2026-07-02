@@ -988,7 +988,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
 
   const { data: interacaoRow } = await supabase
     .from('kanban_atividades')
-    .select('titulo, card_id, categoria, origem')
+    .select('titulo, card_id, categoria, origem, sirene_chamado_id')
     .eq('id', input.interacao_id)
     .maybeSingle();
   if (!interacaoRow) return { ok: false, error: 'Chamado não encontrado.' };
@@ -1031,7 +1031,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
 
   const prazoNovaSub = dataCampoCalendarioIso(input.data_fim);
   const row = {
-    chamado_id: null,
+    chamado_id: (interacaoRow as { sirene_chamado_id?: number | null }).sirene_chamado_id ?? null,
     interacao_id: input.interacao_id,
     ordem: proxOrdem,
     nome,
