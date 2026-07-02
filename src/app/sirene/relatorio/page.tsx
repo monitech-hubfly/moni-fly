@@ -24,7 +24,7 @@ export default async function RelatorioPage({
 
   const { data: atividades } = await supabase
     .from('v_atividades_unificadas')
-    .select('id, card_id, chamado_numero, card_titulo, kanban_nome, kanban_id, responsavel_id, responsavel_nome, tipo, titulo, descricao, atividade_status, data_vencimento, time_nome, franqueado_nome, criado_em, sla_status, fase_nome')
+    .select('id, card_id, chamado_numero, card_titulo, kanban_nome, kanban_id, responsavel_id, responsavel_nome, tipo, titulo, descricao, atividade_status, data_vencimento, time_nome, franqueado_nome, criado_em, sla_status, fase_nome, origem')
     .order('data_vencimento', { ascending: true, nullsFirst: false });
 
   const adminClient = createAdminClient();
@@ -34,7 +34,7 @@ export default async function RelatorioPage({
     .select(`
       id, nome, status, data_fim, responsavel_id,
       chamado:sirene_chamados!inner(
-        id, numero, tipo, arquivado, card_id, processo_id, processo_titulo, processo_kanban_nome, aberto_por_nome
+        id, numero, tipo, incendio, arquivado, card_id, processo_id, processo_titulo, processo_kanban_nome, aberto_por_nome
       )
     `)
     .eq('chamado.arquivado', false);
@@ -105,6 +105,7 @@ export default async function RelatorioPage({
       sla_status: null,
       fase_nome: null,
       origemDado: 'sirene' as const,
+      chamado_titulo: (t.chamado.incendio as string | null) ?? (t.chamado.tipo as string | null) ?? null,
     }));
 
   // kanban_tags tem uma linha por funil — busca todos os IDs da tag "⭐Especial"
@@ -125,7 +126,11 @@ export default async function RelatorioPage({
   hoje.setHours(0, 0, 0, 0);
 
   const atividadesBase = [
-    ...(atividades ?? []).map((a) => ({ ...a, origemDado: 'kanban' as const })),
+    // Exclui origem='sirene' da view — esses registros são cabeçalhos de chamado,
+    // não atividades individuais. A granularidade correta vem de topicosNormalizados.
+    ...(atividades ?? [])
+      .filter((a) => (a as { origem?: string }).origem !== 'sirene')
+      .map((a) => ({ ...a, origemDado: 'kanban' as const, chamado_titulo: null })),
     ...topicosNormalizados,
   ];
 

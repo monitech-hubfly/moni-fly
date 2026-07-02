@@ -27,6 +27,8 @@ type Atividade = {
   urgencia: 'atrasado' | 'alerta' | 'ok' | 'sem_prazo';
   especial: boolean;
   origemDado: 'kanban' | 'sirene';
+  /** Sirene only: incendio/tipo do chamado pai — usado no sub-header do agrupamento 3 níveis. */
+  chamado_titulo?: string | null;
 };
 
 type Stats = { atrasadas: number; alerta: number; total: number; especial: number };
@@ -194,43 +196,92 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
         <div className="space-y-2">
           {Object.entries(
             filtradas.reduce<Record<string, Atividade[]>>((acc, a) => {
-              // Agrupa pela identidade real do chamado/card, não pelo título — evita split
-              // de atividades do mesmo chamado em grupos distintos por card_titulo divergente.
-              const key = a.card_id
-                ?? (a.chamado_numero != null ? `sirene-${a.chamado_numero}` : null)
-                ?? a.card_titulo
-                ?? 'sem-id';
+              const key = a.card_id ?? a.card_titulo ?? 'sem-id';
               if (!acc[key]) acc[key] = [];
               acc[key].push(a);
               return acc;
             }, {})
           ).map(([, ativs]) => {
             const cardTitulo = ativs[0]?.card_titulo ?? 'Chamado direto';
+            const kanbanNome = ativs[0]?.kanban_nome ?? '';
+            const temEspecial = ativs.some(a => a.especial);
+
+            // Separa sirene (3 níveis) de kanban/legado (2 níveis)
+            const sireneItems = ativs.filter(a => a.origemDado === 'sirene');
+            const kanbanItems = ativs.filter(a => a.origemDado !== 'sirene');
+
+            // Sub-agrupa sirene por chamado
+            const chamadoMap = sireneItems.reduce<Record<string, Atividade[]>>((acc, a) => {
+              const k = a.chamado_numero != null ? String(a.chamado_numero) : 'direto';
+              if (!acc[k]) acc[k] = [];
+              acc[k].push(a);
+              return acc;
+            }, {});
+
             return (
-            <div key={ativs[0]?.card_id ?? ativs[0]?.chamado_numero ?? cardTitulo} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-              <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 px-4 py-2.5">
-                <span className="font-medium text-stone-800">{cardTitulo}</span>
-                {ativs[0]?.chamado_numero && ativs[0]?.card_id
-                  ? <Link href={hrefAbrirCardKanban(ativs[0].kanban_nome, ativs[0].card_id)} className="text-[11px] text-blue-600 hover:underline">#{ativs[0].chamado_numero}</Link>
-                  : ativs[0]?.chamado_numero
-                    ? <span className="text-[11px] text-stone-400">#{ativs[0].chamado_numero}</span>
-                    : null}
-                <span className="text-stone-400">·</span>
-                <span className="text-xs text-stone-500">{ativs[0]?.kanban_nome}</span>
-                {ativs[0]?.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">⭐ Especial</span>}
-                <span className="ml-auto text-xs text-stone-400">{ativs.length} atividade{ativs.length !== 1 ? 's' : ''}</span>
-              </div>
-              <div className="divide-y divide-stone-100">
-                {ativs.map((a) => (
-                  <div key={a.id} className="flex flex-wrap items-center gap-2 px-4 py-2 text-xs">
-                    <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
-                    <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
-                    <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>
-                    <StatusTag status={a.atividade_status} />
+              <div key={ativs[0]?.card_id ?? cardTitulo} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+
+                {/* Nível 1 — Card */}
+                <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 px-4 py-2.5">
+                  <span className="font-medium text-stone-800">{cardTitulo}</span>
+                  <span className="text-stone-400">·</span>
+                  <span className="text-xs text-stone-500">{kanbanNome}</span>
+                  {temEspecial && <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">⭐ Especial</span>}
+                  <span className="ml-auto text-xs text-stone-400">{ativs.length} atividade{ativs.length !== 1 ? 's' : ''}</span>
+                </div>
+
+                {/* Nível 2 — atividades kanban/legado diretas (sem sub-header de chamado) */}
+                {kanbanItems.length > 0 && (
+                  <div className="divide-y divide-stone-100">
+                    {kanbanItems.map((a) => (
+                      <div key={a.id} className="flex flex-wrap items-center gap-2 px-4 py-2 text-xs">
+                        <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
+                        <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
+                        <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>
+                        <StatusTag status={a.atividade_status} />
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+
+                {/* Nível 2 — Chamados Sirene (sub-header por chamado) */}
+                {Object.entries(chamadoMap).map(([, chamadoAtivs]) => {
+                  const ref = chamadoAtivs[0];
+                  if (!ref) return null;
+                  return (
+                    <div key={ref.chamado_numero ?? 'direto'}>
+
+                      {/* Nível 2 — cabeçalho do chamado */}
+                      <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 bg-stone-50/70 px-4 py-1.5">
+                        {ref.chamado_numero && ref.card_id
+                          ? <Link href={hrefAbrirCardKanban(ref.kanban_nome, ref.card_id)} className="text-[11px] font-semibold text-blue-600 hover:underline">#{ref.chamado_numero}</Link>
+                          : ref.chamado_numero
+                            ? <span className="text-[11px] font-semibold text-stone-500">#{ref.chamado_numero}</span>
+                            : null}
+                        {ref.chamado_titulo && (
+                          <span className="truncate text-[11px] text-stone-600">{ref.chamado_titulo}</span>
+                        )}
+                        <span className="ml-auto text-[10px] text-stone-400">
+                          {chamadoAtivs.length} atividade{chamadoAtivs.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+
+                      {/* Nível 3 — atividades individuais do chamado */}
+                      <div className="divide-y divide-stone-100">
+                        {chamadoAtivs.map((a) => (
+                          <div key={a.id} className="flex flex-wrap items-center gap-2 py-2 pl-8 pr-4 text-xs">
+                            <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
+                            <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
+                            <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>
+                            <StatusTag status={a.atividade_status} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
               </div>
-            </div>
             );
           })}
           {filtradas.length === 0 && (
