@@ -13,16 +13,21 @@ export function htmlComentarioParaTextoPlano(html: string): string {
 
 export type PerfilMencao = { id: string; nome: string };
 
-const MENCAO_REGEX = /@(\p{L}[\p{L}\s]*)/gu;
+// Limita a 4 palavras — evita que o regex greedy consuma frases inteiras após o @Nome
+const MENCAO_REGEX = /@(\p{L}+(?:\s+\p{L}+){0,3})/gu;
 
 /**
  * Extrai IDs de usuários mencionados com @Nome no texto.
- * Faz match exato (case-insensitive) contra a lista de perfis informada.
+ * Usa match por prefixo para suportar casos onde o regex captura palavras extras
+ * (ex: "@Elisabete Nucci verificar" ainda encontra "Elisabete Nucci").
  */
 export function extrairIdsMencoes(textoPlano: string, perfis: PerfilMencao[]): string[] {
   const ids: string[] = [];
   const texto = textoPlano.trim();
   if (!texto || perfis.length === 0) return ids;
+
+  // Ordena por nome mais longo primeiro — garante match mais específico em caso de ambiguidade
+  const sorted = [...perfis].sort((a, b) => b.nome.length - a.nome.length);
 
   let match: RegExpExecArray | null;
   MENCAO_REGEX.lastIndex = 0;
@@ -30,17 +35,16 @@ export function extrairIdsMencoes(textoPlano: string, perfis: PerfilMencao[]): s
     const nomeBusca = match[1].trim().toLowerCase();
     if (!nomeBusca) continue;
 
-    const exato = perfis.find((p) => p.nome.trim().toLowerCase() === nomeBusca);
-    if (exato && !ids.includes(exato.id)) {
-      ids.push(exato.id);
-      continue;
-    }
+    // 1. Match exato
+    const exato = sorted.find((p) => p.nome.trim().toLowerCase() === nomeBusca);
+    if (exato && !ids.includes(exato.id)) { ids.push(exato.id); continue; }
 
-    const parcial = perfis.find(
-      (p) =>
-        p.nome.toLowerCase().includes(nomeBusca) || nomeBusca.includes(p.nome.trim().toLowerCase()),
-    );
-    if (parcial && !ids.includes(parcial.id)) ids.push(parcial.id);
+    // 2. Prefixo: o texto capturado começa com o nome do perfil (ex: "elisabete nucci verificar" → "elisabete nucci")
+    const porPrefixo = sorted.find((p) => {
+      const pn = p.nome.trim().toLowerCase();
+      return nomeBusca.startsWith(pn) || pn.startsWith(nomeBusca);
+    });
+    if (porPrefixo && !ids.includes(porPrefixo.id)) ids.push(porPrefixo.id);
   }
 
   return ids;
