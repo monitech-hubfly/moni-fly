@@ -25,15 +25,9 @@ import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import type { FundingTipo } from '@/lib/kanban/funding-card-fields';
 import {
-  deveValidarGatePortfolioStep5,
   deveValidarGateLoteadoresComite,
-  deveVerificarCapital,
-  gatePortfolioStep5Liberado,
-  listarEsteirasParalelasPendentes,
   mensagemGateLoteadoresComite,
-  mensagemGatePortfolioStep5,
   PORTFOLIO_KANBAN_NOME,
-  type PortfolioParalelasFlags,
 } from '@/lib/kanban/portfolio-paralelas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { inserirKanbanCardVinculo, garantirShadowKanbanCardLegadoPorId } from '@/lib/kanban/kanban-card-vinculos';
@@ -3971,27 +3965,11 @@ async function obterGatePortfolioStep5(
     return { ok: true };
   }
 
-  if (!deveValidarGatePortfolioStep5(novaFaseSlug, row.kanban_id, kanbanNome)) {
-    return { ok: true };
-  }
-
-  const flags: PortfolioParalelasFlags = {
-    acoplamento_concluido: row.acoplamento_concluido,
-    credito_terreno_ok: row.credito_terreno_ok,
-    contabilidade_ok: row.contabilidade_ok,
-    juridico_ok: row.juridico_ok,
-    capital_ok: row.capital_ok,
-  };
-
-  const exigirCapital = await deveVerificarCapital(supabase, cardId);
-  const gateOpts = { exigirCapital };
-
-  if (gatePortfolioStep5Liberado(flags, gateOpts)) return { ok: true };
-
-  return {
-    ok: false,
-    error: mensagemGatePortfolioStep5(listarEsteirasParalelasPendentes(flags, gateOpts)),
-  };
+  // Funil Portfólio → Comitê (step_5): a trava de esteiras paralelas pendentes
+  // (Crédito Terreno, Contabilidade, Jurídico, Divify) foi removida a pedido do
+  // negócio. O card avança livremente; os chips informativos das esteiras seguem
+  // sendo exibidos na UI apenas como status, sem bloquear a movimentação.
+  return { ok: true };
 }
 
 /** Valida gate Comitê (Portfolio → step_5) antes de avançar fase no cliente. */
