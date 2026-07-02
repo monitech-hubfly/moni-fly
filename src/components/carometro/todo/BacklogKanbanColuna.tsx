@@ -2,6 +2,7 @@
 
 import { useBacklogKanban, KanbanCardItem } from '@/hooks/useBacklogKanban';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
+import { tagSlaKanbanParaExibicao } from '@/lib/kanban/kanban-card-sla';
 
 const ORIGEM_BADGE: Record<string, string> = {
   franqueado: 'bg-purple-100 text-purple-700',
@@ -16,8 +17,9 @@ const ORIGEM_LABEL: Record<string, string> = {
 };
 
 function KanbanCard({ card }: { card: KanbanCardItem }) {
-  const href    = hrefAbrirCardKanban(card.kanban_nome ?? '', card.id);
-  const badgeCls = ORIGEM_BADGE[card.origem] ?? 'bg-gray-100 text-gray-600';
+  const href      = hrefAbrirCardKanban(card.kanban_nome ?? '', card.id);
+  const badgeCls  = ORIGEM_BADGE[card.origem] ?? 'bg-gray-100 text-gray-600';
+  const slaBadge  = card.sla ? tagSlaKanbanParaExibicao(card.sla) : null;
 
   return (
     <div
@@ -32,8 +34,20 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
         {card.titulo ?? '(sem título)'}
       </div>
 
-      {/* Linha 2: badge origem + funil · fase */}
+      {/* Linha 2: badge SLA + badge origem + funil · fase */}
       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+        {slaBadge ? (
+          <span
+            className="text-[9px] font-semibold px-1 py-px rounded"
+            style={
+              slaBadge.variante === 'atrasado'
+                ? { background: 'var(--moni-status-overdue-bg)', color: 'var(--moni-status-overdue-text)', border: '1px solid var(--moni-status-overdue-border)' }
+                : { background: 'var(--moni-status-attention-bg)', color: 'var(--moni-status-attention-text)', border: '1px solid var(--moni-status-attention-border)' }
+            }
+          >
+            {slaBadge.texto}
+          </span>
+        ) : null}
         <span className={`text-[10px] font-medium px-1 py-0.5 rounded ${badgeCls}`}>
           {ORIGEM_LABEL[card.origem]}
         </span>

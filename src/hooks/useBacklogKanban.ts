@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
+import { calcularSlaKanbanCard, type SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
 
 const ADMIN_EMAIL = 'danilo.n@moni.casa';
 
@@ -12,8 +13,33 @@ export type KanbanCardItem = {
   fase_nome: string | null;
   kanban_nome: string | null;
   sla_dias: number | null;
+  sla: SlaKanbanResult | null;
   origem: 'franqueado' | 'atividade' | 'checklist';
 };
+
+type FaseRelSla = { nome: string; sla_dias: number | null; sla_tipo: string | null; slug: string | null };
+
+function computeSla(
+  card: { created_at: string; entered_fase_at?: string | null; sla_iniciado_em?: string | null },
+  fase: FaseRelSla | null,
+): SlaKanbanResult | null {
+  if (!card.created_at) return null;
+  return calcularSlaKanbanCard({
+    created_at: card.created_at,
+    entered_fase_at: card.entered_fase_at,
+    sla_iniciado_em: card.sla_iniciado_em,
+    sla_dias: fase?.sla_dias ?? null,
+    sla_tipo: fase?.sla_tipo ?? null,
+    faseSlug: fase?.slug ?? null,
+  });
+}
+
+function slaSortKey(sla: SlaKanbanResult | null): [number, number] {
+  if (!sla || sla.pausado) return [3, 0];
+  if (sla.status === 'atrasado') return [0, -(sla.diasAtraso ?? 0)];
+  if (sla.status === 'atencao')  return [1, sla.diasRestantes ?? 0];
+  return [2, sla.diasRestantes ?? 999];
+}
 
 export function useBacklogKanban(refreshKey = 0) {
   const supabase   = useMemo(() => createClient(), []);
@@ -40,7 +66,8 @@ export function useBacklogKanban(refreshKey = 0) {
           .from('kanban_cards')
           .select(`
             id, titulo, arquivado, concluido,
-            fase:kanban_fases(nome, sla_dias),
+            created_at, entered_fase_at, sla_iniciado_em,
+            fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome),
             rede_franqueado:rede_franqueados(id, user_id)
           `)
@@ -53,7 +80,8 @@ export function useBacklogKanban(refreshKey = 0) {
             id, card_id, status,
             card:kanban_cards(
               id, titulo, arquivado, concluido,
-              fase:kanban_fases(nome, sla_dias),
+              created_at, entered_fase_at, sla_iniciado_em,
+              fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
               kanban:kanbans(nome)
             )
           `)
@@ -67,7 +95,8 @@ export function useBacklogKanban(refreshKey = 0) {
             card_id,
             card:kanban_cards(
               id, titulo, arquivado, concluido,
-              fase:kanban_fases(nome, sla_dias),
+              created_at, entered_fase_at, sla_iniciado_em,
+              fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
               kanban:kanbans(nome)
             )
           `)
@@ -77,12 +106,15 @@ export function useBacklogKanban(refreshKey = 0) {
       const mapa = new Map<string, KanbanCardItem>();
 
       // Processar fonte 1 — filtrar pelo user_id do franqueado
-      type FaseRel  = { nome: string; sla_dias: number | null };
+      type FaseRel  = FaseRelSla;
       type KanbanRel = { nome: string };
-      type CardF1 = {
+      type CardBase = {
         id: string; titulo: string | null; arquivado: boolean; concluido: boolean;
+        created_at: string; entered_fase_at: string | null; sla_iniciado_em: string | null;
         fase: FaseRel | FaseRel[] | null;
         kanban: KanbanRel | KanbanRel[] | null;
+      };
+      type CardF1 = CardBase & {
         rede_franqueado: { id: string; user_id: string | null } | { id: string; user_id: string | null }[] | null;
       };
 
@@ -97,16 +129,13 @@ export function useBacklogKanban(refreshKey = 0) {
           fase_nome:   fase?.nome   ?? null,
           kanban_nome: kanban?.nome ?? null,
           sla_dias:    fase?.sla_dias ?? null,
+          sla:         computeSla(card, fase ?? null),
           origem: 'franqueado',
         });
       });
 
       // Processar fonte 2
-      type CardNested = {
-        id: string; titulo: string | null; arquivado: boolean; concluido: boolean;
-        fase: FaseRel | FaseRel[] | null;
-        kanban: KanbanRel | KanbanRel[] | null;
-      };
+      type CardNested = CardBase;
       type CardF2 = {
         id: string; card_id: string; status: string;
         card: CardNested | CardNested[] | null;
@@ -122,6 +151,7 @@ export function useBacklogKanban(refreshKey = 0) {
           fase_nome:   fase?.nome   ?? null,
           kanban_nome: kanban?.nome ?? null,
           sla_dias:    fase?.sla_dias ?? null,
+          sla:         computeSla(card, fase ?? null),
           origem: 'atividade',
         });
       });
@@ -142,12 +172,17 @@ export function useBacklogKanban(refreshKey = 0) {
           fase_nome:   fase?.nome   ?? null,
           kanban_nome: kanban?.nome ?? null,
           sla_dias:    fase?.sla_dias ?? null,
+          sla:         computeSla(card, fase ?? null),
           origem: 'checklist',
         });
       });
 
-      const resultado = Array.from(mapa.values())
-        .sort((a, b) => (a.kanban_nome ?? '').localeCompare(b.kanban_nome ?? '', 'pt-BR'));
+      const resultado = Array.from(mapa.values()).sort((a, b) => {
+        const [ka, va] = slaSortKey(a.sla);
+        const [kb, vb] = slaSortKey(b.sla);
+        if (ka !== kb) return ka - kb;
+        return va - vb;
+      });
 
       setCards(resultado);
     } catch (e) {
