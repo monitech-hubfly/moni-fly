@@ -95,7 +95,7 @@ export default async function RelatorioPage({
       responsavel_id: t.responsavel_id,
       responsavel_nome: t.responsavel_id ? nomePorId.get(t.responsavel_id) ?? null : null,
       tipo: t.chamado.tipo ?? 'sirene',
-      titulo: t.nome,
+      titulo: t.nome ?? t.descricao ?? (t.chamado.incendio as string | null) ?? (t.chamado.tipo as string | null) ?? 'Atividade sem nome',
       descricao: null,
       atividade_status: t.status,
       data_vencimento: t.data_fim,
