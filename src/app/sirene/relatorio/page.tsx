@@ -29,22 +29,65 @@ export default async function RelatorioPage({
 
   const adminClient = createAdminClient();
 
-  const { data: topicosSireneRaw } = await adminClient
-    .from('sirene_topicos')
-    .select(`
-      id, nome, status, data_fim, responsavel_id,
-      chamado:sirene_chamados!inner(
-        id, numero, tipo, incendio, arquivado, card_id, processo_id, processo_titulo, processo_kanban_nome, aberto_por_nome
-      )
-    `)
-    .eq('chamado.arquivado', false);
+  const CHAMADO_SELECT = 'id, numero, tipo, incendio, arquivado, card_id, processo_id, processo_titulo, processo_kanban_nome, aberto_por_nome';
+
+  // Caminho (a): tópicos com chamado_id preenchido — join direto
+  // Caminho (b): tópicos com chamado_id NULL — busca em paralelo, resolve via interacao_id
+  const [{ data: topicosComChamadoId }, { data: topicosInteracaoRaw }] = await Promise.all([
+    adminClient
+      .from('sirene_topicos')
+      .select(`id, nome, status, data_fim, responsavel_id, chamado:sirene_chamados!inner(${CHAMADO_SELECT})`)
+      .eq('chamado.arquivado', false),
+    adminClient
+      .from('sirene_topicos')
+      .select('id, nome, status, data_fim, responsavel_id, interacao_id')
+      .is('chamado_id', null)
+      .not('interacao_id', 'is', null),
+  ]);
+
+  // Resolve interacao_id → sirene_chamado_id → sirene_chamados para o caminho (b)
+  const interacaoIds = (topicosInteracaoRaw ?? []).map((t: any) => String(t.interacao_id));
+  const { data: kaRows } = interacaoIds.length > 0
+    ? await adminClient
+        .from('kanban_atividades')
+        .select('id, sirene_chamado_id')
+        .in('id', interacaoIds)
+        .not('sirene_chamado_id', 'is', null)
+    : { data: [] };
+
+  const chamadoIdPorInteracaoId = new Map((kaRows ?? []).map((ka: any) => [String(ka.id), Number(ka.sirene_chamado_id)]));
+  const sireneIdsCaminhoB = [...new Set((kaRows ?? []).map((ka: any) => Number(ka.sirene_chamado_id)))];
+
+  const { data: chamadosCaminhoB } = sireneIdsCaminhoB.length > 0
+    ? await adminClient
+        .from('sirene_chamados')
+        .select(CHAMADO_SELECT)
+        .in('id', sireneIdsCaminhoB)
+        .eq('arquivado', false)
+    : { data: [] };
+
+  const chamadoPorId = new Map((chamadosCaminhoB ?? []).map((c: any) => [Number(c.id), c]));
+
+  // Normaliza caminho (b) para a mesma forma do caminho (a): { ...topico, chamado }
+  const topicosViaCaminhoB = (topicosInteracaoRaw ?? [])
+    .map((t: any) => {
+      const sireneId = chamadoIdPorInteracaoId.get(String(t.interacao_id));
+      if (!sireneId) return null;
+      const chamado = chamadoPorId.get(sireneId);
+      if (!chamado) return null;
+      return { id: t.id, nome: t.nome, status: t.status, data_fim: t.data_fim, responsavel_id: t.responsavel_id, chamado };
+    })
+    .filter((t: any): t is NonNullable<typeof t> => t !== null);
+
+  // Mescla ambos os caminhos
+  const topicosSirene = [...(topicosComChamadoId ?? []), ...topicosViaCaminhoB];
 
   // Resolve kanban_nome via card_id → kanban_cards → kanbans
-  const cardIds = (topicosSireneRaw ?? [])
+  const cardIds = topicosSirene
     .map((t: any) => t.chamado?.card_id)
     .filter(Boolean);
 
-  const processoIds = (topicosSireneRaw ?? [])
+  const processoIds = topicosSirene
     .map((t: any) => t.chamado?.processo_id)
     .filter(Boolean);
 
@@ -65,15 +108,12 @@ export default async function RelatorioPage({
     : { data: [] };
 
   const kanbanNomePorId = new Map((kanbanRows ?? []).map((k: any) => [k.id, k.nome]));
-  const kanbanIdPorCardId = new Map((kanbanCards ?? []).map((c: any) => [c.id, c.kanban_id]));
   const kanbanPorCardId = new Map(
     (kanbanCards ?? []).map((c: any) => [c.id, kanbanNomePorId.get(c.kanban_id) ?? null])
   );
 
   // Mantém resolução via processo_id como fallback
   const kanbanPorProcessoId = new Map<string, string | null>();
-
-  const topicosSirene = topicosSireneRaw;
 
   const { data: responsaveisTopicos } = await supabase
     .from('profiles')
