@@ -7077,7 +7077,7 @@ export function KanbanCardModal({
                   }}
                 />,
               )}
-            {secaoHead(
+            {!exibirDadosLoteadorPersistente && secaoHead(
               'novoNegocio',
               'Dados do Negócio',
               ehFunilFunding && !isLegado ? (
@@ -7267,7 +7267,7 @@ export function KanbanCardModal({
               </div>
               ),
             )}
-            {secaoHead(
+            {!exibirDadosLoteadorPersistente && secaoHead(
               'dadosEmpresas',
               'Dados das Empresas',
               <KanbanCardModalEmpresas
@@ -7280,7 +7280,7 @@ export function KanbanCardModal({
                 onSalvo={() => void loadCard({ silencioso: true })}
               />,
             )}
-            {secaoHead(
+            {!exibirDadosLoteadorPersistente && secaoHead(
               'preObra',
               'Dados Pré Obra',
               ehFunilOperacoes && !isLegado ? (
@@ -7412,7 +7412,7 @@ export function KanbanCardModal({
                 </div>
               ),
             )}
-            {secaoHeadPainelCentroCalculadora()}
+            {!exibirDadosLoteadorPersistente && secaoHeadPainelCentroCalculadora()}
             {exibirSecaoDocumentacaoCreditoObra
               ? secaoHead(
                   'documentacaoCreditoObra',
