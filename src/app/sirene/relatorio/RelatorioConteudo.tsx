@@ -135,7 +135,7 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
           <option value="concluido">Concluídas</option>
           <option value="todos">Todas</option>
         </select>
-        <select value={filtroOrigem} onChange={(e) => { setFiltroOrigem(e.target.value); setFiltroCard('todos'); }} className="h-8 rounded border border-stone-300 bg-white px-2 text-xs text-stone-700">
+        <select value={filtroOrigem} onChange={(e) => { setFiltroOrigem(e.target.value); setFiltroFunil('todos'); setFiltroCard('todos'); }} className="h-8 rounded border border-stone-300 bg-white px-2 text-xs text-stone-700">
           <option value="todos">Atividades + Chamados</option>
           <option value="kanban">Só atividades do card</option>
           <option value="sirene">Só chamados Sirene</option>
