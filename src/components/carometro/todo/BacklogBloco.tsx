@@ -121,22 +121,20 @@ type ColunaAtividadesProps = {
   items: AtividadeItem[];
   semanaAtual: number;
   onAbrirModal?: (p: Partial<DadosAgendamento>) => void;
+  onExpandir?: () => void;
 };
-function ColunaAtividades({ items, semanaAtual, onAbrirModal }: ColunaAtividadesProps) {
-  const [expandido, setExpandido] = useState(false);
-
+function ColunaAtividades({ items, semanaAtual, onAbrirModal, onExpandir }: ColunaAtividadesProps) {
   const comStatus = items.map(i => ({ item: i, status: statusAtividade(i, semanaAtual) }));
   const visiveis = comStatus.filter(
     ({ status }) => status === 'atrasado' || status === 'esta_semana' || status === 'sem_prazo',
   );
   const futuros = comStatus.filter(({ status }) => status === 'futuro');
-  const exibidos = expandido ? comStatus : visiveis;
 
   return (
     <div className="flex flex-col gap-1.5">
-      {exibidos.length === 0 && futuros.length === 0 && <EmptyState />}
-      {exibidos.length === 0 && futuros.length > 0 && !expandido && <EmptyState />}
-      {exibidos.map(({ item, status }) => (
+      {visiveis.length === 0 && futuros.length === 0 && <EmptyState />}
+      {visiveis.length === 0 && futuros.length > 0 && <EmptyState />}
+      {visiveis.map(({ item, status }) => (
         <DraggableAtividade key={item.id} id={String(item.id)}>
           <BacklogColunaCard
             tipo="atividade"
@@ -146,13 +144,13 @@ function ColunaAtividades({ items, semanaAtual, onAbrirModal }: ColunaAtividades
           />
         </DraggableAtividade>
       ))}
-      {futuros.length > 0 && (
+      {futuros.length > 0 && onExpandir && (
         <button
           type="button"
-          onClick={() => setExpandido(v => !v)}
+          onClick={onExpandir}
           className="mt-1 text-xs text-blue-600 hover:underline text-left"
         >
-          {expandido ? 'Recolher' : `Ver todos (${items.length})`}
+          ↗ Expandir ({items.length})
         </button>
       )}
       {onAbrirModal && (
@@ -169,6 +167,67 @@ function ColunaAtividades({ items, semanaAtual, onAbrirModal }: ColunaAtividades
 }
 
 
+function ModalAtividadesExpandido({
+  items,
+  semanaAtual,
+  onFechar,
+}: {
+  items: AtividadeItem[];
+  semanaAtual: number;
+  onFechar: () => void;
+}) {
+  const atrasadas   = items.filter(i => i.semana_ano_fim != null && i.semana_ano_fim < semanaAtual);
+  const estaSemana  = items.filter(i => i.semana_ano_fim === semanaAtual);
+  const futuras     = items.filter(i => i.semana_ano_fim != null && i.semana_ano_fim > semanaAtual);
+  const semPrazo    = items.filter(i => i.semana_ano_fim == null);
+
+  const blocos = [
+    { titulo: 'Atrasadas',   itens: atrasadas,  corClasse: 'text-red-600'   },
+    { titulo: 'Essa semana', itens: estaSemana, corClasse: 'text-amber-600' },
+    { titulo: 'Futuras',     itens: futuras,    corClasse: 'text-blue-600'  },
+    { titulo: 'Sem prazo',   itens: semPrazo,   corClasse: 'text-gray-500'  },
+  ].filter(b => b.itens.length > 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onFechar}>
+      <div className="absolute inset-0 bg-black/30" />
+      <div
+        className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700">Atividades Planejadas ({items.length})</h3>
+          <button type="button" onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-5">
+          {blocos.length === 0 && (
+            <p className="text-sm text-gray-400">Nenhuma atividade planejada.</p>
+          )}
+          {blocos.map(bloco => (
+            <div key={bloco.titulo}>
+              <h4 className={`text-[11px] font-semibold uppercase tracking-wide mb-2 ${bloco.corClasse}`}>
+                {bloco.titulo} ({bloco.itens.length})
+              </h4>
+              <div className="flex flex-col gap-1.5">
+                {bloco.itens.map(item => (
+                  <div key={item.id} className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2">
+                    <div className="text-sm text-gray-800 leading-snug">
+                      {item.comportamento_chave ?? '(sem título)'}
+                    </div>
+                    {item.semana_ano_fim != null && (
+                      <div className="mt-0.5 text-[10px] text-gray-400">S{item.semana_ano_fim}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type BacklogBlocoProps = {
   onAbrirModal?: (preenchido: Partial<DadosAgendamento>) => void;
 };
@@ -176,6 +235,7 @@ type BacklogBlocoProps = {
 export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
   const { sirene, atividades, isLoading, error } = useBacklog();
   const semanaAtual = isoWeek(new Date());
+  const [modalAtividadesAberto, setModalAtividadesAberto] = useState(false);
 
   const sireneVisiveis = sirene.filter(i => {
     const s = statusSirene(i);
@@ -221,12 +281,25 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
                 {atividadesVisiveis.length}
               </span>
             </div>
-            <ColunaAtividades items={atividades} semanaAtual={semanaAtual} onAbrirModal={onAbrirModal} />
+            <ColunaAtividades
+              items={atividades}
+              semanaAtual={semanaAtual}
+              onAbrirModal={onAbrirModal}
+              onExpandir={() => setModalAtividadesAberto(true)}
+            />
           </div>
 
           {/* Coluna 3 — Kanban */}
           <BacklogKanbanColuna />
         </div>
+      )}
+
+      {modalAtividadesAberto && (
+        <ModalAtividadesExpandido
+          items={atividades}
+          semanaAtual={semanaAtual}
+          onFechar={() => setModalAtividadesAberto(false)}
+        />
       )}
     </section>
   );
