@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ChevronRight, MessageCircle, Pencil, User, X } from 'lucide-react';
+import { Archive, ChevronRight, MessageCircle, Paperclip, Pencil, User, X } from 'lucide-react';
 import Link from 'next/link';
 import type { InteracaoSireneRow } from './InteracoesLista';
 import {
@@ -36,6 +36,17 @@ import {
 } from './actions';
 import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentEditable';
 import type { TopicoPainelLinha } from '../actions';
+import { listAnexosChamado, uploadAnexoChamado, getAnexoChamadoDownloadUrl } from '../actions';
+
+type AnexoRow = {
+  id: number;
+  chamado_id: number;
+  topico_id: number | null;
+  uploader_nome: string | null;
+  nome_original: string | null;
+  origem: string | null;
+  created_at: string;
+};
 
 const selectClass =
   'rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)] outline-none focus:border-[color:var(--moni-navy-400)] focus:ring-1 focus:ring-[color:var(--moni-navy-400)]';
@@ -218,6 +229,49 @@ export function SireneChamadoDetalheModal({
   const prioridadeBadge = badgePrioridade(row.sirene_prioridade);
   const ehCriador = Boolean(currentUserId && row.criado_por && row.criado_por === currentUserId);
 
+  const [anexos, setAnexos] = useState<AnexoRow[]>([]);
+  const [anexosLoading, setAnexosLoading] = useState(false);
+  const [anexosFetched, setAnexosFetched] = useState(false);
+  const [anexosAbertos, setAnexosAbertos] = useState(false);
+  const [uploadAnexoErr, setUploadAnexoErr] = useState<string | null>(null);
+  const [enviandoAnexo, setEnviandoAnexo] = useState(false);
+  const anexoFileRef = useRef<HTMLInputElement>(null);
+
+  function abrirAnexos() {
+    setAnexosAbertos((v) => !v);
+    if (!anexosFetched && row.sirene_chamado_id != null) {
+      setAnexosFetched(true);
+      setAnexosLoading(true);
+      void listAnexosChamado(row.sirene_chamado_id).then((res) => {
+        setAnexosLoading(false);
+        if (res.ok) setAnexos(res.anexos);
+      });
+    }
+  }
+
+  async function baixarAnexo(anexoId: number) {
+    const res = await getAnexoChamadoDownloadUrl(anexoId);
+    if (res.ok) window.open(res.url, '_blank');
+  }
+
+  async function enviarAnexo() {
+    const scid = row.sirene_chamado_id;
+    if (!anexoFileRef.current?.files?.length || scid == null) return;
+    const formData = new FormData();
+    formData.set('file', anexoFileRef.current.files[0]!);
+    setEnviandoAnexo(true);
+    setUploadAnexoErr(null);
+    const res = await uploadAnexoChamado(scid, 'criador', formData);
+    setEnviandoAnexo(false);
+    if (!res.ok) { setUploadAnexoErr(res.error ?? 'Erro ao enviar.'); return; }
+    if (anexoFileRef.current) anexoFileRef.current.value = '';
+    setAnexosLoading(true);
+    void listAnexosChamado(scid).then((res2) => {
+      setAnexosLoading(false);
+      if (res2.ok) setAnexos(res2.anexos);
+    });
+  }
+
   const commentKey = row.card_id ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
   const [comentarios, setComentarios] = useState<ComentarioCardSireneRow[]>([]);
   const [comentariosLoading, setComentariosLoading] = useState(false);
@@ -341,16 +395,6 @@ export function SireneChamadoDetalheModal({
               {row.titulo}
             </h2>
           </div>
-          {row.sirene_chamado_id != null ? (
-            <Link
-              href={`/sirene/${row.sirene_chamado_id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 rounded border border-[color:var(--moni-border-default)] px-2 py-1 text-xs text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)] hover:text-[color:var(--moni-text-primary)]"
-            >
-              Ver completo ↗
-            </Link>
-          ) : null}
           <button
             type="button"
             onClick={onClose}
@@ -648,6 +692,68 @@ export function SireneChamadoDetalheModal({
                       className="self-end rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
                     >
                       {salvandoComentario ? '…' : 'Publicar'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
+          {row.sirene_chamado_id != null ? (
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={abrirAnexos}
+                  className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-primary)]"
+                >
+                  <Paperclip className="h-3.5 w-3.5" />
+                  Anexos {anexos.length > 0 ? `(${anexos.length})` : ''}
+                  {!anexosAbertos ? <ChevronRight className="h-3 w-3" /> : <ChevronRight className="h-3 w-3 rotate-90" />}
+                </button>
+              </div>
+              {anexosAbertos ? (
+                <div className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
+                  {anexosLoading ? (
+                    <p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>
+                  ) : anexos.length > 0 ? (
+                    <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto">
+                      {anexos.map((a) => (
+                        <li key={a.id} className="flex items-center gap-2 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-2">
+                          <Paperclip className="h-4 w-4 shrink-0 text-[color:var(--moni-text-tertiary)]" aria-hidden />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm text-[color:var(--moni-text-primary)]">{a.nome_original ?? 'Arquivo'}</p>
+                            <p className="text-[10px] text-[color:var(--moni-text-tertiary)]">
+                              {a.uploader_nome ?? '—'} · {new Date(a.created_at).toLocaleString('pt-BR')}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void baixarAnexo(a.id)}
+                            className="shrink-0 rounded border border-[color:var(--moni-border-default)] px-2 py-0.5 text-[10px] hover:bg-[var(--moni-surface-100)]"
+                          >
+                            Baixar
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mb-3 text-xs text-[color:var(--moni-text-tertiary)]">Nenhum anexo ainda.</p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      ref={anexoFileRef}
+                      type="file"
+                      className="text-xs text-[color:var(--moni-text-secondary)] file:mr-2 file:rounded file:border file:border-[color:var(--moni-border-default)] file:bg-[var(--moni-surface-50)] file:px-2 file:py-1 file:text-xs"
+                    />
+                    {uploadAnexoErr ? <p className="w-full text-xs text-red-600">{uploadAnexoErr}</p> : null}
+                    <button
+                      type="button"
+                      disabled={enviandoAnexo}
+                      onClick={() => void enviarAnexo()}
+                      className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+                    >
+                      {enviandoAnexo ? '…' : 'Enviar'}
                     </button>
                   </div>
                 </div>
