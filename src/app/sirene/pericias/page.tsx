@@ -1,15 +1,16 @@
-import { redirect } from 'next/navigation';
-import { listChamadosParaVincularPericia, listPericiasComChamados } from '../actions';
+import { listChamadosParaVincularPericia, listPericiasComChamados, listConclusoesClassificadas } from '../actions';
 import { PericiasConteudo } from './PericiasConteudo';
 
 export default async function SirenePericiasPage() {
-  const [r1, r2] = await Promise.all([
+  const [r1, r2, r3] = await Promise.all([
     listChamadosParaVincularPericia(),
     listPericiasComChamados(),
+    listConclusoesClassificadas(),
   ]);
   const canetaOuBombeiro = r1.ok;
   const chamadosPendentes = r1.ok ? r1.chamados : [];
   const periciasPlanejamento = r2.ok ? r2.pericias : [];
+  const conclusoes = r3.ok ? r3.conclusoes : [];
 
   return (
     <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
@@ -26,6 +27,7 @@ export default async function SirenePericiasPage() {
         <PericiasConteudo
           chamadosPendentesInicial={chamadosPendentes}
           periciasPlanejamentoInicial={periciasPlanejamento}
+          conclusoesInicial={conclusoes}
         />
       )}
     </main>

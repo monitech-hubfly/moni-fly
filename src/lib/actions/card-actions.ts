@@ -1219,6 +1219,7 @@ export async function atualizarStatusSubInteracao(
   status: SubInteracaoStatusDb,
   basePath?: string,
   viaSirene?: boolean,
+  classificacaoConclusao?: 'pontual' | 'recorrente',
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -1250,9 +1251,13 @@ export async function atualizarStatusSubInteracao(
     if (bloqueio) return bloqueio;
   }
 
+  const updatePayload: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
+  if (status === 'concluido' && classificacaoConclusao) {
+    updatePayload.classificacao_conclusao = classificacaoConclusao;
+  }
   const { error } = await supabase
     .from('sirene_topicos')
-    .update({ status, updated_at: new Date().toISOString() } as never)
+    .update(updatePayload as never)
     .eq('id', idNum);
 
   if (error) return { ok: false, error: error.message };

@@ -1996,6 +1996,37 @@ export async function listAnexosChamado(chamadoId: number): Promise<
   return { ok: true, anexos: rows ?? [] };
 }
 
+/** Listar anexos de múltiplos chamados em lote — agrega por card Kanban (Opção A). */
+export async function listAnexosPorChamados(chamadoIds: number[]): Promise<
+  | {
+      ok: true;
+      anexos: Array<{
+        id: number;
+        chamado_id: number;
+        topico_id: number | null;
+        uploader_nome: string | null;
+        nome_original: string | null;
+        origem: string | null;
+        created_at: string;
+      }>;
+    }
+  | { ok: false; error: string }
+> {
+  if (!chamadoIds.length) return { ok: true, anexos: [] };
+  const supabase = await createClient();
+  const me = await getSireneUserContext(supabase);
+  if (!me) return { ok: false, error: 'Faça login.' };
+
+  const { data: rows, error } = await supabase
+    .from('sirene_anexos')
+    .select('id, chamado_id, topico_id, uploader_nome, nome_original, origem, created_at')
+    .in('chamado_id', chamadoIds)
+    .order('created_at', { ascending: false });
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, anexos: rows ?? [] };
+}
+
 /** Upload de anexo: criador (abertura), time (tópico) ou Bombeiro (fechamento). */
 export async function uploadAnexoChamado(
   chamadoId: number,
@@ -3730,6 +3761,111 @@ export async function listPericiasComChamados(filtros?: {
     chamados: (porPericia.get(p.id) ?? []).map((cid) => chamadosMap.get(cid)!).filter(Boolean),
   }));
   return { ok: true, pericias: result };
+}
+
+/** Atividades Sirene concluídas com classificação (Pontual ou Recorrente) — seção Perícias. */
+export async function listConclusoesClassificadas(): Promise<
+  | {
+      ok: true;
+      conclusoes: Array<{
+        id: number;
+        nome: string;
+        classificacao_conclusao: 'pontual' | 'recorrente';
+        updated_at: string;
+        chamado_id: number | null;
+        chamado_numero: number | null;
+        responsaveis_ids: string[];
+        time_responsavel: string | null;
+        kanban_nome: string | null;
+        card_titulo: string | null;
+      }>;
+    }
+  | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const me = await getSireneUserContext(supabase);
+  if (!me) return { ok: false, error: 'Faça login.' };
+  if (me.ctx.papel !== 'bombeiro' && me.ctx.papel !== 'caneta_verde')
+    return { ok: false, error: 'Apenas Bombeiro ou Caneta Verde podem acessar perícias.' };
+
+  const { data: rows, error } = await supabase
+    .from('sirene_topicos')
+    .select(`
+      id, nome, classificacao_conclusao, updated_at,
+      chamado_id, responsaveis_ids, time_responsavel,
+      interacao_id
+    `)
+    .eq('status', 'concluido')
+    .not('classificacao_conclusao', 'is', null)
+    .order('updated_at', { ascending: false })
+    .limit(200);
+
+  if (error) return { ok: false, error: error.message };
+
+  const interacaoIds = (rows ?? [])
+    .map((r) => (r as { interacao_id?: string | null }).interacao_id)
+    .filter((x): x is string => x != null);
+
+  let kanbanByInteracao = new Map<string, { kanban_nome: string | null; card_titulo: string | null }>();
+  if (interacaoIds.length > 0) {
+    const { data: kaRows } = await supabase
+      .from('kanban_atividades')
+      .select('id, card_id, kanban_cards!left(titulo, kanbans!left(nome))')
+      .in('id', interacaoIds);
+    for (const ka of kaRows ?? []) {
+      const kaTyped = ka as unknown as {
+        id: string;
+        card_id: string | null;
+        kanban_cards: { titulo: string | null; kanbans: { nome: string } | { nome: string }[] | null } | null;
+      };
+      const kc = kaTyped.kanban_cards;
+      const kb = kc ? (Array.isArray((kc as { kanbans?: unknown }).kanbans)
+        ? ((kc as { kanbans: { nome: string }[] }).kanbans[0] ?? null)
+        : (kc as { kanbans: { nome: string } | null }).kanbans) : null;
+      kanbanByInteracao.set(kaTyped.id, {
+        kanban_nome: kb?.nome ?? null,
+        card_titulo: kc?.titulo ?? null,
+      });
+    }
+  }
+
+  const chamadoIds = (rows ?? [])
+    .map((r) => (r as { chamado_id?: number | null }).chamado_id)
+    .filter((x): x is number => x != null);
+
+  let numeroPorChamado = new Map<number, number>();
+  if (chamadoIds.length > 0) {
+    const { data: scRows } = await supabase
+      .from('sirene_chamados')
+      .select('id, numero')
+      .in('id', chamadoIds);
+    for (const sc of scRows ?? []) {
+      numeroPorChamado.set(Number((sc as { id: number }).id), Number((sc as { numero: number }).numero));
+    }
+  }
+
+  const conclusoes = (rows ?? []).map((r) => {
+    const typed = r as {
+      id: number; nome: string; classificacao_conclusao: string; updated_at: string;
+      chamado_id: number | null; responsaveis_ids: string[]; time_responsavel: string | null;
+      interacao_id: string | null;
+    };
+    const meta = typed.interacao_id ? kanbanByInteracao.get(typed.interacao_id) : null;
+    return {
+      id: typed.id,
+      nome: typed.nome,
+      classificacao_conclusao: typed.classificacao_conclusao as 'pontual' | 'recorrente',
+      updated_at: typed.updated_at,
+      chamado_id: typed.chamado_id,
+      chamado_numero: typed.chamado_id != null ? (numeroPorChamado.get(typed.chamado_id) ?? null) : null,
+      responsaveis_ids: typed.responsaveis_ids ?? [],
+      time_responsavel: typed.time_responsavel,
+      kanban_nome: meta?.kanban_nome ?? null,
+      card_titulo: meta?.card_titulo ?? null,
+    };
+  });
+
+  return { ok: true, conclusoes };
 }
 
 /** Mensagens do chamado (comentários). */

@@ -46,6 +46,7 @@ import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentEditable';
 import { ModalNovoChamado } from '../ModalNovoChamado';
 import { SireneChamadoDetalheModal } from './SireneChamadoDetalheModal';
+import { ClassificacaoConclusaoModal } from './ClassificacaoConclusaoModal';
 import { SireneModalHoras } from './SireneModalHoras';
 import type { EditLinhaDraft, EditSireneDraft } from './SireneChamadoEdicaoForms';
 import {
@@ -376,6 +377,7 @@ export function InteracoesLista({
   const [topicosLoading, setTopicosLoading] = useState<Record<string, boolean>>({});
   const [salvandoTopico, setSalvandoTopico] = useState<Record<string, boolean>>({});
 
+  const [classificacaoPendente, setClassificacaoPendente] = useState<{ row: InteracaoSireneRow; topicoId: number } | null>(null);
   const [verTodas, setVerTodas] = useState(false);
   const [gruposAbertos, setGruposAbertos] = useState<Record<'abri' | 'pra_mim' | 'concluido', boolean>>({
     abri: true, pra_mim: true, concluido: false,
@@ -992,10 +994,15 @@ export function InteracoesLista({
     status: SubInteracaoStatusDb,
   ) {
     setMsgErro(null);
+    // Classificação obrigatória ao concluir — abre modal antes de salvar
+    if (status === 'concluido') {
+      setClassificacaoPendente({ row, topicoId });
+      return;
+    }
     if (
       !skipHorasModalRef.current &&
       row.sirene_chamado_id != null &&
-      (status === 'concluido' || status === 'em_andamento')
+      status === 'em_andamento'
     ) {
       setStatusPendente({ rowId: row.id, status: 'manter' });
       setHorasModalChamado({ chamadoId: row.sirene_chamado_id, titulo: row.titulo });
@@ -1009,6 +1016,19 @@ export function InteracoesLista({
     }
     if (status === 'em_andamento') {
       setStatusPatch((prev) => ({ ...prev, [row.id]: 'em_andamento' }));
+    }
+    router.refresh();
+    void carregarTopicosSeNecessario(row, true);
+  }
+
+  async function confirmarClassificacao(classificacao: 'pontual' | 'recorrente') {
+    if (!classificacaoPendente) return;
+    const { row, topicoId } = classificacaoPendente;
+    setClassificacaoPendente(null);
+    const res = await atualizarStatusSubInteracao(String(topicoId), 'concluido', '/sirene/chamados', true, classificacao);
+    if (!res.ok) {
+      setMsgErro(res.error);
+      return;
     }
     router.refresh();
     void carregarTopicosSeNecessario(row, true);
@@ -2042,6 +2062,14 @@ export function InteracoesLista({
         onConfirm={confirmarConclusaoInteracao}
         pending={pending}
       />
+
+      {classificacaoPendente && (
+        <ClassificacaoConclusaoModal
+          nomeAtividade={classificacaoPendente.row.titulo ?? 'Atividade'}
+          onEscolher={(c) => void confirmarClassificacao(c)}
+          pending={pending}
+        />
+      )}
 
       {modalNovoAberto ? (
         <ModalNovoChamado
