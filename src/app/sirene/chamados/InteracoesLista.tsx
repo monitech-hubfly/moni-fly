@@ -377,6 +377,7 @@ export function InteracoesLista({
   const [salvandoTopico, setSalvandoTopico] = useState<Record<string, boolean>>({});
 
   const [verTodas, setVerTodas] = useState(false);
+  const [meuPapelF, setMeuPapelF] = useState<'todos' | 'abri' | 'pra_mim'>('todos');
   const [applied, setApplied] = useState<FiltrosChamados>(DEFAULT_FILTROS);
   const [draft, setDraft] = useState<FiltrosChamados>(DEFAULT_FILTROS);
   const [filtrosOpen, setFiltrosOpen] = useState(false);
@@ -453,6 +454,7 @@ export function InteracoesLista({
       setApplied((a) => (a.mostrarConcluidas ? a : { ...a, mostrarConcluidas: true }));
     }
     setVerTodas(true);
+    setMeuPapelF('todos');
     setDetalheRow(row);
     void carregarTopicosSeNecessario(row, true);
   }, [interacoes, searchParams]);
@@ -605,6 +607,14 @@ export function InteracoesLista({
         return false;
       }
 
+      if (!verTodas && meuPapelF !== 'todos' && currentUserId) {
+        if (meuPapelF === 'abri' && row.criado_por !== currentUserId) return false;
+        if (meuPapelF === 'pra_mim') {
+          const isResp = (row.responsaveis_ids ?? []).includes(currentUserId) || row.responsavel_id === currentUserId;
+          if (!isResp || row.criado_por === currentUserId) return false;
+        }
+      }
+
       if (applied.statusF !== 'todos') {
         const sg = subGrupoFluxo(row);
         if (applied.statusF === 'a_fazer' && sg !== 'a_fazer') return false;
@@ -640,6 +650,7 @@ export function InteracoesLista({
   }, [
     applied,
     verTodas,
+    meuPapelF,
     currentUserId,
     timesById,
     nomePorUserId,
@@ -1377,7 +1388,7 @@ export function InteracoesLista({
             </button>
             <button
               type="button"
-              onClick={() => setVerTodas(true)}
+              onClick={() => { setVerTodas(true); setMeuPapelF('todos'); }}
               className={`rounded-md px-3 py-1.5 font-medium transition ${
                 verTodas
                   ? 'bg-red-600 text-white'
@@ -1387,6 +1398,24 @@ export function InteracoesLista({
               Ver todas
             </button>
           </div>
+          {!verTodas && (
+            <div className="flex rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-0.5 text-sm">
+              {(['todos', 'abri', 'pra_mim'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setMeuPapelF(v)}
+                  className={`rounded-md px-3 py-1.5 font-medium transition ${
+                    meuPapelF === v
+                      ? 'bg-white text-[color:var(--moni-text-primary)] shadow-sm'
+                      : 'text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-primary)]'
+                  }`}
+                >
+                  {v === 'todos' ? 'Todos' : v === 'abri' ? 'Abri' : 'Pra mim'}
+                </button>
+              ))}
+            </div>
+          )}
           {podeArquivar ? (
             <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
               <input
