@@ -88,9 +88,13 @@ export function useBacklog(): UseBacklogResult {
             prazo_proposto,
             status,
             chamado_id,
-            sirene_chamados!left(numero, prioridade)
+            interacao_id,
+            sirene_chamados(numero, prioridade),
+            kanban_atividades!sirene_topicos_interacao_id_fkey(
+              sirene_chamados(numero, prioridade)
+            )
           `)
-          .eq('responsavel_id', effectiveProfileId)
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['nao_iniciado', 'em_andamento'])
           .eq('arquivado', false),
 
@@ -105,6 +109,7 @@ export function useBacklog(): UseBacklogResult {
 
       if (sireneRes.error) throw sireneRes.error;
 
+      type ChamadoRaw = { numero: string; prioridade: string | null } | { numero: string; prioridade: string | null }[] | null;
       type SireneRaw = {
         id: string;
         tipo: string;
@@ -113,13 +118,24 @@ export function useBacklog(): UseBacklogResult {
         prazo_proposto: string | null;
         status: string;
         chamado_id: string | null;
-        sirene_chamados: { numero: string; prioridade: string | null } | { numero: string; prioridade: string | null }[] | null;
+        interacao_id: string | null;
+        sirene_chamados: ChamadoRaw;
+        kanban_atividades: { sirene_chamados: ChamadoRaw } | { sirene_chamados: ChamadoRaw }[] | null;
       };
 
       const sireneArr: SireneItem[] = ((sireneRes.data ?? []) as unknown as SireneRaw[]).map(row => {
-        const chamado = Array.isArray(row.sirene_chamados)
+        const chamadoDireto = Array.isArray(row.sirene_chamados)
           ? row.sirene_chamados[0] ?? null
           : row.sirene_chamados;
+        const interacaoRaw = Array.isArray(row.kanban_atividades)
+          ? row.kanban_atividades[0] ?? null
+          : row.kanban_atividades;
+        const chamadoViaInteracao = interacaoRaw
+          ? (Array.isArray(interacaoRaw.sirene_chamados)
+              ? interacaoRaw.sirene_chamados[0] ?? null
+              : interacaoRaw.sirene_chamados)
+          : null;
+        const chamado = chamadoDireto ?? chamadoViaInteracao;
         return {
           id:              row.id,
           tipo:            row.tipo,
