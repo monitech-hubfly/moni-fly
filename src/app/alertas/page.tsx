@@ -2,22 +2,8 @@ import { guardLoginRequired } from '@/lib/auth-guard';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { MarcarLidoButton } from './MarcarLidoButton';
-
-type CategoriaAlerta = 'sirene' | 'cards' | 'planejamento' | 'gerais';
-
-function categorizarAlerta(tipo: string): CategoriaAlerta {
-  if (
-    tipo === 'mencao_sirene' ||
-    tipo === 'kanban_atividade_criada' ||
-    tipo === 'kanban_atividade_atualizada' ||
-    tipo === 'kanban_atividade_redirecionada' ||
-    tipo === 'sla_atividade_atrasado' ||
-    tipo === 'sla_atividade_atencao'
-  ) return 'sirene';
-  if (tipo === 'mencao_kanban_card' || tipo === 'mencao_card') return 'cards';
-  if (tipo === 'status_preenchimento_lembrete') return 'planejamento';
-  return 'gerais';
-}
+import { MarcarTodosLidoButton } from './MarcarTodosLidoButton';
+import { CategoriaAlerta, categorizarAlerta } from './categorizar';
 
 function rotuloTipo(tipo: string): string {
   if (tipo === 'mencao_kanban_card') return 'Menção em card';
@@ -54,7 +40,7 @@ function corAtrasado(tipo: string) {
 export default async function AlertasPage({
   searchParams,
 }: {
-  searchParams?: { categoria?: string };
+  searchParams?: { categoria?: string; lidas?: string };
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -68,6 +54,7 @@ export default async function AlertasPage({
     .limit(100);
 
   const categoriaAtiva = (searchParams?.categoria ?? 'todos') as CategoriaAlerta | 'todos';
+  const soNaoLidas = searchParams?.lidas !== 'todas';
 
   const categorias: { key: CategoriaAlerta | 'todos'; label: string }[] = [
     { key: 'todos', label: 'Todos' },
@@ -89,9 +76,19 @@ export default async function AlertasPage({
   }
 
   const alertasFiltrados = (alertas ?? []).filter((a) => {
-    if (categoriaAtiva === 'todos') return true;
-    return categorizarAlerta(String(a.tipo ?? '')) === categoriaAtiva;
+    if (categoriaAtiva !== 'todos' && categorizarAlerta(String(a.tipo ?? '')) !== categoriaAtiva) return false;
+    if (soNaoLidas && a.lido) return false;
+    return true;
   });
+
+  const naoLidasNaVisao = alertasFiltrados.filter(a => !a.lido).length;
+
+  const hrefNaoLidas = categoriaAtiva !== 'todos'
+    ? `/alertas?categoria=${categoriaAtiva}`
+    : '/alertas';
+  const hrefTodas = categoriaAtiva !== 'todos'
+    ? `/alertas?categoria=${categoriaAtiva}&lidas=todas`
+    : '/alertas?lidas=todas';
 
   return (
     <div className="min-h-screen bg-[var(--moni-surface-50)]">
@@ -109,15 +106,18 @@ export default async function AlertasPage({
           <p className="mt-1 text-sm text-stone-500">Atualizações dos seus chamados, cards e planejamento.</p>
         </div>
 
-        {/* Abas de categoria */}
-        <div className="mb-6 flex flex-wrap gap-2">
+        {/* Abas de categoria — preservam estado do toggle via URL */}
+        <div className="mb-4 flex flex-wrap gap-2">
           {categorias.map((cat) => {
             const isActive = categoriaAtiva === cat.key;
             const count = contadores[cat.key];
+            const href = cat.key === 'todos'
+              ? (soNaoLidas ? '/alertas' : '/alertas?lidas=todas')
+              : (soNaoLidas ? `/alertas?categoria=${cat.key}` : `/alertas?categoria=${cat.key}&lidas=todas`);
             return (
               <Link
                 key={cat.key}
-                href={cat.key === 'todos' ? '/alertas' : `/alertas?categoria=${cat.key}`}
+                href={href}
                 className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
                   isActive
                     ? 'border-[color:var(--moni-border-strong)] bg-white text-[color:var(--moni-dark)] shadow-sm'
@@ -137,10 +137,42 @@ export default async function AlertasPage({
           })}
         </div>
 
+        {/* Toggle Não lidas / Todas + Marcar tudo como lido */}
+        <div className="mb-5 flex items-center justify-between">
+          <div className="flex rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-0.5 text-sm">
+            <Link
+              href={hrefNaoLidas}
+              className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                soNaoLidas
+                  ? 'bg-white text-[color:var(--moni-dark)] shadow-sm'
+                  : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              Não lidas{contadores[categoriaAtiva] > 0 ? ` (${contadores[categoriaAtiva]})` : ''}
+            </Link>
+            <Link
+              href={hrefTodas}
+              className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                !soNaoLidas
+                  ? 'bg-white text-[color:var(--moni-dark)] shadow-sm'
+                  : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              Todas
+            </Link>
+          </div>
+          {naoLidasNaVisao > 0 && (
+            <MarcarTodosLidoButton categoriaAtiva={String(categoriaAtiva)} />
+          )}
+        </div>
+
         {/* Lista */}
         {!alertasFiltrados.length ? (
           <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-white p-8 text-center text-sm text-stone-500">
-            Nenhum alerta {categoriaAtiva !== 'todos' ? `em "${labelCategoria(categoriaAtiva as CategoriaAlerta)}"` : ''} no momento.
+            {soNaoLidas
+              ? `Nenhum alerta não lido${categoriaAtiva !== 'todos' ? ` em "${labelCategoria(categoriaAtiva as CategoriaAlerta)}"` : ''}.`
+              : `Nenhum alerta${categoriaAtiva !== 'todos' ? ` em "${labelCategoria(categoriaAtiva as CategoriaAlerta)}"` : ''} no momento.`
+            }
           </div>
         ) : (
           <ul className="space-y-2">
@@ -163,12 +195,12 @@ export default async function AlertasPage({
               return (
                 <li
                   key={a.id}
-                  className={`rounded-xl border bg-white p-4 ${
+                  className={`rounded-xl border p-4 ${
                     !a.lido
                       ? atrasado
-                        ? 'border-l-4 border-l-red-400 border-t-stone-100 border-r-stone-100 border-b-stone-100'
-                        : `border-l-4 ${cores.borda} border-t-stone-100 border-r-stone-100 border-b-stone-100`
-                      : 'border-stone-100'
+                        ? 'bg-amber-50 border-l-4 border-l-red-400 border-t-stone-100 border-r-stone-100 border-b-stone-100'
+                        : `bg-amber-50 border-l-4 ${cores.borda} border-t-stone-100 border-r-stone-100 border-b-stone-100`
+                      : 'bg-white border-stone-100'
                   }`}
                 >
                   {/* Linha 1: categoria + tipo + tempo */}
@@ -191,7 +223,9 @@ export default async function AlertasPage({
 
                   {/* Linha 2: mensagem */}
                   {a.mensagem && (
-                    <p className="mb-3 text-sm text-stone-700">{a.mensagem}</p>
+                    <p className={`mb-3 text-sm ${!a.lido ? 'font-medium text-stone-800' : 'text-stone-700'}`}>
+                      {a.mensagem}
+                    </p>
                   )}
 
                   {/* Linha 3: ações */}
@@ -206,7 +240,10 @@ export default async function AlertasPage({
                           : 'Abrir card →'}
                       </Link>
                     ) : <span />}
-                    {!a.lido && <MarcarLidoButton alertaId={a.id} />}
+                    {!a.lido
+                      ? <MarcarLidoButton alertaId={a.id} />
+                      : <span className="rounded border border-stone-200 bg-stone-100 px-2 py-0.5 text-xs text-stone-400">Lido</span>
+                    }
                   </div>
                 </li>
               );
