@@ -64,7 +64,6 @@ export function PrazoNegociacaoPanel({
   };
 
   const podeProporLivre = isAdmin || !expirada;
-  const inputTravado = expirada && !isAdmin;
 
   return (
     <div className={`rounded border border-stone-200 bg-stone-50/80 p-2 ${text}`}>
@@ -113,8 +112,33 @@ export function PrazoNegociacaoPanel({
         </div>
       ) : null}
 
-      {(status === 'recusado' && ehResponsavel) ||
-      (podeProporLivre && (ehAbridor || ehResponsavel || isAdmin) && status !== 'pendente_aceite_responsavel') ? (
+      {isAdmin && expirada ? (
+        <div className="mt-2 flex flex-wrap items-end gap-1">
+          <label className="block min-w-0 flex-1">
+            <span className="mb-0.5 block text-stone-600">Alterar prazo (admin)</span>
+            <input
+              type="date"
+              value={novaData}
+              onChange={(e) => setNovaData(e.target.value)}
+              className="w-full px-1.5 py-0.5"
+              style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={pending}
+            className="shrink-0 rounded bg-stone-800 px-2 py-0.5 text-white hover:bg-stone-900 disabled:opacity-50"
+            onClick={() => run(() => adminOverridePrazoSubInteracao(topicoId, novaData, basePath))}
+          >
+            Alterar prazo (admin)
+          </button>
+        </div>
+      ) : null}
+
+      {!expirada && (
+        (status === 'recusado' && ehResponsavel) ||
+        ((ehAbridor || ehResponsavel || isAdmin) && status !== 'pendente_aceite_responsavel')
+      ) ? (
         <div className="mt-2 flex flex-wrap items-end gap-1">
           <label className="block min-w-0 flex-1">
             <span className="mb-0.5 block text-stone-600">
@@ -123,7 +147,6 @@ export function PrazoNegociacaoPanel({
             <input
               type="date"
               value={novaData}
-              disabled={inputTravado && !isAdmin}
               onChange={(e) => setNovaData(e.target.value)}
               className="w-full px-1.5 py-0.5"
               style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
@@ -131,37 +154,11 @@ export function PrazoNegociacaoPanel({
           </label>
           <button
             type="button"
-            disabled={pending || (!novaData.trim() && !isAdmin)}
+            disabled={pending || !novaData.trim()}
             className="shrink-0 rounded bg-stone-800 px-2 py-0.5 text-white hover:bg-stone-900 disabled:opacity-50"
-            onClick={() =>
-              run(() =>
-                isAdmin && expirada
-                  ? adminOverridePrazoSubInteracao(topicoId, novaData, basePath)
-                  : proporPrazoSubInteracao(topicoId, novaData, basePath),
-              )
-            }
+            onClick={() => run(() => proporPrazoSubInteracao(topicoId, novaData, basePath))}
           >
-            {isAdmin && expirada ? 'Salvar (admin)' : 'Propor'}
-          </button>
-        </div>
-      ) : null}
-
-      {isAdmin && expirada && status === 'aceito' ? (
-        <div className="mt-2 flex flex-wrap items-end gap-1">
-          <input
-            type="date"
-            value={novaData}
-            onChange={(e) => setNovaData(e.target.value)}
-            className="min-w-0 flex-1 px-1.5 py-0.5"
-            style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-          />
-          <button
-            type="button"
-            disabled={pending}
-            className="rounded bg-violet-700 px-2 py-0.5 text-white hover:bg-violet-800 disabled:opacity-50"
-            onClick={() => run(() => adminOverridePrazoSubInteracao(topicoId, novaData, basePath))}
-          >
-            Override admin
+            Propor
           </button>
         </div>
       ) : null}
