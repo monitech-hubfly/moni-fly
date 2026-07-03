@@ -2,6 +2,7 @@ import { guardLoginRequired } from '@/lib/auth-guard';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { autoCurarCardsFunilStepOneAusentes } from '@/lib/kanban/ensure-funil-stepone-card-from-rede';
 import { KanbanBoard } from '@/components/kanban-shared/KanbanBoard';
 import { KanbanWrapper } from '@/components/kanban-shared/KanbanWrapper';
 import { fetchKanbanBoardSnapshot } from '@/components/kanban-shared/fetchKanbanBoardSnapshot';
@@ -24,14 +25,27 @@ export default async function FunilStepOnePage({
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
 
-  const { kanban, fases, cards, cardsConcluidos, role } = await fetchKanbanBoardSnapshot(
-    supabase,
-    'Funil Step One',
-    user.id,
-  );
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  const role = (profile?.role as string) ?? 'frank';
+  const isStaff =
+    role === 'admin' || role === 'team' || role === 'consultor' || role === 'supervisor';
+
+  if (isStaff) {
+    await autoCurarCardsFunilStepOneAusentes(user.id);
+  }
+
+  const { kanban, fases, cards, cardsConcluidos, role: boardRole } =
+    await fetchKanbanBoardSnapshot(supabase, 'Funil Step One', user.id);
 
   const isAdmin =
-    role === 'admin' || role === 'consultor' || role === 'supervisor' || role === 'team';
+    boardRole === 'admin' ||
+    boardRole === 'consultor' ||
+    boardRole === 'supervisor' ||
+    boardRole === 'team';
 
   if (!kanban) {
     return (

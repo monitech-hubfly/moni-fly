@@ -244,6 +244,7 @@ export async function criarLinhaRedeECard(
     redeFranqueadoId: rede.id,
     franqueadoUserId: userId,
     titulo: tituloFunil,
+    processoStepOneId: processo.id,
   });
   if (!funilRes.ok) {
     console.error('[criarLinhaRedeECard] Funil Step One nativo:', funilRes.error);
@@ -252,7 +253,20 @@ export async function criarLinhaRedeECard(
   revalidatePath('/rede-franqueados');
   revalidatePath('/painel-novos-negocios');
   revalidatePath('/funil-stepone');
-  return { ok: true, redeId: rede.id, processoId: processo.id, mensagem: 'Linha criada e card gerado no Step 1.' };
+
+  const avisoFunil =
+    funilRes.ok && funilRes.created
+      ? ''
+      : !funilRes.ok
+        ? ' Atenção: card do Funil Step One não foi criado — use "Garantir cards no Funil" na Rede.'
+        : '';
+
+  return {
+    ok: true,
+    redeId: rede.id,
+    processoId: processo.id,
+    mensagem: `Linha criada e card gerado no Step 1.${avisoFunil}`,
+  };
 }
 
 /**
