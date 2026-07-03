@@ -77,7 +77,7 @@ import {
   type SubInteracaoStatusDb,
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
-import { deletarChamado } from '@/app/sirene/actions';
+import { deletarChamado, listAnexosPorChamados, uploadAnexoChamado, getAnexoChamadoDownloadUrl } from '@/app/sirene/actions';
 import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
@@ -667,6 +667,15 @@ export function KanbanCardModal({
   const [totalCardsSyncGrupo, setTotalCardsSyncGrupo] = useState(0);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
   const [abaCentro, setAbaCentro] = useState<'detalhes' | 'chamados' | 'trancheVinculo' | 'calculadora'>('detalhes');
+
+  type AnexoSireneRow = { id: number; chamado_id: number; topico_id: number | null; uploader_nome: string | null; nome_original: string | null; origem: string | null; created_at: string };
+  const [anexosSirene, setAnexosSirene] = useState<AnexoSireneRow[]>([]);
+  const [anexosSireneLoading, setAnexosSireneLoading] = useState(false);
+  const [anexosSireneFetched, setAnexosSireneFetched] = useState(false);
+  const [anexosSireneAbertos, setAnexosSireneAbertos] = useState(false);
+  const [uploadAnexoSireneErr, setUploadAnexoSireneErr] = useState<string | null>(null);
+  const [enviandoAnexoSirene, setEnviandoAnexoSirene] = useState(false);
+  const anexoSireneFileRef = useRef<HTMLInputElement>(null);
   const [trancheVinculoIndex, setTrancheVinculoIndex] = useState<number | null>(null);
   const [trancheVinculosTick, setTrancheVinculosTick] = useState(0);
   const [emailPara, setEmailPara] = useState('');
@@ -2923,6 +2932,40 @@ export function KanbanCardModal({
     setTrancheVinculoIndex(null);
   }
 
+  function abrirAnexosSirene() {
+    setAnexosSireneAbertos((v) => !v);
+    if (!anexosSireneFetched && sireneChamadoIds.length > 0) {
+      setAnexosSireneFetched(true);
+      setAnexosSireneLoading(true);
+      void listAnexosPorChamados(sireneChamadoIds).then((res) => {
+        setAnexosSireneLoading(false);
+        if (res.ok) setAnexosSirene(res.anexos);
+      });
+    }
+  }
+
+  async function baixarAnexoSirene(anexoId: number) {
+    const res = await getAnexoChamadoDownloadUrl(anexoId);
+    if (res.ok) window.open(res.url, '_blank');
+  }
+
+  async function enviarAnexoSirene() {
+    if (!anexoSireneFileRef.current?.files?.length || sireneChamadoIds.length === 0) return;
+    const formData = new FormData();
+    formData.set('file', anexoSireneFileRef.current.files[0]!);
+    setEnviandoAnexoSirene(true);
+    setUploadAnexoSireneErr(null);
+    const res = await uploadAnexoChamado(sireneChamadoIds[0]!, 'criador', formData);
+    setEnviandoAnexoSirene(false);
+    if (!res.ok) { setUploadAnexoSireneErr(res.error ?? 'Erro ao enviar.'); return; }
+    if (anexoSireneFileRef.current) anexoSireneFileRef.current.value = '';
+    setAnexosSireneLoading(true);
+    void listAnexosPorChamados(sireneChamadoIds).then((res2) => {
+      setAnexosSireneLoading(false);
+      if (res2.ok) setAnexosSirene(res2.anexos);
+    });
+  }
+
   const secaoHeadPainelCentro = (label: string) => {
     const ativo = abaCentro === 'chamados';
     return (
@@ -3421,6 +3464,10 @@ export function KanbanCardModal({
   }, [interacoes]);
 
   const chamadosAbertosCount = useMemo(() => countChamadosAbertosNoCard(interacoes), [interacoes]);
+  const sireneChamadoIds = useMemo(
+    () => [...new Set(interacoes.map((i) => (i as { sirene_chamado_id?: number | null }).sirene_chamado_id).filter((id): id is number => id != null))],
+    [interacoes],
+  );
 
   const faseNomePorId = useMemo(() => new Map(fases.map((f) => [f.id, f.nome])), [fases]);
 
@@ -5648,6 +5695,67 @@ export function KanbanCardModal({
               </div>
               </div>
             </div>
+
+            {/* Seção Anexos Sirene — agregado de todos os chamados vinculados ao card */}
+            {sireneChamadoIds.length > 0 && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={abrirAnexosSirene}
+                  className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-primary)]"
+                >
+                  <Paperclip className="h-3.5 w-3.5" />
+                  Anexos Sirene {anexosSirene.length > 0 ? `(${anexosSirene.length})` : ''}
+                  <ChevronRight className={`h-3 w-3 transition-transform ${anexosSireneAbertos ? 'rotate-90' : ''}`} aria-hidden />
+                </button>
+                {anexosSireneAbertos && (
+                  <div className="mt-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
+                    {anexosSireneLoading ? (
+                      <p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>
+                    ) : anexosSirene.length > 0 ? (
+                      <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto">
+                        {anexosSirene.map((a) => (
+                          <li key={a.id} className="flex items-center gap-2 rounded border border-[color:var(--moni-border-default)] bg-white px-2 py-2">
+                            <Paperclip className="h-4 w-4 shrink-0 text-[color:var(--moni-text-tertiary)]" aria-hidden />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm text-[color:var(--moni-text-primary)]">{a.nome_original ?? 'Arquivo'}</p>
+                              <p className="text-[10px] text-[color:var(--moni-text-tertiary)]">
+                                {a.uploader_nome ?? '—'} · {new Date(a.created_at).toLocaleString('pt-BR')}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void baixarAnexoSirene(a.id)}
+                              className="shrink-0 rounded border border-[color:var(--moni-border-default)] px-2 py-0.5 text-[10px] hover:bg-[var(--moni-surface-100)]"
+                            >
+                              Baixar
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mb-3 text-xs text-[color:var(--moni-text-tertiary)]">Nenhum anexo Sirene ainda.</p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        ref={anexoSireneFileRef}
+                        type="file"
+                        className="text-xs text-[color:var(--moni-text-secondary)] file:mr-2 file:rounded file:border file:border-[color:var(--moni-border-default)] file:bg-[var(--moni-surface-50)] file:px-2 file:py-1 file:text-xs"
+                      />
+                      {uploadAnexoSireneErr ? <p className="w-full text-xs text-red-600">{uploadAnexoSireneErr}</p> : null}
+                      <button
+                        type="button"
+                        disabled={enviandoAnexoSirene}
+                        onClick={() => void enviarAnexoSirene()}
+                        className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+                      >
+                        {enviandoAnexoSirene ? '…' : 'Enviar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             </div>
             </>
             ) : abaCentro === 'calculadora' ? (

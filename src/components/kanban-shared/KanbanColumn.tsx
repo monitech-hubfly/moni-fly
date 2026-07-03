@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowUpDown, ChevronDown, ChevronUp, MessageCircle, MoreHorizontal } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, ChevronUp, MessageCircle, MoreHorizontal, Paperclip } from 'lucide-react';
 import { useRef, useState, useTransition, type DragEvent } from 'react';
 import {
   calcularSlaKanbanCard,
@@ -53,6 +53,8 @@ export type KanbanColumnProps = {
   dragEnabled?: boolean;
   /** Contagem de comentários por card_id — quando fornecido, exibe balão no card. */
   comentariosCountPorCard?: Record<string, number>;
+  /** Contagem de anexos Sirene por card_id — quando fornecido, exibe badge no card. */
+  anexosCountPorCard?: Record<string, number>;
   /** Última fase ativa do funil (header com tom distinto). */
   isUltimaFaseAtiva?: boolean;
   /** Botão «Adicionar card» no rodapé da coluna (primeira fase). */
@@ -147,6 +149,7 @@ export function KanbanColumn({
   exibirAdicionarCard = false,
   novoCardHref = '',
   comentariosCountPorCard,
+  anexosCountPorCard,
 }: KanbanColumnProps) {
   const faseSlug = fase.slug?.trim() ?? '';
   const router = useRouter();
@@ -554,16 +557,31 @@ export function KanbanColumn({
                 >
                   <MoreHorizontal className="h-4 w-4" aria-hidden />
                 </button>
-                {comentariosCountPorCard && (comentariosCountPorCard[card.id] ?? 0) > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => abrirCard(card)}
-                    className="absolute bottom-2 left-2 z-10 inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
-                    aria-label={`${comentariosCountPorCard[card.id]} comentário(s)`}
-                  >
-                    <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    <span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{comentariosCountPorCard[card.id]}</span>
-                  </button>
+                {(comentariosCountPorCard || anexosCountPorCard) ? (
+                  <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1">
+                    {comentariosCountPorCard && (comentariosCountPorCard[card.id] ?? 0) > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => abrirCard(card)}
+                        className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
+                        aria-label={`${comentariosCountPorCard[card.id]} comentário(s)`}
+                      >
+                        <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        <span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{comentariosCountPorCard[card.id]}</span>
+                      </button>
+                    ) : null}
+                    {anexosCountPorCard && (anexosCountPorCard[card.id] ?? 0) > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => abrirCard(card)}
+                        className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
+                        aria-label={`${anexosCountPorCard[card.id]} anexo(s) Sirene`}
+                      >
+                        <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        <span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{anexosCountPorCard[card.id]}</span>
+                      </button>
+                    ) : null}
+                  </div>
                 ) : null}
                 {hasBadge || hasAvatar ? (
                   <div className="moni-kanban-card-badges">
