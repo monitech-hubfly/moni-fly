@@ -85,7 +85,7 @@ export function useBacklogKanban(refreshKey = 0) {
               kanban:kanbans(nome)
             )
           `)
-          .eq('responsavel_id', effectiveProfileId)
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .neq('status', 'concluido')
           .not('card_id', 'is', null),
 
