@@ -1990,7 +1990,7 @@ export async function listAnexosChamado(chamadoId: number): Promise<
     .from('sirene_anexos')
     .select('id, chamado_id, topico_id, uploader_nome, nome_original, origem, created_at')
     .eq('chamado_id', chamadoId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false });
 
   if (error) return { ok: false, error: error.message };
   return { ok: true, anexos: rows ?? [] };
@@ -2019,10 +2019,7 @@ export async function uploadAnexoChamado(
   if (!chamado) return { ok: false, error: 'Chamado não encontrado.' };
   const chamadoTyped = chamado as unknown as Chamado;
 
-  if (origem === 'criador') {
-    if (chamado.aberto_por !== me.userId)
-      return { ok: false, error: 'Apenas quem abriu o chamado pode anexar como criador.' };
-  } else if (origem === 'fechamento_bombeiro') {
+  if (origem === 'fechamento_bombeiro') {
     if (!canActAsBombeiro(me.ctx, chamadoTyped))
       return { ok: false, error: 'Apenas Bombeiro pode anexar no fechamento.' };
   } else if (origem === 'topico') {
