@@ -377,7 +377,9 @@ export function InteracoesLista({
   const [salvandoTopico, setSalvandoTopico] = useState<Record<string, boolean>>({});
 
   const [verTodas, setVerTodas] = useState(false);
-  const [meuPapelF, setMeuPapelF] = useState<'todos' | 'abri' | 'pra_mim'>('todos');
+  const [gruposAbertos, setGruposAbertos] = useState<Record<'abri' | 'pra_mim' | 'concluido', boolean>>({
+    abri: true, pra_mim: true, concluido: false,
+  });
   const [applied, setApplied] = useState<FiltrosChamados>(DEFAULT_FILTROS);
   const [draft, setDraft] = useState<FiltrosChamados>(DEFAULT_FILTROS);
   const [filtrosOpen, setFiltrosOpen] = useState(false);
@@ -454,7 +456,6 @@ export function InteracoesLista({
       setApplied((a) => (a.mostrarConcluidas ? a : { ...a, mostrarConcluidas: true }));
     }
     setVerTodas(true);
-    setMeuPapelF('todos');
     setDetalheRow(row);
     void carregarTopicosSeNecessario(row, true);
   }, [interacoes, searchParams]);
@@ -607,14 +608,6 @@ export function InteracoesLista({
         return false;
       }
 
-      if (!verTodas && meuPapelF !== 'todos' && currentUserId) {
-        if (meuPapelF === 'abri' && row.criado_por !== currentUserId) return false;
-        if (meuPapelF === 'pra_mim') {
-          const isResp = (row.responsaveis_ids ?? []).includes(currentUserId) || row.responsavel_id === currentUserId;
-          if (!isResp || row.criado_por === currentUserId) return false;
-        }
-      }
-
       if (applied.statusF !== 'todos') {
         const sg = subGrupoFluxo(row);
         if (applied.statusF === 'a_fazer' && sg !== 'a_fazer') return false;
@@ -650,7 +643,6 @@ export function InteracoesLista({
   }, [
     applied,
     verTodas,
-    meuPapelF,
     currentUserId,
     timesById,
     nomePorUserId,
@@ -662,6 +654,23 @@ export function InteracoesLista({
     () => linhas.filter((row) => passaFiltrosLista(row, true)),
     [linhas, passaFiltrosLista],
   );
+
+  const porPapel = useMemo(() => {
+    if (verTodas || !currentUserId) return null;
+    const abriTrava: InteracaoSireneRow[] = [];
+    const abriSemTrava: InteracaoSireneRow[] = [];
+    const pra_mimTrava: InteracaoSireneRow[] = [];
+    const pra_mimSemTrava: InteracaoSireneRow[] = [];
+    const concluido: InteracaoSireneRow[] = [];
+    for (const row of linhas) {
+      if (!passaFiltrosLista(row, false)) continue;
+      if (subGrupoFluxo(row) === 'concluido') { concluido.push(row); continue; }
+      const isAbri = row.criado_por === currentUserId;
+      if (isAbri) { (row.trava ? abriTrava : abriSemTrava).push(row); }
+      else { (row.trava ? pra_mimTrava : pra_mimSemTrava).push(row); }
+    }
+    return { abriTrava, abriSemTrava, pra_mimTrava, pra_mimSemTrava, concluido };
+  }, [linhas, passaFiltrosLista, verTodas, currentUserId]);
 
   const concluidosOcultosPorGrupo = useMemo(() => {
     const m = new Map<number, number>();
@@ -1130,6 +1139,64 @@ export function InteracoesLista({
   const radioRow = 'flex flex-wrap gap-x-4 gap-y-2 text-sm text-[color:var(--moni-text-secondary)]';
   const radioLabel = 'inline-flex cursor-pointer items-center gap-2';
 
+  function renderRowLi(row: InteracaoSireneRow) {
+                  const tipoB = badgeTipo(row.tipo);
+                  const hrefCard = row.card_id ? rotaCardOrigem(row.kanban_nome, row.card_id) : null;
+                  void hrefCard;
+                  const sel = statusDbParaSelect(row.atividade_status);
+                  const idsResp = [...new Set([...(row.responsaveis_ids ?? []), ...(row.responsavel_id ? [row.responsavel_id] : [])])];
+                  const rankRow = rankChamadoPainelUnificado({
+                    frank_id: row.frank_id,
+                    franqueado_nome: row.franqueado_nome,
+                    trava: row.trava,
+                    te_trata: row.te_trata,
+                    data_vencimento: row.data_vencimento,
+                    atividade_status: row.atividade_status,
+                    criado_em: row.criado_em,
+                  });
+                  const ccid = row.card_id;
+                  const commentKey = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+                  const cnt = comentariosCount(commentKey);
+                  const alvoK = topicosAlvoKey(row);
+                  const subs = topicosPorAlvo[alvoK] ?? [];
+                  const temSubAberta = subs.some((s) => s.status !== 'concluido' && s.status !== 'aprovado');
+                  const qtdAtividades = subs.length;
+                  return (
+                    <li key={row.id} className={`border-b border-[color:var(--moni-border-default)] last:border-b-0 ${row.sirene_arquivado ? 'bg-amber-50/40' : ''}`}>
+                      <div className="px-3 py-2.5">
+                          <div role="button" tabIndex={0} className="flex min-w-0 cursor-pointer items-center gap-2 hover:opacity-80" onClick={() => abrirDetalheChamado(row)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirDetalheChamado(row); } }}>
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[color:var(--moni-text-tertiary)]" aria-hidden />
+                            {row.trava ? (<span className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800">Trava</span>) : null}
+                            {(row.numero ?? row.sirene_numero) != null ? (<span className="shrink-0 rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[color:var(--moni-text-secondary)]">{formatChamadoNumero(row.numero ?? row.sirene_numero)}</span>) : null}
+                            {row.sirene_arquivado ? (<span className="shrink-0 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">Arquivado</span>) : null}
+                            <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--moni-text-primary)]">{row.titulo}</span>
+                            <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${tipoB.className}`}>{tipoB.label}</span>
+                            <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold ${rankRow.prioridade_label === 'P1' || rankRow.prioridade_label === 'P2' ? 'border-red-200 bg-red-50 text-red-800' : rankRow.prioridade_label === 'P3' || rankRow.prioridade_label === 'P4' ? 'border-amber-200 bg-amber-50 text-amber-800' : rankRow.prioridade_label === 'P5' ? 'border-green-200 bg-green-50 text-green-700' : 'border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'}`}>{rankRow.prioridade_label}</span>
+                            {row.origem === 'sirene' ? (<span className="shrink-0 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">Sirene</span>) : row.origem === 'pastelaria' ? (<span className="shrink-0 rounded border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium text-orange-700">Pastelaria</span>) : null}
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--moni-text-tertiary)]">
+                              {(() => { const nomeAberto = (row.criado_por ? nomePorUserId.get(row.criado_por) : null) ?? row.sirene_abertura_responsavel_nome ?? null; return nomeAberto ? (<span className="text-[11px] text-[color:var(--moni-text-tertiary)]">Aberto por <strong className="font-medium text-[color:var(--moni-text-secondary)]">{nomeAberto}</strong></span>) : null; })()}
+                              {(() => { const funil = row.processo_kanban_nome ?? row.kanban_nome ?? null; const cardNome = row.processo_titulo ?? row.card_titulo ?? null; const franqueado = row.franqueado_nome ?? null; const temContexto = funil || cardNome || franqueado; if (!temContexto) return null; return (<span className="flex items-center gap-1 text-[11px] text-[color:var(--moni-text-tertiary)]"><span className="text-[color:var(--moni-text-tertiary)]">·</span>{funil && (<span className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">{funil}</span>)}{cardNome && (<><span className="text-[color:var(--moni-text-tertiary)]">·</span><strong className="font-medium text-[color:var(--moni-text-secondary)]">{cardNome}</strong></>)}{franqueado && (<><span className="text-[color:var(--moni-text-tertiary)]">·</span><span>{franqueado}</span></>)}</span>); })()}
+                              {(() => { if (!row.data_vencimento) return null; const hoje = new Date(); hoje.setHours(0,0,0,0); const prazo = new Date(row.data_vencimento); prazo.setHours(0,0,0,0); const diffDias = Math.round((prazo.getTime() - hoje.getTime()) / (1000*60*60*24)); if (diffDias < 0) return (<span className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">⏰ Atrasado {Math.abs(diffDias)} d.u.</span>); if (diffDias <= 3) return (<span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">⏰ Vence em {diffDias} d.u.</span>); return (<span className="inline-flex items-center gap-1 rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">⏰ Vence em {diffDias} d.u.</span>); })()}
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                              <button type="button" onClick={() => setDetalheExpandido((s) => ({ ...s, [row.id]: !s[row.id] }))} className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"><Info className="h-3.5 w-3.5 shrink-0" aria-hidden /><span>Detalhes</span></button>
+                              {qtdAtividades > 0 ? (<button type="button" onClick={() => setAtividadesExpandido((s) => ({ ...s, [row.id]: !s[row.id] }))} className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"><CheckSquare className="h-3.5 w-3.5 shrink-0" aria-hidden /><span>{qtdAtividades} atividade{qtdAtividades === 1 ? '' : 's'}</span></button>) : null}
+                              {(() => { const ck = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null); if (!ck) return null; return (<button type="button" onClick={() => toggleComentarios(row)} className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]" aria-expanded={Boolean(commentsOpenByRow[row.id])} aria-label={`Comentários do chamado (${cnt})`}><MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden /><span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span></button>); })()}
+                              {idsResp.length > 0 ? (<div className="flex -space-x-1">{idsResp.slice(0, 4).map((uid) => (<span key={uid} title={nomePorUserId.get(uid) ?? uid} className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[9px] font-semibold text-[color:var(--moni-text-primary)]">{iniciaisNome(nomePorUserId.get(uid) ?? '?')}</span>))}</div>) : null}
+                              <SlaAtividadeBadge prazoIso={row.data_vencimento} status={sel === 'concluida' ? 'concluida' : sel} showOkText={false} />
+                              {sel === 'em_andamento' ? (<span className="min-w-[8rem] rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-2 py-1 text-center text-xs text-[color:var(--moni-text-secondary)]">Em andamento</span>) : (<SelectMoni value={sel} disabled={pending} onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)} className="min-w-[8rem] text-xs" aria-label="Status do chamado"><option value="pendente">A fazer</option><option value="concluida">Concluída</option></SelectMoni>)}
+                            </div>
+                          </div>
+                          {detalheExpandido[row.id] ? (<div className="mt-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2 text-[11px] text-[color:var(--moni-text-secondary)]"><div className="flex flex-wrap gap-x-4 gap-y-1">{row.criado_em ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Aberto em</span> {new Date(row.criado_em).toLocaleDateString('pt-BR')}</span>) : null}{row.card_titulo ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Card</span> {row.card_titulo.trim()}</span>) : null}{row.kanban_nome ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Funil</span> {row.kanban_nome}</span>) : null}</div>{row.descricao ? (<p className="mt-1.5 leading-relaxed text-[color:var(--moni-text-secondary)]">{row.descricao}</p>) : null}</div>) : null}
+                          {atividadesExpandido[row.id] && subs.length > 0 ? (<div className="mt-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-1">{subs.map((s) => (<div key={s.id ?? (s as { topico_id?: number }).topico_id} className="flex items-center gap-2 border-b border-[color:var(--moni-border-default)] py-1.5 last:border-b-0 text-[11px]"><span className={`h-2 w-2 shrink-0 rounded-full ${s.status === 'concluido' || s.status === 'aprovado' ? 'bg-green-500' : s.status === 'em_andamento' ? 'bg-amber-500' : 'bg-stone-400'}`} /><span className="min-w-0 flex-1 truncate text-[color:var(--moni-text-primary)]">{(s as { titulo?: string }).titulo ?? (s as { tema?: string }).tema ?? s.descricao ?? '—'}</span>{(s as { responsavel_nome?: string }).responsavel_nome ? (<span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[8px] font-semibold text-[color:var(--moni-text-primary)]" title={(s as { responsavel_nome?: string }).responsavel_nome}>{iniciaisNome((s as { responsavel_nome?: string }).responsavel_nome ?? '')}</span>) : null}{(s as { prazo?: string }).prazo ?? s.data_fim ? (<span className="shrink-0 text-[10px] text-[color:var(--moni-text-tertiary)]">{new Date(((s as { prazo?: string }).prazo ?? s.data_fim)!).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>) : null}</div>))}</div>) : null}
+                        </div>
+                      {commentsOpenByRow[row.id] && (() => { const ck2 = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null); return ck2 ? (<div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3"><p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">Comentários</p>{commentsLoading[ck2] ? (<p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>) : (<>{(commentsByCardId[ck2] ?? []).length > 0 && (<><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do card</p><ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">{[...(commentsByCardId[ck2] ?? [])].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()).map((c)=>(<li key={c.id} className="flex gap-2 rounded bg-white p-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-200 text-xs font-medium text-stone-600">{iniciaisNome(c.autor_nome??'')}</span><div><p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p><p className="mt-0.5 text-stone-700">{c.texto}</p></div></li>))}</ul></>)}{(commentsBySireneId[ck2] ?? []).length > 0 && (<><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do chamado</p><ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">{[...(commentsBySireneId[ck2] ?? [])].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()).map((c)=>(<li key={`sirene-${c.id}`} className="flex gap-2 rounded bg-white p-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">{iniciaisNome(c.autor_nome??'')}</span><div><p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p><p className="mt-0.5 text-stone-700">{c.texto}</p></div></li>))}</ul></>)}{(commentsByCardId[ck2]??[]).length===0&&(commentsBySireneId[ck2]??[]).length===0&&(<p className="mb-3 text-xs text-stone-400">Nenhum comentário ainda.</p>)}<div className="flex flex-col gap-2"><div className="overflow-visible rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]" onFocus={() => { comentarioAtivoCardIdRef.current = ck2; }}><MencaoContentEditable editorRef={comentarioEditorRef} onInput={(html) => setNovoComentarioPorCard((m) => ({ ...m, [ck2]: html }))} className="min-h-[72px] w-full p-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none empty:before:text-[color:var(--moni-text-tertiary)] empty:before:content-[attr(data-placeholder)]" placeholder="Escreva um comentário… Use @ para mencionar" /></div><button type="button" disabled={Boolean(salvandoComentario[ck2])} onClick={() => void publicarComentario(ck2, row)} className="self-end shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50">{salvandoComentario[ck2] ? '…' : 'Publicar'}</button></div></>) }</div>) : null; })()}
+                    </li>
+                  );
+  }
+
   return (
     <div className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-6 text-[color:var(--moni-text-primary)]">
       <div className="mb-6 flex w-full flex-wrap items-center justify-between gap-3">
@@ -1388,7 +1455,7 @@ export function InteracoesLista({
             </button>
             <button
               type="button"
-              onClick={() => { setVerTodas(true); setMeuPapelF('todos'); }}
+              onClick={() => setVerTodas(true)}
               className={`rounded-md px-3 py-1.5 font-medium transition ${
                 verTodas
                   ? 'bg-red-600 text-white'
@@ -1398,24 +1465,6 @@ export function InteracoesLista({
               Ver todas
             </button>
           </div>
-          {!verTodas && (
-            <div className="flex rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-0.5 text-sm">
-              {(['todos', 'abri', 'pra_mim'] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setMeuPapelF(v)}
-                  className={`rounded-md px-3 py-1.5 font-medium transition ${
-                    meuPapelF === v
-                      ? 'bg-white text-[color:var(--moni-text-primary)] shadow-sm'
-                      : 'text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-primary)]'
-                  }`}
-                >
-                  {v === 'todos' ? 'Todos' : v === 'abri' ? 'Abri' : 'Pra mim'}
-                </button>
-              ))}
-            </div>
-          )}
           {podeArquivar ? (
             <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
               <input
@@ -1427,15 +1476,17 @@ export function InteracoesLista({
               Mostrar arquivados
             </label>
           ) : null}
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
-              checked={applied.mostrarConcluidas}
-              onChange={(e) => setApplied((a) => ({ ...a, mostrarConcluidas: e.target.checked }))}
-            />
-            Mostrar concluídos
-          </label>
+          {verTodas && (
+            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
+                checked={applied.mostrarConcluidas}
+                onChange={(e) => setApplied((a) => ({ ...a, mostrarConcluidas: e.target.checked }))}
+              />
+              Mostrar concluídos
+            </label>
+          )}
         </div>
         <button
           type="button"
@@ -1455,7 +1506,68 @@ export function InteracoesLista({
       {pending && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando status…</p>}
       {salvandoEdicao && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando chamado…</p>}
       {salvandoSirene && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando chamado Sirene…</p>}
-      <div className="space-y-8">
+      {!verTodas && porPapel ? (
+        <div className="space-y-4">
+          {(
+            [
+              { key: 'abri' as const, titulo: 'Abertos por mim', trava: porPapel.abriTrava, semTrava: porPapel.abriSemTrava },
+              { key: 'pra_mim' as const, titulo: 'Chamados recebidos de outras áreas', trava: porPapel.pra_mimTrava, semTrava: porPapel.pra_mimSemTrava },
+            ] as const
+          ).map(({ key, titulo, trava, semTrava }) => {
+            const total = trava.length + semTrava.length;
+            if (total === 0) return null;
+            return (
+              <section key={key}>
+                <button
+                  type="button"
+                  onClick={() => setGruposAbertos((g) => ({ ...g, [key]: !g[key] }))}
+                  className="mb-2 flex w-full items-center gap-2 border-b border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2 text-left text-sm font-semibold text-[color:var(--moni-text-primary)] hover:bg-[var(--moni-surface-100)]"
+                >
+                  <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${gruposAbertos[key] ? 'rotate-90' : ''}`} aria-hidden />
+                  {titulo}
+                  <span className="ml-1 font-normal text-[color:var(--moni-text-tertiary)]">({total})</span>
+                </button>
+                {gruposAbertos[key] && (
+                  <ul className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]">
+                    {trava.length > 0 && (
+                      <li className="border-b border-[color:var(--moni-border-default)] bg-red-50/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                        Com trava ({trava.length})
+                      </li>
+                    )}
+                    {trava.map((row) => renderRowLi(row))}
+                    {semTrava.length > 0 && (
+                      <li className={`border-b border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)] ${trava.length > 0 ? '' : ''}`}>
+                        Sem trava ({semTrava.length})
+                      </li>
+                    )}
+                    {semTrava.map((row) => renderRowLi(row))}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
+          {porPapel.concluido.length > 0 && (
+            <section key="concluido">
+              <button
+                type="button"
+                onClick={() => setGruposAbertos((g) => ({ ...g, concluido: !g.concluido }))}
+                className="mb-2 flex w-full items-center gap-2 border-b border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2 text-left text-sm font-semibold text-[color:var(--moni-text-tertiary)] hover:bg-[var(--moni-surface-100)]"
+              >
+                <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${gruposAbertos.concluido ? 'rotate-90' : ''}`} aria-hidden />
+                Concluídos
+                <span className="ml-1 font-normal">({porPapel.concluido.length})</span>
+              </button>
+              {gruposAbertos.concluido && (
+                <ul className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]">
+                  {porPapel.concluido.map((row) => renderRowLi(row))}
+                </ul>
+              )}
+            </section>
+          )}
+        </div>
+      ) : null}
+
+      <div className={verTodas ? 'space-y-8' : 'hidden'}>
         {ORDEM_GRUPOS_PAINEL.map(({ key, titulo }) => {
           const lista = porGrupo.get(key) ?? [];
           const ocultos = concluidosOcultosPorGrupo.get(key) ?? 0;
