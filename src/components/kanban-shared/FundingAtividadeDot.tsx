@@ -6,7 +6,7 @@ import { salvarDadosFunding } from '@/lib/actions/card-actions';
 
 type Props = {
   cardId: string;
-  proximaAtividade: string;
+  proximaAtividade: string | null;
   prazoAtividade: string | null;
   basePath: string;
 };
@@ -39,9 +39,11 @@ export function FundingAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
   const dotRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
+  const semAtividade = !proximaAtividade;
   const variante = varianteDot(prazoAtividade);
-  const dotCls =
-    variante === 'red' ? 'bg-red-500 hover:bg-red-600'
+  const dotCls = semAtividade
+    ? 'bg-yellow-400 hover:bg-yellow-500'
+    : variante === 'red' ? 'bg-red-500 hover:bg-red-600'
     : variante === 'green' ? 'bg-green-500 hover:bg-green-600'
     : 'bg-stone-400 hover:bg-stone-500';
   const prazoLabel = labelPrazo(prazoAtividade);
@@ -49,11 +51,10 @@ export function FundingAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
     variante === 'red' ? 'text-red-600'
     : variante === 'green' ? 'text-green-600'
     : 'text-stone-500';
-  const tooltipTitle = prazoLabel
-    ? `${proximaAtividade} · ${prazoLabel}`
-    : proximaAtividade;
+  const tooltipTitle = semAtividade
+    ? 'Próxima atividade não definida'
+    : prazoLabel ? `${proximaAtividade} · ${prazoLabel}` : proximaAtividade!;
 
-  // Fecha ao clicar fora do popover
   useEffect(() => {
     if (!aberto) return;
     const onDown = (e: MouseEvent) => {
@@ -68,7 +69,6 @@ export function FundingAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
     return () => document.removeEventListener('mousedown', onDown);
   }, [aberto]);
 
-  // Atualiza posição do popover ao redimensionar / scroll
   useEffect(() => {
     if (!aberto) return;
     const reposicionar = () => {
@@ -76,7 +76,7 @@ export function FundingAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
       if (!rect) return;
       const popW = 256;
       const left = Math.max(4, Math.min(rect.right - popW, window.innerWidth - popW - 8));
-      setPos({ top: rect.top - 8, left }); // abre acima do dot
+      setPos({ top: rect.top - 8, left });
     };
     reposicionar();
     window.addEventListener('resize', reposicionar);
@@ -128,25 +128,45 @@ export function FundingAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400">
         Próxima atividade
       </p>
-      <p className="mb-1 text-xs font-medium text-stone-800">{proximaAtividade}</p>
-      {prazoLabel && (
-        <p className={`mb-3 text-[11px] ${prazoCorTexto}`}>{prazoLabel}</p>
+
+      {/* Modo: atividade já definida */}
+      {!semAtividade && (
+        <>
+          <p className="mb-1 text-xs font-medium text-stone-800">{proximaAtividade}</p>
+          {prazoLabel && (
+            <p className={`mb-3 text-[11px] ${prazoCorTexto}`}>{prazoLabel}</p>
+          )}
+          <label className="mb-3 flex cursor-pointer select-none items-center gap-2 text-xs text-stone-700">
+            <input
+              type="checkbox"
+              checked={concluida}
+              onChange={e => setConcluida(e.target.checked)}
+              className="rounded border-stone-300"
+            />
+            Marcar como concluída
+          </label>
+          {concluida && !novaAtividade.trim() && (
+            <p className="mb-2 text-[11px] text-amber-600">
+              Defina a próxima atividade para manter o acompanhamento do card.
+            </p>
+          )}
+        </>
       )}
 
-      <label className="mb-3 flex cursor-pointer select-none items-center gap-2 text-xs text-stone-700">
-        <input
-          type="checkbox"
-          checked={concluida}
-          onChange={e => setConcluida(e.target.checked)}
-          className="rounded border-stone-300"
-        />
-        Marcar como concluída
-      </label>
+      {/* Modo: sem atividade definida */}
+      {semAtividade && (
+        <p className="mb-3 text-[11px] text-amber-600">
+          Nenhuma atividade definida. Preencha abaixo para retomar o acompanhamento.
+        </p>
+      )}
 
-      {!concluida && (
+      {/* Formulário de nova atividade — visível quando não está só concluindo */}
+      {(!concluida || semAtividade) && (
         <div className="mb-3 space-y-2">
           <div>
-            <label className="mb-0.5 block text-[10px] font-medium text-stone-500">Nova atividade</label>
+            <label className="mb-0.5 block text-[10px] font-medium text-stone-500">
+              {semAtividade ? 'Próxima atividade' : 'Nova atividade'}
+            </label>
             <input
               type="text"
               value={novaAtividade}
@@ -156,7 +176,7 @@ export function FundingAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
             />
           </div>
           <div>
-            <label className="mb-0.5 block text-[10px] font-medium text-stone-500">Novo prazo</label>
+            <label className="mb-0.5 block text-[10px] font-medium text-stone-500">Prazo</label>
             <input
               type="date"
               value={novoPrazo}
@@ -176,7 +196,7 @@ export function FundingAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
           disabled={pending}
           className="flex-1 rounded bg-moni-primary px-2 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
-          {pending ? 'Salvando…' : concluida ? 'Concluir' : 'Salvar'}
+          {pending ? 'Salvando…' : (concluida && !semAtividade) ? 'Concluir' : 'Salvar'}
         </button>
         <button
           type="button"
@@ -195,7 +215,7 @@ export function FundingAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
         ref={dotRef}
         type="button"
         title={tooltipTitle}
-        aria-label={`Próxima atividade: ${tooltipTitle}`}
+        aria-label={semAtividade ? 'Definir próxima atividade' : `Próxima atividade: ${tooltipTitle}`}
         onClick={abrirPopover}
         onMouseDown={e => e.stopPropagation()}
         className={`h-3 w-3 rounded-full border border-white/80 shadow-sm transition-transform hover:scale-125 focus:outline-none ${dotCls}`}

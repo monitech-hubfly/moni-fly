@@ -652,11 +652,11 @@ export function KanbanColumn({
                     />
                   ) : null}
                 </button>
-                {isFunding && !arquivado && !concluido && card.funding_proxima_atividade ? (
+                {isFunding && !arquivado && !concluido ? (
                   <div className="absolute bottom-2 right-2 z-10">
                     <FundingAtividadeDot
                       cardId={card.id}
-                      proximaAtividade={card.funding_proxima_atividade}
+                      proximaAtividade={card.funding_proxima_atividade ?? null}
                       prazoAtividade={card.funding_prazo_atividade ?? null}
                       basePath={basePath}
                     />
