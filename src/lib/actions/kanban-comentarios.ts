@@ -87,6 +87,7 @@ export async function listarComentariosKanbanCard(
     .from('kanban_card_comentarios')
     .select('id, conteudo, created_at, autor_id, autor_nome')
     .eq('card_id', id)
+    .is('sirene_chamado_id', null)
     .order('created_at', { ascending: false });
 
   if (error) return { ok: false, error: error.message };

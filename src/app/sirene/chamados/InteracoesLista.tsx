@@ -1083,15 +1083,15 @@ export function InteracoesLista({
           ? `/sirene/chamados?interacao=${encodeURIComponent(row.id)}`
           : '/sirene/chamados';
       let res: AtualizarStatusInteracaoResult;
-      if (row.card_id) {
-        res = await publicarComentarioCardSirene(row.card_id, html, {
-          referenciaPath,
-          contextoTitulo: row.titulo || row.card_titulo || 'Chamado',
-        });
-      } else if (row.sirene_chamado_id != null) {
+      if (row.sirene_chamado_id != null) {
         res = await publicarComentarioSireneChamado(row.sirene_chamado_id, html, {
           referenciaPath,
           contextoTitulo: row.titulo || 'Chamado',
+        });
+      } else if (row.card_id) {
+        res = await publicarComentarioCardSirene(row.card_id, html, {
+          referenciaPath,
+          contextoTitulo: row.titulo || row.card_titulo || 'Chamado',
         });
       } else {
         setMsgErro('Não foi possível identificar o chamado.');
