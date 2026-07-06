@@ -29,9 +29,11 @@ import { ResponsavelFaseAvatar } from './ResponsavelFaseAvatar';
 import { rotuloUnidadeSla } from '@/lib/dias-uteis';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
-  cardLoteadoresPrecisaJustificativaSla,
-  faseLoteadoresExigeJustificativaSla,
-} from '@/lib/kanban/loteadores-sla-justificativa';
+  deveExibirModalJustificativaSla,
+  justificativaSlaObrigatoria,
+} from '@/lib/kanban/kanban-sla-justificativa';
+import { obterJustificativaSlaFase } from '@/lib/actions/kanban-sla-justificativa';
+import { KanbanSlaJustificativaModal } from './KanbanSlaJustificativaModal';
 import { fundingTipoBadgeClass } from '@/lib/kanban/funding-card-fields';
 import { ProximaAtividadeDot } from './ProximaAtividadeDot';
 import type { KanbanCardBrief, KanbanFase } from './types';
@@ -70,6 +72,8 @@ type DragPayload = {
   cardId: string;
   fromFaseId: string;
   fromFaseSlug: string;
+  fromFaseNome?: string;
+  fromFaseOrdem?: number;
   origem: KanbanDnDCardOrigem;
   kanbanId?: string;
   created_at?: string;
@@ -77,9 +81,17 @@ type DragPayload = {
   sla_iniciado_em?: string | null;
   alvara_url?: string | null;
   docs_terreno_url?: string | null;
-  sla_justificativa?: string | null;
   fromFaseSlaDias?: number | null;
   fromFaseSlaTipo?: 'uteis' | 'corridos' | null;
+};
+
+type SlaModalPendente = {
+  payload: DragPayload;
+  beforeCardId: string | null;
+  faseOrigemNome: string;
+  faseDestinoNome: string;
+  justificativaExistente: string | null;
+  obrigatoria: boolean;
 };
 
 function hrefAbrirCard(
@@ -120,6 +132,8 @@ function parseDragPayload(raw: string): DragPayload | null {
       cardId,
       fromFaseId,
       fromFaseSlug: String(data.fromFaseSlug ?? '').trim(),
+      fromFaseNome: data.fromFaseNome != null ? String(data.fromFaseNome) : undefined,
+      fromFaseOrdem: data.fromFaseOrdem != null ? Number(data.fromFaseOrdem) : undefined,
       origem: data.origem === 'legado' ? 'legado' : 'nativo',
       kanbanId: data.kanbanId != null ? String(data.kanbanId) : undefined,
       created_at: data.created_at != null ? String(data.created_at) : undefined,
@@ -127,7 +141,6 @@ function parseDragPayload(raw: string): DragPayload | null {
       sla_iniciado_em: data.sla_iniciado_em ?? null,
       alvara_url: data.alvara_url ?? null,
       docs_terreno_url: data.docs_terreno_url ?? null,
-      sla_justificativa: data.sla_justificativa ?? null,
       fromFaseSlaDias: data.fromFaseSlaDias ?? null,
       fromFaseSlaTipo: data.fromFaseSlaTipo ?? null,
     };
@@ -162,6 +175,8 @@ export function KanbanColumn({
   const [dragInsertBefore, setDragInsertBefore] = useState(true);
   const [columnDragOver, setColumnDragOver] = useState(false);
   const [tagsRemovidas, setTagsRemovidas] = useState<Set<string>>(() => new Set());
+  const [slaModalPendente, setSlaModalPendente] = useState<SlaModalPendente | null>(null);
+  const [slaJustificativaDraft, setSlaJustificativaDraft] = useState('');
 
   useEffect(() => {
     setTagsRemovidas(new Set());
@@ -228,13 +243,70 @@ export function KanbanColumn({
     setColumnDragOver(true);
   };
 
-  const executarDrop = (payload: DragPayload, beforeCardId: string | null) => {
+  const executarMovimentoEntreFases = (
+    payload: DragPayload,
+    beforeCardId: string | null,
+    justificativaSla?: string,
+  ) => {
     startTransition(() => {
       void (async () => {
         const origem = payload.origem;
-        const mesmaFase = payload.fromFaseId === fase.id;
+        let motivoParalisado: string | undefined;
+        const destSlug = (faseSlug || '').trim();
+        if (destSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO && basePath.includes('funil-acoplamento')) {
+          const motivo = window.prompt(
+            'Informe o motivo da paralisação antes de mover o card para Paralisados:',
+          );
+          if (motivo == null) return;
+          const m = motivo.trim();
+          if (!m) {
+            alert('Informe o motivo da paralisação.');
+            return;
+          }
+          motivoParalisado = m;
+        }
+        const resMove = await moverCardKanbanDrag({
+          cardId: payload.cardId,
+          toFaseId: fase.id,
+          toFaseSlug: faseSlug || null,
+          fromFaseSlug: payload.fromFaseSlug || null,
+          origem,
+          basePath,
+          kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : undefined,
+          motivoReprovacaoAcoplamento: motivoParalisado,
+          justificativaSlaQuebra: justificativaSla,
+        });
+        if (!resMove.ok) {
+          alert(resMove.error ?? 'Não foi possível mover o card.');
+          return;
+        }
+        if (beforeCardId && beforeCardId !== payload.cardId) {
+          const resOrd = await reordenarCardKanbanDrag({
+            cardId: payload.cardId,
+            faseId: fase.id,
+            faseSlug: faseSlug || null,
+            beforeCardId,
+            origem,
+            basePath,
+          });
+          if (!resOrd.ok) {
+            alert(resOrd.error ?? 'Card movido, mas não foi possível definir a posição.');
+            router.refresh();
+            return;
+          }
+        }
+        router.refresh();
+      })();
+    });
+  };
 
-        if (mesmaFase) {
+  const executarDrop = (payload: DragPayload, beforeCardId: string | null) => {
+    const origem = payload.origem;
+    const mesmaFase = payload.fromFaseId === fase.id;
+
+    if (mesmaFase) {
+      startTransition(() => {
+        void (async () => {
           if (beforeCardId === payload.cardId) return;
           const res = await reordenarCardKanbanDrag({
             cardId: payload.cardId,
@@ -248,94 +320,71 @@ export function KanbanColumn({
             alert(res.error ?? 'Não foi possível reordenar o card.');
             return;
           }
-        } else {
-          let motivoParalisado: string | undefined;
-          let justificativaSla: string | undefined;
-          const destSlug = (faseSlug || '').trim();
-          if (destSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO && basePath.includes('funil-acoplamento')) {
-            const motivo = window.prompt(
-              'Informe o motivo da paralisação antes de mover o card para Paralisados:',
-            );
-            if (motivo == null) return;
-            const m = motivo.trim();
-            if (!m) {
-              alert('Informe o motivo da paralisação.');
-              return;
-            }
-            motivoParalisado = m;
-          }
-          const fromSlug = (payload.fromFaseSlug || '').trim();
-          if (
-            origem === 'nativo' &&
-            String(payload.kanbanId ?? kanbanId) === KANBAN_IDS.LOTEADORES &&
-            faseLoteadoresExigeJustificativaSla(fromSlug) &&
-            payload.created_at
-          ) {
-            const slaOrigem = calcularSlaKanbanCard({
-              created_at: payload.created_at,
-              entered_fase_at: payload.entered_fase_at,
-              sla_iniciado_em: payload.sla_iniciado_em,
-              faseSlug: fromSlug,
-              alvara_url: payload.alvara_url,
-              docs_terreno_url: payload.docs_terreno_url,
-              sla_dias: payload.fromFaseSlaDias ?? null,
-              sla_tipo: payload.fromFaseSlaTipo ?? null,
-            });
-            if (
-              cardLoteadoresPrecisaJustificativaSla({
-                kanbanId: payload.kanbanId ?? kanbanId,
-                faseSlug: fromSlug,
-                slaStatus: slaOrigem.status,
-                slaJustificativa: payload.sla_justificativa,
-                sla_dias: payload.fromFaseSlaDias ?? null,
-              })
-            ) {
-              const motivo = window.prompt(
-                'O SLA desta fase está vencido. Informe a justificativa da quebra de SLA antes de mover o card:',
-              );
-              if (motivo == null) return;
-              const m = motivo.trim();
-              if (!m) {
-                alert('Informe a justificativa da quebra de SLA.');
-                return;
-              }
-              justificativaSla = m;
-            }
-          }
-          const resMove = await moverCardKanbanDrag({
-            cardId: payload.cardId,
-            toFaseId: fase.id,
-            toFaseSlug: faseSlug || null,
-            fromFaseSlug: payload.fromFaseSlug || null,
-            origem,
-            basePath,
-            kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : undefined,
-            motivoReprovacaoAcoplamento: motivoParalisado,
-            justificativaSlaQuebra: justificativaSla,
+          router.refresh();
+        })();
+      });
+      return;
+    }
+
+    const fromOrdem = payload.fromFaseOrdem ?? 0;
+    const movimentoPosterior = fase.ordem > fromOrdem;
+    const fromSlug = (payload.fromFaseSlug || '').trim();
+
+    if (origem === 'nativo' && movimentoPosterior && payload.created_at) {
+      const slaOrigem = calcularSlaKanbanCard({
+        created_at: payload.created_at,
+        entered_fase_at: payload.entered_fase_at,
+        sla_iniciado_em: payload.sla_iniciado_em,
+        faseSlug: fromSlug,
+        alvara_url: payload.alvara_url,
+        docs_terreno_url: payload.docs_terreno_url,
+        sla_dias: payload.fromFaseSlaDias ?? null,
+        sla_tipo: payload.fromFaseSlaTipo ?? null,
+      });
+      if (
+        deveExibirModalJustificativaSla({
+          slaStatus: slaOrigem.status,
+          sla_dias: payload.fromFaseSlaDias ?? null,
+          movimentoPosterior,
+        })
+      ) {
+        void (async () => {
+          const res = await obterJustificativaSlaFase(payload.cardId, payload.fromFaseId);
+          const justificativaExistente = res.ok ? res.justificativa : null;
+          setSlaJustificativaDraft('');
+          setSlaModalPendente({
+            payload,
+            beforeCardId,
+            faseOrigemNome: payload.fromFaseNome?.trim() || fromSlug || 'atual',
+            faseDestinoNome: fase.nome,
+            justificativaExistente,
+            obrigatoria: justificativaSlaObrigatoria(justificativaExistente),
           });
-          if (!resMove.ok) {
-            alert(resMove.error ?? 'Não foi possível mover o card.');
-            return;
-          }
-          if (beforeCardId && beforeCardId !== payload.cardId) {
-            const resOrd = await reordenarCardKanbanDrag({
-              cardId: payload.cardId,
-              faseId: fase.id,
-              faseSlug: faseSlug || null,
-              beforeCardId,
-              origem,
-              basePath,
-            });
-            if (!resOrd.ok) {
-              alert(resOrd.error ?? 'Card movido, mas não foi possível definir a posição.');
-              router.refresh();
-              return;
-            }
-          }
-        }
-        router.refresh();
-      })();
-    });
+        })();
+        return;
+      }
+    }
+
+    executarMovimentoEntreFases(payload, beforeCardId);
+  };
+
+  const confirmarJustificativaSlaDrop = () => {
+    if (!slaModalPendente) return;
+    const { payload, beforeCardId, justificativaExistente, obrigatoria } = slaModalPendente;
+    const complemento = slaJustificativaDraft.trim();
+    if (obrigatoria && !complemento) {
+      alert('Informe a justificativa da quebra de SLA.');
+      return;
+    }
+    const textoFinal = obrigatoria
+      ? complemento
+      : complemento
+        ? [justificativaExistente, complemento].filter(Boolean).join('\n\n')
+        : undefined;
+    const pendente = slaModalPendente;
+    setSlaModalPendente(null);
+    setSlaJustificativaDraft('');
+    executarMovimentoEntreFases(pendente.payload, pendente.beforeCardId, textoFinal);
   };
 
   const handleDrop = (e: DragEvent<HTMLDivElement>, beforeCardId: string | null) => {
@@ -385,6 +434,7 @@ export function KanbanColumn({
   };
 
   return (
+    <>
     <div
       className={`moni-kanban-column${isUltimaFaseAtiva ? ' moni-kanban-column--fin' : ''}${columnDragOver && dndAtivo ? ' moni-kanban-column--drag-over' : ''}`}
     >
@@ -499,6 +549,8 @@ export function KanbanColumn({
                       cardId: card.id,
                       fromFaseId: fase.id,
                       fromFaseSlug: faseSlug,
+                      fromFaseNome: fase.nome,
+                      fromFaseOrdem: fase.ordem,
                       origem: card.origem === 'legado' ? 'legado' : 'nativo',
                       kanbanId: card.kanban_id ?? kanbanId,
                       created_at: card.created_at,
@@ -506,7 +558,6 @@ export function KanbanColumn({
                       sla_iniciado_em: card.sla_iniciado_em ?? null,
                       alvara_url: card.alvara_url ?? null,
                       docs_terreno_url: card.docs_terreno_url ?? null,
-                      sla_justificativa: (card as { sla_justificativa?: string | null }).sla_justificativa ?? null,
                       fromFaseSlaDias: fase.sla_dias ?? null,
                       fromFaseSlaTipo: fase.sla_tipo ?? null,
                     } satisfies DragPayload),
@@ -696,5 +747,21 @@ export function KanbanColumn({
         ) : null}
       </div>
     </div>
+    <KanbanSlaJustificativaModal
+      open={slaModalPendente != null}
+      faseOrigemNome={slaModalPendente?.faseOrigemNome ?? ''}
+      faseDestinoNome={slaModalPendente?.faseDestinoNome ?? ''}
+      justificativaExistente={slaModalPendente?.justificativaExistente}
+      obrigatoria={slaModalPendente?.obrigatoria ?? true}
+      draft={slaJustificativaDraft}
+      onDraftChange={setSlaJustificativaDraft}
+      salvando={pending}
+      onCancel={() => {
+        setSlaModalPendente(null);
+        setSlaJustificativaDraft('');
+      }}
+      onConfirm={confirmarJustificativaSlaDrop}
+    />
+    </>
   );
 }
