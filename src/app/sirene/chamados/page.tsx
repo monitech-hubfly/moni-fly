@@ -450,7 +450,7 @@ export default async function SireneChamadosPage({
       const chunk = 300;
       for (let i = 0; i < cardIdsUniq.length; i += chunk) {
         const slice = cardIdsUniq.slice(i, i + chunk);
-        const { data: ccRows } = await admin.from('kanban_card_comentarios').select('card_id').in('card_id', slice);
+        const { data: ccRows } = await admin.from('kanban_card_comentarios').select('card_id').in('card_id', slice).is('sirene_chamado_id', null);
         for (const r of ccRows ?? []) {
           const cid = String((r as { card_id: string }).card_id);
           comentariosCountByCardId[cid] = (comentariosCountByCardId[cid] ?? 0) + 1;
@@ -458,10 +458,10 @@ export default async function SireneChamadosPage({
       }
     }
 
-    // Contagem de comentários para chamados Sirene diretos (card_id = null)
+    // Contagem de comentários por sirene_chamado_id (chamados com ou sem card_id)
     const sireneIdsParaContar = [...new Set(
       interacoes
-        .filter((i) => i.sirene_chamado_id != null && i.card_id == null)
+        .filter((i) => i.sirene_chamado_id != null)
         .map((i) => i.sirene_chamado_id as number)
     )];
     if (sireneIdsParaContar.length > 0) {
