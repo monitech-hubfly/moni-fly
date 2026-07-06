@@ -1039,8 +1039,7 @@ export function InteracoesLista({
   function toggleComentarios(row: InteracaoSireneRow) {
     const cid = row.card_id;
     const scid = row.sirene_chamado_id;
-    // Use sirene_chamado_id as fallback key for direct Sirene chamados
-    const commentKey = cid ?? (scid != null ? `sirene-${scid}` : null);
+    const commentKey = scid != null ? `sirene-${scid}` : cid;
     if (!commentKey) return;
     const willOpen = !commentsOpenByRow[row.id];
     setCommentsOpenByRow((p) => ({ ...p, [row.id]: willOpen }));
@@ -1177,7 +1176,7 @@ export function InteracoesLista({
                     criado_em: row.criado_em,
                   });
                   const ccid = row.card_id;
-                  const commentKey = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+                  const commentKey = row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : ccid;
                   const cnt = comentariosCount(commentKey);
                   const alvoK = topicosAlvoKey(row);
                   const subs = topicosPorAlvo[alvoK] ?? [];
@@ -1621,7 +1620,7 @@ export function InteracoesLista({
                   });
 
                   const ccid = row.card_id;
-                  const commentKey = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+                  const commentKey = row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : ccid;
                   const cnt = comentariosCount(commentKey);
                   const alvoK = topicosAlvoKey(row);
                   const subs = topicosPorAlvo[alvoK] ?? [];
@@ -1774,7 +1773,7 @@ export function InteracoesLista({
                               ) : null}
                               {/* comentários */}
                               {(() => {
-                                const commentKey = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+                                const commentKey = row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : ccid;
                                 if (!commentKey) return null;
                                 return (
                                   <button
@@ -1870,7 +1869,7 @@ export function InteracoesLista({
                         </div>
 
                       {commentsOpenByRow[row.id] && (() => {
-                        const commentKey = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+                        const commentKey = row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : ccid;
                         return commentKey ? (
                         <div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
                           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
