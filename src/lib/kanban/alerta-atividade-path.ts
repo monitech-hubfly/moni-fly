@@ -4,6 +4,7 @@ export function montarPathAlertaAtividade(params: {
   basePath?: string | null;
   interacaoId: string;
   topicoId?: string | number | null;
+  origemLegado?: boolean;
 }): string {
   const interacaoId = String(params.interacaoId ?? '').trim();
   const topicoId = params.topicoId != null ? String(params.topicoId).trim() : '';
@@ -12,6 +13,7 @@ export function montarPathAlertaAtividade(params: {
 
   const qs = new URLSearchParams();
   if (cardId) qs.set('card', cardId);
+  if (params.origemLegado) qs.set('origem', 'legado');
   qs.set('interacao', interacaoId);
   if (topicoId) qs.set('topico', topicoId);
 
