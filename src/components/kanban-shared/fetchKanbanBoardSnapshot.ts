@@ -15,7 +15,6 @@ import {
   coletarIdsProcessoDosCards,
   fetchEtapaPainelPorProcessoIds,
 } from '@/lib/kanban/reconciliar-fase-etapa-painel';
-import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
 import {
   montarTituloCardSync,
   escolherTituloExibicaoCard,

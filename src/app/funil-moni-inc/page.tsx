@@ -94,7 +94,9 @@ export default async function FunilMoniIncPage({
       motivo_arquivamento,
       concluido,
       concluido_em,
-      ordem_coluna
+      ordem_coluna,
+      proxima_atividade,
+      prazo_atividade
     `;
 
   let cardsQuery = supabase
