@@ -1,8 +1,9 @@
 # Pendências completas — moni-fly
 
-**Gerado em:** 2026-07-06  
-**Branch de referência:** `main` @ `1d1d9a2a` (após pull)  
-**Estado:** `funcionalidade-ingrid` está **541 commits atrás** de `main` e **0 commits à frente** — merge em `460f5b2d`; a branch Ingrid está obsoleta como base de trabalho.
+**Gerado em:** 2026-07-06 (atualizado)  
+**Branch de referência:** `main` @ `102121fe`  
+**Estado:** `funcionalidade-ingrid` obsoleta (~541 commits atrás de `main`); trabalhar em `main`.  
+**Status completo da sessão:** ver `docs/status-sessao-completo.md`.
 
 ---
 
@@ -33,7 +34,17 @@ Guia: `supabase/migrations/MANUAL_RUN_264_265.md` e `scripts/manual/README.md`.
 | **428** (×2) | Backfill Step One onboarding + `v_atividades_unificadas.responsaveis_ids` | Dois arquivos com prefixo `428_`; nenhum registra `schema_migrations` |
 | **429–431** | Sirene classificação, proxima_atividade genérica, reparo DEV `etapa_progresso` | **431** é reparo DEV; demais provavelmente pendentes em PROD |
 
-**Última migration numerada no repo:** `431_etapa_progresso_reparo_dev.sql`.
+**Última migration numerada no repo:** `435_moni_capital_cadastros.sql` (WIP local, aplicada no DEV).
+
+### Status DEV `schema_migrations` (consulta 2026-07-06)
+
+| Status | Versões |
+|--------|---------|
+| ✅ Aplicadas | 262, 263, 264, 265, 266, 394, **435** |
+| ⏳ Pendentes | **426, 427, 428, 429, 430, 431, 432, 433, 434** |
+
+> **434** está em `main` (`102121fe`) mas **não aplicada no DEV** — upload de anexos no checklist pode falhar.  
+> **435** aplicada no DEV; código WIP ainda não commitado.
 
 ### Gap DEV ↔ PROD (geral)
 
@@ -64,6 +75,10 @@ Isso complica `db push` e paridade DEV/PROD.
 | **Build local (`_build-log.txt`)** | ✅ Compila, lint/types OK, rotas geradas (HEAD atual de `main`) |
 | **`44fa33e` Motor 01** | Mergeado em `main`; fixes posteriores: `cf08b5f9`, `b41a6549`, `f0a81dc1` |
 | **`b90c9111` bastão removal** | ✅ Em `main` — remove bastão `m1_cto_cliente` → Jurídico |
+| **`102121fe` migration 434** | ✅ Em `main` — RLS upload checklist; **DEV pendente** |
+| **`85726599` rename migrations** | ✅ Renomeia 425b→432, 428b→433 |
+| **`262b31b5` sort próxima atividade** | ✅ Ordenação board por prioridade |
+| **`5e45cc2a` menu Motor 01** | ✅ Após Funil Acoplamento |
 | **`41798a8` middleware** | ✅ Em `main` — `hasSupabaseAuthCookie`, rotas públicas sem cookie não chamam Supabase |
 | **`0bf10c8` / `b2d094c7`** | ❌ Não encontrados como commits git (provavelmente IDs Vercel) — status Vercel não verificável daqui |
 | **Vercel PROD build** | Não verificado; local passa após fixes de ProximaAtividadeDot |
@@ -177,6 +192,7 @@ funcionalidade-ingrid ───► 2889556a (parou no merge)
 |-----|--------|
 | `docs/inventario-kanban-funil-completo.md` | ✅ Criado (`4dd431e5`) — **falta Motor 01** na tabela de funis |
 | `docs/pendencias-nao-feitas.md` | ✅ Este documento |
+| `docs/status-sessao-completo.md` | ✅ Status consolidado da sessão |
 | `docs/import-checklist-legal-google-forms.md` | ✅ Existe; import não implementado |
 | `docs/O_QUE_FALTA_FAZER.md` | ✅ Integrações externas pendentes |
 | `docs/SIRENE_PROXIMOS_PASSOS.md` | ✅ Lista extensa de pendências Sirene |
@@ -196,9 +212,11 @@ funcionalidade-ingrid ───► 2889556a (parou no merge)
 
 ## Resumo executivo (prioridade)
 
-1. **PROD migrations** — 264, reparo franqueado (origem + processo), 263 opcional, depois 394 Motor 01 e fila 426–430 quando autorizado.
-2. **Motor 01** — código em `main`; falta PROD, instruções, checklists, funis futuros (Waysers/Crédito/Projeto Local), doc inventário.
-3. **Checklist Legal import** — stub; migration 235 em PROD incerta.
-4. **Branch** — usar `main`; `funcionalidade-ingrid` obsoleta.
-5. **Build** — local OK; confirmar Vercel manualmente.
-6. **Doc** — atualizar inventário com Motor 01.
+1. **DEV migrations** — aplicar fila **426→434** (código já em `main`; DEV tem 435 mas não a fila).
+2. **PROD migrations** — 264 reparo franqueado (origem + processo), 263 opcional, depois 394 Motor 01 e fila 426–435 quando autorizado.
+3. **Cadastros Moní Capital (435)** — WIP local; migration aplicada no DEV; commitar código + PROD pendente.
+4. **Motor 01** — código em `main`; falta PROD, instruções, checklists, funis futuros, doc inventário.
+5. **Checklist Legal import** — stub; migration 235 em PROD incerta.
+6. **Branch** — usar `main`; `funcionalidade-ingrid` obsoleta.
+7. **Build** — local OK; confirmar Vercel manualmente.
+8. **Doc** — atualizar inventário com Motor 01.
