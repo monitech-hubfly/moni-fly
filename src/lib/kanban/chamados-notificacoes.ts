@@ -64,7 +64,7 @@ export async function notificarAlertasKanbanAtividade(params: NotificarParams): 
 export async function buscarMetaNotificacaoChamado(
   admin: ReturnType<typeof createAdminClient>,
   interacaoId: string,
-): Promise<{ titulo: string; cardId: string | null; basePath: string; interacaoId: string } | null> {
+): Promise<{ titulo: string; cardId: string | null; basePath: string; interacaoId: string; origemLegado: boolean } | null> {
   const { data: row } = await admin
     .from('kanban_atividades')
     .select('titulo, card_id, origem')
@@ -77,7 +77,7 @@ export async function buscarMetaNotificacaoChamado(
   if (cardId) {
     const meta = await buscarMetaCardParaNotificacao(admin, cardId, origem);
     if (meta) {
-      return { titulo: meta.titulo, cardId, basePath: meta.basePath, interacaoId };
+      return { titulo: meta.titulo, cardId, basePath: meta.basePath, interacaoId, origemLegado: meta.origemLegado };
     }
   }
   return {
@@ -85,6 +85,7 @@ export async function buscarMetaNotificacaoChamado(
     cardId: null,
     basePath: `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`,
     interacaoId,
+    origemLegado: false,
   };
 }
 
@@ -92,7 +93,7 @@ export async function buscarMetaCardParaNotificacao(
   admin: ReturnType<typeof createAdminClient>,
   cardId: string,
   origem: 'nativo' | 'legado',
-): Promise<{ titulo: string; basePath: string } | null> {
+): Promise<{ titulo: string; basePath: string; origemLegado: boolean } | null> {
   if (origem === 'legado') {
     const { data: v } = await admin
       .from('v_processo_como_kanban_cards')
@@ -106,6 +107,7 @@ export async function buscarMetaCardParaNotificacao(
     return {
       titulo: String((v as { titulo?: string | null }).titulo ?? 'Card'),
       basePath: rotaPorNomeKanban(nome),
+      origemLegado: true,
     };
   }
   const { data: card } = await admin
@@ -120,6 +122,7 @@ export async function buscarMetaCardParaNotificacao(
   return {
     titulo: String((card as { titulo?: string | null }).titulo ?? 'Card'),
     basePath: rotaPorNomeKanban(nome),
+    origemLegado: false,
   };
 }
 

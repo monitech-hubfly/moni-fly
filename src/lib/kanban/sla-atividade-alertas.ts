@@ -137,6 +137,7 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
         basePath: meta.basePath,
         interacaoId,
         topicoId: row.id,
+        origemLegado: meta.origemLegado ?? false,
       });
       const tipo: AlertaKanbanAtividadeTipo =
         sla.variante === 'atrasado' ? 'sla_atividade_atrasado' : 'sla_atividade_atencao';
@@ -187,6 +188,7 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
       cardId: meta.cardId,
       basePath: meta.basePath,
       interacaoId,
+      origemLegado: meta.origemLegado ?? false,
     });
     const tipo: AlertaKanbanAtividadeTipo =
       sla.variante === 'atrasado' ? 'sla_atividade_atrasado' : 'sla_atividade_atencao';
