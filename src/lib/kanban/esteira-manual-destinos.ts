@@ -58,6 +58,12 @@ const PORTFOLIO_DESTINOS: DestinoEsteiraManualKey[] = [
   'projeto_legal',
 ];
 
+const MOTOR01_DESTINOS: DestinoEsteiraManualKey[] = [
+  'juridico',
+  'projeto_legal',
+  'credito_obra',
+];
+
 const KANBANS_INTERNOS_SET = new Set<string>(KANBANS_INTERNOS as readonly string[]);
 
 /** Funis com destinos de esteira manual do Portfólio (sem Acoplamento — ver painel de vínculos). */
@@ -74,7 +80,9 @@ export function destinosEsteiraManualParaKanban(
   kanbanId: string | null | undefined,
 ): DestinoEsteiraManualKey[] {
   const id = String(kanbanId ?? '').trim();
-  if (!id || KANBANS_INTERNOS_SET.has(id)) return [];
+  if (!id) return [];
+  if (id === KANBAN_IDS.MOTOR01) return MOTOR01_DESTINOS;
+  if (KANBANS_INTERNOS_SET.has(id)) return [];
   if ((KANBANS_ESTEIRA_MANUAL_COMPLETA as readonly string[]).includes(id)) return PORTFOLIO_DESTINOS;
   if ((KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id)) {
     return ['juridico', 'projeto_legal', 'credito_obra'];

@@ -25,6 +25,7 @@ const KANBAN_NOME_DB_PARA_APP: Record<string, { basePath: string; cardQueryParam
   'Funil Crédito': { basePath: '/funil-credito-obra', cardQueryParam: 'kanbanCard' },
   /** Alias de exibição usado na UI — DB permanece `Funil Operações`. */
   'Funil Pré Obra e Obra': { basePath: '/operacoes', cardQueryParam: 'card' },
+  'Funil Motor 01': { basePath: '/funil-motor01', cardQueryParam: 'card' },
 };
 
 /** Bases de rota de todos os funis conhecidos (invalidação de cache após mutação). */

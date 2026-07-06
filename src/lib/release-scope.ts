@@ -45,6 +45,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/dashboard',
   '/operacoes',
   '/funil-stepone',
+  '/funil-motor01',
   '/loteadores',
   '/funil-moni-inc',
   '/painel-contabilidade',
