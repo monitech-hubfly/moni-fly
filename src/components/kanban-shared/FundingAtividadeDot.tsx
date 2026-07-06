@@ -2,7 +2,7 @@
 
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { salvarDadosFunding } from '@/lib/actions/card-actions';
+import { salvarProximaAtividade } from '@/lib/actions/card-actions';
 
 type Props = {
   cardId: string;
@@ -106,10 +106,10 @@ export function FundingAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
   function handleSalvar() {
     setErro(null);
     startTransition(async () => {
-      const res = await salvarDadosFunding({
+      const res = await salvarProximaAtividade({
         cardId,
-        funding_proxima_atividade: concluida ? null : novaAtividade.trim() || null,
-        funding_prazo_atividade: concluida ? null : novoPrazo || null,
+        proxima_atividade: concluida ? null : novaAtividade.trim() || null,
+        prazo_atividade: concluida ? null : novoPrazo || null,
         basePath,
       });
       if (!res.ok) { setErro(res.error); return; }
