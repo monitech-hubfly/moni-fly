@@ -1036,10 +1036,10 @@ export async function fetchKanbanBoardSnapshot(
         (cMerged as { funding_localizacao?: string | null }).funding_localizacao ?? null,
       funding_descritivo:
         (cMerged as { funding_descritivo?: string | null }).funding_descritivo ?? null,
-      funding_proxima_atividade:
-        (cMerged as { funding_proxima_atividade?: string | null }).funding_proxima_atividade ?? null,
-      funding_prazo_atividade: dataIsoParaInput(
-        (cMerged as { funding_prazo_atividade?: string | null }).funding_prazo_atividade,
+      proxima_atividade:
+        (cMerged as { proxima_atividade?: string | null }).proxima_atividade ?? null,
+      prazo_atividade: dataIsoParaInput(
+        (cMerged as { prazo_atividade?: string | null }).prazo_atividade,
       ),
     };
   };

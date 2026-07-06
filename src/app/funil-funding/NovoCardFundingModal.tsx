@@ -84,8 +84,8 @@ export function NovoCardFundingModal({
         funding_tipo: tipo,
         funding_localizacao: localizacao,
         funding_descritivo: draft.funding_descritivo.trim() || undefined,
-        funding_proxima_atividade: draft.funding_proxima_atividade.trim() || undefined,
-        funding_prazo_atividade: draft.funding_prazo_atividade.trim() || undefined,
+        proxima_atividade: draft.proxima_atividade.trim() || undefined,
+        prazo_atividade: draft.prazo_atividade.trim() || undefined,
       });
       if (!res.ok) {
         setErro(res.error);

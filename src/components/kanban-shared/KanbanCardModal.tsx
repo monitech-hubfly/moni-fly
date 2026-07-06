@@ -60,6 +60,7 @@ import {
   salvarDadosPreObra,
   salvarDadosPreObraOperacoes,
   salvarDadosFunding,
+  salvarProximaAtividade,
   salvarFranqueadoCardVinculado,
   salvarInstrucoesFase,
   obterInfoSyncGrupoCard,
@@ -382,8 +383,8 @@ type Card = {
   funding_tipo?: 'Investidor' | 'Broker' | null;
   funding_localizacao?: string | null;
   funding_descritivo?: string | null;
-  funding_proxima_atividade?: string | null;
-  funding_prazo_atividade?: string | null;
+  proxima_atividade?: string | null;
+  prazo_atividade?: string | null;
   portfolio_vinculo_rotulo?: string | null;
   tem_filho_juridico?: boolean;
   tem_filho_acoplamento?: boolean;
@@ -1111,8 +1112,8 @@ export function KanbanCardModal({
         funding_tipo?: 'Investidor' | 'Broker' | null;
         funding_localizacao?: string | null;
         funding_descritivo?: string | null;
-        funding_proxima_atividade?: string | null;
-        funding_prazo_atividade?: string | null;
+        proxima_atividade?: string | null;
+        prazo_atividade?: string | null;
       };
 
       let loaded: LoadedShape | null = null;
@@ -1201,11 +1202,11 @@ export function KanbanCardModal({
         const cardSelectConfirmacao =
           'opcao_assinada_em, contrato_assinado_em, obra_iniciada_em, obra_finalizada_em';
         const cardSelectCore =
-          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, ${cardSelectConfirmacao}`;
+          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
         const cardSelectPreObra =
           'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra';
         const cardSelectFunding =
-          'funding_tipo, funding_localizacao, funding_descritivo, funding_proxima_atividade, funding_prazo_atividade';
+          'funding_tipo, funding_localizacao, funding_descritivo';
         const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}`;
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at, sla_justificativa, sla_justificativa_em`;
         let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).single();
@@ -1321,12 +1322,10 @@ export function KanbanCardModal({
             (cardData as { funding_localizacao?: string | null }).funding_localizacao ?? null,
           funding_descritivo:
             (cardData as { funding_descritivo?: string | null }).funding_descritivo ?? null,
-          funding_proxima_atividade:
-            (cardData as { funding_proxima_atividade?: string | null }).funding_proxima_atividade ??
-            null,
-          funding_prazo_atividade:
-            (cardData as { funding_prazo_atividade?: string | null }).funding_prazo_atividade ??
-            null,
+          proxima_atividade:
+            (cardData as { proxima_atividade?: string | null }).proxima_atividade ?? null,
+          prazo_atividade:
+            (cardData as { prazo_atividade?: string | null }).prazo_atividade ?? null,
         };
         nativeRedeFranqueadoId =
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
@@ -3028,18 +3027,26 @@ export function KanbanCardModal({
     if (!card?.id) return;
     setSalvandoFunding(true);
     try {
-      const res = await salvarDadosFunding({
+      const resFunding = await salvarDadosFunding({
         cardId: card.id,
         funding_nome: fundingDraft.funding_nome,
         funding_tipo: fundingDraft.funding_tipo,
         funding_localizacao: fundingDraft.funding_localizacao,
         funding_descritivo: fundingDraft.funding_descritivo,
-        funding_proxima_atividade: fundingDraft.funding_proxima_atividade,
-        funding_prazo_atividade: fundingDraft.funding_prazo_atividade,
         basePath,
       });
-      if (!res.ok) {
-        alert(res.error);
+      if (!resFunding.ok) {
+        alert(resFunding.error);
+        return;
+      }
+      const resProxima = await salvarProximaAtividade({
+        cardId: card.id,
+        proxima_atividade: fundingDraft.proxima_atividade.trim() || null,
+        prazo_atividade: fundingDraft.prazo_atividade.trim() || null,
+        basePath,
+      });
+      if (!resProxima.ok) {
+        alert(resProxima.error);
         return;
       }
       await loadCard({ silencioso: true });

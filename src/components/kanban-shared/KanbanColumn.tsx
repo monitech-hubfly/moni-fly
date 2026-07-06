@@ -33,7 +33,7 @@ import {
   faseLoteadoresExigeJustificativaSla,
 } from '@/lib/kanban/loteadores-sla-justificativa';
 import { fundingTipoBadgeClass } from '@/lib/kanban/funding-card-fields';
-import { FundingAtividadeDot } from './FundingAtividadeDot';
+import { ProximaAtividadeDot } from './ProximaAtividadeDot';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanColumnProps = {
@@ -670,12 +670,12 @@ export function KanbanColumn({
                     />
                   ) : null}
                 </button>
-                {isFunding && !arquivado && !concluido ? (
+                {!arquivado && !concluido ? (
                   <div className="absolute bottom-2 right-2 z-10">
-                    <FundingAtividadeDot
+                    <ProximaAtividadeDot
                       cardId={card.id}
-                      proximaAtividade={card.funding_proxima_atividade ?? null}
-                      prazoAtividade={card.funding_prazo_atividade ?? null}
+                      proximaAtividade={card.proxima_atividade ?? null}
+                      prazoAtividade={card.prazo_atividade ?? null}
                       basePath={basePath}
                     />
                   </div>

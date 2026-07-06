@@ -57,11 +57,11 @@ export function KanbanCardModalDadosFunding({
           </div>
           <div>
             <div className="text-[11px] font-medium text-stone-500">Próxima atividade</div>
-            <div className="text-xs text-stone-800">{displayOrDash(draft.funding_proxima_atividade)}</div>
+            <div className="text-xs text-stone-800">{displayOrDash(draft.proxima_atividade)}</div>
           </div>
           <div>
             <div className="text-[11px] font-medium text-stone-500">Prazo</div>
-            <div className="text-xs text-stone-800">{fmtPrazoFunding(draft.funding_prazo_atividade)}</div>
+            <div className="text-xs text-stone-800">{fmtPrazoFunding(draft.prazo_atividade)}</div>
           </div>
         </div>
         {podeEditar ? (

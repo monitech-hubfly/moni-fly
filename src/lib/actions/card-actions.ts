@@ -1852,8 +1852,8 @@ export type CriarCardFundingInput = {
   funding_tipo: FundingTipo;
   funding_localizacao: string;
   funding_descritivo?: string;
-  funding_proxima_atividade?: string;
-  funding_prazo_atividade?: string;
+  proxima_atividade?: string;
+  prazo_atividade?: string;
 };
 
 /** Card nativo no kanban (`franqueado_id` = utilizador autenticado). */
@@ -2026,8 +2026,8 @@ export async function criarCardFunding(input: CriarCardFundingInput): Promise<Ac
     funding_tipo: tipo,
     funding_localizacao: localizacao,
     funding_descritivo: String(input.funding_descritivo ?? '').trim() || null,
-    funding_proxima_atividade: String(input.funding_proxima_atividade ?? '').trim() || null,
-    funding_prazo_atividade: timestampCampoCalendarioIso(input.funding_prazo_atividade),
+    proxima_atividade: String(input.proxima_atividade ?? '').trim() || null,
+    prazo_atividade: timestampCampoCalendarioIso(input.prazo_atividade),
   };
 
   const { data: cardRow, error } = await supabase
@@ -4110,10 +4110,45 @@ export type SalvarDadosFundingInput = {
   funding_tipo?: FundingTipo | '' | null;
   funding_localizacao?: string | null;
   funding_descritivo?: string | null;
-  funding_proxima_atividade?: string | null;
-  funding_prazo_atividade?: string | null;
   basePath?: string;
 };
+
+export type SalvarProximaAtividadeInput = {
+  cardId: string;
+  proxima_atividade?: string | null;
+  prazo_atividade?: string | null;
+  basePath?: string;
+};
+
+/** Salva próxima atividade e prazo em `kanban_cards` (todos os funis). */
+export async function salvarProximaAtividade(input: SalvarProximaAtividadeInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (input.proxima_atividade !== undefined) {
+    const v = String(input.proxima_atividade ?? '').trim();
+    update.proxima_atividade = v === '' ? null : v;
+  }
+  if (input.prazo_atividade !== undefined) {
+    update.prazo_atividade = timestampCampoCalendarioIso(input.prazo_atividade);
+  }
+
+  const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
 
 /** Salva campos específicos do Funil Funding em `kanban_cards`. */
 export async function salvarDadosFunding(input: SalvarDadosFundingInput): Promise<ActionResult> {
@@ -4157,13 +4192,6 @@ export async function salvarDadosFunding(input: SalvarDadosFundingInput): Promis
   if (input.funding_descritivo !== undefined) {
     const v = String(input.funding_descritivo ?? '').trim();
     update.funding_descritivo = v === '' ? null : v;
-  }
-  if (input.funding_proxima_atividade !== undefined) {
-    const v = String(input.funding_proxima_atividade ?? '').trim();
-    update.funding_proxima_atividade = v === '' ? null : v;
-  }
-  if (input.funding_prazo_atividade !== undefined) {
-    update.funding_prazo_atividade = timestampCampoCalendarioIso(input.funding_prazo_atividade);
   }
 
   const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);

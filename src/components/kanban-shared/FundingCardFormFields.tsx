@@ -94,10 +94,10 @@ export function FundingCardFormFields({
         </span>
         <input
           type="text"
-          value={draft.funding_proxima_atividade}
+          value={draft.proxima_atividade}
           disabled={disabled}
           placeholder="Ex: Enviar apresentação do fundo"
-          onChange={(e) => onChange({ funding_proxima_atividade: e.target.value })}
+          onChange={(e) => onChange({ proxima_atividade: e.target.value })}
           className={inputCls}
         />
       </label>
@@ -108,9 +108,9 @@ export function FundingCardFormFields({
         </span>
         <input
           type="date"
-          value={draft.funding_prazo_atividade}
+          value={draft.prazo_atividade}
           disabled={disabled}
-          onChange={(e) => onChange({ funding_prazo_atividade: e.target.value })}
+          onChange={(e) => onChange({ prazo_atividade: e.target.value })}
           className={inputCls}
         />
       </label>
