@@ -961,9 +961,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     [FASE_SLUGS.LOTEADOR_JURIDICO]: [
       { kanbanDestinoId: KANBAN_IDS.JURIDICO, faseDestinoSlug: 'juridico_recebimento' },
     ],
-    [FASE_SLUGS.M1_CTO_CLIENTE]: [
-      { kanbanDestinoId: KANBAN_IDS.JURIDICO, faseDestinoSlug: 'juridico_recebimento' },
-    ],
     [FASE_SLUGS.M1_PAGAMENTO_ENTRADA]: [
       {
         kanbanDestinoId: KANBAN_IDS.PROJETO_LEGAL,
