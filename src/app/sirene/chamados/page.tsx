@@ -193,12 +193,13 @@ export default async function SireneChamadosPage({
 
     // Busca responsaveis_ids dos tópicos de chamados Sirene para o filtro "Ver minhas"
     const topicosResponsaveisByChamadoId = new Map<number, string[]>();
+    const meusTopicosConcluidosByChamadoId = new Map<number, boolean>();
     if (sireneIds.length > 0 || kaById.size > 0) {
       // tópicos linkados por chamado_id (criados via Sirene direta normal)
       const byChamadoQuery = sireneIds.length > 0
         ? await admin
             .from('sirene_topicos')
-            .select('chamado_id, interacao_id, responsavel_id, responsaveis_ids')
+            .select('chamado_id, interacao_id, responsavel_id, responsaveis_ids, status')
             .in('chamado_id', sireneIds)
             .eq('arquivado', false)
         : { data: [] };
@@ -208,7 +209,7 @@ export default async function SireneChamadosPage({
       const byInteracaoQuery = kaIds.length > 0
         ? await admin
             .from('sirene_topicos')
-            .select('chamado_id, interacao_id, responsavel_id, responsaveis_ids')
+            .select('chamado_id, interacao_id, responsavel_id, responsaveis_ids, status')
             .in('interacao_id', kaIds)
             .eq('arquivado', false)
         : { data: [] };
@@ -221,7 +222,7 @@ export default async function SireneChamadosPage({
 
       const allTopicos = [...(byChamadoQuery.data ?? []), ...(byInteracaoQuery.data ?? [])];
       for (const t of allTopicos) {
-        const tRaw = t as { chamado_id?: number | null; interacao_id?: string | null; responsavel_id?: string | null; responsaveis_ids?: unknown };
+        const tRaw = t as { chamado_id?: number | null; interacao_id?: string | null; responsavel_id?: string | null; responsaveis_ids?: unknown; status?: string | null };
         // resolve o chamado_id: direto ou via interacao_id → ka → sirene_chamado_id
         let cid = tRaw.chamado_id != null && Number.isFinite(Number(tRaw.chamado_id))
           ? Number(tRaw.chamado_id)
@@ -236,6 +237,30 @@ export default async function SireneChamadosPage({
         const rid = tRaw.responsavel_id;
         const merged = [...new Set([...existing, ...ri, ...(rid ? [rid] : [])])];
         topicosResponsaveisByChamadoId.set(cid, merged);
+      }
+
+      // Passo 2 — computa se TODOS os tópicos do usuário logado estão concluídos por chamado
+      if (currentUserId) {
+        for (const t of allTopicos) {
+          const tRaw = t as { chamado_id?: number | null; interacao_id?: string | null; responsavel_id?: string | null; responsaveis_ids?: unknown; status?: string | null };
+          let cid = tRaw.chamado_id != null && Number.isFinite(Number(tRaw.chamado_id))
+            ? Number(tRaw.chamado_id)
+            : null;
+          if (cid == null && tRaw.interacao_id) {
+            cid = chamadoIdByKaId.get(tRaw.interacao_id) ?? null;
+          }
+          if (cid == null) continue;
+          const rawRi = tRaw.responsaveis_ids;
+          const ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
+          const rid = tRaw.responsavel_id ?? null;
+          const ehMeu = ri.includes(currentUserId) || rid === currentUserId;
+          if (!ehMeu) continue;
+          const status = String(tRaw.status ?? '').toLowerCase();
+          const concluido = status === 'concluido' || status === 'aprovado';
+          const prev = meusTopicosConcluidosByChamadoId.get(cid);
+          // Inicia com o valor do primeiro tópico do usuário; AND para os seguintes
+          meusTopicosConcluidosByChamadoId.set(cid, prev === undefined ? concluido : prev && concluido);
+        }
       }
     }
 
@@ -337,6 +362,11 @@ export default async function SireneChamadosPage({
           te_trata: ka?.origem === 'sirene' && scMeta ? scMeta.te_trata : null,
           sirene_arquivado: ka?.origem === 'sirene' && scMeta ? scMeta.arquivado : false,
           criado_por: ka?.criado_por ?? null,
+          meus_topicos_todos_concluidos: (() => {
+            const sid = ka?.sirene_chamado_id ?? null;
+            if (ka?.origem !== 'sirene' || sid == null) return undefined;
+            return meusTopicosConcluidosByChamadoId.get(sid);
+          })(),
           processo_id: ka?.origem === 'sirene' && scMeta ? scMeta.processo_id : null,
           processo_titulo: ka?.origem === 'sirene' && scMeta ? scMeta.processo_titulo : null,
           processo_kanban_nome: ka?.origem === 'sirene' && scMeta ? scMeta.processo_kanban_nome : null,

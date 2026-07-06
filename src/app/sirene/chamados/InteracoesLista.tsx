@@ -100,6 +100,7 @@ export type InteracaoSireneRow = {
   sirene_arquivado?: boolean;
   criado_por?: string | null;
   sirene_prioridade?: string | null;
+  meus_topicos_todos_concluidos?: boolean;
   /** Vínculo com card legado (processo_step_one) — mutuamente exclusivo com card_id. */
   processo_id?: string | null;
   processo_titulo?: string | null;
@@ -221,6 +222,7 @@ function textoResponsavelPainel(
 }
 
 function subGrupoFluxo(row: InteracaoSireneRow): 'a_fazer' | 'em_andamento' | 'aguardando' | 'concluido' {
+  if (row.meus_topicos_todos_concluidos === true) return 'concluido';
   const s = norm(row.atividade_status);
   if (s === 'concluida' || s === 'concluída' || s === 'cancelada') return 'concluido';
   if (s === 'em_andamento') return 'em_andamento';
