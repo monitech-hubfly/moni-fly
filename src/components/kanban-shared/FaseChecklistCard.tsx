@@ -990,7 +990,7 @@ function ItemField({
     if (error) {
       setUploadErro(
         error.message.includes('row-level security') || error.message.includes('violates')
-          ? 'Sem permissão para enviar o arquivo. Peça ao admin aplicar a migration 287/433 no Supabase DEV.'
+          ? 'Sem permissão para enviar o arquivo. Peça ao admin aplicar a migration 287/434 no Supabase DEV.'
           : error.message,
       );
       return;
@@ -1009,7 +1009,7 @@ function ItemField({
     if (error) {
       setUploadErro(
         error.message.includes('row-level security') || error.message.includes('violates')
-          ? 'Sem permissão para enviar o arquivo. Peça ao admin aplicar a migration 287/433 no Supabase DEV.'
+          ? 'Sem permissão para enviar o arquivo. Peça ao admin aplicar a migration 287/434 no Supabase DEV.'
           : error.message,
       );
       return;
