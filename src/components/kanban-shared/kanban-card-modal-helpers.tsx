@@ -398,6 +398,7 @@ export type SecaoEsquerdaId =
   | 'cronologia'
   | 'franqueado'
   | 'loteador'
+  | 'moniCapital'
   | 'condominio'
   | 'novoNegocio'
   | 'dadosEmpresas'

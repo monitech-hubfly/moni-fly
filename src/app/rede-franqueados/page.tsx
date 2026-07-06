@@ -9,6 +9,7 @@ import {
 
 import { fetchFranqueadoEmpresasRows } from '@/lib/franqueado-empresas';
 import { fetchFranqueadoSpeRows } from '@/lib/franqueado-spe';
+import { fetchMoniCapitalCadastrosRows } from '@/lib/moni-capital-cadastros';
 
 import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
 
@@ -76,16 +77,18 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const [rows, loteadoresRows, empresasResult, spesResult, condominiosRows] = await Promise.all([
+  const [rows, loteadoresRows, empresasResult, spesResult, moniCapitalResult, condominiosRows] = await Promise.all([
     fetchRedeFranqueadosRows(supabase),
     showStaffTabs ? fetchRedeLoteadoresRows(supabase) : Promise.resolve(null),
     showStaffTabs ? fetchFranqueadoEmpresasRows(supabase) : Promise.resolve(null),
     showStaffTabs ? fetchFranqueadoSpeRows(supabase) : Promise.resolve(null),
+    showStaffTabs ? fetchMoniCapitalCadastrosRows(supabase) : Promise.resolve(null),
     showCondominiosTab ? fetchCondominiosRows(supabase) : Promise.resolve(null),
   ]);
 
   const empresasLoadError = showStaffTabs && empresasResult === null;
   const spesLoadError = showStaffTabs && spesResult === null;
+  const moniCapitalLoadError = showStaffTabs && moniCapitalResult === null;
 
 
 
@@ -130,6 +133,9 @@ export default async function RedeFranqueadosPage() {
             empresasLoadError={empresasLoadError}
 
             spesLoadError={spesLoadError}
+
+            moniCapitalRows={moniCapitalResult}
+            moniCapitalLoadError={moniCapitalLoadError}
 
             condominiosRows={condominiosRows}
 

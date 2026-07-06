@@ -15,6 +15,7 @@ import {
   REDE_LOTEADOR_STATUS_LABEL,
   type RedeLoteadorRow,
 } from '@/lib/rede-loteadores';
+import type { MoniCapitalCadastroRow } from '@/lib/moni-capital-cadastros';
 
 export const REDE_LOTEADOR_CSV_HEADERS = [
   'id',
@@ -105,6 +106,29 @@ export function csvCondominios(rows: CondominioRow[]): string {
     recuo_lateral_m: r.recuo_lateral_m != null ? String(r.recuo_lateral_m) : '',
   }));
   return linhasParaCsv(CONDOMINIO_CSV_HEADERS, data);
+}
+
+export const MONI_CAPITAL_CADASTROS_CSV_HEADERS = [
+  'n_cadastro',
+  'broker_nome',
+  'broker_email',
+  'broker_telefone',
+  'investidor_nome',
+  'investidor_email',
+  'investidor_telefone',
+] as const;
+
+export function csvMoniCapitalCadastros(rows: MoniCapitalCadastroRow[]): string {
+  const data = rows.map((r) => ({
+    n_cadastro: r.n_cadastro ?? '',
+    broker_nome: r.broker_nome ?? '',
+    broker_email: r.broker_email ?? '',
+    broker_telefone: r.broker_telefone ?? '',
+    investidor_nome: r.investidor_nome ?? '',
+    investidor_email: r.investidor_email ?? '',
+    investidor_telefone: r.investidor_telefone ?? '',
+  }));
+  return linhasParaCsv(MONI_CAPITAL_CADASTROS_CSV_HEADERS, data);
 }
 
 export function csvCadastrosEmpresas(linhas: CadastroEmpresasLinhaComSpe[]): string {

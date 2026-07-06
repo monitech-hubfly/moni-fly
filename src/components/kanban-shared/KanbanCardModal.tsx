@@ -315,6 +315,7 @@ import {
   isValorResponsavelDaFaseLista,
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
+import { DadosMoniCapitalPersistentPanel } from './DadosMoniCapitalPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
 import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas } from '@/lib/kanban/calculadora-fases';
 import {
@@ -585,6 +586,7 @@ export function KanbanCardModal({
     cronologia: false,
     franqueado: false,
     loteador: false,
+    moniCapital: false,
     condominio: false,
     novoNegocio: false,
     dadosEmpresas: false,
@@ -6921,7 +6923,20 @@ export function KanbanCardModal({
                     }}
                   />,
                 )
-              : secaoHead(
+              : ehFunilFunding && !isLegado
+                ? secaoHead(
+                    'moniCapital',
+                    'Dados do Investidor/Broker',
+                    <DadosMoniCapitalPersistentPanel
+                      cardId={card.id}
+                      podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                      onSalvo={() => {
+                        void loadCard({ silencioso: true });
+                        router.refresh();
+                      }}
+                    />,
+                  )
+                : secaoHead(
               'franqueado',
               'Dados do Franqueado',
               <div className="space-y-2">

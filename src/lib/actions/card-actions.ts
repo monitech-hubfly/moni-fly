@@ -1854,6 +1854,17 @@ export type CriarCardFundingInput = {
   funding_descritivo?: string;
   proxima_atividade?: string;
   prazo_atividade?: string;
+  /** Vincular cadastro Moní Capital existente ao card criado. */
+  moni_capital_cadastro_id?: string;
+  /** Criar novo cadastro Moní Capital e vincular (ignorado se moni_capital_cadastro_id informado). */
+  criarCadastroMoniCapital?: {
+    broker_nome?: string | null;
+    broker_email?: string | null;
+    broker_telefone?: string | null;
+    investidor_nome?: string | null;
+    investidor_email?: string | null;
+    investidor_telefone?: string | null;
+  };
 };
 
 /** Card nativo no kanban (`franqueado_id` = utilizador autenticado). */
@@ -2042,6 +2053,17 @@ export async function criarCardFunding(input: CriarCardFundingInput): Promise<Ac
     await import('@/lib/kanban/responsavel-fase-checklist');
   await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, KANBAN_IDS.FUNDING, user.id);
   await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
+
+  const cadastroIdExistente = String(input.moni_capital_cadastro_id ?? '').trim();
+  if (cadastroIdExistente) {
+    const { vincularCadastroMoniCapitalAoCard } = await import('@/lib/moni-capital-cadastros-actions');
+    const link = await vincularCadastroMoniCapitalAoCard(cardId, cadastroIdExistente);
+    if (!link.ok) return link;
+  } else if (input.criarCadastroMoniCapital) {
+    const { criarEVincularCadastroMoniCapitalNoCard } = await import('@/lib/moni-capital-cadastros-actions');
+    const criar = await criarEVincularCadastroMoniCapitalNoCard(cardId, input.criarCadastroMoniCapital);
+    if (!criar.ok) return criar;
+  }
 
   const bp = String(input.basePath ?? '/funil-funding').trim() || '/funil-funding';
   revalidatePath(bp);
