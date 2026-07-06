@@ -1,4 +1,4 @@
--- 428: Backfill idempotente — card Onboarding no Funil Step One para rede_franqueados sem card.
+﻿-- 433: Backfill idempotente — card Onboarding no Funil Step One para rede_franqueados sem card.
 -- Leve: só INSERT onde NOT EXISTS; fase Onboarding (276) com fallback à 1ª fase ativa.
 
 DO $$
@@ -16,7 +16,7 @@ BEGIN
   LIMIT 1;
 
   IF v_kanban_id IS NULL THEN
-    RAISE NOTICE '428: kanban Funil Step One não encontrado; pulando.';
+    RAISE NOTICE '433: kanban Funil Step One não encontrado; pulando.';
     RETURN;
   END IF;
 
@@ -38,7 +38,7 @@ BEGIN
   END IF;
 
   IF v_fase_id IS NULL THEN
-    RAISE NOTICE '428: nenhuma fase ativa no Funil Step One; pulando.';
+    RAISE NOTICE '433: nenhuma fase ativa no Funil Step One; pulando.';
     RETURN;
   END IF;
 
@@ -124,6 +124,6 @@ BEGIN
     v_criados := v_criados + 1;
   END LOOP;
 
-  RAISE NOTICE '428: cards criados/reparados no Funil Step One (Onboarding): %', v_criados;
+  RAISE NOTICE '433: cards criados/reparados no Funil Step One (Onboarding): %', v_criados;
 END;
 $$;

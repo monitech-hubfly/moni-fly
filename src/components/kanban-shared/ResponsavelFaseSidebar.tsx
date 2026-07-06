@@ -122,7 +122,6 @@ export function ResponsavelFaseSidebar({
             item_id: iid,
             card_id: cardId,
             valor: resolvido,
-            arquivo_path: null,
           });
         }
       }
@@ -137,7 +136,6 @@ export function ResponsavelFaseSidebar({
             item_id: iid,
             card_id: cardId,
             valor: herdado,
-            arquivo_path: null,
           });
         }
       }
@@ -163,7 +161,6 @@ export function ResponsavelFaseSidebar({
       item_id: itemId,
       card_id: cardId,
       valor: uid || null,
-      arquivo_path: null,
     });
     setSalvando(false);
     if (res.ok) {

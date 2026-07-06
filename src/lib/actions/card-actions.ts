@@ -2400,7 +2400,9 @@ export async function salvarDadosNegocioKanban(input: {
       linkGbox: linkPlanilhaMapa ?? null,
       usuarioId: user.id,
     });
-    if (!sync.ok) return sync;
+    if (!sync.ok) {
+      console.warn('[negocio] sync Gbox → checklist planilha/mapa:', sync.error);
+    }
   }
 
   revalidatePath(input.basePath?.trim() || '/');
@@ -4936,12 +4938,28 @@ export async function upsertFaseChecklistResposta(input: {
     .eq('id', input.item_id)
     .maybeSingle();
 
+  const { data: existente } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('valor, arquivo_path')
+    .eq('card_id', input.card_id)
+    .eq('item_id', input.item_id)
+    .maybeSingle();
+  const ex = existente as { valor?: string | null; arquivo_path?: string | null } | null;
+  const nextValor =
+    input.valor !== undefined ? input.valor : ex?.valor != null ? String(ex.valor) : null;
+  const nextArquivo =
+    input.arquivo_path !== undefined
+      ? input.arquivo_path
+      : ex?.arquivo_path != null
+        ? String(ex.arquivo_path)
+        : null;
+
   const { error } = await supabase.from('kanban_fase_checklist_respostas').upsert(
     {
       item_id: input.item_id,
       card_id: input.card_id,
-      valor: input.valor ?? null,
-      arquivo_path: input.arquivo_path ?? null,
+      valor: nextValor,
+      arquivo_path: nextArquivo,
       preenchido_por: user.id,
       preenchido_em: new Date().toISOString(),
     },
@@ -4977,10 +4995,12 @@ export async function upsertFaseChecklistResposta(input: {
 
     const sync = await sincronizarPlanilhaMapaChecklistParaGbox({
       cardId: input.card_id,
-      valorChecklist: input.valor ?? null,
+      valorChecklist: nextValor,
       processoId,
     });
-    if (!sync.ok) return sync;
+    if (!sync.ok) {
+      console.warn('[checklist] sync planilha/mapa → Gbox:', sync.error);
+    }
   }
 
   return { ok: true };

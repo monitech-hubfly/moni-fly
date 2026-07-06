@@ -1,4 +1,4 @@
--- 425: Funil Loteadores — restaurar campos Comentários (R1) e Comentários finais (R2) no checklist.
+﻿-- 432: Funil Loteadores — restaurar campos Comentários (R1) e Comentários finais (R2) no checklist.
 
 DO $$
 DECLARE
@@ -16,7 +16,7 @@ BEGIN
   LIMIT 1;
 
   IF v_kanban_id IS NULL THEN
-    RAISE NOTICE '425: kanban Funil Loteadores não encontrado; pulando.';
+    RAISE NOTICE '432: kanban Funil Loteadores não encontrado; pulando.';
     RETURN;
   END IF;
 
@@ -59,7 +59,7 @@ BEGIN
       );
     END IF;
   ELSE
-    RAISE NOTICE '425: fase r1_conceito_moni_inc não encontrada; pulando R1.';
+    RAISE NOTICE '432: fase r1_conceito_moni_inc não encontrada; pulando R1.';
   END IF;
 
   -- R2 — Plano Teórico: restaurar Comentários finais (sem alterar adendos_observacoes)
@@ -101,7 +101,7 @@ BEGIN
       );
     END IF;
   ELSE
-    RAISE NOTICE '425: fase r2_plano_teorico_moni_inc não encontrada; pulando R2.';
+    RAISE NOTICE '432: fase r2_plano_teorico_moni_inc não encontrada; pulando R2.';
   END IF;
 END;
 $$;

@@ -101,7 +101,6 @@ export function ResponsavelDaFaseSidebar({ cardId, faseId, readOnly = false, onA
       item_id: itemId,
       card_id: cardId,
       valor: v || null,
-      arquivo_path: null,
     });
     onAlterado?.(faseId, v);
     setSalvando(false);

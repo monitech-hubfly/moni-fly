@@ -79,17 +79,28 @@ async function gravarPlanilhaMapaChecklist(
   valor: string | null,
   usuarioId?: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await db.from('kanban_fase_checklist_respostas').upsert(
-    {
-      item_id: itemId,
-      card_id: cardId,
-      valor,
-      arquivo_path: null,
-      preenchido_por: usuarioId ?? null,
-      preenchido_em: new Date().toISOString(),
-    },
-    { onConflict: 'item_id,card_id' },
-  );
+  const { data: existente } = await db
+    .from('kanban_fase_checklist_respostas')
+    .select('arquivo_path')
+    .eq('card_id', cardId)
+    .eq('item_id', itemId)
+    .maybeSingle();
+
+  const row: Record<string, unknown> = {
+    item_id: itemId,
+    card_id: cardId,
+    valor,
+    preenchido_por: usuarioId ?? null,
+    preenchido_em: new Date().toISOString(),
+  };
+  const arquivoAtual = (existente as { arquivo_path?: string | null } | null)?.arquivo_path;
+  if (arquivoAtual != null && String(arquivoAtual).trim() !== '') {
+    row.arquivo_path = arquivoAtual;
+  }
+
+  const { error } = await db.from('kanban_fase_checklist_respostas').upsert(row, {
+    onConflict: 'item_id,card_id',
+  });
 
   if (error) return { ok: false, error: error.message };
   return { ok: true };
