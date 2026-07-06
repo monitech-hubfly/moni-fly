@@ -46,9 +46,9 @@ const STEPS_SUBITENS: NavItem[] = [
 const NOVOS_NEGOCIOS_SUBITENS: NavItem[] = [
   { href: '/funil-stepone', label: 'Funil Step One' },
   { href: '/portfolio', label: 'Funil Portfolio' },
-  { href: '/funil-motor01', label: 'Motor 01' },
   { href: '/loteadores', label: 'Funil Loteadores' },
   { href: '/funil-acoplamento', label: 'Funil Acoplamento' },
+  { href: '/funil-motor01', label: 'Motor 01' },
 ];
 const NOVOS_NEGOCIOS_SUBITENS_FRANK: NavItem[] = [
   { href: '/funil-stepone', label: 'Funil Step One' },
