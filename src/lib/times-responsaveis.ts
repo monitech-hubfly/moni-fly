@@ -57,7 +57,7 @@ export const MONI_EMAIL_POR_NOME: Record<string, string> = {
   'Felipe Batista': 'felipe.batista@moni.casa',
   'Isabela Correa': 'isabela.correa@moni.casa',
   'Thais Kim': 'kim@moni.casa',
-  'Diogo Costa': 'diogo.costa@moni.casa',
+  'Diogo Chagas': 'diogo.chagas@moni.casa',
   'Paula Cruz': 'paula.cruz@moni.casa',
 };
 
@@ -270,7 +270,7 @@ export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
   Administrativo: ['Isabella Seabra'],
   Controladoria: ['Felipe Batista'],
   Jurídico: ['Isabela Correa'],
-  'Moní Capital': ['Thais Kim', 'Diogo Costa'],
+  'Moní Capital': ['Thais Kim', 'Diogo Chagas'],
   'Novos Franqueados': ['Paula Cruz'],
 };
 
