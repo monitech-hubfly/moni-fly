@@ -283,6 +283,7 @@ import {
   isSubAtividadeConcluida,
 } from '@/components/kanban-shared/SubInteracaoLista';
 import { KanbanPastelariaAtividadeSection } from '@/components/kanban-shared/KanbanPastelariaAtividadeSection';
+import { ComentarioConteudoHtml } from '@/components/kanban-shared/ComentarioConteudoHtml';
 import {
   enrichResponsaveisIdsComLegadoMoni,
   filtrarOpcoesResponsaveisPorModoHdm,
@@ -6226,7 +6227,10 @@ export function KanbanCardModal({
                               </div>
                             ) : (
                               <>
-                                <p style={{ color: 'var(--moni-text-primary)' }} dangerouslySetInnerHTML={{ __html: c.conteudo }} />
+                                <ComentarioConteudoHtml
+                                  conteudo={c.conteudo}
+                                  style={{ color: 'var(--moni-text-primary)' }}
+                                />
                                 {c.anexos && c.anexos.length > 0 ? (
                                   <ul className="mt-2 flex flex-col gap-1">
                                     {c.anexos.map((a) => (

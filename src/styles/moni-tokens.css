@@ -3089,6 +3089,18 @@
   opacity: 1;
 }
 
+/* Links em comentários de card kanban */
+.moni-comentario-link {
+  color: var(--moni-navy-400);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+.moni-comentario-link:hover {
+  color: var(--moni-navy-600);
+}
+
 /* Tabelas largas — scroll horizontal nativo + barra fixa na base da tela */
 .moni-tabela-scroll-wrap {
   width: 100%;
