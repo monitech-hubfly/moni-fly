@@ -107,6 +107,129 @@ export type CriarLinhaRedeECardResult =
 
 const MAX_POR_VEZ = 100;
 
+function normalizarCpfRede(val: string | null | undefined): string | null {
+  const digits = String(val ?? '').replace(/\D/g, '');
+  return digits.length >= 11 ? digits : null;
+}
+
+type ResolverRedeCriacaoResult =
+  | { action: 'criar' }
+  | { action: 'retomar'; redeId: string }
+  | { action: 'bloquear'; error: string };
+
+async function resolverRedeParaCriacao(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clean: Record<string, unknown>,
+): Promise<ResolverRedeCriacaoResult> {
+  const nf = clean.n_franquia != null ? normalizeNFranquiaCsv(String(clean.n_franquia)) : null;
+  const cpf = clean.cpf_frank != null ? normalizarCpfRede(String(clean.cpf_frank)) : null;
+
+  if (nf) {
+    const { data: porFk, error } = await supabase
+      .from('rede_franqueados')
+      .select('id, n_franquia, processo_id, created_at')
+      .ilike('n_franquia', nf);
+    if (error) return { action: 'bloquear', error: error.message };
+
+    const linhasFk = (porFk ?? []).filter(
+      (r) => normalizeNFranquiaCsv((r as { n_franquia?: string | null }).n_franquia)?.toLowerCase() === nf.toLowerCase(),
+    );
+    if (linhasFk.length > 0) {
+      const comProcesso = linhasFk.filter((r) => (r as { processo_id?: string | null }).processo_id);
+      if (comProcesso.length > 0) {
+        return {
+          action: 'bloquear',
+          error: `Já existe franqueado com o número ${nf}. Verifique a Rede de Franqueados.`,
+        };
+      }
+      const sorted = [...linhasFk].sort((a, b) => {
+        const ta = (a as { created_at?: string | null }).created_at
+          ? new Date((a as { created_at: string }).created_at).getTime()
+          : 0;
+        const tb = (b as { created_at?: string | null }).created_at
+          ? new Date((b as { created_at: string }).created_at).getTime()
+          : 0;
+        return ta - tb;
+      });
+      return { action: 'retomar', redeId: String((sorted[0] as { id: string }).id) };
+    }
+  }
+
+  if (cpf) {
+    const cpfFmt = String(clean.cpf_frank).trim();
+    const cpfMascarado =
+      cpf.length === 11
+        ? `${cpf.slice(0, 3)}.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-${cpf.slice(9)}`
+        : null;
+    const variantes = [...new Set([cpfFmt, cpf, cpfMascarado].filter(Boolean))];
+    const { data: porCpf, error } = await supabase
+      .from('rede_franqueados')
+      .select('id, cpf_frank, processo_id, created_at, n_franquia')
+      .in('cpf_frank', variantes);
+    if (error) return { action: 'bloquear', error: error.message };
+
+    const linhasCpf = (porCpf ?? []).filter(
+      (r) => normalizarCpfRede((r as { cpf_frank?: string | null }).cpf_frank) === cpf,
+    );
+    if (linhasCpf.length > 0) {
+      const comProcesso = linhasCpf.filter((r) => (r as { processo_id?: string | null }).processo_id);
+      if (comProcesso.length > 0) {
+        const rotulo =
+          nf ??
+          normalizeNFranquiaCsv((comProcesso[0] as { n_franquia?: string | null }).n_franquia) ??
+          'este CPF';
+        return {
+          action: 'bloquear',
+          error: `Já existe franqueado cadastrado com este CPF (${rotulo}).`,
+        };
+      }
+      const sorted = [...linhasCpf].sort((a, b) => {
+        const ta = (a as { created_at?: string | null }).created_at
+          ? new Date((a as { created_at: string }).created_at).getTime()
+          : 0;
+        const tb = (b as { created_at?: string | null }).created_at
+          ? new Date((b as { created_at: string }).created_at).getTime()
+          : 0;
+        return ta - tb;
+      });
+      return { action: 'retomar', redeId: String((sorted[0] as { id: string }).id) };
+    }
+  }
+
+  return { action: 'criar' };
+}
+
+async function limparProcessoOrfaoDeRede(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  redeId: string,
+): Promise<void> {
+  const { data: processos } = await supabase
+    .from('processo_step_one')
+    .select('id')
+    .eq('origem_rede_franqueados_id', redeId);
+  for (const row of processos ?? []) {
+    const processoId = String((row as { id: string }).id);
+    await supabase.from('etapa_progresso').delete().eq('processo_id', processoId);
+    await supabase.from('processo_step_one').delete().eq('id', processoId);
+  }
+}
+
+async function reverterCriacaoParcialRede(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  opts: { redeId: string; processoId: string | null; removeRede: boolean },
+): Promise<void> {
+  if (opts.processoId) {
+    await supabase.from('etapa_progresso').delete().eq('processo_id', opts.processoId);
+    await supabase.from('processo_step_one').delete().eq('id', opts.processoId);
+  }
+  if (opts.removeRede) {
+    await supabase.from('processo_step_one').update({ origem_rede_franqueados_id: null }).eq('origem_rede_franqueados_id', opts.redeId);
+    await supabase.from('kanban_cards').update({ rede_franqueado_id: null }).eq('rede_franqueado_id', opts.redeId);
+    await supabase.from('profiles').update({ rede_franqueado_id: null }).eq('rede_franqueado_id', opts.redeId);
+    await supabase.from('rede_franqueados').delete().eq('id', opts.redeId);
+  }
+}
+
 export async function criarLinhaRedeECard(
   input: Partial<Record<RedeFranqueadoDbKey, string | null>>,
   cardCidade?: string | null,
@@ -138,21 +261,43 @@ export async function criarLinhaRedeECard(
     }
   }
 
-  // Próxima ordem
-  const { data: last } = await supabase
-    .from('rede_franqueados')
-    .select('ordem')
-    .order('ordem', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const proximaOrdem = ((last as { ordem?: number } | null)?.ordem ?? 0) + 1;
+  const resolver = await resolverRedeParaCriacao(supabase, clean);
+  if (resolver.action === 'bloquear') return { ok: false, error: resolver.error };
 
-  const { data: rede, error: errRede } = await supabase
-    .from('rede_franqueados')
-    .insert({ ordem: proximaOrdem, ...clean })
-    .select('id')
-    .single();
-  if (errRede || !rede?.id) return { ok: false, error: errRede?.message ?? 'Erro ao criar linha na rede.' };
+  let redeId: string;
+  let createdRedeThisCall = false;
+  let retomouOrfao = false;
+
+  if (resolver.action === 'retomar') {
+    redeId = resolver.redeId;
+    retomouOrfao = true;
+    await limparProcessoOrfaoDeRede(supabase, redeId);
+    const { error: errUpd } = await supabase
+      .from('rede_franqueados')
+      .update({ ...clean, updated_at: new Date().toISOString() })
+      .eq('id', redeId);
+    if (errUpd) return { ok: false, error: errUpd.message ?? 'Erro ao atualizar linha órfã na rede.' };
+  } else {
+    // Próxima ordem
+    const { data: last } = await supabase
+      .from('rede_franqueados')
+      .select('ordem')
+      .order('ordem', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const proximaOrdem = ((last as { ordem?: number } | null)?.ordem ?? 0) + 1;
+
+    const { data: rede, error: errRede } = await supabase
+      .from('rede_franqueados')
+      .insert({ ordem: proximaOrdem, ...clean })
+      .select('id')
+      .single();
+    if (errRede || !rede?.id) return { ok: false, error: errRede?.message ?? 'Erro ao criar linha na rede.' };
+    redeId = rede.id;
+    createdRedeThisCall = true;
+  }
+
+  let processoId: string | null = null;
 
   try {
     const recipients = getRegistroFranquiaRecipients(
@@ -187,7 +332,7 @@ export async function criarLinhaRedeECard(
     status: 'em_andamento',
     etapa_atual: 1,
     etapa_painel: 'step_1',
-    origem_rede_franqueados_id: rede.id,
+    origem_rede_franqueados_id: redeId,
   };
 
   // Copiar campos relevantes para o processo
@@ -218,7 +363,11 @@ export async function criarLinhaRedeECard(
     .insert(payload)
     .select('id')
     .single();
-  if (errProc || !processo?.id) return { ok: false, error: errProc?.message ?? 'Erro ao criar card.' };
+  if (errProc || !processo?.id) {
+    await reverterCriacaoParcialRede(supabase, { redeId, processoId: null, removeRede: createdRedeThisCall });
+    return { ok: false, error: errProc?.message ?? 'Erro ao criar card.' };
+  }
+  processoId = processo.id;
 
   const etapas = Array.from({ length: 11 }, (_, i) => ({
     user_id: userId,
@@ -228,20 +377,26 @@ export async function criarLinhaRedeECard(
     tentativas: 0,
   }));
   const { error: errEtapas } = await supabase.from('etapa_progresso').insert(etapas);
-  if (errEtapas) return { ok: false, error: `Erro ao criar etapas: ${errEtapas.message}` };
+  if (errEtapas) {
+    await reverterCriacaoParcialRede(supabase, { redeId, processoId, removeRede: createdRedeThisCall });
+    return { ok: false, error: `Erro ao criar etapas: ${errEtapas.message}` };
+  }
 
   const { error: errLink } = await supabase
     .from('rede_franqueados')
     .update({ processo_id: processo.id })
-    .eq('id', rede.id);
-  if (errLink) return { ok: false, error: `Erro ao vincular processo à rede: ${errLink.message}` };
+    .eq('id', redeId);
+  if (errLink) {
+    await reverterCriacaoParcialRede(supabase, { redeId, processoId, removeRede: createdRedeThisCall });
+    return { ok: false, error: `Erro ao vincular processo à rede: ${errLink.message}` };
+  }
 
   const tituloFunil = tituloFunilFromRedeRow({
     nome_completo: clean.nome_completo != null ? String(clean.nome_completo) : null,
     n_franquia: clean.n_franquia != null ? String(clean.n_franquia) : null,
   });
   const funilRes = await ensureFunilStepOneCardFromRede(supabase, {
-    redeFranqueadoId: rede.id,
+    redeFranqueadoId: redeId,
     franqueadoUserId: userId,
     titulo: tituloFunil,
     processoStepOneId: processo.id,
@@ -261,11 +416,13 @@ export async function criarLinhaRedeECard(
         ? ' Atenção: card do Funil Step One não foi criado — use "Garantir cards no Funil" na Rede.'
         : '';
 
+  const prefixoRetomada = retomouOrfao ? ' Cadastro retomado (linha órfã reutilizada).' : '';
+
   return {
     ok: true,
-    redeId: rede.id,
+    redeId,
     processoId: processo.id,
-    mensagem: `Linha criada e card gerado no Step 1.${avisoFunil}`,
+    mensagem: `Linha criada e card gerado no Step 1.${prefixoRetomada}${avisoFunil}`,
   };
 }
 

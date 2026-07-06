@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { criarLinhaRedeECard, getProximoNFranquia } from './actions';
@@ -134,6 +134,7 @@ export function AdicionarRedeECardButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
   // Campos do Novo Step 1 (mesma configuração)
@@ -173,6 +174,7 @@ export function AdicionarRedeECardButton() {
   const close = () => {
     setOpen(false);
     setMsg(null);
+    savingRef.current = false;
     setSaving(false);
     setAreaAtuacaoItens([]);
     setEstadoAtuacao('');
@@ -286,12 +288,15 @@ export function AdicionarRedeECardButton() {
   }, [dataAssContrato]);
 
   const submit = async () => {
+    if (savingRef.current) return;
     setMsg(null);
     if (areaAtuacaoItens.length === 0) {
       setMsg({ tipo: 'erro', texto: 'Adicione pelo menos um estado e cidade na Área de atuação.' });
       return;
     }
+    savingRef.current = true;
     setSaving(true);
+    try {
     const patch = {
       n_franquia: numeroFranquia.trim() || null,
       modalidade: modalidade.trim() || null,
@@ -318,7 +323,6 @@ export function AdicionarRedeECardButton() {
       cidade_casa_frank: cidadeCasa.trim() || null,
     } as const;
     const res = await criarLinhaRedeECard(patch, areaAtuacaoItens[0]?.cidade ?? null, areaAtuacaoItens[0]?.estado ?? null);
-    setSaving(false);
     if (res.ok) {
       setMsg({ tipo: 'ok', texto: res.mensagem });
       router.refresh();
@@ -326,6 +330,10 @@ export function AdicionarRedeECardButton() {
       setTimeout(() => close(), 600);
     } else {
       setMsg({ tipo: 'erro', texto: res.error });
+    }
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
