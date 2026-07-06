@@ -287,15 +287,15 @@ export function SireneChamadoDetalheModal({
     if (!comentariosFetched) {
       setComentariosFetched(true);
       setComentariosLoading(true);
-      const cid = row.card_id;
       const scid = row.sirene_chamado_id;
-      if (cid) {
-        void listarComentariosCardSirene(cid).then((res) => {
+      const cid = row.card_id;
+      if (scid != null) {
+        void listarComentariosSireneChamado(scid).then((res) => {
           setComentariosLoading(false);
           if (res.ok) setComentarios(res.items);
         });
-      } else if (scid != null) {
-        void listarComentariosSireneChamado(scid).then((res) => {
+      } else if (cid) {
+        void listarComentariosCardSirene(cid).then((res) => {
           setComentariosLoading(false);
           if (res.ok) setComentarios(res.items);
         });
@@ -313,15 +313,15 @@ export function SireneChamadoDetalheModal({
         ? `/sirene/chamados?interacao=${encodeURIComponent(row.id)}`
         : '/sirene/chamados';
       let res: { ok: boolean; error?: string };
-      if (row.card_id) {
-        res = await publicarComentarioCardSirene(row.card_id, html, {
-          referenciaPath,
-          contextoTitulo: row.titulo || row.card_titulo || 'Chamado',
-        });
-      } else if (row.sirene_chamado_id != null) {
+      if (row.sirene_chamado_id != null) {
         res = await publicarComentarioSireneChamado(row.sirene_chamado_id, html, {
           referenciaPath,
           contextoTitulo: row.titulo || 'Chamado',
+        });
+      } else if (row.card_id) {
+        res = await publicarComentarioCardSirene(row.card_id, html, {
+          referenciaPath,
+          contextoTitulo: row.titulo || row.card_titulo || 'Chamado',
         });
       } else {
         setErroComentario('Não foi possível identificar o chamado.');
@@ -332,15 +332,15 @@ export function SireneChamadoDetalheModal({
       setNovoComentario('');
       // Recarrega comentários
       setComentariosLoading(true);
-      const cid = row.card_id;
       const scid = row.sirene_chamado_id;
-      if (cid) {
-        void listarComentariosCardSirene(cid).then((res2) => {
+      const cid = row.card_id;
+      if (scid != null) {
+        void listarComentariosSireneChamado(scid).then((res2) => {
           setComentariosLoading(false);
           if (res2.ok) setComentarios(res2.items);
         });
-      } else if (scid != null) {
-        void listarComentariosSireneChamado(scid).then((res2) => {
+      } else if (cid) {
+        void listarComentariosCardSirene(cid).then((res2) => {
           setComentariosLoading(false);
           if (res2.ok) setComentarios(res2.items);
         });

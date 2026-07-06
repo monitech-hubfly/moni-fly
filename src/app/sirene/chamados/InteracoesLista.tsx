@@ -1880,47 +1880,23 @@ export function InteracoesLista({
                             <p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>
                           ) : (
                             <>
-                              {(commentsByCardId[commentKey] ?? []).length > 0 && (
-                                <>
-                                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do card</p>
-                                  <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">
-                                    {[...(commentsByCardId[commentKey] ?? [])]
-                                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-                                      .map((c) => (
-                                        <li key={c.id} className="flex gap-2 rounded bg-white p-2">
-                                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-200 text-xs font-medium text-stone-600">
-                                            {iniciaisNome(c.autor_nome ?? '')}
-                                          </span>
-                                          <div>
-                                            <p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p>
-                                            <p className="mt-0.5 text-stone-700">{c.texto}</p>
-                                          </div>
-                                        </li>
-                                      ))}
-                                  </ul>
-                                </>
-                              )}
-                              {(commentsBySireneId[commentKey] ?? []).length > 0 && (
-                                <>
-                                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do chamado</p>
-                                  <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">
-                                    {[...(commentsBySireneId[commentKey] ?? [])]
-                                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-                                      .map((c) => (
-                                        <li key={`sirene-${c.id}`} className="flex gap-2 rounded bg-white p-2">
-                                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">
-                                            {iniciaisNome(c.autor_nome ?? '')}
-                                          </span>
-                                          <div>
-                                            <p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p>
-                                            <p className="mt-0.5 text-stone-700">{c.texto}</p>
-                                          </div>
-                                        </li>
-                                      ))}
-                                  </ul>
-                                </>
-                              )}
-                              {(commentsByCardId[commentKey] ?? []).length === 0 && (commentsBySireneId[commentKey] ?? []).length === 0 && (
+                              {(commentsBySireneId[commentKey] ?? []).length > 0 ? (
+                                <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">
+                                  {[...(commentsBySireneId[commentKey] ?? [])]
+                                    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                                    .map((c) => (
+                                      <li key={`sirene-${c.id}`} className="flex gap-2 rounded bg-white p-2">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">
+                                          {iniciaisNome(c.autor_nome ?? '')}
+                                        </span>
+                                        <div>
+                                          <p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p>
+                                          <p className="mt-0.5 text-stone-700">{c.texto}</p>
+                                        </div>
+                                      </li>
+                                    ))}
+                                </ul>
+                              ) : (
                                 <p className="mb-3 text-xs text-stone-400">Nenhum comentário ainda.</p>
                               )}
                             </>
