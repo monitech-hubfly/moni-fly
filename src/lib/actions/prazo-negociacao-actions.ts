@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { isAdminRole } from '@/lib/authz';
 import {
   expiraEm24hDesde,
@@ -155,8 +154,6 @@ export async function aceitarPrazoSubInteracao(
   );
   if (!r.ok) return r;
 
-  revalidatePath(basePath ?? '/');
-  revalidatePath('/sirene/chamados');
   return { ok: true };
 }
 
@@ -193,8 +190,6 @@ export async function recusarPrazoSubInteracao(
   );
   if (!r.ok) return r;
 
-  revalidatePath(basePath ?? '/');
-  revalidatePath('/sirene/chamados');
   return { ok: true };
 }
 
@@ -273,8 +268,6 @@ export async function proporPrazoSubInteracao(
   });
   if (!r.ok) return r;
 
-  revalidatePath(basePath ?? '/');
-  revalidatePath('/sirene/chamados');
   return { ok: true };
 }
 
@@ -321,8 +314,6 @@ export async function aceitarPrazoSubInteracaoComoAbridor(
   );
   if (!r.ok) return r;
 
-  revalidatePath(basePath ?? '/');
-  revalidatePath('/sirene/chamados');
   return { ok: true };
 }
 
@@ -361,7 +352,5 @@ export async function adminOverridePrazoSubInteracao(
   });
   if (!r.ok) return r;
 
-  revalidatePath(basePath ?? '/');
-  revalidatePath('/sirene/chamados');
   return { ok: true };
 }
