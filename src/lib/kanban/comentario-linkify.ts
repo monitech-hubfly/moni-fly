@@ -89,11 +89,15 @@ function normalizeLinkElement(a: HTMLAnchorElement): void {
 function sanitizeComentarioElement(el: Element): void {
   const children = [...el.children];
   for (const child of children) {
+    if (!child.isConnected || child.parentElement !== el) continue;
+
     if (!ALLOWED_TAGS.has(child.tagName)) {
       while (child.firstChild) {
         el.insertBefore(child.firstChild, child);
       }
-      el.removeChild(child);
+      if (child.parentElement === el) {
+        el.removeChild(child);
+      }
       sanitizeComentarioElement(el);
       continue;
     }
@@ -112,11 +116,15 @@ function sanitizeComentarioElement(el: Element): void {
       normalizeLinkElement(child as HTMLAnchorElement);
     }
 
-    sanitizeComentarioElement(child);
+    if (child.isConnected) {
+      sanitizeComentarioElement(child);
+    }
   }
 }
 
 function linkifyTextNode(textNode: Text): void {
+  if (!textNode.isConnected) return;
+
   const parent = textNode.parentElement;
   if (!parent || parent.closest('a')) return;
 
@@ -160,7 +168,9 @@ function linkifyTextNode(textNode: Text): void {
     frag.appendChild(document.createTextNode(text.slice(lastIndex)));
   }
 
-  textNode.replaceWith(frag);
+  if (textNode.isConnected) {
+    textNode.replaceWith(frag);
+  }
 }
 
 function linkifyComentarioHtmlDom(html: string): string {
@@ -181,15 +191,34 @@ function linkifyComentarioHtmlDom(html: string): string {
   return div.innerHTML;
 }
 
-/** Sanitiza HTML do comentário e torna URLs clicáveis na exibição. */
-export function prepararHtmlComentarioExibicao(raw: string): string {
+/**
+ * Caminho puro (sem DOM) — idêntico no SSR e na hidratação.
+ * Preserva texto e linkifica URLs; não executa sanitização rica de HTML.
+ */
+export function prepararHtmlComentarioExibicaoSeguro(raw: string): string {
   const html = String(raw ?? '').trim();
   if (!html) return '';
 
-  if (typeof document === 'undefined') {
-    const plain = html.includes('<') ? htmlComentarioParaTextoPlano(html) : html;
-    return linkifyPlainTextAsHtml(plain);
-  }
+  const plain = html.includes('<') ? htmlComentarioParaTextoPlano(html) : html;
+  const linkified = linkifyPlainTextAsHtml(plain);
+  if (linkified) return linkified;
 
-  return linkifyComentarioHtmlDom(html);
+  // HTML sem texto visível (ex.: só <br>) — evita sumir com o comentário na tela.
+  return html.includes('<') ? html : escapeHtml(html);
+}
+
+/** Sanitiza HTML do comentário e linkifica URLs via DOM (somente no cliente, após mount). */
+export function prepararHtmlComentarioExibicaoDom(raw: string): string {
+  const html = String(raw ?? '').trim();
+  if (!html) return '';
+
+  const result = linkifyComentarioHtmlDom(html);
+  if (result.trim()) return result;
+
+  return prepararHtmlComentarioExibicaoSeguro(html);
+}
+
+/** @deprecated Preferir Seguro + Dom no componente; mantido para compatibilidade. */
+export function prepararHtmlComentarioExibicao(raw: string): string {
+  return prepararHtmlComentarioExibicaoSeguro(raw);
 }
