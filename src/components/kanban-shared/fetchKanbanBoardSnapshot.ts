@@ -69,16 +69,12 @@ function coalesceDatasCardBrief(
   legado?: KanbanCardBrief | null,
   processo?: { data_followup?: unknown; data_reuniao?: unknown } | null,
 ): KanbanCardBrief {
-  const df =
-    card.data_followup ??
-    legado?.data_followup ??
-    (processo ? dataIsoParaInput(processo.data_followup) : null);
   const dr =
     card.data_reuniao ??
     legado?.data_reuniao ??
     (processo ? dataIsoParaInput(processo.data_reuniao) : null);
-  if (df === card.data_followup && dr === card.data_reuniao) return card;
-  return { ...card, data_followup: df ?? null, data_reuniao: dr ?? null };
+  if (dr === card.data_reuniao) return card;
+  return { ...card, data_reuniao: dr ?? null };
 }
 
 async function enrichCardsDatasFromProcesso(
@@ -87,7 +83,7 @@ async function enrichCardsDatasFromProcesso(
 ): Promise<KanbanCardBrief[]> {
   const processoIds = new Set<string>();
   for (const c of cards) {
-    if (c.data_followup && c.data_reuniao) continue;
+    if (c.data_reuniao) continue;
     const id = String(c.id ?? '').trim();
     if (id) processoIds.add(id);
     const pid = String(c.projeto_id ?? '').trim();
@@ -197,7 +193,6 @@ function mesclarCamposDeFonte(
     rede_franqueado_id:
       coalesceTextoCampo(dest.rede_franqueado_id, fonte.rede_franqueado_id) ??
       dest.rede_franqueado_id,
-    data_followup: dest.data_followup ?? fonte.data_followup,
     data_reuniao: dest.data_reuniao ?? fonte.data_reuniao,
   };
 }

@@ -1442,9 +1442,6 @@ export function KanbanCardModal({
                 loaded = { ...loaded, data_reuniao: c.data_reuniao };
               }
             }
-            if (c.data_followup !== undefined) {
-              loaded = { ...loaded, data_followup: c.data_followup };
-            }
             if (c.hora_reuniao !== undefined) {
               loaded = { ...loaded, hora_reuniao: c.hora_reuniao };
             }

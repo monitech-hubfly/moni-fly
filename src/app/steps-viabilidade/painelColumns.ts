@@ -10,6 +10,7 @@ export type PainelColumnKey =
   | 'step_4'
   | 'acoplamento'
   | 'step_5'
+  | 'cto_condicoes_precedentes'
   | 'step_6'
   | 'step_7'
   | 'captacao_moni_capital'
@@ -47,7 +48,7 @@ export interface PainelColumnDef {
 export const PAINEL_COLUMNS: PainelColumnDef[] = [
   { key: 'step_1', title: 'Step 1: Mapeamento da Região', hrefBase: '/step-one' },
   { key: 'step_2', title: 'Novo Negócio', hrefBase: '/step-2', slaDiasUteis: 2 },
-  { key: 'aprovacao_moni_novo_negocio', title: 'Aprovação Moní - Novo Negócio', slaDiasUteis: 2 },
+  { key: 'aprovacao_moni_novo_negocio', title: 'Análise de Novo Negócio', slaDiasUteis: 2 },
   { key: 'step_3', title: 'Opção', hrefBase: '/step-3', slaDiasUteis: 3 },
   {
     key: 'step_4',
@@ -64,6 +65,7 @@ export const PAINEL_COLUMNS: PainelColumnDef[] = [
     slaDiasUteis: 5,
   },
   { key: 'step_5', title: 'Comitê', hrefBase: '/step-5', slaDiasUteis: 5 },
+  { key: 'cto_condicoes_precedentes', title: 'Cto Condições Precedentes', slaDiasUteis: 7 },
   { key: 'step_6', title: 'Diligência', hrefBase: '/step-6', slaDiasUteis: 10 },
   {
     key: 'step_7',
@@ -138,6 +140,7 @@ export const PAINEL_FLOW_ROWS: PainelFlowRow[] = [
   { type: 'sequential', keys: ['step_3'] },
   { type: 'parallel', keys: ['step_4', 'acoplamento'] },
   { type: 'sequential', keys: ['step_5'] },
+  { type: 'sequential', keys: ['cto_condicoes_precedentes'] },
   { type: 'sequential', keys: ['step_6'] },
   { type: 'sequential', keys: ['step_7'] },
   { type: 'sequential', keys: ['captacao_moni_capital'] },

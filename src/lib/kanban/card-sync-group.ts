@@ -171,7 +171,6 @@ export const KANBAN_CARD_CAMPOS_SYNC = [
   'quadra',
   'lote',
   'data_reuniao',
-  'data_followup',
   'hora_reuniao',
 ] as const;
 
@@ -268,7 +267,6 @@ function pickSyncFields<T extends Record<string, unknown>>(
 /** Campos que não devem ser propagados como `null` (evita wipe ao sincronizar grupo). */
 const KANBAN_CAMPOS_ANTI_NULL_SYNC = new Set<string>([
   'rede_franqueado_id',
-  'data_followup',
   'data_reuniao',
   'hora_reuniao',
 ]);
@@ -700,7 +698,6 @@ const CAMPOS_COALESCE_GRUPO_SYNC = new Set<string>([
   'lote',
   'titulo',
   'data_reuniao',
-  'data_followup',
   'hora_reuniao',
 ]);
 

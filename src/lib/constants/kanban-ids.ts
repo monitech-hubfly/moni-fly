@@ -191,6 +191,7 @@ export const FASE_SLUGS = {
   OPERACOES_ENTREGUE:        'operacoes_entregue',
   // Gates
   STEP_5:             'step_5',
+  CTO_CONDICOES_PRECEDENTES: 'cto_condicoes_precedentes',
   STEP_6:             'step_6',
   /** Funil Portfólio — fase Opção (confirmação migration 389). Legado PROD: `step_3`. */
   OPCAO:              'opcao',

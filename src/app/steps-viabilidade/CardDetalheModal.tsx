@@ -2652,7 +2652,7 @@ export function CardDetalheModal({
                     <h3 className="text-sm font-semibold text-stone-800">Estudos Novo Negócio</h3>
                     {etapaAtual === 'aprovacao_moni_novo_negocio' ? (
                       <span className="rounded bg-moni-primary/10 px-2 py-0.5 text-xs font-medium text-moni-primary">
-                        Aprovação Moní
+                        Análise de Novo Negócio
                       </span>
                     ) : null}
                   </div>
