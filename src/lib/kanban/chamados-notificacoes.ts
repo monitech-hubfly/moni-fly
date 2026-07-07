@@ -114,6 +114,7 @@ export async function buscarMetaCardParaNotificacao(
     .from('kanban_cards')
     .select('titulo, kanban_id')
     .eq('id', cardId)
+    .eq('arquivado', false)
     .maybeSingle();
   if (!card) return null;
   const kid = String((card as { kanban_id?: string }).kanban_id ?? '');

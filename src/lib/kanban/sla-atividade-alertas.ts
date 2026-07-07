@@ -110,6 +110,7 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
       'id, interacao_id, nome, descricao, data_fim, prazo_proposto, prazo_status, status, responsavel_id, responsaveis_ids',
     )
     .in('status', ['nao_iniciado', 'em_andamento'])
+    .eq('arquivado', false)
     .not('interacao_id', 'is', null);
 
   if (errTopicos) {
@@ -162,6 +163,7 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
     .from('kanban_atividades')
     .select('id, titulo, data_vencimento, status, responsavel_id, responsaveis_ids')
     .in('status', ['pendente', 'em_andamento'])
+    .eq('arquivado', false)
     .not('data_vencimento', 'is', null);
 
   if (errInteracoes) {
