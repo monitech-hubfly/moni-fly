@@ -67,11 +67,21 @@ export async function buscarMetaNotificacaoChamado(
 ): Promise<{ titulo: string; cardId: string | null; basePath: string; interacaoId: string; origemLegado: boolean } | null> {
   const { data: row } = await admin
     .from('kanban_atividades')
-    .select('titulo, card_id, origem')
+    .select('titulo, card_id, origem, sirene_chamado_id')
     .eq('id', interacaoId)
     .maybeSingle();
   if (!row) return null;
   const titulo = String((row as { titulo?: string }).titulo ?? 'Chamado').trim() || 'Chamado';
+  const sireneChamadoId = (row as { sirene_chamado_id?: number | string | null }).sirene_chamado_id;
+  if (sireneChamadoId != null) {
+    return {
+      titulo,
+      cardId: null,
+      basePath: `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`,
+      interacaoId,
+      origemLegado: false,
+    };
+  }
   const cardId = String((row as { card_id?: string | null }).card_id ?? '').trim() || null;
   const origem = (row as { origem?: string }).origem === 'legado' ? 'legado' : 'nativo';
   if (cardId) {
