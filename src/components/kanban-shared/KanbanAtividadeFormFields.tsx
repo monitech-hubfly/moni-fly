@@ -47,6 +47,8 @@ type Props = {
   anexosSubchamado?: Omit<AnexosSubchamadoProps, 'subchamadoId'> & { subchamadoId: string };
   /** Permite anexos em rascunho antes de salvar. */
   showAnexosDraft?: boolean;
+  /** Limita a N responsáveis; quando 1, usa radio buttons (single-select). */
+  maxResponsaveis?: number;
 };
 
 const listBoxClass =
@@ -65,6 +67,7 @@ export function KanbanAtividadeFormFields({
   deleteTitle = 'Excluir atividade',
   anexosSubchamado,
   showAnexosDraft = true,
+  maxResponsaveis = 0,
 }: Props) {
   const timesNomes = draft.timesIds
     .map((id) => kanbanTimes.find((t) => t.id === id)?.nome?.trim())
@@ -185,7 +188,9 @@ export function KanbanAtividadeFormFields({
           </div>
         </div>
         <div>
-          <span className="mb-1 block font-medium text-stone-600">Responsáveis</span>
+          <span className="mb-1 block font-medium text-stone-600">
+            {maxResponsaveis === 1 ? 'Responsável' : 'Responsáveis'}
+          </span>
           {draft.timesIds.length === 0 ? (
             <p className="rounded border border-stone-200 bg-stone-50 p-2 text-stone-500">
               Selecione ao menos um time.
@@ -198,24 +203,28 @@ export function KanbanAtividadeFormFields({
             <div className={listBoxClass}>
               {responsaveisOpcoes.map((p) => {
                 const on = draft.responsaveisIds.includes(p.id);
+                const isSingle = maxResponsaveis === 1;
                 return (
                   <label
                     key={p.id}
                     className="flex cursor-pointer items-center gap-1.5 text-stone-700"
                   >
                     <input
-                      type="checkbox"
+                      type={isSingle ? 'radio' : 'checkbox'}
+                      name={isSingle ? `${idPrefix}-responsavel` : undefined}
                       className="h-3.5 w-3.5 shrink-0 rounded border-stone-300"
                       checked={on}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setDraft((d) => ({
-                          ...d,
-                          responsaveisIds: checked
-                            ? [...d.responsaveisIds, p.id]
-                            : d.responsaveisIds.filter((id) => id !== p.id),
-                        }));
-                      }}
+                      onChange={isSingle
+                        ? () => setDraft((d) => ({ ...d, responsaveisIds: [p.id] }))
+                        : (e) => {
+                            const checked = e.target.checked;
+                            setDraft((d) => ({
+                              ...d,
+                              responsaveisIds: checked
+                                ? [...d.responsaveisIds, p.id]
+                                : d.responsaveisIds.filter((id) => id !== p.id),
+                            }));
+                          }}
                     />
                     {p.nome}
                   </label>
