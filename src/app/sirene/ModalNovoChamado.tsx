@@ -472,6 +472,7 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
                       sessionUserId={sessionUserId}
                       idPrefix={`sirene-nova-${i}`}
                       showPastel={false}
+                      maxResponsaveis={1}
                     />
                   </div>
                 );

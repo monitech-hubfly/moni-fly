@@ -776,6 +776,7 @@ export function SireneChamadoDetalheModal({
                 compact
                 idPrefix="sirene-modal-nova-ativ"
                 showAnexosDraft={false}
+                maxResponsaveis={1}
               />
               <button
                 type="button"
