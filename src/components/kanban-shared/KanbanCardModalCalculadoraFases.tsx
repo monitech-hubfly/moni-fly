@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
@@ -58,6 +58,12 @@ type Props = {
     campo: 'inicio' | 'fim',
     valor: string | null,
   ) => Promise<{ ok: boolean; error?: string }>;
+  /** Atualiza override local imediatamente (recálculo otimista antes do persist). */
+  onAplicarOverrideLocal?: (
+    faseId: string,
+    campo: 'inicio' | 'fim',
+    valor: string | null,
+  ) => void;
   /** Linhas de negociação — intercaladas na timeline como condições. */
   negociacaoLinhas?: NegociacaoLinha[];
 };
@@ -463,6 +469,12 @@ function fmtDataInput(iso: string | null): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : '';
 }
 
+function dataIsoInputCompleta(valor: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(valor.trim());
+}
+
+type FlushEdicaoDataRegistrar = (fn: () => Promise<void>) => () => void;
+
 function CalculadoraFaseDataCell({
   faseId,
   campo,
@@ -471,6 +483,8 @@ function CalculadoraFaseDataCell({
   atraso,
   editando,
   onSalvarData,
+  onRegistrarFlush,
+  onAplicarOverrideLocal,
 }: {
   faseId: string;
   campo: 'inicio' | 'fim';
@@ -479,10 +493,74 @@ function CalculadoraFaseDataCell({
   atraso?: boolean;
   editando: boolean;
   onSalvarData?: Props['onSalvarData'];
+  onRegistrarFlush?: FlushEdicaoDataRegistrar;
+  onAplicarOverrideLocal?: Props['onAplicarOverrideLocal'];
 }) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [focused, setFocused] = useState(false);
   const valorInput = fmtDataInput(valor);
+  const [draft, setDraft] = useState(valorInput);
+  const draftRef = useRef(valorInput);
+  const debounceSalvarRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ultimoSalvoRef = useRef(valorInput);
+  const salvarFnRef = useRef<(next: string | null) => Promise<void>>(async () => {});
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    if (editando) {
+      if (!focused && !salvando) ultimoSalvoRef.current = valorInput;
+      return;
+    }
+    ultimoSalvoRef.current = valorInput;
+    setDraft(valorInput);
+  }, [valorInput, salvando, focused, editando]);
+
+  useEffect(
+    () => () => {
+      if (debounceSalvarRef.current) clearTimeout(debounceSalvarRef.current);
+    },
+    [],
+  );
+
+  const salvar = useCallback(
+    async (next: string | null) => {
+      if (!onSalvarData) return;
+      const normalizado = next?.trim() || null;
+      const persistido = valorInput || null;
+      if (normalizado === persistido && normalizado === (ultimoSalvoRef.current || null)) return;
+      setErro(null);
+      setSalvando(true);
+      try {
+        const result = await onSalvarData(faseId, campo, normalizado);
+        if (!result.ok) {
+          setErro(result.error ?? 'Não foi possível salvar a data.');
+          setDraft(ultimoSalvoRef.current);
+        } else {
+          ultimoSalvoRef.current = normalizado ?? '';
+        }
+      } finally {
+        setSalvando(false);
+      }
+    },
+    [onSalvarData, faseId, campo, valorInput],
+  );
+  salvarFnRef.current = salvar;
+
+  useEffect(() => {
+    if (!editando || !onRegistrarFlush) return;
+    return onRegistrarFlush(async () => {
+      if (debounceSalvarRef.current) {
+        clearTimeout(debounceSalvarRef.current);
+        debounceSalvarRef.current = null;
+      }
+      const pending = draftRef.current.trim() || null;
+      await salvarFnRef.current(pending);
+    });
+  }, [editando, onRegistrarFlush]);
 
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -502,33 +580,40 @@ function CalculadoraFaseDataCell({
     );
   }
 
-  const salvar = async (next: string | null) => {
-    if (next === valorInput) return;
-    setErro(null);
-    setSalvando(true);
-    try {
-      const result = await onSalvarData(faseId, campo, next);
-      if (!result.ok) {
-        setErro(result.error ?? 'Não foi possível salvar a data.');
-      }
-    } finally {
-      setSalvando(false);
-    }
-  };
-
   return (
     <div className="moni-calculadora-fase-data-cell moni-calculadora-fase-data-cell--edit" onClick={stop} onKeyDown={stop}>
       <input
         type="date"
         className={`moni-calculadora-fase-data-input${atraso ? ' moni-calculadora-fase-data-input--atraso' : ''}${salvando ? ' moni-calculadora-fase-data-input--saving' : ''}${erro ? ' moni-calculadora-fase-data-input--erro' : ''}`}
-        defaultValue={valorInput}
-        key={`${faseId}-${campo}-${valorInput}`}
+        value={draft}
         disabled={salvando}
         aria-label={`${campo === 'inicio' ? 'Início' : 'Fim'} — ${label}`}
         aria-invalid={erro ? true : undefined}
         onClick={stop}
+        onFocus={() => setFocused(true)}
         onChange={(e) => {
-          void salvar(e.target.value.trim() || null);
+          const v = e.target.value;
+          setErro(null);
+          setDraft(v);
+          if (dataIsoInputCompleta(v)) {
+            onAplicarOverrideLocal?.(faseId, campo, v);
+            void salvar(v);
+          }
+        }}
+        onBlur={() => {
+          if (debounceSalvarRef.current) {
+            clearTimeout(debounceSalvarRef.current);
+            debounceSalvarRef.current = null;
+          }
+          const pending = draftRef.current.trim() || null;
+          setFocused(false);
+          void salvar(pending);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
         }}
       />
       <span className="moni-calculadora-fase-data-label">{erro ?? label}</span>
@@ -611,6 +696,8 @@ function CalculadoraFaseRow({
   editandoDatas,
   ordemAtual,
   onSalvarData,
+  onRegistrarFlush,
+  onAplicarOverrideLocal,
 }: {
   row: CalculadoraFaseLinha;
   faseMeta: KanbanFase | undefined;
@@ -619,6 +706,8 @@ function CalculadoraFaseRow({
   editandoDatas: boolean;
   ordemAtual: number;
   onSalvarData?: Props['onSalvarData'];
+  onRegistrarFlush?: FlushEdicaoDataRegistrar;
+  onAplicarOverrideLocal?: Props['onAplicarOverrideLocal'];
 }) {
   const steps = parseFaseSteps(faseMeta);
   const custo = String(row.custo ?? '').trim();
@@ -693,6 +782,8 @@ function CalculadoraFaseRow({
         label={inicioLabel}
         editando={editandoDatas}
         onSalvarData={onSalvarData}
+        onRegistrarFlush={onRegistrarFlush}
+        onAplicarOverrideLocal={onAplicarOverrideLocal}
       />
 
       <CalculadoraFaseDataCell
@@ -703,6 +794,8 @@ function CalculadoraFaseRow({
         atraso={fimAtraso}
         editando={editandoDatas}
         onSalvarData={onSalvarData}
+        onRegistrarFlush={onRegistrarFlush}
+        onAplicarOverrideLocal={onAplicarOverrideLocal}
       />
 
       <div className="moni-calculadora-fase-status-col">
@@ -785,6 +878,8 @@ function CalculadoraFunilGroup({
   editandoDatas,
   ordemAtual,
   onSalvarData,
+  onRegistrarFlush,
+  onAplicarOverrideLocal,
 }: {
   label: string;
   items: CalculadoraTimelineItem[];
@@ -796,6 +891,8 @@ function CalculadoraFunilGroup({
   editandoDatas: boolean;
   ordemAtual: number;
   onSalvarData?: Props['onSalvarData'];
+  onRegistrarFlush?: FlushEdicaoDataRegistrar;
+  onAplicarOverrideLocal?: Props['onAplicarOverrideLocal'];
 }) {
   const etapasVisiveis = etapasVisiveisFunil(items);
   const concluidas = etapasVisiveis.filter(etapaVisivelConcluida).length;
@@ -859,6 +956,8 @@ function CalculadoraFunilGroup({
               editandoDatas={editandoDatas}
               ordemAtual={ordemAtual}
               onSalvarData={onSalvarData}
+              onRegistrarFlush={onRegistrarFlush}
+              onAplicarOverrideLocal={onAplicarOverrideLocal}
             />
           );
         })}
@@ -881,11 +980,13 @@ export function KanbanCardModalCalculadoraFases({
   modoPublico = false,
   podeEditarDatas = false,
   onSalvarData,
+  onAplicarOverrideLocal,
   negociacaoLinhas = [],
 }: Props) {
   const [collapsedFunis, setCollapsedFunis] = useState<Set<string>>(new Set());
   const [expandedFases, setExpandedFases] = useState<Set<string>>(new Set());
   const [editandoDatas, setEditandoDatas] = useState(false);
+  const flushEdicaoDatasRef = useRef(new Set<() => Promise<void>>());
   const cardInicializadoRef = useRef<string | null>(null);
   const { loading: shareLoading, copied: shareCopied, gerarECopiar } = useCalculadoraShareLink(
     cardId ?? '',
@@ -959,6 +1060,24 @@ export function KanbanCardModalCalculadoraFases({
     });
   };
 
+  const registrarFlushEdicaoData = useCallback<FlushEdicaoDataRegistrar>((fn) => {
+    flushEdicaoDatasRef.current.add(fn);
+    return () => {
+      flushEdicaoDatasRef.current.delete(fn);
+    };
+  }, []);
+
+  const alternarEdicaoDatas = useCallback(async () => {
+    if (!editandoDatas) {
+      setEditandoDatas(true);
+      return;
+    }
+    await Promise.all([...flushEdicaoDatasRef.current].map((fn) => fn()));
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+    setEditandoDatas(false);
+  }, [editandoDatas]);
+
   if (linhas.length === 0) {
     return (
       <p className="text-[11px] text-[var(--moni-text-tertiary)]" style={{ fontFamily: 'var(--moni-font-sans)' }}>
@@ -980,7 +1099,7 @@ export function KanbanCardModalCalculadoraFases({
             {podeEditarDatasEfetivo ? (
               <button
                 type="button"
-                onClick={() => setEditandoDatas((v) => !v)}
+                onClick={() => void alternarEdicaoDatas()}
                 className={`moni-calculadora-share-btn moni-calculadora-edit-datas-btn${editandoDatas ? ' moni-calculadora-edit-datas-btn--active' : ''}`}
                 aria-pressed={editandoDatas}
                 aria-label={editandoDatas ? 'Concluir edição de datas' : 'Editar datas manualmente'}
@@ -1026,6 +1145,8 @@ export function KanbanCardModalCalculadoraFases({
                 editandoDatas={editandoDatas && podeEditarDatasEfetivo}
                 ordemAtual={ordemAtual}
                 onSalvarData={onSalvarData}
+                onRegistrarFlush={registrarFlushEdicaoData}
+                onAplicarOverrideLocal={onAplicarOverrideLocal}
               />
             </div>
           ))}

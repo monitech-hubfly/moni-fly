@@ -7,6 +7,7 @@ export const LOTEADORES_R2_PLANO_TEORICO_CAMPOS = {
   concordaGadgets: 'concorda_gadgets',
   formaPagamento: 'forma_pagamento',
   adendosObservacoes: 'adendos_observacoes',
+  comentariosFinais: 'comentarios_finais',
 } as const;
 
 export const LOTEADORES_R2_PLANO_TEORICO_CAMPOS_VISIVEIS = Object.values(
@@ -17,7 +18,6 @@ export const LOTEADORES_R2_PLANO_TEORICO_CAMPOS_REMOVIDOS = [
   'loteador_de_acordo',
   'motivo_nao_acordo',
   'ajustes_solicitados',
-  'comentarios_finais',
   'proximos_passos',
   'casa_sugerida',
 ] as const;
@@ -40,6 +40,7 @@ export function isLoteadoresR2PlanoTeoricoCampoVisivel(item: {
     label === 'O loteador concorda com a lista de gadgets?' ||
     label === 'Concorda com gadgets' ||
     label === 'Forma de pagamento' ||
-    label === 'Adendos / observações'
+    label === 'Adendos / observações' ||
+    label === 'Comentários finais'
   );
 }

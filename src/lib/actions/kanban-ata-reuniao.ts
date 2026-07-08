@@ -3,18 +3,18 @@
 import { revalidatePath } from 'next/cache';
 import type { AcaoAtaReuniao, AtaReuniaoRow, ConteudoAtaReuniao } from '@/lib/kanban/ata-reuniao-types';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
-import { propagarCamposKanbanCards } from '@/lib/kanban/card-sync-group';
+import { propagarCamposKanbanCards, listarCardIdsSyncGroup } from '@/lib/kanban/card-sync-group';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 export type KanbanAtaActionResult = { ok: true } | { ok: false; error: string };
 
-async function espelharDataFollowupEmProcesso(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+async function espelharDataReuniaoEmProcesso(
+  db: Awaited<ReturnType<typeof createClient>>,
   cardId: string,
   valor: string | null,
 ): Promise<void> {
-  const { data: card } = await supabase
+  const { data: card } = await db
     .from('kanban_cards')
     .select('projeto_id')
     .eq('id', cardId)
@@ -22,10 +22,30 @@ async function espelharDataFollowupEmProcesso(
   const ids = new Set<string>([cardId]);
   const pid = String((card as { projeto_id?: string | null } | null)?.projeto_id ?? '').trim();
   if (pid) ids.add(pid);
-  await supabase
+  await db
     .from('processo_step_one')
-    .update({ data_followup: valor, updated_at: new Date().toISOString() } as never)
+    .update({ data_reuniao: valor, updated_at: new Date().toISOString() } as never)
     .in('id', [...ids]);
+}
+
+async function limparDataReuniaoAposAta(
+  db: ReturnType<typeof createAdminClient>,
+  cardId: string,
+  origem: 'nativo' | 'legado',
+): Promise<KanbanAtaActionResult> {
+  if (origem === 'legado') {
+    const { error } = await db.from('processo_step_one').update({ data_reuniao: null }).eq('id', cardId);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  }
+
+  const cardIds = await listarCardIdsSyncGroup(db, cardId);
+  const ids = cardIds.length > 0 ? cardIds : [cardId];
+  const { error: updErr } = await db.from('kanban_cards').update({ data_reuniao: null }).in('id', ids);
+  if (updErr) return { ok: false, error: updErr.message };
+
+  await espelharDataReuniaoEmProcesso(db as unknown as Awaited<ReturnType<typeof createClient>>, cardId, null);
+  return { ok: true };
 }
 
 function parseConteudo(raw: unknown): ConteudoAtaReuniao {
@@ -52,8 +72,15 @@ function parseConteudo(raw: unknown): ConteudoAtaReuniao {
 
 function mapRow(row: Record<string, unknown>, nomePorId: Map<string, string>): AtaReuniaoRow {
   const conteudo = parseConteudo(row.conteudo);
-  const preenchidoPor = row.preenchido_por != null ? String(row.preenchido_por) : null;
+  const preenchidoPor =
+    row.preenchido_por != null
+      ? String(row.preenchido_por)
+      : row.autor_id != null
+        ? String(row.autor_id)
+        : null;
   const assuntoColuna = row.assunto != null ? String(row.assunto).trim() : '';
+  const autorNomeLegado =
+    row.autor_nome != null ? String(row.autor_nome).trim() : '';
   return {
     id: String(row.id),
     card_id: String(row.card_id),
@@ -62,13 +89,16 @@ function mapRow(row: Record<string, unknown>, nomePorId: Map<string, string>): A
     assunto: assuntoColuna || conteudo.assunto.trim() || 'Reunião',
     conteudo,
     preenchido_por: preenchidoPor,
-    preenchido_nome: preenchidoPor ? nomePorId.get(preenchidoPor) ?? null : null,
+    preenchido_nome:
+      (preenchidoPor ? nomePorId.get(preenchidoPor) ?? null : null) ||
+      autorNomeLegado ||
+      null,
     created_at: String(row.created_at ?? ''),
   };
 }
 
 const ATA_SELECT_BASE =
-  'id, card_id, card_origem, data_reuniao, conteudo, preenchido_por, created_at';
+  'id, card_id, data_reuniao, conteudo, created_at, autor_id, autor_nome, preenchido_por, card_origem';
 
 async function queryAtasReuniaoCard(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -85,12 +115,12 @@ async function queryAtasReuniaoCard(
 
   if (!withAssunto.error) return withAssunto;
 
-  if (/assunto/i.test(withAssunto.error.message)) {
+  const msg = withAssunto.error.message;
+  if (/assunto|card_origem|preenchido_por|autor_id|autor_nome/i.test(msg)) {
     return supabase
       .from('kanban_card_atas_reuniao')
-      .select(ATA_SELECT_BASE)
+      .select('id, card_id, data_reuniao, conteudo, created_at')
       .eq('card_id', cardId)
-      .eq('card_origem', origem)
       .order('data_reuniao', { ascending: false })
       .order('created_at', { ascending: false });
   }
@@ -166,23 +196,52 @@ export async function salvarAtaReuniaoCard(input: {
     preenchido_por: user.id,
   };
 
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
   let insErr = (
-    await supabase.from('kanban_card_atas_reuniao').insert({ ...payloadBase, assunto } as never)
+    await admin.from('kanban_card_atas_reuniao').insert({
+      ...payloadBase,
+      assunto,
+      card_origem: input.origem,
+      preenchido_por: user.id,
+    } as never)
   ).error;
 
   if (insErr && /assunto/i.test(insErr.message)) {
-    insErr = (await supabase.from('kanban_card_atas_reuniao').insert(payloadBase as never)).error;
+    insErr = (
+      await admin.from('kanban_card_atas_reuniao').insert({
+        ...payloadBase,
+        card_origem: input.origem,
+        preenchido_por: user.id,
+      } as never)
+    ).error;
+  }
+
+  if (insErr && /card_origem|preenchido_por/i.test(insErr.message)) {
+    const nome =
+      String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? '').trim() || null;
+    insErr = (
+      await admin.from('kanban_card_atas_reuniao').insert({
+        card_id: cardId,
+        data_reuniao: dataReuniao,
+        conteudo,
+        assunto,
+        autor_id: user.id,
+        ...(nome ? { autor_nome: nome } : {}),
+      } as never)
+    ).error;
   }
 
   if (insErr) return { ok: false, error: insErr.message };
 
-  const q =
-    input.origem === 'nativo'
-      ? supabase.from('kanban_cards').update({ data_reuniao: null }).eq('id', cardId)
-      : supabase.from('processo_step_one').update({ data_reuniao: null }).eq('id', cardId);
-
-  const { error: updErr } = await q;
-  if (updErr) return { ok: false, error: updErr.message };
+  const limpar = await limparDataReuniaoAposAta(admin, cardId, input.origem);
+  if (!limpar.ok) return limpar;
 
   revalidatePath(input.basePath?.trim() || '/');
   return { ok: true };
@@ -207,28 +266,12 @@ export async function salvarDataFollowupCard(input: {
   const valor = raw && dataIsoInputValida(raw) ? raw : raw ? null : null;
   if (raw && !valor) return { ok: false, error: 'Data de follow-up inválida. Use o formato completo (dia/mês/ano).' };
 
-  if (input.origem === 'nativo' && valor) {
-    let admin: ReturnType<typeof createAdminClient>;
-    try {
-      admin = createAdminClient();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return { ok: false, error: msg };
-    }
-    const sync = await propagarCamposKanbanCards(admin, cardId, { data_followup: valor });
-    if (!sync.ok) return { ok: false, error: sync.error };
-    await espelharDataFollowupEmProcesso(admin as unknown as Awaited<ReturnType<typeof createClient>>, cardId, valor);
-  } else {
-    const q =
-      input.origem === 'nativo'
-        ? supabase.from('kanban_cards').update({ data_followup: valor }).eq('id', cardId)
-        : supabase.from('processo_step_one').update({ data_followup: valor }).eq('id', cardId);
-
-    const { error } = await q;
+  if (input.origem === 'nativo') {
+    const { error } = await supabase.from('kanban_cards').update({ data_followup: valor }).eq('id', cardId);
     if (error) return { ok: false, error: error.message };
-    if (input.origem === 'nativo') {
-      await espelharDataFollowupEmProcesso(supabase, cardId, valor);
-    }
+  } else {
+    const { error } = await supabase.from('processo_step_one').update({ data_followup: valor }).eq('id', cardId);
+    if (error) return { ok: false, error: error.message };
   }
 
   revalidatePath(input.basePath?.trim() || '/');

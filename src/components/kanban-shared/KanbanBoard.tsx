@@ -14,7 +14,7 @@ import {
   type KanbanBoardFiltros,
 } from './kanbanBoardFiltros';
 import { hipotesesOrdemMinima } from '@/lib/kanban/kanban-paralelas-chips';
-import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
+import { sortKanbanCardsPorProximaAtividade } from '@/lib/kanban/kanban-proxima-atividade-ordem';
 import type { KanbanNomeDisplay } from './types';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
@@ -151,7 +151,7 @@ export function KanbanBoard({
       m[c.fase_id].push(c);
     }
     for (const f of fases) {
-      m[f.id] = sortKanbanCardsPorOrdemColuna(m[f.id] ?? []);
+      m[f.id] = sortKanbanCardsPorProximaAtividade(m[f.id] ?? []);
     }
     return m;
   }, [fases, cardsFiltrados]);

@@ -23,14 +23,15 @@ export const ESTEIRA_COLUNAS: readonly EsteiraColuna[] = [
   { slug: 'step_2', label: 'Novo Neg.', sla: 2, tipo: 'uteis', ordemGlobal: 4, faseId: '66815477-092e-433b-a6e7-e0ea59c8cb5e' },
   { slug: 'step_4', label: 'Check Legal', sla: 3, tipo: 'uteis', ordemGlobal: 5, faseId: 'fd05dc4a-b44a-470e-993f-5df79c223488' },
   { slug: 'step_5', label: 'Comitê', sla: 5, tipo: 'uteis', ordemGlobal: 6, faseId: '9e1c76ba-ce84-4dbd-ae40-e434dc068a81' },
-  { slug: 'step_6', label: 'Diligência', sla: 10, tipo: 'uteis', ordemGlobal: 7, faseId: '3a66243f-1d11-42e2-a159-60a857057fbc' },
-  { slug: 'step_7', label: 'Contrato', sla: 3, tipo: 'uteis', ordemGlobal: 8, faseId: 'd78771cb-f79d-4650-a056-f3e2dbc3f3a6' },
-  { slug: 'captacao_moni_capital', label: 'Captação', sla: 30, tipo: 'uteis', ordemGlobal: 9, faseId: 'd7e79cd4-a8ba-4239-b7b4-b82ad07acb11' },
-  { slug: 'passagem_wayser', label: 'Passagem', sla: 2, tipo: 'uteis', ordemGlobal: 10, faseId: '5f48a367-699b-4dc4-a310-377fc7d0ff88' },
-  { slug: 'aprovacao_condominio', label: 'Aprov. Cond.', sla: null, tipo: 'uteis', ordemGlobal: 11, faseId: 'be88bdd6-a4f1-43f6-b138-5b52031f0c96' },
-  { slug: 'aprovacao_prefeitura', label: 'Aprov. Pref.', sla: null, tipo: 'uteis', ordemGlobal: 12, faseId: '8ce359ce-a3cd-436e-a902-b34c7a9b1348' },
-  { slug: 'aguardando_credito', label: 'Ag. Crédito', sla: 30, tipo: 'corridos', ordemGlobal: 13, faseId: '8b83e671-ef0c-4028-8b52-8f56579e8df0' },
-  { slug: 'em_obra', label: 'Em Obra', sla: 180, tipo: 'corridos', ordemGlobal: 14, faseId: '60ef0129-4180-4089-8975-f64c4f736181' },
+  { slug: 'cto_condicoes_precedentes', label: 'CTO CP', sla: 7, tipo: 'uteis', ordemGlobal: 7, faseId: '' },
+  { slug: 'step_6', label: 'Diligência', sla: 10, tipo: 'uteis', ordemGlobal: 8, faseId: '3a66243f-1d11-42e2-a159-60a857057fbc' },
+  { slug: 'step_7', label: 'Contrato', sla: 3, tipo: 'uteis', ordemGlobal: 9, faseId: 'd78771cb-f79d-4650-a056-f3e2dbc3f3a6' },
+  { slug: 'captacao_moni_capital', label: 'Captação', sla: 30, tipo: 'uteis', ordemGlobal: 10, faseId: 'd7e79cd4-a8ba-4239-b7b4-b82ad07acb11' },
+  { slug: 'passagem_wayser', label: 'Passagem', sla: 2, tipo: 'uteis', ordemGlobal: 11, faseId: '5f48a367-699b-4dc4-a310-377fc7d0ff88' },
+  { slug: 'aprovacao_condominio', label: 'Aprov. Cond.', sla: null, tipo: 'uteis', ordemGlobal: 12, faseId: 'be88bdd6-a4f1-43f6-b138-5b52031f0c96' },
+  { slug: 'aprovacao_prefeitura', label: 'Aprov. Pref.', sla: null, tipo: 'uteis', ordemGlobal: 13, faseId: '8ce359ce-a3cd-436e-a902-b34c7a9b1348' },
+  { slug: 'aguardando_credito', label: 'Ag. Crédito', sla: 30, tipo: 'corridos', ordemGlobal: 14, faseId: '8b83e671-ef0c-4028-8b52-8f56579e8df0' },
+  { slug: 'em_obra', label: 'Em Obra', sla: 180, tipo: 'corridos', ordemGlobal: 15, faseId: '60ef0129-4180-4089-8975-f64c4f736181' },
 ] as const;
 
 export type CelulaEsteira = {

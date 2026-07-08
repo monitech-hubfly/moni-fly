@@ -48,6 +48,7 @@ const NOVOS_NEGOCIOS_SUBITENS: NavItem[] = [
   { href: '/portfolio', label: 'Funil Portfolio' },
   { href: '/loteadores', label: 'Funil Loteadores' },
   { href: '/funil-acoplamento', label: 'Funil Acoplamento' },
+  { href: '/funil-motor01', label: 'Motor 01' },
 ];
 const NOVOS_NEGOCIOS_SUBITENS_FRANK: NavItem[] = [
   { href: '/funil-stepone', label: 'Funil Step One' },
@@ -141,6 +142,7 @@ function isNovosNegociosActive(pathname: string) {
     pathname.startsWith('/funil-acoplamento') ||
     pathname.startsWith('/dashboard-novos-negocios') ||
     pathname.startsWith('/funil-stepone') ||
+    pathname.startsWith('/funil-motor01') ||
     pathname.startsWith('/loteadores') ||
     pathname.startsWith('/funil-moni-inc')
   );

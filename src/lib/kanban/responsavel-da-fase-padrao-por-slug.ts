@@ -27,6 +27,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   step_4: 'franqueado',
   acoplamento: 'moni',
   step_5: 'moni',
+  cto_condicoes_precedentes: 'moni',
   step_6: 'moni',
   step_7: 'franqueado',
   captacao_moni_capital: 'moni',

@@ -85,7 +85,7 @@ export function PainelCreditoClient({ byEtapa, initialOpenProcessId }: Props) {
         </select>
       </div>
 
-      <div className="flex items-stretch gap-4 overflow-x-auto pb-4 pt-2">
+      <div className="moni-kanban-board-scroll flex items-stretch gap-4 pb-2 pt-2">
         <StepsKanbanColumn
           title={colCreditoTerreno?.title ?? 'Crédito Terreno'}
           subtitle={colCreditoTerreno?.subtitle}

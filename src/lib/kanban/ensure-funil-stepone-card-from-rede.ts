@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { montarTituloCardSync } from '@/lib/kanban/card-sync-group';
+import { extrairNumeroFranquiaDoTitulo, montarTituloCardSync } from '@/lib/kanban/card-sync-group';
 import {
   criarEVincularProcessoStepOneAoCard,
+  vincularProcessoStepOneAoCard,
 } from '@/lib/kanban/processo-step-one-card';
 
 import { ONBOARDING_FASE_SLUGS } from '@/lib/kanban/stepone-fase-slugs';
@@ -29,6 +30,80 @@ export type EnsureFunilStepOneCardFromRedeResult =
   | { ok: true; created: boolean; cardId: string | null; repaired?: boolean }
   | { ok: false; error: string };
 
+type VincularProcessoParams = {
+  processoStepOneId?: string | null;
+  franqueadoUserId: string;
+  titulo: string;
+  redeFranqueadoId: string;
+};
+
+async function resolveOnboardingFaseId(
+  db: SupabaseClient,
+  kanbanId: string,
+): Promise<{ faseId: string } | { error: string }> {
+  const { data: fases, error: errFase } = await db
+    .from('kanban_fases')
+    .select('id, slug')
+    .eq('kanban_id', kanbanId)
+    .in('slug', [...ONBOARDING_FASE_SLUGS])
+    .eq('ativo', true)
+    .order('ordem', { ascending: true })
+    .limit(1);
+
+  if (errFase) return { error: errFase.message };
+
+  if (fases?.[0]?.id) {
+    return { faseId: String(fases[0].id) };
+  }
+
+  const { data: fallback, error: errFallback } = await db
+    .from('kanban_fases')
+    .select('id')
+    .eq('kanban_id', kanbanId)
+    .eq('ativo', true)
+    .order('ordem', { ascending: true })
+    .limit(1);
+
+  if (errFallback) return { error: errFallback.message };
+  if (!fallback?.[0]?.id) {
+    return {
+      error: `Nenhuma fase ativa no Funil Step One (Onboarding: ${ONBOARDING_FASE_SLUGS.join(' ou ')}).`,
+    };
+  }
+
+  return { faseId: String(fallback[0].id) };
+}
+
+/** Vincula processo existente (rede) ou cria mínimo; falhas não invalidam o card. */
+async function vincularProcessoAoCardSeNecessario(
+  db: SupabaseClient,
+  cardId: string,
+  params: VincularProcessoParams,
+): Promise<void> {
+  const pidExistente = String(params.processoStepOneId ?? '').trim();
+  if (pidExistente) {
+    const link = await vincularProcessoStepOneAoCard(db, cardId, pidExistente, {
+      redeFranqueadoId: params.redeFranqueadoId,
+    });
+    if (!link.ok) {
+      console.warn('[ensureFunilStepOneCardFromRede] vincular processo existente:', link.error);
+    }
+    return;
+  }
+
+  const numeroFranquia = extrairNumeroFranquiaDoTitulo(params.titulo) || null;
+  const processoRes = await criarEVincularProcessoStepOneAoCard(db, {
+    cardId,
+    userId: params.franqueadoUserId,
+    titulo: params.titulo,
+    redeFranqueadoId: params.redeFranqueadoId,
+    numeroFranquia,
+  });
+  if (!processoRes.ok) {
+    console.warn('[ensureFunilStepOneCardFromRede] criar/vincular processo:', processoRes.error);
+  }
+}
+
 /**
  * Garante um card nativo no Funil Step One para uma linha da rede (idempotente por rede + kanban).
  * Escritas via service role para não perder rede_franqueado_id por RLS/trigger legado.
@@ -39,6 +114,7 @@ export async function ensureFunilStepOneCardFromRede(
     redeFranqueadoId: string;
     franqueadoUserId: string;
     titulo: string;
+    processoStepOneId?: string | null;
   },
 ): Promise<EnsureFunilStepOneCardFromRedeResult> {
   const redeFranqueadoId = String(params.redeFranqueadoId ?? '').trim();
@@ -72,25 +148,16 @@ export async function ensureFunilStepOneCardFromRede(
 
   const kanbanId = String(kanban.id);
 
-  const { data: fases, error: errFase } = await db
-    .from('kanban_fases')
-    .select('id, slug')
-    .eq('kanban_id', kanbanId)
-    .in('slug', [...ONBOARDING_FASE_SLUGS])
-    .eq('ativo', true)
-    .order('ordem', { ascending: true })
-    .limit(1);
+  const faseRes = await resolveOnboardingFaseId(db, kanbanId);
+  if ('error' in faseRes) return { ok: false, error: faseRes.error };
+  const faseId = faseRes.faseId;
 
-  if (errFase) return { ok: false, error: errFase.message };
-  const fase = fases?.[0] ?? null;
-  if (!fase?.id) {
-    return {
-      ok: false,
-      error: `Fase Onboarding (${ONBOARDING_FASE_SLUGS.join(' ou ')}) não encontrada no Funil Step One.`,
-    };
-  }
-
-  const faseId = String(fase.id);
+  const vincularParams: VincularProcessoParams = {
+    processoStepOneId: params.processoStepOneId,
+    franqueadoUserId,
+    titulo,
+    redeFranqueadoId,
+  };
 
   const { data: existente, error: errExiste } = await db
     .from('kanban_cards')
@@ -104,20 +171,32 @@ export async function ensureFunilStepOneCardFromRede(
 
   if (existente?.id) {
     const cardId = String(existente.id);
-    const { error: errUp } = await db.from('kanban_cards').update({ titulo }).eq('id', cardId);
+    const { error: errUp } = await db
+      .from('kanban_cards')
+      .update({ titulo, fase_id: faseId })
+      .eq('id', cardId);
     if (errUp) return { ok: false, error: errUp.message };
+    await vincularProcessoAoCardSeNecessario(db, cardId, vincularParams);
     return { ok: true, created: false, cardId };
   }
 
   // Card órfão do trigger legado (sem rede_franqueado_id): reparar em vez de duplicar.
-  const { data: orfaos, error: errOrfao } = await db
+  const fkNum = extrairNumeroFranquiaDoTitulo(titulo);
+  let orfaoQuery = db
     .from('kanban_cards')
     .select('id')
     .eq('kanban_id', kanbanId)
-    .eq('franqueado_id', franqueadoUserId)
     .is('rede_franqueado_id', null)
     .order('created_at', { ascending: false })
     .limit(1);
+
+  if (fkNum) {
+    orfaoQuery = orfaoQuery.ilike('titulo', `${fkNum}%`);
+  } else {
+    orfaoQuery = orfaoQuery.eq('franqueado_id', franqueadoUserId);
+  }
+
+  const { data: orfaos, error: errOrfao } = await orfaoQuery;
 
   if (errOrfao) return { ok: false, error: errOrfao.message };
 
@@ -132,6 +211,7 @@ export async function ensureFunilStepOneCardFromRede(
       })
       .eq('id', orfaoId);
     if (errRepair) return { ok: false, error: errRepair.message };
+    await vincularProcessoAoCardSeNecessario(db, orfaoId, vincularParams);
     return { ok: true, created: false, cardId: orfaoId, repaired: true };
   }
 
@@ -156,16 +236,7 @@ export async function ensureFunilStepOneCardFromRede(
 
   const cardId = String(inserido.id);
 
-  const processoRes = await criarEVincularProcessoStepOneAoCard(db, {
-    cardId,
-    userId: franqueadoUserId,
-    titulo,
-    redeFranqueadoId,
-    numeroFranquia: titulo.match(/^FK\d+/i)?.[0] ?? null,
-  });
-  if (!processoRes.ok) {
-    return { ok: false, error: `Card criado, mas falha ao vincular processo: ${processoRes.error}` };
-  }
+  await vincularProcessoAoCardSeNecessario(db, cardId, vincularParams);
 
   if (inserido.rede_franqueado_id == null) {
     return {
@@ -267,6 +338,26 @@ export async function contarRedeSemCardFunilStepOne(): Promise<
 }
 
 /**
+ * Auto-cura silenciosa: cria cards ausentes ao carregar o Funil Step One (staff).
+ * Idempotente — só executa backfill quando há rede sem card.
+ */
+export async function autoCurarCardsFunilStepOneAusentes(fallbackUserId: string): Promise<void> {
+  const count = await contarRedeSemCardFunilStepOne();
+  if (!count.ok || count.total === 0) return;
+
+  const res = await garantirCardsFunilStepOneParaTodaRede(fallbackUserId);
+  if (!res.ok) {
+    console.error('[autoCurarCardsFunilStepOneAusentes]', res.error);
+    return;
+  }
+  if (res.criados > 0 || res.reparados > 0) {
+    console.info(
+      `[autoCurarCardsFunilStepOneAusentes] criados=${res.criados} reparados=${res.reparados}`,
+    );
+  }
+}
+
+/**
  * Garante card no Funil Step One para cada linha de rede_franqueados (idempotente).
  */
 export async function garantirCardsFunilStepOneParaTodaRede(
@@ -317,6 +408,7 @@ export async function garantirCardsFunilStepOneParaTodaRede(
       redeFranqueadoId: redeId,
       franqueadoUserId,
       titulo: tituloFunilFromRedeRow(redeRow),
+      processoStepOneId: redeRow.processo_id,
     });
 
     if (!res.ok) {

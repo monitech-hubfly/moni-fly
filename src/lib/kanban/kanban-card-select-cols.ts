@@ -34,8 +34,8 @@ export const KANBAN_CARD_SELECT_BASE = `
       funding_tipo,
       funding_localizacao,
       funding_descritivo,
-      funding_proxima_atividade,
-      funding_prazo_atividade
+      proxima_atividade,
+      prazo_atividade
     `;
 
 export const KANBAN_CARD_SELECT_WITH_SLA = `${KANBAN_CARD_SELECT_BASE.trim()},

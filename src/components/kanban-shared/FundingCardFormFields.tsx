@@ -10,11 +10,9 @@ export type FundingCardFormFieldsProps = {
   showNome?: boolean;
 };
 
-const labelCls =
-  'block text-[10px] font-semibold uppercase tracking-wide text-[var(--moni-text-secondary)]';
-const reqMark = 'text-[var(--moni-status-overdue-text)]';
+const labelCls = 'block text-sm font-medium';
 const inputCls =
-  'mt-1 w-full rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-[var(--moni-border-default)] bg-white px-2.5 py-2 text-xs font-[family-name:var(--moni-font-sans)] text-[var(--moni-text-primary)] min-h-[44px] placeholder:text-[var(--moni-text-tertiary)] disabled:opacity-60';
+  'mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:bg-stone-50';
 
 export function FundingCardFormFields({
   draft,
@@ -23,10 +21,10 @@ export function FundingCardFormFields({
   showNome = true,
 }: FundingCardFormFieldsProps) {
   return (
-    <div className="space-y-4 moni-form-novo-card">
+    <div className="space-y-5 moni-form-novo-card">
       <label className="block min-w-0">
-        <span className={labelCls}>
-          Tipo <span className={reqMark}>*</span>
+        <span className={labelCls} style={{ color: 'var(--moni-text-primary)' }}>
+          Tipo <span className="text-red-500">*</span>
         </span>
         <select
           value={draft.funding_tipo}
@@ -39,7 +37,7 @@ export function FundingCardFormFields({
           }
           className={inputCls}
         >
-          <option value="">Selecione…</option>
+          <option value="">Selecione o tipo</option>
           <option value="Investidor">Investidor</option>
           <option value="Broker">Broker</option>
         </select>
@@ -48,8 +46,8 @@ export function FundingCardFormFields({
       <div className={`grid gap-3${showNome ? ' sm:grid-cols-2' : ''}`}>
         {showNome ? (
           <label className="block min-w-0">
-            <span className={labelCls}>
-              Nome <span className={reqMark}>*</span>
+            <span className={labelCls} style={{ color: 'var(--moni-text-primary)' }}>
+              Nome <span className="text-red-500">*</span>
             </span>
             <input
               type="text"
@@ -62,8 +60,8 @@ export function FundingCardFormFields({
           </label>
         ) : null}
         <label className={`block min-w-0${showNome ? '' : ' sm:col-span-2'}`}>
-          <span className={labelCls}>
-            Localização <span className={reqMark}>*</span>
+          <span className={labelCls} style={{ color: 'var(--moni-text-primary)' }}>
+            Localização <span className="text-red-500">*</span>
           </span>
           <input
             type="text"
@@ -77,36 +75,42 @@ export function FundingCardFormFields({
       </div>
 
       <label className="block min-w-0">
-        <span className={labelCls}>Descritivo</span>
+        <span className={labelCls} style={{ color: 'var(--moni-text-primary)' }}>
+          Descritivo <span className="text-stone-400 text-xs">(opcional)</span>
+        </span>
         <textarea
           value={draft.funding_descritivo}
           disabled={disabled}
           rows={4}
           placeholder="Origem, contexto, observações…"
           onChange={(e) => onChange({ funding_descritivo: e.target.value })}
-          className={`${inputCls} min-h-[88px] resize-y`}
+          className={`${inputCls} resize-y`}
         />
       </label>
 
       <label className="block min-w-0">
-        <span className={labelCls}>Próxima atividade</span>
+        <span className={labelCls} style={{ color: 'var(--moni-text-primary)' }}>
+          Próxima atividade <span className="text-stone-400 text-xs">(opcional)</span>
+        </span>
         <input
           type="text"
-          value={draft.funding_proxima_atividade}
+          value={draft.proxima_atividade}
           disabled={disabled}
           placeholder="Ex: Enviar apresentação do fundo"
-          onChange={(e) => onChange({ funding_proxima_atividade: e.target.value })}
+          onChange={(e) => onChange({ proxima_atividade: e.target.value })}
           className={inputCls}
         />
       </label>
 
       <label className="block min-w-0">
-        <span className={labelCls}>Prazo</span>
+        <span className={labelCls} style={{ color: 'var(--moni-text-primary)' }}>
+          Prazo <span className="text-stone-400 text-xs">(opcional)</span>
+        </span>
         <input
           type="date"
-          value={draft.funding_prazo_atividade}
+          value={draft.prazo_atividade}
           disabled={disabled}
-          onChange={(e) => onChange({ funding_prazo_atividade: e.target.value })}
+          onChange={(e) => onChange({ prazo_atividade: e.target.value })}
           className={inputCls}
         />
       </label>

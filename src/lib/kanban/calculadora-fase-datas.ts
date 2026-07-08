@@ -129,7 +129,7 @@ export async function buscarDatasManuaisCalculadoraSyncGroup(
   return mergeOverridesPorEditadoEm((data ?? []) as CalculadoraFaseDataRowSync[], fids);
 }
 
-/** Upsert de override manual para uma fase (sem propagar para as demais). */
+/** Upsert de override manual para uma fase (recalcula estimativas posteriores na UI). */
 export async function salvarDataManualCalculadora(
   supabase: SupabaseClient,
   cardId: string,
@@ -249,7 +249,7 @@ export async function limparDatasManuaisCalculadoraSyncGroup(
 /** Slug da fase que, ao ser editada manualmente, propaga recálculo para as posteriores. */
 export const CALCULADORA_FASE_SLUG_PROPAGA_FORWARD = 'passagem_wayser';
 
-/** Overlay por fase; Passagem para Wayser propaga recálculo forward. */
+/** Overlay por fase; qualquer override recalcula estimativas forward. */
 export function aplicarDatasManuaisCalculadora(
   linhas: CalculadoraFaseLinha[],
   overrides: Map<string, CalculadoraFaseDataManual>,

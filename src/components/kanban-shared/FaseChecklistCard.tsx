@@ -46,6 +46,7 @@ import { BcaCondominioChecklist } from '@/components/kanban-shared/BcaCondominio
 import { BcaChecklistWidget } from '@/components/kanban-shared/BcaChecklistWidget';
 import { RedeLoteadorChecklist } from '@/components/kanban-shared/RedeLoteadorChecklist';
 import { CatalogCasaChecklistSelect } from '@/components/kanban-shared/CatalogCasaChecklistSelect';
+import { KanbanCardModalMoedaField } from '@/components/kanban-shared/KanbanCardModalMoedaField';
 import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioChecklistSelect';
 import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
@@ -948,6 +949,7 @@ function ItemField({
 }: ItemFieldProps) {
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadErro, setUploadErro] = useState<string | null>(null);
   const [draftLinkAnexo, setDraftLinkAnexo] = useState('');
   const [baixandoModelo, setBaixandoModelo] = useState(false);
   const [erroModelo, setErroModelo] = useState<string | null>(null);
@@ -974,29 +976,45 @@ function ItemField({
   ) : null;
 
   const erroEl =
-    estado.erro || erroModelo ? (
-      <p className="mt-1 text-xs text-red-500">{erroModelo ?? estado.erro}</p>
+    estado.erro || erroModelo || uploadErro ? (
+      <p className="mt-1 text-xs text-red-500">{uploadErro ?? erroModelo ?? estado.erro}</p>
     ) : null;
 
   async function handleUpload(file: File) {
+    setUploadErro(null);
     setUploading(true);
     const supabase = createClient();
     const ext = file.name.split('.').pop() ?? 'bin';
     const path = `respostas/${cardId}/${item.id}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from('documentos-templates').upload(path, file, { upsert: true });
     setUploading(false);
-    if (error) return;
+    if (error) {
+      setUploadErro(
+        error.message.includes('row-level security') || error.message.includes('violates')
+          ? 'Sem permissão para enviar o arquivo. Peça ao admin aplicar a migration 287/434 no Supabase DEV.'
+          : error.message,
+      );
+      return;
+    }
     await onArquivo(path);
   }
 
   async function handleUploadMultiplo(file: File, pathsAtuais: string[]) {
+    setUploadErro(null);
     setUploading(true);
     const supabase = createClient();
     const ext = file.name.split('.').pop() ?? 'bin';
     const path = `respostas/${cardId}/${item.id}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from('documentos-templates').upload(path, file, { upsert: true });
     setUploading(false);
-    if (error) return;
+    if (error) {
+      setUploadErro(
+        error.message.includes('row-level security') || error.message.includes('violates')
+          ? 'Sem permissão para enviar o arquivo. Peça ao admin aplicar a migration 287/434 no Supabase DEV.'
+          : error.message,
+      );
+      return;
+    }
     const next = [...pathsAtuais, path];
     const payload = JSON.stringify(next);
     onChange(payload);
@@ -1752,6 +1770,24 @@ function ItemField({
           void onChecklistValor(v);
         }}
       />
+    );
+  }
+
+  if (item.tipo === 'moeda') {
+    return (
+      <div>
+        {labelEl}
+        <KanbanCardModalMoedaField
+          value={estado.valor}
+          placeholder={item.placeholder ?? '0,00'}
+          onChange={(v) => {
+            onChange(v);
+            void onChecklistValor(v);
+          }}
+        />
+        {hintEspelhado}
+        {erroEl}
+      </div>
     );
   }
 

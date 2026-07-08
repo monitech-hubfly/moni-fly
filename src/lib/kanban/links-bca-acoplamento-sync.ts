@@ -148,7 +148,7 @@ async function obterItensChecklistModelagemCasa(
   for (const it of itens ?? []) {
     const id = String((it as { id?: string }).id ?? '').trim();
     const lab = normLabel((it as { label?: string }).label);
-    if (lab === normLabel(CHECKLIST_LABEL_GBOX)) gboxItemId = id;
+    if (lab === normLabel(CHECKLIST_LABEL_GBOX) || lab === 'bca') gboxItemId = id;
     if (lab === normLabel(CHECKLIST_LABEL_ACOPLAMENTO)) acoplamentoItemId = id;
   }
 
@@ -352,27 +352,29 @@ export async function verificarGateAcoplamentoModelagemCasa(
     return { ok: false, error: msg };
   }
 
-  const processoId = await resolverProcessoIdDoCard(db, cid);
-  if (!processoId) {
-    return {
-      ok: false,
-      error: 'Preencha os links de Gbox e Acoplamento no checklist da fase ou em Dados do Negócio antes de avançar.',
-    };
-  }
-
-  const [{ linkGbox: gboxChecklist, linkAcoplamento: acopChecklist }, { data: proc }] = await Promise.all([
+  const [{ linkGbox: gboxChecklist, linkAcoplamento: acopChecklist }, processoId] = await Promise.all([
     lerLinksGboxAcoplamentoChecklistCard(db, cid),
-    db.from('processo_step_one').select('link_gbox, link_acoplamento').eq('id', processoId).maybeSingle(),
+    resolverProcessoIdDoCard(db, cid),
   ]);
 
-  const linkGbox = normLink(gboxChecklist) ?? normLink(proc?.link_gbox);
-  const linkAcoplamento = normLink(acopChecklist) ?? normLink(proc?.link_acoplamento);
+  let linkGbox = normLink(gboxChecklist);
+  let linkAcoplamento = normLink(acopChecklist);
+
+  if (processoId && (!linkGbox || !linkAcoplamento)) {
+    const { data: proc } = await db
+      .from('processo_step_one')
+      .select('link_gbox, link_acoplamento')
+      .eq('id', processoId)
+      .maybeSingle();
+    linkGbox = linkGbox ?? normLink(proc?.link_gbox);
+    linkAcoplamento = linkAcoplamento ?? normLink(proc?.link_acoplamento);
+  }
 
   if (!linkGboxAcoplamentoPreenchidos(linkGbox, linkAcoplamento)) {
     return {
       ok: false,
       error:
-        'Preencha os links de Gbox e Acoplamento (checklist da fase ou painel esquerdo) antes de avançar para a próxima fase.',
+        'Preencha os links de Gbox e Acoplamento no checklist da fase ou em Dados do Negócio antes de avançar.',
     };
   }
 

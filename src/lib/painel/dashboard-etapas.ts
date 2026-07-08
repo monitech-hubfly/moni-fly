@@ -42,6 +42,7 @@ export const ETAPAS_KANBAN_NN: ReadonlySet<PainelColumnKey> = new Set([
   'step_4',
   'acoplamento',
   'step_5',
+  'cto_condicoes_precedentes',
   'step_6',
   'step_7',
   'captacao_moni_capital',

@@ -25,15 +25,9 @@ import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import type { FundingTipo } from '@/lib/kanban/funding-card-fields';
 import {
-  deveValidarGatePortfolioStep5,
   deveValidarGateLoteadoresComite,
-  deveVerificarCapital,
-  gatePortfolioStep5Liberado,
-  listarEsteirasParalelasPendentes,
   mensagemGateLoteadoresComite,
-  mensagemGatePortfolioStep5,
   PORTFOLIO_KANBAN_NOME,
-  type PortfolioParalelasFlags,
 } from '@/lib/kanban/portfolio-paralelas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { inserirKanbanCardVinculo, garantirShadowKanbanCardLegadoPorId } from '@/lib/kanban/kanban-card-vinculos';
@@ -81,7 +75,6 @@ import {
   propagarCamposKanbanCards,
   propagarCamposProcesso,
   reconciliarFranqueadoNoSyncGroup,
-  resolverProcessoStepOneIdDoCard,
   type KanbanCardCamposSync,
 } from '@/lib/kanban/card-sync-group';
 import {
@@ -1859,8 +1852,19 @@ export type CriarCardFundingInput = {
   funding_tipo: FundingTipo;
   funding_localizacao: string;
   funding_descritivo?: string;
-  funding_proxima_atividade?: string;
-  funding_prazo_atividade?: string;
+  proxima_atividade?: string;
+  prazo_atividade?: string;
+  /** Vincular cadastro Moní Capital existente ao card criado. */
+  moni_capital_cadastro_id?: string;
+  /** Criar novo cadastro Moní Capital e vincular (ignorado se moni_capital_cadastro_id informado). */
+  criarCadastroMoniCapital?: {
+    broker_nome?: string | null;
+    broker_email?: string | null;
+    broker_telefone?: string | null;
+    investidor_nome?: string | null;
+    investidor_email?: string | null;
+    investidor_telefone?: string | null;
+  };
 };
 
 /** Card nativo no kanban (`franqueado_id` = utilizador autenticado). */
@@ -2033,8 +2037,8 @@ export async function criarCardFunding(input: CriarCardFundingInput): Promise<Ac
     funding_tipo: tipo,
     funding_localizacao: localizacao,
     funding_descritivo: String(input.funding_descritivo ?? '').trim() || null,
-    funding_proxima_atividade: String(input.funding_proxima_atividade ?? '').trim() || null,
-    funding_prazo_atividade: timestampCampoCalendarioIso(input.funding_prazo_atividade),
+    proxima_atividade: String(input.proxima_atividade ?? '').trim() || null,
+    prazo_atividade: timestampCampoCalendarioIso(input.prazo_atividade),
   };
 
   const { data: cardRow, error } = await supabase
@@ -2049,6 +2053,17 @@ export async function criarCardFunding(input: CriarCardFundingInput): Promise<Ac
     await import('@/lib/kanban/responsavel-fase-checklist');
   await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, KANBAN_IDS.FUNDING, user.id);
   await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
+
+  const cadastroIdExistente = String(input.moni_capital_cadastro_id ?? '').trim();
+  if (cadastroIdExistente) {
+    const { vincularCadastroMoniCapitalAoCard } = await import('@/lib/moni-capital-cadastros-actions');
+    const link = await vincularCadastroMoniCapitalAoCard(cardId, cadastroIdExistente);
+    if (!link.ok) return link;
+  } else if (input.criarCadastroMoniCapital) {
+    const { criarEVincularCadastroMoniCapitalNoCard } = await import('@/lib/moni-capital-cadastros-actions');
+    const criar = await criarEVincularCadastroMoniCapitalNoCard(cardId, input.criarCadastroMoniCapital);
+    if (!criar.ok) return criar;
+  }
 
   const bp = String(input.basePath ?? '/funil-funding').trim() || '/funil-funding';
   revalidatePath(bp);
@@ -2407,7 +2422,9 @@ export async function salvarDadosNegocioKanban(input: {
       linkGbox: linkPlanilhaMapa ?? null,
       usuarioId: user.id,
     });
-    if (!sync.ok) return sync;
+    if (!sync.ok) {
+      console.warn('[negocio] sync Gbox → checklist planilha/mapa:', sync.error);
+    }
   }
 
   revalidatePath(input.basePath?.trim() || '/');
@@ -2454,19 +2471,39 @@ export async function uploadProcessoNegocioAnexo(
 
   const { data: cardRow } = await admin
     .from('kanban_cards')
-    .select('projeto_id, rede_franqueado_id, titulo')
+    .select('processo_step_one_id, rede_franqueado_id, titulo')
     .eq('id', cardOrigemId)
     .maybeSingle();
 
-  const resolvedProcessoId = await resolverProcessoStepOneIdDoCard(admin, {
-    cardProjetoId: (cardRow as { projeto_id?: string | null } | null)?.projeto_id,
-    redeFranqueadoId: (cardRow as { rede_franqueado_id?: string | null } | null)?.rede_franqueado_id,
-    cardTitulo: String((cardRow as { titulo?: string | null } | null)?.titulo ?? ''),
-  });
+  const card = cardRow as {
+    processo_step_one_id?: string | null;
+    rede_franqueado_id?: string | null;
+    titulo?: string | null;
+  } | null;
 
-  const processoId =
-    resolvedProcessoId ?? String(formData.get('processoId') ?? '').trim();
-  if (!processoId) return { ok: false, error: 'Processo inválido.' };
+  const redeId = String(card?.rede_franqueado_id ?? '').trim();
+  let redeProcessoId: string | null = null;
+  if (redeId) {
+    const { data: redeRow } = await admin
+      .from('rede_franqueados')
+      .select('processo_id')
+      .eq('id', redeId)
+      .maybeSingle();
+    redeProcessoId = String((redeRow as { processo_id?: string | null } | null)?.processo_id ?? '').trim() || null;
+  }
+
+  const processoIdForm = String(formData.get('processoId') ?? '').trim();
+  const { garantirProcessoNegocioDedicadoAoCard } = await import('@/lib/kanban/processo-step-one-card');
+  const dedicado = await garantirProcessoNegocioDedicadoAoCard(admin, cardOrigemId, {
+    userId: user.id,
+    processoIdAtual: String(card?.processo_step_one_id ?? '').trim() || processoIdForm,
+    redeProcessoId,
+    titulo: card?.titulo ?? undefined,
+    redeFranqueadoId: redeId || null,
+  });
+  if (!dedicado.ok) return dedicado;
+
+  const processoId = dedicado.processoId;
 
   const file = formData.get('file');
   if (!file || !(file instanceof File) || file.size === 0) return { ok: false, error: 'Selecione um arquivo.' };
@@ -3957,27 +3994,11 @@ async function obterGatePortfolioStep5(
     return { ok: true };
   }
 
-  if (!deveValidarGatePortfolioStep5(novaFaseSlug, row.kanban_id, kanbanNome)) {
-    return { ok: true };
-  }
-
-  const flags: PortfolioParalelasFlags = {
-    acoplamento_concluido: row.acoplamento_concluido,
-    credito_terreno_ok: row.credito_terreno_ok,
-    contabilidade_ok: row.contabilidade_ok,
-    juridico_ok: row.juridico_ok,
-    capital_ok: row.capital_ok,
-  };
-
-  const exigirCapital = await deveVerificarCapital(supabase, cardId);
-  const gateOpts = { exigirCapital };
-
-  if (gatePortfolioStep5Liberado(flags, gateOpts)) return { ok: true };
-
-  return {
-    ok: false,
-    error: mensagemGatePortfolioStep5(listarEsteirasParalelasPendentes(flags, gateOpts)),
-  };
+  // Funil Portfólio → Comitê (step_5): a trava de esteiras paralelas pendentes
+  // (Crédito Terreno, Contabilidade, Jurídico, Divify) foi removida a pedido do
+  // negócio. O card avança livremente; os chips informativos das esteiras seguem
+  // sendo exibidos na UI apenas como status, sem bloquear a movimentação.
+  return { ok: true };
 }
 
 /** Valida gate Comitê (Portfolio → step_5) antes de avançar fase no cliente. */
@@ -4113,10 +4134,45 @@ export type SalvarDadosFundingInput = {
   funding_tipo?: FundingTipo | '' | null;
   funding_localizacao?: string | null;
   funding_descritivo?: string | null;
-  funding_proxima_atividade?: string | null;
-  funding_prazo_atividade?: string | null;
   basePath?: string;
 };
+
+export type SalvarProximaAtividadeInput = {
+  cardId: string;
+  proxima_atividade?: string | null;
+  prazo_atividade?: string | null;
+  basePath?: string;
+};
+
+/** Salva próxima atividade e prazo em `kanban_cards` (todos os funis). */
+export async function salvarProximaAtividade(input: SalvarProximaAtividadeInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (input.proxima_atividade !== undefined) {
+    const v = String(input.proxima_atividade ?? '').trim();
+    update.proxima_atividade = v === '' ? null : v;
+  }
+  if (input.prazo_atividade !== undefined) {
+    update.prazo_atividade = timestampCampoCalendarioIso(input.prazo_atividade);
+  }
+
+  const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
 
 /** Salva campos específicos do Funil Funding em `kanban_cards`. */
 export async function salvarDadosFunding(input: SalvarDadosFundingInput): Promise<ActionResult> {
@@ -4160,13 +4216,6 @@ export async function salvarDadosFunding(input: SalvarDadosFundingInput): Promis
   if (input.funding_descritivo !== undefined) {
     const v = String(input.funding_descritivo ?? '').trim();
     update.funding_descritivo = v === '' ? null : v;
-  }
-  if (input.funding_proxima_atividade !== undefined) {
-    const v = String(input.funding_proxima_atividade ?? '').trim();
-    update.funding_proxima_atividade = v === '' ? null : v;
-  }
-  if (input.funding_prazo_atividade !== undefined) {
-    update.funding_prazo_atividade = timestampCampoCalendarioIso(input.funding_prazo_atividade);
   }
 
   const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
@@ -4255,7 +4304,7 @@ export async function moverCardParaFase(input: {
   kanbanNome?: string;
   /** Obrigatório ao mover para Reprovado no Funil Acoplamento. */
   motivoReprovacaoAcoplamento?: string;
-  /** Obrigatório ao sair de fase com SLA vencido no Funil Loteadores (Dados do Loteador / Fechar Contrato). */
+  /** Obrigatório ao avançar de fase com SLA vencido (quando ainda não há justificativa na fase). */
   justificativaSlaQuebra?: string;
 }): Promise<ActionResult> {
   const supabase = await createClient();
@@ -4287,9 +4336,10 @@ export async function moverCardParaFase(input: {
   const gateChecklistLegal = await verificarGateChecklistLegalPortfolio(cardId, novaFaseId);
   if (!gateChecklistLegal.ok) return gateChecklistLegal;
 
-  const { verificarGateJustificativaSlaLoteadores } = await import('@/lib/actions/kanban-sla-justificativa');
-  const gateSlaJustificativa = await verificarGateJustificativaSlaLoteadores(
+  const { verificarGateJustificativaSla } = await import('@/lib/actions/kanban-sla-justificativa');
+  const gateSlaJustificativa = await verificarGateJustificativaSla(
     cardId,
+    novaFaseId,
     input.justificativaSlaQuebra,
   );
   if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
@@ -4910,12 +4960,28 @@ export async function upsertFaseChecklistResposta(input: {
     .eq('id', input.item_id)
     .maybeSingle();
 
+  const { data: existente } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('valor, arquivo_path')
+    .eq('card_id', input.card_id)
+    .eq('item_id', input.item_id)
+    .maybeSingle();
+  const ex = existente as { valor?: string | null; arquivo_path?: string | null } | null;
+  const nextValor =
+    input.valor !== undefined ? input.valor : ex?.valor != null ? String(ex.valor) : null;
+  const nextArquivo =
+    input.arquivo_path !== undefined
+      ? input.arquivo_path
+      : ex?.arquivo_path != null
+        ? String(ex.arquivo_path)
+        : null;
+
   const { error } = await supabase.from('kanban_fase_checklist_respostas').upsert(
     {
       item_id: input.item_id,
       card_id: input.card_id,
-      valor: input.valor ?? null,
-      arquivo_path: input.arquivo_path ?? null,
+      valor: nextValor,
+      arquivo_path: nextArquivo,
       preenchido_por: user.id,
       preenchido_em: new Date().toISOString(),
     },
@@ -4951,10 +5017,12 @@ export async function upsertFaseChecklistResposta(input: {
 
     const sync = await sincronizarPlanilhaMapaChecklistParaGbox({
       cardId: input.card_id,
-      valorChecklist: input.valor ?? null,
+      valorChecklist: nextValor,
       processoId,
     });
-    if (!sync.ok) return sync;
+    if (!sync.ok) {
+      console.warn('[checklist] sync planilha/mapa → Gbox:', sync.error);
+    }
   }
 
   return { ok: true };

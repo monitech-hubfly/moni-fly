@@ -17,6 +17,7 @@ export const KANBAN_IDS = {
   PROJETO_LEGAL:   '39de341d-aebf-481c-9118-ce6fc6574187',
   PROJETOS_LOCAIS: 'c2ab09bd-4bd6-491e-8734-281d7678a6ad',
   PROJETOS_LEGAIS: '23ad5ce1-59f8-4e74-acb8-69aa61228cd8',
+  MOTOR01:         '202527ea-d284-4c49-94f5-e75b25d6910e',
 } as const
 
 /** `kanbans.nome` → UUID canônico (PROD). Preferir na resolução do board. */
@@ -44,6 +45,7 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Projeto Legal': KANBAN_IDS.PROJETO_LEGAL,
   'Funil Projetos Locais': KANBAN_IDS.PROJETOS_LOCAIS,
   'Funil Projetos Legais': KANBAN_IDS.PROJETOS_LEGAIS,
+  'Funil Motor 01': KANBAN_IDS.MOTOR01,
 };
 
 export const FASE_IDS = {
@@ -189,6 +191,7 @@ export const FASE_SLUGS = {
   OPERACOES_ENTREGUE:        'operacoes_entregue',
   // Gates
   STEP_5:             'step_5',
+  CTO_CONDICOES_PRECEDENTES: 'cto_condicoes_precedentes',
   STEP_6:             'step_6',
   /** Funil Portfólio — fase Opção (confirmação migration 389). Legado PROD: `step_3`. */
   OPCAO:              'opcao',
@@ -209,6 +212,13 @@ export const FASE_SLUGS = {
   BATALHA_CASAS:        'batalha_casas',
   ESCOLHA:              'escolha',
   HIPOTESES:            'hipoteses',
+  // Funil Motor 01 (KANBAN_IDS.MOTOR01) — bastões de ida
+  M1_EXECUCAO_CASA:     'm1_execucao_casa',
+  M1_AJUSTES:           'm1_ajustes',
+  M1_R04_AJUSTES:       'm1_r04_ajustes',
+  M1_CTO_CLIENTE:       'm1_cto_cliente',
+  M1_PAGAMENTO_ENTRADA: 'm1_pagamento_entrada',
+  M1_CUSTOM_TRACK1_2:   'm1_custom_track1_2',
 } as const
 
 /** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389). */
@@ -237,6 +247,7 @@ export const KANBANS_INTERNOS = [
   KANBAN_IDS.PROJETO_LEGAL,
   KANBAN_IDS.PROJETOS_LOCAIS,
   KANBAN_IDS.PROJETOS_LEGAIS,
+  KANBAN_IDS.MOTOR01,
 ] as const;
 
 /** Nomes em `kanbans.nome` alinhados a `KANBANS_INTERNOS`. */
@@ -251,6 +262,7 @@ export const KANBANS_INTERNOS_NOMES = [
   'Funil Projeto Legal',
   'Funil Projetos Locais',
   'Funil Projetos Legais',
+  'Funil Motor 01',
 ] as const;
 
 export const MSG_CHAMADO_JURIDICO_JA_EXISTE =

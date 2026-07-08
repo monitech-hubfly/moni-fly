@@ -15,7 +15,6 @@ import {
   coletarIdsProcessoDosCards,
   fetchEtapaPainelPorProcessoIds,
 } from '@/lib/kanban/reconciliar-fase-etapa-painel';
-import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
 import {
   montarTituloCardSync,
   escolherTituloExibicaoCard,
@@ -70,16 +69,12 @@ function coalesceDatasCardBrief(
   legado?: KanbanCardBrief | null,
   processo?: { data_followup?: unknown; data_reuniao?: unknown } | null,
 ): KanbanCardBrief {
-  const df =
-    card.data_followup ??
-    legado?.data_followup ??
-    (processo ? dataIsoParaInput(processo.data_followup) : null);
   const dr =
     card.data_reuniao ??
     legado?.data_reuniao ??
     (processo ? dataIsoParaInput(processo.data_reuniao) : null);
-  if (df === card.data_followup && dr === card.data_reuniao) return card;
-  return { ...card, data_followup: df ?? null, data_reuniao: dr ?? null };
+  if (dr === card.data_reuniao) return card;
+  return { ...card, data_reuniao: dr ?? null };
 }
 
 async function enrichCardsDatasFromProcesso(
@@ -88,7 +83,7 @@ async function enrichCardsDatasFromProcesso(
 ): Promise<KanbanCardBrief[]> {
   const processoIds = new Set<string>();
   for (const c of cards) {
-    if (c.data_followup && c.data_reuniao) continue;
+    if (c.data_reuniao) continue;
     const id = String(c.id ?? '').trim();
     if (id) processoIds.add(id);
     const pid = String(c.projeto_id ?? '').trim();
@@ -198,7 +193,6 @@ function mesclarCamposDeFonte(
     rede_franqueado_id:
       coalesceTextoCampo(dest.rede_franqueado_id, fonte.rede_franqueado_id) ??
       dest.rede_franqueado_id,
-    data_followup: dest.data_followup ?? fonte.data_followup,
     data_reuniao: dest.data_reuniao ?? fonte.data_reuniao,
   };
 }
@@ -1036,10 +1030,10 @@ export async function fetchKanbanBoardSnapshot(
         (cMerged as { funding_localizacao?: string | null }).funding_localizacao ?? null,
       funding_descritivo:
         (cMerged as { funding_descritivo?: string | null }).funding_descritivo ?? null,
-      funding_proxima_atividade:
-        (cMerged as { funding_proxima_atividade?: string | null }).funding_proxima_atividade ?? null,
-      funding_prazo_atividade: dataIsoParaInput(
-        (cMerged as { funding_prazo_atividade?: string | null }).funding_prazo_atividade,
+      proxima_atividade:
+        (cMerged as { proxima_atividade?: string | null }).proxima_atividade ?? null,
+      prazo_atividade: dataIsoParaInput(
+        (cMerged as { prazo_atividade?: string | null }).prazo_atividade,
       ),
     };
   };
@@ -1118,7 +1112,7 @@ export async function fetchKanbanBoardSnapshot(
     allCardIds.length > 0
       ? supabase
           .from('kanban_card_tags')
-          .select('card_id, tag_id, kanban_tags(nome, cor)')
+          .select('id, card_id, tag_id, kanban_tags(nome, cor)')
           .in('card_id', allCardIds)
       : Promise.resolve({ data: [] as { card_id: string; tag_id: string; kanban_tags: { nome: string | null; cor: string | null } | null }[] }),
   ]);
@@ -1137,16 +1131,17 @@ export async function fetchKanbanBoardSnapshot(
   // Tags (nativo): agrega em lote e acopla ao card brief
   if (allCardIds.length > 0) {
     const rows = tagsRes.data;
-    const byCardId = new Map<string, { tag_id: string; nome: string; cor: string }[]>();
+    const byCardId = new Map<string, { id: string; tag_id: string; nome: string; cor: string }[]>();
     (rows ?? []).forEach((r) => {
       const cid = String((r as { card_id?: string | null }).card_id ?? '').trim();
       if (!cid) return;
+      const id = String((r as { id?: string | null }).id ?? '').trim();
       const tag_id = String((r as { tag_id?: string | null }).tag_id ?? '').trim();
       const nome = String(((r as { kanban_tags?: { nome?: string | null } | null }).kanban_tags as { nome?: string | null } | null)?.nome ?? '');
       const cor = String(((r as { kanban_tags?: { cor?: string | null } | null }).kanban_tags as { cor?: string | null } | null)?.cor ?? '#cccccc');
-      if (!tag_id) return;
+      if (!id || !tag_id) return;
       const arr = byCardId.get(cid) ?? [];
-      arr.push({ tag_id, nome, cor });
+      arr.push({ id, tag_id, nome, cor });
       byCardId.set(cid, arr);
     });
     const cardsTagged = cards.map((c) => ({ ...c, tagsCard: byCardId.get(c.id) ?? [] }));

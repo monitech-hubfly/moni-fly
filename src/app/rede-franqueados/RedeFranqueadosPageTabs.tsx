@@ -8,10 +8,12 @@ import { RedeDashboard } from './RedeDashboard';
 import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
 import { RedeLoteadoresTabelaComBusca } from './RedeLoteadoresTabelaComBusca';
 import { CadastrosEmpresasTabelaComBusca } from './CadastrosEmpresasTabelaComBusca';
+import { CadastrosMoniCapitalTabelaComBusca } from './CadastrosMoniCapitalTabelaComBusca';
 import { CondominiosTabelaComBusca } from './CondominiosTabelaComBusca';
 import { buildCadastrosEmpresasLinhas, type FranqueadoEmpresaRow } from '@/lib/franqueado-empresas';
 import { buildCadastrosEmpresasLinhasComSpe, type FranqueadoSpeRow } from '@/lib/franqueado-spe';
 import type { CondominioRow } from '@/lib/condominios';
+import type { MoniCapitalCadastroRow } from '@/lib/moni-capital-cadastros';
 import { PipelineCardsView } from '@/components/pipeline/PipelineCardsView';
 import { PipelineAnalisesView } from '@/components/pipeline/PipelineAnalisesView';
 import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoading';
@@ -29,14 +31,18 @@ import {
   atualizarCondominiosCSV,
   importarCadastrosEmpresasCSV,
   atualizarCadastrosEmpresasCSV,
+  importarMoniCapitalCadastrosCSV,
+  atualizarMoniCapitalCadastrosCSV,
 } from './rede-tabelas-csv-actions';
 import {
   csvCadastrosEmpresas,
   csvCondominios,
+  csvMoniCapitalCadastros,
   csvRedeLoteadores,
 } from '@/lib/rede-tabelas-csv-export';
+import { NovoCadastroMoniCapitalModal } from './NovoCadastroMoniCapitalModal';
 
-type TabId = 'visao' | 'pipeline' | 'analises' | 'franqueados' | 'loteadores' | 'empresas' | 'condominios';
+type TabId = 'visao' | 'pipeline' | 'analises' | 'franqueados' | 'loteadores' | 'empresas' | 'moni-capital' | 'condominios';
 
 const BASE_PATH = '/rede-franqueados';
 
@@ -51,6 +57,7 @@ const TAB_ANALISES: { id: TabId; label: string } = { id: 'analises', label: 'An�
 const TAB_FRANQ: { id: TabId; label: string } = { id: 'franqueados', label: 'Rede de Franqueados' };
 const TAB_LOTE: { id: TabId; label: string } = { id: 'loteadores', label: 'Rede de Loteadores' };
 const TAB_EMP: { id: TabId; label: string } = { id: 'empresas', label: 'Cadastros de Empresas' };
+const TAB_MC: { id: TabId; label: string } = { id: 'moni-capital', label: 'Cadastros Moní Capital' };
 const TAB_COND: { id: TabId; label: string } = { id: 'condominios', label: 'Condomínios' };
 
 type Props = {
@@ -61,6 +68,8 @@ type Props = {
   spesRows?: FranqueadoSpeRow[];
   empresasLoadError: boolean;
   spesLoadError?: boolean;
+  moniCapitalRows: MoniCapitalCadastroRow[] | null;
+  moniCapitalLoadError: boolean;
   condominiosRows: CondominioRow[] | null;
   showCondominiosTab: boolean;
   canManageCondominios: boolean;
@@ -77,6 +86,8 @@ export function RedeFranqueadosPageTabs({
   spesRows = [],
   empresasLoadError,
   spesLoadError = false,
+  moniCapitalRows,
+  moniCapitalLoadError,
   condominiosRows,
   showCondominiosTab,
   canManageCondominios,
@@ -92,7 +103,7 @@ export function RedeFranqueadosPageTabs({
     ...(showPipelineTab ? [TAB_PIPELINE] : []),
     ...(showAnalisesTab ? [TAB_ANALISES] : []),
     TAB_FRANQ,
-    ...(showStaffTabs ? [TAB_LOTE, TAB_EMP] : []),
+    ...(showStaffTabs ? [TAB_LOTE, TAB_EMP, TAB_MC] : []),
     ...(showCondominiosTab ? [TAB_COND] : []),
   ];
 
@@ -291,6 +302,29 @@ export function RedeFranqueadosPageTabs({
                 gerarCsv={() => csvCadastrosEmpresas(linhasEmpresasExport)}
               />
             </CadastrosEmpresasTabelaComBusca>
+          </section>
+        ) : null}
+
+        {resolvedTab === 'moni-capital' && showStaffTabs ? (
+          <section className="space-y-4">
+            <CadastrosMoniCapitalTabelaComBusca
+              rows={moniCapitalRows ?? []}
+              loadError={moniCapitalLoadError}
+            >
+              <ImportarEntidadeCSVButton
+                templateHref="/templates/moni-capital-cadastros-template.csv"
+                importar={importarMoniCapitalCadastrosCSV}
+                atualizar={atualizarMoniCapitalCadastrosCSV}
+                tituloImportar="Importa cadastros novos (cria card Funding por linha)"
+                tituloAtualizar="Atualiza pelo Nº Cadastro; células vazias não apagam dados"
+              />
+              <NovoCadastroMoniCapitalModal />
+              <ExportarEntidadeCSVButton
+                filenamePrefix="moni-capital-cadastros"
+                disabled={(moniCapitalRows ?? []).length === 0}
+                gerarCsv={() => csvMoniCapitalCadastros(moniCapitalRows ?? [])}
+              />
+            </CadastrosMoniCapitalTabelaComBusca>
           </section>
         ) : null}
 

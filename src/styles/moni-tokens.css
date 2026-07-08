@@ -208,7 +208,8 @@
   --moni-kanban-board-bg:       #eceae6;
   --moni-kanban-col-bg:         #e4e2de;
   --moni-kanban-col-hd:         var(--moni-neutral-100);
-  --moni-kanban-col-hd-fin:     var(--moni-neutral-200);
+  --moni-kanban-col-hd-fin:     color-mix(in srgb, var(--moni-neutral-100) 42%, transparent);
+  --moni-kanban-col-bg-fin:     color-mix(in srgb, var(--moni-kanban-col-bg) 30%, transparent);
   --moni-kanban-col-accent:     var(--moni-green-800);
   --moni-kanban-col-accent-fin: var(--moni-green-600);
   --moni-kanban-lime:           #d4edaa;
@@ -464,6 +465,11 @@
   font-weight: var(--moni-weight-medium);
   line-height: 1.25;
   white-space: nowrap;
+}
+
+.moni-kanban-board-tag-remove {
+  margin-left: 1px;
+  line-height: 0;
 }
 
 /* Calculadora Global de Fases — tokens e componentes */
@@ -2237,12 +2243,24 @@
   overflow-x: auto;
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--moni-navy-200) var(--moni-surface-100);
+  padding-bottom: 4px;
 }
 
 .moni-kanban-board-scroll::-webkit-scrollbar {
-  display: none;
-  height: 0;
+  display: block;
+  height: 10px;
+}
+
+.moni-kanban-board-scroll::-webkit-scrollbar-track {
+  background: var(--moni-surface-100);
+  border-radius: var(--moni-radius-md);
+}
+
+.moni-kanban-board-scroll::-webkit-scrollbar-thumb {
+  background: var(--moni-navy-200);
+  border-radius: var(--moni-radius-md);
 }
 
 .moni-kanban-board-scroll-hint {
@@ -2334,6 +2352,10 @@
   outline-offset: -2px;
 }
 
+.moni-kanban-column--fin {
+  background: var(--moni-kanban-col-bg-fin);
+}
+
 .moni-kanban-column-hd {
   box-sizing: border-box;
   padding: 10px 10px 9px;
@@ -2341,8 +2363,27 @@
   border-bottom: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
 }
 
-.moni-kanban-column-hd--fin {
+.moni-kanban-column-hd--fin,
+.moni-kanban-column--fin .moni-kanban-column-hd {
   background: var(--moni-kanban-col-hd-fin);
+  border-bottom-color: color-mix(in srgb, var(--moni-kanban-drawer-header-border) 28%, transparent);
+}
+
+.moni-kanban-column--fin .moni-kanban-column-title {
+  color: var(--moni-text-tertiary);
+  font-weight: var(--moni-weight-medium);
+}
+
+.moni-kanban-column--fin .moni-kanban-column-subtitle,
+.moni-kanban-column--fin .moni-kanban-col-sla,
+.moni-kanban-column--fin .moni-kanban-col-sort {
+  color: var(--moni-text-tertiary);
+}
+
+.moni-kanban-column--fin .moni-kanban-col-count {
+  opacity: 0.65;
+  border-color: color-mix(in srgb, var(--moni-kanban-drawer-header-border) 35%, transparent);
+  background: color-mix(in srgb, var(--moni-surface-0) 50%, transparent);
 }
 
 .moni-kanban-column-hd-top {
@@ -3046,6 +3087,18 @@
 .moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn--proxima:hover:not(:disabled) {
   background: var(--moni-kanban-col-accent-fin);
   opacity: 1;
+}
+
+/* Links em comentários de card kanban */
+.moni-comentario-link {
+  color: var(--moni-navy-400);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+.moni-comentario-link:hover {
+  color: var(--moni-navy-600);
 }
 
 /* Tabelas largas — scroll horizontal nativo + barra fixa na base da tela */

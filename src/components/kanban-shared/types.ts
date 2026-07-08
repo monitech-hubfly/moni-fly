@@ -18,7 +18,8 @@ export type KanbanNomeDisplay =
   | 'Funil Projetos Legais'
   | 'Funil Pré Obra e Obra'
   | 'Funil Contabilidade'
-  | 'Funil Cash Me';
+  | 'Funil Cash Me'
+  | 'Funil Motor 01';
 
 export type KanbanFaseMaterialTipo = 'link' | 'documento' | 'video';
 
@@ -56,7 +57,7 @@ export type KanbanCardBrief = {
   franqueado_id: string;
   kanban_id?: string;
   projeto_id?: string | null;
-  tagsCard?: { tag_id: string; nome: string; cor: string }[];
+  tagsCard?: { id: string; tag_id: string; nome: string; cor: string }[];
   /** Cards nativos arquivados (`kanban_cards.arquivado`). Legado: ausente / false. */
   arquivado?: boolean;
   motivo_arquivamento?: string | null;
@@ -117,8 +118,8 @@ export type KanbanCardBrief = {
   funding_tipo?: 'Investidor' | 'Broker' | null;
   funding_localizacao?: string | null;
   funding_descritivo?: string | null;
-  funding_proxima_atividade?: string | null;
-  funding_prazo_atividade?: string | null;
+  proxima_atividade?: string | null;
+  prazo_atividade?: string | null;
 };
 
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */

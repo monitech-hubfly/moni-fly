@@ -10,6 +10,7 @@ import {
   valorCsv,
 } from '@/lib/csv-tabela-rede';
 import type { FranqueadoEmpresaStatus } from '@/lib/franqueado-empresas';
+import { criarCadastroMoniCapital, verificarDuplicataMoniCapital } from '@/lib/moni-capital-cadastros-actions';
 import type { RedeLoteadorStatus } from '@/lib/rede-loteadores';
 import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
 
@@ -337,4 +338,124 @@ export async function atualizarCadastrosEmpresasCSV(csvText: string): Promise<Cs
 
 export async function importarCadastrosEmpresasCSV(csvText: string): Promise<CsvResult> {
   return atualizarCadastrosEmpresasCSV(csvText);
+}
+
+const MC_CSV_COLS = [
+  'broker_nome',
+  'broker_email',
+  'broker_telefone',
+  'investidor_nome',
+  'investidor_email',
+  'investidor_telefone',
+] as const;
+
+function rowMoniCapitalFromCsv(row: Record<string, string>): Record<string, unknown> {
+  return patchCsvNaoVazio(row, MC_CSV_COLS);
+}
+
+export async function importarMoniCapitalCadastrosCSV(csvText: string): Promise<CsvResult> {
+  const gate = await requireRedeStaff();
+  if (!gate.ok) return gate;
+
+  const parsed = parseCsvTexto(csvText);
+  if (!parsed.ok) return parsed;
+
+  let inseridos = 0;
+  let ignorados = 0;
+
+  for (const row of parsed.rows) {
+    const dados = rowMoniCapitalFromCsv(row);
+    const temCampo = Object.values(dados).some((v) => String(v ?? '').trim() !== '');
+    if (!temCampo) {
+      ignorados++;
+      continue;
+    }
+
+    const res = await criarCadastroMoniCapital({
+      broker_nome: String(dados.broker_nome ?? '') || null,
+      broker_email: String(dados.broker_email ?? '') || null,
+      broker_telefone: String(dados.broker_telefone ?? '') || null,
+      investidor_nome: String(dados.investidor_nome ?? '') || null,
+      investidor_email: String(dados.investidor_email ?? '') || null,
+      investidor_telefone: String(dados.investidor_telefone ?? '') || null,
+      criarCardFunding: true,
+    });
+    if (!res.ok) return res;
+    inseridos++;
+  }
+
+  revalidatePath('/rede-franqueados');
+  return {
+    ok: true,
+    mensagem:
+      inseridos === 1
+        ? '1 cadastro Moní Capital importado.'
+        : `${inseridos} cadastros Moní Capital importados.${ignorados ? ` ${ignorados} linha(s) ignorada(s).` : ''}`,
+  };
+}
+
+export async function atualizarMoniCapitalCadastrosCSV(csvText: string): Promise<CsvResult> {
+  const gate = await requireRedeStaff();
+  if (!gate.ok) return gate;
+
+  const parsed = parseCsvTexto(csvText);
+  if (!parsed.ok) return parsed;
+  const miss = exigirColunas(parsed.headers, ['n_cadastro']);
+  if (miss) return { ok: false, error: miss };
+
+  const { data: existentes } = await gate.supabase.from('moni_capital_cadastros').select('id, n_cadastro');
+  const porNC = new Map<string, string>();
+  for (const r of existentes ?? []) {
+    const nc = String((r as { n_cadastro?: string }).n_cadastro ?? '').trim().toUpperCase();
+    if (nc) porNC.set(nc, String((r as { id: string }).id));
+  }
+
+  let atualizados = 0;
+  let ignorados = 0;
+
+  for (const row of parsed.rows) {
+    const nc = valorCsv(row, 'n_cadastro').toUpperCase();
+    if (!nc || nc === 'MC0000') {
+      ignorados++;
+      continue;
+    }
+    const id = porNC.get(nc);
+    if (!id) {
+      ignorados++;
+      continue;
+    }
+
+    const patch = rowMoniCapitalFromCsv(row);
+    if (Object.keys(patch).length === 0) {
+      ignorados++;
+      continue;
+    }
+
+    const dup = await verificarDuplicataMoniCapital(
+      {
+        broker_nome: String(patch.broker_nome ?? '') || null,
+        broker_email: String(patch.broker_email ?? '') || null,
+        broker_telefone: String(patch.broker_telefone ?? '') || null,
+        investidor_nome: String(patch.investidor_nome ?? '') || null,
+        investidor_email: String(patch.investidor_email ?? '') || null,
+        investidor_telefone: String(patch.investidor_telefone ?? '') || null,
+      },
+      id,
+    );
+    if (!dup.ok) return dup;
+
+    patch.updated_at = new Date().toISOString();
+    const { error } = await gate.supabase
+      .from('moni_capital_cadastros')
+      .update(patch as never)
+      .eq('id', id);
+    if (error) return { ok: false, error: error.message };
+    atualizados++;
+  }
+
+  revalidatePath('/rede-franqueados');
+  return {
+    ok: true,
+    mensagem: `${atualizados} cadastro(s) atualizado(s)${ignorados ? `, ${ignorados} ignorado(s)` : ''}.`,
+  };
 }

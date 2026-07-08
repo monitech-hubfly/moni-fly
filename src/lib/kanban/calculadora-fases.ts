@@ -88,14 +88,11 @@ export type CalculadoraFasesInput = {
   /** Referência para fase atual atrasada (default: hoje). */
   hoje?: Date;
   ancora?: CalculadoraAncora | null;
-  /** Overrides manuais por fase_id — por padrão não propagam; exceção: passagem_wayser. */
+  /** Overrides manuais por fase_id — recalculam estimativas das fases posteriores. */
   overrides?: Map<string, CalculadoraFaseDataManualOverride>;
   /** SLA customizado do cadastro de condomínio (aprovacao_condominio / aprovacao_prefeitura). */
   slaCondominio?: CondominioPrazosAprovacaoSla | null;
 };
-
-/** Slugs cujo override manual recalcula início/fim estimado das fases posteriores. */
-const SLUGS_OVERRIDE_PROPAGA_FORWARD = new Set<string>([FASE_SLUGS.PASSAGEM_WAYSER]);
 
 export function calculadoraAncoraFromProcesso(proc: {
   calculadora_ancora_fase_slug?: string | null;
@@ -801,6 +798,40 @@ export function aplicarAncoraCalculadoraLinhas(
   return inferirFimRealPorProximaFase(out);
 }
 
+/** Índice da fase atual do card na timeline (fase_id ou status em andamento). */
+export function idxFaseAtualCalculadoraLinhas(
+  linhas: CalculadoraFaseLinha[],
+  card: CalculadoraFasesInput['card'],
+): number {
+  const porId = linhas.findIndex((l) => l.faseId === card.fase_id);
+  if (porId >= 0) return porId;
+  return linhas.findIndex((l) => l.status === 'atual' || l.status === 'atual_atrasada');
+}
+
+/**
+ * Recalcula estimativas das fases futuras a partir da fase atual — corrige quebra de encadeamento
+ * após o marco Contrato (ex.: Pré Obra com datas desalinhadas).
+ */
+export function sincronizarEstimativasFuturasAPartirFaseAtual(
+  linhas: CalculadoraFaseLinha[],
+  card: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+): CalculadoraFaseLinha[] {
+  if (linhas.length === 0) return linhas;
+  const idxAtual = idxFaseAtualCalculadoraLinhas(linhas, card);
+  if (idxAtual < 0 || idxAtual >= linhas.length - 1) return linhas;
+
+  const hoje = hojeYmd(hojeRef);
+  const ordemAtual =
+    linhas.find((l) => l.faseId === card.fase_id)?.ordem ??
+    linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada')?.ordem ??
+    linhas.find((l) => l.status === 'futura')?.ordem ??
+    Number.MAX_SAFE_INTEGER;
+
+  const propagadas = propagarLinhasCalculadoraForward(linhas, idxAtual, card, ordemAtual, hoje);
+  return recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef);
+}
+
 /** Recalcula início/estimativa (e fim real de concluídas) a partir de uma fase âncora. */
 export function propagarLinhasCalculadoraForward(
   linhas: CalculadoraFaseLinha[],
@@ -811,8 +842,11 @@ export function propagarLinhasCalculadoraForward(
 ): CalculadoraFaseLinha[] {
   const out = linhas.map((l) => ({ ...l }));
   const ancRow = out[desdeIdx]!;
+  const fimAncoraEfetivo = ancRow.dataFimReal ?? ancRow.dataFimEstimada;
   let fimFaseAnteriorReal: string | null = ancRow.dataFimReal;
-  let fimFaseAnteriorEstimado: string | null = ancRow.dataFimEstimada;
+  let fimFaseAnteriorEstimado: string | null = ancRow.dataFimReal
+    ? ancRow.dataFimEstimada
+    : fimAncoraEfetivo;
 
   for (let i = desdeIdx + 1; i < out.length; i++) {
     const row = out[i]!;
@@ -866,10 +900,75 @@ export function propagarLinhasCalculadoraForward(
   return inferirFimRealPorProximaFase(out);
 }
 
-/**
- * Aplica overrides manuais de datas — por padrão só a linha editada;
- * em Passagem para Wayser, recalcula SLA das fases posteriores.
- */
+function aplicarOverrideManualEmLinhaCalculadora(
+  linha: CalculadoraFaseLinha,
+  ov: CalculadoraFaseDataManualOverride,
+  card: CalculadoraFasesInput['card'],
+  ordemAtual: number,
+  hoje: string,
+): CalculadoraFaseLinha {
+  let dataInicioReal = linha.dataInicioReal;
+  let dataFimReal = linha.dataFimReal;
+  let dataFimEstimada = linha.dataFimEstimada;
+
+  if ('dataInicio' in ov) {
+    dataInicioReal = ov.dataInicio ? toYmd(ov.dataInicio) : null;
+    if (dataInicioReal && linha.slaDias != null && linha.slaDias > 0) {
+      dataFimEstimada = fimEstimadaPorSla(dataInicioReal, linha.slaDias, linha.slaTipo);
+    }
+  }
+
+  if ('dataFim' in ov) {
+    const fimManual = ov.dataFim ? toYmd(ov.dataFim) : null;
+    const editarEstimada =
+      !dataFimReal &&
+      (linha.status === 'atual' ||
+        linha.status === 'atual_atrasada' ||
+        linha.status === 'futura');
+    if (editarEstimada) {
+      dataFimEstimada = fimManual;
+    } else if (fimManual) {
+      dataFimReal = fimManual;
+    } else {
+      dataFimReal = null;
+    }
+  }
+
+  dataInicioReal = reconciliarInicioComFimReal(dataInicioReal, dataFimReal);
+
+  const status = resolveStatus(
+    linha.faseId,
+    card,
+    dataInicioReal,
+    dataFimReal,
+    dataFimEstimada,
+    linha.ordem,
+    ordemAtual,
+    hoje,
+    linha.slaDias,
+    linha.slaTipo,
+  );
+  const atrasoDias = resolveAtraso(
+    status,
+    dataInicioReal,
+    dataFimEstimada,
+    dataFimReal,
+    hoje,
+    linha.slaTipo,
+    linha.slaDias,
+  );
+
+  return {
+    ...linha,
+    dataInicioReal,
+    dataFimReal,
+    dataFimEstimada,
+    status,
+    atrasoDias,
+  };
+}
+
+/** Aplica overrides manuais de datas e recalcula estimativas das fases posteriores. */
 export function aplicarDatasManuaisCalculadoraLinhas(
   linhas: CalculadoraFaseLinha[],
   overrides: Map<string, CalculadoraFaseDataManualOverride>,
@@ -888,72 +987,20 @@ export function aplicarDatasManuaisCalculadoraLinhas(
   let out = linhas.map((linha) => {
     const ov = overrides.get(linha.faseId);
     if (!ov) return linha;
-
-    let dataInicioReal = linha.dataInicioReal;
-    let dataFimReal = linha.dataFimReal;
-    let dataFimEstimada = linha.dataFimEstimada;
-
-    if ('dataInicio' in ov) {
-      dataInicioReal = ov.dataInicio ? toYmd(ov.dataInicio) : null;
-      if (dataInicioReal && linha.slaDias != null && linha.slaDias > 0) {
-        dataFimEstimada = fimEstimadaPorSla(dataInicioReal, linha.slaDias, linha.slaTipo);
-      }
-    }
-
-    if ('dataFim' in ov) {
-      const fimManual = ov.dataFim ? toYmd(ov.dataFim) : null;
-      if (fimManual) {
-        dataFimReal = fimManual;
-      } else {
-        dataFimReal = null;
-      }
-    }
-
-    dataInicioReal = reconciliarInicioComFimReal(dataInicioReal, dataFimReal);
-
-    const status = resolveStatus(
-      linha.faseId,
-      card,
-      dataInicioReal,
-      dataFimReal,
-      dataFimEstimada,
-      linha.ordem,
-      ordemAtual,
-      hoje,
-      linha.slaDias,
-      linha.slaTipo,
-    );
-    const atrasoDias = resolveAtraso(
-      status,
-      dataInicioReal,
-      dataFimEstimada,
-      dataFimReal,
-      hoje,
-      linha.slaTipo,
-      linha.slaDias,
-    );
-
-    return {
-      ...linha,
-      dataInicioReal,
-      dataFimReal,
-      dataFimEstimada,
-      status,
-      atrasoDias,
-    };
+    return aplicarOverrideManualEmLinhaCalculadora(linha, ov, card, ordemAtual, hoje);
   });
 
-  let propagateIdx = -1;
-  for (let i = 0; i < out.length; i++) {
-    const slug = String(out[i]!.faseSlug ?? '').trim();
-    if (SLUGS_OVERRIDE_PROPAGA_FORWARD.has(slug) && overrides.has(out[i]!.faseId)) {
-      propagateIdx = i;
-      break;
-    }
-  }
+  const indicesOverride = out
+    .map((l, i) => (overrides.has(l.faseId) ? i : -1))
+    .filter((i) => i >= 0)
+    .sort((a, b) => a - b);
 
-  if (propagateIdx >= 0) {
-    out = propagarLinhasCalculadoraForward(out, propagateIdx, card, ordemAtual, hoje);
+  for (const idx of indicesOverride) {
+    const ov = overrides.get(out[idx]!.faseId);
+    if (ov) {
+      out[idx] = aplicarOverrideManualEmLinhaCalculadora(out[idx]!, ov, card, ordemAtual, hoje);
+    }
+    out = propagarLinhasCalculadoraForward(out, idx, card, ordemAtual, hoje);
   }
 
   return recomputarStatusAtrasoLinhasCalculadora(out, card, hojeRef);

@@ -26,6 +26,7 @@ export type FaseChecklistItem = {
     | 'cnpj'
     | 'catalog_casa'
     | 'calculado'
+    | 'moeda'
     | 'faixa_moeda'
     | 'faixa_numero'
     | 'tabela'

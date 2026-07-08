@@ -104,6 +104,7 @@ export function NovoFranqueadoModal() {
   const [loadingFk, setLoadingFk] = useState(false);
   const [extraindo, setExtraindo] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [infoExtracao, setInfoExtracao] = useState<string | null>(null);
   const extracaoSeq = useRef(0);
@@ -196,12 +197,14 @@ export function NovoFranqueadoModal() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
     setError(null);
     const nome = form.nome_completo.trim();
     if (!nome) {
       setError('Nome completo é obrigatório.');
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const res = await criarLinhaRedeECard({
@@ -269,6 +272,7 @@ export function NovoFranqueadoModal() {
       close();
       router.refresh();
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -304,7 +308,8 @@ export function NovoFranqueadoModal() {
               <button
                 type="button"
                 onClick={close}
-                className="rounded-lg p-2 text-stone-500 hover:bg-stone-100 hover:text-stone-800"
+                disabled={submitting}
+                className="rounded-lg p-2 text-stone-500 hover:bg-stone-100 hover:text-stone-800 disabled:opacity-50"
                 aria-label="Fechar"
               >
                 <X className="h-5 w-5" />
@@ -686,7 +691,8 @@ export function NovoFranqueadoModal() {
                 <button
                   type="button"
                   onClick={close}
-                  className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+                  disabled={submitting}
+                  className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-50"
                 >
                   Cancelar
                 </button>
