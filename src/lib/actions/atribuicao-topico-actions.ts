@@ -22,6 +22,7 @@ type TopicoAtribuicaoRow = {
   atribuicao_status: string | null;
   historico: unknown;
   chamado_id: number | null;
+  interacao_id: string | null;
 };
 
 async function carregarTopicoAtribuicao(
@@ -30,7 +31,7 @@ async function carregarTopicoAtribuicao(
 ): Promise<TopicoAtribuicaoRow | null> {
   const { data } = await supabase
     .from('sirene_topicos')
-    .select('id, responsavel_id, atribuicao_status, historico, chamado_id')
+    .select('id, responsavel_id, atribuicao_status, historico, chamado_id, interacao_id')
     .eq('id', topicoId)
     .maybeSingle();
   return data as TopicoAtribuicaoRow | null;
@@ -116,8 +117,20 @@ export async function recusarAtribuicaoTopico(
     .eq('id', row.id);
   if (error) return { ok: false, error: error.message };
 
+  // Resolve sirene_chamado_id: direto se chamado_id preenchido,
+  // senão via interacao_id → kanban_atividades.sirene_chamado_id
+  let sireneChamadoId: number | null = row.chamado_id;
+  if (sireneChamadoId == null && row.interacao_id) {
+    const { data: ka } = await supabase
+      .from('kanban_atividades')
+      .select('sirene_chamado_id')
+      .eq('id', row.interacao_id)
+      .maybeSingle();
+    sireneChamadoId = (ka as { sirene_chamado_id?: number | null } | null)?.sirene_chamado_id ?? null;
+  }
+
   // Comentário automático no chamado — falha não reverte o update do tópico
-  if (row.chamado_id != null) {
+  if (sireneChamadoId != null) {
     const { data: perfil } = await supabase
       .from('profiles')
       .select('full_name')
@@ -125,7 +138,7 @@ export async function recusarAtribuicaoTopico(
       .maybeSingle();
     const autorNome = String((perfil as { full_name?: string | null } | null)?.full_name ?? '').trim() || null;
     const { error: commentError } = await supabase.from('kanban_card_comentarios').insert({
-      sirene_chamado_id: row.chamado_id,
+      sirene_chamado_id: sireneChamadoId,
       autor_id: user.id,
       autor_nome: autorNome,
       conteudo: `${autorNome ?? 'Responsável'} recusou a atividade: ${texto}`,
