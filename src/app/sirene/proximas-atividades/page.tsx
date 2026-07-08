@@ -44,6 +44,13 @@ export default async function ProximasAtividadesPage() {
     : { data: [] };
   const tagSet = new Set((cardTagRows ?? []).map((t: any) => t.card_id as string));
 
+  const { data: kanbanRows2 } = await supabase
+    .from('kanbans')
+    .select('nome')
+    .eq('ativo', true)
+    .order('nome', { ascending: true });
+  const todosKanbanNames = (kanbanRows2 ?? []).map((k: any) => k.nome as string);
+
   const cards = (cardsRaw ?? []).map((c: any) => ({
     id: c.id as string,
     titulo: (c.titulo as string | null) ?? '—',
@@ -57,5 +64,5 @@ export default async function ProximasAtividadesPage() {
     especial: tagSet.has(c.id as string),
   }));
 
-  return <ProximasAtividadesConteudo cards={cards} />;
+  return <ProximasAtividadesConteudo cards={cards} kanbanNames={todosKanbanNames} />;
 }
