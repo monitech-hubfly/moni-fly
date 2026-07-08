@@ -957,6 +957,11 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         faseDestinoSlug: FASE_SLUGS.PL_NOVA_DEMANDA,
         flag: null,
       },
+      {
+        kanbanDestinoId: KANBAN_IDS.PROJETOS_LEGAIS,
+        faseDestinoSlug: 'projetos_legais_protocolo',
+        flag: null,
+      },
     ],
     [FASE_SLUGS.LOTEADOR_JURIDICO]: [
       { kanbanDestinoId: KANBAN_IDS.JURIDICO, faseDestinoSlug: 'juridico_recebimento' },

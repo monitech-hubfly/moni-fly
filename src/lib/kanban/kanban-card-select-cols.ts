@@ -26,6 +26,8 @@ export const KANBAN_CARD_SELECT_BASE = `
       capital_ok,
       juridico_ok,
       credito_obra_ok,
+      projetos_legais_ok,
+      projetos_locais_ok,
       projeto_id,
       origem_card_id,
       ordem_coluna,
