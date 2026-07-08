@@ -555,6 +555,9 @@ export function SireneChamadoDetalheModal({
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-[color:var(--moni-text-primary)]">{t.descricao}</p>
+                          {t.descricao_detalhe ? (
+                            <p className="mt-0.5 text-[11px] text-[color:var(--moni-text-tertiary)]">{t.descricao_detalhe}</p>
+                          ) : null}
                           <p className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-[color:var(--moni-text-tertiary)]">
                             <span>{t.time_responsavel}</span>
                             {t.data_fim ? (

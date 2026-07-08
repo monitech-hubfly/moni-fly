@@ -9,6 +9,7 @@ export type SubInteracaoListaItem = {
   id: string | number;
   tipo: SubInteracaoTipoUi;
   descricao: string;
+  descricao_detalhe?: string | null;
   /** Valores DB: nao_iniciado | em_andamento | concluido | aprovado */
   status: string;
   data_fim: string | null;
@@ -27,6 +28,7 @@ export function mapRawTopicoToListaItem(row: {
   id: number | string;
   tipo?: string | null;
   descricao?: string | null;
+  descricao_detalhe?: string | null;
   status?: string | null;
   data_fim?: string | null;
   trava?: boolean | null;
@@ -35,6 +37,7 @@ export function mapRawTopicoToListaItem(row: {
     id: row.id,
     tipo: normTipo(row.tipo),
     descricao: String(row.descricao ?? '').trim() || '—',
+    descricao_detalhe: row.descricao_detalhe?.trim() || null,
     status: String(row.status ?? 'nao_iniciado'),
     data_fim:
       row.data_fim != null && String(row.data_fim).trim() !== ''
@@ -132,6 +135,11 @@ export function SubInteracaoLista({ items, variant, className = '', renderTraili
             <span className={`min-w-0 flex-1 truncate font-medium ${text}`} title={it.descricao}>
               {it.descricao}
             </span>
+            {it.descricao_detalhe ? (
+              <span className={`basis-full truncate ${muted}`} title={it.descricao_detalhe}>
+                {it.descricao_detalhe}
+              </span>
+            ) : null}
             {renderTrailing ? <span className="shrink-0">{renderTrailing(it)}</span> : null}
           </li>
         );

@@ -234,6 +234,7 @@ export function RelatorioConteudo({ atividades, currentUserId, isAdmin, searchPa
                 <tr key={a.id} className="border-b border-stone-100 hover:bg-stone-50">
                   <td className={`px-3 py-2.5 ${a.urgencia === 'atrasado' ? 'border-l-2 border-l-red-400' : a.urgencia === 'alerta' ? 'border-l-2 border-l-amber-400' : 'border-l-2 border-l-green-400'}`}>
                     <div className="font-medium text-stone-800">{a.titulo}</div>
+                    {a.descricao && <div className="truncate text-[10px] text-stone-400" title={a.descricao}>{a.descricao}</div>}
                     <div className="flex flex-wrap gap-1 mt-0.5">
                       {a.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">⭐ Especial</span>}
                     </div>
@@ -312,7 +313,10 @@ export function RelatorioConteudo({ atividades, currentUserId, isAdmin, searchPa
                         {ch.atividades.map((a) => (
                           <div key={a.id} className="flex flex-wrap items-center gap-2 px-8 py-2 text-xs">
                             <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
-                            <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
+                            <span className="flex-1 min-w-0 font-medium text-stone-700">
+                              {a.titulo}
+                              {a.descricao && <span className="block truncate text-[10px] font-normal text-stone-400" title={a.descricao}>{a.descricao}</span>}
+                            </span>
                             {a.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">⭐</span>}
                             {a.fase_nome && <span className="inline-flex items-center rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] text-stone-500">{a.fase_nome}</span>}
                             <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>

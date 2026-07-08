@@ -5173,6 +5173,11 @@ export function KanbanCardModal({
                                               <span className="min-w-0 truncate font-medium text-stone-800">
                                                 {sub.nome || sub.descricao}
                                               </span>
+                                              {sub.descricao_detalhe ? (
+                                                <span className="w-full truncate text-[9px] text-stone-400" title={sub.descricao_detalhe}>
+                                                  {sub.descricao_detalhe}
+                                                </span>
+                                              ) : null}
                                               <SlaAtividadeBadge
                                                 prazoIso={prazoSlaSubInteracao(sub)}
                                                 status={sub.status}

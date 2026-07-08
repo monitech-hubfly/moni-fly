@@ -36,11 +36,11 @@ export default async function RelatorioPage({
   const [{ data: topicosComChamadoId }, { data: topicosInteracaoRaw }] = await Promise.all([
     adminClient
       .from('sirene_topicos')
-      .select(`id, nome, status, data_fim, responsavel_id, responsaveis_ids, prazo_status, chamado:sirene_chamados!inner(${CHAMADO_SELECT})`)
+      .select(`id, nome, descricao_detalhe, status, data_fim, responsavel_id, responsaveis_ids, prazo_status, chamado:sirene_chamados!inner(${CHAMADO_SELECT})`)
       .eq('chamado.arquivado', false),
     adminClient
       .from('sirene_topicos')
-      .select('id, nome, status, data_fim, responsavel_id, responsaveis_ids, prazo_status, interacao_id')
+      .select('id, nome, descricao_detalhe, status, data_fim, responsavel_id, responsaveis_ids, prazo_status, interacao_id')
       .is('chamado_id', null)
       .not('interacao_id', 'is', null),
   ]);
@@ -75,7 +75,7 @@ export default async function RelatorioPage({
       if (!sireneId) return null;
       const chamado = chamadoPorId.get(sireneId);
       if (!chamado) return null;
-      return { id: t.id, nome: t.nome, status: t.status, data_fim: t.data_fim, responsavel_id: t.responsavel_id, responsaveis_ids: (t.responsaveis_ids as string[] | null) ?? [], prazo_status: (t.prazo_status as string | null) ?? null, chamado };
+      return { id: t.id, nome: t.nome, descricao_detalhe: (t.descricao_detalhe as string | null) ?? null, status: t.status, data_fim: t.data_fim, responsavel_id: t.responsavel_id, responsaveis_ids: (t.responsaveis_ids as string[] | null) ?? [], prazo_status: (t.prazo_status as string | null) ?? null, chamado };
     })
     .filter((t: any): t is NonNullable<typeof t> => t !== null);
 
@@ -149,7 +149,7 @@ export default async function RelatorioPage({
       responsavel_nome: t.responsavel_id ? nomePorId.get(t.responsavel_id) ?? null : null,
       tipo: t.chamado.tipo ?? 'sirene',
       titulo: t.nome ?? t.descricao ?? (t.chamado.incendio as string | null) ?? (t.chamado.tipo as string | null) ?? 'Atividade sem nome',
-      descricao: null,
+      descricao: (t.descricao_detalhe as string | null) ?? null,
       atividade_status: t.status,
       data_vencimento: t.data_fim,
       time_nome: null,
