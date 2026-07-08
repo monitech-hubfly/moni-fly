@@ -2,6 +2,15 @@
 
 > Gerado em: **2026-04-20** (script: `scripts/scan-unused.mjs`)
 
+## Dois sistemas de checklist (não confundir)
+
+O Hub Fly mantém **dois** mecanismos de checklist em paralelo:
+
+1. **Checklist de fase** (`kanban_fase_checklist_*`) — template por fase do funil; UI em `FaseChecklistCard.tsx`.
+2. **Checklist do card** (`kanban_checklist_itens`) — itens livres por card; UI em `ChecklistCard.tsx`; validação de avanço em `KanbanCardModal.tsx` via `verificarChecklistParaFase`.
+
+As actions `listarChecklistCard`, `criarChecklistItem`, `toggleChecklistItem`, `deletarChecklistItem` e `verificarChecklistParaFase` em `card-actions.ts` pertencem ao sistema **2** e estão em uso ativo.
+
 ## Limitações (leia antes de apagar ficheiros)
 
 - A análise **não** executa a app, não resolve módulos como o TypeScript, e **ignora** ficheiros fora de `src/`.
@@ -76,11 +85,6 @@
 - **Ficheiro:** `src/lib/actions/card-actions.ts`  **identificador:** `adicionarAnexoSubchamado` — **não** foi encontrado `import` nomeado, default, nem `* as adicionarAnexoSubchamado` a partir de outro ficheiro de `src`.
 - **Ficheiro:** `src/lib/actions/card-actions.ts`  **identificador:** `removerAnexoChamado` — **não** foi encontrado `import` nomeado, default, nem `* as removerAnexoChamado` a partir de outro ficheiro de `src`.
 - **Ficheiro:** `src/lib/actions/card-actions.ts`  **identificador:** `removerAnexoSubchamado` — **não** foi encontrado `import` nomeado, default, nem `* as removerAnexoSubchamado` a partir de outro ficheiro de `src`.
-- **Ficheiro:** `src/lib/actions/card-actions.ts`  **identificador:** `listarChecklistCard` — **não** foi encontrado `import` nomeado, default, nem `* as listarChecklistCard` a partir de outro ficheiro de `src`.
-- **Ficheiro:** `src/lib/actions/card-actions.ts`  **identificador:** `criarChecklistItem` — **não** foi encontrado `import` nomeado, default, nem `* as criarChecklistItem` a partir de outro ficheiro de `src`.
-- **Ficheiro:** `src/lib/actions/card-actions.ts`  **identificador:** `toggleChecklistItem` — **não** foi encontrado `import` nomeado, default, nem `* as toggleChecklistItem` a partir de outro ficheiro de `src`.
-- **Ficheiro:** `src/lib/actions/card-actions.ts`  **identificador:** `deletarChecklistItem` — **não** foi encontrado `import` nomeado, default, nem `* as deletarChecklistItem` a partir de outro ficheiro de `src`.
-- **Ficheiro:** `src/lib/actions/card-actions.ts`  **identificador:** `verificarChecklistParaFase` — **não** foi encontrado `import` nomeado, default, nem `* as verificarChecklistParaFase` a partir de outro ficheiro de `src`.
 - **Ficheiro:** `src/lib/actions/card-actions.ts`  **identificador:** `solicitarAprovacaoFase` — **não** foi encontrado `import` nomeado, default, nem `* as solicitarAprovacaoFase` a partir de outro ficheiro de `src`.
 - **Ficheiro:** `src/lib/actions/card-actions.ts`  **identificador:** `aprovarPassagemFase` — **não** foi encontrado `import` nomeado, default, nem `* as aprovarPassagemFase` a partir de outro ficheiro de `src`.
 - **Ficheiro:** `src/lib/actions/card-actions.ts`  **identificador:** `rejeitarPassagemFase` — **não** foi encontrado `import` nomeado, default, nem `* as rejeitarPassagemFase` a partir de outro ficheiro de `src`.

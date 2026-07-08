@@ -3949,7 +3949,7 @@ export async function deletarChecklistItem(input: {
 
 type SupabaseGateClient = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
 
-async function obterGatePortfolioStep5(
+async function obterGateComiteLoteadores(
   supabase: SupabaseGateClient,
   cardId: string,
   novaFaseSlug: string,
@@ -3957,9 +3957,7 @@ async function obterGatePortfolioStep5(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: cardRow, error } = await supabase
     .from('kanban_cards')
-    .select(
-      'kanban_id, acoplamento_concluido, credito_terreno_ok, contabilidade_ok, juridico_ok, capital_ok, kanbans ( nome )',
-    )
+    .select('kanban_id, acoplamento_concluido, kanbans ( nome )')
     .eq('id', cardId)
     .maybeSingle();
 
@@ -3969,10 +3967,6 @@ async function obterGatePortfolioStep5(
   const row = cardRow as {
     kanban_id?: string;
     acoplamento_concluido?: boolean | null;
-    credito_terreno_ok?: boolean | null;
-    contabilidade_ok?: boolean | null;
-    juridico_ok?: boolean | null;
-    capital_ok?: boolean | null;
     kanbans?: { nome?: string } | { nome?: string }[] | null;
   };
 
@@ -3994,8 +3988,8 @@ async function obterGatePortfolioStep5(
   return { ok: true };
 }
 
-/** Valida gate Comitê (Portfolio → step_5) antes de avançar fase no cliente. */
-export async function verificarGatePortfolioStep5(
+/** Valida gate Comitê (Loteadores) antes de avançar fase no cliente. */
+export async function verificarGateComiteLoteadores(
   cardId: string,
   proximaFaseId: string,
 ): Promise<ActionResult> {
@@ -4013,7 +4007,7 @@ export async function verificarGatePortfolioStep5(
   if (faseErr) return { ok: false, error: faseErr.message };
 
   const slug = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim();
-  return obterGatePortfolioStep5(supabase, cid, slug, PORTFOLIO_KANBAN_NOME);
+  return obterGateComiteLoteadores(supabase, cid, slug, PORTFOLIO_KANBAN_NOME);
 }
 
 export async function registrarConfirmacaoFasePortfolio(input: {
@@ -4320,7 +4314,7 @@ export async function moverCardParaFase(input: {
   if (!faseRow?.id) return { ok: false, error: 'Fase de destino não encontrada.' };
 
   const novaFaseSlug = String((faseRow as { slug?: string | null }).slug ?? '').trim();
-  const gate = await obterGatePortfolioStep5(supabase, cardId, novaFaseSlug, input.kanbanNome);
+  const gate = await obterGateComiteLoteadores(supabase, cardId, novaFaseSlug, input.kanbanNome);
   if (!gate.ok) return gate;
 
   const gateAcoplamento = await verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId);
@@ -4644,7 +4638,7 @@ export async function aprovarPassagemFase(aprovacaoId: string): Promise<ActionRe
     .maybeSingle();
   const novaFaseSlug = String((faseSlugRow as { slug?: string | null } | null)?.slug ?? '').trim();
 
-  const gate = await obterGatePortfolioStep5(admin, aprovRow.card_id, novaFaseSlug);
+  const gate = await obterGateComiteLoteadores(admin, aprovRow.card_id, novaFaseSlug);
   if (!gate.ok) return gate;
 
   const now = new Date().toISOString();

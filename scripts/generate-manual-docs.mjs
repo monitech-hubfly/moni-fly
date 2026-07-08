@@ -943,7 +943,7 @@ Checklist por fase (\`kanban_fase_checklist_*\`) e interações (\`kanban_ativid
 |---------|-------|
 | \`src/components/kanban-shared/FaseChecklistCard.tsx\` | UI checklist |
 | \`src/components/kanban-shared/ProximaAtividadeDot.tsx\` | Bolinha próxima atividade |
-| \`checklist-atividade-arrays.ts\` | Arrays por fase (legado) |
+| \`atividade-times-responsaveis.ts\` | Arrays por fase (legado) |
 | \`src/app/steps-viabilidade/tarefas/TarefasPainelConteudo.tsx\` | Painel atividades |
 
 ## Responsável por fase

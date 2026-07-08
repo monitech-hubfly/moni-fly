@@ -53,7 +53,7 @@ import {
   moverCardParaFase,
   registrarConfirmacaoFaseOperacoes,
   registrarConfirmacaoFasePortfolio,
-  verificarGatePortfolioStep5,
+  verificarGateComiteLoteadores,
   listarTagsCard,
   listarTagsKanban,
   salvarDadosNegocioKanban,
@@ -2573,7 +2573,7 @@ export function KanbanCardModal({
       (isPortfolioKanbanRef(null, String(kanbanNome)) || isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))) &&
       origem !== 'legado'
     ) {
-      const gate = await verificarGatePortfolioStep5(card.id, proximaFase.id);
+      const gate = await verificarGateComiteLoteadores(card.id, proximaFase.id);
       if (!gate.ok) {
         setGateStep5Toast(gate.error ?? 'Não é possível avançar para o Comitê.');
         return;

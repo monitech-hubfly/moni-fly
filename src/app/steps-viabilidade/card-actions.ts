@@ -13,7 +13,7 @@ import {
   mergeArraysWithLegacy,
   normalizeNomeList,
   parseTextArrayColumn,
-} from '@/lib/checklist-atividade-arrays';
+} from '@/lib/atividade-times-responsaveis';
 
 export type CardActionResult = { ok: true } | { ok: false; error: string };
 export type ShareFormType = 'legal' | 'credito';

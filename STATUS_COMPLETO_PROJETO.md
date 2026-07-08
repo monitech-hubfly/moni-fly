@@ -350,7 +350,7 @@ cat VERIFICAR_MIGRACOES.sql
 
 **Utilitários**:
 - `src/lib/painel-tarefas-filtros.ts` - Filtros do painel
-- `src/lib/checklist-atividade-arrays.ts` - Lógica de checklists
+- `src/lib/atividade-times-responsaveis.ts` - Lógica de checklists
 - `src/lib/atividade-times.ts` - Times e responsáveis
 - `src/lib/auth-guard.ts`
 - `src/lib/authz.ts`

@@ -5,7 +5,6 @@ import {
   PORTFOLIO_PARALELAS,
   type PortfolioParalelasFlags,
   type PortfolioParalelaFlag,
-  listarEsteirasParalelasPendentes,
 } from '@/lib/kanban/portfolio-paralelas';
 import { PARALELA_KANBAN_CREDITO_TERRENO, nomeFunilParalela } from '@/lib/kanban/kanban-paralelas-cores';
 import { labelChipAcoplamentoPai, FASE_EXIBICAO_CARD_ARQUIVADO } from '@/lib/kanban/acoplamento-tag-pai';
@@ -16,7 +15,6 @@ import {
 } from '@/lib/kanban/stepone-fase-slugs';
 
 export type { PortfolioParalelasFlags };
-export { listarEsteirasParalelasPendentes };
 export { HIPOTESES_FASE_SLUGS };
 
 export type ParalelaChip = {
