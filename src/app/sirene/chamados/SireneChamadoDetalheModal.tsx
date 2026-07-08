@@ -27,6 +27,7 @@ import {
   isSubAtividadeConcluida,
 } from '@/components/kanban-shared/SubInteracaoLista';
 import { PrazoNegociacaoPanel } from '@/components/kanban-shared/PrazoNegociacaoPanel';
+import { AtribuicaoAceitePanel } from '@/components/sirene/AtribuicaoAceitePanel';
 import {
   listarComentariosCardSirene,
   listarComentariosSireneChamado,
@@ -577,7 +578,21 @@ export function SireneChamadoDetalheModal({
                               </span>
                             </div>
                           ) : null}
-                          {t.prazo_status &&
+                          {(t.atribuicao_status === 'pendente_aceite' || t.atribuicao_status === 'recusado') ? (
+                            <AtribuicaoAceitePanel
+                              topicoId={String(t.id)}
+                              atribuicaoStatus={t.atribuicao_status ?? null}
+                              atribuicaoJustificativa={t.atribuicao_justificativa ?? null}
+                              recusadoPorNome={t.atribuicao_recusado_por ? (nomePorUserId.get(t.atribuicao_recusado_por) ?? null) : null}
+                              sessionUserId={currentUserId}
+                              responsavelId={t.responsavel_id}
+                              basePath="/sirene/chamados"
+                              compact
+                              onUpdated={onRecarregarTopicos}
+                            />
+                          ) : null}
+                          {t.atribuicao_status !== 'pendente_aceite' &&
+                          t.prazo_status &&
                           (t.prazo_status !== 'aceito' || sessionEhAdmin) ? (
                             <PrazoNegociacaoPanel
                               topicoId={String(t.id)}
