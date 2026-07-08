@@ -240,5 +240,25 @@ export async function redirecionarAtribuicaoTopico(
     .eq('id', row.id);
   if (error) return { ok: false, error: error.message };
 
+  // Notifica o novo responsável (não fatal)
+  try {
+    const { data: perfil } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .maybeSingle();
+    const quemRedirecionou = String((perfil as { full_name?: string | null } | null)?.full_name ?? '').trim() || 'Alguém';
+    const nomeAtiv = String(row.nome ?? '').trim() || 'atividade';
+    await notificarAlertasKanbanAtividade({
+      userIds: [novoResp],
+      tipo: 'kanban_atividade_redirecionada',
+      mensagem: `${quemRedirecionou} redirecionou a atividade "${nomeAtiv}" para você.`,
+      basePath: '/sirene/chamados',
+      excluirUserId: user.id,
+    });
+  } catch {
+    // notificação não bloqueia
+  }
+
   return { ok: true };
 }

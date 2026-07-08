@@ -6,6 +6,7 @@ export function categorizarAlerta(tipo: string): CategoriaAlerta {
     tipo === 'kanban_atividade_criada' ||
     tipo === 'kanban_atividade_atualizada' ||
     tipo === 'kanban_atividade_redirecionada' ||
+    tipo === 'atribuicao_recusada' ||
     tipo === 'sla_atividade_atrasado' ||
     tipo === 'sla_atividade_atencao'
   ) return 'sirene';

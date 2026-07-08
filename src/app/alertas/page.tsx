@@ -12,6 +12,7 @@ function rotuloTipo(tipo: string): string {
   if (tipo === 'kanban_atividade_criada') return 'Nova atividade';
   if (tipo === 'kanban_atividade_atualizada') return 'Chamado atualizado';
   if (tipo === 'kanban_atividade_redirecionada') return 'Atividade redirecionada';
+  if (tipo === 'atribuicao_recusada') return 'Atividade recusada';
   if (tipo === 'sla_atividade_atrasado') return 'Atividade atrasada';
   if (tipo === 'sla_atividade_atencao') return 'Atividade em atenção';
   if (tipo === 'status_preenchimento_lembrete') return 'Lembrete de entrega';
