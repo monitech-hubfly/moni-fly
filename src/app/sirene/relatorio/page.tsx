@@ -24,7 +24,7 @@ export default async function RelatorioPage({
 
   const { data: atividades } = await supabase
     .from('v_atividades_unificadas')
-    .select('id, card_id, chamado_numero, card_titulo, kanban_nome, kanban_id, responsavel_id, responsaveis_ids, responsavel_nome, tipo, titulo, descricao, atividade_status, data_vencimento, time_nome, franqueado_nome, criado_em, sla_status, fase_nome, origem')
+    .select('id, card_id, chamado_numero, card_titulo, kanban_nome, kanban_id, responsavel_id, responsaveis_ids, responsavel_nome, tipo, titulo, descricao, atividade_status, data_vencimento, time_nome, franqueado_nome, criado_em, sla_status, fase_nome, prazo_status, origem')
     .order('data_vencimento', { ascending: true, nullsFirst: false });
 
   const adminClient = createAdminClient();
@@ -36,11 +36,11 @@ export default async function RelatorioPage({
   const [{ data: topicosComChamadoId }, { data: topicosInteracaoRaw }] = await Promise.all([
     adminClient
       .from('sirene_topicos')
-      .select(`id, nome, status, data_fim, responsavel_id, responsaveis_ids, chamado:sirene_chamados!inner(${CHAMADO_SELECT})`)
+      .select(`id, nome, status, data_fim, responsavel_id, responsaveis_ids, prazo_status, chamado:sirene_chamados!inner(${CHAMADO_SELECT})`)
       .eq('chamado.arquivado', false),
     adminClient
       .from('sirene_topicos')
-      .select('id, nome, status, data_fim, responsavel_id, responsaveis_ids, interacao_id')
+      .select('id, nome, status, data_fim, responsavel_id, responsaveis_ids, prazo_status, interacao_id')
       .is('chamado_id', null)
       .not('interacao_id', 'is', null),
   ]);
@@ -75,7 +75,7 @@ export default async function RelatorioPage({
       if (!sireneId) return null;
       const chamado = chamadoPorId.get(sireneId);
       if (!chamado) return null;
-      return { id: t.id, nome: t.nome, status: t.status, data_fim: t.data_fim, responsavel_id: t.responsavel_id, responsaveis_ids: (t.responsaveis_ids as string[] | null) ?? [], chamado };
+      return { id: t.id, nome: t.nome, status: t.status, data_fim: t.data_fim, responsavel_id: t.responsavel_id, responsaveis_ids: (t.responsaveis_ids as string[] | null) ?? [], prazo_status: (t.prazo_status as string | null) ?? null, chamado };
     })
     .filter((t: any): t is NonNullable<typeof t> => t !== null);
 
@@ -94,7 +94,7 @@ export default async function RelatorioPage({
   const { data: kanbanCards } = cardIds.length > 0
     ? await adminClient
         .from('kanban_cards')
-        .select('id, kanban_id, titulo')
+        .select('id, kanban_id, titulo, fase_id')
         .in('id', cardIds)
     : { data: [] };
 
@@ -113,6 +113,15 @@ export default async function RelatorioPage({
   );
   const tituloPorCardId = new Map(
     (kanbanCards ?? []).map((c: any) => [String(c.id), (c.titulo as string | null) ?? null])
+  );
+
+  const faseIds = [...new Set((kanbanCards ?? []).map((c: any) => c.fase_id as string | undefined).filter(Boolean))] as string[];
+  const { data: faseRows } = faseIds.length > 0
+    ? await adminClient.from('kanban_fases').select('id, nome').in('id', faseIds)
+    : { data: [] };
+  const faseNomePorFaseId = new Map((faseRows ?? []).map((f: any) => [f.id as string, f.nome as string]));
+  const faseNomePorCardId = new Map(
+    (kanbanCards ?? []).map((c: any) => [String(c.id), c.fase_id ? (faseNomePorFaseId.get(c.fase_id as string) ?? null) : null])
   );
 
   // Mantém resolução via processo_id como fallback
@@ -147,7 +156,8 @@ export default async function RelatorioPage({
       franqueado_nome: t.chamado.aberto_por_nome ?? null,
       criado_em: '',
       sla_status: null,
-      fase_nome: null,
+      fase_nome: t.chamado.card_id ? (faseNomePorCardId.get(String(t.chamado.card_id)) ?? null) : null,
+      prazo_status: (t.prazo_status as string | null) ?? null,
       origemDado: 'sirene' as const,
       chamado_titulo: (t.chamado.incendio as string | null) ?? (t.chamado.tipo as string | null) ?? null,
     }));
@@ -186,17 +196,9 @@ export default async function RelatorioPage({
     return { ...a, diffDias, urgencia, especial: tagSet.has(a.card_id ?? '') };
   });
 
-  const stats = {
-    atrasadas: atividadesComPrazo.filter((a) => a.urgencia === 'atrasado').length,
-    alerta: atividadesComPrazo.filter((a) => a.urgencia === 'alerta').length,
-    total: atividadesComPrazo.length,
-    especial: atividadesComPrazo.filter((a) => a.especial).length,
-  };
-
   return (
     <RelatorioConteudo
       atividades={atividadesComPrazo}
-      stats={stats}
       currentUserId={user.id}
       isAdmin={profile?.role === 'admin'}
       searchParams={searchParams}
