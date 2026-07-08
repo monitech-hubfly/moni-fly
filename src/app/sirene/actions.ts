@@ -364,6 +364,9 @@ export type TopicoPainelLinha = {
   prazo_abridor_id?: string | null;
   prazo_proposto_por?: string | null;
   prazo_negociacao_expira_em?: string | null;
+  atribuicao_status?: string | null;
+  atribuicao_recusado_por?: string | null;
+  atribuicao_justificativa?: string | null;
 };
 
 type GetTopicosPainelResult =
@@ -371,7 +374,7 @@ type GetTopicosPainelResult =
   | { ok: false; error: string };
 
 const TOPICOS_PAINEL_SELECT =
-  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, responsavel_id, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em';
+  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, responsavel_id, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa';
 
 function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLinha[] {
   return rows.map((r) => {
@@ -430,6 +433,18 @@ function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLi
       prazo_negociacao_expira_em:
         (r as { prazo_negociacao_expira_em?: unknown }).prazo_negociacao_expira_em != null
           ? String((r as { prazo_negociacao_expira_em?: unknown }).prazo_negociacao_expira_em)
+          : null,
+      atribuicao_status:
+        (r as { atribuicao_status?: unknown }).atribuicao_status != null
+          ? String((r as { atribuicao_status?: unknown }).atribuicao_status)
+          : null,
+      atribuicao_recusado_por:
+        (r as { atribuicao_recusado_por?: unknown }).atribuicao_recusado_por != null
+          ? String((r as { atribuicao_recusado_por?: unknown }).atribuicao_recusado_por)
+          : null,
+      atribuicao_justificativa:
+        (r as { atribuicao_justificativa?: unknown }).atribuicao_justificativa != null
+          ? String((r as { atribuicao_justificativa?: unknown }).atribuicao_justificativa)
           : null,
     };
   });
