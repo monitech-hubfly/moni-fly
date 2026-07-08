@@ -26,6 +26,8 @@ type Props = {
   basePath?: string;
   compact?: boolean;
   onUpdated?: () => void;
+  /** Quando true (atribuição já aceita), responsável e abridor não veem "Propor/Alterar prazo"; admin mantém acesso. */
+  atribuicaoAceita?: boolean;
 };
 
 export function PrazoNegociacaoPanel({
@@ -37,6 +39,7 @@ export function PrazoNegociacaoPanel({
   basePath,
   compact = false,
   onUpdated,
+  atribuicaoAceita = false,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
@@ -137,7 +140,7 @@ export function PrazoNegociacaoPanel({
 
       {!expirada && (
         (status === 'recusado' && ehResponsavel) ||
-        ((ehAbridor || ehResponsavel || isAdmin) && status !== 'pendente_aceite_responsavel')
+        ((ehAbridor || ehResponsavel || isAdmin) && status !== 'pendente_aceite_responsavel' && (!atribuicaoAceita || isAdmin))
       ) ? (
         <div className="mt-2 flex flex-wrap items-end gap-1">
           <label className="block min-w-0 flex-1">

@@ -20,6 +20,7 @@ function appendHistoricoEvento(historico: unknown, evento: TopicoHistoricoEvento
 type TopicoAtribuicaoRow = {
   id: number;
   nome: string | null;
+  status: string | null;
   responsavel_id: string | null;
   atribuicao_status: string | null;
   historico: unknown;
@@ -33,7 +34,7 @@ async function carregarTopicoAtribuicao(
 ): Promise<TopicoAtribuicaoRow | null> {
   const { data } = await supabase
     .from('sirene_topicos')
-    .select('id, nome, responsavel_id, atribuicao_status, historico, chamado_id, interacao_id')
+    .select('id, nome, status, responsavel_id, atribuicao_status, historico, chamado_id, interacao_id')
     .eq('id', topicoId)
     .maybeSingle();
   return data as TopicoAtribuicaoRow | null;
@@ -63,6 +64,7 @@ export async function aceitarAtribuicaoTopico(
     .from('sirene_topicos')
     .update({
       atribuicao_status: 'aceito',
+      ...(row.status === 'nao_iniciado' ? { status: 'em_andamento' } : {}),
       historico: appendHistoricoEvento(row.historico, {
         tipo: 'Atribuição aceita',
         em: new Date().toISOString(),

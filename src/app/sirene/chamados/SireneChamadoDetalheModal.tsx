@@ -611,6 +611,7 @@ export function SireneChamadoDetalheModal({
                               sessionUserId={currentUserId}
                               abridorId={row.criado_por ?? null}
                               isAdmin={sessionEhAdmin}
+                              atribuicaoAceita={t.atribuicao_status === 'aceito'}
                               basePath="/sirene/chamados"
                               compact
                               onUpdated={onRecarregarTopicos}
