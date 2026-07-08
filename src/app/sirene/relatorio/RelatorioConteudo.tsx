@@ -238,6 +238,78 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
             </tbody>
           </table>
         </div>
+      ) : visao === 'card' ? (
+        <div className="space-y-2">
+          {porCard.map((card) => {
+            const totalAtivs = card.chamados.reduce((s, c) => s + c.atividades.length, 0);
+            return (
+              <div key={card.cardKey} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                {/* Nível 1 — Card */}
+                <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 px-4 py-2.5">
+                  {card.cardId ? (
+                    <Link href={hrefAbrirCardKanban(card.kanbanNome, card.cardId)} className="text-sm font-semibold text-blue-600 hover:underline">
+                      {card.cardTitulo ?? '—'}
+                    </Link>
+                  ) : card.chamados[0]?.chamadoNumero != null ? (
+                    <span className="text-sm font-semibold text-stone-700">
+                      #{card.chamados[0].chamadoNumero}
+                      <span className="ml-1 text-xs font-normal text-stone-400">(chamado direto)</span>
+                    </span>
+                  ) : (
+                    <span className="text-sm font-semibold text-stone-700">{card.cardTitulo ?? '—'}</span>
+                  )}
+                  {card.kanbanNome && card.kanbanNome !== 'Sirene' && (
+                    <><span className="text-stone-400">·</span><span className="text-xs text-stone-500">{card.kanbanNome}</span></>
+                  )}
+                  {card.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">⭐ Especial</span>}
+                  <span className="ml-auto text-xs text-stone-400">{totalAtivs} atividade{totalAtivs !== 1 ? 's' : ''}</span>
+                </div>
+                {/* Níveis 2 e 3 */}
+                {card.chamados.map((ch) => {
+                  const comNivel2 = ch.chamadoNumero != null && card.cardId != null;
+                  return comNivel2 ? (
+                    <div key={`ch-${ch.chamadoNumero}`}>
+                      {/* Nível 2 — Chamado sub-header */}
+                      <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 bg-stone-50 px-6 py-1.5">
+                        <span className="text-xs font-semibold text-stone-600">#{ch.chamadoNumero}</span>
+                        {ch.chamadoTitulo && <span className="text-xs text-stone-500">{ch.chamadoTitulo}</span>}
+                        <span className="ml-auto text-[10px] text-stone-400">{ch.atividades.length} atividade{ch.atividades.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      {/* Nível 3 — Atividades */}
+                      <div className="divide-y divide-stone-100">
+                        {ch.atividades.map((a) => (
+                          <div key={a.id} className="flex flex-wrap items-center gap-2 px-8 py-2 text-xs">
+                            <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
+                            <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
+                            {a.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">⭐</span>}
+                            <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>
+                            <StatusTag status={a.atividade_status} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    // Sem nível 2: chamado direto ou atividade kanban pura
+                    <div key={`direct-${ch.chamadoNumero ?? 'kanban'}`} className="divide-y divide-stone-100">
+                      {ch.atividades.map((a) => (
+                        <div key={a.id} className="flex flex-wrap items-center gap-2 px-4 py-2 text-xs">
+                          <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
+                          <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
+                          {a.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">⭐</span>}
+                          <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>
+                          <StatusTag status={a.atividade_status} />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+          {filtradas.length === 0 && (
+            <div className="rounded-xl border border-stone-200 bg-white px-4 py-8 text-center text-sm text-stone-400">Nenhuma atividade com os filtros atuais.</div>
+          )}
+        </div>
       ) : (
         <div className="space-y-2">
           {Object.entries(
@@ -320,80 +392,6 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
           )}
         </div>
       )}
-
-      {visao === 'card' ? (
-        <div className="space-y-2">
-          {porCard.map((card) => {
-            const totalAtivs = card.chamados.reduce((s, c) => s + c.atividades.length, 0);
-            return (
-              <div key={card.cardKey} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-                {/* Nível 1 — Card */}
-                <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 px-4 py-2.5">
-                  {card.cardId ? (
-                    <Link href={hrefAbrirCardKanban(card.kanbanNome, card.cardId)} className="text-sm font-semibold text-blue-600 hover:underline">
-                      {card.cardTitulo ?? '—'}
-                    </Link>
-                  ) : card.chamados[0]?.chamadoNumero != null ? (
-                    <span className="text-sm font-semibold text-stone-700">
-                      #{card.chamados[0].chamadoNumero}
-                      <span className="ml-1 text-xs font-normal text-stone-400">(chamado direto)</span>
-                    </span>
-                  ) : (
-                    <span className="text-sm font-semibold text-stone-700">{card.cardTitulo ?? '—'}</span>
-                  )}
-                  {card.kanbanNome && card.kanbanNome !== 'Sirene' && (
-                    <><span className="text-stone-400">·</span><span className="text-xs text-stone-500">{card.kanbanNome}</span></>
-                  )}
-                  {card.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">⭐ Especial</span>}
-                  <span className="ml-auto text-xs text-stone-400">{totalAtivs} atividade{totalAtivs !== 1 ? 's' : ''}</span>
-                </div>
-                {/* Níveis 2 e 3 */}
-                {card.chamados.map((ch) => {
-                  const comNivel2 = ch.chamadoNumero != null && card.cardId != null;
-                  return comNivel2 ? (
-                    <div key={`ch-${ch.chamadoNumero}`}>
-                      {/* Nível 2 — Chamado sub-header */}
-                      <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 bg-stone-50 px-6 py-1.5">
-                        <span className="text-xs font-semibold text-stone-600">#{ch.chamadoNumero}</span>
-                        {ch.chamadoTitulo && <span className="text-xs text-stone-500">{ch.chamadoTitulo}</span>}
-                        <span className="ml-auto text-[10px] text-stone-400">{ch.atividades.length} atividade{ch.atividades.length !== 1 ? 's' : ''}</span>
-                      </div>
-                      {/* Nível 3 — Atividades */}
-                      <div className="divide-y divide-stone-100">
-                        {ch.atividades.map((a) => (
-                          <div key={a.id} className="flex flex-wrap items-center gap-2 px-8 py-2 text-xs">
-                            <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
-                            <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
-                            {a.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">⭐</span>}
-                            <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>
-                            <StatusTag status={a.atividade_status} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    // Sem nível 2: chamado direto ou atividade kanban pura
-                    <div key={`direct-${ch.chamadoNumero ?? 'kanban'}`} className="divide-y divide-stone-100">
-                      {ch.atividades.map((a) => (
-                        <div key={a.id} className="flex flex-wrap items-center gap-2 px-4 py-2 text-xs">
-                          <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
-                          <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
-                          {a.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">⭐</span>}
-                          <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>
-                          <StatusTag status={a.atividade_status} />
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-          {filtradas.length === 0 && (
-            <div className="rounded-xl border border-stone-200 bg-white px-4 py-8 text-center text-sm text-stone-400">Nenhuma atividade com os filtros atuais.</div>
-          )}
-        </div>
-      ) : null}
     </div>
   );
 }
