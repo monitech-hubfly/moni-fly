@@ -118,6 +118,7 @@ import {
   isChecklistItemResponsavelFase,
   isChecklistItemResponsavelDaFaseSidebar,
 } from '@/lib/kanban/responsavel-fase-checklist';
+import { parseChecklistCompartilhadoValor } from '@/lib/kanban/checklist-compartilhado';
 
 export type CondominioChecklistContext = {
   origem: 'nativo' | 'legado';
@@ -237,12 +238,16 @@ export function FaseChecklistCard({
         const supabase = createClient();
         const checklistRespCols = 'id, item_id, card_id, valor, arquivo_path, preenchido_por, preenchido_em';
 
-        const [{ data: itensOrdenadosRaw, error: itensError }, { data: respostasData, error: respostasError }] =
+        const [{ data: itensOrdenadosRaw, error: itensError }, { data: respostasData, error: respostasError }, { data: compartilhadoData, error: compartilhadoError }] =
           await Promise.all([
             fetchFaseChecklistItens(supabase, faseId),
             supabase
               .from('kanban_fase_checklist_respostas')
               .select(checklistRespCols)
+              .eq('card_id', cardId),
+            supabase
+              .from('kanban_card_checklist_compartilhado')
+              .select('chave, valor')
               .eq('card_id', cardId),
           ]);
 
@@ -254,11 +259,18 @@ export function FaseChecklistCard({
           : itemRows;
         const respRows = (respostasData ?? []) as FaseChecklistResposta[];
 
-        if (itensError || respostasError) {
+        if (itensError || respostasError || compartilhadoError) {
           setItens([]);
           setRespostas(new Map());
           setCarregando(false);
           return;
+        }
+
+        const compartilhadoPorChave = new Map<string, unknown>();
+        for (const row of compartilhadoData ?? []) {
+          const r = row as { chave?: string; valor?: unknown };
+          const chave = String(r.chave ?? '').trim();
+          if (chave) compartilhadoPorChave.set(chave, r.valor);
         }
 
         setItens(itensOrdenados);
@@ -266,6 +278,17 @@ export function FaseChecklistCard({
         const respPorItem = new Map<string, FaseChecklistResposta>();
         for (const r of respRows) respPorItem.set(r.item_id, r);
         for (const it of itensOrdenados) {
+          const chaveCompartilhada = String(it.chave_compartilhada ?? '').trim();
+          if (chaveCompartilhada) {
+            const parsed = parseChecklistCompartilhadoValor(it.tipo, compartilhadoPorChave.get(chaveCompartilhada));
+            map.set(it.id, {
+              valor: parsed.valor,
+              arquivo_path: parsed.arquivo_path,
+              salvando: false,
+              erro: null,
+            });
+            continue;
+          }
           const resp = respPorItem.get(it.id);
           map.set(it.id, {
             valor: resp?.valor ?? '',
@@ -634,6 +657,14 @@ export function FaseChecklistCard({
       valor: valorFinal,
       arquivo_path: arquivoFinal,
     });
+    if (res.ok && res.chavesDesmarcadas?.length) {
+      for (const it of itens ?? []) {
+        const chave = String(it.chave_compartilhada ?? '').trim();
+        if (chave && res.chavesDesmarcadas.includes(chave)) {
+          setResposta(it.id, { valor: 'false' });
+        }
+      }
+    }
     let erroFinal = res.ok ? null : res.error;
     if (res.ok && isLotesDisponiveisFaseSlug(faseSlug) && condominioContext) {
       const itensLotes = itens?.filter((i) => i.tipo !== 'lotes_condominio') ?? [];

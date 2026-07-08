@@ -305,7 +305,7 @@ export type CriarChamadoSireneComAtividadeInput = {
 
 export type SubInteracaoStatusDb = 'nao_iniciado' | 'em_andamento' | 'concluido' | 'aprovado';
 
-export type ActionOk = { ok: true };
+export type ActionOk = { ok: true; chavesDesmarcadas?: string[] };
 export type ActionErr = { ok: false; error: string };
 export type ActionResult = ActionOk | ActionErr;
 
@@ -4956,20 +4956,115 @@ export async function upsertFaseChecklistResposta(input: {
 
   const { data: itemRow } = await supabase
     .from('kanban_fase_checklist_itens')
-    .select('label, campo_slug, fase_id')
+    .select('label, campo_slug, fase_id, tipo, chave_compartilhada, grupo_exclusivo')
     .eq('id', input.item_id)
     .maybeSingle();
 
-  const { data: existente } = await supabase
-    .from('kanban_fase_checklist_respostas')
-    .select('valor, arquivo_path')
-    .eq('card_id', input.card_id)
-    .eq('item_id', input.item_id)
-    .maybeSingle();
-  const ex = existente as { valor?: string | null; arquivo_path?: string | null } | null;
-  const nextValor =
-    input.valor !== undefined ? input.valor : ex?.valor != null ? String(ex.valor) : null;
-  const nextArquivo =
+  type ItemMeta = {
+    label?: string | null;
+    campo_slug?: string | null;
+    fase_id?: string | null;
+    tipo?: string | null;
+    chave_compartilhada?: string | null;
+    grupo_exclusivo?: string | null;
+  };
+  const itemMeta = (itemRow ?? null) as ItemMeta | null;
+  const chaveCompartilhada = String(itemMeta?.chave_compartilhada ?? '').trim();
+
+  const { data: existente } = chaveCompartilhada
+    ? await supabase
+        .from('kanban_card_checklist_compartilhado')
+        .select('valor')
+        .eq('card_id', input.card_id)
+        .eq('chave', chaveCompartilhada)
+        .maybeSingle()
+    : await supabase
+        .from('kanban_fase_checklist_respostas')
+        .select('valor, arquivo_path')
+        .eq('card_id', input.card_id)
+        .eq('item_id', input.item_id)
+        .maybeSingle();
+
+  const ex = existente as { valor?: unknown; arquivo_path?: string | null } | null;
+  let nextValor: string | null;
+  let nextArquivo: string | null;
+
+  if (chaveCompartilhada) {
+    const { parseChecklistCompartilhadoValor } = await import('@/lib/kanban/checklist-compartilhado');
+    const parsedAtual = parseChecklistCompartilhadoValor(
+      (itemMeta?.tipo ?? 'texto_curto') as import('@/lib/actions/candidato-actions').FaseChecklistItem['tipo'],
+      ex?.valor,
+    );
+    nextValor =
+      input.valor !== undefined ? input.valor : parsedAtual.valor !== '' ? parsedAtual.valor : null;
+    nextArquivo =
+      input.arquivo_path !== undefined
+        ? input.arquivo_path
+        : parsedAtual.arquivo_path != null
+          ? String(parsedAtual.arquivo_path)
+          : null;
+
+    const { buildChecklistCompartilhadoJsonb, isCheckboxTrue } = await import(
+      '@/lib/kanban/checklist-compartilhado'
+    );
+    const jsonbValor = buildChecklistCompartilhadoJsonb(
+      (itemMeta?.tipo ?? 'texto_curto') as import('@/lib/actions/candidato-actions').FaseChecklistItem['tipo'],
+      nextValor,
+      nextArquivo,
+    );
+
+    const { error: sharedErr } = await supabase.from('kanban_card_checklist_compartilhado').upsert(
+      {
+        card_id: input.card_id,
+        chave: chaveCompartilhada,
+        valor: jsonbValor,
+        atualizado_por: user.id,
+        atualizado_em: new Date().toISOString(),
+      },
+      { onConflict: 'card_id,chave' },
+    );
+    if (sharedErr) return { ok: false, error: sharedErr.message };
+
+    let chavesDesmarcadas: string[] = [];
+    const grupoExclusivo = String(itemMeta?.grupo_exclusivo ?? '').trim();
+    if (grupoExclusivo && itemMeta?.tipo === 'checkbox' && isCheckboxTrue(nextValor)) {
+      const { data: outrasChavesRows } = await supabase
+        .from('kanban_fase_checklist_itens')
+        .select('chave_compartilhada')
+        .eq('grupo_exclusivo', grupoExclusivo)
+        .neq('chave_compartilhada', chaveCompartilhada)
+        .not('chave_compartilhada', 'is', null);
+
+      const chaves = [
+        ...new Set(
+          (outrasChavesRows ?? [])
+            .map((row) => String((row as { chave_compartilhada?: string | null }).chave_compartilhada ?? '').trim())
+            .filter(Boolean),
+        ),
+      ];
+
+      if (chaves.length > 0) {
+        const now = new Date().toISOString();
+        const { error: clearErr } = await supabase.from('kanban_card_checklist_compartilhado').upsert(
+          chaves.map((chave) => ({
+            card_id: input.card_id,
+            chave,
+            valor: 'false',
+            atualizado_por: user.id,
+            atualizado_em: now,
+          })),
+          { onConflict: 'card_id,chave' },
+        );
+        if (clearErr) return { ok: false, error: clearErr.message };
+        chavesDesmarcadas = chaves;
+      }
+    }
+
+    return chavesDesmarcadas.length > 0 ? { ok: true, chavesDesmarcadas } : { ok: true };
+  }
+
+  nextValor = input.valor !== undefined ? input.valor : ex?.valor != null ? String(ex.valor) : null;
+  nextArquivo =
     input.arquivo_path !== undefined
       ? input.arquivo_path
       : ex?.arquivo_path != null
