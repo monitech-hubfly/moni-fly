@@ -24,6 +24,7 @@ type CardRow = {
 
 type Props = {
   cards: CardRow[];
+  kanbanNames: string[];
 };
 
 function ProximaAtividadeTag({ tier, prazo }: { tier: ProximaAtividadeTier; prazo: string | null }) {
@@ -61,22 +62,15 @@ function ProximaAtividadeTag({ tier, prazo }: { tier: ProximaAtividadeTier; praz
   );
 }
 
-export function ProximasAtividadesConteudo({ cards }: Props) {
+export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
   const [filtroFunil, setFiltroFunil] = useState('todos');
   const [filtroPrazo, setFiltroPrazo] = useState('todos');
   const [filtroTag, setFiltroTag] = useState('todos');
-  const [incluirSirene, setIncluirSirene] = useState(false);
 
   const hoje = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  const funis = useMemo(() => {
-    const base = incluirSirene ? cards : cards.filter(c => c.kanban_nome !== 'Sirene');
-    return [...new Set(base.map(c => c.kanban_nome))].sort();
-  }, [cards, incluirSirene]);
-
   const filtradas = useMemo(() => {
     return cards.filter(c => {
-      if (!incluirSirene && c.kanban_nome === 'Sirene') return false;
       if (filtroFunil !== 'todos' && c.kanban_nome !== filtroFunil) return false;
       if (filtroTag === 'especial' && !c.especial) return false;
       if (filtroPrazo !== 'todos') {
@@ -88,7 +82,7 @@ export function ProximasAtividadesConteudo({ cards }: Props) {
       }
       return true;
     });
-  }, [cards, filtroFunil, filtroPrazo, filtroTag, incluirSirene, hoje]);
+  }, [cards, filtroFunil, filtroPrazo, filtroTag, hoje]);
 
   const ordenadas = useMemo(() => sortKanbanCardsPorProximaAtividade(filtradas), [filtradas]);
 
@@ -101,7 +95,9 @@ export function ProximasAtividadesConteudo({ cards }: Props) {
           className="h-8 rounded border border-stone-300 bg-white px-2 text-xs text-stone-700"
         >
           <option value="todos">Todos os funis</option>
-          {funis.map(f => <option key={f} value={f}>{f}</option>)}
+          {kanbanNames.map(nome => (
+            <option key={nome} value={nome}>{nome}</option>
+          ))}
         </select>
         <select
           value={filtroPrazo}
@@ -122,75 +118,51 @@ export function ProximasAtividadesConteudo({ cards }: Props) {
           <option value="todos">Todas as tags</option>
           <option value="especial">⭐ Especial</option>
         </select>
-        <label className="flex h-8 cursor-pointer items-center gap-1.5 rounded border border-stone-300 bg-white px-2 text-xs text-stone-700">
-          <input
-            type="checkbox"
-            checked={incluirSirene}
-            onChange={e => { setIncluirSirene(e.target.checked); setFiltroFunil('todos'); }}
-            className="h-3.5 w-3.5 rounded border-stone-300"
-          />
-          Incluir Sirene
-        </label>
       </div>
 
       <div className="mb-3 text-[11px] text-stone-500">{ordenadas.length} card{ordenadas.length !== 1 ? 's' : ''}</div>
 
-      <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-        <table className="w-full border-collapse text-xs">
-          <thead>
-            <tr className="bg-stone-50">
-              <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Card</th>
-              <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Funil / Fase</th>
-              <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Próxima Atividade</th>
-              <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Prazo</th>
-              <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Responsável</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ordenadas.map(c => {
-              const tier = classificarProximaAtividadeTier(c.proxima_atividade, c.prazo_atividade, hoje);
-              const borderCls =
-                tier === 'atrasada' ? 'border-l-2 border-l-red-400' :
-                tier === 'hoje' ? 'border-l-2 border-l-amber-400' :
-                'border-l-2 border-l-stone-200';
-              return (
-                <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50">
-                  <td className={`px-3 py-2.5 ${borderCls}`}>
-                    <Link
-                      href={hrefAbrirCardKanban(c.kanban_nome, c.id)}
-                      className="font-medium text-blue-600 hover:underline"
-                    >
-                      {c.titulo}
-                    </Link>
-                    {c.especial && (
-                      <span className="ml-1 rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">
-                        ⭐
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="text-stone-700">{c.kanban_nome}</div>
-                    {c.fase_nome && (
-                      <div className="text-[10px] text-stone-400">{c.fase_nome}</div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-stone-700">{c.proxima_atividade}</td>
-                  <td className="px-3 py-2.5">
-                    <ProximaAtividadeTag tier={tier} prazo={c.prazo_atividade} />
-                  </td>
-                  <td className="px-3 py-2.5 text-stone-600">{c.franqueado_nome ?? '—'}</td>
-                </tr>
-              );
-            })}
-            {ordenadas.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-stone-400">
-                  Nenhum card com próxima atividade nos filtros atuais.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="space-y-2">
+        {ordenadas.map(c => {
+          const tier = classificarProximaAtividadeTier(c.proxima_atividade, c.prazo_atividade, hoje);
+          return (
+            <div key={c.id} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+              {/* Cabeçalho — card */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 px-4 py-2.5">
+                <Link
+                  href={hrefAbrirCardKanban(c.kanban_nome, c.id)}
+                  className="text-sm font-semibold text-blue-600 hover:underline"
+                >
+                  {c.titulo}
+                </Link>
+                {c.especial && (
+                  <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                    ⭐ Especial
+                  </span>
+                )}
+                <span className="text-stone-400">·</span>
+                <span className="text-xs text-stone-500">{c.kanban_nome}</span>
+                {c.fase_nome && (
+                  <>
+                    <span className="text-stone-300">/</span>
+                    <span className="text-xs text-stone-400">{c.fase_nome}</span>
+                  </>
+                )}
+              </div>
+              {/* Conteúdo — próxima atividade */}
+              <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-xs">
+                <ProximaAtividadeTag tier={tier} prazo={c.prazo_atividade} />
+                <span className="flex-1 text-stone-700">{c.proxima_atividade}</span>
+                <span className="text-stone-500">{c.franqueado_nome ?? '—'}</span>
+              </div>
+            </div>
+          );
+        })}
+        {ordenadas.length === 0 && (
+          <div className="rounded-xl border border-stone-200 bg-white px-4 py-8 text-center text-sm text-stone-400">
+            Nenhum card com próxima atividade nos filtros atuais.
+          </div>
+        )}
       </div>
     </div>
   );
