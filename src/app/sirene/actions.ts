@@ -475,8 +475,8 @@ export async function getTopicosChamado(chamadoId: number): Promise<GetTopicosPa
 
   let rows = (directResult.data ?? []) as Record<string, unknown>[];
 
-  if (!rows.length && (kasResult.data?.length ?? 0) > 0) {
-    const interacaoIds = kasResult.data!.map((ka) => String((ka as { id: string }).id));
+  const interacaoIds = (kasResult.data ?? []).map((ka) => String((ka as { id: string }).id));
+  if (interacaoIds.length > 0) {
     const { data: rows2, error: err2 } = await supabase
       .from('sirene_topicos')
       .select(TOPICOS_PAINEL_SELECT)
@@ -484,7 +484,8 @@ export async function getTopicosChamado(chamadoId: number): Promise<GetTopicosPa
       .eq('arquivado', false)
       .order('ordem', { ascending: true });
     if (err2) return { ok: false, error: err2.message };
-    rows = (rows2 ?? []) as Record<string, unknown>[];
+    const idsJaVisto = new Set(rows.map((r) => String((r as { id?: unknown }).id ?? '')));
+    rows = [...rows, ...(rows2 ?? []).filter((r) => !idsJaVisto.has(String((r as { id?: unknown }).id ?? '')))];
   }
 
   return { ok: true, topicos: mapRowsToTopicosPainel(rows) };
