@@ -254,9 +254,16 @@ export default async function SireneChamadosPage({
           const ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
           const rid = tRaw.responsavel_id ?? null;
           const ehMeu = ri.includes(currentUserId) || rid === currentUserId;
-          if (!ehMeu) continue;
           const status = String(tRaw.status ?? '').toLowerCase();
           const concluido = status === 'concluido' || status === 'aprovado';
+          if (!ehMeu) {
+            // Tópico sem responsável e não concluído bloqueia a conclusão do chamado
+            const semResponsavel = ri.length === 0 && !rid;
+            if (semResponsavel && !concluido) {
+              meusTopicosConcluidosByChamadoId.set(cid, false);
+            }
+            continue;
+          }
           const prev = meusTopicosConcluidosByChamadoId.get(cid);
           // Inicia com o valor do primeiro tópico do usuário; AND para os seguintes
           meusTopicosConcluidosByChamadoId.set(cid, prev === undefined ? concluido : prev && concluido);
