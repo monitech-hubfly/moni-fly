@@ -626,22 +626,12 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
     await supabase.from('kanban_atividades').update({ status: 'em_andamento' }).eq('id', interacaoId);
   }
 
-  const origem = input.origem === 'legado' ? 'legado' : 'nativo';
-  try {
-    const meta = await buscarMetaCardParaNotificacao(admin, input.card_id, origem);
-    if (meta) {
-      await notificarAlertasKanbanAtividade({
-        userIds: respIds,
-        tipo: 'kanban_atividade_criada',
-        mensagem: `Nova Atividade Criada — ${meta.titulo}`,
-        cardId: input.card_id,
-        basePath: input.basePath?.trim() || meta.basePath,
-        excluirUserId: user.id,
-      });
-    }
-  } catch {
-    /* notificação não bloqueia */
-  }
+  await notificarEventoChamado(interacaoId, {
+    userIds: respIds,
+    tipo: 'kanban_atividade_criada',
+    mensagem: `Nova Atividade Criada — ${titulo || 'Chamado'}`,
+    excluirUserId: user.id,
+  });
 
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
