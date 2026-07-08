@@ -46,6 +46,7 @@ import { BcaCondominioChecklist } from '@/components/kanban-shared/BcaCondominio
 import { BcaChecklistWidget } from '@/components/kanban-shared/BcaChecklistWidget';
 import { RedeLoteadorChecklist } from '@/components/kanban-shared/RedeLoteadorChecklist';
 import { CatalogCasaChecklistSelect } from '@/components/kanban-shared/CatalogCasaChecklistSelect';
+import { KanbanCardModalMoedaField } from '@/components/kanban-shared/KanbanCardModalMoedaField';
 import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioChecklistSelect';
 import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
@@ -1769,6 +1770,24 @@ function ItemField({
           void onChecklistValor(v);
         }}
       />
+    );
+  }
+
+  if (item.tipo === 'moeda') {
+    return (
+      <div>
+        {labelEl}
+        <KanbanCardModalMoedaField
+          value={estado.valor}
+          placeholder={item.placeholder ?? '0,00'}
+          onChange={(v) => {
+            onChange(v);
+            void onChecklistValor(v);
+          }}
+        />
+        {hintEspelhado}
+        {erroEl}
+      </div>
     );
   }
 
