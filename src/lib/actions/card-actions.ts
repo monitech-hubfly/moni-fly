@@ -612,6 +612,7 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
     tipo: 'atividade' as const,
     pastel,
     historico: [] as TopicoHistoricoEvento[],
+    atribuicao_status: respIds.length > 0 ? 'pendente_aceite' : 'aceito',
     ...(prazoInicial ? payloadInicialNegociacaoPrazo(prazoInicial, user.id) : { data_fim: null }),
   };
 
@@ -782,6 +783,7 @@ export async function criarChamadoSireneComAtividade(
     tipo: 'atividade',
     pastel,
     historico: [],
+    atribuicao_status: respIds.length > 0 ? 'pendente_aceite' : 'aceito',
     ...(prazoInicialSirene ? payloadInicialNegociacaoPrazo(prazoInicialSirene, user.id) : { data_fim: null }),
   } as never);
 
@@ -1038,6 +1040,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     tipo: 'atividade' as const,
     pastel,
     historico: [] as TopicoHistoricoEvento[],
+    atribuicao_status: respIds.length > 0 ? 'pendente_aceite' : 'aceito',
     ...(prazoNovaSub ? payloadInicialNegociacaoPrazo(prazoNovaSub, user.id) : { data_fim: null }),
   };
 
