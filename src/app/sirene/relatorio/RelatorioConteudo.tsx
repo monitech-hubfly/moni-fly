@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
+import { normalizarPrazoStatus } from '@/lib/kanban/prazo-negociacao';
 
 type Atividade = {
   id: string;
@@ -24,6 +25,7 @@ type Atividade = {
   criado_em: string;
   sla_status: string | null;
   fase_nome: string | null;
+  prazo_status: string | null;
   diffDias: number | null;
   urgencia: 'atrasado' | 'alerta' | 'ok' | 'sem_prazo';
   especial: boolean;
@@ -32,11 +34,8 @@ type Atividade = {
   chamado_titulo?: string | null;
 };
 
-type Stats = { atrasadas: number; alerta: number; total: number; especial: number };
-
 type Props = {
   atividades: Atividade[];
-  stats: Stats;
   currentUserId: string;
   isAdmin: boolean;
   searchParams?: { visao?: string; funil?: string; card?: string; prazo?: string; tag?: string; resp?: string };
@@ -56,7 +55,23 @@ function StatusTag({ status }: { status: string }) {
   return <span className="inline-flex items-center rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] font-medium text-stone-600">{status}</span>;
 }
 
-export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, searchParams }: Props) {
+function PrazoStatusTag({ prazoStatus }: { prazoStatus: string | null }) {
+  const s = normalizarPrazoStatus(prazoStatus);
+  if (!s) return null;
+  if (s === 'aceito') return <span className="inline-flex items-center rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Prazo aceito</span>;
+  if (s === 'recusado') return <span className="inline-flex items-center rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">Prazo recusado</span>;
+  return <span className="inline-flex items-center rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Prazo pendente</span>;
+}
+
+function AgirTag({ prazoStatus }: { prazoStatus: string | null }) {
+  const s = normalizarPrazoStatus(prazoStatus);
+  if (!s || s === 'aceito') return null;
+  if (s === 'pendente_aceite_responsavel') return <span className="inline-flex items-center rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">→ responsável</span>;
+  if (s === 'pendente_aceite_abridor') return <span className="inline-flex items-center rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">→ abridor</span>;
+  return <span className="inline-flex items-center rounded border border-red-300 bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800">→ propor novo prazo</span>;
+}
+
+export function RelatorioConteudo({ atividades, currentUserId, isAdmin, searchParams }: Props) {
   const [visao, setVisao] = useState<'atividade' | 'chamado' | 'card'>(
     searchParams?.visao === 'atividade' ? 'atividade' : searchParams?.visao === 'card' ? 'card' : 'chamado'
   );
@@ -96,6 +111,13 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
       return true;
     });
   }, [atividades, filtroResp, filtroFunil, filtroCard, filtroTag, filtroPrazo, filtroSituacao, filtroOrigem, currentUserId]);
+
+  const statsAtivas = useMemo(() => ({
+    atrasadas: filtradas.filter((a) => a.urgencia === 'atrasado').length,
+    alerta:    filtradas.filter((a) => a.urgencia === 'alerta').length,
+    total:     filtradas.length,
+    especial:  filtradas.filter((a) => a.especial).length,
+  }), [filtradas]);
 
   const atrasadas = filtradas.filter((a) => a.urgencia === 'atrasado');
   const alerta = filtradas.filter((a) => a.urgencia === 'alerta');
@@ -138,10 +160,10 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
     <div className="mx-auto max-w-7xl px-4 py-6">
       <div className="mb-6 grid grid-cols-4 gap-3">
         {[
-          { num: stats.atrasadas, label: 'Atividades atrasadas', color: 'text-red-600' },
-          { num: stats.alerta, label: 'Vencem em ≤3 d.u.', color: 'text-amber-600' },
-          { num: stats.total, label: 'Atividades abertas', color: '' },
-          { num: stats.especial, label: 'Cards especiais', color: 'text-green-700' },
+          { num: statsAtivas.atrasadas, label: 'Atividades atrasadas', color: 'text-red-600' },
+          { num: statsAtivas.alerta, label: 'Vencem em ≤3 d.u.', color: 'text-amber-600' },
+          { num: statsAtivas.total, label: 'Atividades abertas', color: '' },
+          { num: statsAtivas.especial, label: 'Cards especiais', color: 'text-green-700' },
         ].map((s) => (
           <div key={s.label} className="rounded-lg bg-stone-50 p-3">
             <div className={`text-xl font-medium ${s.color}`}>{s.num}</div>
@@ -199,11 +221,12 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
               <tr className="bg-stone-50">
                 <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Atividade</th>
                 <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Chamado / Card</th>
-                <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Funil</th>
+                <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Funil / Fase</th>
                 <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Aberto por</th>
                 <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Responsável</th>
                 <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Prazo</th>
                 <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Status</th>
+                <th className="border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-500">Negociação</th>
               </tr>
             </thead>
             <tbody>
@@ -225,15 +248,24 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
                       {a.origemDado === 'sirene' ? (a.chamado_titulo ?? a.card_titulo ?? '—') : (a.card_titulo ?? '—')}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-stone-600">{a.kanban_nome}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="text-stone-600">{a.kanban_nome}</div>
+                    {a.fase_nome && <div className="text-[10px] text-stone-400">{a.fase_nome}</div>}
+                  </td>
                   <td className="px-3 py-2.5 text-stone-600">{a.franqueado_nome ?? '—'}</td>
                   <td className="px-3 py-2.5 text-stone-600">{a.responsavel_nome ?? '—'}</td>
                   <td className="px-3 py-2.5"><PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} /></td>
                   <td className="px-3 py-2.5"><StatusTag status={a.atividade_status} /></td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex flex-wrap gap-1">
+                      <PrazoStatusTag prazoStatus={a.prazo_status} />
+                      <AgirTag prazoStatus={a.prazo_status} />
+                    </div>
+                  </td>
                 </tr>
               ))}
               {filtradas.length === 0 && (
-                <tr><td colSpan={7} className="px-3 py-8 text-center text-stone-400">Nenhuma atividade com os filtros atuais.</td></tr>
+                <tr><td colSpan={8} className="px-3 py-8 text-center text-stone-400">Nenhuma atividade com os filtros atuais.</td></tr>
               )}
             </tbody>
           </table>
@@ -282,8 +314,11 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
                             <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
                             <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
                             {a.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">⭐</span>}
+                            {a.fase_nome && <span className="inline-flex items-center rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] text-stone-500">{a.fase_nome}</span>}
                             <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>
                             <StatusTag status={a.atividade_status} />
+                            <PrazoStatusTag prazoStatus={a.prazo_status} />
+                            <AgirTag prazoStatus={a.prazo_status} />
                           </div>
                         ))}
                       </div>
@@ -296,8 +331,11 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
                           <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
                           <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
                           {a.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">⭐</span>}
+                          {a.fase_nome && <span className="inline-flex items-center rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] text-stone-500">{a.fase_nome}</span>}
                           <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>
                           <StatusTag status={a.atividade_status} />
+                          <PrazoStatusTag prazoStatus={a.prazo_status} />
+                          <AgirTag prazoStatus={a.prazo_status} />
                         </div>
                       ))}
                     </div>
@@ -353,8 +391,11 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
                         <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
                         <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
                         {a.especial && <span className="rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">⭐</span>}
+                        {a.fase_nome && <span className="inline-flex items-center rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] text-stone-500">{a.fase_nome}</span>}
                         <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>
                         <StatusTag status={a.atividade_status} />
+                        <PrazoStatusTag prazoStatus={a.prazo_status} />
+                        <AgirTag prazoStatus={a.prazo_status} />
                       </div>
                     ))}
                   </div>
@@ -379,8 +420,11 @@ export function RelatorioConteudo({ atividades, stats, currentUserId, isAdmin, s
                     <div key={a.id} className="flex flex-wrap items-center gap-2 px-4 py-2 text-xs">
                       <PrazoTag urgencia={a.urgencia} diffDias={a.diffDias} />
                       <span className="flex-1 font-medium text-stone-700">{a.titulo}</span>
+                      {a.fase_nome && <span className="inline-flex items-center rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-[10px] text-stone-500">{a.fase_nome}</span>}
                       <span className="text-stone-500">{a.responsavel_nome ?? '—'}</span>
                       <StatusTag status={a.atividade_status} />
+                      <PrazoStatusTag prazoStatus={a.prazo_status} />
+                      <AgirTag prazoStatus={a.prazo_status} />
                     </div>
                   ))}
                 </div>
