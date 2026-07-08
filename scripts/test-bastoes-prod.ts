@@ -59,18 +59,16 @@ const BASTOES_ESPERADOS: Record<
       kanbanNome: 'Funil Projetos Locais',
     },
   ],
-  aprovacao_prefeitura: [
-    {
-      kanbanId: KANBAN_IDS.PROJETOS_LEGAIS,
-      faseSlug: 'projetos_legais_protocolo',
-      kanbanNome: 'Funil Projetos Legais',
-    },
-  ],
   projeto_legal: [
     {
       kanbanId: KANBAN_IDS.PROJETO_LEGAL,
       faseSlug: FASE_SLUGS.PL_NOVA_DEMANDA,
       kanbanNome: 'Funil Projeto Legal',
+    },
+    {
+      kanbanId: KANBAN_IDS.PROJETOS_LEGAIS,
+      faseSlug: 'projetos_legais_protocolo',
+      kanbanNome: 'Funil Projetos Legais',
     },
   ],
 };
@@ -102,15 +100,7 @@ const TESTS = [
   },
   {
     id: 4,
-    label: 'aprovacao_prefeitura → Projetos Legais / projetos_legais_protocolo',
-    kanbanId: KANBAN_IDS.OPERACOES,
-    kanbanNome: 'Funil Operações',
-    faseAnteriorSlug: 'aprovacao_condominio',
-    faseGatilhoSlug: 'aprovacao_prefeitura',
-  },
-  {
-    id: 5,
-    label: `projeto_legal → Projeto Legal / ${FASE_SLUGS.PL_NOVA_DEMANDA}`,
+    label: `projeto_legal → Projeto Legal + Projetos Legais (${FASE_SLUGS.PL_NOVA_DEMANDA} + projetos_legais_protocolo)`,
     kanbanId: KANBAN_IDS.OPERACOES,
     kanbanNome: 'Funil Operações',
     faseAnteriorSlug: 'planialtimetrico',

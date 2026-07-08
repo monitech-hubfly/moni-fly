@@ -951,17 +951,15 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         flag: null,
       },
     ],
-    [FASE_SLUGS.APROVACAO_PREFEITURA]: [
-      {
-        kanbanDestinoId: KANBAN_IDS.PROJETOS_LEGAIS,
-        faseDestinoSlug: 'projetos_legais_protocolo',
-        flag: null,
-      },
-    ],
     [FASE_SLUGS.PROJETO_LEGAL]: [
       {
         kanbanDestinoId: KANBAN_IDS.PROJETO_LEGAL,
         faseDestinoSlug: FASE_SLUGS.PL_NOVA_DEMANDA,
+        flag: null,
+      },
+      {
+        kanbanDestinoId: KANBAN_IDS.PROJETOS_LEGAIS,
+        faseDestinoSlug: 'projetos_legais_protocolo',
         flag: null,
       },
     ],

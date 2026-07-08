@@ -38,6 +38,8 @@ export type CardParalelasFlags = {
   capital_ok?: boolean;
   juridico_ok?: boolean;
   credito_obra_ok?: boolean;
+  projetos_legais_ok?: boolean | null;
+  projetos_locais_ok?: boolean | null;
 };
 
 export type MontarChipsParalelasInput = {
@@ -66,6 +68,14 @@ export type MontarChipsParalelasInput = {
   operacoesFilhoFaseRotulo?: string | null;
   /** Portfolio: fase atual do filho Jurídico. */
   juridicoFilhoFaseRotulo?: string | null;
+  /** Operações: existe card filho no Funil Projeto Legal (`origem_card_id`). */
+  temFilhoProjetoLegal?: boolean;
+  /** Operações: filho Projeto Legal arquivado (sem filho ativo). */
+  filhoProjetoLegalArquivado?: boolean;
+  /** Operações: filho Projeto Legal concluído. */
+  projetoLegalFilhoConcluido?: boolean;
+  /** Operações: fase atual do filho Projeto Legal. */
+  projetoLegalFilhoFase?: string | null;
 };
 
 export type MontarChipsParalelasOptions = {
@@ -75,6 +85,41 @@ export type MontarChipsParalelasOptions = {
 
 function boolFlag(v: boolean | null | undefined): boolean {
   return Boolean(v);
+}
+
+function flagParalelaDefinida(v: boolean | null | undefined): boolean {
+  return v !== null && v !== undefined;
+}
+
+/** Slugs do Funil Operações a partir de Projeto Legal (inclusive). */
+const OPERACOES_SLUGS_PROJETO_LEGAL_OU_APOS = new Set<string>([
+  FASE_SLUGS.PROJETO_LEGAL,
+  FASE_SLUGS.APROVACAO_CONDOMINIO,
+  FASE_SLUGS.APROVACAO_PREFEITURA,
+  'revisao_bca',
+  FASE_SLUGS.PROCESSOS_CARTORARIOS,
+  FASE_SLUGS.AGUARDANDO_CREDITO,
+  FASE_SLUGS.EM_OBRA,
+  FASE_SLUGS.OPERACOES_ENTREGUE,
+]);
+
+/** Slugs do Funil Operações a partir de Aprovação no Condomínio (inclusive). */
+const OPERACOES_SLUGS_APROVACAO_CONDOMINIO_OU_APOS = new Set<string>([
+  FASE_SLUGS.APROVACAO_CONDOMINIO,
+  FASE_SLUGS.APROVACAO_PREFEITURA,
+  'revisao_bca',
+  FASE_SLUGS.PROCESSOS_CARTORARIOS,
+  FASE_SLUGS.AGUARDANDO_CREDITO,
+  FASE_SLUGS.EM_OBRA,
+  FASE_SLUGS.OPERACOES_ENTREGUE,
+]);
+
+function operacoesEmProjetoLegalOuApos(slug: string): boolean {
+  return OPERACOES_SLUGS_PROJETO_LEGAL_OU_APOS.has(String(slug ?? '').trim());
+}
+
+function operacoesEmAprovacaoCondominioOuApos(slug: string): boolean {
+  return OPERACOES_SLUGS_APROVACAO_CONDOMINIO_OU_APOS.has(String(slug ?? '').trim());
 }
 
 function faseParalelaFallback(concluido: boolean, fase?: string | null): string {
@@ -302,18 +347,77 @@ export function montarChipsParalelas(
     return chips;
   }
 
-  if (kid === KANBAN_IDS.OPERACOES && slug === FASE_SLUGS.AGUARDANDO_CREDITO) {
-    chips.push(
-      chipEsteira(
-        KANBAN_IDS.CREDITO_OBRA,
-        nomeFunilParalela(KANBAN_IDS.CREDITO_OBRA),
-        null,
-        'Cash Me',
-        'Cash Me',
-        boolFlag(f.credito_obra_ok),
-        opts,
-      ),
-    );
+  if (kid === KANBAN_IDS.OPERACOES) {
+    const temFilhoProjetoLegal = Boolean(input.temFilhoProjetoLegal);
+    const filhoProjetoLegalArquivado =
+      Boolean(input.filhoProjetoLegalArquivado) && !temFilhoProjetoLegal;
+    const emProjetoLegal =
+      operacoesEmProjetoLegalOuApos(slug) ||
+      temFilhoProjetoLegal ||
+      filhoProjetoLegalArquivado;
+    if (emProjetoLegal) {
+      const faseNomeChip = filhoProjetoLegalArquivado
+        ? null
+        : String(input.projetoLegalFilhoFase ?? '').trim() || null;
+      const concluidoProjetoLegal = temFilhoProjetoLegal;
+      chips.push(
+        chipEsteira(
+          KANBAN_IDS.PROJETO_LEGAL,
+          nomeFunilParalela(KANBAN_IDS.PROJETO_LEGAL),
+          filhoProjetoLegalArquivado ? FASE_EXIBICAO_CARD_ARQUIVADO : faseNomeChip,
+          'Projeto Legal',
+          'Projeto Legal',
+          concluidoProjetoLegal,
+          opts,
+        ),
+      );
+    }
+
+    const emProjetosLegais =
+      operacoesEmProjetoLegalOuApos(slug) || flagParalelaDefinida(f.projetos_legais_ok);
+    if (emProjetosLegais) {
+      chips.push(
+        chipEsteira(
+          KANBAN_IDS.PROJETOS_LEGAIS,
+          nomeFunilParalela(KANBAN_IDS.PROJETOS_LEGAIS),
+          null,
+          'Projetos Legais',
+          'Projetos Legais',
+          boolFlag(f.projetos_legais_ok),
+          opts,
+        ),
+      );
+    }
+
+    const emProjetosLocais =
+      operacoesEmAprovacaoCondominioOuApos(slug) || flagParalelaDefinida(f.projetos_locais_ok);
+    if (emProjetosLocais) {
+      chips.push(
+        chipEsteira(
+          KANBAN_IDS.PROJETOS_LOCAIS,
+          nomeFunilParalela(KANBAN_IDS.PROJETOS_LOCAIS),
+          null,
+          'Projetos Locais',
+          'Projetos Locais',
+          boolFlag(f.projetos_locais_ok),
+          opts,
+        ),
+      );
+    }
+
+    if (slug === FASE_SLUGS.AGUARDANDO_CREDITO) {
+      chips.push(
+        chipEsteira(
+          KANBAN_IDS.CREDITO_OBRA,
+          nomeFunilParalela(KANBAN_IDS.CREDITO_OBRA),
+          null,
+          'Cash Me',
+          'Cash Me',
+          boolFlag(f.credito_obra_ok),
+          opts,
+        ),
+      );
+    }
   }
 
   if (kid === KANBAN_IDS.ACOPLAMENTO) {
@@ -346,6 +450,8 @@ export function flagsParalelasFromCard(card: Pick<
   | 'capital_ok'
   | 'juridico_ok'
   | 'credito_obra_ok'
+  | 'projetos_legais_ok'
+  | 'projetos_locais_ok'
 >): CardParalelasFlags {
   return {
     acoplamento_concluido: card.acoplamento_concluido,
@@ -356,6 +462,8 @@ export function flagsParalelasFromCard(card: Pick<
     capital_ok: card.capital_ok,
     juridico_ok: card.juridico_ok,
     credito_obra_ok: card.credito_obra_ok,
+    projetos_legais_ok: card.projetos_legais_ok ?? null,
+    projetos_locais_ok: card.projetos_locais_ok ?? null,
   };
 }
 
@@ -667,6 +775,83 @@ export async function enrichCardsParalelasContext(
         patch.acoplamento_filho_fase_slug = null;
         patch.acoplamento_filho_fase_nome = FASE_EXIBICAO_CARD_ARQUIVADO;
       }
+      return { ...c, ...patch };
+    });
+  }
+
+  if (kid === KANBAN_IDS.OPERACOES) {
+    const cardIds = cards.map((c) => c.id).filter(Boolean);
+    if (cardIds.length === 0) return cards;
+
+    const [
+      { data: filhosProjetoLegal },
+      { data: filhosProjetoLegalArq },
+    ] = await Promise.all([
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id, concluido, kanban_fases ( nome, slug )')
+        .eq('kanban_id', KANBAN_IDS.PROJETO_LEGAL)
+        .eq('arquivado', false)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id')
+        .eq('kanban_id', KANBAN_IDS.PROJETO_LEGAL)
+        .eq('arquivado', true)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id')
+        .eq('kanban_id', KANBAN_IDS.PROJETOS_LEGAIS)
+        .eq('arquivado', false)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id')
+        .eq('kanban_id', KANBAN_IDS.PROJETOS_LOCAIS)
+        .eq('arquivado', false)
+        .in('origem_card_id', cardIds),
+    ]);
+
+    const filhoProjetoLegalPorPai = new Map<string, string>();
+    const filhoProjetoLegalConcluidoPorPai = new Map<string, boolean>();
+    for (const row of filhosProjetoLegal ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (!oid) continue;
+      const fase = unwrapFase(
+        (row as { kanban_fases?: FaseJoin | FaseJoin[] | null }).kanban_fases ?? null,
+      );
+      const faseNome = String(fase?.nome ?? '').trim();
+      if (faseNome && !filhoProjetoLegalPorPai.has(oid)) {
+        filhoProjetoLegalPorPai.set(oid, faseNome);
+      }
+      if (!filhoProjetoLegalConcluidoPorPai.has(oid)) {
+        filhoProjetoLegalConcluidoPorPai.set(
+          oid,
+          (row as { concluido?: boolean | null }).concluido === true,
+        );
+      }
+    }
+
+    const paisComFilhoProjetoLegalArquivado = new Set<string>();
+    for (const row of filhosProjetoLegalArq ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (oid) paisComFilhoProjetoLegalArquivado.add(oid);
+    }
+
+    return cards.map((c) => {
+      const temFilhoProjetoLegal = filhoProjetoLegalPorPai.has(c.id);
+      const filhoProjetoLegalArquivado =
+        paisComFilhoProjetoLegalArquivado.has(c.id) && !temFilhoProjetoLegal;
+      if (!temFilhoProjetoLegal && !filhoProjetoLegalArquivado) return c;
+
+      const patch: Partial<KanbanCardBrief> = {};
+      if (temFilhoProjetoLegal) {
+        patch.tem_filho_projeto_legal = true;
+        patch.projeto_legal_filho_fase = filhoProjetoLegalPorPai.get(c.id) ?? null;
+        patch.projeto_legal_filho_concluido = filhoProjetoLegalConcluidoPorPai.get(c.id) === true;
+      }
+      if (filhoProjetoLegalArquivado) patch.filho_projeto_legal_arquivado = true;
       return { ...c, ...patch };
     });
   }
