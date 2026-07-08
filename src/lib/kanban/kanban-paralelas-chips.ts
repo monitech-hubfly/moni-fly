@@ -373,22 +373,6 @@ export function montarChipsParalelas(
       );
     }
 
-    const emProjetosLegais =
-      operacoesEmProjetoLegalOuApos(slug) || flagParalelaDefinida(f.projetos_legais_ok);
-    if (emProjetosLegais) {
-      chips.push(
-        chipEsteira(
-          KANBAN_IDS.PROJETOS_LEGAIS,
-          nomeFunilParalela(KANBAN_IDS.PROJETOS_LEGAIS),
-          null,
-          'Projetos Legais',
-          'Projetos Legais',
-          boolFlag(f.projetos_legais_ok),
-          opts,
-        ),
-      );
-    }
-
     const emProjetosLocais =
       operacoesEmAprovacaoCondominioOuApos(slug) || flagParalelaDefinida(f.projetos_locais_ok);
     if (emProjetosLocais) {
@@ -798,18 +782,6 @@ export async function enrichCardsParalelasContext(
         .select('origem_card_id')
         .eq('kanban_id', KANBAN_IDS.PROJETO_LEGAL)
         .eq('arquivado', true)
-        .in('origem_card_id', cardIds),
-      supabase
-        .from('kanban_cards')
-        .select('origem_card_id')
-        .eq('kanban_id', KANBAN_IDS.PROJETOS_LEGAIS)
-        .eq('arquivado', false)
-        .in('origem_card_id', cardIds),
-      supabase
-        .from('kanban_cards')
-        .select('origem_card_id')
-        .eq('kanban_id', KANBAN_IDS.PROJETOS_LOCAIS)
-        .eq('arquivado', false)
         .in('origem_card_id', cardIds),
     ]);
 
