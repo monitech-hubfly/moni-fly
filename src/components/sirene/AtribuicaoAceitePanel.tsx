@@ -4,15 +4,20 @@ import { useState, useTransition } from 'react';
 import {
   aceitarAtribuicaoTopico,
   recusarAtribuicaoTopico,
+  redirecionarAtribuicaoTopico,
 } from '@/lib/actions/atribuicao-topico-actions';
 
 type Props = {
   topicoId: string;
   atribuicaoStatus: string | null;
   atribuicaoJustificativa: string | null;
+  atribuicaoRecusadoPor: string | null;
   recusadoPorNome: string | null;
   sessionUserId: string | null;
   responsavelId: string | null;
+  abridorId?: string | null;
+  responsaveisOpcoes?: { id: string; nome: string }[];
+  onArquivar?: () => void;
   basePath?: string;
   compact?: boolean;
   onUpdated?: () => void;
@@ -22,9 +27,13 @@ export function AtribuicaoAceitePanel({
   topicoId,
   atribuicaoStatus,
   atribuicaoJustificativa,
+  atribuicaoRecusadoPor,
   recusadoPorNome,
   sessionUserId,
   responsavelId,
+  abridorId,
+  responsaveisOpcoes,
+  onArquivar,
   basePath,
   compact = false,
   onUpdated,
@@ -33,6 +42,8 @@ export function AtribuicaoAceitePanel({
   const [msg, setMsg] = useState<string | null>(null);
   const [recusando, setRecusando] = useState(false);
   const [justificativa, setJustificativa] = useState('');
+  const [redirecionando, setRedirecionando] = useState(false);
+  const [novoRespId, setNovoRespId] = useState('');
 
   const text = compact ? 'text-[10px]' : 'text-xs';
   const ehResponsavel = sessionUserId != null && sessionUserId === responsavelId;
@@ -50,6 +61,8 @@ export function AtribuicaoAceitePanel({
   };
 
   if (atribuicaoStatus === 'recusado') {
+    const ehAbridor = Boolean(sessionUserId && abridorId && sessionUserId === abridorId);
+    const opcoesRedir = (responsaveisOpcoes ?? []).filter(r => r.id !== atribuicaoRecusadoPor);
     return (
       <div className={`rounded border border-red-200 bg-red-50/80 p-2 ${text}`}>
         <p className="font-medium text-red-700">Atividade recusada</p>
@@ -59,6 +72,63 @@ export function AtribuicaoAceitePanel({
             {atribuicaoJustificativa ?? ''}
           </p>
         ) : null}
+        {ehAbridor && !redirecionando ? (
+          <div className="mt-2 flex flex-wrap gap-1">
+            <button
+              type="button"
+              disabled={pending}
+              className="rounded bg-stone-700 px-2 py-0.5 text-white hover:bg-stone-800 disabled:opacity-50"
+              onClick={() => { setRedirecionando(true); setNovoRespId(''); setMsg(null); }}
+            >
+              Redirecionar
+            </button>
+            {onArquivar ? (
+              <button
+                type="button"
+                disabled={pending}
+                className="rounded border border-stone-300 bg-white px-2 py-0.5 hover:bg-stone-100 disabled:opacity-50"
+                onClick={() => {
+                  if (window.confirm('Encerrar a atividade sem reatribuir?')) onArquivar();
+                }}
+              >
+                Encerrar
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {ehAbridor && redirecionando ? (
+          <div className="mt-2 space-y-1">
+            <select
+              value={novoRespId}
+              onChange={e => setNovoRespId(e.target.value)}
+              className="w-full rounded border border-stone-300 bg-white px-1.5 py-0.5"
+            >
+              <option value="">Selecione o responsável…</option>
+              {opcoesRedir.map(r => (
+                <option key={r.id} value={r.id}>{r.nome}</option>
+              ))}
+            </select>
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                disabled={pending || !novoRespId}
+                className="rounded bg-stone-700 px-2 py-0.5 text-white hover:bg-stone-800 disabled:opacity-50"
+                onClick={() => run(() => redirecionarAtribuicaoTopico(topicoId, novoRespId, basePath))}
+              >
+                Confirmar
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                className="rounded border border-stone-300 bg-white px-2 py-0.5 hover:bg-stone-100 disabled:opacity-50"
+                onClick={() => { setRedirecionando(false); setNovoRespId(''); setMsg(null); }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {msg ? <p className="mt-1 text-red-600">{msg}</p> : null}
       </div>
     );
   }

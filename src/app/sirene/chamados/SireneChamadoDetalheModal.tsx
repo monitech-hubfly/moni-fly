@@ -583,9 +583,13 @@ export function SireneChamadoDetalheModal({
                               topicoId={String(t.id)}
                               atribuicaoStatus={t.atribuicao_status ?? null}
                               atribuicaoJustificativa={t.atribuicao_justificativa ?? null}
+                              atribuicaoRecusadoPor={t.atribuicao_recusado_por ?? null}
                               recusadoPorNome={t.atribuicao_recusado_por ? (nomePorUserId.get(t.atribuicao_recusado_por) ?? null) : null}
                               sessionUserId={currentUserId}
                               responsavelId={t.responsavel_id}
+                              abridorId={row.criado_por ?? null}
+                              responsaveisOpcoes={responsaveis.map(r => ({ id: r.id, nome: r.nome }))}
+                              onArquivar={onArquivarTopico ? () => onArquivarTopico(t.id) : undefined}
                               basePath="/sirene/chamados"
                               compact
                               onUpdated={onRecarregarTopicos}

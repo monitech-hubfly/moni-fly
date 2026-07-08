@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { notificarAlertasKanbanAtividade } from '@/lib/kanban/chamados-notificacoes';
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -18,6 +19,7 @@ function appendHistoricoEvento(historico: unknown, evento: TopicoHistoricoEvento
 
 type TopicoAtribuicaoRow = {
   id: number;
+  nome: string | null;
   responsavel_id: string | null;
   atribuicao_status: string | null;
   historico: unknown;
@@ -31,7 +33,7 @@ async function carregarTopicoAtribuicao(
 ): Promise<TopicoAtribuicaoRow | null> {
   const { data } = await supabase
     .from('sirene_topicos')
-    .select('id, responsavel_id, atribuicao_status, historico, chamado_id, interacao_id')
+    .select('id, nome, responsavel_id, atribuicao_status, historico, chamado_id, interacao_id')
     .eq('id', topicoId)
     .maybeSingle();
   return data as TopicoAtribuicaoRow | null;
@@ -146,7 +148,95 @@ export async function recusarAtribuicaoTopico(
     if (commentError) {
       console.error('[recusarAtribuicaoTopico] Falha ao criar comentário automático:', commentError.message);
     }
+    // Notifica o abridor do chamado (não fatal)
+    try {
+      const { data: chamado } = await supabase
+        .from('sirene_chamados')
+        .select('aberto_por')
+        .eq('id', sireneChamadoId)
+        .maybeSingle();
+      const abertoPorId = (chamado as { aberto_por?: string | null } | null)?.aberto_por ?? null;
+      if (abertoPorId) {
+        const nomeAtiv = String(row.nome ?? '').trim() || 'atividade';
+        await notificarAlertasKanbanAtividade({
+          userIds: [abertoPorId],
+          tipo: 'atribuicao_recusada',
+          mensagem: `${autorNome ?? 'Responsável'} recusou a atividade "${nomeAtiv}": ${texto}`,
+          basePath: '/sirene/chamados',
+          excluirUserId: user.id,
+        });
+      }
+    } catch {
+      // notificação não bloqueia
+    }
   }
+
+  return { ok: true };
+}
+
+/** Abridor do chamado redireciona atividade recusada a um novo responsável. */
+export async function redirecionarAtribuicaoTopico(
+  topicoId: string,
+  novoResponsavelId: string,
+  basePath?: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const novoResp = novoResponsavelId.trim();
+  if (!novoResp) return { ok: false, error: 'Selecione um responsável.' };
+
+  const idNum = Number.parseInt(String(topicoId), 10);
+  if (!Number.isFinite(idNum)) return { ok: false, error: 'Atividade inválida.' };
+
+  const row = await carregarTopicoAtribuicao(supabase, idNum);
+  if (!row) return { ok: false, error: 'Atividade não encontrada.' };
+  if (row.atribuicao_status !== 'recusado') return { ok: false, error: 'Só é possível redirecionar atividades recusadas.' };
+
+  // Resolve sireneChamadoId e valida que quem chama é o abridor
+  let sireneChamadoId: number | null = row.chamado_id;
+  if (sireneChamadoId == null && row.interacao_id) {
+    const { data: ka } = await supabase
+      .from('kanban_atividades')
+      .select('sirene_chamado_id')
+      .eq('id', row.interacao_id)
+      .maybeSingle();
+    sireneChamadoId = (ka as { sirene_chamado_id?: number | null } | null)?.sirene_chamado_id ?? null;
+  }
+
+  if (sireneChamadoId != null) {
+    const { data: chamado } = await supabase
+      .from('sirene_chamados')
+      .select('aberto_por')
+      .eq('id', sireneChamadoId)
+      .maybeSingle();
+    const abertoPorId = (chamado as { aberto_por?: string | null } | null)?.aberto_por ?? null;
+    if (abertoPorId && user.id !== abertoPorId) {
+      return { ok: false, error: 'Somente quem abriu o chamado pode redirecionar esta atividade.' };
+    }
+  }
+
+  const { error } = await supabase
+    .from('sirene_topicos')
+    .update({
+      responsavel_id: novoResp,
+      responsaveis_ids: [novoResp],
+      atribuicao_status: 'pendente_aceite',
+      atribuicao_recusado_por: null,
+      atribuicao_justificativa: null,
+      historico: appendHistoricoEvento(row.historico, {
+        tipo: 'Atribuição redirecionada',
+        em: new Date().toISOString(),
+        por: user.id,
+        detalhe: novoResp,
+      }),
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', row.id);
+  if (error) return { ok: false, error: error.message };
 
   return { ok: true };
 }
