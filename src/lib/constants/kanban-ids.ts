@@ -213,6 +213,9 @@ export const FASE_SLUGS = {
   ESCOLHA:              'escolha',
   HIPOTESES:            'hipoteses',
   // Funil Motor 01 (KANBAN_IDS.MOTOR01) — bastões de ida
+  M1_EXECUCAO_CASA:     'm1_execucao_casa',
+  M1_AJUSTES:           'm1_ajustes',
+  M1_R04_AJUSTES:       'm1_r04_ajustes',
   M1_CTO_CLIENTE:       'm1_cto_cliente',
   M1_PAGAMENTO_ENTRADA: 'm1_pagamento_entrada',
   M1_CUSTOM_TRACK1_2:   'm1_custom_track1_2',
