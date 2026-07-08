@@ -215,6 +215,7 @@ export const FASE_SLUGS = {
   // Funil Motor 01 (KANBAN_IDS.MOTOR01) — bastões de ida
   M1_CTO_CLIENTE:       'm1_cto_cliente',
   M1_PAGAMENTO_ENTRADA: 'm1_pagamento_entrada',
+  M1_CUSTOM_TRACK1_2:   'm1_custom_track1_2',
 } as const
 
 /** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389). */
