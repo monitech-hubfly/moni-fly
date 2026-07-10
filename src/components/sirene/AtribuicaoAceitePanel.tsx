@@ -6,6 +6,7 @@ import {
   recusarAtribuicaoTopico,
   redirecionarAtribuicaoTopico,
 } from '@/lib/actions/atribuicao-topico-actions';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 type Props = {
   topicoId: string;
@@ -44,6 +45,7 @@ export function AtribuicaoAceitePanel({
   const [justificativa, setJustificativa] = useState('');
   const [redirecionando, setRedirecionando] = useState(false);
   const [novoRespId, setNovoRespId] = useState('');
+  const [showConfirmarEncerrar, setShowConfirmarEncerrar] = useState(false);
 
   const text = compact ? 'text-[10px]' : 'text-xs';
   const ehResponsavel = sessionUserId != null && sessionUserId === responsavelId;
@@ -83,16 +85,25 @@ export function AtribuicaoAceitePanel({
               Redirecionar
             </button>
             {onArquivar ? (
-              <button
-                type="button"
-                disabled={pending}
-                className="rounded border border-stone-300 bg-white px-2 py-0.5 hover:bg-stone-100 disabled:opacity-50"
-                onClick={() => {
-                  if (window.confirm('Encerrar a atividade sem reatribuir?')) onArquivar();
-                }}
-              >
-                Encerrar
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={pending}
+                  className="rounded border border-stone-300 bg-white px-2 py-0.5 hover:bg-stone-100 disabled:opacity-50"
+                  onClick={() => setShowConfirmarEncerrar(true)}
+                >
+                  Encerrar
+                </button>
+                <ConfirmModal
+                  open={showConfirmarEncerrar}
+                  title="Encerrar atividade"
+                  description="A atividade será encerrada sem reatribuição. Esta ação não pode ser desfeita."
+                  confirmLabel="Encerrar"
+                  destructive
+                  onConfirm={() => { setShowConfirmarEncerrar(false); onArquivar(); }}
+                  onClose={() => setShowConfirmarEncerrar(false)}
+                />
+              </>
             ) : null}
           </div>
         ) : null}
