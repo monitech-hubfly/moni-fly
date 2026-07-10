@@ -2025,6 +2025,14 @@ export function InteracoesLista({
             });
             setMotivoArquivarTopico('');
           }}
+          onEncerrarAtividadeRecusada={async (topicoId) => {
+            const res = await arquivarTopico(topicoId, 'Encerrada sem reatribuição após recusa de atribuição');
+            if (!res.ok) {
+              alert(res.error ?? 'Erro ao encerrar atividade.');
+              return;
+            }
+            router.refresh();
+          }}
           highlightTopicoId={highlightTopicoId}
           sessionEhAdmin={sessionEhAdmin}
           onRecarregarTopicos={() => {

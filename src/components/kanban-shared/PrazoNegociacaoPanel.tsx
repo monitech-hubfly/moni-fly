@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { Pencil } from 'lucide-react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
   aceitarPrazoSubInteracao,
@@ -44,6 +45,7 @@ export function PrazoNegociacaoPanel({
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [novaData, setNovaData] = useState(prazoIsoExibicao(row) ?? '');
+  const [editandoPrazo, setEditandoPrazo] = useState(false);
 
   const uid = sessionUserId ?? '';
   const status = normalizarPrazoStatus(row.prazo_status);
@@ -70,9 +72,19 @@ export function PrazoNegociacaoPanel({
 
   return (
     <div className={`rounded border border-stone-200 bg-stone-50/80 p-2 ${text}`}>
-      <p className="font-medium text-stone-700">
+      <p className="flex items-center gap-1 font-medium text-stone-700">
         Prazo limite
         {prazoFmt ? `: ${formatIsoDateOnlyPtBr(prazoFmt) ?? prazoFmt}` : ''}
+        {atribuicaoAceita && isAdmin && !expirada && status !== 'pendente_aceite_responsavel' && !editandoPrazo ? (
+          <button
+            type="button"
+            onClick={() => setEditandoPrazo(true)}
+            title="Alterar prazo"
+            className="ml-0.5 rounded p-0.5 text-stone-400 hover:text-stone-700"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
       </p>
       {status && status !== 'aceito' ? (
         <p className="mt-0.5 text-amber-800">{rotuloPrazoStatusPt(status)}</p>
@@ -140,7 +152,7 @@ export function PrazoNegociacaoPanel({
 
       {!expirada && (
         (status === 'recusado' && ehResponsavel) ||
-        ((ehAbridor || ehResponsavel || isAdmin) && status !== 'pendente_aceite_responsavel' && (!atribuicaoAceita || isAdmin))
+        ((ehAbridor || ehResponsavel || isAdmin) && status !== 'pendente_aceite_responsavel' && !atribuicaoAceita)
       ) ? (
         <div className="mt-2 flex flex-wrap items-end gap-1">
           <label className="block min-w-0 flex-1">
@@ -162,6 +174,37 @@ export function PrazoNegociacaoPanel({
             onClick={() => run(() => proporPrazoSubInteracao(topicoId, novaData, basePath))}
           >
             Propor
+          </button>
+        </div>
+      ) : null}
+
+      {atribuicaoAceita && isAdmin && !expirada && status !== 'pendente_aceite_responsavel' && editandoPrazo ? (
+        <div className="mt-2 flex flex-wrap items-end gap-1">
+          <label className="block min-w-0 flex-1">
+            <span className="mb-0.5 block text-stone-600">Alterar prazo</span>
+            <input
+              type="date"
+              value={novaData}
+              onChange={(e) => setNovaData(e.target.value)}
+              className="w-full px-1.5 py-0.5"
+              style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={pending || !novaData.trim()}
+            className="shrink-0 rounded bg-stone-800 px-2 py-0.5 text-white hover:bg-stone-900 disabled:opacity-50"
+            onClick={() => run(() => proporPrazoSubInteracao(topicoId, novaData, basePath))}
+          >
+            Propor
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            className="shrink-0 rounded border border-stone-300 bg-white px-2 py-0.5 hover:bg-stone-100 disabled:opacity-50"
+            onClick={() => setEditandoPrazo(false)}
+          >
+            Cancelar
           </button>
         </div>
       ) : null}

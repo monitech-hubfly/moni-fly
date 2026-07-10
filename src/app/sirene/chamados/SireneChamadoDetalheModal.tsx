@@ -94,6 +94,7 @@ type Props = {
   salvandoNovaAtividade: boolean;
   currentUserId: string | null;
   onArquivarTopico?: (topicoId: number) => void;
+  onEncerrarAtividadeRecusada?: (topicoId: number) => void;
   highlightTopicoId?: number | null;
   sessionEhAdmin?: boolean;
   onRecarregarTopicos?: () => void;
@@ -187,6 +188,7 @@ export function SireneChamadoDetalheModal({
   salvandoNovaAtividade,
   currentUserId,
   onArquivarTopico,
+  onEncerrarAtividadeRecusada,
   highlightTopicoId = null,
   sessionEhAdmin = false,
   onRecarregarTopicos,
@@ -592,7 +594,7 @@ export function SireneChamadoDetalheModal({
                               responsavelId={t.responsavel_id}
                               abridorId={row.criado_por ?? null}
                               responsaveisOpcoes={responsaveis.map(r => ({ id: r.id, nome: r.nome }))}
-                              onArquivar={onArquivarTopico ? () => onArquivarTopico(t.id) : undefined}
+                              onArquivar={onEncerrarAtividadeRecusada ? () => onEncerrarAtividadeRecusada(t.id) : undefined}
                               basePath="/sirene/chamados"
                               compact
                               onUpdated={onRecarregarTopicos}
