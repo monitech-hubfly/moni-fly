@@ -3101,7 +3101,7 @@
   color: var(--moni-navy-600);
 }
 
-/* Tabelas largas — scroll horizontal nativo + barra fixa na base da tela */
+/* Tabelas largas — scroll horizontal único no wrapper + cabeçalho sticky */
 .moni-tabela-scroll-wrap {
   width: 100%;
   max-width: 100%;
@@ -3113,10 +3113,16 @@
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
-  overflow-y: visible;
+  /* clip evita scroll container vertical aninhado — sticky thead segue o painel AppShell */
+  overflow-y: clip;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--moni-navy-200) var(--moni-surface-100);
+}
+
+.moni-tabela-scroll-main table {
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .moni-tabela-scroll-main table thead th {
@@ -3153,69 +3159,6 @@
 .moni-tabela-scroll-main::-webkit-scrollbar-thumb {
   background: var(--moni-navy-200);
   border-radius: var(--moni-radius-md);
-}
-
-.moni-tabela-scroll-bar {
-  position: fixed;
-  bottom: 0;
-  z-index: 100;
-  overflow-x: auto;
-  overflow-y: hidden;
-  height: 14px;
-  background: var(--moni-surface-50);
-  border-top: var(--moni-border-width) solid var(--moni-border-default);
-  scrollbar-width: thin;
-  scrollbar-color: var(--moni-navy-200) transparent;
-}
-
-.moni-tabela-scroll-bar::-webkit-scrollbar {
-  height: 10px;
-}
-
-.moni-tabela-scroll-bar::-webkit-scrollbar-track {
-  background: var(--moni-surface-100);
-}
-
-.moni-tabela-scroll-bar::-webkit-scrollbar-thumb {
-  background: var(--moni-navy-200);
-  border-radius: var(--moni-radius-md);
-}
-
-.moni-tabela-scroll-bar-spacer {
-  height: 1px;
-  pointer-events: none;
-}
-
-.moni-tabela-scroll-track {
-  position: fixed;
-  bottom: 0;
-  z-index: 100;
-  box-sizing: border-box;
-  height: 20px;
-  padding: 4px 0;
-  background: var(--moni-surface-50);
-  border-top: var(--moni-border-width) solid var(--moni-border-default);
-  cursor: pointer;
-  touch-action: none;
-  pointer-events: auto;
-}
-
-.moni-tabela-scroll-thumb {
-  position: absolute;
-  top: 4px;
-  left: 0;
-  height: 12px;
-  border-radius: var(--moni-radius-md);
-  background: var(--moni-navy-300);
-  cursor: grab;
-  touch-action: none;
-  pointer-events: auto;
-  will-change: transform;
-}
-
-.moni-tabela-scroll-thumb:active {
-  cursor: grabbing;
-  background: var(--moni-navy-500);
 }
 
 /* ── Pipeline Esteira Table ── */
