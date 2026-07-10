@@ -31,6 +31,8 @@ type SpeDraft = {
   conta_banco: string;
   conta_agencia: string;
   conta_numero: string;
+  conta_pix_tipo: string;
+  conta_pix_chave: string;
 };
 
 function speToDraft(spe: FranqueadoSpeRow | null): SpeDraft {
@@ -44,6 +46,8 @@ function speToDraft(spe: FranqueadoSpeRow | null): SpeDraft {
     conta_banco: spe?.conta_banco ?? '',
     conta_agencia: spe?.conta_agencia ?? '',
     conta_numero: spe?.conta_numero ?? '',
+    conta_pix_tipo: spe?.conta_pix_tipo ?? '',
+    conta_pix_chave: spe?.conta_pix_chave ?? '',
   };
 }
 
@@ -84,7 +88,13 @@ function EmpresaReadonlyBlock({
           <div>
             <span className="text-stone-500">Conta bancária</span>
             <div className="text-stone-800">
-              {formatContaBancariaEmpresa(emp.conta_banco, emp.conta_agencia, emp.conta_numero)}
+              {formatContaBancariaEmpresa(
+                emp.conta_banco,
+                emp.conta_agencia,
+                emp.conta_numero,
+                emp.conta_pix_tipo,
+                emp.conta_pix_chave,
+              )}
             </div>
           </div>
         </div>
@@ -140,6 +150,8 @@ export function KanbanCardModalEmpresas({
         conta_banco: draft.conta_banco.trim() || null,
         conta_agencia: draft.conta_agencia.trim() || null,
         conta_numero: draft.conta_numero.trim() || null,
+        conta_pix_tipo: draft.conta_pix_tipo.trim() || null,
+        conta_pix_chave: draft.conta_pix_chave.trim() || null,
       },
     });
     setSalvando(false);
@@ -260,6 +272,22 @@ export function KanbanCardModalEmpresas({
                   onChange={(e) => setDraft((d) => ({ ...d, conta_numero: e.target.value }))}
                 />
               </label>
+              <label className="block text-xs">
+                <span className="text-stone-500">Tipo de chave Pix</span>
+                <input
+                  className={inputCls}
+                  value={draft.conta_pix_tipo}
+                  onChange={(e) => setDraft((d) => ({ ...d, conta_pix_tipo: e.target.value }))}
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="text-stone-500">Chave Pix</span>
+                <input
+                  className={inputCls}
+                  value={draft.conta_pix_chave}
+                  onChange={(e) => setDraft((d) => ({ ...d, conta_pix_chave: e.target.value }))}
+                />
+              </label>
             </div>
             <div className="flex gap-2 pt-1">
               <button
@@ -313,7 +341,13 @@ export function KanbanCardModalEmpresas({
             <div>
               <span className="text-stone-500">Conta bancária</span>
               <div className="text-stone-800">
-                {formatContaBancariaEmpresa(spe.conta_banco, spe.conta_agencia, spe.conta_numero)}
+                {formatContaBancariaEmpresa(
+                  spe.conta_banco,
+                  spe.conta_agencia,
+                  spe.conta_numero,
+                  spe.conta_pix_tipo,
+                  spe.conta_pix_chave,
+                )}
               </div>
             </div>
           </div>

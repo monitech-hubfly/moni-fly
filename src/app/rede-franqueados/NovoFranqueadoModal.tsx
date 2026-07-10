@@ -97,6 +97,8 @@ export function NovoFranqueadoModal() {
   const [cofFile, setCofFile] = useState<File | null>(null);
   const [contratoFile, setContratoFile] = useState<File | null>(null);
   const [cnhFile, setCnhFile] = useState<File | null>(null);
+  const [rgFile, setRgFile] = useState<File | null>(null);
+  const [passaporteFile, setPassaporteFile] = useState<File | null>(null);
   const [comprovanteEnderecoFile, setComprovanteEnderecoFile] = useState<File | null>(null);
   const [estadoCivilFile, setEstadoCivilFile] = useState<File | null>(null);
   const [irpfFile, setIrpfFile] = useState<File | null>(null);
@@ -187,6 +189,8 @@ export function NovoFranqueadoModal() {
     setCofFile(null);
     setContratoFile(null);
     setCnhFile(null);
+    setRgFile(null);
+    setPassaporteFile(null);
     setComprovanteEnderecoFile(null);
     setEstadoCivilFile(null);
     setIrpfFile(null);
@@ -247,6 +251,14 @@ export function NovoFranqueadoModal() {
       if (cnhFile) {
         const err = await enviarAnexo(res.redeId, 'cnh', cnhFile);
         if (err) errosAnexo.push(`CNH: ${err}`);
+      }
+      if (rgFile) {
+        const err = await enviarAnexo(res.redeId, 'rg', rgFile);
+        if (err) errosAnexo.push(`RG: ${err}`);
+      }
+      if (passaporteFile) {
+        const err = await enviarAnexo(res.redeId, 'passaporte', passaporteFile);
+        if (err) errosAnexo.push(`Passaporte: ${err}`);
       }
       if (comprovanteEnderecoFile) {
         const err = await enviarAnexo(res.redeId, 'comprovante_endereco', comprovanteEnderecoFile);
@@ -389,6 +401,24 @@ export function NovoFranqueadoModal() {
                       disabled={extraindo || submitting}
                       className="mt-1 block w-full text-sm text-stone-700 file:mr-2 file:rounded-md file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:text-xs file:font-medium"
                       onChange={(e) => setCnhFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-stone-600">
+                    RG
+                    <input
+                      type="file"
+                      disabled={extraindo || submitting}
+                      className="mt-1 block w-full text-sm text-stone-700 file:mr-2 file:rounded-md file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+                      onChange={(e) => setRgFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-stone-600">
+                    Passaporte
+                    <input
+                      type="file"
+                      disabled={extraindo || submitting}
+                      className="mt-1 block w-full text-sm text-stone-700 file:mr-2 file:rounded-md file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+                      onChange={(e) => setPassaporteFile(e.target.files?.[0] ?? null)}
                     />
                   </label>
                   <label className="block text-xs font-medium text-stone-600">

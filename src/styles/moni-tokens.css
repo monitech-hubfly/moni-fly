@@ -3119,6 +3119,28 @@
   scrollbar-color: var(--moni-navy-200) var(--moni-surface-100);
 }
 
+.moni-tabela-scroll-main table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  background: var(--moni-surface-50);
+  box-shadow: inset 0 calc(-1 * var(--moni-border-width)) 0 var(--moni-border-default);
+}
+
+.moni-tabela-scroll-main table thead th[class*='sticky'] {
+  z-index: 12;
+}
+
+.moni-tabela-scroll-main table thead th[class*='right-0'] {
+  z-index: 14;
+}
+
+@media (max-width: 640px) {
+  .moni-tabela-scroll-main table thead th {
+    top: 0;
+  }
+}
+
 .moni-tabela-scroll-main::-webkit-scrollbar {
   display: block;
   height: 10px;

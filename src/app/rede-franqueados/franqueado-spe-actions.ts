@@ -55,6 +55,8 @@ function cleanSpeDados(dados: FranqueadoSpeUpsertDados): Record<string, unknown>
   set('conta_agencia', dados.conta_agencia);
   set('conta_numero', dados.conta_numero);
   set('conta_tipo', dados.conta_tipo);
+  set('conta_pix_tipo', dados.conta_pix_tipo);
+  set('conta_pix_chave', dados.conta_pix_chave);
   if (dados.kanban_card_id !== undefined) {
     out.kanban_card_id = dados.kanban_card_id === '' ? null : dados.kanban_card_id;
   }

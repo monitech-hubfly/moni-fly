@@ -16,7 +16,20 @@ export type FranqueadoEmpresaExtraRow = {
   conta_agencia: string | null;
   conta_numero: string | null;
   conta_tipo: string | null;
+  conta_pix_tipo: string | null;
+  conta_pix_chave: string | null;
   observacoes: string | null;
+  anexo_contrato_social_path: string | null;
+  anexo_contrato_social_justificativa: string | null;
+  anexo_cnpj_path: string | null;
+  anexo_cnpj_justificativa: string | null;
+  anexo_inscricao_municipal_path: string | null;
+  anexo_inscricao_municipal_justificativa: string | null;
+  anexo_certidao_junta_path: string | null;
+  anexo_certidao_junta_justificativa: string | null;
+  anexo_conta_bancaria_path: string | null;
+  anexo_conta_bancaria_justificativa: string | null;
+  anexo_inscricao_estadual_path: string | null;
 };
 
 function mapEmpresaExtraRow(r: Record<string, unknown>): FranqueadoEmpresaExtraRow {
@@ -38,7 +51,21 @@ function mapEmpresaExtraRow(r: Record<string, unknown>): FranqueadoEmpresaExtraR
     conta_agencia: (r.conta_agencia as string | null) ?? null,
     conta_numero: (r.conta_numero as string | null) ?? null,
     conta_tipo: (r.conta_tipo as string | null) ?? null,
+    conta_pix_tipo: (r.conta_pix_tipo as string | null) ?? null,
+    conta_pix_chave: (r.conta_pix_chave as string | null) ?? null,
     observacoes: (r.observacoes as string | null) ?? null,
+    anexo_contrato_social_path: (r.anexo_contrato_social_path as string | null) ?? null,
+    anexo_contrato_social_justificativa: (r.anexo_contrato_social_justificativa as string | null) ?? null,
+    anexo_cnpj_path: (r.anexo_cnpj_path as string | null) ?? null,
+    anexo_cnpj_justificativa: (r.anexo_cnpj_justificativa as string | null) ?? null,
+    anexo_inscricao_municipal_path: (r.anexo_inscricao_municipal_path as string | null) ?? null,
+    anexo_inscricao_municipal_justificativa:
+      (r.anexo_inscricao_municipal_justificativa as string | null) ?? null,
+    anexo_certidao_junta_path: (r.anexo_certidao_junta_path as string | null) ?? null,
+    anexo_certidao_junta_justificativa: (r.anexo_certidao_junta_justificativa as string | null) ?? null,
+    anexo_conta_bancaria_path: (r.anexo_conta_bancaria_path as string | null) ?? null,
+    anexo_conta_bancaria_justificativa: (r.anexo_conta_bancaria_justificativa as string | null) ?? null,
+    anexo_inscricao_estadual_path: (r.anexo_inscricao_estadual_path as string | null) ?? null,
   };
 }
 

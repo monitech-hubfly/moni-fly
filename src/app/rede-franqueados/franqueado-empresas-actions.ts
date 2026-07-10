@@ -1,9 +1,14 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeAccessRole } from '@/lib/authz';
 import { isFranquiaCasaMoniFk0000 } from '@/lib/franquia-casa-moni-fk0000';
+import {
+  isFranqueadoEmpresaExtraAnexoDocTipo,
+  slotEmpresaExtraPorTipo,
+} from '@/lib/rede-documentos-empresa-extra';
 import type {
   FranqueadoEmpresaTipo,
   FranqueadoEmpresaUpsertDados,
@@ -50,6 +55,8 @@ function cleanDados(dados: FranqueadoEmpresaUpsertDados): Record<string, unknown
   set('conta_agencia', dados.conta_agencia);
   set('conta_numero', dados.conta_numero);
   set('conta_tipo', dados.conta_tipo);
+  set('conta_pix_tipo', dados.conta_pix_tipo);
+  set('conta_pix_chave', dados.conta_pix_chave);
   return out;
 }
 
@@ -224,4 +231,121 @@ export async function upsertFranqueadoEmpresaExtra(
   revalidatePath('/rede-franqueados');
   revalidatePath(`/rede-franqueados/${redeId}`);
   return { ok: true, mensagem: 'Empresa salva.' };
+}
+
+const MAX_DOC_BYTES = 10 * 1024 * 1024;
+
+function sanitizeNomeArquivo(nome: string): string {
+  return nome.replace(/[^\w.\-() ]+/g, '_').slice(0, 120);
+}
+
+function revalidateEmpresaExtraPaths(redeId: string) {
+  revalidatePath('/rede-franqueados');
+  revalidatePath(`/rede-franqueados/${redeId}`);
+}
+
+/** Upload de documento de empresa adicional (tipo `empresa`). */
+export async function uploadFranqueadoEmpresaExtraDoc(
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const empresaId = String(formData.get('empresaId') ?? '').trim();
+  const tipoRaw = String(formData.get('tipo') ?? '').trim();
+  const file = formData.get('file');
+  if (!empresaId) return { ok: false, error: 'Empresa inválida.' };
+  if (!isFranqueadoEmpresaExtraAnexoDocTipo(tipoRaw)) return { ok: false, error: 'Tipo inválido.' };
+  if (!(file instanceof File)) return { ok: false, error: 'Arquivo inválido.' };
+  if (file.size > MAX_DOC_BYTES) return { ok: false, error: 'Arquivo acima de 10 MB.' };
+
+  const gate = await requireFranqueadoEmpresasStaff();
+  if (!gate.ok) return gate;
+
+  const slot = slotEmpresaExtraPorTipo(tipoRaw);
+  if (!slot) return { ok: false, error: 'Tipo inválido.' };
+
+  const { data: atual, error: leErr } = await gate.supabase
+    .from('franqueado_empresas')
+    .select('*')
+    .eq('id', empresaId)
+    .maybeSingle();
+  if (leErr || !atual) return { ok: false, error: 'Empresa não encontrada.' };
+  if ((atual as { tipo: string }).tipo !== 'empresa') {
+    return { ok: false, error: 'Somente empresas adicionais aceitam estes anexos.' };
+  }
+
+  const redeId = String((atual as { rede_franqueado_id: string }).rede_franqueado_id);
+  const fk = await assertFranquiaCasaMoniFk0000(gate.supabase, redeId);
+  if (!fk.ok) return fk;
+
+  const orig = sanitizeNomeArquivo(file.name || 'arquivo');
+  const storagePath = `rede/${redeId}/empresa-extra/${empresaId}/${tipoRaw}-${randomUUID()}-${orig}`;
+  const buf = Buffer.from(await file.arrayBuffer());
+  const { error: upErr } = await gate.supabase.storage.from('rede-attachments').upload(storagePath, buf, {
+    contentType: file.type || 'application/octet-stream',
+    upsert: false,
+  });
+  if (upErr) return { ok: false, error: upErr.message };
+
+  const oldPath = String((atual as Record<string, unknown>)[slot.pathKey] ?? '').trim() || null;
+  const patch: Record<string, unknown> = {
+    [slot.pathKey]: storagePath,
+    updated_at: new Date().toISOString(),
+  };
+  if (slot.justificativaKey) patch[slot.justificativaKey] = null;
+
+  const { error } = await gate.supabase.from('franqueado_empresas').update(patch as never).eq('id', empresaId);
+  if (error) {
+    await gate.supabase.storage.from('rede-attachments').remove([storagePath]);
+    return { ok: false, error: error.message };
+  }
+  if (oldPath) await gate.supabase.storage.from('rede-attachments').remove([oldPath]);
+
+  revalidateEmpresaExtraPaths(redeId);
+  return { ok: true };
+}
+
+/** Justificativa de ausência de documento de empresa adicional. */
+export async function salvarJustificativaEmpresaExtraDoc(
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const empresaId = String(formData.get('empresaId') ?? '').trim();
+  const tipoRaw = String(formData.get('tipo') ?? '').trim();
+  const justificativa = String(formData.get('justificativa') ?? '').trim();
+  if (!empresaId) return { ok: false, error: 'Empresa inválida.' };
+  if (!isFranqueadoEmpresaExtraAnexoDocTipo(tipoRaw)) return { ok: false, error: 'Tipo inválido.' };
+  const slot = slotEmpresaExtraPorTipo(tipoRaw);
+  if (!slot?.justificativaKey) {
+    return { ok: false, error: 'Este documento não aceita justificativa.' };
+  }
+  if (!justificativa) return { ok: false, error: 'Informe a justificativa.' };
+
+  const gate = await requireFranqueadoEmpresasStaff();
+  if (!gate.ok) return gate;
+
+  const { data: atual } = await gate.supabase
+    .from('franqueado_empresas')
+    .select('*')
+    .eq('id', empresaId)
+    .maybeSingle();
+  if (!atual) return { ok: false, error: 'Empresa não encontrada.' };
+  if ((atual as { tipo: string }).tipo !== 'empresa') {
+    return { ok: false, error: 'Somente empresas adicionais aceitam estes anexos.' };
+  }
+
+  const redeId = String((atual as { rede_franqueado_id: string }).rede_franqueado_id);
+  const pathAtual = String((atual as Record<string, unknown>)[slot.pathKey] ?? '').trim();
+  if (pathAtual) {
+    return { ok: false, error: 'Já existe arquivo anexado; remova ou substitua o anexo antes de usar justificativa.' };
+  }
+
+  const { error } = await gate.supabase
+    .from('franqueado_empresas')
+    .update({
+      [slot.justificativaKey]: justificativa,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', empresaId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateEmpresaExtraPaths(redeId);
+  return { ok: true };
 }

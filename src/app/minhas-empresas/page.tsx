@@ -37,6 +37,8 @@ function EmpresaCard({
     empresa.conta_banco,
     empresa.conta_agencia,
     empresa.conta_numero,
+    empresa.conta_pix_tipo,
+    empresa.conta_pix_chave,
   );
 
   return (

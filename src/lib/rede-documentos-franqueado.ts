@@ -4,12 +4,16 @@ import { isRedeDocSlotCompleto } from '@/lib/rede-documentos-franquia';
 
 export type RedeAnexoDocFranqueadoTipo =
   | 'cnh'
+  | 'rg'
+  | 'passaporte'
   | 'comprovante_endereco'
   | 'estado_civil'
   | 'irpf';
 
 export const REDE_FRANQUEADO_ANEXO_PATH_COLUNA = {
   cnh: 'anexo_cnh_path',
+  rg: 'anexo_rg_path',
+  passaporte: 'anexo_passaporte_path',
   comprovante_endereco: 'anexo_comprovante_endereco_path',
   estado_civil: 'anexo_estado_civil_path',
   irpf: 'anexo_irpf_path',
@@ -24,6 +28,8 @@ export type RedeDocFranqueadoSlot = {
   titulo: string;
   pathKey:
     | 'anexo_cnh_path'
+    | 'anexo_rg_path'
+    | 'anexo_passaporte_path'
     | 'anexo_comprovante_endereco_path'
     | 'anexo_estado_civil_path'
     | 'anexo_irpf_path';
@@ -35,6 +41,18 @@ export const REDE_DOCS_FRANQUEADO_SLOTS: readonly RedeDocFranqueadoSlot[] = [
     tipo: 'cnh',
     titulo: 'CNH',
     pathKey: 'anexo_cnh_path',
+    justificativaKey: null,
+  },
+  {
+    tipo: 'rg',
+    titulo: 'RG',
+    pathKey: 'anexo_rg_path',
+    justificativaKey: null,
+  },
+  {
+    tipo: 'passaporte',
+    titulo: 'Passaporte',
+    pathKey: 'anexo_passaporte_path',
     justificativaKey: null,
   },
   {
@@ -59,6 +77,8 @@ export const REDE_DOCS_FRANQUEADO_SLOTS: readonly RedeDocFranqueadoSlot[] = [
 
 export type RedeFranqueadoDocsRow = {
   anexo_cnh_path?: string | null;
+  anexo_rg_path?: string | null;
+  anexo_passaporte_path?: string | null;
   anexo_comprovante_endereco_path?: string | null;
   anexo_estado_civil_path?: string | null;
   anexo_irpf_path?: string | null;
@@ -72,6 +92,8 @@ function norm(s: string | null | undefined): string {
 export function pickRedeFranqueadoDocsFromRow(r: Record<string, unknown>): RedeFranqueadoDocsRow {
   return {
     anexo_cnh_path: (r.anexo_cnh_path as string | null) ?? null,
+    anexo_rg_path: (r.anexo_rg_path as string | null) ?? null,
+    anexo_passaporte_path: (r.anexo_passaporte_path as string | null) ?? null,
     anexo_comprovante_endereco_path: (r.anexo_comprovante_endereco_path as string | null) ?? null,
     anexo_estado_civil_path: (r.anexo_estado_civil_path as string | null) ?? null,
     anexo_irpf_path: (r.anexo_irpf_path as string | null) ?? null,

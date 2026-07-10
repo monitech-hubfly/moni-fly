@@ -10,6 +10,7 @@ import {
   type RedeFranqueadoDbKey,
 } from '@/lib/rede-franqueados';
 import { ocultarRegionalEAtuacaoNaVisaoFranqueado } from '@/lib/rede-visibilidade-franqueado';
+import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 
 type Props = { rows: RedeFranqueadoRowPortalFrank[] };
 
@@ -58,7 +59,7 @@ export function TabelaRedePortalFrank({ rows }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
+      <MoniTabelaScrollSync className="rounded-xl border border-stone-200 bg-white">
         <table className="w-full min-w-[960px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50">
@@ -81,7 +82,7 @@ export function TabelaRedePortalFrank({ rows }: Props) {
             ))}
           </tbody>
         </table>
-      </div>
+      </MoniTabelaScrollSync>
 
       <p className="border-t border-stone-200 pt-3 text-sm text-stone-600">
         Mostrando {start + 1}–{Math.min(start + PER_PAGE, rows.length)} de {rows.length} franqueados

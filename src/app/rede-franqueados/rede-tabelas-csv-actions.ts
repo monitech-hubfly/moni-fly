@@ -308,6 +308,8 @@ export async function atualizarCadastrosEmpresasCSV(csvText: string): Promise<Cs
         [`${prefix}_conta_banco`, 'conta_banco'],
         [`${prefix}_conta_agencia`, 'conta_agencia'],
         [`${prefix}_conta_numero`, 'conta_numero'],
+        [`${prefix}_conta_pix_tipo`, 'conta_pix_tipo'],
+        [`${prefix}_conta_pix_chave`, 'conta_pix_chave'],
       ];
       for (const [csvKey, dbKey] of mapCols) {
         const v = valorCsv(row, csvKey);

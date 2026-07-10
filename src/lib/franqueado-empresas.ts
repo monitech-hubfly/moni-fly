@@ -25,6 +25,8 @@ export type FranqueadoEmpresaRow = {
   conta_agencia: string | null;
   conta_numero: string | null;
   conta_tipo: string | null;
+  conta_pix_tipo: string | null;
+  conta_pix_chave: string | null;
   observacoes: string | null;
 };
 
@@ -55,6 +57,8 @@ export type FranqueadoEmpresaUpsertDados = {
   conta_agencia?: string | null;
   conta_numero?: string | null;
   conta_tipo?: string | null;
+  conta_pix_tipo?: string | null;
+  conta_pix_chave?: string | null;
 };
 
 function mapEmpresaRow(r: Record<string, unknown>): FranqueadoEmpresaRow {
@@ -76,6 +80,8 @@ function mapEmpresaRow(r: Record<string, unknown>): FranqueadoEmpresaRow {
     conta_agencia: (r.conta_agencia as string | null) ?? null,
     conta_numero: (r.conta_numero as string | null) ?? null,
     conta_tipo: (r.conta_tipo as string | null) ?? null,
+    conta_pix_tipo: (r.conta_pix_tipo as string | null) ?? null,
+    conta_pix_chave: (r.conta_pix_chave as string | null) ?? null,
     observacoes: (r.observacoes as string | null) ?? null,
   };
 }
@@ -119,14 +125,21 @@ export function formatContaBancariaEmpresa(
   banco: string | null | undefined,
   agencia: string | null | undefined,
   numero: string | null | undefined,
+  pixTipo?: string | null | undefined,
+  pixChave?: string | null | undefined,
 ): string {
   const b = (banco ?? '').trim();
   const a = (agencia ?? '').trim();
   const n = (numero ?? '').trim();
+  const pt = (pixTipo ?? '').trim();
+  const pc = (pixChave ?? '').trim();
   const parts: string[] = [];
   if (b) parts.push(b);
   if (a) parts.push(`ag. ${a}`);
   if (n) parts.push(`cc ${n}`);
+  if (pt && pc) parts.push(`Pix ${pt}: ${pc}`);
+  else if (pc) parts.push(`Pix: ${pc}`);
+  else if (pt) parts.push(`Pix (${pt})`);
   return parts.length ? parts.join(' · ') : '—';
 }
 
@@ -159,7 +172,15 @@ export function cadastroEmpresasLinhaMatchesBusca(linha: CadastroEmpresasLinha, 
       emp.conta_banco,
       emp.conta_agencia,
       emp.conta_numero,
-      formatContaBancariaEmpresa(emp.conta_banco, emp.conta_agencia, emp.conta_numero),
+      emp.conta_pix_tipo,
+      emp.conta_pix_chave,
+      formatContaBancariaEmpresa(
+        emp.conta_banco,
+        emp.conta_agencia,
+        emp.conta_numero,
+        emp.conta_pix_tipo,
+        emp.conta_pix_chave,
+      ),
     );
   }
   return parts.some((p) => normBusca(p ?? '').includes(q));

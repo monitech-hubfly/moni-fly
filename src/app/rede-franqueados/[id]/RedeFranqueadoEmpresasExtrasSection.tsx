@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2, Plus } from 'lucide-react';
 import type { FranqueadoEmpresaExtraRow } from '@/lib/franqueado-empresa-extra';
@@ -9,7 +9,18 @@ import {
   formatContaBancariaEmpresa,
   type FranqueadoEmpresaStatus,
 } from '@/lib/franqueado-empresas';
-import { criarFranqueadoEmpresaExtra, upsertFranqueadoEmpresaExtra } from '../franqueado-empresas-actions';
+import {
+  FRANQUEADO_EMPRESA_EXTRA_DOC_SLOTS,
+  getFranqueadoEmpresaExtraDocSlotValues,
+} from '@/lib/rede-documentos-empresa-extra';
+import { isRedeDocSlotCompleto } from '@/lib/rede-documentos-franquia';
+import {
+  criarFranqueadoEmpresaExtra,
+  salvarJustificativaEmpresaExtraDoc,
+  uploadFranqueadoEmpresaExtraDoc,
+  upsertFranqueadoEmpresaExtra,
+} from '../franqueado-empresas-actions';
+import { getSignedUrlRedeAnexo } from '../actions';
 import { RedeDocsSubsecaoColapsavel } from './rede-docs-secao-colapsavel';
 
 type Props = {
@@ -30,6 +41,8 @@ type EmpresaDraft = {
   conta_banco: string;
   conta_agencia: string;
   conta_numero: string;
+  conta_pix_tipo: string;
+  conta_pix_chave: string;
 };
 
 function empresaToDraft(emp: FranqueadoEmpresaExtraRow): EmpresaDraft {
@@ -43,7 +56,104 @@ function empresaToDraft(emp: FranqueadoEmpresaExtraRow): EmpresaDraft {
     conta_banco: emp.conta_banco ?? '',
     conta_agencia: emp.conta_agencia ?? '',
     conta_numero: emp.conta_numero ?? '',
+    conta_pix_tipo: emp.conta_pix_tipo ?? '',
+    conta_pix_chave: emp.conta_pix_chave ?? '',
   };
+}
+
+function EmpresaExtraDocCard({
+  empresaId,
+  slot,
+  path,
+  justificativa,
+  uploading,
+  onUpload,
+  onRefresh,
+}: {
+  empresaId: string;
+  slot: (typeof FRANQUEADO_EMPRESA_EXTRA_DOC_SLOTS)[number];
+  path: string | null;
+  justificativa: string | null;
+  uploading: string | null;
+  onUpload: (tipo: string, file: File) => void;
+  onRefresh: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [just, setJust] = useState(justificativa ?? '');
+  const [saving, setSaving] = useState(false);
+  const busy = uploading !== null || saving;
+  const completo =
+    !slot.obrigatorioParaCadastroCompleto ||
+    isRedeDocSlotCompleto(path, slot.justificativaKey ? justificativa : null);
+
+  async function salvarJust() {
+    setSaving(true);
+    const fd = new FormData();
+    fd.set('empresaId', empresaId);
+    fd.set('tipo', slot.tipo);
+    fd.set('justificativa', just);
+    await salvarJustificativaEmpresaExtraDoc(fd);
+    setSaving(false);
+    onRefresh();
+  }
+
+  return (
+    <div
+      className={`rounded-lg border p-3 text-sm ${completo ? 'border-green-200 bg-green-50/40' : 'border-stone-200 bg-white'}`}
+    >
+      <p className="font-medium text-stone-800">{slot.titulo}</p>
+      {path ? (
+        <button
+          type="button"
+          className="mt-2 text-xs text-moni-primary underline"
+          onClick={() => void getSignedUrlRedeAnexo(path).then((r) => r.ok && window.open(r.url, '_blank'))}
+        >
+          Ver arquivo
+        </button>
+      ) : slot.justificativaKey ? (
+        <div className="mt-2 space-y-1">
+          <textarea
+            value={just}
+            onChange={(e) => setJust(e.target.value)}
+            rows={2}
+            className="w-full rounded border border-stone-200 px-2 py-1 text-xs"
+            placeholder="Justificativa se não houver anexo"
+          />
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void salvarJust()}
+            className="rounded bg-stone-800 px-2 py-1 text-[11px] text-white disabled:opacity-50"
+          >
+            Salvar justificativa
+          </button>
+        </div>
+      ) : (
+        <p className="mt-1 text-xs text-stone-500">Opcional</p>
+      )}
+      <div className="mt-2">
+        <input
+          ref={inputRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            if (f) onUpload(slot.tipo, f);
+          }}
+        />
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+          className="rounded border border-stone-300 px-2 py-1 text-[11px] text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+        >
+          {uploading === slot.tipo ? <Loader2 className="inline h-3 w-3 animate-spin" /> : null}
+          {path ? 'Substituir' : 'Enviar'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function EmpresaExtraCadastroCard({
@@ -74,6 +184,8 @@ function EmpresaExtraCadastroCard({
       conta_banco: draft.conta_banco.trim() || null,
       conta_agencia: draft.conta_agencia.trim() || null,
       conta_numero: draft.conta_numero.trim() || null,
+      conta_pix_tipo: draft.conta_pix_tipo.trim() || null,
+      conta_pix_chave: draft.conta_pix_chave.trim() || null,
     });
     setSalvando(false);
     setMsg(res.ok ? 'Cadastro salvo.' : res.error);
@@ -174,9 +286,36 @@ function EmpresaExtraCadastroCard({
               placeholder="Conta"
             />
           </div>
-          {formatContaBancariaEmpresa(draft.conta_banco, draft.conta_agencia, draft.conta_numero) !== '—' ? (
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <input
+              value={draft.conta_pix_tipo}
+              onChange={(e) => setDraft((d) => ({ ...d, conta_pix_tipo: e.target.value }))}
+              className={inputCls.replace('mt-0.5 ', '')}
+              placeholder="Tipo de chave Pix"
+            />
+            <input
+              value={draft.conta_pix_chave}
+              onChange={(e) => setDraft((d) => ({ ...d, conta_pix_chave: e.target.value }))}
+              className={inputCls.replace('mt-0.5 ', '')}
+              placeholder="Chave Pix"
+            />
+          </div>
+          {formatContaBancariaEmpresa(
+            draft.conta_banco,
+            draft.conta_agencia,
+            draft.conta_numero,
+            draft.conta_pix_tipo,
+            draft.conta_pix_chave,
+          ) !== '—' ? (
             <p className="mt-1 text-[10px] text-stone-500">
-              Resumo: {formatContaBancariaEmpresa(draft.conta_banco, draft.conta_agencia, draft.conta_numero)}
+              Resumo:{' '}
+              {formatContaBancariaEmpresa(
+                draft.conta_banco,
+                draft.conta_agencia,
+                draft.conta_numero,
+                draft.conta_pix_tipo,
+                draft.conta_pix_chave,
+              )}
             </p>
           ) : null}
         </label>
@@ -190,6 +329,7 @@ function EmpresaExtraCadastroCard({
 export function RedeFranqueadoEmpresasExtrasSection({ redeId, empresas, permiteCriar }: Props) {
   const router = useRouter();
   const [criando, setCriando] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
 
   if (!permiteCriar && empresas.length === 0) return null;
 
@@ -200,6 +340,17 @@ export function RedeFranqueadoEmpresasExtrasSection({ redeId, empresas, permiteC
     const res = await criarFranqueadoEmpresaExtra(redeId);
     setCriando(false);
     if (res.ok) refresh();
+  }
+
+  async function onUpload(empresaId: string, tipo: string, file: File) {
+    setUploading(`${empresaId}:${tipo}`);
+    const fd = new FormData();
+    fd.set('empresaId', empresaId);
+    fd.set('tipo', tipo);
+    fd.set('file', file);
+    await uploadFranqueadoEmpresaExtraDoc(fd);
+    setUploading(null);
+    refresh();
   }
 
   return (
@@ -230,6 +381,25 @@ export function RedeFranqueadoEmpresasExtrasSection({ redeId, empresas, permiteC
           return (
             <RedeDocsSubsecaoColapsavel key={empresa.id} titulo={titulo} sectionId={`empresa-extra-${empresa.id}`}>
               <EmpresaExtraCadastroCard empresa={empresa} onRefresh={refresh} />
+              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {FRANQUEADO_EMPRESA_EXTRA_DOC_SLOTS.map((slot) => {
+                  const { path, justificativa } = getFranqueadoEmpresaExtraDocSlotValues(empresa, slot);
+                  return (
+                    <EmpresaExtraDocCard
+                      key={slot.tipo}
+                      empresaId={empresa.id}
+                      slot={slot}
+                      path={path}
+                      justificativa={justificativa}
+                      uploading={
+                        uploading?.startsWith(`${empresa.id}:`) ? uploading.split(':')[1] ?? null : null
+                      }
+                      onUpload={(tipo, file) => void onUpload(empresa.id, tipo, file)}
+                      onRefresh={refresh}
+                    />
+                  );
+                })}
+              </div>
             </RedeDocsSubsecaoColapsavel>
           );
         })

@@ -33,6 +33,8 @@ type EmpresaDraft = {
   conta_banco: string;
   conta_agencia: string;
   conta_numero: string;
+  conta_pix_tipo: string;
+  conta_pix_chave: string;
 };
 
 function emptyEmpresaDraft(): EmpresaDraft {
@@ -45,6 +47,8 @@ function emptyEmpresaDraft(): EmpresaDraft {
     conta_banco: '',
     conta_agencia: '',
     conta_numero: '',
+    conta_pix_tipo: '',
+    conta_pix_chave: '',
   };
 }
 
@@ -60,6 +64,8 @@ function empresaToDraft(
     conta_banco: emp?.conta_banco ?? '',
     conta_agencia: emp?.conta_agencia ?? '',
     conta_numero: emp?.conta_numero ?? '',
+    conta_pix_tipo: emp?.conta_pix_tipo ?? '',
+    conta_pix_chave: emp?.conta_pix_chave ?? '',
   };
 }
 
@@ -73,6 +79,8 @@ function speToDraft(spe: FranqueadoSpeRow): EmpresaDraft {
     conta_banco: spe.conta_banco ?? '',
     conta_agencia: spe.conta_agencia ?? '',
     conta_numero: spe.conta_numero ?? '',
+    conta_pix_tipo: spe.conta_pix_tipo ?? '',
+    conta_pix_chave: spe.conta_pix_chave ?? '',
   };
 }
 
@@ -84,7 +92,9 @@ function draftSpeTemDados(d: EmpresaDraft): boolean {
     d.inscricao_estadual.trim() ||
     d.conta_banco.trim() ||
     d.conta_agencia.trim() ||
-    d.conta_numero.trim()
+    d.conta_numero.trim() ||
+    d.conta_pix_tipo.trim() ||
+    d.conta_pix_chave.trim()
   );
 }
 
@@ -98,6 +108,8 @@ function draftToUpsert(d: EmpresaDraft) {
     conta_banco: d.conta_banco.trim() || null,
     conta_agencia: d.conta_agencia.trim() || null,
     conta_numero: d.conta_numero.trim() || null,
+    conta_pix_tipo: d.conta_pix_tipo.trim() || null,
+    conta_pix_chave: d.conta_pix_chave.trim() || null,
   };
 }
 
@@ -440,7 +452,13 @@ export function CadastrosEmpresasTabela({
                           {inc ? <StatusEmpresaBadge status={inc.status} /> : '—'}
                         </td>
                         <td className="px-3 py-2.5 text-stone-700">
-                          {formatContaBancariaEmpresa(inc?.conta_banco, inc?.conta_agencia, inc?.conta_numero)}
+                          {formatContaBancariaEmpresa(
+                            inc?.conta_banco,
+                            inc?.conta_agencia,
+                            inc?.conta_numero,
+                            inc?.conta_pix_tipo,
+                            inc?.conta_pix_chave,
+                          )}
                         </td>
                         <td className="border-l border-stone-100 px-3 py-2.5 text-stone-700">
                           {ges?.razao_social?.trim() || '—'}
@@ -473,7 +491,13 @@ export function CadastrosEmpresasTabela({
                             <StatusEmpresaBadge status={spe.status} />
                           </td>
                           <td className="px-3 py-2.5 text-stone-700">
-                            {formatContaBancariaEmpresa(spe.conta_banco, spe.conta_agencia, spe.conta_numero)}
+                            {formatContaBancariaEmpresa(
+                              spe.conta_banco,
+                              spe.conta_agencia,
+                              spe.conta_numero,
+                              spe.conta_pix_tipo,
+                              spe.conta_pix_chave,
+                            )}
                           </td>
                         </>
                       ) : (
@@ -653,6 +677,20 @@ function SpeEditCells({
               placeholder="Conta"
             />
           </div>
+          <input
+            type="text"
+            value={draft.conta_pix_tipo}
+            onChange={(e) => setDraft((d) => ({ ...d, conta_pix_tipo: e.target.value }))}
+            className={inputCls}
+            placeholder="Tipo Pix"
+          />
+          <input
+            type="text"
+            value={draft.conta_pix_chave}
+            onChange={(e) => setDraft((d) => ({ ...d, conta_pix_chave: e.target.value }))}
+            className={inputCls}
+            placeholder="Chave Pix"
+          />
         </div>
       </td>
     </>
@@ -744,6 +782,22 @@ function EmpresaEditCells({
                 onChange={(e) => setDraft((d) => ({ ...d, conta_numero: e.target.value }))}
                 className={inputCls}
                 placeholder="Conta"
+              />
+            </div>
+            <div className="flex gap-1">
+              <input
+                type="text"
+                value={draft.conta_pix_tipo}
+                onChange={(e) => setDraft((d) => ({ ...d, conta_pix_tipo: e.target.value }))}
+                className={inputCls}
+                placeholder="Tipo Pix"
+              />
+              <input
+                type="text"
+                value={draft.conta_pix_chave}
+                onChange={(e) => setDraft((d) => ({ ...d, conta_pix_chave: e.target.value }))}
+                className={inputCls}
+                placeholder="Chave Pix"
               />
             </div>
           </div>

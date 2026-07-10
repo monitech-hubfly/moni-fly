@@ -25,6 +25,8 @@ export type FranqueadoSpeRow = {
   conta_agencia: string | null;
   conta_numero: string | null;
   conta_tipo: string | null;
+  conta_pix_tipo: string | null;
+  conta_pix_chave: string | null;
   observacoes: string | null;
   anexo_contrato_social_path: string | null;
   anexo_contrato_social_justificativa: string | null;
@@ -50,6 +52,8 @@ export type FranqueadoSpeUpsertDados = {
   conta_agencia?: string | null;
   conta_numero?: string | null;
   conta_tipo?: string | null;
+  conta_pix_tipo?: string | null;
+  conta_pix_chave?: string | null;
   kanban_card_id?: string | null;
 };
 
@@ -78,6 +82,8 @@ function mapSpeRow(r: Record<string, unknown>): FranqueadoSpeRow {
     conta_agencia: (r.conta_agencia as string | null) ?? null,
     conta_numero: (r.conta_numero as string | null) ?? null,
     conta_tipo: (r.conta_tipo as string | null) ?? null,
+    conta_pix_tipo: (r.conta_pix_tipo as string | null) ?? null,
+    conta_pix_chave: (r.conta_pix_chave as string | null) ?? null,
     observacoes: (r.observacoes as string | null) ?? null,
     anexo_contrato_social_path: (r.anexo_contrato_social_path as string | null) ?? null,
     anexo_contrato_social_justificativa: (r.anexo_contrato_social_justificativa as string | null) ?? null,
@@ -164,7 +170,13 @@ export function speMatchesBusca(spe: FranqueadoSpeRow, busca: string): boolean {
     spe.status,
     FRANQUEADO_EMPRESA_STATUS_LABEL[spe.status],
     spe.kanban_card_id,
-    formatContaBancariaEmpresa(spe.conta_banco, spe.conta_agencia, spe.conta_numero),
+    formatContaBancariaEmpresa(
+      spe.conta_banco,
+      spe.conta_agencia,
+      spe.conta_numero,
+      spe.conta_pix_tipo,
+      spe.conta_pix_chave,
+    ),
   ];
   return parts.some((p) => (p ?? '').toLowerCase().includes(q));
 }

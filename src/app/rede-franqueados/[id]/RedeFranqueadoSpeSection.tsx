@@ -39,6 +39,8 @@ type SpeCadastroDraft = {
   conta_banco: string;
   conta_agencia: string;
   conta_numero: string;
+  conta_pix_tipo: string;
+  conta_pix_chave: string;
 };
 
 function speToCadastroDraft(spe: FranqueadoSpeRow): SpeCadastroDraft {
@@ -52,6 +54,8 @@ function speToCadastroDraft(spe: FranqueadoSpeRow): SpeCadastroDraft {
     conta_banco: spe.conta_banco ?? '',
     conta_agencia: spe.conta_agencia ?? '',
     conta_numero: spe.conta_numero ?? '',
+    conta_pix_tipo: spe.conta_pix_tipo ?? '',
+    conta_pix_chave: spe.conta_pix_chave ?? '',
   };
 }
 
@@ -70,6 +74,8 @@ function draftToSpeUpsert(d: SpeCadastroDraft) {
     conta_banco: d.conta_banco.trim() || null,
     conta_agencia: d.conta_agencia.trim() || null,
     conta_numero: d.conta_numero.trim() || null,
+    conta_pix_tipo: d.conta_pix_tipo.trim() || null,
+    conta_pix_chave: d.conta_pix_chave.trim() || null,
   };
 }
 
@@ -303,9 +309,36 @@ function SpeCadastroCard({ spe, onRefresh }: { redeId: string; spe: FranqueadoSp
               placeholder="Conta"
             />
           </div>
-          {formatContaBancariaEmpresa(draft.conta_banco, draft.conta_agencia, draft.conta_numero) !== '—' ? (
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <input
+              value={draft.conta_pix_tipo}
+              onChange={(e) => setDraft((d) => ({ ...d, conta_pix_tipo: e.target.value }))}
+              className={inputCls.replace('mt-0.5 ', '')}
+              placeholder="Tipo de chave Pix"
+            />
+            <input
+              value={draft.conta_pix_chave}
+              onChange={(e) => setDraft((d) => ({ ...d, conta_pix_chave: e.target.value }))}
+              className={inputCls.replace('mt-0.5 ', '')}
+              placeholder="Chave Pix"
+            />
+          </div>
+          {formatContaBancariaEmpresa(
+            draft.conta_banco,
+            draft.conta_agencia,
+            draft.conta_numero,
+            draft.conta_pix_tipo,
+            draft.conta_pix_chave,
+          ) !== '—' ? (
             <p className="mt-1 text-[10px] text-stone-500">
-              Resumo: {formatContaBancariaEmpresa(draft.conta_banco, draft.conta_agencia, draft.conta_numero)}
+              Resumo:{' '}
+              {formatContaBancariaEmpresa(
+                draft.conta_banco,
+                draft.conta_agencia,
+                draft.conta_numero,
+                draft.conta_pix_tipo,
+                draft.conta_pix_chave,
+              )}
             </p>
           ) : null}
         </label>
