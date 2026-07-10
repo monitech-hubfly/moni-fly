@@ -9,6 +9,7 @@ type BacklogColunaProps = {
   prioridade?: string | null;
   numeroChamado?: string | null;
   status: StatusPrazo;
+  origemBadge?: string;
   onClick?: () => void;
 };
 
@@ -62,6 +63,7 @@ export function BacklogColunaCard({
   prioridade,
   numeroChamado,
   status,
+  origemBadge,
   onClick,
 }: BacklogColunaProps) {
   const borderColor = BORDER_COLOR[status];
@@ -88,8 +90,13 @@ export function BacklogColunaCard({
           {titulo}
         </span>
       </div>
-      {/* Linha 2: #número (se houver) + prazo */}
-      <div className={`mt-1 text-xs flex items-center gap-2 ${status === 'atrasado' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+      {/* Linha 2: badge origem + #número + prazo */}
+      <div className={`mt-1 text-xs flex items-center gap-2 flex-wrap ${status === 'atrasado' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+        {origemBadge && (
+          <span className="shrink-0 text-[10px] font-medium px-1 py-0.5 rounded bg-gray-100 text-gray-500">
+            {origemBadge}
+          </span>
+        )}
         {numeroChamado && (
           <span className="text-gray-400 font-normal">#{numeroChamado}</span>
         )}

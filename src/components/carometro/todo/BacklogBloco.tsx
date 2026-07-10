@@ -3,7 +3,7 @@
 import { type ReactNode, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { useBacklog, SireneItem, AtividadeItem } from '@/hooks/useBacklog';
+import { useBacklog, SireneItem, AtividadeItem, PastelariaItem } from '@/hooks/useBacklog';
 import { BacklogColunaCard, StatusPrazo } from './BacklogColuna';
 import { isoWeek } from '@/utils/periodos';
 import type { DadosAgendamento } from './ModalAgendamento';
@@ -38,6 +38,11 @@ function statusAtividade(item: AtividadeItem, semanaAtual: number): StatusPrazo 
   return 'futuro';
 }
 
+function statusPastelaria(item: PastelariaItem): StatusPrazo {
+  if (item.coluna === 'doing') return 'esta_semana';
+  return 'sem_prazo';
+}
+
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-6 text-sm text-gray-500">
@@ -47,8 +52,8 @@ function EmptyState() {
   );
 }
 
-type ColunaSireneProps = { items: SireneItem[] };
-function ColunaSirene({ items }: ColunaSireneProps) {
+type ColunaSireneProps = { items: SireneItem[]; pastelariaItems?: PastelariaItem[] };
+function ColunaSirene({ items, pastelariaItems = [] }: ColunaSireneProps) {
   const [expandido, setExpandido] = useState(false);
 
   const comStatus = items.map(i => ({ item: i, status: statusSirene(i) }));
@@ -60,8 +65,8 @@ function ColunaSirene({ items }: ColunaSireneProps) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      {exibidos.length === 0 && futuros.length === 0 && <EmptyState />}
-      {exibidos.length === 0 && futuros.length > 0 && !expandido && <EmptyState />}
+      {exibidos.length === 0 && pastelariaItems.length === 0 && futuros.length === 0 && <EmptyState />}
+      {exibidos.length === 0 && pastelariaItems.length === 0 && futuros.length > 0 && !expandido && <EmptyState />}
       {exibidos.map(({ item, status }) => {
         const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
         return (
@@ -73,6 +78,7 @@ function ColunaSirene({ items }: ColunaSireneProps) {
             prioridade={item.prioridade}
             numeroChamado={item.chamado_numero}
             status={status}
+            origemBadge="Sirene"
             onClick={() => {
               const url = item.chamado_id
                 ? `/sirene/chamados?id=${item.chamado_id}`
@@ -82,6 +88,16 @@ function ColunaSirene({ items }: ColunaSireneProps) {
           />
         );
       })}
+      {pastelariaItems.map(item => (
+        <BacklogColunaCard
+          key={item.id}
+          tipo="sirene"
+          titulo={item.nome}
+          prazo={null}
+          status={statusPastelaria(item)}
+          origemBadge="Pastelaria"
+        />
+      ))}
       {futuros.length > 0 && (
         <button
           type="button"
@@ -233,7 +249,7 @@ type BacklogBlocoProps = {
 };
 
 export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
-  const { sirene, atividades, isLoading, error } = useBacklog();
+  const { sirene, pastelaria, atividades, isLoading, error } = useBacklog();
   const semanaAtual = isoWeek(new Date());
   const [modalAtividadesAberto, setModalAtividadesAberto] = useState(false);
 
@@ -267,10 +283,10 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-gray-600">Sirene / Pastelaria</span>
               <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
-                {sireneVisiveis.length}
+                {sireneVisiveis.length + pastelaria.length}
               </span>
             </div>
-            <ColunaSirene items={sirene} />
+            <ColunaSirene items={sirene} pastelariaItems={pastelaria} />
           </div>
 
           {/* Coluna 2 — Atividades */}
