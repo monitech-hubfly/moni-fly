@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isoWeek } from '@/utils/periodos';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
@@ -53,6 +53,7 @@ export function useBacklog(): UseBacklogResult {
   const [sirene, setSirene] = useState<SireneItem[]>([]);
   const [pastelaria, setPastelaria] = useState<PastelariaItem[]>([]);
   const [atividades, setAtividades] = useState<AtividadeItem[]>([]);
+  const callIdRef = useRef(0);
 
   const { simulacao } = useSimulacaoUsuario();
   const simProfileId  = simulacao?.profileId   ?? null;
@@ -60,6 +61,7 @@ export function useBacklog(): UseBacklogResult {
   const simNome       = simulacao?.nomeUsuario ?? null;
 
   const carregar = useCallback(async () => {
+    const callId = ++callIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -226,14 +228,16 @@ export function useBacklog(): UseBacklogResult {
         semana_origem: row.semana_origem,
       }));
 
+      if (callId !== callIdRef.current) return;
       setSirene(sireneArr);
       setPastelaria(pastelariaArr);
       setAtividades(atividadesArr);
     } catch (e) {
+      if (callId !== callIdRef.current) return;
       console.error('[useBacklog] erro:', e);
       setError(e instanceof Error ? e.message : JSON.stringify(e));
     } finally {
-      setIsLoading(false);
+      if (callId === callIdRef.current) setIsLoading(false);
     }
   }, [supabase, simProfileId, simAreaId, simNome]);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
 import { calcularSlaKanbanCard, type SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
@@ -48,9 +48,14 @@ export function useBacklogKanban(refreshKey = 0) {
   const [cards,     setCards]     = useState<KanbanCardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error,     setError]     = useState<string | null>(null);
+  const callIdRef = useRef(0);
   const { simulacao } = useSimulacaoUsuario();
+  const simProfileId = simulacao?.profileId ?? null;
+  const simAreaId    = simulacao?.areaId    ?? null;
+  const simNome      = simulacao?.nomeUsuario ?? null;
 
   const carregar = useCallback(async () => {
+    const callId = ++callIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -58,8 +63,8 @@ export function useBacklogKanban(refreshKey = 0) {
       if (!user) throw new Error('Não autenticado');
 
       const isAdmin = user.email === ADMIN_EMAIL;
-      const effectiveProfileId = (isAdmin && simulacao?.profileId)
-        ? simulacao.profileId
+      const effectiveProfileId = (isAdmin && simProfileId)
+        ? simProfileId
         : user.id;
 
       // 4 fontes em paralelo
@@ -222,14 +227,16 @@ export function useBacklogKanban(refreshKey = 0) {
         return va - vb;
       });
 
+      if (callId !== callIdRef.current) return;
       setCards(resultado);
     } catch (e) {
+      if (callId !== callIdRef.current) return;
       console.error('[useBacklogKanban]', e);
       setError(e instanceof Error ? e.message : JSON.stringify(e));
     } finally {
-      setIsLoading(false);
+      if (callId === callIdRef.current) setIsLoading(false);
     }
-  }, [supabase, simulacao?.profileId, refreshKey]);
+  }, [supabase, simProfileId, simAreaId, simNome, refreshKey]);
 
   useEffect(() => { carregar(); }, [carregar]);
   return { cards, isLoading, error };
