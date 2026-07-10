@@ -3101,36 +3101,57 @@
   color: var(--moni-navy-600);
 }
 
-/* Tabelas largas — scroll horizontal único no wrapper + cabeçalho sticky */
+/* Tabelas largas — scroll interno + bloco sticky no scroll da página */
 .moni-tabela-scroll-wrap {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  align-self: start;
 }
 
 .moni-tabela-scroll-main {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow-x: auto;
-  /* clip evita scroll container vertical aninhado — sticky thead segue o painel AppShell */
-  overflow-y: clip;
+  overflow: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--moni-navy-200) var(--moni-surface-100);
 }
 
-.moni-tabela-scroll-main table {
+.moni-tabela-scroll-wrap table {
   border-collapse: separate;
   border-spacing: 0;
 }
 
+.moni-tabela-scroll-wrap table.border-collapse {
+  border-collapse: separate;
+}
+
 .moni-tabela-scroll-main table thead th {
   position: sticky;
-  top: 0;
   z-index: 8;
   background: var(--moni-surface-50);
   box-shadow: inset 0 calc(-1 * var(--moni-border-width)) 0 var(--moni-border-default);
+}
+
+/* Cabeçalho de uma linha */
+.moni-tabela-scroll-main table thead tr:only-child th {
+  top: 0;
+}
+
+/* Cabeçalho em duas linhas (ex.: Cadastros de Empresas) */
+.moni-tabela-scroll-main table thead tr:first-child:not(:last-child) th {
+  top: 0;
+  z-index: 10;
+}
+
+.moni-tabela-scroll-main table thead tr:last-child:not(:only-child) th {
+  top: var(--moni-tabela-thead-row1-height, 2.25rem);
+  z-index: 9;
 }
 
 .moni-tabela-scroll-main table thead th[class*='sticky'] {
@@ -3142,8 +3163,13 @@
 }
 
 @media (max-width: 640px) {
-  .moni-tabela-scroll-main table thead th {
+  .moni-tabela-scroll-main table thead tr:only-child th,
+  .moni-tabela-scroll-main table thead tr:first-child:not(:last-child) th {
     top: 0;
+  }
+
+  .moni-tabela-scroll-main table thead tr:last-child:not(:only-child) th {
+    top: var(--moni-tabela-thead-row1-height, 2.25rem);
   }
 }
 
