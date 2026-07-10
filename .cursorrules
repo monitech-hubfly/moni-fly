@@ -65,7 +65,7 @@ Usar SEMPRE essas variáveis em qualquer componente novo ou editado. Nunca hardc
 - CardDetalheModal.tsx — modal de detalhe dos cards
 - card-actions.ts — ações dos cards (arquivar, excluir, mover fase)
 - TarefasPainelConteudo.tsx — Painel de Atividades
-- checklist-atividade-arrays.ts — checklists por fase de todos os Kanbans
+- atividade-times-responsaveis.ts — filtros de times/responsáveis nas atividades do card
 - painel-tarefas-filtros.ts — filtros do painel
 
 ## Ao criar qualquer componente novo

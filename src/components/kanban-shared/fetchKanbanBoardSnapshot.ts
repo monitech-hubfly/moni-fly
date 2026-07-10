@@ -1011,6 +1011,10 @@ export async function fetchKanbanBoardSnapshot(
       capital_ok: Boolean((cMerged as { capital_ok?: boolean | null }).capital_ok),
       juridico_ok: Boolean((cMerged as { juridico_ok?: boolean | null }).juridico_ok),
       credito_obra_ok: Boolean((cMerged as { credito_obra_ok?: boolean | null }).credito_obra_ok),
+      projetos_legais_ok:
+        (cMerged as { projetos_legais_ok?: boolean | null }).projetos_legais_ok ?? null,
+      projetos_locais_ok:
+        (cMerged as { projetos_locais_ok?: boolean | null }).projetos_locais_ok ?? null,
       alvara_url: (cMerged as { alvara_url?: string | null }).alvara_url ?? null,
       docs_terreno_url: (cMerged as { docs_terreno_url?: string | null }).docs_terreno_url ?? null,
       sla_iniciado_em:

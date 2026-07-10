@@ -46,7 +46,7 @@ c:\Dev\moni-fly\
 │   │   │   └── middleware.ts        # Middleware de autenticação
 │   │   ├── dias-uteis.ts            # ✅ CRIADO NESTA SESSÃO - Cálculo de dias úteis
 │   │   ├── painel-tarefas-filtros.ts # ⚠️ PRÉ-EXISTENTE - Filtros do painel
-│   │   ├── checklist-atividade-arrays.ts # ⚠️ PRÉ-EXISTENTE - Lógica de checklists
+│   │   ├── atividade-times-responsaveis.ts # ⚠️ PRÉ-EXISTENTE - Lógica de checklists
 │   │   ├── atividade-times.ts       # ⚠️ PRÉ-EXISTENTE - Times e responsáveis
 │   │   ├── auth-guard.ts            # Proteção de rotas
 │   │   ├── authz.ts                 # Autorização (roles)
@@ -444,7 +444,7 @@ c:\Dev\moni-fly\
    - Lógica de filtros do painel de tarefas antigo
    - Funções: `aplicarFiltrosTarefasPainel()`, `getPrazoTagAtividade()`, etc.
 
-2. **`lib/checklist-atividade-arrays.ts`**
+2. **`lib/atividade-times-responsaveis.ts`**
    - Normalização de listas de times/responsáveis
    - Funções: `parseTextArrayColumn()`, `mergeArraysWithLegacy()`, etc.
 
@@ -840,7 +840,7 @@ O usuário pediu especificamente para analisar estes arquivos (que são do siste
    - Lista atividades de `processo_card_checklist`
    - Filtros complexos
 
-3. **`checklist-atividade-arrays.ts`** ✅ Encontrado em `src/lib/checklist-atividade-arrays.ts`
+3. **`atividade-times-responsaveis.ts`** ✅ Encontrado em `src/lib/atividade-times-responsaveis.ts`
    - Normalização de arrays de times/responsáveis
    - Usado no sistema antigo
 

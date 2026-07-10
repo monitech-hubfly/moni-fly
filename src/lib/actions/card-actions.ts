@@ -305,7 +305,7 @@ export type CriarChamadoSireneComAtividadeInput = {
 
 export type SubInteracaoStatusDb = 'nao_iniciado' | 'em_andamento' | 'concluido' | 'aprovado';
 
-export type ActionOk = { ok: true };
+export type ActionOk = { ok: true; chavesDesmarcadas?: string[] };
 export type ActionErr = { ok: false; error: string };
 export type ActionResult = ActionOk | ActionErr;
 
@@ -3949,7 +3949,7 @@ export async function deletarChecklistItem(input: {
 
 type SupabaseGateClient = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
 
-async function obterGatePortfolioStep5(
+async function obterGateComiteLoteadores(
   supabase: SupabaseGateClient,
   cardId: string,
   novaFaseSlug: string,
@@ -3957,9 +3957,7 @@ async function obterGatePortfolioStep5(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: cardRow, error } = await supabase
     .from('kanban_cards')
-    .select(
-      'kanban_id, acoplamento_concluido, credito_terreno_ok, contabilidade_ok, juridico_ok, capital_ok, kanbans ( nome )',
-    )
+    .select('kanban_id, acoplamento_concluido, kanbans ( nome )')
     .eq('id', cardId)
     .maybeSingle();
 
@@ -3969,10 +3967,6 @@ async function obterGatePortfolioStep5(
   const row = cardRow as {
     kanban_id?: string;
     acoplamento_concluido?: boolean | null;
-    credito_terreno_ok?: boolean | null;
-    contabilidade_ok?: boolean | null;
-    juridico_ok?: boolean | null;
-    capital_ok?: boolean | null;
     kanbans?: { nome?: string } | { nome?: string }[] | null;
   };
 
@@ -3994,8 +3988,8 @@ async function obterGatePortfolioStep5(
   return { ok: true };
 }
 
-/** Valida gate Comitê (Portfolio → step_5) antes de avançar fase no cliente. */
-export async function verificarGatePortfolioStep5(
+/** Valida gate Comitê (Loteadores) antes de avançar fase no cliente. */
+export async function verificarGateComiteLoteadores(
   cardId: string,
   proximaFaseId: string,
 ): Promise<ActionResult> {
@@ -4013,7 +4007,7 @@ export async function verificarGatePortfolioStep5(
   if (faseErr) return { ok: false, error: faseErr.message };
 
   const slug = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim();
-  return obterGatePortfolioStep5(supabase, cid, slug, PORTFOLIO_KANBAN_NOME);
+  return obterGateComiteLoteadores(supabase, cid, slug, PORTFOLIO_KANBAN_NOME);
 }
 
 export async function registrarConfirmacaoFasePortfolio(input: {
@@ -4320,7 +4314,7 @@ export async function moverCardParaFase(input: {
   if (!faseRow?.id) return { ok: false, error: 'Fase de destino não encontrada.' };
 
   const novaFaseSlug = String((faseRow as { slug?: string | null }).slug ?? '').trim();
-  const gate = await obterGatePortfolioStep5(supabase, cardId, novaFaseSlug, input.kanbanNome);
+  const gate = await obterGateComiteLoteadores(supabase, cardId, novaFaseSlug, input.kanbanNome);
   if (!gate.ok) return gate;
 
   const gateAcoplamento = await verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId);
@@ -4644,7 +4638,7 @@ export async function aprovarPassagemFase(aprovacaoId: string): Promise<ActionRe
     .maybeSingle();
   const novaFaseSlug = String((faseSlugRow as { slug?: string | null } | null)?.slug ?? '').trim();
 
-  const gate = await obterGatePortfolioStep5(admin, aprovRow.card_id, novaFaseSlug);
+  const gate = await obterGateComiteLoteadores(admin, aprovRow.card_id, novaFaseSlug);
   if (!gate.ok) return gate;
 
   const now = new Date().toISOString();
@@ -4949,20 +4943,115 @@ export async function upsertFaseChecklistResposta(input: {
 
   const { data: itemRow } = await supabase
     .from('kanban_fase_checklist_itens')
-    .select('label, campo_slug, fase_id')
+    .select('label, campo_slug, fase_id, tipo, chave_compartilhada, grupo_exclusivo')
     .eq('id', input.item_id)
     .maybeSingle();
 
-  const { data: existente } = await supabase
-    .from('kanban_fase_checklist_respostas')
-    .select('valor, arquivo_path')
-    .eq('card_id', input.card_id)
-    .eq('item_id', input.item_id)
-    .maybeSingle();
-  const ex = existente as { valor?: string | null; arquivo_path?: string | null } | null;
-  const nextValor =
-    input.valor !== undefined ? input.valor : ex?.valor != null ? String(ex.valor) : null;
-  const nextArquivo =
+  type ItemMeta = {
+    label?: string | null;
+    campo_slug?: string | null;
+    fase_id?: string | null;
+    tipo?: string | null;
+    chave_compartilhada?: string | null;
+    grupo_exclusivo?: string | null;
+  };
+  const itemMeta = (itemRow ?? null) as ItemMeta | null;
+  const chaveCompartilhada = String(itemMeta?.chave_compartilhada ?? '').trim();
+
+  const { data: existente } = chaveCompartilhada
+    ? await supabase
+        .from('kanban_card_checklist_compartilhado')
+        .select('valor')
+        .eq('card_id', input.card_id)
+        .eq('chave', chaveCompartilhada)
+        .maybeSingle()
+    : await supabase
+        .from('kanban_fase_checklist_respostas')
+        .select('valor, arquivo_path')
+        .eq('card_id', input.card_id)
+        .eq('item_id', input.item_id)
+        .maybeSingle();
+
+  const ex = existente as { valor?: unknown; arquivo_path?: string | null } | null;
+  let nextValor: string | null;
+  let nextArquivo: string | null;
+
+  if (chaveCompartilhada) {
+    const { parseChecklistCompartilhadoValor } = await import('@/lib/kanban/checklist-compartilhado');
+    const parsedAtual = parseChecklistCompartilhadoValor(
+      (itemMeta?.tipo ?? 'texto_curto') as import('@/lib/actions/candidato-actions').FaseChecklistItem['tipo'],
+      ex?.valor,
+    );
+    nextValor =
+      input.valor !== undefined ? input.valor : parsedAtual.valor !== '' ? parsedAtual.valor : null;
+    nextArquivo =
+      input.arquivo_path !== undefined
+        ? input.arquivo_path
+        : parsedAtual.arquivo_path != null
+          ? String(parsedAtual.arquivo_path)
+          : null;
+
+    const { buildChecklistCompartilhadoJsonb, isCheckboxTrue } = await import(
+      '@/lib/kanban/checklist-compartilhado'
+    );
+    const jsonbValor = buildChecklistCompartilhadoJsonb(
+      (itemMeta?.tipo ?? 'texto_curto') as import('@/lib/actions/candidato-actions').FaseChecklistItem['tipo'],
+      nextValor,
+      nextArquivo,
+    );
+
+    const { error: sharedErr } = await supabase.from('kanban_card_checklist_compartilhado').upsert(
+      {
+        card_id: input.card_id,
+        chave: chaveCompartilhada,
+        valor: jsonbValor,
+        atualizado_por: user.id,
+        atualizado_em: new Date().toISOString(),
+      },
+      { onConflict: 'card_id,chave' },
+    );
+    if (sharedErr) return { ok: false, error: sharedErr.message };
+
+    let chavesDesmarcadas: string[] = [];
+    const grupoExclusivo = String(itemMeta?.grupo_exclusivo ?? '').trim();
+    if (grupoExclusivo && itemMeta?.tipo === 'checkbox' && isCheckboxTrue(nextValor)) {
+      const { data: outrasChavesRows } = await supabase
+        .from('kanban_fase_checklist_itens')
+        .select('chave_compartilhada')
+        .eq('grupo_exclusivo', grupoExclusivo)
+        .neq('chave_compartilhada', chaveCompartilhada)
+        .not('chave_compartilhada', 'is', null);
+
+      const chaves = [
+        ...new Set(
+          (outrasChavesRows ?? [])
+            .map((row) => String((row as { chave_compartilhada?: string | null }).chave_compartilhada ?? '').trim())
+            .filter(Boolean),
+        ),
+      ];
+
+      if (chaves.length > 0) {
+        const now = new Date().toISOString();
+        const { error: clearErr } = await supabase.from('kanban_card_checklist_compartilhado').upsert(
+          chaves.map((chave) => ({
+            card_id: input.card_id,
+            chave,
+            valor: 'false',
+            atualizado_por: user.id,
+            atualizado_em: now,
+          })),
+          { onConflict: 'card_id,chave' },
+        );
+        if (clearErr) return { ok: false, error: clearErr.message };
+        chavesDesmarcadas = chaves;
+      }
+    }
+
+    return chavesDesmarcadas.length > 0 ? { ok: true, chavesDesmarcadas } : { ok: true };
+  }
+
+  nextValor = input.valor !== undefined ? input.valor : ex?.valor != null ? String(ex.valor) : null;
+  nextArquivo =
     input.arquivo_path !== undefined
       ? input.arquivo_path
       : ex?.arquivo_path != null

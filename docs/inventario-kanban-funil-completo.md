@@ -159,7 +159,7 @@ Fonte canônica: `src/lib/constants/kanban-ids.ts`
 
 - **DB**: `kanban_fase_checklist_itens` + `kanban_fase_checklist_respostas`
 - **UI**: `FaseChecklistCard.tsx` — tipos: `texto_curto`, `texto_longo`, `email`, `telefone`, `numero`, `anexo`, `anexo_template`, `checkbox`
-- **Nota**: `checklist-atividade-arrays.ts` é para **atividades/interações** (times/responsáveis), não checklist de fase
+- **Nota**: `atividade-times-responsaveis.ts` é para **atividades/interações** (times/responsáveis), não checklist de fase
 - Seeds por funil: migrations `241–328` (Step One), `344–365` (Loteadores), `209` (Jurídico/Contab), etc.
 
 ### 4.3 Fases por funil (slugs principais)
@@ -301,7 +301,7 @@ Em `moverCardParaFase` (`card-actions.ts`):
 | **Passagem Wayser** | checklist específico (passagem_wayser) |
 | **Confirmação saída** | Opção, Comitê, Contrato (389) — modal de confirmação na UI |
 
-> **Histórico**: `obterGatePortfolioStep5` ainda existe e é chamado em `moverCardParaFase`, mas para o Funil Portfólio retorna `{ ok: true }` sem validar flags paralelas. A validação de Acoplamento para Loteadores permanece ativa na mesma função.
+> **Histórico**: `obterGateComiteLoteadores` ainda existe e é chamado em `moverCardParaFase`, mas para o Funil Portfólio retorna `{ ok: true }` sem validar flags paralelas. A validação de Acoplamento para Loteadores permanece ativa na mesma função.
 
 Após mover: `executarBastoes`, `executarBastaoDeVolta`, SLA docs Cash Me, propagar responsável de fase, notificar universidade.
 
@@ -500,7 +500,7 @@ flowchart TB
 
 4. **Sync group** replica título/localização/datas entre cards do mesmo processo e ~40 campos em `processo_step_one` — fase e flags **não** sincronizam.
 
-5. **`checklist-atividade-arrays.ts`** não é o checklist de fase — o checklist estrutural vive em `kanban_fase_checklist_*` + `FaseChecklistCard.tsx`.
+5. **`atividade-times-responsaveis.ts`** não é o checklist de fase — o checklist estrutural vive em `kanban_fase_checklist_*` + `FaseChecklistCard.tsx`.
 
 6. **Gates críticos**: Acoplamento Gbox, Checklist Legal, SLA Loteadores, confirmação de saída (Opção/Comitê/Contrato). **Gate Portfolio Step 5 (esteiras pendentes) foi removido** em `f0d97ea6`; **gate Loteadores Comitê** (exige Acoplamento) permanece ativo.
 

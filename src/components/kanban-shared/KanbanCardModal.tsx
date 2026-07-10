@@ -53,7 +53,7 @@ import {
   moverCardParaFase,
   registrarConfirmacaoFaseOperacoes,
   registrarConfirmacaoFasePortfolio,
-  verificarGatePortfolioStep5,
+  verificarGateComiteLoteadores,
   listarTagsCard,
   listarTagsKanban,
   salvarDadosNegocioKanban,
@@ -374,6 +374,8 @@ type Card = {
   capital_ok?: boolean;
   juridico_ok?: boolean;
   credito_obra_ok?: boolean;
+  projetos_legais_ok?: boolean | null;
+  projetos_locais_ok?: boolean | null;
   alvara_url?: string | null;
   docs_terreno_url?: string | null;
   sla_iniciado_em?: string | null;
@@ -396,6 +398,10 @@ type Card = {
   operacoes_filho_fase_rotulo?: string | null;
   operacoes_filho_concluido?: boolean;
   juridico_filho_fase_nome?: string | null;
+  tem_filho_projeto_legal?: boolean;
+  filho_projeto_legal_arquivado?: boolean;
+  projeto_legal_filho_concluido?: boolean;
+  projeto_legal_filho_fase?: string | null;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
   processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
@@ -2573,7 +2579,7 @@ export function KanbanCardModal({
       (isPortfolioKanbanRef(null, String(kanbanNome)) || isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))) &&
       origem !== 'legado'
     ) {
-      const gate = await verificarGatePortfolioStep5(card.id, proximaFase.id);
+      const gate = await verificarGateComiteLoteadores(card.id, proximaFase.id);
       if (!gate.ok) {
         setGateStep5Toast(gate.error ?? 'Não é possível avançar para o Comitê.');
         return;
@@ -4141,6 +4147,10 @@ export function KanbanCardModal({
             operacoesFilhoConcluido: card.operacoes_filho_concluido,
             operacoesFilhoFaseRotulo: card.operacoes_filho_fase_rotulo,
             juridicoFilhoFaseRotulo: card.juridico_filho_fase_nome,
+            temFilhoProjetoLegal: card.tem_filho_projeto_legal,
+            filhoProjetoLegalArquivado: card.filho_projeto_legal_arquivado,
+            projetoLegalFilhoConcluido: card.projeto_legal_filho_concluido,
+            projetoLegalFilhoFase: card.projeto_legal_filho_fase,
           },
           { labelsCompletos: true },
         )

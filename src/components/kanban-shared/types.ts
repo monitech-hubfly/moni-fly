@@ -84,6 +84,16 @@ export type KanbanCardBrief = {
   capital_ok?: boolean;
   juridico_ok?: boolean;
   credito_obra_ok?: boolean;
+  projetos_legais_ok?: boolean | null;
+  projetos_locais_ok?: boolean | null;
+  /** Operações: existe card filho no Funil Projeto Legal (`origem_card_id`). */
+  tem_filho_projeto_legal?: boolean;
+  /** Operações: filho Projeto Legal arquivado (sem filho ativo). */
+  filho_projeto_legal_arquivado?: boolean;
+  /** Operações: filho Projeto Legal concluído. */
+  projeto_legal_filho_concluido?: boolean;
+  /** Operações: fase atual do filho Projeto Legal. */
+  projeto_legal_filho_fase?: string | null;
   /** Step One: fase atual do card Portfolio com mesmo `projeto_id`. */
   portfolio_vinculo_rotulo?: string | null;
   /** Portfolio: existe card filho no Funil Jurídico (`origem_card_id`). */

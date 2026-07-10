@@ -527,6 +527,10 @@ export function KanbanColumn({
               operacoesFilhoConcluido: card.operacoes_filho_concluido,
               operacoesFilhoFaseRotulo: card.operacoes_filho_fase_rotulo,
               juridicoFilhoFaseRotulo: card.juridico_filho_fase_nome,
+              temFilhoProjetoLegal: card.tem_filho_projeto_legal,
+              filhoProjetoLegalArquivado: card.filho_projeto_legal_arquivado,
+              projetoLegalFilhoConcluido: card.projeto_legal_filho_concluido,
+              projetoLegalFilhoFase: card.projeto_legal_filho_fase,
             },
             { labelsCompletos: false },
           );

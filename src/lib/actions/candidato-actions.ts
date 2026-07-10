@@ -47,6 +47,8 @@ export type FaseChecklistItem = {
   placeholder: string | null;
   campo_slug?: string | null;
   config_json?: Record<string, unknown> | null;
+  chave_compartilhada?: string | null;
+  grupo_exclusivo?: string | null;
 };
 
 export type CandidatoActionResult = { ok: true } | { ok: false; error: string };

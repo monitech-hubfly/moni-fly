@@ -54,9 +54,12 @@ const NOVOS_NEGOCIOS_SUBITENS_FRANK: NavItem[] = [
   { href: '/funil-stepone', label: 'Funil Step One' },
   { href: '/portfolio', label: 'Funil Portfolio' },
 ];
-const CREDITO_JURIDICO_SUBITENS: NavItem[] = [
+const CREDITO_JURIDICO_SUBITENS_STAFF: NavItem[] = [
   { href: '/funil-moni-capital', label: 'Funil Divify' },
   { href: '/funil-funding', label: 'Funding' },
+];
+const CREDITO_JURIDICO_SUBITENS_ADMIN: NavItem[] = [
+  ...CREDITO_JURIDICO_SUBITENS_STAFF,
   { href: '/funil-credito-obra', label: 'Funil Cash Me' },
   { href: '/painel-contabilidade', label: 'Funil Contabilidade' },
 ];
@@ -217,6 +220,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const showHdmNav = isStaff;
 
   const novosNegociosSubitens = useMemo(() => buildNovosNegociosSubitens(resolvedRole), [resolvedRole]);
+  const creditoJuridicoSubitens = isAdmin ? CREDITO_JURIDICO_SUBITENS_ADMIN : CREDITO_JURIDICO_SUBITENS_STAFF;
 
   useEffect(() => {
     setResolvedRole(userRole);
@@ -423,7 +427,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
             isCreditoJuridicoActive(pathname ?? ''),
             creditoJuridicoOpen,
             setCreditoJuridicoOpen,
-            CREDITO_JURIDICO_SUBITENS,
+            creditoJuridicoSubitens,
             (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
           )}
 

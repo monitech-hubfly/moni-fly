@@ -87,7 +87,7 @@ import {
   FASES_CREDITO_DASHBOARD,
 } from '@/lib/painel/cancelamento-motivos';
 import { precisaMotivoReprovacaoComiteNoCancelamento } from '@/lib/painel/dashboard-etapas';
-import { itemMatchesResponsavelFilter, itemMatchesTimeFilter } from '@/lib/checklist-atividade-arrays';
+import { itemMatchesResponsavelFilter, itemMatchesTimeFilter } from '@/lib/atividade-times-responsaveis';
 import {
   checklistPassaFiltroLista,
   ordenarItensChecklistLista,

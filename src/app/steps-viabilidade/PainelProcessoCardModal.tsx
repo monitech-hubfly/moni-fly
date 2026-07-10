@@ -23,7 +23,7 @@ import {
   type PainelColumnKey,
 } from './painelColumns';
 import { ATIVIDADE_TIMES } from '@/lib/atividade-times';
-import { itemMatchesResponsavelFilter, itemMatchesTimeFilter } from '@/lib/checklist-atividade-arrays';
+import { itemMatchesResponsavelFilter, itemMatchesTimeFilter } from '@/lib/atividade-times-responsaveis';
 import { addChecklistItem, removeChecklistItem, updateChecklistItemStatus } from './card-actions';
 import { CardDetalheModal, isChecklistAnexosEstruturalCard } from './CardDetalheModal';
 import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';

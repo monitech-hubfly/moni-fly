@@ -1,5 +1,5 @@
 import { ATIVIDADE_TIMES } from '@/lib/atividade-times';
-import { itemMatchesTimeFilter } from '@/lib/checklist-atividade-arrays';
+import { itemMatchesTimeFilter } from '@/lib/atividade-times-responsaveis';
 import { parseIsoDateOnlyLocal, rotuloSlaAtividadeDiasUteis } from '@/lib/dias-uteis';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 

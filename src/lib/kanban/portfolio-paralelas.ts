@@ -24,70 +24,7 @@ export const PORTFOLIO_PARALELAS: {
 
 export type PortfolioParalelasFlags = Partial<Record<PortfolioParalelaFlag, boolean | null | undefined>>;
 
-export type GatePortfolioStep5Opts = {
-  /** Quando false, Moní Capital não entra no gate (card nunca passou por captacao_moni_capital). */
-  exigirCapital?: boolean;
-};
-
-function detStr(detalhe: unknown, key: string): string {
-  if (!detalhe || typeof detalhe !== 'object') return '';
-  const v = (detalhe as Record<string, unknown>)[key];
-  return v != null ? String(v).trim() : '';
-}
-
 type SupabaseHistoricoClient = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
-
-/**
- * Retorna true se o card deve cumprir `capital_ok` no gate (passou pela fase captacao_moni_capital).
- * Consulta `kanban_historico` (não bloqueia quando nunca entrou na captação).
- */
-export async function deveVerificarCapital(
-  supabase: SupabaseHistoricoClient,
-  cardId: string,
-): Promise<boolean> {
-  const cid = String(cardId ?? '').trim();
-  if (!cid) return false;
-
-  const { data: faseRow, error: faseErr } = await supabase
-    .from('kanban_fases')
-    .select('id')
-    .eq('slug', FASE_SLUGS.CAPTACAO_CAPITAL)
-    .eq('kanban_id', KANBAN_IDS.PORTFOLIO)
-    .maybeSingle();
-
-  if (faseErr) return false;
-  const captacaoFaseId = String((faseRow as { id?: string } | null)?.id ?? '').trim();
-  if (!captacaoFaseId) return false;
-
-  const { data: cardRow } = await supabase
-    .from('kanban_cards')
-    .select('fase_id')
-    .eq('id', cid)
-    .maybeSingle();
-
-  const faseAtual = String((cardRow as { fase_id?: string } | null)?.fase_id ?? '').trim();
-  if (faseAtual === captacaoFaseId) return true;
-
-  const { data: hist, error: histErr } = await supabase
-    .from('kanban_historico')
-    .select('acao, detalhe')
-    .eq('card_id', cid)
-    .limit(500);
-
-  if (histErr || !hist?.length) return false;
-
-  for (const h of hist) {
-    const acao = String(h.acao ?? '').trim();
-    const det = h.detalhe;
-    if (acao === 'card_criado' && detStr(det, 'fase_id') === captacaoFaseId) return true;
-    if (acao === 'fase_avancada' || acao === 'fase_retrocedida') {
-      if (detStr(det, 'fase_nova_id') === captacaoFaseId) return true;
-      if (detStr(det, 'fase_anterior_id') === captacaoFaseId) return true;
-    }
-  }
-
-  return false;
-}
 
 export function isPortfolioKanbanRef(kanbanId: string | null | undefined, kanbanNome?: string | null): boolean {
   if (String(kanbanNome ?? '').trim() === PORTFOLIO_KANBAN_NOME) return true;
@@ -114,41 +51,6 @@ export function deveValidarGateLoteadoresComite(
 
 export function mensagemGateLoteadoresComite(): string {
   return 'Não é possível avançar para o Comitê. Esteira pendente: Acoplamento.';
-}
-
-export function listarEsteirasParalelasPendentes(
-  flags: PortfolioParalelasFlags,
-  opts?: GatePortfolioStep5Opts,
-): string[] {
-  const exigirCapital = opts?.exigirCapital !== false;
-  return PORTFOLIO_PARALELAS.filter((p) => {
-    if (p.flag === 'capital_ok' && !exigirCapital) return false;
-    return !Boolean(flags[p.flag]);
-  }).map((p) => p.label);
-}
-
-export function mensagemGatePortfolioStep5(pendentes: string[]): string {
-  if (pendentes.length === 0) {
-    return 'Não é possível avançar para o Comitê: esteiras paralelas ainda pendentes.';
-  }
-  return `Não é possível avançar para o Comitê. Esteiras pendentes: ${pendentes.join(', ')}.`;
-}
-
-export function gatePortfolioStep5Liberado(
-  flags: PortfolioParalelasFlags,
-  opts?: GatePortfolioStep5Opts,
-): boolean {
-  return listarEsteirasParalelasPendentes(flags, opts).length === 0;
-}
-
-export function deveValidarGatePortfolioStep5(
-  novaFaseSlug: string | null | undefined,
-  kanbanId: string | null | undefined,
-  kanbanNome?: string | null,
-): boolean {
-  return (
-    String(novaFaseSlug ?? '').trim() === FASE_SLUGS.STEP_5 && isPortfolioKanbanRef(kanbanId, kanbanNome)
-  );
 }
 
 /** Card pai no Funil Portfólio / Loteadores (ou filho com origem nesses funis). */

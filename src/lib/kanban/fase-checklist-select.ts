@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FaseChecklistItem } from '@/lib/actions/candidato-actions';
 
 export const FASE_CHECKLIST_ITEM_COLS_FULL =
-  'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder, campo_slug, config_json';
+  'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder, campo_slug, config_json, chave_compartilhada, grupo_exclusivo';
 
 export const FASE_CHECKLIST_ITEM_COLS_BASE =
   'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder';
@@ -16,6 +16,8 @@ function normalizeChecklistItemRows(rows: Record<string, unknown>[]): FaseCheckl
     ...(row as FaseChecklistItem),
     campo_slug: (row.campo_slug as string | null | undefined) ?? null,
     config_json: (row.config_json as Record<string, unknown> | null | undefined) ?? {},
+    chave_compartilhada: (row.chave_compartilhada as string | null | undefined) ?? null,
+    grupo_exclusivo: (row.grupo_exclusivo as string | null | undefined) ?? null,
   }));
 }
 
