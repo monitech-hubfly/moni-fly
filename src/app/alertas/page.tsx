@@ -38,6 +38,29 @@ function corAtrasado(tipo: string) {
   return false;
 }
 
+function parseQsParam(path: string | null | undefined, key: string): string | null {
+  if (!path) return null;
+  const idx = path.indexOf('?');
+  if (idx === -1) return null;
+  const qs = path.slice(idx + 1);
+  for (const part of qs.split('&')) {
+    const eq = part.indexOf('=');
+    if (eq === -1) continue;
+    if (part.slice(0, eq) === key) return decodeURIComponent(part.slice(eq + 1));
+  }
+  return null;
+}
+
+const TIPOS_SIRENE = new Set([
+  'kanban_atividade_criada',
+  'kanban_atividade_atualizada',
+  'kanban_atividade_redirecionada',
+  'atribuicao_recusada',
+  'sla_atividade_atrasado',
+  'sla_atividade_atencao',
+  'mencao_sirene',
+]);
+
 export default async function AlertasPage({
   searchParams,
 }: {
@@ -53,6 +76,61 @@ export default async function AlertasPage({
     .eq('user_id', user!.id)
     .order('created_at', { ascending: false })
     .limit(100);
+
+  // Enrichment sirene: Q1 + Q3 em paralelo, depois Q2 dependente de Q1
+  const interacaoIdsSet = new Set<string>();
+  const topicoIdsSet = new Set<number>();
+  for (const a of alertas ?? []) {
+    const path = (a as { referencia_path?: string | null }).referencia_path;
+    if (TIPOS_SIRENE.has(String(a.tipo ?? ''))) {
+      const iid = parseQsParam(path, 'interacao');
+      if (iid) interacaoIdsSet.add(iid);
+    }
+    const tid = parseQsParam(path, 'topico');
+    if (tid) {
+      const n = Number(tid);
+      if (Number.isFinite(n) && n > 0) topicoIdsSet.add(n);
+    }
+  }
+  const interacaoIds = [...interacaoIdsSet];
+  const topicoIds = [...topicoIdsSet];
+
+  const [atividadesRes, topicosRes] = await Promise.all([
+    interacaoIds.length > 0
+      ? supabase.from('kanban_atividades').select('id, sirene_chamado_id').in('id', interacaoIds)
+      : Promise.resolve({ data: [] as { id: string; sirene_chamado_id: number | null }[] }),
+    topicoIds.length > 0
+      ? supabase.from('sirene_topicos').select('id, descricao_detalhe, descricao').in('id', topicoIds)
+      : Promise.resolve({ data: [] as { id: number; descricao_detalhe: string | null; descricao: string | null }[] }),
+  ]);
+
+  const atividadeMap = new Map<string, number | null>();
+  for (const a of (atividadesRes.data ?? []) as { id: string; sirene_chamado_id: number | null }[]) {
+    atividadeMap.set(a.id, a.sirene_chamado_id);
+  }
+
+  type TopicoEnrich = { descricao_detalhe: string | null; descricao: string | null };
+  const topicoMap = new Map<number, TopicoEnrich>();
+  for (const t of (topicosRes.data ?? []) as { id: number; descricao_detalhe: string | null; descricao: string | null }[]) {
+    topicoMap.set(t.id, { descricao_detalhe: t.descricao_detalhe, descricao: t.descricao });
+  }
+
+  const chamadoIdsSet = new Set<number>();
+  for (const cid of atividadeMap.values()) {
+    if (cid != null) chamadoIdsSet.add(cid);
+  }
+
+  type ChamadoEnrich = { numero: number | null; aberto_por_nome: string | null; card_kanban_nome: string | null };
+  const chamadoMap = new Map<number, ChamadoEnrich>();
+  if (chamadoIdsSet.size > 0) {
+    const { data: chamados } = await supabase
+      .from('sirene_chamados')
+      .select('id, numero, aberto_por_nome, card_kanban_nome')
+      .in('id', [...chamadoIdsSet]);
+    for (const c of (chamados ?? []) as { id: number; numero: number | null; aberto_por_nome: string | null; card_kanban_nome: string | null }[]) {
+      chamadoMap.set(c.id, { numero: c.numero, aberto_por_nome: c.aberto_por_nome, card_kanban_nome: c.card_kanban_nome });
+    }
+  }
 
   const categoriaAtiva = (searchParams?.categoria ?? 'todos') as CategoriaAlerta | 'todos';
   const soNaoLidas = searchParams?.lidas !== 'todas';
@@ -193,6 +271,16 @@ export default async function AlertasPage({
               const hrefSlaAtividade = tipo === 'sla_atividade_atrasado' || tipo === 'sla_atividade_atencao' ? basePath || null : null;
               const hrefAlerta = hrefSlaAtividade || hrefSirene || hrefCard || hrefInteracao;
 
+              const interacaoId = parseQsParam(basePath, 'interacao');
+              const topicoIdStr = parseQsParam(basePath, 'topico');
+              const topicoIdNum = topicoIdStr ? Number(topicoIdStr) : null;
+              const sireneChamadoId = interacaoId ? (atividadeMap.get(interacaoId) ?? null) : null;
+              const chamadoEnrich = sireneChamadoId != null ? (chamadoMap.get(sireneChamadoId) ?? null) : null;
+              const topicoData = topicoIdNum && Number.isFinite(topicoIdNum) ? topicoMap.get(topicoIdNum) : undefined;
+              const descricaoTexto = topicoData
+                ? (topicoData.descricao_detalhe?.trim() || topicoData.descricao?.trim() || '')
+                : null;
+
               return (
                 <li
                   key={a.id}
@@ -224,10 +312,39 @@ export default async function AlertasPage({
 
                   {/* Linha 2: mensagem */}
                   {a.mensagem && (
-                    <p className={`mb-3 text-sm ${!a.lido ? 'font-medium text-stone-800' : 'text-stone-700'}`}>
+                    <p className={`mb-2 text-sm ${!a.lido ? 'font-medium text-stone-800' : 'text-stone-700'}`}>
                       {a.mensagem}
                     </p>
                   )}
+
+                  {/* Linha 2.5: enriquecimento sirene */}
+                  {cat === 'sirene' && (chamadoEnrich || topicoData !== undefined) ? (
+                    <div className="mb-3 space-y-1">
+                      {chamadoEnrich ? (
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                          {chamadoEnrich.card_kanban_nome ? (
+                            <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-600">
+                              {chamadoEnrich.card_kanban_nome}
+                            </span>
+                          ) : null}
+                          {chamadoEnrich.numero != null ? (
+                            <span className="tabular-nums">#{chamadoEnrich.numero}</span>
+                          ) : null}
+                          {chamadoEnrich.aberto_por_nome ? (
+                            <span>Aberto por: <span className="font-medium text-stone-600">{chamadoEnrich.aberto_por_nome}</span></span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {topicoData !== undefined ? (
+                        <p className="text-xs">
+                          {descricaoTexto
+                            ? <span className="text-stone-600">{descricaoTexto.length > 80 ? `${descricaoTexto.slice(0, 80)}…` : descricaoTexto}</span>
+                            : <span className="text-stone-400">sem descrição</span>
+                          }
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   {/* Linha 3: ações */}
                   <div className="flex items-center justify-between gap-2">
