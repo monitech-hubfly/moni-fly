@@ -165,6 +165,7 @@ export async function recusarAtribuicaoTopico(
           tipo: 'atribuicao_recusada',
           mensagem: `${autorNome ?? 'Responsável'} recusou a atividade "${nomeAtiv}": ${texto}`,
           basePath: '/sirene/chamados',
+          interacaoId: row.interacao_id ?? undefined,
           excluirUserId: user.id,
         });
       }
@@ -254,6 +255,7 @@ export async function redirecionarAtribuicaoTopico(
       tipo: 'kanban_atividade_redirecionada',
       mensagem: `${quemRedirecionou} redirecionou a atividade "${nomeAtiv}" para você.`,
       basePath: '/sirene/chamados',
+      interacaoId: row.interacao_id ?? undefined,
       excluirUserId: user.id,
     });
   } catch {
