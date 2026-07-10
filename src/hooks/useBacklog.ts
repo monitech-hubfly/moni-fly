@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isoWeek } from '@/utils/periodos';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
@@ -29,8 +29,16 @@ export type AtividadeItem = {
   hora_fim: string | null;
 };
 
+export type PastelariaItem = {
+  id: string;
+  nome: string;
+  coluna: string;
+  semana_origem: string;
+};
+
 export type UseBacklogResult = {
   sirene: SireneItem[];
+  pastelaria: PastelariaItem[];
   atividades: AtividadeItem[];
   isLoading: boolean;
   error: string | null;
@@ -43,7 +51,9 @@ export function useBacklog(): UseBacklogResult {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sirene, setSirene] = useState<SireneItem[]>([]);
+  const [pastelaria, setPastelaria] = useState<PastelariaItem[]>([]);
   const [atividades, setAtividades] = useState<AtividadeItem[]>([]);
+  const callIdRef = useRef(0);
 
   const { simulacao } = useSimulacaoUsuario();
   const simProfileId  = simulacao?.profileId   ?? null;
@@ -51,6 +61,7 @@ export function useBacklog(): UseBacklogResult {
   const simNome       = simulacao?.nomeUsuario ?? null;
 
   const carregar = useCallback(async () => {
+    const callId = ++callIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -63,21 +74,29 @@ export function useBacklog(): UseBacklogResult {
 
       let effectiveProfileId = user.id;
       let nomeUsuario: string | null = null;
+      let areaPessoaId: string | null = null;
 
       if (isAdmin && simProfileId) {
         effectiveProfileId = simProfileId;
         nomeUsuario = simNome;
+        const { data: simAP } = await supabase
+          .from('area_pessoas')
+          .select('id')
+          .eq('profile_id', simProfileId)
+          .maybeSingle();
+        areaPessoaId = (simAP as { id?: string } | null)?.id ?? null;
       } else {
         const { data: areaPessoa } = await supabase
           .from('area_pessoas')
-          .select('nome')
+          .select('id, nome')
           .eq('profile_id', user.id)
           .maybeSingle();
         nomeUsuario = (areaPessoa?.nome as string | null) ?? null;
+        areaPessoaId = (areaPessoa?.id as string | null) ?? null;
       }
 
-      // Busca Sirene e Atividades em paralelo
-      const [sireneRes, atividadesRes] = await Promise.all([
+      // Busca Sirene, Atividades e Pastelaria em paralelo
+      const [sireneRes, atividadesRes, pastelariaRes] = await Promise.all([
         supabase
           .from('sirene_topicos')
           .select(`
@@ -98,12 +117,20 @@ export function useBacklog(): UseBacklogResult {
           .in('status', ['nao_iniciado', 'em_andamento'])
           .eq('arquivado', false),
 
-        nomeUsuario
+        supabase
+          .from('gantt_planejamento')
+          .select('id, comportamento_chave, semana_ano_inicio, semana_ano_fim, origem, objetivo_id, hora_inicio, hora_fim')
+          .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
+          .is('data_conclusao_real', null)
+          .gte('semana_ano_fim', semanaAtual - 4),
+
+        areaPessoaId
           ? supabase
-              .from('gantt_planejamento')
-              .select('id, comportamento_chave, semana_ano_inicio, semana_ano_fim, origem, objetivo_id, hora_inicio, hora_fim')
-              .or(`profile_id.eq.${effectiveProfileId},responsavel.ilike.%${nomeUsuario}%`)
-              .gte('semana_ano_fim', semanaAtual - 4)
+              .from('pastelaria_cards')
+              .select('id, nome, coluna, semana_origem')
+              .eq('responsavel_id', areaPessoaId)
+              .in('coluna', ['inbox', 'mapped', 'doing'])
+              .eq('reclassificado', false)
           : Promise.resolve({ data: [], error: null }),
       ]);
 
@@ -193,17 +220,28 @@ export function useBacklog(): UseBacklogResult {
         return fa - fb;
       });
 
+      type PastelariaRaw = { id: string; nome: string; coluna: string; semana_origem: string };
+      const pastelariaArr: PastelariaItem[] = ((pastelariaRes.data ?? []) as PastelariaRaw[]).map(row => ({
+        id:            row.id,
+        nome:          row.nome,
+        coluna:        row.coluna,
+        semana_origem: row.semana_origem,
+      }));
+
+      if (callId !== callIdRef.current) return;
       setSirene(sireneArr);
+      setPastelaria(pastelariaArr);
       setAtividades(atividadesArr);
     } catch (e) {
+      if (callId !== callIdRef.current) return;
       console.error('[useBacklog] erro:', e);
       setError(e instanceof Error ? e.message : JSON.stringify(e));
     } finally {
-      setIsLoading(false);
+      if (callId === callIdRef.current) setIsLoading(false);
     }
   }, [supabase, simProfileId, simAreaId, simNome]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  return { sirene, atividades, isLoading, error };
+  return { sirene, pastelaria, atividades, isLoading, error };
 }

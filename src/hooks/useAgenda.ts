@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
 
@@ -77,6 +77,7 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
   const [isLoading, setIsLoading]       = useState(true);
   const [error, setError]               = useState<string | null>(null);
   const [atividades, setAtividades]     = useState<AtividadeAgenda[]>([]);
+  const callIdRef = useRef(0);
 
   const { simulacao } = useSimulacaoUsuario();
   const simProfileId  = simulacao?.profileId   ?? null;
@@ -89,6 +90,7 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
   const irParaHoje = useCallback(() => setSemanaOffset(0), []);
 
   const carregar = useCallback(async () => {
+    const callId = ++callIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -137,6 +139,7 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
         data: string;
       };
 
+      if (callId !== callIdRef.current) return;
       setAtividades(
         ((data ?? []) as GanttRow[]).map(row => ({
           id:                  row.id,
@@ -148,6 +151,7 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
         })),
       );
     } catch (e) {
+      if (callId !== callIdRef.current) return;
       console.error('[useAgenda]', e);
       const msg = e instanceof Error ? e.message : JSON.stringify(e);
       // Coluna `data` ainda não existe → agenda vazia sem erro visível
@@ -155,7 +159,7 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
         setError(msg);
       }
     } finally {
-      setIsLoading(false);
+      if (callId === callIdRef.current) setIsLoading(false);
     }
   }, [supabase, simProfileId, simNome, diasDaSemana, refreshKey]);
 
