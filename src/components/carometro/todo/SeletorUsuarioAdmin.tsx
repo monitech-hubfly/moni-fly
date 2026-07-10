@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 export type SimulacaoUsuario = {
@@ -10,7 +11,15 @@ export type SimulacaoUsuario = {
   label: string;
 };
 
-export function useSimulacaoUsuario() {
+type SimulacaoCtx = {
+  simulacao: SimulacaoUsuario | null;
+  definir: (data: SimulacaoUsuario) => void;
+  limpar: () => void;
+};
+
+const SimulacaoUsuarioContext = createContext<SimulacaoCtx | null>(null);
+
+export function SimulacaoUsuarioProvider({ children }: { children: ReactNode }) {
   const [simulacao, setSimulacao] = useState<SimulacaoUsuario | null>(null);
 
   useEffect(() => {
@@ -30,7 +39,17 @@ export function useSimulacaoUsuario() {
     setSimulacao(null);
   }, []);
 
-  return { simulacao, definir, limpar };
+  return (
+    <SimulacaoUsuarioContext.Provider value={{ simulacao, definir, limpar }}>
+      {children}
+    </SimulacaoUsuarioContext.Provider>
+  );
+}
+
+export function useSimulacaoUsuario(): SimulacaoCtx {
+  const ctx = useContext(SimulacaoUsuarioContext);
+  if (!ctx) throw new Error('useSimulacaoUsuario requer SimulacaoUsuarioProvider');
+  return ctx;
 }
 
 type ProfileOpcao = {
