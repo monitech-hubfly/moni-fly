@@ -21,6 +21,7 @@ type NotificarParams = {
   cardId?: string | null;
   basePath?: string;
   interacaoId?: string | null;
+  topicoId?: number | null;
   excluirUserId?: string | null;
 };
 
@@ -39,6 +40,7 @@ export async function notificarAlertasKanbanAtividade(params: NotificarParams): 
 
   const cardId = (params.cardId ?? '').trim() || null;
   const interacaoId = (params.interacaoId ?? '').trim() || null;
+  const topicoId = params.topicoId ?? null;
   const basePath =
     (params.basePath ?? '').trim() ||
     (interacaoId ? `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}` : '/');
@@ -50,7 +52,7 @@ export async function notificarAlertasKanbanAtividade(params: NotificarParams): 
     referencia_card_id: cardId,
     referencia_path:
       interacaoId && !cardId
-        ? `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`
+        ? `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}${topicoId != null ? `&topico=${topicoId}` : ''}`
         : basePath,
     lido: false,
   }));

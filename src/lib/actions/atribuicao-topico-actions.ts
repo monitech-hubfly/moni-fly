@@ -166,6 +166,7 @@ export async function recusarAtribuicaoTopico(
           mensagem: `${autorNome ?? 'Responsável'} recusou a atividade "${nomeAtiv}": ${texto}`,
           basePath: '/sirene/chamados',
           interacaoId: row.interacao_id ?? undefined,
+          topicoId: row.id,
           excluirUserId: user.id,
         });
       }
@@ -256,6 +257,7 @@ export async function redirecionarAtribuicaoTopico(
       mensagem: `${quemRedirecionou} redirecionou a atividade "${nomeAtiv}" para você.`,
       basePath: '/sirene/chamados',
       interacaoId: row.interacao_id ?? undefined,
+      topicoId: row.id,
       excluirUserId: user.id,
     });
   } catch {
