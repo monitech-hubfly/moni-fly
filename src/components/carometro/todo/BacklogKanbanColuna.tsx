@@ -5,15 +5,17 @@ import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { tagSlaKanbanParaExibicao } from '@/lib/kanban/kanban-card-sla';
 
 const ORIGEM_BADGE: Record<string, string> = {
-  franqueado: 'bg-purple-100 text-purple-700',
-  atividade:  'bg-blue-100 text-blue-700',
-  checklist:  'bg-orange-100 text-orange-700',
+  franqueado:        'bg-purple-100 text-purple-700',
+  atividade:         'bg-blue-100 text-blue-700',
+  checklist:         'bg-orange-100 text-orange-700',
+  proxima_atividade: 'bg-teal-100 text-teal-700',
 };
 
 const ORIGEM_LABEL: Record<string, string> = {
-  franqueado: 'Franqueado',
-  atividade:  'Atividade',
-  checklist:  'Checklist',
+  franqueado:        'Franqueado',
+  atividade:         'Atividade',
+  checklist:         'Checklist',
+  proxima_atividade: 'Próx. atividade',
 };
 
 function KanbanCard({ card }: { card: KanbanCardItem }) {
@@ -33,6 +35,16 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
       >
         {card.titulo ?? '(sem título)'}
       </div>
+
+      {/* Próxima atividade — só quando origem é proxima_atividade */}
+      {card.proxima_atividade ? (
+        <div
+          className="mt-0.5 text-[11px] text-gray-500"
+          style={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+        >
+          {card.proxima_atividade}
+        </div>
+      ) : null}
 
       {/* Linha 2: badge SLA + badge origem + funil · fase */}
       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
