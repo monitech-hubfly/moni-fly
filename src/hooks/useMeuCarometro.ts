@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isoWeek, isoWeekYear } from '@/utils/periodos';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
@@ -108,6 +108,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
   const [diasEngajamento, setDiasEngajamento] = useState<DiaStatus[]>([]);
   const [diasIndicadores, setDiasIndicadores] = useState<DiaStatus[]>([]);
   const [semanaAtual, setSemanaAtual] = useState<number>(() => isoWeek(new Date()));
+  const callIdRef = useRef(0);
 
   const { simulacao } = useSimulacaoUsuario();
   const simProfileId = simulacao?.profileId ?? null;
@@ -115,6 +116,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
   const simNome      = simulacao?.nomeUsuario ?? null;
 
   const carregar = useCallback(async () => {
+    const callId = ++callIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -303,6 +305,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           return { data, score: null };
         });
 
+      if (callId !== callIdRef.current) return;
       setSirene(sireneRuntime);
       setEngajamento(engajamentoRuntime);
       setIndicadores(indicadoresRuntime);
@@ -310,9 +313,10 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score));
       setDiasIndicadores(buildDias('indicadores', 'media', indicadoresRuntime.media));
     } catch (e) {
+      if (callId !== callIdRef.current) return;
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setIsLoading(false);
+      if (callId === callIdRef.current) setIsLoading(false);
     }
   }, [supabase, simProfileId, simAreaId, simNome]);
 
