@@ -194,7 +194,9 @@ import {
   type AtividadeFormDraft,
 } from './KanbanAtividadeFormFields';
 import { PrazoNegociacaoPanel } from './PrazoNegociacaoPanel';
+import { AtribuicaoAceitePanel } from '@/components/sirene/AtribuicaoAceitePanel';
 import { ConclusaoChamadoCriadorModal } from '@/components/sirene/ConclusaoChamadoCriadorModal';
+import { ClassificacaoConclusaoModal } from '@/app/sirene/chamados/ClassificacaoConclusaoModal';
 import { ChamadoAtividadeCollapsibleSection } from './ChamadoAtividadeCollapsibleSection';
 import { uploadAnexosAtividadePendentes } from '@/lib/kanban/upload-anexos-atividade';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
@@ -729,6 +731,12 @@ export function KanbanCardModal({
   const [salvandoExcluirInteracao, setSalvandoExcluirInteracao] = useState(false);
   const [confirmandoFinalizar, setConfirmandoFinalizar] = useState(false);
   const [conclusaoInteracaoId, setConclusaoInteracaoId] = useState<string | null>(null);
+  const [classificacaoPendente, setClassificacaoPendente] = useState<{
+    parentInteracaoId: string;
+    topicoId: string;
+    nomeAtividade: string;
+  } | null>(null);
+  const [classificandoPendente, setClassificandoPendente] = useState(false);
   const [modalDetalhes, setModalDetalhes] = useState<KanbanCardModalDetalhes>({
     rede: null,
     processo: null,
@@ -1801,7 +1809,7 @@ export function KanbanCardModal({
           const actIds = mapeadas.map((m) => m.id);
           const { data: topicosRows } = await supabase
             .from('sirene_topicos')
-            .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, arquivado')
+            .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, arquivado, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
             .eq('arquivado', false)
             .in('interacao_id', actIds)
             .order('ordem', { ascending: true });
@@ -1862,6 +1870,9 @@ export function KanbanCardModal({
               historico: Array.isArray((t as { historico?: unknown }).historico)
                 ? ((t as { historico: Array<{ tipo: string; em: string }> }).historico ?? [])
                 : [],
+              atribuicao_status: (t as { atribuicao_status?: string | null }).atribuicao_status ?? null,
+              atribuicao_recusado_por: (t as { atribuicao_recusado_por?: string | null }).atribuicao_recusado_por ?? null,
+              atribuicao_justificativa: (t as { atribuicao_justificativa?: string | null }).atribuicao_justificativa ?? null,
             };
             if (!porPai[iid]) porPai[iid] = [];
             porPai[iid]!.push(row);
@@ -2076,7 +2087,7 @@ export function KanbanCardModal({
     const supabase = createClient();
     const { data: topicosRows } = await supabase
       .from('sirene_topicos')
-      .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico')
+      .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
       .eq('interacao_id', interacaoId)
       .order('ordem', { ascending: true });
     const topicos = topicosRows ?? [];
@@ -2134,6 +2145,9 @@ export function KanbanCardModal({
         historico: Array.isArray((t as { historico?: unknown }).historico)
           ? ((t as { historico: Array<{ tipo: string; em: string }> }).historico ?? [])
           : [],
+        atribuicao_status: (t as { atribuicao_status?: string | null }).atribuicao_status ?? null,
+        atribuicao_recusado_por: (t as { atribuicao_recusado_por?: string | null }).atribuicao_recusado_por ?? null,
+        atribuicao_justificativa: (t as { atribuicao_justificativa?: string | null }).atribuicao_justificativa ?? null,
       };
     });
     setSubInteracoesPorPai((prev) => ({ ...prev, [interacaoId]: mapped }));
@@ -2251,12 +2265,34 @@ export function KanbanCardModal({
     parentInteracaoId: string,
     topicoId: string,
     status: SubInteracaoStatusDb,
+    nomeAtividade?: string,
   ) {
+    if (status === 'concluido') {
+      setClassificacaoPendente({ parentInteracaoId, topicoId, nomeAtividade: nomeAtividade ?? 'Atividade' });
+      return;
+    }
     const res = await atualizarStatusSubInteracao(topicoId, status, basePath);
     if (!res.ok) {
       alert(res.error);
       return;
     }
+    await loadCard();
+    router.refresh();
+  }
+
+  async function confirmarClassificacao(classificacao: 'pontual' | 'recorrente') {
+    if (!classificacaoPendente) return;
+    setClassificandoPendente(true);
+    const res = await atualizarStatusSubInteracao(
+      classificacaoPendente.topicoId,
+      'concluido',
+      basePath,
+      false,
+      classificacao,
+    );
+    setClassificandoPendente(false);
+    setClassificacaoPendente(null);
+    if (!res.ok) { alert(res.error); return; }
     await loadCard();
     router.refresh();
   }
@@ -5261,6 +5297,7 @@ export function KanbanCardModal({
                                                         it.id,
                                                         sub.id,
                                                         v as SubInteracaoStatusDb,
+                                                        sub.nome,
                                                       )
                                                     }
                                                     size="xs"
@@ -5289,7 +5326,24 @@ export function KanbanCardModal({
                                                     ? sub.responsaveis_resolvidos.map((r) => r.nome).join(', ')
                                                     : '—'}
                                                 </p>
-                                                {sub.prazo_status &&
+                                                {(sub.atribuicao_status === 'pendente_aceite' || sub.atribuicao_status === 'recusado') ? (
+                                                  <AtribuicaoAceitePanel
+                                                    topicoId={sub.id}
+                                                    atribuicaoStatus={sub.atribuicao_status}
+                                                    atribuicaoJustificativa={sub.atribuicao_justificativa}
+                                                    atribuicaoRecusadoPor={sub.atribuicao_recusado_por}
+                                                    recusadoPorNome={sub.responsaveis_resolvidos.find((r) => r.id === sub.atribuicao_recusado_por)?.nome ?? null}
+                                                    sessionUserId={modalSessao.userId}
+                                                    responsavelId={sub.responsaveis_ids[0] ?? null}
+                                                    abridorId={it.criado_por}
+                                                    responsaveisOpcoes={sub.responsaveis_resolvidos}
+                                                    basePath={basePath}
+                                                    compact
+                                                    onUpdated={() => void reloadSubsForParent(it.id)}
+                                                  />
+                                                ) : null}
+                                                {sub.atribuicao_status !== 'pendente_aceite' &&
+                                                sub.prazo_status &&
                                                 (sub.prazo_status !== 'aceito' ||
                                                   modalSessao.roleNorm === 'admin' ||
                                                   modalSessao.cargoNorm === 'adm') ? (
@@ -5329,6 +5383,7 @@ export function KanbanCardModal({
                                                         it.id,
                                                         sub.id,
                                                         v as SubInteracaoStatusDb,
+                                                        sub.nome,
                                                       )
                                                     }
                                                     size="xs"
@@ -7878,6 +7933,14 @@ export function KanbanCardModal({
       onClose={() => setConclusaoInteracaoId(null)}
       onConfirm={(p) => void confirmarConclusaoInteracaoCard(p)}
     />
+
+    {classificacaoPendente && (
+      <ClassificacaoConclusaoModal
+        nomeAtividade={classificacaoPendente.nomeAtividade}
+        onEscolher={(c) => void confirmarClassificacao(c)}
+        pending={classificandoPendente}
+      />
+    )}
 
     {modalNovoChamadoAberto && card && (
       <ModalNovoChamado
