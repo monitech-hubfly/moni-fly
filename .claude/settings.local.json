@@ -95,7 +95,9 @@
       "PowerShell(Where-Object *)",
       "PowerShell(git merge --abort)",
       "PowerShell(git fetch *)",
-      "PowerShell(git ls-tree *)"
+      "PowerShell(git ls-tree *)",
+      "PowerShell(Get-Content * | Measure-Object *)",
+      "PowerShell(git log --oneline -- *)"
     ]
   }
 }
