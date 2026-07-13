@@ -490,6 +490,16 @@ export function KanbanColumn({
           });
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
+          // Linha lateral de status (3px): verde=no prazo, amarelo=atenção,
+          // vermelho=atrasado, cinza=sem informação/arquivado/concluído.
+          const statusLateral =
+            arquivado || concluido || sla.pausado
+              ? 'cinza'
+              : sla.status === 'atrasado'
+                ? 'vermelho'
+                : sla.status === 'atencao'
+                  ? 'amarelo'
+                  : 'verde';
           const motivo = (card.motivo_arquivamento ?? '').trim();
           const hasAvatar = Boolean(card.responsavel_fase_nome?.trim());
           const hasBadge = arquivado || concluido;
@@ -591,6 +601,7 @@ export function KanbanColumn({
                 }}
                 className={[
                   'moni-kanban-card',
+                  `moni-kanban-card--status-${statusLateral}`,
                   arquivado ? 'moni-kanban-card--archived' : '',
                   concluido ? 'moni-kanban-card--done' : '',
                   arquivado || concluido ? 'moni-kanban-card--muted' : '',
@@ -620,7 +631,7 @@ export function KanbanColumn({
                         CONCLUÍDO
                       </span>
                     ) : null}
-                    <ResponsavelFaseAvatar nome={card.responsavel_fase_nome} />
+                    <ResponsavelFaseAvatar nome={card.responsavel_fase_nome} size="md" />
                   </div>
                 ) : null}
                 <button

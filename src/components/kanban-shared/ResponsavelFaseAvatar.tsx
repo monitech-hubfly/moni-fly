@@ -28,7 +28,7 @@ export function ResponsavelFaseAvatar({ nome, size = 'sm', className = '' }: Pro
         fontSize: FONT_PX[size],
         background: style.background,
         color: style.color,
-        border: '0.5px solid var(--moni-border-subtle)',
+        border: 'none',
       }}
       title={label}
       aria-label={`Responsável: ${label}`}
