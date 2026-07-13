@@ -17,6 +17,7 @@ export type KanbanCardItem = {
   origem: 'franqueado' | 'atividade' | 'checklist' | 'proxima_atividade';
   proxima_atividade?: string | null;
   prazo_atividade?: string | null;
+  especial?: boolean;
 };
 
 type FaseRelSla = { nome: string; sla_dias: number | null; sla_tipo: string | null; slug: string | null };
@@ -67,8 +68,8 @@ export function useBacklogKanban(refreshKey = 0) {
         ? simProfileId
         : user.id;
 
-      // 4 fontes em paralelo
-      const [fonte1, fonte2, fonte3, fonte4] = await Promise.all([
+      // 4 fontes + tag Especial em paralelo
+      const [fonte1, fonte2, fonte3, fonte4, tagEspecialRes] = await Promise.all([
         supabase
           .from('kanban_cards')
           .select(`
@@ -122,7 +123,24 @@ export function useBacklogKanban(refreshKey = 0) {
           .not('proxima_atividade', 'is', null)
           .eq('arquivado', false)
           .eq('concluido', false),
+
+        supabase
+          .from('kanban_tags')
+          .select('id')
+          .eq('nome', '⭐Especial')
+          .maybeSingle(),
       ]);
+
+      // Busca cards da tag Especial (sequencial após ter o tag_id)
+      const especialSet = new Set<string>();
+      const tagEspecialId = (tagEspecialRes.data as { id?: string } | null)?.id ?? null;
+      if (tagEspecialId) {
+        const { data: cardTagRows } = await supabase
+          .from('kanban_card_tags')
+          .select('card_id')
+          .eq('tag_id', tagEspecialId);
+        ((cardTagRows ?? []) as Array<{ card_id: string }>).forEach(r => especialSet.add(r.card_id));
+      }
 
       const mapa = new Map<string, KanbanCardItem>();
 
@@ -152,6 +170,7 @@ export function useBacklogKanban(refreshKey = 0) {
           sla_dias:    fase?.sla_dias ?? null,
           sla:         computeSla(card, fase ?? null),
           origem: 'franqueado',
+          especial: especialSet.has(card.id),
         });
       });
 
@@ -174,6 +193,7 @@ export function useBacklogKanban(refreshKey = 0) {
           sla_dias:    fase?.sla_dias ?? null,
           sla:         computeSla(card, fase ?? null),
           origem: 'atividade',
+          especial: especialSet.has(card.id),
         });
       });
 
@@ -195,6 +215,7 @@ export function useBacklogKanban(refreshKey = 0) {
           sla_dias:    fase?.sla_dias ?? null,
           sla:         computeSla(card, fase ?? null),
           origem: 'checklist',
+          especial: especialSet.has(card.id),
         });
       });
 
@@ -217,6 +238,7 @@ export function useBacklogKanban(refreshKey = 0) {
           origem:            'proxima_atividade',
           proxima_atividade: card.proxima_atividade,
           prazo_atividade:   card.prazo_atividade,
+          especial:          especialSet.has(card.id),
         });
       });
 
