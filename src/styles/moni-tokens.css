@@ -2790,6 +2790,15 @@
   overflow: hidden;
 }
 
+/* O título do card é SEMPRE preto (naval) e negrito, independentemente do SLA.
+   Guarda de especificidade para garantir que nenhum estado de atraso/atenção
+   deixe o texto do título vermelho. A faixa lateral e a tag de SLA seguem próprias. */
+.moni-kanban-card--sla-atrasado .moni-kanban-card-title,
+.moni-kanban-card--sla-atencao .moni-kanban-card-title {
+  color: var(--moni-text-primary);
+  font-weight: var(--moni-weight-bold);
+}
+
 .moni-kanban-card-subtitle {
   margin: 2px 0 0;
   font-family: var(--moni-font-sans);
