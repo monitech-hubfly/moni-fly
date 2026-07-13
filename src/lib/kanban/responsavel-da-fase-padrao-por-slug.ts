@@ -181,9 +181,13 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   pl_pagamentos: 'moni',
 
   // Funil Projetos Locais
-  projetos_locais_briefing: 'moni',
-  projetos_locais_execucao: 'moni',
-  projetos_locais_compatibilizacao: 'moni',
+  projetos_locais_iniciais: 'moni',
+  projetos_locais_estrutura: 'moni',
+  projetos_locais_infraestrutura: 'moni',
+  projetos_locais_compat1: 'moni',
+  projetos_locais_anteprojeto: 'moni',
+  projetos_locais_compat2: 'moni',
+  projetos_locais_executivo: 'moni',
   projetos_locais_aprovacao: 'moni',
   projetos_locais_concluido: 'moni',
 
