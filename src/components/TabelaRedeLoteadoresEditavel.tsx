@@ -204,18 +204,7 @@ export function TabelaRedeLoteadoresEditavel({
 
   const busy = saving;
   const emEdicao = creating || editingId !== null;
-
-  if (rowsOrdenadas.length === 0 && !creating) {
-    return (
-      <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-600">
-        <p className="font-medium">
-          {buscaAtiva && totalGeral > 0
-            ? 'Nenhum loteador encontrado para esta pesquisa.'
-            : 'Nenhum loteador cadastrado.'}
-        </p>
-      </div>
-    );
-  }
+  const semLinhas = pageRows.length === 0 && !creating;
 
   return (
     <div className="min-w-0 max-w-full space-y-4">
@@ -335,6 +324,15 @@ export function TabelaRedeLoteadoresEditavel({
                 </tr>
               );
             })}
+            {semLinhas ? (
+              <tr>
+                <td colSpan={8} className="px-3 py-10 text-center text-sm text-stone-500">
+                  {buscaAtiva && totalGeral > 0
+                    ? 'Nenhum loteador encontrado para esta pesquisa.'
+                    : 'Nenhum loteador cadastrado ainda. Clique em “Novo Loteador” para adicionar o primeiro.'}
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </MoniTabelaScrollSync>

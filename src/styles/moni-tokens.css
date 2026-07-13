@@ -2657,9 +2657,10 @@
 .moni-kanban-card-title {
   margin: 0;
   font-family: var(--moni-font-sans);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.3;
+  letter-spacing: -0.006em;
   color: var(--moni-kanban-t1);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -2668,10 +2669,11 @@
 }
 
 .moni-kanban-card-subtitle {
-  margin: 3px 0 0;
+  margin: 2px 0 0;
   font-family: var(--moni-font-sans);
-  font-size: 10px;
-  line-height: 1.3;
+  font-size: 10.5px;
+  font-weight: 400;
+  line-height: 1.35;
   color: var(--moni-kanban-tm);
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -2813,11 +2815,6 @@
   margin-top: 6px;
 }
 
-/* Bolinhas de vínculos paralelos — lateral direita do card */
-.moni-kanban-card--com-paralelas {
-  padding-right: 22px;
-}
-
 /* Acento lateral por status de SLA — visível mesmo sem ler o texto da tag */
 .moni-kanban-card--sla-atrasado {
   border-left: 2px solid var(--moni-status-overdue-border);
@@ -2827,17 +2824,67 @@
   border-left: 2px solid var(--moni-status-attention-border);
 }
 
-.moni-kanban-paralelas-bolinhas {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  z-index: 2;
+/* Rodapé do card fechado: contadores + vínculos à esquerda, próxima atividade à direita */
+.moni-kanban-card-footer {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  min-height: 16px;
+}
+
+.moni-kanban-card-footer-start {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.moni-kanban-card-footer-end {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.moni-kanban-card-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.moni-kanban-card-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px 1px 4px;
+  border-radius: var(--moni-radius-pill);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-surface-0);
+  color: var(--moni-text-tertiary);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    border-color var(--moni-transition-fast),
+    color var(--moni-transition-fast);
+}
+
+.moni-kanban-card-count:hover {
+  border-color: var(--moni-border-strong);
+  color: var(--moni-text-primary);
+}
+
+/* Cluster horizontal e discreto de bolinhas de vínculo (funis paralelos) */
+.moni-kanban-paralelas-cluster {
+  display: inline-flex;
   align-items: center;
   gap: 5px;
-  transform: translateY(-50%);
-  pointer-events: none;
+  min-width: 0;
+  padding: 2px 6px;
+  border-radius: var(--moni-radius-pill);
+  background: var(--moni-surface-100);
 }
 
 .moni-kanban-paralela-bolinha-wrap {
@@ -2846,23 +2893,27 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  pointer-events: auto;
 }
 
 .moni-kanban-paralela-bolinha {
   box-sizing: border-box;
   display: block;
-  width: 7px;
-  height: 7px;
-  border: 2px solid transparent;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid transparent;
   border-radius: 50%;
+  transition: transform var(--moni-transition-fast);
+}
+
+.moni-kanban-paralela-bolinha-wrap:hover .moni-kanban-paralela-bolinha {
+  transform: scale(1.25);
 }
 
 .moni-kanban-paralela-tooltip {
   pointer-events: none;
   position: absolute;
-  right: calc(100% + 8px);
-  top: 50%;
+  left: 50%;
+  bottom: calc(100% + 8px);
   z-index: 50;
   width: max-content;
   max-width: 220px;
@@ -2874,20 +2925,21 @@
   font-size: 10px;
   font-weight: 500;
   line-height: 1.4;
+  text-align: center;
   white-space: nowrap;
   opacity: 0;
-  transform: translateY(-50%);
-  transition: opacity 0.12s ease;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
 .moni-kanban-paralela-tooltip::after {
   content: '';
   position: absolute;
-  left: 100%;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
   border: 4px solid transparent;
-  border-left-color: var(--moni-paralela-tooltip-bg);
+  border-top-color: var(--moni-paralela-tooltip-bg);
 }
 
 .moni-kanban-paralela-tooltip-fase {
@@ -2897,6 +2949,7 @@
 
 .moni-kanban-paralela-bolinha-wrap:hover .moni-kanban-paralela-tooltip {
   opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 /* Drawer / modal de card */

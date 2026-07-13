@@ -947,7 +947,7 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     [FASE_SLUGS.APROVACAO_CONDOMINIO]: [
       {
         kanbanDestinoId: KANBAN_IDS.PROJETOS_LOCAIS,
-        faseDestinoSlug: 'projetos_locais_iniciais',
+        faseDestinoSlug: 'pl_100_layout',
         flag: null,
       },
     ],

@@ -500,6 +500,13 @@ export function KanbanColumn({
             { labelsCompletos: false },
           );
 
+          const qtdComentarios = comentariosCountPorCard?.[card.id] ?? 0;
+          const qtdAnexos = anexosCountPorCard?.[card.id] ?? 0;
+          const temContadores = qtdComentarios > 0 || qtdAnexos > 0;
+          const temParalelas = chipsParalelas.length > 0;
+          const temProximaAtividade = !arquivado && !concluido;
+          const temFooter = temContadores || temParalelas || temProximaAtividade;
+
           return (
             <div key={card.id} className="moni-kanban-card-wrap">
               {insertBeforeThis ? <div aria-hidden className="moni-kanban-card-drop-line" /> : null}
@@ -563,7 +570,6 @@ export function KanbanColumn({
                   dragOverCardId === card.id && !dragInsertBefore && dndAtivo
                     ? 'moni-kanban-card--drag-target'
                     : '',
-                  chipsParalelas.length > 0 ? 'moni-kanban-card--com-paralelas' : '',
                   !arquivado && !concluido && sla.status === 'atrasado'
                     ? 'moni-kanban-card--sla-atrasado'
                     : '',
@@ -574,9 +580,6 @@ export function KanbanColumn({
                   .filter(Boolean)
                   .join(' ')}
               >
-                {chipsParalelas.length > 0 ? (
-                  <KanbanParalelasChips chips={chipsParalelas} mode="board" />
-                ) : null}
                 <button
                   type="button"
                   onClick={() => abrirCard(card)}
@@ -585,32 +588,6 @@ export function KanbanColumn({
                 >
                   <MoreHorizontal className="h-4 w-4" aria-hidden />
                 </button>
-                {(comentariosCountPorCard || anexosCountPorCard) ? (
-                  <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1">
-                    {comentariosCountPorCard && (comentariosCountPorCard[card.id] ?? 0) > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => abrirCard(card)}
-                        className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
-                        aria-label={`${comentariosCountPorCard[card.id]} comentário(s)`}
-                      >
-                        <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                        <span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{comentariosCountPorCard[card.id]}</span>
-                      </button>
-                    ) : null}
-                    {anexosCountPorCard && (anexosCountPorCard[card.id] ?? 0) > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => abrirCard(card)}
-                        className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
-                        aria-label={`${anexosCountPorCard[card.id]} anexo(s) Sirene`}
-                      >
-                        <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                        <span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{anexosCountPorCard[card.id]}</span>
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
                 {hasBadge || hasAvatar ? (
                   <div className="moni-kanban-card-badges">
                     {arquivado ? (
@@ -661,14 +638,49 @@ export function KanbanColumn({
                     />
                   ) : null}
                 </button>
-                {!arquivado && !concluido ? (
-                  <div className="absolute bottom-2 right-2 z-10">
-                    <ProximaAtividadeDot
-                      cardId={card.id}
-                      proximaAtividade={card.proxima_atividade ?? null}
-                      prazoAtividade={card.prazo_atividade ?? null}
-                      basePath={basePath}
-                    />
+                {temFooter ? (
+                  <div className="moni-kanban-card-footer">
+                    <div className="moni-kanban-card-footer-start">
+                      {temContadores ? (
+                        <div className="moni-kanban-card-counts">
+                          {qtdComentarios > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => abrirCard(card)}
+                              className="moni-kanban-card-count"
+                              aria-label={`${qtdComentarios} comentário(s)`}
+                            >
+                              <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              <span className="tabular-nums">{qtdComentarios}</span>
+                            </button>
+                          ) : null}
+                          {qtdAnexos > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => abrirCard(card)}
+                              className="moni-kanban-card-count"
+                              aria-label={`${qtdAnexos} anexo(s) Sirene`}
+                            >
+                              <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              <span className="tabular-nums">{qtdAnexos}</span>
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {temParalelas ? (
+                        <KanbanParalelasChips chips={chipsParalelas} mode="board" />
+                      ) : null}
+                    </div>
+                    {temProximaAtividade ? (
+                      <div className="moni-kanban-card-footer-end">
+                        <ProximaAtividadeDot
+                          cardId={card.id}
+                          proximaAtividade={card.proxima_atividade ?? null}
+                          prazoAtividade={card.prazo_atividade ?? null}
+                          basePath={basePath}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

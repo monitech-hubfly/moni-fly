@@ -60,7 +60,7 @@ export function KanbanParalelasChips({ chips, mode = 'chips', compact = true }: 
 
   if (mode === 'board') {
     return (
-      <div className="moni-kanban-paralelas-bolinhas" aria-label="Vínculos com funis paralelos">
+      <div className="moni-kanban-paralelas-cluster" aria-label="Vínculos com funis paralelos">
         {chips.map((chip, idx) => (
           <ParalelaBolinha key={`${chip.kanbanId ?? chip.label}-${idx}`} chip={chip} />
         ))}
