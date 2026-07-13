@@ -608,13 +608,7 @@ export function KanbanColumn({
                   className="moni-kanban-card-open"
                 >
                   <p
-                    className={[
-                      'moni-kanban-card-title',
-                      paddingTitulo,
-                      !arquivado && !concluido && sla.status === 'atrasado'
-                        ? 'moni-kanban-card-title--atrasado'
-                        : '',
-                    ]
+                    className={['moni-kanban-card-title', paddingTitulo]
                       .filter(Boolean)
                       .join(' ')}
                   >

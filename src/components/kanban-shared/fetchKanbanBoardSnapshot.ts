@@ -859,7 +859,12 @@ export async function fetchKanbanBoardSnapshot(
 
   const loteadorPorId = new Map<
     string,
-    { nome: string; interlocutor_nome: string | null; condominio_nome: string | null }
+    {
+      nome: string;
+      contato_nome: string | null;
+      interlocutor_nome: string | null;
+      condominio_nome: string | null;
+    }
   >();
   if (isFunilLoteadores) {
     const redeLoteadorIds = [
@@ -872,13 +877,14 @@ export async function fetchKanbanBoardSnapshot(
     if (redeLoteadorIds.length > 0) {
       const { data: loteadoresRows } = await supabase
         .from('rede_loteadores')
-        .select('id, nome, interlocutor_nome, condominio_nome')
+        .select('id, nome, contato_nome, interlocutor_nome, condominio_nome')
         .in('id', redeLoteadorIds);
       for (const row of loteadoresRows ?? []) {
         const id = String((row as { id?: string }).id ?? '').trim();
         if (!id) continue;
         loteadorPorId.set(id, {
           nome: String((row as { nome?: string | null }).nome ?? '').trim(),
+          contato_nome: (row as { contato_nome?: string | null }).contato_nome ?? null,
           interlocutor_nome: (row as { interlocutor_nome?: string | null }).interlocutor_nome ?? null,
           condominio_nome: (row as { condominio_nome?: string | null }).condominio_nome ?? null,
         });
@@ -966,17 +972,23 @@ export async function fetchKanbanBoardSnapshot(
         (cMerged as { rede_loteador_id?: string | null }).rede_loteador_id ?? '',
       ).trim();
       const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
-      const nomeLoteador = coalesceTextoCampo(rl?.nome, tituloRaw.split(' - ')[0]);
-      const nomeCondominioLoteador = coalesceTextoCampo(nomeCondominio, rl?.condominio_nome);
-      const tituloLoteador = montarTituloCardLoteadores({
-        nomeLoteador,
-        nomeCondominio: nomeCondominioLoteador,
-        quadra,
-        lote,
-        tituloFallback: tituloRaw,
-      });
-      tituloExibicao = tituloLoteador ?? tituloExibicao;
-      subtituloCard = subtituloCardLoteadores(rl?.interlocutor_nome);
+      const nomeLoteador = coalesceTextoCampo(rl?.nome);
+      if (nomeLoteador) {
+        // Card com cadastro vinculado: título/subtítulo derivam do cadastro do loteador.
+        const nomeCondominioLoteador = coalesceTextoCampo(rl?.condominio_nome, nomeCondominio);
+        const tituloLoteador = montarTituloCardLoteadores({
+          nomeLoteador,
+          contatoNome: rl?.contato_nome,
+          nomeCondominio: nomeCondominioLoteador,
+          tituloFallback: tituloRaw,
+        });
+        tituloExibicao = tituloLoteador ?? tituloExibicao;
+        subtituloCard = subtituloCardLoteadores(rl?.interlocutor_nome);
+      } else {
+        // Sem cadastro vinculado: mantém o título/subtítulo atuais do card.
+        tituloExibicao = tituloRaw;
+        subtituloCard = null;
+      }
       profilesLinha = null;
     }
 

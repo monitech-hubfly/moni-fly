@@ -5,19 +5,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 type LoteadoresTituloDb = Pick<SupabaseClient, 'from'>;
 type TituloLoteadorParams = {
   nomeLoteador?: string | null;
+  contatoNome?: string | null;
   nomeCondominio?: string | null;
-  quadra?: string | null;
-  lote?: string | null;
   tituloFallback?: string | null;
 };
 
-/** Título do card: Nome do Loteador — Condomínio — Quadra — Lote. */
+/** Título do card: Nome do Loteador — Contato — Condomínio (dados do cadastro). */
 export function montarTituloCardLoteadores(params: TituloLoteadorParams): string | null {
   const partes = [
     String(params.nomeLoteador ?? '').trim(),
+    String(params.contatoNome ?? '').trim(),
     String(params.nomeCondominio ?? '').trim(),
-    String(params.quadra ?? '').trim(),
-    String(params.lote ?? '').trim(),
   ].filter(Boolean);
   if (partes.length > 0) return partes.join(' - ');
   const fb = String(params.tituloFallback ?? '').trim();
@@ -57,6 +55,7 @@ type TituloLoteadorOverrides = {
 
 type RedeLoteadorTituloRow = {
   nome?: string | null;
+  contato_nome?: string | null;
   interlocutor_nome?: string | null;
   condominio_nome?: string | null;
 };
@@ -90,30 +89,28 @@ export async function sincronizarTituloCardLoteadores(
   const kanbanId = String(cardRow.kanban_id ?? '').trim();
   if (!isKanbanFunilLoteadoresRef(kanbanId)) return { ok: true };
 
+  // Sem cadastro de loteador vinculado: mantém o título/subtítulo atuais do card.
   const redeLoteadorId = String(cardRow.rede_loteador_id ?? '').trim();
-  let nomeLoteador: string | null = null;
-  let condominioLoteador: string | null = null;
+  if (!redeLoteadorId) return { ok: true };
 
-  if (redeLoteadorId) {
-    const { data: rl, error: rlErr } = await db
-      .from('rede_loteadores')
-      .select('nome, interlocutor_nome, condominio_nome')
-      .eq('id', redeLoteadorId)
-      .maybeSingle();
-    if (rlErr) return { ok: false, error: rlErr.message };
-    if (rl) {
-      const rlRow = rl as RedeLoteadorTituloRow;
-      nomeLoteador = coalesceTexto(rlRow.nome);
-      condominioLoteador = coalesceTexto(rlRow.condominio_nome);
-    }
-  }
+  const { data: rl, error: rlErr } = await db
+    .from('rede_loteadores')
+    .select('nome, contato_nome, interlocutor_nome, condominio_nome')
+    .eq('id', redeLoteadorId)
+    .maybeSingle();
+  if (rlErr) return { ok: false, error: rlErr.message };
+  if (!rl) return { ok: true };
 
-  if (!nomeLoteador) {
-    const tituloAtual = String(cardRow.titulo ?? '').trim();
-    nomeLoteador = tituloAtual.split(' - ')[0]?.trim() || tituloAtual || null;
-  }
+  const rlRow = rl as RedeLoteadorTituloRow;
+  const nomeLoteador = coalesceTexto(rlRow.nome);
+  // Cadastro ainda sem nome preenchido: preserva o título atual.
+  if (!nomeLoteador) return { ok: true };
 
-  let nomeCondominioCard = coalesceTexto(overrides?.nomeCondominio, cardRow.nome_condominio, condominioLoteador);
+  let nomeCondominioCard = coalesceTexto(
+    rlRow.condominio_nome,
+    overrides?.nomeCondominio,
+    cardRow.nome_condominio,
+  );
   if (!nomeCondominioCard) {
     const condominioId = String(cardRow.condominio_id ?? '').trim();
     if (condominioId) {
@@ -124,9 +121,8 @@ export async function sincronizarTituloCardLoteadores(
 
   const titulo = montarTituloCardLoteadores({
     nomeLoteador,
+    contatoNome: rlRow.contato_nome,
     nomeCondominio: nomeCondominioCard,
-    quadra: coalesceTexto(overrides?.quadra, cardRow.quadra),
-    lote: coalesceTexto(overrides?.lote, cardRow.lote),
     tituloFallback: cardRow.titulo,
   });
   if (!titulo) return { ok: true };

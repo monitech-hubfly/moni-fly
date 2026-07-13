@@ -1915,12 +1915,12 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
 
   let tituloFinal = titulo;
   if (isKanbanFunilLoteadoresRef(kanbanId, kanbanNome)) {
+    // Ainda sem cadastro vinculado: título inicial com o que foi informado.
+    // Após vincular/preencher o cadastro, o título é reconstruído (loteador · contato · condomínio).
     tituloFinal =
       montarTituloCardLoteadores({
         nomeLoteador: (input.nomeLoteador ?? '').trim() || titulo,
         nomeCondominio,
-        quadra,
-        lote,
         tituloFallback: titulo,
       }) ?? titulo;
   }

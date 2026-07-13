@@ -2658,20 +2658,14 @@
   margin: 0;
   font-family: var(--moni-font-sans);
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: var(--moni-weight-bold);
   line-height: 1.35;
   letter-spacing: -0.006em;
-  color: var(--moni-kanban-t1);
+  color: var(--moni-text-primary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-/* Título em negrito vermelho quando o card está com SLA atrasado */
-.moni-kanban-card-title--atrasado {
-  color: var(--moni-status-overdue-text);
-  font-weight: var(--moni-weight-bold);
 }
 
 .moni-kanban-card-subtitle {
@@ -2823,7 +2817,7 @@
 
 /* Acento lateral por status de SLA — visível mesmo sem ler o texto da tag */
 .moni-kanban-card--sla-atrasado {
-  border-left: 2px solid var(--moni-status-overdue-border);
+  border-left: 4px solid var(--moni-status-overdue-border);
 }
 
 .moni-kanban-card--sla-atencao {
