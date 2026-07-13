@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { Clock } from 'lucide-react';
 import type { SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
 import { tagSlaKanbanParaExibicao } from '@/lib/kanban/kanban-card-sla';
 import type { IndicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
@@ -29,7 +30,7 @@ export function KanbanSlaTag({
   if (!tag) return null;
   return (
     <span className={`${classeTagSlaKanban(tag.variante)} ${className}`.trim()} title={tag.texto}>
-      <span className="moni-kanban-card-sla-dot" aria-hidden />
+      <Clock className="moni-kanban-card-sla-icon" aria-hidden />
       {tag.texto}
     </span>
   );

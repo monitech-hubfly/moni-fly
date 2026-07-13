@@ -2615,43 +2615,46 @@
   text-align: left;
 }
 
-.moni-kanban-card-menu {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 10;
+/* Menu «...» no rodapé do card (canto inferior direito, sempre visível) */
+.moni-kanban-card-footer-menu {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: none;
   border-radius: var(--moni-radius-sm);
   background: transparent;
-  color: var(--moni-kanban-t2);
-  opacity: 0;
+  color: var(--moni-text-tertiary);
   cursor: pointer;
-  transition: opacity var(--moni-transition-fast), background var(--moni-transition-fast);
+  transition: color var(--moni-transition-fast), background var(--moni-transition-fast);
 }
 
-.moni-kanban-card:hover .moni-kanban-card-menu {
-  opacity: 1;
-}
-
-.moni-kanban-card-menu:hover {
+.moni-kanban-card-footer-menu:hover {
   background: var(--moni-surface-100);
+  color: var(--moni-text-primary);
 }
 
 .moni-kanban-card-badges {
   position: absolute;
   top: 6px;
-  right: 28px;
+  right: 6px;
   z-index: 9;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
+}
+
+.moni-kanban-card-codigo {
+  display: block;
+  margin: 0 0 2px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--moni-text-tertiary);
 }
 
 .moni-kanban-card-title {
@@ -2776,6 +2779,12 @@
   border-radius: 50%;
 }
 
+.moni-kanban-card-sla-icon {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+}
+
 .moni-kanban-card-sla--ok {
   background: var(--moni-kanban-sla-ok-bg);
   color: var(--moni-kanban-sla-ok-text);
@@ -2787,9 +2796,10 @@
 }
 
 .moni-kanban-card-sla--atencao {
-  background: var(--moni-status-attention-bg);
+  background: var(--moni-surface-0);
   color: var(--moni-status-attention-text);
   border-color: var(--moni-status-attention-border);
+  font-weight: var(--moni-weight-bold);
 }
 
 .moni-kanban-card-sla--atencao .moni-kanban-card-sla-dot {
@@ -2797,7 +2807,7 @@
 }
 
 .moni-kanban-card-sla--atrasado {
-  background: var(--moni-status-overdue-bg);
+  background: var(--moni-surface-0);
   color: var(--moni-status-overdue-text);
   border-color: var(--moni-status-overdue-border);
   font-weight: var(--moni-weight-bold);
@@ -2844,6 +2854,7 @@
 .moni-kanban-card-footer-end {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   flex-shrink: 0;
 }
 

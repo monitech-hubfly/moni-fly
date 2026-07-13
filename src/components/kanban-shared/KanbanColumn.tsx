@@ -121,6 +121,20 @@ function cardConcluidoVisual(card: KanbanCardBrief): boolean {
   return card.origem !== 'legado' && Boolean(card.concluido);
 }
 
+/**
+ * Separa o código FK#### (quando presente) do restante do título do card.
+ * Só divide quando o título começa com `FK<dígitos>` seguido de traço — títulos
+ * sem esse padrão são mantidos íntegros.
+ */
+function separarCodigoTitulo(titulo: string): { codigo: string | null; tituloLimpo: string } {
+  const t = String(titulo ?? '').trim();
+  const m = t.match(/^(FK\d+)\s*[-–—]\s*(.+)$/i);
+  if (m && m[1] && m[2]) {
+    return { codigo: m[1].toUpperCase(), tituloLimpo: m[2].trim() };
+  }
+  return { codigo: null, tituloLimpo: t };
+}
+
 function parseDragPayload(raw: string): DragPayload | null {
   if (!raw) return null;
   try {
@@ -473,6 +487,7 @@ export function KanbanColumn({
             dragOverCardId === card.id && dragInsertBefore && dndAtivo;
           const subtituloCard =
             card.subtitulo?.trim() || card.profiles?.full_name?.trim() || '';
+          const { codigo: codigoCard, tituloLimpo } = separarCodigoTitulo(card.titulo);
 
           const chipsParalelas = montarChipsParalelas(
             {
@@ -505,7 +520,9 @@ export function KanbanColumn({
           const temContadores = qtdComentarios > 0 || qtdAnexos > 0;
           const temParalelas = chipsParalelas.length > 0;
           const temProximaAtividade = !arquivado && !concluido;
-          const temFooter = temContadores || temParalelas || temProximaAtividade;
+          const semProximaAtividade = !String(card.proxima_atividade ?? '').trim();
+          const proxDotEsquerda = temProximaAtividade && !semProximaAtividade;
+          const proxAlertaDireita = temProximaAtividade && semProximaAtividade;
 
           return (
             <div key={card.id} className="moni-kanban-card-wrap">
@@ -580,14 +597,6 @@ export function KanbanColumn({
                   .filter(Boolean)
                   .join(' ')}
               >
-                <button
-                  type="button"
-                  onClick={() => abrirCard(card)}
-                  className="moni-kanban-card-menu"
-                  aria-label="Abrir card"
-                >
-                  <MoreHorizontal className="h-4 w-4" aria-hidden />
-                </button>
                 {hasBadge || hasAvatar ? (
                   <div className="moni-kanban-card-badges">
                     {arquivado ? (
@@ -607,12 +616,21 @@ export function KanbanColumn({
                   onClick={() => abrirCard(card)}
                   className="moni-kanban-card-open"
                 >
+                  {codigoCard ? (
+                    <span
+                      className={['moni-kanban-card-codigo', paddingTitulo]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      {codigoCard}
+                    </span>
+                  ) : null}
                   <p
                     className={['moni-kanban-card-title', paddingTitulo]
                       .filter(Boolean)
                       .join(' ')}
                   >
-                    {card.titulo}
+                    {tituloLimpo}
                   </p>
                   {(() => {
                     const fundingBadgeCls = fundingTipoBadgeClass(card.funding_tipo);
@@ -644,51 +662,65 @@ export function KanbanColumn({
                     />
                   ) : null}
                 </button>
-                {temFooter ? (
-                  <div className="moni-kanban-card-footer">
-                    <div className="moni-kanban-card-footer-start">
-                      {temContadores ? (
-                        <div className="moni-kanban-card-counts">
-                          {qtdComentarios > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => abrirCard(card)}
-                              className="moni-kanban-card-count"
-                              aria-label={`${qtdComentarios} comentário(s)`}
-                            >
-                              <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              <span className="tabular-nums">{qtdComentarios}</span>
-                            </button>
-                          ) : null}
-                          {qtdAnexos > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => abrirCard(card)}
-                              className="moni-kanban-card-count"
-                              aria-label={`${qtdAnexos} anexo(s) Sirene`}
-                            >
-                              <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              <span className="tabular-nums">{qtdAnexos}</span>
-                            </button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {temParalelas ? (
-                        <KanbanParalelasChips chips={chipsParalelas} mode="board" />
-                      ) : null}
-                    </div>
-                    {temProximaAtividade ? (
-                      <div className="moni-kanban-card-footer-end">
-                        <ProximaAtividadeDot
-                          cardId={card.id}
-                          proximaAtividade={card.proxima_atividade ?? null}
-                          prazoAtividade={card.prazo_atividade ?? null}
-                          basePath={basePath}
-                        />
+                <div className="moni-kanban-card-footer">
+                  <div className="moni-kanban-card-footer-start">
+                    {temContadores ? (
+                      <div className="moni-kanban-card-counts">
+                        {qtdComentarios > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => abrirCard(card)}
+                            className="moni-kanban-card-count"
+                            aria-label={`${qtdComentarios} comentário(s)`}
+                          >
+                            <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            <span className="tabular-nums">{qtdComentarios}</span>
+                          </button>
+                        ) : null}
+                        {qtdAnexos > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => abrirCard(card)}
+                            className="moni-kanban-card-count"
+                            aria-label={`${qtdAnexos} anexo(s) Sirene`}
+                          >
+                            <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            <span className="tabular-nums">{qtdAnexos}</span>
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
+                    {temParalelas ? (
+                      <KanbanParalelasChips chips={chipsParalelas} mode="board" />
+                    ) : null}
+                    {proxDotEsquerda ? (
+                      <ProximaAtividadeDot
+                        cardId={card.id}
+                        proximaAtividade={card.proxima_atividade ?? null}
+                        prazoAtividade={card.prazo_atividade ?? null}
+                        basePath={basePath}
+                      />
+                    ) : null}
                   </div>
-                ) : null}
+                  <div className="moni-kanban-card-footer-end">
+                    {proxAlertaDireita ? (
+                      <ProximaAtividadeDot
+                        cardId={card.id}
+                        proximaAtividade={card.proxima_atividade ?? null}
+                        prazoAtividade={card.prazo_atividade ?? null}
+                        basePath={basePath}
+                      />
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => abrirCard(card)}
+                      className="moni-kanban-card-footer-menu"
+                      aria-label="Abrir card"
+                    >
+                      <MoreHorizontal className="h-4 w-4" aria-hidden />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           );
