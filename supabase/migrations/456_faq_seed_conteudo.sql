@@ -1,4 +1,4 @@
--- 453_faq_seed_conteudo.sql
+-- 456_faq_seed_conteudo.sql
 -- Seed: 20 categorias da FAQ + migração do conteúdo (P&R) que vivia na casa "faq-franks" (uni_modulos).
 -- Idempotente por slug. NÃO cria vínculo acadêmico (sem progresso/quiz/nota/conclusão).
 -- Conteúdo preservado a partir do banco (103 perguntas).

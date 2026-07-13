@@ -1,4 +1,4 @@
--- 449_faq_schema.sql
+-- 455_faq_schema.sql
 -- FAQ da Universidade Moní — estrutura de dados PRÓPRIA (independente de cursos/casas/módulos).
 -- A FAQ NÃO é conteúdo acadêmico: não tem progresso, quiz, nota, conclusão ou certificado.
 -- Idempotente.
