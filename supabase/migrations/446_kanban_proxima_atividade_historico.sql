@@ -1,4 +1,4 @@
--- 445: Histórico de próximas atividades concluídas em kanban_cards
+-- 445/446: Histórico de próximas atividades concluídas em kanban_cards
 -- Registra o que foi zerado via "Marcar como concluída" no ProximaAtividadeDot,
 -- permitindo exibir histórico de atividades já fechadas por card.
 
