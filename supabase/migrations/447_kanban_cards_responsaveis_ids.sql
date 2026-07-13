@@ -1,3 +1,4 @@
+-- 447: Adiciona coluna responsaveis_ids em kanban_cards
 -- Coluna ausente causava falha silenciosa no useBacklogKanban (fonte 4/proxima_atividade)
 -- quando o filtro OR usava responsaveis_ids.cs.{uuid} numa tabela sem a coluna.
 
