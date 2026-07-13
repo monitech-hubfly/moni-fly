@@ -28,15 +28,20 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
       className="rounded-md bg-white border border-gray-200 px-3 py-2 text-sm shadow-sm cursor-pointer hover:shadow-md hover:bg-gray-50 transition-all"
       onClick={() => { window.location.href = href; }}
     >
-      {/* Título — até 2 linhas */}
-      <div
-        className="text-gray-800 leading-snug"
-        style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-      >
-        {card.titulo ?? '(sem título)'}
+      {/* Título + estrela Especial */}
+      <div className="flex items-start gap-1 min-w-0">
+        <span
+          className="text-gray-800 leading-snug flex-1 min-w-0"
+          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+        >
+          {card.titulo ?? '(sem título)'}
+        </span>
+        {card.especial && (
+          <span className="shrink-0 text-[11px]" title="Especial">⭐</span>
+        )}
       </div>
 
-      {/* Próxima atividade — só quando origem é proxima_atividade */}
+      {/* Próxima atividade */}
       {card.proxima_atividade ? (
         <div
           className="mt-0.5 text-[11px] text-gray-500"
@@ -83,20 +88,43 @@ function EmptyState() {
   );
 }
 
+function StatusDot({ cor, count }: { cor: string; count: number }) {
+  if (count === 0) return null;
+  return (
+    <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
+      <span className={`h-2 w-2 rounded-full shrink-0 ${cor}`} />
+      {count}
+    </span>
+  );
+}
+
 export function BacklogKanbanColuna() {
   const { cards, isLoading, error } = useBacklogKanban();
+
+  const atrasados  = cards.filter(c => c.sla?.status === 'atrasado').length;
+  const atencao    = cards.filter(c => c.sla?.status === 'atencao').length;
+  const semSla     = cards.filter(c => !c.sla || c.sla.status === 'ok').length;
 
   return (
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-gray-600">Cards / Kanban</span>
-        <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
-          {isLoading ? '…' : cards.length}
-        </span>
+        <div className="flex items-center gap-2">
+          {!isLoading && (
+            <div className="flex items-center gap-1.5">
+              <StatusDot cor="bg-red-500"   count={atrasados} />
+              <StatusDot cor="bg-amber-400" count={atencao} />
+              <StatusDot cor="bg-gray-400"  count={semSla} />
+            </div>
+          )}
+          <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
+            {isLoading ? '…' : cards.length}
+          </span>
+        </div>
       </div>
 
-      {/* Conteúdo */}
+      {/* Conteúdo com scroll */}
       {isLoading ? (
         <div className="flex flex-col gap-1.5">
           {[0, 1, 2].map(i => (
@@ -108,7 +136,7 @@ export function BacklogKanbanColuna() {
       ) : cards.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 max-h-[22rem] overflow-y-auto pr-0.5">
           {cards.map(card => <KanbanCard key={card.id} card={card} />)}
         </div>
       )}
