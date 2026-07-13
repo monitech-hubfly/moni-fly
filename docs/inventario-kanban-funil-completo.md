@@ -221,6 +221,16 @@ Exibidos no Portfolio (a partir de `step_4`/`acoplamento`) e Step One (a partir 
 
 > **Nota (commit `f0d97ea6`)**: no Funil Portfólio, os chips são **apenas informativos** — não bloqueiam mais o avanço para Comitê (`step_5`).
 
+### 5.4.1 Bolinhas de vínculo (Operações)
+
+Tabela funil/esteira → bolinha → critério pintada (`kanban-paralelas-chips.ts`):
+
+| Funil (pai) | Esteira / bolinha | Exibe | Condição de exibição | Critério pintada (concluído) |
+|---|---|---|---|---|
+| Funil Pré Obra e Obra | Projeto Legal | Sim | Fase `projeto_legal` ou filho existente | Filho ativo existe |
+| Funil Pré Obra e Obra | Projetos Legais | Sim | Fase `projeto_legal` ou `projetos_legais_ok` presente | `projetos_legais_ok = true` |
+| Funil Pré Obra e Obra | Projetos Locais | Sim | Fase `aprovacao_condominio` ou `projetos_locais_ok` presente | `projetos_locais_ok = true` |
+
 ### 5.5 Arquivar / desarquivar / finalizar
 
 - `arquivarCard` / `desarquivarCard` — permissão `arquivar_cards` ou staff
@@ -263,7 +273,8 @@ Mapa `kanbans.nome` → `{ basePath, cardQueryParam }`. Contabilidade e Cash Me 
 | `aguardando_credito` | Cash Me |
 | `prod_publicado` | Modelo Virtual |
 | `aprovacao_condominio` | Projetos Locais |
-| `projeto_legal` | Projeto Legal |
+| `projeto_legal` | Funil Projeto Legal (`pl_nova_demanda`) |
+| `projeto_legal` | Funil Projetos Legais (`projetos_legais_protocolo`) |
 | `loteador_juridico` | Jurídico |
 
 ### 6.3 Bastões de VOLTA (`executarBastaoDeVolta`)
@@ -292,8 +303,8 @@ Em `moverCardParaFase` (`card-actions.ts`):
 
 | Gate | Condição |
 |---|---|
-| **Portfolio → Comitê (`step_5`)** | **Removido** (commit `f0d97ea6`): a trava de esteiras paralelas pendentes (Crédito Terreno, Contabilidade, Jurídico, Divify) não bloqueia mais o avanço. Chips permanecem informativos na UI. |
-| **Loteadores → Comitê** | `deveValidarGateLoteadoresComite` — exige `acoplamento_concluido` antes de avançar para Comitê |
+| **Gate esteiras Portfólio (Comitê `step_5`)** | **Removido** (commit `f0d97ea6`) — chips são informativos no Portfólio, sem bloqueio de fase. |
+| **Gate Comitê Loteadores** | `verificarGateComiteLoteadores` / `obterGateComiteLoteadores` — **ativo**; exige `acoplamento_concluido = true` antes de avançar para Comitê |
 | **Acoplamento Gbox** | `verificarGateAcoplamentoModelagemCasa` — link Gbox preenchido |
 | **Checklist Legal** | `verificarGateChecklistLegalPortfolio` — checklist legal condomínio completo |
 | **SLA Loteadores** | `verificarGateJustificativaSlaLoteadores` — justificativa ao sair com SLA vencido |
@@ -301,7 +312,7 @@ Em `moverCardParaFase` (`card-actions.ts`):
 | **Passagem Wayser** | checklist específico (passagem_wayser) |
 | **Confirmação saída** | Opção, Comitê, Contrato (389) — modal de confirmação na UI |
 
-> **Histórico**: `obterGateComiteLoteadores` ainda existe e é chamado em `moverCardParaFase`, mas para o Funil Portfólio retorna `{ ok: true }` sem validar flags paralelas. A validação de Acoplamento para Loteadores permanece ativa na mesma função.
+> **Histórico**: `obterGateComiteLoteadores` é chamado em `moverCardParaFase`; para o Funil Portfólio retorna `{ ok: true }` sem validar flags paralelas. Para Loteadores, `verificarGateComiteLoteadores` valida `acoplamento_concluido` via `deveValidarGateLoteadoresComite`.
 
 Após mover: `executarBastoes`, `executarBastaoDeVolta`, SLA docs Cash Me, propagar responsável de fase, notificar universidade.
 
@@ -450,7 +461,7 @@ flowchart TB
 | `src/lib/actions/kanban-bastoes.ts` | Bastões ida/volta, esteira manual, jurídico |
 | `src/lib/kanban/card-sync-group.ts` | Sync group, título, processo |
 | `src/lib/kanban/esteira-manual-destinos.ts` | Destinos esteira |
-| `src/lib/kanban/portfolio-paralelas.ts` | Flags paralelas, gate Loteadores Comitê (helpers legados Portfolio Step 5) |
+| `src/lib/kanban/portfolio-paralelas.ts` | Flags paralelas; `deveValidarGateLoteadoresComite` (gate Comitê Loteadores) |
 | `src/lib/kanban/kanban-paralelas-chips.ts` | Chips no board/modal |
 | `src/lib/kanban/kanban-card-href.ts` | Deep links |
 | `src/lib/kanban/kanban-card-sla.ts` | Cálculo SLA |
@@ -502,7 +513,7 @@ flowchart TB
 
 5. **`atividade-times-responsaveis.ts`** não é o checklist de fase — o checklist estrutural vive em `kanban_fase_checklist_*` + `FaseChecklistCard.tsx`.
 
-6. **Gates críticos**: Acoplamento Gbox, Checklist Legal, SLA Loteadores, confirmação de saída (Opção/Comitê/Contrato). **Gate Portfolio Step 5 (esteiras pendentes) foi removido** em `f0d97ea6`; **gate Loteadores Comitê** (exige Acoplamento) permanece ativo.
+6. **Gates críticos**: Acoplamento Gbox, Checklist Legal, SLA Loteadores, confirmação de saída (Opção/Comitê/Contrato). **Gate esteiras Portfólio (Comitê) removido** em `f0d97ea6` — chips informativos; **`verificarGateComiteLoteadores`** (Loteadores → Comitê, exige `acoplamento_concluido`) permanece ativo.
 
 7. **Frank** não vê funis internos (`KANBANS_INTERNOS`) e no portal tem `portalFrank` que desabilita gestão do card.
 
