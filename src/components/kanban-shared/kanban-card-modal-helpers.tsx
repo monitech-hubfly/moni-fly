@@ -73,6 +73,9 @@ export type SubInteracaoModal = {
   trava: boolean;
   pastel: boolean;
   historico: Array<{ tipo: string; em: string; por?: string | null }>;
+  atribuicao_status: string | null;
+  atribuicao_recusado_por: string | null;
+  atribuicao_justificativa: string | null;
 };
 
 export function prazoSlaSubInteracao(sub: PrazoNegociacaoCampos): string | null {
