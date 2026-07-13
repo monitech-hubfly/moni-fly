@@ -4142,6 +4142,26 @@ export async function salvarProximaAtividade(input: SalvarProximaAtividadeInput)
   const cardId = String(input.cardId ?? '').trim();
   if (!cardId) return { ok: false, error: 'Card inválido.' };
 
+  // Registrar histórico quando estiver zerando proxima_atividade (conclusão)
+  const isConcluindo = input.proxima_atividade !== undefined &&
+    (input.proxima_atividade === null || String(input.proxima_atividade).trim() === '');
+  if (isConcluindo) {
+    const { data: atual } = await supabase
+      .from('kanban_cards')
+      .select('proxima_atividade, prazo_atividade')
+      .eq('id', cardId)
+      .maybeSingle();
+    const descricaoAtual = String((atual as any)?.proxima_atividade ?? '').trim();
+    if (descricaoAtual) {
+      await (supabase as any).from('kanban_proxima_atividade_historico').insert({
+        card_id: cardId,
+        descricao: descricaoAtual,
+        prazo_original: (atual as any)?.prazo_atividade ?? null,
+        concluido_por: user.id,
+      });
+    }
+  }
+
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (input.proxima_atividade !== undefined) {
@@ -4159,6 +4179,92 @@ export async function salvarProximaAtividade(input: SalvarProximaAtividadeInput)
   revalidatePath(base);
   revalidatePath('/');
   return { ok: true };
+}
+
+export type HistoricoAtividadeItem = {
+  id: string;
+  card_id: string;
+  card_titulo: string;
+  kanban_nome: string;
+  descricao: string;
+  prazo_original: string | null;
+  concluido_em: string;
+};
+
+/** Busca histórico de próximas atividades concluídas (todas, para a tela /proximas-atividades). */
+export async function buscarProximaAtividadeHistorico(): Promise<HistoricoAtividadeItem[]> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: histRows } = await (supabase as any)
+    .from('kanban_proxima_atividade_historico')
+    .select('id, card_id, descricao, prazo_original, concluido_em')
+    .order('concluido_em', { ascending: false })
+    .limit(300);
+
+  const rows = (histRows ?? []) as Array<{
+    id: string; card_id: string; descricao: string;
+    prazo_original: string | null; concluido_em: string;
+  }>;
+
+  const cardIds = [...new Set(rows.map(r => r.card_id))];
+  const { data: cardRows } = cardIds.length > 0
+    ? await supabase.from('kanban_cards').select('id, titulo, kanban_id').in('id', cardIds as any)
+    : { data: [] };
+
+  const kanbanIds = [...new Set((cardRows ?? []).map((c: any) => c.kanban_id as string).filter(Boolean))];
+  const { data: kanbanRows } = kanbanIds.length > 0
+    ? await supabase.from('kanbans').select('id, nome').in('id', kanbanIds as any)
+    : { data: [] };
+
+  const cardMap = new Map((cardRows ?? []).map((c: any) => [c.id as string, c]));
+  const kanbanMap = new Map((kanbanRows ?? []).map((k: any) => [k.id as string, k.nome as string]));
+
+  return rows.map(r => {
+    const card = cardMap.get(r.card_id) as any;
+    return {
+      id: r.id,
+      card_id: r.card_id,
+      card_titulo: card?.titulo ?? '—',
+      kanban_nome: card?.kanban_id ? (kanbanMap.get(card.kanban_id) ?? '—') : '—',
+      descricao: r.descricao,
+      prazo_original: r.prazo_original,
+      concluido_em: r.concluido_em,
+    };
+  });
+}
+
+export type ChamadoCardItem = {
+  card_id: string;
+  id: number;
+  numero: number;
+  incendio: string;
+  status: string;
+  data_abertura: string | null;
+};
+
+/** Busca sirene_chamados vinculados a um conjunto de cards (por card_id). */
+export async function buscarChamadosDosCards(cardIds: string[]): Promise<ChamadoCardItem[]> {
+  if (!cardIds.length) return [];
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data } = await supabase
+    .from('sirene_chamados')
+    .select('id, card_id, numero, incendio, status, data_abertura')
+    .in('card_id', cardIds as any)
+    .order('data_abertura', { ascending: false });
+
+  return ((data ?? []) as any[]).map(row => ({
+    card_id: row.card_id as string,
+    id: row.id as number,
+    numero: row.numero as number,
+    incendio: row.incendio as string,
+    status: row.status as string,
+    data_abertura: row.data_abertura as string | null,
+  }));
 }
 
 /** Salva campos específicos do Funil Funding em `kanban_cards`. */
