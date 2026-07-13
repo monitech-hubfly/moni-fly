@@ -441,10 +441,10 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: var(--moni-radius-pill);
-  font-size: var(--moni-text-tag-sla);
-  line-height: 1.25;
+  font-size: 8px;
+  line-height: 1.2;
   font-weight: var(--moni-weight-medium);
   font-family: var(--moni-font-sans);
   background: var(--moni-gold-50);
@@ -458,12 +458,12 @@
   align-items: center;
   max-width: 100%;
   gap: 2px;
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: var(--moni-radius-pill);
   font-family: var(--moni-font-sans);
-  font-size: 10px;
+  font-size: 8px;
   font-weight: var(--moni-weight-medium);
-  line-height: 1.25;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
@@ -2657,15 +2657,21 @@
 .moni-kanban-card-title {
   margin: 0;
   font-family: var(--moni-font-sans);
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.35;
   letter-spacing: -0.006em;
   color: var(--moni-kanban-t1);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Título em negrito vermelho quando o card está com SLA atrasado */
+.moni-kanban-card-title--atrasado {
+  color: var(--moni-status-overdue-text);
+  font-weight: var(--moni-weight-bold);
 }
 
 .moni-kanban-card-subtitle {
@@ -2757,22 +2763,22 @@
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  min-height: 18px;
-  padding: 2px 8px;
+  gap: 4px;
+  min-height: 16px;
+  padding: 1px 6px;
   border-radius: var(--moni-radius-pill);
   font-family: var(--moni-font-sans);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: var(--moni-weight-medium);
-  line-height: 1.3;
+  line-height: 1.25;
   border: var(--moni-border-width) solid transparent;
   white-space: nowrap;
 }
 
 .moni-kanban-card-sla-dot {
   flex-shrink: 0;
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
 }
 

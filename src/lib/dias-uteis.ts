@@ -117,7 +117,7 @@ export function labelTagSlaFunil(
 ): string {
   if (status === 'atrasado') {
     const n = Math.max(1, opts?.diasAtraso ?? 1);
-    return `SLA ATRASADO - ${n} ${rotuloUnidadeSlaTag(opts?.slaTipo)}`;
+    return `${n} ${rotuloUnidadeSla(opts?.slaTipo)}`;
   }
   if (status === 'atencao') return 'SLA atenção';
   return 'SLA ok';

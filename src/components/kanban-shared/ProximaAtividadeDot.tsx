@@ -2,6 +2,7 @@
 
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { salvarProximaAtividade } from '@/lib/actions/card-actions';
 
 type Props = {
@@ -41,9 +42,8 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
 
   const semAtividade = !proximaAtividade;
   const variante = varianteDot(prazoAtividade);
-  const dotCls = semAtividade
-    ? 'bg-yellow-400 hover:bg-yellow-500'
-    : variante === 'red' ? 'bg-red-500 hover:bg-red-600'
+  const dotCls =
+    variante === 'red' ? 'bg-red-500 hover:bg-red-600'
     : variante === 'green' ? 'bg-green-500 hover:bg-green-600'
     : 'bg-stone-400 hover:bg-stone-500';
   const prazoLabel = labelPrazo(prazoAtividade);
@@ -215,8 +215,17 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
         aria-label={semAtividade ? 'Definir próxima atividade' : `Próxima atividade: ${tooltipTitle}`}
         onClick={abrirPopover}
         onMouseDown={e => e.stopPropagation()}
-        className={`h-3.5 w-3.5 rounded-full border border-white/80 shadow-sm transition-transform hover:scale-125 focus:outline-none ${dotCls}`}
-      />
+        className={
+          semAtividade
+            ? 'flex h-3.5 w-3.5 items-center justify-center transition-transform hover:scale-125 focus:outline-none'
+            : `h-3.5 w-3.5 rounded-full border border-white/80 shadow-sm transition-transform hover:scale-125 focus:outline-none ${dotCls}`
+        }
+        style={semAtividade ? { color: 'var(--moni-status-attention-border)' } : undefined}
+      >
+        {semAtividade && (
+          <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
+        )}
+      </button>
       {typeof document !== 'undefined' && popover
         ? createPortal(popover, document.body)
         : null}

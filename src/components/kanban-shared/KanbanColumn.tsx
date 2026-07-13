@@ -607,7 +607,19 @@ export function KanbanColumn({
                   onClick={() => abrirCard(card)}
                   className="moni-kanban-card-open"
                 >
-                  <p className={`moni-kanban-card-title ${paddingTitulo}`}>{card.titulo}</p>
+                  <p
+                    className={[
+                      'moni-kanban-card-title',
+                      paddingTitulo,
+                      !arquivado && !concluido && sla.status === 'atrasado'
+                        ? 'moni-kanban-card-title--atrasado'
+                        : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    {card.titulo}
+                  </p>
                   {(() => {
                     const fundingBadgeCls = fundingTipoBadgeClass(card.funding_tipo);
                     return fundingBadgeCls ? (
