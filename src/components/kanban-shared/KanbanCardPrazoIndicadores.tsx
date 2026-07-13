@@ -61,10 +61,6 @@ export function TextoReuniaoCard({ dataIso }: { dataIso: string }) {
   return <TextoDataCard tipo="reuniao" dataIso={dataIso} />;
 }
 
-function TextoFollowupCard({ dataIso }: { dataIso: string }) {
-  return <TextoDataCard tipo="followup" dataIso={dataIso} />;
-}
-
 type IndicadoresProps = {
   sla: SlaKanbanResult;
   dataReuniao?: string | null;
