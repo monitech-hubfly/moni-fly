@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowUpDown, ChevronDown, ChevronUp, MessageCircle, MoreHorizontal, Paperclip } from 'lucide-react';
+import { ArrowUpDown, MessageCircle, MoreHorizontal, Paperclip } from 'lucide-react';
 import { useRef, useState, useTransition, useEffect, useCallback, type DragEvent } from 'react';
 import {
   desvincularTagCard,
@@ -399,39 +399,6 @@ export function KanbanColumn({
     executarDrop(payload, beforeCardId);
   };
 
-  const handleReorder = (
-    card: KanbanCardBrief,
-    dir: 'up' | 'down',
-    cardIndex: number,
-    vizinhoAcimaId: string | undefined,
-  ) => {
-    if (!dndAtivo || pending) return;
-    let beforeCardId: string | null;
-    if (dir === 'up') {
-      if (!vizinhoAcimaId) return;
-      beforeCardId = vizinhoAcimaId;
-    } else {
-      if (cardIndex >= cards.length - 1) return;
-      beforeCardId = cardIndex + 2 < cards.length ? cards[cardIndex + 2]?.id ?? null : null;
-    }
-    startTransition(() => {
-      void (async () => {
-        const res = await reordenarCardKanbanDrag({
-          cardId: card.id,
-          faseId: fase.id,
-          faseSlug: faseSlug || null,
-          beforeCardId,
-          origem: card.origem === 'legado' ? 'legado' : 'nativo',
-          basePath,
-        });
-        if (!res.ok) {
-          alert(res.error ?? 'Não foi possível reordenar o card.');
-          return;
-        }
-        router.refresh();
-      })();
-    });
-  };
 
   return (
     <>
@@ -477,8 +444,6 @@ export function KanbanColumn({
         onDrop={(e) => handleDrop(e, null)}
       >
         {cards.map((card, i) => {
-          const vizinhoAcimaId = i > 0 ? cards[i - 1]?.id : undefined;
-          const vizinhoAbaixoId = i < cards.length - 1 ? cards[i + 1]?.id : undefined;
           const faseSlugCard = fase.slug ?? '';
           const aguardandoDoc =
             card.origem !== 'legado' &&
@@ -599,44 +564,16 @@ export function KanbanColumn({
                     ? 'moni-kanban-card--drag-target'
                     : '',
                   chipsParalelas.length > 0 ? 'moni-kanban-card--com-paralelas' : '',
+                  !arquivado && !concluido && sla.status === 'atrasado'
+                    ? 'moni-kanban-card--sla-atrasado'
+                    : '',
+                  !arquivado && !concluido && sla.status === 'atencao'
+                    ? 'moni-kanban-card--sla-atencao'
+                    : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
               >
-                {dndAtivo ? (
-                  <div className="moni-kanban-card-sort">
-                    <button
-                      type="button"
-                      disabled={!vizinhoAcimaId || pending}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleReorder(card, 'up', i, vizinhoAcimaId);
-                      }}
-                      className="moni-kanban-card-sort-btn"
-                      title="Mover para cima na coluna"
-                      aria-label="Mover card para cima na coluna"
-                    >
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!vizinhoAbaixoId || pending}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleReorder(card, 'down', i, vizinhoAcimaId);
-                      }}
-                      className="moni-kanban-card-sort-btn"
-                      title="Mover para baixo na coluna"
-                      aria-label="Mover card para baixo na coluna"
-                    >
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : null}
                 {chipsParalelas.length > 0 ? (
                   <KanbanParalelasChips chips={chipsParalelas} mode="board" />
                 ) : null}
@@ -691,7 +628,7 @@ export function KanbanColumn({
                 <button
                   type="button"
                   onClick={() => abrirCard(card)}
-                  className={`moni-kanban-card-open ${dndAtivo ? 'moni-kanban-card-open--dnd' : ''}`}
+                  className="moni-kanban-card-open"
                 >
                   <p className={`moni-kanban-card-title ${paddingTitulo}`}>{card.titulo}</p>
                   {(() => {
@@ -721,7 +658,6 @@ export function KanbanColumn({
                     <KanbanCardPrazoIndicadores
                       sla={sla}
                       dataReuniao={card.data_reuniao}
-                      dataFollowup={card.data_followup}
                     />
                   ) : null}
                 </button>

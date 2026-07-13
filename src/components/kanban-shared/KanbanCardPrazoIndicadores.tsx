@@ -68,16 +68,14 @@ function TextoFollowupCard({ dataIso }: { dataIso: string }) {
 type IndicadoresProps = {
   sla: SlaKanbanResult;
   dataReuniao?: string | null;
-  dataFollowup?: string | null;
   ocultarSla?: boolean;
   className?: string;
 };
 
-/** Linha compacta de SLA + reunião + follow-up para cards do kanban. */
+/** Linha compacta de SLA + reunião para cards do kanban. */
 export function KanbanCardPrazoIndicadores({
   sla,
   dataReuniao,
-  dataFollowup,
   ocultarSla = false,
   className = '',
 }: IndicadoresProps) {
@@ -92,10 +90,6 @@ export function KanbanCardPrazoIndicadores({
 
   if (dataReuniao && indicadorDataKanban('reuniao', dataReuniao)) {
     itens.push(<TextoReuniaoCard key="reuniao" dataIso={dataReuniao} />);
-  }
-
-  if (dataFollowup && indicadorDataKanban('followup', dataFollowup)) {
-    itens.push(<TextoFollowupCard key="followup" dataIso={dataFollowup} />);
   }
 
   if (itens.length === 0) return null;

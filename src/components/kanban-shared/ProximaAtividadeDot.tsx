@@ -215,7 +215,7 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
         aria-label={semAtividade ? 'Definir próxima atividade' : `Próxima atividade: ${tooltipTitle}`}
         onClick={abrirPopover}
         onMouseDown={e => e.stopPropagation()}
-        className={`h-3 w-3 rounded-full border border-white/80 shadow-sm transition-transform hover:scale-125 focus:outline-none ${dotCls}`}
+        className={`h-3.5 w-3.5 rounded-full border border-white/80 shadow-sm transition-transform hover:scale-125 focus:outline-none ${dotCls}`}
       />
       {typeof document !== 'undefined' && popover
         ? createPortal(popover, document.body)
