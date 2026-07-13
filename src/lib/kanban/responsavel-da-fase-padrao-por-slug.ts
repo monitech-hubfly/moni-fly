@@ -180,15 +180,17 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   pl_p_projeto_aprovado: 'moni',
   pl_pagamentos: 'moni',
 
-  // Funil Projetos Locais
-  projetos_locais_iniciais: 'moni',
-  projetos_locais_estrutura: 'moni',
-  projetos_locais_infraestrutura: 'moni',
-  projetos_locais_compat1: 'moni',
-  projetos_locais_anteprojeto: 'moni',
-  projetos_locais_compat2: 'moni',
-  projetos_locais_executivo: 'moni',
-  projetos_locais_aprovacao: 'moni',
+  // Funil Projetos Locais (grupos 100–900)
+  pl_000_novo_projeto: 'moni',
+  pl_100_layout: 'moni',
+  pl_200_preparacao_terreno: 'moni',
+  pl_300_estruturas: 'moni',
+  pl_400_infraestrutura: 'moni',
+  pl_500_garagem: 'moni',
+  pl_600_piscina: 'moni',
+  pl_700_deck: 'moni',
+  pl_800_escada_pisantes: 'moni',
+  pl_900_paisagismo: 'moni',
   projetos_locais_concluido: 'moni',
 
   // Funil Projetos Legais

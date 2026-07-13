@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Award, Check, ChevronDown, ChevronRight, GraduationCap, LayoutDashboard, LayoutGrid, Lock, Shield } from 'lucide-react';
+import { Award, Check, ChevronDown, ChevronRight, GraduationCap, HelpCircle, LayoutDashboard, LayoutGrid, Lock, Shield } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getCasa0TudoConcluidoServer } from '@/lib/casa0-onboarding-setup';
 import { calcularProgressoGeral, getCasasComProgresso } from '@/lib/universidade/queries';
@@ -22,6 +22,14 @@ function isUniversidadePath(p: string) {
 
 function isAdminUniversidadePath(p: string) {
   return p === '/admin/universidade' || p.startsWith('/admin/universidade/');
+}
+
+function isFaqPath(p: string) {
+  return p === '/universidade/faq' || p.startsWith('/universidade/faq/');
+}
+
+function isAdminFaqPath(p: string) {
+  return p === '/admin/universidade/faq' || p.startsWith('/admin/universidade/faq/');
 }
 
 function isCasa0Path(p: string) {
@@ -176,6 +184,13 @@ export function SidebarUniversidadeLinks({
                 ) : null}
               </Link>
               <Link
+                href="/universidade/faq"
+                className={`flex items-center gap-2 ${linkClassSub(isFaqPath(pathname))}`}
+              >
+                <HelpCircle className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                FAQ
+              </Link>
+              <Link
                 href="/universidade/ferramentas"
                 className={`flex items-center gap-2 ${linkClassSub(ferramentasActive)}`}
               >
@@ -203,6 +218,15 @@ export function SidebarUniversidadeLinks({
                 </span>
               </Link>
               <Link
+                href="/universidade/faq"
+                className={`flex items-center gap-2 ${linkClassSub(isFaqPath(pathname))}`}
+              >
+                <span className="flex items-center gap-2">
+                  <HelpCircle className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                  FAQ
+                </span>
+              </Link>
+              <Link
                 href="/universidade/ferramentas"
                 className={`flex items-center gap-2 ${linkClassSub(ferramentasActive)}`}
               >
@@ -222,10 +246,17 @@ export function SidebarUniversidadeLinks({
               </Link>
               <Link
                 href="/admin/universidade"
-                className={`flex items-center gap-2 ${linkClassSub(isAdminUniversidadePath(pathname))}`}
+                className={`flex items-center gap-2 ${linkClassSub(isAdminUniversidadePath(pathname) && !isAdminFaqPath(pathname))}`}
               >
                 <Shield className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
                 Gestão
+              </Link>
+              <Link
+                href="/admin/universidade/faq"
+                className={`flex items-center gap-2 ${linkClassSub(isAdminFaqPath(pathname))}`}
+              >
+                <HelpCircle className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                Gestão FAQ
               </Link>
             </>
           )}
