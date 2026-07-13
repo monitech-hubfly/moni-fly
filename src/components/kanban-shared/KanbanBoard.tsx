@@ -266,6 +266,7 @@ export function KanbanBoard({
                   kanbanNome={kanbanNome}
                   hipotesesOrdemMin={hipotesesOrdemMin}
                   dragEnabled={podeMoverCards}
+                  fasesFunil={fasesAtivas}
                   isUltimaFaseAtiva={isUltimaFaseAtiva}
                   exibirAdicionarCard={isPrimeiraColuna && exibirBotaoNovoCard}
                   novoCardHref={novoCardHref}

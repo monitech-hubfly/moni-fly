@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowUpDown, MessageCircle, MoreHorizontal, Paperclip } from 'lucide-react';
-import { useRef, useState, useTransition, useEffect, useCallback, type DragEvent } from 'react';
+import { ArrowUpDown, MessageCircle, Paperclip } from 'lucide-react';
+import { useRef, useState, useTransition, useEffect, useCallback, useMemo, type DragEvent } from 'react';
 import {
   desvincularTagCard,
 } from '@/lib/actions/card-actions';
@@ -23,6 +23,7 @@ import {
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
+import { KanbanCardMenu } from './KanbanCardMenu';
 import { KanbanCardPrazoIndicadores } from './KanbanCardPrazoIndicadores';
 import { KanbanCardBoardTags } from './KanbanCardBoardTags';
 import { ResponsavelFaseAvatar } from './ResponsavelFaseAvatar';
@@ -56,6 +57,8 @@ export type KanbanColumnProps = {
   hipotesesOrdemMin?: number | null;
   /** Habilita arrastar cards entre fases e reordenar na coluna. */
   dragEnabled?: boolean;
+  /** Fases ativas do funil ordenadas por `ordem` — usado para o menu «Avançar fase». */
+  fasesFunil?: KanbanFase[];
   /** Contagem de comentários por card_id — quando fornecido, exibe balão no card. */
   comentariosCountPorCard?: Record<string, number>;
   /** Contagem de anexos Sirene por card_id — quando fornecido, exibe badge no card. */
@@ -175,6 +178,7 @@ export function KanbanColumn({
   kanbanNome,
   hipotesesOrdemMin = null,
   dragEnabled = false,
+  fasesFunil = [],
   isUltimaFaseAtiva = false,
   exibirAdicionarCard = false,
   novoCardHref = '',
@@ -226,6 +230,14 @@ export function KanbanColumn({
 
   const dndAtivo = dragEnabled && !pending;
   const subtituloFase = (fase.instrucoes ?? '').trim();
+
+  const proximaFaseFunil = useMemo(() => {
+    const candidatas = (fasesFunil ?? [])
+      .filter((f) => f.ativo !== false && f.ordem > fase.ordem)
+      .sort((a, b) => a.ordem - b.ordem);
+    const prox = candidatas[0];
+    return prox ? { id: prox.id, nome: prox.nome } : null;
+  }, [fasesFunil, fase.ordem]);
   const isFunding = kanbanId === KANBAN_IDS.FUNDING || kanbanId === KANBAN_IDS.MONI_CAPITAL;
 
   const abrirCard = (card: KanbanCardBrief) => {
@@ -711,14 +723,13 @@ export function KanbanColumn({
                         basePath={basePath}
                       />
                     ) : null}
-                    <button
-                      type="button"
-                      onClick={() => abrirCard(card)}
-                      className="moni-kanban-card-footer-menu"
-                      aria-label="Abrir card"
-                    >
-                      <MoreHorizontal className="h-4 w-4" aria-hidden />
-                    </button>
+                    <KanbanCardMenu
+                      cardId={card.id}
+                      origem={card.origem === 'legado' ? 'legado' : 'nativo'}
+                      basePath={basePath}
+                      kanbanNome={typeof kanbanNome === 'string' ? kanbanNome : undefined}
+                      proximaFase={proximaFaseFunil}
+                    />
                   </div>
                 </div>
               </div>

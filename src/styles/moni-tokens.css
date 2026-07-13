@@ -2636,6 +2636,125 @@
   color: var(--moni-text-primary);
 }
 
+/* Dropdown de ações do card (⋯) — Avançar fase / Arquivar */
+.moni-kanban-card-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--moni-surface-0);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+  box-shadow: var(--moni-shadow-card);
+  font-family: var(--moni-font-sans);
+}
+
+.moni-kanban-card-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: var(--moni-text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--moni-transition-fast), color var(--moni-transition-fast);
+}
+
+.moni-kanban-card-menu-item:hover:not(:disabled) {
+  background: var(--moni-surface-100);
+}
+
+.moni-kanban-card-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.moni-kanban-card-menu-item--danger {
+  color: var(--moni-status-overdue-text);
+}
+
+.moni-kanban-card-menu-item--danger:hover:not(:disabled) {
+  background: var(--moni-status-overdue-bg);
+}
+
+.moni-kanban-card-menu-arquivar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 8px 6px;
+}
+
+.moni-kanban-card-menu-label {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--moni-text-tertiary);
+}
+
+.moni-kanban-card-menu-select,
+.moni-kanban-card-menu-textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-sm);
+  background: var(--moni-surface-0);
+  color: var(--moni-text-primary);
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+}
+
+.moni-kanban-card-menu-textarea {
+  resize: vertical;
+}
+
+.moni-kanban-card-menu-erro {
+  margin: 0;
+  font-size: 11px;
+  color: var(--moni-status-overdue-text);
+}
+
+.moni-kanban-card-menu-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.moni-kanban-card-menu-btn {
+  flex: 1;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--moni-radius-sm);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-surface-0);
+  color: var(--moni-text-secondary);
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--moni-transition-fast), opacity var(--moni-transition-fast);
+}
+
+.moni-kanban-card-menu-btn:hover:not(:disabled) {
+  background: var(--moni-surface-100);
+}
+
+.moni-kanban-card-menu-btn--danger {
+  border-color: var(--moni-status-overdue-border);
+  background: var(--moni-status-overdue-bg);
+  color: var(--moni-status-overdue-text);
+}
+
+.moni-kanban-card-menu-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .moni-kanban-card-badges {
   position: absolute;
   top: 6px;
