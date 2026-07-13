@@ -56,8 +56,8 @@ function comparePrazoDentroTier(
     return pa.localeCompare(pb);
   }
   if (tier === 'hoje') return 0;
-  // Futura / sem prazo: prazo mais distante primeiro; nulls já tratados acima.
-  return pb.localeCompare(pa);
+  // Futura / sem prazo: prazo mais próximo primeiro; nulls já tratados acima.
+  return pa.localeCompare(pb);
 }
 
 /**
