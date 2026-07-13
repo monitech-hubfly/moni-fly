@@ -29,11 +29,10 @@ export function NovoCardMonINCModal({
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    const partes = [nomeParceiro.trim(), nomeCondominio.trim(), quadra.trim(), lote.trim()].filter(
-      Boolean,
-    );
+    // Título segue o padrão do cadastro: Loteador - Condomínio (contato entra após vincular o cadastro).
+    const partes = [nomeParceiro.trim(), nomeCondominio.trim()].filter(Boolean);
     setTituloPreview(partes.join(' - '));
-  }, [nomeParceiro, nomeCondominio, quadra, lote]);
+  }, [nomeParceiro, nomeCondominio]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,8 +48,7 @@ export function NovoCardMonINCModal({
     }
 
     const titulo =
-      tituloPreview.trim() ||
-      [parceiro, nomeCondominio.trim(), quadra.trim(), lote.trim()].filter(Boolean).join(' - ');
+      tituloPreview.trim() || [parceiro, nomeCondominio.trim()].filter(Boolean).join(' - ');
 
     setLoading(true);
     try {
