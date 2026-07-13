@@ -13,3 +13,6 @@ supabase/.temp/
 
 # Duplicata local do utilitário TypeScript (usar scripts/test-bastoes-prod.ts)
 scripts/test-bastoes-prod.mjs
+
+# Scripts locais de conveniência (não versionar)
+scripts/deploy-para-main.ps1
