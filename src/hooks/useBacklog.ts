@@ -122,7 +122,10 @@ export function useBacklog(): UseBacklogResult {
           .select('id, comportamento_chave, semana_ano_inicio, semana_ano_fim, origem, objetivo_id, hora_inicio, hora_fim')
           .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
           .is('data_conclusao_real', null)
-          .gte('semana_ano_fim', semanaAtual - 4),
+          .overlaps('semanas_selecionadas', [
+            semanaAtual - 4, semanaAtual - 3, semanaAtual - 2,
+            semanaAtual - 1, semanaAtual, semanaAtual + 1, semanaAtual + 2,
+          ]),
 
         areaPessoaId
           ? supabase
