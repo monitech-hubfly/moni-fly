@@ -30,8 +30,13 @@ function statusSirene(item: SireneItem): StatusPrazo {
   return 'futuro';
 }
 
+function semanaFimEfetiva(item: AtividadeItem): number | null {
+  if (item.semana_ano_fim != null) return item.semana_ano_fim;
+  return item.semanas_selecionadas.length ? Math.max(...item.semanas_selecionadas) : null;
+}
+
 function statusAtividade(item: AtividadeItem, semanaAtual: number): StatusPrazo {
-  const sf = item.semana_ano_fim;
+  const sf = semanaFimEfetiva(item);
   if (sf == null) return 'sem_prazo';
   if (sf < semanaAtual) return 'atrasado';
   if (sf === semanaAtual) return 'esta_semana';
@@ -154,8 +159,8 @@ function ColunaAtividades({ items, semanaAtual, onAbrirModal, onExpandir }: Colu
         <DraggableAtividade key={item.id} id={String(item.id)}>
           <BacklogColunaCard
             tipo="atividade"
-            titulo={item.comportamento_chave ?? '(sem título)'}
-            prazo={item.semana_ano_fim != null ? `S${item.semana_ano_fim}` : null}
+            titulo={item.nome_acao ?? '(sem título)'}
+            prazo={semanaFimEfetiva(item) != null ? `S${semanaFimEfetiva(item)}` : null}
             status={status}
           />
         </DraggableAtividade>
@@ -192,10 +197,10 @@ function ModalAtividadesExpandido({
   semanaAtual: number;
   onFechar: () => void;
 }) {
-  const atrasadas   = items.filter(i => i.semana_ano_fim != null && i.semana_ano_fim < semanaAtual);
-  const estaSemana  = items.filter(i => i.semana_ano_fim === semanaAtual);
-  const futuras     = items.filter(i => i.semana_ano_fim != null && i.semana_ano_fim > semanaAtual);
-  const semPrazo    = items.filter(i => i.semana_ano_fim == null);
+  const atrasadas   = items.filter(i => { const sf = semanaFimEfetiva(i); return sf != null && sf < semanaAtual; });
+  const estaSemana  = items.filter(i => semanaFimEfetiva(i) === semanaAtual);
+  const futuras     = items.filter(i => { const sf = semanaFimEfetiva(i); return sf != null && sf > semanaAtual; });
+  const semPrazo    = items.filter(i => semanaFimEfetiva(i) == null);
 
   const blocos = [
     { titulo: 'Atrasadas',   itens: atrasadas,  corClasse: 'text-red-600'   },
@@ -228,10 +233,10 @@ function ModalAtividadesExpandido({
                 {bloco.itens.map(item => (
                   <div key={item.id} className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2">
                     <div className="text-sm text-gray-800 leading-snug">
-                      {item.comportamento_chave ?? '(sem título)'}
+                      {item.nome_acao ?? '(sem título)'}
                     </div>
-                    {item.semana_ano_fim != null && (
-                      <div className="mt-0.5 text-[10px] text-gray-400">S{item.semana_ano_fim}</div>
+                    {semanaFimEfetiva(item) != null && (
+                      <div className="mt-0.5 text-[10px] text-gray-400">S{semanaFimEfetiva(item)}</div>
                     )}
                   </div>
                 ))}

@@ -20,9 +20,11 @@ export type SireneItem = {
 
 export type AtividadeItem = {
   id: string;
-  comportamento_chave: string | null;
+  nome_acao: string | null;
+  comportamento_chave: boolean;
   semana_ano_inicio: number | null;
   semana_ano_fim: number | null;
+  semanas_selecionadas: number[];
   origem: string | null;
   objetivo_id: string | null;
   hora_inicio: string | null;
@@ -119,7 +121,7 @@ export function useBacklog(): UseBacklogResult {
 
         supabase
           .from('gantt_planejamento')
-          .select('id, comportamento_chave, semana_ano_inicio, semana_ano_fim, origem, objetivo_id, hora_inicio, hora_fim')
+          .select('id, acao_id, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
           .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
           .is('data_conclusao_real', null)
           .overlaps('semanas_selecionadas', [
@@ -196,30 +198,38 @@ export function useBacklog(): UseBacklogResult {
 
       type AtivRaw = {
         id: string;
-        comportamento_chave: string | null;
+        acao_id: string | null;
+        comportamento_chave: boolean;
         semana_ano_inicio: number | null;
         semana_ano_fim: number | null;
+        semanas_selecionadas: number[] | null;
         origem: string | null;
         objetivo_id: string | null;
         hora_inicio: string | null;
         hora_fim: string | null;
+        acoes: { nome: string } | { nome: string }[] | null;
       };
 
-      const atividadesArr: AtividadeItem[] = ((atividadesRes.data ?? []) as AtivRaw[]).map(row => ({
-        id:                  row.id,
-        comportamento_chave: row.comportamento_chave,
-        semana_ano_inicio:   row.semana_ano_inicio,
-        semana_ano_fim:      row.semana_ano_fim,
-        origem:              row.origem,
-        objetivo_id:         row.objetivo_id,
-        hora_inicio:         row.hora_inicio,
-        hora_fim:            row.hora_fim,
-      }));
+      const atividadesArr: AtividadeItem[] = ((atividadesRes.data ?? []) as AtivRaw[]).map(row => {
+        const acaoObj = Array.isArray(row.acoes) ? row.acoes[0] : row.acoes;
+        return {
+          id:                    row.id,
+          nome_acao:             acaoObj?.nome ?? null,
+          comportamento_chave:   row.comportamento_chave ?? false,
+          semana_ano_inicio:     row.semana_ano_inicio,
+          semana_ano_fim:        row.semana_ano_fim,
+          semanas_selecionadas:  Array.isArray(row.semanas_selecionadas) ? row.semanas_selecionadas : [],
+          origem:                row.origem,
+          objetivo_id:           row.objetivo_id,
+          hora_inicio:           row.hora_inicio,
+          hora_fim:              row.hora_fim,
+        };
+      });
 
-      // Ordenação: semana_ano_fim ASC (mais antigas primeiro)
+      // Ordenação: semana_ano_fim ASC, com fallback para MAX(semanas_selecionadas)
       atividadesArr.sort((a, b) => {
-        const fa = a.semana_ano_fim ?? Infinity;
-        const fb = b.semana_ano_fim ?? Infinity;
+        const fa = a.semana_ano_fim ?? (a.semanas_selecionadas.length ? Math.max(...a.semanas_selecionadas) : Infinity);
+        const fb = b.semana_ano_fim ?? (b.semanas_selecionadas.length ? Math.max(...b.semanas_selecionadas) : Infinity);
         return fa - fb;
       });
 
