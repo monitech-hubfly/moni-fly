@@ -27,8 +27,12 @@ export function PainelFlowBoard({
   cardBasePath,
 }: Props) {
   return (
+    <section className="moni-kanban-shell relative min-w-0 w-full" aria-label="Quadro Kanban">
     <div className="moni-kanban-board-scroll w-full min-w-0">
-      <div className="moni-kanban-board flex flex-row flex-nowrap items-stretch">
+      <div
+        className="moni-kanban-board flex flex-row flex-nowrap items-stretch"
+        style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap' }}
+      >
         {PAINEL_FLOW_ROWS.map((row, rowIndex) => {
           const isParallel = row.type === 'parallel' && row.keys.length > 1;
           const keys = row.keys;
@@ -87,5 +91,6 @@ export function PainelFlowBoard({
         })}
       </div>
     </div>
+    </section>
   );
 }

@@ -282,7 +282,7 @@ export function CadastrosMoniCapitalTabela({
       </MoniTabelaScrollSync>
 
       <div
-        className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"
+        className="moni-tabela-footer flex flex-wrap items-center justify-between gap-3 border-t pt-3"
         style={{ borderColor: 'var(--moni-border-default)' }}
       >
         <p className="text-sm text-stone-600">

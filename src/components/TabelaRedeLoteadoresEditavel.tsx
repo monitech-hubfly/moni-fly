@@ -437,7 +437,7 @@ export function TabelaRedeLoteadoresEditavel({
         </table>
       </MoniTabelaScrollSync>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
+      <div className="moni-tabela-footer flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
         <p className="text-sm text-stone-600">
           Mostrando {rowsOrdenadas.length === 0 ? 0 : start + 1}–
           {Math.min(start + PER_PAGE, rowsOrdenadas.length)} de {rowsOrdenadas.length} loteador

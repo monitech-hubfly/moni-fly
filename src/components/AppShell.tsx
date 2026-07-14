@@ -36,11 +36,14 @@ export function AppShell({ user, userRole, children }: AppShellProps) {
 
   return (
     <AdminProvider accessRole={userRole}>
-      <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-row overflow-hidden bg-stone-50">
-        <PortalSidebar user={user} userRole={userRole} />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {/* Shell isolado: sidebar | main — evita colunas do Kanban vazarem sob o menu (regressão histórica). */}
+      <div className="moni-app-shell bg-stone-50">
+        <aside className="moni-app-sidebar">
+          <PortalSidebar user={user} userRole={userRole} />
+        </aside>
+        <div className="moni-app-main flex flex-col">
           {!hideGlobalHeader && <AppStickyHeader user={user} userRole={userRole} />}
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="moni-app-main-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
             {children}
           </div>
         </div>

@@ -363,7 +363,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   };
 
   return (
-    <div className="flex h-full min-h-0 w-56 shrink-0 flex-col border-r border-stone-200 bg-white">
+    <div className="flex h-full min-h-0 w-full flex-col border-r border-stone-200 bg-white">
       {/* Topo: logo + sino */}
       <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-stone-200 px-4">
         <Link href="/" className="text-lg font-semibold tracking-tight text-moni-primary hover:text-moni-secondary">

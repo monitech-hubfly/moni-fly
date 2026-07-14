@@ -555,12 +555,12 @@ export function TabelaRedeFranqueadosEditavel({
         </table>
       </MoniTabelaScrollSync>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
-        <p className="text-sm text-stone-600">
+      <div className="moni-tabela-footer flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--moni-border-default)] pt-3">
+        <p className="text-sm text-[color:var(--moni-text-secondary)]">
           Mostrando {start + 1}–{Math.min(start + PER_PAGE, rowsOrdenadas.length)} de {rowsOrdenadas.length}{' '}
           franqueado{rowsOrdenadas.length === 1 ? '' : 's'}
           {buscaAtiva && totalGeral > rowsOrdenadas.length ? (
-            <span className="text-stone-500"> (filtrado de {totalGeral})</span>
+            <span className="text-[color:var(--moni-text-tertiary)]"> (filtrado de {totalGeral})</span>
           ) : null}
         </p>
 
@@ -570,7 +570,7 @@ export function TabelaRedeFranqueadosEditavel({
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={safePage <= 1}
-              className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:pointer-events-none disabled:opacity-50"
+              className="min-h-[44px] rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-1.5 text-sm font-medium text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-50)] disabled:pointer-events-none disabled:opacity-50"
             >
               Anterior
             </button>
@@ -579,10 +579,10 @@ export function TabelaRedeFranqueadosEditavel({
                 key={p}
                 type="button"
                 onClick={() => setPage(p)}
-                className={`min-w-[2.25rem] rounded-lg border px-2 py-1.5 text-sm font-medium ${
+                className={`min-h-[44px] min-w-[2.25rem] rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] px-2 py-1.5 text-sm font-medium ${
                   p === safePage
-                    ? 'border-moni-primary bg-moni-primary text-white'
-                    : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
+                    ? 'border-[color:var(--moni-navy-800)] bg-[var(--moni-navy-800)] text-white'
+                    : 'border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-50)]'
                 }`}
               >
                 {p}
@@ -592,7 +592,7 @@ export function TabelaRedeFranqueadosEditavel({
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={safePage >= totalPages}
-              className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:pointer-events-none disabled:opacity-50"
+              className="min-h-[44px] rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-1.5 text-sm font-medium text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-50)] disabled:pointer-events-none disabled:opacity-50"
             >
               Próxima
             </button>

@@ -85,8 +85,12 @@ export function PainelCreditoClient({ byEtapa, initialOpenProcessId }: Props) {
         </select>
       </div>
 
+      <section className="moni-kanban-shell relative min-w-0 w-full" aria-label="Quadro Kanban">
       <div className="moni-kanban-board-scroll w-full min-w-0">
-        <div className="moni-kanban-board flex flex-row flex-nowrap items-stretch">
+        <div
+          className="moni-kanban-board flex flex-row flex-nowrap items-stretch"
+          style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap' }}
+        >
           <StepsKanbanColumn
             title={colCreditoTerreno?.title ?? 'Crédito Terreno'}
             subtitle={colCreditoTerreno?.subtitle}
@@ -111,6 +115,7 @@ export function PainelCreditoClient({ byEtapa, initialOpenProcessId }: Props) {
           />
         </div>
       </div>
+      </section>
     </>
   );
 }

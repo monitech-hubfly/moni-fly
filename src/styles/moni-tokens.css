@@ -2282,14 +2282,28 @@
 .moni-kanban-id--contab    { background: var(--moni-kanban-contab-light);    color: var(--moni-kanban-contab);    border-color: var(--moni-kanban-contab-accent); }
 .moni-kanban-id--credito   { background: var(--moni-kanban-credito-light);   color: var(--moni-kanban-credito);   border-color: var(--moni-kanban-credito-accent); }
 
+/* Shell do board — isola colunas dentro do main (nunca sob o sidebar) */
+.moni-kanban-shell {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  isolation: isolate;
+  contain: inline-size;
+}
+
 /* Kanban board — scroll horizontal com colunas largas */
 .moni-kanban-board-scroll {
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--moni-navy-200) var(--moni-surface-100);
   padding-bottom: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .moni-kanban-board-scroll::-webkit-scrollbar {
@@ -3451,15 +3465,21 @@
   color: var(--moni-navy-600);
 }
 
-/* Tabelas largas — scroll interno + bloco sticky no scroll da página */
+/* Tabelas largas — scroll interno (thead sticky). Sem sticky no wrap:
+   sticky + max-height≈viewport cobria a paginação irmã (números sumiam). */
 .moni-tabela-scroll-wrap {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  align-self: start;
+  position: relative;
+  z-index: 1;
+}
+
+.moni-tabela-footer {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  background: var(--moni-surface-50);
 }
 
 .moni-tabela-scroll-main {
@@ -3920,22 +3940,23 @@
     --moni-card-modal-max:   100vw;
   }
 
-  /* Kanban board: scroll horizontal → lista empilhada */
+  /* Kanban board: scroll horizontal → lista empilhada (só ≤640px) */
   .moni-kanban-board-scroll {
-    overflow-x: visible !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
   }
 
   .moni-kanban-board-scroll-hint {
     display: none !important;
   }
 
-  .moni-kanban-board,
+  .moni-kanban-shell .moni-kanban-board,
   .moni-kanban-board-scroll.flex,
   .moni-kanban-board-scroll > .flex {
     flex-direction: column !important;
     flex-wrap: nowrap !important;
-    overflow-x: visible !important;
-    min-width: 0;
+    min-width: 0 !important;
+    max-width: 100% !important;
   }
 
   .moni-kanban-column {

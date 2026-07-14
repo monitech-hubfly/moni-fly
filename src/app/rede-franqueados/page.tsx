@@ -94,9 +94,9 @@ export default async function RedeFranqueadosPage() {
 
   return (
 
-    <div className="min-h-screen bg-[var(--moni-surface-50)]">
+    <div className="min-h-0 bg-[var(--moni-surface-50)]">
 
-      <main className="mx-auto max-w-[1600px] px-6 py-8">
+      <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
 
         <header
 

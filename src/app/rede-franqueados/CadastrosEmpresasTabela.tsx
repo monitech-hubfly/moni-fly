@@ -545,7 +545,7 @@ export function CadastrosEmpresasTabela({
         </table>
       </MoniTabelaScrollSync>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
+      <div className="moni-tabela-footer flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
         <p className="text-sm text-stone-600">
           Mostrando {start + 1}–{Math.min(start + PER_PAGE, linhas.length)} de {linhas.length} franqueado
           {linhas.length === 1 ? '' : 's'}

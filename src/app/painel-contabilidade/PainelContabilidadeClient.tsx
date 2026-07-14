@@ -82,8 +82,12 @@ export function PainelContabilidadeClient({ byEtapa, initialOpenProcessId }: Pro
         </select>
       </div>
 
+      <section className="moni-kanban-shell relative min-w-0 w-full" aria-label="Quadro Kanban">
       <div className="moni-kanban-board-scroll w-full min-w-0">
-        <div className="moni-kanban-board flex flex-row flex-nowrap items-stretch">
+        <div
+          className="moni-kanban-board flex flex-row flex-nowrap items-stretch"
+          style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap' }}
+        >
           <StepsKanbanColumn
             title={colIncorp?.title ?? 'Abertura da Incorporadora'}
             subtitle={colIncorp?.subtitle}
@@ -119,6 +123,7 @@ export function PainelContabilidadeClient({ byEtapa, initialOpenProcessId }: Pro
           />
         </div>
       </div>
+      </section>
     </>
   );
 }

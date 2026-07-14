@@ -231,7 +231,7 @@ export function KanbanBoard({
         ) : null}
       </div>
 
-      <div className="relative min-w-0 w-full">
+      <section className="moni-kanban-shell relative min-w-0 w-full" aria-label="Quadro Kanban">
         {scrollHintLeft ? (
           <div
             aria-hidden
@@ -245,7 +245,10 @@ export function KanbanBoard({
           />
         ) : null}
         <div ref={boardScrollRef} className="moni-kanban-board-scroll w-full min-w-0">
-          <div className="moni-kanban-board flex flex-row flex-nowrap items-stretch">
+          <div
+            className="moni-kanban-board flex flex-row flex-nowrap items-stretch"
+            style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap' }}
+          >
             {fases.map((fase) => {
               const raw = rawByFase[fase.id] ?? [];
               const vis = cardsByFase[fase.id] ?? [];
@@ -275,7 +278,7 @@ export function KanbanBoard({
             })}
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
