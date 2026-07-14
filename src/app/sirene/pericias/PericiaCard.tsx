@@ -95,7 +95,7 @@ export default function PericiaCard({ pericia, posicao, onClick }: PericiaCardPr
       </div>
 
       {/* Título */}
-      <p className="text-sm font-medium text-gray-800 leading-snug line-clamp-2">
+      <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">
         {pericia.titulo}
       </p>
 
@@ -141,4 +141,6 @@ export default function PericiaCard({ pericia, posicao, onClick }: PericiaCardPr
       </p>
     </button>
   )
+
 }
+

@@ -78,7 +78,13 @@ export default async function PericiasPage() {
     console.error('[PericiasPage] erro ao buscar perícias:', error.message)
   }
 
-  const lista: Pericia[] = pericias ?? []
+  // Banco usa nome_pericia/numero; interface usa titulo/codigo — mapear
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lista: Pericia[] = (pericias ?? []).map((p: any) => ({
+    ...p,
+    titulo: p.nome_pericia ?? '',
+    codigo: p.numero ?? `P-${p.id}`,
+  }))
 
   const metricas: MetricasPericias = {
     total: lista.length,

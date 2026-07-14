@@ -18,10 +18,12 @@ import {
   Plus,
   Save,
   ChevronRight,
+  ChevronLeft,
   MessageSquare,
   PenLine,
   Pencil,
   Check,
+  UserCheck,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Pericia, PericiaStatus, PrioridadeLevel } from '@/app/sirene/pericias/page'
@@ -188,8 +190,11 @@ export default function PericiaDetalheModal({
   const [resolucaoAberta, setResolucaoAberta] = useState<number | null>(null)
   const [resolucaoTexto, setResolucaoTexto] = useState('')
 
-  // Avançar fase
+  // Avançar / voltar fase
   const [avancando, setAvancando] = useState(false)
+
+  // Atribuir responsável
+  const [atribuindoResp, setAtribuindoResp] = useState(false)
 
   // ── Busca de dados ──────────────────────────────────────────────────────────
 
@@ -229,8 +234,13 @@ export default function PericiaDetalheModal({
             .order('created_at', { ascending: true }),
         ])
 
+      // Banco usa nome_pericia/numero; interface usa titulo/codigo — mapear
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = pericia as any
       const completo: PericiaDetalhe = {
-        ...pericia,
+        ...raw,
+        titulo: raw.nome_pericia ?? raw.titulo ?? '',
+        codigo: raw.numero ?? raw.codigo ?? `P-${raw.id}`,
         acoes: acoes ?? [],
         chamados: chamados ?? [],
         carometro_itens: carometro_itens ?? [],
@@ -278,7 +288,8 @@ export default function PericiaDetalheModal({
     }
     await supabase
       .from('sirene_pericias')
-      .update({ titulo: tituloLocal.trim() })
+      // Coluna real no banco é nome_pericia (não titulo)
+      .update({ nome_pericia: tituloLocal.trim() })
       .eq('id', detalhe.id)
     setDetalhe((d) => (d ? { ...d, titulo: tituloLocal.trim() } : d))
     setEditandoTitulo(false)
@@ -294,6 +305,51 @@ export default function PericiaDetalheModal({
       .eq('id', detalhe.id)
     setDetalhe((d) => (d ? { ...d, causa_raiz: causaLocal } : d))
     setSalvandoCausa(false)
+    onUpdated?.()
+  }
+
+  async function voltarFase() {
+    if (!detalhe) return
+    const idx = FASE_INDEX[detalhe.status]
+    if (idx <= 0) return
+    const faseAnterior = FASES[idx - 1]
+    setAvancando(true)
+    await supabase
+      .from('sirene_pericias')
+      .update({
+        status: faseAnterior.key,
+        // Se estava concluída, limpa data_conclusao ao voltar
+        ...(detalhe.status === 'concluida' ? { data_conclusao: null } : {}),
+      })
+      .eq('id', detalhe.id)
+    await supabase.from('sirene_pericia_historico').insert({
+      pericia_id: detalhe.id,
+      descricao: `Voltou manualmente para "${faseAnterior.label}"`,
+      autor_nome: 'Sistema',
+    })
+    setAvancando(false)
+    await fetchDetalhe(detalhe.id)
+    onUpdated?.()
+  }
+
+  async function pegarParaMim() {
+    if (!detalhe) return
+    setAtribuindoResp(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setAtribuindoResp(false); return }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('nome, email')
+      .eq('id', user.id)
+      .single()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nome = (profile as any)?.nome ?? user.email ?? 'Responsável'
+    await supabase
+      .from('sirene_pericias')
+      .update({ responsavel_id: user.id, responsavel_nome: nome })
+      .eq('id', detalhe.id)
+    setDetalhe((d) => d ? { ...d, responsavel_id: user.id, responsavel_nome: nome } : d)
+    setAtribuindoResp(false)
     onUpdated?.()
   }
 
@@ -487,7 +543,18 @@ export default function PericiaDetalheModal({
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="text-xs text-gray-500">{detalhe.dominio}</span>
                 <span className="text-gray-300 text-xs">·</span>
-                <span className="text-xs text-gray-500">{detalhe.responsavel_nome}</span>
+                <span className="text-xs text-gray-500">
+                  {detalhe.responsavel_nome || <em className="text-gray-400">sem responsável</em>}
+                </span>
+                <button
+                  onClick={pegarParaMim}
+                  disabled={atribuindoResp}
+                  title="Atribuir esta perícia para mim"
+                  className="flex items-center gap-1 text-[11px] text-green-700 hover:text-green-800 border border-green-200 hover:border-green-400 bg-green-50 px-2 py-0.5 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <UserCheck className="h-3 w-3" />
+                  {atribuindoResp ? '...' : 'Pegar para mim'}
+                </button>
                 <span className="text-gray-300 text-xs">·</span>
                 <span className="text-xs text-gray-500">
                   desde {formatarData(detalhe.data_inicio)}
@@ -846,13 +913,28 @@ export default function PericiaDetalheModal({
         {/* ── FOOTER ─────────────────────────────────────────────────────── */}
         {detalhe && !loading && (
           <div className="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4 rounded-b-2xl flex items-center justify-between gap-4">
-            <button
-              onClick={onClose}
-              className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors"
-            >
-              Fechar
-            </button>
+            {/* Lado esquerdo: Fechar + Voltar fase */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onClose}
+                className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Fechar
+              </button>
 
+              {faseAtualIdx > 0 && (
+                <button
+                  onClick={voltarFase}
+                  disabled={avancando}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 px-3 py-2 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Voltar para {FASES[faseAtualIdx - 1]?.label}
+                </button>
+              )}
+            </div>
+
+            {/* Lado direito: Avançar ou Concluída */}
             {podeAvancar && (
               <button
                 onClick={avancarFase}
