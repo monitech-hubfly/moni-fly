@@ -1,10 +1,36 @@
 'use client';
 
+import { type ReactNode } from 'react';
+import { ExternalLink } from 'lucide-react';
+import { useDraggable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import { useBacklogKanban, KanbanCardItem } from '@/hooks/useBacklogKanban';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { tagSlaKanbanParaExibicao } from '@/lib/kanban/kanban-card-sla';
 
 import type { SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
+
+function DraggableKanbanCard({ card, children }: { card: KanbanCardItem; children: ReactNode }) {
+  const subtitulo = [card.kanban_nome, card.fase_nome].filter(Boolean).join(' / ');
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `kanban::${card.id}`,
+    data: { type: 'kanban', id: card.id, titulo: card.titulo ?? '', subtitulo },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        opacity: isDragging ? 0.4 : 1,
+        touchAction: 'none',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 function slaDotCor(sla: SlaKanbanResult | null): string {
   if (!sla || sla.status === 'ok') return 'bg-gray-400';
@@ -33,8 +59,7 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
 
   return (
     <div
-      className="rounded-md bg-white border border-gray-200 px-3 py-2 text-sm shadow-sm cursor-pointer hover:shadow-md hover:bg-gray-50 transition-all"
-      onClick={() => { window.location.href = href; }}
+      className="rounded-md bg-white border border-gray-200 px-3 py-2 text-sm shadow-sm transition-all"
     >
       {/* Título + estrela Especial + dot status */}
       <div className="flex items-start justify-between gap-1 min-w-0">
@@ -49,6 +74,14 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
             <span className="text-[11px]" title="Especial">⭐</span>
           )}
           <span className={`h-2 w-2 rounded-full ${slaDotCor(card.sla ?? null)}`} />
+          <a
+            href={href}
+            title="Abrir card"
+            onClick={(e) => e.stopPropagation()}
+            className="text-gray-300 hover:text-gray-500 transition-colors"
+          >
+            <ExternalLink className="h-3 w-3" />
+          </a>
         </div>
       </div>
 
@@ -148,7 +181,11 @@ export function BacklogKanbanColuna() {
         <EmptyState />
       ) : (
         <div className="flex flex-col gap-1.5 max-h-[22rem] overflow-y-auto pr-0.5">
-          {cards.map(card => <KanbanCard key={card.id} card={card} />)}
+          {cards.map(card => (
+            <DraggableKanbanCard key={card.id} card={card}>
+              <KanbanCard card={card} />
+            </DraggableKanbanCard>
+          ))}
         </div>
       )}
     </div>

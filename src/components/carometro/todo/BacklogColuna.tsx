@@ -1,5 +1,7 @@
 'use client';
 
+import { ExternalLink } from 'lucide-react';
+
 export type StatusPrazo = 'atrasado' | 'esta_semana' | 'futuro' | 'sem_prazo';
 
 type BacklogColunaProps = {
@@ -10,7 +12,7 @@ type BacklogColunaProps = {
   numeroChamado?: string | null;
   status: StatusPrazo;
   origemBadge?: string;
-  onClick?: () => void;
+  href?: string;
 };
 
 const BORDER_COLOR: Record<StatusPrazo, string> = {
@@ -71,7 +73,7 @@ export function BacklogColunaCard({
   numeroChamado,
   status,
   origemBadge,
-  onClick,
+  href,
 }: BacklogColunaProps) {
   const borderColor = BORDER_COLOR[status];
   const prazoLabel  = formatarPrazo(prazo, status);
@@ -79,11 +81,10 @@ export function BacklogColunaCard({
 
   return (
     <div
-      className="rounded-md bg-white border border-gray-200 px-3 py-2 text-sm shadow-sm cursor-pointer hover:shadow-md hover:bg-gray-50 transition-all"
+      className="rounded-md bg-white border border-gray-200 px-3 py-2 text-sm shadow-sm transition-all"
       style={{ borderLeft: `3px solid ${borderColor}` }}
-      onClick={onClick}
     >
-      {/* Linha 1: badge prioridade + título (máx 2 linhas) + dot status */}
+      {/* Linha 1: badge prioridade + título (máx 2 linhas) + dot status + link */}
       <div className="flex items-start justify-between gap-1.5 min-w-0">
         <div className="flex items-start gap-1.5 min-w-0 flex-1">
           {tipo === 'sirene' && badgeClass && (
@@ -98,7 +99,19 @@ export function BacklogColunaCard({
             {titulo}
           </span>
         </div>
-        <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${DOT_COR[status]}`} />
+        <div className="flex items-center gap-1 shrink-0 mt-1">
+          <span className={`h-2 w-2 rounded-full ${DOT_COR[status]}`} />
+          {href && (
+            <a
+              href={href}
+              title="Abrir origem"
+              onClick={(e) => e.stopPropagation()}
+              className="text-gray-300 hover:text-gray-500 transition-colors"
+            >
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
       </div>
       {/* Linha 2: badge origem + #número + prazo */}
       <div className={`mt-1 text-xs flex items-center gap-2 flex-wrap ${status === 'atrasado' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
