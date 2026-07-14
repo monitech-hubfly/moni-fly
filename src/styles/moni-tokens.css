@@ -248,6 +248,11 @@
   --moni-card-shadow:         0 2px 6px rgba(15, 23, 42, 0.04);
   --moni-card-shadow-hover:   0 10px 24px rgba(15, 23, 42, 0.08);
   --moni-card-title-size:     14px;                         /* título — elemento principal */
+  /* Compactação tipográfica do card fechado (pedido: line-height 1,0) */
+  --moni-card-lh:             1;
+  --moni-card-gap-section:    6px;                          /* FK→título, título→responsável */
+  --moni-card-gap-chips:      8px;                          /* responsável→chips */
+  --moni-card-gap-footer:     8px;                          /* chips→rodapé */
   /* Título: quase-preto premium (#111827). NÃO usar --moni-text-primary (#0c2633 navy)
      nem --moni-text-secondary (#4a3929 earth) — ambos parecem bordô/castanho no board. */
   --moni-card-title-color:    #111827;
@@ -2832,6 +2837,7 @@
   font-family: var(--moni-font-sans);
   font-size: 12px;
   font-weight: 600;
+  line-height: var(--moni-card-lh);
   letter-spacing: 0.02em;
   color: var(--moni-card-code-color);
 }
@@ -2841,7 +2847,7 @@
   font-family: var(--moni-font-sans);
   font-size: var(--moni-card-title-size);
   font-weight: var(--moni-weight-bold);
-  line-height: 1.35;
+  line-height: var(--moni-card-lh);
   letter-spacing: -0.01em;
   color: var(--moni-card-title-color);
   display: -webkit-box;
@@ -2850,9 +2856,9 @@
   overflow: hidden;
 }
 
-/* Gap header (código FK) → título = 12px */
+/* Gap header (código FK) → título */
 .moni-kanban-card-codigo + .moni-kanban-card-title {
-  margin-top: 12px;
+  margin-top: var(--moni-card-gap-section);
 }
 
 /*
@@ -2888,11 +2894,11 @@
 }
 
 .moni-kanban-card-subtitle {
-  margin: 10px 0 0;
+  margin: var(--moni-card-gap-section) 0 0;
   font-family: var(--moni-font-sans);
   font-size: 13px;
   font-weight: 400;
-  line-height: 1.35;
+  line-height: var(--moni-card-lh);
   color: var(--moni-card-resp-color);
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -3037,8 +3043,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--moni-card-gap-chips);
+  margin-top: var(--moni-card-gap-chips);
 }
 
 /* Chips minimalistas dentro do card fechado (escopo local — não afeta modal/pipeline)
@@ -3109,7 +3115,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 14px;
+  margin-top: var(--moni-card-gap-footer);
   min-height: 20px;
 }
 
