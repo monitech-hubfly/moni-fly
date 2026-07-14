@@ -248,7 +248,7 @@
   --moni-card-shadow:         0 2px 6px rgba(15, 23, 42, 0.04);
   --moni-card-shadow-hover:   0 10px 24px rgba(15, 23, 42, 0.08);
   --moni-card-title-size:     14px;                         /* título — elemento principal */
-  --moni-card-code-color:     #4b5563;                      /* código FK */
+  --moni-card-code-color:     var(--moni-text-tertiary);    /* código FK — nunca vermelho */
   --moni-card-resp-color:     #6b7280;                      /* responsável */
   --moni-card-avatar-bg:      var(--moni-green-50);         /* fallback verde claro */
 
@@ -257,13 +257,13 @@
   --moni-card-chip-especial-text: var(--moni-gold-800);
   --moni-card-chip-revisao-bg:    #f4f0ff;                  /* violeta suave */
   --moni-card-chip-revisao-text:  #7c3aed;
-  --moni-card-chip-prazo-bg:      #fef2f2;                  /* vermelho suave (SLA) */
-  --moni-card-chip-prazo-text:    #dc2626;
+  --moni-card-chip-prazo-bg:      var(--moni-status-overdue-bg);     /* tag SLA atrasada */
+  --moni-card-chip-prazo-text:    var(--moni-status-overdue-text);   /* só a tag, NÃO o título */
 
-  /* Linha lateral de status (3px, cantos arredondados) */
+  /* Linha lateral de status (3px; atrasado = 4px) */
   --moni-card-status-verde:    var(--moni-green-400);       /* no prazo */
   --moni-card-status-amarelo:  var(--moni-gold-400);        /* atenção */
-  --moni-card-status-vermelho: #dc2626;                     /* atrasado */
+  --moni-card-status-vermelho: var(--moni-status-overdue-border); /* atrasado */
   --moni-card-status-roxo:     #7c3aed;                     /* revisão */
   --moni-card-status-cinza:    #e2e8f0;                     /* sem informação */
 
@@ -2620,7 +2620,11 @@
 
 .moni-kanban-card--status-verde::before    { background: var(--moni-card-status-verde); }
 .moni-kanban-card--status-amarelo::before  { background: var(--moni-card-status-amarelo); }
-.moni-kanban-card--status-vermelho::before { background: var(--moni-card-status-vermelho); }
+.moni-kanban-card--status-vermelho::before,
+.moni-kanban-card--sla-atrasado::before {
+  width: 4px;
+  background: var(--moni-card-status-vermelho);
+}
 .moni-kanban-card--status-roxo::before     { background: var(--moni-card-status-roxo); }
 .moni-kanban-card--status-cinza::before    { background: var(--moni-card-status-cinza); }
 
@@ -2663,6 +2667,9 @@
   border: none;
   background: transparent;
   text-align: left;
+  /* Raiz de herança do texto do card: Verde Naval — impede qualquer ancestral
+     (ex.: status atrasado) de pintar título/código de vermelho via inherit. */
+  color: var(--moni-text-primary);
 }
 
 /* Menu «...» no rodapé do card (canto inferior direito, sempre visível) */
@@ -2823,14 +2830,14 @@
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--moni-card-code-color);
+  color: var(--moni-text-tertiary);
 }
 
 .moni-kanban-card-title {
   margin: 0;
   font-family: var(--moni-font-sans);
   font-size: var(--moni-card-title-size);
-  font-weight: 700;
+  font-weight: var(--moni-weight-bold);
   line-height: 1.35;
   letter-spacing: -0.01em;
   color: var(--moni-text-primary);

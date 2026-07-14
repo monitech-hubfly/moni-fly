@@ -648,13 +648,13 @@ export function KanbanColumn({
                       {codigoCard}
                     </span>
                   ) : null}
-                  <p
+                  <span
                     className={['moni-kanban-card-title', paddingTitulo]
                       .filter(Boolean)
                       .join(' ')}
                   >
                     {tituloLimpo}
-                  </p>
+                  </span>
                   {(() => {
                     const fundingBadgeCls = fundingTipoBadgeClass(card.funding_tipo);
                     return fundingBadgeCls ? (
