@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { CanetaVerdePericiaModal } from '@/components/carometro/CanetaVerdePericiaModal'
 import { registrarLog } from '@/hooks/useAuditLog'
 import { listarAreas } from '@/utils/areasOrder'
 import { useAdmin } from '@/context/AdminContext'
@@ -425,6 +426,7 @@ export default function Page() {
   /** true quando a coluna multiplicador_tipo ainda tem CHECK fixo (franks/cpnjs/leads) e bloqueia tipos novos. */
   const [migracaoMultiplicadorCheck, setMigracaoMultiplicadorCheck] = useState(false)
   const [salvandoCanetaId, setSalvandoCanetaId] = useState(null)
+  const [canetaVerdePericiaModal, setCanetaVerdePericiaModal] = useState<{ acaoId: string; acaoNome: string } | null>(null)
   const [indicadoresByTarefa, setIndicadoresByTarefa] = useState({})
   const [adicionandoIndicador, setAdicionandoIndicador] = useState(null)
   const [editandoIndicadorId, setEditandoIndicadorId] = useState(null)
@@ -2347,6 +2349,15 @@ ALTER TABLE indicadores
         acoes: (t.acoes || []).map(a => a.id === acaoId ? { ...a, caneta_verde: valor } : a)
       })))
       setCanetaLocal(prev => { const o = { ...prev }; delete o[acaoId]; return o })
+      // Abre popup de vínculo com perícia ao ativar caneta verde
+      if (valor === 'sim') {
+        let acaoNome: string = acaoId
+        for (const t of tarefas) {
+          const a = (t.acoes || []).find((x) => x.id === acaoId)
+          if (a) { acaoNome = a.nome || acaoId; break }
+        }
+        setCanetaVerdePericiaModal({ acaoId, acaoNome })
+      }
     }
     setSalvandoCanetaId(null)
   }
@@ -4334,6 +4345,16 @@ ALTER TABLE indicadores
           </div>
         </div>
       ) : null}
+
+      {/* Modal de vínculo com perícia ao ativar caneta verde */}
+      {canetaVerdePericiaModal && (
+        <CanetaVerdePericiaModal
+          itemTipo="acao"
+          itemId={canetaVerdePericiaModal.acaoId}
+          itemDescricao={canetaVerdePericiaModal.acaoNome}
+          onClose={() => setCanetaVerdePericiaModal(null)}
+        />
+      )}
 
     </div>
   )

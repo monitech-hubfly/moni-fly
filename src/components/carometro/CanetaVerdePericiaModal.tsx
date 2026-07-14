@@ -45,8 +45,8 @@ export function CanetaVerdePericiaModal({
         itemDescricao.trim() || 'Item caneta verde',
         franqueadoId,
       );
-      if (r.error) {
-        setErro(r.error);
+      if ('error' in r) {
+        setErro(r.error as string);
         return;
       }
       onClose();
