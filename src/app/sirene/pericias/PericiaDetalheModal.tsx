@@ -235,7 +235,6 @@ export default function PericiaDetalheModal({
         ])
 
       // Banco usa nome_pericia/numero; interface usa titulo/codigo — mapear
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw = pericia as any
       const completo: PericiaDetalhe = {
         ...raw,
@@ -342,7 +341,6 @@ export default function PericiaDetalheModal({
       .select('nome, email')
       .eq('id', user.id)
       .single()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nome = (profile as any)?.nome ?? user.email ?? 'Responsável'
     await supabase
       .from('sirene_pericias')

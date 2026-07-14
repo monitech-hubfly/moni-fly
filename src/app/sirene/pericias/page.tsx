@@ -79,7 +79,6 @@ export default async function PericiasPage() {
   }
 
   // Banco usa nome_pericia/numero; interface usa titulo/codigo — mapear
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const lista: Pericia[] = (pericias ?? []).map((p: any) => ({
     ...p,
     titulo: p.nome_pericia ?? '',
