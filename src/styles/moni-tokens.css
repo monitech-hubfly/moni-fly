@@ -2320,13 +2320,33 @@
   );
 }
 
+/* Desktop: SEMPRE fila horizontal (nunca column fora do mobile ≤640px).
+   flex-direction/row + nowrap explícitos evitam empilhar colunas à esquerda
+   se algum override acidental vazar (regressão histórica do board Portfólio). */
 .moni-kanban-board {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
   gap: 10px;
   padding: 14px 20px;
   background: var(--moni-kanban-board-bg);
   border-radius: var(--moni-radius-lg);
   min-width: max-content;
+}
+
+@media (min-width: 641px) {
+  .moni-kanban-board {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .moni-kanban-column {
+    flex-shrink: 0 !important;
+    width: var(--moni-column-width) !important;
+    min-width: var(--moni-column-width) !important;
+  }
 }
 
 /* Toolbar do board — filtros e busca */
