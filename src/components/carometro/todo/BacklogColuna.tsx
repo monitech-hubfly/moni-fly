@@ -20,6 +20,13 @@ const BORDER_COLOR: Record<StatusPrazo, string> = {
   sem_prazo:   '#9ca3af',
 };
 
+const DOT_COR: Record<StatusPrazo, string> = {
+  atrasado:    'bg-red-500',
+  esta_semana: 'bg-green-500',
+  futuro:      'bg-gray-400',
+  sem_prazo:   'bg-gray-400',
+};
+
 const BADGE_BG: Record<string, string> = {
   P1: 'bg-red-100 text-red-700',
   P2: 'bg-orange-100 text-orange-700',
@@ -76,19 +83,22 @@ export function BacklogColunaCard({
       style={{ borderLeft: `3px solid ${borderColor}` }}
       onClick={onClick}
     >
-      {/* Linha 1: badge prioridade + título (máx 2 linhas) */}
-      <div className="flex items-start gap-1.5 min-w-0">
-        {tipo === 'sirene' && badgeClass && (
-          <span className={`shrink-0 text-[10px] font-semibold px-1 py-0.5 rounded ${badgeClass}`}>
-            {prioridade!.toUpperCase()}
+      {/* Linha 1: badge prioridade + título (máx 2 linhas) + dot status */}
+      <div className="flex items-start justify-between gap-1.5 min-w-0">
+        <div className="flex items-start gap-1.5 min-w-0 flex-1">
+          {tipo === 'sirene' && badgeClass && (
+            <span className={`shrink-0 text-[10px] font-semibold px-1 py-0.5 rounded ${badgeClass}`}>
+              {prioridade!.toUpperCase()}
+            </span>
+          )}
+          <span
+            className="text-gray-800 leading-snug"
+            style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+          >
+            {titulo}
           </span>
-        )}
-        <span
-          className="text-gray-800 leading-snug"
-          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-        >
-          {titulo}
-        </span>
+        </div>
+        <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${DOT_COR[status]}`} />
       </div>
       {/* Linha 2: badge origem + #número + prazo */}
       <div className={`mt-1 text-xs flex items-center gap-2 flex-wrap ${status === 'atrasado' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>

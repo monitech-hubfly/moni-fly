@@ -75,6 +75,7 @@ export function useBacklogKanban(refreshKey = 0) {
           .select(`
             id, titulo, arquivado, concluido,
             created_at, entered_fase_at, sla_iniciado_em,
+            proxima_atividade, prazo_atividade,
             fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome),
             rede_franqueado:rede_franqueados(id, user_id)
@@ -89,6 +90,7 @@ export function useBacklogKanban(refreshKey = 0) {
             card:kanban_cards(
               id, titulo, arquivado, concluido,
               created_at, entered_fase_at, sla_iniciado_em,
+              proxima_atividade, prazo_atividade,
               fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
               kanban:kanbans(nome)
             )
@@ -104,6 +106,7 @@ export function useBacklogKanban(refreshKey = 0) {
             card:kanban_cards(
               id, titulo, arquivado, concluido,
               created_at, entered_fase_at, sla_iniciado_em,
+              proxima_atividade, prazo_atividade,
               fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
               kanban:kanbans(nome)
             )
@@ -149,6 +152,8 @@ export function useBacklogKanban(refreshKey = 0) {
       type CardBase = {
         id: string; titulo: string | null; arquivado: boolean; concluido: boolean;
         created_at: string; entered_fase_at: string | null; sla_iniciado_em: string | null;
+        proxima_atividade: string | null;
+        prazo_atividade: string | null;
         fase: FaseRel | FaseRel[] | null;
         kanban: KanbanRel | KanbanRel[] | null;
       };
@@ -164,12 +169,14 @@ export function useBacklogKanban(refreshKey = 0) {
         const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
         mapa.set(card.id, {
           id: card.id, titulo: card.titulo,
-          fase_nome:   fase?.nome   ?? null,
-          kanban_nome: kanban?.nome ?? null,
-          sla_dias:    fase?.sla_dias ?? null,
-          sla:         computeSla(card, fase ?? null),
-          origem: 'franqueado',
-          especial: especialSet.has(card.id),
+          fase_nome:         fase?.nome   ?? null,
+          kanban_nome:       kanban?.nome ?? null,
+          sla_dias:          fase?.sla_dias ?? null,
+          sla:               computeSla(card, fase ?? null),
+          origem:            'franqueado',
+          proxima_atividade: card.proxima_atividade,
+          prazo_atividade:   card.prazo_atividade,
+          especial:          especialSet.has(card.id),
         });
       });
 
@@ -187,12 +194,14 @@ export function useBacklogKanban(refreshKey = 0) {
         const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
         mapa.set(card.id, {
           id: card.id, titulo: card.titulo,
-          fase_nome:   fase?.nome   ?? null,
-          kanban_nome: kanban?.nome ?? null,
-          sla_dias:    fase?.sla_dias ?? null,
-          sla:         computeSla(card, fase ?? null),
-          origem: 'atividade',
-          especial: especialSet.has(card.id),
+          fase_nome:         fase?.nome   ?? null,
+          kanban_nome:       kanban?.nome ?? null,
+          sla_dias:          fase?.sla_dias ?? null,
+          sla:               computeSla(card, fase ?? null),
+          origem:            'atividade',
+          proxima_atividade: card.proxima_atividade,
+          prazo_atividade:   card.prazo_atividade,
+          especial:          especialSet.has(card.id),
         });
       });
 
@@ -209,12 +218,14 @@ export function useBacklogKanban(refreshKey = 0) {
         const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
         mapa.set(card.id, {
           id: card.id, titulo: card.titulo,
-          fase_nome:   fase?.nome   ?? null,
-          kanban_nome: kanban?.nome ?? null,
-          sla_dias:    fase?.sla_dias ?? null,
-          sla:         computeSla(card, fase ?? null),
-          origem: 'checklist',
-          especial: especialSet.has(card.id),
+          fase_nome:         fase?.nome   ?? null,
+          kanban_nome:       kanban?.nome ?? null,
+          sla_dias:          fase?.sla_dias ?? null,
+          sla:               computeSla(card, fase ?? null),
+          origem:            'checklist',
+          proxima_atividade: card.proxima_atividade,
+          prazo_atividade:   card.prazo_atividade,
+          especial:          especialSet.has(card.id),
         });
       });
 
