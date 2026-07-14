@@ -30,6 +30,12 @@ const EMPTY: DadosAgendamento = {
   recorrente: false, recorrencia_config: null, observacoes: null, tempo_estimado_horas: null,
 };
 
+export type OrigemInfo = {
+  titulo: string;
+  tipo: 'sirene' | 'pastelaria' | 'kanban';
+  subtitulo?: string;
+};
+
 export type ModalAgendamentoProps = {
   aberto: boolean;
   onFechar: () => void;
@@ -39,6 +45,7 @@ export type ModalAgendamentoProps = {
   profileId: string;
   areaId: string | null;
   isSaving?: boolean;
+  origemInfo?: OrigemInfo;
 };
 
 // ── Cabeçalho de seção colapsável ─────────────────────────────────────────────
@@ -67,7 +74,7 @@ function SecaoHeader({
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 export function ModalAgendamento({
-  aberto, onFechar, onSalvar, preenchido, modo, profileId, areaId, isSaving,
+  aberto, onFechar, onSalvar, preenchido, modo, profileId, areaId, isSaving, origemInfo,
 }: ModalAgendamentoProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -211,6 +218,21 @@ export function ModalAgendamento({
 
         {/* Body scrollável */}
         <div className="overflow-y-auto flex-1">
+
+          {/* Banner de origem (drag do backlog) */}
+          {origemInfo && (
+            <div className="flex items-start gap-2 px-4 py-2.5 bg-blue-50 border-b border-blue-100">
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-blue-500 mt-0.5">
+                {origemInfo.tipo === 'sirene' ? 'Sirene' : origemInfo.tipo === 'pastelaria' ? 'Pastelaria' : 'Kanban'}
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs text-blue-800 font-medium leading-snug truncate">{origemInfo.titulo}</p>
+                {origemInfo.subtitulo && (
+                  <p className="text-[10px] text-blue-500 leading-snug">{origemInfo.subtitulo}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Seção 1 — Comportamento */}
           <div className="border-b border-gray-100">

@@ -86,33 +86,38 @@ function ColunaSirene({ items, pastelariaItems = [] }: ColunaSireneProps) {
       {comStatus.map(({ item, status }) => {
         const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
         return (
-          <BacklogColunaCard
+          <DraggableSirene
             key={item.id}
-            tipo="sirene"
-            titulo={tituloExibir}
-            prazo={item.data_fim ?? item.prazo_proposto}
-            prioridade={item.prioridade}
-            numeroChamado={item.chamado_numero}
-            status={status}
-            origemBadge="Sirene"
-            onClick={() => {
-              const url = item.chamado_id
-                ? `/sirene/chamados?id=${item.chamado_id}`
-                : '/sirene/chamados';
-              window.location.href = url;
-            }}
-          />
+            dragId={`sirene::${item.id}`}
+            dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
+          >
+            <BacklogColunaCard
+              tipo="sirene"
+              titulo={tituloExibir}
+              prazo={item.data_fim ?? item.prazo_proposto}
+              prioridade={item.prioridade}
+              numeroChamado={item.chamado_numero}
+              status={status}
+              origemBadge="Sirene"
+              href={item.chamado_id ? `/sirene/chamados?id=${item.chamado_id}` : undefined}
+            />
+          </DraggableSirene>
         );
       })}
       {pastelariaItems.map(item => (
-        <BacklogColunaCard
+        <DraggableSirene
           key={item.id}
-          tipo="sirene"
-          titulo={item.nome}
-          prazo={null}
-          status={statusPastelaria(item)}
-          origemBadge="Pastelaria"
-        />
+          dragId={`pastelaria::${item.id}`}
+          dragData={{ type: 'pastelaria', id: item.id, titulo: item.nome }}
+        >
+          <BacklogColunaCard
+            tipo="sirene"
+            titulo={item.nome}
+            prazo={null}
+            status={statusPastelaria(item)}
+            origemBadge="Pastelaria"
+          />
+        </DraggableSirene>
       ))}
     </div>
   );
@@ -123,6 +128,31 @@ function DraggableAtividade({ id, children }: { id: string; children: ReactNode 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `atividade::${id}`,
     data: { type: 'atividade', id },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        opacity: isDragging ? 0.4 : 1,
+        touchAction: 'none',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+type DragSireneData =
+  | { type: 'sirene';    id: string; titulo: string; chamado_id: string | null }
+  | { type: 'pastelaria'; id: string; titulo: string };
+
+function DraggableSirene({ dragId, dragData, children }: { dragId: string; dragData: DragSireneData; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: dragId,
+    data: dragData,
   });
   return (
     <div
