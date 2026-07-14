@@ -3,10 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2, X } from 'lucide-react';
-import { atualizarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
+import {
+  atualizarRedeLoteador,
+  criarRedeLoteador,
+} from '@/app/rede-franqueados/rede-loteadores-actions';
 import { redeAlertError, redeAlertSuccess, redeBtnGhost, redeBtnPrimary } from '@/app/rede-franqueados/rede-ui';
 import { RedeLoteadorFichaForm } from '@/components/RedeLoteadorFichaForm';
 import {
+  emptyRedeLoteadorFichaDraft,
   redeLoteadorFichaDraftToPatch,
   redeLoteadorRowToFichaDraft,
   type RedeLoteadorFichaDraft,
@@ -14,18 +18,22 @@ import {
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
 
 type Props = {
-  row: RedeLoteadorRow;
+  /** Se omitido, abre em modo criação. */
+  row?: RedeLoteadorRow | null;
   onClose: () => void;
 };
 
-export function RedeLoteadorFichaModal({ row, onClose }: Props) {
+export function RedeLoteadorFichaModal({ row = null, onClose }: Props) {
   const router = useRouter();
-  const [draft, setDraft] = useState<RedeLoteadorFichaDraft>(() => redeLoteadorRowToFichaDraft(row));
+  const criar = !row;
+  const [draft, setDraft] = useState<RedeLoteadorFichaDraft>(() =>
+    row ? redeLoteadorRowToFichaDraft(row) : emptyRedeLoteadorFichaDraft('em_analise'),
+  );
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
   useEffect(() => {
-    setDraft(redeLoteadorRowToFichaDraft(row));
+    setDraft(row ? redeLoteadorRowToFichaDraft(row) : emptyRedeLoteadorFichaDraft('em_analise'));
   }, [row]);
 
   useEffect(() => {
@@ -39,7 +47,10 @@ export function RedeLoteadorFichaModal({ row, onClose }: Props) {
   const save = async () => {
     setSaving(true);
     setMsg(null);
-    const r = await atualizarRedeLoteador(row.id, redeLoteadorFichaDraftToPatch(draft));
+    const patch = redeLoteadorFichaDraftToPatch(draft);
+    const r = criar
+      ? await criarRedeLoteador(patch)
+      : await atualizarRedeLoteador(row!.id, patch);
     setSaving(false);
     if (!r.ok) {
       setMsg({ tipo: 'erro', texto: r.error });
@@ -65,9 +76,15 @@ export function RedeLoteadorFichaModal({ row, onClose }: Props) {
         <div className="flex items-start justify-between gap-3 border-b border-stone-200 px-5 py-4">
           <div>
             <h2 id="rede-loteador-ficha-titulo" className="text-lg font-semibold text-stone-900">
-              Ficha do loteador
+              {criar ? 'Novo loteador' : 'Ficha do loteador'}
             </h2>
-            <p className="mt-0.5 text-sm text-stone-600">{row.nome}</p>
+            <p className="mt-0.5 text-sm text-stone-600">
+              {criar
+                ? 'Preencha a ficha. O código (LT0001…) é gerado automaticamente ao salvar.'
+                : row?.codigo
+                  ? `${row.codigo} · ${row.nome}`
+                  : row?.nome}
+            </p>
           </div>
           <button
             type="button"
@@ -89,7 +106,7 @@ export function RedeLoteadorFichaModal({ row, onClose }: Props) {
           <RedeLoteadorFichaForm
             draft={draft}
             onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
-            sectionIdPrefix="modal-loteador"
+            sectionIdPrefix={criar ? 'novo-loteador' : 'modal-loteador'}
           />
         </div>
 
@@ -99,7 +116,7 @@ export function RedeLoteadorFichaModal({ row, onClose }: Props) {
           </button>
           <button type="button" onClick={() => void save()} disabled={saving} className={redeBtnPrimary}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            Salvar ficha
+            {criar ? 'Cadastrar loteador' : 'Salvar ficha'}
           </button>
         </div>
       </div>

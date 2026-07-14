@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Archive, Check, ClipboardList, Loader2, Pencil, X } from 'lucide-react';
+import { Archive, ClipboardList, ExternalLink } from 'lucide-react';
 import { RedeLoteadorFichaModal } from '@/components/RedeLoteadorFichaModal';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import {
@@ -11,86 +11,62 @@ import {
   type RedeLoteadorRow,
   type RedeLoteadorStatus,
 } from '@/lib/rede-loteadores';
-import { arquivarRedeLoteador, atualizarRedeLoteador, criarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
+import { arquivarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
 import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 import { redeAlertError, redeAlertSuccess, redeTh } from '@/app/rede-franqueados/rede-ui';
-import { UFS_BRASIL } from '@/lib/uf';
 
 const PER_PAGE = 15;
 
-type Draft = {
-  nome: string;
-  cnpj: string;
-  cidade: string;
-  estado: string;
-  contato_nome: string;
-  contato_telefone: string;
-  contato_email: string;
-  portfolio_descricao: string;
-  status: RedeLoteadorStatus;
+type FichaState = { mode: 'edit'; row: RedeLoteadorRow } | { mode: 'create' } | null;
+
+type SecaoColuna = {
+  key: string;
+  label: string;
+  minWidth?: string;
+  render: (r: RedeLoteadorRow) => React.ReactNode;
 };
 
-function emptyDraft(): Draft {
-  return {
-    nome: '',
-    cnpj: '',
-    cidade: '',
-    estado: '',
-    contato_nome: '',
-    contato_telefone: '',
-    contato_email: '',
-    portfolio_descricao: '',
-    status: 'ativo',
-  };
+type Secao = {
+  id: string;
+  titulo: string;
+  colunas: SecaoColuna[];
+};
+
+function formatDateBr(iso: string | null | undefined): string {
+  const s = (iso ?? '').trim().slice(0, 10);
+  if (!s) return '—';
+  const [y, m, d] = s.split('-');
+  if (!y || !m || !d) return s;
+  return `${d}/${m}/${y}`;
 }
 
-function rowToDraft(r: RedeLoteadorRow): Draft {
-  return {
-    nome: r.nome ?? '',
-    cnpj: r.cnpj ?? '',
-    cidade: r.cidade ?? '',
-    estado: r.estado ?? '',
-    contato_nome: r.contato_nome ?? '',
-    contato_telefone: r.contato_telefone ?? '',
-    contato_email: r.contato_email ?? '',
-    portfolio_descricao: r.portfolio_descricao ?? '',
-    status: r.status,
-  };
-}
-
-function draftToPatch(d: Draft) {
-  return {
-    nome: d.nome.trim(),
-    cnpj: d.cnpj.trim() || null,
-    cidade: d.cidade.trim() || null,
-    estado: d.estado.trim() || null,
-    contato_nome: d.contato_nome.trim() || null,
-    contato_telefone: d.contato_telefone.trim() || null,
-    contato_email: d.contato_email.trim() || null,
-    portfolio_descricao: d.portfolio_descricao.trim() || null,
-    status: d.status,
-  };
-}
-
-function formatCidadeEstado(cidade: string | null, estado: string | null): string {
-  const c = (cidade ?? '').trim();
-  const e = (estado ?? '').trim();
-  if (c && e) return `${c} / ${e}`;
-  return c || e || '—';
-}
-
-function formatContato(nome: string | null, telefone: string | null): string {
-  const n = (nome ?? '').trim();
-  const t = (telefone ?? '').trim();
-  if (n && t) return `${n} · ${t}`;
-  return n || t || '—';
-}
-
-function resumirPortfolio(text: string | null, max = 72): string {
-  const s = (text ?? '').trim();
+function cellText(value: string | number | null | undefined, max = 48): React.ReactNode {
+  if (value == null) return '—';
+  const s = String(value).trim();
   if (!s) return '—';
   if (s.length <= max) return s;
-  return `${s.slice(0, max - 1)}…`;
+  return <span title={s}>{`${s.slice(0, max - 1)}…`}</span>;
+}
+
+function cellAnexo(url: string | null | undefined): React.ReactNode {
+  const href = (url ?? '').trim();
+  if (!href) return '—';
+  const isUrl = /^https?:\/\//i.test(href);
+  if (!isUrl) {
+    return <span title={href}>{href.length > 28 ? `${href.slice(0, 27)}…` : href}</span>;
+  }
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 text-[var(--moni-navy-800)] hover:underline"
+      title={href}
+    >
+      Abrir
+      <ExternalLink className="h-3 w-3" aria-hidden />
+    </a>
+  );
 }
 
 function StatusBadge({ status }: { status: RedeLoteadorStatus }) {
@@ -106,7 +82,196 @@ function StatusBadge({ status }: { status: RedeLoteadorStatus }) {
   );
 }
 
-const inputCls = 'w-full min-w-0 rounded-md border border-stone-300 px-2 py-1 text-sm';
+const SECOES: Secao[] = [
+  {
+    id: 'identificacao',
+    titulo: 'Identificação',
+    colunas: [
+      {
+        key: 'codigo',
+        label: 'Código',
+        minWidth: '5.5rem',
+        render: (r) => (
+          <span className="font-mono text-xs text-stone-500">{r.codigo?.trim() || '—'}</span>
+        ),
+      },
+      { key: 'nome', label: 'Nome', minWidth: '10rem', render: (r) => cellText(r.nome, 40) },
+      { key: 'cnpj', label: 'CNPJ', minWidth: '8rem', render: (r) => cellText(r.cnpj) },
+      { key: 'cidade', label: 'Cidade', render: (r) => cellText(r.cidade) },
+      { key: 'estado', label: 'UF', minWidth: '3.5rem', render: (r) => cellText(r.estado) },
+      { key: 'contato_nome', label: 'Contato', render: (r) => cellText(r.contato_nome) },
+      { key: 'contato_telefone', label: 'Telefone', render: (r) => cellText(r.contato_telefone) },
+      { key: 'contato_email', label: 'E-mail', minWidth: '10rem', render: (r) => cellText(r.contato_email, 36) },
+      {
+        key: 'portfolio_descricao',
+        label: 'Portfólio',
+        minWidth: '12rem',
+        render: (r) => cellText(r.portfolio_descricao, 56),
+      },
+      { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+      {
+        key: 'observacoes',
+        label: 'Observações',
+        minWidth: '10rem',
+        render: (r) => cellText(r.observacoes, 48),
+      },
+    ],
+  },
+  {
+    id: 'parceiro',
+    titulo: 'Parceiro / interlocutor',
+    colunas: [
+      {
+        key: 'interlocutor_nome',
+        label: 'Responsável',
+        minWidth: '10rem',
+        render: (r) => cellText(r.interlocutor_nome),
+      },
+      { key: 'interlocutor_cargo', label: 'Cargo', render: (r) => cellText(r.interlocutor_cargo) },
+      {
+        key: 'interlocutor_telefone',
+        label: 'Telefone',
+        render: (r) => cellText(r.interlocutor_telefone),
+      },
+      {
+        key: 'interlocutor_email',
+        label: 'E-mail',
+        minWidth: '10rem',
+        render: (r) => cellText(r.interlocutor_email, 36),
+      },
+    ],
+  },
+  {
+    id: 'condominio',
+    titulo: 'Condomínio',
+    colunas: [
+      {
+        key: 'condominio_nome',
+        label: 'Nome',
+        minWidth: '10rem',
+        render: (r) => cellText(r.condominio_nome),
+      },
+      {
+        key: 'condominio_data_lancamento',
+        label: 'Lançamento / TVO',
+        render: (r) => formatDateBr(r.condominio_data_lancamento),
+      },
+      { key: 'condominio_cidade', label: 'Cidade', render: (r) => cellText(r.condominio_cidade) },
+      {
+        key: 'condominio_estado',
+        label: 'UF',
+        minWidth: '3.5rem',
+        render: (r) => cellText(r.condominio_estado ?? r.estado),
+      },
+      {
+        key: 'condominio_qtd_lotes',
+        label: 'Qtd. lotes',
+        render: (r) => cellText(r.condominio_qtd_lotes),
+      },
+      {
+        key: 'condominio_preco_lotes',
+        label: 'Preço lotes',
+        minWidth: '9rem',
+        render: (r) => cellText(r.condominio_preco_lotes, 40),
+      },
+      {
+        key: 'condominio_metragem_lotes',
+        label: 'Metragem lotes',
+        minWidth: '9rem',
+        render: (r) => cellText(r.condominio_metragem_lotes, 40),
+      },
+      {
+        key: 'condominio_preco_casas',
+        label: 'Preço casas',
+        minWidth: '9rem',
+        render: (r) => cellText(r.condominio_preco_casas, 40),
+      },
+      {
+        key: 'condominio_metragem_casas',
+        label: 'Metragem casas',
+        minWidth: '9rem',
+        render: (r) => cellText(r.condominio_metragem_casas, 40),
+      },
+      {
+        key: 'anexo_planta_cadastral',
+        label: 'Planta cadastral',
+        render: (r) => cellAnexo(r.anexo_planta_cadastral),
+      },
+      {
+        key: 'anexo_manual_obras',
+        label: 'Manual de obras',
+        render: (r) => cellAnexo(r.anexo_manual_obras),
+      },
+      {
+        key: 'anexo_casas_concorrentes',
+        label: 'Casas concorrentes',
+        render: (r) => cellAnexo(r.anexo_casas_concorrentes),
+      },
+    ],
+  },
+  {
+    id: 'carteira',
+    titulo: 'Venda e carteira',
+    colunas: [
+      {
+        key: 'carteira_lotes_disponiveis',
+        label: 'Disponíveis',
+        render: (r) => cellText(r.carteira_lotes_disponiveis),
+      },
+      {
+        key: 'carteira_lotes_vendidos_quitados',
+        label: 'Vendidos quitados',
+        render: (r) => cellText(r.carteira_lotes_vendidos_quitados),
+      },
+      {
+        key: 'carteira_carteira_curta_qtd',
+        label: 'Carteira curta (qtd)',
+        render: (r) => cellText(r.carteira_carteira_curta_qtd),
+      },
+      {
+        key: 'carteira_curta_financiamento',
+        label: 'Financ. curta',
+        minWidth: '10rem',
+        render: (r) => cellText(r.carteira_curta_financiamento, 40),
+      },
+      {
+        key: 'carteira_longa_qtd',
+        label: 'Carteira longa (qtd)',
+        render: (r) => cellText(r.carteira_longa_qtd),
+      },
+      {
+        key: 'carteira_longa_financiamento',
+        label: 'Financ. longa',
+        minWidth: '10rem',
+        render: (r) => cellText(r.carteira_longa_financiamento, 40),
+      },
+      {
+        key: 'anexo_tabela_precos',
+        label: 'Tabela de preços',
+        render: (r) => cellAnexo(r.anexo_tabela_precos),
+      },
+    ],
+  },
+  {
+    id: 'livre',
+    titulo: 'Campo livre',
+    colunas: [
+      {
+        key: 'campo_livre',
+        label: 'Informações adicionais',
+        minWidth: '14rem',
+        render: (r) => cellText(r.campo_livre, 72),
+      },
+      {
+        key: 'anexo_material_extra',
+        label: 'Material complementar',
+        render: (r) => cellAnexo(r.anexo_material_extra),
+      },
+    ],
+  },
+];
+
+const TOTAL_DATA_COLS = SECOES.reduce((acc, s) => acc + s.colunas.length, 0);
 
 type Props = {
   rows: RedeLoteadorRow[];
@@ -129,61 +294,18 @@ export function TabelaRedeLoteadoresEditavel({
     PER_PAGE,
     buscaResetKey,
   );
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
-  const [fichaRow, setFichaRow] = useState<RedeLoteadorRow | null>(null);
+  const [ficha, setFicha] = useState<FichaState>(null);
 
   const rowsOrdenadas = useMemo(() => ordenarRedeLoteadoresPorNome(rows), [rows]);
   const totalGeral = totalSemBusca ?? rows.length;
   const pageRows = useMemo(() => rowsOrdenadas.slice(start, start + PER_PAGE), [rowsOrdenadas, start]);
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setCreating(false);
-    setDraft(emptyDraft());
-    setMsg(null);
-  };
-
-  const beginEdit = (r: RedeLoteadorRow) => {
-    setMsg(null);
-    setCreating(false);
-    setEditingId(r.id);
-    setDraft(rowToDraft(r));
-  };
-
-  const beginCreate = () => {
-    setMsg(null);
-    setEditingId(null);
-    setCreating(true);
-    setDraft(emptyDraft());
-  };
+  const semLinhas = pageRows.length === 0;
 
   useEffect(() => {
-    if (solicitarCriacao > 0) beginCreate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- tick externo da toolbar
+    if (solicitarCriacao > 0) setFicha({ mode: 'create' });
   }, [solicitarCriacao]);
-
-  const save = async () => {
-    setSaving(true);
-    setMsg(null);
-    const patch = draftToPatch(draft);
-    const r = creating
-      ? await criarRedeLoteador(patch)
-      : editingId
-        ? await atualizarRedeLoteador(editingId, patch)
-        : { ok: false as const, error: 'Nenhuma linha em edição.' };
-    setSaving(false);
-    if (!r.ok) {
-      setMsg({ tipo: 'erro', texto: r.error });
-      return;
-    }
-    setMsg({ tipo: 'ok', texto: r.mensagem });
-    cancelEdit();
-    router.refresh();
-  };
 
   const arquivar = async (id: string) => {
     if (saving) return;
@@ -198,13 +320,8 @@ export function TabelaRedeLoteadoresEditavel({
       return;
     }
     setMsg({ tipo: 'ok', texto: 'Loteador arquivado.' });
-    if (editingId === id) cancelEdit();
     router.refresh();
   };
-
-  const busy = saving;
-  const emEdicao = creating || editingId !== null;
-  const semLinhas = pageRows.length === 0 && !creating;
 
   return (
     <div className="min-w-0 max-w-full space-y-4">
@@ -214,31 +331,48 @@ export function TabelaRedeLoteadoresEditavel({
         </div>
       ) : null}
 
+      <p className="text-xs text-stone-500">
+        Edição pela ficha completa. Role horizontalmente para ver todas as seções.
+      </p>
+
       <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
-        <table className="w-full min-w-[960px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[2200px] border-collapse text-left text-sm">
           <thead>
+            <tr className="border-b border-stone-200 bg-stone-100/90">
+              {SECOES.map((secao, idx) => (
+                <th
+                  key={secao.id}
+                  colSpan={secao.colunas.length}
+                  scope="colgroup"
+                  className={`px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-700 ${
+                    idx > 0 ? 'border-l border-stone-300' : ''
+                  }`}
+                >
+                  {secao.titulo}
+                </th>
+              ))}
+              <th
+                className="sticky right-0 z-20 w-28 min-w-[7rem] border-l border-stone-300 bg-stone-100 px-1 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-700"
+                scope="colgroup"
+              >
+                Ações
+              </th>
+            </tr>
             <tr className="border-b border-stone-200 bg-stone-50/95">
-              <th className={redeTh} scope="col">
-                Nome
-              </th>
-              <th className={redeTh} scope="col">
-                CNPJ
-              </th>
-              <th className={redeTh} scope="col">
-                Cidade / Estado
-              </th>
-              <th className={redeTh} scope="col">
-                Contato
-              </th>
-              <th className={`${redeTh} min-w-[12rem]`} scope="col">
-                Portfólio
-              </th>
-              <th className={redeTh} scope="col">
-                Status
-              </th>
-              <th className={`${redeTh} w-16 text-center`} scope="col">
-                Ficha
-              </th>
+              {SECOES.map((secao, idx) =>
+                secao.colunas.map((col, colIdx) => (
+                  <th
+                    key={col.key}
+                    className={`${redeTh} whitespace-nowrap ${
+                      idx > 0 && colIdx === 0 ? 'border-l border-stone-200' : ''
+                    }`}
+                    style={col.minWidth ? { minWidth: col.minWidth } : undefined}
+                    scope="col"
+                  >
+                    {col.label}
+                  </th>
+                )),
+              )}
               <th
                 className="sticky right-0 z-20 w-28 min-w-[7rem] border-l border-stone-200 bg-stone-50 px-1 py-2 text-center"
                 scope="col"
@@ -248,71 +382,46 @@ export function TabelaRedeLoteadoresEditavel({
             </tr>
           </thead>
           <tbody>
-            {creating ? (
-              <LoteadorEditRow
-                draft={draft}
-                setDraft={setDraft}
-                onSave={() => void save()}
-                onCancel={cancelEdit}
-                saving={busy}
-              />
-            ) : null}
-            {pageRows.map((r) => {
-              const isEditing = editingId === r.id;
-              if (isEditing) {
-                return (
-                  <LoteadorEditRow
-                    key={r.id}
-                    draft={draft}
-                    setDraft={setDraft}
-                    onSave={() => void save()}
-                    onCancel={cancelEdit}
-                    saving={busy}
-                  />
-                );
-              }
-              return (
+            {semLinhas ? (
+              <tr>
+                <td colSpan={TOTAL_DATA_COLS + 1} className="px-3 py-10 text-center text-sm text-stone-500">
+                  {buscaAtiva && totalGeral > 0
+                    ? 'Nenhum loteador encontrado para esta pesquisa.'
+                    : 'Nenhum loteador cadastrado ainda. Clique em “Novo Loteador” para adicionar o primeiro.'}
+                </td>
+              </tr>
+            ) : (
+              pageRows.map((r) => (
                 <tr key={r.id} className="group border-b border-stone-100 align-top hover:bg-stone-50/70">
-                  <td className="px-3 py-2.5 font-medium text-stone-900">{r.nome}</td>
-                  <td className="px-3 py-2.5 text-stone-700">{r.cnpj?.trim() || '—'}</td>
-                  <td className="px-3 py-2.5 text-stone-700">{formatCidadeEstado(r.cidade, r.estado)}</td>
-                  <td className="px-3 py-2.5 text-stone-700">{formatContato(r.contato_nome, r.contato_telefone)}</td>
-                  <td className="max-w-xs px-3 py-2.5 text-stone-700" title={r.portfolio_descricao ?? undefined}>
-                    {resumirPortfolio(r.portfolio_descricao)}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <StatusBadge status={r.status} />
-                  </td>
-                  <td className="px-2 py-2.5 text-center align-middle">
-                    <button
-                      type="button"
-                      title="Abrir ficha completa"
-                      onClick={() => setFichaRow(r)}
-                      disabled={emEdicao}
-                      className="inline-flex rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80 disabled:opacity-50"
-                    >
-                      <ClipboardList className="h-4 w-4" />
-                      <span className="sr-only">Ficha</span>
-                    </button>
-                  </td>
+                  {SECOES.map((secao, idx) =>
+                    secao.colunas.map((col, colIdx) => (
+                      <td
+                        key={`${r.id}-${col.key}`}
+                        className={`px-3 py-2.5 text-stone-700 ${
+                          col.key === 'nome' ? 'font-medium text-stone-900' : ''
+                        } ${idx > 0 && colIdx === 0 ? 'border-l border-stone-100' : ''}`}
+                      >
+                        {col.render(r)}
+                      </td>
+                    )),
+                  )}
                   <td className="sticky right-0 z-10 border-l border-stone-200 bg-white px-1 py-2 align-middle group-hover:bg-stone-50/90">
                     <div className="flex items-center justify-center gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
                       <button
                         type="button"
-                        title="Editar"
-                        onClick={() => beginEdit(r)}
-                        disabled={emEdicao}
-                        className="rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80 disabled:opacity-50"
+                        title="Abrir ficha completa"
+                        onClick={() => setFicha({ mode: 'edit', row: r })}
+                        className="inline-flex rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80"
                       >
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Editar</span>
+                        <ClipboardList className="h-4 w-4" />
+                        <span className="sr-only">Ficha</span>
                       </button>
                       {r.status !== 'inativo' ? (
                         <button
                           type="button"
                           title="Arquivar"
                           onClick={() => void arquivar(r.id)}
-                          disabled={emEdicao || busy}
+                          disabled={saving}
                           className="rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80 disabled:opacity-50"
                         >
                           <Archive className="h-4 w-4" />
@@ -322,25 +431,17 @@ export function TabelaRedeLoteadoresEditavel({
                     </div>
                   </td>
                 </tr>
-              );
-            })}
-            {semLinhas ? (
-              <tr>
-                <td colSpan={8} className="px-3 py-10 text-center text-sm text-stone-500">
-                  {buscaAtiva && totalGeral > 0
-                    ? 'Nenhum loteador encontrado para esta pesquisa.'
-                    : 'Nenhum loteador cadastrado ainda. Clique em “Novo Loteador” para adicionar o primeiro.'}
-                </td>
-              </tr>
-            ) : null}
+              ))
+            )}
           </tbody>
         </table>
       </MoniTabelaScrollSync>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
         <p className="text-sm text-stone-600">
-          Mostrando {rowsOrdenadas.length === 0 ? 0 : start + 1}–{Math.min(start + PER_PAGE, rowsOrdenadas.length)} de{' '}
-          {rowsOrdenadas.length} loteador{rowsOrdenadas.length === 1 ? '' : 'es'}
+          Mostrando {rowsOrdenadas.length === 0 ? 0 : start + 1}–
+          {Math.min(start + PER_PAGE, rowsOrdenadas.length)} de {rowsOrdenadas.length} loteador
+          {rowsOrdenadas.length === 1 ? '' : 'es'}
           {buscaAtiva && totalGeral > rowsOrdenadas.length ? (
             <span className="text-stone-500"> (filtrado de {totalGeral})</span>
           ) : null}
@@ -381,127 +482,10 @@ export function TabelaRedeLoteadoresEditavel({
         ) : null}
       </div>
 
-      {fichaRow ? <RedeLoteadorFichaModal row={fichaRow} onClose={() => setFichaRow(null)} /> : null}
+      {ficha?.mode === 'edit' ? (
+        <RedeLoteadorFichaModal row={ficha.row} onClose={() => setFicha(null)} />
+      ) : null}
+      {ficha?.mode === 'create' ? <RedeLoteadorFichaModal onClose={() => setFicha(null)} /> : null}
     </div>
-  );
-}
-
-function LoteadorEditRow({
-  draft,
-  setDraft,
-  onSave,
-  onCancel,
-  saving,
-}: {
-  draft: Draft;
-  setDraft: React.Dispatch<React.SetStateAction<Draft>>;
-  onSave: () => void;
-  onCancel: () => void;
-  saving: boolean;
-}) {
-  return (
-    <tr className="border-b border-stone-200 bg-stone-50/80 align-top">
-      <td className="px-3 py-2">
-        <input
-          type="text"
-          value={draft.nome}
-          onChange={(e) => setDraft((d) => ({ ...d, nome: e.target.value }))}
-          className={inputCls}
-          placeholder="Nome *"
-        />
-      </td>
-      <td className="px-3 py-2">
-        <input
-          type="text"
-          value={draft.cnpj}
-          onChange={(e) => setDraft((d) => ({ ...d, cnpj: e.target.value }))}
-          className={inputCls}
-        />
-      </td>
-      <td className="px-3 py-2">
-        <div className="flex gap-1">
-          <input
-            type="text"
-            value={draft.cidade}
-            onChange={(e) => setDraft((d) => ({ ...d, cidade: e.target.value }))}
-            className={inputCls}
-            placeholder="Cidade"
-          />
-          <select
-            value={draft.estado}
-            onChange={(e) => setDraft((d) => ({ ...d, estado: e.target.value }))}
-            className={`${inputCls} max-w-[4.5rem]`}
-          >
-            <option value="">UF</option>
-            {UFS_BRASIL.map((uf) => (
-              <option key={uf.sigla} value={uf.sigla}>
-                {uf.sigla}
-              </option>
-            ))}
-          </select>
-        </div>
-      </td>
-      <td className="px-3 py-2">
-        <input
-          type="text"
-          value={draft.contato_nome}
-          onChange={(e) => setDraft((d) => ({ ...d, contato_nome: e.target.value }))}
-          className={`${inputCls} mb-1`}
-          placeholder="Nome contato"
-        />
-        <input
-          type="text"
-          value={draft.contato_telefone}
-          onChange={(e) => setDraft((d) => ({ ...d, contato_telefone: e.target.value }))}
-          className={inputCls}
-          placeholder="Telefone"
-        />
-      </td>
-      <td className="px-3 py-2">
-        <textarea
-          rows={3}
-          value={draft.portfolio_descricao}
-          onChange={(e) => setDraft((d) => ({ ...d, portfolio_descricao: e.target.value }))}
-          className={`${inputCls} resize-y`}
-          placeholder="Descrição do portfólio"
-        />
-      </td>
-      <td className="px-3 py-2">
-        <select
-          value={draft.status}
-          onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as RedeLoteadorStatus }))}
-          className={inputCls}
-        >
-          {(Object.keys(REDE_LOTEADOR_STATUS_LABEL) as RedeLoteadorStatus[]).map((s) => (
-            <option key={s} value={s}>
-              {REDE_LOTEADOR_STATUS_LABEL[s]}
-            </option>
-          ))}
-        </select>
-      </td>
-      <td className="px-2 py-2 text-center text-stone-400">—</td>
-      <td className="sticky right-0 border-l border-stone-200 bg-stone-50 px-1 py-2 align-middle">
-        <div className="flex items-center justify-center gap-1">
-          <button
-            type="button"
-            title="Salvar"
-            onClick={onSave}
-            disabled={saving}
-            className="rounded-md bg-moni-primary p-1.5 text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          </button>
-          <button
-            type="button"
-            title="Cancelar"
-            onClick={onCancel}
-            disabled={saving}
-            className="rounded-md border border-stone-300 bg-white p-1.5 text-stone-700 hover:bg-stone-100 disabled:opacity-50"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      </td>
-    </tr>
   );
 }

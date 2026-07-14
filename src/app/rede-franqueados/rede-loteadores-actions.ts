@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeAccessRole } from '@/lib/authz';
+import { getNextCodigoLoteador } from '@/lib/next-codigo-loteador';
 import type { RedeLoteadorPatch, RedeLoteadorStatus } from '@/lib/rede-loteadores';
 
 type Ok = { ok: true; mensagem: string; id?: string };
@@ -92,9 +93,11 @@ export async function criarRedeLoteador(patch: RedeLoteadorPatch): Promise<Ok | 
     return { ok: false, error: 'Status inválido.' };
   }
 
+  const codigo = await getNextCodigoLoteador(gate.supabase);
+
   const { data, error } = await gate.supabase
     .from('rede_loteadores')
-    .insert({ ...row, criado_por: gate.userId, updated_at: new Date().toISOString() } as never)
+    .insert({ ...row, codigo, criado_por: gate.userId, updated_at: new Date().toISOString() } as never)
     .select('id')
     .single();
 

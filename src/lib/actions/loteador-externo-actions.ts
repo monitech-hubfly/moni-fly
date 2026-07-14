@@ -18,6 +18,7 @@ import {
   type RedeLoteadorFichaDraft,
 } from '@/lib/rede-loteador-ficha-draft';
 import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
+import { getNextCodigoLoteador } from '@/lib/next-codigo-loteador';
 import { criarRedeLoteador, atualizarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
 import type { RedeLoteadorChecklistModo } from '@/lib/actions/kanban-rede-loteador-checklist';
 import { sincronizarTituloCardLoteadores } from '@/lib/kanban/loteadores-card-titulo';
@@ -175,10 +176,12 @@ export async function salvarFichaLoteadorExterna(input: {
   let redeLoteadorId = info.rede_loteador_id ?? '';
 
   if (!redeLoteadorId) {
+    const codigo = await getNextCodigoLoteador(admin as never);
     const { data: inserted, error } = await admin
       .from('rede_loteadores')
       .insert({
         ...patch,
+        codigo,
         status: patch.status ?? 'em_analise',
         condominio_estado: patch.estado ?? null,
         updated_at: now,

@@ -19,6 +19,7 @@ import type { MoniCapitalCadastroRow } from '@/lib/moni-capital-cadastros';
 
 export const REDE_LOTEADOR_CSV_HEADERS = [
   'id',
+  'codigo',
   'nome',
   'cnpj',
   'cidade',
@@ -73,6 +74,7 @@ export const CADASTRO_EMPRESAS_CSV_HEADERS = [
 export function csvRedeLoteadores(rows: RedeLoteadorRow[]): string {
   const data = rows.map((r) => ({
     id: r.id,
+    codigo: r.codigo ?? '',
     nome: r.nome ?? '',
     cnpj: r.cnpj ?? '',
     cidade: r.cidade ?? '',

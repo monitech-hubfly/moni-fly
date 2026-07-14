@@ -12,6 +12,7 @@ import {
 import type { FranqueadoEmpresaStatus } from '@/lib/franqueado-empresas';
 import { criarCadastroMoniCapital, verificarDuplicataMoniCapital } from '@/lib/moni-capital-cadastros-actions';
 import type { RedeLoteadorStatus } from '@/lib/rede-loteadores';
+import { getNextCodigoLoteador } from '@/lib/next-codigo-loteador';
 import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
 
 type Ok = { ok: true; mensagem: string };
@@ -74,6 +75,7 @@ function chaveCondominio(row: Record<string, string>): string | null {
 }
 
 const LOTEADOR_CSV_COLS = [
+  'codigo',
   'nome',
   'cnpj',
   'cidade',
@@ -135,6 +137,9 @@ export async function importarRedeLoteadoresCSV(csvText: string): Promise<CsvRes
     data.criado_por = gate.userId;
     data.updated_at = new Date().toISOString();
     if (!data.status) data.status = 'ativo';
+    if (!String(data.codigo ?? '').trim()) {
+      data.codigo = await getNextCodigoLoteador(gate.supabase);
+    }
 
     const { error } = await gate.supabase.from('rede_loteadores').insert(data as never);
     if (error) return { ok: false, error: error.message };
