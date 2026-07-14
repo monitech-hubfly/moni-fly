@@ -247,7 +247,8 @@
   --moni-card-pad:            14px;                         /* padding interno */
   --moni-card-shadow:         0 2px 6px rgba(15, 23, 42, 0.04);
   --moni-card-shadow-hover:   0 10px 24px rgba(15, 23, 42, 0.08);
-  --moni-card-title-size:     14px;                         /* título — elemento principal */
+  /* Mesmo font-size do título da coluna/fase (.moni-kanban-column-title) */
+  --moni-card-title-size:     11px;
   /* Compactação tipográfica do card fechado (pedido: line-height 1,0) */
   --moni-card-lh:             1;
   --moni-card-gap-section:    6px;                          /* FK→título, título→responsável */
@@ -2441,7 +2442,7 @@
 .moni-kanban-column-title {
   margin: 0;
   font-family: var(--moni-font-sans);
-  font-size: 11px;
+  font-size: var(--moni-card-title-size); /* compartilhado com título do card fechado */
   font-weight: var(--moni-weight-bold);
   line-height: 1.3;
   color: var(--moni-kanban-drawer-header-text);
