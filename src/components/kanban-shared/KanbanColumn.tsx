@@ -619,7 +619,7 @@ export function KanbanColumn({
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                data-card-title-v3="1"
+                data-card-title-v4="1"
               >
                 {hasBadge || hasAvatar ? (
                   <div className="moni-kanban-card-badges">
@@ -658,7 +658,7 @@ export function KanbanColumn({
                       .filter(Boolean)
                       .join(' ')}
                     style={{ color: 'var(--moni-card-title-color)', fontWeight: 700 }}
-                    data-card-title-v3="1"
+                    data-card-title-v4="1"
                   >
                     {tituloLimpo}
                   </span>

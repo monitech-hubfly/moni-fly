@@ -247,8 +247,11 @@
   --moni-card-pad:            14px;                         /* padding interno */
   --moni-card-shadow:         0 2px 6px rgba(15, 23, 42, 0.04);
   --moni-card-shadow-hover:   0 10px 24px rgba(15, 23, 42, 0.08);
-  /* Mesmo font-size do título da coluna/fase (.moni-kanban-column-title) */
-  --moni-card-title-size:     11px;
+  /* Fonte compartilhada: .moni-kanban-column-title + .moni-kanban-card-title (+ responsável).
+     Chrome: fase e card já computavam 11px iguais, mas 11px ficou menor que FK (12) e
+     responsável (13) — título do card parecia menor que “Acoplamento”. Token = 14px
+     (tamanho original do título premium do card) para fase, título e responsável. */
+  --moni-card-title-size:     14px;
   /* Compactação tipográfica do card fechado (pedido: line-height 1,0) */
   --moni-card-lh:             1;
   --moni-card-gap-section:    6px;                          /* FK→título, título→responsável */
@@ -2871,9 +2874,9 @@
   margin: 0;
   font-family: var(--moni-font-sans);
   font-size: var(--moni-card-title-size); /* = .moni-kanban-column-title */
-  font-weight: var(--moni-weight-bold);
+  font-weight: 700; /* negrito explícito — token bold=600 fica leve demais vs fase */
   line-height: var(--moni-card-lh); /* 1 */
-  letter-spacing: -0.01em;
+  letter-spacing: normal; /* sem -0.01em — tamanho óptico = fase */
   color: var(--moni-card-title-color);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -2887,17 +2890,17 @@
 }
 
 /*
- * cache-bust v3 (2026-07-14): título SEMPRE #111827 negrito — nunca overdue/earth/navy.
- * data-card-title-v3 no card + no span; classes fixas (sem sla.status no className).
+ * cache-bust v4 (2026-07-14): título SEMPRE #111827 negrito — font-size = fase (14px).
+ * data-card-title-v4 no card + no span; classes fixas (sem sla.status no className).
  * NÃO existe moni-kanban-card-title--atrasado. Chip SLA / faixa lateral podem ficar vermelhos.
  */
 .moni-kanban-card .moni-kanban-card-title,
 .moni-kanban-card .moni-kanban-card-title--neutral,
 .moni-kanban-card .moni-kanban-card-open .moni-kanban-card-title,
 .moni-kanban-card .moni-kanban-card-open .moni-kanban-card-title--neutral,
-.moni-kanban-card[data-card-title-v3] .moni-kanban-card-title,
-.moni-kanban-card[data-card-title-v3] .moni-kanban-card-title--neutral,
-.moni-kanban-card-title[data-card-title-v3],
+.moni-kanban-card[data-card-title-v4] .moni-kanban-card-title,
+.moni-kanban-card[data-card-title-v4] .moni-kanban-card-title--neutral,
+.moni-kanban-card-title[data-card-title-v4],
 .moni-kanban-card--status-vermelho .moni-kanban-card-title,
 .moni-kanban-card--status-vermelho .moni-kanban-card-title--neutral,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-title,
@@ -2912,8 +2915,10 @@
 .moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-title--neutral,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-title--neutral {
   color: #111827 !important; /* literal — ignora token se alguém redefinir overdue no :root */
+  font-size: var(--moni-card-title-size) !important; /* = título da fase */
   font-weight: 700 !important;
   line-height: 1 !important;
+  letter-spacing: normal !important;
 }
 
 /* Código FK sempre cinza premium — nunca overdue-text / castanho / vermelho. */
@@ -2930,7 +2935,7 @@
 .moni-kanban-card-subtitle {
   margin: var(--moni-card-gap-section) 0 0;
   font-family: var(--moni-font-sans);
-  font-size: 13px;
+  font-size: var(--moni-card-title-size); /* mesmo size do título da fase / título do card */
   font-weight: 400;
   line-height: var(--moni-card-lh);
   color: var(--moni-card-resp-color);
