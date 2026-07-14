@@ -1,8 +1,7 @@
 // app/sirene/pericias/page.tsx
 // Server Component — busca dados e passa para o Client
 
-import { cookies } from 'next/headers'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/lib/supabase/server'
 import PericiasBoardClient from './PericiasBoardClient'
 
 export const dynamic = 'force-dynamic'
@@ -68,7 +67,7 @@ const DOMINIOS = [
 // ─── Server Component ─────────────────────────────────────────────────────────
 
 export default async function PericiasPage() {
-  const supabase = createServerComponentClient({ cookies })
+  const supabase = await createClient()
 
   const { data: pericias, error } = await supabase
     .from('sirene_pericias')

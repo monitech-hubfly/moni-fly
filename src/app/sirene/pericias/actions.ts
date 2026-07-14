@@ -1,7 +1,6 @@
 'use server'
 
-import { createServerActionClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createClient as createSupabaseServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 // ---------------------------------------------------------------------------
@@ -104,15 +103,15 @@ type ActionResult<T> = { data: T } | { error: string }
 // ---------------------------------------------------------------------------
 // Helper: cria cliente Supabase para Server Actions
 // ---------------------------------------------------------------------------
-function createClient() {
-  return createServerActionClient({ cookies })
+async function createClient() {
+  return createSupabaseServerClient()
 }
 
 // ---------------------------------------------------------------------------
 // Helper interno: busca usuário autenticado
 // ---------------------------------------------------------------------------
 async function getAuthUser() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const {
     data: { user },
     error,
@@ -131,7 +130,7 @@ export async function criarPericia(
   payload: CriarPericiaPayload
 ): Promise<ActionResult<Pericia>> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const user = await getAuthUser()
 
     // Insere a perícia
@@ -165,9 +164,9 @@ export async function criarPericia(
         pericia_id: pericia.id,
         fase_nova: 'rascunho',
         observacao: payload.observacoes
-          ? `Perícia criada. ${payload.observacoes}`
-          : 'Perícia criada',
-        criado_por: user.id,
+          ? `Pericia criada. ${payload.observacoes}`
+          : 'Pericia criada',
+        user_id: user.id,
       })
 
     if (histError) {
@@ -202,7 +201,7 @@ export async function editarPericia(
   >
 ): Promise<ActionResult<Pericia>> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     await getAuthUser()
 
     // Remove campos undefined para não sobrescrever valores com null indesejado
@@ -250,7 +249,7 @@ export async function avancarFasePericia(
   observacao?: string
 ): Promise<ActionResult<Pericia>> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const user = await getAuthUser()
 
     // Busca a perícia atual para validações
@@ -325,7 +324,7 @@ export async function avancarFasePericia(
         fase_anterior: faseAtual,
         fase_nova: novaFase,
         observacao: observacao ?? null,
-        criado_por: user.id,
+        user_id: user.id,
       })
 
     if (histError) {
@@ -366,7 +365,7 @@ export async function vincularChamadoPericia(
   motivo: string
 ): Promise<ActionResult<{ periciaId: number; chamadoId: number }>> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const user = await getAuthUser()
 
     // Busca perícia para verificar o status e checar recidiva
@@ -436,17 +435,23 @@ export async function vincularChamadoPericia(
 // ---------------------------------------------------------------------------
 /**
  * Vincula um item do carômetro (ação ou tarefa) a uma perícia.
+ * `itemId` = UUID de `acoes.id` ou `tarefas.id`.
  */
 export async function vincularCarometroPericia(
   periciaId: number,
   itemTipo: 'acao' | 'tarefa',
-  itemId: number,
+  itemId: string,
   itemDescricao: string,
-  franqueadoId: string
-): Promise<ActionResult<{ periciaId: number; itemId: number }>> {
+  franqueadoId?: string | null,
+): Promise<ActionResult<{ periciaId: number; itemId: string }>> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const user = await getAuthUser()
+
+    const itemUuid = String(itemId ?? '').trim()
+    if (!itemUuid) {
+      return { error: 'ID do item do carômetro inválido.' }
+    }
 
     // Busca perícia
     const { data: pericia, error: fetchError } = await supabase
@@ -465,9 +470,9 @@ export async function vincularCarometroPericia(
       .insert({
         pericia_id: periciaId,
         item_tipo: itemTipo,
-        item_id: itemId,
+        item_id: itemUuid,
         item_descricao: itemDescricao,
-        franqueado_id: franqueadoId,
+        franqueado_id: franqueadoId?.trim() || null,
         vinculado_por: user.id,
       })
 
@@ -494,7 +499,8 @@ export async function vincularCarometroPericia(
     }
 
     revalidatePath('/sirene/pericias')
-    return { data: { periciaId, itemId } }
+    revalidatePath('/carometro')
+    return { data: { periciaId, itemId: itemUuid } }
   } catch (err: unknown) {
     const msg =
       err instanceof Error
@@ -512,10 +518,10 @@ export async function vincularCarometroPericia(
  * Não pagina — retorna todos os resultados.
  */
 export async function listPericiasParaSelect(
-  dominio: PericiaDominio
-): Promise<{ data: PericiaParaSelect[] }> {
+  dominio: string
+): Promise<PericiaParaSelect[]> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('sirene_pericias')
@@ -526,13 +532,13 @@ export async function listPericiasParaSelect(
 
     if (error) {
       console.error('[listPericiasParaSelect] Erro:', error.message)
-      return { data: [] }
+      return []
     }
 
-    return { data: (data ?? []) as PericiaParaSelect[] }
+    return (data ?? []) as PericiaParaSelect[]
   } catch (err: unknown) {
     console.error('[listPericiasParaSelect] Erro inesperado:', err)
-    return { data: [] }
+    return []
   }
 }
 
@@ -549,7 +555,7 @@ export async function listPericias(filtros?: {
   busca?: string
 }): Promise<ActionResult<Pericia[]>> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     let query = supabase
       .from('sirene_pericias')
@@ -607,7 +613,7 @@ export async function getPericia(id: number): Promise<
   >
 > {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     // Busca a perícia principal
     const { data: pericia, error: periciaError } = await supabase
@@ -685,7 +691,7 @@ export async function criarAcaoPericia(
   }
 ): Promise<ActionResult<PericiaAcao>> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const user = await getAuthUser()
 
     const { data, error } = await supabase
@@ -698,7 +704,6 @@ export async function criarAcaoPericia(
         responsavel_nome: payload.responsavel_nome ?? null,
         prazo: payload.prazo ?? null,
         status: 'pendente',
-        criado_por: user.id,
       })
       .select()
       .single()
@@ -732,7 +737,7 @@ export async function atualizarAcaoPericia(
   }
 ): Promise<ActionResult<PericiaAcao>> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     await getAuthUser()
 
     const camposParaAtualizar = Object.fromEntries(
@@ -779,7 +784,7 @@ export async function atualizarAcaoPericia(
  */
 async function detectarRecidiva(periciaId: number): Promise<void> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     // Busca recidivas_count atual
     const { data: pericia, error: fetchError } = await supabase
@@ -833,7 +838,7 @@ export async function buscarPericiaSugestoes(
   dominio?: PericiaDominio
 ): Promise<ActionResult<PericiaParaSelect[]>> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     if (!texto || texto.trim().length < 2) {
       return { data: [] }
@@ -919,8 +924,7 @@ interface NotificacaoPayload {
 }
 
 async function notificarCanetaVerde(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: ReturnType<typeof createServerActionClient<any>>,
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   payload: NotificacaoPayload
 ): Promise<void> {
   try {

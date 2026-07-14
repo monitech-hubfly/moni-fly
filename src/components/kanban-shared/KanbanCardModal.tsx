@@ -735,6 +735,8 @@ export function KanbanCardModal({
     parentInteracaoId: string;
     topicoId: string;
     nomeAtividade: string;
+    /** `sirene_chamados.id` — habilita passo 2 (vínculo à perícia) no modal. */
+    chamadoId?: number;
   } | null>(null);
   const [classificandoPendente, setClassificandoPendente] = useState(false);
   const [modalDetalhes, setModalDetalhes] = useState<KanbanCardModalDetalhes>({
@@ -2268,7 +2270,14 @@ export function KanbanCardModal({
     nomeAtividade?: string,
   ) {
     if (status === 'concluido') {
-      setClassificacaoPendente({ parentInteracaoId, topicoId, nomeAtividade: nomeAtividade ?? 'Atividade' });
+      const pai = interacoes.find((i) => i.id === parentInteracaoId);
+      const sid = pai?.sirene_chamado_id;
+      setClassificacaoPendente({
+        parentInteracaoId,
+        topicoId,
+        nomeAtividade: nomeAtividade ?? 'Atividade',
+        chamadoId: sid != null && Number.isFinite(Number(sid)) ? Number(sid) : undefined,
+      });
       return;
     }
     const res = await atualizarStatusSubInteracao(topicoId, status, basePath);
@@ -7939,6 +7948,7 @@ export function KanbanCardModal({
         nomeAtividade={classificacaoPendente.nomeAtividade}
         onEscolher={(c) => void confirmarClassificacao(c)}
         pending={classificandoPendente}
+        chamadoId={classificacaoPendente.chamadoId}
       />
     )}
 

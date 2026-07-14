@@ -139,12 +139,28 @@ CREATE TABLE IF NOT EXISTS sirene_pericia_carometro_vinculos (
   id              bigserial    PRIMARY KEY,
   pericia_id      bigint       NOT NULL REFERENCES sirene_pericias(id) ON DELETE CASCADE,
   item_tipo       text         NOT NULL CHECK (item_tipo IN ('acao', 'tarefa')),
-  item_id         bigint       NOT NULL,
+  -- UUID de `acoes.id` ou `tarefas.id` (Carômetro)
+  item_id         uuid         NOT NULL,
   item_descricao  text,
   franqueado_id   uuid         REFERENCES auth.users(id),
   vinculado_por   uuid         REFERENCES auth.users(id),
   vinculado_em    timestamptz  DEFAULT now()
 );
+
+-- Se a tabela já existia com item_id bigint (draft anterior), corrige para uuid
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'sirene_pericia_carometro_vinculos'
+      AND column_name = 'item_id'
+      AND data_type = 'bigint'
+  ) THEN
+    ALTER TABLE public.sirene_pericia_carometro_vinculos
+      ALTER COLUMN item_id TYPE uuid USING NULL;
+  END IF;
+END $$;
 
 
 -- =============================================================================
@@ -227,7 +243,7 @@ CREATE POLICY pericias_select_chamados_vinculados
       FROM sirene_pericia_chamados spc
       JOIN sirene_chamados sc ON sc.id = spc.chamado_id
       WHERE spc.pericia_id = sirene_pericias.id
-        AND sc.responsavel_id = auth.uid()
+        AND sc.aberto_por = auth.uid()
     )
   );
 

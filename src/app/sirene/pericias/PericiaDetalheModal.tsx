@@ -23,7 +23,7 @@ import {
   Pencil,
   Check,
 } from 'lucide-react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/lib/supabase/client'
 import { Pericia, PericiaStatus, PrioridadeLevel } from '@/app/sirene/pericias/page'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ export default function PericiaDetalheModal({
   onClose,
   onUpdated,
 }: PericiaDetalheModalProps) {
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   // Estado principal
   const [detalhe, setDetalhe] = useState<PericiaDetalhe | null>(null)

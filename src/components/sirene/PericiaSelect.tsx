@@ -90,9 +90,9 @@ export function PericiaSelect({ onSelect, onCriarNova, disabled = false, classNa
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white"
         >
           <option value="">Selecione um domínio...</option>
-          {(PERICIAS_DOMINIOS as readonly PericiaDominio[]).map((d) => (
-            <option key={d.value} value={d.value}>
-              {d.label}
+          {(PERICIAS_DOMINIOS as PericiaDominio[]).map((d) => (
+            <option key={d} value={d}>
+              {d}
             </option>
           ))}
         </select>

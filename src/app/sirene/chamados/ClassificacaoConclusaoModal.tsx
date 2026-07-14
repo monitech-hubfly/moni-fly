@@ -25,19 +25,29 @@ export function ClassificacaoConclusaoModal({ nomeAtividade, onEscolher, pending
   const [vinculando, startVinculo] = useTransition();
 
   function handleEscolherRecorrente() {
-    // Salva o status primeiro
-    onEscolher('recorrente');
-    // Se tiver chamadoId, mostra passo 2 em vez de fechar
+    // Com chamadoId: abre passo 2 (vínculo opcional) sem fechar o modal.
+    // Sem chamadoId: conclui direto (pai salva status e desmonta).
     if (chamadoId) {
       setPasso('pericia');
+      return;
     }
+    onEscolher('recorrente');
+  }
+
+  function handlePular() {
+    onEscolher('recorrente');
   }
 
   function handleVincularEFechar() {
     if (!periciaVinculada || !chamadoId) return;
     startVinculo(async () => {
-      await vincularChamadoPericia(chamadoId, periciaVinculada.id, motivo.trim() || 'Vinculado ao concluir atividade');
-      // Modal fecha porque onEscolher já foi chamado — o pai limpa o estado
+      await vincularChamadoPericia(
+        chamadoId,
+        periciaVinculada.id,
+        motivo.trim() || 'Vinculado ao concluir atividade',
+      );
+      // Salva status + fecha (pai limpa o estado ao receber onEscolher)
+      onEscolher('recorrente');
     });
   }
 
@@ -122,11 +132,9 @@ export function ClassificacaoConclusaoModal({ nomeAtividade, onEscolher, pending
             <div className="mt-5 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => {
-                  // Pular — onEscolher já foi chamado, só fecha
-                  // O pai fecha ao perceber que o status foi salvo
-                }}
-                className="text-sm text-stone-400 hover:text-stone-600"
+                disabled={pending || vinculando}
+                onClick={handlePular}
+                className="text-sm text-stone-400 hover:text-stone-600 disabled:opacity-50"
               >
                 Pular
               </button>
