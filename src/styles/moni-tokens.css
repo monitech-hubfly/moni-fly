@@ -248,6 +248,9 @@
   --moni-card-shadow:         0 2px 6px rgba(15, 23, 42, 0.04);
   --moni-card-shadow-hover:   0 10px 24px rgba(15, 23, 42, 0.08);
   --moni-card-title-size:     14px;                         /* título — elemento principal */
+  /* Título: quase-preto premium (#111827). NÃO usar --moni-text-primary (#0c2633 navy)
+     nem --moni-text-secondary (#4a3929 earth) — ambos parecem bordô/castanho no board. */
+  --moni-card-title-color:    #111827;
   /* Código FK: cinza premium (~#4B5563). NÃO usar tertiary marrom (#7a6e65) — pareceria atraso. */
   --moni-card-code-color:     #4b5563;
   --moni-card-resp-color:     #6b7280;                      /* responsável */
@@ -2668,9 +2671,8 @@
   border: none;
   background: transparent;
   text-align: left;
-  /* Raiz de herança do texto do card: Verde Naval — impede qualquer ancestral
-     (ex.: status atrasado) de pintar título/código de vermelho via inherit. */
-  color: var(--moni-text-primary);
+  /* Raiz de herança: quase-preto premium — nunca navy/earth/overdue via inherit. */
+  color: var(--moni-card-title-color);
 }
 
 /* Menu «...» no rodapé do card (canto inferior direito, sempre visível) */
@@ -2841,7 +2843,7 @@
   font-weight: var(--moni-weight-bold);
   line-height: 1.35;
   letter-spacing: -0.01em;
-  color: var(--moni-text-primary);
+  color: var(--moni-card-title-color);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -2853,7 +2855,8 @@
   margin-top: 12px;
 }
 
-/* Título SEMPRE Verde Naval + negrito — nunca overdue-text / vermelho / marrom. */
+/* Título SEMPRE quase-preto (#111827) + negrito — zero overdue/earth/navy/vermelho. */
+.moni-kanban-card .moni-kanban-card-open .moni-kanban-card-title,
 .moni-kanban-card .moni-kanban-card-title,
 .moni-kanban-card--status-vermelho .moni-kanban-card-title,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-title,
@@ -2863,18 +2866,19 @@
 .moni-kanban-card--muted .moni-kanban-card-title,
 .moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-title,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-title {
-  color: var(--moni-text-primary);
-  font-weight: var(--moni-weight-bold);
+  color: var(--moni-card-title-color) !important;
+  font-weight: 700 !important;
 }
 
 /* Código FK sempre cinza premium — nunca overdue-text / castanho / vermelho. */
+.moni-kanban-card .moni-kanban-card-open .moni-kanban-card-codigo,
 .moni-kanban-card .moni-kanban-card-codigo,
 .moni-kanban-card--status-vermelho .moni-kanban-card-codigo,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-codigo,
 .moni-kanban-card--sla-atencao .moni-kanban-card-codigo,
 .moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-codigo,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-codigo {
-  color: var(--moni-card-code-color);
+  color: var(--moni-card-code-color) !important;
 }
 
 .moni-kanban-card-subtitle {
