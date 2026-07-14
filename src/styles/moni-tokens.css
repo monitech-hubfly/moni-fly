@@ -248,7 +248,8 @@
   --moni-card-shadow:         0 2px 6px rgba(15, 23, 42, 0.04);
   --moni-card-shadow-hover:   0 10px 24px rgba(15, 23, 42, 0.08);
   --moni-card-title-size:     14px;                         /* título — elemento principal */
-  --moni-card-code-color:     var(--moni-text-tertiary);    /* código FK — nunca vermelho */
+  /* Código FK: cinza premium (~#4B5563). NÃO usar tertiary marrom (#7a6e65) — pareceria atraso. */
+  --moni-card-code-color:     #4b5563;
   --moni-card-resp-color:     #6b7280;                      /* responsável */
   --moni-card-avatar-bg:      var(--moni-green-50);         /* fallback verde claro */
 
@@ -257,15 +258,15 @@
   --moni-card-chip-especial-text: var(--moni-gold-800);
   --moni-card-chip-revisao-bg:    #f4f0ff;                  /* violeta suave */
   --moni-card-chip-revisao-text:  #7c3aed;
-  --moni-card-chip-prazo-bg:      var(--moni-status-overdue-bg);     /* tag SLA atrasada */
-  --moni-card-chip-prazo-text:    var(--moni-status-overdue-text);   /* só a tag, NÃO o título */
+  --moni-card-chip-prazo-bg:      #faf2f0;                  /* atrasado: fundo bem suave */
+  --moni-card-chip-prazo-text:    #a15a4f;                  /* atrasado: texto menos saturado */
 
-  /* Linha lateral de status (3px; atrasado = 4px) */
+  /* Linha lateral de status — sempre 3px; vermelho sóbrio (nunca #dc2626) */
   --moni-card-status-verde:    var(--moni-green-400);       /* no prazo */
   --moni-card-status-amarelo:  var(--moni-gold-400);        /* atenção */
-  --moni-card-status-vermelho: var(--moni-status-overdue-border); /* atrasado */
+  --moni-card-status-vermelho: #c47a72;                     /* atrasado — overdue Moní suave */
   --moni-card-status-roxo:     #7c3aed;                     /* revisão */
-  --moni-card-status-cinza:    #e2e8f0;                     /* sem informação */
+  --moni-card-status-cinza:    #e2e8f0;                     /* sem informação / default */
 
   /* Bolinhas — vínculos paralelos no board */
   --moni-paralela-tooltip-bg:       #1c3a2b;
@@ -2606,15 +2607,15 @@
   transform: translateY(-2px);
 }
 
-/* Linha lateral de status (substitui a borda grossa antiga) */
+/* Linha lateral de status — 3px; default cinza (sem info); radius acompanha o card */
 .moni-kanban-card::before {
   content: '';
   position: absolute;
-  top: 6px;
-  bottom: 6px;
+  top: 0;
+  bottom: 0;
   left: 0;
   width: 3px;
-  border-radius: 0 999px 999px 0;
+  border-radius: var(--moni-card-radius) 0 0 var(--moni-card-radius);
   background: var(--moni-card-status-cinza);
 }
 
@@ -2622,7 +2623,7 @@
 .moni-kanban-card--status-amarelo::before  { background: var(--moni-card-status-amarelo); }
 .moni-kanban-card--status-vermelho::before,
 .moni-kanban-card--sla-atrasado::before {
-  width: 4px;
+  width: 3px;
   background: var(--moni-card-status-vermelho);
 }
 .moni-kanban-card--status-roxo::before     { background: var(--moni-card-status-roxo); }
@@ -2830,7 +2831,7 @@
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--moni-text-tertiary);
+  color: var(--moni-card-code-color);
 }
 
 .moni-kanban-card-title {
@@ -2852,25 +2853,28 @@
   margin-top: 12px;
 }
 
-/* O título do card é SEMPRE Verde Naval (var(--moni-text-primary)) e negrito,
-   em QUALQUER estado (normal, atrasado, atenção, arquivado, concluído, muted)
-   e em todos os funis. Nunca vermelho. A faixa lateral vermelha (4px) e a tag
-   de SLA com relógio permanecem inalteradas — não usam esta classe. */
+/* Título SEMPRE Verde Naval + negrito — nunca overdue-text / vermelho / marrom. */
 .moni-kanban-card .moni-kanban-card-title,
+.moni-kanban-card--status-vermelho .moni-kanban-card-title,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-title,
 .moni-kanban-card--sla-atencao .moni-kanban-card-title,
 .moni-kanban-card--archived .moni-kanban-card-title,
 .moni-kanban-card--done .moni-kanban-card-title,
-.moni-kanban-card--muted .moni-kanban-card-title {
+.moni-kanban-card--muted .moni-kanban-card-title,
+.moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-title,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-title {
   color: var(--moni-text-primary);
   font-weight: var(--moni-weight-bold);
 }
 
-/* Código FK sempre em tom terciário (nunca vermelho), em qualquer estado. */
+/* Código FK sempre cinza premium — nunca overdue-text / castanho / vermelho. */
 .moni-kanban-card .moni-kanban-card-codigo,
+.moni-kanban-card--status-vermelho .moni-kanban-card-codigo,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-codigo,
-.moni-kanban-card--sla-atencao .moni-kanban-card-codigo {
-  color: var(--moni-text-tertiary);
+.moni-kanban-card--sla-atencao .moni-kanban-card-codigo,
+.moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-codigo,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-codigo {
+  color: var(--moni-card-code-color);
 }
 
 .moni-kanban-card-subtitle {
@@ -3009,14 +3013,14 @@
 }
 
 .moni-kanban-card-sla--atrasado {
-  background: var(--moni-surface-0);
-  color: var(--moni-status-overdue-text);
-  border-color: var(--moni-status-overdue-border);
-  font-weight: var(--moni-weight-bold);
+  background: var(--moni-card-chip-prazo-bg);
+  color: var(--moni-card-chip-prazo-text);
+  border-color: transparent;
+  font-weight: var(--moni-weight-medium);
 }
 
 .moni-kanban-card-sla--atrasado .moni-kanban-card-sla-dot {
-  background: var(--moni-status-overdue-border);
+  background: var(--moni-card-status-vermelho);
 }
 
 .moni-kanban-card-indicators {
@@ -3063,6 +3067,12 @@
 .moni-kanban-card .moni-kanban-card-sla--atrasado {
   background: var(--moni-card-chip-prazo-bg);
   color: var(--moni-card-chip-prazo-text);
+  font-weight: 500;
+}
+
+.moni-kanban-card .moni-kanban-card-sla--atrasado .moni-kanban-card-sla-icon {
+  color: var(--moni-card-chip-prazo-text);
+  opacity: 0.85;
 }
 
 /* Tags do card (Especial / customizadas) — mesma linguagem premium dos chips */
@@ -3074,6 +3084,13 @@
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
+}
+
+/* Chip Especial / dourado no card — garante sem laranja mesmo se cor inline for laranja */
+.moni-kanban-card .moni-tag-especial {
+  background: var(--moni-card-chip-especial-bg);
+  color: var(--moni-card-chip-especial-text);
+  border: var(--moni-border-width) solid var(--moni-gold-400);
 }
 
 /* Rodapé do card fechado: contadores + vínculos à esquerda, próxima atividade à direita */

@@ -490,10 +490,10 @@ export function KanbanColumn({
           });
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
-          // Linha lateral de status (3px): verde=no prazo, amarelo=atenção,
-          // vermelho=atrasado, cinza=sem informação/arquivado/concluído.
+          // Linha lateral (3px): verde=no prazo, amarelo=atenção, vermelho=atrasado,
+          // cinza=sem SLA / pausado / arquivado / concluído. Default nunca vermelho.
           const statusLateral =
-            arquivado || concluido || sla.pausado
+            arquivado || concluido || sla.pausado || sla.semSla
               ? 'cinza'
               : sla.status === 'atrasado'
                 ? 'vermelho'

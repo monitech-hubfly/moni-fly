@@ -10,6 +10,8 @@ export type SlaKanbanResult = {
   classe: string;
   /** SLA pausado (ex.: aguardando documentação na fase de alvará). */
   pausado: boolean;
+  /** Fase sem `sla_dias` configurado — faixa lateral cinza, sem chip. */
+  semSla?: boolean;
   diasAtraso?: number;
   diasRestantes?: number;
   slaTipo?: SlaTipo;
@@ -123,12 +125,17 @@ export function calcularSlaKanbanCard(input: {
     return { status: 'ok', label: '', classe: '', pausado: true };
   }
 
+  const slaDias = input.sla_dias != null && input.sla_dias > 0 ? input.sla_dias : 0;
+  if (slaDias <= 0) {
+    // Sem SLA na fase: não inventar 999 dias (falso "no prazo" verde).
+    return { status: 'ok', label: '', classe: '', pausado: false, semSla: true };
+  }
+
   const base = resolveDataBaseSlaKanban(input);
-  const slaDias = input.sla_dias != null && input.sla_dias > 0 ? input.sla_dias : 999;
   if (!base) {
-    return { status: 'ok', label: '', classe: '', pausado: false };
+    return { status: 'ok', label: '', classe: '', pausado: false, semSla: true };
   }
   const slaTipo = normalizarSlaTipo(input.sla_tipo);
   const sla = calcularStatusSLAPorTipo(base, slaDias, slaTipo);
-  return { ...sla, pausado: false };
+  return { ...sla, pausado: false, semSla: false };
 }
