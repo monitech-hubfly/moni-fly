@@ -72,13 +72,13 @@ export default function PericiasBoardClient({
             {metricas.plano_acao} plano de ação · {metricas.recidivas} recidivas
           </p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
           <input
             type="search"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar perícia..."
-            className="h-11 min-w-[200px] rounded-[var(--moni-radius-md)] px-3 text-sm"
+            className="h-11 w-full max-w-[260px] rounded-[var(--moni-radius-md)] px-3 text-sm sm:w-[240px]"
             style={{
               border: 'var(--moni-border-width) solid var(--moni-border-default)',
               color: 'var(--moni-text-primary)',
@@ -88,7 +88,7 @@ export default function PericiasBoardClient({
           <select
             value={dominio}
             onChange={(e) => setDominio(e.target.value)}
-            className="h-11 rounded-[var(--moni-radius-md)] px-3 text-sm"
+            className="h-11 w-auto max-w-[180px] rounded-[var(--moni-radius-md)] px-3 text-sm"
             style={{
               border: 'var(--moni-border-width) solid var(--moni-border-default)',
               color: 'var(--moni-text-primary)',
