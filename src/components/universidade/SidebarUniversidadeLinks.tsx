@@ -184,18 +184,18 @@ export function SidebarUniversidadeLinks({
                 ) : null}
               </Link>
               <Link
-                href="/universidade/faq"
-                className={`flex items-center gap-2 ${linkClassSub(isFaqPath(pathname))}`}
-              >
-                <HelpCircle className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
-                FAQ
-              </Link>
-              <Link
                 href="/universidade/ferramentas"
                 className={`flex items-center gap-2 ${linkClassSub(ferramentasActive)}`}
               >
                 <LayoutGrid className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
                 Ferramentas
+              </Link>
+              <Link
+                href="/universidade/faq"
+                className={`flex items-center gap-2 ${linkClassSub(isFaqPath(pathname))}`}
+              >
+                <HelpCircle className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                FAQ
               </Link>
               <Link
                 href="/universidade/certificados"
@@ -215,15 +215,6 @@ export function SidebarUniversidadeLinks({
                 <span className="flex items-center gap-2">
                   <LayoutDashboard className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
                   Tabuleiro
-                </span>
-              </Link>
-              <Link
-                href="/universidade/faq"
-                className={`flex items-center gap-2 ${linkClassSub(isFaqPath(pathname))}`}
-              >
-                <span className="flex items-center gap-2">
-                  <HelpCircle className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
-                  FAQ
                 </span>
               </Link>
               <Link
@@ -250,6 +241,15 @@ export function SidebarUniversidadeLinks({
               >
                 <Shield className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
                 Gestão
+              </Link>
+              <Link
+                href="/universidade/faq"
+                className={`flex items-center gap-2 ${linkClassSub(isFaqPath(pathname))}`}
+              >
+                <span className="flex items-center gap-2">
+                  <HelpCircle className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                  FAQ
+                </span>
               </Link>
               <Link
                 href="/admin/universidade/faq"
