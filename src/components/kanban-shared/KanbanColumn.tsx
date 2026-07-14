@@ -619,6 +619,7 @@ export function KanbanColumn({
                 ]
                   .filter(Boolean)
                   .join(' ')}
+                data-card-title-v2="1"
               >
                 {hasBadge || hasAvatar ? (
                   <div className="moni-kanban-card-badges">
@@ -649,7 +650,11 @@ export function KanbanColumn({
                     </span>
                   ) : null}
                   <span
-                    className={['moni-kanban-card-title', paddingTitulo]
+                    className={[
+                      'moni-kanban-card-title',
+                      'moni-kanban-card-title--neutral',
+                      paddingTitulo,
+                    ]
                       .filter(Boolean)
                       .join(' ')}
                   >

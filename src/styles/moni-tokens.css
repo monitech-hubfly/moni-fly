@@ -2855,18 +2855,24 @@
   margin-top: 12px;
 }
 
-/* Título SEMPRE quase-preto (#111827) + negrito — zero overdue/earth/navy/vermelho. */
-.moni-kanban-card .moni-kanban-card-open .moni-kanban-card-title,
-.moni-kanban-card .moni-kanban-card-title,
-.moni-kanban-card--status-vermelho .moni-kanban-card-title,
-.moni-kanban-card--sla-atrasado .moni-kanban-card-title,
-.moni-kanban-card--sla-atencao .moni-kanban-card-title,
-.moni-kanban-card--archived .moni-kanban-card-title,
-.moni-kanban-card--done .moni-kanban-card-title,
-.moni-kanban-card--muted .moni-kanban-card-title,
-.moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-title,
-.moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-title {
-  color: var(--moni-card-title-color) !important;
+/*
+ * cache-bust v2 (2026-07-14): título SEMPRE preto negrito (#111827).
+ * Classe fixa moni-kanban-card-title--neutral + data-card-title-v2 no DOM —
+ * NÃO existe moni-kanban-card-title--atrasado (removida). SLA/faixa lateral
+ * podem continuar vermelhos; o título, nunca.
+ */
+.moni-kanban-card[data-card-title-v2] .moni-kanban-card-title--neutral,
+.moni-kanban-card .moni-kanban-card-title--neutral,
+.moni-kanban-card .moni-kanban-card-open .moni-kanban-card-title--neutral,
+.moni-kanban-card--status-vermelho .moni-kanban-card-title--neutral,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-title--neutral,
+.moni-kanban-card--sla-atencao .moni-kanban-card-title--neutral,
+.moni-kanban-card--archived .moni-kanban-card-title--neutral,
+.moni-kanban-card--done .moni-kanban-card-title--neutral,
+.moni-kanban-card--muted .moni-kanban-card-title--neutral,
+.moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-title--neutral,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-title--neutral {
+  color: var(--moni-card-title-color, #111827) !important;
   font-weight: 700 !important;
 }
 
