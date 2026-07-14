@@ -114,7 +114,7 @@ export function BacklogKanbanColuna() {
           {!isLoading && (
             <div className="flex items-center gap-1.5">
               <StatusDot cor="bg-red-500"   count={atrasados} />
-              <StatusDot cor="bg-amber-400" count={atencao} />
+              <StatusDot cor="bg-green-500" count={atencao} />
               <StatusDot cor="bg-gray-400"  count={semSla} />
             </div>
           )}

@@ -127,18 +127,17 @@ export function useBacklogKanban(refreshKey = 0) {
         supabase
           .from('kanban_tags')
           .select('id')
-          .eq('nome', '⭐Especial')
-          .maybeSingle(),
+          .eq('nome', '⭐Especial'),
       ]);
 
-      // Busca cards da tag Especial (sequencial após ter o tag_id)
+      // Busca cards da tag Especial usando todos os IDs encontrados (cada kanban tem a sua)
       const especialSet = new Set<string>();
-      const tagEspecialId = (tagEspecialRes.data as { id?: string } | null)?.id ?? null;
-      if (tagEspecialId) {
+      const tagIds = ((tagEspecialRes.data ?? []) as Array<{ id: string }>).map(r => r.id);
+      if (tagIds.length > 0) {
         const { data: cardTagRows } = await supabase
           .from('kanban_card_tags')
           .select('card_id')
-          .eq('tag_id', tagEspecialId);
+          .in('tag_id', tagIds);
         ((cardTagRows ?? []) as Array<{ card_id: string }>).forEach(r => especialSet.add(r.card_id));
       }
 
