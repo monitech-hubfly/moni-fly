@@ -36,7 +36,7 @@ export function AppShell({ user, userRole, children }: AppShellProps) {
 
   return (
     <AdminProvider accessRole={userRole}>
-      <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 overflow-hidden bg-stone-50">
+      <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-row overflow-hidden bg-stone-50">
         <PortalSidebar user={user} userRole={userRole} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {!hideGlobalHeader && <AppStickyHeader user={user} userRole={userRole} />}

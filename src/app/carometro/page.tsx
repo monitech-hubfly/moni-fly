@@ -34,6 +34,7 @@ import {
   posicaoRelativaParaSemanaIso
 } from '@/utils/periodos'
 import SemanaComentarioPillHost from '@/components/SemanaComentarioPillHost'
+import { CanetaVerdePericiaModal } from '@/components/carometro/CanetaVerdePericiaModal'
 import { useAdmin } from '@/context/AdminContext'
 
 /** Semana ISO 8601 (UTC, semana começa na segunda). */
@@ -1290,6 +1291,8 @@ export default function Carometro() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [salvandoChave, setSalvandoChave] = useState(null)
+  /** Popup Caneta Verde → vínculo opcional com perícia Sirene. */
+  const [canetaVerdePericiaPopup, setCanetaVerdePericiaPopup] = useState(null)
   /** `responsavel` opcional em `tarefas`. Chave do comportamento: `acoes.caneta_verde` (não coluna em tarefas). */
   const [, setSchemaTarefasCar] = useState({ responsavelCol: false })
   const semanasMemo = useMemo(() => {
@@ -2046,7 +2049,7 @@ export default function Carometro() {
     }
   }, [areas, areaSelecionada, areasMultiplas])
 
-  async function toggleComportamentoChave(tarefaId, valorAtual) {
+  async function toggleComportamentoChave(tarefaId, valorAtual, nomeComportamento) {
     if (!isAdmin) return
     const novoValor = valorAtual ? 'nao' : 'sim'
     const novoChave = !valorAtual
@@ -2088,6 +2091,14 @@ export default function Carometro() {
       return
     }
     setSalvandoChave(null)
+    // Ao marcar Caneta Verde: popup opcional para vincular perícia (Prompt #5)
+    if (novoValor === 'sim') {
+      setCanetaVerdePericiaPopup({
+        itemTipo: 'tarefa',
+        itemId: String(tarefaId),
+        itemDescricao: String(nomeComportamento ?? '').trim() || 'Comportamento chave',
+      })
+    }
   }
 
   async function toggleIndicadorChave(indicadorId, valorAtual) {
@@ -3722,7 +3733,7 @@ export default function Carometro() {
                                 checked={!!c.isChave}
                                 disabled={salvandoChave === `t-${c.id}`}
                                 onChange={() =>
-                                  toggleComportamentoChave(c.id, !!c.isChave)
+                                  toggleComportamentoChave(c.id, !!c.isChave, c.nome)
                                 }
                                 title="Comportamento chave (caneta verde nas ações)"
                                 style={{
@@ -3849,6 +3860,15 @@ export default function Carometro() {
           </table>
         </div>
       )}
+
+      {canetaVerdePericiaPopup ? (
+        <CanetaVerdePericiaModal
+          itemTipo={canetaVerdePericiaPopup.itemTipo}
+          itemId={canetaVerdePericiaPopup.itemId}
+          itemDescricao={canetaVerdePericiaPopup.itemDescricao}
+          onClose={() => setCanetaVerdePericiaPopup(null)}
+        />
+      ) : null}
     </div>
   )
 }

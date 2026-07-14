@@ -245,7 +245,7 @@ export function KanbanBoard({
           />
         ) : null}
         <div ref={boardScrollRef} className="moni-kanban-board-scroll w-full min-w-0">
-          <div className="moni-kanban-board">
+          <div className="moni-kanban-board flex flex-row flex-nowrap items-stretch">
             {fases.map((fase) => {
               const raw = rawByFase[fase.id] ?? [];
               const vis = cardsByFase[fase.id] ?? [];

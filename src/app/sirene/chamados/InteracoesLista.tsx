@@ -2053,6 +2053,7 @@ export function InteracoesLista({
           nomeAtividade={classificacaoPendente.row.titulo ?? 'Atividade'}
           onEscolher={(c) => void confirmarClassificacao(c)}
           pending={pending}
+          chamadoId={classificacaoPendente.row.sirene_chamado_id ?? undefined}
         />
       )}
 

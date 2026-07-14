@@ -236,6 +236,15 @@ export function SidebarUniversidadeLinks({
                 </span>
               </Link>
               <Link
+                href="/universidade/faq"
+                className={`flex items-center gap-2 ${linkClassSub(isFaqPath(pathname))}`}
+              >
+                <span className="flex items-center gap-2">
+                  <HelpCircle className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                  FAQ
+                </span>
+              </Link>
+              <Link
                 href="/admin/universidade"
                 className={`flex items-center gap-2 ${linkClassSub(isAdminUniversidadePath(pathname) && !isAdminFaqPath(pathname))}`}
               >

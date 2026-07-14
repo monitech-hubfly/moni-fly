@@ -247,7 +247,16 @@
   --moni-card-pad:            14px;                         /* padding interno */
   --moni-card-shadow:         0 2px 6px rgba(15, 23, 42, 0.04);
   --moni-card-shadow-hover:   0 10px 24px rgba(15, 23, 42, 0.08);
-  --moni-card-title-size:     14px;                         /* título — elemento principal */
+  /* Fonte compartilhada: .moni-kanban-column-title + .moni-kanban-card-title (+ responsável).
+     Chrome: fase e card já computavam 11px iguais, mas 11px ficou menor que FK (12) e
+     responsável (13) — título do card parecia menor que “Acoplamento”. Token = 14px
+     (tamanho original do título premium do card) para fase, título e responsável. */
+  --moni-card-title-size:     14px;
+  /* Compactação tipográfica do card fechado (pedido: line-height 1,0) */
+  --moni-card-lh:             1;
+  --moni-card-gap-section:    6px;                          /* FK→título, título→responsável */
+  --moni-card-gap-chips:      8px;                          /* responsável→chips */
+  --moni-card-gap-footer:     8px;                          /* chips→rodapé */
   /* Título: quase-preto premium (#111827). NÃO usar --moni-text-primary (#0c2633 navy)
      nem --moni-text-secondary (#4a3929 earth) — ambos parecem bordô/castanho no board. */
   --moni-card-title-color:    #111827;
@@ -2314,13 +2323,37 @@
   );
 }
 
+/* Desktop: SEMPRE fila horizontal (nunca column fora do mobile ≤640px).
+   flex-direction/row + nowrap explícitos evitam empilhar colunas à esquerda
+   se algum override acidental vazar (regressão histórica do board Portfólio).
+   Também cobre shells legados que usam .moni-kanban-board-scroll como flex container. */
 .moni-kanban-board {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
   gap: 10px;
   padding: 14px 20px;
   background: var(--moni-kanban-board-bg);
   border-radius: var(--moni-radius-lg);
   min-width: max-content;
+}
+
+@media (min-width: 641px) {
+  .moni-kanban-board,
+  .moni-kanban-board-scroll.flex,
+  .moni-kanban-board-scroll > .flex {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch;
+  }
+
+  .moni-kanban-column {
+    flex-shrink: 0 !important;
+    width: var(--moni-column-width) !important;
+    min-width: var(--moni-column-width) !important;
+  }
 }
 
 /* Toolbar do board — filtros e busca */
@@ -2436,9 +2469,9 @@
 .moni-kanban-column-title {
   margin: 0;
   font-family: var(--moni-font-sans);
-  font-size: 11px;
+  font-size: var(--moni-card-title-size); /* = título do card fechado (.moni-kanban-card-title) */
   font-weight: var(--moni-weight-bold);
-  line-height: 1.3;
+  line-height: var(--moni-card-lh); /* 1 — mesmo do card */
   color: var(--moni-kanban-drawer-header-text);
 }
 
@@ -2832,6 +2865,7 @@
   font-family: var(--moni-font-sans);
   font-size: 12px;
   font-weight: 600;
+  line-height: var(--moni-card-lh);
   letter-spacing: 0.02em;
   color: var(--moni-card-code-color);
 }
@@ -2839,10 +2873,10 @@
 .moni-kanban-card-title {
   margin: 0;
   font-family: var(--moni-font-sans);
-  font-size: var(--moni-card-title-size);
-  font-weight: var(--moni-weight-bold);
-  line-height: 1.35;
-  letter-spacing: -0.01em;
+  font-size: var(--moni-card-title-size); /* = .moni-kanban-column-title */
+  font-weight: 700; /* negrito explícito — token bold=600 fica leve demais vs fase */
+  line-height: var(--moni-card-lh); /* 1 */
+  letter-spacing: normal; /* sem -0.01em — tamanho óptico = fase */
   color: var(--moni-card-title-color);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -2850,30 +2884,41 @@
   overflow: hidden;
 }
 
-/* Gap header (código FK) → título = 12px */
+/* Gap header (código FK) → título */
 .moni-kanban-card-codigo + .moni-kanban-card-title {
-  margin-top: 12px;
+  margin-top: var(--moni-card-gap-section);
 }
 
 /*
- * cache-bust v2 (2026-07-14): título SEMPRE preto negrito (#111827).
- * Classe fixa moni-kanban-card-title--neutral + data-card-title-v2 no DOM —
- * NÃO existe moni-kanban-card-title--atrasado (removida). SLA/faixa lateral
- * podem continuar vermelhos; o título, nunca.
+ * cache-bust v4 (2026-07-14): título SEMPRE #111827 negrito — font-size = fase (14px).
+ * data-card-title-v4 no card + no span; classes fixas (sem sla.status no className).
+ * NÃO existe moni-kanban-card-title--atrasado. Chip SLA / faixa lateral podem ficar vermelhos.
  */
-.moni-kanban-card[data-card-title-v2] .moni-kanban-card-title--neutral,
+.moni-kanban-card .moni-kanban-card-title,
 .moni-kanban-card .moni-kanban-card-title--neutral,
+.moni-kanban-card .moni-kanban-card-open .moni-kanban-card-title,
 .moni-kanban-card .moni-kanban-card-open .moni-kanban-card-title--neutral,
+.moni-kanban-card[data-card-title-v4] .moni-kanban-card-title,
+.moni-kanban-card[data-card-title-v4] .moni-kanban-card-title--neutral,
+.moni-kanban-card-title[data-card-title-v4],
+.moni-kanban-card--status-vermelho .moni-kanban-card-title,
 .moni-kanban-card--status-vermelho .moni-kanban-card-title--neutral,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-title,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-title--neutral,
+.moni-kanban-card--sla-atencao .moni-kanban-card-title,
 .moni-kanban-card--sla-atencao .moni-kanban-card-title--neutral,
-.moni-kanban-card--archived .moni-kanban-card-title--neutral,
-.moni-kanban-card--done .moni-kanban-card-title--neutral,
-.moni-kanban-card--muted .moni-kanban-card-title--neutral,
+.moni-kanban-card--archived .moni-kanban-card-title,
+.moni-kanban-card--done .moni-kanban-card-title,
+.moni-kanban-card--muted .moni-kanban-card-title,
+.moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-title,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-title,
 .moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-title--neutral,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-title--neutral {
-  color: var(--moni-card-title-color, #111827) !important;
+  color: #111827 !important; /* literal — ignora token se alguém redefinir overdue no :root */
+  font-size: var(--moni-card-title-size) !important; /* = título da fase */
   font-weight: 700 !important;
+  line-height: 1 !important;
+  letter-spacing: normal !important;
 }
 
 /* Código FK sempre cinza premium — nunca overdue-text / castanho / vermelho. */
@@ -2888,11 +2933,11 @@
 }
 
 .moni-kanban-card-subtitle {
-  margin: 10px 0 0;
+  margin: var(--moni-card-gap-section) 0 0;
   font-family: var(--moni-font-sans);
-  font-size: 13px;
+  font-size: var(--moni-card-title-size); /* mesmo size do título da fase / título do card */
   font-weight: 400;
-  line-height: 1.35;
+  line-height: var(--moni-card-lh);
   color: var(--moni-card-resp-color);
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -3037,8 +3082,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--moni-card-gap-chips);
+  margin-top: var(--moni-card-gap-chips);
 }
 
 /* Chips minimalistas dentro do card fechado (escopo local — não afeta modal/pipeline)
@@ -3109,7 +3154,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 14px;
+  margin-top: var(--moni-card-gap-footer);
   min-height: 20px;
 }
 
@@ -3884,9 +3929,13 @@
     display: none !important;
   }
 
-  .moni-kanban-board {
+  .moni-kanban-board,
+  .moni-kanban-board-scroll.flex,
+  .moni-kanban-board-scroll > .flex {
     flex-direction: column !important;
+    flex-wrap: nowrap !important;
     overflow-x: visible !important;
+    min-width: 0;
   }
 
   .moni-kanban-column {

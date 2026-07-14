@@ -85,29 +85,31 @@ export function PainelCreditoClient({ byEtapa, initialOpenProcessId }: Props) {
         </select>
       </div>
 
-      <div className="moni-kanban-board-scroll flex items-stretch gap-4 pb-2 pt-2">
-        <StepsKanbanColumn
-          title={colCreditoTerreno?.title ?? 'Crédito Terreno'}
-          subtitle={colCreditoTerreno?.subtitle}
-          processos={filtered.credito_terreno}
-          etapaKey={'credito_terreno' as PainelColumnKey}
-          initialOpenProcessId={initialOpenProcessId}
-          statusFilter={statusFilter}
-          tagFilter={tagFilter}
-          openCardViaUrl
-          cardBasePath="/funil-credito-obra"
-        />
-        <StepsKanbanColumn
-          title={colCreditoObra?.title ?? 'Crédito Obra'}
-          subtitle={colCreditoObra?.subtitle}
-          processos={filtered.credito_obra}
-          etapaKey={'credito_obra' as PainelColumnKey}
-          initialOpenProcessId={initialOpenProcessId}
-          statusFilter={statusFilter}
-          tagFilter={tagFilter}
-          openCardViaUrl
-          cardBasePath="/funil-credito-obra"
-        />
+      <div className="moni-kanban-board-scroll w-full min-w-0">
+        <div className="moni-kanban-board flex flex-row flex-nowrap items-stretch">
+          <StepsKanbanColumn
+            title={colCreditoTerreno?.title ?? 'Crédito Terreno'}
+            subtitle={colCreditoTerreno?.subtitle}
+            processos={filtered.credito_terreno}
+            etapaKey={'credito_terreno' as PainelColumnKey}
+            initialOpenProcessId={initialOpenProcessId}
+            statusFilter={statusFilter}
+            tagFilter={tagFilter}
+            openCardViaUrl
+            cardBasePath="/funil-credito-obra"
+          />
+          <StepsKanbanColumn
+            title={colCreditoObra?.title ?? 'Crédito Obra'}
+            subtitle={colCreditoObra?.subtitle}
+            processos={filtered.credito_obra}
+            etapaKey={'credito_obra' as PainelColumnKey}
+            initialOpenProcessId={initialOpenProcessId}
+            statusFilter={statusFilter}
+            tagFilter={tagFilter}
+            openCardViaUrl
+            cardBasePath="/funil-credito-obra"
+          />
+        </div>
       </div>
     </>
   );

@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/check-no-conflict-markers.mjs && next build",
     "start": "next start",
     "lint": "next lint",
+    "check:conflict-markers": "node scripts/check-no-conflict-markers.mjs",
     "lint:ci": "next lint --max-warnings 0",
     "lint:fix": "next lint --fix",
     "format": "prettier . --write",
