@@ -122,7 +122,7 @@ export function useBacklogKanban(refreshKey = 0) {
             fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
-          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+          .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .not('proxima_atividade', 'is', null)
           .eq('arquivado', false)
           .eq('concluido', false),
