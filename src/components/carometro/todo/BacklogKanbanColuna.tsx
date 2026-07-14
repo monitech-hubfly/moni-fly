@@ -4,6 +4,14 @@ import { useBacklogKanban, KanbanCardItem } from '@/hooks/useBacklogKanban';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { tagSlaKanbanParaExibicao } from '@/lib/kanban/kanban-card-sla';
 
+import type { SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
+
+function slaDotCor(sla: SlaKanbanResult | null): string {
+  if (!sla || sla.status === 'ok') return 'bg-gray-400';
+  if (sla.status === 'atrasado') return 'bg-red-500';
+  return 'bg-green-500';
+}
+
 const ORIGEM_BADGE: Record<string, string> = {
   franqueado:        'bg-purple-100 text-purple-700',
   atividade:         'bg-blue-100 text-blue-700',
@@ -28,17 +36,20 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
       className="rounded-md bg-white border border-gray-200 px-3 py-2 text-sm shadow-sm cursor-pointer hover:shadow-md hover:bg-gray-50 transition-all"
       onClick={() => { window.location.href = href; }}
     >
-      {/* Título + estrela Especial */}
-      <div className="flex items-start gap-1 min-w-0">
+      {/* Título + estrela Especial + dot status */}
+      <div className="flex items-start justify-between gap-1 min-w-0">
         <span
           className="text-gray-800 leading-snug flex-1 min-w-0"
           style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
         >
           {card.titulo ?? '(sem título)'}
         </span>
-        {card.especial && (
-          <span className="shrink-0 text-[11px]" title="Especial">⭐</span>
-        )}
+        <div className="flex items-center gap-1 shrink-0 mt-0.5">
+          {card.especial && (
+            <span className="text-[11px]" title="Especial">⭐</span>
+          )}
+          <span className={`h-2 w-2 rounded-full ${slaDotCor(card.sla ?? null)}`} />
+        </div>
       </div>
 
       {/* Próxima atividade */}
@@ -114,7 +125,7 @@ export function BacklogKanbanColuna() {
           {!isLoading && (
             <div className="flex items-center gap-1.5">
               <StatusDot cor="bg-red-500"   count={atrasados} />
-              <StatusDot cor="bg-amber-400" count={atencao} />
+              <StatusDot cor="bg-green-500" count={atencao} />
               <StatusDot cor="bg-gray-400"  count={semSla} />
             </div>
           )}

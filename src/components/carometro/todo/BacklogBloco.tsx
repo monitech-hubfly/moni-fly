@@ -216,7 +216,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5">
                   <StatusDot cor="bg-red-500"   count={sireneAtrasados} />
-                  <StatusDot cor="bg-amber-400" count={sireneEstaSemana} />
+                  <StatusDot cor="bg-green-500" count={sireneEstaSemana} />
                   <StatusDot cor="bg-gray-400"  count={sireneFuturos} />
                 </div>
                 <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
@@ -234,7 +234,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5">
                   <StatusDot cor="bg-red-500"   count={atividadesAtrasadas} />
-                  <StatusDot cor="bg-amber-400" count={atividadesEstaSemana} />
+                  <StatusDot cor="bg-green-500" count={atividadesEstaSemana} />
                   <StatusDot cor="bg-gray-400"  count={atividadesFuturas} />
                 </div>
                 <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
