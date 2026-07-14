@@ -82,40 +82,42 @@ export function PainelContabilidadeClient({ byEtapa, initialOpenProcessId }: Pro
         </select>
       </div>
 
-      <div className="moni-kanban-board-scroll flex items-stretch gap-4 pb-2 pt-2">
-        <StepsKanbanColumn
-          title={colIncorp?.title ?? 'Abertura da Incorporadora'}
-          subtitle={colIncorp?.subtitle}
-          processos={filtered.contabilidade_incorporadora}
-          etapaKey={'contabilidade_incorporadora' as PainelColumnKey}
-          initialOpenProcessId={initialOpenProcessId}
-          statusFilter={statusFilter}
-          tagFilter={tagFilter}
-          openCardViaUrl
-          cardBasePath="/painel-contabilidade"
-        />
-        <StepsKanbanColumn
-          title={colSpe?.title ?? 'Abertura da SPE'}
-          subtitle={colSpe?.subtitle}
-          processos={filtered.contabilidade_spe}
-          etapaKey={'contabilidade_spe' as PainelColumnKey}
-          initialOpenProcessId={initialOpenProcessId}
-          statusFilter={statusFilter}
-          tagFilter={tagFilter}
-          openCardViaUrl
-          cardBasePath="/painel-contabilidade"
-        />
-        <StepsKanbanColumn
-          title={colGestora?.title ?? 'Abertura da Gestora'}
-          subtitle={colGestora?.subtitle}
-          processos={filtered.contabilidade_gestora}
-          etapaKey={'contabilidade_gestora' as PainelColumnKey}
-          initialOpenProcessId={initialOpenProcessId}
-          statusFilter={statusFilter}
-          tagFilter={tagFilter}
-          openCardViaUrl
-          cardBasePath="/painel-contabilidade"
-        />
+      <div className="moni-kanban-board-scroll w-full min-w-0">
+        <div className="moni-kanban-board flex flex-row flex-nowrap items-stretch">
+          <StepsKanbanColumn
+            title={colIncorp?.title ?? 'Abertura da Incorporadora'}
+            subtitle={colIncorp?.subtitle}
+            processos={filtered.contabilidade_incorporadora}
+            etapaKey={'contabilidade_incorporadora' as PainelColumnKey}
+            initialOpenProcessId={initialOpenProcessId}
+            statusFilter={statusFilter}
+            tagFilter={tagFilter}
+            openCardViaUrl
+            cardBasePath="/painel-contabilidade"
+          />
+          <StepsKanbanColumn
+            title={colSpe?.title ?? 'Abertura da SPE'}
+            subtitle={colSpe?.subtitle}
+            processos={filtered.contabilidade_spe}
+            etapaKey={'contabilidade_spe' as PainelColumnKey}
+            initialOpenProcessId={initialOpenProcessId}
+            statusFilter={statusFilter}
+            tagFilter={tagFilter}
+            openCardViaUrl
+            cardBasePath="/painel-contabilidade"
+          />
+          <StepsKanbanColumn
+            title={colGestora?.title ?? 'Abertura da Gestora'}
+            subtitle={colGestora?.subtitle}
+            processos={filtered.contabilidade_gestora}
+            etapaKey={'contabilidade_gestora' as PainelColumnKey}
+            initialOpenProcessId={initialOpenProcessId}
+            statusFilter={statusFilter}
+            tagFilter={tagFilter}
+            openCardViaUrl
+            cardBasePath="/painel-contabilidade"
+          />
+        </div>
       </div>
     </>
   );

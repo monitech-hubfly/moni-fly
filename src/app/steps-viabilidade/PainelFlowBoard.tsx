@@ -27,14 +27,41 @@ export function PainelFlowBoard({
   cardBasePath,
 }: Props) {
   return (
-    <div className="moni-kanban-board-scroll flex items-stretch gap-4 pb-2 pt-2">
-      {PAINEL_FLOW_ROWS.map((row, rowIndex) => {
-        const isParallel = row.type === 'parallel' && row.keys.length > 1;
-        const keys = row.keys;
+    <div className="moni-kanban-board-scroll w-full min-w-0">
+      <div className="moni-kanban-board flex flex-row flex-nowrap items-stretch">
+        {PAINEL_FLOW_ROWS.map((row, rowIndex) => {
+          const isParallel = row.type === 'parallel' && row.keys.length > 1;
+          const keys = row.keys;
 
-        if (isParallel) {
+          if (isParallel) {
+            return (
+              <div key={rowIndex} className="flex flex-row flex-nowrap items-stretch gap-4">
+                {keys.map((key) => {
+                  const col = PAINEL_COLUMNS.find((c) => c.key === key);
+                  if (!col) return null;
+                  return (
+                    <StepsKanbanColumn
+                      key={key}
+                      title={col.title}
+                      subtitle={col.subtitle}
+                      processos={byEtapa[key] ?? []}
+                      etapaKey={key}
+                      step2HeaderActions={step2HeaderActions}
+                      initialOpenProcessId={initialOpenProcessId}
+                      statusFilter={statusFilter}
+                      tagFilter={tagFilter}
+                      kanbanReadOnly={kanbanReadOnly}
+                      openCardViaUrl={openCardViaUrl}
+                      cardBasePath={cardBasePath}
+                    />
+                  );
+                })}
+              </div>
+            );
+          }
+
           return (
-            <div key={rowIndex} className="flex items-stretch gap-4">
+            <div key={rowIndex} className="flex flex-row flex-nowrap items-stretch gap-4">
               {keys.map((key) => {
                 const col = PAINEL_COLUMNS.find((c) => c.key === key);
                 if (!col) return null;
@@ -57,33 +84,8 @@ export function PainelFlowBoard({
               })}
             </div>
           );
-        }
-
-        return (
-          <div key={rowIndex} className="flex items-stretch gap-4">
-            {keys.map((key) => {
-              const col = PAINEL_COLUMNS.find((c) => c.key === key);
-              if (!col) return null;
-              return (
-                <StepsKanbanColumn
-                  key={key}
-                  title={col.title}
-                  subtitle={col.subtitle}
-                  processos={byEtapa[key] ?? []}
-                  etapaKey={key}
-                  step2HeaderActions={step2HeaderActions}
-                  initialOpenProcessId={initialOpenProcessId}
-                  statusFilter={statusFilter}
-                  tagFilter={tagFilter}
-                  kanbanReadOnly={kanbanReadOnly}
-                  openCardViaUrl={openCardViaUrl}
-                  cardBasePath={cardBasePath}
-                />
-              );
-            })}
-          </div>
-        );
-      })}
+        })}
+      </div>
     </div>
   );
 }
