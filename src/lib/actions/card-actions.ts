@@ -1206,6 +1206,9 @@ export async function atualizarStatusSubInteracao(
   basePath?: string,
   viaSirene?: boolean,
   classificacaoConclusao?: 'pontual' | 'recorrente',
+  // periciaId: quando fornecido junto com classificacaoConclusao='recorrente',
+  // vincula automaticamente o chamado à perícia após atualizar o status.
+  periciaId?: number,
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const {

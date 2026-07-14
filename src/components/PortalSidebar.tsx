@@ -74,7 +74,10 @@ const HDM_SUBITENS: NavItem[] = [
   { href: '/funil-homologacoes', label: 'Homologações' },
 ];
 const INTERNO_SUBITENS: NavItem[] = [{ href: '/funil-contratacoes', label: 'Contratações' }];
-const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/chamados', label: 'Chamados' }];
+const SIRENE_SUBITENS: NavItem[] = [
+  { href: '/sirene/chamados', label: 'Chamados' },
+  { href: '/sirene/pericias', label: 'Classificações' },
+];
 const CAROMETRO_SUBITENS: NavItem[] = [
   { href: '/carometro/comportamentos-e-atividades', label: 'Comportamentos e Atividades' },
   { href: '/carometro/gantt', label: 'Planejamento (Gantt)' },

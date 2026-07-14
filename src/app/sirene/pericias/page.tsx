@@ -1,35 +1,99 @@
-import { listChamadosParaVincularPericia, listPericiasComChamados, listConclusoesClassificadas } from '../actions';
-import { PericiasConteudo } from './PericiasConteudo';
+// app/sirene/pericias/page.tsx
+// Server Component — busca dados e passa para o Client
 
-export default async function SirenePericiasPage() {
-  const [r1, r2, r3] = await Promise.all([
-    listChamadosParaVincularPericia(),
-    listPericiasComChamados(),
-    listConclusoesClassificadas(),
-  ]);
-  const canetaOuBombeiro = r1.ok;
-  const chamadosPendentes = r1.ok ? r1.chamados : [];
-  const periciasPlanejamento = r2.ok ? r2.pericias : [];
-  const conclusoes = r3.ok ? r3.conclusoes : [];
+import { cookies } from 'next/headers'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import PericiasBoardClient from './PericiasBoardClient'
+
+export const dynamic = 'force-dynamic'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type PericiaStatus = 'aberta' | 'investigando' | 'plano_acao' | 'concluida'
+export type PericiaOrigem = 'sirene' | 'carometro' | 'ambos'
+export type PrioridadeLevel = 'baixa' | 'media' | 'alta' | 'critica'
+
+export interface Pericia {
+  id: number
+  codigo: string           // e.g. "P-007"
+  titulo: string
+  tipo: string
+  dominio: string
+  responsavel_nome: string
+  responsavel_id: string
+  status: PericiaStatus
+  prioridade: PrioridadeLevel
+  origem: PericiaOrigem
+  chamados_count: number
+  carometro_count: number
+  recidivas_count: number
+  causa_raiz: string | null
+  data_inicio: string
+  data_conclusao: string | null
+  updated_at: string
+  created_at: string
+}
+
+export interface MetricasPericias {
+  total: number
+  abertas: number
+  investigando: number
+  plano_acao: number
+  recidivas: number
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const DOMINIOS = [
+  'Todos',
+  'BCA',
+  'Crédito',
+  'Cobrança',
+  'Onboarding',
+  'Renegociação',
+  'Compliance',
+  'Tecnologia',
+  'Produto',
+  'Operações',
+  'Financeiro',
+  'Jurídico',
+  'RH',
+  'Marketing',
+  'Parceiros',
+  'Suporte',
+  'Segurança',
+  'Dados',
+]
+
+// ─── Server Component ─────────────────────────────────────────────────────────
+
+export default async function PericiasPage() {
+  const supabase = createServerComponentClient({ cookies })
+
+  const { data: pericias, error } = await supabase
+    .from('sirene_pericias')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('[PericiasPage] erro ao buscar perícias:', error.message)
+  }
+
+  const lista: Pericia[] = pericias ?? []
+
+  const metricas: MetricasPericias = {
+    total: lista.length,
+    abertas: lista.filter((p) => p.status === 'aberta').length,
+    investigando: lista.filter((p) => p.status === 'investigando').length,
+    plano_acao: lista.filter((p) => p.status === 'plano_acao').length,
+    recidivas: lista.reduce((acc, p) => acc + (p.recidivas_count ?? 0), 0),
+  }
 
   return (
-    <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
-      <h1 className="text-2xl font-bold text-white">Perícias (Caneta Verde)</h1>
-      <p className="mt-1 text-stone-400">
-        Vincule chamados (com tema e mapeamento preenchidos) ao planejamento de perícias. Filtre e
-        analise chamados por nome de perícia.
-      </p>
-      {!canetaOuBombeiro ? (
-        <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-200">
-          Apenas Bombeiro ou Caneta Verde podem acessar esta aba.
-        </div>
-      ) : (
-        <PericiasConteudo
-          chamadosPendentesInicial={chamadosPendentes}
-          periciasPlanejamentoInicial={periciasPlanejamento}
-          conclusoesInicial={conclusoes}
-        />
-      )}
-    </main>
-  );
+    <PericiasBoardClient
+      pericias={lista}
+      metricas={metricas}
+      dominios={DOMINIOS}
+    />
+  )
 }
