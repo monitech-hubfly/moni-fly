@@ -19,7 +19,6 @@ export function formatCodigoLoteador(num: number, width = 4): string {
 
 type CodigoLoteadorDb = {
   from: (table: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- builder Supabase (thenable)
     select: (cols: string) => any;
   };
 };
