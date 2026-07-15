@@ -157,6 +157,35 @@ export async function aceitarPrazoSubInteracao(
   return { ok: true };
 }
 
+/** Aceite automático de prazo quando a janela de 24h expirou sem resposta — NÃO toca o campo status. */
+export async function aceitarPrazoSubInteracaoAuto(
+  topicoId: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const row = await carregarTopico(supabase, topicoId);
+  if (!row) return { ok: false, error: 'Tópico não encontrado.' };
+
+  if (normalizarPrazoStatus(row.prazo_status) !== 'pendente_aceite_responsavel') {
+    return { ok: true }; // já aceito ou em outro estado — nada a fazer
+  }
+  if (!negociacaoExpirada(row.prazo_negociacao_expira_em)) {
+    return { ok: true }; // janela ainda aberta
+  }
+
+  const prazo = dataCampoCalendarioIso(row.prazo_proposto);
+  if (!prazo) return { ok: false, error: 'Prazo proposto inválido.' };
+
+  const aceite = payloadAceitarPrazoTopico(prazo);
+  return atualizarTopicoPrazo(
+    supabase,
+    row.id,
+    aceite,
+    row.historico,
+    { tipo: 'Prazo aceito automaticamente (24h)', em: new Date().toISOString() },
+  );
+}
+
 /** Responsável recusa o prazo proposto. */
 export async function recusarPrazoSubInteracao(
   topicoId: string,

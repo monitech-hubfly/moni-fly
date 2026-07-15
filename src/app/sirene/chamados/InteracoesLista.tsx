@@ -58,6 +58,8 @@ import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
 import { ConclusaoChamadoCriadorModal } from '@/components/sirene/ConclusaoChamadoCriadorModal';
 import type { TopicoPainelLinha } from '../actions';
+import { negociacaoExpirada, normalizarPrazoStatus } from '@/lib/kanban/prazo-negociacao';
+import { aceitarPrazoSubInteracaoAuto } from '@/lib/actions/prazo-negociacao-actions';
 
 export type InteracaoSireneRow = {
   id: string;
@@ -847,8 +849,22 @@ export function InteracoesLista({
         ? await getTopicosChamado(row.sirene_chamado_id)
         : await getTopicosPorInteracaoId(row.id);
     setTopicosLoading((l) => ({ ...l, [key]: false }));
-    if (res.ok) setTopicosPorAlvo((m) => ({ ...m, [key]: res.topicos }));
-    else setMsgErro(res.error);
+    if (!res.ok) { setMsgErro(res.error); return; }
+    setTopicosPorAlvo((m) => ({ ...m, [key]: res.topicos }));
+    // Aceite automático lazy: grava aceite se 24h expiraram sem resposta do responsável
+    const expirados = res.topicos.filter(
+      (t) =>
+        normalizarPrazoStatus(t.prazo_status) === 'pendente_aceite_responsavel' &&
+        negociacaoExpirada(t.prazo_negociacao_expira_em),
+    );
+    if (expirados.length > 0) {
+      await Promise.all(expirados.map((t) => aceitarPrazoSubInteracaoAuto(String(t.id))));
+      const res2 =
+        row.sirene_chamado_id != null
+          ? await getTopicosChamado(row.sirene_chamado_id)
+          : await getTopicosPorInteracaoId(row.id);
+      if (res2.ok) setTopicosPorAlvo((m) => ({ ...m, [key]: res2.topicos }));
+    }
   }
 
   function abrirDetalheChamado(row: InteracaoSireneRow) {
@@ -996,19 +1012,20 @@ export function InteracoesLista({
     status: SubInteracaoStatusDb,
   ) {
     setMsgErro(null);
-    // Classificação obrigatória ao concluir — abre modal antes de salvar
-    if (status === 'concluido') {
-      setClassificacaoPendente({ row, topicoId });
-      return;
-    }
+    // Modal de horas ao concluir (antes da classificação obrigatória)
     if (
       !skipHorasModalRef.current &&
       row.sirene_chamado_id != null &&
-      status === 'em_andamento'
+      status === 'concluido'
     ) {
       setStatusPendente({ rowId: row.id, status: 'manter' });
       setHorasModalChamado({ chamadoId: row.sirene_chamado_id, titulo: row.titulo });
       setSubStatusPendente({ row, topicoId, status });
+      return;
+    }
+    // Classificação obrigatória ao concluir — abre modal antes de salvar
+    if (status === 'concluido') {
+      setClassificacaoPendente({ row, topicoId });
       return;
     }
     const res = await atualizarStatusSubInteracao(String(topicoId), status, '/sirene/chamados', true);
