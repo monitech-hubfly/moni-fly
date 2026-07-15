@@ -137,7 +137,7 @@ export async function criarPericia(
     const { data: pericia, error: insertError } = await supabase
       .from('sirene_pericias')
       .insert({
-        titulo: payload.titulo,
+        nome_pericia: payload.titulo,
         dominio: payload.dominio,
         tipo: payload.tipo ?? null,
         prioridade: payload.prioridade ?? null,
