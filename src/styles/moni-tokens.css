@@ -267,13 +267,16 @@
   --moni-card-resp-color:     #6b7280;                      /* responsável */
   --moni-card-avatar-bg:      var(--moni-green-50);         /* fallback verde claro */
 
-  /* Chips minimalistas (altura 24px, pill, sem sombra, fundos suaves) */
+  /* Chips minimalistas (pills, sem sombra, fundos suaves) */
   --moni-card-chip-especial-bg:   var(--moni-gold-50);      /* dourado suave (NUNCA laranja) */
   --moni-card-chip-especial-text: var(--moni-gold-800);
   /* Tag de conteúdo no card — padrão pill “Média” (Perícias); ignora cor do DB */
   --moni-card-tag-bg:             #dbeafe;                  /* azul claro pastel / periwinkle */
   --moni-card-tag-text:           #1d4ed8;                  /* azul médio-escuro */
   --moni-card-tag-border:         transparent;              /* sem borda gritante */
+  --moni-card-tag-font-size:      10px;                     /* pills do board (antes 12px) */
+  --moni-card-tag-height:         20px;                     /* proporcional à fonte menor */
+  --moni-card-tag-padding-x:      8px;
   /* Legado revisão → mesmo padrão Média (sem roxo saturado no board) */
   --moni-card-chip-revisao-bg:    var(--moni-card-tag-bg);
   --moni-card-chip-revisao-text:  var(--moni-card-tag-text);
@@ -509,11 +512,11 @@
   align-items: center;
   max-width: 100%;
   gap: 2px;
-  height: 24px;
-  padding: 0 10px;
+  height: var(--moni-card-tag-height);
+  padding: 0 var(--moni-card-tag-padding-x);
   border-radius: 999px;
   font-family: var(--moni-font-sans);
-  font-size: 12px;
+  font-size: var(--moni-card-tag-font-size);
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
@@ -3216,10 +3219,10 @@
 
 /* Tags de conteúdo no card — força padrão Média (sobrescreve cor inline do DB) */
 .moni-kanban-card .moni-tag-chip {
-  height: 24px;
-  padding: 0 10px;
+  height: var(--moni-card-tag-height);
+  padding: 0 var(--moni-card-tag-padding-x);
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--moni-card-tag-font-size);
   font-weight: 600;
   line-height: 1;
   background: var(--moni-card-tag-bg) !important;
