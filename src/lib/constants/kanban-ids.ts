@@ -169,9 +169,10 @@ export const FASE_SLUGS = {
   CONTABILIDADE_GESTORA:       'contabilidade_gestora',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',
   JURIDICO_CONCLUIDO:        'juridico_concluido',
-  // Funil Moní Capital (KANBAN_IDS.MONI_CAPITAL) — fluxo ordem 1–8
+  // Funil Divify / Moní Capital (KANBAN_IDS.MONI_CAPITAL) — fluxo ordem 1–9
   CAPITAL_RECEBIMENTO:            'capital_recebimento',
   CAPITAL_ABERTURA_SPE:           'capital_abertura_spe',
+  CAPITAL_ABERTURA_CONTA:         'capital_abertura_conta',
   CAPITAL_CADASTRO_PLATAFORMA:    'capital_cadastro_plataforma',
   CAPITAL_MATERIAIS_PROJETO:      'capital_materiais_projeto',
   CAPITAL_INFORMACOES_OBRIG:      'capital_informacoes_obrigatorias',
