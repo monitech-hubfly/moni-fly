@@ -73,6 +73,7 @@ const KANBANS_SEMPRE_NATIVOS = new Set([
  * Se algum desses quebrar após migração total para nativo, pode sair desta lista.
  */
 const KANBANS_HIBRIDOS_COM_VIEW_LEGADO = new Set([
+  'Funil Operações',
   'Funil Contabilidade',
   'Funil Cash Me',
   'Funil Crédito Obra',
