@@ -2028,8 +2028,8 @@ export function KanbanCardModal({
       });
       setNovoChamadoFormAberto(false);
       setNovaAtividadeAberta(false);
+      // Atualização pontual do modal — não altera o board
       await loadCard();
-      router.refresh();
     } catch {
       alert('Erro ao criar chamado.');
     } finally {
@@ -2081,8 +2081,8 @@ export function KanbanCardModal({
         return;
       }
       setEditingId(null);
+      // Conteúdo interno do chamado — board inalterado
       await loadCard();
-      router.refresh();
     } catch {
       alert('Erro ao salvar chamado.');
     } finally {
@@ -2264,8 +2264,8 @@ export function KanbanCardModal({
       return;
     }
     await reloadSubsForParent(interacaoId);
+    // Sub-interação interna — board inalterado
     await loadCard();
-    router.refresh();
   }
 
   async function handleSubStatusChange(
@@ -2290,8 +2290,8 @@ export function KanbanCardModal({
       alert(res.error);
       return;
     }
+    // Status de atividade interna — board inalterado
     await loadCard();
-    router.refresh();
   }
 
   async function confirmarClassificacao(classificacao: 'pontual' | 'recorrente') {
@@ -2307,8 +2307,8 @@ export function KanbanCardModal({
     setClassificandoPendente(false);
     setClassificacaoPendente(null);
     if (!res.ok) { alert(res.error); return; }
+    // Classificação de atividade interna — board inalterado
     await loadCard();
-    router.refresh();
   }
 
   async function handleTogglePastel(subId: string, checked: boolean) {
@@ -2350,8 +2350,8 @@ export function KanbanCardModal({
       alert(res.error);
       return;
     }
+    // Status do chamado interno — board inalterado
     await loadCard();
-    router.refresh();
   }
 
   async function confirmarConclusaoInteracaoCard(payload: {
@@ -2369,8 +2369,8 @@ export function KanbanCardModal({
       return;
     }
     setConclusaoInteracaoId(null);
+    // Conclusão de chamado interno — board inalterado
     await loadCard();
-    router.refresh();
   }
 
   async function handleConfirmarFinalizarCard() {
@@ -4045,7 +4045,7 @@ export function KanbanCardModal({
       const inst = draftInstrucoesFase.trim() || null;
       setFaseAtual((prev) => (prev ? { ...prev, instrucoes: inst, materiais } : prev));
       setFases((prev) => prev.map((f) => (f.id === faseAtual.id ? { ...f, instrucoes: inst, materiais } : f)));
-      router.refresh();
+      // Instruções da fase já atualizadas no estado local — board inalterado
     } catch {
       alert('Erro ao salvar instruções.');
     } finally {
@@ -4712,8 +4712,8 @@ export function KanbanCardModal({
                 onVoltar={voltarPainelDetalhes}
                 onConcluido={() => {
                   setTrancheVinculosTick((t) => t + 1);
+                  // Vínculo tranche interno — board inalterado
                   void loadCard();
-                  router.refresh();
                 }}
               />
             ) : abaCentro === 'chamados' ? (
@@ -5727,7 +5727,7 @@ export function KanbanCardModal({
                             }
                             setVincularChamadoAberto(false);
                             setVincularChamadoIdInput('');
-                            router.refresh();
+                            // Vínculo Sirene interno — board inalterado
                             void loadCard({ silencioso: true });
                           })();
                         }}
@@ -7787,8 +7787,8 @@ export function KanbanCardModal({
                   return;
                 }
                 setModalExcluirInteracaoId(null);
+                // Exclusão de chamado interno — board inalterado
                 await loadCard();
-                router.refresh();
               }}
               className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
@@ -7839,8 +7839,8 @@ export function KanbanCardModal({
                 }
                 setModalArquivarInteracao(null);
                 setMotivoArquivarInteracao('');
+                // Arquivo de chamado interno — board inalterado
                 await loadCard();
-                router.refresh();
               }}
               className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
@@ -8047,7 +8047,11 @@ export function KanbanCardModal({
     {modalNovoChamadoAberto && card && (
       <ModalNovoChamado
         onClose={() => setModalNovoChamadoAberto(false)}
-        onSuccess={() => { setModalNovoChamadoAberto(false); router.refresh(); }}
+        onSuccess={() => {
+          setModalNovoChamadoAberto(false);
+          // Novo chamado Sirene — board inalterado; recarrega lista no modal
+          void loadCard();
+        }}
         initialCard={
           origem === 'legado'
             ? { card_id: null, processo_id: card.id, titulo: card.titulo ?? '', kanban_nome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome), etapa: card.etapa_slug ?? null, origem: 'legado' }

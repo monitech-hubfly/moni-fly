@@ -522,6 +522,11 @@ export function TarefasPainelConteudo({ basePath: _ = '/painel-novos-negocios' }
 
   return (
     <div className="space-y-4">
+      {interacoes.length >= 500 ? (
+        <p className="text-xs text-[var(--moni-text-tertiary)]">
+          Exibindo as 500 atividades mais recentes. Filtros aplicam-se a este recorte.
+        </p>
+      ) : null}
       <section
         className="rounded-xl border p-4 shadow-sm"
         style={{
