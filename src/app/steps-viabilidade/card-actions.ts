@@ -1256,6 +1256,9 @@ function mapKanbanAtividadeStatusToPainel(raw: string): 'nao_iniciada' | 'em_and
   return 'nao_iniciada';
 }
 
+/** Limite do painel agregado — evita payload enorme; UI pode paginar depois se necessário. */
+const PAINEL_ATIVIDADES_LIMIT = 500;
+
 async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promise<AtividadesChecklistPainelOk | { ok: false; error: string }> {
   const { data, error } = await supabase
     .from('v_atividades_unificadas')
@@ -1282,7 +1285,8 @@ async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promis
         'chamado_numero',
       ].join(', '),
     )
-    .order('criado_em', { ascending: false });
+    .order('criado_em', { ascending: false })
+    .limit(PAINEL_ATIVIDADES_LIMIT);
 
   if (error) return { ok: false, error: error.message };
 

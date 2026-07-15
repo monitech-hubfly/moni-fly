@@ -1,11 +1,17 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { NovoCardModal } from '@/app/funil-stepone/NovoCardModal';
 import { NovoCardFundingModal } from '@/app/funil-funding/NovoCardFundingModal';
-import { KanbanCardModal } from './KanbanCardModal';
 import type { CamposPorFaseMap, KanbanFase, KanbanNomeDisplay } from './types';
+
+/** Modal pesado — carrega só quando há `?card=` (code-split + sem SSR). */
+const KanbanCardModal = dynamic(
+  () => import('./KanbanCardModal').then((m) => m.KanbanCardModal),
+  { ssr: false },
+);
 
 export type KanbanWrapperProps = {
   children: React.ReactNode;
