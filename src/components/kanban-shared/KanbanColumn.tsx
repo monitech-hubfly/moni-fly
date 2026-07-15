@@ -232,7 +232,9 @@ export function KanbanColumn({
   );
 
   const dndAtivo = dragEnabled && !pending;
-  const subtituloFase = (fase.instrucoes ?? '').trim();
+  const isDivify = kanbanId === KANBAN_IDS.MONI_CAPITAL;
+  // Divify: não repetir o texto longo de instrucoes sob o título da coluna.
+  const subtituloFase = isDivify ? '' : (fase.instrucoes ?? '').trim();
 
   const proximaFaseFunil = useMemo(() => {
     const candidatas = (fasesFunil ?? [])
@@ -241,7 +243,7 @@ export function KanbanColumn({
     const prox = candidatas[0];
     return prox ? { id: prox.id, nome: prox.nome } : null;
   }, [fasesFunil, fase.ordem]);
-  const isFunding = kanbanId === KANBAN_IDS.FUNDING || kanbanId === KANBAN_IDS.MONI_CAPITAL;
+  const isFunding = kanbanId === KANBAN_IDS.FUNDING || isDivify;
 
   const abrirCard = (card: KanbanCardBrief) => {
     if (suppressClickRef.current) return;
