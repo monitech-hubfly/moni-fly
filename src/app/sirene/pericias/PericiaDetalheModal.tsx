@@ -223,7 +223,7 @@ export default function PericiaDetalheModal({
             .eq('pericia_id', id)
             .order('created_at', { ascending: false }),
           supabase
-            .from('sirene_pericia_carometro')
+            .from('sirene_pericia_carometro_vinculos')
             .select('*')
             .eq('pericia_id', id)
             .order('created_at', { ascending: false }),
@@ -280,6 +280,13 @@ export default function PericiaDetalheModal({
 
   // ── Ações do usuário ────────────────────────────────────────────────────────
 
+  async function obterAutorNome(): Promise<string> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return 'Sistema'
+    const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
+    return (profile as any)?.full_name ?? user?.email ?? 'Sistema'
+  }
+
   async function salvarTitulo() {
     if (!detalhe || tituloLocal.trim() === detalhe.titulo) {
       setEditandoTitulo(false)
@@ -321,10 +328,11 @@ export default function PericiaDetalheModal({
         ...(detalhe.status === 'concluida' ? { data_conclusao: null } : {}),
       })
       .eq('id', detalhe.id)
+    const autorNome = await obterAutorNome()
     await supabase.from('sirene_pericia_historico').insert({
       pericia_id: detalhe.id,
       descricao: `Voltou manualmente para "${faseAnterior.label}"`,
-      autor_nome: 'Sistema',
+      autor_nome: autorNome,
     })
     setAvancando(false)
     await fetchDetalhe(detalhe.id)
@@ -338,10 +346,10 @@ export default function PericiaDetalheModal({
     if (!user) { setAtribuindoResp(false); return }
     const { data: profile } = await supabase
       .from('profiles')
-      .select('nome, email')
+      .select('full_name, email')
       .eq('id', user.id)
       .single()
-    const nome = (profile as any)?.nome ?? user.email ?? 'Responsável'
+    const nome = (profile as any)?.full_name ?? user.email ?? 'Responsável'
     await supabase
       .from('sirene_pericias')
       .update({ responsavel_id: user.id, responsavel_nome: nome })
@@ -365,10 +373,11 @@ export default function PericiaDetalheModal({
       })
       .eq('id', detalhe.id)
     // Registro no histórico
+    const autorNome = await obterAutorNome()
     await supabase.from('sirene_pericia_historico').insert({
       pericia_id: detalhe.id,
       descricao: `Avançou para "${FASES[idx + 1].label}"`,
-      autor_nome: 'Caneta Verde', // substituir pelo usuário real via session
+      autor_nome: autorNome,
     })
     setAvancando(false)
     await fetchDetalhe(detalhe.id)

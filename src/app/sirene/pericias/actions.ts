@@ -144,7 +144,7 @@ export async function criarPericia(
         time_responsavel: payload.time_responsavel ?? null,
         responsavel_id: payload.responsavel_id ?? null,
         data_previsao_conclusao: payload.data_previsao_conclusao ?? null,
-        status: 'rascunho' as PericiaStatus,
+        status: 'aberta' as PericiaStatus,
         created_by: user.id,
         recidivas_count: 0,
         chamados_count: 0,
