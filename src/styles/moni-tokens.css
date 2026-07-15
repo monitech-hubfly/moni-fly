@@ -242,10 +242,10 @@
      Sem laranja: o chip "Especial" do mockup é mapeado para o DOURADO Moní.
   -------------------------------------------------- */
   --moni-card-surface:        var(--moni-surface-0);       /* branco */
-  --moni-card-border-color:   #eef2f6;                     /* borda 1px suave */
-  --moni-card-radius:         var(--moni-radius-xl);       /* 16px */
+  --moni-card-border-color:   var(--moni-border-default);  /* borda suave (0.5px) */
+  --moni-card-radius:         var(--moni-radius-lg);       /* 12px — clima Perícias / Moní */
   --moni-card-pad:            14px;                         /* padding interno */
-  --moni-card-shadow:         0 2px 6px rgba(15, 23, 42, 0.04);
+  --moni-card-shadow:         var(--moni-shadow-card);
   --moni-card-shadow-hover:   0 10px 24px rgba(15, 23, 42, 0.08);
   /* Fonte compartilhada: .moni-kanban-column-title + .moni-kanban-card-title (+ responsável).
      Chrome: fase e card já computavam 11px iguais, mas 11px ficou menor que FK (12) e
@@ -254,8 +254,10 @@
   --moni-card-title-size:     14px;
   /* Compactação tipográfica do card fechado (pedido: line-height 1,0) */
   --moni-card-lh:             1;
-  --moni-card-gap-section:    6px;                          /* FK→título, título→responsável */
-  --moni-card-gap-chips:      8px;                          /* responsável→chips */
+  /* Gap MENOR só entre header (FK·responsável) e título; demais usam section/chips/footer */
+  --moni-card-gap-header-title: 4px;
+  --moni-card-gap-section:    8px;                          /* título→chips / seções */
+  --moni-card-gap-chips:      8px;                          /* entre linhas de chips */
   --moni-card-gap-footer:     8px;                          /* chips→rodapé */
   /* Título: quase-preto premium (#111827). NÃO usar --moni-text-primary (#0c2633 navy)
      nem --moni-text-secondary (#4a3929 earth) — ambos parecem bordô/castanho no board. */
@@ -2646,7 +2648,7 @@
   display: block;
   width: 100%;
   padding: var(--moni-card-pad);
-  border: 1px solid var(--moni-card-border-color);
+  border: var(--moni-border-width) solid var(--moni-card-border-color);
   border-radius: var(--moni-card-radius);
   background: var(--moni-card-surface);
   box-shadow: var(--moni-card-shadow);
@@ -2658,32 +2660,32 @@
 }
 
 .moni-kanban-card:hover {
-  border-color: var(--moni-card-border-color);
+  border-color: var(--moni-kanban-card-hover-bd);
   box-shadow: var(--moni-card-shadow-hover);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
-/* Linha lateral de status — 3px; default cinza (sem info); radius acompanha o card */
+/* Faixa lateral discreta (cinza) — urgência SLA fica só no chip (sem vermelho grosso) */
 .moni-kanban-card::before {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  width: 3px;
+  width: 2px;
   border-radius: var(--moni-card-radius) 0 0 var(--moni-card-radius);
   background: var(--moni-card-status-cinza);
 }
 
-.moni-kanban-card--status-verde::before    { background: var(--moni-card-status-verde); }
-.moni-kanban-card--status-amarelo::before  { background: var(--moni-card-status-amarelo); }
+.moni-kanban-card--status-verde::before,
+.moni-kanban-card--status-amarelo::before,
 .moni-kanban-card--status-vermelho::before,
-.moni-kanban-card--sla-atrasado::before {
-  width: 3px;
-  background: var(--moni-card-status-vermelho);
+.moni-kanban-card--sla-atrasado::before,
+.moni-kanban-card--status-roxo::before,
+.moni-kanban-card--status-cinza::before {
+  width: 2px;
+  background: var(--moni-card-status-cinza);
 }
-.moni-kanban-card--status-roxo::before     { background: var(--moni-card-status-roxo); }
-.moni-kanban-card--status-cinza::before    { background: var(--moni-card-status-cinza); }
 
 .moni-kanban-card--archived {
   border-style: dashed;
@@ -2879,8 +2881,53 @@
   gap: 6px;
 }
 
+/* Header do card fechado: FK · responsável | avatar */
+.moni-kanban-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: var(--moni-card-gap-header-title);
+}
+
+.moni-kanban-card-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.moni-kanban-card-header-sep {
+  flex-shrink: 0;
+  color: var(--moni-kanban-tm);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.moni-kanban-card-responsavel {
+  margin: 0;
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: var(--moni-card-lh);
+  color: var(--moni-card-resp-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.moni-kanban-card-header-end {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .moni-kanban-card-codigo {
-  display: block;
+  display: inline;
   margin: 0;
   font-family: var(--moni-font-sans);
   font-size: 12px;
@@ -2888,6 +2935,8 @@
   line-height: var(--moni-card-lh);
   letter-spacing: 0.02em;
   color: var(--moni-card-code-color);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .moni-kanban-card-title {
@@ -2895,8 +2944,8 @@
   font-family: var(--moni-font-sans);
   font-size: var(--moni-card-title-size); /* = .moni-kanban-column-title */
   font-weight: 700; /* negrito explícito — token bold=600 fica leve demais vs fase */
-  line-height: var(--moni-card-lh); /* 1 */
-  letter-spacing: normal; /* sem -0.01em — tamanho óptico = fase */
+  line-height: 1.25;
+  letter-spacing: normal;
   color: var(--moni-card-title-color);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -2904,23 +2953,23 @@
   overflow: hidden;
 }
 
-/* Gap header (código FK) → título */
+/* Gap header → título já vem do margin-bottom do header (gap-header-title).
+   Fallback quando não há header: sem margem extra no título. */
 .moni-kanban-card-codigo + .moni-kanban-card-title {
-  margin-top: var(--moni-card-gap-section);
+  margin-top: 0;
 }
 
 /*
- * cache-bust v4 (2026-07-14): título SEMPRE #111827 negrito — font-size = fase (14px).
- * data-card-title-v4 no card + no span; classes fixas (sem sla.status no className).
- * NÃO existe moni-kanban-card-title--atrasado. Chip SLA / faixa lateral podem ficar vermelhos.
+ * cache-bust v5 (2026-07-15): layout header FK·responsável | avatar;
+ * título SEMPRE #111827 negrito; Especial fora de pill; SLA só em chip.
  */
 .moni-kanban-card .moni-kanban-card-title,
 .moni-kanban-card .moni-kanban-card-title--neutral,
 .moni-kanban-card .moni-kanban-card-open .moni-kanban-card-title,
 .moni-kanban-card .moni-kanban-card-open .moni-kanban-card-title--neutral,
-.moni-kanban-card[data-card-title-v4] .moni-kanban-card-title,
-.moni-kanban-card[data-card-title-v4] .moni-kanban-card-title--neutral,
-.moni-kanban-card-title[data-card-title-v4],
+.moni-kanban-card[data-card-title-v5] .moni-kanban-card-title,
+.moni-kanban-card[data-card-title-v5] .moni-kanban-card-title--neutral,
+.moni-kanban-card-title[data-card-title-v5],
 .moni-kanban-card--status-vermelho .moni-kanban-card-title,
 .moni-kanban-card--status-vermelho .moni-kanban-card-title--neutral,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-title,
@@ -2934,10 +2983,10 @@
 .moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-title,
 .moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-title--neutral,
 .moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-title--neutral {
-  color: #111827 !important; /* literal — ignora token se alguém redefinir overdue no :root */
-  font-size: var(--moni-card-title-size) !important; /* = título da fase */
+  color: var(--moni-card-title-color) !important;
+  font-size: var(--moni-card-title-size) !important;
   font-weight: 700 !important;
-  line-height: 1 !important;
+  line-height: 1.25 !important;
   letter-spacing: normal !important;
 }
 
@@ -2955,14 +3004,19 @@
 .moni-kanban-card-subtitle {
   margin: var(--moni-card-gap-section) 0 0;
   font-family: var(--moni-font-sans);
-  font-size: var(--moni-card-title-size); /* mesmo size do título da fase / título do card */
+  font-size: 12px;
   font-weight: 400;
-  line-height: var(--moni-card-lh);
+  line-height: 1.25;
   color: var(--moni-card-resp-color);
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.moni-kanban-card-funding {
+  display: inline-block;
+  margin-top: var(--moni-card-gap-chips);
 }
 
 .moni-kanban-card-divider {
@@ -3168,7 +3222,107 @@
   border: var(--moni-border-width) solid var(--moni-gold-400);
 }
 
-/* Rodapé do card fechado: contadores + vínculos à esquerda, próxima atividade à direita */
+/* ★ Especial — destaque tipográfico (NÃO pill/tag) */
+.moni-kanban-card-especial-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--moni-card-gap-section);
+}
+
+.moni-kanban-card-especial {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--moni-card-chip-especial-text);
+}
+
+.moni-kanban-card-especial-star {
+  color: var(--moni-gold-400);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.moni-kanban-card-tags-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--moni-card-gap-chips);
+  margin-top: var(--moni-card-gap-section);
+}
+
+.moni-kanban-card-tags-chips,
+.moni-kanban-card-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--moni-card-gap-chips);
+  margin-top: var(--moni-card-gap-chips);
+}
+
+.moni-kanban-card-especial-row + .moni-kanban-card-chips-row {
+  margin-top: var(--moni-card-gap-chips);
+}
+
+.moni-kanban-card-tag-chip--removable {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 2px;
+  padding-right: 2px;
+}
+
+/* Meta: bolinhas · reunião */
+.moni-kanban-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: var(--moni-card-gap-footer);
+  min-height: 20px;
+}
+
+.moni-kanban-card-meta-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.moni-kanban-card-meta-sep {
+  flex-shrink: 0;
+  color: var(--moni-kanban-tm);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.moni-kanban-card-reuniao {
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--moni-text-secondary);
+  white-space: nowrap;
+}
+
+.moni-kanban-card-reuniao--atencao {
+  color: var(--moni-status-attention-text);
+}
+
+.moni-kanban-card-reuniao--atrasado {
+  color: var(--moni-card-chip-prazo-text);
+  font-weight: 600;
+}
+
+/* Rodapé: alerta à esquerda · menu ⋯ à direita (coluna do avatar) */
 .moni-kanban-card-footer {
   display: flex;
   align-items: center;

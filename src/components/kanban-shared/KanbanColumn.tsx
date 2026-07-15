@@ -12,6 +12,7 @@ import {
   creditoObraAguardandoDocumentacao,
   CLASSE_TAG_AGUARDANDO_DOCUMENTACAO,
   TAG_AGUARDANDO_DOCUMENTACAO,
+  tagSlaKanbanParaExibicao,
 } from '@/lib/kanban/kanban-card-sla';
 import {
   moverCardKanbanDrag,
@@ -24,9 +25,11 @@ import {
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardMenu } from './KanbanCardMenu';
-import { KanbanCardPrazoIndicadores } from './KanbanCardPrazoIndicadores';
+import { KanbanSlaTag, TextoReuniaoCard } from './KanbanCardPrazoIndicadores';
 import { KanbanCardBoardTags } from './KanbanCardBoardTags';
 import { ResponsavelFaseAvatar } from './ResponsavelFaseAvatar';
+import { indicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
+import { isKanbanTagEspecialNome } from '@/lib/kanban/kanban-tag-especial';
 import { rotuloUnidadeSla } from '@/lib/dias-uteis';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
@@ -490,26 +493,30 @@ export function KanbanColumn({
           });
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
-          // Linha lateral (3px): verde=no prazo, amarelo=atenção, vermelho=atrasado,
-          // cinza=sem SLA / pausado / arquivado / concluído. Default nunca vermelho.
-          const statusLateral =
-            arquivado || concluido || sla.pausado || sla.semSla
-              ? 'cinza'
-              : sla.status === 'atrasado'
-                ? 'vermelho'
-                : sla.status === 'atencao'
-                  ? 'amarelo'
-                  : 'verde';
+          // Urgência no chip de SLA — sem faixa lateral vermelha grossa.
+          const statusLateral = 'cinza';
           const motivo = (card.motivo_arquivamento ?? '').trim();
-          const hasAvatar = Boolean(card.responsavel_fase_nome?.trim());
+          const responsavelNome = card.responsavel_fase_nome?.trim() || '';
+          const hasAvatar = Boolean(responsavelNome);
           const hasBadge = arquivado || concluido;
-          const paddingTitulo = hasBadge || hasAvatar ? 'pr-14' : '';
           const podeArrastar = dndAtivo;
           const insertBeforeThis =
             dragOverCardId === card.id && dragInsertBefore && dndAtivo;
+          // Subtítulo = franqueado / loteador (não repetir o responsável do header).
           const subtituloCard =
             card.subtitulo?.trim() || card.profiles?.full_name?.trim() || '';
+          const mostrarSubtitulo =
+            Boolean(subtituloCard) && subtituloCard !== responsavelNome;
           const { codigo: codigoCard, tituloLimpo } = separarCodigoTitulo(card.titulo);
+          const slaChip =
+            !arquivado && !concluido && !aguardandoDoc ? tagSlaKanbanParaExibicao(sla) : null;
+          const reuniaoIso =
+            !arquivado && !concluido && card.data_reuniao
+              ? String(card.data_reuniao)
+              : '';
+          const temReuniao = Boolean(
+            reuniaoIso && indicadorDataKanban('reuniao', reuniaoIso),
+          );
 
           const chipsParalelas = montarChipsParalelas(
             {
@@ -541,6 +548,11 @@ export function KanbanColumn({
           const qtdAnexos = anexosCountPorCard?.[card.id] ?? 0;
           const temContadores = qtdComentarios > 0 || qtdAnexos > 0;
           const temParalelas = chipsParalelas.length > 0;
+          const tagsDoCard = tagsVisiveisCard(card);
+          const temTagsChip = tagsDoCard.some((t) => !isKanbanTagEspecialNome(t.nome));
+          const temEspecial = tagsDoCard.some((t) => isKanbanTagEspecialNome(t.nome));
+          const temChipsRow =
+            temTagsChip || (!arquivado && !concluido && aguardandoDoc) || Boolean(slaChip);
           const temProximaAtividade = !arquivado && !concluido;
           const semProximaAtividade = !String(card.proxima_atividade ?? '').trim();
           const proxDotEsquerda = temProximaAtividade && !semProximaAtividade;
@@ -601,6 +613,7 @@ export function KanbanColumn({
                 }}
                 className={[
                   'moni-kanban-card',
+                  'moni-kanban-card--v5',
                   `moni-kanban-card--status-${statusLateral}`,
                   arquivado ? 'moni-kanban-card--archived' : '',
                   concluido ? 'moni-kanban-card--done' : '',
@@ -610,120 +623,152 @@ export function KanbanColumn({
                   dragOverCardId === card.id && !dragInsertBefore && dndAtivo
                     ? 'moni-kanban-card--drag-target'
                     : '',
-                  !arquivado && !concluido && sla.status === 'atrasado'
-                    ? 'moni-kanban-card--sla-atrasado'
-                    : '',
-                  !arquivado && !concluido && sla.status === 'atencao'
-                    ? 'moni-kanban-card--sla-atencao'
-                    : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                data-card-title-v4="1"
+                data-card-title-v5="1"
               >
-                {hasBadge || hasAvatar ? (
-                  <div className="moni-kanban-card-badges">
-                    {arquivado ? (
-                      <span className="moni-kanban-card-status-badge moni-kanban-card-status-badge--archived">
-                        ARQUIVADO
-                      </span>
-                    ) : concluido ? (
-                      <span className="moni-kanban-card-status-badge moni-kanban-card-status-badge--done">
-                        CONCLUÍDO
-                      </span>
-                    ) : null}
-                    <ResponsavelFaseAvatar nome={card.responsavel_fase_nome} size="md" />
-                  </div>
-                ) : null}
                 <button
                   type="button"
                   onClick={() => abrirCard(card)}
                   className="moni-kanban-card-open"
                 >
-                  {codigoCard ? (
-                    <span
-                      className={['moni-kanban-card-codigo', paddingTitulo]
-                        .filter(Boolean)
-                        .join(' ')}
-                    >
-                      {codigoCard}
-                    </span>
+                  {/* 1. Header: FK · responsável | avatar (sem nome da fase) */}
+                  {codigoCard || responsavelNome || hasBadge || hasAvatar ? (
+                    <div className="moni-kanban-card-header">
+                      <div className="moni-kanban-card-header-meta">
+                        {codigoCard ? (
+                          <span className="moni-kanban-card-codigo">{codigoCard}</span>
+                        ) : null}
+                        {codigoCard && responsavelNome ? (
+                          <span className="moni-kanban-card-header-sep" aria-hidden>
+                            ·
+                          </span>
+                        ) : null}
+                        {responsavelNome ? (
+                          <span className="moni-kanban-card-responsavel">{responsavelNome}</span>
+                        ) : null}
+                      </div>
+                      {hasBadge || hasAvatar ? (
+                        <div className="moni-kanban-card-header-end">
+                          {arquivado ? (
+                            <span className="moni-kanban-card-status-badge moni-kanban-card-status-badge--archived">
+                              ARQUIVADO
+                            </span>
+                          ) : concluido ? (
+                            <span className="moni-kanban-card-status-badge moni-kanban-card-status-badge--done">
+                              CONCLUÍDO
+                            </span>
+                          ) : null}
+                          <ResponsavelFaseAvatar nome={responsavelNome} size="md" />
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
+
+                  {/* 2. Título (gap reduzido só vs header) */}
                   <span
-                    className={[
-                      'moni-kanban-card-title',
-                      'moni-kanban-card-title--neutral',
-                      paddingTitulo,
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    style={{ color: 'var(--moni-card-title-color)', fontWeight: 700 }}
-                    data-card-title-v4="1"
+                    className="moni-kanban-card-title moni-kanban-card-title--neutral"
+                    data-card-title-v5="1"
                   >
                     {tituloLimpo}
                   </span>
                   {(() => {
                     const fundingBadgeCls = fundingTipoBadgeClass(card.funding_tipo);
                     return fundingBadgeCls ? (
-                      <span className={`mt-1 inline-block ${fundingBadgeCls}`}>{card.funding_tipo}</span>
+                      <span className={`moni-kanban-card-funding ${fundingBadgeCls}`}>
+                        {card.funding_tipo}
+                      </span>
                     ) : null;
                   })()}
-                  {subtituloCard ? (
+                  {mostrarSubtitulo ? (
                     <p className="moni-kanban-card-subtitle">{subtituloCard}</p>
                   ) : null}
                   {arquivado && motivo ? (
                     <p className="moni-kanban-card-section-value line-clamp-2">{motivo}</p>
                   ) : null}
-                  <KanbanCardBoardTags
-                    tags={tagsVisiveisCard(card)}
-                    className="mt-1"
-                    editable
-                    onRemoveTag={removerTagDoCard}
-                  />
-                  {!arquivado && !concluido && aguardandoDoc ? (
-                    <span className={`mt-1 inline-block ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>
-                      {TAG_AGUARDANDO_DOCUMENTACAO}
-                    </span>
+
+                  {/* 3. ★ Especial (destaque próprio) */}
+                  {temEspecial ? (
+                    <KanbanCardBoardTags tags={tagsDoCard} modo="especial" />
                   ) : null}
-                  {!arquivado && !concluido && !aguardandoDoc ? (
-                    <KanbanCardPrazoIndicadores
-                      sla={sla}
-                      dataReuniao={card.data_reuniao}
-                    />
+
+                  {/* 4. Demais tags + SLA (chips) */}
+                  {temChipsRow ? (
+                    <div className="moni-kanban-card-chips-row">
+                      <KanbanCardBoardTags
+                        tags={tagsDoCard}
+                        modo="chips"
+                        editable
+                        onRemoveTag={removerTagDoCard}
+                      />
+                      {!arquivado && !concluido && aguardandoDoc ? (
+                        <span className={CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}>
+                          {TAG_AGUARDANDO_DOCUMENTACAO}
+                        </span>
+                      ) : null}
+                      {slaChip ? <KanbanSlaTag sla={sla} /> : null}
+                    </div>
                   ) : null}
                 </button>
+
+                {/* 5. Bolinhas · reunião (+ contadores / próxima atividade) */}
+                {temContadores || temParalelas || temReuniao || proxDotEsquerda ? (
+                  <div className="moni-kanban-card-meta">
+                    <div className="moni-kanban-card-meta-start">
+                      {temContadores ? (
+                        <div className="moni-kanban-card-counts">
+                          {qtdComentarios > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => abrirCard(card)}
+                              className="moni-kanban-card-count"
+                              aria-label={`${qtdComentarios} comentário(s)`}
+                            >
+                              <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              <span className="tabular-nums">{qtdComentarios}</span>
+                            </button>
+                          ) : null}
+                          {qtdAnexos > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => abrirCard(card)}
+                              className="moni-kanban-card-count"
+                              aria-label={`${qtdAnexos} anexo(s) Sirene`}
+                            >
+                              <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              <span className="tabular-nums">{qtdAnexos}</span>
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {temParalelas ? (
+                        <KanbanParalelasChips chips={chipsParalelas} mode="board" />
+                      ) : null}
+                      {temParalelas && temReuniao ? (
+                        <span className="moni-kanban-card-meta-sep" aria-hidden>
+                          ·
+                        </span>
+                      ) : null}
+                      {temReuniao ? (
+                        <TextoReuniaoCard dataIso={reuniaoIso} varianteVisual="texto" />
+                      ) : null}
+                      {proxDotEsquerda ? (
+                        <ProximaAtividadeDot
+                          cardId={card.id}
+                          proximaAtividade={card.proxima_atividade ?? null}
+                          prazoAtividade={card.prazo_atividade ?? null}
+                          basePath={basePath}
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* 6. Alerta | menu (mesma linha; menu alinhado à coluna do avatar) */}
                 <div className="moni-kanban-card-footer">
                   <div className="moni-kanban-card-footer-start">
-                    {temContadores ? (
-                      <div className="moni-kanban-card-counts">
-                        {qtdComentarios > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => abrirCard(card)}
-                            className="moni-kanban-card-count"
-                            aria-label={`${qtdComentarios} comentário(s)`}
-                          >
-                            <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                            <span className="tabular-nums">{qtdComentarios}</span>
-                          </button>
-                        ) : null}
-                        {qtdAnexos > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => abrirCard(card)}
-                            className="moni-kanban-card-count"
-                            aria-label={`${qtdAnexos} anexo(s) Sirene`}
-                          >
-                            <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                            <span className="tabular-nums">{qtdAnexos}</span>
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {temParalelas ? (
-                      <KanbanParalelasChips chips={chipsParalelas} mode="board" />
-                    ) : null}
-                    {proxDotEsquerda ? (
+                    {proxAlertaDireita ? (
                       <ProximaAtividadeDot
                         cardId={card.id}
                         proximaAtividade={card.proxima_atividade ?? null}
@@ -733,14 +778,6 @@ export function KanbanColumn({
                     ) : null}
                   </div>
                   <div className="moni-kanban-card-footer-end">
-                    {proxAlertaDireita ? (
-                      <ProximaAtividadeDot
-                        cardId={card.id}
-                        proximaAtividade={card.proxima_atividade ?? null}
-                        prazoAtividade={card.prazo_atividade ?? null}
-                        basePath={basePath}
-                      />
-                    ) : null}
                     <KanbanCardMenu
                       cardId={card.id}
                       origem={card.origem === 'legado' ? 'legado' : 'nativo'}

@@ -43,11 +43,31 @@ function estiloTextoDataVariante(variante: IndicadorDataKanban['variante']): str
 }
 
 /** Tag textual de data (reunião / follow-up) — mesmo tamanho das tags de SLA. */
-function TextoDataCard({ tipo, dataIso }: { tipo: IndicadorDataKanban['tipo']; dataIso: string }) {
+function TextoDataCard({
+  tipo,
+  dataIso,
+  varianteVisual = 'chip',
+}: {
+  tipo: IndicadorDataKanban['tipo'];
+  dataIso: string;
+  /** `chip` — pill colorido; `texto` — linha do rodapé (bolinhas · reunião). */
+  varianteVisual?: 'chip' | 'texto';
+}) {
   const ind = indicadorDataKanban(tipo, dataIso);
   if (!ind) return null;
   const dataFmt = formatDataPtBr(dataIso);
   const texto = `${TITULO_POR_TIPO[tipo]}: ${dataFmt}`;
+
+  if (varianteVisual === 'texto') {
+    return (
+      <span
+        className={`moni-kanban-card-reuniao moni-kanban-card-reuniao--${ind.variante}`}
+        title={ind.title}
+      >
+        {texto}
+      </span>
+    );
+  }
 
   return (
     <span className={estiloTextoDataVariante(ind.variante)} title={ind.title}>
@@ -58,14 +78,21 @@ function TextoDataCard({ tipo, dataIso }: { tipo: IndicadorDataKanban['tipo']; d
 }
 
 /** Reunião sempre em texto — nunca bolinha compacta (todos os funis/kanbans). */
-export function TextoReuniaoCard({ dataIso }: { dataIso: string }) {
-  return <TextoDataCard tipo="reuniao" dataIso={dataIso} />;
+export function TextoReuniaoCard({
+  dataIso,
+  varianteVisual = 'chip',
+}: {
+  dataIso: string;
+  varianteVisual?: 'chip' | 'texto';
+}) {
+  return <TextoDataCard tipo="reuniao" dataIso={dataIso} varianteVisual={varianteVisual} />;
 }
 
 type IndicadoresProps = {
   sla: SlaKanbanResult;
   dataReuniao?: string | null;
   ocultarSla?: boolean;
+  ocultarReuniao?: boolean;
   className?: string;
 };
 
@@ -74,6 +101,7 @@ export function KanbanCardPrazoIndicadores({
   sla,
   dataReuniao,
   ocultarSla = false,
+  ocultarReuniao = false,
   className = '',
 }: IndicadoresProps) {
   const itens: ReactNode[] = [];
@@ -85,7 +113,7 @@ export function KanbanCardPrazoIndicadores({
     }
   }
 
-  if (dataReuniao && indicadorDataKanban('reuniao', dataReuniao)) {
+  if (!ocultarReuniao && dataReuniao && indicadorDataKanban('reuniao', dataReuniao)) {
     itens.push(<TextoReuniaoCard key="reuniao" dataIso={dataReuniao} />);
   }
 
