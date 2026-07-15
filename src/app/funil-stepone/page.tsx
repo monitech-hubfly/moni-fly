@@ -38,7 +38,7 @@ export default async function FunilStepOnePage({
     await autoCurarCardsFunilStepOneAusentes(user.id);
   }
 
-  const { kanban, fases, cards, cardsConcluidos, role: boardRole } =
+  const { kanban, fases, cards, cardsConcluidos, role: boardRole, snapshotMode } =
     await fetchKanbanBoardSnapshot(supabase, 'Funil Step One', user.id);
 
   const isAdmin =
@@ -89,7 +89,10 @@ export default async function FunilStepOnePage({
               currentUserId={user.id}
               mostrarLinkNovoCard
               podeCriarCards={isAdmin ? true : undefined}
+              kanbanNome="Funil Step One"
+              kanbanNomeDb="Funil Step One"
               kanbanId={kanban.id}
+              snapshotLean={snapshotMode === 'lean'}
             />
           </main>
         )}

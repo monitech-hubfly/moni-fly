@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { podeComFallbackStaff } from '@/lib/permissoes-types';
+import { fetchKanbanBoardStatusPool } from '@/lib/actions/kanban-board-snapshot';
 import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
 import { KanbanColumn } from './KanbanColumn';
 import {
@@ -25,6 +26,10 @@ const BOARD_ROW_STYLE: CSSProperties = {
   alignItems: 'stretch',
 };
 
+function cardEhArquivadoNativo(c: KanbanCardBrief): boolean {
+  return c.origem !== 'legado' && Boolean(c.arquivado);
+}
+
 export type KanbanBoardProps = {
   fases: KanbanFase[];
   cards: KanbanCardBrief[];
@@ -43,7 +48,17 @@ export type KanbanBoardProps = {
   /** Quando informado, substitui heurística de `mover_fase` + role. */
   podeMoverCards?: boolean;
   kanbanNome?: KanbanNomeDisplay | string;
+  /**
+   * Nome em `kanbans.nome` para lazy-load de arquivados/concluídos após snapshot lean.
+   * Se omitido, usa `kanbanNome` quando for string válida.
+   */
+  kanbanNomeDb?: string;
   kanbanId: string;
+  /**
+   * Quando o RSC já trouxe o snapshot completo (`full`), não busca de novo no STATUS.
+   * Default: detecta se `cards` já tem arquivados ou `cardsConcluidos` não está vazio.
+   */
+  snapshotLean?: boolean;
 };
 
 export function KanbanBoard({
@@ -59,7 +74,9 @@ export function KanbanBoard({
   podeCriarCards: podeCriarCardsProp,
   podeMoverCards: podeMoverCardsProp,
   kanbanNome,
+  kanbanNomeDb,
   kanbanId,
+  snapshotLean,
 }: KanbanBoardProps) {
   const hipotesesOrdemMin = useMemo(() => hipotesesOrdemMinima(fases), [fases]);
   const { pode } = usePermissoes();
@@ -72,6 +89,80 @@ export function KanbanBoard({
   const boardScrollRef = useRef<HTMLDivElement>(null);
   const [scrollHintLeft, setScrollHintLeft] = useState(false);
   const [scrollHintRight, setScrollHintRight] = useState(false);
+
+  const nomeDbParaLazy = String(kanbanNomeDb ?? kanbanNome ?? '').trim();
+  const leanAtivo =
+    snapshotLean ??
+    (!cards.some(cardEhArquivadoNativo) && cardsConcluidos.length === 0);
+
+  /** Pools carregados sob demanda (STATUS arquivados / concluídos). */
+  const [lazyArquivados, setLazyArquivados] = useState<KanbanCardBrief[] | null>(null);
+  const [lazyConcluidos, setLazyConcluidos] = useState<KanbanCardBrief[] | null>(null);
+  const [statusPoolLoading, setStatusPoolLoading] = useState(false);
+  const [statusPoolError, setStatusPoolError] = useState<string | null>(null);
+  const lazyFetchGen = useRef(0);
+
+  // Refresh do RSC: invalida caches lazy para não misturar com snapshot antigo.
+  useEffect(() => {
+    setLazyArquivados(null);
+    setLazyConcluidos(null);
+    setStatusPoolError(null);
+  }, [cards, cardsConcluidos]);
+
+  useEffect(() => {
+    if (!leanAtivo || !nomeDbParaLazy) return;
+    const status = filtros.status;
+    if (status !== 'arquivados' && status !== 'concluidos') {
+      setStatusPoolLoading(false);
+      return;
+    }
+    if (status === 'arquivados' && lazyArquivados != null) {
+      setStatusPoolLoading(false);
+      return;
+    }
+    if (status === 'concluidos' && lazyConcluidos != null) {
+      setStatusPoolLoading(false);
+      return;
+    }
+
+    const gen = ++lazyFetchGen.current;
+    let cancelled = false;
+    setStatusPoolLoading(true);
+    setStatusPoolError(null);
+
+    void (async () => {
+      const res = await fetchKanbanBoardStatusPool(nomeDbParaLazy, status);
+      if (cancelled || gen !== lazyFetchGen.current) return;
+      setStatusPoolLoading(false);
+      if (!res.ok) {
+        setStatusPoolError(res.error);
+        return;
+      }
+      if (status === 'arquivados') {
+        setLazyArquivados(res.cards.filter(cardEhArquivadoNativo));
+      } else {
+        setLazyConcluidos(res.cardsConcluidos);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    leanAtivo,
+    nomeDbParaLazy,
+    filtros.status,
+    lazyArquivados,
+    lazyConcluidos,
+  ]);
+
+  const cardsEfetivos = useMemo(() => {
+    if (!lazyArquivados || lazyArquivados.length === 0) return cards;
+    const ids = new Set(cards.map((c) => c.id));
+    return [...cards, ...lazyArquivados.filter((c) => !ids.has(c.id))];
+  }, [cards, lazyArquivados]);
+
+  const cardsConcluidosEfetivos = lazyConcluidos ?? cardsConcluidos;
 
   const syncBoardScrollHints = () => {
     const el = boardScrollRef.current;
@@ -112,7 +203,7 @@ export function KanbanBoard({
 
   const responsaveisOpcoes = useMemo(() => {
     const m = new Map<string, string>();
-    for (const c of [...cards, ...cardsConcluidos]) {
+    for (const c of [...cardsEfetivos, ...cardsConcluidosEfetivos]) {
       const id = c.franqueado_id;
       if (!id) continue;
       const nome = (c.profiles?.full_name ?? '').trim() || 'Sem nome';
@@ -121,11 +212,11 @@ export function KanbanBoard({
     return [...m.entries()]
       .map(([id, nome]) => ({ id, nome }))
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-  }, [cards, cardsConcluidos]);
+  }, [cardsEfetivos, cardsConcluidosEfetivos]);
 
   const poolStatus = useMemo(
-    () => poolCardsPorStatus(filtros.status, cards, cardsConcluidos),
-    [filtros.status, cards, cardsConcluidos],
+    () => poolCardsPorStatus(filtros.status, cardsEfetivos, cardsConcluidosEfetivos),
+    [filtros.status, cardsEfetivos, cardsConcluidosEfetivos],
   );
 
   const rawByFase = useMemo(() => {
@@ -235,6 +326,23 @@ export function KanbanBoard({
               }}
             />
           </div>
+        ) : null}
+        {statusPoolLoading ? (
+          <span
+            className="text-xs"
+            style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
+          >
+            Carregando {filtros.status === 'arquivados' ? 'arquivados' : 'concluídos'}…
+          </span>
+        ) : null}
+        {statusPoolError ? (
+          <span
+            className="text-xs"
+            style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}
+            role="alert"
+          >
+            {statusPoolError}
+          </span>
         ) : null}
       </div>
 

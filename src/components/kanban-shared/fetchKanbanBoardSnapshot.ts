@@ -32,16 +32,59 @@ import {
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
+/**
+ * `lean` (default): só cards ativos — arquivados/concluídos sob demanda no board.
+ * `full`: comportamento legado (3 queries nativas + pools completos).
+ * `arquivados` / `concluidos`: carrega só o pool pedido (lazy STATUS).
+ */
+export type KanbanBoardSnapshotMode = 'lean' | 'full' | 'arquivados' | 'concluidos';
+
+export type FetchKanbanBoardSnapshotOptions = {
+  mode?: KanbanBoardSnapshotMode;
+};
+
 export type KanbanBoardSnapshot = {
   kanban: { id: string } | null;
   fases: KanbanFase[];
-  /** Ativos + arquivados nativos (pool do filtro STATUS no board). Concluídos ficam em `cardsConcluidos`. */
+  /**
+   * Lean/full ativos: cards ativos (+ arquivados se `full` ou mode `arquivados`).
+   * Concluídos ficam em `cardsConcluidos`.
+   */
   cards: KanbanCardBrief[];
-  /** Nativo: cards finalizados (toggle “Mostrar concluídos”). Legado: []. */
+  /** Nativo: cards finalizados (filtro STATUS “Concluídos”). Legado: []. */
   cardsConcluidos: KanbanCardBrief[];
   role: string;
   isAdmin: boolean;
+  /** Modo efetivo do fetch (útil para o client saber se precisa lazy-load). */
+  snapshotMode: KanbanBoardSnapshotMode;
 };
+
+/** Funis 100% nativos: no path lean não carrega `v_processo_como_kanban_cards`. */
+const KANBANS_SEMPRE_NATIVOS = new Set([
+  'Funil Step One',
+  'Funil Portfólio',
+  'Funil Loteadores',
+  'Funil Acoplamento',
+  'Funil MonINC',
+]);
+
+/**
+ * Híbridos: ainda usam a view no lean para preencher lacunas sem linha em `kanban_cards`.
+ * Se algum desses quebrar após migração total para nativo, pode sair desta lista.
+ */
+const KANBANS_HIBRIDOS_COM_VIEW_LEGADO = new Set([
+  'Funil Contabilidade',
+  'Funil Cash Me',
+  'Funil Crédito Obra',
+  'Funil Crédito',
+]);
+
+function resolveSnapshotMode(options?: FetchKanbanBoardSnapshotOptions): KanbanBoardSnapshotMode {
+  if (options?.mode) return options.mode;
+  // Escape hatch: forçar snapshot completo sem alterar call sites.
+  if (process.env.KANBAN_BOARD_SNAPSHOT_FULL === '1') return 'full';
+  return 'lean';
+}
 
 type ViewLegadoRow = {
   id: string;
@@ -348,17 +391,26 @@ async function resolveKanbanAtivo(
 
 /**
  * Carrega fases e cards do kanban pelo nome (`kanbans.nome`).
- * Cards nativos ativos: `arquivado = false` e `concluido = false`; concluídos vêm em `cardsConcluidos`.
+ * Default `mode: 'lean'`: só ativos (`status=ativo`, não arquivado, não concluído).
+ * Arquivados / concluídos: `mode: 'arquivados' | 'concluidos'` (lazy no board) ou `full`.
  * Sem `userId` (ex.: visitante com service role): não filtra por franqueado e assume visão ampla.
  *
  * Se não houver linhas em `kanban_cards` para o kanban, os cards vêm de
  * `v_processo_como_kanban_cards` (processo_step_one) com `origem: 'legado'`.
+ * Híbridos Contabilidade/Cash Me mantêm a view no lean; demais nativos pulam a view.
+ * Escape hatch: `mode: 'full'` ou env `KANBAN_BOARD_SNAPSHOT_FULL=1`.
  */
 export async function fetchKanbanBoardSnapshot(
   supabase: SupabaseClient,
   kanbanNomeDb: string,
   userId: string | null,
+  options?: FetchKanbanBoardSnapshotOptions,
 ): Promise<KanbanBoardSnapshot> {
+  const snapshotMode = resolveSnapshotMode(options);
+  const wantAtivos = snapshotMode === 'lean' || snapshotMode === 'full';
+  const wantArquivados = snapshotMode === 'full' || snapshotMode === 'arquivados';
+  const wantConcluidos = snapshotMode === 'full' || snapshotMode === 'concluidos';
+
   let role = 'frank';
   let isAdmin = false;
 
@@ -384,42 +436,61 @@ export async function fetchKanbanBoardSnapshot(
   }
 
   if (!kanban) {
-    return { kanban: null, fases: [], cards: [], cardsConcluidos: [], role, isAdmin };
+    return {
+      kanban: null,
+      fases: [],
+      cards: [],
+      cardsConcluidos: [],
+      role,
+      isAdmin,
+      snapshotMode,
+    };
   }
 
   const kanbanIdStr = String(kanban.id);
   const isFunilLoteadores = isKanbanFunilLoteadoresRef(kanbanIdStr, kanbanNomeDb);
+  const sempreNativo = KANBANS_SEMPRE_NATIVOS.has(kanbanNomeDb);
+  const hibridoComView = KANBANS_HIBRIDOS_COM_VIEW_LEGADO.has(kanbanNomeDb);
 
-  let viewQuery = supabase
-    .from('v_processo_como_kanban_cards')
-    .select('id, kanban_id, fase_id, titulo, status, criado_em, responsavel_id, etapa_slug, origem, data_reuniao, data_followup')
-    .eq('kanban_id', kanban.id)
-    .order('criado_em', { ascending: false });
-
-  if (userId && !veTodosCards) {
-    viewQuery = viewQuery.eq('responsavel_id', userId);
-  }
-
-  const [fases, nativeCountResult, viewResult] = await Promise.all([
+  const [fases, nativeCountResult] = await Promise.all([
     fetchKanbanFasesAtivas(supabase, kanbanIdStr),
     supabase
       .from('kanban_cards')
       .select('*', { count: 'exact', head: true })
       .eq('kanban_id', kanban.id),
-    viewQuery,
   ]);
 
   /** Funis nativos: sempre tenta ler `kanban_cards` (count com RLS pode ser 0 mesmo com linhas). */
-  const kanbansSempreNativos = new Set([
-    'Funil Step One',
-    'Funil Portfólio',
-    'Funil Loteadores',
-    'Funil Acoplamento',
-    'Funil MonINC',
-  ]);
-  const hasNativo =
-    (nativeCountResult.count ?? 0) > 0 || kanbansSempreNativos.has(kanbanNomeDb);
-  const rowsAll = (viewResult.data ?? []) as ViewLegadoRow[];
+  const hasNativo = (nativeCountResult.count ?? 0) > 0 || sempreNativo;
+
+  /**
+   * Arquivados/concluídos: só nativos no filtro STATUS.
+   * Nativos puros: skip view.
+   * Híbridos Contabilidade/Cash Me: mantêm view no lean para lacunas (proteção).
+   */
+  const skipLegadoView =
+    snapshotMode === 'arquivados' ||
+    snapshotMode === 'concluidos' ||
+    sempreNativo ||
+    (hasNativo && !hibridoComView);
+
+  let rowsAll: ViewLegadoRow[] = [];
+  if (!skipLegadoView) {
+    let viewQuery = supabase
+      .from('v_processo_como_kanban_cards')
+      .select(
+        'id, kanban_id, fase_id, titulo, status, criado_em, responsavel_id, etapa_slug, origem, data_reuniao, data_followup',
+      )
+      .eq('kanban_id', kanban.id)
+      .order('criado_em', { ascending: false });
+
+    if (userId && !veTodosCards) {
+      viewQuery = viewQuery.eq('responsavel_id', userId);
+    }
+
+    const viewResult = await viewQuery;
+    rowsAll = (viewResult.data ?? []) as ViewLegadoRow[];
+  }
 
   const processoIdsAll = rowsAll.map((r) => String(r.id)).filter(Boolean);
   const archivedLegadoIds = new Set<string>();
@@ -553,6 +624,11 @@ export async function fetchKanbanBoardSnapshot(
   let arquivRaw: unknown[] = [];
   if (hasNativo) {
     type KanbanCardRow = Record<string, unknown>;
+    const emptyRes = {
+      data: [] as KanbanCardRow[],
+      error: null as { message: string } | null,
+      slaColsAvailable: false,
+    };
     const buildCardsQuery = async (select: string, concluido: boolean, arquivado: boolean) => {
       let q = supabase
         .from('kanban_cards')
@@ -580,15 +656,21 @@ export async function fetchKanbanBoardSnapshot(
     };
 
     const [cardsRes, conclRes, arquivRes] = await Promise.all([
-      runKanbanCardSelectWithSlaFallback<KanbanCardRow[]>((select) =>
-        buildCardsQuery(select, false, false),
-      ),
-      runKanbanCardSelectWithSlaFallback<KanbanCardRow[]>((select) =>
-        buildCardsQuery(select, true, false),
-      ),
-      runKanbanCardSelectWithSlaFallback<KanbanCardRow[]>((select) =>
-        buildCardsQuery(select, false, true),
-      ),
+      wantAtivos
+        ? runKanbanCardSelectWithSlaFallback<KanbanCardRow[]>((select) =>
+            buildCardsQuery(select, false, false),
+          )
+        : Promise.resolve(emptyRes),
+      wantConcluidos
+        ? runKanbanCardSelectWithSlaFallback<KanbanCardRow[]>((select) =>
+            buildCardsQuery(select, true, false),
+          )
+        : Promise.resolve(emptyRes),
+      wantArquivados
+        ? runKanbanCardSelectWithSlaFallback<KanbanCardRow[]>((select) =>
+            buildCardsQuery(select, false, true),
+          )
+        : Promise.resolve(emptyRes),
     ]);
 
     cardsRaw = (cardsRes.data ?? []) as unknown[];
@@ -1175,6 +1257,7 @@ export async function fetchKanbanBoardSnapshot(
       cardsConcluidos: cardsConcluidosComResp,
       role,
       isAdmin,
+      snapshotMode,
     };
   }
 
@@ -1190,5 +1273,6 @@ export async function fetchKanbanBoardSnapshot(
     cardsConcluidos: cardsConcluidosComResp,
     role,
     isAdmin,
+    snapshotMode,
   };
 }

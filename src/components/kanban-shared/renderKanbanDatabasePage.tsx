@@ -46,11 +46,8 @@ export async function renderKanbanDatabasePage(
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
 
-  const { kanban, fases, cards, cardsConcluidos, role, isAdmin } = await fetchKanbanBoardSnapshot(
-    supabase,
-    config.kanbanNomeDb,
-    user.id,
-  );
+  const { kanban, fases, cards, cardsConcluidos, role, isAdmin, snapshotMode } =
+    await fetchKanbanBoardSnapshot(supabase, config.kanbanNomeDb, user.id);
 
   const exibirNovoCard = config.novoCardApenasStaff ? isAdmin : true;
 
@@ -101,7 +98,9 @@ export async function renderKanbanDatabasePage(
               mostrarLinkNovoCard={exibirNovoCard}
               podeCriarCards={exibirNovoCard ? true : false}
               kanbanNome={config.kanbanNomeDisplay}
+              kanbanNomeDb={config.kanbanNomeDb}
               kanbanId={kanban.id}
+              snapshotLean={snapshotMode === 'lean'}
             />
           </main>
         ) : (

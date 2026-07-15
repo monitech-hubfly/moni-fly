@@ -71,7 +71,10 @@ export default async function PainelContabilidadePage({
                 currentUserId={user?.id ?? null}
                 mostrarLinkNovoCard
                 podeCriarCards={snapshot.isAdmin ? true : undefined}
+                kanbanNome="Funil Contabilidade"
+                kanbanNomeDb="Funil Contabilidade"
                 kanbanId={snapshot.kanban!.id}
+                snapshotLean={snapshot.snapshotMode === 'lean'}
               />
             </main>
           ) : (

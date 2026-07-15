@@ -71,7 +71,10 @@ export default async function PainelCreditoPage({
                 currentUserId={user?.id ?? null}
                 mostrarLinkNovoCard
                 podeCriarCards={snapshot.isAdmin ? true : undefined}
+                kanbanNome="Funil Cash Me"
+                kanbanNomeDb="Funil Cash Me"
                 kanbanId={snapshot.kanban!.id}
+                snapshotLean={snapshot.snapshotMode === 'lean'}
               />
             </main>
           ) : (

@@ -43,11 +43,8 @@ export default async function LoteadoresKanbanPage({
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
 
-  const { kanban, fases, cards, cardsConcluidos, role, isAdmin } = await fetchKanbanBoardSnapshot(
-    supabase,
-    KANBAN_NOME_FUNIL_LOTEADORES,
-    user.id,
-  );
+  const { kanban, fases, cards, cardsConcluidos, role, isAdmin, snapshotMode } =
+    await fetchKanbanBoardSnapshot(supabase, KANBAN_NOME_FUNIL_LOTEADORES, user.id);
 
   const isStaff = isAdmin || isStaffKanbanLoteadores(role);
   const primeiraFaseContatoId = resolverPrimeiraFaseContatoLoteadores(fases ?? []);
@@ -104,7 +101,9 @@ export default async function LoteadoresKanbanPage({
               mostrarLinkNovoCard={exibirNovoCard}
               podeCriarCards={exibirNovoCard ? true : false}
               kanbanNome="Funil Loteadores"
+              kanbanNomeDb={KANBAN_NOME_FUNIL_LOTEADORES}
               kanbanId={kanban.id}
+              snapshotLean={snapshotMode === 'lean'}
             />
           </main>
         ) : (
