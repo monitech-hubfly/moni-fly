@@ -41,8 +41,12 @@ export function KanbanColumn({
         className="border-b border-stone-200 px-4 py-3"
         style={{ background: 'var(--moni-kanban-col-hd)' }}
       >
-        <h2 className="font-semibold text-stone-800">{title}</h2>
-        <p className="mt-0.5 text-xs text-stone-500">{tickets.length} ticket(s)</p>
+        <h2
+          className="text-xs font-semibold uppercase tracking-wide"
+          style={{ color: 'var(--moni-text-primary)' }}
+        >
+          {title} ({tickets.length})
+        </h2>
       </div>
       <div className="max-h-[70vh] space-y-2 overflow-y-auto p-2">
         {tickets.map((t) => (

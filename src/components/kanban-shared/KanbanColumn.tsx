@@ -439,15 +439,14 @@ export function KanbanColumn({
       >
         <div className="moni-kanban-column-hd-top">
           <div className="moni-kanban-column-hd-text">
-            <h2 className="moni-kanban-column-title">{fase.nome}</h2>
+            <h2 className="moni-kanban-column-title">
+              {fase.nome} ({cards.length})
+            </h2>
             {subtituloFase ? (
               <p className="moni-kanban-column-subtitle">{subtituloFase}</p>
             ) : null}
           </div>
           <div className="moni-kanban-column-hd-actions">
-            <span className="moni-kanban-col-count" aria-label={`${cards.length} cards`}>
-              {cards.length}
-            </span>
             {fase.sla_dias ? (
               <span className="moni-kanban-col-sla">
                 {fase.sla_dias}d {rotuloUnidadeSla(fase.sla_tipo)}

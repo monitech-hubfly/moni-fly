@@ -175,19 +175,30 @@ export function StepsKanbanColumn({
           borderBottom: '0.5px solid var(--moni-border-default)'
         }}
       >
-        <div className="flex items-start justify-between gap-2">
-          <h2 className="font-semibold" style={{ color: colors.textTitle }}>{title}</h2>
-          <div className="flex items-start gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <h2
+            className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--moni-text-primary)' }}
+          >
+            {title} ({processosFiltrados.length})
+          </h2>
+          <div className="flex shrink-0 items-center gap-2">
+            {slaBadgeDias ? (
+              <span
+                className="whitespace-nowrap text-[10px] font-medium"
+                style={{ color: 'var(--moni-text-tertiary)' }}
+              >
+                {slaBadgeDias}d d.u.
+              </span>
+            ) : null}
             {isStep1 && (
-              <div className="flex flex-col items-stretch gap-1">
-                <Link
-                  href="/painel-novos-negocios/novo-step-1"
-                  className="shrink-0 rounded-md px-2 py-1 text-center text-[11px] font-medium text-white transition hover:opacity-90"
-                  style={{ background: colors.borderTop }}
-                >
-                  Novo Step 1
-                </Link>
-              </div>
+              <Link
+                href="/painel-novos-negocios/novo-step-1"
+                className="shrink-0 rounded-md px-2 py-1 text-center text-[11px] font-medium text-white transition hover:opacity-90"
+                style={{ background: colors.borderTop }}
+              >
+                Novo Step 1
+              </Link>
             )}
             {isStep2 && (
               <div className="flex flex-col items-stretch gap-1">
@@ -204,27 +215,10 @@ export function StepsKanbanColumn({
           </div>
         </div>
         {subtitle && (
-          <p className="mt-1 text-[10px] leading-tight" style={{ color: colors.textCount }}>
+          <p className="mt-1 text-[10px] leading-tight" style={{ color: 'var(--moni-text-tertiary)' }}>
             {subtitle}
           </p>
         )}
-        <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="text-xs" style={{ color: colors.textCount }}>
-            {processosFiltrados.length} processo(s)
-          </p>
-          {slaBadgeDias ? (
-            <span
-              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={{
-                background: 'rgba(255, 255, 255, 0.7)',
-                color: colors.textTitle,
-                border: '0.5px solid var(--moni-navy-200)',
-              }}
-            >
-              SLA: {slaBadgeDias}d
-            </span>
-          ) : null}
-        </div>
       </div>
       <div className="moni-scrollbar-hidden max-h-[70vh] space-y-2 overflow-y-auto p-3">
         {processosFiltrados.map((p, i) => (
