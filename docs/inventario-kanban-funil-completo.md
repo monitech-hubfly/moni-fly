@@ -31,7 +31,7 @@
 | Funil Loteadores | `/loteadores`, `/funil-moni-inc` | `3e7b6ec7-…` | 14+ | Custom | Link externo; SLA justificativa; bastão Acoplamento; **gate Comitê exige Acoplamento**; título por condomínio |
 | Funil Operações | `/operacoes` | `f6bba1de-…` | ~10 | Shared | Pré-obra `prev_*`; tranche vínculos; abertura automática Cash Me |
 | Funil Jurídico | `/funil-juridico` | `35fb5c8d-…` | 3+ | Shared | Spawn manual/automático; interno |
-| Funil Divify | `/funil-moni-capital` | `724aef36-…` | 9 | Shared | Recebimento + 7 operacionais + Não elegível; checklist 464; interno |
+| Funil Divify | `/funil-moni-capital` | `724aef36-…` | 9 | Shared | Conta Bancária + checklist 464; nomes/instruções 465; interno |
 | Funding | `/funil-funding` | `7c9e4a21-…` | 7 | Shared | Colunas `funding_*` no card; interno |
 | Funil Contratações | `/funil-contratacoes` | `5f40aa71-…` | — | Shared | Interno |
 | Funil Produto | `/funil-produto` | `a9e61d76-…` | — | Shared | Bastão → Modelo Virtual em `prod_publicado`; interno |
@@ -176,7 +176,7 @@ Fonte canônica: `src/lib/constants/kanban-ids.ts`
 
 **Loteadores (14+)**: `primeiro_contato_moni_inc` … `contrato_parceria_moni_inc` (+ `viabilidade_moni_inc`, `execucao_material_moni_inc`, `diligencia_moni_inc` em versões recentes)
 
-**Divify (9)**: `capital_recebimento` → `capital_abertura_spe` → `capital_abertura_conta` → `capital_cadastro_plataforma` → `capital_materiais_projeto` → `capital_informacoes_obrigatorias` → `capital_formalizacao` → `capital_concluido` (Oferta publicada) / `capital_nao_elegivel`
+**Divify (9)**: `capital_recebimento` → `capital_abertura_spe` → `capital_abertura_conta` (Conta Bancária) → `capital_cadastro_plataforma` → `capital_materiais_projeto` → `capital_informacoes_obrigatorias` → `capital_formalizacao` → `capital_concluido` (Oferta publicada) / `capital_nao_elegivel` — migrations 464–465
 
 **Funding (7)**: `funding_leads` … `funding_contrato`
 
