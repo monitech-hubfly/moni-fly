@@ -339,7 +339,7 @@ export async function notificarHomologacaoProdutoHomologado(input: {
     titulo: 'Aviso: produto homologado (saída Homologações)',
     descricao: mensagem,
     tema: 'aviso',
-    origem: 'sistema',
+    origem: 'nativo',
     status: 'concluida',
     concluido: true,
     times_ids: timesIds,
