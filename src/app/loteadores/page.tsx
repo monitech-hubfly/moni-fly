@@ -80,7 +80,7 @@ export default async function LoteadoresKanbanPage({
       kanbanNome="Funil Loteadores"
       fases={fases ?? []}
     >
-      <div className="min-h-screen min-w-0 bg-[var(--moni-surface-50)]">
+      <div className="min-h-0 min-w-0 bg-[var(--moni-surface-50)]">
         <Suspense fallback={null}>
           <KanbanTabs
             basePath={BASE_PATH}

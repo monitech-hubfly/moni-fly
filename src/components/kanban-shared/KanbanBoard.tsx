@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { podeComFallbackStaff } from '@/lib/permissoes-types';
 import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
@@ -17,6 +17,13 @@ import { hipotesesOrdemMinima } from '@/lib/kanban/kanban-paralelas-chips';
 import { sortKanbanCardsPorProximaAtividade } from '@/lib/kanban/kanban-proxima-atividade-ordem';
 import type { KanbanNomeDisplay } from './types';
 import type { KanbanCardBrief, KanbanFase } from './types';
+
+const BOARD_ROW_STYLE: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'row',
+  flexWrap: 'nowrap',
+  alignItems: 'stretch',
+};
 
 export type KanbanBoardProps = {
   fases: KanbanFase[];
@@ -247,7 +254,8 @@ export function KanbanBoard({
         <div ref={boardScrollRef} className="moni-kanban-board-scroll w-full min-w-0">
           <div
             className="moni-kanban-board flex flex-row flex-nowrap items-stretch"
-            style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap' }}
+            style={BOARD_ROW_STYLE}
+            data-moni-kanban-board="desktop-row"
           >
             {fases.map((fase) => {
               const raw = rawByFase[fase.id] ?? [];

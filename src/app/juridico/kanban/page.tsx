@@ -39,7 +39,7 @@ export default async function JuridicoKanbanPage() {
   );
 
   return (
-    <div className="min-h-screen bg-stone-100">
+    <div className="min-h-0 bg-stone-100">
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
           <Link href="/juridico" className="text-moni-primary hover:underline">

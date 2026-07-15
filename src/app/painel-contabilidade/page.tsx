@@ -53,7 +53,7 @@ export default async function PainelContabilidadePage({
         cardQueryParam="kanbanCard"
         enableNovoCardModal
       >
-        <div className="min-h-screen bg-[var(--moni-surface-50)]">
+        <div className="min-h-0 bg-[var(--moni-surface-50)]">
           <Suspense fallback={null}>
             <PainelKanbanTabs basePath="/painel-contabilidade" variant="contabilidade" />
           </Suspense>

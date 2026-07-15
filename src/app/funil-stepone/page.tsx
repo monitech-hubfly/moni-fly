@@ -72,7 +72,7 @@ export default async function FunilStepOnePage({
       fases={fases}
       enableNovoCardModal
     >
-      <div className="min-h-screen bg-stone-50">
+      <div className="min-h-0 bg-stone-50">
         <Suspense fallback={null}>
           <KanbanTabs />
         </Suspense>

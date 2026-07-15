@@ -181,7 +181,7 @@ export default async function FunilMoniIncPage({
       kanbanNome={KANBAN_NOME_FUNIL_LOTEADORES}
       fases={fases}
     >
-      <div className="min-h-screen bg-stone-50">
+      <div className="min-h-0 bg-stone-50">
         <Suspense fallback={null}>
           <KanbanTabs
             kanbanId={String(kanban.id)}

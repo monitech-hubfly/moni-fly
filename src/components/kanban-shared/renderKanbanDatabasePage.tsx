@@ -82,7 +82,8 @@ export async function renderKanbanDatabasePage(
       camposPorFase={config.camposPorFase}
       enableNovoCardModal={exibirNovoCard}
     >
-      <div className="min-h-screen min-w-0 bg-[var(--moni-surface-50)]">
+      {/* Sem min-h-screen: o shell já ocupa 100dvh; altura forçada gerava scroll fantasma abaixo do board. */}
+      <div className="min-h-0 min-w-0 bg-[var(--moni-surface-50)]">
         <Suspense fallback={null}>
           <KanbanPainelTabsShell basePath={config.basePath} variant={config.tabsVariant} />
         </Suspense>

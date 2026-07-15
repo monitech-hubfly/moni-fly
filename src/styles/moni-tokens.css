@@ -2291,6 +2291,8 @@
   min-width: 0;
   isolation: isolate;
   contain: inline-size;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 /* Kanban board — scroll horizontal com colunas largas */
@@ -2337,15 +2339,14 @@
   );
 }
 
-/* Desktop: SEMPRE fila horizontal (nunca column fora do mobile ≤640px).
-   flex-direction/row + nowrap explícitos evitam empilhar colunas à esquerda
-   se algum override acidental vazar (regressão histórica do board Portfólio).
-   Também cobre shells legados que usam .moni-kanban-board-scroll como flex container. */
+/* Default = fila horizontal. Mobile (≤640px) sobrescreve para column.
+   !important no default: evita regressão se utilitário/Tailwind virar column no desktop.
+   globals.css reforça a mesma regra DEPOIS deste arquivo (ordem de import). */
 .moni-kanban-board {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: stretch;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
   gap: 10px;
   padding: 14px 20px;
   background: var(--moni-kanban-board-bg);
@@ -2353,16 +2354,21 @@
   min-width: max-content;
 }
 
-@media (min-width: 641px) {
-  .moni-kanban-board,
-  .moni-kanban-board-scroll.flex,
-  .moni-kanban-board-scroll > .flex {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    align-items: stretch;
-  }
+.moni-kanban-board-scroll.flex,
+.moni-kanban-board-scroll > .flex {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+}
 
+.moni-kanban-column {
+  flex-shrink: 0;
+  width: var(--moni-column-width);
+  min-width: var(--moni-column-width);
+}
+
+@media (min-width: 641px) {
   .moni-kanban-column {
     flex-shrink: 0 !important;
     width: var(--moni-column-width) !important;
