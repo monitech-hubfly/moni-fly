@@ -492,8 +492,9 @@ export function KanbanColumn({
           });
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
-          // Urgência no chip de SLA — sem faixa lateral vermelha grossa.
-          const statusLateral = 'cinza';
+          // Faixa lateral vermelha só com SLA estourado; demais ficam cinza discreto.
+          const slaAtrasado = !arquivado && !concluido && sla.status === 'atrasado';
+          const statusLateral = slaAtrasado ? 'vermelho' : 'cinza';
           const motivo = (card.motivo_arquivamento ?? '').trim();
           const responsavelNome = card.responsavel_fase_nome?.trim() || '';
           const hasAvatar = Boolean(responsavelNome);
@@ -616,6 +617,7 @@ export function KanbanColumn({
                   'moni-kanban-card',
                   'moni-kanban-card--v5',
                   `moni-kanban-card--status-${statusLateral}`,
+                  slaAtrasado ? 'moni-kanban-card--sla-atrasado' : '',
                   arquivado ? 'moni-kanban-card--archived' : '',
                   concluido ? 'moni-kanban-card--done' : '',
                   arquivado || concluido ? 'moni-kanban-card--muted' : '',

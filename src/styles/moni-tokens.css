@@ -2672,7 +2672,7 @@
   transform: translateY(-1px);
 }
 
-/* Faixa lateral discreta (cinza) — urgência SLA fica só no chip (sem vermelho grosso) */
+/* Faixa lateral: cinza discreto por padrão; vermelho suave só com SLA atrasado */
 .moni-kanban-card::before {
   content: '';
   position: absolute;
@@ -2686,12 +2686,16 @@
 
 .moni-kanban-card--status-verde::before,
 .moni-kanban-card--status-amarelo::before,
-.moni-kanban-card--status-vermelho::before,
-.moni-kanban-card--sla-atrasado::before,
 .moni-kanban-card--status-roxo::before,
 .moni-kanban-card--status-cinza::before {
   width: 2px;
   background: var(--moni-card-status-cinza);
+}
+
+.moni-kanban-card--status-vermelho::before,
+.moni-kanban-card--sla-atrasado::before {
+  width: 3px;
+  background: var(--moni-card-status-vermelho);
 }
 
 .moni-kanban-card--archived {
