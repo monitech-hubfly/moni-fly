@@ -64,6 +64,7 @@ import {
   executarBastoes,
   garantirBastaoPassagemWayser,
 } from '@/lib/actions/kanban-bastoes';
+import { registrarAvisoHomologacaoConcluida } from '@/lib/actions/fornecedores-rede';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
 import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
@@ -946,6 +947,70 @@ export async function vincularChamadoSireneExistenteAoCard(input: {
   return { ok: true, interacaoId: String(inserted.id) };
 }
 
+export type ChamadoSireneBuscaItem = {
+  id: number;
+  numero: number | null;
+  incendio: string | null;
+  card_id: string | null;
+  time_abertura: string | null;
+  created_at: string | null;
+};
+
+/** Busca chamados Sirene abertos por número/id ou título (incêndio) para vínculo manual. */
+export async function buscarChamadosSireneParaVincular(input: {
+  q: string;
+  limit?: number;
+}): Promise<{ ok: true; data: ChamadoSireneBuscaItem[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  const role = String((profile as { role?: string } | null)?.role ?? '');
+  if (!['admin', 'team', 'consultor', 'supervisor'].includes(role)) {
+    return { ok: false, error: 'Sem permissão.' };
+  }
+
+  const q = String(input.q ?? '').trim();
+  if (!q || q.length < 1) return { ok: true, data: [] };
+  const lim = Math.min(Math.max(Number(input.limit) || 15, 1), 40);
+
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Admin client indisponível.' };
+  }
+
+  const selectCols = 'id, numero, incendio, card_id, time_abertura, created_at';
+  const asNum = Number(q);
+  if (Number.isFinite(asNum) && asNum > 0 && /^\d+$/.test(q)) {
+    const { data, error } = await admin
+      .from('sirene_chamados')
+      .select(selectCols)
+      .or(`id.eq.${asNum},numero.eq.${asNum}`)
+      .order('created_at', { ascending: false })
+      .limit(lim);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, data: (data ?? []) as ChamadoSireneBuscaItem[] };
+  }
+
+  const { data, error } = await admin
+    .from('sirene_chamados')
+    .select(selectCols)
+    .ilike('incendio', `%${q}%`)
+    .order('created_at', { ascending: false })
+    .limit(lim);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: (data ?? []) as ChamadoSireneBuscaItem[] };
+}
+
 export async function criarInteracao(input: CriarInteracaoInput): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -1622,6 +1687,19 @@ export async function finalizarCard(input: {
     .eq('id', cardId);
 
   if (error) return { ok: false, error: error.message };
+
+  // Homologações: aviso de saída também ao finalizar na fase terminal
+  if (kid === KANBAN_IDS.HDM_HOMOLOGACOES) {
+    const { data: faseRow } = await supabase
+      .from('kanban_fases')
+      .select('slug')
+      .eq('id', fid)
+      .maybeSingle();
+    const slugFase = String((faseRow as { slug?: string } | null)?.slug ?? '');
+    if (slugFase === FASE_SLUGS.HOMOLOG_CRIAR_PRODUTO_DATABASE) {
+      await registrarAvisoHomologacaoConcluida({ cardId, excluirUserId: user.id });
+    }
+  }
 
   const bp = input.basePath?.trim() || '/';
   revalidatePath(bp);

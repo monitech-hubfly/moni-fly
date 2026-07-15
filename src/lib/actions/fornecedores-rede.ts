@@ -232,6 +232,14 @@ export async function atualizarVinculoCotacao(input: {
   return { ok: true };
 }
 
+/** Alias canônico do aviso de saída Homologações (sem spawn de card filho). */
+export async function registrarAvisoHomologacaoConcluida(input: {
+  cardId: string;
+  excluirUserId?: string | null;
+}): Promise<void> {
+  return notificarHomologacaoProdutoHomologado(input);
+}
+
 /** Aviso de saída: produto/fornecedor homologado → times Waysers, Produto, MV, Acoplamento. */
 export async function notificarHomologacaoProdutoHomologado(input: {
   cardId: string;
@@ -244,7 +252,7 @@ export async function notificarHomologacaoProdutoHomologado(input: {
   try {
     db = createAdminClient();
   } catch (e) {
-    console.error('[notificarHomologacaoProdutoHomologado] admin:', e);
+    console.error('[registrarAvisoHomologacaoConcluida] admin:', e);
     return;
   }
 
@@ -268,7 +276,7 @@ export async function notificarHomologacaoProdutoHomologado(input: {
     .from('kanban_atividades')
     .select('id')
     .eq('card_id', cardId)
-    .eq('tema', 'bastao')
+    .in('tema', ['aviso', 'bastao'])
     .ilike('titulo', '%produto homologado%')
     .limit(1)
     .maybeSingle();
@@ -310,20 +318,32 @@ export async function notificarHomologacaoProdutoHomologado(input: {
 
   const link = hrefAbrirCardKanban('Funil Homologações', cardId);
 
+  const timesDestino = [...TIMES_AVISO_HOMOLOG];
+  const { data: timesRows } = await db
+    .from('kanban_times')
+    .select('id, nome')
+    .in('nome', timesDestino);
+  const timesIds = (timesRows ?? [])
+    .map((t) => String((t as { id?: string }).id ?? '').trim())
+    .filter(Boolean);
+
   const mensagem =
     `Produto homologado: ${nomeProduto}` +
     (categoria ? ` | Categoria: ${categoria}` : '') +
     (fornecedores.length ? ` | Fornecedor(es): ${fornecedores.join(', ')}` : '') +
+    ` | Times: ${timesDestino.join(', ')}` +
     (link ? ` | ${link}` : '');
 
   await db.from('kanban_atividades').insert({
     card_id: cardId,
     titulo: 'Aviso: produto homologado (saída Homologações)',
     descricao: mensagem,
-    tema: 'bastao',
+    tema: 'aviso',
     origem: 'sistema',
     status: 'concluida',
     concluido: true,
+    times_ids: timesIds,
+    time: timesDestino.join(', '),
   } as never);
 
   const userIds = new Set<string>();

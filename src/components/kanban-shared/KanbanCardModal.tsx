@@ -45,6 +45,7 @@ import {
   criarTagKanban,
   criarChamadoSireneComAtividade,
   vincularChamadoSireneExistenteAoCard,
+  buscarChamadosSireneParaVincular,
   criarSubInteracao,
   desvincularTagCard,
   editarInteracao,
@@ -709,6 +710,10 @@ export function KanbanCardModal({
   const [vincularChamadoAberto, setVincularChamadoAberto] = useState(false);
   const [vincularChamadoIdInput, setVincularChamadoIdInput] = useState('');
   const [vinculandoChamado, setVinculandoChamado] = useState(false);
+  const [vincularChamadoResultados, setVincularChamadoResultados] = useState<
+    { id: number; numero: number | null; incendio: string | null; card_id: string | null }[]
+  >([]);
+  const [buscandoChamadoSirene, setBuscandoChamadoSirene] = useState(false);
   const [novaAtividadeAberta, setNovaAtividadeAberta] = useState(false);
   const [subInteracoesPorPai, setSubInteracoesPorPai] = useState<Record<string, SubInteracaoModal[]>>({});
   const [subExpandida, setSubExpandida] = useState<Record<string, boolean>>({});
@@ -5680,67 +5685,128 @@ export function KanbanCardModal({
                     <p className="text-[11px] font-semibold text-stone-600">
                       Vincular chamado Sirene existente
                     </p>
-                    <input
-                      type="number"
-                      min={1}
-                      value={vincularChamadoIdInput}
-                      onChange={(e) => setVincularChamadoIdInput(e.target.value)}
-                      placeholder="ID do chamado (sirene_chamados.id)"
-                      className="w-full px-2 py-1.5 text-xs"
-                      style={{
-                        border: '0.5px solid var(--moni-border-default)',
-                        borderRadius: 'var(--moni-radius-md)',
-                      }}
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setVincularChamadoAberto(false);
-                          setVincularChamadoIdInput('');
+                    <div className="flex gap-2">
+                      <input
+                        type="search"
+                        value={vincularChamadoIdInput}
+                        onChange={(e) => setVincularChamadoIdInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            void (async () => {
+                              setBuscandoChamadoSirene(true);
+                              const res = await buscarChamadosSireneParaVincular({
+                                q: vincularChamadoIdInput,
+                              });
+                              setBuscandoChamadoSirene(false);
+                              if (!res.ok) {
+                                alert(res.error);
+                                return;
+                              }
+                              setVincularChamadoResultados(res.data);
+                            })();
+                          }
                         }}
-                        className="px-2 py-1.5 text-[11px] text-stone-600"
-                      >
-                        Cancelar
-                      </button>
+                        placeholder="Buscar por nº, ID ou título do chamado…"
+                        className="w-full px-2 py-1.5 text-xs"
+                        style={{
+                          border: '0.5px solid var(--moni-border-default)',
+                          borderRadius: 'var(--moni-radius-md)',
+                        }}
+                      />
                       <button
                         type="button"
-                        disabled={vinculandoChamado || !vincularChamadoIdInput.trim()}
+                        disabled={buscandoChamadoSirene || !vincularChamadoIdInput.trim()}
                         onClick={() => {
                           void (async () => {
-                            const sid = Number(vincularChamadoIdInput);
-                            if (!Number.isFinite(sid) || sid <= 0) {
-                              alert('Informe um ID numérico válido do chamado.');
-                              return;
-                            }
-                            setVinculandoChamado(true);
-                            const res = await vincularChamadoSireneExistenteAoCard({
-                              card_id: card.id,
-                              sirene_chamado_id: sid,
-                              card_kanban_nome: kanbanNome,
-                              card_titulo: card.titulo,
+                            setBuscandoChamadoSirene(true);
+                            const res = await buscarChamadosSireneParaVincular({
+                              q: vincularChamadoIdInput,
                             });
-                            setVinculandoChamado(false);
+                            setBuscandoChamadoSirene(false);
                             if (!res.ok) {
                               alert(res.error);
                               return;
                             }
-                            setVincularChamadoAberto(false);
-                            setVincularChamadoIdInput('');
-                            // Vínculo Sirene interno — board inalterado
-                            void loadCard({ silencioso: true });
+                            setVincularChamadoResultados(res.data);
                           })();
                         }}
-                        className="px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
+                        className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
                         style={{
                           background: 'var(--moni-navy-800)',
                           borderRadius: 'var(--moni-radius-md)',
                           minHeight: 44,
                         }}
                       >
-                        {vinculandoChamado ? 'Vinculando…' : 'Vincular'}
+                        {buscandoChamadoSirene ? '…' : 'Buscar'}
                       </button>
                     </div>
+                    {vincularChamadoResultados.length > 0 ? (
+                      <ul className="max-h-40 space-y-1 overflow-y-auto">
+                        {vincularChamadoResultados.map((ch) => {
+                          const jaOutro =
+                            Boolean(ch.card_id) && String(ch.card_id) !== String(card.id);
+                          return (
+                            <li
+                              key={ch.id}
+                              className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs"
+                              style={{
+                                border: '0.5px solid var(--moni-border-default)',
+                                borderRadius: 'var(--moni-radius-md)',
+                              }}
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-stone-700">
+                                  #{ch.numero ?? ch.id} — {ch.incendio || 'Sem título'}
+                                </p>
+                                {jaOutro ? (
+                                  <p className="text-[10px] text-stone-400">Já vinculado a outro card</p>
+                                ) : null}
+                              </div>
+                              <button
+                                type="button"
+                                disabled={vinculandoChamado || jaOutro}
+                                onClick={() => {
+                                  void (async () => {
+                                    setVinculandoChamado(true);
+                                    const res = await vincularChamadoSireneExistenteAoCard({
+                                      card_id: card.id,
+                                      sirene_chamado_id: ch.id,
+                                      card_kanban_nome: kanbanNome,
+                                      card_titulo: card.titulo,
+                                    });
+                                    setVinculandoChamado(false);
+                                    if (!res.ok) {
+                                      alert(res.error);
+                                      return;
+                                    }
+                                    setVincularChamadoAberto(false);
+                                    setVincularChamadoIdInput('');
+                                    setVincularChamadoResultados([]);
+                                    void loadCard({ silencioso: true });
+                                  })();
+                                }}
+                                className="shrink-0 text-[11px] font-medium underline-offset-2 hover:underline disabled:opacity-40"
+                                style={{ color: 'var(--moni-navy-800)', minHeight: 44 }}
+                              >
+                                Vincular
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVincularChamadoAberto(false);
+                        setVincularChamadoIdInput('');
+                        setVincularChamadoResultados([]);
+                      }}
+                      className="self-end px-2 py-1.5 text-[11px] text-stone-600"
+                    >
+                      Fechar
+                    </button>
                   </div>
                 ) : null}
               </div>
