@@ -89,7 +89,9 @@ export function PrazoNegociacaoPanel({
       {status && status !== 'aceito' ? (
         <p className="mt-0.5 text-amber-800">{rotuloPrazoStatusPt(status)}</p>
       ) : null}
-      {expirada && status !== 'aceito' ? (
+      {expirada && status === 'aceito' ? (
+        <p className="mt-0.5 text-stone-500">Prazo aceito automaticamente após 24h — você ainda pode propor uma nova data.</p>
+      ) : expirada && status !== 'aceito' ? (
         <p className="mt-0.5 text-stone-500">Janela de negociação (24h) encerrada.</p>
       ) : null}
 
@@ -150,7 +152,7 @@ export function PrazoNegociacaoPanel({
         </div>
       ) : null}
 
-      {!expirada && (
+      {(
         (status === 'recusado' && ehResponsavel) ||
         ((ehAbridor || ehResponsavel || isAdmin) && status !== 'pendente_aceite_responsavel' && !atribuicaoAceita)
       ) ? (
