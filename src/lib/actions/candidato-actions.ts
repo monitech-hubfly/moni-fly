@@ -30,6 +30,7 @@ export type FaseChecklistItem = {
     | 'faixa_moeda'
     | 'faixa_numero'
     | 'tabela'
+    | 'lista_repetivel'
     | 'condominio'
     | 'pesquisa_condominio'
     | 'lotes_condominio'

@@ -1462,12 +1462,15 @@ function ItemField({
     );
   }
 
-  if (item.tipo === 'tabela') {
+  if (item.tipo === 'lista_repetivel' || item.tipo === 'tabela') {
     const cfg = (item.config_json ?? {}) as {
       modo?: string;
       colunas?: ColunaTabelaRepetivel[];
     };
-    if (cfg.modo === 'repetivel' && Array.isArray(cfg.colunas) && cfg.colunas.length > 0) {
+    const isListaRepetivel =
+      item.tipo === 'lista_repetivel' ||
+      (cfg.modo === 'repetivel' && Array.isArray(cfg.colunas) && cfg.colunas.length > 0);
+    if (isListaRepetivel && Array.isArray(cfg.colunas) && cfg.colunas.length > 0) {
       return (
         <ChecklistTabelaRepetivel
           label={item.label}
@@ -1477,6 +1480,13 @@ function ItemField({
           onBlur={onBlur}
           readonly={readonly}
         />
+      );
+    }
+    if (item.tipo === 'lista_repetivel') {
+      return (
+        <p className="text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Lista repetível sem colunas configuradas em config_json.
+        </p>
       );
     }
     if (item.label.trim() === 'Tabela de Condomínios') {
