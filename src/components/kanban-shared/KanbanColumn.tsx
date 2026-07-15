@@ -502,11 +502,13 @@ export function KanbanColumn({
           const podeArrastar = dndAtivo;
           const insertBeforeThis =
             dragOverCardId === card.id && dragInsertBefore && dndAtivo;
-          // Subtítulo = franqueado / loteador (não repetir o responsável do header).
-          const subtituloCard =
-            card.subtitulo?.trim() || card.profiles?.full_name?.trim() || '';
+          // Header: FK · franqueado (profiles). Subtítulo = linha extra (ex.: interlocutor loteadores).
+          const franqueadoNome = card.profiles?.full_name?.trim() || '';
+          const subtituloCard = card.subtitulo?.trim() || '';
           const mostrarSubtitulo =
-            Boolean(subtituloCard) && subtituloCard !== responsavelNome;
+            Boolean(subtituloCard) &&
+            subtituloCard !== franqueadoNome &&
+            subtituloCard !== responsavelNome;
           const { codigo: codigoCard, tituloLimpo } = separarCodigoTitulo(card.titulo);
           const slaChip =
             !arquivado && !concluido && !aguardandoDoc ? tagSlaKanbanParaExibicao(sla) : null;
@@ -633,20 +635,20 @@ export function KanbanColumn({
                   onClick={() => abrirCard(card)}
                   className="moni-kanban-card-open"
                 >
-                  {/* 1. Header: FK · responsável | avatar (sem nome da fase) */}
-                  {codigoCard || responsavelNome || hasBadge || hasAvatar ? (
+                  {/* 1. Header: FK · franqueado | avatar do responsável */}
+                  {codigoCard || franqueadoNome || hasBadge || hasAvatar ? (
                     <div className="moni-kanban-card-header">
                       <div className="moni-kanban-card-header-meta">
                         {codigoCard ? (
                           <span className="moni-kanban-card-codigo">{codigoCard}</span>
                         ) : null}
-                        {codigoCard && responsavelNome ? (
+                        {codigoCard && franqueadoNome ? (
                           <span className="moni-kanban-card-header-sep" aria-hidden>
                             ·
                           </span>
                         ) : null}
-                        {responsavelNome ? (
-                          <span className="moni-kanban-card-responsavel">{responsavelNome}</span>
+                        {franqueadoNome ? (
+                          <span className="moni-kanban-card-franqueado">{franqueadoNome}</span>
                         ) : null}
                       </div>
                       {hasBadge || hasAvatar ? (
@@ -666,13 +668,20 @@ export function KanbanColumn({
                     </div>
                   ) : null}
 
-                  {/* 2. Título (gap reduzido só vs header) */}
-                  <span
-                    className="moni-kanban-card-title moni-kanban-card-title--neutral"
-                    data-card-title-v5="1"
-                  >
-                    {tituloLimpo}
-                  </span>
+                  {/* 2. Título — ★ Especial à esquerda quando houver a tag */}
+                  <div className="moni-kanban-card-title-row">
+                    {temEspecial ? (
+                      <span className="moni-kanban-card-title-star" title="Especial" aria-label="Especial">
+                        ★
+                      </span>
+                    ) : null}
+                    <span
+                      className="moni-kanban-card-title moni-kanban-card-title--neutral"
+                      data-card-title-v5="1"
+                    >
+                      {tituloLimpo}
+                    </span>
+                  </div>
                   {(() => {
                     const fundingBadgeCls = fundingTipoBadgeClass(card.funding_tipo);
                     return fundingBadgeCls ? (
@@ -688,12 +697,7 @@ export function KanbanColumn({
                     <p className="moni-kanban-card-section-value line-clamp-2">{motivo}</p>
                   ) : null}
 
-                  {/* 3. ★ Especial (destaque próprio) */}
-                  {temEspecial ? (
-                    <KanbanCardBoardTags tags={tagsDoCard} modo="especial" />
-                  ) : null}
-
-                  {/* 4. Demais tags + SLA (chips) */}
+                  {/* 3. Tags de conteúdo + SLA (chips) — Especial não entra aqui */}
                   {temChipsRow ? (
                     <div className="moni-kanban-card-chips-row">
                       <KanbanCardBoardTags

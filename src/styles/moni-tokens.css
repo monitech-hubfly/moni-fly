@@ -254,7 +254,7 @@
   --moni-card-title-size:     14px;
   /* Compactação tipográfica do card fechado (pedido: line-height 1,0) */
   --moni-card-lh:             1;
-  /* Gap MENOR só entre header (FK·responsável) e título; demais usam section/chips/footer */
+  /* Gap MENOR só entre header (FK·franqueado) e título; demais usam section/chips/footer */
   --moni-card-gap-header-title: 4px;
   --moni-card-gap-section:    8px;                          /* título→chips / seções */
   --moni-card-gap-chips:      8px;                          /* entre linhas de chips */
@@ -270,8 +270,13 @@
   /* Chips minimalistas (altura 24px, pill, sem sombra, fundos suaves) */
   --moni-card-chip-especial-bg:   var(--moni-gold-50);      /* dourado suave (NUNCA laranja) */
   --moni-card-chip-especial-text: var(--moni-gold-800);
-  --moni-card-chip-revisao-bg:    #f4f0ff;                  /* violeta suave */
-  --moni-card-chip-revisao-text:  #7c3aed;
+  /* Tag de conteúdo no card — padrão pill “Média” (Perícias); ignora cor do DB */
+  --moni-card-tag-bg:             #dbeafe;                  /* azul claro pastel / periwinkle */
+  --moni-card-tag-text:           #1d4ed8;                  /* azul médio-escuro */
+  --moni-card-tag-border:         transparent;              /* sem borda gritante */
+  /* Legado revisão → mesmo padrão Média (sem roxo saturado no board) */
+  --moni-card-chip-revisao-bg:    var(--moni-card-tag-bg);
+  --moni-card-chip-revisao-text:  var(--moni-card-tag-text);
   --moni-card-chip-prazo-bg:      #faf2f0;                  /* atrasado: fundo bem suave */
   --moni-card-chip-prazo-text:    #a15a4f;                  /* atrasado: texto menos saturado */
 
@@ -498,19 +503,23 @@
   border: var(--moni-border-width) solid var(--moni-gold-400);
 }
 
-/* Tag customizada (cor do cadastro) — contorno pill em todos os funis */
+/* Tag de conteúdo — padrão pill “Média” (todos os funis; ignora cor do cadastro) */
 .moni-tag-chip {
   display: inline-flex;
   align-items: center;
   max-width: 100%;
   gap: 2px;
-  padding: 1px 6px;
-  border-radius: var(--moni-radius-pill);
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
   font-family: var(--moni-font-sans);
-  font-size: 8px;
-  font-weight: var(--moni-weight-medium);
-  line-height: 1.2;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
   white-space: nowrap;
+  background: var(--moni-card-tag-bg);
+  color: var(--moni-card-tag-text);
+  border: var(--moni-border-width) solid var(--moni-card-tag-border);
 }
 
 .moni-kanban-board-tag-remove {
@@ -2881,7 +2890,7 @@
   gap: 6px;
 }
 
-/* Header do card fechado: FK · responsável | avatar */
+/* Header do card fechado: FK · franqueado | avatar (responsável só no avatar) */
 .moni-kanban-card-header {
   display: flex;
   align-items: center;
@@ -2906,7 +2915,8 @@
   line-height: 1;
 }
 
-.moni-kanban-card-responsavel {
+.moni-kanban-card-responsavel,
+.moni-kanban-card-franqueado {
   margin: 0;
   font-family: var(--moni-font-sans);
   font-size: 12px;
@@ -2960,8 +2970,8 @@
 }
 
 /*
- * cache-bust v5 (2026-07-15): layout header FK·responsável | avatar;
- * título SEMPRE #111827 negrito; Especial fora de pill; SLA só em chip.
+ * cache-bust v5 (2026-07-15): layout header FK·franqueado | avatar;
+ * título SEMPRE #111827 negrito; Especial = ★ no título; SLA só em chip; tags = pill Média.
  */
 .moni-kanban-card .moni-kanban-card-title,
 .moni-kanban-card .moni-kanban-card-title--neutral,
@@ -3204,51 +3214,39 @@
   opacity: 0.85;
 }
 
-/* Tags do card (Especial / customizadas) — mesma linguagem premium dos chips */
-.moni-kanban-card .moni-tag-especial,
+/* Tags de conteúdo no card — força padrão Média (sobrescreve cor inline do DB) */
 .moni-kanban-card .moni-tag-chip {
   height: 24px;
   padding: 0 10px;
-  border-radius: var(--moni-radius-pill);
+  border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
+  background: var(--moni-card-tag-bg) !important;
+  color: var(--moni-card-tag-text) !important;
+  border-color: var(--moni-card-tag-border) !important;
 }
 
-/* Chip Especial / dourado no card — garante sem laranja mesmo se cor inline for laranja */
-.moni-kanban-card .moni-tag-especial {
-  background: var(--moni-card-chip-especial-bg);
-  color: var(--moni-card-chip-especial-text);
-  border: var(--moni-border-width) solid var(--moni-gold-400);
-}
-
-/* ★ Especial — destaque tipográfico (NÃO pill/tag) */
-.moni-kanban-card-especial-row {
+/* ★ Especial — só estrela à esquerda do título (não pill / não linha “Especial”) */
+.moni-kanban-card-title-row {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
-  margin-top: var(--moni-card-gap-section);
+  min-width: 0;
 }
 
-.moni-kanban-card-especial {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  font-family: var(--moni-font-sans);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.2;
-  color: var(--moni-card-chip-especial-text);
-}
-
-.moni-kanban-card-especial-star {
+.moni-kanban-card-title-star {
+  flex-shrink: 0;
+  margin-top: 1px;
   color: var(--moni-gold-400);
-  font-size: 13px;
-  line-height: 1;
+  font-size: 14px;
+  line-height: var(--moni-card-lh);
+  font-weight: 600;
+}
+
+.moni-kanban-card-title-row .moni-kanban-card-title {
+  flex: 1;
+  min-width: 0;
 }
 
 .moni-kanban-card-tags-block {
@@ -3264,10 +3262,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--moni-card-gap-chips);
-  margin-top: var(--moni-card-gap-chips);
-}
-
-.moni-kanban-card-especial-row + .moni-kanban-card-chips-row {
   margin-top: var(--moni-card-gap-chips);
 }
 

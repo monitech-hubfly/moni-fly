@@ -20,24 +20,12 @@ type Props = {
   editable?: boolean;
   onRemoveTag?: (cardTagId: string) => void;
   /**
-   * `full` — Especial + demais tags (padrão).
-   * `especial` — só o destaque ★ Especial (sem pill / sem ×).
-   * `chips` — só tags não-Especiais em chip.
+   * `full` — Especial ignorado no board (estrela no título) + chips.
+   * `especial` — legado no-op (estrela vai no título via KanbanColumn).
+   * `chips` — só tags não-Especiais em chip padrão Média.
    */
   modo?: 'full' | 'especial' | 'chips';
 };
-
-/** Destaque ★ Especial — tipografia dourada, sem formato de tag/pill. */
-function EspecialDestaque({ nome }: { nome: string }) {
-  return (
-    <span className="moni-kanban-card-especial" title={nome}>
-      <span className="moni-kanban-card-especial-star" aria-hidden>
-        ★
-      </span>
-      <span>Especial</span>
-    </span>
-  );
-}
 
 /** Tags visíveis no card fechado do board (todos os funis). */
 export function KanbanCardBoardTags({
@@ -50,43 +38,11 @@ export function KanbanCardBoardTags({
   const list = tags ?? [];
   if (list.length === 0) return null;
 
-  const especiais = list.filter((t) => isKanbanTagEspecialNome(t.nome));
+  // Especial não é chip nem linha — a estrela fica no título (KanbanColumn).
+  if (modo === 'especial') return null;
+
   const chips = list.filter((t) => !isKanbanTagEspecialNome(t.nome));
-
-  if (modo === 'especial') {
-    if (especiais.length === 0) return null;
-    return (
-      <div
-        className={`moni-kanban-card-especial-row ${className}`.trim()}
-        aria-label="Destaque Especial"
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        {especiais.map((t) => (
-          <EspecialDestaque key={t.id || t.tag_id} nome={t.nome} />
-        ))}
-      </div>
-    );
-  }
-
-  const listChips = modo === 'chips' ? chips : modo === 'full' ? list : chips;
-  if (modo === 'chips' && chips.length === 0) return null;
-  if (modo === 'full' && especiais.length > 0) {
-    // full com Especial: renderiza destaque + chips (sem pill Especial)
-    return (
-      <div className={`moni-kanban-card-tags-block ${className}`.trim()}>
-        <KanbanCardBoardTags tags={list} modo="especial" />
-        <KanbanCardBoardTags
-          tags={list}
-          modo="chips"
-          editable={editable}
-          onRemoveTag={onRemoveTag}
-        />
-      </div>
-    );
-  }
-
-  if (listChips.length === 0) return null;
+  if (chips.length === 0) return null;
 
   return (
     <div
@@ -95,14 +51,13 @@ export function KanbanCardBoardTags({
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {listChips.map((t) => {
+      {chips.map((t) => {
         const chip = estiloChipTagKanban(t.nome, t.cor);
         const podeRemover = editable && Boolean(onRemoveTag) && Boolean(t.id);
         return (
           <span
             key={t.id || t.tag_id}
             className={`${chip.className}${podeRemover ? ' moni-kanban-card-tag-chip--removable' : ''}`}
-            style={chip.style}
             title={t.nome}
           >
             <span className={podeRemover ? 'truncate' : undefined}>{t.nome}</span>
