@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isoWeek } from '@/utils/periodos';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
+import { rankChamadoPainelUnificado, compareChamadosPainelRank } from '@/lib/sirene-painel-chamados-rank';
 
 export type SireneItem = {
   id: string;
@@ -16,6 +17,10 @@ export type SireneItem = {
   chamado_id: string | null;
   chamado_numero: string | null;
   prioridade: string | null;
+  frank_id: string | null;
+  frank_nome: string | null;
+  trava: boolean;
+  te_trata: boolean;
 };
 
 export type AtividadeItem = {
@@ -47,12 +52,6 @@ export type UseBacklogResult = {
 };
 
 const ADMIN_EMAIL = 'danilo.n@moni.casa';
-
-function prioridadeRank(p: string | null | undefined): number {
-  if (!p) return 99;
-  const m = p.match(/^P(\d+)$/);
-  return m ? parseInt(m[1], 10) : 99;
-}
 
 export function useBacklog(): UseBacklogResult {
   const supabase = useMemo(() => createClient(), []);
@@ -116,9 +115,10 @@ export function useBacklog(): UseBacklogResult {
             status,
             chamado_id,
             interacao_id,
-            sirene_chamados(numero, prioridade),
+            trava,
+            sirene_chamados(numero, frank_id, frank_nome, te_trata),
             kanban_atividades!sirene_topicos_interacao_id_fkey(
-              sirene_chamados(numero, prioridade)
+              sirene_chamados(numero, frank_id, frank_nome, te_trata)
             )
           `)
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
@@ -147,7 +147,7 @@ export function useBacklog(): UseBacklogResult {
 
       if (sireneRes.error) throw sireneRes.error;
 
-      type ChamadoRaw = { numero: string; prioridade: string | null } | { numero: string; prioridade: string | null }[] | null;
+      type ChamadoRaw = { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null } | { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null }[] | null;
       type SireneRaw = {
         id: string;
         tipo: string;
@@ -157,6 +157,7 @@ export function useBacklog(): UseBacklogResult {
         status: string;
         chamado_id: string | null;
         interacao_id: string | null;
+        trava: boolean | null;
         sirene_chamados: ChamadoRaw;
         kanban_atividades: { sirene_chamados: ChamadoRaw } | { sirene_chamados: ChamadoRaw }[] | null;
       };
@@ -174,35 +175,41 @@ export function useBacklog(): UseBacklogResult {
               : interacaoRaw.sirene_chamados)
           : null;
         const chamado = chamadoDireto ?? chamadoViaInteracao;
+        const trava    = Boolean(row.trava);
+        const te_trata = Boolean(chamado?.te_trata);
+        const frank_id   = chamado?.frank_id   ?? null;
+        const frank_nome = chamado?.frank_nome ?? null;
+        const { prioridade_label } = rankChamadoPainelUnificado({
+          frank_id,
+          franqueado_nome:  frank_nome,
+          trava,
+          te_trata,
+          data_vencimento:  row.data_fim ?? row.prazo_proposto,
+          atividade_status: row.status,
+        });
         return {
-          id:              row.id,
-          tipo:            row.tipo,
-          descricao:       row.descricao,
-          chamado_titulo:  null,
-          data_fim:        row.data_fim,
-          prazo_proposto:  row.prazo_proposto,
-          status:          row.status,
-          chamado_id:      row.chamado_id,
-          chamado_numero:  chamado?.numero ?? null,
-          prioridade:      chamado?.prioridade ?? null,
+          id:             row.id,
+          tipo:           row.tipo,
+          descricao:      row.descricao,
+          chamado_titulo: null,
+          data_fim:       row.data_fim,
+          prazo_proposto: row.prazo_proposto,
+          status:         row.status,
+          chamado_id:     row.chamado_id,
+          chamado_numero: chamado?.numero ?? null,
+          prioridade:     prioridade_label,
+          frank_id,
+          frank_nome,
+          trava,
+          te_trata,
         };
       });
 
-      // Ordenação: prioridade P1-P6 primária, atrasado/prazo como desempate
-      const hojeStr = hoje.toISOString().slice(0, 10);
-      sireneArr.sort((a, b) => {
-        const prioA = prioridadeRank(a.prioridade), prioB = prioridadeRank(b.prioridade);
-        if (prioA !== prioB) return prioA - prioB;
-        const prazoA = a.data_fim ?? a.prazo_proposto;
-        const prazoB = b.data_fim ?? b.prazo_proposto;
-        const atrasadoA = prazoA ? prazoA < hojeStr : false;
-        const atrasadoB = prazoB ? prazoB < hojeStr : false;
-        if (atrasadoA !== atrasadoB) return atrasadoA ? -1 : 1;
-        if (!prazoA && prazoB) return -1;
-        if (prazoA && !prazoB) return 1;
-        if (!prazoA && !prazoB) return 0;
-        return prazoA! < prazoB! ? -1 : prazoA! > prazoB! ? 1 : 0;
-      });
+      // Ordenação: grupo P1-P6 → prazo → criação (via compareChamadosPainelRank)
+      sireneArr.sort((a, b) => compareChamadosPainelRank(
+        { frank_id: a.frank_id, franqueado_nome: a.frank_nome, trava: a.trava, te_trata: a.te_trata, data_vencimento: a.data_fim ?? a.prazo_proposto, atividade_status: a.status },
+        { frank_id: b.frank_id, franqueado_nome: b.frank_nome, trava: b.trava, te_trata: b.te_trata, data_vencimento: b.data_fim ?? b.prazo_proposto, atividade_status: b.status },
+      ));
 
       type AtivRaw = {
         id: string;
