@@ -249,8 +249,8 @@
   --moni-card-shadow-hover:   0 10px 24px rgba(15, 23, 42, 0.08);
   /* Título do card fechado (.moni-kanban-card-title). */
   --moni-card-title-size:     12px;
-  /* Título de fase/coluna (.moni-kanban-column-title) — um pouco maior que o card. */
-  --moni-fase-title-size:     13px;
+  /* Título de fase/coluna (.moni-kanban-column-title). */
+  --moni-fase-title-size:     11px;
   /* Compactação tipográfica do card fechado (pedido: line-height 1,0) */
   --moni-card-lh:             1;
   /* Gap MENOR só entre header (FK·franqueado) e título; demais usam section/chips/footer */
