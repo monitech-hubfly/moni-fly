@@ -1,10 +1,10 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { useBacklogKanban, KanbanCardItem } from '@/hooks/useBacklogKanban';
+import { useBacklogKanban, KanbanCardItem, PrioridadeGrupo } from '@/hooks/useBacklogKanban';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { tagSlaKanbanParaExibicao } from '@/lib/kanban/kanban-card-sla';
 
@@ -43,6 +43,7 @@ const ORIGEM_BADGE: Record<string, string> = {
   atividade:         'bg-blue-100 text-blue-700',
   checklist:         'bg-orange-100 text-orange-700',
   proxima_atividade: 'bg-teal-100 text-teal-700',
+  sem_atividade:     'bg-gray-100 text-gray-600',
 };
 
 const ORIGEM_LABEL: Record<string, string> = {
@@ -50,7 +51,37 @@ const ORIGEM_LABEL: Record<string, string> = {
   atividade:         'Atividade',
   checklist:         'Checklist',
   proxima_atividade: 'Próx. atividade',
+  sem_atividade:     'Sem atividade',
 };
+
+const P_COLORS: Record<PrioridadeGrupo, string> = {
+  P1: 'bg-red-100 text-red-700',
+  P2: 'bg-orange-100 text-orange-700',
+  P3: 'bg-red-100 text-red-600',
+  P4: 'bg-amber-100 text-amber-700',
+  P5: 'bg-yellow-100 text-yellow-700',
+  P6: 'bg-gray-100 text-gray-500',
+};
+
+const P_TOOLTIPS: Record<PrioridadeGrupo, string> = {
+  P1: 'SLA atrasado · sem atividade preenchida',
+  P2: 'SLA em dia · sem atividade preenchida',
+  P3: 'SLA atrasado · atividade atrasada',
+  P4: 'SLA atrasado · próxima atividade em dia/futura',
+  P5: 'SLA em dia · atividade atrasada',
+  P6: 'SLA em dia · próxima atividade em dia/futura',
+};
+
+function PrioridadeBadge({ prioridade }: { prioridade: PrioridadeGrupo }) {
+  return (
+    <span
+      className={`text-[9px] font-bold px-1 py-px rounded shrink-0 ${P_COLORS[prioridade]}`}
+      title={P_TOOLTIPS[prioridade]}
+    >
+      {prioridade}
+    </span>
+  );
+}
 
 function KanbanCard({ card }: { card: KanbanCardItem }) {
   const href      = hrefAbrirCardKanban(card.kanban_nome ?? '', card.id);
@@ -61,14 +92,17 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
     <div
       className="rounded-md bg-white border border-gray-200 px-3 py-2 text-sm shadow-sm transition-all"
     >
-      {/* Título + estrela Especial + dot status */}
+      {/* Título + badge P + estrela Especial + dot status */}
       <div className="flex items-start justify-between gap-1 min-w-0">
-        <span
-          className="text-gray-800 leading-snug flex-1 min-w-0"
-          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-        >
-          {card.titulo ?? '(sem título)'}
-        </span>
+        <div className="flex items-start gap-1 flex-1 min-w-0">
+          {card.prioridade && <PrioridadeBadge prioridade={card.prioridade} />}
+          <span
+            className="text-gray-800 leading-snug min-w-0"
+            style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+          >
+            {card.titulo ?? '(sem título)'}
+          </span>
+        </div>
         <div className="flex items-center gap-1 shrink-0 mt-0.5">
           {card.especial && (
             <span className="text-[11px]" title="Especial">⭐</span>
@@ -143,7 +177,8 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
 }
 
 export function BacklogKanbanColuna() {
-  const { cards, isLoading, error } = useBacklogKanban();
+  const { cards, sndCards, isLoading, error } = useBacklogKanban();
+  const [sndAberto, setSndAberto] = useState(false);
 
   const atrasados  = cards.filter(c => c.sla?.status === 'atrasado').length;
   const atencao    = cards.filter(c => c.sla?.status === 'atencao').length;
@@ -180,13 +215,36 @@ export function BacklogKanbanColuna() {
       ) : cards.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="flex flex-col gap-1.5 max-h-[22rem] overflow-y-auto pr-0.5">
-          {cards.map(card => (
-            <DraggableKanbanCard key={card.id} card={card}>
-              <KanbanCard card={card} />
-            </DraggableKanbanCard>
-          ))}
-        </div>
+        <>
+          <div className="flex flex-col gap-1.5 max-h-[22rem] overflow-y-auto pr-0.5">
+            {cards.map(card => (
+              <DraggableKanbanCard key={card.id} card={card}>
+                <KanbanCard card={card} />
+              </DraggableKanbanCard>
+            ))}
+          </div>
+          {sndCards.length > 0 && (
+            <div className="mt-2 border-t border-gray-200 pt-2">
+              <button
+                type="button"
+                onClick={() => setSndAberto(v => !v)}
+                className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 w-full text-left"
+              >
+                <span>{sndAberto ? '▾' : '▸'}</span>
+                <span>SND — SLA Não Definido ({sndCards.length})</span>
+              </button>
+              {sndAberto && (
+                <div className="flex flex-col gap-1.5 mt-1.5 max-h-[12rem] overflow-y-auto">
+                  {sndCards.map(card => (
+                    <DraggableKanbanCard key={card.id} card={card}>
+                      <KanbanCard card={card} />
+                    </DraggableKanbanCard>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

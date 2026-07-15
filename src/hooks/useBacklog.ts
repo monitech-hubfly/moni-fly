@@ -48,6 +48,12 @@ export type UseBacklogResult = {
 
 const ADMIN_EMAIL = 'danilo.n@moni.casa';
 
+function prioridadeRank(p: string | null | undefined): number {
+  if (!p) return 99;
+  const m = p.match(/^P(\d+)$/);
+  return m ? parseInt(m[1], 10) : 99;
+}
+
 export function useBacklog(): UseBacklogResult {
   const supabase = useMemo(() => createClient(), []);
   const [isLoading, setIsLoading] = useState(true);
@@ -182,9 +188,11 @@ export function useBacklog(): UseBacklogResult {
         };
       });
 
-      // Ordenação: atrasados primeiro, depois sem prazo, depois futuros ASC
+      // Ordenação: prioridade P1-P6 primária, atrasado/prazo como desempate
       const hojeStr = hoje.toISOString().slice(0, 10);
       sireneArr.sort((a, b) => {
+        const prioA = prioridadeRank(a.prioridade), prioB = prioridadeRank(b.prioridade);
+        if (prioA !== prioB) return prioA - prioB;
         const prazoA = a.data_fim ?? a.prazo_proposto;
         const prazoB = b.data_fim ?? b.prazo_proposto;
         const atrasadoA = prazoA ? prazoA < hojeStr : false;

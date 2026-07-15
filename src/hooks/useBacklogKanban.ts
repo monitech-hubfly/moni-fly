@@ -7,6 +7,8 @@ import { calcularSlaKanbanCard, type SlaKanbanResult } from '@/lib/kanban/kanban
 
 const ADMIN_EMAIL = 'danilo.n@moni.casa';
 
+export type PrioridadeGrupo = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6';
+
 export type KanbanCardItem = {
   id: string;
   titulo: string | null;
@@ -14,10 +16,11 @@ export type KanbanCardItem = {
   kanban_nome: string | null;
   sla_dias: number | null;
   sla: SlaKanbanResult | null;
-  origem: 'franqueado' | 'atividade' | 'checklist' | 'proxima_atividade';
+  origem: 'franqueado' | 'atividade' | 'checklist' | 'proxima_atividade' | 'sem_atividade';
   proxima_atividade?: string | null;
   prazo_atividade?: string | null;
   especial?: boolean;
+  prioridade?: PrioridadeGrupo | null;
 };
 
 type FaseRelSla = { nome: string; sla_dias: number | null; sla_tipo: string | null; slug: string | null };
@@ -37,16 +40,29 @@ function computeSla(
   });
 }
 
-function slaSortKey(sla: SlaKanbanResult | null): [number, number] {
-  if (!sla || sla.pausado) return [3, 0];
-  if (sla.status === 'atrasado') return [0, -(sla.diasAtraso ?? 0)];
-  if (sla.status === 'atencao')  return [1, sla.diasRestantes ?? 0];
-  return [2, sla.diasRestantes ?? 999];
+const RANK: Record<PrioridadeGrupo, number> = { P1: 1, P2: 2, P3: 3, P4: 4, P5: 5, P6: 6 };
+
+function atividadeBucket(c: KanbanCardItem, hojeIso: string): 'nao_preenchida' | 'atrasada' | 'futuro' {
+  if (!c.proxima_atividade) return 'nao_preenchida';
+  if (c.prazo_atividade && c.prazo_atividade < hojeIso) return 'atrasada';
+  return 'futuro';
+}
+
+function calcPrioridade(c: KanbanCardItem, hojeIso: string): PrioridadeGrupo {
+  const slaAt = c.sla?.status === 'atrasado';
+  const bucket = atividadeBucket(c, hojeIso);
+  if (slaAt  && bucket === 'nao_preenchida') return 'P1';
+  if (!slaAt && bucket === 'nao_preenchida') return 'P2';
+  if (slaAt  && bucket === 'atrasada')       return 'P3';
+  if (slaAt  && bucket === 'futuro')         return 'P4';
+  if (!slaAt && bucket === 'atrasada')       return 'P5';
+  return 'P6';
 }
 
 export function useBacklogKanban(refreshKey = 0) {
   const supabase   = useMemo(() => createClient(), []);
   const [cards,     setCards]     = useState<KanbanCardItem[]>([]);
+  const [sndCards,  setSndCards]  = useState<KanbanCardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error,     setError]     = useState<string | null>(null);
   const callIdRef = useRef(0);
@@ -68,8 +84,8 @@ export function useBacklogKanban(refreshKey = 0) {
         ? simProfileId
         : user.id;
 
-      // 4 fontes + tag Especial em paralelo
-      const [fonte1, fonte2, fonte3, fonte4, tagEspecialRes] = await Promise.all([
+      // 5 fontes + tag Especial em paralelo
+      const [fonte1, fonte2, fonte3, fonte4, fonte5, tagEspecialRes] = await Promise.all([
         supabase
           .from('kanban_cards')
           .select(`
@@ -124,6 +140,20 @@ export function useBacklogKanban(refreshKey = 0) {
           `)
           .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .not('proxima_atividade', 'is', null)
+          .eq('arquivado', false)
+          .eq('concluido', false),
+
+        supabase
+          .from('kanban_cards')
+          .select(`
+            id, titulo, arquivado, concluido,
+            created_at, entered_fase_at, sla_iniciado_em,
+            proxima_atividade, prazo_atividade,
+            fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+            kanban:kanbans(nome)
+          `)
+          .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+          .is('proxima_atividade', null)
           .eq('arquivado', false)
           .eq('concluido', false),
 
@@ -252,15 +282,50 @@ export function useBacklogKanban(refreshKey = 0) {
         });
       });
 
-      const resultado = Array.from(mapa.values()).sort((a, b) => {
-        const [ka, va] = slaSortKey(a.sla);
-        const [kb, vb] = slaSortKey(b.sla);
-        if (ka !== kb) return ka - kb;
-        return va - vb;
+      // Processar fonte 5 — cards do usuário SEM proxima_atividade (não sobrescreve existentes)
+      type CardF5 = CardBase;
+
+      ((fonte5.data ?? []) as unknown as CardF5[]).forEach(card => {
+        if (card.arquivado || card.concluido || mapa.has(card.id)) return;
+        const fase   = Array.isArray(card.fase)   ? card.fase[0]   : card.fase;
+        const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
+        mapa.set(card.id, {
+          id: card.id, titulo: card.titulo,
+          fase_nome:         fase?.nome   ?? null,
+          kanban_nome:       kanban?.nome ?? null,
+          sla_dias:          fase?.sla_dias ?? null,
+          sla:               computeSla(card, fase ?? null),
+          origem:            'sem_atividade',
+          proxima_atividade: card.proxima_atividade,
+          prazo_atividade:   card.prazo_atividade,
+          especial:          especialSet.has(card.id),
+        });
+      });
+
+      const hojeIso = new Date().toISOString().slice(0, 10);
+      const todasCards = Array.from(mapa.values());
+      const sndResultado = todasCards.filter(c => c.sla_dias === null);
+      const comSla = todasCards.filter(c => c.sla_dias !== null);
+
+      comSla.forEach(c => { c.prioridade = calcPrioridade(c, hojeIso); });
+
+      const resultado = comSla.sort((a, b) => {
+        const pa = RANK[a.prioridade!], pb = RANK[b.prioridade!];
+        if (pa !== pb) return pa - pb;
+        if (a.prioridade !== 'P6') {
+          const ea = a.especial ? 0 : 1, eb = b.especial ? 0 : 1;
+          if (ea !== eb) return ea - eb;
+        }
+        const da = a.prazo_atividade ?? '', db = b.prazo_atividade ?? '';
+        if (da && db) return da < db ? -1 : da > db ? 1 : 0;
+        if (da) return -1;
+        if (db) return 1;
+        return 0;
       });
 
       if (callId !== callIdRef.current) return;
       setCards(resultado);
+      setSndCards(sndResultado);
     } catch (e) {
       if (callId !== callIdRef.current) return;
       console.error('[useBacklogKanban]', e);
@@ -271,5 +336,5 @@ export function useBacklogKanban(refreshKey = 0) {
   }, [supabase, simProfileId, simAreaId, simNome, refreshKey]);
 
   useEffect(() => { carregar(); }, [carregar]);
-  return { cards, isLoading, error };
+  return { cards, sndCards, isLoading, error };
 }
