@@ -44,6 +44,19 @@ export default async function ProximasAtividadesPage() {
     : { data: [] };
   const tagSet = new Set((cardTagRows ?? []).map((t: any) => t.card_id as string));
 
+  const cardIdsParaComentarios = (cardsRaw ?? []).map((c: any) => c.id as string);
+  const { data: comentariosRows } = cardIdsParaComentarios.length > 0
+    ? await supabase
+        .from('kanban_card_comentarios')
+        .select('card_id')
+        .in('card_id', cardIdsParaComentarios)
+        .is('sirene_chamado_id', null)
+    : { data: [] };
+  const comentariosCountPorCard = new Map<string, number>();
+  ((comentariosRows ?? []) as Array<{ card_id: string }>).forEach(r => {
+    comentariosCountPorCard.set(r.card_id, (comentariosCountPorCard.get(r.card_id) ?? 0) + 1);
+  });
+
   const { data: kanbanRows2 } = await supabase
     .from('kanbans')
     .select('nome')
@@ -62,6 +75,7 @@ export default async function ProximasAtividadesPage() {
     kanban_nome: (c.kanban_id ? (kanbanNomePorId.get(c.kanban_id as string) ?? 'Funil') : 'Funil') as string,
     fase_nome: (c.fase_id ? (faseNomePorId.get(c.fase_id as string) ?? null) : null) as string | null,
     especial: tagSet.has(c.id as string),
+    comentarios_count: comentariosCountPorCard.get(c.id as string) ?? 0,
   }));
 
   return <ProximasAtividadesConteudo cards={cards} kanbanNames={todosKanbanNames} />;

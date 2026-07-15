@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { MessageCircle } from 'lucide-react';
+import { listarComentariosKanbanCard, type KanbanComentarioListItem } from '@/lib/actions/kanban-comentarios';
+import { ComentarioConteudoHtml } from '@/components/kanban-shared/ComentarioConteudoHtml';
 import {
   classificarProximaAtividadeTier,
   sortKanbanCardsPorProximaAtividade,
@@ -26,6 +29,7 @@ type CardRow = {
   kanban_nome: string;
   fase_nome: string | null;
   especial: boolean;
+  comentarios_count: number;
 };
 
 type Props = {
@@ -94,6 +98,10 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
   const [loadingHistorico, setLoadingHistorico] = useState(false);
   const [loadingChamados, setLoadingChamados] = useState(false);
 
+  const [comentariosAbertos, setComentariosAbertos] = useState<string | null>(null);
+  const [comentariosPorCard, setComentariosPorCard] = useState<Map<string, KanbanComentarioListItem[]>>(new Map());
+  const [loadingComentarios, setLoadingComentarios] = useState<string | null>(null);
+
   const hoje = new Date().toISOString().slice(0, 10);
 
   const filtradas = cards.filter(c => {
@@ -135,6 +143,24 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
       });
       setChamadosPorCard(map);
       setLoadingChamados(false);
+    }
+  }
+
+  async function handleVerComentarios(cardId: string) {
+    if (comentariosAbertos === cardId) {
+      setComentariosAbertos(null);
+      return;
+    }
+    if (comentariosPorCard.has(cardId)) {
+      setComentariosAbertos(cardId);
+      return;
+    }
+    setLoadingComentarios(cardId);
+    const res = await listarComentariosKanbanCard(cardId);
+    setLoadingComentarios(null);
+    if (res.ok) {
+      setComentariosPorCard(prev => new Map(prev).set(cardId, res.items));
+      setComentariosAbertos(cardId);
     }
   }
 
@@ -229,7 +255,39 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
                 <ProximaAtividadeTag tier={tier} prazo={c.prazo_atividade} />
                 <span className="flex-1 text-stone-700">{c.proxima_atividade}</span>
                 <span className="text-stone-500">{c.franqueado_nome ?? '—'}</span>
+                {c.comentarios_count > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => void handleVerComentarios(c.id)}
+                    title={`${c.comentarios_count} comentário${c.comentarios_count !== 1 ? 's' : ''}`}
+                    className="flex items-center gap-1 text-stone-400 hover:text-blue-600 transition-colors"
+                  >
+                    {loadingComentarios === c.id
+                      ? <span className="text-[10px]">…</span>
+                      : <><MessageCircle className="h-3.5 w-3.5" /><span className="text-[10px]">{c.comentarios_count}</span></>
+                    }
+                  </button>
+                )}
               </div>
+              {/* Comentários inline */}
+              {comentariosAbertos === c.id && (
+                <div className="border-t border-stone-100 px-4 py-2">
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-400">Comentários</p>
+                  <div className="space-y-2">
+                    {(comentariosPorCard.get(c.id) ?? []).map(com => (
+                      <div key={com.id} className="text-xs text-stone-700">
+                        {com.autor_nome && (
+                          <span className="font-medium text-stone-600">{com.autor_nome}: </span>
+                        )}
+                        <ComentarioConteudoHtml conteudo={com.conteudo} className="inline" />
+                        <span className="ml-1.5 text-[10px] text-stone-400">
+                          {com.created_at.slice(0, 10).split('-').reverse().join('/')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {/* Chamados vinculados (visível quando checkbox marcada) */}
               {mostrarChamados && chamadosDoCard.length > 0 && (
                 <div className="border-t border-stone-100 px-4 py-2">
