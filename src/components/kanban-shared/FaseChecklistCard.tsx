@@ -23,6 +23,10 @@ import { KanbanCardModalCondominio } from '@/components/kanban-shared/KanbanCard
 import { PesquisaCondominioProspect } from '@/components/kanban-shared/PesquisaCondominioProspect';
 import { LotesCondominioDisponiveis } from '@/components/kanban-shared/LotesCondominioDisponiveis';
 import { TabelaCondominiosProspect } from '@/components/kanban-shared/TabelaCondominiosProspect';
+import {
+  ChecklistTabelaRepetivel,
+  type ColunaTabelaRepetivel,
+} from '@/components/kanban-shared/ChecklistTabelaRepetivel';
 import { sincronizarLoteChecklistComCadastro } from '@/lib/actions/kanban-lotes-condominio';
 import { CondominioLotesAnexados } from '@/components/kanban-shared/CondominioLotesAnexados';
 import { DadosCidadeIbgeChecklist } from '@/components/kanban-shared/DadosCidadeIbgeChecklist';
@@ -1459,6 +1463,22 @@ function ItemField({
   }
 
   if (item.tipo === 'tabela') {
+    const cfg = (item.config_json ?? {}) as {
+      modo?: string;
+      colunas?: ColunaTabelaRepetivel[];
+    };
+    if (cfg.modo === 'repetivel' && Array.isArray(cfg.colunas) && cfg.colunas.length > 0) {
+      return (
+        <ChecklistTabelaRepetivel
+          label={item.label}
+          colunas={cfg.colunas}
+          valorJson={estado.valor}
+          onChange={onChange}
+          onBlur={onBlur}
+          readonly={readonly}
+        />
+      );
+    }
     if (item.label.trim() === 'Tabela de Condomínios') {
       if (!isDadosCidadeFaseSlug(faseSlug)) {
         return (

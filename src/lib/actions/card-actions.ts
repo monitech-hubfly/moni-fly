@@ -822,6 +822,130 @@ export async function criarChamadoSireneComAtividade(
   return { ok: true, interacaoId, sireneChamadoId };
 }
 
+/**
+ * Vincula um chamado Sirene já existente a um card Kanban (sem criar chamado novo).
+ * Cria/atualiza atividade `kanban_atividades` com origem sirene + `sirene_chamado_id`,
+ * e atualiza `sirene_chamados.card_id` se ainda estiver vazio.
+ */
+export async function vincularChamadoSireneExistenteAoCard(input: {
+  card_id: string;
+  sirene_chamado_id: number;
+  card_kanban_nome?: string | null;
+  card_titulo?: string | null;
+}): Promise<ActionResult & { interacaoId?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para vincular o chamado.' };
+
+  const cardId = String(input.card_id ?? '').trim();
+  const sireneChamadoId = Number(input.sirene_chamado_id);
+  if (!cardId || !Number.isFinite(sireneChamadoId) || sireneChamadoId <= 0) {
+    return { ok: false, error: 'card_id ou sirene_chamado_id inválido.' };
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+  const role = String((profile as { role?: string } | null)?.role ?? '');
+  if (!['admin', 'team', 'consultor', 'supervisor'].includes(role)) {
+    return { ok: false, error: 'Sem permissão para vincular chamado.' };
+  }
+
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Admin client indisponível.' };
+  }
+
+  const { data: chamado, error: cErr } = await admin
+    .from('sirene_chamados')
+    .select('id, numero, incendio, card_id, aberto_por_nome, time_abertura')
+    .eq('id', sireneChamadoId)
+    .maybeSingle();
+
+  if (cErr || !chamado) {
+    return { ok: false, error: cErr?.message ?? 'Chamado Sirene não encontrado.' };
+  }
+
+  const cardAtual = String((chamado as { card_id?: string | null }).card_id ?? '').trim();
+  if (cardAtual && cardAtual !== cardId) {
+    return {
+      ok: false,
+      error: 'Este chamado já está vinculado a outro card. Desvincule antes ou use outro chamado.',
+    };
+  }
+
+  if (!cardAtual) {
+    const { error: updErr } = await admin
+      .from('sirene_chamados')
+      .update({
+        card_id: cardId,
+        card_kanban_nome: input.card_kanban_nome?.trim() || null,
+        card_titulo: input.card_titulo?.trim() || null,
+      } as never)
+      .eq('id', sireneChamadoId);
+    if (updErr) return { ok: false, error: updErr.message };
+  }
+
+  const { data: ativExistente } = await admin
+    .from('kanban_atividades')
+    .select('id')
+    .eq('card_id', cardId)
+    .eq('sirene_chamado_id', sireneChamadoId)
+    .limit(1)
+    .maybeSingle();
+
+  if (ativExistente?.id) {
+    revalidatePath('/sirene/chamados');
+    revalidatePath('/');
+    return { ok: true, interacaoId: String(ativExistente.id) };
+  }
+
+  const titulo =
+    String((chamado as { incendio?: string }).incendio ?? '').trim() ||
+    `Chamado #${(chamado as { numero?: number }).numero ?? sireneChamadoId}`;
+  const numero = Number((chamado as { numero?: number }).numero);
+
+  const { data: inserted, error: kaErr } = await admin
+    .from('kanban_atividades')
+    .insert({
+      card_id: cardId,
+      titulo,
+      descricao: `Vínculo manual ao chamado Sirene #${Number.isFinite(numero) ? numero : sireneChamadoId}`,
+      categoria: 'chamado',
+      tipo: 'atividade',
+      times_ids: [] as string[],
+      responsaveis_ids: [] as string[],
+      responsavel_id: null,
+      trava: false,
+      data_vencimento: null,
+      status: 'pendente',
+      prioridade: 'normal',
+      criado_por: user.id,
+      time: null,
+      time_abertura_nome: (chamado as { time_abertura?: string | null }).time_abertura ?? null,
+      origem: 'sirene',
+      sirene_chamado_id: sireneChamadoId,
+      numero: Number.isFinite(numero) ? numero : undefined,
+    } as never)
+    .select('id')
+    .single();
+
+  if (kaErr || !inserted?.id) {
+    return { ok: false, error: kaErr?.message ?? 'Erro ao criar vínculo no card.' };
+  }
+
+  revalidatePath('/sirene/chamados');
+  revalidatePath('/sirene');
+  revalidatePath('/');
+  return { ok: true, interacaoId: String(inserted.id) };
+}
+
 export async function criarInteracao(input: CriarInteracaoInput): Promise<ActionResult> {
   const supabase = await createClient();
   const {

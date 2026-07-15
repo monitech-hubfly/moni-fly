@@ -44,6 +44,7 @@ import {
   atualizarStatusSubInteracao,
   criarTagKanban,
   criarChamadoSireneComAtividade,
+  vincularChamadoSireneExistenteAoCard,
   criarSubInteracao,
   desvincularTagCard,
   editarInteracao,
@@ -307,6 +308,7 @@ import { ChecklistCard } from './ChecklistCard';
 import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
 import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
 import { FaseChecklistCard } from './FaseChecklistCard';
+import { FornecedoresRedeCard } from './FornecedoresRedeCard';
 import { ResponsavelFaseSidebar } from './ResponsavelFaseSidebar';
 import { ResponsavelDaFaseSidebar } from './ResponsavelDaFaseSidebar';
 import {
@@ -704,6 +706,9 @@ export function KanbanCardModal({
   });
   const [novoChamadoFormAberto, setNovoChamadoFormAberto] = useState(false);
   const [modalNovoChamadoAberto, setModalNovoChamadoAberto] = useState(false);
+  const [vincularChamadoAberto, setVincularChamadoAberto] = useState(false);
+  const [vincularChamadoIdInput, setVincularChamadoIdInput] = useState('');
+  const [vinculandoChamado, setVinculandoChamado] = useState(false);
   const [novaAtividadeAberta, setNovaAtividadeAberta] = useState(false);
   const [subInteracoesPorPai, setSubInteracoesPorPai] = useState<Record<string, SubInteracaoModal[]>>({});
   const [subExpandida, setSubExpandida] = useState<Record<string, boolean>>({});
@@ -5516,6 +5521,7 @@ export function KanbanCardModal({
                 }}
               >
                 {!novoChamadoFormAberto ? (
+                  <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
                     onClick={() => setModalNovoChamadoAberto(true)}
@@ -5523,6 +5529,14 @@ export function KanbanCardModal({
                   >
                     + Novo Chamado
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setVincularChamadoAberto((v) => !v)}
+                    className="text-left text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
+                  >
+                    Vincular chamado existente
+                  </button>
+                  </div>
                 ) : (
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">
@@ -5655,6 +5669,80 @@ export function KanbanCardModal({
                   </div>
                 </div>
                 )}
+                {vincularChamadoAberto ? (
+                  <div
+                    className="mt-2 flex flex-col gap-2 rounded-md p-2"
+                    style={{
+                      border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                      background: 'var(--moni-surface-0, #fff)',
+                    }}
+                  >
+                    <p className="text-[11px] font-semibold text-stone-600">
+                      Vincular chamado Sirene existente
+                    </p>
+                    <input
+                      type="number"
+                      min={1}
+                      value={vincularChamadoIdInput}
+                      onChange={(e) => setVincularChamadoIdInput(e.target.value)}
+                      placeholder="ID do chamado (sirene_chamados.id)"
+                      className="w-full px-2 py-1.5 text-xs"
+                      style={{
+                        border: '0.5px solid var(--moni-border-default)',
+                        borderRadius: 'var(--moni-radius-md)',
+                      }}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVincularChamadoAberto(false);
+                          setVincularChamadoIdInput('');
+                        }}
+                        className="px-2 py-1.5 text-[11px] text-stone-600"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={vinculandoChamado || !vincularChamadoIdInput.trim()}
+                        onClick={() => {
+                          void (async () => {
+                            const sid = Number(vincularChamadoIdInput);
+                            if (!Number.isFinite(sid) || sid <= 0) {
+                              alert('Informe um ID numérico válido do chamado.');
+                              return;
+                            }
+                            setVinculandoChamado(true);
+                            const res = await vincularChamadoSireneExistenteAoCard({
+                              card_id: card.id,
+                              sirene_chamado_id: sid,
+                              card_kanban_nome: kanbanNome,
+                              card_titulo: card.titulo,
+                            });
+                            setVinculandoChamado(false);
+                            if (!res.ok) {
+                              alert(res.error);
+                              return;
+                            }
+                            setVincularChamadoAberto(false);
+                            setVincularChamadoIdInput('');
+                            router.refresh();
+                            void loadCard({ silencioso: true });
+                          })();
+                        }}
+                        className="px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
+                        style={{
+                          background: 'var(--moni-navy-800)',
+                          borderRadius: 'var(--moni-radius-md)',
+                          minHeight: 44,
+                        }}
+                      >
+                        {vinculandoChamado ? 'Vinculando…' : 'Vincular'}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
               ) : (
                 <p className="text-xs text-stone-500">Criar chamados não está disponível para o seu perfil.</p>
@@ -6029,6 +6117,10 @@ export function KanbanCardModal({
                         Processo Step One não vinculado a este card. O Checklist de Crédito ficará disponível quando
                         houver um processo associado (via rede do franqueado ou número FK no título).
                       </p>
+                    ) : null}
+
+                    {faseSlugAtual === FASE_SLUGS.HOMOLOG_BUSCAR_FORNECEDORES ? (
+                      <FornecedoresRedeCard cardId={card.id} />
                     ) : null}
 
                     <FaseChecklistCard

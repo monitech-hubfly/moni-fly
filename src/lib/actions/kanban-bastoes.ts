@@ -14,6 +14,7 @@ import {
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
 import { garantirShadowKanbanCardLegadoPorId } from '@/lib/kanban/kanban-card-vinculos';
 import { notificarTimeAcoplamentoNovoProjeto } from '@/lib/kanban/acoplamento-notificacoes';
+import { notificarHomologacaoProdutoHomologado } from '@/lib/actions/fornecedores-rede';
 import { inserirKanbanCardVinculo } from '@/lib/kanban/kanban-card-vinculos';
 import {
   deveDispararBastaoAcoplamentoAutomatico,
@@ -982,6 +983,14 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
   if (slug === FASE_SLUGS.OPERACOES_ENTREGUE) {
     await executarRitualEncerramentoOperacoes(cardPaiId);
     return;
+  }
+
+  // Saída Homologações: aviso para Waysers / Produto / Modelo Virtual / Acoplamento
+  if (
+    slug === FASE_SLUGS.HOMOLOG_CRIAR_PRODUTO_DATABASE &&
+    String(pai.kanban_id ?? '') === KANBAN_IDS.HDM_HOMOLOGACOES
+  ) {
+    await notificarHomologacaoProdutoHomologado({ cardId: cardPaiId });
   }
 
   const destinos = BASTOES_DE_IDA[slug];

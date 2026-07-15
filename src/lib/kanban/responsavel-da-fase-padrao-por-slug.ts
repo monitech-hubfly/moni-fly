@@ -156,7 +156,12 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   mv_revisao: 'moni',
   mv_publicado: 'moni',
 
-  // Funil Homologações
+  // Funil Homologações (migration 462)
+  homolog_novas_homologacoes: 'moni',
+  homolog_buscar_fornecedores: 'moni',
+  homolog_definir_composicao: 'moni',
+  homolog_criar_produto_database: 'moni',
+  /** @deprecated fases legadas desativadas */
   hom_candidatura: 'moni',
   hom_documentacao: 'moni',
   hom_tecnica: 'moni',

@@ -219,6 +219,24 @@ export const FASE_SLUGS = {
   M1_CTO_CLIENTE:       'm1_cto_cliente',
   M1_PAGAMENTO_ENTRADA: 'm1_pagamento_entrada',
   M1_CUSTOM_TRACK1_2:   'm1_custom_track1_2',
+  // Funil Homologações (KANBAN_IDS.HDM_HOMOLOGACOES) — fluxo ordem 1–4
+  HOMOLOG_NOVAS_HOMOLOGACOES:     'homolog_novas_homologacoes',
+  HOMOLOG_BUSCAR_FORNECEDORES:    'homolog_buscar_fornecedores',
+  HOMOLOG_DEFINIR_COMPOSICAO:     'homolog_definir_composicao',
+  /** Terminal / conversão — dispara aviso de saída para Waysers/Produto/MV/Acoplamento. */
+  HOMOLOG_CRIAR_PRODUTO_DATABASE: 'homolog_criar_produto_database',
+  /** @deprecated Fases legadas desativadas na migration 462. */
+  HOM_CANDIDATURA:  'hom_candidatura',
+  /** @deprecated migration 462 */
+  HOM_DOCUMENTACAO: 'hom_documentacao',
+  /** @deprecated migration 462 */
+  HOM_TECNICA:      'hom_tecnica',
+  /** @deprecated migration 462 */
+  HOM_NEGOCIACAO:   'hom_negociacao',
+  /** @deprecated migration 462 */
+  HOM_APROVADO:     'hom_aprovado',
+  /** @deprecated migration 462 */
+  HOM_REPROVADO:    'hom_reprovado',
 } as const
 
 /** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389). */
