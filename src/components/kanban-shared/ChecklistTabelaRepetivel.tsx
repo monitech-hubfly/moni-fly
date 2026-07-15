@@ -13,7 +13,7 @@ type Props = {
   colunas: ColunaTabelaRepetivel[];
   valorJson: string;
   onChange: (valor: string) => void;
-  onBlur?: () => void;
+  onBlur?: (valor: string) => void;
   readonly?: boolean;
 };
 
@@ -62,6 +62,12 @@ export function ChecklistTabelaRepetivel({
     setDraft(next);
     const limpas = next.filter((row) => Object.values(row).some((v) => String(v).trim()));
     onChange(JSON.stringify(limpas));
+  }
+
+  function handleBlur() {
+    if (!onBlur) return;
+    const limpas = draft.filter((row) => Object.values(row).some((v) => String(v).trim()));
+    onBlur(JSON.stringify(limpas));
   }
 
   function atualizarCelula(idx: number, key: string, value: string) {
@@ -124,7 +130,7 @@ export function ChecklistTabelaRepetivel({
                         disabled={readonly}
                         value={row[col.key] ?? ''}
                         onChange={(e) => atualizarCelula(idx, col.key, e.target.value)}
-                        onBlur={onBlur}
+                        onBlur={handleBlur}
                         className="w-full min-w-[8rem] px-1.5 py-1 text-xs"
                         style={{
                           border: 'var(--moni-border-width) solid var(--moni-border-default)',
@@ -139,7 +145,7 @@ export function ChecklistTabelaRepetivel({
                         disabled={readonly}
                         value={row[col.key] ?? ''}
                         onChange={(e) => atualizarCelula(idx, col.key, e.target.value)}
-                        onBlur={onBlur}
+                        onBlur={handleBlur}
                         placeholder={col.tipo === 'anexo' ? 'URL do anexo' : undefined}
                         className="w-full min-w-[6rem] px-1.5 py-1 text-xs"
                         style={{
