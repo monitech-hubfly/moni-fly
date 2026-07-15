@@ -71,7 +71,8 @@ interface HistoricoItem {
   autor_nome: string
 }
 
-interface PericiaDetalhe extends Pericia {
+interface PericiaDetalhe extends Omit<Pericia, 'data_conclusao'> {
+  data_conclusao_real: string | null
   acoes: PericiaAcao[]
   chamados: ChamadoVinculado[]
   carometro_itens: CarometroItem[]
@@ -325,7 +326,7 @@ export default function PericiaDetalheModal({
       .update({
         status: faseAnterior.key,
         // Se estava concluída, limpa data_conclusao ao voltar
-        ...(detalhe.status === 'concluida' ? { data_conclusao: null } : {}),
+        ...(detalhe.status === 'concluida' ? { data_conclusao_real: null } : {}),
       })
       .eq('id', detalhe.id)
     const autorNome = await obterAutorNome()
@@ -369,7 +370,7 @@ export default function PericiaDetalheModal({
       .from('sirene_pericias')
       .update({
         status: novaFase,
-        ...(novaFase === 'concluida' ? { data_conclusao: new Date().toISOString() } : {}),
+        ...(novaFase === 'concluida' ? { data_conclusao_real: new Date().toISOString() } : {}),
       })
       .eq('id', detalhe.id)
     // Registro no histórico
@@ -431,7 +432,7 @@ export default function PericiaDetalheModal({
     if (!confirm(`Cancelar a perícia ${detalhe.codigo}? Esta ação não pode ser desfeita.`)) return
     await supabase
       .from('sirene_pericias')
-      .update({ status: 'concluida', data_conclusao: new Date().toISOString() })
+      .update({ status: 'concluida', data_conclusao_real: new Date().toISOString() })
       .eq('id', detalhe.id)
     onUpdated?.()
     onClose()
@@ -566,11 +567,11 @@ export default function PericiaDetalheModal({
                 <span className="text-xs text-gray-500">
                   desde {formatarData(detalhe.data_inicio)}
                 </span>
-                {detalhe.data_conclusao && (
+                {detalhe.data_conclusao_real && (
                   <>
                     <span className="text-gray-300 text-xs">·</span>
                     <span className="text-xs text-green-700 font-medium">
-                      Concluída em {formatarData(detalhe.data_conclusao)}
+                      Concluída em {formatarData(detalhe.data_conclusao_real)}
                     </span>
                   </>
                 )}
