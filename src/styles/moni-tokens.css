@@ -2659,6 +2659,8 @@
   border-radius: var(--moni-card-radius);
   background: var(--moni-card-surface);
   box-shadow: var(--moni-card-shadow);
+  /* Clipa a faixa ::before aos cantos arredondados do card */
+  overflow: hidden;
   text-align: left;
   transition:
     border-color 180ms ease,
@@ -2672,7 +2674,8 @@
   transform: translateY(-1px);
 }
 
-/* Faixa lateral: cinza discreto por padrão; vermelho suave só com SLA atrasado */
+/* Faixa lateral: cinza discreto por padrão; vermelho suave só com SLA atrasado.
+   Sem border-radius próprio — overflow:hidden do card curva a faixa com o card. */
 .moni-kanban-card::before {
   content: '';
   position: absolute;
@@ -2680,8 +2683,8 @@
   bottom: 0;
   left: 0;
   width: 2px;
-  border-radius: var(--moni-card-radius) 0 0 var(--moni-card-radius);
   background: var(--moni-card-status-cinza);
+  pointer-events: none;
 }
 
 .moni-kanban-card--status-verde::before,
