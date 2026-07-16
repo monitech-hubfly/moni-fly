@@ -22,6 +22,16 @@ const casos: Array<{ nome: string; input: string; expected: string[] }> = [
     input: 'Belo Horizonte, Nova Lima e Brumadinho, estado de Minas Gerais',
     expected: ['MG - Belo Horizonte', 'MG - Nova Lima', 'MG - Brumadinho'],
   },
+  {
+    nome: 'quebra varias UFs canônicas (ex. screenshot Curitiba)',
+    input: 'PR - Curitiba; PR - São José dos Pinhais; PR - Colombo',
+    expected: ['PR - Curitiba', 'PR - São José dos Pinhais', 'PR - Colombo'],
+  },
+  {
+    nome: 'prosa com estado do',
+    input: 'Curitiba e Colombo, estado do Paraná',
+    expected: ['PR - Curitiba', 'PR - Colombo'],
+  },
 ];
 
 for (const caso of casos) {
