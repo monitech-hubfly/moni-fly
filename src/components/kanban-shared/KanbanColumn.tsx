@@ -719,63 +719,47 @@ export function KanbanColumn({
                   ) : null}
                 </button>
 
-                {/* 5. Bolinhas · reunião (+ contadores / próxima atividade) */}
-                {temContadores || temParalelas || temReuniao || proxDotEsquerda ? (
-                  <div className="moni-kanban-card-meta">
-                    <div className="moni-kanban-card-meta-start">
-                      {temContadores ? (
-                        <div className="moni-kanban-card-counts">
-                          {qtdComentarios > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => abrirCard(card)}
-                              className="moni-kanban-card-count"
-                              aria-label={`${qtdComentarios} comentário(s)`}
-                            >
-                              <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              <span className="tabular-nums">{qtdComentarios}</span>
-                            </button>
-                          ) : null}
-                          {qtdAnexos > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => abrirCard(card)}
-                              className="moni-kanban-card-count"
-                              aria-label={`${qtdAnexos} anexo(s) Sirene`}
-                            >
-                              <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              <span className="tabular-nums">{qtdAnexos}</span>
-                            </button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {temParalelas ? (
-                        <KanbanParalelasChips chips={chipsParalelas} mode="board" />
-                      ) : null}
-                      {temParalelas && temReuniao ? (
-                        <span className="moni-kanban-card-meta-sep" aria-hidden>
-                          ·
-                        </span>
-                      ) : null}
-                      {temReuniao ? (
-                        <TextoReuniaoCard dataIso={reuniaoIso} varianteVisual="texto" />
-                      ) : null}
-                      {proxDotEsquerda ? (
-                        <ProximaAtividadeDot
-                          cardId={card.id}
-                          proximaAtividade={card.proxima_atividade ?? null}
-                          prazoAtividade={card.prazo_atividade ?? null}
-                          basePath={basePath}
-                        />
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-
-                {/* 6. Alerta | menu (mesma linha; menu alinhado à coluna do avatar) */}
+                {/* 5+6. Bolinhas · reunião · menu — sempre na mesma linha */}
                 <div className="moni-kanban-card-footer">
                   <div className="moni-kanban-card-footer-start">
-                    {proxAlertaDireita ? (
+                    {temContadores ? (
+                      <div className="moni-kanban-card-counts">
+                        {qtdComentarios > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => abrirCard(card)}
+                            className="moni-kanban-card-count"
+                            aria-label={`${qtdComentarios} comentário(s)`}
+                          >
+                            <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            <span className="tabular-nums">{qtdComentarios}</span>
+                          </button>
+                        ) : null}
+                        {qtdAnexos > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => abrirCard(card)}
+                            className="moni-kanban-card-count"
+                            aria-label={`${qtdAnexos} anexo(s) Sirene`}
+                          >
+                            <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            <span className="tabular-nums">{qtdAnexos}</span>
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {temParalelas ? (
+                      <KanbanParalelasChips chips={chipsParalelas} mode="board" />
+                    ) : null}
+                    {temParalelas && temReuniao ? (
+                      <span className="moni-kanban-card-meta-sep" aria-hidden>
+                        ·
+                      </span>
+                    ) : null}
+                    {temReuniao ? (
+                      <TextoReuniaoCard dataIso={reuniaoIso} varianteVisual="texto" />
+                    ) : null}
+                    {proxDotEsquerda || proxAlertaDireita ? (
                       <ProximaAtividadeDot
                         cardId={card.id}
                         proximaAtividade={card.proxima_atividade ?? null}
