@@ -9,6 +9,7 @@ import { getProximoNFranquia } from '@/app/rede-franqueados/actions';
 import { UFS_BRASIL } from '@/lib/uf';
 import { createClient } from '@/lib/supabase/client';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
+import { REDE_OPCOES_STATUS_FRANQUIA } from '@/lib/rede-franqueado-form-options';
 import { Copy, Check, Plus, X } from 'lucide-react';
 
 type CidadeIBGE = { id: number; nome: string };
@@ -238,12 +239,6 @@ const OPCOES_TIPO_NEGOCIACAO_TERRENO = [
   { value: 'Permuta', label: 'Permuta' },
   { value: 'Permuta + Compra e venda', label: 'Permuta + Compra e venda' },
   { value: 'Compra e Venda', label: 'Compra e Venda' },
-] as const;
-
-/** Status da Franquia (Novo Step 1). */
-const OPCOES_STATUS_FRANQUIA = [
-  { value: 'Em Operação', label: 'Em Operação' },
-  { value: 'Operação Encerrada', label: 'Operação Encerrada' },
 ] as const;
 
 /** Classificação do Franqueado (Novo Step 1). */
@@ -1170,7 +1165,7 @@ export function FormularioInicioProcesso({
                 className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-moni-accent focus:outline-none focus:ring-1 focus:ring-moni-accent"
               >
                 <option value="">— Selecione —</option>
-                {OPCOES_STATUS_FRANQUIA.map((op) => (
+                {REDE_OPCOES_STATUS_FRANQUIA.map((op) => (
                   <option key={op.value} value={op.value}>{op.label}</option>
                 ))}
               </select>

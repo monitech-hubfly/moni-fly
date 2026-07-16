@@ -10,14 +10,23 @@ const DATE_KEYS = new Set<RedeFranqueadoDbKey>([
   'data_recebimento_kit_boas_vindas',
 ]);
 
+function statusFranquiaDotColor(value: string): string {
+  const n = value.trim().toLowerCase();
+  if (n.includes('transferência') || n.includes('transferencia')) {
+    return 'var(--moni-card-status-amarelo)'; // dourado atenção (--moni-gold-400)
+  }
+  if (/em\s*opera/i.test(n)) return 'var(--moni-card-status-verde)';
+  return 'var(--moni-card-status-cinza)';
+}
+
 function StatusBadge({ value }: { value: string }) {
   const v = value.trim();
   if (!v) return <span className="text-stone-400">—</span>;
-  const emOperacao = /em\s*opera/i.test(v);
   return (
     <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-stone-200/90 bg-stone-50 px-2.5 py-0.5 text-xs font-medium text-stone-800">
       <span
-        className={`h-1.5 w-1.5 shrink-0 rounded-full ${emOperacao ? 'bg-emerald-500' : 'bg-stone-400'}`}
+        className="h-1.5 w-1.5 shrink-0 rounded-full"
+        style={{ backgroundColor: statusFranquiaDotColor(v) }}
         aria-hidden
       />
       <span className="truncate">{v}</span>
