@@ -125,7 +125,14 @@ export default function Page() {
     if (errPer) { setError(errPer.message); setLoading(false); return }
     setPeriodo(p)
 
-    const { data: areasData } = await listarAreas(supabase, 'id, nome')
+    const [{ data: areasData }, ganttRes] = await Promise.all([
+      listarAreas(supabase, 'id, nome'),
+      supabase
+        .from('gantt_planejamento')
+        .select('id, acao_id, responsavel, semanas_selecionadas, semana_inicio, semana_fim, acoes(nome, tarefas(area_id))')
+        .eq('periodo_id', periodoId),
+    ])
+
     const list = areasData || []
     setAreas(list)
     if (list.length && !filtroArea) {
@@ -137,12 +144,8 @@ export default function Page() {
       }
     }
 
-    const { data: ganttData, error: errGantt } = await supabase
-      .from('gantt_planejamento')
-      .select('id, acao_id, responsavel, semanas_selecionadas, semana_inicio, semana_fim, acoes(nome, tarefas(area_id))')
-      .eq('periodo_id', periodoId)
-    if (errGantt) { setError(errGantt.message); setLoading(false); return }
-    const gantt = ganttData || []
+    if (ganttRes.error) { setError(ganttRes.error.message); setLoading(false); return }
+    const gantt = ganttRes.data || []
 
     const acaoIds = gantt.map(g => g.acao_id).filter(Boolean)
     let cronoByKey = {}
