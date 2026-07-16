@@ -2,6 +2,13 @@
 
 import { Client } from 'pg';
 
+function pgDateToIso(val: unknown): string | null {
+  if (val == null) return null;
+  if (val instanceof Date) return val.toISOString().slice(0, 10);
+  const s = String(val).slice(0, 10);
+  return s || null;
+}
+
 export type TopicoAdminRow = {
   id: number;
   chamadoId: number;
@@ -118,8 +125,8 @@ export async function getTodoSireneTopicos(): Promise<GetTodoSireneResult> {
       numero: (r.numero as number | null) ?? (r.sc_id as number),
       descricao: (r.descricao as string) ?? '',
       status: (r.status as string) ?? '',
-      dataFim: (r.data_fim as string | null) ?? null,
-      chamadoDataVencimento: (r.data_vencimento as string | null) ?? null,
+      dataFim: pgDateToIso(r.data_fim),
+      chamadoDataVencimento: pgDateToIso(r.data_vencimento),
       responsaveisIds: (r.responsaveis_ids as string[] | null) ?? [],
       responsavelId: (r.responsavel_id as string | null) ?? null,
       responsavelNome: (r.responsavel_nome as string | null) ?? null,
