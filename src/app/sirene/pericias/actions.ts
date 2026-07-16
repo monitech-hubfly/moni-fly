@@ -4,9 +4,8 @@ import { createClient as createSupabaseServerClient } from '@/lib/supabase/serve
 import { revalidatePath } from 'next/cache'
 import { type PericiaDominio, PERICIAS_DOMINIOS } from './pericias-dominios'
 
-// Re-export so existing importers from actions.ts keep working
+// Re-export type for existing importers from actions.ts (types are erased at compile time)
 export type { PericiaDominio }
-export { PERICIAS_DOMINIOS }
 
 // ---------------------------------------------------------------------------
 // Tipos

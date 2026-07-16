@@ -6,7 +6,8 @@ import { Plus, X, Save } from 'lucide-react'
 import PericiaCard from './PericiaCard'
 import PericiaDetalheModal from './PericiaDetalheModal'
 import type { MetricasPericias, Pericia, PericiaStatus, PrioridadeLevel } from './page'
-import { criarPericia, PERICIAS_DOMINIOS, type PericiaDominio, type PericiaTipo } from './actions'
+import { criarPericia, type PericiaTipo } from './actions'
+import { PERICIAS_DOMINIOS, type PericiaDominio } from './pericias-dominios'
 
 const COLUNAS: { status: PericiaStatus; label: string }[] = [
   { status: 'aberta', label: 'Aberta' },
