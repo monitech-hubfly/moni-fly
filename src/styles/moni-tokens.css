@@ -3625,8 +3625,8 @@
   color: var(--moni-navy-600);
 }
 
-/* Tabelas largas — scroll interno (thead sticky). Sem sticky no wrap:
-   sticky + max-height≈viewport cobria a paginação irmã (números sumiam). */
+/* Tabelas largas — scroll horizontal no wrap (sem max-height / scroll vertical).
+   A página rola verticalmente; thead sticky permanece para cabeçalho multi-linha. */
 .moni-tabela-scroll-wrap {
   width: 100%;
   max-width: 100%;
@@ -3646,7 +3646,8 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--moni-navy-200) var(--moni-surface-100);

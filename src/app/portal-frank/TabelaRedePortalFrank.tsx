@@ -15,7 +15,7 @@ import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 type Props = { rows: RedeFranqueadoRowPortalFrank[] };
 
 /** Mesmo tamanho de página que `TabelaRedeFranqueadosEditavel` / `TabelaRedeFranqueados`. */
-const PER_PAGE = 15;
+const PER_PAGE = 40;
 
 /** Colunas visíveis ao franqueado, na mesma ordem lógica da tabela principal (`REDE_FRANQUEADOS_DB_KEYS`). */
 const FRANK_KEYS = [

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import { useRouter } from 'next/navigation';
 import { Check, FileText, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
@@ -55,16 +56,129 @@ function CidadeCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [pos, setPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    placement: 'below' | 'above';
+  } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter((c) => c.nome.toLowerCase().includes(q));
   }, [items, query]);
+
   useEffect(() => setQuery(''), [items]);
+
+  const reposicionar = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = Math.max(rect.width, 180);
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const placement: 'below' | 'above' =
+      spaceBelow >= 220 || spaceBelow >= rect.top ? 'below' : 'above';
+    setPos({
+      top: placement === 'below' ? rect.bottom + 4 : Math.max(8, rect.top - 4),
+      left,
+      width,
+      placement,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!open || disabled) return;
+    reposicionar();
+  }, [open, disabled, items.length]);
+
+  useEffect(() => {
+    if (!open || disabled) return;
+    const onScrollOrResize = () => reposicionar();
+    window.addEventListener('resize', onScrollOrResize);
+    window.addEventListener('scroll', onScrollOrResize, true);
+    return () => {
+      window.removeEventListener('resize', onScrollOrResize);
+      window.removeEventListener('scroll', onScrollOrResize, true);
+    };
+  }, [open, disabled]);
+
+  useEffect(() => {
+    if (!open || disabled) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (panelRef.current?.contains(t) || triggerRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, disabled]);
+
+  const panel =
+    open && !disabled && pos ? (
+      <div
+        ref={panelRef}
+        className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-lg"
+        style={{
+          position: 'fixed',
+          top: pos.top,
+          left: pos.left,
+          width: pos.width,
+          zIndex: 9999,
+          transform: pos.placement === 'above' ? 'translateY(-100%)' : undefined,
+        }}
+        role="dialog"
+        aria-label="Selecionar cidade"
+      >
+        <div className="border-b border-stone-200 p-1.5">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Pesquisar..."
+            className="w-full rounded border border-stone-300 px-2 py-1 text-sm"
+            autoFocus
+          />
+        </div>
+        <ul id={id} role="listbox" className="max-h-48 overflow-auto py-1">
+          {loading ? (
+            <li className="px-2 py-1.5 text-sm text-stone-500">Carregando...</li>
+          ) : filtered.length === 0 ? (
+            <li className="px-2 py-1.5 text-sm text-stone-500">Nenhuma cidade.</li>
+          ) : (
+            filtered.map((c) => (
+              <li
+                key={c.id}
+                role="option"
+                aria-selected={c.nome === value}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(c.nome);
+                  setOpen(false);
+                }}
+                className="cursor-pointer px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50"
+              >
+                {c.nome}
+              </li>
+            ))
+          )}
+        </ul>
+      </div>
+    ) : null;
 
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -79,48 +193,12 @@ function CidadeCombobox({
       >
         {value ? value : loading ? 'Carregando...' : placeholder ?? '— Cidade —'}
       </button>
-      {open && !disabled && (
-        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-stone-200 bg-white shadow-lg">
-          <div className="border-b border-stone-200 p-1.5">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Pesquisar..."
-              className="w-full rounded border border-stone-300 px-2 py-1 text-sm"
-              autoFocus
-            />
-          </div>
-          <ul id={id} role="listbox" className="max-h-48 overflow-auto py-1">
-            {loading ? (
-              <li className="px-2 py-1.5 text-sm text-stone-500">Carregando...</li>
-            ) : filtered.length === 0 ? (
-              <li className="px-2 py-1.5 text-sm text-stone-500">Nenhuma cidade.</li>
-            ) : (
-              filtered.map((c) => (
-                <li
-                  key={c.id}
-                  role="option"
-                  aria-selected={c.nome === value}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    onChange(c.nome);
-                    setOpen(false);
-                  }}
-                  className="cursor-pointer px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50"
-                >
-                  {c.nome}
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      )}
+      {typeof document !== 'undefined' && panel ? createPortal(panel, document.body) : null}
     </div>
   );
 }
 
-const PER_PAGE = 15;
+const PER_PAGE = 40;
 
 /** Primeiras colunas fixas ao rolar horizontalmente (até Status da Franquia). */
 const REDE_STICKY_COLUMN_COUNT = 4;
@@ -392,8 +470,14 @@ export function TabelaRedeFranqueadosEditavel({
                     const isAreaAtuacao = k === 'area_atuacao';
                     const maskCell = maskSensitiveColumns && isRedeColunaDadoSensivel(k);
                     const sticky = stickyCellProps(colIndex, 'body');
+                    const areaEditando = isEditing && isAreaAtuacao;
+                    const cellClassName = areaEditando
+                      ? sticky.className
+                          .replace('overflow-hidden', 'overflow-visible')
+                          .replace('max-w-[14rem]', 'max-w-none min-w-[18rem]')
+                      : sticky.className;
                     return (
-                      <td key={k} className={sticky.className} style={sticky.style}>
+                      <td key={k} className={cellClassName} style={sticky.style}>
                         {!isEditing ? (
                           maskCell ? (
                             <RedeFranqueadoSensitiveBlur />

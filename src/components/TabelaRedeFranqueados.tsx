@@ -6,7 +6,7 @@ import { COLUNAS_REDE_FRANQUEADOS } from '@/lib/rede-franqueados';
 import { RedeFranqueadoAreaAtuacaoCell } from '@/components/RedeFranqueadoAreaAtuacaoCell';
 import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
 
-const PER_PAGE = 15;
+const PER_PAGE = 40;
 const AREA_ATUACAO_HEADER = 'Área de Atuação da Franquia';
 const AREA_ATUACAO_COL_INDEX = COLUNAS_REDE_FRANQUEADOS.indexOf(AREA_ATUACAO_HEADER);
 
