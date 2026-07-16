@@ -954,7 +954,6 @@ export function InteracoesLista({
       }));
       setEditingId(null);
       setEditDraft(null);
-      router.refresh();
     } finally {
       setSalvandoEdicao(false);
     }
@@ -1002,7 +1001,6 @@ export function InteracoesLista({
       }));
       setEditingSireneCid(null);
       setEditSireneDraft(null);
-      router.refresh();
     } finally {
       setSalvandoSirene(false);
     }
@@ -1038,7 +1036,6 @@ export function InteracoesLista({
     if (status === 'em_andamento') {
       setStatusPatch((prev) => ({ ...prev, [row.id]: 'em_andamento' }));
     }
-    router.refresh();
     await carregarTopicosSeNecessario(row, true);
   }
 
@@ -1046,13 +1043,13 @@ export function InteracoesLista({
     if (!classificacaoPendente) return;
     const { row, topicoId } = classificacaoPendente;
     setClassificacaoPendente(null);
-    const res = await atualizarStatusSubInteracao(String(topicoId), 'concluido', '/sirene/chamados', true, classificacao);
-    if (!res.ok) {
-      setMsgErro(res.error);
-      return;
+    try {
+      const res = await atualizarStatusSubInteracao(String(topicoId), 'concluido', '/sirene/chamados', true, classificacao);
+      if (!res.ok) { setMsgErro(res.error); return; }
+      await carregarTopicosSeNecessario(row, true);
+    } catch {
+      setMsgErro('Erro ao concluir atividade. Tente novamente.');
     }
-    router.refresh();
-    await carregarTopicosSeNecessario(row, true);
   }
 
   function toggleComentarios(row: InteracaoSireneRow) {
@@ -2050,7 +2047,7 @@ export function InteracoesLista({
               alert(res.error ?? 'Erro ao encerrar atividade.');
               return;
             }
-            router.refresh();
+            if (detalheRowEff) await carregarTopicosSeNecessario(detalheRowEff, true);
           }}
           highlightTopicoId={highlightTopicoId}
           sessionEhAdmin={sessionEhAdmin}
@@ -2070,7 +2067,7 @@ export function InteracoesLista({
       {classificacaoPendente && (
         <ClassificacaoConclusaoModal
           nomeAtividade={classificacaoPendente.row.titulo ?? 'Atividade'}
-          onEscolher={(c) => void confirmarClassificacao(c)}
+          onEscolher={(c) => { confirmarClassificacao(c).catch((e) => setMsgErro(String(e))); }}
           pending={pending}
           chamadoId={classificacaoPendente.row.sirene_chamado_id ?? undefined}
         />
@@ -2190,6 +2187,7 @@ export function InteracoesLista({
                     }
                     setModalArquivar(null);
                     setMotivoArquivamento('');
+                    setDetalheRow(null);
                     router.refresh();
                   } finally {
                     setSalvandoArquivamento(false);
