@@ -363,25 +363,24 @@ function CalculadoraMarcoRow({
 
   const limiteContrato = marco.dataLimiteContrato;
   const isM4ComLimite = id === 'M4' && Boolean(limiteContrato);
-  const inicio = isM4ComLimite
-    ? limiteContrato!
-    : marco.dataInicioReal ?? marco.dataInicio;
+  // Datas da fase substituída (M0/M4) — editáveis no modo «Editar datas».
+  // O limite regulatório M4 (+4 meses) fica só no rótulo, não ocupa a coluna início.
+  const inicio = marco.dataInicioReal ?? marco.dataInicio;
   const fim =
     marco.dataFimReal ??
     marco.dataFimEstimada ??
     marco.dataFim ??
     marco.data;
-  const inicioLabel = isM4ComLimite
-    ? marco.limiteContratoReal
-      ? 'real'
-      : 'est. · limite'
-    : labelSufixoDataCalculadora(Boolean(marco.dataInicioReal));
-  const fimLabel = labelSufixoDataCalculadora(Boolean(marco.dataFimReal));
+  const inicioLabel = labelSufixoDataCalculadora(Boolean(marco.dataInicioReal));
+  const fimLabel = isM4ComLimite
+    ? `${labelSufixoDataCalculadora(Boolean(marco.dataFimReal))} · lim. ${fmtData(limiteContrato)}`
+    : labelSufixoDataCalculadora(Boolean(marco.dataFimReal));
   const fimAtraso =
     marco.status === 'atual_atrasada' ||
     (marco.status === 'concluida_atraso' && Boolean(marco.dataFimReal));
   const custo = String(marco.custo ?? '').trim();
   const temCusto = custo.length > 0 && custo !== '—';
+  const podeEditarDatasMarco = Boolean(editandoDatas && onSalvarData && marco.faseId);
 
   return (
     <div className={`moni-calculadora-marco-row moni-calculadora-marco-row--${id}`} role="separator">
@@ -397,9 +396,9 @@ function CalculadoraMarcoRow({
 
       <div aria-hidden />
 
-      {editandoDatas && onSalvarData && marco.faseId && !isM4ComLimite ? (
+      {podeEditarDatasMarco ? (
         <CalculadoraFaseDataCell
-          faseId={marco.faseId}
+          faseId={marco.faseId!}
           campo="inicio"
           valor={inicio}
           label={inicioLabel}
@@ -417,9 +416,9 @@ function CalculadoraMarcoRow({
         </div>
       )}
 
-      {editandoDatas && onSalvarData && marco.faseId ? (
+      {podeEditarDatasMarco ? (
         <CalculadoraFaseDataCell
-          faseId={marco.faseId}
+          faseId={marco.faseId!}
           campo="fim"
           valor={fim}
           label={fimLabel}

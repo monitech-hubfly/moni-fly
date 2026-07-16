@@ -1060,6 +1060,28 @@ function aplicarOverrideManualEmLinhaCalculadora(
   let dataFimEstimada = linha.dataFimEstimada;
   const temFimManual = overrideTemFimManual(ov);
 
+  // Override explícito início+fim null = limpar datas (UI «—») e concluir se já passou.
+  const limparDatasIntencional =
+    'dataInicio' in ov &&
+    ov.dataInicio == null &&
+    'dataFim' in ov &&
+    ov.dataFim == null;
+  if (limparDatasIntencional) {
+    let statusLimpo: FaseTimelineStatus = 'futura';
+    if (linha.faseId === card.fase_id && !card.concluido) statusLimpo = 'atual';
+    else if (linha.ordem < ordemAtual) statusLimpo = 'concluida';
+    else if (linha.ordem > ordemAtual) statusLimpo = 'futura';
+    else statusLimpo = 'concluida';
+    return {
+      ...linha,
+      dataInicioReal: null,
+      dataFimReal: null,
+      dataFimEstimada: null,
+      atrasoDias: null,
+      status: statusLimpo,
+    };
+  }
+
   if ('dataInicio' in ov) {
     dataInicioReal = ov.dataInicio ? toYmd(ov.dataInicio) : null;
   }
@@ -1407,7 +1429,10 @@ export function inferirFimRealPorProximaFase(
   for (let i = start; i < out.length - 1; i++) {
     const row = out[i]!;
     if (row.dataFimReal) continue;
-    if (overrideTemFimManual(overrides?.get(row.faseId))) continue;
+    const ov = overrides?.get(row.faseId);
+    if (overrideTemFimManual(ov)) continue;
+    // Override com fim null (limpeza intencional) — não repor pela próxima fase.
+    if (ov && 'dataFim' in ov && ov.dataFim == null) continue;
     const concluida = row.status === 'concluida' || row.status === 'concluida_atraso';
     if (!concluida) continue;
     const proximoInicio = out[i + 1]!.dataInicioReal;
