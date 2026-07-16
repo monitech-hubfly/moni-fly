@@ -954,6 +954,7 @@ export function InteracoesLista({
       }));
       setEditingId(null);
       setEditDraft(null);
+      router.refresh();
     } finally {
       setSalvandoEdicao(false);
     }
@@ -1001,6 +1002,7 @@ export function InteracoesLista({
       }));
       setEditingSireneCid(null);
       setEditSireneDraft(null);
+      router.refresh();
     } finally {
       setSalvandoSirene(false);
     }
