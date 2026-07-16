@@ -4,6 +4,7 @@ import {
   NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO,
   negocioPrazoInstrumentoDraftFromProcesso,
   negocioPrazoOpcaoDraftFromProcesso,
+  negocioPrazosDraftVazios,
 } from '@/lib/kanban/dados-negocio-prazo';
 import type { FaseNegocioPrazoOpcao } from '@/lib/kanban/dados-negocio-prazo';
 import type { ProcessoModalNegocioPreObra } from '@/lib/kanban/kanban-card-modal-detalhes';
@@ -13,6 +14,7 @@ import {
   negociacaoLinhasDraftPadrao,
   type NegociacaoLinhaDraft,
 } from '@/lib/kanban/negociacao-linhas';
+import { isTipoNegociacao100CompraVenda } from '@/lib/kanban/tipo-negociacao-terreno';
 
 export type NegocioDraftKanban = {
   tipo_aquisicao_terreno: string;
@@ -61,8 +63,10 @@ export function negocioDraftFromProcesso(
   opcoes: FaseNegocioPrazoOpcao[] = [],
 ): NegocioDraftKanban {
   if (!proc) return negocioDraftVazio();
+  const tipo = proc.tipo_aquisicao_terreno ?? '';
+  const prazos100Cv = isTipoNegociacao100CompraVenda(tipo) ? negocioPrazosDraftVazios() : null;
   return {
-    tipo_aquisicao_terreno: proc.tipo_aquisicao_terreno ?? '',
+    tipo_aquisicao_terreno: tipo,
     valor_terreno: moedaCampoValorInicial(proc.valor_terreno),
     vgv_pretendido: proc.vgv_pretendido != null ? String(proc.vgv_pretendido) : '',
     produto_modelo_casa: proc.produto_modelo_casa ?? '',
@@ -77,8 +81,10 @@ export function negocioDraftFromProcesso(
     link_moni_capital_gastos_aporte_inicial: proc.link_moni_capital_gastos_aporte_inicial ?? '',
     comentario_moni_capital_gastos_aporte_inicial:
       proc.comentario_moni_capital_gastos_aporte_inicial ?? '',
-    prazo_opcao: negocioPrazoOpcaoDraftFromProcesso(proc, opcoes),
-    prazo_instrumento_garantidor: negocioPrazoInstrumentoDraftFromProcesso(proc, opcoes),
+    prazo_opcao: prazos100Cv?.prazo_opcao ?? negocioPrazoOpcaoDraftFromProcesso(proc, opcoes),
+    prazo_instrumento_garantidor:
+      prazos100Cv?.prazo_instrumento_garantidor ??
+      negocioPrazoInstrumentoDraftFromProcesso(proc, opcoes),
     negociacao_linhas: negociacaoLinhasDraftFromLinhas(proc.negociacao_linhas ?? []),
   };
 }

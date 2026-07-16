@@ -13,12 +13,14 @@ import {
 import type { NegociacaoLinha } from '@/lib/kanban/negociacao-linhas';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import {
+  NEGOCIO_PRAZO_VALORES_VAZIO,
   negocioPrazoInstrumentoValoresPadrao,
   negocioPrazoOpcaoValoresPadrao,
   negocioPrazoValoresFromProcessoRow,
   resolverDataPrazoNegocioYmd,
   type NegocioPrazoValores,
 } from '@/lib/kanban/dados-negocio-prazo';
+import { isTipoNegociacao100CompraVenda } from '@/lib/kanban/tipo-negociacao-terreno';
 
 export type CalculadoraMarcoId =
   | 'M0'
@@ -735,6 +737,13 @@ export function calculadoraMarcosInputFromProcessoRow(
   row: Record<string, unknown> | null | undefined,
   base: Omit<CalculadoraMarcosInput, 'prazo_opcao' | 'prazo_instrumento_garantidor'>,
 ): CalculadoraMarcosInput {
+  if (isTipoNegociacao100CompraVenda(row?.tipo_aquisicao_terreno as string | null | undefined)) {
+    return {
+      ...base,
+      prazo_opcao: { ...NEGOCIO_PRAZO_VALORES_VAZIO },
+      prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_VALORES_VAZIO },
+    };
+  }
   const prazoOpcao = negocioPrazoValoresFromProcessoRow(row, 'prazo_opcao');
   const prazoInstrumento = negocioPrazoValoresFromProcessoRow(row, 'prazo_instrumento_garantidor');
   return {

@@ -142,12 +142,14 @@ import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociaca
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
+  NEGOCIO_PRAZO_VALORES_VAZIO,
   faseLabelFromOpcoes,
   formatNegocioPrazoDisplay,
   negocioPrazoDbPatchFromValores,
   negocioPrazoDraftFromValores,
   negocioPrazoValoresFromDraft,
   negocioPrazoValoresFromProcessoModal,
+  negocioPrazosDraftVazios,
   type FaseNegocioPrazoOpcao,
   type NegocioPrazoDraft,
 } from '@/lib/kanban/dados-negocio-prazo';
@@ -161,7 +163,10 @@ import {
   negocioDraftVazio,
   type NegocioDraftKanban,
 } from '@/lib/kanban/negocio-draft';
-import { opcoesTipoNegociacaoComValorAtual } from '@/lib/kanban/tipo-negociacao-terreno';
+import {
+  isTipoNegociacao100CompraVenda,
+  opcoesTipoNegociacaoComValorAtual,
+} from '@/lib/kanban/tipo-negociacao-terreno';
 import {
   buildOpcoesVinculoCalculadora,
   resolverDataPagamentoNegociacao,
@@ -3155,8 +3160,13 @@ export function KanbanCardModal({
     if (!card) return;
     setSalvandoNegocio(true);
     try {
-      const prazoOpcao = negocioPrazoValoresFromDraft(negocioDraft.prazo_opcao);
-      const prazoInstrumento = negocioPrazoValoresFromDraft(negocioDraft.prazo_instrumento_garantidor);
+      const limparPrazos100Cv = isTipoNegociacao100CompraVenda(negocioDraft.tipo_aquisicao_terreno);
+      const prazoOpcao = limparPrazos100Cv
+        ? { ...NEGOCIO_PRAZO_VALORES_VAZIO }
+        : negocioPrazoValoresFromDraft(negocioDraft.prazo_opcao);
+      const prazoInstrumento = limparPrazos100Cv
+        ? { ...NEGOCIO_PRAZO_VALORES_VAZIO }
+        : negocioPrazoValoresFromDraft(negocioDraft.prazo_instrumento_garantidor);
       const prazoOpcaoDb = negocioPrazoDbPatchFromValores(prazoOpcao, 'prazo_opcao');
       const prazoInstrumentoDb = negocioPrazoDbPatchFromValores(
         prazoInstrumento,
@@ -7395,7 +7405,15 @@ export function KanbanCardModal({
                         <span className="text-[11px] font-medium text-stone-500">Tipo de negociação</span>
                         <SearchableSelect
                           value={negocioDraft.tipo_aquisicao_terreno}
-                          onChange={(v) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: v }))}
+                          onChange={(v) =>
+                            setNegocioDraft((d) => {
+                              const next = { ...d, tipo_aquisicao_terreno: v };
+                              if (isTipoNegociacao100CompraVenda(v)) {
+                                Object.assign(next, negocioPrazosDraftVazios());
+                              }
+                              return next;
+                            })
+                          }
                           placeholder="Selecione"
                           className="mt-0.5"
                           options={opcoesTipoNegociacaoComValorAtual(negocioDraft.tipo_aquisicao_terreno)}
@@ -7441,7 +7459,10 @@ export function KanbanCardModal({
                       draft={negocioDraft.prazo_opcao}
                       onChange={(prazo_opcao) => setNegocioDraft((d) => ({ ...d, prazo_opcao }))}
                       faseOpcoes={fasesNegocioPrazo}
-                      disabled={salvandoNegocio}
+                      disabled={
+                        salvandoNegocio ||
+                        isTipoNegociacao100CompraVenda(negocioDraft.tipo_aquisicao_terreno)
+                      }
                     />
                     <KanbanCardModalNegocioPrazoField
                       label="Prazo Instrumento Garantidor"
@@ -7450,7 +7471,10 @@ export function KanbanCardModal({
                         setNegocioDraft((d) => ({ ...d, prazo_instrumento_garantidor }))
                       }
                       faseOpcoes={fasesNegocioPrazo}
-                      disabled={salvandoNegocio}
+                      disabled={
+                        salvandoNegocio ||
+                        isTipoNegociacao100CompraVenda(negocioDraft.tipo_aquisicao_terreno)
+                      }
                     />
                     <KanbanCardModalNegociacaoLinhasField
                       linhas={negocioDraft.negociacao_linhas}

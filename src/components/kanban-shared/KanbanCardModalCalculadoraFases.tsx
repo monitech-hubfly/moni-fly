@@ -502,29 +502,28 @@ function CalculadoraFaseDataCell({
   const valorInput = fmtDataInput(valor);
   const [draft, setDraft] = useState(valorInput);
   const draftRef = useRef(valorInput);
-  const debounceSalvarRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const ultimoSalvoRef = useRef(valorInput);
   const salvarFnRef = useRef<(next: string | null) => Promise<void>>(async () => {});
+  const aplicarOverrideRef = useRef(onAplicarOverrideLocal);
+  const inputKeyFocusedRef = useRef(`${faseId}-${campo}-${draft || 'empty'}`);
+  aplicarOverrideRef.current = onAplicarOverrideLocal;
+
+  // Key estável durante o foco (não remonta / não perde o caret). Fora do foco, sincroniza com o draft.
+  const inputKey = focused
+    ? inputKeyFocusedRef.current
+    : `${faseId}-${campo}-${draft || 'empty'}`;
 
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
 
+  // Sincroniza do prop só quando o campo não está em edição — evita resetar digitação parcial.
   useEffect(() => {
-    if (editando) {
-      if (!focused && !salvando) ultimoSalvoRef.current = valorInput;
-      return;
-    }
-    ultimoSalvoRef.current = valorInput;
+    if (focused || salvando) return;
     setDraft(valorInput);
-  }, [valorInput, salvando, focused, editando]);
-
-  useEffect(
-    () => () => {
-      if (debounceSalvarRef.current) clearTimeout(debounceSalvarRef.current);
-    },
-    [],
-  );
+    ultimoSalvoRef.current = valorInput;
+  }, [valorInput, focused, salvando]);
 
   const salvar = useCallback(
     async (next: string | null) => {
@@ -539,6 +538,7 @@ function CalculadoraFaseDataCell({
         if (!result.ok) {
           setErro(result.error ?? 'Não foi possível salvar a data.');
           setDraft(ultimoSalvoRef.current);
+          draftRef.current = ultimoSalvoRef.current;
         } else {
           ultimoSalvoRef.current = normalizado ?? '';
         }
@@ -550,17 +550,33 @@ function CalculadoraFaseDataCell({
   );
   salvarFnRef.current = salvar;
 
+  /** Commita valor digitado (parcial do browser só vira ISO completo no blur). */
+  const commitValor = useCallback(
+    async (brutoRaw: string) => {
+      const bruto = brutoRaw.trim();
+      if (bruto && !dataIsoInputCompleta(bruto)) {
+        setDraft(ultimoSalvoRef.current);
+        draftRef.current = ultimoSalvoRef.current;
+        return;
+      }
+      const normalizado = bruto || null;
+      setDraft(normalizado ?? '');
+      draftRef.current = normalizado ?? '';
+      if (normalizado !== (ultimoSalvoRef.current || null)) {
+        aplicarOverrideRef.current?.(faseId, campo, normalizado);
+      }
+      await salvarFnRef.current(normalizado);
+    },
+    [faseId, campo],
+  );
+
   useEffect(() => {
     if (!editando || !onRegistrarFlush) return;
     return onRegistrarFlush(async () => {
-      if (debounceSalvarRef.current) {
-        clearTimeout(debounceSalvarRef.current);
-        debounceSalvarRef.current = null;
-      }
-      const pending = draftRef.current.trim() || null;
-      await salvarFnRef.current(pending);
+      const live = inputRef.current?.value ?? draftRef.current;
+      await commitValor(live);
     });
-  }, [editando, onRegistrarFlush]);
+  }, [editando, onRegistrarFlush, commitValor]);
 
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -580,34 +596,31 @@ function CalculadoraFaseDataCell({
     );
   }
 
+  // Enquanto focado: input não controlado (defaultValue + key estável) para o browser
+  // manter a digitação parcial dos segmentos dia/mês/ano. Commit só no blur.
   return (
     <div className="moni-calculadora-fase-data-cell moni-calculadora-fase-data-cell--edit" onClick={stop} onKeyDown={stop}>
       <input
+        ref={inputRef}
         type="date"
+        key={inputKey}
         className={`moni-calculadora-fase-data-input${atraso ? ' moni-calculadora-fase-data-input--atraso' : ''}${salvando ? ' moni-calculadora-fase-data-input--saving' : ''}${erro ? ' moni-calculadora-fase-data-input--erro' : ''}`}
-        value={draft}
-        disabled={salvando}
+        defaultValue={draft}
         aria-label={`${campo === 'inicio' ? 'Início' : 'Fim'} — ${label}`}
         aria-invalid={erro ? true : undefined}
         onClick={stop}
-        onFocus={() => setFocused(true)}
-        onChange={(e) => {
-          const v = e.target.value;
-          setErro(null);
-          setDraft(v);
-          if (dataIsoInputCompleta(v)) {
-            onAplicarOverrideLocal?.(faseId, campo, v);
-            void salvar(v);
-          }
+        onFocus={() => {
+          inputKeyFocusedRef.current = `${faseId}-${campo}-${draft || 'empty'}`;
+          setFocused(true);
         }}
-        onBlur={() => {
-          if (debounceSalvarRef.current) {
-            clearTimeout(debounceSalvarRef.current);
-            debounceSalvarRef.current = null;
-          }
-          const pending = draftRef.current.trim() || null;
+        onChange={() => {
+          setErro(null);
+        }}
+        onBlur={(e) => {
+          // Capturar antes de setFocused — trocar a key remonta o input.
+          const bruto = e.target.value;
           setFocused(false);
-          void salvar(pending);
+          void commitValor(bruto);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {

@@ -252,7 +252,7 @@ async function montarCalculadoraPack(
     const { data: procRow } = await supabase
       .from('processo_step_one')
       .select(
-        'negociacao_linhas, prazo_opcao_dias, prazo_opcao_sla_tipo, prazo_opcao_modo, prazo_opcao_fase_id, prazo_opcao_data, prazo_instrumento_garantidor_dias, prazo_instrumento_garantidor_sla_tipo, prazo_instrumento_garantidor_modo, prazo_instrumento_garantidor_fase_id, prazo_instrumento_garantidor_data, calculadora_ancora_fase_slug, calculadora_ancora_data_fim',
+        'negociacao_linhas, tipo_aquisicao_terreno, prazo_opcao_dias, prazo_opcao_sla_tipo, prazo_opcao_modo, prazo_opcao_fase_id, prazo_opcao_data, prazo_instrumento_garantidor_dias, prazo_instrumento_garantidor_sla_tipo, prazo_instrumento_garantidor_modo, prazo_instrumento_garantidor_fase_id, prazo_instrumento_garantidor_data, calculadora_ancora_fase_slug, calculadora_ancora_data_fim',
       )
       .eq('id', procId)
       .maybeSingle();
