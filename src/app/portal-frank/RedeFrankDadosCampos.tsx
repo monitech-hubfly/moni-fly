@@ -4,6 +4,7 @@ import type {
   RedeFrankCadastroPayload,
   RedeFrankFranquiaSomenteLeitura,
 } from '@/lib/portal-frank/rede-cadastro-types';
+import { areaAtuacaoParaLinhasExibicao } from '@/lib/rede-area-atuacao';
 
 const inputCls =
   'mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-900 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400';
@@ -13,6 +14,18 @@ const readRowCls = 'mt-1 rounded-lg border border-stone-200 bg-stone-50 px-3 py-
 function roText(v: string | null | undefined) {
   const t = String(v ?? '').trim();
   return t || '—';
+}
+
+function AreaAtuacaoSomenteLeitura({ value }: { value: string | null | undefined }) {
+  const linhas = areaAtuacaoParaLinhasExibicao(value);
+  if (linhas.length === 0) return <p className={readRowCls}>—</p>;
+  return (
+    <div className={readRowCls}>
+      {linhas.map((linha, i) => (
+        <div key={`${i}-${linha}`}>{linha}</div>
+      ))}
+    </div>
+  );
 }
 
 type Props = {
@@ -56,7 +69,7 @@ export function RedeFrankDadosCampos({ franquiaSomenteLeitura, value, onChange }
           </div>
           <div>
             <span className="block text-sm font-medium text-stone-700">Área de atuação da franquia</span>
-            <p className={`${readRowCls} whitespace-pre-wrap`}>{roText(ro.area_atuacao)}</p>
+            <AreaAtuacaoSomenteLeitura value={ro.area_atuacao} />
           </div>
         </div>
       </section>

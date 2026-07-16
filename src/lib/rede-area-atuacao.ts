@@ -30,14 +30,18 @@ function splitCidadesLista(raw: string): string[] {
     .filter(Boolean);
 }
 
+/** Hífen ASCII, en/em dash, non-breaking hyphen, minus sign. */
+const SEP_UF_CIDADE = String.raw`[\s]*[-–—‑−][\s]*`;
+
 /** Formato canônico: trechos "UF - Cidade" (hífen/en/em dash) separados por ";". */
 function parseAreaAtuacaoCanonico(s: string): AreaAtuacaoPar[] {
+  const re = new RegExp(`^([A-Za-z]{2})${SEP_UF_CIDADE}(.+)$`);
   return s
     .split(';')
     .map((p) => p.trim())
     .filter(Boolean)
     .map((p) => {
-      const m = p.match(/^([A-Za-z]{2})\s*[-–—]\s*(.+)$/);
+      const m = p.match(re);
       if (!m) return null;
       const uf = m[1].toUpperCase();
       const cidade = m[2].trim();
@@ -75,7 +79,7 @@ function parseAreaAtuacaoProsa(s: string): AreaAtuacaoPar[] {
   }
 
   // "Cidade - MG" / "Cidade – Minas Gerais" (um único par)
-  const umPar = trimmed.match(/^(.+?)\s*[-–—]\s*([A-Za-z]{2}|.+)$/);
+  const umPar = trimmed.match(new RegExp(`^(.+?)${SEP_UF_CIDADE}([A-Za-z]{2}|.+)$`));
   if (umPar) {
     const esquerda = umPar[1].trim();
     const direita = umPar[2].trim();
@@ -107,13 +111,32 @@ export function serializeAreaAtuacao(areas: AreaAtuacaoPar[]): string {
 }
 
 /**
- * Texto para exibição em tabela: uma linha por par `UF - Cidade`.
- * Se não der para parsear, devolve o texto original.
+ * Linhas para exibição em UI: uma entrada por par `UF - Cidade`.
+ * Preferir renderizar com `<div>`/`<br>` — não depender só de `\n` + CSS.
+ * Se o parse canônico falhar mas houver `;`, quebra por `;` (sem exibir o separador).
+ */
+export function areaAtuacaoParaLinhasExibicao(s: string | null | undefined): string[] {
+  const areas = parseAreaAtuacao(s);
+  if (areas.length > 0) {
+    return areas.map((a) => `${a.uf} - ${a.cidade}`);
+  }
+  const trimmed = (s ?? '').trim();
+  if (!trimmed) return [];
+  if (trimmed.includes(';')) {
+    return trimmed
+      .split(';')
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }
+  return [trimmed];
+}
+
+/**
+ * Texto para exibição: uma linha por par `UF - Cidade` (join com `\n`).
+ * Preferir `areaAtuacaoParaLinhasExibicao` + elementos HTML na UI.
  */
 export function formatAreaAtuacaoLinhas(s: string | null | undefined): string {
-  const areas = parseAreaAtuacao(s);
-  if (areas.length === 0) return (s ?? '').trim();
-  return areas.map((a) => `${a.uf} - ${a.cidade}`).join('\n');
+  return areaAtuacaoParaLinhasExibicao(s).join('\n');
 }
 
 export function uniqueUfsAreaAtuacao(areas: AreaAtuacaoPar[]): string[] {

@@ -2,14 +2,37 @@
 
 import { useState, useMemo } from 'react';
 import type { RedeFranqueadosData } from '@/lib/rede-franqueados';
+import { COLUNAS_REDE_FRANQUEADOS } from '@/lib/rede-franqueados';
 import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
+import { areaAtuacaoParaLinhasExibicao } from '@/lib/rede-area-atuacao';
 
 const PER_PAGE = 15;
+const AREA_ATUACAO_HEADER = 'Área de Atuação da Franquia';
+const AREA_ATUACAO_COL_INDEX = COLUNAS_REDE_FRANQUEADOS.indexOf(AREA_ATUACAO_HEADER);
 
 type Props = {
   data: RedeFranqueadosData;
   compact?: boolean;
 };
+
+function AreaAtuacaoCell({ text }: { text: string }) {
+  const linhas = areaAtuacaoParaLinhasExibicao(text);
+  if (linhas.length === 0) {
+    return <span className="text-[var(--moni-text-tertiary)]">—</span>;
+  }
+  return (
+    <div
+      className="min-w-0 max-w-[min(16rem,100%)] text-xs leading-snug text-[var(--moni-text-secondary)]"
+      title={text.trim() || undefined}
+    >
+      {linhas.map((linha, i) => (
+        <div key={`${i}-${linha}`} className="break-words">
+          {linha}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function TabelaRedeFranqueados({ data, compact }: Props) {
   const [page, setPage] = useState(1);
@@ -70,11 +93,24 @@ export function TabelaRedeFranqueados({ data, compact }: Props) {
           <tbody>
             {rowsToShow.map((row, ri) => (
               <tr key={start + ri} className="border-b border-stone-100 hover:bg-stone-50/80">
-                {headers.map((_, ci) => (
-                  <td key={ci} className={`min-w-0 max-w-[14rem] overflow-hidden align-top text-stone-700 ${compact ? 'px-2 py-1' : 'px-3 py-2'}`}>
-                    <RedeFranqueadoCellClamp text={String(row[ci] ?? '')} />
-                  </td>
-                ))}
+                {headers.map((h, ci) => {
+                  const cellText = String(row[ci] ?? '');
+                  const isArea =
+                    ci === AREA_ATUACAO_COL_INDEX ||
+                    h.trim().toLowerCase() === AREA_ATUACAO_HEADER.toLowerCase();
+                  return (
+                    <td
+                      key={ci}
+                      className={`min-w-0 max-w-[14rem] overflow-hidden align-top text-stone-700 ${compact ? 'px-2 py-1' : 'px-3 py-2'}`}
+                    >
+                      {isArea ? (
+                        <AreaAtuacaoCell text={cellText} />
+                      ) : (
+                        <RedeFranqueadoCellClamp text={cellText} />
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

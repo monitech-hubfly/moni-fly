@@ -1,5 +1,5 @@
 import type { RedeFranqueadoDbKey } from '@/lib/rede-franqueados';
-import { formatAreaAtuacaoLinhas } from '@/lib/rede-area-atuacao';
+import { areaAtuacaoParaLinhasExibicao } from '@/lib/rede-area-atuacao';
 import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
 
 const DATE_KEYS = new Set<RedeFranqueadoDbKey>([
@@ -92,17 +92,21 @@ export function RedeFranqueadoCellValue({ field, text, titleText }: Props) {
     );
   }
   if (field === 'area_atuacao') {
-    const linhas = formatAreaAtuacaoLinhas(text);
+    const linhas = areaAtuacaoParaLinhasExibicao(text);
     const tip = (titleText ?? text).trim() || undefined;
-    if (!linhas) return <span className="text-[var(--moni-text-tertiary)]">—</span>;
+    if (linhas.length === 0) {
+      return <span className="text-[var(--moni-text-tertiary)]">—</span>;
+    }
     return (
-      <div className="min-w-0 max-w-[min(16rem,100%)]">
-        <span
-          className="block whitespace-pre-line break-words text-xs leading-snug text-[var(--moni-text-secondary)]"
-          title={tip}
-        >
-          {linhas}
-        </span>
+      <div
+        className="min-w-0 max-w-[min(16rem,100%)] text-xs leading-snug text-[var(--moni-text-secondary)]"
+        title={tip}
+      >
+        {linhas.map((linha, i) => (
+          <div key={`${i}-${linha}`} className="break-words">
+            {linha}
+          </div>
+        ))}
       </div>
     );
   }

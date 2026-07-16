@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import type { RedeFranqueadoRowPortalFrank } from '@/lib/rede-franqueados';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
-import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
+import { RedeFranqueadoCellValue } from '@/components/RedeFranqueadoCellValue';
 import {
   COLUNAS_REDE_FRANQUEADOS,
   REDE_FRANQUEADOS_DB_KEYS,
@@ -73,11 +73,14 @@ export function TabelaRedePortalFrank({ rows }: Props) {
           <tbody>
             {pageRows.map((r) => (
               <tr key={r.id} className="border-b border-stone-100 align-top hover:bg-stone-50/80">
-                {FRANK_KEYS.map((k) => (
-                  <td key={k} className="min-w-0 max-w-[14rem] overflow-hidden px-3 py-2 align-top text-stone-700">
-                    <RedeFranqueadoCellClamp text={textoCelulaPortalFrank(r, k)} />
-                  </td>
-                ))}
+                {FRANK_KEYS.map((k) => {
+                  const text = textoCelulaPortalFrank(r, k);
+                  return (
+                    <td key={k} className="min-w-0 max-w-[14rem] overflow-hidden px-3 py-2 align-top text-stone-700">
+                      <RedeFranqueadoCellValue field={k} text={text} titleText={text} />
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
