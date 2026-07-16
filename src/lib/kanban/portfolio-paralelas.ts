@@ -53,7 +53,7 @@ export function mensagemGateLoteadoresComite(): string {
   return 'Não é possível avançar para o Comitê. Esteira pendente: Acoplamento.';
 }
 
-/** Card pai no Funil Portfólio / Loteadores (ou filho com origem nesses funis). */
+/** Card pai no Funil Portfólio / Loteadores / Operações (ou filho com origem nesses funis). */
 export async function resolverCardPaiParaAcoplamento(
   supabase: SupabaseHistoricoClient,
   cardId: string,
@@ -72,7 +72,8 @@ export async function resolverCardPaiParaAcoplamento(
 
   if (!error && card?.id) {
     const kanbanId = String((card as { kanban_id?: string | null }).kanban_id ?? '').trim();
-    if (kanbanId === KANBAN_IDS.LOTEADORES) return cid;
+    // Loteadores ou Pré Obra e Obra (Operações) como pai do vínculo manual de Acoplamento
+    if (kanbanId === KANBAN_IDS.LOTEADORES || kanbanId === KANBAN_IDS.OPERACOES) return cid;
 
     const origemId = String((card as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
     if (origemId) {
@@ -82,10 +83,10 @@ export async function resolverCardPaiParaAcoplamento(
         .eq('id', origemId)
         .maybeSingle();
 
-      if (
-        String((origem as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim() ===
-        KANBAN_IDS.LOTEADORES
-      ) {
+      const origemKanban = String(
+        (origem as { kanban_id?: string | null } | null)?.kanban_id ?? '',
+      ).trim();
+      if (origemKanban === KANBAN_IDS.LOTEADORES || origemKanban === KANBAN_IDS.OPERACOES) {
         return origemId;
       }
     }

@@ -104,6 +104,34 @@ export function calculadoraAncoraFromProcesso(proc: {
   return { faseSlug: slug, dataFim };
 }
 
+/** Slug canônico da fase âncora "Aprovação no Condomínio" (Funil Pré Obra / Operações). */
+export const CALCULADORA_ANCORA_CONDOMINIO_SLUG = FASE_SLUGS.APROVACAO_CONDOMINIO;
+
+/** Localiza a linha da fase "Aprovação no Condomínio" (por slug ou nome). */
+export function idxAprovacaoCondominioCalculadora(linhas: CalculadoraFaseLinha[]): number {
+  return linhas.findIndex(
+    (l) =>
+      String(l.faseSlug ?? '').trim() === CALCULADORA_ANCORA_CONDOMINIO_SLUG ||
+      /aprova[cç][aã]o\s+(?:n[oa]\s+)?condom[ií]nio/i.test(String(l.faseNome ?? '').trim()),
+  );
+}
+
+/**
+ * Âncora padrão em "Aprovação no Condomínio": limpa datas das fases anteriores e as marca
+ * como concluídas, preservando a data (real ou estimada) do próprio Condomínio como fim real.
+ * Retorna `null` quando a fase não existe na esteira do card.
+ */
+export function resolverAncoraAprovacaoCondominio(
+  linhas: CalculadoraFaseLinha[],
+): CalculadoraAncora | null {
+  const idx = idxAprovacaoCondominioCalculadora(linhas);
+  if (idx < 0) return null;
+  const row = linhas[idx]!;
+  const dataFim = row.dataFimReal ?? row.dataFimEstimada ?? calculadoraHojeYmd();
+  const faseSlug = String(row.faseSlug ?? '').trim() || CALCULADORA_ANCORA_CONDOMINIO_SLUG;
+  return { faseSlug, dataFim };
+}
+
 export const CALCULADORA_STATUS_LABEL: Record<FaseTimelineStatus, string> = {
   futura: 'Futura',
   atual: 'Em andamento',

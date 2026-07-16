@@ -72,10 +72,12 @@ import {
   contarOutrosCardsSyncGroup,
   escolherTituloExibicaoCard,
   fetchCamposKanbanCanonicos,
+  listarKanbanCardIdsSyncGroup,
   montarTituloCardSync,
   propagarCamposKanbanCards,
   propagarCamposProcesso,
   reconciliarFranqueadoNoSyncGroup,
+  resolverProcessoStepOneIdDoCard,
   type KanbanCardCamposSync,
 } from '@/lib/kanban/card-sync-group';
 import {
@@ -3337,6 +3339,151 @@ export async function obterInfoSyncGrupoCard(
       fetchCamposKanbanCanonicos(admin, cid),
     ]);
     return { ok: true, totalVinculados, camposCanonicos };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+}
+
+/** Resolve os `processo_step_one.id` de todos os cards kanban do grupo de sync. */
+async function resolverProcessosDoSyncGroup(
+  admin: ReturnType<typeof createAdminClient>,
+  cardId: string,
+): Promise<Set<string>> {
+  const processoIds = new Set<string>();
+  const kanbanCardIds = await listarKanbanCardIdsSyncGroup(admin, cardId);
+  for (const cid of kanbanCardIds) {
+    const { data: card } = await admin
+      .from('kanban_cards')
+      .select('projeto_id, processo_step_one_id, rede_franqueado_id, titulo')
+      .eq('id', cid)
+      .maybeSingle();
+    const row = card as {
+      projeto_id?: string | null;
+      processo_step_one_id?: string | null;
+      rede_franqueado_id?: string | null;
+      titulo?: string | null;
+    } | null;
+    const pid = await resolverProcessoStepOneIdDoCard(admin, {
+      cardProcessoStepOneId: row?.processo_step_one_id,
+      cardProjetoId: row?.projeto_id,
+      redeFranqueadoId: row?.rede_franqueado_id,
+      cardTitulo: row?.titulo,
+    });
+    if (pid) processoIds.add(pid);
+  }
+  return processoIds;
+}
+
+/**
+ * Define (ou remove) a âncora da Calculadora de Fases no `processo_step_one` canônico.
+ * A âncora limpa as datas das fases anteriores e as marca como concluídas — refletindo
+ * em todos os cards vinculados que compartilham o mesmo processo.
+ * `dataFim = null` (ou `faseSlug` vazio) remove a âncora.
+ */
+export async function salvarAncoraCalculadoraKanban(input: {
+  cardId: string;
+  faseSlug: string | null;
+  dataFim: string | null;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const pode = await perfilEhAdminOuTeam(supabase, user.id);
+  if (!pode) return { ok: false, error: 'Sem permissão para alterar a calculadora.' };
+
+  const cid = String(input.cardId ?? '').trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
+  const faseSlug = String(input.faseSlug ?? '').trim();
+  const dataFim = dataCampoCalendarioIso(input.dataFim);
+  const remover = !faseSlug || !dataFim;
+
+  try {
+    const admin = createAdminClient();
+    const kanbanCardIds = await listarKanbanCardIdsSyncGroup(admin, cid);
+    const processoIds = await resolverProcessosDoSyncGroup(admin, cid);
+    if (processoIds.size === 0) {
+      return { ok: false, error: 'Nenhum processo encontrado para este card.' };
+    }
+
+    const processoCanonico = [...processoIds][0]!;
+
+    // Garante que vínculos do sync group leiam a mesma âncora via processo.
+    if (kanbanCardIds.length > 0) {
+      const { error: propErr } = await admin
+        .from('kanban_cards')
+        .update({ processo_step_one_id: processoCanonico } as never)
+        .in('id', kanbanCardIds)
+        .is('processo_step_one_id', null);
+      if (propErr) return { ok: false, error: propErr.message };
+    }
+
+    const patch = {
+      calculadora_ancora_fase_slug: remover ? null : faseSlug,
+      calculadora_ancora_data_fim: remover ? null : dataFim,
+      updated_at: new Date().toISOString(),
+    };
+
+    for (const pid of processoIds) {
+      const { error } = await admin
+        .from('processo_step_one')
+        .update(patch as never)
+        .eq('id', pid);
+      if (error) return { ok: false, error: error.message };
+    }
+
+    // Ao ancorar: remove overrides manuais das fases anteriores (senão a UI
+    // reaplica datas após `aplicarAncoraCalculadoraLinhas`).
+    if (!remover) {
+      const { data: fasesAncora } = await admin
+        .from('kanban_fases')
+        .select('id, ordem, kanban_id, slug')
+        .eq('slug', faseSlug)
+        .limit(8);
+      const ancoraRow = (fasesAncora ?? [])[0] as
+        | { id: string; ordem: number; kanban_id: string; slug: string }
+        | undefined;
+      if (ancoraRow) {
+        const { data: anteriores } = await admin
+          .from('kanban_fases')
+          .select('id')
+          .eq('kanban_id', ancoraRow.kanban_id)
+          .lt('ordem', ancoraRow.ordem);
+        const faseIdsAnteriores = [
+          ...new Set(
+            (anteriores ?? [])
+              .map((r) => String((r as { id?: string }).id ?? '').trim())
+              .filter(Boolean),
+          ),
+        ];
+        // Slugs espelhados fora do kanban Operações (ex.: planialtimetrico paralelo).
+        const { data: extras } = await admin
+          .from('kanban_fases')
+          .select('id')
+          .in('slug', ['planialtimetrico', 'sondagem', 'projeto_legal']);
+        for (const r of extras ?? []) {
+          const id = String((r as { id?: string }).id ?? '').trim();
+          if (id && id !== ancoraRow.id) faseIdsAnteriores.push(id);
+        }
+        const fids = [...new Set(faseIdsAnteriores)];
+        if (fids.length > 0 && kanbanCardIds.length > 0) {
+          const { error: delErr } = await admin
+            .from('kanban_calculadora_fase_datas')
+            .delete()
+            .in('card_id', kanbanCardIds)
+            .in('fase_id', fids);
+          if (delErr) return { ok: false, error: delErr.message };
+        }
+      }
+    }
+
+    if (input.basePath?.trim()) revalidatePath(input.basePath.trim());
+    return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: msg };
