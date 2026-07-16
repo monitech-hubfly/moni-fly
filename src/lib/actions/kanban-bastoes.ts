@@ -1472,7 +1472,8 @@ export async function abrirFunilAcoplamentoManualDoCard(
   if (!paiId) {
     return {
       ok: false,
-      error: 'Card não pertence ao Funil Portfólio ou Funil Loteadores (nem é filho com origem nesses funis).',
+      error:
+        'Card não pertence ao Funil Portfólio, Funil Loteadores ou Funil Pré Obra e Obra (nem é filho com origem nesses funis).',
     };
   }
 
