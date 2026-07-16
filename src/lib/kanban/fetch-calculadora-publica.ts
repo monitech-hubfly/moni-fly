@@ -5,6 +5,7 @@ import {
   calcularLinhasCalculadoraFases,
   calculadoraAncoraFromProcesso,
   aplicarEncadeamentoMarcoContratoNasLinhas,
+  aplicarOverlayAncoraOcultarFasesAnteriores,
   enriquecerLinhasCalculadoraComCusto,
   enriquecerLinhasCalculadoraComResponsavelDaFase,
   normalizarIntervaloDatasCalculadoraLinhas,
@@ -207,17 +208,20 @@ async function montarCalculadoraPack(
             : fasesKanban;
 
   linhas = normalizarIntervaloDatasCalculadoraLinhas(
-    aplicarEncadeamentoMarcoContratoNasLinhas(
-      linhas,
-      fasesFlatFinal,
-      {
-        contrato_assinado_em:
-          ctx?.marcosCanonicos.contrato_assinado_em ?? card.contrato_assinado_em,
-      },
-      cardCalcInput,
-      visits,
-      undefined,
-      overrides,
+    aplicarOverlayAncoraOcultarFasesAnteriores(
+      aplicarEncadeamentoMarcoContratoNasLinhas(
+        linhas,
+        fasesFlatFinal,
+        {
+          contrato_assinado_em:
+            ctx?.marcosCanonicos.contrato_assinado_em ?? card.contrato_assinado_em,
+        },
+        cardCalcInput,
+        visits,
+        undefined,
+        overrides,
+      ),
+      calculadoraAncora,
     ),
     cardCalcInput,
   );

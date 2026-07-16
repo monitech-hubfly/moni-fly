@@ -397,12 +397,25 @@ function CalculadoraMarcoRow({
 
       <div aria-hidden />
 
-      <div className="moni-calculadora-fase-data-cell">
-        <span className={`moni-calculadora-fase-data fd-val${!inicio ? ' fd-val--empty' : ''}`}>
-          {fmtData(inicio)}
-        </span>
-        <span className="moni-calculadora-fase-data-label">{inicioLabel}</span>
-      </div>
+      {editandoDatas && onSalvarData && marco.faseId && !isM4ComLimite ? (
+        <CalculadoraFaseDataCell
+          faseId={marco.faseId}
+          campo="inicio"
+          valor={inicio}
+          label={inicioLabel}
+          editando
+          onSalvarData={onSalvarData}
+          onRegistrarFlush={onRegistrarFlush}
+          onAplicarOverrideLocal={onAplicarOverrideLocal}
+        />
+      ) : (
+        <div className="moni-calculadora-fase-data-cell">
+          <span className={`moni-calculadora-fase-data fd-val${!inicio ? ' fd-val--empty' : ''}`}>
+            {fmtData(inicio)}
+          </span>
+          <span className="moni-calculadora-fase-data-label">{inicioLabel}</span>
+        </div>
+      )}
 
       {editandoDatas && onSalvarData && marco.faseId ? (
         <CalculadoraFaseDataCell
