@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { listPericiasParaSelect, PERICIAS_DOMINIOS, PericiaParaSelect, PericiaDominio } from '@/app/sirene/pericias/actions'
+import { listPericiasParaSelect, type PericiaParaSelect } from '@/app/sirene/pericias/actions'
+import { PERICIAS_DOMINIOS, type PericiaDominio } from '@/app/sirene/pericias/pericias-dominios'
 
 interface PericiaSelectProps {
   onSelect: (periciaId: number, periciaInfo: { numero: string; titulo: string; status: string; dominio: string }) => void
