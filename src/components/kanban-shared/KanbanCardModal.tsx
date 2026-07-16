@@ -329,7 +329,7 @@ import {
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { DadosMoniCapitalPersistentPanel } from './DadosMoniCapitalPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -3876,10 +3876,24 @@ export function KanbanCardModal({
       ultimaEdicaoDatasManuaisRef.current = Date.now();
       setDatasManuaisCalculadora((prev) => {
         const next = new Map(prev);
-        const cur = { ...(next.get(faseId) ?? {}) };
-        if (campo === 'inicio') cur.dataInicio = valor;
-        else cur.dataFim = valor;
-        next.set(faseId, cur);
+        const prevOv = prev.get(faseId) ?? {};
+        const cur = { ...prevOv };
+        if (campo === 'inicio') {
+          cur.dataInicio = valor;
+          // Sem fim manual prévio: remove override de fim para o motor recalcular estimativa.
+          const tinhaFimManual =
+            'dataFim' in prevOv && prevOv.dataFim != null && String(prevOv.dataFim).trim() !== '';
+          if (!tinhaFimManual) {
+            delete cur.dataFim;
+          }
+        } else {
+          cur.dataFim = valor;
+        }
+        if (cur.dataInicio == null && cur.dataFim == null && !('dataInicio' in cur) && !('dataFim' in cur)) {
+          next.delete(faseId);
+        } else {
+          next.set(faseId, cur);
+        }
         for (const fid of fasesPosteriores) next.delete(fid);
         return next;
       });
@@ -3895,10 +3909,20 @@ export function KanbanCardModal({
       const idx = calculadoraFasesPack.faseIds.indexOf(faseId);
       const fasesPosteriores = idx >= 0 ? calculadoraFasesPack.faseIds.slice(idx + 1) : [];
 
+      const prevOv = datasManuaisCalculadora.get(faseId) ?? {};
+      const tinhaFimManual =
+        'dataFim' in prevOv && prevOv.dataFim != null && String(prevOv.dataFim).trim() !== '';
+
       aplicarOverrideCalculadoraLocal(faseId, campo, valor);
 
       const supabase = createClient();
-      const patch = campo === 'inicio' ? { dataInicio: valor } : { dataFim: valor };
+      // Ao mudar só o início sem fim manual: limpa data_fim no banco para não “congelar” a estimativa antiga.
+      const patch =
+        campo === 'inicio'
+          ? tinhaFimManual
+            ? { dataInicio: valor }
+            : { dataInicio: valor, dataFim: null }
+          : { dataFim: valor };
       const result = await salvarDataManualCalculadoraSyncGroup(
         supabase,
         cardId,
@@ -3928,6 +3952,7 @@ export function KanbanCardModal({
       modalSessao.userId,
       calculadoraFasesPack.faseIds,
       aplicarOverrideCalculadoraLocal,
+      datasManuaisCalculadora,
     ],
   );
 
@@ -3972,8 +3997,24 @@ export function KanbanCardModal({
     const sincronizadas = sincronizarEstimativasFuturasAPartirFaseAtual(
       comOverrides,
       cardEncadeamento,
+      undefined,
+      datasManuaisCalculadora,
     );
-    return normalizarIntervaloDatasCalculadoraLinhas(sincronizadas, cardEncadeamento);
+    // Overrides por último (preserva início/fim manuais) e overlay da âncora por cima
+    // para não reexibir datas de visitas/encadeamento nas fases anteriores.
+    const comOverridesFinais =
+      datasManuaisCalculadora.size > 0
+        ? aplicarDatasManuaisCalculadoraLinhas(
+            sincronizadas,
+            datasManuaisCalculadora,
+            cardEncadeamento,
+          )
+        : sincronizadas;
+    const comAncoraOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(
+      comOverridesFinais,
+      calculadoraAncora,
+    );
+    return normalizarIntervaloDatasCalculadoraLinhas(comAncoraOverlay, cardEncadeamento);
   }, [
     card,
     contextoCalculadoraSyncGroup,
@@ -3982,6 +4023,7 @@ export function KanbanCardModal({
     calculadoraFasesFlat,
     calculadoraMarcosInput.contrato_assinado_em,
     datasManuaisCalculadora,
+    calculadoraAncora,
   ]);
 
   const calculadoraCardConcluidoCanonico =

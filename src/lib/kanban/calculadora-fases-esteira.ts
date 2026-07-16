@@ -7,6 +7,7 @@ import {
   inferirFimRealPorProximaFase,
   aplicarAncoraCalculadoraLinhas,
   aplicarDatasManuaisCalculadoraLinhas,
+  aplicarOverlayAncoraOcultarFasesAnteriores,
   normalizarIntervaloDatasCalculadoraLinhas,
   calcularResumoExecutivoCalculadoraFases,
   type CalculadoraAncora,
@@ -294,7 +295,9 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
     cardCalc,
     input.hoje,
   );
-  return normalizarIntervaloDatasCalculadoraLinhas(comDatasManuais, cardCalc, input.hoje);
+  // Overlay final: fases anteriores à âncora sem datas (visitas/encadeamento não reaparecem).
+  const comOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(comDatasManuais, input.ancora);
+  return normalizarIntervaloDatasCalculadoraLinhas(comOverlay, cardCalc, input.hoje);
 }
 
 /** Resumo executivo idêntico em todos os cards vinculados do sync group. */
