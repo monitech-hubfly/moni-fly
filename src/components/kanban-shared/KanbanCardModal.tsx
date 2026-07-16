@@ -4577,7 +4577,7 @@ export function KanbanCardModal({
             : undefined,
         )}
         {renderNegocioAnexoCampo(
-          'Contrato de Permuta',
+          'Contrato de Permuta ou CCV',
           'contrato_permuta',
           proc.anexo_contrato_permuta_path,
         )}

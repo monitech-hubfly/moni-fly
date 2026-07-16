@@ -69,6 +69,8 @@ export type CalculadoraMarco = {
   dataLimiteContrato?: string | null;
   /** Limite calculado a partir de `contrato_assinado_em` (não estimativa da fase Contrato). */
   limiteContratoReal?: boolean;
+  /** Fase substituída pelo marco (M0/M4) — habilita edição manual da data de fim. */
+  faseId?: string | null;
 };
 
 export type CalculadoraMarcosInput = {
@@ -674,6 +676,7 @@ export function montarTimelineCalculadoraComMarcos(
         label: def.label,
         funilLabel: def.funilLabel,
         custo: def.custo ?? linhaAnchora?.custo ?? null,
+        faseId: linhaAnchora?.faseId ?? null,
       }),
       linhaAnchora,
       def.statusMarco === true,

@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Pencil } from 'lucide-react';
+import { ChevronDown, Pencil, CheckCircle2 } from 'lucide-react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
   CALCULADORA_STATUS_LABEL,
   calcularResumoExecutivoCalculadoraFases,
   calculadoraHojeYmd,
+  idxAprovacaoCondominioCalculadora,
   type CalculadoraResumoExecutivo,
   faseUltrapassouSlaCalculadora,
   labelSufixoDataCalculadora,
@@ -66,6 +67,10 @@ type Props = {
   ) => void;
   /** Linhas de negociação — intercaladas na timeline como condições. */
   negociacaoLinhas?: NegociacaoLinha[];
+  /** Âncora "Aprovação no Condomínio" ativa (limpa datas anteriores + conclui fases). */
+  ancoraCondominioAtiva?: boolean;
+  /** Ativa/remove a âncora em "Aprovação no Condomínio" (propaga para vínculos). */
+  onDefinirAncoraCondominio?: (ativar: boolean) => Promise<{ ok: boolean; error?: string }>;
 };
 
 function fmtData(iso: string | null): string {
@@ -295,7 +300,19 @@ function marcoDisplayLabel(marco: CalculadoraMarco): string {
   return marco.label;
 }
 
-function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
+function CalculadoraMarcoRow({
+  marco,
+  editandoDatas,
+  onSalvarData,
+  onRegistrarFlush,
+  onAplicarOverrideLocal,
+}: {
+  marco: CalculadoraMarco;
+  editandoDatas?: boolean;
+  onSalvarData?: Props['onSalvarData'];
+  onRegistrarFlush?: FlushEdicaoDataRegistrar;
+  onAplicarOverrideLocal?: Props['onAplicarOverrideLocal'];
+}) {
   const id = marco.id as CalculadoraMarcoId;
   const somenteRotulo = marco.somenteRotulo === true;
 
@@ -387,14 +404,28 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
         <span className="moni-calculadora-fase-data-label">{inicioLabel}</span>
       </div>
 
-      <div className="moni-calculadora-fase-data-cell">
-        <span
-          className={`moni-calculadora-fase-data fd-val${fimAtraso ? ' fd-val--atraso' : ''}${!fim ? ' fd-val--empty' : ''}`}
-        >
-          {fmtData(fim)}
-        </span>
-        <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
-      </div>
+      {editandoDatas && onSalvarData && marco.faseId ? (
+        <CalculadoraFaseDataCell
+          faseId={marco.faseId}
+          campo="fim"
+          valor={fim}
+          label={fimLabel}
+          atraso={fimAtraso}
+          editando
+          onSalvarData={onSalvarData}
+          onRegistrarFlush={onRegistrarFlush}
+          onAplicarOverrideLocal={onAplicarOverrideLocal}
+        />
+      ) : (
+        <div className="moni-calculadora-fase-data-cell">
+          <span
+            className={`moni-calculadora-fase-data fd-val${fimAtraso ? ' fd-val--atraso' : ''}${!fim ? ' fd-val--empty' : ''}`}
+          >
+            {fmtData(fim)}
+          </span>
+          <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
+        </div>
+      )}
 
       <div className="moni-calculadora-fase-status-col">
         {marco.status ? (
@@ -984,6 +1015,10 @@ function CalculadoraFunilGroup({
               <CalculadoraMarcoRow
                 key={`marco-${item.marco.id}-${item.marco.dataFim ?? ''}`}
                 marco={item.marco}
+                editandoDatas={editandoDatas}
+                onSalvarData={onSalvarData}
+                onRegistrarFlush={onRegistrarFlush}
+                onAplicarOverrideLocal={onAplicarOverrideLocal}
               />
             );
           }
@@ -1031,10 +1066,13 @@ export function KanbanCardModalCalculadoraFases({
   onSalvarData,
   onAplicarOverrideLocal,
   negociacaoLinhas = [],
+  ancoraCondominioAtiva = false,
+  onDefinirAncoraCondominio,
 }: Props) {
   const [collapsedFunis, setCollapsedFunis] = useState<Set<string>>(new Set());
   const [expandedFases, setExpandedFases] = useState<Set<string>>(new Set());
   const [editandoDatas, setEditandoDatas] = useState(false);
+  const [salvandoAncora, setSalvandoAncora] = useState(false);
   const flushEdicaoDatasRef = useRef(new Set<() => Promise<void>>());
   const cardInicializadoRef = useRef<string | null>(null);
   const { loading: shareLoading, copied: shareCopied, gerarECopiar } = useCalculadoraShareLink(
@@ -1127,6 +1165,21 @@ export function KanbanCardModalCalculadoraFases({
     setEditandoDatas(false);
   }, [editandoDatas]);
 
+  const temFaseCondominio = useMemo(() => idxAprovacaoCondominioCalculadora(linhas) >= 0, [linhas]);
+
+  const alternarAncoraCondominio = useCallback(async () => {
+    if (!onDefinirAncoraCondominio || salvandoAncora) return;
+    setSalvandoAncora(true);
+    try {
+      const result = await onDefinirAncoraCondominio(!ancoraCondominioAtiva);
+      if (!result.ok && result.error) {
+        alert(result.error);
+      }
+    } finally {
+      setSalvandoAncora(false);
+    }
+  }, [onDefinirAncoraCondominio, ancoraCondominioAtiva, salvandoAncora]);
+
   if (linhas.length === 0) {
     return (
       <p className="text-[11px] text-[var(--moni-text-tertiary)]" style={{ fontFamily: 'var(--moni-font-sans)' }}>
@@ -1136,6 +1189,8 @@ export function KanbanCardModalCalculadoraFases({
   }
 
   const podeEditarDatasEfetivo = podeEditarDatas && !modoPublico && Boolean(onSalvarData);
+  const podeAncorarCondominio =
+    podeEditarDatas && !modoPublico && Boolean(onDefinirAncoraCondominio) && temFaseCondominio;
 
   return (
     <div
@@ -1145,6 +1200,32 @@ export function KanbanCardModalCalculadoraFases({
         <div className="moni-calculadora-section-header">
           <span className="moni-calculadora-section-title">Calculadora de fases</span>
           <div className="moni-calculadora-section-actions">
+            {podeAncorarCondominio ? (
+              <button
+                type="button"
+                onClick={() => void alternarAncoraCondominio()}
+                disabled={salvandoAncora}
+                className={`moni-calculadora-share-btn moni-calculadora-edit-datas-btn${ancoraCondominioAtiva ? ' moni-calculadora-edit-datas-btn--active' : ''}`}
+                aria-pressed={ancoraCondominioAtiva}
+                title={
+                  ancoraCondominioAtiva
+                    ? 'Reexibir datas das fases anteriores à Aprovação no Condomínio'
+                    : 'Limpar datas e concluir fases anteriores à Aprovação no Condomínio'
+                }
+                aria-label={
+                  ancoraCondominioAtiva
+                    ? 'Reexibir fases anteriores ao Condomínio'
+                    : 'Concluir fases anteriores ao Condomínio'
+                }
+              >
+                <CheckCircle2 size={11} strokeWidth={2} aria-hidden />
+                {salvandoAncora
+                  ? '...'
+                  : ancoraCondominioAtiva
+                    ? 'Reexibir anteriores'
+                    : 'Concluir até Condomínio'}
+              </button>
+            ) : null}
             {podeEditarDatasEfetivo ? (
               <button
                 type="button"
