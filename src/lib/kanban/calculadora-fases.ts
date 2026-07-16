@@ -938,12 +938,8 @@ export function propagarLinhasCalculadoraForward(
     let dataFimEstimada: string | null = null;
     if (overrideTemFimManual(ov)) {
       const fimManual = toYmd(ov!.dataFim);
-      const editarEstimada =
-        !dataFimReal &&
-        (row.status === 'atual' ||
-          row.status === 'atual_atrasada' ||
-          row.status === 'futura');
-      if (editarEstimada) {
+      // Sem fim real (visita/inferência): override = estimativa digitada (não início+SLA).
+      if (!dataFimReal) {
         dataFimEstimada = fimManual;
       } else {
         dataFimReal = fimManual;
@@ -1020,13 +1016,10 @@ function aplicarOverrideManualEmLinhaCalculadora(
 
   if (temFimManual) {
     const fimManual = toYmd(ov.dataFim);
-    const aplicarComoEstimada =
-      !dataFimReal &&
-      (linha.status === 'atual' ||
-        linha.status === 'atual_atrasada' ||
-        linha.status === 'futura');
-    if (aplicarComoEstimada) {
-      // Fim manual em fase aberta = override da estimativa (não recalcular ao mudar início).
+    // Sem fim real registrado: a data digitada é a estimativa (respeitar «est.» do M0/fases).
+    // Antes, status «concluida» (só por ordem) forçava fim real + recalculava est. via SLA
+    // (ex.: 10/06 virava 08/07 ou 10/07 = início + SLA).
+    if (!dataFimReal) {
       dataFimEstimada = fimManual;
     } else if (fimManual) {
       dataFimReal = fimManual;
@@ -1141,25 +1134,22 @@ export function aplicarDatasManuaisCalculadoraLinhas(
 type EncadeamentoMarcoContratoInput = { contrato_assinado_em?: string | null };
 
 /**
- * Fim real do marco M0 (Contrato): saída da fase no histórico ou edição manual após sair.
- * Não usa contrato_assinado_em — essa data é registro de assinatura, não saída da fase.
+ * Fim real do marco M0 (Contrato): saída da fase no histórico, fim real já na linha
+ * (inferido/manual aplicado) ou início da fase seguinte.
+ * Não usa override de `dataFim` como real — esse valor é estimativa manual na edição de
+ * datas (campo «est.»); overrides entram via `aplicarDatasManuaisCalculadoraLinhas`.
+ * Não usa contrato_assinado_em — assinatura ≠ saída da fase.
  */
 export function resolverFimRealMarcoContrato(
   linhaContrato: CalculadoraFaseLinha,
   idxContrato: number,
   linhas: CalculadoraFaseLinha[],
   visits: FaseVisit[] | undefined,
-  overrides?: Map<string, CalculadoraFaseDataManualOverride>,
+  _overrides?: Map<string, CalculadoraFaseDataManualOverride>,
 ): string | null {
   if (visits?.length) {
     const visitSaiu = toYmd(lastVisitPerFase(visits).get(linhaContrato.faseId)?.saiu);
     if (visitSaiu) return visitSaiu;
-  }
-
-  const ov = overrides?.get(linhaContrato.faseId);
-  if (ov && 'dataFim' in ov && ov.dataFim) {
-    const fimManual = toYmd(ov.dataFim);
-    if (fimManual) return fimManual;
   }
 
   if (linhaContrato.dataFimReal) return linhaContrato.dataFimReal;
@@ -1241,14 +1231,37 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
     visits,
     overrides,
   );
-  const inicioContratoReconciliado = reconciliarInicioComFimReal(
+  const ovContrato = overrides?.get(rowContrato.faseId);
+  const fimManualOverride = overrideTemFimManual(ovContrato)
+    ? toYmd(ovContrato!.dataFim)
+    : null;
+
+  let inicioContratoReconciliado = reconciliarInicioComFimReal(
     inicioContrato ?? rowContrato.dataInicioReal,
     realFim,
   );
-  const fimEstimado =
-    inicioContratoReconciliado && rowContrato.slaDias != null && rowContrato.slaDias > 0
-      ? fimEstimadaPorSla(inicioContratoReconciliado, rowContrato.slaDias, rowContrato.slaTipo)
-      : rowContrato.dataFimEstimada;
+
+  /**
+   * Fim estimado do M0: override manual tem precedência sobre início+SLA.
+   * Sem isso, digitar 10/06 era apagado por inicio+28d → 08/07 no recálculo.
+   */
+  let fimEstimado: string | null;
+  if (realFim) {
+    fimEstimado =
+      inicioContratoReconciliado && rowContrato.slaDias != null && rowContrato.slaDias > 0
+        ? fimEstimadaPorSla(inicioContratoReconciliado, rowContrato.slaDias, rowContrato.slaTipo)
+        : rowContrato.dataFimEstimada;
+  } else if (fimManualOverride) {
+    fimEstimado = fimManualOverride;
+    if (inicioContratoReconciliado && inicioContratoReconciliado > fimManualOverride) {
+      inicioContratoReconciliado = fimManualOverride;
+    }
+  } else {
+    fimEstimado =
+      inicioContratoReconciliado && rowContrato.slaDias != null && rowContrato.slaDias > 0
+        ? fimEstimadaPorSla(inicioContratoReconciliado, rowContrato.slaDias, rowContrato.slaTipo)
+        : rowContrato.dataFimEstimada;
+  }
 
   const status = resolveStatus(
     rowContrato.faseId,
@@ -1281,7 +1294,14 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
     atrasoDias,
   };
 
-  const propagadas = propagarLinhasCalculadoraForward(out, idxContrato, card, ordemAtual, hoje);
+  const propagadas = propagarLinhasCalculadoraForward(
+    out,
+    idxContrato,
+    card,
+    ordemAtual,
+    hoje,
+    overrides,
+  );
   let result = recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef);
   if (overrides && overrides.size > 0) {
     let overridesPosEncadeamento = overrides;

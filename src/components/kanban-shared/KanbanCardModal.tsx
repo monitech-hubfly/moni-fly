@@ -4000,8 +4000,6 @@ export function KanbanCardModal({
       undefined,
       datasManuaisCalculadora,
     );
-    // Overrides por último (preserva início/fim manuais) e overlay da âncora por cima
-    // para não reexibir datas de visitas/encadeamento nas fases anteriores.
     const comOverridesFinais =
       datasManuaisCalculadora.size > 0
         ? aplicarDatasManuaisCalculadoraLinhas(
@@ -4010,11 +4008,21 @@ export function KanbanCardModal({
             cardEncadeamento,
           )
         : sincronizadas;
+    // Overlay oculta visitas/encadeamento nas fases anteriores à âncora; overrides manuais
+    // reaplicados por último para não perder data digitada (ex.: M0 Contrato «est.»).
     const comAncoraOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(
       comOverridesFinais,
       calculadoraAncora,
     );
-    return normalizarIntervaloDatasCalculadoraLinhas(comAncoraOverlay, cardEncadeamento);
+    const comOverridesPosOverlay =
+      datasManuaisCalculadora.size > 0
+        ? aplicarDatasManuaisCalculadoraLinhas(
+            comAncoraOverlay,
+            datasManuaisCalculadora,
+            cardEncadeamento,
+          )
+        : comAncoraOverlay;
+    return normalizarIntervaloDatasCalculadoraLinhas(comOverridesPosOverlay, cardEncadeamento);
   }, [
     card,
     contextoCalculadoraSyncGroup,

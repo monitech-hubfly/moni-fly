@@ -5,6 +5,7 @@ import {
   calcularLinhasCalculadoraFases,
   calculadoraAncoraFromProcesso,
   aplicarEncadeamentoMarcoContratoNasLinhas,
+  aplicarDatasManuaisCalculadoraLinhas,
   aplicarOverlayAncoraOcultarFasesAnteriores,
   enriquecerLinhasCalculadoraComCusto,
   enriquecerLinhasCalculadoraComResponsavelDaFase,
@@ -208,8 +209,8 @@ async function montarCalculadoraPack(
             : fasesKanban;
 
   linhas = normalizarIntervaloDatasCalculadoraLinhas(
-    aplicarOverlayAncoraOcultarFasesAnteriores(
-      aplicarEncadeamentoMarcoContratoNasLinhas(
+    (() => {
+      const encadeadas = aplicarEncadeamentoMarcoContratoNasLinhas(
         linhas,
         fasesFlatFinal,
         {
@@ -220,9 +221,12 @@ async function montarCalculadoraPack(
         visits,
         undefined,
         overrides,
-      ),
-      calculadoraAncora,
-    ),
+      );
+      const comOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(encadeadas, calculadoraAncora);
+      return overrides.size > 0
+        ? aplicarDatasManuaisCalculadoraLinhas(comOverlay, overrides, cardCalcInput)
+        : comOverlay;
+    })(),
     cardCalcInput,
   );
 
