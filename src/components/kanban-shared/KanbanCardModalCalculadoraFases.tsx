@@ -1026,7 +1026,7 @@ function CalculadoraFunilGroup({
           if (item.kind === 'marco') {
             return (
               <CalculadoraMarcoRow
-                key={`marco-${item.marco.id}-${item.marco.dataFim ?? ''}`}
+                key={`marco-${item.marco.id}`}
                 marco={item.marco}
                 editandoDatas={editandoDatas}
                 onSalvarData={onSalvarData}

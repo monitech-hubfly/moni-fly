@@ -941,6 +941,9 @@ export function propagarLinhasCalculadoraForward(
       // Sem fim real (visita/inferência): override = estimativa digitada (não início+SLA).
       if (!dataFimReal) {
         dataFimEstimada = fimManual;
+        if (fimManual && dataInicioReal && dataInicioReal > fimManual) {
+          dataInicioReal = fimManual;
+        }
       } else {
         dataFimReal = fimManual;
         dataFimEstimada = dataInicioReal
@@ -1021,6 +1024,9 @@ function aplicarOverrideManualEmLinhaCalculadora(
     // (ex.: 10/06 virava 08/07 ou 10/07 = início + SLA).
     if (!dataFimReal) {
       dataFimEstimada = fimManual;
+      if (fimManual && dataInicioReal && dataInicioReal > fimManual) {
+        dataInicioReal = fimManual;
+      }
     } else if (fimManual) {
       dataFimReal = fimManual;
       if (dataInicioReal && linha.slaDias != null && linha.slaDias > 0) {
