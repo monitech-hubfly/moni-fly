@@ -15,10 +15,8 @@ import {
   responsaveisDoTimeMoni,
   responsaveisFiltroOpcoesComCatalogoMoni,
   timesFiltroOpcoesComCatalogoMoni,
-  timesMoniReceberChamadoOpcoes,
 } from '@/lib/times-responsaveis';
 import {
-  atualizarInteracaoCompletaSirene,
   atualizarStatusInteracaoSirene,
   listarComentariosCardSirene,
   publicarComentarioCardSirene,
@@ -31,7 +29,6 @@ import {
 import {
   arquivarChamado,
   arquivarTopico,
-  atualizarChamadoPainelUnificado,
   getTopicosBatchPorInteracaoIds,
   getTopicosChamado,
   getTopicosPorInteracaoId,
@@ -48,7 +45,6 @@ import { ModalNovoChamado } from '../ModalNovoChamado';
 import { SireneChamadoDetalheModal } from './SireneChamadoDetalheModal';
 import { ClassificacaoConclusaoModal } from './ClassificacaoConclusaoModal';
 import { SireneModalHoras } from './SireneModalHoras';
-import type { EditLinhaDraft, EditSireneDraft } from './SireneChamadoEdicaoForms';
 import {
   ATIVIDADE_FORM_DRAFT_VAZIO,
   type AtividadeFormDraft,
@@ -344,13 +340,6 @@ function SecaoFiltro({ titulo, children }: SecaoRadioProps) {
   );
 }
 
-function tipoEdicaoFromRow(tipo: string): 'atividade' | 'duvida' | 'proposicoes' {
-  const t = norm(tipo);
-  if (t === 'duvida' || t === 'dúvida') return 'duvida';
-  if (t === 'proposicoes' || t === 'proposições') return 'proposicoes';
-  return 'atividade';
-}
-
 function nomesTimesDeIds(ids: string[], catalog: TimeOpt[]): unknown {
   const m = new Map(catalog.map((t) => [t.id, t.nome]));
   return ids.map((id) => m.get(id) ?? '').filter(Boolean);
@@ -372,9 +361,6 @@ export function InteracoesLista({
   const highlightIdRef = useRef<number | null>(null);
   const skipHorasModalRef = useRef(false);
   const [modalNovoAberto, setModalNovoAberto] = useState(false);
-  const [editingSireneCid, setEditingSireneCid] = useState<number | null>(null);
-  const [editSireneDraft, setEditSireneDraft] = useState<EditSireneDraft | null>(null);
-  const [salvandoSirene, setSalvandoSirene] = useState(false);
   const [detalheRow, setDetalheRow] = useState<InteracaoSireneRow | null>(null);
   const [novaAtivDraft, setNovaAtivDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   const [topicosPorAlvo, setTopicosPorAlvo] = useState<Record<string, TopicoChamadoLinha[]>>({});
@@ -399,9 +385,6 @@ export function InteracoesLista({
   const [msgErro, setMsgErro] = useState<string | null>(null);
   const [conclusaoInteracaoId, setConclusaoInteracaoId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<EditLinhaDraft | null>(null);
-  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [commentsOpenByRow, setCommentsOpenByRow] = useState<Record<string, boolean>>({});
   const [commentsFetchedByCard, setCommentsFetchedByCard] = useState<Record<string, boolean>>({});
   const [commentsByCardId, setCommentsByCardId] = useState<Record<string, ComentarioCardSireneRow[]>>({});
@@ -483,10 +466,6 @@ export function InteracoesLista({
     // Grupo 1: estado derivado da lista — resetar quando interacoes muda
     setStatusPatch({});
     setRowPatch({});
-    setEditingId(null);
-    setEditDraft(null);
-    setEditingSireneCid(null);
-    setEditSireneDraft(null);
     setCountPatch({});
     setModalArquivar(null);
     setMotivoArquivamento('');
@@ -793,49 +772,6 @@ export function InteracoesLista({
     });
   }
 
-  function abrirEdicao(row: InteracaoSireneRow) {
-    if (!chamadoEditavelNaSirene(row)) {
-      setMsgErro('Este chamado só pode ser alterado no card vinculado.');
-      return;
-    }
-    if (row.origem === 'sirene' && row.sirene_chamado_id != null) {
-      setEditingId(null);
-      setEditDraft(null);
-      setEditingSireneCid(row.sirene_chamado_id);
-      const tipoSc = (row.sirene_chamado_tipo ?? 'padrao') === 'hdm' ? 'hdm' : 'padrao';
-      setEditSireneDraft({
-        incendio: row.titulo,
-        time_abertura: row.sirene_time_abertura ?? '',
-        abertura_responsavel_nome: row.sirene_abertura_responsavel_nome ?? '',
-        data: row.data_vencimento ?? '',
-        trava: row.trava,
-        tipo: tipoSc,
-        hdm_responsavel: row.sirene_hdm_responsavel ?? '',
-      });
-      return;
-    }
-    setEditingSireneCid(null);
-    setEditSireneDraft(null);
-    const rids = [...(row.responsaveis_ids ?? [])];
-    if (row.responsavel_id && !rids.includes(row.responsavel_id)) rids.unshift(row.responsavel_id);
-    setEditingId(row.id);
-    setEditDraft({
-      titulo: row.titulo,
-      tipo: tipoEdicaoFromRow(row.tipo),
-      data: row.data_vencimento ?? '',
-      timesIds: [...(row.times_ids ?? [])],
-      responsaveisIds: rids,
-      trava: row.trava,
-    });
-  }
-
-  function cancelarEdicao() {
-    setEditingId(null);
-    setEditDraft(null);
-    setEditingSireneCid(null);
-    setEditSireneDraft(null);
-  }
-
   async function carregarTopicosSeNecessario(row: InteracaoSireneRow, force = false) {
     const key = topicosAlvoKey(row);
     if (!force && topicosPorAlvo[key] != null && !topicosLoading[key]) return;
@@ -866,7 +802,6 @@ export function InteracoesLista({
   function abrirDetalheChamado(row: InteracaoSireneRow) {
     setDetalheRow(row);
     setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
-    cancelarEdicao();
     void carregarTopicosSeNecessario(row, true);
   }
 
@@ -910,96 +845,6 @@ export function InteracoesLista({
     }
     setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
     void carregarTopicosSeNecessario(row, true);
-  }
-
-  async function salvarEdicao(atividadeId: string) {
-    if (!editDraft) return;
-    if (!editDraft.titulo.trim()) {
-      setMsgErro('Informe o título.');
-      return;
-    }
-    setMsgErro(null);
-    setSalvandoEdicao(true);
-    try {
-      const res = await atualizarInteracaoCompletaSirene(atividadeId, {
-        titulo: editDraft.titulo.trim(),
-        tipo: editDraft.tipo,
-        data_vencimento: editDraft.data.trim() || null,
-        times_ids: editDraft.timesIds,
-        responsaveis_ids: editDraft.responsaveisIds,
-        trava: editDraft.trava,
-      });
-      if (!res.ok) {
-        setMsgErro(res.error);
-        return;
-      }
-      const tnomes = nomesTimesDeIds(editDraft.timesIds, times);
-      const firstTimeNome = Array.isArray(tnomes) && tnomes.length > 0 ? String(tnomes[0]) : null;
-      setRowPatch((prev) => ({
-        ...prev,
-        [atividadeId]: {
-          titulo: editDraft.titulo.trim(),
-          tipo: editDraft.tipo,
-          data_vencimento: editDraft.data.trim() || null,
-          trava: editDraft.trava,
-          times_ids: [...editDraft.timesIds],
-          responsaveis_ids: [...editDraft.responsaveisIds],
-          times_nomes: tnomes,
-          time_nome: firstTimeNome,
-        },
-      }));
-      setEditingId(null);
-      setEditDraft(null);
-    } finally {
-      setSalvandoEdicao(false);
-    }
-  }
-
-  async function salvarEdicaoSirene(atividadeRowId: string, chamadoId: number) {
-    if (!editSireneDraft) return;
-    if (!editSireneDraft.incendio.trim()) {
-      setMsgErro('Informe o resumo (incêndio).');
-      return;
-    }
-    setMsgErro(null);
-    setSalvandoSirene(true);
-    try {
-      const timeAb = editSireneDraft.time_abertura.trim();
-      const inferred = inferirHdmResponsavelPorNomesTimes(timeAb ? [timeAb] : []);
-      const tipoEff = inferred ? 'hdm' : 'padrao';
-      const hdmVal = inferred;
-      const res = await atualizarChamadoPainelUnificado(chamadoId, {
-        incendio: editSireneDraft.incendio.trim(),
-        time_abertura: timeAb || null,
-        abertura_responsavel_nome: editSireneDraft.abertura_responsavel_nome.trim() || null,
-        data_vencimento: editSireneDraft.data.trim() || null,
-        trava: editSireneDraft.trava,
-        tipo: tipoEff,
-        hdm_responsavel: hdmVal,
-      });
-      if (!res.ok) {
-        setMsgErro(res.error);
-        return;
-      }
-      const tipoKa = tipoEff === 'hdm' ? 'chamado_hdm' : 'chamado_padrao';
-      setRowPatch((prev) => ({
-        ...prev,
-        [atividadeRowId]: {
-          titulo: editSireneDraft.incendio.trim(),
-          tipo: tipoKa,
-          data_vencimento: editSireneDraft.data.trim() || null,
-          trava: editSireneDraft.trava,
-          sirene_time_abertura: timeAb || null,
-          sirene_abertura_responsavel_nome: editSireneDraft.abertura_responsavel_nome.trim() || null,
-          sirene_chamado_tipo: tipoEff,
-          sirene_hdm_responsavel: tipoEff === 'hdm' ? hdmVal : null,
-        },
-      }));
-      setEditingSireneCid(null);
-      setEditSireneDraft(null);
-    } finally {
-      setSalvandoSirene(false);
-    }
   }
 
   async function handleSubStatusPainel(
@@ -1166,8 +1011,6 @@ export function InteracoesLista({
   }
 
   const ativos = countFiltrosAtivos(applied);
-
-  const timesSireneEditOpcoes = useMemo(() => [...timesMoniReceberChamadoOpcoes(false)], []);
 
   const radioRow = 'flex flex-wrap gap-x-4 gap-y-2 text-sm text-[color:var(--moni-text-secondary)]';
   const radioLabel = 'inline-flex cursor-pointer items-center gap-2';
@@ -1537,8 +1380,6 @@ export function InteracoesLista({
       )}
 
       {pending && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando status…</p>}
-      {salvandoEdicao && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando chamado…</p>}
-      {salvandoSirene && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando chamado Sirene…</p>}
       {!verTodas && porPapel ? (
         <div className="space-y-4">
           {(
@@ -1961,7 +1802,6 @@ export function InteracoesLista({
             setDetalheRow(null);
             setHighlightTopicoId(null);
             setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
-            cancelarEdicao();
             if (searchParams.get('interacao')) {
               router.replace('/sirene/chamados');
             }
@@ -1996,7 +1836,6 @@ export function InteracoesLista({
           onSubStatusChange={(topicoId, status) =>
             void handleSubStatusPainel(detalheRowEff, topicoId, status)
           }
-          onEdit={() => abrirEdicao(detalheRowEff)}
           onArquivar={() =>
             setModalArquivar({
               cid: detalheRowEff.sirene_chamado_id ?? null,
@@ -2005,26 +1844,6 @@ export function InteracoesLista({
           }
           podeArquivar={podeArquivar}
           badgeTipo={badgeTipo(detalheRowEff.tipo)}
-          editingKanban={editingId === detalheRowEff.id && editDraft != null}
-          editDraft={editDraft}
-          setEditDraft={setEditDraft}
-          editingSirene={
-            detalheRowEff.sirene_chamado_id != null &&
-            editingSireneCid === detalheRowEff.sirene_chamado_id &&
-            editSireneDraft != null
-          }
-          editSireneDraft={editSireneDraft}
-          setEditSireneDraft={setEditSireneDraft}
-          times={times}
-          responsaveis={responsaveis}
-          timesSireneEditOpcoes={timesSireneEditOpcoes}
-          salvandoEdicao={salvandoEdicao}
-          salvandoSirene={salvandoSirene}
-          onSalvarEdicao={() => void salvarEdicao(detalheRowEff.id)}
-          onSalvarEdicaoSirene={() =>
-            void salvarEdicaoSirene(detalheRowEff.id, detalheRowEff.sirene_chamado_id!)
-          }
-          onCancelarEdicao={cancelarEdicao}
           novaAtivDraft={novaAtivDraft}
           setNovaAtivDraft={setNovaAtivDraft}
           onAdicionarAtividade={() => void handleAdicionarAtividadeModal(detalheRowEff)}

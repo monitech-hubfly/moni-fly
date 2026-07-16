@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ChevronRight, MessageCircle, Paperclip, Pencil, User, X } from 'lucide-react';
+import { Archive, ChevronRight, MessageCircle, Paperclip, User, X } from 'lucide-react';
 import Link from 'next/link';
 import type { InteracaoSireneRow } from './InteracoesLista';
 import {
@@ -74,20 +74,20 @@ type Props = {
   onArquivar?: () => void;
   podeArquivar: boolean;
   badgeTipo: { label: string; className: string };
-  editingKanban: boolean;
-  editDraft: EditLinhaDraft | null;
-  setEditDraft: React.Dispatch<React.SetStateAction<EditLinhaDraft | null>>;
-  editingSirene: boolean;
-  editSireneDraft: EditSireneDraft | null;
-  setEditSireneDraft: React.Dispatch<React.SetStateAction<EditSireneDraft | null>>;
+  editingKanban?: boolean;
+  editDraft?: EditLinhaDraft | null;
+  setEditDraft?: React.Dispatch<React.SetStateAction<EditLinhaDraft | null>>;
+  editingSirene?: boolean;
+  editSireneDraft?: EditSireneDraft | null;
+  setEditSireneDraft?: React.Dispatch<React.SetStateAction<EditSireneDraft | null>>;
   times: TimeOpt[];
   responsaveis: RespOpt[];
-  timesSireneEditOpcoes: string[];
-  salvandoEdicao: boolean;
-  salvandoSirene: boolean;
-  onSalvarEdicao: () => void;
-  onSalvarEdicaoSirene: () => void;
-  onCancelarEdicao: () => void;
+  timesSireneEditOpcoes?: string[];
+  salvandoEdicao?: boolean;
+  salvandoSirene?: boolean;
+  onSalvarEdicao?: () => void;
+  onSalvarEdicaoSirene?: () => void;
+  onCancelarEdicao?: () => void;
   novaAtivDraft: AtividadeFormDraft;
   setNovaAtivDraft: React.Dispatch<React.SetStateAction<AtividadeFormDraft>>;
   onAdicionarAtividade: () => void;
@@ -164,7 +164,6 @@ export function SireneChamadoDetalheModal({
   pending,
   onStatusChange,
   onSubStatusChange,
-  onEdit,
   onArquivar,
   podeArquivar,
   badgeTipo,
@@ -409,24 +408,24 @@ export function SireneChamadoDetalheModal({
         </div>
 
         <div className="space-y-4 p-4">
-          {editingKanban && editDraft ? (
+          {editingKanban && editDraft && setEditDraft && onSalvarEdicao && onCancelarEdicao ? (
             <SireneChamadoEdicaoKanbanForm
               draft={editDraft}
               setDraft={setEditDraft}
               times={times}
               responsaveis={responsaveis}
-              salvando={salvandoEdicao}
+              salvando={salvandoEdicao ?? false}
               onSalvar={onSalvarEdicao}
               onCancelar={onCancelarEdicao}
             />
           ) : null}
 
-          {editingSirene && editSireneDraft ? (
+          {editingSirene && editSireneDraft && setEditSireneDraft && onSalvarEdicaoSirene && onCancelarEdicao ? (
             <SireneChamadoEdicaoSireneForm
               draft={editSireneDraft}
               setDraft={setEditSireneDraft}
-              timesSireneEditOpcoes={timesSireneEditOpcoes}
-              salvando={salvandoSirene}
+              timesSireneEditOpcoes={timesSireneEditOpcoes ?? []}
+              salvando={salvandoSirene ?? false}
               onSalvar={onSalvarEdicaoSirene}
               onCancelar={onCancelarEdicao}
             />
@@ -496,16 +495,6 @@ export function SireneChamadoDetalheModal({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {podeEditar && onEdit ? (
-                  <button
-                    type="button"
-                    onClick={onEdit}
-                    className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] px-2 py-1 text-xs hover:bg-[var(--moni-surface-50)]"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Editar
-                  </button>
-                ) : null}
                 {podeArquivar && ehCriador && !row.sirene_arquivado && onArquivar ? (
                   <button
                     type="button"
