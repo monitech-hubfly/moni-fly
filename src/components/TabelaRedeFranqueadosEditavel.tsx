@@ -16,6 +16,11 @@ import {
 import { RedeFranqueadoSensitiveBlur } from '@/components/RedeFranqueadoSensitiveBlur';
 import { atualizarRedeFranqueado, excluirRedeFranqueado } from '@/app/rede-franqueados/actions';
 import { UFS_BRASIL } from '@/lib/uf';
+import {
+  parseAreaAtuacao,
+  serializeAreaAtuacao,
+  type AreaAtuacaoPar,
+} from '@/lib/rede-area-atuacao';
 import { RedeFranqueadoCellValue } from '@/components/RedeFranqueadoCellValue';
 import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 import { redeAlertError, redeAlertSuccess, redeTh } from '@/app/rede-franqueados/rede-ui';
@@ -23,18 +28,12 @@ import { redeAlertError, redeAlertSuccess, redeTh } from '@/app/rede-franqueados
 type AreaAtuacaoItem = { estado: string; cidade: string };
 type CidadeIBGE = { id: number; nome: string };
 
-function parseAreaAtuacao(s: string | null | undefined): AreaAtuacaoItem[] {
-  if (!s || typeof s !== 'string') return [];
-  return s
-    .split(';')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const i = part.indexOf(' - ');
-      if (i < 0) return null;
-      return { estado: part.slice(0, i).trim(), cidade: part.slice(i + 3).trim() };
-    })
-    .filter((x): x is AreaAtuacaoItem => x !== null && Boolean(x.estado && x.cidade));
+function paresParaItens(pares: AreaAtuacaoPar[]): AreaAtuacaoItem[] {
+  return pares.map((p) => ({ estado: p.uf, cidade: p.cidade }));
+}
+
+function itensParaPares(itens: AreaAtuacaoItem[]): AreaAtuacaoPar[] {
+  return itens.map((i) => ({ uf: i.estado, cidade: i.cidade }));
 }
 
 function CidadeCombobox({
@@ -275,8 +274,13 @@ export function TabelaRedeFranqueadosEditavel({
       const raw = isDateKey(k) ? toInputDate(v) : v;
       d[k] = k === 'n_franquia' ? formatNFranquiaRedeExibicao(raw, r.ordem) : raw;
     }
+    const itens = paresParaItens(parseAreaAtuacao(d.area_atuacao));
+    // Normaliza legado em prosa para o formato canônico ao abrir a edição.
+    if (itens.length > 0) {
+      d.area_atuacao = serializeAreaAtuacao(itensParaPares(itens));
+    }
     setDraft(d);
-    setAreaAtuacaoItens(parseAreaAtuacao(d.area_atuacao));
+    setAreaAtuacaoItens(itens);
     setEstadoAtuacao('');
     setCidadeAtuacao('');
   };
@@ -413,7 +417,7 @@ export function TabelaRedeFranqueadosEditavel({
                                         setAreaAtuacaoItens(next);
                                         setDraft((d) => ({
                                           ...d,
-                                          area_atuacao: next.map((i) => `${i.estado} - ${i.cidade}`).join('; '),
+                                          area_atuacao: serializeAreaAtuacao(itensParaPares(next)),
                                         }));
                                       }}
                                       className="rounded p-0.5 text-stone-500 hover:bg-stone-200 hover:text-stone-700"
@@ -460,7 +464,7 @@ export function TabelaRedeFranqueadosEditavel({
                                   setAreaAtuacaoItens(next);
                                   setDraft((d) => ({
                                     ...d,
-                                    area_atuacao: next.map((i) => `${i.estado} - ${i.cidade}`).join('; '),
+                                    area_atuacao: serializeAreaAtuacao(itensParaPares(next)),
                                   }));
                                   setEstadoAtuacao('');
                                   setCidadeAtuacao('');

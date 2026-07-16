@@ -1,4 +1,5 @@
 import type { RedeFranqueadoDbKey } from '@/lib/rede-franqueados';
+import { formatAreaAtuacaoLinhas } from '@/lib/rede-area-atuacao';
 import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
 
 const DATE_KEYS = new Set<RedeFranqueadoDbKey>([
@@ -79,6 +80,21 @@ export function RedeFranqueadoCellValue({ field, text, titleText }: Props) {
       >
         {display}
       </span>
+    );
+  }
+  if (field === 'area_atuacao') {
+    const linhas = formatAreaAtuacaoLinhas(text);
+    const tip = (titleText ?? text).trim() || undefined;
+    if (!linhas) return <span className="text-[var(--moni-text-tertiary)]">—</span>;
+    return (
+      <div className="min-w-0 max-w-[min(16rem,100%)]">
+        <span
+          className="block whitespace-pre-line break-words text-xs leading-snug text-[var(--moni-text-secondary)]"
+          title={tip}
+        >
+          {linhas}
+        </span>
+      </div>
     );
   }
   return <RedeFranqueadoCellClamp text={text} titleText={titleText} />;
