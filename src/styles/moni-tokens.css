@@ -1337,7 +1337,7 @@
   border: var(--moni-border-width) solid var(--moni-border-default);
   border-radius: var(--moni-radius-sm, 5px);
   line-height: 1.2;
-  cursor: pointer;
+  cursor: text;
   box-sizing: border-box;
 }
 
@@ -1366,7 +1366,6 @@
 
 .moni-calculadora-fase-data-input--saving {
   opacity: 0.6;
-  pointer-events: none;
 }
 
 .moni-calculadora-fase-data-input--erro {
