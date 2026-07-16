@@ -679,7 +679,6 @@ export function KanbanCardModal({
   const [enviandoHipotesePortfolio, setEnviandoHipotesePortfolio] = useState(false);
   const [dataReuniao, setDataReuniao] = useState('');
   const [horaReuniao, setHoraReuniao] = useState('');
-  const [dataFollowup, setDataFollowup] = useState('');
   const [interacoes, setInteracoes] = useState<InteracaoModal[]>([]);
   const [erroCarregarChamados, setErroCarregarChamados] = useState<string | null>(null);
   const [modalSessao, setModalSessao] = useState<{
@@ -904,7 +903,6 @@ export function KanbanCardModal({
     setEmailMensagem('');
     setDataReuniao('');
     setHoraReuniao('');
-    setDataFollowup('');
     setDetalhesCarregando(true);
     setChamadosCarregando(true);
   }, [cardId]);
@@ -1514,7 +1512,6 @@ export function KanbanCardModal({
         setHoraReuniao(
           loaded.hora_reuniao ? String(loaded.hora_reuniao).trim().slice(0, 5) : '',
         );
-        setDataFollowup(loaded.data_followup ? String(loaded.data_followup).slice(0, 10) : '');
       }
       if (!silencioso) setLoading(false);
 
@@ -6274,9 +6271,7 @@ export function KanbanCardModal({
               origem={origem}
               basePath={basePath}
               dataReuniao={dataReuniao}
-              dataFollowup={dataFollowup}
               onDataReuniaoChange={setDataReuniao}
-              onDataFollowupChange={setDataFollowup}
               onAtaSalva={() => setAtasReuniaoTick((t) => t + 1)}
             />
 
