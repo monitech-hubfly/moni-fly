@@ -1341,13 +1341,9 @@
   box-sizing: border-box;
 }
 
-.moni-calculadora-fase-data-input::-webkit-calendar-picker-indicator {
-  width: 10px;
-  height: 10px;
-  margin: 0;
-  padding: 0;
-  opacity: 0.45;
-  cursor: pointer;
+.moni-calculadora-fase-data-input::placeholder {
+  color: var(--moni-text-tertiary);
+  opacity: 0.7;
 }
 
 .moni-calculadora-fase-data-input:hover {
