@@ -4623,7 +4623,7 @@ export function KanbanCardModal({
           accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,image/*"
           disabled={uploading}
         />
-        <div className="mt-0.5 flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="mt-0.5 space-y-1.5">
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {path?.trim() ? (
               <>
@@ -4651,11 +4651,11 @@ export function KanbanCardModal({
               </span>
             )}
           </div>
-          <div className="min-w-0 flex-1">
+          <div>
             {linkEdit ? (
               <label className="block">
                 <span
-                  className="text-[10px] font-medium"
+                  className="text-[11px] font-medium"
                   style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
                 >
                   Link (opcional)
@@ -4674,7 +4674,6 @@ export function KanbanCardModal({
                     background: 'var(--moni-surface-0)',
                     color: 'var(--moni-text-primary)',
                     fontFamily: 'var(--moni-font-sans)',
-                    minHeight: 44,
                   }}
                 />
               </label>
