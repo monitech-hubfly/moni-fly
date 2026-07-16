@@ -2,6 +2,7 @@
 
 import type { ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   X,
@@ -4059,11 +4060,13 @@ export function KanbanCardModal({
   }
 
   if (loading && !card) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    const loadingOverlay = (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
         <div className="text-white">Carregando…</div>
       </div>
     );
+    if (typeof document === 'undefined') return loadingOverlay;
+    return createPortal(loadingOverlay, document.body);
   }
 
   if (!card) return null;
@@ -4616,10 +4619,10 @@ export function KanbanCardModal({
     onClose();
   }
 
-  return (
+  const modalTree = (
     <>
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
       onClick={handleBackdropClick}
       role="presentation"
     >
@@ -8127,4 +8130,7 @@ export function KanbanCardModal({
     )}
     </>
   );
+
+  if (typeof document === 'undefined') return modalTree;
+  return createPortal(modalTree, document.body);
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { X, ChevronDown, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -538,9 +539,9 @@ export function PainelProcessoCardModal({
   }
 
   if (loading || !processo) {
-    return (
+    const loadingOverlay = (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
         onClick={onClose}
       >
         <div
@@ -552,14 +553,16 @@ export function PainelProcessoCardModal({
         </div>
       </div>
     );
+    if (typeof document === 'undefined') return loadingOverlay;
+    return createPortal(loadingOverlay, document.body);
   }
 
   const legacyEtapa: PainelColumnKey = etapaAtualKey ?? defaultLegacyEtapa(board);
 
-  return (
+  const modalTree = (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
         onClick={onClose}
       >
         <div
@@ -1090,4 +1093,7 @@ export function PainelProcessoCardModal({
       ) : null}
     </>
   );
+
+  if (typeof document === 'undefined') return modalTree;
+  return createPortal(modalTree, document.body);
 }

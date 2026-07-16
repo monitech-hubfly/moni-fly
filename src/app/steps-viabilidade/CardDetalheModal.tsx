@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { X, FileText, Copy, Check, History, Pencil } from 'lucide-react';
 import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';
@@ -1934,8 +1935,8 @@ export function CardDetalheModal({
     setNovoChecklistResponsaveis((prev) => prev.filter((r) => checklistResponsaveisParaNovo.includes(r)));
   }, [checklistResponsaveisParaNovo, novoChecklistTimes]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+  const modalTree = (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
         className="flex h-[88vh] w-[min(96vw,1200px)] max-w-[1200px] flex-col overflow-hidden rounded-xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
@@ -5706,4 +5707,7 @@ export function CardDetalheModal({
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return modalTree;
+  return createPortal(modalTree, document.body);
 }
