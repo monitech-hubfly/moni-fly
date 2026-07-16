@@ -1844,6 +1844,8 @@ export function InteracoesLista({
           }
           podeArquivar={podeArquivar}
           badgeTipo={badgeTipo(detalheRowEff.tipo)}
+          times={times}
+          responsaveis={responsaveis}
           novaAtivDraft={novaAtivDraft}
           setNovaAtivDraft={setNovaAtivDraft}
           onAdicionarAtividade={() => void handleAdicionarAtividadeModal(detalheRowEff)}
