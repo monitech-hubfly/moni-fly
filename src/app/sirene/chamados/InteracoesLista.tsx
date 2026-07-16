@@ -480,23 +480,19 @@ export function InteracoesLista({
   }, []);
 
   useEffect(() => {
+    // Grupo 1: estado derivado da lista — resetar quando interacoes muda
     setStatusPatch({});
     setRowPatch({});
     setEditingId(null);
     setEditDraft(null);
     setEditingSireneCid(null);
     setEditSireneDraft(null);
-    setTopicosPorAlvo({});
-    setTopicosLoading({});
-    setSalvandoTopico({});
-    setCommentsOpenByRow({});
-    setCommentsFetchedByCard({});
-    setCommentsByCardId({});
-    setNovoComentarioPorCard({});
     setCountPatch({});
     setModalArquivar(null);
     setMotivoArquivamento('');
     setMostrarArquivados(false);
+    // Grupo 2 (tópicos, comentários) NÃO reseta aqui — são dados buscados
+    // independentemente e persistem entre revalidações automáticas do servidor.
   }, [interacoes]);
 
   const painelTopicosPrefetch = useMemo(() => {
