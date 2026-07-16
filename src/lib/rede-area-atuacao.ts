@@ -33,13 +33,17 @@ function splitCidadesLista(raw: string): string[] {
 /** Hífen ASCII, en/em dash, non-breaking hyphen, minus sign. */
 const SEP_UF_CIDADE = String.raw`[\s]*[-–—‑−][\s]*`;
 
-/** Formato canônico: trechos "UF - Cidade" (hífen/en/em dash) separados por ";". */
+function splitAreaAtuacaoSegmentos(s: string): string[] {
+  return s
+    .split(/[;\r\n]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+/** Formato canônico: trechos "UF - Cidade" (hífen/en/em dash) separados por ";" ou quebras de linha. */
 function parseAreaAtuacaoCanonico(s: string): AreaAtuacaoPar[] {
   const re = new RegExp(`^([A-Za-z]{2})${SEP_UF_CIDADE}(.+)$`);
-  return s
-    .split(';')
-    .map((p) => p.trim())
-    .filter(Boolean)
+  return splitAreaAtuacaoSegmentos(s)
     .map((p) => {
       const m = p.match(re);
       if (!m) return null;
@@ -113,7 +117,7 @@ export function serializeAreaAtuacao(areas: AreaAtuacaoPar[]): string {
 /**
  * Linhas para exibição em UI: uma entrada por par `UF - Cidade`.
  * Preferir renderizar com `<div>`/`<br>` — não depender só de `\n` + CSS.
- * Se o parse canônico falhar mas houver `;`, quebra por `;` (sem exibir o separador).
+ * Se o parse canônico falhar mas houver `;` ou quebra de linha, quebra em linhas (sem exibir o separador).
  */
 export function areaAtuacaoParaLinhasExibicao(s: string | null | undefined): string[] {
   const areas = parseAreaAtuacao(s);
@@ -122,11 +126,8 @@ export function areaAtuacaoParaLinhasExibicao(s: string | null | undefined): str
   }
   const trimmed = (s ?? '').trim();
   if (!trimmed) return [];
-  if (trimmed.includes(';')) {
-    return trimmed
-      .split(';')
-      .map((p) => p.trim())
-      .filter(Boolean);
+  if (/[;\r\n]/.test(trimmed)) {
+    return splitAreaAtuacaoSegmentos(trimmed);
   }
   return [trimmed];
 }

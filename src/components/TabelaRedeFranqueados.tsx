@@ -3,8 +3,8 @@
 import { useState, useMemo } from 'react';
 import type { RedeFranqueadosData } from '@/lib/rede-franqueados';
 import { COLUNAS_REDE_FRANQUEADOS } from '@/lib/rede-franqueados';
+import { RedeFranqueadoAreaAtuacaoCell } from '@/components/RedeFranqueadoAreaAtuacaoCell';
 import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
-import { areaAtuacaoParaLinhasExibicao } from '@/lib/rede-area-atuacao';
 
 const PER_PAGE = 15;
 const AREA_ATUACAO_HEADER = 'Área de Atuação da Franquia';
@@ -14,25 +14,6 @@ type Props = {
   data: RedeFranqueadosData;
   compact?: boolean;
 };
-
-function AreaAtuacaoCell({ text }: { text: string }) {
-  const linhas = areaAtuacaoParaLinhasExibicao(text);
-  if (linhas.length === 0) {
-    return <span className="text-[var(--moni-text-tertiary)]">—</span>;
-  }
-  return (
-    <div
-      className="min-w-0 max-w-[min(16rem,100%)] text-xs leading-snug text-[var(--moni-text-secondary)]"
-      title={text.trim() || undefined}
-    >
-      {linhas.map((linha, i) => (
-        <div key={`${i}-${linha}`} className="break-words">
-          {linha}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export function TabelaRedeFranqueados({ data, compact }: Props) {
   const [page, setPage] = useState(1);
@@ -104,7 +85,7 @@ export function TabelaRedeFranqueados({ data, compact }: Props) {
                       className={`min-w-0 max-w-[14rem] overflow-hidden align-top text-stone-700 ${compact ? 'px-2 py-1' : 'px-3 py-2'}`}
                     >
                       {isArea ? (
-                        <AreaAtuacaoCell text={cellText} />
+                        <RedeFranqueadoAreaAtuacaoCell text={cellText} />
                       ) : (
                         <RedeFranqueadoCellClamp text={cellText} />
                       )}
