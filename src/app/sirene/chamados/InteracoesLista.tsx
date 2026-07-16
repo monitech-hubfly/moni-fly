@@ -1037,7 +1037,7 @@ export function InteracoesLista({
       setStatusPatch((prev) => ({ ...prev, [row.id]: 'em_andamento' }));
     }
     router.refresh();
-    void carregarTopicosSeNecessario(row, true);
+    await carregarTopicosSeNecessario(row, true);
   }
 
   async function confirmarClassificacao(classificacao: 'pontual' | 'recorrente') {
@@ -1050,7 +1050,7 @@ export function InteracoesLista({
       return;
     }
     router.refresh();
-    void carregarTopicosSeNecessario(row, true);
+    await carregarTopicosSeNecessario(row, true);
   }
 
   function toggleComentarios(row: InteracaoSireneRow) {
