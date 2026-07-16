@@ -9,6 +9,9 @@ import {
 import type { CalculadoraFaseLinha } from '@/lib/kanban/calculadora-fases';
 import { ESTEIRA_COLUNAS } from '@/lib/kanban/pipeline-esteira-datas';
 import { ESTEIRA_TRES_ETAPAS } from '@/lib/kanban/pipeline-esteira-tres-etapas';
+import {
+  isTipoNegociacao100CompraVenda,
+} from '@/lib/kanban/tipo-negociacao-terreno';
 
 export type NegocioPrazoModo = 'fase' | 'data';
 
@@ -35,6 +38,25 @@ export const NEGOCIO_PRAZO_DRAFT_VAZIO: NegocioPrazoDraft = {
   faseId: '',
   data: '',
 };
+
+export const NEGOCIO_PRAZO_VALORES_VAZIO: NegocioPrazoValores = {
+  dias: null,
+  slaTipo: null,
+  modo: null,
+  faseId: null,
+  data: null,
+};
+
+/** Drafts limpos das duas seções de prazo (UI + save → null no banco). */
+export function negocioPrazosDraftVazios(): {
+  prazo_opcao: NegocioPrazoDraft;
+  prazo_instrumento_garantidor: NegocioPrazoDraft;
+} {
+  return {
+    prazo_opcao: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
+    prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
+  };
+}
 
 export type FaseNegocioPrazoOpcao = {
   id: string;
@@ -333,6 +355,7 @@ export function resolverDataPrazoNegocioYmd(
 }
 
 export function negocioPrazoValoresFromProcessoModal(proc: {
+  tipo_aquisicao_terreno?: string | null;
   prazo_opcao_dias?: number | null;
   prazo_opcao_sla_tipo?: SlaTipo | null;
   prazo_opcao_modo?: NegocioPrazoModo | null;
@@ -349,6 +372,12 @@ export function negocioPrazoValoresFromProcessoModal(proc: {
   prazo_opcao: NegocioPrazoValores;
   prazo_instrumento_garantidor: NegocioPrazoValores;
 } {
+  if (isTipoNegociacao100CompraVenda(proc?.tipo_aquisicao_terreno)) {
+    return {
+      prazo_opcao: { ...NEGOCIO_PRAZO_VALORES_VAZIO },
+      prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_VALORES_VAZIO },
+    };
+  }
   return {
     prazo_opcao: prazoOpcaoProcessoVazio(proc)
       ? negocioPrazoOpcaoValoresPadrao(opcoes)
