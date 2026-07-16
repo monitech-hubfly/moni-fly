@@ -470,6 +470,10 @@ async function assertEditableFromSirene(
   viaSirene?: boolean,
 ): Promise<ActionErr | null> {
   if (!viaSirene) return null;
+  const { isPastelariaSyntheticId } = await import('@/lib/pastelaria/synthetic-id');
+  if (isPastelariaSyntheticId(interacaoId)) {
+    return { ok: false, error: 'Cards da Pastelaria não aceitam atividades neste painel.' };
+  }
   const { data } = await supabase
     .from('kanban_atividades')
     .select('origem, card_id')
@@ -1155,6 +1159,11 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login para criar uma atividade.' };
+
+  const { isPastelariaSyntheticId } = await import('@/lib/pastelaria/synthetic-id');
+  if (isPastelariaSyntheticId(input.interacao_id)) {
+    return { ok: false, error: 'Cards da Pastelaria não aceitam atividades neste painel.' };
+  }
 
   const bloqueio = await assertEditableFromSirene(supabase, input.interacao_id, input.viaSirene);
   if (bloqueio) return bloqueio;
@@ -4915,9 +4924,17 @@ export async function solicitarAprovacaoFase(input: {
   const pendentesStr = n === 1 ? '1 item de checklist pendente' : `${n} itens de checklist pendentes`;
   const mensagem = `${nomeSolicitante} quer mover o card "${input.card_titulo}" para a próxima fase, mas há ${pendentesStr}.`;
 
+  let adminNotif: ReturnType<typeof createAdminClient> | null = null;
+  try {
+    adminNotif = createAdminClient();
+  } catch (e) {
+    console.error('[solicitarAprovacaoFase] admin:', e);
+  }
+
   for (const b of bombeiros ?? []) {
     const uid = String((b as { user_id: string }).user_id);
-    await supabase.from('sirene_notificacoes').insert({
+    if (!adminNotif) continue;
+    const { error: nErr } = await adminNotif.from('sirene_notificacoes').insert({
       user_id: uid,
       chamado_id: null,
       tipo: 'aprovacao_fase',
@@ -4925,6 +4942,7 @@ export async function solicitarAprovacaoFase(input: {
       titulo,
       mensagem,
     } as never);
+    if (nErr) console.error('[solicitarAprovacaoFase] notificação:', nErr.message);
   }
 
   revalidatePath(input.basePath?.trim() || '/');

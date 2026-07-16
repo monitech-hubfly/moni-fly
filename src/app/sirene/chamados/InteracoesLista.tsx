@@ -475,7 +475,12 @@ export function InteracoesLista({
   }, [interacoes]);
 
   const painelTopicosPrefetch = useMemo(() => {
-    return { iids: interacoes.map((r) => r.id) };
+    // Exclui IDs sintéticos pastelaria-* (não são UUID de kanban_atividades).
+    return {
+      iids: interacoes
+        .filter((r) => r.origem !== 'pastelaria')
+        .map((r) => r.id),
+    };
   }, [interacoes]);
 
   useEffect(() => {
@@ -775,6 +780,10 @@ export function InteracoesLista({
   async function carregarTopicosSeNecessario(row: InteracaoSireneRow, force = false) {
     const key = topicosAlvoKey(row);
     if (!force && topicosPorAlvo[key] != null && !topicosLoading[key]) return;
+    if (row.origem === 'pastelaria' && row.sirene_chamado_id == null) {
+      setTopicosPorAlvo((m) => ({ ...m, [key]: [] }));
+      return;
+    }
     setTopicosLoading((l) => ({ ...l, [key]: true }));
     const res =
       row.sirene_chamado_id != null

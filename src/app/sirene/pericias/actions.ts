@@ -917,7 +917,9 @@ async function notificarCanetaVerde(
       lida: false,
     }))
 
-    const { error: notifError } = await supabase
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const { error: notifError } = await admin
       .from('sirene_notificacoes')
       .insert(notificacoes)
 

@@ -13,6 +13,12 @@ import { concluirChamadoCriador } from '@/app/sirene/actions';
 import { todosTopicosFechados } from '@/lib/sirene/chamado-regras';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import {
+  isPastelariaSyntheticId,
+  stripPastelariaSyntheticId,
+} from '@/lib/pastelaria/synthetic-id';
+import { semanaAtualLabel } from '@/lib/pastelaria/week';
+import type { PastelariaColuna } from '@/lib/pastelaria/types';
 
 export type AtualizarStatusInteracaoResult = { ok: true } | { ok: false; error: string };
 
@@ -113,6 +119,29 @@ export async function atualizarStatusInteracaoSirene(
   if (!user) return { ok: false, error: 'Faça login.' };
 
   const admin = createAdminClient();
+
+  // Card Pastelaria injetado na lista com id sintético `pastelaria-{uuid}`.
+  const pastelUuid = stripPastelariaSyntheticId(atividadeId);
+  if (pastelUuid) {
+    if (status === 'em_andamento') {
+      return { ok: false, error: 'O status em andamento é definido automaticamente pelas atividades.' };
+    }
+    const coluna: PastelariaColuna = status === 'concluida' ? 'done' : 'mapped';
+    const patch: { coluna: PastelariaColuna; completed_week?: string | null; updated_at: string } = {
+      coluna,
+      updated_at: new Date().toISOString(),
+    };
+    if (coluna === 'done') patch.completed_week = semanaAtualLabel();
+    else patch.completed_week = null;
+
+    const { error } = await admin.from('pastelaria_cards').update(patch).eq('id', pastelUuid);
+    if (error) return { ok: false, error: error.message };
+    revalidatePath('/sirene/chamados');
+    revalidatePath('/carometro/pastelaria');
+    revalidatePath('/');
+    return { ok: true };
+  }
+
   const { data: row, error: fetchErr } = await admin
     .from('kanban_atividades')
     .select('id, origem, card_id, responsavel_id, responsaveis_ids, criado_por, sirene_chamado_id')
@@ -228,6 +257,10 @@ export async function atualizarInteracaoCompletaSirene(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
+
+  if (isPastelariaSyntheticId(atividadeId)) {
+    return { ok: false, error: 'Edite este card na Pastelaria.' };
+  }
 
   const titulo = String(dados.titulo ?? '').trim();
   if (!titulo) return { ok: false, error: 'Informe o título.' };
