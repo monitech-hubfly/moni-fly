@@ -904,6 +904,48 @@ function overrideTemFimManual(ov: CalculadoraFaseDataManualOverride | undefined)
   return Boolean(ov && 'dataFim' in ov && ov.dataFim != null && String(ov.dataFim).trim());
 }
 
+/**
+ * Fim manual em fase aberta (sem real) = estimativa digitada.
+ * Em concluída / com real: fim digitado é autoritativo (dataFimReal), para não ser
+ * empurrado +1 dia por inferirFimRealPorProximaFase (fim ← início da próxima).
+ */
+function aplicarFimManualOverrideDatas(
+  fimManual: string | null,
+  dataInicioReal: string | null,
+  dataFimReal: string | null,
+  dataFimEstimada: string | null,
+  opts: {
+    faseAbertaSemReal: boolean;
+    slaDias: number | null;
+    slaTipo: SlaTipo;
+  },
+): {
+  dataInicioReal: string | null;
+  dataFimReal: string | null;
+  dataFimEstimada: string | null;
+} {
+  if (!fimManual) {
+    return { dataInicioReal, dataFimReal, dataFimEstimada };
+  }
+  if (opts.faseAbertaSemReal) {
+    let inicio = dataInicioReal;
+    if (inicio && inicio > fimManual) inicio = fimManual;
+    return {
+      dataInicioReal: inicio,
+      dataFimReal,
+      dataFimEstimada: fimManual,
+    };
+  }
+  return {
+    dataInicioReal,
+    dataFimReal: fimManual,
+    dataFimEstimada:
+      dataInicioReal && opts.slaDias != null && opts.slaDias > 0
+        ? fimEstimadaPorSla(dataInicioReal, opts.slaDias, opts.slaTipo)
+        : dataFimEstimada,
+  };
+}
+
 /** Recalcula início/estimativa (e fim real de concluídas) a partir de uma fase âncora. */
 export function propagarLinhasCalculadoraForward(
   linhas: CalculadoraFaseLinha[],
@@ -938,18 +980,23 @@ export function propagarLinhasCalculadoraForward(
     let dataFimEstimada: string | null = null;
     if (overrideTemFimManual(ov)) {
       const fimManual = toYmd(ov!.dataFim);
-      // Sem fim real (visita/inferência): override = estimativa digitada (não início+SLA).
-      if (!dataFimReal) {
-        dataFimEstimada = fimManual;
-        if (fimManual && dataInicioReal && dataInicioReal > fimManual) {
-          dataInicioReal = fimManual;
-        }
-      } else {
-        dataFimReal = fimManual;
-        dataFimEstimada = dataInicioReal
-          ? fimEstimadaPorSla(dataInicioReal, row.slaDias, row.slaTipo)
-          : null;
-      }
+      const faseAbertaSemReal =
+        !dataFimReal &&
+        !concluidaPorOrdem &&
+        !concluidaManual &&
+        (row.status === 'atual' ||
+          row.status === 'atual_atrasada' ||
+          row.status === 'futura');
+      const aplicado = aplicarFimManualOverrideDatas(
+        fimManual,
+        dataInicioReal,
+        dataFimReal,
+        row.dataFimEstimada,
+        { faseAbertaSemReal, slaDias: row.slaDias, slaTipo: row.slaTipo },
+      );
+      dataInicioReal = aplicado.dataInicioReal;
+      dataFimReal = aplicado.dataFimReal;
+      dataFimEstimada = aplicado.dataFimEstimada;
     } else {
       dataFimEstimada = dataInicioReal
         ? fimEstimadaPorSla(dataInicioReal, row.slaDias, row.slaTipo)
@@ -993,7 +1040,7 @@ export function propagarLinhasCalculadoraForward(
     fimFaseAnteriorEstimado = dataFimEstimada;
   }
 
-  return inferirFimRealPorProximaFase(out, desdeIdx);
+  return inferirFimRealPorProximaFase(out, desdeIdx, overrides);
 }
 
 /**
@@ -1019,20 +1066,24 @@ function aplicarOverrideManualEmLinhaCalculadora(
 
   if (temFimManual) {
     const fimManual = toYmd(ov.dataFim);
-    // Sem fim real registrado: a data digitada é a estimativa (respeitar «est.» do M0/fases).
-    // Antes, status «concluida» (só por ordem) forçava fim real + recalculava est. via SLA
-    // (ex.: 10/06 virava 08/07 ou 10/07 = início + SLA).
-    if (!dataFimReal) {
-      dataFimEstimada = fimManual;
-      if (fimManual && dataInicioReal && dataInicioReal > fimManual) {
-        dataInicioReal = fimManual;
-      }
-    } else if (fimManual) {
-      dataFimReal = fimManual;
-      if (dataInicioReal && linha.slaDias != null && linha.slaDias > 0) {
-        dataFimEstimada = fimEstimadaPorSla(dataInicioReal, linha.slaDias, linha.slaTipo);
-      }
-    }
+    // Fase aberta sem real: digitado = estimativa (não início+SLA).
+    // Concluída / com real: digitado = dataFimReal — senão inferirFimRealPorProximaFase
+    // copia o início da próxima (fim+1) e a UI mostra +1 dia (ex.: 10/06 → 11/06).
+    const faseAbertaSemReal =
+      !dataFimReal &&
+      (linha.status === 'atual' ||
+        linha.status === 'atual_atrasada' ||
+        linha.status === 'futura');
+    const aplicado = aplicarFimManualOverrideDatas(
+      fimManual,
+      dataInicioReal,
+      dataFimReal,
+      dataFimEstimada,
+      { faseAbertaSemReal, slaDias: linha.slaDias, slaTipo: linha.slaTipo },
+    );
+    dataInicioReal = aplicado.dataInicioReal;
+    dataFimReal = aplicado.dataFimReal;
+    dataFimEstimada = aplicado.dataFimEstimada;
   } else {
     // Sem override manual de fim: em fase aberta zera fim real e recalcula estimativa.
     if (
@@ -1140,10 +1191,10 @@ export function aplicarDatasManuaisCalculadoraLinhas(
 type EncadeamentoMarcoContratoInput = { contrato_assinado_em?: string | null };
 
 /**
- * Fim real do marco M0 (Contrato): saída da fase no histórico, fim real já na linha
- * (inferido/manual aplicado) ou início da fase seguinte.
- * Não usa override de `dataFim` como real — esse valor é estimativa manual na edição de
- * datas (campo «est.»); overrides entram via `aplicarDatasManuaisCalculadoraLinhas`.
+ * Fim real do marco M0 (Contrato): saída da fase no histórico, override manual de fim,
+ * fim real já na linha, ou início da fase seguinte (inferência).
+ * Override manual tem precedência sobre a inferência pela próxima fase — senão
+ * fim digitado (ex. 10/06) vira início da próxima (11/06 = fim+1).
  * Não usa contrato_assinado_em — assinatura ≠ saída da fase.
  */
 export function resolverFimRealMarcoContrato(
@@ -1151,11 +1202,17 @@ export function resolverFimRealMarcoContrato(
   idxContrato: number,
   linhas: CalculadoraFaseLinha[],
   visits: FaseVisit[] | undefined,
-  _overrides?: Map<string, CalculadoraFaseDataManualOverride>,
+  overrides?: Map<string, CalculadoraFaseDataManualOverride>,
 ): string | null {
   if (visits?.length) {
     const visitSaiu = toYmd(lastVisitPerFase(visits).get(linhaContrato.faseId)?.saiu);
     if (visitSaiu) return visitSaiu;
+  }
+
+  const ov = overrides?.get(linhaContrato.faseId);
+  if (overrideTemFimManual(ov)) {
+    const fimManual = toYmd(ov!.dataFim);
+    if (fimManual) return fimManual;
   }
 
   if (linhaContrato.dataFimReal) return linhaContrato.dataFimReal;
@@ -1248,8 +1305,9 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
   );
 
   /**
-   * Fim estimado do M0: override manual tem precedência sobre início+SLA.
-   * Sem isso, digitar 10/06 era apagado por inicio+28d → 08/07 no recálculo.
+   * Fim estimado do M0: com real (visita/manual/inferido) mantém SLA para atraso;
+   * sem real, override manual tem precedência sobre início+SLA (evita 10/06 → 08/07).
+   * `realFim` já incorpora override via resolverFimRealMarcoContrato.
    */
   let fimEstimado: string | null;
   if (realFim) {
@@ -1257,6 +1315,9 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
       inicioContratoReconciliado && rowContrato.slaDias != null && rowContrato.slaDias > 0
         ? fimEstimadaPorSla(inicioContratoReconciliado, rowContrato.slaDias, rowContrato.slaTipo)
         : rowContrato.dataFimEstimada;
+    if (fimManualOverride && inicioContratoReconciliado && inicioContratoReconciliado > fimManualOverride) {
+      inicioContratoReconciliado = fimManualOverride;
+    }
   } else if (fimManualOverride) {
     fimEstimado = fimManualOverride;
     if (inicioContratoReconciliado && inicioContratoReconciliado > fimManualOverride) {
@@ -1331,10 +1392,12 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
 /**
  * Preenche fim real a partir da entrada na fase seguinte (quando o histórico não registrou saída).
  * `desdeIdx` evita repor datas em fases que a âncora acabou de ocultar.
+ * Não sobrescreve fase com override manual de fim (senão fim digitado vira início da próxima).
  */
 export function inferirFimRealPorProximaFase(
   linhas: CalculadoraFaseLinha[],
   desdeIdx = 0,
+  overrides?: Map<string, CalculadoraFaseDataManualOverride>,
 ): CalculadoraFaseLinha[] {
   if (linhas.length === 0) return linhas;
 
@@ -1344,6 +1407,7 @@ export function inferirFimRealPorProximaFase(
   for (let i = start; i < out.length - 1; i++) {
     const row = out[i]!;
     if (row.dataFimReal) continue;
+    if (overrideTemFimManual(overrides?.get(row.faseId))) continue;
     const concluida = row.status === 'concluida' || row.status === 'concluida_atraso';
     if (!concluida) continue;
     const proximoInicio = out[i + 1]!.dataInicioReal;
