@@ -4596,114 +4596,69 @@ export function KanbanCardModal({
     const inputId = `negocio-anexo-${field}`;
     const uploading = uploadingNegocioAnexo === field;
     const canAnexar = modalSessao.ehAdminOuTeam;
+    // Mesma densidade de renderNegocioLinkCampo (BCA/Gbox): py-1 + text-xs, sem min-h 44.
     const anexoBtnClass =
-      'inline-flex min-h-[44px] cursor-pointer items-center rounded border bg-white px-2 py-1 text-[11px] font-medium transition has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 sm:min-h-0';
-    const anexoBtnStyle = {
-      borderWidth: 'var(--moni-border-width)',
-      borderColor: 'var(--moni-border-default)',
-      borderRadius: 'var(--moni-radius-md)',
-      color: 'var(--moni-text-secondary)',
-      fontFamily: 'var(--moni-font-sans)',
-    } as const;
+      'inline-flex shrink-0 cursor-pointer items-center rounded border border-stone-200 bg-white px-2 py-1 text-[11px] font-medium text-stone-600 transition has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50';
     const linkHref = linkHrefFromText(linkEdit ? linkEdit.value : linkRaw);
     const linkDisplay = String((linkEdit ? linkEdit.value : linkRaw) ?? '').trim();
+    const anexoActions = path?.trim() ? (
+      <>
+        <button type="button" onClick={() => void handleBaixarNegocioAnexo(path)} className={anexoBtnClass}>
+          Baixar
+        </button>
+        {canAnexar ? (
+          <label htmlFor={inputId} className={anexoBtnClass}>
+            {uploading ? 'Enviando…' : 'Substituir'}
+          </label>
+        ) : null}
+      </>
+    ) : canAnexar ? (
+      <label htmlFor={inputId} className={anexoBtnClass}>
+        {uploading ? 'Enviando…' : 'Anexar'}
+      </label>
+    ) : null;
+
     return (
       <div>
-        <p
-          className="text-[11px] font-medium"
-          style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
-        >
-          {label}
-        </p>
-        <input
-          id={inputId}
-          type="file"
-          className="sr-only"
-          onChange={(e) => void handleNegocioAnexoFile(e, field)}
-          accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,image/*"
-          disabled={uploading}
-        />
-        <div className="mt-0.5 space-y-1.5">
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {path?.trim() ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void handleBaixarNegocioAnexo(path)}
-                  className="min-h-[44px] px-2 py-1 text-[11px] font-medium transition hover:opacity-90 sm:min-h-0"
-                  style={anexoBtnStyle}
-                >
-                  Baixar
-                </button>
-                {canAnexar ? (
-                  <label htmlFor={inputId} className={anexoBtnClass} style={anexoBtnStyle}>
-                    {uploading ? 'Enviando…' : 'Substituir'}
-                  </label>
-                ) : null}
-              </>
-            ) : canAnexar ? (
-              <label htmlFor={inputId} className={anexoBtnClass} style={anexoBtnStyle}>
-                {uploading ? 'Enviando…' : 'Anexar'}
-              </label>
-            ) : (
-              <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                —
-              </span>
-            )}
-          </div>
-          <div>
-            {linkEdit ? (
-              <label className="block">
-                <span
-                  className="text-[11px] font-medium"
-                  style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
-                >
-                  Link (opcional)
-                </span>
-                <input
-                  type="url"
-                  value={linkEdit.value}
-                  onChange={(e) => linkEdit.onChange(e.target.value)}
-                  placeholder="https://…"
-                  className="mt-0.5 w-full px-2 py-1 text-xs"
-                  style={{
-                    borderWidth: 'var(--moni-border-width)',
-                    borderStyle: 'solid',
-                    borderColor: 'var(--moni-border-default)',
-                    borderRadius: 'var(--moni-radius-md)',
-                    background: 'var(--moni-surface-0)',
-                    color: 'var(--moni-text-primary)',
-                    fontFamily: 'var(--moni-font-sans)',
-                  }}
-                />
-              </label>
-            ) : (
-              <div>
-                <div
-                  className="text-[10px] font-medium"
-                  style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
-                >
-                  Link
-                </div>
-                <div className="text-xs" style={{ fontFamily: 'var(--moni-font-sans)' }}>
-                  {linkHref ? (
-                    <a
-                      href={linkHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="break-all underline"
-                      style={{ color: 'var(--moni-navy-800)' }}
-                    >
-                      {linkDisplay}
-                    </a>
-                  ) : (
-                    <span style={{ color: 'var(--moni-text-tertiary)' }}>—</span>
-                  )}
-                </div>
-              </div>
-            )}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <p className="text-[11px] font-medium text-stone-500">{label}</p>
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            {anexoActions}
+            <input
+              id={inputId}
+              type="file"
+              className="sr-only"
+              onChange={(e) => void handleNegocioAnexoFile(e, field)}
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,image/*"
+              disabled={uploading}
+            />
           </div>
         </div>
+        {linkEdit ? (
+          <input
+            type="url"
+            value={linkEdit.value}
+            onChange={(e) => linkEdit.onChange(e.target.value)}
+            placeholder="https://…"
+            aria-label={`${label} — link (opcional)`}
+            className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+          />
+        ) : (
+          <div className="mt-0.5 text-xs">
+            {linkHref ? (
+              <a
+                href={linkHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all text-moni-primary underline"
+              >
+                {linkDisplay}
+              </a>
+            ) : (
+              <span className="text-stone-400">—</span>
+            )}
+          </div>
+        )}
       </div>
     );
   }
