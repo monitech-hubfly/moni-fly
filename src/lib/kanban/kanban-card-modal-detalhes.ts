@@ -698,18 +698,25 @@ export async function fetchKanbanCardModalDetalhes(
     return { rede, processo, redeIdContrato, empresas };
   }
 
-  let rede: RedeFranqueadoModalRow | null = null;
-  if (redeFranqueadoId) {
-    const { data } = await supabase.from('rede_franqueados').select(REDE_SELECT).eq('id', redeFranqueadoId).maybeSingle();
-    rede = mapRede((data as Record<string, unknown> | null) ?? null);
-  }
-  const processoRaw = await resolveProcessoNativo(
-    supabase,
-    cardTitulo,
-    cardProjetoId,
-    redeFranqueadoId,
-    cardProcessoStepOneId,
-  );
+  // Rede e processo são independentes no path nativo — paralelizar antes de empresas.
+  const [redeRow, processoRaw] = await Promise.all([
+    redeFranqueadoId
+      ? supabase
+          .from('rede_franqueados')
+          .select(REDE_SELECT)
+          .eq('id', redeFranqueadoId)
+          .maybeSingle()
+          .then((r) => mapRede((r.data as Record<string, unknown> | null) ?? null))
+      : Promise.resolve(null as RedeFranqueadoModalRow | null),
+    resolveProcessoNativo(
+      supabase,
+      cardTitulo,
+      cardProjetoId,
+      redeFranqueadoId,
+      cardProcessoStepOneId,
+    ),
+  ]);
+  const rede = redeRow;
   const processo = ocultarTipoNegociacaoHerdadoDoProcesso(processoRaw, {
     cardProcessoStepOneId,
     redeProcessoId: rede?.processo_id,

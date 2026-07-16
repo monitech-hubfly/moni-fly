@@ -463,14 +463,47 @@ function CalculadoraNegociacaoRow({ negociacao }: { negociacao: NegociacaoLinhaC
   );
 }
 
-function fmtDataInput(iso: string | null): string {
+/** ISO `YYYY-MM-DD` → draft local `dd/mm/aaaa` (só dígitos/barra enquanto digita). */
+function fmtDataDraftPtBr(iso: string | null): string {
   if (!iso) return '';
-  const head = String(iso).trim().slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : '';
+  return formatIsoDateOnlyPtBr(iso) ?? '';
 }
 
-function dataIsoInputCompleta(valor: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(valor.trim());
+/** Máscara leve: só dígitos, no máx. 8, com barras `dd/mm/aaaa`. */
+function mascararDataPtBr(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+/**
+ * Converte draft `dd/mm/aaaa` (ou ISO) para ISO calendário válido.
+ * `null` = vazio intencional; `undefined` = incompleto/inválido (não persistir).
+ */
+function parseDraftDataParaIso(raw: string): string | null | undefined {
+  const t = raw.trim();
+  if (!t) return null;
+  let y: number;
+  let mo: number;
+  let d: number;
+  const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    y = Number(iso[1]);
+    mo = Number(iso[2]);
+    d = Number(iso[3]);
+  } else {
+    const pt = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!pt) return undefined;
+    d = Number(pt[1]);
+    mo = Number(pt[2]);
+    y = Number(pt[3]);
+  }
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return undefined;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 1900 || y > 2100) return undefined;
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return undefined;
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 type FlushEdicaoDataRegistrar = (fn: () => Promise<void>) => () => void;
@@ -499,73 +532,75 @@ function CalculadoraFaseDataCell({
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [focused, setFocused] = useState(false);
-  const valorInput = fmtDataInput(valor);
-  const [draft, setDraft] = useState(valorInput);
-  const draftRef = useRef(valorInput);
+  const valorDraftProp = fmtDataDraftPtBr(valor);
+  const valorIsoProp = (() => {
+    const head = String(valor ?? '').trim().slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : null;
+  })();
+  const [draft, setDraft] = useState(valorDraftProp);
+  const draftRef = useRef(valorDraftProp);
   const inputRef = useRef<HTMLInputElement>(null);
-  const ultimoSalvoRef = useRef(valorInput);
+  const ultimoSalvoIsoRef = useRef<string | null>(valorIsoProp);
   const salvarFnRef = useRef<(next: string | null) => Promise<void>>(async () => {});
   const aplicarOverrideRef = useRef(onAplicarOverrideLocal);
-  const inputKeyFocusedRef = useRef(`${faseId}-${campo}-${draft || 'empty'}`);
   aplicarOverrideRef.current = onAplicarOverrideLocal;
-
-  // Key estável durante o foco (não remonta / não perde o caret). Fora do foco, sincroniza com o draft.
-  const inputKey = focused
-    ? inputKeyFocusedRef.current
-    : `${faseId}-${campo}-${draft || 'empty'}`;
 
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
 
-  // Sincroniza do prop só quando o campo não está em edição — evita resetar digitação parcial.
+  // Sincroniza do prop só fora do foco — digitação parcial nunca toca o parent.
   useEffect(() => {
     if (focused || salvando) return;
-    setDraft(valorInput);
-    ultimoSalvoRef.current = valorInput;
-  }, [valorInput, focused, salvando]);
+    setDraft(valorDraftProp);
+    draftRef.current = valorDraftProp;
+    ultimoSalvoIsoRef.current = valorIsoProp;
+  }, [valorDraftProp, valorIsoProp, focused, salvando]);
 
   const salvar = useCallback(
-    async (next: string | null) => {
+    async (nextIso: string | null) => {
       if (!onSalvarData) return;
-      const normalizado = next?.trim() || null;
-      const persistido = valorInput || null;
-      if (normalizado === persistido && normalizado === (ultimoSalvoRef.current || null)) return;
+      if (nextIso === ultimoSalvoIsoRef.current && nextIso === valorIsoProp) return;
       setErro(null);
       setSalvando(true);
       try {
-        const result = await onSalvarData(faseId, campo, normalizado);
+        const result = await onSalvarData(faseId, campo, nextIso);
         if (!result.ok) {
           setErro(result.error ?? 'Não foi possível salvar a data.');
-          setDraft(ultimoSalvoRef.current);
-          draftRef.current = ultimoSalvoRef.current;
+          const revert = fmtDataDraftPtBr(ultimoSalvoIsoRef.current);
+          setDraft(revert);
+          draftRef.current = revert;
         } else {
-          ultimoSalvoRef.current = normalizado ?? '';
+          ultimoSalvoIsoRef.current = nextIso;
+          const display = fmtDataDraftPtBr(nextIso);
+          setDraft(display);
+          draftRef.current = display;
         }
       } finally {
         setSalvando(false);
       }
     },
-    [onSalvarData, faseId, campo, valorInput],
+    [onSalvarData, faseId, campo, valorIsoProp],
   );
   salvarFnRef.current = salvar;
 
-  /** Commita valor digitado (parcial do browser só vira ISO completo no blur). */
+  /** Persistência só no fim da digitação (blur / Enter / sair do modo edição). */
   const commitValor = useCallback(
     async (brutoRaw: string) => {
-      const bruto = brutoRaw.trim();
-      if (bruto && !dataIsoInputCompleta(bruto)) {
-        setDraft(ultimoSalvoRef.current);
-        draftRef.current = ultimoSalvoRef.current;
+      const parsed = parseDraftDataParaIso(brutoRaw);
+      if (parsed === undefined) {
+        const revert = fmtDataDraftPtBr(ultimoSalvoIsoRef.current);
+        setDraft(revert);
+        draftRef.current = revert;
         return;
       }
-      const normalizado = bruto || null;
-      setDraft(normalizado ?? '');
-      draftRef.current = normalizado ?? '';
-      if (normalizado !== (ultimoSalvoRef.current || null)) {
-        aplicarOverrideRef.current?.(faseId, campo, normalizado);
+      const display = fmtDataDraftPtBr(parsed);
+      setDraft(display);
+      draftRef.current = display;
+      if (parsed !== ultimoSalvoIsoRef.current) {
+        aplicarOverrideRef.current?.(faseId, campo, parsed);
       }
-      await salvarFnRef.current(normalizado);
+      await salvarFnRef.current(parsed);
     },
     [faseId, campo],
   );
@@ -596,31 +631,32 @@ function CalculadoraFaseDataCell({
     );
   }
 
-  // Enquanto focado: input não controlado (defaultValue + key estável) para o browser
-  // manter a digitação parcial dos segmentos dia/mês/ano. Commit só no blur.
+  // Texto mascarado dd/mm/aaaa: Chromium type=date dispara blur entre segmentos e
+  // salvava/recalculava no meio da digitação. Aqui o parent só recebe valor no commit.
   return (
     <div className="moni-calculadora-fase-data-cell moni-calculadora-fase-data-cell--edit" onClick={stop} onKeyDown={stop}>
       <input
         ref={inputRef}
-        type="date"
-        key={inputKey}
+        type="text"
+        inputMode="numeric"
+        placeholder="dd/mm/aaaa"
+        autoComplete="off"
+        maxLength={10}
         className={`moni-calculadora-fase-data-input${atraso ? ' moni-calculadora-fase-data-input--atraso' : ''}${salvando ? ' moni-calculadora-fase-data-input--saving' : ''}${erro ? ' moni-calculadora-fase-data-input--erro' : ''}`}
-        defaultValue={draft}
+        value={draft}
         aria-label={`${campo === 'inicio' ? 'Início' : 'Fim'} — ${label}`}
         aria-invalid={erro ? true : undefined}
         onClick={stop}
-        onFocus={() => {
-          inputKeyFocusedRef.current = `${faseId}-${campo}-${draft || 'empty'}`;
-          setFocused(true);
-        }}
-        onChange={() => {
+        onFocus={() => setFocused(true)}
+        onChange={(e) => {
           setErro(null);
+          const next = mascararDataPtBr(e.target.value);
+          setDraft(next);
+          draftRef.current = next;
         }}
         onBlur={(e) => {
-          // Capturar antes de setFocused — trocar a key remonta o input.
-          const bruto = e.target.value;
           setFocused(false);
-          void commitValor(bruto);
+          void commitValor(e.target.value);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
