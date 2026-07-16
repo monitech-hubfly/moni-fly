@@ -373,7 +373,7 @@ function CalculadoraMarcoRow({
     marco.data;
   const inicioLabel = labelSufixoDataCalculadora(Boolean(marco.dataInicioReal));
   const fimLabel = isM4ComLimite
-    ? `${labelSufixoDataCalculadora(Boolean(marco.dataFimReal))} · lim. ${fmtData(limiteContrato)}`
+    ? `${labelSufixoDataCalculadora(Boolean(marco.dataFimReal))} · lim. ${fmtData(limiteContrato ?? null)}`
     : labelSufixoDataCalculadora(Boolean(marco.dataFimReal));
   const fimAtraso =
     marco.status === 'atual_atrasada' ||
