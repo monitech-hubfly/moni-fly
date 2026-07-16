@@ -4635,7 +4635,7 @@ export function KanbanCardModal({
     if (!proc) return null;
     return (
       <div className="space-y-2 border-t border-stone-100 pt-2">
-        {renderNegocioAnexoCampo('Opção de Permuta', 'opcao_permuta', proc.anexo_opcao_permuta_path)}
+        {renderNegocioAnexoCampo('Opção de Permuta ou CCV', 'opcao_permuta', proc.anexo_opcao_permuta_path)}
         {renderNegocioLinkCampo(
           'BCA',
           proc.link_bca,
