@@ -66,6 +66,7 @@ import {
   salvarProximaAtividade,
   salvarFranqueadoCardVinculado,
   salvarInstrucoesFase,
+  salvarAncoraCalculadoraKanban,
   obterInfoSyncGrupoCard,
   solicitarAprovacaoFase,
   uploadProcessoNegocioAnexo,
@@ -328,7 +329,7 @@ import {
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { DadosMoniCapitalPersistentPanel } from './DadosMoniCapitalPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -4014,6 +4015,65 @@ export function KanbanCardModal({
     return enriquecerLinhasCalculadoraComCusto(comResponsavel, calculadoraSlugPorFaseId);
   }, [calculadoraLinhasEncadeadas, calculadoraSlugPorFaseId, responsavelDaFaseSalvoPorFase]);
 
+  const ancoraCondominioAtiva =
+    String(calculadoraAncora?.faseSlug ?? '').trim() === CALCULADORA_ANCORA_CONDOMINIO_SLUG;
+
+  const definirAncoraCondominioCalculadora = useCallback(
+    async (ativar: boolean): Promise<{ ok: boolean; error?: string }> => {
+      const cardId = card?.id?.trim();
+      if (!cardId) return { ok: false, error: 'Card não encontrado.' };
+
+      let faseSlug: string | null = null;
+      let dataFim: string | null = null;
+      if (ativar) {
+        const ancora = resolverAncoraAprovacaoCondominio(calculadoraLinhasEnriquecidas);
+        if (!ancora) {
+          return {
+            ok: false,
+            error: 'Fase "Aprovação no Condomínio" não encontrada na esteira deste card.',
+          };
+        }
+        faseSlug = ancora.faseSlug;
+        dataFim = ancora.dataFim;
+      }
+
+      const result = await salvarAncoraCalculadoraKanban({ cardId, faseSlug, dataFim, basePath });
+      if (!result.ok) return result;
+
+      // Limpa overrides locais das fases anteriores — senão a timeline reaplica datas manuais.
+      if (ativar) {
+        const idxAncora = idxAprovacaoCondominioCalculadora(calculadoraLinhasEnriquecidas);
+        if (idxAncora > 0) {
+          const faseIdsAnteriores = calculadoraLinhasEnriquecidas
+            .slice(0, idxAncora)
+            .map((l) => String(l.faseId ?? '').trim())
+            .filter(Boolean);
+          setDatasManuaisCalculadora((prev) => {
+            const next = new Map(prev);
+            for (const fid of faseIdsAnteriores) next.delete(fid);
+            return next;
+          });
+        }
+      }
+
+      // A âncora é lida de modalDetalhes.processo — reflete localmente sem recarregar.
+      setModalDetalhes((prev) =>
+        prev.processo
+          ? {
+              ...prev,
+              processo: {
+                ...prev.processo,
+                calculadora_ancora_fase_slug: faseSlug,
+                calculadora_ancora_data_fim: dataFim,
+              },
+            }
+          : prev,
+      );
+      return { ok: true };
+    },
+    [card?.id, calculadoraLinhasEnriquecidas, basePath],
+  );
+
   const calculadoraTimelineNegociacao = useMemo(
     () =>
       montarTimelineCalculadoraComMarcos(
@@ -6025,6 +6085,8 @@ export function KanbanCardModal({
                     podeEditarDatas={podeEditarDatasCalculadora}
                     onSalvarData={salvarDataCalculadora}
                     onAplicarOverrideLocal={aplicarOverrideCalculadoraLocal}
+                    ancoraCondominioAtiva={ancoraCondominioAtiva}
+                    onDefinirAncoraCondominio={definirAncoraCondominioCalculadora}
                   />
                 </div>
               </div>

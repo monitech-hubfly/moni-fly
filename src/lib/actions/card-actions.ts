@@ -3405,9 +3405,22 @@ export async function salvarAncoraCalculadoraKanban(input: {
 
   try {
     const admin = createAdminClient();
+    const kanbanCardIds = await listarKanbanCardIdsSyncGroup(admin, cid);
     const processoIds = await resolverProcessosDoSyncGroup(admin, cid);
     if (processoIds.size === 0) {
       return { ok: false, error: 'Nenhum processo encontrado para este card.' };
+    }
+
+    const processoCanonico = [...processoIds][0]!;
+
+    // Garante que vínculos do sync group leiam a mesma âncora via processo.
+    if (kanbanCardIds.length > 0) {
+      const { error: propErr } = await admin
+        .from('kanban_cards')
+        .update({ processo_step_one_id: processoCanonico } as never)
+        .in('id', kanbanCardIds)
+        .is('processo_step_one_id', null);
+      if (propErr) return { ok: false, error: propErr.message };
     }
 
     const patch = {
@@ -3422,6 +3435,51 @@ export async function salvarAncoraCalculadoraKanban(input: {
         .update(patch as never)
         .eq('id', pid);
       if (error) return { ok: false, error: error.message };
+    }
+
+    // Ao ancorar: remove overrides manuais das fases anteriores (senão a UI
+    // reaplica datas após `aplicarAncoraCalculadoraLinhas`).
+    if (!remover) {
+      const { data: fasesAncora } = await admin
+        .from('kanban_fases')
+        .select('id, ordem, kanban_id, slug')
+        .eq('slug', faseSlug)
+        .limit(8);
+      const ancoraRow = (fasesAncora ?? [])[0] as
+        | { id: string; ordem: number; kanban_id: string; slug: string }
+        | undefined;
+      if (ancoraRow) {
+        const { data: anteriores } = await admin
+          .from('kanban_fases')
+          .select('id')
+          .eq('kanban_id', ancoraRow.kanban_id)
+          .lt('ordem', ancoraRow.ordem);
+        const faseIdsAnteriores = [
+          ...new Set(
+            (anteriores ?? [])
+              .map((r) => String((r as { id?: string }).id ?? '').trim())
+              .filter(Boolean),
+          ),
+        ];
+        // Slugs espelhados fora do kanban Operações (ex.: planialtimetrico paralelo).
+        const { data: extras } = await admin
+          .from('kanban_fases')
+          .select('id')
+          .in('slug', ['planialtimetrico', 'sondagem', 'projeto_legal']);
+        for (const r of extras ?? []) {
+          const id = String((r as { id?: string }).id ?? '').trim();
+          if (id && id !== ancoraRow.id) faseIdsAnteriores.push(id);
+        }
+        const fids = [...new Set(faseIdsAnteriores)];
+        if (fids.length > 0 && kanbanCardIds.length > 0) {
+          const { error: delErr } = await admin
+            .from('kanban_calculadora_fase_datas')
+            .delete()
+            .in('card_id', kanbanCardIds)
+            .in('fase_id', fids);
+          if (delErr) return { ok: false, error: delErr.message };
+        }
+      }
     }
 
     if (input.basePath?.trim()) revalidatePath(input.basePath.trim());
