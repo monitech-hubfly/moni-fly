@@ -3260,6 +3260,9 @@ export function KanbanCardModal({
           link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
           link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
           link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
+          link_opcao_permuta: negocioDraft.link_opcao_permuta?.trim() || null,
+          link_contrato_permuta: negocioDraft.link_contrato_permuta?.trim() || null,
+          link_seguro_garantia: negocioDraft.link_seguro_garantia?.trim() || null,
           link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
           comentario_moni_capital_seguro_garantia:
             negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
@@ -4585,16 +4588,32 @@ export function KanbanCardModal({
     label: string,
     field: ProcessoNegocioAnexoCampo,
     path: string | null | undefined,
+    linkRaw?: string | null,
+    linkEdit?: { value: string; onChange: (v: string) => void },
   ) {
     if (!proc?.id) return null;
     const inputId = `negocio-anexo-${field}`;
     const uploading = uploadingNegocioAnexo === field;
     const canAnexar = modalSessao.ehAdminOuTeam;
     const anexoBtnClass =
-      'inline-flex cursor-pointer items-center rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50';
+      'inline-flex min-h-[44px] cursor-pointer items-center rounded border bg-white px-2 py-1 text-[11px] font-medium transition has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 sm:min-h-0';
+    const anexoBtnStyle = {
+      borderWidth: 'var(--moni-border-width)',
+      borderColor: 'var(--moni-border-default)',
+      borderRadius: 'var(--moni-radius-md)',
+      color: 'var(--moni-text-secondary)',
+      fontFamily: 'var(--moni-font-sans)',
+    } as const;
+    const linkHref = linkHrefFromText(linkEdit ? linkEdit.value : linkRaw);
+    const linkDisplay = String((linkEdit ? linkEdit.value : linkRaw) ?? '').trim();
     return (
       <div>
-        <p className="text-[11px] font-medium text-stone-500">{label}</p>
+        <p
+          className="text-[11px] font-medium"
+          style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
+        >
+          {label}
+        </p>
         <input
           id={inputId}
           type="file"
@@ -4603,29 +4622,87 @@ export function KanbanCardModal({
           accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,image/*"
           disabled={uploading}
         />
-        <div className="mt-0.5 flex flex-wrap items-center gap-2">
-          {path?.trim() ? (
-            <>
-              <button
-                type="button"
-                onClick={() => void handleBaixarNegocioAnexo(path)}
-                className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50"
-              >
-                Baixar
-              </button>
-              {canAnexar ? (
-                <label htmlFor={inputId} className={anexoBtnClass}>
-                  {uploading ? 'Enviando…' : 'Substituir'}
-                </label>
-              ) : null}
-            </>
-          ) : canAnexar ? (
-            <label htmlFor={inputId} className={anexoBtnClass}>
-              {uploading ? 'Enviando…' : 'Anexar'}
-            </label>
-          ) : (
-            <span className="text-[11px] text-stone-500">—</span>
-          )}
+        <div className="mt-0.5 flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {path?.trim() ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleBaixarNegocioAnexo(path)}
+                  className="min-h-[44px] px-2 py-1 text-[11px] font-medium transition hover:opacity-90 sm:min-h-0"
+                  style={anexoBtnStyle}
+                >
+                  Baixar
+                </button>
+                {canAnexar ? (
+                  <label htmlFor={inputId} className={anexoBtnClass} style={anexoBtnStyle}>
+                    {uploading ? 'Enviando…' : 'Substituir'}
+                  </label>
+                ) : null}
+              </>
+            ) : canAnexar ? (
+              <label htmlFor={inputId} className={anexoBtnClass} style={anexoBtnStyle}>
+                {uploading ? 'Enviando…' : 'Anexar'}
+              </label>
+            ) : (
+              <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                —
+              </span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            {linkEdit ? (
+              <label className="block">
+                <span
+                  className="text-[10px] font-medium"
+                  style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
+                >
+                  Link (opcional)
+                </span>
+                <input
+                  type="url"
+                  value={linkEdit.value}
+                  onChange={(e) => linkEdit.onChange(e.target.value)}
+                  placeholder="https://…"
+                  className="mt-0.5 w-full px-2 py-1 text-xs"
+                  style={{
+                    borderWidth: 'var(--moni-border-width)',
+                    borderStyle: 'solid',
+                    borderColor: 'var(--moni-border-default)',
+                    borderRadius: 'var(--moni-radius-md)',
+                    background: 'var(--moni-surface-0)',
+                    color: 'var(--moni-text-primary)',
+                    fontFamily: 'var(--moni-font-sans)',
+                    minHeight: 44,
+                  }}
+                />
+              </label>
+            ) : (
+              <div>
+                <div
+                  className="text-[10px] font-medium"
+                  style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
+                >
+                  Link
+                </div>
+                <div className="text-xs" style={{ fontFamily: 'var(--moni-font-sans)' }}>
+                  {linkHref ? (
+                    <a
+                      href={linkHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="break-all underline"
+                      style={{ color: 'var(--moni-navy-800)' }}
+                    >
+                      {linkDisplay}
+                    </a>
+                  ) : (
+                    <span style={{ color: 'var(--moni-text-tertiary)' }}>—</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -4635,7 +4712,18 @@ export function KanbanCardModal({
     if (!proc) return null;
     return (
       <div className="space-y-2 border-t border-stone-100 pt-2">
-        {renderNegocioAnexoCampo('Opção de Permuta ou CCV', 'opcao_permuta', proc.anexo_opcao_permuta_path)}
+        {renderNegocioAnexoCampo(
+          'Opção de Permuta ou CCV',
+          'opcao_permuta',
+          proc.anexo_opcao_permuta_path,
+          proc.link_opcao_permuta,
+          editMode
+            ? {
+                value: negocioDraft.link_opcao_permuta,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_opcao_permuta: v })),
+              }
+            : undefined,
+        )}
         {renderNegocioLinkCampo(
           'BCA',
           proc.link_bca,
@@ -4690,8 +4778,26 @@ export function KanbanCardModal({
           'Contrato de Permuta ou CCV',
           'contrato_permuta',
           proc.anexo_contrato_permuta_path,
+          proc.link_contrato_permuta,
+          editMode
+            ? {
+                value: negocioDraft.link_contrato_permuta,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_contrato_permuta: v })),
+              }
+            : undefined,
         )}
-        {renderNegocioAnexoCampo('Seguro garantia', 'seguro_garantia', proc.anexo_seguro_garantia_path)}
+        {renderNegocioAnexoCampo(
+          'Seguro garantia',
+          'seguro_garantia',
+          proc.anexo_seguro_garantia_path,
+          proc.link_seguro_garantia,
+          editMode
+            ? {
+                value: negocioDraft.link_seguro_garantia,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_seguro_garantia: v })),
+              }
+            : undefined,
+        )}
         {renderNegocioLinkComComentarios(
           'Moní Capital — seguro garantia',
           proc.link_moni_capital_seguro_garantia,
