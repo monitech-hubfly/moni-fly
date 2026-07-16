@@ -1,6 +1,7 @@
 'use client';
 
 import type React from 'react';
+import { filterKanbanAtividadeIds } from '@/lib/pastelaria/synthetic-id';
 import { Archive, CheckSquare, ChevronRight, Info, MessageCircle, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
@@ -475,12 +476,7 @@ export function InteracoesLista({
   }, [interacoes]);
 
   const painelTopicosPrefetch = useMemo(() => {
-    // Exclui IDs sintéticos pastelaria-* (não são UUID de kanban_atividades).
-    return {
-      iids: interacoes
-        .filter((r) => r.origem !== 'pastelaria')
-        .map((r) => r.id),
-    };
+    return { iids: filterKanbanAtividadeIds(interacoes.map((r) => r.id)) };
   }, [interacoes]);
 
   useEffect(() => {

@@ -7,6 +7,9 @@ import {
   type PermissoesPode,
 } from '@/lib/permissoes-types';
 
+/** Evita spam 404/PGRST205 quando a tabela ainda não existe / não está no schema cache em PROD. */
+let permissoesPerfilIndisponivel = false;
+
 /** Mapa cru `permissao -> valor` (útil no client com `useCallback` estável). */
 export async function carregarPermissoesMap(
   supabase: SupabaseClient,
@@ -22,13 +25,21 @@ export async function carregarPermissoesMap(
   const roleKey = roleParaMatrizPermissoes((profile as { role?: string | null }).role);
   const cargo = cargoParaMatrizPermissoes((profile as { cargo?: string | null }).cargo);
 
+  if (permissoesPerfilIndisponivel) return new Map();
+
   const { data: rows, error: rErr } = await supabase
     .from('permissoes_perfil')
     .select('permissao, valor')
     .eq('role', roleKey)
     .eq('cargo', cargo);
 
-  if (rErr) return new Map();
+  if (rErr) {
+    const msg = String(rErr.message ?? '');
+    if (/does not exist|schema cache|PGRST205|Could not find the table/i.test(msg)) {
+      permissoesPerfilIndisponivel = true;
+    }
+    return new Map();
+  }
   return permissoesLinhasParaMap(rows);
 }
 

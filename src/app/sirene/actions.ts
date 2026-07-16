@@ -31,6 +31,7 @@ import { labelPastelariaColuna } from '@/lib/pastelaria/coluna-labels';
 import { syncPastelariaColunaFromSireneStatus } from '@/lib/pastelaria/sirene-status-sync';
 import {
   filterKanbanAtividadeIds,
+  filterSireneChamadoIds,
   isPastelariaSyntheticId,
 } from '@/lib/pastelaria/synthetic-id';
 import {
@@ -2315,7 +2316,8 @@ export async function getMonitorTopicosPorTime(
   let list = topicos ?? [];
   if (list.length === 0) return { ok: true, isBombeiro: true, porTime: {} };
 
-  const chamadoIds = [...new Set(list.map((t) => t.chamado_id))];
+  const chamadoIds = filterSireneChamadoIds(list.map((t) => t.chamado_id as number | null));
+  if (chamadoIds.length === 0) return { ok: true, isBombeiro: true, porTime: {} };
   let q = supabase
     .from('sirene_chamados')
     .select('id, numero, incendio, frank_nome, trava, tipo')
@@ -3182,7 +3184,7 @@ async function aggregateTopFranqueados(
       const slice = redeIds.slice(i, i + chunk);
       const { data: redes } = await queryClient
         .from('rede_franqueados')
-        .select('id, nome_completo, n_franquia, nome, unidade')
+        .select('id, nome_completo, n_franquia')
         .in('id', slice);
       for (const rf of redes ?? []) {
         redeNome.set(String((rf as { id: string }).id), displayNomeRedeFranqueado(rf as Parameters<typeof displayNomeRedeFranqueado>[0]));
@@ -3781,7 +3783,7 @@ export async function listPericiasComChamados(filtros?: {
     if (!porPericia.has(v.pericia_id)) porPericia.set(v.pericia_id, []);
     porPericia.get(v.pericia_id)!.push(v.chamado_id);
   }
-  const chamadoIds = [...new Set((vinc ?? []).map((v) => v.chamado_id))];
+  const chamadoIds = filterSireneChamadoIds((vinc ?? []).map((v) => v.chamado_id));
   const { data: chamadosList } =
     chamadoIds.length > 0
       ? await supabase.from('sirene_chamados').select('id, numero, incendio').in('id', chamadoIds)
@@ -3862,9 +3864,9 @@ export async function listConclusoesClassificadas(): Promise<
     }
   }
 
-  const chamadoIds = (rows ?? [])
-    .map((r) => (r as { chamado_id?: number | null }).chamado_id)
-    .filter((x): x is number => x != null);
+  const chamadoIds = filterSireneChamadoIds(
+    (rows ?? []).map((r) => (r as { chamado_id?: number | null }).chamado_id),
+  );
 
   let numeroPorChamado = new Map<number, number>();
   if (chamadoIds.length > 0) {

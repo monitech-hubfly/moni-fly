@@ -27,6 +27,7 @@ import {
   Paperclip,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { filterKanbanAtividadeIds } from '@/lib/pastelaria/synthetic-id';
 import { calcularDiasUteis, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import {
   formatMotivoArquivamento,
@@ -1884,13 +1885,16 @@ export function KanbanCardModal({
                         .filter((a) => !a.arquivado);
                       setInteracoes(mapeadas);
 
-                      const actIds = mapeadas.map((m) => m.id);
-                      const { data: topicosRows } = await supabase
-                        .from('sirene_topicos')
-                        .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, arquivado, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
-                        .eq('arquivado', false)
-                        .in('interacao_id', actIds)
-                        .order('ordem', { ascending: true });
+                      const actIds = filterKanbanAtividadeIds(mapeadas.map((m) => m.id));
+                      const { data: topicosRows } =
+                        actIds.length > 0
+                          ? await supabase
+                              .from('sirene_topicos')
+                              .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, arquivado, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
+                              .eq('arquivado', false)
+                              .in('interacao_id', actIds)
+                              .order('ordem', { ascending: true })
+                          : { data: [] as never[] };
 
                       const topicos = topicosRows ?? [];
                       const tRespIds = [
