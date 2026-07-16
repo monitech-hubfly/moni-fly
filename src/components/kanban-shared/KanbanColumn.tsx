@@ -720,7 +720,7 @@ export function KanbanColumn({
                 </button>
 
                 {/* 5. Bolinhas · reunião (+ contadores / próxima atividade) */}
-                {temContadores || temParalelas || temReuniao || proxDotEsquerda ? (
+                {temContadores || temParalelas || temReuniao || proxDotEsquerda || proxAlertaDireita ? (
                   <div className="moni-kanban-card-meta">
                     <div className="moni-kanban-card-meta-start">
                       {temContadores ? (
@@ -760,7 +760,7 @@ export function KanbanColumn({
                       {temReuniao ? (
                         <TextoReuniaoCard dataIso={reuniaoIso} varianteVisual="texto" />
                       ) : null}
-                      {proxDotEsquerda ? (
+                      {proxDotEsquerda || proxAlertaDireita ? (
                         <ProximaAtividadeDot
                           cardId={card.id}
                           proximaAtividade={card.proxima_atividade ?? null}
@@ -772,17 +772,9 @@ export function KanbanColumn({
                   </div>
                 ) : null}
 
-                {/* 6. Alerta | menu (mesma linha; menu alinhado à coluna do avatar) */}
+                {/* 6. Menu (alinhado à coluna do avatar) */}
                 <div className="moni-kanban-card-footer">
                   <div className="moni-kanban-card-footer-start">
-                    {proxAlertaDireita ? (
-                      <ProximaAtividadeDot
-                        cardId={card.id}
-                        proximaAtividade={card.proxima_atividade ?? null}
-                        prazoAtividade={card.prazo_atividade ?? null}
-                        basePath={basePath}
-                      />
-                    ) : null}
                   </div>
                   <div className="moni-kanban-card-footer-end">
                     <KanbanCardMenu
