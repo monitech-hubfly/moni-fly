@@ -73,8 +73,23 @@ export async function notificarMencoesSirene(input: {
   autorId: string;
   /** IDs adicionais a notificar (aberto_por, responsaveis_ids, etc.) — sem @menção no texto. */
   extraDestinatarios?: string[];
+  sireneChamadoId?: number | null;
 }): Promise<void> {
   const supabase = await createClient();
+  if (input.sireneChamadoId != null) {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const admin = createAdminClient();
+    const { data: ch } = await admin
+      .from('sirene_chamados')
+      .select('status, arquivado')
+      .eq('id', input.sireneChamadoId)
+      .maybeSingle();
+    if (ch) {
+      const s = String((ch as { status?: string | null }).status ?? '').toLowerCase();
+      const fechado = (ch as { arquivado?: boolean }).arquivado === true || s === 'concluido' || s === 'concluído';
+      if (fechado) return;
+    }
+  }
   const { data: profAutor } = await supabase
     .from('profiles')
     .select('full_name')

@@ -465,6 +465,7 @@ export async function publicarComentarioSireneChamado(
     referenciaPath: opcoes?.referenciaPath?.trim() || `/sirene/chamados?interacao=`,
     contextoTitulo: opcoes?.contextoTitulo?.trim() || 'Comentário no chamado',
     autorId: user.id,
+    sireneChamadoId,
   });
 
   try {
