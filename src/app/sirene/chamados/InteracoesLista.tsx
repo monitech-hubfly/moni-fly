@@ -1,6 +1,7 @@
 'use client';
 
 import type React from 'react';
+import { filterKanbanAtividadeIds } from '@/lib/pastelaria/synthetic-id';
 import { Archive, CheckSquare, ChevronRight, Info, MessageCircle, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
@@ -475,7 +476,7 @@ export function InteracoesLista({
   }, [interacoes]);
 
   const painelTopicosPrefetch = useMemo(() => {
-    return { iids: interacoes.map((r) => r.id) };
+    return { iids: filterKanbanAtividadeIds(interacoes.map((r) => r.id)) };
   }, [interacoes]);
 
   useEffect(() => {
@@ -775,6 +776,10 @@ export function InteracoesLista({
   async function carregarTopicosSeNecessario(row: InteracaoSireneRow, force = false) {
     const key = topicosAlvoKey(row);
     if (!force && topicosPorAlvo[key] != null && !topicosLoading[key]) return;
+    if (row.origem === 'pastelaria' && row.sirene_chamado_id == null) {
+      setTopicosPorAlvo((m) => ({ ...m, [key]: [] }));
+      return;
+    }
     setTopicosLoading((l) => ({ ...l, [key]: true }));
     const res =
       row.sirene_chamado_id != null

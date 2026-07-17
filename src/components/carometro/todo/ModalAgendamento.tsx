@@ -129,13 +129,18 @@ export function ModalAgendamento({
         }
         const [casasRes, frankRes, loteadoresRes, condRes, cnpjsRes] = await Promise.all([
           supabase.from('casas').select('id, nome').order('nome').limit(100),
-          supabase.from('rede_franqueados').select('id, nome').order('nome').limit(100),
+          supabase.from('rede_franqueados').select('id, nome_completo').order('nome_completo').limit(100),
           supabase.from('rede_loteadores').select('id, nome').order('nome').limit(100),
           supabase.from('condominios').select('id, nome').order('nome').limit(100),
           supabase.from('adm_cnpjs').select('id, cnpj, descritivo').order('cnpj').limit(100),
         ]);
         setCasas((casasRes.data ?? []) as { id: string; nome: string }[]);
-        setFranqueados((frankRes.data ?? []) as { id: string; nome: string }[]);
+        setFranqueados(
+          ((frankRes.data ?? []) as { id: string; nome_completo?: string | null }[]).map((r) => ({
+            id: r.id,
+            nome: String(r.nome_completo ?? '').trim() || '—',
+          })),
+        );
         setLoteadores((loteadoresRes.data ?? []) as { id: string; nome: string }[]);
         setCondominios((condRes.data ?? []) as { id: string; nome: string }[]);
         setCnpjs((cnpjsRes.data ?? []) as { id: string; cnpj: string; descritivo: string | null }[]);

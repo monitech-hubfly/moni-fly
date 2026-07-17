@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import { useRouter } from 'next/navigation';
 import { Check, FileText, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
@@ -16,25 +17,25 @@ import {
 import { RedeFranqueadoSensitiveBlur } from '@/components/RedeFranqueadoSensitiveBlur';
 import { atualizarRedeFranqueado, excluirRedeFranqueado } from '@/app/rede-franqueados/actions';
 import { UFS_BRASIL } from '@/lib/uf';
+import {
+  parseAreaAtuacao,
+  serializeAreaAtuacao,
+  type AreaAtuacaoPar,
+} from '@/lib/rede-area-atuacao';
 import { RedeFranqueadoCellValue } from '@/components/RedeFranqueadoCellValue';
 import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 import { redeAlertError, redeAlertSuccess, redeTh } from '@/app/rede-franqueados/rede-ui';
+import { REDE_OPCOES_STATUS_FRANQUIA } from '@/lib/rede-franqueado-form-options';
 
 type AreaAtuacaoItem = { estado: string; cidade: string };
 type CidadeIBGE = { id: number; nome: string };
 
-function parseAreaAtuacao(s: string | null | undefined): AreaAtuacaoItem[] {
-  if (!s || typeof s !== 'string') return [];
-  return s
-    .split(';')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const i = part.indexOf(' - ');
-      if (i < 0) return null;
-      return { estado: part.slice(0, i).trim(), cidade: part.slice(i + 3).trim() };
-    })
-    .filter((x): x is AreaAtuacaoItem => x !== null && Boolean(x.estado && x.cidade));
+function paresParaItens(pares: AreaAtuacaoPar[]): AreaAtuacaoItem[] {
+  return pares.map((p) => ({ estado: p.uf, cidade: p.cidade }));
+}
+
+function itensParaPares(itens: AreaAtuacaoItem[]): AreaAtuacaoPar[] {
+  return itens.map((i) => ({ uf: i.estado, cidade: i.cidade }));
 }
 
 function CidadeCombobox({
@@ -56,16 +57,129 @@ function CidadeCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [pos, setPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    placement: 'below' | 'above';
+  } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter((c) => c.nome.toLowerCase().includes(q));
   }, [items, query]);
+
   useEffect(() => setQuery(''), [items]);
+
+  const reposicionar = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = Math.max(rect.width, 180);
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const placement: 'below' | 'above' =
+      spaceBelow >= 220 || spaceBelow >= rect.top ? 'below' : 'above';
+    setPos({
+      top: placement === 'below' ? rect.bottom + 4 : Math.max(8, rect.top - 4),
+      left,
+      width,
+      placement,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!open || disabled) return;
+    reposicionar();
+  }, [open, disabled, items.length]);
+
+  useEffect(() => {
+    if (!open || disabled) return;
+    const onScrollOrResize = () => reposicionar();
+    window.addEventListener('resize', onScrollOrResize);
+    window.addEventListener('scroll', onScrollOrResize, true);
+    return () => {
+      window.removeEventListener('resize', onScrollOrResize);
+      window.removeEventListener('scroll', onScrollOrResize, true);
+    };
+  }, [open, disabled]);
+
+  useEffect(() => {
+    if (!open || disabled) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (panelRef.current?.contains(t) || triggerRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, disabled]);
+
+  const panel =
+    open && !disabled && pos ? (
+      <div
+        ref={panelRef}
+        className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-lg"
+        style={{
+          position: 'fixed',
+          top: pos.top,
+          left: pos.left,
+          width: pos.width,
+          zIndex: 9999,
+          transform: pos.placement === 'above' ? 'translateY(-100%)' : undefined,
+        }}
+        role="dialog"
+        aria-label="Selecionar cidade"
+      >
+        <div className="border-b border-stone-200 p-1.5">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Pesquisar..."
+            className="w-full rounded border border-stone-300 px-2 py-1 text-sm"
+            autoFocus
+          />
+        </div>
+        <ul id={id} role="listbox" className="max-h-48 overflow-auto py-1">
+          {loading ? (
+            <li className="px-2 py-1.5 text-sm text-stone-500">Carregando...</li>
+          ) : filtered.length === 0 ? (
+            <li className="px-2 py-1.5 text-sm text-stone-500">Nenhuma cidade.</li>
+          ) : (
+            filtered.map((c) => (
+              <li
+                key={c.id}
+                role="option"
+                aria-selected={c.nome === value}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(c.nome);
+                  setOpen(false);
+                }}
+                className="cursor-pointer px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50"
+              >
+                {c.nome}
+              </li>
+            ))
+          )}
+        </ul>
+      </div>
+    ) : null;
 
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -80,48 +194,12 @@ function CidadeCombobox({
       >
         {value ? value : loading ? 'Carregando...' : placeholder ?? '— Cidade —'}
       </button>
-      {open && !disabled && (
-        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-stone-200 bg-white shadow-lg">
-          <div className="border-b border-stone-200 p-1.5">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Pesquisar..."
-              className="w-full rounded border border-stone-300 px-2 py-1 text-sm"
-              autoFocus
-            />
-          </div>
-          <ul id={id} role="listbox" className="max-h-48 overflow-auto py-1">
-            {loading ? (
-              <li className="px-2 py-1.5 text-sm text-stone-500">Carregando...</li>
-            ) : filtered.length === 0 ? (
-              <li className="px-2 py-1.5 text-sm text-stone-500">Nenhuma cidade.</li>
-            ) : (
-              filtered.map((c) => (
-                <li
-                  key={c.id}
-                  role="option"
-                  aria-selected={c.nome === value}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    onChange(c.nome);
-                    setOpen(false);
-                  }}
-                  className="cursor-pointer px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50"
-                >
-                  {c.nome}
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      )}
+      {typeof document !== 'undefined' && panel ? createPortal(panel, document.body) : null}
     </div>
   );
 }
 
-const PER_PAGE = 15;
+const PER_PAGE = 40;
 
 /** Primeiras colunas fixas ao rolar horizontalmente (até Status da Franquia). */
 const REDE_STICKY_COLUMN_COUNT = 4;
@@ -275,8 +353,13 @@ export function TabelaRedeFranqueadosEditavel({
       const raw = isDateKey(k) ? toInputDate(v) : v;
       d[k] = k === 'n_franquia' ? formatNFranquiaRedeExibicao(raw, r.ordem) : raw;
     }
+    const itens = paresParaItens(parseAreaAtuacao(d.area_atuacao));
+    // Normaliza legado em prosa para o formato canônico ao abrir a edição.
+    if (itens.length > 0) {
+      d.area_atuacao = serializeAreaAtuacao(itensParaPares(itens));
+    }
     setDraft(d);
-    setAreaAtuacaoItens(parseAreaAtuacao(d.area_atuacao));
+    setAreaAtuacaoItens(itens);
     setEstadoAtuacao('');
     setCidadeAtuacao('');
   };
@@ -388,8 +471,14 @@ export function TabelaRedeFranqueadosEditavel({
                     const isAreaAtuacao = k === 'area_atuacao';
                     const maskCell = maskSensitiveColumns && isRedeColunaDadoSensivel(k);
                     const sticky = stickyCellProps(colIndex, 'body');
+                    const areaEditando = isEditing && isAreaAtuacao;
+                    const cellClassName = areaEditando
+                      ? sticky.className
+                          .replace('overflow-hidden', 'overflow-visible')
+                          .replace('max-w-[14rem]', 'max-w-none min-w-[18rem]')
+                      : sticky.className;
                     return (
-                      <td key={k} className={sticky.className} style={sticky.style}>
+                      <td key={k} className={cellClassName} style={sticky.style}>
                         {!isEditing ? (
                           maskCell ? (
                             <RedeFranqueadoSensitiveBlur />
@@ -413,7 +502,7 @@ export function TabelaRedeFranqueadosEditavel({
                                         setAreaAtuacaoItens(next);
                                         setDraft((d) => ({
                                           ...d,
-                                          area_atuacao: next.map((i) => `${i.estado} - ${i.cidade}`).join('; '),
+                                          area_atuacao: serializeAreaAtuacao(itensParaPares(next)),
                                         }));
                                       }}
                                       className="rounded p-0.5 text-stone-500 hover:bg-stone-200 hover:text-stone-700"
@@ -460,7 +549,7 @@ export function TabelaRedeFranqueadosEditavel({
                                   setAreaAtuacaoItens(next);
                                   setDraft((d) => ({
                                     ...d,
-                                    area_atuacao: next.map((i) => `${i.estado} - ${i.cidade}`).join('; '),
+                                    area_atuacao: serializeAreaAtuacao(itensParaPares(next)),
                                   }));
                                   setEstadoAtuacao('');
                                   setCidadeAtuacao('');
@@ -479,6 +568,23 @@ export function TabelaRedeFranqueadosEditavel({
                             onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
                             className="w-44 rounded-md border border-stone-300 px-2 py-1 text-sm"
                           />
+                        ) : k === 'status_franquia' ? (
+                          <select
+                            value={value}
+                            onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
+                            className="w-56 rounded-md border border-stone-300 px-2 py-1 text-sm"
+                          >
+                            <option value="">—</option>
+                            {REDE_OPCOES_STATUS_FRANQUIA.map((op) => (
+                              <option key={op.value} value={op.value}>
+                                {op.label}
+                              </option>
+                            ))}
+                            {value &&
+                            !REDE_OPCOES_STATUS_FRANQUIA.some((op) => op.value === value) ? (
+                              <option value={value}>{value}</option>
+                            ) : null}
+                          </select>
                         ) : (
                           <input
                             type="text"

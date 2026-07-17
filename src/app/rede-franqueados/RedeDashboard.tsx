@@ -17,7 +17,7 @@ import { RedeCrescimentoMensalChart } from './rede-crescimento-mensal-chart';
 import { RedeFiltroUfSelect } from './rede-filtro-uf-select';
 import { RedeVisaoRegionalClassificacao } from './rede-visao-regional-class';
 
-type FiltroStatus = 'todos' | 'encerrados' | 'em_operacao';
+type FiltroStatus = 'todos' | 'encerrados' | 'em_operacao' | 'em_transferencia';
 
 function norm(s: string | null | undefined) {
   return (s ?? '').toString().trim();
@@ -36,12 +36,18 @@ function isOperacaoEncerrada(status: string) {
   return /encerrad/.test(normStatus(status));
 }
 
+/** Considera "Em Transferência" (valor do formulário); puxa da coluna status_franquia da tabela. */
+function isEmTransferencia(status: string) {
+  const n = normStatus(status);
+  return n.includes('transferencia');
+}
+
 /** Considera "Em Operação" (valor do formulário); puxa da coluna status_franquia da tabela. */
 function isEmOperacao(status: string) {
   const raw = norm(status);
   if (!raw) return false;
   const n = normStatus(raw);
-  if (/encerrad/.test(n)) return false;
+  if (/encerrad/.test(n) || n.includes('transferencia')) return false;
   // Aceita "Em Operação" / "em operação" / "em operacao" (com ou sem acento)
   if (n === 'em operacao' || n.startsWith('em operacao ')) return true;
   const low = raw.toLowerCase();
@@ -208,6 +214,9 @@ export function RedeDashboard({
     if (filtro === 'encerrados') {
       return rowsVisaoGeral.filter((r) => isOperacaoEncerrada(norm(r.status_franquia)));
     }
+    if (filtro === 'em_transferencia') {
+      return rowsVisaoGeral.filter((r) => isEmTransferencia(norm(r.status_franquia)));
+    }
     return rowsVisaoGeral.filter((r) => isEmOperacao(norm(r.status_franquia)));
   }, [rowsVisaoGeral, filtro, visaoFranqueado]);
 
@@ -218,6 +227,8 @@ export function RedeDashboard({
 
   const operacao = filteredRows.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
   const operacaoGraficos = linhasGraficos.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
+  const transferencia = filteredRows.filter((r) => isEmTransferencia(norm(r.status_franquia))).length;
+  const transferenciaGraficos = linhasGraficos.filter((r) => isEmTransferencia(norm(r.status_franquia))).length;
   const encerradas = filteredRows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))).length;
 
   const incompletos = filteredRows
@@ -233,6 +244,9 @@ export function RedeDashboard({
       emOperacao: linhasGraficos.filter(
         (r) => isRedeClassificacaoPagante(r.classificacao_franqueado) && isEmOperacao(norm(r.status_franquia)),
       ).length,
+      transferencia: linhasGraficos.filter(
+        (r) => isRedeClassificacaoPagante(r.classificacao_franqueado) && isEmTransferencia(norm(r.status_franquia)),
+      ).length,
       encerrada: linhasGraficos.filter(
         (r) => isRedeClassificacaoPagante(r.classificacao_franqueado) && isOperacaoEncerrada(norm(r.status_franquia)),
       ).length,
@@ -240,6 +254,9 @@ export function RedeDashboard({
     beta: {
       emOperacao: linhasGraficos.filter(
         (r) => isRedeClassificacaoBeta(r.classificacao_franqueado) && isEmOperacao(norm(r.status_franquia)),
+      ).length,
+      transferencia: linhasGraficos.filter(
+        (r) => isRedeClassificacaoBeta(r.classificacao_franqueado) && isEmTransferencia(norm(r.status_franquia)),
       ).length,
       encerrada: linhasGraficos.filter(
         (r) => isRedeClassificacaoBeta(r.classificacao_franqueado) && isOperacaoEncerrada(norm(r.status_franquia)),
@@ -333,6 +350,10 @@ export function RedeDashboard({
     () => linhasGraficos.filter((r) => isEmOperacao(norm(r.status_franquia))),
     [linhasGraficos],
   );
+  const rowsEmTransferencia = useMemo(
+    () => linhasGraficos.filter((r) => isEmTransferencia(norm(r.status_franquia))),
+    [linhasGraficos],
+  );
   const rowsEncerradas = useMemo(
     () => linhasGraficos.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))),
     [linhasGraficos],
@@ -365,6 +386,7 @@ export function RedeDashboard({
 
   const totalGeral = rowsVisaoGeral.length;
   const operacaoGeral = rowsVisaoGeral.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
+  const transferenciaGeral = rowsVisaoGeral.filter((r) => isEmTransferencia(norm(r.status_franquia))).length;
   const encerradasGeral = rowsVisaoGeral.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))).length;
 
   const emOperacaoRedeFrank = visaoFranqueado ? operacaoGeral : operacao;
@@ -385,6 +407,9 @@ export function RedeDashboard({
             </FilterPill>
             <FilterPill active={filtro === 'em_operacao'} onClick={() => setFiltro('em_operacao')}>
               Em operação ({operacaoGeral})
+            </FilterPill>
+            <FilterPill active={filtro === 'em_transferencia'} onClick={() => setFiltro('em_transferencia')}>
+              Em Transferência ({transferenciaGeral})
             </FilterPill>
             <FilterPill active={filtro === 'encerrados'} onClick={() => setFiltro('encerrados')}>
               Encerradas ({encerradasGeral})
@@ -447,7 +472,7 @@ export function RedeDashboard({
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <KpiShell
               modoAggregado={modoAggregado}
               onOpen={() => setListaModal({ titulo: `Total de franquias (${total})`, rows: filteredRows })}
@@ -460,6 +485,22 @@ export function RedeDashboard({
               </p>
               <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                 Rede ativa
+              </p>
+            </KpiShell>
+            <KpiShell
+              modoAggregado={modoAggregado}
+              onOpen={() =>
+                setListaModal({ titulo: `Em Transferência (${transferencia})`, rows: rowsEmTransferencia })
+              }
+            >
+              <p className="mb-1.5 text-[11px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Em Transferência
+              </p>
+              <p className="mb-1 text-3xl font-medium leading-none" style={{ color: 'var(--moni-rede-kpi-em-transferencia)' }}>
+                {transferencia}
+              </p>
+              <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                {pct(transferencia, totalGeral)} da rede
               </p>
             </KpiShell>
             <KpiShell
@@ -501,10 +542,12 @@ export function RedeDashboard({
             regionalArr={regionalArr}
             maxRegional={maxRegional}
             operacao={operacaoGraficos}
+            transferencia={transferenciaGraficos}
             total={totalGraficos}
             modoAggregado={modoAggregado}
             rowsPorRegional={rowsPorRegional}
             rowsEmOperacao={rowsEmOperacao}
+            rowsEmTransferencia={rowsEmTransferencia}
             pagantes={pagantes}
             beta={beta}
             maxClassificacao={maxClassificacao}

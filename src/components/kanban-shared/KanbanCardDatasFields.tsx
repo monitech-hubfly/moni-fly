@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Calendar, FileText, Plus, RefreshCw } from 'lucide-react';
-import { salvarDataFollowupCard, salvarDataReuniaoCard } from '@/lib/actions/kanban-ata-reuniao';
+import { Calendar, FileText, Plus } from 'lucide-react';
+import { salvarDataReuniaoCard } from '@/lib/actions/kanban-ata-reuniao';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import { KanbanDataIndicador } from './KanbanCardPrazoIndicadores';
 import { KanbanAtaReuniaoFormModal } from './KanbanAtaReuniaoFormModal';
@@ -12,9 +12,7 @@ type Props = {
   origem: 'nativo' | 'legado';
   basePath: string;
   dataReuniao: string;
-  dataFollowup: string;
   onDataReuniaoChange: (v: string) => void;
-  onDataFollowupChange: (v: string) => void;
   onAtaSalva: () => void;
 };
 
@@ -28,32 +26,11 @@ export function KanbanCardDatasFields({
   origem,
   basePath,
   dataReuniao,
-  dataFollowup,
   onDataReuniaoChange,
-  onDataFollowupChange,
   onAtaSalva,
 }: Props) {
-  const [salvandoFollowup, setSalvandoFollowup] = useState(false);
   const [salvandoReuniao, setSalvandoReuniao] = useState(false);
   const [ataAberta, setAtaAberta] = useState(false);
-
-  async function salvarFollowup(valor: string) {
-    const v = valor.trim();
-    if (v && !dataIsoInputValida(v)) return;
-    setSalvandoFollowup(true);
-    try {
-      const res = await salvarDataFollowupCard({
-        cardId,
-        origem,
-        dataFollowup: valor,
-        basePath,
-      });
-      if (!res.ok) alert(res.error);
-      else onDataFollowupChange(valor.trim() ? valor.trim().slice(0, 10) : '');
-    } finally {
-      setSalvandoFollowup(false);
-    }
-  }
 
   async function salvarReuniao(valor: string) {
     const v = valor.trim();
@@ -93,7 +70,7 @@ export function KanbanCardDatasFields({
 
   return (
     <>
-      <div className="mb-3 grid gap-2 sm:grid-cols-2">
+      <div className="mb-3">
         <div className="flex flex-wrap items-center gap-1.5 rounded-lg px-2 py-1.5" style={cardStyle}>
           <Calendar className="h-3 w-3 shrink-0 text-violet-600" aria-hidden />
           <span className="text-[11px] font-semibold text-stone-700">Reunião</span>
@@ -129,22 +106,6 @@ export function KanbanCardDatasFields({
               Agendar
             </button>
           )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5 rounded-lg px-2 py-1.5" style={cardStyle}>
-          <RefreshCw className="h-3 w-3 shrink-0 text-sky-600" aria-hidden />
-          <span className="text-[11px] font-semibold text-stone-700">Follow-up</span>
-          <input
-            type="date"
-            value={dataFollowup}
-            onChange={(e) => onDataFollowupChange(e.target.value)}
-            onBlur={(e) => void salvarFollowup(e.target.value)}
-            disabled={salvandoFollowup}
-            className="min-w-0 flex-1 rounded border border-stone-200 bg-white px-1.5 py-0.5 text-[11px]"
-          />
-          {dataFollowup ? (
-            <KanbanDataIndicador tipo="followup" dataIso={dataFollowup} />
-          ) : null}
         </div>
       </div>
 

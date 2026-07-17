@@ -53,14 +53,11 @@ export async function buscarDatasManuaisCalculadoraPorFases(
   for (const row of (data ?? []) as CalculadoraFaseDataRow[]) {
     const faseId = String(row.fase_id ?? '').trim();
     if (!faseId) continue;
-    const manual: CalculadoraFaseDataManual = {};
-    const inicio = toYmd(row.data_inicio);
-    const fim = toYmd(row.data_fim);
-    if (inicio) manual.dataInicio = inicio;
-    if (fim) manual.dataFim = fim;
-    if (manual.dataInicio !== undefined || manual.dataFim !== undefined) {
-      out.set(faseId, manual);
-    }
+    // Linha existente = override intencional (null limpa datas na UI).
+    out.set(faseId, {
+      dataInicio: toYmd(row.data_inicio),
+      dataFim: toYmd(row.data_fim),
+    });
   }
 
   return out;
@@ -90,14 +87,11 @@ function mergeOverridesPorEditadoEm(
     });
     const row = sorted[0];
     if (!row) continue;
-    const manual: CalculadoraFaseDataManual = {};
-    const inicio = toYmd(row.data_inicio);
-    const fim = toYmd(row.data_fim);
-    if (inicio) manual.dataInicio = inicio;
-    if (fim) manual.dataFim = fim;
-    if (manual.dataInicio !== undefined || manual.dataFim !== undefined) {
-      out.set(faseId, manual);
-    }
+    // Linha existente = override intencional (null limpa datas na UI).
+    out.set(faseId, {
+      dataInicio: toYmd(row.data_inicio),
+      dataFim: toYmd(row.data_fim),
+    });
   }
 
   return out;

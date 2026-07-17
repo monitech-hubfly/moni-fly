@@ -256,11 +256,17 @@ export async function ensureNotificacaoValidacaoFrank(periodo: string | null): P
 
   if (ja && ja.length > 0) return;
 
-  await supabase.from('sirene_notificacoes').insert({
-    user_id: user.id,
-    chamado_id: null,
-    tipo: NOTIFICACAO_VALIDACAO_TIPO,
-    texto: `Atualize e confirme os seus dados na rede (validação trimestral — período ${periodo}).`,
-    lida: false,
-  });
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.from('sirene_notificacoes').insert({
+      user_id: user.id,
+      chamado_id: null,
+      tipo: NOTIFICACAO_VALIDACAO_TIPO,
+      texto: `Atualize e confirme os seus dados na rede (validação trimestral — período ${periodo}).`,
+      lida: false,
+    });
+    if (error) console.error('[ensureNotificacaoValidacaoFrank]', error.message);
+  } catch (e) {
+    console.error('[ensureNotificacaoValidacaoFrank]', e);
+  }
 }

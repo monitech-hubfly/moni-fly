@@ -2,6 +2,7 @@
 
 export const REDE_OPCOES_STATUS_FRANQUIA = [
   { value: 'Em Operação', label: 'Em Operação' },
+  { value: 'Em Transferência', label: 'Em Transferência' },
   { value: 'Operação Encerrada', label: 'Operação Encerrada' },
 ] as const;
 

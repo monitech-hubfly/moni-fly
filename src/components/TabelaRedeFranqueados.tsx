@@ -2,9 +2,13 @@
 
 import { useState, useMemo } from 'react';
 import type { RedeFranqueadosData } from '@/lib/rede-franqueados';
+import { COLUNAS_REDE_FRANQUEADOS } from '@/lib/rede-franqueados';
+import { RedeFranqueadoAreaAtuacaoCell } from '@/components/RedeFranqueadoAreaAtuacaoCell';
 import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
 
-const PER_PAGE = 15;
+const PER_PAGE = 40;
+const AREA_ATUACAO_HEADER = 'Área de Atuação da Franquia';
+const AREA_ATUACAO_COL_INDEX = COLUNAS_REDE_FRANQUEADOS.indexOf(AREA_ATUACAO_HEADER);
 
 type Props = {
   data: RedeFranqueadosData;
@@ -70,11 +74,24 @@ export function TabelaRedeFranqueados({ data, compact }: Props) {
           <tbody>
             {rowsToShow.map((row, ri) => (
               <tr key={start + ri} className="border-b border-stone-100 hover:bg-stone-50/80">
-                {headers.map((_, ci) => (
-                  <td key={ci} className={`min-w-0 max-w-[14rem] overflow-hidden align-top text-stone-700 ${compact ? 'px-2 py-1' : 'px-3 py-2'}`}>
-                    <RedeFranqueadoCellClamp text={String(row[ci] ?? '')} />
-                  </td>
-                ))}
+                {headers.map((h, ci) => {
+                  const cellText = String(row[ci] ?? '');
+                  const isArea =
+                    ci === AREA_ATUACAO_COL_INDEX ||
+                    h.trim().toLowerCase() === AREA_ATUACAO_HEADER.toLowerCase();
+                  return (
+                    <td
+                      key={ci}
+                      className={`min-w-0 max-w-[14rem] overflow-hidden align-top text-stone-700 ${compact ? 'px-2 py-1' : 'px-3 py-2'}`}
+                    >
+                      {isArea ? (
+                        <RedeFranqueadoAreaAtuacaoCell text={cellText} />
+                      ) : (
+                        <RedeFranqueadoCellClamp text={cellText} />
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

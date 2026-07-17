@@ -5,32 +5,15 @@ import { Loader2, Plus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { criarLinhaRedeECard, getProximoNFranquia } from './actions';
 import { UFS_BRASIL } from '@/lib/uf';
+import {
+  REDE_OPCOES_CLASSIFICACAO_FRANQUEADO,
+  REDE_OPCOES_MODALIDADE,
+  REDE_OPCOES_REGIONAL,
+  REDE_OPCOES_STATUS_FRANQUIA,
+} from '@/lib/rede-franqueado-form-options';
 
 type CidadeIBGE = { id: number; nome: string };
 type AreaAtuacaoItem = { estado: string; cidade: string };
-
-const OPCOES_STATUS_FRANQUIA = [
-  { value: 'Em Operação', label: 'Em Operação' },
-  { value: 'Operação Encerrada', label: 'Operação Encerrada' },
-] as const;
-
-const OPCOES_CLASSIFICACAO_FRANQUEADO = [
-  { value: 'Beta', label: 'Beta' },
-  { value: 'Pagante', label: 'Pagante' },
-] as const;
-
-const OPCOES_MODALIDADE = [
-  { value: 'Franquia', label: 'Franquia' },
-  { value: 'Corporação', label: 'Corporação' },
-] as const;
-
-const OPCOES_REGIONAL = [
-  { value: 'C-oeste', label: 'C-oeste' },
-  { value: 'Nordeste', label: 'Nordeste' },
-  { value: 'Norte', label: 'Norte' },
-  { value: 'Sudeste', label: 'Sudeste' },
-  { value: 'Sul', label: 'Sul' },
-] as const;
 
 const OPCOES_RESPONSAVEL_COMERCIAL = [
   { value: 'Helenna Luz', label: 'Helenna Luz' },
@@ -440,7 +423,7 @@ export function AdicionarRedeECardButton() {
                     <label className="block text-sm font-medium text-stone-700">Modalidade</label>
                     <select value={modalidade} onChange={(e) => setModalidade(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm">
                       <option value="">— Selecione —</option>
-                      {OPCOES_MODALIDADE.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+                      {REDE_OPCOES_MODALIDADE.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                     </select>
                   </div>
                   <div className="sm:col-span-2">
@@ -451,14 +434,14 @@ export function AdicionarRedeECardButton() {
                     <label className="block text-sm font-medium text-stone-700">Status da Franquia</label>
                     <select value={statusFranquia} onChange={(e) => setStatusFranquia(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm">
                       <option value="">— Selecione —</option>
-                      {OPCOES_STATUS_FRANQUIA.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+                      {REDE_OPCOES_STATUS_FRANQUIA.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-stone-700">Classificação do Franqueado</label>
                     <select value={classificacaoFranqueado} onChange={(e) => setClassificacaoFranqueado(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm">
                       <option value="">— Selecione —</option>
-                      {OPCOES_CLASSIFICACAO_FRANQUEADO.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+                      {REDE_OPCOES_CLASSIFICACAO_FRANQUEADO.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                     </select>
                   </div>
                   <div className="sm:col-span-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -480,7 +463,7 @@ export function AdicionarRedeECardButton() {
                     <label className="block text-sm font-medium text-stone-700">Regional</label>
                     <select value={regional} onChange={(e) => setRegional(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm">
                       <option value="">— Selecione —</option>
-                      {OPCOES_REGIONAL.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+                      {REDE_OPCOES_REGIONAL.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                     </select>
                   </div>
                   <div>

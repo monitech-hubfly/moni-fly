@@ -27,6 +27,9 @@ export type NegocioDraftKanban = {
   link_mapa_competidores: string;
   link_acoplamento: string;
   link_apresentacao_comite: string;
+  link_opcao_permuta: string;
+  link_contrato_permuta: string;
+  link_seguro_garantia: string;
   link_moni_capital_seguro_garantia: string;
   comentario_moni_capital_seguro_garantia: string;
   link_moni_capital_gastos_aporte_inicial: string;
@@ -48,6 +51,9 @@ export function negocioDraftVazio(): NegocioDraftKanban {
     link_mapa_competidores: '',
     link_acoplamento: '',
     link_apresentacao_comite: '',
+    link_opcao_permuta: '',
+    link_contrato_permuta: '',
+    link_seguro_garantia: '',
     link_moni_capital_seguro_garantia: '',
     comentario_moni_capital_seguro_garantia: '',
     link_moni_capital_gastos_aporte_inicial: '',
@@ -76,6 +82,9 @@ export function negocioDraftFromProcesso(
     link_mapa_competidores: proc.link_mapa_competidores ?? '',
     link_acoplamento: proc.link_acoplamento ?? '',
     link_apresentacao_comite: proc.link_apresentacao_comite ?? '',
+    link_opcao_permuta: proc.link_opcao_permuta ?? '',
+    link_contrato_permuta: proc.link_contrato_permuta ?? '',
+    link_seguro_garantia: proc.link_seguro_garantia ?? '',
     link_moni_capital_seguro_garantia: proc.link_moni_capital_seguro_garantia ?? '',
     comentario_moni_capital_seguro_garantia: proc.comentario_moni_capital_seguro_garantia ?? '',
     link_moni_capital_gastos_aporte_inicial: proc.link_moni_capital_gastos_aporte_inicial ?? '',

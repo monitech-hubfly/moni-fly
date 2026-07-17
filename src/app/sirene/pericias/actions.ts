@@ -490,17 +490,23 @@ export async function listPericiasParaSelect(
 
     const { data, error } = await supabase
       .from('sirene_pericias')
-      .select('id, numero, titulo, status, dominio')
+      .select('id, numero, nome_pericia, status, dominio')
       .eq('dominio', dominio)
       .in('status', ['rascunho', 'aberta', 'investigando', 'plano_acao'])
-      .order('titulo', { ascending: true })
+      .order('nome_pericia', { ascending: true })
 
     if (error) {
       console.error('[listPericiasParaSelect] Erro:', error.message)
       return []
     }
 
-    return (data ?? []) as PericiaParaSelect[]
+    return ((data ?? []) as Array<{ id: number; numero: string; nome_pericia?: string; status: string; dominio: string }>).map((r) => ({
+      id: r.id,
+      numero: r.numero,
+      titulo: String(r.nome_pericia ?? ''),
+      status: r.status,
+      dominio: r.dominio,
+    })) as PericiaParaSelect[]
   } catch (err: unknown) {
     console.error('[listPericiasParaSelect] Erro inesperado:', err)
     return []
@@ -537,7 +543,7 @@ export async function listPericias(filtros?: {
     }
 
     if (filtros?.busca && filtros.busca.trim() !== '') {
-      query = query.ilike('titulo', `%${filtros.busca.trim()}%`)
+      query = query.ilike('nome_pericia', `%${filtros.busca.trim()}%`)
     }
 
     const { data, error } = await query
@@ -754,7 +760,7 @@ async function detectarRecidiva(periciaId: number): Promise<void> {
     // Busca recidivas_count atual
     const { data: pericia, error: fetchError } = await supabase
       .from('sirene_pericias')
-      .select('id, recidivas_count, numero, titulo')
+      .select('id, recidivas_count, numero, nome_pericia')
       .eq('id', periciaId)
       .single()
 
@@ -778,7 +784,7 @@ async function detectarRecidiva(periciaId: number): Promise<void> {
     await notificarCanetaVerde(supabase, {
       tipo: 'pericia_recidiva',
       titulo: `Recidiva detectada: ${pericia.numero}`,
-      mensagem: `A perícia "${pericia.titulo}" (já concluída) recebeu novo vínculo — recidiva #${novoCount}.`,
+      mensagem: `A perícia "${String((pericia as { nome_pericia?: string }).nome_pericia ?? "")}" (já concluída) recebeu novo vínculo — recidiva #${novoCount}.`,
       referencia_tipo: 'pericia',
       referencia_id: String(periciaId),
     })
@@ -813,8 +819,8 @@ export async function buscarPericiaSugestoes(
 
     let query = supabase
       .from('sirene_pericias')
-      .select('id, numero, titulo, status, dominio')
-      .ilike('titulo', `%${termoBusca}%`)
+      .select('id, numero, nome_pericia, status, dominio')
+      .ilike('nome_pericia', `%${termoBusca}%`)
       .in('status', ['rascunho', 'aberta', 'investigando'])
       .limit(5)
 
@@ -822,13 +828,21 @@ export async function buscarPericiaSugestoes(
       query = query.eq('dominio', dominio)
     }
 
-    const { data, error } = await query.order('titulo', { ascending: true })
+    const { data, error } = await query.order('nome_pericia', { ascending: true })
 
     if (error) {
       return { error: error.message }
     }
 
-    return { data: (data ?? []) as PericiaParaSelect[] }
+    return {
+      data: ((data ?? []) as Array<{ id: number; numero: string; nome_pericia?: string; status: string; dominio: string }>).map((r) => ({
+        id: r.id,
+        numero: r.numero,
+        titulo: String(r.nome_pericia ?? ''),
+        status: r.status,
+        dominio: r.dominio,
+      })) as PericiaParaSelect[],
+    }
   } catch (err: unknown) {
     const msg =
       err instanceof Error
@@ -917,7 +931,9 @@ async function notificarCanetaVerde(
       lida: false,
     }))
 
-    const { error: notifError } = await supabase
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const { error: notifError } = await admin
       .from('sirene_notificacoes')
       .insert(notificacoes)
 

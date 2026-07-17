@@ -27,6 +27,7 @@ import {
   Paperclip,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { filterKanbanAtividadeIds } from '@/lib/pastelaria/synthetic-id';
 import { calcularDiasUteis, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import {
   formatMotivoArquivamento,
@@ -679,7 +680,6 @@ export function KanbanCardModal({
   const [enviandoHipotesePortfolio, setEnviandoHipotesePortfolio] = useState(false);
   const [dataReuniao, setDataReuniao] = useState('');
   const [horaReuniao, setHoraReuniao] = useState('');
-  const [dataFollowup, setDataFollowup] = useState('');
   const [interacoes, setInteracoes] = useState<InteracaoModal[]>([]);
   const [erroCarregarChamados, setErroCarregarChamados] = useState<string | null>(null);
   const [modalSessao, setModalSessao] = useState<{
@@ -904,7 +904,6 @@ export function KanbanCardModal({
     setEmailMensagem('');
     setDataReuniao('');
     setHoraReuniao('');
-    setDataFollowup('');
     setDetalhesCarregando(true);
     setChamadosCarregando(true);
   }, [cardId]);
@@ -1514,7 +1513,6 @@ export function KanbanCardModal({
         setHoraReuniao(
           loaded.hora_reuniao ? String(loaded.hora_reuniao).trim().slice(0, 5) : '',
         );
-        setDataFollowup(loaded.data_followup ? String(loaded.data_followup).slice(0, 10) : '');
       }
       if (!silencioso) setLoading(false);
 
@@ -1887,13 +1885,16 @@ export function KanbanCardModal({
                         .filter((a) => !a.arquivado);
                       setInteracoes(mapeadas);
 
-                      const actIds = mapeadas.map((m) => m.id);
-                      const { data: topicosRows } = await supabase
-                        .from('sirene_topicos')
-                        .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, arquivado, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
-                        .eq('arquivado', false)
-                        .in('interacao_id', actIds)
-                        .order('ordem', { ascending: true });
+                      const actIds = filterKanbanAtividadeIds(mapeadas.map((m) => m.id));
+                      const { data: topicosRows } =
+                        actIds.length > 0
+                          ? await supabase
+                              .from('sirene_topicos')
+                              .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, arquivado, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
+                              .eq('arquivado', false)
+                              .in('interacao_id', actIds)
+                              .order('ordem', { ascending: true })
+                          : { data: [] as never[] };
 
                       const topicos = topicosRows ?? [];
                       const tRespIds = [
@@ -3260,6 +3261,9 @@ export function KanbanCardModal({
           link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
           link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
           link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
+          link_opcao_permuta: negocioDraft.link_opcao_permuta?.trim() || null,
+          link_contrato_permuta: negocioDraft.link_contrato_permuta?.trim() || null,
+          link_seguro_garantia: negocioDraft.link_seguro_garantia?.trim() || null,
           link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
           comentario_moni_capital_seguro_garantia:
             negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
@@ -4000,8 +4004,6 @@ export function KanbanCardModal({
       undefined,
       datasManuaisCalculadora,
     );
-    // Overrides por último (preserva início/fim manuais) e overlay da âncora por cima
-    // para não reexibir datas de visitas/encadeamento nas fases anteriores.
     const comOverridesFinais =
       datasManuaisCalculadora.size > 0
         ? aplicarDatasManuaisCalculadoraLinhas(
@@ -4010,11 +4012,21 @@ export function KanbanCardModal({
             cardEncadeamento,
           )
         : sincronizadas;
+    // Overlay oculta visitas/encadeamento nas fases anteriores à âncora; overrides manuais
+    // reaplicados por último para não perder data digitada (ex.: M0 Contrato «est.»).
     const comAncoraOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(
       comOverridesFinais,
       calculadoraAncora,
     );
-    return normalizarIntervaloDatasCalculadoraLinhas(comAncoraOverlay, cardEncadeamento);
+    const comOverridesPosOverlay =
+      datasManuaisCalculadora.size > 0
+        ? aplicarDatasManuaisCalculadoraLinhas(
+            comAncoraOverlay,
+            datasManuaisCalculadora,
+            cardEncadeamento,
+          )
+        : comAncoraOverlay;
+    return normalizarIntervaloDatasCalculadoraLinhas(comOverridesPosOverlay, cardEncadeamento);
   }, [
     card,
     contextoCalculadoraSyncGroup,
@@ -4577,48 +4589,76 @@ export function KanbanCardModal({
     label: string,
     field: ProcessoNegocioAnexoCampo,
     path: string | null | undefined,
+    linkRaw?: string | null,
+    linkEdit?: { value: string; onChange: (v: string) => void },
   ) {
     if (!proc?.id) return null;
     const inputId = `negocio-anexo-${field}`;
     const uploading = uploadingNegocioAnexo === field;
     const canAnexar = modalSessao.ehAdminOuTeam;
+    // Mesma densidade de renderNegocioLinkCampo (BCA/Gbox): py-1 + text-xs, sem min-h 44.
     const anexoBtnClass =
-      'inline-flex cursor-pointer items-center rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50';
+      'inline-flex shrink-0 cursor-pointer items-center rounded border border-stone-200 bg-white px-2 py-1 text-[11px] font-medium text-stone-600 transition has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50';
+    const linkHref = linkHrefFromText(linkEdit ? linkEdit.value : linkRaw);
+    const linkDisplay = String((linkEdit ? linkEdit.value : linkRaw) ?? '').trim();
+    const anexoActions = path?.trim() ? (
+      <>
+        <button type="button" onClick={() => void handleBaixarNegocioAnexo(path)} className={anexoBtnClass}>
+          Baixar
+        </button>
+        {canAnexar ? (
+          <label htmlFor={inputId} className={anexoBtnClass}>
+            {uploading ? 'Enviando…' : 'Substituir'}
+          </label>
+        ) : null}
+      </>
+    ) : canAnexar ? (
+      <label htmlFor={inputId} className={anexoBtnClass}>
+        {uploading ? 'Enviando…' : 'Anexar'}
+      </label>
+    ) : null;
+
     return (
       <div>
-        <p className="text-[11px] font-medium text-stone-500">{label}</p>
-        <input
-          id={inputId}
-          type="file"
-          className="sr-only"
-          onChange={(e) => void handleNegocioAnexoFile(e, field)}
-          accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,image/*"
-          disabled={uploading}
-        />
-        <div className="mt-0.5 flex flex-wrap items-center gap-2">
-          {path?.trim() ? (
-            <>
-              <button
-                type="button"
-                onClick={() => void handleBaixarNegocioAnexo(path)}
-                className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50"
-              >
-                Baixar
-              </button>
-              {canAnexar ? (
-                <label htmlFor={inputId} className={anexoBtnClass}>
-                  {uploading ? 'Enviando…' : 'Substituir'}
-                </label>
-              ) : null}
-            </>
-          ) : canAnexar ? (
-            <label htmlFor={inputId} className={anexoBtnClass}>
-              {uploading ? 'Enviando…' : 'Anexar'}
-            </label>
-          ) : (
-            <span className="text-[11px] text-stone-500">—</span>
-          )}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <p className="text-[11px] font-medium text-stone-500">{label}</p>
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            {anexoActions}
+            <input
+              id={inputId}
+              type="file"
+              className="sr-only"
+              onChange={(e) => void handleNegocioAnexoFile(e, field)}
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,image/*"
+              disabled={uploading}
+            />
+          </div>
         </div>
+        {linkEdit ? (
+          <input
+            type="url"
+            value={linkEdit.value}
+            onChange={(e) => linkEdit.onChange(e.target.value)}
+            placeholder="https://…"
+            aria-label={`${label} — link (opcional)`}
+            className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+          />
+        ) : (
+          <div className="mt-0.5 text-xs">
+            {linkHref ? (
+              <a
+                href={linkHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all text-moni-primary underline"
+              >
+                {linkDisplay}
+              </a>
+            ) : (
+              <span className="text-stone-400">—</span>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -4627,7 +4667,18 @@ export function KanbanCardModal({
     if (!proc) return null;
     return (
       <div className="space-y-2 border-t border-stone-100 pt-2">
-        {renderNegocioAnexoCampo('Opção de Permuta', 'opcao_permuta', proc.anexo_opcao_permuta_path)}
+        {renderNegocioAnexoCampo(
+          'Opção de Permuta ou CCV',
+          'opcao_permuta',
+          proc.anexo_opcao_permuta_path,
+          proc.link_opcao_permuta,
+          editMode
+            ? {
+                value: negocioDraft.link_opcao_permuta,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_opcao_permuta: v })),
+              }
+            : undefined,
+        )}
         {renderNegocioLinkCampo(
           'BCA',
           proc.link_bca,
@@ -4682,8 +4733,26 @@ export function KanbanCardModal({
           'Contrato de Permuta ou CCV',
           'contrato_permuta',
           proc.anexo_contrato_permuta_path,
+          proc.link_contrato_permuta,
+          editMode
+            ? {
+                value: negocioDraft.link_contrato_permuta,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_contrato_permuta: v })),
+              }
+            : undefined,
         )}
-        {renderNegocioAnexoCampo('Seguro garantia', 'seguro_garantia', proc.anexo_seguro_garantia_path)}
+        {renderNegocioAnexoCampo(
+          'Seguro garantia',
+          'seguro_garantia',
+          proc.anexo_seguro_garantia_path,
+          proc.link_seguro_garantia,
+          editMode
+            ? {
+                value: negocioDraft.link_seguro_garantia,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_seguro_garantia: v })),
+              }
+            : undefined,
+        )}
         {renderNegocioLinkComComentarios(
           'Moní Capital — seguro garantia',
           proc.link_moni_capital_seguro_garantia,
@@ -6160,9 +6229,7 @@ export function KanbanCardModal({
               origem={origem}
               basePath={basePath}
               dataReuniao={dataReuniao}
-              dataFollowup={dataFollowup}
               onDataReuniaoChange={setDataReuniao}
-              onDataFollowupChange={setDataFollowup}
               onAtaSalva={() => setAtasReuniaoTick((t) => t + 1)}
             />
 

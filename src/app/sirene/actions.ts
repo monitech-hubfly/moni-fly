@@ -30,6 +30,11 @@ import {
 import { labelPastelariaColuna } from '@/lib/pastelaria/coluna-labels';
 import { syncPastelariaColunaFromSireneStatus } from '@/lib/pastelaria/sirene-status-sync';
 import {
+  filterKanbanAtividadeIds,
+  filterSireneChamadoIds,
+  isPastelariaSyntheticId,
+} from '@/lib/pastelaria/synthetic-id';
+import {
   buscarTopicosStatusChamado,
   registrarPrimeiroAtendimentoSeNecessario,
   todosTopicosFechados,
@@ -499,6 +504,11 @@ export async function getTopicosPorInteracaoId(interacaoId: string): Promise<Get
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
+  // IDs sintéticos `pastelaria-{uuid}` não são UUID — não consultar colunas uuid.
+  if (isPastelariaSyntheticId(interacaoId)) {
+    return { ok: true, topicos: [] };
+  }
+
   const { data, error } = await supabase
     .from('sirene_topicos')
     .select(TOPICOS_PAINEL_SELECT)
@@ -522,16 +532,23 @@ export async function getTopicosBatchPorInteracaoIds(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
+  const porInteracao: Record<string, TopicoPainelLinha[]> = {};
+  for (const raw of interacaoIds) {
+    if (isPastelariaSyntheticId(raw)) porInteracao[String(raw)] = [];
+  }
+
+  const idsUuid = filterKanbanAtividadeIds(interacaoIds);
+  if (idsUuid.length === 0) return { ok: true, porInteracao };
+
   const { data, error } = await supabase
     .from('sirene_topicos')
     .select(`${TOPICOS_PAINEL_SELECT}, interacao_id`)
-    .in('interacao_id', interacaoIds)
+    .in('interacao_id', idsUuid)
     .eq('arquivado', false)
     .order('ordem', { ascending: true });
 
   if (error) return { ok: false, error: error.message };
 
-  const porInteracao: Record<string, TopicoPainelLinha[]> = {};
   for (const row of (data ?? []) as Record<string, unknown>[]) {
     const iid = String((row as { interacao_id?: string }).interacao_id ?? '');
     if (!iid) continue;
@@ -659,9 +676,9 @@ type AvisoNotificacaoEstruturado = {
   referencia_id: number;
 };
 
-/** Insere uma notificação para um usuário. */
+/** Insere uma notificação para um usuário (service role — bypass RLS; notifica terceiros). */
 async function inserirNotificacao(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  _supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   chamadoId: number | null,
   tipo: string,
@@ -670,18 +687,24 @@ async function inserirNotificacao(
   aviso?: AvisoNotificacaoEstruturado,
 ): Promise<void> {
   const corpo = aviso?.mensagem ?? texto;
-  await supabase.from('sirene_notificacoes').insert({
-    user_id: userId,
-    chamado_id: chamadoId,
-    tipo,
-    texto: corpo,
-    ...(topicoId != null && { topico_id: topicoId }),
-    ...(aviso && {
-      titulo: aviso.titulo,
-      mensagem: aviso.mensagem,
-      referencia_id: aviso.referencia_id,
-    }),
-  });
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.from('sirene_notificacoes').insert({
+      user_id: userId,
+      chamado_id: chamadoId,
+      tipo,
+      texto: corpo,
+      ...(topicoId != null && { topico_id: topicoId }),
+      ...(aviso && {
+        titulo: aviso.titulo,
+        mensagem: aviso.mensagem,
+        referencia_id: aviso.referencia_id,
+      }),
+    });
+    if (error) console.error('[inserirNotificacao]', error.message);
+  } catch (e) {
+    console.error('[inserirNotificacao]', e);
+  }
 }
 
 /** IDs do time responsável por um tópico (responsavel_id ou profiles com time = time_responsavel). */
@@ -751,23 +774,27 @@ async function getTopicosAtrasados(
 
   if (error || !topicos?.length) return [];
 
-  const chamadoIds = [...new Set(topicos.map((t) => t.chamado_id))];
-  const { data: chamados } = await supabase
-    .from('sirene_chamados')
-    .select('id, numero')
-    .in('id', chamadoIds);
-  const numeroByChamado = new Map(
-    (chamados ?? []).map((c) => [c.id, (c as { numero?: number }).numero ?? c.id]),
-  );
+  const chamadoIds = filterSireneChamadoIds(topicos.map((t) => t.chamado_id as number | null));
+  const numeroByChamado = new Map<number, number>();
+  if (chamadoIds.length > 0) {
+    const { data: chamados } = await supabase
+      .from('sirene_chamados')
+      .select('id, numero')
+      .in('id', chamadoIds);
+    for (const c of chamados ?? []) {
+      numeroByChamado.set(Number(c.id), Number((c as { numero?: number }).numero ?? c.id));
+    }
+  }
 
   return topicos
     .map((t) => {
       const dataFim = (t.data_fim as string) ?? '';
       const dias_atraso = diasUteisAtraso(dataFim);
+      const cid = t.chamado_id != null && Number.isFinite(Number(t.chamado_id)) ? Number(t.chamado_id) : null;
       return {
         id: t.id,
-        chamado_id: t.chamado_id,
-        numero: numeroByChamado.get(t.chamado_id) ?? t.chamado_id,
+        chamado_id: cid as typeof t.chamado_id,
+        numero: (cid != null ? numeroByChamado.get(cid) : undefined) ?? t.chamado_id,
         descricao: t.descricao ?? '',
         time_responsavel: t.time_responsavel ?? '',
         responsavel_id: t.responsavel_id ?? null,
@@ -1011,12 +1038,7 @@ export async function criarChamado(
       : `Novo chamado #${numero}: ${incendio}`;
 
   for (const uid of userIds) {
-    await supabase.from('sirene_notificacoes').insert({
-      user_id: uid,
-      chamado_id: chamadoRow.id,
-      tipo: notifTipo,
-      texto,
-    });
+    await inserirNotificacao(supabase, uid, chamadoRow.id, notifTipo, texto);
   }
 
   revalidatePath('/sirene');
@@ -1263,12 +1285,7 @@ export async function redirecionarParaHDM(
   const numero = chamado.numero ?? chamadoId;
   const texto = `Chamado #${numero} redirecionado para ${hdmResponsavel}.`;
   for (const uid of userIds) {
-    await supabase.from('sirene_notificacoes').insert({
-      user_id: uid,
-      chamado_id: chamadoId,
-      tipo: 'chamado_hdm_recebido',
-      texto,
-    });
+    await inserirNotificacao(supabase, uid, chamadoId, 'chamado_hdm_recebido', texto);
   }
 
   revalidatePath('/sirene');
@@ -2299,7 +2316,8 @@ export async function getMonitorTopicosPorTime(
   let list = topicos ?? [];
   if (list.length === 0) return { ok: true, isBombeiro: true, porTime: {} };
 
-  const chamadoIds = [...new Set(list.map((t) => t.chamado_id))];
+  const chamadoIds = filterSireneChamadoIds(list.map((t) => t.chamado_id as number | null));
+  if (chamadoIds.length === 0) return { ok: true, isBombeiro: true, porTime: {} };
   let q = supabase
     .from('sirene_chamados')
     .select('id, numero, incendio, frank_nome, trava, tipo')
@@ -3166,7 +3184,7 @@ async function aggregateTopFranqueados(
       const slice = redeIds.slice(i, i + chunk);
       const { data: redes } = await queryClient
         .from('rede_franqueados')
-        .select('id, nome_completo, n_franquia, nome, unidade')
+        .select('id, nome_completo, n_franquia')
         .in('id', slice);
       for (const rf of redes ?? []) {
         redeNome.set(String((rf as { id: string }).id), displayNomeRedeFranqueado(rf as Parameters<typeof displayNomeRedeFranqueado>[0]));
@@ -3765,7 +3783,7 @@ export async function listPericiasComChamados(filtros?: {
     if (!porPericia.has(v.pericia_id)) porPericia.set(v.pericia_id, []);
     porPericia.get(v.pericia_id)!.push(v.chamado_id);
   }
-  const chamadoIds = [...new Set((vinc ?? []).map((v) => v.chamado_id))];
+  const chamadoIds = filterSireneChamadoIds((vinc ?? []).map((v) => v.chamado_id));
   const { data: chamadosList } =
     chamadoIds.length > 0
       ? await supabase.from('sirene_chamados').select('id, numero, incendio').in('id', chamadoIds)
@@ -3846,9 +3864,9 @@ export async function listConclusoesClassificadas(): Promise<
     }
   }
 
-  const chamadoIds = (rows ?? [])
-    .map((r) => (r as { chamado_id?: number | null }).chamado_id)
-    .filter((x): x is number => x != null);
+  const chamadoIds = filterSireneChamadoIds(
+    (rows ?? []).map((r) => (r as { chamado_id?: number | null }).chamado_id),
+  );
 
   let numeroPorChamado = new Map<number, number>();
   if (chamadoIds.length > 0) {

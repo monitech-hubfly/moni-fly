@@ -11,12 +11,15 @@ type Props = {
   podeEditar: boolean;
 };
 
+/** Densidade alinhada a Dados do Negócio / demais campos da coluna esquerda. */
 const labelCls = 'text-[11px] font-medium';
 const inputCls =
-  'mt-0.5 w-full rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-[var(--moni-border-default)] bg-white px-2 py-1.5 text-xs font-[family-name:var(--moni-font-sans)] text-[var(--moni-text-primary)] min-h-[44px]';
+  'mt-0.5 w-full rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-[var(--moni-border-default)] bg-white px-2 py-1 text-xs font-[family-name:var(--moni-font-sans)] text-[var(--moni-text-primary)] min-h-[44px] sm:min-h-0';
 const inputReadonlyCls =
-  'mt-0.5 w-full cursor-not-allowed rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-[var(--moni-border-default)] bg-[var(--moni-surface-muted,#f5f5f4)] px-2 py-1.5 text-xs font-[family-name:var(--moni-font-sans)] text-[var(--moni-text-secondary)] min-h-[44px]';
+  'mt-0.5 w-full cursor-not-allowed rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-[var(--moni-border-default)] bg-[var(--moni-surface-100)] px-2 py-1 text-xs font-[family-name:var(--moni-font-sans)] text-[var(--moni-text-secondary)] min-h-[44px] sm:min-h-0';
 const hintCls = 'mt-0.5 block text-[10px] text-[var(--moni-text-tertiary)]';
+const sectionTitleCls =
+  'mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--moni-text-tertiary)]';
 
 function fmtPrev(iso: string): string {
   if (!iso) return '—';
@@ -31,15 +34,12 @@ export function KanbanCardModalDadosPreObraOperacoes({
   podeEditar,
 }: Props) {
   return (
-    <div className="space-y-4 moni-form-novo-card">
+    <div className="space-y-3">
       <div>
-        <p
-          className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--moni-text-tertiary)]"
-          style={{ fontFamily: 'var(--moni-font-sans)' }}
-        >
+        <p className={sectionTitleCls} style={{ fontFamily: 'var(--moni-font-sans)' }}>
           Datas reais
         </p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-2 gap-y-2 sm:grid-cols-2">
           <label className="block min-w-0">
             <span className={labelCls} style={{ color: 'var(--moni-text-secondary)' }}>
               Data Aprovação Condomínio
@@ -80,13 +80,10 @@ export function KanbanCardModalDadosPreObraOperacoes({
       </div>
 
       <div>
-        <p
-          className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--moni-text-tertiary)]"
-          style={{ fontFamily: 'var(--moni-font-sans)' }}
-        >
+        <p className={sectionTitleCls} style={{ fontFamily: 'var(--moni-font-sans)' }}>
           Previsões (calculadas automaticamente)
         </p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-2 gap-y-2 sm:grid-cols-2">
           <label className="block min-w-0">
             <span className={labelCls} style={{ color: 'var(--moni-text-secondary)' }}>
               Prev. Aprovação Condomínio
@@ -153,7 +150,7 @@ export function KanbanCardModalDadosPreObraOperacoes({
           type="button"
           onClick={onSalvar}
           disabled={salvando}
-          className="w-full rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-transparent px-3 py-2.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px]"
+          className="w-full rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-transparent px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] sm:min-h-0"
           style={{
             background: 'var(--moni-navy-800)',
             fontFamily: 'var(--moni-font-sans)',

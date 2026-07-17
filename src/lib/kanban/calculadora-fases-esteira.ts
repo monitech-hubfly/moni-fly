@@ -295,9 +295,15 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
     cardCalc,
     input.hoje,
   );
-  // Overlay final: fases anteriores à âncora sem datas (visitas/encadeamento não reaparecem).
+  // Overlay final: fases anteriores à âncora sem datas de visita/encadeamento.
   const comOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(comDatasManuais, input.ancora);
-  return normalizarIntervaloDatasCalculadoraLinhas(comOverlay, cardCalc, input.hoje);
+  // Overrides manuais depois do overlay — senão a âncora apaga a data digitada no M0/fases anteriores.
+  const overrides = input.overrides ?? new Map();
+  const comOverridesPosOverlay =
+    overrides.size > 0
+      ? aplicarDatasManuaisCalculadoraLinhas(comOverlay, overrides, cardCalc, input.hoje)
+      : comOverlay;
+  return normalizarIntervaloDatasCalculadoraLinhas(comOverridesPosOverlay, cardCalc, input.hoje);
 }
 
 /** Resumo executivo idêntico em todos os cards vinculados do sync group. */
