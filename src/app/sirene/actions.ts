@@ -1567,18 +1567,16 @@ export async function adicionarTopicoChamadoPainel(
   const incendioCh = String((chamadoFull as { incendio?: string | null }).incendio ?? '').trim();
   const contextoTitulo = temaCh || incendioCh || `Chamado #${numero}`;
 
-  const chamadoArquivado = Boolean((chamadoFull as { arquivado?: boolean | null }).arquivado);
-  if (!chamadoArquivado) {
-    const abertoPorId = String((chamadoFull as { aberto_por?: string | null }).aberto_por ?? '').trim();
-    await notificarMencoesSirene({
-      mencoesIds,
-      plain: desc,
-      referenciaPath: `/sirene/${chamadoId}`,
-      contextoTitulo,
-      autorId: me.userId,
-      extraDestinatarios: [...respIds, abertoPorId].filter(Boolean),
-    });
-  }
+  const abertoPorId = String((chamadoFull as { aberto_por?: string | null }).aberto_por ?? '').trim();
+  await notificarMencoesSirene({
+    mencoesIds,
+    plain: desc,
+    referenciaPath: `/sirene/${chamadoId}`,
+    contextoTitulo,
+    autorId: me.userId,
+    extraDestinatarios: [...respIds, abertoPorId].filter(Boolean),
+    sireneChamadoId: chamadoId,
+  });
 
   revalidatePath('/sirene/chamados');
   revalidatePath(`/sirene/${chamadoId}`);
@@ -4118,6 +4116,7 @@ export async function enviarMensagemChamado(
     referenciaPath: `/sirene/${chamadoId}`,
     contextoTitulo: tituloChamadoNotif,
     autorId: me.userId,
+    sireneChamadoId: chamadoId,
   });
   revalidatePath(`/sirene/${chamadoId}`);
   return { ok: true };

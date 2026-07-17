@@ -23,6 +23,7 @@ type NotificarParams = {
   interacaoId?: string | null;
   topicoId?: number | null;
   excluirUserId?: string | null;
+  sireneChamadoId?: number | null;
 };
 
 export async function notificarAlertasKanbanAtividade(params: NotificarParams): Promise<void> {
@@ -36,6 +37,19 @@ export async function notificarAlertasKanbanAtividade(params: NotificarParams): 
     admin = createAdminClient();
   } catch {
     return;
+  }
+
+  if (params.sireneChamadoId != null) {
+    const { data: ch } = await admin
+      .from('sirene_chamados')
+      .select('status, arquivado')
+      .eq('id', params.sireneChamadoId)
+      .maybeSingle();
+    if (ch) {
+      const s = String((ch as { status?: string | null }).status ?? '').toLowerCase();
+      const fechado = (ch as { arquivado?: boolean }).arquivado === true || s === 'concluido' || s === 'concluído';
+      if (fechado) return;
+    }
   }
 
   const cardId = (params.cardId ?? '').trim() || null;

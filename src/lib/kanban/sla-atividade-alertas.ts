@@ -12,6 +12,7 @@ const JANELA_DEDUPE_HORAS = 24;
 type TopicoSlaRow = {
   id: number;
   interacao_id: string;
+  chamado_id: number | null;
   nome: string | null;
   descricao: string | null;
   data_fim: string | null;
@@ -91,6 +92,20 @@ async function inserirAlertaSla(
   }
 }
 
+async function chamadoSireneFechado(
+  db: ReturnType<typeof createAdminClient>,
+  chamadoId: number,
+): Promise<boolean> {
+  const { data } = await db
+    .from('sirene_chamados')
+    .select('status, arquivado')
+    .eq('id', chamadoId)
+    .maybeSingle();
+  if (!data) return false;
+  const s = String((data as { status?: string | null }).status ?? '').toLowerCase();
+  return (data as { arquivado?: boolean }).arquivado === true || s === 'concluido' || s === 'concluído';
+}
+
 /**
  * Notifica responsáveis de sub-interações (sirene_topicos) e chamados abertos
  * quando o SLA em dias úteis está em atenção ou atrasado.
@@ -107,7 +122,7 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
   const { data: topicos, error: errTopicos } = await db
     .from('sirene_topicos')
     .select(
-      'id, interacao_id, nome, descricao, data_fim, prazo_proposto, prazo_status, status, responsavel_id, responsaveis_ids',
+      'id, interacao_id, chamado_id, nome, descricao, data_fim, prazo_proposto, prazo_status, status, responsavel_id, responsaveis_ids',
     )
     .in('status', ['nao_iniciado', 'em_andamento'])
     .eq('arquivado', false)
@@ -126,6 +141,11 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
 
       const interacaoId = String(row.interacao_id ?? '').trim();
       if (!interacaoId) continue;
+
+      if (row.chamado_id != null) {
+        const fechado = await chamadoSireneFechado(db, row.chamado_id);
+        if (fechado) continue;
+      }
 
       const meta = await buscarMetaNotificacaoChamado(db, interacaoId);
       if (!meta) continue;
@@ -183,6 +203,17 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
     if (!interacaoId) continue;
 
     const meta = await buscarMetaNotificacaoChamado(db, interacaoId);
+    // Verificar se atividade pertence a chamado Sirene fechado
+    const { data: atv } = await db
+      .from('kanban_atividades')
+      .select('sirene_chamado_id')
+      .eq('id', interacaoId)
+      .maybeSingle();
+    const scId = (atv as { sirene_chamado_id?: number | null } | null)?.sirene_chamado_id;
+    if (scId != null) {
+      const fechado = await chamadoSireneFechado(db, scId);
+      if (fechado) continue;
+    }
     if (!meta) continue;
 
     const tituloChamado = String(row.titulo ?? meta.titulo ?? 'Chamado').trim() || 'Chamado';
