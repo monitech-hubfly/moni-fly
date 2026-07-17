@@ -274,7 +274,7 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
   const temRascunho = titulo.trim() || cardVinculo || atividades.length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/50 p-4">
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-xl">
         <div className="sticky top-0 flex items-center justify-between gap-2 border-b border-stone-200 bg-white px-4 py-3">
           <h2 className="text-lg font-semibold text-stone-800">Novo Chamado</h2>
