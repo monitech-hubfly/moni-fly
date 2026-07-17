@@ -3,7 +3,16 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowUpDown, MessageCircle, Paperclip } from 'lucide-react';
-import { useRef, useState, useTransition, useEffect, useCallback, useMemo, type DragEvent } from 'react';
+import {
+  useRef,
+  useState,
+  useTransition,
+  useEffect,
+  useCallback,
+  useMemo,
+  type CSSProperties,
+  type DragEvent,
+} from 'react';
 import {
   desvincularTagCard,
 } from '@/lib/actions/card-actions';
@@ -176,7 +185,7 @@ export function KanbanColumn({
   basePath,
   cardQueryParam = 'card',
   userRole: _userRole,
-  columnAccent: _columnAccent = 'var(--moni-kanban-stepone)',
+  columnAccent = 'var(--moni-kanban-stepone)',
   kanbanId,
   kanbanNome,
   hipotesesOrdemMin = null,
@@ -429,10 +438,15 @@ export function KanbanColumn({
   };
 
 
+  const columnStyle = {
+    ['--moni-kanban-col-accent' as string]: columnAccent,
+  } as CSSProperties;
+
   return (
     <>
     <div
       className={`moni-kanban-column${isUltimaFaseAtiva ? ' moni-kanban-column--fin' : ''}${columnDragOver && dndAtivo ? ' moni-kanban-column--drag-over' : ''}`}
+      style={columnStyle}
     >
       <div
         className={`moni-kanban-column-hd ${isUltimaFaseAtiva ? 'moni-kanban-column-hd--fin' : ''}`}
