@@ -282,12 +282,27 @@
   --moni-card-chip-prazo-bg:      #faf2f0;                  /* atrasado: fundo bem suave */
   --moni-card-chip-prazo-text:    #a15a4f;                  /* atrasado: texto menos saturado */
 
-  /* Linha lateral de status — sempre 3px; vermelho sóbrio (nunca #dc2626) */
+  /* Linha lateral de status — vermelho sóbrio (nunca #dc2626 / nunca laranja) */
   --moni-card-status-verde:    var(--moni-green-400);       /* no prazo */
   --moni-card-status-amarelo:  var(--moni-gold-400);        /* atenção */
   --moni-card-status-vermelho: #c47a72;                     /* atrasado — overdue Moní suave */
   --moni-card-status-roxo:     #7c3aed;                     /* revisão */
   --moni-card-status-cinza:    #e2e8f0;                     /* sem informação / default */
+  /* Faixa esquerda do card fechado — accent do funil (--moni-kanban-col-accent) + SLA */
+  --moni-card-rail-width:      3px;
+  --moni-card-rail-width-alert: 3.5px;
+  --moni-card-rail-inset:      5px;                         /* respiro conteúdo ↔ faixa */
+  --moni-card-rail-default:    color-mix(
+    in srgb,
+    var(--moni-kanban-col-accent) 32%,
+    var(--moni-card-status-cinza)
+  );
+  --moni-card-rail-atrasado:   var(--moni-card-status-vermelho);
+  --moni-card-rail-wash:       color-mix(
+    in srgb,
+    var(--moni-card-status-vermelho) 7%,
+    var(--moni-card-surface)
+  );
 
   /* Bolinhas — vínculos paralelos no board */
   --moni-paralela-tooltip-bg:       #1c3a2b;
@@ -2656,7 +2671,9 @@
   position: relative;
   display: block;
   width: 100%;
+  /* Padding esquerdo extra: o conteúdo não cola na faixa lateral */
   padding: var(--moni-card-pad);
+  padding-left: calc(var(--moni-card-pad) + var(--moni-card-rail-inset));
   border: var(--moni-border-width) solid var(--moni-card-border-color);
   border-radius: var(--moni-card-radius);
   background: var(--moni-card-surface);
@@ -2667,7 +2684,8 @@
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
-    transform 180ms ease;
+    transform 180ms ease,
+    background 180ms ease;
 }
 
 .moni-kanban-card:hover {
@@ -2676,16 +2694,21 @@
   transform: translateY(-1px);
 }
 
-/* Faixa lateral: cinza discreto por padrão; vermelho suave só com SLA atrasado.
-   Sem border-radius próprio — overflow:hidden do card curva a faixa com o card. */
+/* Faixa lateral esquerda: accent sutil do funil; vermelho só com SLA atrasado.
+   Gradiente vertical leve (Porsche/editorial) — sem glow. overflow:hidden curva com o card. */
 .moni-kanban-card::before {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  width: 2px;
-  background: var(--moni-card-status-cinza);
+  width: var(--moni-card-rail-width);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--moni-kanban-col-accent) 55%, transparent) 0%,
+    var(--moni-card-rail-default) 42%,
+    color-mix(in srgb, var(--moni-kanban-col-accent) 38%, transparent) 100%
+  );
   pointer-events: none;
 }
 
@@ -2693,14 +2716,34 @@
 .moni-kanban-card--status-amarelo::before,
 .moni-kanban-card--status-roxo::before,
 .moni-kanban-card--status-cinza::before {
-  width: 2px;
-  background: var(--moni-card-status-cinza);
+  width: var(--moni-card-rail-width);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--moni-kanban-col-accent) 55%, transparent) 0%,
+    var(--moni-card-rail-default) 42%,
+    color-mix(in srgb, var(--moni-kanban-col-accent) 38%, transparent) 100%
+  );
 }
 
 .moni-kanban-card--status-vermelho::before,
 .moni-kanban-card--sla-atrasado::before {
-  width: 3px;
-  background: var(--moni-card-status-vermelho);
+  width: var(--moni-card-rail-width-alert);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--moni-card-rail-atrasado) 88%, transparent) 0%,
+    var(--moni-card-rail-atrasado) 50%,
+    color-mix(in srgb, var(--moni-card-rail-atrasado) 72%, transparent) 100%
+  );
+}
+
+/* Wash suave à esquerda só com SLA atrasado — reforça a faixa sem “card dentro de card” */
+.moni-kanban-card--status-vermelho,
+.moni-kanban-card--sla-atrasado {
+  background: linear-gradient(
+    90deg,
+    var(--moni-card-rail-wash) 0%,
+    var(--moni-card-surface) 18px
+  );
 }
 
 .moni-kanban-card--archived {
@@ -2907,10 +2950,11 @@
   margin-bottom: var(--moni-card-gap-header-title);
 }
 
+/* Bloco esquerdo: FK ancorado + franqueado mais leve (hierarquia editorial) */
 .moni-kanban-card-header-meta {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 5px;
   min-width: 0;
   flex: 1;
 }
@@ -2918,8 +2962,10 @@
 .moni-kanban-card-header-sep {
   flex-shrink: 0;
   color: var(--moni-kanban-tm);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1;
+  opacity: 0.85;
+  transform: translateY(-0.5px);
 }
 
 .moni-kanban-card-responsavel,
@@ -2927,7 +2973,7 @@
   margin: 0;
   font-family: var(--moni-font-sans);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: var(--moni-card-lh);
   color: var(--moni-card-resp-color);
   white-space: nowrap;
@@ -2947,10 +2993,12 @@
   display: inline;
   margin: 0;
   font-family: var(--moni-font-sans);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   line-height: var(--moni-card-lh);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.045em;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
   color: var(--moni-card-code-color);
   white-space: nowrap;
   flex-shrink: 0;
@@ -4129,6 +4177,7 @@
   /* Card fechado no mobile: mais respiro e alvos de toque >= 44px */
   .moni-kanban-card {
     padding: 16px;
+    padding-left: calc(16px + var(--moni-card-rail-inset));
   }
 
   .moni-kanban-card-footer {
