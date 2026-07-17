@@ -74,10 +74,12 @@ type Props = {
   regionalArr: [string, number][];
   maxRegional: number;
   operacao: number;
+  transferencia: number;
   total: number;
   modoAggregado: boolean;
   rowsPorRegional: Map<string, RedeFranqueadoRowDb[]>;
   rowsEmOperacao: RedeFranqueadoRowDb[];
+  rowsEmTransferencia: RedeFranqueadoRowDb[];
   pagantes: number;
   beta: number;
   maxClassificacao: number;
@@ -85,8 +87,8 @@ type Props = {
   rowsPagante: RedeFranqueadoRowDb[];
   rowsBeta: RedeFranqueadoRowDb[];
   statusByClass: {
-    pagante: { encerrada: number };
-    beta: { encerrada: number };
+    pagante: { encerrada: number; transferencia: number };
+    beta: { encerrada: number; transferencia: number };
   };
   onOpenLista: (titulo: string, rows: RedeFranqueadoRowDb[]) => void;
 };
@@ -95,10 +97,12 @@ export function RedeVisaoRegionalClassificacao({
   regionalArr,
   maxRegional,
   operacao,
+  transferencia,
   total,
   modoAggregado,
   rowsPorRegional,
   rowsEmOperacao,
+  rowsEmTransferencia,
   pagantes,
   beta,
   maxClassificacao,
@@ -113,6 +117,69 @@ export function RedeVisaoRegionalClassificacao({
     { key: 'pagante', label: 'Pagante', n: pagantes, rows: rowsPagante, fill: 'var(--moni-green-800)' },
     { key: 'beta', label: 'Beta', n: beta, rows: rowsBeta, fill: 'var(--moni-gold-600)' },
   ] as const;
+
+  const statusSidebar = (
+    <div className="space-y-4">
+      {modoAggregado ? (
+        <div>
+          <p className="text-3xl font-medium leading-none" style={{ color: 'var(--moni-text-primary)' }}>
+            {operacao}
+          </p>
+          <p className="mt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+            {pct(operacao, total)} da rede
+          </p>
+          <p className="mt-2 text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Em operação
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onOpenLista(`Em operação (${operacao})`, rowsEmOperacao)}
+          className="block w-full text-left hover:opacity-90"
+        >
+          <p className="text-3xl font-medium leading-none" style={{ color: 'var(--moni-text-primary)' }}>
+            {operacao}
+          </p>
+          <p className="mt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+            {pct(operacao, total)} da rede
+          </p>
+          <p className="mt-2 text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Em operação
+          </p>
+        </button>
+      )}
+      {modoAggregado ? (
+        <div>
+          <p className="text-2xl font-medium leading-none" style={{ color: 'var(--moni-card-status-amarelo)' }}>
+            {transferencia}
+          </p>
+          <p className="mt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+            {pct(transferencia, total)} da rede
+          </p>
+          <p className="mt-2 text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Em Transferência
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onOpenLista(`Em Transferência (${transferencia})`, rowsEmTransferencia)}
+          className="block w-full text-left hover:opacity-90"
+        >
+          <p className="text-2xl font-medium leading-none" style={{ color: 'var(--moni-card-status-amarelo)' }}>
+            {transferencia}
+          </p>
+          <p className="mt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+            {pct(transferencia, total)} da rede
+          </p>
+          <p className="mt-2 text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Em Transferência
+          </p>
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
@@ -141,35 +208,7 @@ export function RedeVisaoRegionalClassificacao({
           </div>
         </div>
         <div className="ml-4 shrink-0 border-l pl-4" style={{ borderColor: 'var(--moni-border-subtle)' }}>
-          {modoAggregado ? (
-            <div>
-              <p className="text-3xl font-medium leading-none" style={{ color: 'var(--moni-text-primary)' }}>
-                {operacao}
-              </p>
-              <p className="mt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                {pct(operacao, total)} da rede
-              </p>
-              <p className="mt-2 text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Em operação
-              </p>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onOpenLista(`Em operação (${operacao})`, rowsEmOperacao)}
-              className="text-left hover:opacity-90"
-            >
-              <p className="text-3xl font-medium leading-none" style={{ color: 'var(--moni-text-primary)' }}>
-                {operacao}
-              </p>
-              <p className="mt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                {pct(operacao, total)} da rede
-              </p>
-              <p className="mt-2 text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Em operação
-              </p>
-            </button>
-          )}
+          {statusSidebar}
         </div>
       </div>
 
@@ -214,6 +253,14 @@ export function RedeVisaoRegionalClassificacao({
                 {item.label}: {item.n}
               </span>
             ))}
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--moni-card-status-amarelo)' }} />
+              Transf. pagante: {statusByClass.pagante.transferencia}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--moni-gold-600)' }} />
+              Transf. beta: {statusByClass.beta.transferencia}
+            </span>
             <span className="inline-flex items-center gap-1">
               <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--moni-status-overdue-text)' }} />
               Enc. pagante: {statusByClass.pagante.encerrada}

@@ -25,6 +25,7 @@ import {
 import { RedeFranqueadoCellValue } from '@/components/RedeFranqueadoCellValue';
 import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 import { redeAlertError, redeAlertSuccess, redeTh } from '@/app/rede-franqueados/rede-ui';
+import { REDE_OPCOES_STATUS_FRANQUIA } from '@/lib/rede-franqueado-form-options';
 
 type AreaAtuacaoItem = { estado: string; cidade: string };
 type CidadeIBGE = { id: number; nome: string };
@@ -567,6 +568,23 @@ export function TabelaRedeFranqueadosEditavel({
                             onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
                             className="w-44 rounded-md border border-stone-300 px-2 py-1 text-sm"
                           />
+                        ) : k === 'status_franquia' ? (
+                          <select
+                            value={value}
+                            onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
+                            className="w-56 rounded-md border border-stone-300 px-2 py-1 text-sm"
+                          >
+                            <option value="">—</option>
+                            {REDE_OPCOES_STATUS_FRANQUIA.map((op) => (
+                              <option key={op.value} value={op.value}>
+                                {op.label}
+                              </option>
+                            ))}
+                            {value &&
+                            !REDE_OPCOES_STATUS_FRANQUIA.some((op) => op.value === value) ? (
+                              <option value={value}>{value}</option>
+                            ) : null}
+                          </select>
                         ) : (
                           <input
                             type="text"

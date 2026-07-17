@@ -318,6 +318,7 @@
   --moni-rede-chart-fill:        var(--moni-kanban-stepone);
   --moni-rede-chart-fill-secondary: var(--moni-gold-600);
   --moni-rede-kpi-em-operacao: var(--moni-green-800);
+  --moni-rede-kpi-em-transferencia: var(--moni-card-status-amarelo);
   --moni-rede-filter-em-operacao-bg: var(--moni-green-600);
   --moni-rede-filter-encerradas-bg:  var(--moni-status-overdue-border);
   --moni-rede-hover-row:       rgba(154, 184, 166, 0.32);
