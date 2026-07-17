@@ -24,8 +24,9 @@ type Props = {
   datasResolvidas?: Map<string, { data: string | null; prevista: boolean }>;
 };
 
+/** Mesma densidade de NegocioPrazoField / BCA/Gbox: py-1 + text-xs, min-h só no mobile. */
 const inputClass =
-  'w-full bg-[var(--moni-surface-0)] px-2 py-1.5 text-[12px] text-[var(--moni-text-primary)] min-h-[44px] sm:min-h-[36px]';
+  'mt-0.5 w-full bg-[var(--moni-surface-0)] px-2 py-1 text-xs text-[var(--moni-text-primary)] min-h-[44px] sm:min-h-0';
 const inputStyle = {
   border: '0.5px solid var(--moni-border-default)',
   borderRadius: 'var(--moni-radius-md)',
@@ -33,7 +34,8 @@ const inputStyle = {
 } as const;
 
 const moedaFieldClass =
-  'flex w-full min-h-[44px] items-center gap-1.5 rounded-[var(--moni-radius-md)] bg-[var(--moni-surface-0)] px-2 py-1.5 sm:min-h-[36px]';
+  'flex w-full min-h-[44px] items-center gap-1.5 rounded-[var(--moni-radius-md)] bg-[var(--moni-surface-0)] px-2 py-1 sm:min-h-0';
+const labelClass = 'text-[11px] font-medium text-[var(--moni-text-secondary)]';
 
 function fmtData(iso: string | null | undefined): string {
   if (!iso?.trim()) return '—';
@@ -225,33 +227,31 @@ export function KanbanCardModalNegociacaoLinhasField({
                 </button>
                 {aberto ? (
                   <div
-                    className="space-y-2 px-2.5 pb-2.5 pt-1"
+                    className="space-y-2 px-2 pb-2 pt-1"
                     style={{ borderTop: '0.5px solid var(--moni-border-subtle)' }}
                   >
                     <div>
-                      <div className="text-[10px] font-medium text-[var(--moni-text-tertiary)]">Condição</div>
-                      <div className="mt-0.5 text-[12px] text-[var(--moni-text-primary)] break-words">
+                      <div className={labelClass}>Condição</div>
+                      <div className="mt-0.5 text-xs text-[var(--moni-text-primary)] break-words">
                         {linha.condicao.trim() || '—'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] font-medium text-[var(--moni-text-tertiary)]">Valor</div>
-                      <div className="mt-0.5 text-[12px] text-[var(--moni-text-primary)] whitespace-nowrap">
+                      <div className={labelClass}>Valor</div>
+                      <div className="mt-0.5 text-xs text-[var(--moni-text-primary)] whitespace-nowrap">
                         {fmtMoedaKanban(linha.valor) || '—'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] font-medium text-[var(--moni-text-tertiary)]">Data</div>
-                      <div className="mt-0.5 text-[12px] text-[var(--moni-text-primary)]">
+                      <div className={labelClass}>Data</div>
+                      <div className="mt-0.5 text-xs text-[var(--moni-text-primary)]">
                         {fmtData(linha.dataPagamento)}
                       </div>
                     </div>
                     {atrelar ? (
                       <div>
-                        <div className="text-[10px] font-medium text-[var(--moni-text-tertiary)]">
-                          Atrelar à fase
-                        </div>
-                        <div className="mt-0.5 text-[12px] text-[var(--moni-text-primary)] break-words">
+                        <div className={labelClass}>Atrelar à fase</div>
+                        <div className="mt-0.5 text-xs text-[var(--moni-text-primary)] break-words">
                           {atrelar}
                         </div>
                       </div>
@@ -314,8 +314,8 @@ export function KanbanCardModalNegociacaoLinhasField({
                   <NegociacaoResumoLinha partes={partes} />
                 </button>
               ) : (
-                <div className="p-2.5">
-                  <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="p-2">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
                     <button
                       type="button"
                       onClick={() => fecharLinha(linha.id)}
@@ -328,7 +328,7 @@ export function KanbanCardModalNegociacaoLinhasField({
                     <button
                       type="button"
                       onClick={() => removerLinha(linha.id)}
-                      className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[var(--moni-radius-md)] text-[var(--moni-text-tertiary)] transition hover:bg-[var(--moni-surface-100)] hover:text-[var(--moni-text-secondary)] disabled:opacity-40 sm:min-h-[30px] sm:min-w-[30px]"
+                      className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[var(--moni-radius-md)] text-[var(--moni-text-tertiary)] transition hover:bg-[var(--moni-surface-100)] hover:text-[var(--moni-text-secondary)] disabled:opacity-40 sm:min-h-0 sm:min-w-[28px]"
                       style={{ border: '0.5px solid var(--moni-border-default)' }}
                       aria-label="Remover negociação"
                       disabled={disabled}
@@ -338,11 +338,9 @@ export function KanbanCardModalNegociacaoLinhasField({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-2.5">
+                  <div className="grid grid-cols-1 gap-2">
                     <label className="block min-w-0">
-                      <span className="mb-0.5 block text-[10px] font-medium text-[var(--moni-text-tertiary)]">
-                        Condição
-                      </span>
+                      <span className={labelClass}>Condição</span>
                       <input
                         type="text"
                         value={linha.condicao}
@@ -354,10 +352,8 @@ export function KanbanCardModalNegociacaoLinhasField({
                     </label>
 
                     <label className="block min-w-0">
-                      <span className="mb-0.5 block text-[10px] font-medium text-[var(--moni-text-tertiary)]">
-                        Valor
-                      </span>
-                      <div style={inputStyle}>
+                      <span className={labelClass}>Valor</span>
+                      <div className="mt-0.5" style={inputStyle}>
                         <KanbanCardModalMoedaField
                           value={moedaCampoValorInicial(linha.valor)}
                           onChange={(valor) => atualizarLinha(linha.id, { valor })}
@@ -367,9 +363,7 @@ export function KanbanCardModalNegociacaoLinhasField({
                     </label>
 
                     <label className="block min-w-0">
-                      <span className="mb-0.5 block text-[10px] font-medium text-[var(--moni-text-tertiary)]">
-                        Atrelar à fase
-                      </span>
+                      <span className={labelClass}>Atrelar à fase</span>
                       <select
                         value={vinculo}
                         onChange={(e) => {
@@ -391,16 +385,14 @@ export function KanbanCardModalNegociacaoLinhasField({
                     </label>
 
                     <label className="block min-w-0">
-                      <span className="mb-0.5 block text-[10px] font-medium text-[var(--moni-text-tertiary)]">
-                        Data
-                      </span>
+                      <span className={labelClass}>Data</span>
                       {temVinculo ? (
                         <div
-                          className={`${inputClass} flex flex-col justify-center`}
+                          className={`${inputClass} flex items-center gap-1.5`}
                           style={inputStyle}
                           title={resolvida?.data ? fmtData(resolvida.data) : undefined}
                         >
-                          <span className="text-[12px] text-[var(--moni-text-primary)]">
+                          <span className="text-xs text-[var(--moni-text-primary)]">
                             {fmtData(resolvida?.data ?? null)}
                           </span>
                           <span className="text-[10px] text-[var(--moni-text-tertiary)]">
