@@ -13,3 +13,6 @@ supabase/.temp/
 
 # Duplicata local do utilitário TypeScript (usar scripts/test-bastoes-prod.ts)
 scripts/test-bastoes-prod.mjs
+
+# Instruções locais para o Claude Code (não versionar)
+CLAUDE.md
