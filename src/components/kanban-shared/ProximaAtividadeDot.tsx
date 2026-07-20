@@ -7,6 +7,7 @@ import {
   adicionarProximaAtividadeItem,
   concluirProximaAtividadeItem,
   buscarAtividadesAbertasCard,
+  salvarProximaAtividade,
 } from '@/lib/actions/card-actions';
 
 type Props = {
@@ -103,7 +104,17 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
     setConfirmarSemProxima(false);
     setPendingItemId(null);
     setAberto(true);
-    void buscarAtividadesAbertasCard(cardId).then(setAtividadesAbertas);
+    void buscarAtividadesAbertasCard(cardId).then((abertas) => {
+      if (abertas.length === 0 && proximaAtividade) {
+        setAtividadesAbertas([{
+          id: 'legado',
+          descricao: proximaAtividade,
+          prazo_original: prazoAtividade,
+        }]);
+      } else {
+        setAtividadesAbertas(abertas);
+      }
+    });
   }
 
   function concluirItem(itemId: string) {
@@ -118,7 +129,16 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
 
   function executarConclusao(itemId: string) {
     startTransition(async () => {
-      await concluirProximaAtividadeItem({ itemId, cardId, basePath });
+      if (itemId === 'legado') {
+        await salvarProximaAtividade({
+          cardId,
+          proxima_atividade: null,
+          prazo_atividade: null,
+          basePath,
+        });
+      } else {
+        await concluirProximaAtividadeItem({ itemId, cardId, basePath });
+      }
       setAtividadesAbertas(prev => prev.filter(a => a.id !== itemId));
       setConfirmarSemProxima(false);
       setPendingItemId(null);
