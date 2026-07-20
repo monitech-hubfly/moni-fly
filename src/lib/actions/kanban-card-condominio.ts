@@ -336,16 +336,34 @@ export async function salvarPrazosAprovacaoCondominio(input: {
   const condominioId = String(input.condominioId ?? '').trim();
   if (!condominioId) return { ok: false, error: 'Condomínio inválido.' };
 
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
   const patch = prazosAprovacaoPatchFromDraft(input.draft);
-  const { error } = await gate.supabase
+  const { data, error } = await admin
     .from('condominios')
     .update({
       ...patch,
       updated_at: new Date().toISOString(),
     } as never)
-    .eq('id', condominioId);
+    .eq('id', condominioId)
+    .select(
+      'id, prazo_aprovacao_condominio_dias, prazo_aprovacao_condominio_sla_tipo, prazo_aprovacao_prefeitura_dias, prazo_aprovacao_prefeitura_sla_tipo',
+    )
+    .maybeSingle();
 
   if (error) return { ok: false, error: error.message };
+  if (!data) {
+    return {
+      ok: false,
+      error: 'Condomínio não encontrado ou sem permissão para atualizar os prazos.',
+    };
+  }
   revalidatePath('/rede-franqueados');
   revalidatePath(input.basePath?.trim() || '/');
   return { ok: true };

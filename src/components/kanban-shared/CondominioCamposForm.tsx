@@ -20,18 +20,26 @@ type Props = {
   onChange: (patch: Partial<CondominioFormDraft>) => void;
   readOnly?: boolean;
   row?: CondominioRow | null;
+  /** Omitir bloco de prazos (ex.: painel do card já renderiza seção editável separada). */
+  omitPrazos?: boolean;
 };
 
 function FieldView({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[11px] font-medium text-stone-500">{label}</div>
-      <div className="text-xs text-stone-800">{value || '—'}</div>
+      <div className="text-[11px] font-medium text-[var(--moni-text-secondary)]">{label}</div>
+      <div className="text-xs text-[var(--moni-text-primary)]">{value || '—'}</div>
     </div>
   );
 }
 
-export function CondominioCamposForm({ draft, onChange, readOnly = false, row }: Props) {
+export function CondominioCamposForm({
+  draft,
+  onChange,
+  readOnly = false,
+  row,
+  omitPrazos = false,
+}: Props) {
   if (readOnly && row) {
     return (
       <div className="grid grid-cols-2 gap-x-2 gap-y-2">
@@ -52,10 +60,17 @@ export function CondominioCamposForm({ draft, onChange, readOnly = false, row }:
         />
         <FieldView label="Extrato — Como eram essas casas" value={row.extrato_como_eram_casas ?? ''} />
         <FieldView label="Extrato — Tempo para vender" value={row.extrato_tempo_venda ?? ''} />
-        <div className="col-span-2 border-t border-stone-100 pt-2">
-          <p className="mb-2 text-[11px] font-semibold text-stone-600">Prazos de aprovação</p>
-          <CondominioPrazosAprovacaoFields draft={draft} onChange={() => {}} readOnly row={row} />
-        </div>
+        {!omitPrazos ? (
+          <div
+            className="col-span-2 pt-2"
+            style={{ borderTop: '0.5px solid var(--moni-border-subtle)' }}
+          >
+            <p className="mb-2 text-[11px] font-semibold text-[var(--moni-text-secondary)]">
+              Prazos de aprovação
+            </p>
+            <CondominioPrazosAprovacaoFields draft={draft} onChange={() => {}} readOnly row={row} />
+          </div>
+        ) : null}
       </div>
     );
   }

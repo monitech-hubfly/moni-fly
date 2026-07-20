@@ -233,6 +233,8 @@ export function KanbanCardModalCondominio({
       await carregarLista();
       await resolverCondominio(condominioId);
       onSalvo();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Falha ao salvar prazos de aprovação.');
     } finally {
       setSalvando(false);
     }
@@ -430,9 +432,20 @@ export function KanbanCardModalCondominio({
       {vinculado && condominioRow ? (
         <div className="border-t border-stone-100 pt-2 space-y-2">
           <p className="mb-1 text-[11px] font-semibold text-stone-600">Dados do cadastro</p>
-          <CondominioCamposForm readOnly row={condominioRow} draft={draftNovo} onChange={() => {}} />
-          <div className="border-t border-stone-100 pt-2">
-            <p className="mb-2 text-[11px] font-semibold text-stone-600">Prazos de aprovação</p>
+          <CondominioCamposForm
+            readOnly
+            omitPrazos
+            row={condominioRow}
+            draft={draftNovo}
+            onChange={() => {}}
+          />
+          <div
+            className="pt-2"
+            style={{ borderTop: '0.5px solid var(--moni-border-subtle)' }}
+          >
+            <p className="mb-2 text-[11px] font-semibold text-[var(--moni-text-secondary)]">
+              Prazos de aprovação
+            </p>
             <CondominioPrazosAprovacaoFields
               draft={prazoDraft}
               onChange={(p) => setPrazoDraft((d) => ({ ...d, ...p }))}
@@ -445,7 +458,13 @@ export function KanbanCardModalCondominio({
                 type="button"
                 disabled={salvando}
                 onClick={() => void handleSalvarPrazosAprovacao()}
-                className="mt-2 rounded border border-stone-200 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50 disabled:opacity-50 min-h-[44px] sm:min-h-0"
+                className="mt-2 min-h-[44px] px-3 py-1.5 text-xs font-medium disabled:opacity-50 sm:min-h-0"
+                style={{
+                  border: '0.5px solid var(--moni-border-default)',
+                  borderRadius: 'var(--moni-radius-md)',
+                  color: 'var(--moni-text-secondary)',
+                  background: 'var(--moni-surface-0)',
+                }}
               >
                 {salvando ? 'Salvando…' : 'Salvar prazos de aprovação'}
               </button>
