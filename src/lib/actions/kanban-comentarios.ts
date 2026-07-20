@@ -295,9 +295,11 @@ export async function publicarComentarioKanbanCard(input: {
   const mencionadosSet = new Set(mencionadosSemAutor);
   const extrasSemAutor = participantesExtras.filter(uid => uid !== user.id && !mencionadosSet.has(uid));
 
+  const adminDb = await dbParaMencoes(supabase);
+
   // Alertas por @menção
   for (const uid of mencionadosSemAutor) {
-    await supabase.from('alertas').insert({
+    await adminDb.from('alertas').insert({
       user_id: uid,
       tipo: 'mencao_kanban_card',
       mensagem: `${autorNome} mencionou você em "${cardTitulo}" (${kanbanNome}): "${preview}"`,
@@ -308,7 +310,7 @@ export async function publicarComentarioKanbanCard(input: {
 
   // Alertas para demais participantes (sem @menção)
   for (const uid of extrasSemAutor) {
-    await supabase.from('alertas').insert({
+    await adminDb.from('alertas').insert({
       user_id: uid,
       tipo: 'kanban_atividade_atualizada',
       mensagem: `${autorNome} comentou em "${cardTitulo}" (${kanbanNome}): "${preview}"`,
