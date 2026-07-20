@@ -239,6 +239,13 @@ export function MencaoContentEditable({
         onBlur={() => {
           window.setTimeout(fecharDropdown, 150);
         }}
+        onPaste={(e) => {
+          e.preventDefault();
+          const text = e.clipboardData.getData('text/plain');
+          document.execCommand('insertText', false, text);
+          const el = editorRef.current;
+          if (el) onInput(el.innerHTML);
+        }}
         className={className}
         data-placeholder={placeholder}
       />
