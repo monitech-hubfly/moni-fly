@@ -330,7 +330,7 @@ import {
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { DadosMoniCapitalPersistentPanel } from './DadosMoniCapitalPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, aplicarDatasAprovacaoPreObraCalculadora, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -4026,7 +4026,23 @@ export function KanbanCardModal({
             cardEncadeamento,
           )
         : comAncoraOverlay;
-    return normalizarIntervaloDatasCalculadoraLinhas(comOverridesPosOverlay, cardEncadeamento);
+    const normalizadas = normalizarIntervaloDatasCalculadoraLinhas(
+      comOverridesPosOverlay,
+      cardEncadeamento,
+    );
+    // Pré Obra por último: data aprovação → fim real + concluída (prevalece sobre override manual).
+    return aplicarDatasAprovacaoPreObraCalculadora(
+      normalizadas,
+      {
+        dataAprovacaoCondominio:
+          preObraDraft.data_aprovacao_condominio ||
+          modalDetalhes.processo?.data_aprovacao_condominio,
+        dataAprovacaoPrefeitura:
+          preObraDraft.data_aprovacao_prefeitura ||
+          modalDetalhes.processo?.data_aprovacao_prefeitura,
+      },
+      cardEncadeamento,
+    );
   }, [
     card,
     contextoCalculadoraSyncGroup,
@@ -4036,6 +4052,10 @@ export function KanbanCardModal({
     calculadoraMarcosInput.contrato_assinado_em,
     datasManuaisCalculadora,
     calculadoraAncora,
+    preObraDraft.data_aprovacao_condominio,
+    preObraDraft.data_aprovacao_prefeitura,
+    modalDetalhes.processo?.data_aprovacao_condominio,
+    modalDetalhes.processo?.data_aprovacao_prefeitura,
   ]);
 
   const calculadoraCardConcluidoCanonico =

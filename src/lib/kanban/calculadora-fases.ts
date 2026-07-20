@@ -116,6 +116,24 @@ export function idxAprovacaoCondominioCalculadora(linhas: CalculadoraFaseLinha[]
   );
 }
 
+/** Slug canônico da fase "Aprovação na Prefeitura". */
+export const CALCULADORA_APROVACAO_PREFEITURA_SLUG = FASE_SLUGS.APROVACAO_PREFEITURA;
+
+/** Localiza a linha da fase "Aprovação na Prefeitura" (por slug ou nome). */
+export function idxAprovacaoPrefeituraCalculadora(linhas: CalculadoraFaseLinha[]): number {
+  return linhas.findIndex(
+    (l) =>
+      String(l.faseSlug ?? '').trim() === CALCULADORA_APROVACAO_PREFEITURA_SLUG ||
+      /aprova[cç][aã]o\s+(?:n[oa]\s+)?prefeitura/i.test(String(l.faseNome ?? '').trim()),
+  );
+}
+
+/** Datas de aprovação em Dados Pré Obra (processo / draft). */
+export type CalculadoraDatasAprovacaoPreObra = {
+  dataAprovacaoCondominio?: string | null;
+  dataAprovacaoPrefeitura?: string | null;
+};
+
 /**
  * Âncora padrão em "Aprovação no Condomínio": limpa datas das fases anteriores e as marca
  * como concluídas, preservando a data (real ou estimada) do próprio Condomínio como fim real.
@@ -731,6 +749,83 @@ export function aplicarOverlayAncoraOcultarFasesAnteriores(
       status: 'concluida' as const,
     };
   });
+}
+
+/**
+ * Dados Pré Obra → Calculadora: com data de aprovação preenchida, a fase correspondente
+ * recebe data fim real e status concluída (como edição/conclusão manual).
+ *
+ * Precedência: data Pré Obra prevalece sobre override manual e sobre visitas/estimativas
+ * enquanto estiver preenchida. Limpar a data em Pré Obra devolve o comportamento normal.
+ * Aplicar no fim do pipeline (após overrides manuais).
+ */
+export function aplicarDatasAprovacaoPreObraCalculadora(
+  linhas: CalculadoraFaseLinha[],
+  datas: CalculadoraDatasAprovacaoPreObra | null | undefined,
+  card: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+): CalculadoraFaseLinha[] {
+  if (!datas || linhas.length === 0) return linhas;
+
+  const dataCondo = toYmd(datas.dataAprovacaoCondominio);
+  const dataPref = toYmd(datas.dataAprovacaoPrefeitura);
+  if (!dataCondo && !dataPref) return linhas;
+
+  const hoje = hojeYmd(hojeRef);
+  const ordemAtual = ordemAtualCalculadoraLinhas(linhas, card);
+  let out = linhas.map((l) => ({ ...l }));
+
+  const forcarFaseConcluidaComFimReal = (idx: number, dataFim: string) => {
+    if (idx < 0 || idx >= out.length) return;
+    const row = out[idx]!;
+    const dataInicioReal = reconciliarInicioComFimReal(row.dataInicioReal, dataFim);
+    const dataFimEstimada =
+      dataInicioReal && row.slaDias != null && row.slaDias > 0
+        ? fimEstimadaPorSla(dataInicioReal, row.slaDias, row.slaTipo)
+        : row.dataFimEstimada;
+    const atrasada = faseUltrapassouSla(
+      dataInicioReal,
+      dataFim,
+      dataFimEstimada,
+      row.slaDias,
+      row.slaTipo,
+    );
+    const status: FaseTimelineStatus = atrasada ? 'concluida_atraso' : 'concluida';
+    const atrasoDias = resolveAtraso(
+      status,
+      dataInicioReal,
+      dataFimEstimada,
+      dataFim,
+      hoje,
+      row.slaTipo,
+      row.slaDias,
+    );
+    out[idx] = {
+      ...row,
+      dataInicioReal,
+      dataFimReal: dataFim,
+      dataFimEstimada,
+      status,
+      atrasoDias,
+    };
+  };
+
+  const idxCondo = dataCondo ? idxAprovacaoCondominioCalculadora(out) : -1;
+  const idxPref = dataPref ? idxAprovacaoPrefeituraCalculadora(out) : -1;
+  if (dataCondo) forcarFaseConcluidaComFimReal(idxCondo, dataCondo);
+  if (dataPref) forcarFaseConcluidaComFimReal(idxPref, dataPref);
+
+  const indices = [idxCondo, idxPref].filter((i) => i >= 0);
+  if (indices.length === 0) return linhas;
+
+  const desde = Math.min(...indices);
+  out = propagarLinhasCalculadoraForward(out, desde, card, ordemAtual, hoje);
+  // Propagação / resolveStatus podem marcar a fase atual como "em andamento" mesmo com fim real —
+  // reaplica o force para manter concluída + data fim real das aprovações Pré Obra.
+  if (dataCondo) forcarFaseConcluidaComFimReal(idxAprovacaoCondominioCalculadora(out), dataCondo);
+  if (dataPref) forcarFaseConcluidaComFimReal(idxAprovacaoPrefeituraCalculadora(out), dataPref);
+
+  return out;
 }
 
 /**

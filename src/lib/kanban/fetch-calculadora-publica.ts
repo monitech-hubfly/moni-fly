@@ -7,6 +7,7 @@ import {
   aplicarEncadeamentoMarcoContratoNasLinhas,
   aplicarDatasManuaisCalculadoraLinhas,
   aplicarOverlayAncoraOcultarFasesAnteriores,
+  aplicarDatasAprovacaoPreObraCalculadora,
   enriquecerLinhasCalculadoraComCusto,
   enriquecerLinhasCalculadoraComResponsavelDaFase,
   normalizarIntervaloDatasCalculadoraLinhas,
@@ -117,16 +118,23 @@ async function montarCalculadoraPack(
     null;
 
   let calculadoraAncora = calculadoraAncoraFromProcesso(null);
+  let dataAprovacaoCondominio: string | null = null;
+  let dataAprovacaoPrefeitura: string | null = null;
   const procIdAncora = String(card.processo_step_one_id ?? '').trim();
   if (procIdAncora) {
     const { data: procAncora } = await supabase
       .from('processo_step_one')
-      .select('calculadora_ancora_fase_slug, calculadora_ancora_data_fim')
+      .select(
+        'calculadora_ancora_fase_slug, calculadora_ancora_data_fim, data_aprovacao_condominio, data_aprovacao_prefeitura',
+      )
       .eq('id', procIdAncora)
       .maybeSingle();
-    calculadoraAncora = calculadoraAncoraFromProcesso(
-      (procAncora as Record<string, unknown> | null) ?? null,
-    );
+    const procRow = (procAncora as Record<string, unknown> | null) ?? null;
+    calculadoraAncora = calculadoraAncoraFromProcesso(procRow);
+    const condo = String(procRow?.data_aprovacao_condominio ?? '').trim().slice(0, 10);
+    const pref = String(procRow?.data_aprovacao_prefeitura ?? '').trim().slice(0, 10);
+    dataAprovacaoCondominio = /^\d{4}-\d{2}-\d{2}$/.test(condo) ? condo : null;
+    dataAprovacaoPrefeitura = /^\d{4}-\d{2}-\d{2}$/.test(pref) ? pref : null;
   }
 
   const faseIdsPreCalc = (() => {
@@ -208,25 +216,29 @@ async function montarCalculadoraPack(
             ? filterOperacoesCalculadoraFases(fasesKanban)
             : fasesKanban;
 
-  linhas = normalizarIntervaloDatasCalculadoraLinhas(
-    (() => {
-      const encadeadas = aplicarEncadeamentoMarcoContratoNasLinhas(
-        linhas,
-        fasesFlatFinal,
-        {
-          contrato_assinado_em:
-            ctx?.marcosCanonicos.contrato_assinado_em ?? card.contrato_assinado_em,
-        },
-        cardCalcInput,
-        visits,
-        undefined,
-        overrides,
-      );
-      const comOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(encadeadas, calculadoraAncora);
-      return overrides.size > 0
-        ? aplicarDatasManuaisCalculadoraLinhas(comOverlay, overrides, cardCalcInput)
-        : comOverlay;
-    })(),
+  linhas = aplicarDatasAprovacaoPreObraCalculadora(
+    normalizarIntervaloDatasCalculadoraLinhas(
+      (() => {
+        const encadeadas = aplicarEncadeamentoMarcoContratoNasLinhas(
+          linhas,
+          fasesFlatFinal,
+          {
+            contrato_assinado_em:
+              ctx?.marcosCanonicos.contrato_assinado_em ?? card.contrato_assinado_em,
+          },
+          cardCalcInput,
+          visits,
+          undefined,
+          overrides,
+        );
+        const comOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(encadeadas, calculadoraAncora);
+        return overrides.size > 0
+          ? aplicarDatasManuaisCalculadoraLinhas(comOverlay, overrides, cardCalcInput)
+          : comOverlay;
+      })(),
+      cardCalcInput,
+    ),
+    { dataAprovacaoCondominio, dataAprovacaoPrefeitura },
     cardCalcInput,
   );
 
