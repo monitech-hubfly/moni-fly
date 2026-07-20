@@ -330,7 +330,7 @@ import {
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { DadosMoniCapitalPersistentPanel } from './DadosMoniCapitalPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, aplicarDatasAprovacaoPreObraCalculadora, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, campoDataAprovacaoPreObraPorFaseSlug, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, aplicarDatasAprovacaoPreObraCalculadora, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, campoDataAprovacaoPreObraPorFaseSlug, patchPreObraAlinharComCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -599,6 +599,8 @@ export function KanbanCardModal({
     Map<string, CalculadoraFaseDataManual>
   >(() => new Map());
   const ultimaEdicaoDatasManuaisRef = useRef(0);
+  /** Evita re-persistir o mesmo alinhamento Pré Obra ← Calculadora no mesmo card. */
+  const preObraAlinhadoComCalcRef = useRef<string | null>(null);
   const [calculadoraSlaCondominio, setCalculadoraSlaCondominio] =
     useState<CondominioPrazosAprovacaoSla | null>(null);
   const [responsavelDaFaseSalvoPorFase, setResponsavelDaFaseSalvoPorFase] = useState<Map<string, string>>(
@@ -844,6 +846,7 @@ export function KanbanCardModal({
     setFiltrosOpen(false);
     setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
     setPreObraDraft(preObraDraftFromProcesso(null));
+    preObraAlinhadoComCalcRef.current = null;
     setFundingDraft(fundingDraftVazio());
     setOperacoesPreObraDraft({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY });
     setCreditoObraAbertura(null);
@@ -4063,7 +4066,7 @@ export function KanbanCardModal({
     ],
   );
 
-  const calculadoraLinhasEncadeadas = useMemo(() => {
+  const calculadoraLinhasSemPreObra = useMemo(() => {
     if (!card) return calculadoraFasesPack.linhas;
     const ctx = contextoCalculadoraSyncGroup;
     const cardEncadeamento = ctx
@@ -4120,18 +4123,8 @@ export function KanbanCardModal({
             cardEncadeamento,
           )
         : comAncoraOverlay;
-    const normalizadas = normalizarIntervaloDatasCalculadoraLinhas(
+    return normalizarIntervaloDatasCalculadoraLinhas(
       comOverridesPosOverlay,
-      cardEncadeamento,
-    );
-    // Pré Obra por último: espelha data aprovação → fim real + concluída (coluna «real»).
-    // Draft é a fonte enquanto o modal está aberto (espelho bidirecional com a Calculadora).
-    return aplicarDatasAprovacaoPreObraCalculadora(
-      normalizadas,
-      {
-        dataAprovacaoCondominio: preObraDraft.data_aprovacao_condominio,
-        dataAprovacaoPrefeitura: preObraDraft.data_aprovacao_prefeitura,
-      },
       cardEncadeamento,
     );
   }, [
@@ -4143,8 +4136,82 @@ export function KanbanCardModal({
     calculadoraMarcosInput.contrato_assinado_em,
     datasManuaisCalculadora,
     calculadoraAncora,
+  ]);
+
+  const calculadoraLinhasEncadeadas = useMemo(() => {
+    if (!card) return calculadoraLinhasSemPreObra;
+    const ctx = contextoCalculadoraSyncGroup;
+    const cardEncadeamento = ctx
+      ? ctx.cardCalcCanonico
+      : {
+          fase_id: card.fase_id,
+          created_at: card.created_at,
+          entered_fase_at: card.entered_fase_at,
+          concluido: card.concluido,
+          concluido_em: card.concluido_em,
+        };
+    // Pré Obra por último: Calculadora concluída+fim real tem precedência sobre Pré Obra divergente.
+    return aplicarDatasAprovacaoPreObraCalculadora(
+      calculadoraLinhasSemPreObra,
+      {
+        dataAprovacaoCondominio: preObraDraft.data_aprovacao_condominio,
+        dataAprovacaoPrefeitura: preObraDraft.data_aprovacao_prefeitura,
+      },
+      cardEncadeamento,
+    );
+  }, [
+    card,
+    contextoCalculadoraSyncGroup,
+    calculadoraLinhasSemPreObra,
     preObraDraft.data_aprovacao_condominio,
     preObraDraft.data_aprovacao_prefeitura,
+  ]);
+
+  // Hidratação no load: se aprovação está concluída com fim real na Calculadora e Pré Obra
+  // está vazio/divergente, alinha draft + persiste (Calculadora manda).
+  useEffect(() => {
+    const cardId = card?.id?.trim();
+    const processoId = modalDetalhes.processo?.id?.trim();
+    if (!cardId || !processoId || calculadoraLinhasSemPreObra.length === 0) return;
+
+    const patch = patchPreObraAlinharComCalculadora(calculadoraLinhasSemPreObra, preObraDraft);
+    if (!patch) return;
+
+    const chave = `${cardId}|${patch.data_aprovacao_condominio ?? ''}|${patch.data_aprovacao_prefeitura ?? ''}`;
+    if (preObraAlinhadoComCalcRef.current === chave) return;
+    preObraAlinhadoComCalcRef.current = chave;
+
+    setPreObraDraft((d) => ({ ...d, ...patch }));
+    setModalDetalhes((prev) =>
+      prev.processo
+        ? {
+            ...prev,
+            processo: {
+              ...prev.processo,
+              ...(patch.data_aprovacao_condominio !== undefined
+                ? { data_aprovacao_condominio: patch.data_aprovacao_condominio }
+                : {}),
+              ...(patch.data_aprovacao_prefeitura !== undefined
+                ? { data_aprovacao_prefeitura: patch.data_aprovacao_prefeitura }
+                : {}),
+            },
+          }
+        : prev,
+    );
+
+    void salvarDadosPreObra({
+      processoId,
+      cardOrigemId: cardId,
+      ...patch,
+      basePath,
+    });
+  }, [
+    card?.id,
+    modalDetalhes.processo?.id,
+    calculadoraLinhasSemPreObra,
+    preObraDraft.data_aprovacao_condominio,
+    preObraDraft.data_aprovacao_prefeitura,
+    basePath,
   ]);
 
   const calculadoraCardConcluidoCanonico =

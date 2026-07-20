@@ -770,19 +770,104 @@ export function aplicarOverlayAncoraOcultarFasesAnteriores(
 }
 
 /**
+ * Data fim real de fase de aprovação concluída (status concluída / concluída_atraso).
+ * Fonte autoritativa para espelhar em Dados Pré Obra.
+ */
+export function dataFimRealAprovacaoConcluida(
+  linha: CalculadoraFaseLinha | null | undefined,
+): string | null {
+  if (!linha) return null;
+  const st = linha.status;
+  if (st !== 'concluida' && st !== 'concluida_atraso') return null;
+  return toYmd(linha.dataFimReal);
+}
+
+/**
+ * Extrai datas de aprovação a partir das linhas da Calculadora (só concluída + fim real).
+ */
+export function extrairDatasAprovacaoPreObraDaCalculadora(
+  linhas: CalculadoraFaseLinha[],
+): CalculadoraDatasAprovacaoPreObra {
+  if (linhas.length === 0) {
+    return { dataAprovacaoCondominio: null, dataAprovacaoPrefeitura: null };
+  }
+  const idxCondo = idxAprovacaoCondominioCalculadora(linhas);
+  const idxPref = idxAprovacaoPrefeituraCalculadora(linhas);
+  return {
+    dataAprovacaoCondominio:
+      idxCondo >= 0 ? dataFimRealAprovacaoConcluida(linhas[idxCondo]) : null,
+    dataAprovacaoPrefeitura:
+      idxPref >= 0 ? dataFimRealAprovacaoConcluida(linhas[idxPref]) : null,
+  };
+}
+
+/**
+ * Precedência: Calculadora (concluída + data fim real) manda sobre Pré Obra.
+ * Se a fase ainda não tem fim real concluído, mantém a data Pré Obra (overlay).
+ */
+export function resolverDatasAprovacaoComPrecedenciaCalculadora(
+  linhas: CalculadoraFaseLinha[],
+  datasPreObra: CalculadoraDatasAprovacaoPreObra | null | undefined,
+): CalculadoraDatasAprovacaoPreObra {
+  const daCalc = extrairDatasAprovacaoPreObraDaCalculadora(linhas);
+  return {
+    dataAprovacaoCondominio:
+      daCalc.dataAprovacaoCondominio ?? toYmd(datasPreObra?.dataAprovacaoCondominio) ?? null,
+    dataAprovacaoPrefeitura:
+      daCalc.dataAprovacaoPrefeitura ?? toYmd(datasPreObra?.dataAprovacaoPrefeitura) ?? null,
+  };
+}
+
+/**
+ * Patch dos campos Pré Obra que divergem (ou estão vazios) da Calculadora concluída.
+ * Retorna `null` quando já alinhados.
+ */
+export function patchPreObraAlinharComCalculadora(
+  linhas: CalculadoraFaseLinha[],
+  preObra: {
+    data_aprovacao_condominio?: string | null;
+    data_aprovacao_prefeitura?: string | null;
+  },
+): Partial<{
+  data_aprovacao_condominio: string;
+  data_aprovacao_prefeitura: string;
+}> | null {
+  const daCalc = extrairDatasAprovacaoPreObraDaCalculadora(linhas);
+  const patch: Partial<{
+    data_aprovacao_condominio: string;
+    data_aprovacao_prefeitura: string;
+  }> = {};
+
+  if (daCalc.dataAprovacaoCondominio) {
+    const atual = toYmd(preObra.data_aprovacao_condominio) ?? '';
+    if (atual !== daCalc.dataAprovacaoCondominio) {
+      patch.data_aprovacao_condominio = daCalc.dataAprovacaoCondominio;
+    }
+  }
+  if (daCalc.dataAprovacaoPrefeitura) {
+    const atual = toYmd(preObra.data_aprovacao_prefeitura) ?? '';
+    if (atual !== daCalc.dataAprovacaoPrefeitura) {
+      patch.data_aprovacao_prefeitura = daCalc.dataAprovacaoPrefeitura;
+    }
+  }
+
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
+/**
  * Dados Pré Obra ↔ Calculadora (fases Aprovação no Condomínio / na Prefeitura).
  *
- * Com data preenchida, a fase recebe data fim real (= YMD Pré Obra) e status concluída
+ * Com data efetiva, a fase recebe data fim real e status concluída
  * (ou concluída em atraso se estourar SLA) — coluna «real» na UI.
  *
- * Precedência / espelho (qualquer card com processo):
- * 1. Overlay aplica Pré Obra por último no pipeline (após overrides manuais/visitas).
- * 2. Enquanto Pré Obra estiver preenchida, ela é a fonte de exibição do fim real.
- * 3. Editar data fim (ou marcar concluída) nessas fases na Calculadora deve gravar o
- *    mesmo YMD em Pré Obra — e vice-versa ao salvar Pré Obra — para os campos
- *    permanecerem iguais. Última edição do usuário vence via persistência espelhada.
- * 4. Limpar a data em Pré Obra (ou limpar fim na Calculadora) devolve o comportamento
- *    normal (visitas / overrides / estimativas).
+ * Precedência (qualquer card com processo):
+ * 1. Calculadora com fase concluída + data fim real é a fonte autoritativa →
+ *    Pré Obra deve espelhar esse YMD (hidratação no load + alinhamento se divergir).
+ * 2. Overlay Pré Obra → Calculadora só preenche quando a Calculadora ainda não tem
+ *    fim real concluído (ex.: usuário marcou aprovação só em Pré Obra).
+ * 3. Use `resolverDatasAprovacaoComPrecedenciaCalculadora` antes do overlay.
+ * 4. Editar fim / marcar concluída na Calculadora grava o mesmo YMD em Pré Obra;
+ *    salvar Pré Obra persiste data_fim na Calculadora (espelho bidirecional na edição).
  */
 export function aplicarDatasAprovacaoPreObraCalculadora(
   linhas: CalculadoraFaseLinha[],
@@ -792,8 +877,10 @@ export function aplicarDatasAprovacaoPreObraCalculadora(
 ): CalculadoraFaseLinha[] {
   if (!datas || linhas.length === 0) return linhas;
 
-  const dataCondo = toYmd(datas.dataAprovacaoCondominio);
-  const dataPref = toYmd(datas.dataAprovacaoPrefeitura);
+  // Não sobrescrever fim real já concluído na Calculadora com Pré Obra divergente.
+  const efetivas = resolverDatasAprovacaoComPrecedenciaCalculadora(linhas, datas);
+  const dataCondo = toYmd(efetivas.dataAprovacaoCondominio);
+  const dataPref = toYmd(efetivas.dataAprovacaoPrefeitura);
   if (!dataCondo && !dataPref) return linhas;
 
   const hoje = hojeYmd(hojeRef);
