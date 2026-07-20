@@ -8,10 +8,11 @@ import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
 import { KanbanColumn } from './KanbanColumn';
 import {
   cardPassaFiltrosBoard,
-  cardKanbanMatchBuscaVisivel,
   countKanbanBoardFiltrosAtivos,
   KANBAN_BOARD_FILTROS_DEFAULT,
   poolCardsPorStatus,
+  textoMatchBuscaKanbanPalavras,
+  textoVisivelCardKanbanFechado,
   type KanbanBoardFiltros,
 } from './kanbanBoardFiltros';
 import { hipotesesOrdemMinima } from '@/lib/kanban/kanban-paralelas-chips';
@@ -236,14 +237,32 @@ export function KanbanBoard({
     return m;
   }, [fases, poolStatus]);
 
+  const textoBuscaPorCardId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of poolStatus) {
+      const fase = faseMap.get(c.fase_id) ?? null;
+      map.set(
+        c.id,
+        textoVisivelCardKanbanFechado(c, {
+          kanbanId,
+          fase,
+          hipotesesOrdemMin: hipotesesOrdemMin,
+        }),
+      );
+    }
+    return map;
+  }, [poolStatus, faseMap, kanbanId, hipotesesOrdemMin]);
+
   const cardsFiltrados = useMemo(() => {
     const busca = buscaCard.trim();
     return poolStatus.filter((c) => {
       if (!cardPassaFiltrosBoard(c, filtros, faseMap, currentUserId)) return false;
-      if (busca && !cardKanbanMatchBuscaVisivel(c, busca, faseMap)) return false;
+      if (busca && !textoMatchBuscaKanbanPalavras(textoBuscaPorCardId.get(c.id) ?? '', busca)) {
+        return false;
+      }
       return true;
     });
-  }, [poolStatus, filtros, faseMap, currentUserId, buscaCard]);
+  }, [poolStatus, filtros, faseMap, currentUserId, buscaCard, textoBuscaPorCardId]);
 
   const clientFiltersActive =
     countKanbanBoardFiltrosAtivos(filtros) > 0 || buscaCard.trim().length > 0;
@@ -311,7 +330,7 @@ export function KanbanBoard({
           type="search"
           value={buscaCard}
           onChange={(e) => setBuscaCard(e.target.value)}
-          placeholder="Buscar no card (título, franqueado, datas, SLA…)…"
+          placeholder="Buscar no card (título, tags, SLA, paralelas…)…"
           aria-label="Buscar cards por qualquer informação visível no card"
           className="moni-kanban-fpill moni-kanban-fpill--search"
         />
