@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { MarcarLidoButton } from './MarcarLidoButton';
 import { MarcarTodosLidoButton } from './MarcarTodosLidoButton';
-import { CategoriaAlerta, categorizarAlerta } from './categorizar';
+import { CategoriaAlerta, categorizarAlerta, PrioridadeAlerta, priorizarAlerta, corPrioridade } from './categorizar';
 
 function rotuloTipo(tipo: string): string {
   if (tipo === 'mencao_kanban_card') return 'Menção em card';
@@ -64,7 +64,7 @@ const TIPOS_SIRENE = new Set([
 export default async function AlertasPage({
   searchParams,
 }: {
-  searchParams?: { categoria?: string; lidas?: string };
+  searchParams?: { categoria?: string; lidas?: string; prioridade?: string };
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -133,6 +133,7 @@ export default async function AlertasPage({
   }
 
   const categoriaAtiva = (searchParams?.categoria ?? 'todos') as CategoriaAlerta | 'todos';
+  const prioridadeAtiva = ((searchParams?.prioridade ?? 'todas') as PrioridadeAlerta | 'todas');
   const soNaoLidas = searchParams?.lidas !== 'todas';
 
   const categorias: { key: CategoriaAlerta | 'todos'; label: string }[] = [
@@ -154,7 +155,19 @@ export default async function AlertasPage({
     }
   }
 
+  const contadoresPrioridade: Record<PrioridadeAlerta | 'todas', number> = {
+    todas: 0, critico: 0, importante: 0, informativo: 0,
+  };
+  for (const a of alertas ?? []) {
+    if (!a.lido) {
+      const pri = priorizarAlerta(String(a.tipo ?? ''));
+      contadoresPrioridade[pri]++;
+      contadoresPrioridade['todas']++;
+    }
+  }
+
   const alertasFiltrados = (alertas ?? []).filter((a) => {
+    if (prioridadeAtiva !== 'todas' && priorizarAlerta(String(a.tipo ?? '')) !== prioridadeAtiva) return false;
     if (categoriaAtiva !== 'todos' && categorizarAlerta(String(a.tipo ?? '')) !== categoriaAtiva) return false;
     if (soNaoLidas && a.lido) return false;
     return true;
@@ -183,6 +196,44 @@ export default async function AlertasPage({
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-[color:var(--moni-dark)]">Alertas</h1>
           <p className="mt-1 text-sm text-stone-500">Atualizações dos seus chamados, cards e planejamento.</p>
+        </div>
+
+        {/* Filtros de prioridade */}
+        <div className="mb-3 flex flex-wrap gap-2">
+          {([
+            { key: 'todas' as const, label: 'Todas' },
+            { key: 'critico' as const, label: '🔴 Crítico' },
+            { key: 'importante' as const, label: '🟡 Importante' },
+            { key: 'informativo' as const, label: '⚪ Informativo' },
+          ]).map(({ key, label }) => {
+            const count = contadoresPrioridade[key];
+            const ativo = prioridadeAtiva === key;
+            const params = new URLSearchParams();
+            if (key !== 'todas') params.set('prioridade', key);
+            if (categoriaAtiva !== 'todos') params.set('categoria', categoriaAtiva);
+            if (soNaoLidas) params.set('lidas', 'nao');
+            const href = `/alertas${params.toString() ? `?${params.toString()}` : ''}`;
+            return (
+              <Link
+                key={key}
+                href={href}
+                className={`rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                  ativo
+                    ? 'border-[color:var(--moni-primary,#1C3A2B)] bg-[color:var(--moni-primary,#1C3A2B)] text-white'
+                    : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                }`}
+              >
+                {label}
+                {count > 0 && (
+                  <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs font-semibold ${
+                    ativo ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-600'
+                  }`}>
+                    {count}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </div>
 
         {/* Abas de categoria — preservam estado do toggle via URL */}
@@ -281,14 +332,15 @@ export default async function AlertasPage({
                 ? (topicoData.descricao_detalhe?.trim() || topicoData.descricao?.trim() || '')
                 : null;
 
+              const pri = priorizarAlerta(tipo);
+              const coresPri = corPrioridade(pri);
+
               return (
                 <li
                   key={a.id}
                   className={`rounded-xl border p-4 ${
                     !a.lido
-                      ? atrasado
-                        ? 'bg-amber-50 border-l-4 border-l-red-400 border-t-stone-100 border-r-stone-100 border-b-stone-100'
-                        : `bg-amber-50 border-l-4 ${cores.borda} border-t-stone-100 border-r-stone-100 border-b-stone-100`
+                      ? `${coresPri.bg} border-l-4 ${coresPri.borda} border-t-stone-100 border-r-stone-100 border-b-stone-100`
                       : 'bg-white border-stone-100'
                   }`}
                 >

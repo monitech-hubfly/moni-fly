@@ -21,11 +21,22 @@ export function AlertasBellLink({ userId }: Props) {
     const supabase = createClient();
 
     const refresh = async () => {
+      const TIPOS_CRITICOS = [
+        'kanban_atividade_criada',
+        'atribuicao_recusada',
+        'sla_atividade_atrasado',
+        'mencao_sirene',
+        'mencao_kanban_card',
+        'mencao_card',
+        'aprovacao_fase',
+        'acoplamento_novo_projeto',
+      ];
       const { count } = await supabase
         .from('alertas')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .eq('lido', false);
+        .eq('lido', false)
+        .in('tipo', TIPOS_CRITICOS);
       setNaoLidas(count ?? 0);
     };
 
