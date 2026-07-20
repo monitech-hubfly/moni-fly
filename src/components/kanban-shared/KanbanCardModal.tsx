@@ -415,6 +415,9 @@ type Card = {
   filho_projeto_legal_arquivado?: boolean;
   projeto_legal_filho_concluido?: boolean;
   projeto_legal_filho_fase?: string | null;
+  tem_filho_credito_obra?: boolean;
+  filho_credito_obra_arquivado?: boolean;
+  credito_obra_filho_fase?: string | null;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
   processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
@@ -1575,6 +1578,13 @@ export function KanbanCardModal({
                   operacoes_filho_fase_rotulo: enrichedRow.operacoes_filho_fase_rotulo,
                   operacoes_filho_concluido: enrichedRow.operacoes_filho_concluido,
                   juridico_filho_fase_nome: enrichedRow.juridico_filho_fase_nome,
+                  tem_filho_projeto_legal: enrichedRow.tem_filho_projeto_legal,
+                  filho_projeto_legal_arquivado: enrichedRow.filho_projeto_legal_arquivado,
+                  projeto_legal_filho_concluido: enrichedRow.projeto_legal_filho_concluido,
+                  projeto_legal_filho_fase: enrichedRow.projeto_legal_filho_fase,
+                  tem_filho_credito_obra: enrichedRow.tem_filho_credito_obra,
+                  filho_credito_obra_arquivado: enrichedRow.filho_credito_obra_arquivado,
+                  credito_obra_filho_fase: enrichedRow.credito_obra_filho_fase,
                   acoplamento_filho_fase_nome: enrichedRow.filho_acoplamento_arquivado
                     ? enrichedRow.acoplamento_filho_fase_nome ?? null
                     : enrichedRow.acoplamento_filho_fase_nome ?? next.acoplamento_filho_fase_nome,
@@ -4582,6 +4592,9 @@ export function KanbanCardModal({
             filhoProjetoLegalArquivado: card.filho_projeto_legal_arquivado,
             projetoLegalFilhoConcluido: card.projeto_legal_filho_concluido,
             projetoLegalFilhoFase: card.projeto_legal_filho_fase,
+            temFilhoCreditoObra: card.tem_filho_credito_obra,
+            filhoCreditoObraArquivado: card.filho_credito_obra_arquivado,
+            creditoObraFilhoFase: card.credito_obra_filho_fase,
           },
           { labelsCompletos: true },
         )
