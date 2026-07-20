@@ -217,6 +217,35 @@ function partesTituloCard(t: string): number {
   return t.split(' - ').map((p) => p.trim()).filter(Boolean).length;
 }
 
+/** Evita walk recursivo em `origem_card_id` quando o card já tem campos de exibição completos. */
+function cardNativoPrecisaCamposAncestrais(c: Record<string, unknown>): boolean {
+  const origem = String((c as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+  if (!origem) return false;
+  const titulo = String(c.titulo ?? '').trim();
+  const parsed = parseCamposDoTituloCard(titulo);
+  const temCondominio = Boolean(coalesceTextoCampo(c.nome_condominio, parsed.nomeCondominio));
+  const temQuadra = Boolean(coalesceTextoCampo(c.quadra, parsed.quadra));
+  const temLote = Boolean(coalesceTextoCampo(c.lote, parsed.lote));
+  const temRede = Boolean(
+    String((c as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim(),
+  );
+  return !temCondominio || !temQuadra || !temLote || !temRede || partesTituloCard(titulo) < 3;
+}
+
+function cardNativoPrecisaIrmaosProjeto(c: Record<string, unknown>): boolean {
+  const pid = String((c as { projeto_id?: string | null }).projeto_id ?? '').trim();
+  if (!pid) return false;
+  const titulo = String(c.titulo ?? '').trim();
+  const parsed = parseCamposDoTituloCard(titulo);
+  const temCondominio = Boolean(coalesceTextoCampo(c.nome_condominio, parsed.nomeCondominio));
+  const temQuadra = Boolean(coalesceTextoCampo(c.quadra, parsed.quadra));
+  const temLote = Boolean(coalesceTextoCampo(c.lote, parsed.lote));
+  const temRede = Boolean(
+    String((c as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim(),
+  );
+  return !temCondominio || !temQuadra || !temLote || !temRede || partesTituloCard(titulo) < 3;
+}
+
 function mesclarCamposDeFonte(
   dest: Record<string, unknown>,
   fonte: Record<string, unknown>,
@@ -935,9 +964,15 @@ export async function fetchKanbanBoardSnapshot(
     ...((conclRaw ?? []) as Record<string, unknown>[]),
     ...((arquivRaw ?? []) as Record<string, unknown>[]),
   ];
+  const cardsParaAncestrais = cardsNativosRaw.filter(cardNativoPrecisaCamposAncestrais);
+  const cardsParaIrmaos = cardsNativosRaw.filter(cardNativoPrecisaIrmaosProjeto);
   const [ancestraisMap, irmaosProjetoMap] = await Promise.all([
-    fetchCamposAncestraisPorCard(supabase, cardsNativosRaw),
-    fetchCamposIrmaosPorProjeto(supabase, cardsNativosRaw),
+    cardsParaAncestrais.length > 0
+      ? fetchCamposAncestraisPorCard(supabase, cardsParaAncestrais)
+      : Promise.resolve(new Map<string, Record<string, unknown>>()),
+    cardsParaIrmaos.length > 0
+      ? fetchCamposIrmaosPorProjeto(supabase, cardsParaIrmaos)
+      : Promise.resolve(new Map<string, Record<string, unknown>>()),
   ]);
 
   const loteadorPorId = new Map<
@@ -1179,13 +1214,17 @@ export async function fetchKanbanBoardSnapshot(
   cardsConcluidos = mesclarDatasLegado(cardsConcluidos);
   cardsArquivadosNativo = mesclarDatasLegado(cardsArquivadosNativo);
 
-  cardsNativo = await enrichCardsDatasFromProcesso(supabase, cardsNativo);
-  cardsConcluidos = await enrichCardsDatasFromProcesso(supabase, cardsConcluidos);
-  cardsArquivadosNativo = await enrichCardsDatasFromProcesso(supabase, cardsArquivadosNativo);
+  [cardsNativo, cardsConcluidos, cardsArquivadosNativo] = await Promise.all([
+    enrichCardsDatasFromProcesso(supabase, cardsNativo),
+    enrichCardsDatasFromProcesso(supabase, cardsConcluidos),
+    enrichCardsDatasFromProcesso(supabase, cardsArquivadosNativo),
+  ]);
 
-  cardsNativo = await enrichCardsFollowupFromAtividades(supabase, cardsNativo);
-  cardsConcluidos = await enrichCardsFollowupFromAtividades(supabase, cardsConcluidos);
-  cardsArquivadosNativo = await enrichCardsFollowupFromAtividades(supabase, cardsArquivadosNativo);
+  [cardsNativo, cardsConcluidos, cardsArquivadosNativo] = await Promise.all([
+    enrichCardsFollowupFromAtividades(supabase, cardsNativo),
+    enrichCardsFollowupFromAtividades(supabase, cardsConcluidos),
+    enrichCardsFollowupFromAtividades(supabase, cardsArquivadosNativo),
+  ]);
 
   const idsComLinhaNativa = new Set([
     ...cardsNativo.map((c) => c.id),

@@ -4,7 +4,7 @@ import type React from 'react';
 import { filterKanbanAtividadeIds } from '@/lib/pastelaria/synthetic-id';
 import { Archive, CheckSquare, ChevronRight, Info, MessageCircle, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
 import { compareChamadosPainelRank, ORDEM_GRUPOS_PAINEL, rankChamadoPainelUnificado } from '@/lib/sirene-painel-chamados-rank';
@@ -346,7 +346,60 @@ function nomesTimesDeIds(ids: string[], catalog: TimeOpt[]): unknown {
   return ids.map((id) => m.get(id) ?? '').filter(Boolean);
 }
 
-export function InteracoesLista({
+type SireneUrlSnap = {
+  interacao: string | null;
+  topico: string | null;
+  id: string | null;
+};
+
+function lerSireneUrlSnapDoWindow(): SireneUrlSnap {
+  if (typeof window === 'undefined') {
+    return { interacao: null, topico: null, id: null };
+  }
+  const sp = new URLSearchParams(window.location.search);
+  return {
+    interacao: sp.get('interacao')?.trim() || null,
+    topico: sp.get('topico')?.trim() || null,
+    id: sp.get('id')?.trim() || null,
+  };
+}
+
+/** Só sincroniza a URL — vive no Suspense; a lista/modal ficam fora e não desmontam. */
+function SireneChamadosUrlSync({ onChange }: { onChange: (s: SireneUrlSnap) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    onChange({
+      interacao: searchParams.get('interacao')?.trim() || null,
+      topico: searchParams.get('topico')?.trim() || null,
+      id: searchParams.get('id')?.trim() || null,
+    });
+  }, [searchParams, onChange]);
+  return null;
+}
+
+/**
+ * Lista unificada de chamados. Estado (modal detalhe, expansões) fica fora do Suspense
+ * de `useSearchParams` para não piscar “Carregando…” / fechar modal a cada refresh.
+ */
+export function InteracoesLista(props: Props) {
+  const [urlSnap, setUrlSnap] = useState<SireneUrlSnap>(lerSireneUrlSnapDoWindow);
+  const onUrlChange = useCallback((s: SireneUrlSnap) => {
+    setUrlSnap((prev) =>
+      prev.interacao === s.interacao && prev.topico === s.topico && prev.id === s.id ? prev : s,
+    );
+  }, []);
+
+  return (
+    <>
+      <Suspense fallback={null}>
+        <SireneChamadosUrlSync onChange={onUrlChange} />
+      </Suspense>
+      <InteracoesListaInner {...props} urlSnap={urlSnap} />
+    </>
+  );
+}
+
+function InteracoesListaInner({
   interacoes,
   times,
   responsaveis,
@@ -354,9 +407,9 @@ export function InteracoesLista({
   sessionEhAdmin = false,
   comentariosCountByCardId,
   filtroTipoChamado: _filtroTipoChamado,
-}: Props) {
+  urlSnap,
+}: Props & { urlSnap: SireneUrlSnap }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   void _filtroTipoChamado;
   const [highlightTopicoId, setHighlightTopicoId] = useState<number | null>(null);
   const highlightIdRef = useRef<number | null>(null);
@@ -417,10 +470,12 @@ export function InteracoesLista({
     status: SubInteracaoStatusDb;
   } | null>(null);
 
+  const interacoesIdsSig = useMemo(() => interacoes.map((r) => r.id).join(','), [interacoes]);
+
   useEffect(() => {
-    const interacaoId = searchParams.get('interacao')?.trim();
+    const interacaoId = urlSnap.interacao;
     if (!interacaoId) return;
-    const topicoRaw = searchParams.get('topico')?.trim();
+    const topicoRaw = urlSnap.topico;
     const topicoNum = topicoRaw ? Number.parseInt(topicoRaw, 10) : NaN;
     setHighlightTopicoId(Number.isFinite(topicoNum) ? topicoNum : null);
 
@@ -431,10 +486,12 @@ export function InteracoesLista({
     }
     setDetalheRow(row);
     void carregarTopicosSeNecessario(row, true);
-  }, [interacoes, searchParams]);
+    // interacoes: só reabrir deep link quando ids/URL mudam — não a cada refresh RSC.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- interacoesIdsSig cobre mudança real da lista
+  }, [interacoesIdsSig, urlSnap.interacao, urlSnap.topico]);
 
   useEffect(() => {
-    const idRaw = searchParams.get('id')?.trim();
+    const idRaw = urlSnap.id;
     if (!idRaw) return;
     const idNum = Number(idRaw);
     if (!Number.isFinite(idNum)) return;
@@ -448,7 +505,8 @@ export function InteracoesLista({
     setVerTodas(true);
     setDetalheRow(row);
     void carregarTopicosSeNecessario(row, true);
-  }, [interacoes, searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- interacoesIdsSig cobre mudança real da lista
+  }, [interacoesIdsSig, urlSnap.id]);
 
   useEffect(() => {
     void (async () => {
@@ -464,7 +522,8 @@ export function InteracoesLista({
   }, []);
 
   useEffect(() => {
-    // Grupo 1: estado derivado da lista — resetar quando interacoes muda
+    // Grupo 1: estado derivado da lista — resetar quando o conjunto de ids muda de verdade
+    // (não a cada `router.refresh()`, que troca a referência do array).
     setStatusPatch({});
     setRowPatch({});
     setCountPatch({});
@@ -473,7 +532,7 @@ export function InteracoesLista({
     setMostrarArquivados(false);
     // Grupo 2 (tópicos, comentários) NÃO reseta aqui — são dados buscados
     // independentemente e persistem entre revalidações automáticas do servidor.
-  }, [interacoes]);
+  }, [interacoesIdsSig]);
 
   const painelTopicosPrefetch = useMemo(() => {
     return { iids: filterKanbanAtividadeIds(interacoes.map((r) => r.id)) };
@@ -1807,7 +1866,7 @@ export function InteracoesLista({
             setDetalheRow(null);
             setHighlightTopicoId(null);
             setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
-            if (searchParams.get('interacao')) {
+            if (urlSnap.interacao) {
               router.replace('/sirene/chamados');
             }
           }}

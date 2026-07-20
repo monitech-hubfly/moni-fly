@@ -1507,9 +1507,16 @@ export async function enrichCardsComResponsavelFase(
 
   const kanbansUnicos = [...new Set(outrosSemResposta.map((o) => o.kanbanId))];
   const padraoPorKanban = new Map<string, string>();
-  for (const kid of kanbansUnicos) {
-    const uid = await resolverResponsavelPadraoPorKanban(supabase, kid);
-    if (uid) padraoPorKanban.set(kid, uid);
+  if (kanbansUnicos.length > 0) {
+    const padroes = await Promise.all(
+      kanbansUnicos.map(async (kid) => {
+        const uid = await resolverResponsavelPadraoPorKanban(supabase, kid);
+        return [kid, uid] as const;
+      }),
+    );
+    for (const [kid, uid] of padroes) {
+      if (uid) padraoPorKanban.set(kid, uid);
+    }
   }
   for (const { cardId, kanbanId } of outrosSemResposta) {
     const uid = padraoPorKanban.get(kanbanId);

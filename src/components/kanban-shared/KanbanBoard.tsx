@@ -102,12 +102,19 @@ export function KanbanBoard({
   const [statusPoolError, setStatusPoolError] = useState<string | null>(null);
   const lazyFetchGen = useRef(0);
 
-  // Refresh do RSC: invalida caches lazy para não misturar com snapshot antigo.
+  /** Assinatura estável: `cards`/`cardsConcluidos` mudam de referência a cada `router.refresh()`. */
+  const cardsSnapshotSig = useMemo(
+    () =>
+      `${cards.map((c) => c.id).join(',')}|${cardsConcluidos.map((c) => c.id).join(',')}`,
+    [cards, cardsConcluidos],
+  );
+
+  // Refresh do RSC: invalida caches lazy só quando o conjunto de cards realmente muda.
   useEffect(() => {
     setLazyArquivados(null);
     setLazyConcluidos(null);
     setStatusPoolError(null);
-  }, [cards, cardsConcluidos]);
+  }, [cardsSnapshotSig]);
 
   useEffect(() => {
     if (!leanAtivo || !nomeDbParaLazy) return;
