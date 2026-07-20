@@ -25,6 +25,7 @@ import {
   resolverTituloCardKanban,
   sincronizarCamposCalculadoraBastaoFilho,
 } from '@/lib/kanban/card-sync-group';
+import { tipoKanbanHistoricoFromAcao } from '@/lib/kanban/kanban-historico-tipo';
 
 /** Verifica se já existe card filho no Funil Jurídico para o card pai. */
 export async function existeChamadoJuridicoParaCard(cardPaiId: string): Promise<boolean> {
@@ -728,6 +729,7 @@ async function finalizarCardPortfolioRitualEncerramento(cardPaiId: string): Prom
     usuario_id: null,
     usuario_nome: 'Sistema',
     acao: 'card_finalizado',
+    tipo: tipoKanbanHistoricoFromAcao('card_finalizado'),
     detalhe: {
       tipo: 'ritual_encerramento_operacoes',
       descricao: `Ritual de encerramento: Operações entregue com checklist completo — Portfolio "${titulo}" finalizado.`,
@@ -1173,6 +1175,7 @@ async function executarBastaoDeVoltaMoverPaiPorFaseFilho(
     usuario_id: user?.id ?? null,
     usuario_nome: usuarioNome,
     acao: 'bastao_retorno',
+    tipo: tipoKanbanHistoricoFromAcao('bastao_retorno'),
     detalhe: {
       tipo: 'bastao_retorno',
       descricao,
@@ -1259,6 +1262,7 @@ export async function executarBastaoDeVolta(cardId: string, novaFaseSlug: string
     usuario_id: user?.id ?? null,
     usuario_nome: usuarioNome,
     acao: 'bastao_retorno',
+    tipo: tipoKanbanHistoricoFromAcao('bastao_retorno'),
     detalhe: {
       tipo: 'bastao_retorno',
       descricao,

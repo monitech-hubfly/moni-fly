@@ -1,5 +1,6 @@
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { resolverProcessoStepOneIdDoCard } from '@/lib/kanban/card-sync-group';
+import { tipoKanbanHistoricoFromAcao } from '@/lib/kanban/kanban-historico-tipo';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -177,6 +178,7 @@ async function registrarHistoricoLinks(
     usuario_id: params.usuarioId,
     usuario_nome: params.usuarioNome,
     acao: 'links_gbox_acoplamento',
+    tipo: tipoKanbanHistoricoFromAcao('links_gbox_acoplamento'),
     detalhe: {
       tipo: 'links_gbox_acoplamento',
       descricao,
