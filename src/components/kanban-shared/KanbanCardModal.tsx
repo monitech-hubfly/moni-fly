@@ -7755,11 +7755,9 @@ export function KanbanCardModal({
                       </label>
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">VGV pretendido</span>
-                        <input
-                          type="text"
+                        <KanbanCardModalMoedaField
                           value={negocioDraft.vgv_pretendido}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, vgv_pretendido: e.target.value }))}
-                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                          onChange={(vgv_pretendido) => setNegocioDraft((d) => ({ ...d, vgv_pretendido }))}
                         />
                       </label>
                       <label className="block">

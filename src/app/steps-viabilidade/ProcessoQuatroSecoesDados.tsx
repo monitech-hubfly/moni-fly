@@ -3,6 +3,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { ProcessoRelacionado, ProcessoResumoStep1 } from './actions';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
+import { fmtMoedaKanban } from '@/lib/kanban/kanban-card-modal-detalhes';
 
 export type DadosPreObraFormState = {
   previsao_aprovacao_condominio: string;
@@ -212,7 +213,7 @@ export function ProcessoQuatroSecoesDados({
           </div>
           <div>
             <span className="text-xs text-stone-500">VGV pretendido</span>
-            <div className="text-stone-800">{show(r?.vgv_pretendido)}</div>
+            <div className="text-stone-800">{fmtMoedaKanban(r?.vgv_pretendido)}</div>
           </div>
           <div>
             <span className="text-xs text-stone-500">Produto / Modelo</span>
