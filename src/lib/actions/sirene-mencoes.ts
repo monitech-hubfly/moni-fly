@@ -111,9 +111,11 @@ export async function notificarMencoesSirene(input: {
     uid => uid && uid !== input.autorId && !mencionadosSet.has(uid),
   );
 
+  const adminDb = await dbParaMencoes(supabase);
+
   // Alertas por @menção
   for (const uid of mencionadosSemAutor) {
-    await supabase.from('alertas').insert({
+    await adminDb.from('alertas').insert({
       user_id: uid,
       tipo: 'mencao_sirene',
       mensagem: `${autorNome} mencionou você em "${titulo}" (Sirene): "${preview}"`,
@@ -123,7 +125,7 @@ export async function notificarMencoesSirene(input: {
 
   // Alertas para demais envolvidos (sem @menção)
   for (const uid of extrasSemAutor) {
-    await supabase.from('alertas').insert({
+    await adminDb.from('alertas').insert({
       user_id: uid,
       tipo: 'kanban_atividade_atualizada',
       mensagem: `${autorNome} adicionou atividade em "${titulo}" (Sirene): "${preview}"`,
