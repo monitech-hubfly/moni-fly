@@ -1,5 +1,9 @@
 import { formatLocalYmd, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import {
+  extrairDatasAprovacaoPreObraDaCalculadora,
+  type CalculadoraFaseLinha,
+} from '@/lib/kanban/calculadora-fases';
 
 /** Status de fase na timeline de previsibilidade (Calculadora de Fases — futuro). */
 export type FaseTimelineStatus =
@@ -186,6 +190,47 @@ function tsOrDateToInput(iso: string | null | undefined): string {
   if (!s) return '';
   const head = s.slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : '';
+}
+
+/** Campo Pré Obra Operações espelhado pela fase de aprovação na Calculadora (ou null). */
+export type CampoDataAprovacaoOperacoes = 'condominio_aprovada_em' | 'prefeitura_aprovada_em';
+
+export function campoDataAprovacaoOperacoesPorFaseSlug(
+  slug: string | null | undefined,
+): CampoDataAprovacaoOperacoes | null {
+  const s = String(slug ?? '').trim();
+  if (s === FASE_SLUGS.APROVACAO_CONDOMINIO) return 'condominio_aprovada_em';
+  if (s === FASE_SLUGS.APROVACAO_PREFEITURA) return 'prefeitura_aprovada_em';
+  return null;
+}
+
+/**
+ * Patch dos campos Pré Obra Operações que divergem (ou estão vazios) da Calculadora concluída.
+ * Retorna `null` quando já alinhados.
+ */
+export function patchOperacoesPreObraAlinharComCalculadora(
+  linhas: CalculadoraFaseLinha[],
+  draft: Pick<OperacoesPreObraDraft, 'condominio_aprovada_em' | 'prefeitura_aprovada_em'>,
+): Partial<Pick<OperacoesPreObraDraft, 'condominio_aprovada_em' | 'prefeitura_aprovada_em'>> | null {
+  const daCalc = extrairDatasAprovacaoPreObraDaCalculadora(linhas);
+  const patch: Partial<
+    Pick<OperacoesPreObraDraft, 'condominio_aprovada_em' | 'prefeitura_aprovada_em'>
+  > = {};
+
+  if (daCalc.dataAprovacaoCondominio) {
+    const atual = tsOrDateToInput(draft.condominio_aprovada_em) || '';
+    if (atual !== daCalc.dataAprovacaoCondominio) {
+      patch.condominio_aprovada_em = daCalc.dataAprovacaoCondominio;
+    }
+  }
+  if (daCalc.dataAprovacaoPrefeitura) {
+    const atual = tsOrDateToInput(draft.prefeitura_aprovada_em) || '';
+    if (atual !== daCalc.dataAprovacaoPrefeitura) {
+      patch.prefeitura_aprovada_em = daCalc.dataAprovacaoPrefeitura;
+    }
+  }
+
+  return Object.keys(patch).length > 0 ? patch : null;
 }
 
 export function operacoesPreObraDraftFromCard(raw: {
