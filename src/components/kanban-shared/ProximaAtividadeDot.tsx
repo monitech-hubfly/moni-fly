@@ -28,10 +28,11 @@ function varianteDot(prazo: string | null): 'gray' | 'green' | 'red' {
 function labelPrazo(prazo: string | null): string {
   if (!prazo) return '';
   const hoje = new Date().toISOString().slice(0, 10);
-  if (prazo < hoje) return 'Atrasada';
-  if (prazo === hoje) return 'Vence hoje';
   const [y, m, d] = prazo.split('-');
-  return `${d}/${m}/${y}`;
+  const dataFormatada = `${d}/${m}/${y}`;
+  if (prazo < hoje) return `Atrasada · ${dataFormatada}`;
+  if (prazo === hoje) return `Vence hoje · ${dataFormatada}`;
+  return dataFormatada;
 }
 
 export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, basePath }: Props) {
