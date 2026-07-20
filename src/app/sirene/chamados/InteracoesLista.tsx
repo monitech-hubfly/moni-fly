@@ -1990,7 +1990,6 @@ export function InteracoesLista({
                 disabled={salvandoArquivamento || !motivoArquivamento.trim()}
                 onClick={async () => {
                   if (!modalArquivar) return;
-                  if (!confirm('Tem certeza que deseja arquivar este chamado?')) return;
                   setSalvandoArquivamento(true);
                   try {
                     let res: { ok: true } | { ok: false; error: string };
