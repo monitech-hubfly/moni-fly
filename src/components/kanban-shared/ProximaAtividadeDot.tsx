@@ -36,7 +36,7 @@ function labelPrazo(prazo: string | null): string {
 
 export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, basePath }: Props) {
   const [aberto, setAberto] = useState(false);
-  const [atividadesAbertas, setAtividadesAbertas] = useState<{ id: string; descricao: string; prazo_original: string | null }[]>([]);
+  const [atividadesAbertas, setAtividadesAbertas] = useState<{ id: string; descricao: string; prazo: string | null }[]>([]);
   const [novaAtividade, setNovaAtividade] = useState('');
   const [novoPrazo, setNovoPrazo] = useState('');
   const [confirmarSemProxima, setConfirmarSemProxima] = useState(false);
@@ -109,7 +109,7 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
         setAtividadesAbertas([{
           id: 'legado',
           descricao: proximaAtividade,
-          prazo_original: prazoAtividade,
+          prazo: prazoAtividade,
         }]);
       } else {
         setAtividadesAbertas(abertas);
@@ -179,8 +179,8 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
       {atividadesAbertas.length > 0 ? (
         <ul className="mb-3 space-y-1.5">
           {atividadesAbertas.map(a => {
-            const prazoLabel = labelPrazo(a.prazo_original);
-            const variante = varianteDot(a.prazo_original);
+            const prazoLabel = labelPrazo(a.prazo);
+            const variante = varianteDot(a.prazo);
             const prazoCorTexto = variante === 'red' ? 'text-red-600' : variante === 'green' ? 'text-green-600' : 'text-stone-400';
             return (
               <li key={a.id} className="flex items-start gap-2 rounded border border-stone-100 bg-stone-50 px-2 py-1.5">

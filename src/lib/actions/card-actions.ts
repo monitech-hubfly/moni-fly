@@ -4707,11 +4707,12 @@ export async function adicionarProximaAtividadeItem(input: {
   if (!descricao) return { ok: false, error: 'Informe a atividade.' };
 
   const { error } = await (supabase as any)
-    .from('kanban_proxima_atividade_historico')
+    .from('kanban_proximas_atividades')
     .insert({
       card_id: cardId,
       descricao,
-      prazo_original: input.prazo || null,
+      prazo: input.prazo || null,
+      criado_por: user.id,
     });
   if (error) return { ok: false, error: error.message };
 
@@ -4733,7 +4734,7 @@ export async function concluirProximaAtividadeItem(input: {
   if (!user) return { ok: false, error: 'Faça login.' };
 
   const { error } = await (supabase as any)
-    .from('kanban_proxima_atividade_historico')
+    .from('kanban_proximas_atividades')
     .update({ concluido_em: new Date().toISOString(), concluido_por: user.id })
     .eq('id', input.itemId)
     .eq('card_id', input.cardId);
@@ -4749,15 +4750,15 @@ export async function concluirProximaAtividadeItem(input: {
 /** Busca atividades abertas do card (sem concluido_em). */
 export async function buscarAtividadesAbertasCard(
   cardId: string,
-): Promise<{ id: string; descricao: string; prazo_original: string | null }[]> {
+): Promise<{ id: string; descricao: string; prazo: string | null }[]> {
   const supabase = await createClient();
   const { data } = await (supabase as any)
-    .from('kanban_proxima_atividade_historico')
-    .select('id, descricao, prazo_original')
+    .from('kanban_proximas_atividades')
+    .select('id, descricao, prazo')
     .eq('card_id', cardId)
     .is('concluido_em', null)
-    .order('prazo_original', { ascending: true, nullsFirst: false });
-  return (data ?? []) as { id: string; descricao: string; prazo_original: string | null }[];
+    .order('prazo', { ascending: true, nullsFirst: false });
+  return (data ?? []) as { id: string; descricao: string; prazo: string | null }[];
 }
 
 /** Sincroniza kanban_cards.proxima_atividade com a atividade mais urgente em aberto. */
@@ -4767,23 +4768,23 @@ async function sincronizarProximaAtividadeCard(
 ): Promise<void> {
   const hoje = new Date().toISOString().slice(0, 10);
   const { data: abertas } = await (supabase as any)
-    .from('kanban_proxima_atividade_historico')
-    .select('descricao, prazo_original')
+    .from('kanban_proximas_atividades')
+    .select('descricao, prazo')
     .eq('card_id', cardId)
     .is('concluido_em', null)
-    .order('prazo_original', { ascending: true, nullsFirst: false });
+    .order('prazo', { ascending: true, nullsFirst: false });
 
-  const lista = (abertas ?? []) as { descricao: string; prazo_original: string | null }[];
+  const lista = (abertas ?? []) as { descricao: string; prazo: string | null }[];
 
-  const atrasadas = lista.filter(a => a.prazo_original && a.prazo_original < hoje);
-  const hojeItems = lista.filter(a => a.prazo_original === hoje);
-  const futuras = lista.filter(a => !a.prazo_original || a.prazo_original > hoje);
+  const atrasadas = lista.filter(a => a.prazo && a.prazo < hoje);
+  const hojeItems = lista.filter(a => a.prazo === hoje);
+  const futuras = lista.filter(a => !a.prazo || a.prazo > hoje);
   const ordenada = [...atrasadas, ...hojeItems, ...futuras];
 
   const proxima = ordenada[0] ?? null;
   await (supabase as any).from('kanban_cards').update({
     proxima_atividade: proxima?.descricao ?? null,
-    prazo_atividade: proxima?.prazo_original ?? null,
+    prazo_atividade: proxima?.prazo ?? null,
     updated_at: new Date().toISOString(),
   }).eq('id', cardId);
 }
