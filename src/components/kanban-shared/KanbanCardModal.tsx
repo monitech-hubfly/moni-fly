@@ -330,7 +330,7 @@ import {
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { DadosMoniCapitalPersistentPanel } from './DadosMoniCapitalPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, aplicarDatasAprovacaoPreObraCalculadora, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, aplicarDatasAprovacaoPreObraCalculadora, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, campoDataAprovacaoPreObraPorFaseSlug, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -3204,6 +3204,10 @@ export function KanbanCardModal({
     }
     setSalvandoPreObra(true);
     try {
+      const dataCondo = String(preObraDraft.data_aprovacao_condominio ?? '').trim().slice(0, 10);
+      const dataPref = String(preObraDraft.data_aprovacao_prefeitura ?? '').trim().slice(0, 10);
+      const ymdOrNull = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+
       const res = await salvarDadosPreObra({
         processoId: pid,
         cardOrigemId: card?.id,
@@ -3222,6 +3226,56 @@ export function KanbanCardModal({
         alert(res.error);
         return;
       }
+
+      // Espelho Pré Obra → Calculadora: persiste data fim nas fases de aprovação.
+      const cardId = card?.id?.trim();
+      if (cardId && calculadoraSlugPorFaseId.size > 0) {
+        const supabase = createClient();
+        const patches: Array<{ faseId: string; dataFim: string | null }> = [];
+        for (const [faseId, slug] of calculadoraSlugPorFaseId) {
+          const campo = campoDataAprovacaoPreObraPorFaseSlug(slug);
+          if (!campo) continue;
+          const dataFim =
+            campo === 'data_aprovacao_condominio' ? ymdOrNull(dataCondo) : ymdOrNull(dataPref);
+          patches.push({ faseId, dataFim });
+        }
+        if (patches.length > 0) {
+          ultimaEdicaoDatasManuaisRef.current = Date.now();
+          setDatasManuaisCalculadora((prev) => {
+            const next = new Map(prev);
+            for (const p of patches) {
+              const cur = { ...(next.get(p.faseId) ?? {}) };
+              cur.dataFim = p.dataFim;
+              if (cur.dataInicio == null && cur.dataFim == null) next.delete(p.faseId);
+              else next.set(p.faseId, cur);
+            }
+            return next;
+          });
+          for (const p of patches) {
+            await salvarDataManualCalculadoraSyncGroup(
+              supabase,
+              cardId,
+              p.faseId,
+              { dataFim: p.dataFim },
+              modalSessao.userId,
+            );
+          }
+        }
+      }
+
+      setModalDetalhes((prev) =>
+        prev.processo
+          ? {
+              ...prev,
+              processo: {
+                ...prev.processo,
+                data_aprovacao_condominio: ymdOrNull(dataCondo),
+                data_aprovacao_prefeitura: ymdOrNull(dataPref),
+              },
+            }
+          : prev,
+      );
+
       await loadCard();
       router.refresh();
     } catch {
@@ -3905,6 +3959,15 @@ export function KanbanCardModal({
     [calculadoraFasesPack.faseIds],
   );
 
+  const calculadoraSlugPorFaseId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [id, f] of calculadoraFasesMeta) {
+      const slug = String(f.slug ?? '').trim();
+      if (slug) map.set(id, slug);
+    }
+    return map;
+  }, [calculadoraFasesMeta]);
+
   const salvarDataCalculadora = useCallback(
     async (faseId: string, campo: 'inicio' | 'fim', valor: string | null) => {
       const cardId = card?.id?.trim();
@@ -3918,6 +3981,28 @@ export function KanbanCardModal({
         'dataFim' in prevOv && prevOv.dataFim != null && String(prevOv.dataFim).trim() !== '';
 
       aplicarOverrideCalculadoraLocal(faseId, campo, valor);
+
+      // Espelho Calculadora → Pré Obra: data fim real das fases de aprovação.
+      const slug = calculadoraSlugPorFaseId.get(faseId);
+      const campoPreObra = campo === 'fim' ? campoDataAprovacaoPreObraPorFaseSlug(slug) : null;
+      const ymdPreObra =
+        valor && /^\d{4}-\d{2}-\d{2}$/.test(String(valor).trim().slice(0, 10))
+          ? String(valor).trim().slice(0, 10)
+          : '';
+      if (campoPreObra) {
+        setPreObraDraft((d) => ({ ...d, [campoPreObra]: ymdPreObra }));
+        setModalDetalhes((prev) =>
+          prev.processo
+            ? {
+                ...prev,
+                processo: {
+                  ...prev.processo,
+                  [campoPreObra]: ymdPreObra || null,
+                },
+              }
+            : prev,
+        );
+      }
 
       const supabase = createClient();
       // Ao mudar só o início sem fim manual: limpa data_fim no banco para não “congelar” a estimativa antiga.
@@ -3949,6 +4034,21 @@ export function KanbanCardModal({
         await limparDatasManuaisCalculadoraSyncGroup(supabase, cardId, fasesPosteriores);
       }
 
+      if (campoPreObra) {
+        const pid = modalDetalhes.processo?.id?.trim();
+        if (pid) {
+          const syncPreObra = await salvarDadosPreObra({
+            processoId: pid,
+            cardOrigemId: cardId,
+            [campoPreObra]: ymdPreObra || null,
+            basePath,
+          });
+          if (!syncPreObra.ok) {
+            return { ok: false, error: syncPreObra.error ?? 'Falha ao espelhar Pré Obra.' };
+          }
+        }
+      }
+
       return result;
     },
     [
@@ -3957,17 +4057,11 @@ export function KanbanCardModal({
       calculadoraFasesPack.faseIds,
       aplicarOverrideCalculadoraLocal,
       datasManuaisCalculadora,
+      calculadoraSlugPorFaseId,
+      modalDetalhes.processo?.id,
+      basePath,
     ],
   );
-
-  const calculadoraSlugPorFaseId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const [id, f] of calculadoraFasesMeta) {
-      const slug = String(f.slug ?? '').trim();
-      if (slug) map.set(id, slug);
-    }
-    return map;
-  }, [calculadoraFasesMeta]);
 
   const calculadoraLinhasEncadeadas = useMemo(() => {
     if (!card) return calculadoraFasesPack.linhas;
@@ -4030,16 +4124,13 @@ export function KanbanCardModal({
       comOverridesPosOverlay,
       cardEncadeamento,
     );
-    // Pré Obra por último: data aprovação → fim real + concluída (prevalece sobre override manual).
+    // Pré Obra por último: espelha data aprovação → fim real + concluída (coluna «real»).
+    // Draft é a fonte enquanto o modal está aberto (espelho bidirecional com a Calculadora).
     return aplicarDatasAprovacaoPreObraCalculadora(
       normalizadas,
       {
-        dataAprovacaoCondominio:
-          preObraDraft.data_aprovacao_condominio ||
-          modalDetalhes.processo?.data_aprovacao_condominio,
-        dataAprovacaoPrefeitura:
-          preObraDraft.data_aprovacao_prefeitura ||
-          modalDetalhes.processo?.data_aprovacao_prefeitura,
+        dataAprovacaoCondominio: preObraDraft.data_aprovacao_condominio,
+        dataAprovacaoPrefeitura: preObraDraft.data_aprovacao_prefeitura,
       },
       cardEncadeamento,
     );
@@ -4054,8 +4145,6 @@ export function KanbanCardModal({
     calculadoraAncora,
     preObraDraft.data_aprovacao_condominio,
     preObraDraft.data_aprovacao_prefeitura,
-    modalDetalhes.processo?.data_aprovacao_condominio,
-    modalDetalhes.processo?.data_aprovacao_prefeitura,
   ]);
 
   const calculadoraCardConcluidoCanonico =

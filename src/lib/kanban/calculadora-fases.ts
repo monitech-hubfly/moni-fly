@@ -134,6 +134,24 @@ export type CalculadoraDatasAprovacaoPreObra = {
   dataAprovacaoPrefeitura?: string | null;
 };
 
+/** Campo Pré Obra espelhado pela fase de aprovação na Calculadora (ou null). */
+export type CampoDataAprovacaoPreObra =
+  | 'data_aprovacao_condominio'
+  | 'data_aprovacao_prefeitura';
+
+/**
+ * Mapeia slug da Calculadora → campo Dados Pré Obra.
+ * Espelho: Data Aprovação Condomínio/Prefeitura ↔ data fim real das fases.
+ */
+export function campoDataAprovacaoPreObraPorFaseSlug(
+  slug: string | null | undefined,
+): CampoDataAprovacaoPreObra | null {
+  const s = String(slug ?? '').trim();
+  if (s === CALCULADORA_ANCORA_CONDOMINIO_SLUG) return 'data_aprovacao_condominio';
+  if (s === CALCULADORA_APROVACAO_PREFEITURA_SLUG) return 'data_aprovacao_prefeitura';
+  return null;
+}
+
 /**
  * Âncora padrão em "Aprovação no Condomínio": limpa datas das fases anteriores e as marca
  * como concluídas, preservando a data (real ou estimada) do próprio Condomínio como fim real.
@@ -752,12 +770,19 @@ export function aplicarOverlayAncoraOcultarFasesAnteriores(
 }
 
 /**
- * Dados Pré Obra → Calculadora: com data de aprovação preenchida, a fase correspondente
- * recebe data fim real e status concluída (como edição/conclusão manual).
+ * Dados Pré Obra ↔ Calculadora (fases Aprovação no Condomínio / na Prefeitura).
  *
- * Precedência: data Pré Obra prevalece sobre override manual e sobre visitas/estimativas
- * enquanto estiver preenchida. Limpar a data em Pré Obra devolve o comportamento normal.
- * Aplicar no fim do pipeline (após overrides manuais).
+ * Com data preenchida, a fase recebe data fim real (= YMD Pré Obra) e status concluída
+ * (ou concluída em atraso se estourar SLA) — coluna «real» na UI.
+ *
+ * Precedência / espelho (qualquer card com processo):
+ * 1. Overlay aplica Pré Obra por último no pipeline (após overrides manuais/visitas).
+ * 2. Enquanto Pré Obra estiver preenchida, ela é a fonte de exibição do fim real.
+ * 3. Editar data fim (ou marcar concluída) nessas fases na Calculadora deve gravar o
+ *    mesmo YMD em Pré Obra — e vice-versa ao salvar Pré Obra — para os campos
+ *    permanecerem iguais. Última edição do usuário vence via persistência espelhada.
+ * 4. Limpar a data em Pré Obra (ou limpar fim na Calculadora) devolve o comportamento
+ *    normal (visitas / overrides / estimativas).
  */
 export function aplicarDatasAprovacaoPreObraCalculadora(
   linhas: CalculadoraFaseLinha[],
