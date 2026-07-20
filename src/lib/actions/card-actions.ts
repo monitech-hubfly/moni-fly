@@ -4542,6 +4542,103 @@ export async function salvarProximaAtividade(input: SalvarProximaAtividadeInput)
   return { ok: true };
 }
 
+/** Adiciona nova atividade ao histórico do card. */
+export async function adicionarProximaAtividadeItem(input: {
+  cardId: string;
+  descricao: string;
+  prazo: string | null;
+  basePath: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  const cardId = String(input.cardId ?? '').trim();
+  const descricao = String(input.descricao ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+  if (!descricao) return { ok: false, error: 'Informe a atividade.' };
+
+  const { error } = await (supabase as any)
+    .from('kanban_proxima_atividade_historico')
+    .insert({
+      card_id: cardId,
+      descricao,
+      prazo_original: input.prazo || null,
+    });
+  if (error) return { ok: false, error: error.message };
+
+  await sincronizarProximaAtividadeCard(supabase, cardId);
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Conclui uma atividade específica do histórico pelo id. */
+export async function concluirProximaAtividadeItem(input: {
+  itemId: string;
+  cardId: string;
+  basePath: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { error } = await (supabase as any)
+    .from('kanban_proxima_atividade_historico')
+    .update({ concluido_em: new Date().toISOString(), concluido_por: user.id })
+    .eq('id', input.itemId)
+    .eq('card_id', input.cardId);
+  if (error) return { ok: false, error: error.message };
+
+  await sincronizarProximaAtividadeCard(supabase, input.cardId);
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Busca atividades abertas do card (sem concluido_em). */
+export async function buscarAtividadesAbertasCard(
+  cardId: string,
+): Promise<{ id: string; descricao: string; prazo_original: string | null }[]> {
+  const supabase = await createClient();
+  const { data } = await (supabase as any)
+    .from('kanban_proxima_atividade_historico')
+    .select('id, descricao, prazo_original')
+    .eq('card_id', cardId)
+    .is('concluido_em', null)
+    .order('prazo_original', { ascending: true, nullsFirst: false });
+  return (data ?? []) as { id: string; descricao: string; prazo_original: string | null }[];
+}
+
+/** Sincroniza kanban_cards.proxima_atividade com a atividade mais urgente em aberto. */
+async function sincronizarProximaAtividadeCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+): Promise<void> {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const { data: abertas } = await (supabase as any)
+    .from('kanban_proxima_atividade_historico')
+    .select('descricao, prazo_original')
+    .eq('card_id', cardId)
+    .is('concluido_em', null)
+    .order('prazo_original', { ascending: true, nullsFirst: false });
+
+  const lista = (abertas ?? []) as { descricao: string; prazo_original: string | null }[];
+
+  const atrasadas = lista.filter(a => a.prazo_original && a.prazo_original < hoje);
+  const hojeItems = lista.filter(a => a.prazo_original === hoje);
+  const futuras = lista.filter(a => !a.prazo_original || a.prazo_original > hoje);
+  const ordenada = [...atrasadas, ...hojeItems, ...futuras];
+
+  const proxima = ordenada[0] ?? null;
+  await (supabase as any).from('kanban_cards').update({
+    proxima_atividade: proxima?.descricao ?? null,
+    prazo_atividade: proxima?.prazo_original ?? null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', cardId);
+}
+
 export type HistoricoAtividadeItem = {
   id: string;
   card_id: string;

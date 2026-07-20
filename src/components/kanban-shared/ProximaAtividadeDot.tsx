@@ -3,7 +3,11 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { salvarProximaAtividade } from '@/lib/actions/card-actions';
+import {
+  adicionarProximaAtividadeItem,
+  concluirProximaAtividadeItem,
+  buscarAtividadesAbertasCard,
+} from '@/lib/actions/card-actions';
 
 type Props = {
   cardId: string;
@@ -31,9 +35,11 @@ function labelPrazo(prazo: string | null): string {
 
 export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, basePath }: Props) {
   const [aberto, setAberto] = useState(false);
-  const [concluida, setConcluida] = useState(false);
+  const [atividadesAbertas, setAtividadesAbertas] = useState<{ id: string; descricao: string; prazo_original: string | null }[]>([]);
   const [novaAtividade, setNovaAtividade] = useState('');
   const [novoPrazo, setNovoPrazo] = useState('');
+  const [confirmarSemProxima, setConfirmarSemProxima] = useState(false);
+  const [pendingItemId, setPendingItemId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -46,14 +52,9 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
     variante === 'red' ? 'bg-red-500 hover:bg-red-600'
     : variante === 'green' ? 'bg-green-500 hover:bg-green-600'
     : 'bg-stone-400 hover:bg-stone-500';
-  const prazoLabel = labelPrazo(prazoAtividade);
-  const prazoCorTexto =
-    variante === 'red' ? 'text-red-600'
-    : variante === 'green' ? 'text-green-600'
-    : 'text-stone-500';
   const tooltipTitle = semAtividade
     ? 'Próxima atividade não definida'
-    : prazoLabel ? `${proximaAtividade} · ${prazoLabel}` : proximaAtividade!;
+    : labelPrazo(prazoAtividade) ? `${proximaAtividade} · ${labelPrazo(prazoAtividade)}` : proximaAtividade!;
 
   useEffect(() => {
     if (!aberto) return;
@@ -74,7 +75,7 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
     const reposicionar = () => {
       const rect = dotRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const popW = 256;
+      const popW = 288;
       const left = Math.max(4, Math.min(rect.right - popW, window.innerWidth - popW - 8));
       setPos({ top: rect.top - 8, left });
     };
@@ -93,27 +94,52 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
     if (aberto) { setAberto(false); return; }
     const rect = dotRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const popW = 256;
+    const popW = 288;
     const left = Math.max(4, Math.min(rect.right - popW, window.innerWidth - popW - 8));
     setPos({ top: rect.top - 8, left });
-    setConcluida(false);
     setNovaAtividade('');
     setNovoPrazo('');
     setErro(null);
+    setConfirmarSemProxima(false);
+    setPendingItemId(null);
     setAberto(true);
+    void buscarAtividadesAbertasCard(cardId).then(setAtividadesAbertas);
   }
 
-  function handleSalvar() {
+  function concluirItem(itemId: string) {
+    const restante = atividadesAbertas.filter(a => a.id !== itemId);
+    if (restante.length === 0 && !novaAtividade.trim()) {
+      setPendingItemId(itemId);
+      setConfirmarSemProxima(true);
+      return;
+    }
+    executarConclusao(itemId);
+  }
+
+  function executarConclusao(itemId: string) {
+    startTransition(async () => {
+      await concluirProximaAtividadeItem({ itemId, cardId, basePath });
+      setAtividadesAbertas(prev => prev.filter(a => a.id !== itemId));
+      setConfirmarSemProxima(false);
+      setPendingItemId(null);
+    });
+  }
+
+  function adicionarAtividade() {
+    if (!novaAtividade.trim()) return;
     setErro(null);
     startTransition(async () => {
-      const res = await salvarProximaAtividade({
+      const res = await adicionarProximaAtividadeItem({
         cardId,
-        proxima_atividade: concluida ? null : novaAtividade.trim() || null,
-        prazo_atividade: concluida ? null : novoPrazo || null,
+        descricao: novaAtividade.trim(),
+        prazo: novoPrazo || null,
         basePath,
       });
       if (!res.ok) { setErro(res.error); return; }
-      setAberto(false);
+      const novas = await buscarAtividadesAbertasCard(cardId);
+      setAtividadesAbertas(novas);
+      setNovaAtividade('');
+      setNovoPrazo('');
     });
   }
 
@@ -121,49 +147,72 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
     <div
       ref={popoverRef}
       style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999, transform: 'translateY(-100%)' }}
-      className="w-64 rounded-lg border border-stone-200 bg-white p-3 text-left shadow-xl"
+      className="w-72 rounded-lg border border-stone-200 bg-white p-3 text-left shadow-xl"
       onMouseDown={e => e.stopPropagation()}
       onClick={e => e.stopPropagation()}
     >
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400">
-        Próxima atividade
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+        Próximas Atividades
       </p>
 
-      {!semAtividade && (
-        <>
-          <p className="mb-1 text-xs font-medium text-stone-800">{proximaAtividade}</p>
-          {prazoLabel && (
-            <p className={`mb-3 text-[11px] ${prazoCorTexto}`}>{prazoLabel}</p>
-          )}
-          <label className="mb-3 flex cursor-pointer select-none items-center gap-2 text-xs text-stone-700">
-            <input
-              type="checkbox"
-              checked={concluida}
-              onChange={e => setConcluida(e.target.checked)}
-              className="rounded border-stone-300"
-            />
-            Marcar como concluída
-          </label>
-          {concluida && !novaAtividade.trim() && (
-            <p className="mb-2 text-[11px] text-amber-600">
-              Defina a próxima atividade para manter o acompanhamento do card.
-            </p>
-          )}
-        </>
+      {/* Lista de atividades abertas */}
+      {atividadesAbertas.length > 0 ? (
+        <ul className="mb-3 space-y-1.5">
+          {atividadesAbertas.map(a => {
+            const prazoLabel = labelPrazo(a.prazo_original);
+            const variante = varianteDot(a.prazo_original);
+            const prazoCorTexto = variante === 'red' ? 'text-red-600' : variante === 'green' ? 'text-green-600' : 'text-stone-400';
+            return (
+              <li key={a.id} className="flex items-start gap-2 rounded border border-stone-100 bg-stone-50 px-2 py-1.5">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 rounded border-stone-300 cursor-pointer"
+                  disabled={pending}
+                  onChange={() => concluirItem(a.id)}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-stone-800 leading-snug">{a.descricao}</p>
+                  {prazoLabel && <p className={`text-[10px] ${prazoCorTexto}`}>{prazoLabel}</p>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="mb-3 text-[11px] text-amber-600">Nenhuma atividade em aberto.</p>
       )}
 
-      {semAtividade && (
-        <p className="mb-3 text-[11px] text-amber-600">
-          Nenhuma atividade definida. Preencha abaixo para retomar o acompanhamento.
-        </p>
+      {/* Alerta sem próxima atividade */}
+      {confirmarSemProxima && (
+        <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-2">
+          <p className="mb-2 text-[11px] text-amber-700">
+            ⚠ Você está concluindo a última atividade sem definir a próxima. O card ficará sem acompanhamento.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setConfirmarSemProxima(false); setPendingItemId(null); }}
+              className="flex-1 rounded border border-stone-200 px-2 py-1 text-[11px] text-stone-600 hover:bg-stone-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => pendingItemId && executarConclusao(pendingItemId)}
+              disabled={pending}
+              className="flex-1 rounded bg-amber-500 px-2 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              Concluir mesmo assim
+            </button>
+          </div>
+        </div>
       )}
 
-      {(!concluida || semAtividade) && (
-        <div className="mb-3 space-y-2">
+      {/* Adicionar nova */}
+      {!confirmarSemProxima && (
+        <div className="space-y-2">
           <div>
-            <label className="mb-0.5 block text-[10px] font-medium text-stone-500">
-              {semAtividade ? 'Próxima atividade' : 'Nova atividade'}
-            </label>
+            <label className="mb-0.5 block text-[10px] font-medium text-stone-500">+ Nova atividade</label>
             <input
               type="text"
               value={novaAtividade}
@@ -181,28 +230,26 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
               className="w-full rounded border border-stone-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-moni-primary"
             />
           </div>
+          {erro && <p className="text-[11px] text-red-600">{erro}</p>}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={adicionarAtividade}
+              disabled={pending || !novaAtividade.trim()}
+              className="flex-1 rounded bg-moni-primary px-2 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {pending ? 'Salvando…' : '+ Adicionar'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAberto(false)}
+              className="rounded border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
-
-      {erro && <p className="mb-2 text-[11px] text-red-600">{erro}</p>}
-
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={handleSalvar}
-          disabled={pending}
-          className="flex-1 rounded bg-moni-primary px-2 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-        >
-          {pending ? 'Salvando…' : (concluida && !semAtividade) ? 'Concluir' : 'Salvar'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setAberto(false)}
-          className="rounded border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
-        >
-          ✕
-        </button>
-      </div>
     </div>
   ) : null;
 
