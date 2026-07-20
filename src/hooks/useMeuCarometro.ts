@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isoWeek, isoWeekYear } from '@/utils/periodos';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
+import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
 
 export type DiaStatus = {
   data: string;
@@ -163,10 +164,11 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       );
 
       // ── Sirene (fallback runtime) ────────────────────────────────────────────
+      // Inclui responsáveis secundários (responsaveis_ids)
       const { data: topicos } = await supabase
         .from('sirene_topicos')
         .select('id, data_fim, prazo_proposto')
-        .eq('responsavel_id', effectiveProfileId)
+        .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
         .in('status', ['nao_iniciado', 'em_andamento'])
         .eq('arquivado', false);
 
@@ -177,10 +179,11 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         if (!prazo) return false;
         return new Date(prazo) < hoje;
       }).length;
+      // Score: % de abertos que estão no prazo
       const sireneScore =
         topicosArr.length === 0
           ? 100
-          : Math.max(0, Math.round((1 - topicosAtrasados / topicosArr.length) * 100));
+          : Math.max(0, Math.round(((topicosArr.length - topicosAtrasados) / topicosArr.length) * 100));
 
       const sireneRuntime: SireneSnapshot = {
         atrasados: topicosAtrasados,
@@ -189,7 +192,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         score:     sireneScore,
       };
 
-      // ── Engajamento (alimentado pela Agenda — Sessão 3) ──────────────────────
+      // ── Engajamento (Atividades Planejadas + Cards/Kanban) ───────────────────
       let engajamentoRuntime: EngajamentoSnapshot = {
         atividadesAtrasadas: 0,
         acumuladoDias: 0,
@@ -197,31 +200,75 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         score: null,
       };
 
-      if (nomeUsuario) {
-        const { data: ganttRows } = await supabase
+      {
+        // Atividades Planejadas (gantt) — janela ±4 semanas
+        const semanaJanela = [
+          semana - 4, semana - 3, semana - 2, semana - 1,
+          semana, semana + 1, semana + 2,
+        ];
+        const ganttQuery = supabase
           .from('gantt_planejamento')
-          .select('id, semana_inicio, semana_fim')
-          .ilike('responsavel', `%${nomeUsuario}%`);
+          .select('id, semana_ano_inicio, semana_ano_fim, semanas_selecionadas')
+          .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
+          .is('data_conclusao_real', null)
+          .overlaps('semanas_selecionadas', semanaJanela);
 
-        const ganttArr = ganttRows ?? [];
+        // Cards/Kanban abertos — responsável explícito OU dono sem responsável
+        const kanbanQuery = supabase
+          .from('kanban_cards')
+          .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}},and(franqueado_id.eq.${effectiveProfileId},responsavel_id.is.null)`)
+          .eq('arquivado', false)
+          .eq('concluido', false);
+
+        const [ganttRes, kanbanRes] = await Promise.all([ganttQuery, kanbanQuery]);
+
+        const ganttArr = ganttRes.data ?? [];
+        const kanbanArr = (kanbanRes.data ?? []) as Array<{
+          id: string;
+          created_at: string;
+          entered_fase_at: string | null;
+          sla_iniciado_em: string | null;
+          fase: { sla_dias: number | null; sla_tipo: string | null; slug: string | null } | Array<{ sla_dias: number | null; sla_tipo: string | null; slug: string | null }> | null;
+        }>;
+
+        // Atividades atrasadas: semana_ano_fim < semana atual
         const atividadesAtrasadas = ganttArr.filter(g => {
-          const sf = Number(g.semana_fim);
-          return Number.isFinite(sf) && sf < semana;
+          const sf = g.semana_ano_fim ?? (
+            Array.isArray(g.semanas_selecionadas) && g.semanas_selecionadas.length
+              ? Math.max(...(g.semanas_selecionadas as number[]))
+              : null
+          );
+          return sf != null && Number(sf) < semana;
         }).length;
-        const atividadesSemana = ganttArr.filter(g => {
-          const si = Number(g.semana_inicio);
-          const sf = Number(g.semana_fim);
-          return Number.isFinite(si) && Number.isFinite(sf) && si <= semana && sf >= semana;
+
+        // Cards atrasados: usa SLA real (mesmo cálculo do BacklogKanban)
+        const cardsAtrasados = kanbanArr.filter(c => {
+          const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
+          const sla = calcularSlaKanbanCard({
+            created_at: c.created_at,
+            entered_fase_at: c.entered_fase_at,
+            sla_iniciado_em: c.sla_iniciado_em,
+            sla_dias: fase?.sla_dias ?? null,
+            sla_tipo: fase?.sla_tipo ?? null,
+            faseSlug: fase?.slug ?? null,
+          });
+          return sla.status === 'atrasado';
         }).length;
-        const engScore =
-          ganttArr.length === 0
-            ? null
-            : Math.max(0, Math.round((1 - atividadesAtrasadas / Math.max(ganttArr.length, 1)) * 100));
+
+        const totalAtiv      = ganttArr.length;
+        const totalCards     = kanbanArr.length;
+        const totalGeral     = totalAtiv + totalCards;
+        const totalAtrasados = atividadesAtrasadas + cardsAtrasados;
+
+        const engScore = totalGeral === 0
+          ? null
+          : Math.max(0, Math.round(((totalGeral - totalAtrasados) / totalGeral) * 100));
 
         engajamentoRuntime = {
           atividadesAtrasadas,
-          acumuladoDias: atividadesSemana,
-          cards: { atrasados: 0, abertos: 0 },
+          acumuladoDias: totalAtiv,
+          cards: { atrasados: cardsAtrasados, abertos: totalCards },
           score: engScore,
         };
       }

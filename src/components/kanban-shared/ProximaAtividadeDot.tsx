@@ -32,7 +32,7 @@ function labelPrazo(prazo: string | null): string {
   const dataFormatada = `${d}/${m}/${y}`;
   if (prazo < hoje) return `Atrasada · ${dataFormatada}`;
   if (prazo === hoje) return `Vence hoje · ${dataFormatada}`;
-  return dataFormatada;
+  return `Futura · ${dataFormatada}`;
 }
 
 export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, basePath }: Props) {

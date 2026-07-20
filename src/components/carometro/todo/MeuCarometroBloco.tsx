@@ -70,7 +70,7 @@ export function MeuCarometroBloco() {
               {engajamento && (
                 <>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Atividades atrasadas</span>
+                    <span className="text-gray-500">Ativ. atrasadas</span>
                     <span
                       className="font-medium"
                       style={{ color: engajamento.atividadesAtrasadas > 0 ? '#dc2626' : undefined }}
@@ -79,8 +79,21 @@ export function MeuCarometroBloco() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Esta semana</span>
+                    <span className="text-gray-500">Ativ. planejadas</span>
                     <span className="font-medium">{engajamento.acumuladoDias}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Cards atrasados</span>
+                    <span
+                      className="font-medium"
+                      style={{ color: engajamento.cards.atrasados > 0 ? '#dc2626' : undefined }}
+                    >
+                      {engajamento.cards.atrasados}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Cards abertos</span>
+                    <span className="font-medium">{engajamento.cards.abertos}</span>
                   </div>
                 </>
               )}

@@ -129,6 +129,8 @@ export function useBacklogKanban(refreshKey = 0) {
           `)
           .eq('valor', effectiveProfileId),
 
+        // Fonte 4: cards com próx. atividade onde o usuário é responsável explícito
+        // OU é dono (franqueado_id) sem responsável atribuído (card sem dono operacional)
         supabase
           .from('kanban_cards')
           .select(`
@@ -138,11 +140,12 @@ export function useBacklogKanban(refreshKey = 0) {
             fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
-          .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}},and(franqueado_id.eq.${effectiveProfileId},responsavel_id.is.null)`)
           .not('proxima_atividade', 'is', null)
           .eq('arquivado', false)
           .eq('concluido', false),
 
+        // Fonte 5: cards sem próx. atividade — mesma lógica
         supabase
           .from('kanban_cards')
           .select(`
@@ -152,7 +155,7 @@ export function useBacklogKanban(refreshKey = 0) {
             fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
-          .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}},and(franqueado_id.eq.${effectiveProfileId},responsavel_id.is.null)`)
           .is('proxima_atividade', null)
           .eq('arquivado', false)
           .eq('concluido', false),

@@ -59,10 +59,15 @@ export function MeuCarometroCard({
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 flex flex-col gap-3">
       <p className="text-center text-sm font-semibold text-gray-700">{titulo}</p>
 
-      <div className="flex items-center justify-between px-2">
-        <img src={carinhaImg} alt="carinha" className="w-14 h-14 object-contain"
-          title={score !== null ? `${score}%` : 'Sem dados'} />
-        <span className={`text-2xl font-bold tabular-nums ${scoreCls}`}>
+      <div className="flex items-center justify-center gap-4 py-1">
+        <img
+          src={carinhaImg}
+          alt="carinha"
+          className="w-14 h-14 object-contain shrink-0"
+          style={{ mixBlendMode: 'multiply' }}
+          title={score !== null ? `${score}%` : 'Sem dados'}
+        />
+        <span className={`text-3xl font-bold tabular-nums leading-none ${scoreCls}`}>
           {score !== null ? `${score}%` : '—'}
         </span>
       </div>
