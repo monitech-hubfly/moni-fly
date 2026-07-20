@@ -260,6 +260,9 @@ export function textoVisivelCardKanbanFechado(
       temFilhoCreditoObra: card.tem_filho_credito_obra,
       filhoCreditoObraArquivado: card.filho_credito_obra_arquivado,
       creditoObraFilhoFase: card.credito_obra_filho_fase,
+      temFilhoProjetosLocais: card.tem_filho_projetos_locais,
+      filhoProjetosLocaisArquivado: card.filho_projetos_locais_arquivado,
+      projetosLocaisFilhoFase: card.projetos_locais_filho_fase,
     },
     { labelsCompletos: false },
   );

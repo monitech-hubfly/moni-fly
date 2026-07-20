@@ -100,6 +100,12 @@ export type KanbanCardBrief = {
   filho_credito_obra_arquivado?: boolean;
   /** Operações: fase atual do filho Cash Me. */
   credito_obra_filho_fase?: string | null;
+  /** Operações: existe card filho no Funil Projetos Locais. */
+  tem_filho_projetos_locais?: boolean;
+  /** Operações: filho Projetos Locais arquivado (sem filho ativo). */
+  filho_projetos_locais_arquivado?: boolean;
+  /** Operações: fase atual do filho Projetos Locais. */
+  projetos_locais_filho_fase?: string | null;
   /** Step One: fase atual do card Portfolio com mesmo `projeto_id`. */
   portfolio_vinculo_rotulo?: string | null;
   /** Portfolio: existe card filho no Funil Jurídico (`origem_card_id`). */

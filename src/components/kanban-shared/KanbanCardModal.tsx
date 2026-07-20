@@ -420,6 +420,9 @@ type Card = {
   tem_filho_credito_obra?: boolean;
   filho_credito_obra_arquivado?: boolean;
   credito_obra_filho_fase?: string | null;
+  tem_filho_projetos_locais?: boolean;
+  filho_projetos_locais_arquivado?: boolean;
+  projetos_locais_filho_fase?: string | null;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
   processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
@@ -1590,6 +1593,9 @@ export function KanbanCardModal({
                   tem_filho_credito_obra: enrichedRow.tem_filho_credito_obra,
                   filho_credito_obra_arquivado: enrichedRow.filho_credito_obra_arquivado,
                   credito_obra_filho_fase: enrichedRow.credito_obra_filho_fase,
+                  tem_filho_projetos_locais: enrichedRow.tem_filho_projetos_locais,
+                  filho_projetos_locais_arquivado: enrichedRow.filho_projetos_locais_arquivado,
+                  projetos_locais_filho_fase: enrichedRow.projetos_locais_filho_fase,
                   acoplamento_filho_fase_nome: enrichedRow.filho_acoplamento_arquivado
                     ? enrichedRow.acoplamento_filho_fase_nome ?? null
                     : enrichedRow.acoplamento_filho_fase_nome ?? next.acoplamento_filho_fase_nome,
@@ -4697,6 +4703,9 @@ export function KanbanCardModal({
             temFilhoCreditoObra: card.tem_filho_credito_obra,
             filhoCreditoObraArquivado: card.filho_credito_obra_arquivado,
             creditoObraFilhoFase: card.credito_obra_filho_fase,
+            temFilhoProjetosLocais: card.tem_filho_projetos_locais,
+            filhoProjetosLocaisArquivado: card.filho_projetos_locais_arquivado,
+            projetosLocaisFilhoFase: card.projetos_locais_filho_fase,
           },
           { labelsCompletos: true },
         )
