@@ -1831,6 +1831,155 @@ export async function arquivarCard(input: ArquivarCardInput): Promise<ActionResu
   return { ok: true };
 }
 
+// ============================================================
+// PERDA / GANHO — aguardando migrations da Ingrid
+// Tabelas necessárias: kanban_perdas, kanban_ganhos, kanban_motivos_perda
+// Coluna necessária: kanban_cards.resultado (text, nullable)
+// ============================================================
+
+export type RegistrarPerdaInput = {
+  cardId: string;
+  motivoId: string;
+  justificativa?: string | null;
+  basePath?: string;
+  origem?: 'nativo' | 'legado';
+  kanbanNome?: string;
+  faseNome?: string;
+};
+
+export async function registrarPerda(input: RegistrarPerdaInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar perda.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+  const motivoId = String(input.motivoId ?? '').trim();
+  if (!motivoId) return { ok: false, error: 'Selecione o motivo da perda.' };
+
+  const [perm, { data: meProf }] = await Promise.all([
+    carregarPermissoesMap(supabase, user.id),
+    supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+  ]);
+  const roleNorm = String((meProf as { role?: string | null } | null)?.role ?? '').toLowerCase();
+  const papelPrivilegiado = roleNorm === 'admin' || roleNorm === 'team' || roleNorm === 'supervisor' || roleNorm === 'consultor';
+  if (!papelPrivilegiado && !perm.get('arquivar_cards')) {
+    return { ok: false, error: 'Sem permissão para registrar perda.' };
+  }
+
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+
+  const { data: cardRow } = await admin
+    .from('kanban_cards')
+    .select('fase_id, kanbans(nome)')
+    .eq('id', cardId)
+    .maybeSingle();
+
+  const faseNome = input.faseNome ?? '';
+  const kanbanNome = input.kanbanNome ?? String((cardRow as { kanbans?: { nome?: string } | null })?.kanbans?.nome ?? '');
+
+  const { error: arquivarErr } = await admin
+    .from('kanban_cards')
+    .update({
+      arquivado: true,
+      arquivado_em: now,
+      arquivado_por: user.id,
+      motivo_arquivamento: 'Perda',
+      resultado: 'perda',
+    } as never)
+    .eq('id', cardId);
+  if (arquivarErr) return { ok: false, error: arquivarErr.message };
+
+  const { error: perdaErr } = await (admin as any)
+    .from('kanban_perdas')
+    .insert({
+      card_id: cardId,
+      user_id: user.id,
+      motivo_id: motivoId,
+      justificativa: input.justificativa?.trim() || null,
+      fase_nome: faseNome,
+      kanban_nome: kanbanNome,
+    });
+  if (perdaErr) return { ok: false, error: perdaErr.message };
+
+  const bp = input.basePath?.trim() || '/';
+  revalidatePath(bp);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export type RegistrarGanhoInput = {
+  cardId: string;
+  justificativa?: string | null;
+  basePath?: string;
+  kanbanNome?: string;
+  faseNome?: string;
+};
+
+export async function registrarGanho(input: RegistrarGanhoInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar ganho.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const [perm, { data: meProf }] = await Promise.all([
+    carregarPermissoesMap(supabase, user.id),
+    supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+  ]);
+  const roleNorm = String((meProf as { role?: string | null } | null)?.role ?? '').toLowerCase();
+  const papelPrivilegiado = roleNorm === 'admin' || roleNorm === 'team' || roleNorm === 'supervisor' || roleNorm === 'consultor';
+  if (!papelPrivilegiado && !perm.get('arquivar_cards')) {
+    return { ok: false, error: 'Sem permissão para registrar ganho.' };
+  }
+
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+
+  const kanbanNome = input.kanbanNome ?? '';
+  const faseNome = input.faseNome ?? '';
+
+  const { error: arquivarErr } = await admin
+    .from('kanban_cards')
+    .update({
+      arquivado: true,
+      arquivado_em: now,
+      arquivado_por: user.id,
+      motivo_arquivamento: 'Ganho',
+      resultado: 'ganho',
+    } as never)
+    .eq('id', cardId);
+  if (arquivarErr) return { ok: false, error: arquivarErr.message };
+
+  const { error: ganhoErr } = await (admin as any)
+    .from('kanban_ganhos')
+    .insert({
+      card_id: cardId,
+      user_id: user.id,
+      justificativa: input.justificativa?.trim() || null,
+      fase_nome: faseNome,
+      kanban_nome: kanbanNome,
+    });
+  if (ganhoErr) return { ok: false, error: ganhoErr.message };
+
+  const bp = input.basePath?.trim() || '/';
+  revalidatePath(bp);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export async function buscarMotivosPerda(): Promise<{ id: string; descricao: string }[]> {
+  const supabase = await createClient();
+  const { data } = await (supabase as any)
+    .from('kanban_motivos_perda')
+    .select('id, descricao')
+    .eq('ativo', true)
+    .order('ordem', { ascending: true });
+  return (data ?? []) as { id: string; descricao: string }[];
+}
+
 export type DesarquivarCardInput = {
   cardId: string;
   basePath?: string;

@@ -3,8 +3,14 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Archive, ArrowRight, MoreHorizontal } from 'lucide-react';
-import { arquivarCard, moverCardParaFase } from '@/lib/actions/card-actions';
+import { Archive, ArrowRight, MoreHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
+import {
+  arquivarCard,
+  moverCardParaFase,
+  registrarPerda,
+  registrarGanho,
+  buscarMotivosPerda,
+} from '@/lib/actions/card-actions';
 import {
   MOTIVOS_ARQUIVAMENTO_CATEGORIAS,
   MOTIVO_ARQUIVAMENTO_OBS_MAX,
@@ -12,6 +18,8 @@ import {
   formatMotivoArquivamento,
   isMotivoArquivamentoOutro,
 } from '@/lib/kanban/motivos-arquivamento';
+
+const PERDA_GANHO_ENABLED = false; // Ativar após migrations da Ingrid
 
 type ProximaFase = { id: string; nome: string };
 
@@ -24,7 +32,7 @@ type Props = {
   proximaFase: ProximaFase | null;
 };
 
-type Vista = 'menu' | 'arquivar';
+type Vista = 'menu' | 'arquivar' | 'perda' | 'ganho';
 
 const LARGURA_MENU = 200;
 
@@ -34,6 +42,10 @@ export function KanbanCardMenu({ cardId, origem = 'nativo', basePath, kanbanNome
   const [vista, setVista] = useState<Vista>('menu');
   const [categoria, setCategoria] = useState('');
   const [observacaoOutro, setObservacaoOutro] = useState('');
+  const [motivosPerda, setMotivosPerda] = useState<{ id: string; descricao: string }[]>([]);
+  const [motivoSelecionado, setMotivoSelecionado] = useState('');
+  const [justificativaPerda, setJustificativaPerda] = useState('');
+  const [justificativaGanho, setJustificativaGanho] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -84,6 +96,9 @@ export function KanbanCardMenu({ cardId, origem = 'nativo', basePath, kanbanNome
     setVista('menu');
     setCategoria('');
     setObservacaoOutro('');
+    setMotivoSelecionado('');
+    setJustificativaPerda('');
+    setJustificativaGanho('');
     setErro(null);
     reposicionar();
     setAberto(true);
@@ -134,6 +149,47 @@ export function KanbanCardMenu({ cardId, origem = 'nativo', basePath, kanbanNome
     });
   }
 
+  async function abrirPerda() {
+    setErro(null);
+    setVista('perda');
+    if (motivosPerda.length === 0) {
+      const m = await buscarMotivosPerda();
+      setMotivosPerda(m);
+    }
+  }
+
+  function handlePerda() {
+    setErro(null);
+    if (!motivoSelecionado) { setErro('Selecione o motivo da perda.'); return; }
+    startTransition(async () => {
+      const res = await registrarPerda({
+        cardId,
+        motivoId: motivoSelecionado,
+        justificativa: justificativaPerda || null,
+        basePath,
+        kanbanNome,
+      });
+      if (!res.ok) { setErro(res.error ?? 'Erro ao registrar perda.'); return; }
+      setAberto(false);
+      router.refresh();
+    });
+  }
+
+  function handleGanho() {
+    setErro(null);
+    startTransition(async () => {
+      const res = await registrarGanho({
+        cardId,
+        justificativa: justificativaGanho || null,
+        basePath,
+        kanbanNome,
+      });
+      if (!res.ok) { setErro(res.error ?? 'Erro ao registrar ganho.'); return; }
+      setAberto(false);
+      router.refresh();
+    });
+  }
+
   const dropdown = aberto && pos ? (
     <div
       ref={menuRef}
@@ -143,7 +199,7 @@ export function KanbanCardMenu({ cardId, origem = 'nativo', basePath, kanbanNome
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      {vista === 'menu' ? (
+      {vista === 'menu' && (
         <>
           <button
             type="button"
@@ -161,31 +217,50 @@ export function KanbanCardMenu({ cardId, origem = 'nativo', basePath, kanbanNome
             role="menuitem"
             className="moni-kanban-card-menu-item moni-kanban-card-menu-item--danger"
             disabled={pending}
-            onClick={() => {
-              setErro(null);
-              setVista('arquivar');
-            }}
+            onClick={() => { setErro(null); setVista('arquivar'); }}
           >
             <Archive className="h-4 w-4 shrink-0" aria-hidden />
             <span>Arquivar</span>
           </button>
+          {PERDA_GANHO_ENABLED && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className="moni-kanban-card-menu-item moni-kanban-card-menu-item--danger"
+                disabled={pending}
+                onClick={() => { setErro(null); void abrirPerda(); }}
+              >
+                <TrendingDown className="h-4 w-4 shrink-0" aria-hidden />
+                <span>Perda</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="moni-kanban-card-menu-item"
+                style={{ color: 'var(--moni-status-ok-text)' }}
+                disabled={pending}
+                onClick={() => { setErro(null); setVista('ganho'); }}
+              >
+                <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
+                <span>Ganho</span>
+              </button>
+            </>
+          )}
         </>
-      ) : (
+      )}
+
+      {vista === 'arquivar' && (
         <div className="moni-kanban-card-menu-arquivar">
           <p className="moni-kanban-card-menu-label">Motivo do arquivamento</p>
           <select
             className="moni-kanban-card-menu-select"
             value={categoria}
-            onChange={(e) => {
-              setCategoria(e.target.value);
-              setErro(null);
-            }}
+            onChange={(e) => { setCategoria(e.target.value); setErro(null); }}
           >
             <option value="">Selecione…</option>
             {MOTIVOS_ARQUIVAMENTO_CATEGORIAS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
           {isMotivoArquivamentoOutro(categoria) ? (
@@ -204,10 +279,7 @@ export function KanbanCardMenu({ cardId, origem = 'nativo', basePath, kanbanNome
               type="button"
               className="moni-kanban-card-menu-btn moni-kanban-card-menu-btn--ghost"
               disabled={pending}
-              onClick={() => {
-                setVista('menu');
-                setErro(null);
-              }}
+              onClick={() => { setVista('menu'); setErro(null); }}
             >
               Voltar
             </button>
@@ -218,6 +290,81 @@ export function KanbanCardMenu({ cardId, origem = 'nativo', basePath, kanbanNome
               onClick={handleArquivar}
             >
               {pending ? 'Arquivando…' : 'Arquivar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {vista === 'perda' && (
+        <div className="moni-kanban-card-menu-arquivar">
+          <p className="moni-kanban-card-menu-label">Motivo da perda</p>
+          <select
+            className="moni-kanban-card-menu-select"
+            value={motivoSelecionado}
+            onChange={(e) => { setMotivoSelecionado(e.target.value); setErro(null); }}
+          >
+            <option value="">Selecione…</option>
+            {motivosPerda.map((m) => (
+              <option key={m.id} value={m.id}>{m.descricao}</option>
+            ))}
+          </select>
+          <textarea
+            className="moni-kanban-card-menu-textarea"
+            value={justificativaPerda}
+            onChange={(e) => setJustificativaPerda(e.target.value)}
+            placeholder="Justificativa adicional (opcional)…"
+            rows={2}
+          />
+          {erro && <p className="moni-kanban-card-menu-erro">{erro}</p>}
+          <div className="moni-kanban-card-menu-actions">
+            <button
+              type="button"
+              className="moni-kanban-card-menu-btn moni-kanban-card-menu-btn--ghost"
+              disabled={pending}
+              onClick={() => { setVista('menu'); setErro(null); }}
+            >
+              Voltar
+            </button>
+            <button
+              type="button"
+              className="moni-kanban-card-menu-btn moni-kanban-card-menu-btn--danger"
+              disabled={pending}
+              onClick={handlePerda}
+            >
+              {pending ? 'Registrando…' : 'Confirmar perda'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {vista === 'ganho' && (
+        <div className="moni-kanban-card-menu-arquivar">
+          <p className="moni-kanban-card-menu-label">Registrar ganho</p>
+          <textarea
+            className="moni-kanban-card-menu-textarea"
+            value={justificativaGanho}
+            onChange={(e) => setJustificativaGanho(e.target.value)}
+            placeholder="Justificativa (opcional)…"
+            rows={3}
+          />
+          {erro && <p className="moni-kanban-card-menu-erro">{erro}</p>}
+          <div className="moni-kanban-card-menu-actions">
+            <button
+              type="button"
+              className="moni-kanban-card-menu-btn moni-kanban-card-menu-btn--ghost"
+              disabled={pending}
+              onClick={() => { setVista('menu'); setErro(null); }}
+            >
+              Voltar
+            </button>
+            <button
+              type="button"
+              className="moni-kanban-card-menu-btn"
+              style={{ background: 'var(--moni-status-ok-bg)', color: 'var(--moni-status-ok-text)' }}
+              disabled={pending}
+              onClick={handleGanho}
+            >
+              {pending ? 'Registrando…' : 'Confirmar ganho'}
             </button>
           </div>
         </div>
