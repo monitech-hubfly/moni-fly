@@ -102,8 +102,8 @@ export function useBacklog(): UseBacklogResult {
         areaPessoaId = (areaPessoa?.id as string | null) ?? null;
       }
 
-      // Busca Sirene, Atividades e Pastelaria em paralelo
-      const [sireneRes, atividadesRes, pastelariaRes] = await Promise.all([
+      // Busca Sirene, Atividades, Pastelaria e Atividades Atrasadas fora da janela em paralelo
+      const [sireneRes, atividadesRes, pastelariaRes, atividadesAtrasadasRes] = await Promise.all([
         supabase
           .from('sirene_topicos')
           .select(`
@@ -125,6 +125,7 @@ export function useBacklog(): UseBacklogResult {
           .in('status', ['nao_iniciado', 'em_andamento'])
           .eq('arquivado', false),
 
+        // Janela: semana atual ±4 semanas. Atividades atrasadas além da janela são buscadas separadamente.
         supabase
           .from('gantt_planejamento')
           .select('id, acao_id, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
@@ -143,6 +144,14 @@ export function useBacklog(): UseBacklogResult {
               .in('coluna', ['inbox', 'mapped', 'doing'])
               .eq('reclassificado', false)
           : Promise.resolve({ data: [], error: null }),
+
+        // Atividades atrasadas além da janela de ±4 semanas (garante cobertura total)
+        supabase
+          .from('gantt_planejamento')
+          .select('id, acao_id, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
+          .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
+          .is('data_conclusao_real', null)
+          .lt('semana_ano_fim', semanaAtual - 4),
       ]);
 
       if (sireneRes.error) throw sireneRes.error;
@@ -225,7 +234,7 @@ export function useBacklog(): UseBacklogResult {
         acoes: { nome: string } | { nome: string }[] | null;
       };
 
-      const atividadesArr: AtividadeItem[] = ((atividadesRes.data ?? []) as AtivRaw[]).map(row => {
+      const mapAtivRaw = (row: AtivRaw): AtividadeItem => {
         const acaoObj = Array.isArray(row.acoes) ? row.acoes[0] : row.acoes;
         return {
           id:                    row.id,
@@ -239,7 +248,17 @@ export function useBacklog(): UseBacklogResult {
           hora_inicio:           row.hora_inicio,
           hora_fim:              row.hora_fim,
         };
+      };
+
+      const atividadesMap = new Map<string, AtividadeItem>();
+      ((atividadesRes.data ?? []) as AtivRaw[]).forEach(row => {
+        atividadesMap.set(row.id, mapAtivRaw(row));
       });
+      // Merge das atrasadas fora da janela (deduplicando por ID)
+      ((atividadesAtrasadasRes.data ?? []) as AtivRaw[]).forEach(row => {
+        if (!atividadesMap.has(row.id)) atividadesMap.set(row.id, mapAtivRaw(row));
+      });
+      const atividadesArr: AtividadeItem[] = Array.from(atividadesMap.values());
 
       // Ordenação: semana_ano_fim ASC, com fallback para MAX(semanas_selecionadas)
       atividadesArr.sort((a, b) => {
