@@ -19,7 +19,7 @@ import {
   isMotivoArquivamentoOutro,
 } from '@/lib/kanban/motivos-arquivamento';
 
-const PERDA_GANHO_ENABLED = false; // Ativar após migrations da Ingrid
+const PERDA_GANHO_ENABLED = true;
 
 type ProximaFase = { id: string; nome: string };
 
