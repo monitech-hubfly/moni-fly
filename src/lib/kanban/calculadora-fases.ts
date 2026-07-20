@@ -770,7 +770,8 @@ export function aplicarOverlayAncoraOcultarFasesAnteriores(
 }
 
 /**
- * Data fim real de fase de aprovação concluída (status concluída / concluída_atraso).
+ * Data fim efetiva de fase de aprovação concluída (status concluída / concluída_atraso).
+ * Espelha a coluna «fim» da Calculadora: dataFimReal ?? dataFimEstimada quando concluída.
  * Fonte autoritativa para espelhar em Dados Pré Obra.
  */
 export function dataFimRealAprovacaoConcluida(
@@ -779,7 +780,7 @@ export function dataFimRealAprovacaoConcluida(
   if (!linha) return null;
   const st = linha.status;
   if (st !== 'concluida' && st !== 'concluida_atraso') return null;
-  return toYmd(linha.dataFimReal);
+  return toYmd(linha.dataFimReal) ?? toYmd(linha.dataFimEstimada);
 }
 
 /**
@@ -1638,8 +1639,15 @@ export function inferirFimRealPorProximaFase(
     if (row.dataFimReal) continue;
     const ov = overrides?.get(row.faseId);
     if (overrideTemFimManual(ov)) continue;
-    // Override com fim null (limpeza intencional) — não repor pela próxima fase.
-    if (ov && 'dataFim' in ov && ov.dataFim == null) continue;
+    // Limpeza intencional (início+fim null) — não repor pela próxima fase.
+    const limparDatasIntencional =
+      ov &&
+      'dataInicio' in ov &&
+      ov.dataInicio == null &&
+      'dataFim' in ov &&
+      ov.dataFim == null;
+    if (limparDatasIntencional) continue;
+    // Override só com fim null (ex.: início manual sem fim) em fase já superada: infere pela próxima.
     const concluida = row.status === 'concluida' || row.status === 'concluida_atraso';
     if (!concluida) continue;
     const proximoInicio = out[i + 1]!.dataInicioReal;
