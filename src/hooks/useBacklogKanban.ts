@@ -84,8 +84,8 @@ export function useBacklogKanban(refreshKey = 0) {
         ? simProfileId
         : user.id;
 
-      // 5 fontes + tag Especial em paralelo
-      const [fonte1, fonte2, fonte3, fonte4, fonte5, tagEspecialRes] = await Promise.all([
+      // 6 fontes + tag Especial em paralelo
+      const [fonte1, fonte2, fonte3, fonte4, fonte5, fonte6, tagEspecialRes] = await Promise.all([
         supabase
           .from('kanban_cards')
           .select(`
@@ -159,6 +159,22 @@ export function useBacklogKanban(refreshKey = 0) {
           .is('proxima_atividade', null)
           .eq('arquivado', false)
           .eq('concluido', false),
+
+        // Fonte 6: cards com próximas atividades criadas pelo usuário (ainda abertas)
+        (supabase as any)
+          .from('kanban_proximas_atividades')
+          .select(`
+            card_id,
+            card:kanban_cards(
+              id, titulo, arquivado, concluido,
+              created_at, entered_fase_at, sla_iniciado_em,
+              proxima_atividade, prazo_atividade,
+              fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+              kanban:kanbans(nome)
+            )
+          `)
+          .eq('criado_por', effectiveProfileId)
+          .is('concluido_em', null),
 
         supabase
           .from('kanban_tags')
@@ -299,6 +315,26 @@ export function useBacklogKanban(refreshKey = 0) {
           sla_dias:          fase?.sla_dias ?? null,
           sla:               computeSla(card, fase ?? null),
           origem:            'sem_atividade',
+          proxima_atividade: card.proxima_atividade,
+          prazo_atividade:   card.prazo_atividade,
+          especial:          especialSet.has(card.id),
+        });
+      });
+
+      // Processar fonte 6 — cards com próximas atividades criadas pelo usuário (não sobrescreve)
+      type CardF6 = { card_id: string; card: CardNested | CardNested[] | null };
+      ((fonte6.data ?? []) as unknown as CardF6[]).forEach(row => {
+        const card = Array.isArray(row.card) ? row.card[0] : row.card;
+        if (!card || card.arquivado || card.concluido || mapa.has(card.id)) return;
+        const fase   = Array.isArray(card.fase)   ? card.fase[0]   : card.fase;
+        const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
+        mapa.set(card.id, {
+          id: card.id, titulo: card.titulo,
+          fase_nome:         fase?.nome   ?? null,
+          kanban_nome:       kanban?.nome ?? null,
+          sla_dias:          fase?.sla_dias ?? null,
+          sla:               computeSla(card, fase ?? null),
+          origem:            'proxima_atividade',
           proxima_atividade: card.proxima_atividade,
           prazo_atividade:   card.prazo_atividade,
           especial:          especialSet.has(card.id),

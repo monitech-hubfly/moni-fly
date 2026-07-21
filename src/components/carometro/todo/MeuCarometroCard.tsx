@@ -45,8 +45,8 @@ type MeuCarometroCardProps = {
 
 function carinhaSize(score: number | null): number {
   if (score === null) return 52;
-  // Linear: 0% → 36px, 100% → 80px
-  return Math.round(36 + (score / 100) * 44);
+  // Linear: 0% → 40px, 100% → 112px
+  return Math.round(40 + (score / 100) * 72);
 }
 
 export function MeuCarometroCard({
