@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAccessRole } from '@/lib/authz';
 import { KANBAN_ID_BY_NOME, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { tryCreateAdminClient } from '@/lib/supabase/admin';
 import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 import { prepareStepOneBoardSnapshot } from '@/lib/kanban/stepone-fase-slugs';
 import {
@@ -417,6 +418,11 @@ async function resolveKanbanAtivo(
 
   const row = kanbans?.[0];
   return row?.id ? { id: String(row.id) } : null;
+}
+
+/** Enriquecimento de bolinhas: service role evita RLS bloquear filhos de outros funis. */
+function supabaseParaEnriquecerParalelas(userClient: SupabaseClient): SupabaseClient {
+  return tryCreateAdminClient() ?? userClient;
 }
 
 /**
@@ -1176,10 +1182,11 @@ export async function fetchKanbanBoardSnapshot(
   let cardsConcluidos = (conclRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
   let cardsArquivadosNativo = (arquivRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
 
+  const supabaseEnrich = supabaseParaEnriquecerParalelas(supabase);
   [cardsNativo, cardsConcluidos, cardsArquivadosNativo] = await Promise.all([
-    enrichCardsParalelasContext(supabase, kanbanIdStr, cardsNativo),
-    enrichCardsParalelasContext(supabase, kanbanIdStr, cardsConcluidos),
-    enrichCardsParalelasContext(supabase, kanbanIdStr, cardsArquivadosNativo),
+    enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cardsNativo),
+    enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cardsConcluidos),
+    enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cardsArquivadosNativo),
   ]);
 
   /** `processo_step_one.etapa_painel` prevalece sobre `kanban_cards.fase_id` (incl. UUID de outro funil). */

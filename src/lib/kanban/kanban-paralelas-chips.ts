@@ -425,10 +425,10 @@ export function montarChipsParalelas(
     const filhoCreditoObraArquivado =
       Boolean(input.filhoCreditoObraArquivado) && !temFilhoCreditoObra;
     const emCashMe =
-      slug === FASE_SLUGS.AGUARDANDO_CREDITO ||
       temFilhoCreditoObra ||
       filhoCreditoObraArquivado ||
-      boolFlag(f.credito_obra_ok);
+      boolFlag(f.credito_obra_ok) ||
+      slug === FASE_SLUGS.AGUARDANDO_CREDITO;
     if (emCashMe) {
       const faseNomeChip = filhoCreditoObraArquivado
         ? FASE_EXIBICAO_CARD_ARQUIVADO

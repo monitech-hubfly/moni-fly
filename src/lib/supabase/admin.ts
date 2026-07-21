@@ -47,3 +47,12 @@ export function createAdminClient() {
     },
   });
 }
+
+/** Service role quando disponível; senão o cliente autenticado (RLS). */
+export function tryCreateAdminClient(): ReturnType<typeof createAdminClient> | null {
+  try {
+    return createAdminClient();
+  } catch {
+    return null;
+  }
+}
