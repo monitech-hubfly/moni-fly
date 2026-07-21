@@ -31,7 +31,7 @@ function dayLabel(data: string): string {
 
 const TOOLTIP_FORMULA: Record<string, string> = {
   sirene: '100 − (atrasados × 20 + semPrazo × 5)',
-  engajamento: 'concluídas / (concluídas + atrasadas abertas) × 100',
+  engajamento: 'concluídas (2 sem.) / (concluídas + atrasadas 2 sem.) × 100',
   indicadores: 'média dos % de cada indicador',
 };
 
@@ -43,11 +43,7 @@ type MeuCarometroCardProps = {
   children?: ReactNode;
 };
 
-function carinhaSize(score: number | null): number {
-  if (score === null) return 52;
-  // Linear: 0% → 40px, 100% → 112px
-  return Math.round(40 + (score / 100) * 72);
-}
+const CARINHA_SIZE = 80;
 
 export function MeuCarometroCard({
   titulo,
@@ -60,7 +56,6 @@ export function MeuCarometroCard({
   const carinhaImg = getCarinhaImg(score);
   const scoreCls   = scoreColor(score);
   const formula = TOOLTIP_FORMULA[tipo];
-  const imgSize = carinhaSize(score);
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 flex flex-col gap-3">
@@ -70,7 +65,7 @@ export function MeuCarometroCard({
         <img
           src={carinhaImg}
           alt="carinha"
-          style={{ width: imgSize, height: imgSize }}
+          style={{ width: CARINHA_SIZE, height: CARINHA_SIZE }}
           className="object-contain shrink-0"
           title={score !== null ? `${score}%` : 'Sem dados'}
         />

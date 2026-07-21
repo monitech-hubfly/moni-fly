@@ -200,7 +200,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
       {
         const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - 28);
+        cutoffDate.setDate(cutoffDate.getDate() - 14);
         const cutoffStr = cutoffDate.toISOString().slice(0, 10);
         const orGantt = `profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`;
         const orKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`;
@@ -216,16 +216,17 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           ganttAtrasadasRes, ganttConcluidasRes, ganttPlanejdasRes,
           kanbanAbertosRes, kanbanConcluidosRes,
         ] = await Promise.all([
-          // Atividades abertas atrasadas (semana_ano_fim < semana atual)
+          // Atividades atrasadas abertas com prazo nas últimas 2 semanas (janela)
           supabase.from('gantt_planejamento').select('id')
-            .or(orGantt).is('data_conclusao_real', null).lt('semana_ano_fim', semana),
+            .or(orGantt).is('data_conclusao_real', null)
+            .gte('semana_ano_fim', semana - 2).lt('semana_ano_fim', semana),
 
-          // Atividades concluídas nas últimas 8 semanas
+          // Atividades concluídas com prazo nas últimas 2 semanas
           supabase.from('gantt_planejamento').select('id')
             .or(orGantt).not('data_conclusao_real', 'is', null)
-            .gte('semana_ano_fim', semana - 8).lte('semana_ano_fim', semana),
+            .gte('semana_ano_fim', semana - 2).lte('semana_ano_fim', semana),
 
-          // Atividades abertas no prazo / futuras
+          // Atividades abertas no prazo / futuras (informativo)
           supabase.from('gantt_planejamento').select('id')
             .or(orGantt).is('data_conclusao_real', null).gte('semana_ano_fim', semana),
 
@@ -234,7 +235,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
             .or(orKanban).eq('arquivado', false).eq('concluido', false),
 
-          // Cards concluídos nos últimos 28 dias
+          // Cards concluídos nos últimos 14 dias
           supabase.from('kanban_cards').select('id')
             .or(orKanban).eq('concluido', true).eq('arquivado', false)
             .gte('concluido_em', cutoffStr),
