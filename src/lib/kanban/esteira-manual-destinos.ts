@@ -109,13 +109,16 @@ const DESTINOS_ESTEIRA_GENERICOS: DestinoEsteiraManualKey[] = (
   Object.keys(DESTINOS_ESTEIRA_MANUAL) as DestinoEsteiraManualKey[]
 ).filter((key) => key !== 'acoplamento');
 
-const MOTOR01_DESTINOS: DestinoEsteiraManualKey[] = [
-  'juridico',
-  'projeto_legal',
-  'credito_obra',
-];
+const MOTOR01_DESTINOS: DestinoEsteiraManualKey[] = ['juridico', 'credito_obra'];
 
 const KANBANS_INTERNOS_SET = new Set<string>(KANBANS_INTERNOS as readonly string[]);
+
+/** Somente Pré Obra e Obra pode abrir vínculo manual com Funil Projeto Legal. */
+export function kanbanPermiteVinculoComProjetoLegal(
+  kanbanId: string | null | undefined,
+): boolean {
+  return String(kanbanId ?? '').trim() === KANBAN_IDS.OPERACOES;
+}
 
 export function kanbanPermiteDispararEsteiraManual(kanbanId: string | null | undefined): boolean {
   return destinosEsteiraManualParaKanban(kanbanId).length > 0;
@@ -130,6 +133,14 @@ function filtrarDestinosEsteiraManual(
   );
 }
 
+function aplicarRestricaoProjetoLegal(
+  kanbanOrigemId: string,
+  destinos: DestinoEsteiraManualKey[],
+): DestinoEsteiraManualKey[] {
+  if (kanbanPermiteVinculoComProjetoLegal(kanbanOrigemId)) return destinos;
+  return destinos.filter((key) => key !== 'projeto_legal');
+}
+
 export function destinosEsteiraManualParaKanban(
   kanbanId: string | null | undefined,
 ): DestinoEsteiraManualKey[] {
@@ -137,11 +148,19 @@ export function destinosEsteiraManualParaKanban(
   if (!id) return [];
   if (KANBANS_INTERNOS_SET.has(id)) return [];
   if ((KANBANS_VINCULO_MANUAL_LIVRE as readonly string[]).includes(id)) {
-    return filtrarDestinosEsteiraManual(id, DESTINOS_ESTEIRA_GENERICOS);
+    return aplicarRestricaoProjetoLegal(
+      id,
+      filtrarDestinosEsteiraManual(id, DESTINOS_ESTEIRA_GENERICOS),
+    );
   }
-  if (id === KANBAN_IDS.MOTOR01) return filtrarDestinosEsteiraManual(id, MOTOR01_DESTINOS);
+  if (id === KANBAN_IDS.MOTOR01) {
+    return aplicarRestricaoProjetoLegal(id, filtrarDestinosEsteiraManual(id, MOTOR01_DESTINOS));
+  }
   if ((KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id)) {
-    return filtrarDestinosEsteiraManual(id, ['juridico', 'projeto_legal', 'credito_obra']);
+    return aplicarRestricaoProjetoLegal(
+      id,
+      filtrarDestinosEsteiraManual(id, ['juridico', 'credito_obra']),
+    );
   }
-  return filtrarDestinosEsteiraManual(id, ['projeto_legal', 'credito_obra']);
+  return aplicarRestricaoProjetoLegal(id, filtrarDestinosEsteiraManual(id, ['credito_obra']));
 }

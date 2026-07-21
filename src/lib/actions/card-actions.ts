@@ -32,6 +32,7 @@ import {
 } from '@/lib/kanban/portfolio-paralelas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { inserirKanbanCardVinculo, garantirShadowKanbanCardLegadoPorId } from '@/lib/kanban/kanban-card-vinculos';
+import { kanbanPermiteVinculoComProjetoLegal } from '@/lib/kanban/esteira-manual-destinos';
 import {
   faseNomeExibicaoVinculoCard,
   limparTagAcoplamentoPaiDoFilhoArquivado,
@@ -3576,6 +3577,16 @@ export async function buscarCardsParaVinculo(
   if (t.length < 2) return { ok: true, items: [] };
 
   const ex = String(excetoCardId ?? '').trim();
+  let kanbanOrigemId = '';
+  if (ex) {
+    const { data: origRow } = await supabase
+      .from('kanban_cards')
+      .select('kanban_id')
+      .eq('id', ex)
+      .maybeSingle();
+    kanbanOrigemId = String((origRow as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim();
+  }
+
   let q = supabase
     .from('kanban_cards')
     .select('id, titulo, kanban_id, kanbans(nome)')
@@ -3589,6 +3600,7 @@ export async function buscarCardsParaVinculo(
   const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
   const role = (prof as { role?: string | null } | null)?.role;
   const ocultarInternos = isFrankOrFranqueadoRole(role);
+  const permiteProjetoLegal = kanbanPermiteVinculoComProjetoLegal(kanbanOrigemId);
 
   const items: BuscaCardVinculoRow[] = (data ?? [])
     .map((row) => {
@@ -3601,6 +3613,10 @@ export async function buscarCardsParaVinculo(
       };
     })
     .filter((it) => !ocultarInternos || !isKanbanIdInterno(it.kanban_id))
+    .filter(
+      (it) =>
+        permiteProjetoLegal || String(it.kanban_id ?? '').trim() !== KANBAN_IDS.PROJETO_LEGAL,
+    )
     .map(({ id, titulo, kanban_nome }) => ({ id, titulo, kanban_nome }));
 
   return { ok: true, items };
@@ -3642,6 +3658,28 @@ export async function criarVinculoCard(input: {
   if (!shadowOrig.ok) return { ok: false, error: shadowOrig.error };
   const shadowDest = await garantirShadowKanbanCardLegadoPorId(db, dest);
   if (!shadowDest.ok) return { ok: false, error: shadowDest.error };
+
+  const { data: cardsKanban } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id')
+    .in('id', [orig, dest]);
+  const kanbanPorCard = new Map(
+    (cardsKanban ?? []).map((row) => {
+      const r = row as { id: string; kanban_id?: string | null };
+      return [String(r.id), String(r.kanban_id ?? '').trim()] as const;
+    }),
+  );
+  const kanbanOrigem = kanbanPorCard.get(orig) ?? '';
+  const kanbanDestino = kanbanPorCard.get(dest) ?? '';
+  if (
+    kanbanDestino === KANBAN_IDS.PROJETO_LEGAL &&
+    !kanbanPermiteVinculoComProjetoLegal(kanbanOrigem)
+  ) {
+    return {
+      ok: false,
+      error: 'Somente cards do Funil Pré Obra e Obra podem vincular com Funil Projeto Legal.',
+    };
+  }
 
   const { error } = await inserirKanbanCardVinculo(db, {
     cardOrigemId: orig,
