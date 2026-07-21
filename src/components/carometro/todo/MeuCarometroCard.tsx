@@ -31,7 +31,7 @@ function dayLabel(data: string): string {
 
 const TOOLTIP_FORMULA: Record<string, string> = {
   sirene: '100 − (atrasados × 20 + semPrazo × 5)',
-  engajamento: 'atividades no prazo / total planejadas × 100',
+  engajamento: 'concluídas / (concluídas + atrasadas abertas) × 100',
   indicadores: 'média dos % de cada indicador',
 };
 
