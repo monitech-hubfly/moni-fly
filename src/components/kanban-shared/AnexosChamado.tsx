@@ -70,6 +70,7 @@ export function AnexosChamado({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadOk, setUploadOk] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const recarregar = useCallback(async () => {
@@ -115,9 +116,11 @@ export function AnexosChamado({
       if (portalFrank) fd.set('portalFrank', 'true');
       const r = await adicionarAnexoChamado(fd, basePath);
       if (!r.ok) {
-        setErr(r.error);
+        setErr(r.error ?? 'Erro ao enviar arquivo. Tente novamente.');
         return;
       }
+      setUploadOk(true);
+      setTimeout(() => setUploadOk(false), 3000);
       await recarregar();
     } finally {
       setUploading(false);
@@ -173,6 +176,9 @@ export function AnexosChamado({
       {aberto ? (
         <div className="absolute left-0 top-full z-[70] mt-1 w-[min(92vw,28rem)] rounded-lg border border-stone-200 bg-white p-2 text-left shadow-lg">
           {err ? <p className="mb-2 text-[11px] text-red-600">{err}</p> : null}
+          {uploadOk ? (
+            <p className="mb-2 text-[11px] text-green-600 font-medium">✓ Arquivo enviado com sucesso.</p>
+          ) : null}
           {loading ? (
             <p className="flex items-center gap-1 text-[11px] text-stone-500">
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -229,7 +235,12 @@ export function AnexosChamado({
                 onClick={() => inputRef.current?.click()}
                 className="text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline disabled:opacity-50"
               >
-                {uploading ? 'Enviando…' : '+ Anexar arquivo'}
+                {uploading ? (
+                  <span className="flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                    Enviando… aguarde
+                  </span>
+                ) : '+ Anexar arquivo'}
               </button>
               <p className="mt-0.5 text-[10px] text-stone-400">Até 10 MB · qualquer tipo</p>
             </>
