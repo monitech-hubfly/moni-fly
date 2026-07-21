@@ -11,6 +11,7 @@ import { custoPadraoPorSlug } from '@/lib/kanban/custo-padrao-por-slug';
 import { resolverSlaCalculadoraFase } from '@/lib/kanban/sla-fallback-calculadora-por-slug';
 import type { CondominioPrazosAprovacaoSla } from '@/lib/kanban/condominio-prazos-aprovacao';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { calcularDataEmissaoAlvara } from '@/lib/pre-obra/emissao-alvara-data';
 
 export type { FaseTimelineStatus };
 
@@ -769,36 +770,53 @@ export function aplicarOverlayAncoraOcultarFasesAnteriores(
   });
 }
 
+export type ExtrairDatasAprovacaoPreObraOpts = {
+  /** Overrides manuais (kanban_calculadora_fase_datas) — precedência sobre linha após overlay de âncora. */
+  overrides?: Map<string, CalculadoraFaseDataManualOverride>;
+};
+
 /**
  * Data fim efetiva de fase de aprovação concluída (status concluída / concluída_atraso).
- * Espelha a coluna «fim» da Calculadora: dataFimReal ?? dataFimEstimada quando concluída.
- * Fonte autoritativa para espelhar em Dados Pré Obra.
+ * Precedência: override manual de fim → dataFimReal → dataFimEstimada (fase concluída sem fim real).
  */
 export function dataFimRealAprovacaoConcluida(
   linha: CalculadoraFaseLinha | null | undefined,
+  override?: CalculadoraFaseDataManualOverride,
 ): string | null {
   if (!linha) return null;
   const st = linha.status;
   if (st !== 'concluida' && st !== 'concluida_atraso') return null;
-  return toYmd(linha.dataFimReal) ?? toYmd(linha.dataFimEstimada);
+  if (overrideTemFimManual(override)) {
+    return toYmd(override!.dataFim);
+  }
+  const real = toYmd(linha.dataFimReal);
+  if (real) return real;
+  return toYmd(linha.dataFimEstimada);
 }
 
 /**
- * Extrai datas de aprovação a partir das linhas da Calculadora (só concluída + fim real).
+ * Extrai datas de aprovação a partir das linhas da Calculadora (fase concluída + fim efetivo).
+ * Preferir linhas **sem** overlay de âncora (datas anteriores à âncora não são zeradas).
  */
 export function extrairDatasAprovacaoPreObraDaCalculadora(
   linhas: CalculadoraFaseLinha[],
+  opts?: ExtrairDatasAprovacaoPreObraOpts,
 ): CalculadoraDatasAprovacaoPreObra {
   if (linhas.length === 0) {
     return { dataAprovacaoCondominio: null, dataAprovacaoPrefeitura: null };
   }
+  const overrides = opts?.overrides;
   const idxCondo = idxAprovacaoCondominioCalculadora(linhas);
   const idxPref = idxAprovacaoPrefeituraCalculadora(linhas);
+  const resolver = (idx: number): string | null => {
+    if (idx < 0) return null;
+    const linha = linhas[idx]!;
+    const ov = overrides?.get(linha.faseId);
+    return dataFimRealAprovacaoConcluida(linha, ov);
+  };
   return {
-    dataAprovacaoCondominio:
-      idxCondo >= 0 ? dataFimRealAprovacaoConcluida(linhas[idxCondo]) : null,
-    dataAprovacaoPrefeitura:
-      idxPref >= 0 ? dataFimRealAprovacaoConcluida(linhas[idxPref]) : null,
+    dataAprovacaoCondominio: resolver(idxCondo),
+    dataAprovacaoPrefeitura: resolver(idxPref),
   };
 }
 
@@ -828,15 +846,19 @@ export function patchPreObraAlinharComCalculadora(
   preObra: {
     data_aprovacao_condominio?: string | null;
     data_aprovacao_prefeitura?: string | null;
+    data_emissao_alvara?: string | null;
   },
+  opts?: ExtrairDatasAprovacaoPreObraOpts,
 ): Partial<{
   data_aprovacao_condominio: string;
   data_aprovacao_prefeitura: string;
+  data_emissao_alvara: string;
 }> | null {
-  const daCalc = extrairDatasAprovacaoPreObraDaCalculadora(linhas);
+  const daCalc = extrairDatasAprovacaoPreObraDaCalculadora(linhas, opts);
   const patch: Partial<{
     data_aprovacao_condominio: string;
     data_aprovacao_prefeitura: string;
+    data_emissao_alvara: string;
   }> = {};
 
   if (daCalc.dataAprovacaoCondominio) {
@@ -849,6 +871,18 @@ export function patchPreObraAlinharComCalculadora(
     const atual = toYmd(preObra.data_aprovacao_prefeitura) ?? '';
     if (atual !== daCalc.dataAprovacaoPrefeitura) {
       patch.data_aprovacao_prefeitura = daCalc.dataAprovacaoPrefeitura;
+    }
+  }
+
+  const prefEfetiva =
+    daCalc.dataAprovacaoPrefeitura ?? toYmd(preObra.data_aprovacao_prefeitura) ?? null;
+  if (prefEfetiva) {
+    const alvaraCalc = calcularDataEmissaoAlvara(prefEfetiva);
+    if (alvaraCalc) {
+      const atualAlvara = toYmd(preObra.data_emissao_alvara) ?? '';
+      if (atualAlvara !== alvaraCalc) {
+        patch.data_emissao_alvara = alvaraCalc;
+      }
     }
   }
 

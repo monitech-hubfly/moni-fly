@@ -94,6 +94,10 @@ import {
 } from '@/lib/actions/credito-obra-abertura-automatica';
 import { garantirBastaoPassagemWayser } from '@/lib/actions/kanban-bastoes';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
+import {
+  aplicarDataEmissaoAlvaraNoPreObra,
+  aplicarPrevisaoEmissaoAlvaraNoPreObra,
+} from '@/lib/pre-obra/emissao-alvara-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
 import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import {
@@ -4056,18 +4060,27 @@ export function KanbanCardModal({
           ? String(valor).trim().slice(0, 10)
           : '';
       if (campoPreObraProcesso) {
-        setPreObraDraft((d) => ({ ...d, [campoPreObraProcesso]: ymdPreObra }));
-        setModalDetalhes((prev) =>
-          prev.processo
-            ? {
-                ...prev,
-                processo: {
-                  ...prev.processo,
-                  [campoPreObraProcesso]: ymdPreObra || null,
-                },
-              }
-            : prev,
-        );
+        setPreObraDraft((d) => {
+          const next = { ...d, [campoPreObraProcesso]: ymdPreObra };
+          return campoPreObraProcesso === 'data_aprovacao_prefeitura'
+            ? aplicarDataEmissaoAlvaraNoPreObra(next)
+            : next;
+        });
+        setModalDetalhes((prev) => {
+          if (!prev.processo) return prev;
+          const procNext = {
+            ...prev.processo,
+            [campoPreObraProcesso]: ymdPreObra || null,
+          };
+          if (campoPreObraProcesso === 'data_aprovacao_prefeitura' && ymdPreObra) {
+            const alvara = aplicarDataEmissaoAlvaraNoPreObra({
+              data_aprovacao_prefeitura: ymdPreObra,
+              data_emissao_alvara: String(prev.processo.data_emissao_alvara ?? '').slice(0, 10),
+            }).data_emissao_alvara;
+            if (alvara) procNext.data_emissao_alvara = alvara;
+          }
+          return { ...prev, processo: procNext };
+        });
       }
       if (campoPreObraOperacoes) {
         setOperacoesPreObraDraft((d) => ({ ...d, [campoPreObraOperacoes]: ymdPreObra }));
@@ -4143,7 +4156,7 @@ export function KanbanCardModal({
     ],
   );
 
-  const calculadoraLinhasSemPreObra = useMemo(() => {
+  const calculadoraLinhasPreAncoraOverlay = useMemo(() => {
     if (!card) return calculadoraFasesPack.linhas;
     const ctx = contextoCalculadoraSyncGroup;
     const cardEncadeamento = ctx
@@ -4186,10 +4199,33 @@ export function KanbanCardModal({
             cardEncadeamento,
           )
         : sincronizadas;
+    return normalizarIntervaloDatasCalculadoraLinhas(comOverridesFinais, cardEncadeamento);
+  }, [
+    card,
+    contextoCalculadoraSyncGroup,
+    calculadoraFasesPack.linhas,
+    calculadoraFasesPack.visits,
+    calculadoraFasesFlat,
+    calculadoraMarcosInput.contrato_assinado_em,
+    datasManuaisCalculadora,
+  ]);
+
+  const calculadoraLinhasSemPreObra = useMemo(() => {
+    if (!card) return calculadoraLinhasPreAncoraOverlay;
+    const ctx = contextoCalculadoraSyncGroup;
+    const cardEncadeamento = ctx
+      ? ctx.cardCalcCanonico
+      : {
+          fase_id: card.fase_id,
+          created_at: card.created_at,
+          entered_fase_at: card.entered_fase_at,
+          concluido: card.concluido,
+          concluido_em: card.concluido_em,
+        };
     // Overlay oculta visitas/encadeamento nas fases anteriores à âncora; overrides manuais
     // reaplicados por último para não perder data digitada (ex.: M0 Contrato «est.»).
     const comAncoraOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(
-      comOverridesFinais,
+      calculadoraLinhasPreAncoraOverlay,
       calculadoraAncora,
     );
     const comOverridesPosOverlay =
@@ -4207,10 +4243,7 @@ export function KanbanCardModal({
   }, [
     card,
     contextoCalculadoraSyncGroup,
-    calculadoraFasesPack.linhas,
-    calculadoraFasesPack.visits,
-    calculadoraFasesFlat,
-    calculadoraMarcosInput.contrato_assinado_em,
+    calculadoraLinhasPreAncoraOverlay,
     datasManuaisCalculadora,
     calculadoraAncora,
   ]);
@@ -4260,10 +4293,14 @@ export function KanbanCardModal({
     const processoId = modalDetalhes.processo?.id?.trim();
     if (!cardId || !processoId || calculadoraLinhasSemPreObra.length === 0) return;
 
-    const patch = patchPreObraAlinharComCalculadora(calculadoraLinhasSemPreObra, preObraDraft);
+    const patch = patchPreObraAlinharComCalculadora(
+      calculadoraLinhasPreAncoraOverlay,
+      preObraDraft,
+      { overrides: datasManuaisCalculadora },
+    );
     if (!patch) return;
 
-    const chave = `${cardId}|${patch.data_aprovacao_condominio ?? ''}|${patch.data_aprovacao_prefeitura ?? ''}`;
+    const chave = `${cardId}|${patch.data_aprovacao_condominio ?? ''}|${patch.data_aprovacao_prefeitura ?? ''}|${patch.data_emissao_alvara ?? ''}`;
     if (preObraAlinhadoComCalcRef.current === chave) return;
     preObraAlinhadoComCalcRef.current = chave;
 
@@ -4280,6 +4317,9 @@ export function KanbanCardModal({
               ...(patch.data_aprovacao_prefeitura !== undefined
                 ? { data_aprovacao_prefeitura: patch.data_aprovacao_prefeitura }
                 : {}),
+              ...(patch.data_emissao_alvara !== undefined
+                ? { data_emissao_alvara: patch.data_emissao_alvara }
+                : {}),
             },
           }
         : prev,
@@ -4294,9 +4334,11 @@ export function KanbanCardModal({
   }, [
     card?.id,
     modalDetalhes.processo?.id,
-    calculadoraLinhasSemPreObra,
+    calculadoraLinhasPreAncoraOverlay,
+    datasManuaisCalculadora,
     preObraDraft.data_aprovacao_condominio,
     preObraDraft.data_aprovacao_prefeitura,
+    preObraDraft.data_emissao_alvara,
     basePath,
   ]);
 
@@ -8263,10 +8305,12 @@ export function KanbanCardModal({
                         value={preObraDraft.previsao_aprovacao_prefeitura}
                         onChange={(e) =>
                           setPreObraDraft((d) =>
-                            aplicarDataEnvioCreditoObraNoPreObra({
-                              ...d,
-                              previsao_aprovacao_prefeitura: e.target.value,
-                            }),
+                            aplicarPrevisaoEmissaoAlvaraNoPreObra(
+                              aplicarDataEnvioCreditoObraNoPreObra({
+                                ...d,
+                                previsao_aprovacao_prefeitura: e.target.value,
+                              }),
+                            ),
                           )
                         }
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
@@ -8322,7 +8366,12 @@ export function KanbanCardModal({
                         type="date"
                         value={preObraDraft.data_aprovacao_prefeitura}
                         onChange={(e) =>
-                          setPreObraDraft((d) => ({ ...d, data_aprovacao_prefeitura: e.target.value }))
+                          setPreObraDraft((d) =>
+                            aplicarDataEmissaoAlvaraNoPreObra({
+                              ...d,
+                              data_aprovacao_prefeitura: e.target.value,
+                            }),
+                          )
                         }
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-1 py-1 text-[11px] text-stone-800"
                       />

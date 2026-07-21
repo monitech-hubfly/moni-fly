@@ -23,6 +23,7 @@ import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
 import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
+import { calcularDataEmissaoAlvara } from '@/lib/pre-obra/emissao-alvara-data';
 import type { FundingTipo } from '@/lib/kanban/funding-card-fields';
 import {
   deveValidarGateLoteadoresComite,
@@ -2533,6 +2534,13 @@ export async function salvarDadosPreObra(input: SalvarDadosPreObraInput): Promis
   if (input.previsao_aprovacao_prefeitura !== undefined) {
     update.previsao_liberacao_credito_obra =
       calcularDataEnvioCreditoObra(String(input.previsao_aprovacao_prefeitura ?? '')) ?? null;
+    update.previsao_emissao_alvara =
+      calcularDataEmissaoAlvara(String(input.previsao_aprovacao_prefeitura ?? '')) ?? null;
+  }
+
+  if (input.data_aprovacao_prefeitura !== undefined) {
+    update.data_emissao_alvara =
+      calcularDataEmissaoAlvara(String(input.data_aprovacao_prefeitura ?? '')) ?? null;
   }
 
   const cardOrigem = String(input.cardOrigemId ?? pid).trim();
