@@ -18,6 +18,7 @@ export type DestinoEsteiraManualKey =
   | 'juridico'
   | 'moni_capital'
   | 'motor01'
+  | 'pre_obra_obra'
   | 'projeto_legal'
   | 'projetos_legais'
   | 'projetos_locais';
@@ -81,6 +82,11 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
     kanbanDestinoId: KANBAN_IDS.MOTOR01,
     faseDestinoSlug: 'm1_r01',
   },
+  pre_obra_obra: {
+    label: 'Pré Obra e Obra',
+    kanbanDestinoId: KANBAN_IDS.OPERACOES,
+    faseDestinoSlug: 'planialtimetrico',
+  },
   projeto_legal: {
     label: 'Projeto Legal',
     kanbanDestinoId: KANBAN_IDS.PROJETO_LEGAL,
@@ -115,6 +121,15 @@ export function kanbanPermiteDispararEsteiraManual(kanbanId: string | null | und
   return destinosEsteiraManualParaKanban(kanbanId).length > 0;
 }
 
+function filtrarDestinosEsteiraManual(
+  kanbanOrigemId: string,
+  destinos: DestinoEsteiraManualKey[],
+): DestinoEsteiraManualKey[] {
+  return destinos.filter(
+    (key) => DESTINOS_ESTEIRA_MANUAL[key].kanbanDestinoId !== kanbanOrigemId,
+  );
+}
+
 export function destinosEsteiraManualParaKanban(
   kanbanId: string | null | undefined,
 ): DestinoEsteiraManualKey[] {
@@ -122,11 +137,11 @@ export function destinosEsteiraManualParaKanban(
   if (!id) return [];
   if (KANBANS_INTERNOS_SET.has(id)) return [];
   if ((KANBANS_VINCULO_MANUAL_LIVRE as readonly string[]).includes(id)) {
-    return DESTINOS_ESTEIRA_GENERICOS;
+    return filtrarDestinosEsteiraManual(id, DESTINOS_ESTEIRA_GENERICOS);
   }
-  if (id === KANBAN_IDS.MOTOR01) return MOTOR01_DESTINOS;
+  if (id === KANBAN_IDS.MOTOR01) return filtrarDestinosEsteiraManual(id, MOTOR01_DESTINOS);
   if ((KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id)) {
-    return ['juridico', 'projeto_legal', 'credito_obra'];
+    return filtrarDestinosEsteiraManual(id, ['juridico', 'projeto_legal', 'credito_obra']);
   }
-  return ['projeto_legal', 'credito_obra'];
+  return filtrarDestinosEsteiraManual(id, ['projeto_legal', 'credito_obra']);
 }

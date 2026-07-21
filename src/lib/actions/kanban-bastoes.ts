@@ -1458,6 +1458,9 @@ export async function dispararEsteiraManualDoCard(
     if (destino.kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA) {
       revalidatePath('/funil-credito-obra');
     }
+    if (destino.kanbanDestinoId === KANBAN_IDS.OPERACOES) {
+      revalidatePath('/operacoes');
+    }
 
     return {
       ok: true,
