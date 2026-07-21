@@ -247,6 +247,14 @@ export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
   contrato: [FASE_SLUGS.STEP_7],
 } as const;
 
+/** Set Up (Step One), Portfólio, Loteadores e Pré Obra e Obra — vínculo manual para qualquer funil destino. */
+export const KANBANS_VINCULO_MANUAL_LIVRE = [
+  KANBAN_IDS.STEP_ONE,
+  KANBAN_IDS.PORTFOLIO,
+  KANBAN_IDS.LOTEADORES,
+  KANBAN_IDS.OPERACOES,
+] as const;
+
 // Kanbans onde Frank pode abrir chamado jurídico manualmente
 export const KANBANS_COM_CHAMADO_JURIDICO = [
   KANBAN_IDS.PORTFOLIO,

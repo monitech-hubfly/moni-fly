@@ -1477,7 +1477,7 @@ export async function abrirFunilAcoplamentoManualDoCard(
     return {
       ok: false,
       error:
-        'Card não pertence ao Funil Portfólio, Funil Loteadores ou Funil Pré Obra e Obra (nem é filho com origem nesses funis).',
+        'Card não pertence ao Funil Step One (Set Up), Funil Portfólio, Funil Loteadores ou Funil Pré Obra e Obra (nem é filho com origem nesses funis).',
     };
   }
 
