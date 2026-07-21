@@ -37,12 +37,13 @@ import {
 } from './actions';
 import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentEditable';
 import type { TopicoPainelLinha } from '../actions';
-import { listAnexosChamado, uploadAnexoChamado, getAnexoChamadoDownloadUrl } from '../actions';
+import { listAnexosChamado, uploadAnexoChamado, getAnexoChamadoDownloadUrl, excluirAnexoChamado } from '../actions';
 
 type AnexoRow = {
   id: number;
   chamado_id: number;
   topico_id: number | null;
+  uploader_id: string | null;
   uploader_nome: string | null;
   nome_original: string | null;
   origem: string | null;
@@ -748,6 +749,21 @@ export function SireneChamadoDetalheModal({
                           >
                             Baixar
                           </button>
+                          {(sessionEhAdmin || String(a.uploader_id) === currentUserId) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!window.confirm(`Excluir permanentemente "${a.nome_original ?? 'este anexo'}"? Esta ação não pode ser desfeita.`)) return;
+                                void excluirAnexoChamado(a.id).then((r) => {
+                                  if (!r.ok) setUploadAnexoErr(r.error ?? 'Erro ao excluir.');
+                                  else void abrirAnexos();
+                                });
+                              }}
+                              className="shrink-0 rounded border border-red-200 px-2 py-0.5 text-[10px] text-red-500 hover:bg-red-50"
+                            >
+                              Excluir
+                            </button>
+                          )}
                         </li>
                       ))}
                     </ul>

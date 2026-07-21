@@ -1999,6 +1999,7 @@ export async function listAnexosChamado(chamadoId: number): Promise<
         id: number;
         chamado_id: number;
         topico_id: number | null;
+        uploader_id: string | null;
         uploader_nome: string | null;
         nome_original: string | null;
         origem: string | null;
@@ -2020,7 +2021,7 @@ export async function listAnexosChamado(chamadoId: number): Promise<
 
   const { data: rows, error } = await supabase
     .from('sirene_anexos')
-    .select('id, chamado_id, topico_id, uploader_nome, nome_original, origem, created_at')
+    .select('id, chamado_id, topico_id, uploader_id, uploader_nome, nome_original, origem, created_at')
     .eq('chamado_id', chamadoId)
     .order('created_at', { ascending: false });
 
@@ -2152,6 +2153,51 @@ export async function getAnexoChamadoDownloadUrl(
     .createSignedUrl(anexo.storage_path, 60);
   if (signErr || !signed?.signedUrl) return { ok: false, error: signErr?.message ?? 'Erro ao gerar link.' };
   return { ok: true, url: signed.signedUrl };
+}
+
+export async function excluirAnexoChamado(
+  anexoId: number,
+): Promise<SireneActionResult> {
+  const supabase = await createClient();
+  const me = await getSireneUserContext(supabase);
+  if (!me) return { ok: false, error: 'Faça login.' };
+
+  const { data: anexo, error: fetchErr } = await supabase
+    .from('sirene_anexos')
+    .select('id, chamado_id, storage_path, nome_original, uploader_id')
+    .eq('id', anexoId)
+    .single();
+  if (fetchErr || !anexo) return { ok: false, error: 'Anexo não encontrado.' };
+
+  const row = anexo as { chamado_id: number; storage_path: string; nome_original: string; uploader_id: string };
+
+  const isAdminTeam = me.role === 'admin' || me.role === 'team';
+  const isBombeiro = me.ctx.papel === 'bombeiro' || me.ctx.papel === 'caneta_verde';
+  const isUploader = String(row.uploader_id) === me.userId;
+  if (!isAdminTeam && !isBombeiro && !isUploader) {
+    return { ok: false, error: 'Sem permissão para excluir este anexo.' };
+  }
+
+  await (supabase as any).from('sirene_anexos_log').insert({
+    anexo_id: anexoId,
+    chamado_id: row.chamado_id,
+    storage_path: row.storage_path,
+    nome_original: row.nome_original,
+    excluido_por: me.userId,
+    excluido_por_nome: me.userName,
+    excluido_em: new Date().toISOString(),
+  });
+
+  await supabase.storage.from('sirene-attachments').remove([row.storage_path]);
+
+  const { error: delErr } = await supabase
+    .from('sirene_anexos')
+    .delete()
+    .eq('id', anexoId);
+  if (delErr) return { ok: false, error: delErr.message };
+
+  revalidatePath(`/sirene/${row.chamado_id}`);
+  return { ok: true };
 }
 
 function statusSireneParaRankLista(status: string): string {
