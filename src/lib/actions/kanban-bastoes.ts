@@ -1049,6 +1049,21 @@ const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   [FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO]: 'Projetos Legais',
 };
 
+/** Desfechos de esteira paralela que só marcam flag no pai — nunca movem fase do pai Operações. */
+const DESFECHO_APENAS_FLAG_SEM_MOVER_PAI = new Set<string>([
+  FASE_SLUGS.PROJETOS_LOCAIS_CONCLUIDO,
+  FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO,
+  FASE_SLUGS.ACOPLAMENTO_APROVADO,
+  FASE_SLUGS.ACOPLAMENTO_REPROVADO,
+  FASE_SLUGS.CO_OUTRO_PARCEIRO,
+  FASE_SLUGS.CREDITO_OBRA_APROVADO,
+  FASE_SLUGS.CREDITO_OBRA_REPROVADO,
+  FASE_SLUGS.CONTABILIDADE_CONCLUIDO,
+  FASE_SLUGS.JURIDICO_CONCLUIDO,
+  FASE_SLUGS.CAPITAL_CONCLUIDO,
+  FASE_SLUGS.CAPITAL_NAO_ELEGIVEL,
+]);
+
 /**
  * Bastão de volta com movimento de fase: filho Projeto Legal → pai Operações.
  * Quando o filho entra em `pl_c_protocolo_andamento`, move o pai para `aprovacao_condominio`.
@@ -1058,6 +1073,7 @@ async function executarBastaoDeVoltaMoverPaiPorFaseFilho(
   novaFaseSlug: string,
 ): Promise<void> {
   const slug = String(novaFaseSlug ?? '').trim();
+  if (DESFECHO_APENAS_FLAG_SEM_MOVER_PAI.has(slug)) return;
   if (slug !== FASE_SLUGS.PL_C_PROTOCOLO_ANDAMENTO) return;
 
   const filhoId = String(cardFilhoId ?? '').trim();
@@ -1082,7 +1098,11 @@ async function executarBastaoDeVoltaMoverPaiPorFaseFilho(
     return;
   }
   if (!filhoRow?.id) return;
-  if (String((filhoRow as { kanban_id?: string }).kanban_id ?? '') !== KANBAN_IDS.PROJETO_LEGAL) {
+  const filhoKanbanId = String((filhoRow as { kanban_id?: string }).kanban_id ?? '').trim();
+  if (filhoKanbanId === KANBAN_IDS.PROJETOS_LOCAIS || filhoKanbanId === KANBAN_IDS.PROJETOS_LEGAIS) {
+    return;
+  }
+  if (filhoKanbanId !== KANBAN_IDS.PROJETO_LEGAL) {
     return;
   }
 
@@ -1204,7 +1224,11 @@ export async function executarBastaoDeVolta(cardId: string, novaFaseSlug: string
   const cardFilhoId = String(cardId ?? '').trim();
   if (!cardFilhoId || !slug) return;
 
-  await executarBastaoDeVoltaMoverPaiPorFaseFilho(cardFilhoId, slug);
+  // Movimento de fase do pai: somente Projeto Legal → aprovacao_condominio.
+  // Projetos Locais (e demais desfechos só-flag) nunca propagam fase ao pai Operações.
+  if (slug === FASE_SLUGS.PL_C_PROTOCOLO_ANDAMENTO) {
+    await executarBastaoDeVoltaMoverPaiPorFaseFilho(cardFilhoId, slug);
+  }
 
   const flagCol = DESFECHO_FLAG_POR_FASE[slug];
   if (!flagCol) return;
