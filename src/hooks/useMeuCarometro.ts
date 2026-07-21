@@ -183,7 +183,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const sireneScore =
         topicosArr.length === 0
           ? 100
-          : Math.max(0, Math.round(((topicosArr.length - topicosAtrasados) / topicosArr.length) * 100));
+          : Math.max(0, Math.round(((topicosArr.length - topicosAtrasados) / topicosArr.length) * 1000) / 10);
 
       const sireneRuntime: SireneSnapshot = {
         atrasados: topicosAtrasados,
@@ -217,7 +217,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         const kanbanQuery = supabase
           .from('kanban_cards')
           .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
-          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}},and(franqueado_id.eq.${effectiveProfileId},responsavel_id.is.null)`)
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .eq('arquivado', false)
           .eq('concluido', false);
 
@@ -263,7 +263,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
         const engScore = totalGeral === 0
           ? null
-          : Math.max(0, Math.round(((totalGeral - totalAtrasados) / totalGeral) * 100));
+          : Math.max(0, Math.round(((totalGeral - totalAtrasados) / totalGeral) * 1000) / 10);
 
         engajamentoRuntime = {
           atividadesAtrasadas,

@@ -140,7 +140,7 @@ export function useBacklogKanban(refreshKey = 0) {
             fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
-          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}},and(franqueado_id.eq.${effectiveProfileId},responsavel_id.is.null)`)
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .not('proxima_atividade', 'is', null)
           .eq('arquivado', false)
           .eq('concluido', false),
@@ -155,7 +155,7 @@ export function useBacklogKanban(refreshKey = 0) {
             fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
-          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}},and(franqueado_id.eq.${effectiveProfileId},responsavel_id.is.null)`)
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .is('proxima_atividade', null)
           .eq('arquivado', false)
           .eq('concluido', false),

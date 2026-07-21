@@ -43,6 +43,12 @@ type MeuCarometroCardProps = {
   children?: ReactNode;
 };
 
+function carinhaSize(score: number | null): number {
+  if (score === null) return 52;
+  // Linear: 0% → 36px, 100% → 80px
+  return Math.round(36 + (score / 100) * 44);
+}
+
 export function MeuCarometroCard({
   titulo,
   score,
@@ -54,6 +60,7 @@ export function MeuCarometroCard({
   const carinhaImg = getCarinhaImg(score);
   const scoreCls   = scoreColor(score);
   const formula = TOOLTIP_FORMULA[tipo];
+  const imgSize = carinhaSize(score);
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 flex flex-col gap-3">
@@ -63,12 +70,12 @@ export function MeuCarometroCard({
         <img
           src={carinhaImg}
           alt="carinha"
-          className="w-14 h-14 object-contain shrink-0"
-          style={{ mixBlendMode: 'multiply' }}
+          style={{ width: imgSize, height: imgSize }}
+          className="object-contain shrink-0"
           title={score !== null ? `${score}%` : 'Sem dados'}
         />
         <span className={`text-3xl font-bold tabular-nums leading-none ${scoreCls}`}>
-          {score !== null ? `${score}%` : '—'}
+          {score !== null ? `${score.toFixed(1)}%` : '—'}
         </span>
       </div>
 
