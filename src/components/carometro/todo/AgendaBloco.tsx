@@ -6,12 +6,12 @@ import type { DadosAgendamento } from './ModalAgendamento';
 
 const HORA_INICIO   = 8;
 const HORA_FIM      = 20;
-const TOTAL_HORAS   = HORA_FIM - HORA_INICIO; // 12
-const ALTURA_HORA   = 60;                      // px por hora
-const ALTURA_GRADE  = TOTAL_HORAS * ALTURA_HORA; // 720px
-const LARGURA_HORAS = 56;                      // px coluna esquerda
+const TOTAL_HORAS   = HORA_FIM - HORA_INICIO;
+const ALTURA_HORA   = 60;
+const ALTURA_GRADE  = TOTAL_HORAS * ALTURA_HORA;
+const LARGURA_HORAS = 56;
 
-// ── Slot droppable (1 hora × 1 dia) ──────────────────────────────────────────
+// ── Slot droppable ────────────────────────────────────────────────────────────
 function DroppableSlot({ dateStr, hora }: { dateStr: string; hora: number }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `drop::${dateStr}::${String(hora).padStart(2, '0')}`,
@@ -33,50 +33,89 @@ function DroppableSlot({ dateStr, hora }: { dateStr: string; hora: number }) {
 function AgendaCard({
   atv,
   onAbrirParaEditar,
+  onConcluir,
 }: {
   atv: AtividadeAgenda;
   onAbrirParaEditar: (id: string) => void;
+  onConcluir: (id: string) => void;
 }) {
-  const [h, m]  = atv.hora_inicio.split(':').map(Number);
-  const topPx   = (h - HORA_INICIO) * ALTURA_HORA + (m ?? 0);
-  let heightPx  = 30;
+  const [h, m] = atv.hora_inicio.split(':').map(Number);
+  const topPx  = (h - HORA_INICIO) * ALTURA_HORA + (m ?? 0);
+  let heightPx = 30;
   if (atv.hora_fim) {
     const [hf, mf] = atv.hora_fim.split(':').map(Number);
     heightPx = Math.max(30, (hf * 60 + (mf ?? 0)) - (h * 60 + (m ?? 0)));
   }
+
   return (
     <div
       data-atividade="true"
-      className="absolute rounded px-1.5 py-0.5 text-white text-xs overflow-hidden cursor-pointer hover:brightness-90 transition-all select-none"
-      style={{ top: topPx, height: heightPx, left: 2, right: 2, backgroundColor: atv.cor, zIndex: 10 }}
+      className="absolute rounded px-1.5 py-0.5 text-white text-xs overflow-hidden select-none group"
+      style={{ top: topPx, height: heightPx, left: 2, right: 2, backgroundColor: atv.cor, zIndex: 10,
+               opacity: atv.concluido ? 0.6 : 1 }}
       onClick={(e) => {
+        if ((e.target as HTMLElement).closest('[data-action]')) return;
         e.stopPropagation();
         onAbrirParaEditar(atv.id);
       }}
     >
-      <div className="font-medium truncate leading-tight">
-        {atv.comportamento_chave ?? '(sem título)'}
-      </div>
-      {heightPx >= 40 && (
-        <div className="opacity-80 text-[10px]">
-          {atv.hora_inicio}{atv.hora_fim ? ` – ${atv.hora_fim}` : ''}
+      <div className="flex items-start justify-between gap-1 h-full">
+        <div className="flex-1 min-w-0">
+          <div className={`font-medium truncate leading-tight ${atv.concluido ? 'line-through opacity-70' : ''}`}>
+            {atv.titulo}
+          </div>
+          {heightPx >= 40 && (
+            <div className="opacity-80 text-[10px]">
+              {atv.hora_inicio}{atv.hora_fim ? ` – ${atv.hora_fim}` : ''}
+              {atv.link_reuniao && (
+                <a
+                  data-action="link"
+                  href={atv.link_reuniao}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-1 underline opacity-80 hover:opacity-100"
+                  onClick={e => e.stopPropagation()}
+                  title="Abrir link da reunião"
+                >
+                  🔗
+                </a>
+              )}
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Botão concluir — visível no hover */}
+        {!atv.concluido && (
+          <button
+            data-action="concluir"
+            type="button"
+            title="Marcar como concluído"
+            className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5 w-4 h-4 rounded-full border border-white/70 flex items-center justify-center hover:bg-white/20"
+            onClick={(e) => {
+              e.stopPropagation();
+              onConcluir(atv.id);
+            }}
+          >
+            <span className="text-[9px] leading-none">✓</span>
+          </button>
+        )}
+        {atv.concluido && (
+          <span className="shrink-0 mt-0.5 text-[10px] opacity-70">✓</span>
+        )}
+      </div>
     </div>
   );
 }
 
 // ── Coluna de um dia ──────────────────────────────────────────────────────────
 function ColunaDia({
-  dia,
-  atividades,
-  onAbrirModal,
-  onAbrirParaEditar,
+  dia, atividades, onAbrirModal, onAbrirParaEditar, onConcluir,
 }: {
   dia: DiaAgenda;
   atividades: AtividadeAgenda[];
   onAbrirModal: (p: Partial<DadosAgendamento>) => void;
   onAbrirParaEditar: (id: string) => void;
+  onConcluir: (id: string) => void;
 }) {
   const horas = Array.from({ length: TOTAL_HORAS }, (_, i) => HORA_INICIO + i);
 
@@ -100,17 +139,20 @@ function ColunaDia({
       style={{ minHeight: ALTURA_GRADE }}
       onClick={handleClick}
     >
-      {horas.map(h => (
-        <DroppableSlot key={h} dateStr={dia.dateStr} hora={h} />
-      ))}
+      {horas.map(h => <DroppableSlot key={h} dateStr={dia.dateStr} hora={h} />)}
       {atividades.map(atv => (
-        <AgendaCard key={atv.id} atv={atv} onAbrirParaEditar={onAbrirParaEditar} />
+        <AgendaCard
+          key={atv.id}
+          atv={atv}
+          onAbrirParaEditar={onAbrirParaEditar}
+          onConcluir={onConcluir}
+        />
       ))}
     </div>
   );
 }
 
-// ── Coluna de horas (esquerda) ────────────────────────────────────────────────
+// ── Coluna de horas ───────────────────────────────────────────────────────────
 function ColunaHoras() {
   return (
     <div style={{ width: LARGURA_HORAS, flexShrink: 0 }}>
@@ -128,7 +170,7 @@ function ColunaHoras() {
 // ── Linha "agora" ─────────────────────────────────────────────────────────────
 function LinhaAgora({ semanaOffset }: { semanaOffset: number }) {
   if (semanaOffset !== 0) return null;
-  const agora   = new Date();
+  const agora    = new Date();
   const topAgora = (agora.getHours() - HORA_INICIO) * ALTURA_HORA + agora.getMinutes();
   if (topAgora < 0 || topAgora > ALTURA_GRADE) return null;
   return (
@@ -150,43 +192,26 @@ type AgendaBlocoProps = {
 // ── AgendaBloco ───────────────────────────────────────────────────────────────
 export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }: AgendaBlocoProps) {
   const {
-    atividades,
-    diasDaSemana,
-    semanaLabel,
-    semanaOffset,
-    isLoading,
-    error,
-    navegar,
-    irParaHoje,
+    atividades, diasDaSemana, semanaLabel, semanaOffset,
+    isLoading, error, navegar, irParaHoje, concluir,
   } = useAgenda(refreshKey);
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      {/* Header — navegação */}
+      {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
-        <button
-          type="button"
-          onClick={() => navegar(-1)}
-          className="p-1.5 rounded hover:bg-gray-100 text-gray-500 transition-colors"
-          aria-label="Semana anterior"
-        >
+        <button type="button" onClick={() => navegar(-1)}
+          className="p-1.5 rounded hover:bg-gray-100 text-gray-500 transition-colors" aria-label="Semana anterior">
           ←
         </button>
-        <button
-          type="button"
-          onClick={() => navegar(1)}
-          className="p-1.5 rounded hover:bg-gray-100 text-gray-500 transition-colors"
-          aria-label="Próxima semana"
-        >
+        <button type="button" onClick={() => navegar(1)}
+          className="p-1.5 rounded hover:bg-gray-100 text-gray-500 transition-colors" aria-label="Próxima semana">
           →
         </button>
         <span className="text-sm font-semibold text-gray-700 min-w-[200px]">{semanaLabel}</span>
         {semanaOffset !== 0 && (
-          <button
-            type="button"
-            onClick={irParaHoje}
-            className="text-xs px-2.5 py-1 rounded border border-gray-300 hover:bg-gray-50 text-gray-600 transition-colors"
-          >
+          <button type="button" onClick={irParaHoje}
+            className="text-xs px-2.5 py-1 rounded border border-gray-300 hover:bg-gray-50 text-gray-600 transition-colors">
             Hoje
           </button>
         )}
@@ -197,10 +222,8 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
 
       {/* Cabeçalho dos dias */}
       <div className="flex border-b border-gray-100 bg-white">
-        <div
-          style={{ width: LARGURA_HORAS, flexShrink: 0 }}
-          className="text-[9px] text-gray-400 flex items-end justify-end pr-2 pb-1.5 select-none"
-        >
+        <div style={{ width: LARGURA_HORAS, flexShrink: 0 }}
+          className="text-[9px] text-gray-400 flex items-end justify-end pr-2 pb-1.5 select-none">
           GMT-3
         </div>
         {diasDaSemana.map(dia => (
@@ -208,18 +231,16 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
             <div className="text-[10px] text-gray-500 uppercase tracking-wide leading-none mb-1">
               {dia.label.split(' ')[0]}
             </div>
-            <div
-              className={`text-sm font-medium mx-auto flex items-center justify-center rounded-full w-7 h-7 ${
-                dia.isHoje ? 'bg-blue-500 text-white' : 'text-gray-700'
-              }`}
-            >
+            <div className={`text-sm font-medium mx-auto flex items-center justify-center rounded-full w-7 h-7 ${
+              dia.isHoje ? 'bg-blue-500 text-white' : 'text-gray-700'
+            }`}>
               {dia.date.getDate()}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Grade com scroll */}
+      {/* Grade */}
       <div className="overflow-y-auto" style={{ height: 600 }}>
         <div className="relative flex" style={{ minHeight: ALTURA_GRADE }}>
           <ColunaHoras />
@@ -230,6 +251,7 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
               atividades={atividades.filter(a => a.data === dia.dateStr)}
               onAbrirModal={onAbrirModal}
               onAbrirParaEditar={onAbrirParaEditar}
+              onConcluir={concluir}
             />
           ))}
           <LinhaAgora semanaOffset={semanaOffset} />

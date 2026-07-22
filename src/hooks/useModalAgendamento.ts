@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { isoWeek } from '@/utils/periodos';
 import { registrarLog } from '@/hooks/useAuditLog';
 import type { DadosAgendamento } from '@/components/carometro/todo/ModalAgendamento';
+import { gerarOcorrencias } from '@/components/carometro/todo/ModalAgendamento';
 
 type Modo = 'criar' | 'editar';
 
@@ -24,12 +25,12 @@ export function useModalAgendamento(
   areaId: string | null,
   onSalvo?: () => void,
 ): UseModalAgendamentoResult {
-  const supabase = useMemo(() => createClient(), []);
-  const [aberto,      setAberto]      = useState(false);
-  const [preenchido,  setPreenchido]  = useState<Partial<DadosAgendamento>>({});
-  const [modo,        setModo]        = useState<Modo>('criar');
-  const [editandoId,  setEditandoId]  = useState<string | null>(null);
-  const [isSaving,    setIsSaving]    = useState(false);
+  const supabase   = useMemo(() => createClient(), []);
+  const [aberto,     setAberto]     = useState(false);
+  const [preenchido, setPreenchido] = useState<Partial<DadosAgendamento>>({});
+  const [modo,       setModo]       = useState<Modo>('criar');
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [isSaving,   setIsSaving]   = useState(false);
 
   const abrirParaCriar = useCallback((dados?: Partial<DadosAgendamento>) => {
     setPreenchido(dados ?? {});
@@ -47,23 +48,33 @@ export function useModalAgendamento(
 
     if (data) {
       const r = data as Record<string, unknown>;
+      // Carregar participantes
+      const { data: parts } = await supabase
+        .from('gantt_agenda_participantes')
+        .select('profile_id')
+        .eq('gantt_id', id);
+      const participantes = ((parts ?? []) as { profile_id: string }[]).map(p => p.profile_id);
+
       setPreenchido({
-        acao_id:              (r.acao_id as string | null)              ?? null,
-        objetivo_id:          (r.objetivo_id as string | null)          ?? null,
-        data:                 (r.data as string | null)                 ?? null,
-        hora_inicio:          (r.hora_inicio as string | null)          ?? null,
-        hora_fim:             (r.hora_fim as string | null)             ?? null,
-        casa_id:              (r.casa_id as string | null)              ?? null,
-        franqueado_id:        (r.franqueado_id as string | null)        ?? null,
-        rede_loteador_id:     (r.rede_loteador_id as string | null)     ?? null,
-        condominio_id:        (r.condominio_id as string | null)        ?? null,
-        adm_cnpj_id:          (r.adm_cnpj_id as string | null)         ?? null,
-        sirene_chamado_id:    (r.sirene_chamado_id as number | null)    ?? null,
-        card_id:              (r.card_id as string | null)              ?? null,
-        recorrente:           Boolean(r.recorrente),
-        recorrencia_config:   (r.recorrencia_config as object | null)   ?? null,
-        observacoes:          (r.comentario_conclusao as string | null) ?? null,
-        tempo_estimado_horas: (r.tempo_estimado_horas as number | null) ?? null,
+        acao_id:           (r.acao_id as string | null)           ?? null,
+        objetivo_id:       (r.objetivo_id as string | null)       ?? null,
+        data:              (r.data as string | null)              ?? null,
+        hora_inicio:       (r.hora_inicio as string | null)       ?? null,
+        hora_fim:          (r.hora_fim as string | null)          ?? null,
+        casa_id:           (r.casa_id as string | null)           ?? null,
+        franqueado_id:     (r.franqueado_id as string | null)     ?? null,
+        rede_loteador_id:  (r.rede_loteador_id as string | null)  ?? null,
+        condominio_id:     (r.condominio_id as string | null)     ?? null,
+        adm_cnpj_id:       (r.adm_cnpj_id as string | null)      ?? null,
+        sirene_chamado_id: (r.sirene_chamado_id as number | null) ?? null,
+        card_id:           (r.card_id as string | null)           ?? null,
+        recorrente:        Boolean(r.recorrente),
+        recorrencia_config: (r.recorrencia_config as object | null) ?? null,
+        observacoes:       (r.comentario_conclusao as string | null) ?? null,
+        link_reuniao:      (r.link_reuniao as string | null)      ?? null,
+        titulo:            (r.titulo as string | null)            ?? null,
+        participantes,
+        origem_tipo:       (r.origem_tipo as DadosAgendamento['origem_tipo']) ?? null,
       });
     }
     setModo('editar');
@@ -83,58 +94,91 @@ export function useModalAgendamento(
     try {
       const semana = dados.data ? isoWeek(new Date(dados.data)) : null;
       const payload: Record<string, unknown> = {
-        acao_id:              dados.acao_id,
-        objetivo_id:          dados.objetivo_id,
-        data:                 dados.data,
-        hora_inicio:          dados.hora_inicio,
-        hora_fim:             dados.hora_fim,
-        casa_id:              dados.casa_id,
-        franqueado_id:        dados.franqueado_id,
-        rede_loteador_id:     dados.rede_loteador_id,
-        condominio_id:        dados.condominio_id,
-        adm_cnpj_id:          dados.adm_cnpj_id,
-        sirene_chamado_id:    dados.sirene_chamado_id,
-        card_id:              dados.card_id,
-        recorrente:           dados.recorrente,
-        recorrencia_config:   dados.recorrencia_config,
+        acao_id:             dados.acao_id,
+        objetivo_id:         dados.objetivo_id,
+        data:                dados.data,
+        hora_inicio:         dados.hora_inicio,
+        hora_fim:            dados.hora_fim,
+        casa_id:             dados.casa_id,
+        franqueado_id:       dados.franqueado_id,
+        rede_loteador_id:    dados.rede_loteador_id,
+        condominio_id:       dados.condominio_id,
+        adm_cnpj_id:         dados.adm_cnpj_id,
+        sirene_chamado_id:   dados.sirene_chamado_id,
+        card_id:             dados.card_id,
+        recorrente:          dados.recorrente,
+        recorrencia_config:  dados.recorrente ? dados.recorrencia_config : null,
         comentario_conclusao: dados.observacoes,
-        tempo_estimado_horas: dados.tempo_estimado_horas,
+        link_reuniao:        dados.link_reuniao,
+        titulo:              dados.titulo,
+        origem_tipo:         dados.origem_tipo,
       };
 
-      let entidadeId: string | null = null;
-
       if (modo === 'criar') {
+        // ── Calcular datas: 1 ou N ocorrências ──────────────────────────────
+        let datas: string[] = dados.data ? [dados.data] : [];
+        if (dados.recorrente && dados.recorrencia_config && dados.data) {
+          try {
+            datas = gerarOcorrencias(dados.data, dados.recorrencia_config);
+          } catch { /* usa apenas a data base */ }
+        }
+
+        // Gera grupo UUID para recorrências (mesmo ID em todas as ocorrências)
+        const recorrenciaGrupoId = datas.length > 1
+          ? crypto.randomUUID()
+          : null;
+
+        // Insere uma linha por ocorrência
+        const inserts = datas.map(dt => ({
+          ...payload,
+          data:                dt,
+          semana_ano_inicio:   isoWeek(new Date(dt)),
+          semana_ano_fim:      isoWeek(new Date(dt)),
+          profile_id:          effectiveProfileId,
+          origem:              'agenda',
+          recorrencia_grupo_id: recorrenciaGrupoId,
+        }));
+
         const { data: inserted, error } = await supabase
           .from('gantt_planejamento')
-          .insert({
-            ...payload,
-            profile_id:        effectiveProfileId,
-            origem:            'agenda',
-            semana_ano_inicio: semana,
-            semana_ano_fim:    semana,
-          })
-          .select('id')
-          .single();
+          .insert(inserts)
+          .select('id');
         if (error) throw error;
-        entidadeId = String((inserted as { id: unknown }).id);
+
+        // Participantes: inserir para cada registro criado
+        const ids = ((inserted ?? []) as { id: string }[]).map(r => r.id);
+        if (dados.participantes.length > 0 && ids.length > 0) {
+          const partRows = ids.flatMap(gantt_id =>
+            dados.participantes.map(profile_id => ({ gantt_id, profile_id }))
+          );
+          await supabase.from('gantt_agenda_participantes').insert(partRows);
+        }
 
         void (registrarLog as unknown as (a: Record<string, unknown>) => Promise<void>)({
           modulo: 'Planejamento', area: areaId,
-          entidade: 'gantt_planejamento', entidade_id: entidadeId,
+          entidade: 'gantt_planejamento', entidade_id: ids[0] ?? null,
           operacao: 'INSERT',
-          descricao: `Nova atividade agendada para ${dados.data ?? ''}`,
+          descricao: `Nova atividade agendada para ${dados.data ?? ''}${datas.length > 1 ? ` (${datas.length} ocorrências)` : ''}`,
         });
+
       } else if (editandoId) {
         const { error } = await supabase
           .from('gantt_planejamento')
           .update(payload)
           .eq('id', editandoId);
         if (error) throw error;
-        entidadeId = editandoId;
+
+        // Sincronizar participantes: apagar todos e re-inserir
+        await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', editandoId);
+        if (dados.participantes.length > 0) {
+          await supabase.from('gantt_agenda_participantes').insert(
+            dados.participantes.map(profile_id => ({ gantt_id: editandoId, profile_id }))
+          );
+        }
 
         void (registrarLog as unknown as (a: Record<string, unknown>) => Promise<void>)({
           modulo: 'Planejamento', area: areaId,
-          entidade: 'gantt_planejamento', entidade_id: entidadeId,
+          entidade: 'gantt_planejamento', entidade_id: editandoId,
           operacao: 'UPDATE',
           descricao: `Atividade atualizada: ${dados.data ?? ''}`,
         });
