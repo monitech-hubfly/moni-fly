@@ -97,7 +97,10 @@
       "PowerShell(git fetch *)",
       "PowerShell(git ls-tree *)",
       "PowerShell(Get-Content * | Measure-Object *)",
-      "PowerShell(git log --oneline -- *)"
+      "PowerShell(git log --oneline -- *)",
+      "PowerShell($b = Get-Content \"src\\\\app\\\\sirene\\\\chamados\\\\SireneChamadoDetalheModal.tsx\"; for \\($i = 60; $i -le 100; $i++\\) { \"$i`: $\\($b[$i]\\)\" })",
+      "PowerShell($b = Get-Content \"src\\\\app\\\\sirene\\\\actions.ts\"; for \\($i = 1995; $i -le 2060; $i++\\) { \"$i`: $\\($b[$i]\\)\" })",
+      "PowerShell(Get-ChildItem supabase\\\\migrations | Where-Object { $_.Name -match \"^47[1-9]\" } | Select-Object Name)"
     ]
   }
 }
