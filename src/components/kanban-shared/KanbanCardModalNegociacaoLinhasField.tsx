@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import { fmtMoedaKanban } from '@/lib/kanban/kanban-card-modal-detalhes';
@@ -22,6 +22,8 @@ type Props = {
   linhasLeitura?: NegociacaoLinha[];
   opcoesVinculo?: OpcaoVinculoCalculadora[];
   datasResolvidas?: Map<string, { data: string | null; prevista: boolean }>;
+  /** Persiste linhas após alterar data manual (change/blur). */
+  onPersistLinhas?: (linhas: NegociacaoLinhaDraft[]) => void | Promise<void>;
 };
 
 /** Mesma densidade de NegocioPrazoField / BCA/Gbox: py-1 + text-xs, min-h só no mobile. */
@@ -40,6 +42,11 @@ const labelClass = 'text-[11px] font-medium text-[var(--moni-text-secondary)]';
 function fmtData(iso: string | null | undefined): string {
   if (!iso?.trim()) return '—';
   return formatIsoDateOnlyPtBr(iso) ?? iso;
+}
+
+function normalizarDataManualInput(raw: string): string {
+  const v = raw.trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
 }
 
 function labelVinculo(
@@ -98,9 +105,23 @@ export function KanbanCardModalNegociacaoLinhasField({
   linhasLeitura = [],
   opcoesVinculo = [{ value: '', label: 'Data manual' }],
   datasResolvidas,
+  onPersistLinhas,
 }: Props) {
   const [expandidoIds, setExpandidoIds] = useState<Set<string>>(() => new Set());
   const [leituraExpandido, setLeituraExpandido] = useState<Set<number>>(() => new Set());
+  const linhasRef = useRef(linhas);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onPersistLinhasRef = useRef(onPersistLinhas);
+
+  linhasRef.current = linhas;
+  onPersistLinhasRef.current = onPersistLinhas;
+
+  useEffect(
+    () => () => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    },
+    [],
+  );
 
   const idsAtuais = useMemo(() => new Set(linhas.map((l) => l.id)), [linhas]);
 
@@ -116,9 +137,37 @@ export function KanbanCardModalNegociacaoLinhasField({
     });
   }, [idsAtuais]);
 
-  const atualizarLinha = (id: string, patch: Partial<NegociacaoLinha>) => {
-    onChange(linhas.map((l) => (l.id === id ? { ...l, ...patch } : l)));
-  };
+  const atualizarLinha = useCallback((id: string, patch: Partial<NegociacaoLinha>) => {
+    const next = linhasRef.current.map((l) => (l.id === id ? { ...l, ...patch } : l));
+    linhasRef.current = next;
+    onChange(next);
+    return next;
+  }, [onChange]);
+
+  const agendarPersistenciaLinhas = useCallback((next: NegociacaoLinhaDraft[]) => {
+    const persist = onPersistLinhasRef.current;
+    if (!persist) return;
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      persistTimerRef.current = null;
+      void persist(next);
+    }, 350);
+  }, []);
+
+  const atualizarDataManual = useCallback(
+    (id: string, raw: string, opts?: { persistirImediato?: boolean }) => {
+      const dataPagamento = normalizarDataManualInput(raw);
+      const next = atualizarLinha(id, { dataPagamento });
+      if (!dataPagamento) return;
+      if (opts?.persistirImediato) {
+        if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+        void onPersistLinhasRef.current?.(next);
+        return;
+      }
+      agendarPersistenciaLinhas(next);
+    },
+    [agendarPersistenciaLinhas, atualizarLinha],
+  );
 
   const toggleExpandido = useCallback((id: string) => {
     setExpandidoIds((prev) => {
@@ -130,15 +179,17 @@ export function KanbanCardModalNegociacaoLinhasField({
   }, []);
 
   const fecharLinha = (id: string) => {
-    const linha = linhas.find((l) => l.id === id);
+    const linha = linhasRef.current.find((l) => l.id === id);
     setExpandidoIds((prev) => {
       const next = new Set(prev);
       next.delete(id);
       return next;
     });
     if (!linha || negociacaoLinhaTemConteudo(linha)) return;
-    const next = linhas.filter((l) => l.id !== id);
-    onChange(next.length > 0 ? next : [criarNegociacaoLinhaDraftVazia()]);
+    const next = linhasRef.current.filter((l) => l.id !== id);
+    const out = next.length > 0 ? next : [criarNegociacaoLinhaDraftVazia()];
+    linhasRef.current = out;
+    onChange(out);
   };
 
   const removerLinha = (id: string) => {
@@ -403,7 +454,10 @@ export function KanbanCardModalNegociacaoLinhasField({
                         <input
                           type="date"
                           value={linha.dataPagamento}
-                          onChange={(e) => atualizarLinha(linha.id, { dataPagamento: e.target.value })}
+                          onChange={(e) => atualizarDataManual(linha.id, e.target.value)}
+                          onBlur={(e) =>
+                            atualizarDataManual(linha.id, e.target.value, { persistirImediato: true })
+                          }
                           className={inputClass}
                           style={inputStyle}
                         />

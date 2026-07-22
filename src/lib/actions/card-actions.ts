@@ -2565,12 +2565,14 @@ export async function salvarDadosPreObra(input: SalvarDadosPreObraInput): Promis
 }
 
 /** Salva dados do negócio no processo e propaga ao grupo de sync. */
+export type SalvarDadosNegocioKanbanResult = ActionResult & { processoId?: string };
+
 export async function salvarDadosNegocioKanban(input: {
   cardId: string;
   processoId: string;
   payload: ProcessoNegocioUpdatePayload;
   basePath?: string;
-}): Promise<ActionResult> {
+}): Promise<SalvarDadosNegocioKanbanResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -2647,7 +2649,7 @@ export async function salvarDadosNegocioKanban(input: {
 
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
-  return { ok: true };
+  return { ok: true, processoId: dedicado.processoId };
 }
 
 export type UploadContratoFranquiaResult = ActionResult & { path?: string };

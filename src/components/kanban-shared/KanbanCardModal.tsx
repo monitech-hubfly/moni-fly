@@ -161,8 +161,10 @@ import {
 } from '@/lib/kanban/dados-negocio-prazo';
 import {
   negociacaoLinhasToDb,
+  parseNegociacaoLinhasFromDb,
   parseVinculoCalculadoraNegociacao,
   type NegociacaoLinha,
+  type NegociacaoLinhaDraft,
 } from '@/lib/kanban/negociacao-linhas';
 import {
   negocioDraftFromProcesso,
@@ -662,6 +664,8 @@ export function KanbanCardModal({
   const [criandoTag, setCriandoTag] = useState(false);
   const [editandoFunding, setEditandoFunding] = useState(false);
   const [negocioDraft, setNegocioDraft] = useState<NegocioDraftKanban>(() => negocioDraftVazio());
+  const negocioDraftRef = useRef(negocioDraft);
+  negocioDraftRef.current = negocioDraft;
   const [fasesNegocioPrazo, setFasesNegocioPrazo] = useState<FaseNegocioPrazoOpcao[]>([]);
   const [salvandoNegocio, setSalvandoNegocio] = useState(false);
   const [editandoFranqueado, setEditandoFranqueado] = useState(false);
@@ -3358,13 +3362,14 @@ export function KanbanCardModal({
     if (!card) return;
     setSalvandoNegocio(true);
     try {
-      const limparPrazos100Cv = isTipoNegociacao100CompraVenda(negocioDraft.tipo_aquisicao_terreno);
+      const draft = negocioDraftRef.current;
+      const limparPrazos100Cv = isTipoNegociacao100CompraVenda(draft.tipo_aquisicao_terreno);
       const prazoOpcao = limparPrazos100Cv
         ? { ...NEGOCIO_PRAZO_VALORES_VAZIO }
-        : negocioPrazoValoresFromDraft(negocioDraft.prazo_opcao);
+        : negocioPrazoValoresFromDraft(draft.prazo_opcao);
       const prazoInstrumento = limparPrazos100Cv
         ? { ...NEGOCIO_PRAZO_VALORES_VAZIO }
-        : negocioPrazoValoresFromDraft(negocioDraft.prazo_instrumento_garantidor);
+        : negocioPrazoValoresFromDraft(draft.prazo_instrumento_garantidor);
       const prazoOpcaoDb = negocioPrazoDbPatchFromValores(prazoOpcao, 'prazo_opcao');
       const prazoInstrumentoDb = negocioPrazoDbPatchFromValores(
         prazoInstrumento,
@@ -3374,26 +3379,26 @@ export function KanbanCardModal({
         cardId: card.id,
         processoId: modalDetalhes.processo?.id ?? '',
         payload: {
-          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
-          valor_terreno: negocioDraft.valor_terreno || null,
-          vgv_pretendido: negocioDraft.vgv_pretendido || null,
-          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
-          link_pasta_drive: negocioDraft.link_pasta_drive || null,
-          link_bca: negocioDraft.link_bca?.trim() || null,
-          link_gbox: negocioDraft.link_gbox?.trim() || null,
-          link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
-          link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
-          link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
-          link_opcao_permuta: negocioDraft.link_opcao_permuta?.trim() || null,
-          link_contrato_permuta: negocioDraft.link_contrato_permuta?.trim() || null,
-          link_seguro_garantia: negocioDraft.link_seguro_garantia?.trim() || null,
-          link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
+          tipo_aquisicao_terreno: draft.tipo_aquisicao_terreno || null,
+          valor_terreno: draft.valor_terreno || null,
+          vgv_pretendido: draft.vgv_pretendido || null,
+          produto_modelo_casa: draft.produto_modelo_casa || null,
+          link_pasta_drive: draft.link_pasta_drive || null,
+          link_bca: draft.link_bca?.trim() || null,
+          link_gbox: draft.link_gbox?.trim() || null,
+          link_mapa_competidores: draft.link_mapa_competidores?.trim() || null,
+          link_acoplamento: draft.link_acoplamento?.trim() || null,
+          link_apresentacao_comite: draft.link_apresentacao_comite?.trim() || null,
+          link_opcao_permuta: draft.link_opcao_permuta?.trim() || null,
+          link_contrato_permuta: draft.link_contrato_permuta?.trim() || null,
+          link_seguro_garantia: draft.link_seguro_garantia?.trim() || null,
+          link_moni_capital_seguro_garantia: draft.link_moni_capital_seguro_garantia?.trim() || null,
           comentario_moni_capital_seguro_garantia:
-            negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
+            draft.comentario_moni_capital_seguro_garantia?.trim() || null,
           link_moni_capital_gastos_aporte_inicial:
-            negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
+            draft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
           comentario_moni_capital_gastos_aporte_inicial:
-            negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
+            draft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
           prazo_opcao_dias: prazoOpcaoDb.prazo_opcao_dias as number | null,
           prazo_opcao_sla_tipo: prazoOpcaoDb.prazo_opcao_sla_tipo as 'uteis' | 'corridos' | null,
           prazo_opcao_modo: prazoOpcaoDb.prazo_opcao_modo as 'fase' | 'data' | null,
@@ -3412,7 +3417,7 @@ export function KanbanCardModal({
             | string
             | null,
           prazo_instrumento_garantidor_data: prazoInstrumentoDb.prazo_instrumento_garantidor_data as string | null,
-          negociacao_linhas: negociacaoLinhasToDb(negocioDraft.negociacao_linhas),
+          negociacao_linhas: negociacaoLinhasToDb(draft.negociacao_linhas),
         },
         basePath,
       });
@@ -3421,6 +3426,41 @@ export function KanbanCardModal({
       await loadCard();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Erro ao salvar dados do negócio.');
+    } finally {
+      setSalvandoNegocio(false);
+    }
+  }
+
+  async function handlePersistNegociacaoLinhas(linhas: NegociacaoLinhaDraft[]) {
+    if (!card) return;
+    setNegocioDraft((d) => ({ ...d, negociacao_linhas: linhas }));
+    setSalvandoNegocio(true);
+    try {
+      const processoIdAntes = modalDetalhes.processo?.id ?? '';
+      const dbLinhas = negociacaoLinhasToDb(linhas);
+      const upd = await salvarDadosNegocioKanban({
+        cardId: card.id,
+        processoId: processoIdAntes,
+        payload: { negociacao_linhas: dbLinhas },
+        basePath,
+      });
+      if (!upd.ok) throw new Error(upd.error);
+
+      const processoIdDepois = upd.processoId?.trim() || processoIdAntes;
+      if (processoIdDepois && processoIdDepois !== processoIdAntes) {
+        await loadCard({ silencioso: true });
+        return;
+      }
+
+      const parsed = parseNegociacaoLinhasFromDb(dbLinhas ?? []);
+      setModalDetalhes((prev) =>
+        prev.processo
+          ? { ...prev, processo: { ...prev.processo, negociacao_linhas: parsed } }
+          : prev,
+      );
+    } catch (e) {
+      console.error('[negociacao] persistência data manual:', e);
+      alert(e instanceof Error ? e.message : 'Erro ao salvar data da negociação.');
     } finally {
       setSalvandoNegocio(false);
     }
@@ -8127,6 +8167,9 @@ export function KanbanCardModal({
                       linhas={negocioDraft.negociacao_linhas}
                       onChange={(negociacao_linhas) =>
                         setNegocioDraft((d) => ({ ...d, negociacao_linhas }))
+                      }
+                      onPersistLinhas={(negociacao_linhas) =>
+                        void handlePersistNegociacaoLinhas(negociacao_linhas)
                       }
                       disabled={salvandoNegocio}
                       opcoesVinculo={calculadoraOpcoesVinculoNegociacao}

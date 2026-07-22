@@ -193,23 +193,23 @@ function isMissingColumnError(error: { code?: string; message?: string } | null)
 }
 
 export type ProcessoNegocioUpdatePayload = {
-  tipo_aquisicao_terreno: string | null;
-  valor_terreno: string | null;
-  vgv_pretendido: string | null;
-  produto_modelo_casa: string | null;
-  link_pasta_drive: string | null;
-  link_bca: string | null;
-  link_gbox: string | null;
-  link_mapa_competidores: string | null;
-  link_acoplamento: string | null;
-  link_apresentacao_comite: string | null;
-  link_opcao_permuta: string | null;
-  link_contrato_permuta: string | null;
-  link_seguro_garantia: string | null;
-  link_moni_capital_seguro_garantia: string | null;
-  comentario_moni_capital_seguro_garantia: string | null;
-  link_moni_capital_gastos_aporte_inicial: string | null;
-  comentario_moni_capital_gastos_aporte_inicial: string | null;
+  tipo_aquisicao_terreno?: string | null;
+  valor_terreno?: string | null;
+  vgv_pretendido?: string | null;
+  produto_modelo_casa?: string | null;
+  link_pasta_drive?: string | null;
+  link_bca?: string | null;
+  link_gbox?: string | null;
+  link_mapa_competidores?: string | null;
+  link_acoplamento?: string | null;
+  link_apresentacao_comite?: string | null;
+  link_opcao_permuta?: string | null;
+  link_contrato_permuta?: string | null;
+  link_seguro_garantia?: string | null;
+  link_moni_capital_seguro_garantia?: string | null;
+  comentario_moni_capital_seguro_garantia?: string | null;
+  link_moni_capital_gastos_aporte_inicial?: string | null;
+  comentario_moni_capital_gastos_aporte_inicial?: string | null;
   prazo_opcao_dias?: number | null;
   prazo_opcao_sla_tipo?: SlaTipo | null;
   prazo_opcao_modo?: NegocioPrazoModo | null;
@@ -301,6 +301,7 @@ export async function updateProcessoNegocioCampos(
   const semPrazo = {
     ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
     ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
+    ...pickNegociacaoLinhas(payload),
   };
   const { error: errSemPrazo } = await supabase.from('processo_step_one').update(semPrazo as never).eq('id', processoId);
   if (!errSemPrazo) return { ok: true };
