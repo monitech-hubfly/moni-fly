@@ -1,4 +1,5 @@
 import type { SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
+import type { CalculadoraFaseLinha } from '@/lib/kanban/calculadora-fases';
 import type {
   GargaloScoreFase,
   PainelChamadoUnificadoDTO,
@@ -191,11 +192,20 @@ export type PipelineEsteiraHistoricoEvento = {
 
 export type PipelineEsteiraHistoricoPorCard = Record<string, PipelineEsteiraHistoricoEvento[]>;
 
+export type PipelineEsteiraCalculadoraPack = {
+  cardId: string;
+  linhas: CalculadoraFaseLinha[];
+};
+
+export type PipelineEsteiraCalculadoraPorGrupo = Record<string, PipelineEsteiraCalculadoraPack>;
+
 export type PipelineCardsDataset = {
   cards: PipelineCardRow[];
   franqueados: PipelineFranqueadoUnidade[];
   /** Movimentações `fase_avancada` dos cards da esteira principal (Step One / Portfólio / Operações). */
   historico?: PipelineEsteiraHistoricoPorCard;
+  /** Linhas da calculadora por grupo de negócio (Portfólio + Pré Obra e Obra vinculados). */
+  esteiraCalculadora?: PipelineEsteiraCalculadoraPorGrupo;
   /** Dados extras para visão franqueadora / aba Análises (degrada se ausente). */
   enrichment?: PipelineFranqueadoraEnrichment | null;
 };

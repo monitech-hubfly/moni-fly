@@ -3968,6 +3968,34 @@
   color: var(--moni-status-overdue-text);
 }
 
+.moni-pipeline-esteira-cto-duplo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 72px;
+}
+
+.moni-pipeline-esteira-cto-linha {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.moni-pipeline-esteira-cto-label {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--moni-text-tertiary);
+  min-width: 42px;
+}
+
+.moni-pipeline-esteira-dc-cto {
+  vertical-align: middle;
+}
+
 /* Funil da rede — controles do cabeçalho (sublinhado + Mês/Tri) */
 .moni-pipeline-funil-header-controls {
   display: flex;

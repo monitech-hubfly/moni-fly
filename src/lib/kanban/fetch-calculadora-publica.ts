@@ -94,7 +94,8 @@ function buildSlugPorFaseId(fases: KanbanFase[]): Map<string, string> {
   return map;
 }
 
-async function montarCalculadoraPack(
+/** Monta linhas completas da calculadora para um card (reutilizado no Pipeline Esteira). */
+export async function montarCalculadoraPack(
   supabase: SupabaseClient,
   card: CalculadoraPublicaCard,
 ): Promise<CalculadoraPublicaPack | null> {

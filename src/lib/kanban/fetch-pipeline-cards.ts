@@ -21,6 +21,7 @@ import type {
   PipelineFranqueadoUnidade,
   PipelineFranqueadoraEnrichment,
 } from '@/lib/kanban/pipeline-cards-types';
+import { fetchPipelineEsteiraCalculadora } from '@/lib/kanban/fetch-pipeline-esteira-calculadora';
 
 const ESTEIRA_KANBAN_IDS = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES] as const;
 
@@ -617,7 +618,7 @@ export async function fetchPipelineCards(
   const mode = opts.mode === 'rede' ? 'franqueadora' : opts.mode;
   const redeId = String(opts.franqueadoId ?? '').trim();
   if (mode === 'unidade' && !redeId) {
-    return { cards: [], franqueados: [], historico: {} };
+    return { cards: [], franqueados: [], historico: {}, esteiraCalculadora: {} };
   }
 
   const comEnrichment = opts.comEnrichment ?? true;
@@ -723,7 +724,10 @@ export async function fetchPipelineCards(
   const esteiraCardIds = cards
     .filter((c) => (ESTEIRA_KANBAN_IDS as readonly string[]).includes(c.kanban_id))
     .map((c) => c.id);
-  const historico = await fetchHistoricoEsteiraCards(supabase, esteiraCardIds);
+  const [historico, esteiraCalculadora] = await Promise.all([
+    fetchHistoricoEsteiraCards(supabase, esteiraCardIds),
+    fetchPipelineEsteiraCalculadora(supabase, cards),
+  ]);
 
-  return { cards, franqueados, historico, enrichment };
+  return { cards, franqueados, historico, esteiraCalculadora, enrichment };
 }

@@ -567,7 +567,10 @@ export function PipelineCardsView({
       </p>
 
       {listaLayout === 'esteira' ? (
-        <PipelineEsteiraTable cards={cardsFiltrados} historico={dataset.historico ?? {}} />
+        <PipelineEsteiraTable
+          cards={cardsFiltrados}
+          esteiraCalculadora={dataset.esteiraCalculadora}
+        />
       ) : viewMode === 'franqueadora' ? (
         blocosFranqueadora.length === 0 ? (
           <p className="rounded-xl border border-dashed px-4 py-10 text-center text-[11px]" style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-tertiary)' }}>
