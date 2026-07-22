@@ -374,11 +374,7 @@ export function montarChipsParalelas(
     const temFilhoProjetoLegal = Boolean(input.temFilhoProjetoLegal);
     const filhoProjetoLegalArquivado =
       Boolean(input.filhoProjetoLegalArquivado) && !temFilhoProjetoLegal;
-    const emProjetoLegal =
-      operacoesEmProjetoLegalOuApos(slug) ||
-      temFilhoProjetoLegal ||
-      filhoProjetoLegalArquivado;
-    if (emProjetoLegal) {
+    if (temFilhoProjetoLegal || filhoProjetoLegalArquivado || operacoesEmProjetoLegalOuApos(slug)) {
       const faseNomeChip = filhoProjetoLegalArquivado
         ? null
         : String(input.projetoLegalFilhoFase ?? '').trim() || null;
@@ -399,12 +395,12 @@ export function montarChipsParalelas(
     const temFilhoProjetosLocais = Boolean(input.temFilhoProjetosLocais);
     const filhoProjetosLocaisArquivado =
       Boolean(input.filhoProjetosLocaisArquivado) && !temFilhoProjetosLocais;
-    const emProjetosLocais =
-      operacoesEmAprovacaoCondominioOuApos(slug) ||
-      flagParalelaDefinida(f.projetos_locais_ok) ||
+    if (
       temFilhoProjetosLocais ||
-      filhoProjetosLocaisArquivado;
-    if (emProjetosLocais) {
+      filhoProjetosLocaisArquivado ||
+      operacoesEmAprovacaoCondominioOuApos(slug) ||
+      flagParalelaDefinida(f.projetos_locais_ok)
+    ) {
       const faseNomeChip = filhoProjetosLocaisArquivado
         ? FASE_EXIBICAO_CARD_ARQUIVADO
         : String(input.projetosLocaisFilhoFase ?? '').trim() || null;
@@ -424,12 +420,12 @@ export function montarChipsParalelas(
     const temFilhoCreditoObra = Boolean(input.temFilhoCreditoObra);
     const filhoCreditoObraArquivado =
       Boolean(input.filhoCreditoObraArquivado) && !temFilhoCreditoObra;
-    const emCashMe =
+    if (
       temFilhoCreditoObra ||
       filhoCreditoObraArquivado ||
       boolFlag(f.credito_obra_ok) ||
-      slug === FASE_SLUGS.AGUARDANDO_CREDITO;
-    if (emCashMe) {
+      slug === FASE_SLUGS.AGUARDANDO_CREDITO
+    ) {
       const faseNomeChip = filhoCreditoObraArquivado
         ? FASE_EXIBICAO_CARD_ARQUIVADO
         : String(input.creditoObraFilhoFase ?? '').trim() || null;
