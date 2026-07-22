@@ -421,8 +421,14 @@ async function resolveKanbanAtivo(
 }
 
 /** Enriquecimento de bolinhas: service role evita RLS bloquear filhos de outros funis. */
-function supabaseParaEnriquecerParalelas(userClient: SupabaseClient): SupabaseClient {
-  return tryCreateAdminClient() ?? userClient;
+export function supabaseParaEnriquecerParalelas(userClient: SupabaseClient): SupabaseClient {
+  const admin = tryCreateAdminClient();
+  if (!admin && process.env.NODE_ENV === 'development') {
+    console.warn(
+      '[kanban] enrich paralelas: service role indisponível — bolinhas podem faltar (Cash Me, Acoplamento)',
+    );
+  }
+  return admin ?? userClient;
 }
 
 /**
@@ -1182,13 +1188,6 @@ export async function fetchKanbanBoardSnapshot(
   let cardsConcluidos = (conclRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
   let cardsArquivadosNativo = (arquivRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
 
-  const supabaseEnrich = supabaseParaEnriquecerParalelas(supabase);
-  [cardsNativo, cardsConcluidos, cardsArquivadosNativo] = await Promise.all([
-    enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cardsNativo),
-    enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cardsConcluidos),
-    enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cardsArquivadosNativo),
-  ]);
-
   /** `processo_step_one.etapa_painel` prevalece sobre `kanban_cards.fase_id` (incl. UUID de outro funil). */
   const processoIdsReconciliar = coletarIdsProcessoDosCards(
     cardsNativo,
@@ -1248,6 +1247,10 @@ export async function fetchKanbanBoardSnapshot(
     const id = String(c.id ?? '').trim();
     return Boolean(id);
   });
+
+  const supabaseEnrich = supabaseParaEnriquecerParalelas(supabase);
+  cards = await enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cards);
+  cardsConcluidos = await enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cardsConcluidos);
 
   const allCardIds = [...new Set([...cards.map((c) => c.id), ...cardsConcluidos.map((c) => c.id)].filter(Boolean))];
   const faseIdsOrfas = [...cards.map((c) => c.fase_id), ...cardsConcluidos.map((c) => c.fase_id)];

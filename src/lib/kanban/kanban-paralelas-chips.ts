@@ -13,6 +13,8 @@ import {
   HIPOTESES_ORDEM_MIN_PROD,
   isHipotesesFaseSlug,
 } from '@/lib/kanban/stepone-fase-slugs';
+import { extrairNumeroFranquiaDoTitulo } from '@/lib/kanban/card-sync-group';
+import { listarKanbanCardIdsSyncGroup } from '@/lib/kanban/card-sync-group';
 
 export type { PortfolioParalelasFlags };
 export { HIPOTESES_FASE_SLUGS };
@@ -235,9 +237,15 @@ export function montarChipsParalelas(
   input: MontarChipsParalelasInput,
   opts?: MontarChipsParalelasOptions,
 ): ParalelaChip[] {
-  if (input.origem === 'legado') return [];
-
   const kid = String(input.kanbanId ?? '').trim();
+  /** Cards legado do hybrid view ainda exibem bolinhas quando o enrich populou flags. */
+  const origemLegadoSemChips =
+    input.origem === 'legado' &&
+    kid !== KANBAN_IDS.OPERACOES &&
+    kid !== KANBAN_IDS.PORTFOLIO &&
+    kid !== KANBAN_IDS.STEP_ONE &&
+    kid !== KANBAN_IDS.LOTEADORES;
+  if (origemLegadoSemChips) return [];
   const slug = String(input.faseSlug ?? '').trim();
   const f = input.flags;
   const chips: ParalelaChip[] = [];
@@ -556,6 +564,96 @@ async function coletarCadeiaOrigemAncestraisBatch(
     }
     ancestraisPorBoardCard.set(boardId, anc);
   }
+
+  return { ancestraisPorBoardCard, origemIdsConsulta: [...allIds] };
+}
+
+function registrarPeerOrigemConsulta(
+  boardCards: KanbanCardBrief[],
+  boardId: string,
+  peerId: string,
+  ancestraisPorBoardCard: Map<string, Set<string>>,
+  allIds: Set<string>,
+): void {
+  const pid = String(peerId ?? '').trim();
+  const bid = String(boardId ?? '').trim();
+  if (!pid || !bid || pid === bid) return;
+  allIds.add(pid);
+  const anc = ancestraisPorBoardCard.get(bid) ?? new Set<string>();
+  anc.add(pid);
+  ancestraisPorBoardCard.set(bid, anc);
+}
+
+/** Cards com mesmo FK#### no título (ex.: Portfolio pai do Acoplamento sem origem_card_id). */
+async function expandirConsultaPorNumeroFranquiaTitulo(
+  supabase: SupabaseClient,
+  boardCards: KanbanCardBrief[],
+  ancestraisPorBoardCard: Map<string, Set<string>>,
+  allIds: Set<string>,
+): Promise<void> {
+  const numerosPorBoard = new Map<string, string>();
+  for (const c of boardCards) {
+    const boardId = String(c.id ?? '').trim();
+    const num = extrairNumeroFranquiaDoTitulo(String(c.titulo ?? ''));
+    if (boardId && num) numerosPorBoard.set(boardId, num);
+  }
+  const numeros = [...new Set(numerosPorBoard.values())];
+  if (numeros.length === 0) return;
+
+  const { data: peers } = await supabase
+    .from('kanban_cards')
+    .select('id, titulo')
+    .or(numeros.map((n) => `titulo.ilike.${n}%`).join(','))
+    .limit(200);
+
+  for (const row of peers ?? []) {
+    const peerId = String((row as { id?: string | null }).id ?? '').trim();
+    const peerNum = extrairNumeroFranquiaDoTitulo(
+      String((row as { titulo?: string | null }).titulo ?? ''),
+    );
+    if (!peerId || !peerNum) continue;
+    for (const [boardId, num] of numerosPorBoard) {
+      if (num === peerNum) {
+        registrarPeerOrigemConsulta(boardCards, boardId, peerId, ancestraisPorBoardCard, allIds);
+      }
+    }
+  }
+}
+
+/**
+ * Operações: sync group (vínculos + processo) + FK#### + cadeia origem_card_id.
+ * Cards em em_obra costumam ter origem_card_id/projeto_id nulos — filhos ficam no Portfolio ou Cash Me.
+ */
+async function coletarOrigemConsultaOperacoesBatch(
+  supabase: SupabaseClient,
+  boardCards: KanbanCardBrief[],
+): Promise<CadeiaOrigemBatch> {
+  const boardCardIds = boardCards.map((c) => c.id).filter(Boolean);
+  const cadeia = await coletarCadeiaOrigemAncestraisBatch(supabase, boardCardIds);
+  const ancestraisPorBoardCard = cadeia.ancestraisPorBoardCard;
+  const allIds = new Set(cadeia.origemIdsConsulta);
+
+  await Promise.all(
+    boardCardIds.map(async (boardId) => {
+      const groupIds = await listarKanbanCardIdsSyncGroup(supabase, boardId);
+      for (const gid of groupIds) {
+        registrarPeerOrigemConsulta(
+          boardCards,
+          boardId,
+          gid,
+          ancestraisPorBoardCard,
+          allIds,
+        );
+      }
+    }),
+  );
+
+  await expandirConsultaPorNumeroFranquiaTitulo(
+    supabase,
+    boardCards,
+    ancestraisPorBoardCard,
+    allIds,
+  );
 
   return { ancestraisPorBoardCard, origemIdsConsulta: [...allIds] };
 }
@@ -917,7 +1015,7 @@ export async function enrichCardsParalelasContext(
     if (cardIds.length === 0) return cards;
 
     const { ancestraisPorBoardCard, origemIdsConsulta } =
-      await coletarCadeiaOrigemAncestraisBatch(supabase, cardIds);
+      await coletarOrigemConsultaOperacoesBatch(supabase, cards);
 
     const [
       { data: filhosProjetoLegal },
