@@ -108,6 +108,16 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
   const [loadingChamados, setLoadingChamados] = useState(false);
 
   const [chamadosExpandidos, setChamadosExpandidos] = useState<Set<string>>(new Set());
+  const [concluidasExpandidas, setConcluidasExpandidas] = useState<Set<string>>(new Set());
+
+  function toggleConcluidasExpansao(cardId: string) {
+    setConcluidasExpandidas(prev => {
+      const next = new Set(prev);
+      if (next.has(cardId)) next.delete(cardId);
+      else next.add(cardId);
+      return next;
+    });
+  }
 
   function toggleChamadoExpansao(cardId: string) {
     setChamadosExpandidos(prev => {
@@ -373,6 +383,40 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
                   Nenhum chamado em aberto vinculado
                 </div>
               )}
+              {/* Atividades concluídas do card */}
+              {mostrarConcluidas && (() => {
+                const concluidasDoCard = historico.filter(h => h.card_id === c.id);
+                if (concluidasDoCard.length === 0) return null;
+                return (
+                  <div className="border-t border-stone-100 px-4 py-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleConcluidasExpansao(c.id)}
+                      className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-400 hover:text-stone-600"
+                    >
+                      <span>{concluidasExpandidas.has(c.id) ? '▼' : '▶'}</span>
+                      <span>Concluídas ({concluidasDoCard.length})</span>
+                    </button>
+                    {concluidasExpandidas.has(c.id) && (
+                      <div className="mt-1.5 space-y-1">
+                        {concluidasDoCard.map(h => {
+                          const prazoFmt = h.prazo_original
+                            ? h.prazo_original.slice(0, 10).split('-').reverse().join('/')
+                            : null;
+                          const concluidoFmt = h.concluido_em.slice(0, 10).split('-').reverse().join('/');
+                          return (
+                            <div key={h.id} className="flex flex-wrap items-center gap-2 text-[11px]">
+                              <span className="flex-1 text-stone-600 line-clamp-2">{h.descricao}</span>
+                              {prazoFmt && <span className="text-stone-400">Prazo: {prazoFmt}</span>}
+                              <span className="text-stone-500">Concluída {concluidoFmt}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
@@ -383,46 +427,6 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
         )}
       </div>
 
-      {/* Seção de atividades concluídas (historico) */}
-      {mostrarConcluidas && (
-        <div className="mt-8">
-          <h2 className="mb-3 text-sm font-semibold text-stone-600">
-            Atividades concluídas ({historico.length})
-          </h2>
-          {loadingHistorico ? (
-            <div className="text-sm text-stone-400">Carregando…</div>
-          ) : historico.length === 0 ? (
-            <div className="rounded-xl border border-stone-200 bg-white px-4 py-6 text-center text-sm text-stone-400">
-              Nenhum registro de atividade concluída ainda.
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              {historico.map(h => {
-                const prazoFmt = h.prazo_original
-                  ? h.prazo_original.slice(0, 10).split('-').reverse().join('/')
-                  : null;
-                const concluidoFmt = h.concluido_em.slice(0, 10).split('-').reverse().join('/');
-                return (
-                  <div key={h.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-100 bg-white px-4 py-2 text-xs">
-                    <span className="font-medium text-stone-700 min-w-0 flex-1">{h.descricao}</span>
-                    <span className="text-stone-400">{h.card_titulo}</span>
-                    <span className="text-stone-300">·</span>
-                    <span className="text-stone-400">{h.kanban_nome}</span>
-                    {prazoFmt && (
-                      <>
-                        <span className="text-stone-300">·</span>
-                        <span className="text-stone-400">Prazo: {prazoFmt}</span>
-                      </>
-                    )}
-                    <span className="text-stone-300">·</span>
-                    <span className="text-stone-500">Concluída {concluidoFmt}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
