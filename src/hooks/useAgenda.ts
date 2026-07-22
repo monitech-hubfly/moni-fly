@@ -188,7 +188,7 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
       if (callId !== callIdRef.current) return;
 
       const rows1 = (r1.data ?? []) as GanttRow[];
-      const rows2 = ((r2.data ?? []) as { gantt_id: string; gantt_planejamento: GanttRow }[])
+      const rows2 = ((r2.data ?? []) as unknown as { gantt_planejamento: GanttRow }[])
         .map(x => x.gantt_planejamento);
 
       // Deduplicar por id
