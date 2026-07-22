@@ -88,6 +88,7 @@ import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { resolverKanbanOrigemIdParaEsteiraManual } from '@/lib/kanban/esteira-manual-destinos';
+import { isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import {
   autorizarAberturaCreditoObra,
   consultarAberturaCreditoObraPendente,
@@ -624,7 +625,7 @@ export function KanbanCardModal({
     () => new Map(),
   );
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
-  const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
+  const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>(() => ({
     calculadora: false,
     cronologia: false,
     franqueado: false,
@@ -637,11 +638,11 @@ export function KanbanCardModal({
     preObra: false,
     obra: false,
     documentacaoCreditoObra: true,
-    relacionamentos: false,
+    relacionamentos: isLoteadoresKanbanRef(undefined, kanbanNome),
     atasReuniao: false,
     chamados: false,
     historico: false,
-  });
+  }));
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [historicoCalculadora, setHistoricoCalculadora] = useState<HistoricoItem[]>([]);

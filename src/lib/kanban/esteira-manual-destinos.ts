@@ -123,9 +123,40 @@ export function kanbanPermiteVinculoComProjetoLegal(
 }
 
 /** Funil Loteadores ou Step One — sempre devem poder abrir Pré Obra e Obra. */
-export function kanbanEhLoteadoresOuStepOne(kanbanOrigemId: string | null | undefined): boolean {
+export function kanbanEhLoteadoresOuStepOne(
+  kanbanOrigemId: string | null | undefined,
+  kanbanNome?: string | null,
+): boolean {
+  const nome = String(kanbanNome ?? '').trim();
+  if (nome === KANBAN_NOME_FUNIL_LOTEADORES) return true;
+  if (nome.toLowerCase().includes('loteador')) return true;
+  if (nome === 'Funil Step One' || nome.toLowerCase().includes('step one')) return true;
+
   const kid = String(kanbanOrigemId ?? '').trim();
   return kid === KANBAN_IDS.LOTEADORES || kid === KANBAN_IDS.STEP_ONE;
+}
+
+/** Rota ou contexto do board Funil Loteadores (fallback quando UUID/nome do card falham). */
+export function basePathEhFunilLoteadores(basePath: string | null | undefined): boolean {
+  const p = String(basePath ?? '')
+    .trim()
+    .replace(/\/+$/, '')
+    .toLowerCase();
+  return p === '/loteadores' || p === '/funil-moni-inc';
+}
+
+/** Deve exibir «Abrir Funil Pré Obra e Obra» no painel de vínculos. */
+export function deveExibirBotaoPreObraObraLoteadores(
+  kanbanId: string | null | undefined,
+  kanbanNome: string | null | undefined,
+  basePath?: string | null,
+): boolean {
+  const origemId = resolverKanbanOrigemIdParaEsteiraManual(kanbanId, kanbanNome);
+  return (
+    kanbanEhLoteadoresOuStepOne(origemId, kanbanNome) ||
+    kanbanEhLoteadoresOuStepOne(kanbanId, kanbanNome) ||
+    basePathEhFunilLoteadores(basePath)
+  );
 }
 
 /** Normaliza o funil de origem (UUID do card ou nome do board no modal). */
@@ -157,8 +188,10 @@ export function kanbanPermiteDispararEsteiraManual(
 function garantirPreObraObraParaLoteadoresStepOne(
   kanbanOrigemId: string,
   destinos: DestinoEsteiraManualKey[],
+  kanbanNome?: string | null,
+  basePath?: string | null,
 ): DestinoEsteiraManualKey[] {
-  if (!kanbanEhLoteadoresOuStepOne(kanbanOrigemId)) return destinos;
+  if (!deveExibirBotaoPreObraObraLoteadores(kanbanOrigemId, kanbanNome, basePath)) return destinos;
   const filtrados = destinos.filter((key) => key !== 'pre_obra_obra');
   return ['pre_obra_obra', ...filtrados];
 }
@@ -167,8 +200,10 @@ function garantirPreObraObraParaLoteadoresStepOne(
 export function ordenarDestinosEsteiraManualParaExibicao(
   kanbanOrigemId: string,
   destinos: DestinoEsteiraManualKey[],
+  kanbanNome?: string | null,
+  basePath?: string | null,
 ): DestinoEsteiraManualKey[] {
-  return garantirPreObraObraParaLoteadoresStepOne(kanbanOrigemId, destinos);
+  return garantirPreObraObraParaLoteadoresStepOne(kanbanOrigemId, destinos, kanbanNome, basePath);
 }
 
 function filtrarDestinosEsteiraManual(
@@ -191,6 +226,7 @@ function aplicarRestricaoProjetoLegal(
 export function destinosEsteiraManualParaKanban(
   kanbanId: string | null | undefined,
   kanbanNome?: string | null,
+  basePath?: string | null,
 ): DestinoEsteiraManualKey[] {
   const id = resolverKanbanOrigemIdParaEsteiraManual(kanbanId, kanbanNome);
   if (!id) return [];
@@ -213,5 +249,5 @@ export function destinosEsteiraManualParaKanban(
     destinos = aplicarRestricaoProjetoLegal(id, filtrarDestinosEsteiraManual(id, ['credito_obra']));
   }
 
-  return garantirPreObraObraParaLoteadoresStepOne(id, destinos);
+  return garantirPreObraObraParaLoteadoresStepOne(id, destinos, kanbanNome, basePath);
 }

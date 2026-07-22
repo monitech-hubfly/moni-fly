@@ -22,7 +22,7 @@ import {
 import {
   DESTINOS_ESTEIRA_MANUAL,
   destinosEsteiraManualParaKanban,
-  kanbanEhLoteadoresOuStepOne,
+  deveExibirBotaoPreObraObraLoteadores,
   kanbanPermiteDispararEsteiraManual,
   ordenarDestinosEsteiraManualParaExibicao,
   resolverKanbanOrigemIdParaEsteiraManual,
@@ -107,31 +107,25 @@ export function KanbanCardModalRelacionamentos({
     () =>
       ordenarDestinosEsteiraManualParaExibicao(
         kanbanOrigemId,
-        destinosEsteiraManualParaKanban(kanbanId, kanbanNome),
+        destinosEsteiraManualParaKanban(kanbanId, kanbanNome, basePath),
+        kanbanNome,
+        basePath,
       ),
-    [kanbanId, kanbanNome, kanbanOrigemId],
+    [kanbanId, kanbanNome, kanbanOrigemId, basePath],
   );
+  const exibirBotaoPreObraObra =
+    podeGerenciar && !disabled && deveExibirBotaoPreObraObraLoteadores(kanbanId, kanbanNome, basePath);
   const mostrarAbrirFunilAcoplamento =
     podeGerenciar && kanbanPermiteAbrirFunilAcoplamentoManual(kanbanOrigemId);
-  const mostrarAbrirFunilPreObraObra =
-    podeGerenciar && kanbanEhLoteadoresOuStepOne(kanbanOrigemId);
   const botoesAbrirFunil = useMemo(() => {
     const items: { key: string; label: string; tipo: 'acoplamento' | 'esteira'; destinoKey?: DestinoEsteiraManualKey }[] =
       [];
-    if (mostrarAbrirFunilPreObraObra) {
-      items.push({
-        key: 'pre_obra_obra',
-        label: `Abrir Funil ${DESTINOS_ESTEIRA_MANUAL.pre_obra_obra.label}`,
-        tipo: 'esteira',
-        destinoKey: 'pre_obra_obra',
-      });
-    }
     if (mostrarAbrirFunilAcoplamento) {
       items.push({ key: 'acoplamento', label: 'Abrir Funil Acoplamento', tipo: 'acoplamento' });
     }
     if (podeGerenciar && kanbanPermiteDispararEsteiraManual(kanbanId, kanbanNome)) {
       for (const destinoKey of destinosDisponiveis) {
-        if (destinoKey === 'pre_obra_obra' && mostrarAbrirFunilPreObraObra) continue;
+        if (destinoKey === 'pre_obra_obra' && exibirBotaoPreObraObra) continue;
         items.push({
           key: destinoKey,
           label: `Abrir Funil ${DESTINOS_ESTEIRA_MANUAL[destinoKey].label}`,
@@ -141,14 +135,7 @@ export function KanbanCardModalRelacionamentos({
       }
     }
     return items;
-  }, [
-    mostrarAbrirFunilAcoplamento,
-    mostrarAbrirFunilPreObraObra,
-    podeGerenciar,
-    kanbanId,
-    kanbanNome,
-    destinosDisponiveis,
-  ]);
+  }, [mostrarAbrirFunilAcoplamento, exibirBotaoPreObraObra, podeGerenciar, kanbanId, kanbanNome, destinosDisponiveis]);
 
   const recarregar = useCallback(async () => {
     if (!cardId || disabled) {
@@ -440,6 +427,20 @@ export function KanbanCardModalRelacionamentos({
             </Link>
           ) : null}
         </p>
+      ) : null}
+
+      {exibirBotaoPreObraObra ? (
+        <div className="space-y-1.5 border-t border-stone-100 pt-2">
+          <button
+            type="button"
+            onClick={() => void handleDispararEsteira('pre_obra_obra')}
+            disabled={disparando || cardDesabilitado}
+            className={BOTAO_ABRIR_FUNIL_CLASS}
+            data-moni-funil-destino="pre_obra_obra"
+          >
+            {disparando ? 'Abrindo…' : `Abrir Funil ${DESTINOS_ESTEIRA_MANUAL.pre_obra_obra.label}`}
+          </button>
+        </div>
       ) : null}
 
       {botoesAbrirFunil.length > 0 && !disabled ? (

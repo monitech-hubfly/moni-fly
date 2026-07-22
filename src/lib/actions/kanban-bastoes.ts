@@ -9,6 +9,7 @@ import { MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
 import {
   DESTINOS_ESTEIRA_MANUAL,
   destinosEsteiraManualParaKanban,
+  deveExibirBotaoPreObraObraLoteadores,
   type DestinoEsteiraManualKey,
 } from '@/lib/kanban/esteira-manual-destinos';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
@@ -1410,8 +1411,14 @@ export async function dispararEsteiraManualDoCard(
     const { data: kanbanRow } = await db.from('kanbans').select('nome').eq('id', kanbanId).maybeSingle();
     kanbanNomeEsteira = String((kanbanRow as { nome?: string | null } | null)?.nome ?? '').trim();
   }
-  const permitidos = destinosEsteiraManualParaKanban(kanbanId, kanbanNomeEsteira);
-  if (!permitidos.includes(key)) {
+  const permitidos = destinosEsteiraManualParaKanban(kanbanId, kanbanNomeEsteira, basePath);
+  if (
+    !permitidos.includes(key) &&
+    !(
+      key === 'pre_obra_obra' &&
+      deveExibirBotaoPreObraObraLoteadores(kanbanId, kanbanNomeEsteira, basePath)
+    )
+  ) {
     return { ok: false, error: 'Este funil não permite disparar este destino.' };
   }
 
