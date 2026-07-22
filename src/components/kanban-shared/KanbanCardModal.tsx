@@ -8497,6 +8497,7 @@ export function KanbanCardModal({
                   cardId={card.id}
                   cardTitulo={cardTitulo}
                   kanbanId={card.kanban_id}
+                  kanbanNome={kanbanNome}
                   basePath={basePath}
                   podeGerenciar={podeGerenciarRelacionamentos}
                   projetoId={card.projeto_id}

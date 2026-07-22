@@ -1,10 +1,12 @@
 import {
   FASE_SLUGS,
+  KANBAN_ID_BY_NOME,
   KANBAN_IDS,
   KANBANS_COM_CHAMADO_JURIDICO,
   KANBANS_INTERNOS,
   KANBANS_VINCULO_MANUAL_LIVRE,
 } from '@/lib/constants/kanban-ids';
+import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 
 export type DestinoEsteiraManualKey =
   | 'acoplamento'
@@ -120,8 +122,40 @@ export function kanbanPermiteVinculoComProjetoLegal(
   return String(kanbanId ?? '').trim() === KANBAN_IDS.OPERACOES;
 }
 
-export function kanbanPermiteDispararEsteiraManual(kanbanId: string | null | undefined): boolean {
-  return destinosEsteiraManualParaKanban(kanbanId).length > 0;
+/** Normaliza o funil de origem (UUID do card ou nome do board no modal). */
+export function resolverKanbanOrigemIdParaEsteiraManual(
+  kanbanId: string | null | undefined,
+  kanbanNome?: string | null,
+): string {
+  const id = String(kanbanId ?? '').trim();
+  if ((KANBANS_VINCULO_MANUAL_LIVRE as readonly string[]).includes(id)) return id;
+  if ((KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id)) return id;
+  if (id === KANBAN_IDS.MOTOR01) return id;
+
+  const nome = String(kanbanNome ?? '').trim();
+  if (nome === KANBAN_NOME_FUNIL_LOTEADORES) return KANBAN_IDS.LOTEADORES;
+  const fromNome = nome ? String(KANBAN_ID_BY_NOME[nome] ?? '').trim() : '';
+  if (fromNome) return fromNome;
+
+  return id;
+}
+
+export function kanbanPermiteDispararEsteiraManual(
+  kanbanId: string | null | undefined,
+  kanbanNome?: string | null,
+): boolean {
+  return destinosEsteiraManualParaKanban(kanbanId, kanbanNome).length > 0;
+}
+
+/** Step One / Loteadores: Pré Obra e Obra no topo da lista de botões. */
+export function ordenarDestinosEsteiraManualParaExibicao(
+  kanbanOrigemId: string,
+  destinos: DestinoEsteiraManualKey[],
+): DestinoEsteiraManualKey[] {
+  const kid = String(kanbanOrigemId ?? '').trim();
+  if (kid !== KANBAN_IDS.LOTEADORES && kid !== KANBAN_IDS.STEP_ONE) return destinos;
+  if (!destinos.includes('pre_obra_obra')) return destinos;
+  return ['pre_obra_obra', ...destinos.filter((key) => key !== 'pre_obra_obra')];
 }
 
 function filtrarDestinosEsteiraManual(
@@ -143,8 +177,9 @@ function aplicarRestricaoProjetoLegal(
 
 export function destinosEsteiraManualParaKanban(
   kanbanId: string | null | undefined,
+  kanbanNome?: string | null,
 ): DestinoEsteiraManualKey[] {
-  const id = String(kanbanId ?? '').trim();
+  const id = resolverKanbanOrigemIdParaEsteiraManual(kanbanId, kanbanNome);
   if (!id) return [];
   if (KANBANS_INTERNOS_SET.has(id)) return [];
   if ((KANBANS_VINCULO_MANUAL_LIVRE as readonly string[]).includes(id)) {

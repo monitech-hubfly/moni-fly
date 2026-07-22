@@ -1405,7 +1405,12 @@ export async function dispararEsteiraManualDoCard(
   };
 
   const kanbanId = String(pai.kanban_id ?? '').trim();
-  const permitidos = destinosEsteiraManualParaKanban(kanbanId);
+  let kanbanNomeEsteira = '';
+  if (kanbanId) {
+    const { data: kanbanRow } = await db.from('kanbans').select('nome').eq('id', kanbanId).maybeSingle();
+    kanbanNomeEsteira = String((kanbanRow as { nome?: string | null } | null)?.nome ?? '').trim();
+  }
+  const permitidos = destinosEsteiraManualParaKanban(kanbanId, kanbanNomeEsteira);
   if (!permitidos.includes(key)) {
     return { ok: false, error: 'Este funil não permite disparar este destino.' };
   }
