@@ -14,6 +14,7 @@ import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import {
   buscarProximaAtividadeHistorico,
   buscarChamadosDosCards,
+  buscarAtividadesConcluidasCards,
   type HistoricoAtividadeItem,
   type ChamadoCardItem,
 } from '@/lib/actions/card-actions';
@@ -106,6 +107,17 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
   const [loadingHistorico, setLoadingHistorico] = useState(false);
   const [loadingChamados, setLoadingChamados] = useState(false);
 
+  const [chamadosExpandidos, setChamadosExpandidos] = useState<Set<string>>(new Set());
+
+  function toggleChamadoExpansao(cardId: string) {
+    setChamadosExpandidos(prev => {
+      const next = new Set(prev);
+      if (next.has(cardId)) next.delete(cardId);
+      else next.add(cardId);
+      return next;
+    });
+  }
+
   const [comentariosAbertos, setComentariosAbertos] = useState<string | null>(null);
   const [comentariosPorCard, setComentariosPorCard] = useState<Map<string, KanbanComentarioListItem[]>>(new Map());
   const [loadingComentarios, setLoadingComentarios] = useState<string | null>(null);
@@ -137,8 +149,23 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
     setMostrarConcluidas(checked);
     if (checked && historico.length === 0) {
       setLoadingHistorico(true);
-      const data = await buscarProximaAtividadeHistorico();
-      setHistorico(data);
+      const [legado, novas] = await Promise.all([
+        buscarProximaAtividadeHistorico(),
+        buscarAtividadesConcluidasCards(cards.map(c => c.id)),
+      ]);
+      const novasComoHistorico: HistoricoAtividadeItem[] = novas.map(a => ({
+        id: a.id,
+        card_id: a.card_id,
+        card_titulo: cards.find(c => c.id === a.card_id)?.titulo ?? '—',
+        kanban_nome: cards.find(c => c.id === a.card_id)?.kanban_nome ?? '',
+        descricao: a.descricao,
+        prazo_original: a.prazo,
+        concluido_em: a.concluido_em,
+      }));
+      const unified = [...legado, ...novasComoHistorico]
+        .filter(h => h.concluido_em)
+        .sort((a, b) => new Date(b.concluido_em).getTime() - new Date(a.concluido_em).getTime());
+      setHistorico(unified);
       setLoadingHistorico(false);
     }
   }
@@ -313,28 +340,37 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
               {/* Chamados vinculados (visível quando checkbox marcada) */}
               {mostrarChamados && chamadosDoCard.length > 0 && (
                 <div className="border-t border-stone-100 px-4 py-2">
-                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-400">Chamados Sirene</p>
-                  <div className="space-y-1">
-                    {chamadosDoCard.map(ch => (
-                      <div key={ch.id} className="flex flex-wrap items-center gap-2 text-[11px]">
-                        <span className="font-medium text-stone-700">#{ch.numero}</span>
-                        <span className="flex-1 text-stone-600 line-clamp-1">{ch.incendio}</span>
-                        <span className={`rounded border px-1.5 py-0.5 text-[10px] ${corStatusChamado(ch.status)}`}>
-                          {labelStatusChamado(ch.status)}
-                        </span>
-                        {ch.data_abertura && (
-                          <span className="text-stone-400">
-                            {ch.data_abertura.slice(0, 10).split('-').reverse().join('/')}
+                  <button
+                    type="button"
+                    onClick={() => toggleChamadoExpansao(c.id)}
+                    className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-400 hover:text-stone-600"
+                  >
+                    <span>{chamadosExpandidos.has(c.id) ? '▼' : '▶'}</span>
+                    <span>Chamados Sirene ({chamadosDoCard.length})</span>
+                  </button>
+                  {chamadosExpandidos.has(c.id) && (
+                    <div className="mt-1.5 space-y-1">
+                      {chamadosDoCard.map(ch => (
+                        <div key={ch.id} className="flex flex-wrap items-center gap-2 text-[11px]">
+                          <span className="font-medium text-stone-700">#{ch.numero}</span>
+                          <span className="flex-1 text-stone-600 line-clamp-1">{ch.incendio}</span>
+                          <span className={`rounded border px-1.5 py-0.5 text-[10px] ${corStatusChamado(ch.status)}`}>
+                            {labelStatusChamado(ch.status)}
                           </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                          {ch.data_abertura && (
+                            <span className="text-stone-400">
+                              {ch.data_abertura.slice(0, 10).split('-').reverse().join('/')}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {mostrarChamados && chamadosDoCard.length === 0 && !loadingChamados && (
                 <div className="border-t border-stone-100 px-4 py-1.5 text-[11px] text-stone-400">
-                  Nenhum chamado vinculado
+                  Nenhum chamado em aberto vinculado
                 </div>
               )}
             </div>

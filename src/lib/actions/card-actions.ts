@@ -4761,6 +4761,20 @@ export async function buscarAtividadesAbertasCard(
   return (data ?? []) as { id: string; descricao: string; prazo: string | null }[];
 }
 
+export async function buscarAtividadesConcluidasCards(
+  cardIds: string[],
+): Promise<{ id: string; card_id: string; descricao: string; prazo: string | null; concluido_em: string }[]> {
+  if (!cardIds.length) return [];
+  const supabase = await createClient();
+  const { data } = await (supabase as any)
+    .from('kanban_proximas_atividades')
+    .select('id, card_id, descricao, prazo, concluido_em')
+    .in('card_id', cardIds)
+    .not('concluido_em', 'is', null)
+    .order('concluido_em', { ascending: false });
+  return (data ?? []) as { id: string; card_id: string; descricao: string; prazo: string | null; concluido_em: string }[];
+}
+
 /** Sincroniza kanban_cards.proxima_atividade com a atividade mais urgente em aberto. */
 async function sincronizarProximaAtividadeCard(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -4863,6 +4877,8 @@ export async function buscarChamadosDosCards(cardIds: string[]): Promise<Chamado
     .from('sirene_chamados')
     .select('id, card_id, numero, incendio, status, data_abertura')
     .in('card_id', cardIds as any)
+    .not('status', 'in', '("concluido","arquivado","concluído")')
+    .eq('arquivado', false)
     .order('data_abertura', { ascending: false });
 
   return ((data ?? []) as any[]).map(row => ({
