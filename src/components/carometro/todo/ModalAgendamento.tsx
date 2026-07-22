@@ -166,29 +166,30 @@ export function ModalAgendamento({
   useEffect(() => {
     if (!aberto) return;
     void (async () => {
-      const promises: Promise<void>[] = [];
-      if (areaId) {
-        promises.push(
-          supabase.from('acoes').select('id, tipo_atividade').eq('area_id', areaId).order('tipo_atividade')
-            .then(r => { setAcoes((r.data ?? []) as { id: string; tipo_atividade: string }[]); }),
-          supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', areaId).eq('status', 'ativo').order('descricao')
-            .then(r => { setObjetivos((r.data ?? []) as { id: string; descricao: string; tipo: string | null }[]); }),
-          supabase.from('area_pessoas').select('profile_id, nome').eq('area_id', areaId).not('profile_id', 'is', null)
-            .then(r => {
-              const lista = ((r.data ?? []) as { profile_id: string; nome: string }[]).filter(p => p.profile_id !== profileId);
-              setPessoas(lista);
-            }),
-        );
-      }
-      promises.push(
-        supabase.from('casas').select('id, nome').order('nome').limit(100).then(r => { setCasas((r.data ?? []) as { id: string; nome: string }[]); }),
-        supabase.from('rede_franqueados').select('id, nome_completo').order('nome_completo').limit(100)
-          .then(r => { setFranqueados(((r.data ?? []) as { id: string; nome_completo?: string | null }[]).map(x => ({ id: x.id, nome: String(x.nome_completo ?? '').trim() || '—' }))); }),
-        supabase.from('rede_loteadores').select('id, nome').order('nome').limit(100).then(r => { setLoteadores((r.data ?? []) as { id: string; nome: string }[]); }),
-        supabase.from('condominios').select('id, nome').order('nome').limit(100).then(r => { setCondominios((r.data ?? []) as { id: string; nome: string }[]); }),
-        supabase.from('adm_cnpjs').select('id, cnpj, descritivo').order('cnpj').limit(100).then(r => { setCnpjs((r.data ?? []) as { id: string; cnpj: string; descritivo: string | null }[]); }),
-      );
-      await Promise.all(promises).catch(console.error);
+      try {
+        if (areaId) {
+          const [acoesRes, objRes, pessoasRes] = await Promise.all([
+            supabase.from('acoes').select('id, tipo_atividade').eq('area_id', areaId).order('tipo_atividade'),
+            supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', areaId).eq('status', 'ativo').order('descricao'),
+            supabase.from('area_pessoas').select('profile_id, nome').eq('area_id', areaId).not('profile_id', 'is', null),
+          ]);
+          setAcoes((acoesRes.data ?? []) as { id: string; tipo_atividade: string }[]);
+          setObjetivos((objRes.data ?? []) as { id: string; descricao: string; tipo: string | null }[]);
+          setPessoas(((pessoasRes.data ?? []) as { profile_id: string; nome: string }[]).filter(p => p.profile_id !== profileId));
+        }
+        const [casasRes, frankRes, loteadoresRes, condRes, cnpjsRes] = await Promise.all([
+          supabase.from('casas').select('id, nome').order('nome').limit(100),
+          supabase.from('rede_franqueados').select('id, nome_completo').order('nome_completo').limit(100),
+          supabase.from('rede_loteadores').select('id, nome').order('nome').limit(100),
+          supabase.from('condominios').select('id, nome').order('nome').limit(100),
+          supabase.from('adm_cnpjs').select('id, cnpj, descritivo').order('cnpj').limit(100),
+        ]);
+        setCasas((casasRes.data ?? []) as { id: string; nome: string }[]);
+        setFranqueados(((frankRes.data ?? []) as { id: string; nome_completo?: string | null }[]).map(x => ({ id: x.id, nome: String(x.nome_completo ?? '').trim() || '—' })));
+        setLoteadores((loteadoresRes.data ?? []) as { id: string; nome: string }[]);
+        setCondominios((condRes.data ?? []) as { id: string; nome: string }[]);
+        setCnpjs((cnpjsRes.data ?? []) as { id: string; cnpj: string; descritivo: string | null }[]);
+      } catch (e) { console.error(e); }
     })();
   }, [aberto, areaId, supabase, profileId]);
 
