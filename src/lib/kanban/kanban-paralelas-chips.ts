@@ -665,6 +665,113 @@ type EnrichOperacoesFilhosMaps = {
   paisComFilhoCreditoObraArquivado: Set<string>;
 };
 
+type FilhoParalelaRpcRow = {
+  origem_card_id: string;
+  filho_kanban_id: string;
+  fase_nome: string | null;
+  fase_slug: string | null;
+  concluido: boolean;
+  arquivado: boolean;
+};
+
+function criarMapsOperacoesFilhos(): EnrichOperacoesFilhosMaps {
+  return {
+    filhoAcoplamentoPorPai: new Map(),
+    paisComFilhoAcoplamentoArquivado: new Set(),
+    filhoProjetoLegalPorPai: new Map(),
+    filhoProjetoLegalConcluidoPorPai: new Map(),
+    paisComFilhoProjetoLegalArquivado: new Set(),
+    filhoProjetosLocaisPorPai: new Map(),
+    paisComFilhoProjetosLocaisArquivado: new Set(),
+    filhoCreditoObraPorPai: new Map(),
+    paisComFilhoCreditoObraArquivado: new Set(),
+  };
+}
+
+function aplicarFilhoParalelaRpcRow(
+  row: FilhoParalelaRpcRow,
+  boardCardIds: string[],
+  ancestraisPorBoardCard: Map<string, Set<string>>,
+  maps: EnrichOperacoesFilhosMaps,
+): void {
+  const oid = String(row.origem_card_id ?? '').trim();
+  if (!oid) return;
+  const fase: FaseJoin = {
+    nome: String(row.fase_nome ?? '').trim(),
+    slug: String(row.fase_slug ?? '').trim(),
+  };
+  const arquivado = Boolean(row.arquivado);
+  const concluido = Boolean(row.concluido);
+  const filhoKanbanId = String(row.filho_kanban_id ?? '').trim();
+
+  for (const boardId of boardCardsDoFilhoOrigem(oid, boardCardIds, ancestraisPorBoardCard)) {
+    if (filhoKanbanId === KANBAN_IDS.ACOPLAMENTO) {
+      if (arquivado) maps.paisComFilhoAcoplamentoArquivado.add(boardId);
+      else registrarFilhoAcoplamentoPai(maps.filhoAcoplamentoPorPai, boardId, fase);
+      continue;
+    }
+    if (filhoKanbanId === KANBAN_IDS.PROJETO_LEGAL) {
+      if (arquivado) {
+        maps.paisComFilhoProjetoLegalArquivado.add(boardId);
+      } else {
+        const faseNome = String(fase.nome ?? '').trim();
+        if (faseNome && !maps.filhoProjetoLegalPorPai.has(boardId)) {
+          maps.filhoProjetoLegalPorPai.set(boardId, faseNome);
+        }
+        if (!maps.filhoProjetoLegalConcluidoPorPai.has(boardId)) {
+          maps.filhoProjetoLegalConcluidoPorPai.set(boardId, concluido);
+        }
+      }
+      continue;
+    }
+    if (filhoKanbanId === KANBAN_IDS.PROJETOS_LOCAIS) {
+      if (arquivado) maps.paisComFilhoProjetosLocaisArquivado.add(boardId);
+      else if (!maps.filhoProjetosLocaisPorPai.has(boardId)) {
+        maps.filhoProjetosLocaisPorPai.set(boardId, String(fase.nome ?? '').trim());
+      }
+      continue;
+    }
+    if (filhoKanbanId === KANBAN_IDS.CREDITO_OBRA) {
+      if (arquivado) maps.paisComFilhoCreditoObraArquivado.add(boardId);
+      else if (!maps.filhoCreditoObraPorPai.has(boardId)) {
+        maps.filhoCreditoObraPorPai.set(boardId, String(fase.nome ?? '').trim());
+      }
+    }
+  }
+}
+
+/**
+ * SECURITY DEFINER no Postgres — não depende de service role no servidor.
+ * Migration: 473_kanban_filhos_paralelas_rpc.sql
+ */
+async function enrichOperacoesFilhosViaRpc(
+  supabase: SupabaseClient,
+  consultaIds: string[],
+  boardCardIds: string[],
+  ancestraisPorBoardCard: Map<string, Set<string>>,
+  maps: EnrichOperacoesFilhosMaps,
+): Promise<boolean> {
+  if (consultaIds.length === 0) return false;
+  const { data, error } = await supabase.rpc('kanban_filhos_paralelas_por_pais', {
+    p_pai_ids: consultaIds,
+  });
+  if (error) {
+    const code = String((error as { code?: string }).code ?? '');
+    if (code === '42883') return false;
+    const msg = `[kanban] RPC kanban_filhos_paralelas_por_pais: ${error.message}`;
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+      console.error(msg);
+    } else {
+      console.warn(msg);
+    }
+    return false;
+  }
+  for (const row of (data ?? []) as FilhoParalelaRpcRow[]) {
+    aplicarFilhoParalelaRpcRow(row, boardCardIds, ancestraisPorBoardCard, maps);
+  }
+  return true;
+}
+
 /**
  * Fallback robusto: filhos com mesmo FK#### no título (sem depender de origem_card_id).
  * Cobre Em Obra / Aguardando Crédito quando filho aponta para Portfolio ou sync group falhou.
@@ -909,6 +1016,8 @@ export async function enrichCardsParalelasContext(
   supabase: SupabaseClient,
   kanbanId: string,
   cards: KanbanCardBrief[],
+  /** Cliente autenticado do usuário — RPC SECURITY DEFINER (não usar service role quebrada). */
+  userClientForRpc?: SupabaseClient,
 ): Promise<KanbanCardBrief[]> {
   if (cards.length === 0) return cards;
 
@@ -1120,6 +1229,15 @@ export async function enrichCardsParalelasContext(
     const { ancestraisPorBoardCard, origemIdsConsulta } =
       await coletarOrigemConsultaOperacoesBatch(supabase, cards);
 
+    const maps = criarMapsOperacoesFilhos();
+    await enrichOperacoesFilhosViaRpc(
+      userClientForRpc ?? supabase,
+      origemIdsConsulta,
+      cardIds,
+      ancestraisPorBoardCard,
+      maps,
+    );
+
     const [
       { data: filhosProjetoLegal },
       { data: filhosProjetoLegalArq },
@@ -1180,8 +1298,18 @@ export async function enrichCardsParalelasContext(
         .in('origem_card_id', origemIdsConsulta),
     ]);
 
-    const filhoProjetoLegalPorPai = new Map<string, string>();
-    const filhoProjetoLegalConcluidoPorPai = new Map<string, boolean>();
+    const {
+      filhoAcoplamentoPorPai,
+      paisComFilhoAcoplamentoArquivado,
+      filhoProjetoLegalPorPai,
+      filhoProjetoLegalConcluidoPorPai,
+      paisComFilhoProjetoLegalArquivado,
+      filhoProjetosLocaisPorPai,
+      paisComFilhoProjetosLocaisArquivado,
+      filhoCreditoObraPorPai,
+      paisComFilhoCreditoObraArquivado,
+    } = maps;
+
     for (const row of filhosProjetoLegal ?? []) {
       const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
       if (!oid) continue;
@@ -1202,7 +1330,6 @@ export async function enrichCardsParalelasContext(
       }
     }
 
-    const paisComFilhoProjetoLegalArquivado = new Set<string>();
     for (const row of filhosProjetoLegalArq ?? []) {
       const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
       if (!oid) continue;
@@ -1211,7 +1338,6 @@ export async function enrichCardsParalelasContext(
       }
     }
 
-    const filhoAcoplamentoPorPai = new Map<string, { nome: string; slug: string }>();
     for (const row of filhosAcoplamento ?? []) {
       const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
       if (!oid) continue;
@@ -1223,7 +1349,6 @@ export async function enrichCardsParalelasContext(
       }
     }
 
-    const paisComFilhoAcoplamentoArquivado = new Set<string>();
     for (const row of filhosAcoplamentoArq ?? []) {
       const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
       if (!oid) continue;
@@ -1232,7 +1357,6 @@ export async function enrichCardsParalelasContext(
       }
     }
 
-    const filhoCreditoObraPorPai = new Map<string, string>();
     for (const row of filhosCreditoObra ?? []) {
       const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
       if (!oid) continue;
@@ -1245,7 +1369,6 @@ export async function enrichCardsParalelasContext(
       }
     }
 
-    const paisComFilhoCreditoObraArquivado = new Set<string>();
     for (const row of filhosCreditoObraArq ?? []) {
       const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
       if (!oid) continue;
@@ -1254,7 +1377,6 @@ export async function enrichCardsParalelasContext(
       }
     }
 
-    const filhoProjetosLocaisPorPai = new Map<string, string>();
     for (const row of filhosProjetosLocais ?? []) {
       const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
       if (!oid) continue;
@@ -1267,7 +1389,6 @@ export async function enrichCardsParalelasContext(
       }
     }
 
-    const paisComFilhoProjetosLocaisArquivado = new Set<string>();
     for (const row of filhosProjetosLocaisArq ?? []) {
       const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
       if (!oid) continue;
@@ -1353,17 +1474,7 @@ export async function enrichCardsParalelasContext(
       paisComFilhoProjetosLocaisArquivado,
     );
 
-    await enrichFilhosOperacoesPorTituloFranquia(supabase, cards, {
-      filhoAcoplamentoPorPai,
-      paisComFilhoAcoplamentoArquivado,
-      filhoProjetoLegalPorPai,
-      filhoProjetoLegalConcluidoPorPai,
-      paisComFilhoProjetoLegalArquivado,
-      filhoProjetosLocaisPorPai,
-      paisComFilhoProjetosLocaisArquivado,
-      filhoCreditoObraPorPai,
-      paisComFilhoCreditoObraArquivado,
-    });
+    await enrichFilhosOperacoesPorTituloFranquia(supabase, cards, maps);
 
     return cards.map((c) => {
       const temFilhoProjetoLegal = filhoProjetoLegalPorPai.has(c.id);

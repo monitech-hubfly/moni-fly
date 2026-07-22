@@ -423,12 +423,17 @@ async function resolveKanbanAtivo(
 /** Enriquecimento de bolinhas: service role evita RLS bloquear filhos de outros funis. */
 export function supabaseParaEnriquecerParalelas(userClient: SupabaseClient): SupabaseClient {
   const admin = tryCreateAdminClient();
-  if (!admin && process.env.NODE_ENV === 'development') {
-    console.warn(
-      '[kanban] enrich paralelas: service role indisponível — bolinhas podem faltar (Cash Me, Acoplamento)',
-    );
+  if (!admin) {
+    const msg =
+      '[kanban] enrich paralelas: service role indisponível — filhos cross-funil dependem da RPC kanban_filhos_paralelas_por_pais (migration 473)';
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+      console.error(msg);
+    } else {
+      console.warn(msg);
+    }
+    return userClient;
   }
-  return admin ?? userClient;
+  return admin;
 }
 
 /**
@@ -1249,8 +1254,13 @@ export async function fetchKanbanBoardSnapshot(
   });
 
   const supabaseEnrich = supabaseParaEnriquecerParalelas(supabase);
-  cards = await enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cards);
-  cardsConcluidos = await enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cardsConcluidos);
+  cards = await enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cards, supabase);
+  cardsConcluidos = await enrichCardsParalelasContext(
+    supabaseEnrich,
+    kanbanIdStr,
+    cardsConcluidos,
+    supabase,
+  );
 
   const allCardIds = [...new Set([...cards.map((c) => c.id), ...cardsConcluidos.map((c) => c.id)].filter(Boolean))];
   const faseIdsOrfas = [...cards.map((c) => c.fase_id), ...cardsConcluidos.map((c) => c.fase_id)];
