@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isoWeek } from '@/utils/periodos';
 import { registrarLog } from '@/hooks/useAuditLog';
-import type { DadosAgendamento } from '@/components/carometro/todo/ModalAgendamento';
+import type { DadosAgendamento, RecorrenciaConfig } from '@/components/carometro/todo/ModalAgendamento';
 import { gerarOcorrencias } from '@/components/carometro/todo/ModalAgendamento';
 
 type Modo = 'criar' | 'editar';
@@ -69,7 +69,7 @@ export function useModalAgendamento(
         sirene_chamado_id: (r.sirene_chamado_id as number | null) ?? null,
         card_id:           (r.card_id as string | null)           ?? null,
         recorrente:        Boolean(r.recorrente),
-        recorrencia_config: (r.recorrencia_config as object | null) ?? null,
+        recorrencia_config: (r.recorrencia_config as RecorrenciaConfig | null) ?? null,
         observacoes:       (r.comentario_conclusao as string | null) ?? null,
         link_reuniao:      (r.link_reuniao as string | null)      ?? null,
         titulo:            (r.titulo as string | null)            ?? null,
