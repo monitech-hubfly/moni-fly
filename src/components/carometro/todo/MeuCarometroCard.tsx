@@ -93,9 +93,15 @@ export function MeuCarometroCard({
                 <div key={dia.data} className="flex flex-col items-center gap-1 group relative">
                   {/* Tooltip com fórmula */}
                   <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 hidden group-hover:flex flex-col items-center pointer-events-none">
-                    <div className="bg-gray-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap max-w-[180px] text-center leading-tight">
+                    <div className="bg-gray-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap max-w-[240px] text-center leading-tight">
                       <span className="font-semibold">{dayLabel(dia.data)}</span>
                       {dia.score !== null ? `: ${dia.score}%` : ': sem dados'}
+                      {dia.detalhe && (
+                        <>
+                          <br />
+                          <span className="text-gray-200">{dia.detalhe}</span>
+                        </>
+                      )}
                       <br />
                       <span className="text-gray-300">{formula}</span>
                     </div>

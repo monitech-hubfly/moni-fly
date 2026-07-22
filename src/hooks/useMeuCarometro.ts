@@ -9,6 +9,7 @@ import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
 export type DiaStatus = {
   data: string;
   score: number | null;
+  detalhe?: string | null;
 };
 
 export type SireneSnapshot = {
@@ -334,11 +335,24 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         }
       }
 
+      // ── Detalhes para tooltip do dia atual ──────────────────────────────────
+      const sireneDetalhe =
+        `${topicosAtrasados} atrasados · ${topicosArr.length} abertos · ${topicosSemPrazo} sem prazo`;
+
+      const { atividades: eng_atv, cards: eng_cards } = engajamentoRuntime;
+      const engNumerador   = eng_atv.concluidas + eng_cards.concluidos;
+      const engDenominador = engNumerador + eng_atv.atrasadas + eng_cards.atrasados;
+      const engDetalhe =
+        `${eng_atv.concluidas} ativ. concluídas · ${eng_atv.atrasadas} atrasadas` +
+        ` · ${eng_cards.concluidos} cards concluídos · ${eng_cards.atrasados} atrasados` +
+        ` → ${engNumerador}/${engDenominador}`;
+
       // ── Dias da semana com scores (snapshot > runtime de hoje) ───────────────
       const buildDias = (
         snapKey: 'sirene' | 'engajamento' | 'indicadores',
         scoreField: string,
         runtimeScore: number | null,
+        runtimeDetalhe?: string,
       ): DiaStatus[] =>
         diasSemana.map(data => {
           const snap = snapshotMap.get(data);
@@ -346,7 +360,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             const s = snap[snapKey] as Record<string, unknown>;
             return { data, score: typeof s[scoreField] === 'number' ? (s[scoreField] as number) : null };
           }
-          if (data === hojeStr) return { data, score: runtimeScore };
+          if (data === hojeStr) return { data, score: runtimeScore, detalhe: runtimeDetalhe };
           return { data, score: null };
         });
 
@@ -354,8 +368,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       setSirene(sireneRuntime);
       setEngajamento(engajamentoRuntime);
       setIndicadores(indicadoresRuntime);
-      setDiasSirene(buildDias('sirene', 'score', sireneScore));
-      setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score));
+      setDiasSirene(buildDias('sirene', 'score', sireneScore, sireneDetalhe));
+      setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score, engDetalhe));
       setDiasIndicadores(buildDias('indicadores', 'media', indicadoresRuntime.media));
     } catch (e) {
       if (callId !== callIdRef.current) return;
