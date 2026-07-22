@@ -46,6 +46,7 @@ export function ResponsavelFaseSidebar({
   const [valor, setValor] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [carregando, setCarregando] = useState(true);
+  const [erroSalvar, setErroSalvar] = useState<string | null>(null);
   const syncFeitoRef = useRef('');
 
   const stepOne = isKanbanFunilStepOneId(kanbanId);
@@ -155,8 +156,10 @@ export function ResponsavelFaseSidebar({
   async function salvar(userId: string) {
     if (!itemId || somenteLeitura) return;
     const uid = normalizarValorUsuario(userId);
+    const valorAnterior = valor;
     setValor(uid);
     setSalvando(true);
+    setErroSalvar(null);
     const res = await upsertFaseChecklistResposta({
       item_id: itemId,
       card_id: cardId,
@@ -166,7 +169,10 @@ export function ResponsavelFaseSidebar({
     if (res.ok) {
       const nome = opcoes?.find((o) => o.id === uid)?.nome ?? null;
       onChange?.(uid, nome);
+      return;
     }
+    setValor(valorAnterior);
+    setErroSalvar(res.error ?? 'Não foi possível salvar o responsável.');
   }
 
   if (carregando) {
@@ -196,16 +202,23 @@ export function ResponsavelFaseSidebar({
   }
 
   return (
-    <UsuarioChecklistSelect
-      label=""
-      value={valor}
-      salvando={salvando}
-      opcoes={opcoes}
-      placeholder="Selecione o responsável…"
-      selectedLabelOverride={!valor && nomeRede ? nomeRede : undefined}
-      menuPortal
-      onChange={(v) => void salvar(v)}
-    />
+    <>
+      <UsuarioChecklistSelect
+        label=""
+        value={valor}
+        salvando={salvando}
+        opcoes={opcoes}
+        placeholder="Selecione o responsável…"
+        selectedLabelOverride={!valor && nomeRede ? nomeRede : undefined}
+        menuPortal
+        onChange={(v) => void salvar(v)}
+      />
+      {erroSalvar ? (
+        <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-error-600, #9b2c2c)' }}>
+          {erroSalvar}
+        </p>
+      ) : null}
+    </>
   );
 }
 

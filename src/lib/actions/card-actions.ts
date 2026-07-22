@@ -5463,6 +5463,21 @@ export async function upsertFaseChecklistResposta(input: {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Não autenticado.' };
 
+  const cardId = String(input.card_id ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { data: cardExists } = await supabase.from('kanban_cards').select('id').eq('id', cardId).maybeSingle();
+  if (!cardExists?.id) {
+    try {
+      const admin = createAdminClient();
+      const shadow = await garantirShadowKanbanCardLegadoPorId(admin, cardId);
+      if (!shadow.ok) return { ok: false, error: shadow.error };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg || 'Erro ao preparar card legado para checklist.' };
+    }
+  }
+
   const { data: itemRow } = await supabase
     .from('kanban_fase_checklist_itens')
     .select('label, campo_slug, fase_id, tipo, chave_compartilhada, grupo_exclusivo')
