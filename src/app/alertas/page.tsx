@@ -201,6 +201,14 @@ export default async function AlertasPage({
     }
   }
 
+  const naoLidasFiltradas = (alertas ?? []).filter(a => !a.lido && (prioridadeAtiva === 'todas' || priorizarAlerta(String(a.tipo ?? '')) === prioridadeAtiva) && (categoriaAtiva === 'todos' || categorizarAlerta(String(a.tipo ?? '')) === categoriaAtiva));
+  const contagemNaoLidas = {
+    critico: naoLidasFiltradas.filter(a => priorizarAlerta(String(a.tipo ?? '')) === 'critico').length,
+    importante: naoLidasFiltradas.filter(a => priorizarAlerta(String(a.tipo ?? '')) === 'importante').length,
+    informativo: naoLidasFiltradas.filter(a => priorizarAlerta(String(a.tipo ?? '')) === 'informativo').length,
+    total: naoLidasFiltradas.length,
+  };
+
   const alertasFiltrados = (alertas ?? []).filter((a) => {
     if (prioridadeAtiva !== 'todas' && priorizarAlerta(String(a.tipo ?? '')) !== prioridadeAtiva) return false;
     if (categoriaAtiva !== 'todos' && categorizarAlerta(String(a.tipo ?? '')) !== categoriaAtiva) return false;
@@ -327,7 +335,11 @@ export default async function AlertasPage({
             </Link>
           </div>
           {naoLidasNaVisao > 0 && (
-            <MarcarTodosLidoButton categoriaAtiva={String(categoriaAtiva)} />
+            <MarcarTodosLidoButton
+                categoriaAtiva={String(categoriaAtiva)}
+                prioridadeAtiva={String(prioridadeAtiva)}
+                contagemNaoLidas={contagemNaoLidas}
+              />
           )}
         </div>
 
@@ -393,7 +405,7 @@ export default async function AlertasPage({
                       )}
                     </div>
                     <span className="shrink-0 text-xs text-stone-400">
-                      {a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : ''}
+                      {a.created_at ? new Date(a.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : ''}
                     </span>
                   </div>
 

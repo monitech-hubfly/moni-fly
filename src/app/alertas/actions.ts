@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { categorizarAlerta } from './categorizar';
+import { categorizarAlerta, priorizarAlerta } from './categorizar';
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -20,12 +20,12 @@ export async function marcarAlertaLido(alertaId: string): Promise<ActionResult> 
   return { ok: true };
 }
 
-export async function marcarTodosLido(categoriaAtiva: string): Promise<ActionResult> {
+export async function marcarTodosLido(categoriaAtiva: string, prioridadeAtiva?: string): Promise<ActionResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
-  if (categoriaAtiva === 'todos') {
+  if (categoriaAtiva === 'todos' && (!prioridadeAtiva || prioridadeAtiva === 'todas')) {
     const { error } = await supabase
       .from('alertas')
       .update({ lido: true })
@@ -42,7 +42,12 @@ export async function marcarTodosLido(categoriaAtiva: string): Promise<ActionRes
     .eq('lido', false);
 
   const ids = (naoLidos ?? [])
-    .filter(a => categorizarAlerta(String(a.tipo ?? '')) === categoriaAtiva)
+    .filter(a => {
+      const tipo = String(a.tipo ?? '');
+      if (categoriaAtiva !== 'todos' && categorizarAlerta(tipo) !== categoriaAtiva) return false;
+      if (prioridadeAtiva && prioridadeAtiva !== 'todas' && priorizarAlerta(tipo) !== prioridadeAtiva) return false;
+      return true;
+    })
     .map(a => a.id);
 
   if (!ids.length) return { ok: true };
