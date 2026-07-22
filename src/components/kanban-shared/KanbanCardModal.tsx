@@ -87,6 +87,7 @@ import { deletarChamado, listAnexosPorChamados, uploadAnexoChamado, getAnexoCham
 import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { resolverKanbanOrigemIdParaEsteiraManual } from '@/lib/kanban/esteira-manual-destinos';
 import {
   autorizarAberturaCreditoObra,
   consultarAberturaCreditoObraPendente,
@@ -4735,7 +4736,9 @@ export function KanbanCardModal({
     !isLegado &&
     !ocultarGestaoCard &&
     Boolean(card.kanban_id) &&
-    (KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(card.kanban_id) &&
+    (KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(
+      resolverKanbanOrigemIdParaEsteiraManual(card.kanban_id, kanbanNome),
+    ) &&
     !['frank', 'franqueado'].includes(userRoleLc) &&
     !portalFrank;
 

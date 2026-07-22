@@ -22,6 +22,7 @@ import {
 import {
   DESTINOS_ESTEIRA_MANUAL,
   destinosEsteiraManualParaKanban,
+  kanbanEhLoteadoresOuStepOne,
   kanbanPermiteDispararEsteiraManual,
   ordenarDestinosEsteiraManualParaExibicao,
   resolverKanbanOrigemIdParaEsteiraManual,
@@ -112,14 +113,25 @@ export function KanbanCardModalRelacionamentos({
   );
   const mostrarAbrirFunilAcoplamento =
     podeGerenciar && kanbanPermiteAbrirFunilAcoplamentoManual(kanbanOrigemId);
+  const mostrarAbrirFunilPreObraObra =
+    podeGerenciar && kanbanEhLoteadoresOuStepOne(kanbanOrigemId);
   const botoesAbrirFunil = useMemo(() => {
     const items: { key: string; label: string; tipo: 'acoplamento' | 'esteira'; destinoKey?: DestinoEsteiraManualKey }[] =
       [];
+    if (mostrarAbrirFunilPreObraObra) {
+      items.push({
+        key: 'pre_obra_obra',
+        label: `Abrir Funil ${DESTINOS_ESTEIRA_MANUAL.pre_obra_obra.label}`,
+        tipo: 'esteira',
+        destinoKey: 'pre_obra_obra',
+      });
+    }
     if (mostrarAbrirFunilAcoplamento) {
       items.push({ key: 'acoplamento', label: 'Abrir Funil Acoplamento', tipo: 'acoplamento' });
     }
     if (podeGerenciar && kanbanPermiteDispararEsteiraManual(kanbanId, kanbanNome)) {
       for (const destinoKey of destinosDisponiveis) {
+        if (destinoKey === 'pre_obra_obra' && mostrarAbrirFunilPreObraObra) continue;
         items.push({
           key: destinoKey,
           label: `Abrir Funil ${DESTINOS_ESTEIRA_MANUAL[destinoKey].label}`,
@@ -129,7 +141,14 @@ export function KanbanCardModalRelacionamentos({
       }
     }
     return items;
-  }, [mostrarAbrirFunilAcoplamento, podeGerenciar, kanbanId, kanbanNome, destinosDisponiveis]);
+  }, [
+    mostrarAbrirFunilAcoplamento,
+    mostrarAbrirFunilPreObraObra,
+    podeGerenciar,
+    kanbanId,
+    kanbanNome,
+    destinosDisponiveis,
+  ]);
 
   const recarregar = useCallback(async () => {
     if (!cardId || disabled) {
