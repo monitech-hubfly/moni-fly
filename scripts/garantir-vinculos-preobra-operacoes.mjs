@@ -13,8 +13,11 @@ import { parsePostgresUrl } from './pg-dev-client.mjs';
 
 /** Cards alvo desta execução */
 const CARD_IDS = [
-  'e1824c64-84f4-4178-a0f5-e3b82387364a', // FK0004 Paysage Evergreen
-  '3c1c341e-48f7-4ad9-a836-d0740633584a', // FK0001 Parque Ytu Xapada
+  'd58bc8ec-1b7f-4732-81c5-aff61f412b9a', // FK0012 Genesis II
+  '17b5aef3-aab9-410a-b0d2-8ebcdca71c50', // Artesano Galleria
+  'ca66b708-bba0-41f2-85c0-b1963bd05af6',
+  '0824cdc0-8163-4a42-b385-e95c0c98e761',
+  '6b419ba4-7f55-4ef9-ae5d-51060edf398f',
 ];
 
 const KANBAN = {
@@ -143,7 +146,10 @@ async function processarCard(client, cardId) {
     [cardId],
   );
   const pai = paiRes.rows[0];
-  if (!pai) throw new Error(`Card ${cardId} não encontrado`);
+  if (!pai) {
+    console.log(`\nSKIP: card ${cardId} não encontrado em PROD`);
+    return { cardId, before: null, after: null, created: [], notFound: true };
+  }
 
   console.log(`\n${'='.repeat(60)}\n${pai.titulo} (${cardId})`);
   const before = await statusFilhos(client, cardId);
