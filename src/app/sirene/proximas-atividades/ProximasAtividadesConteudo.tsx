@@ -21,8 +21,7 @@ import {
 type CardRow = {
   id: string;
   titulo: string;
-  proxima_atividade: string | null;
-  prazo_atividade: string | null;
+  atividades: { id: string; descricao: string; prazo: string | null }[];
   franqueado_id: string | null;
   franqueado_nome: string | null;
   kanban_id: string;
@@ -73,6 +72,15 @@ function ProximaAtividadeTag({ tier, prazo }: { tier: ProximaAtividadeTier; praz
   );
 }
 
+function tierCard(atividades: { descricao: string; prazo: string | null }[], hoje: string): ProximaAtividadeTier {
+  if (atividades.length === 0) return 'sem_atividade';
+  const tiers = atividades.map(a => classificarProximaAtividadeTier(a.descricao, a.prazo, hoje));
+  if (tiers.includes('atrasada')) return 'atrasada';
+  if (tiers.includes('hoje')) return 'hoje';
+  if (tiers.includes('futura')) return 'futura';
+  return 'sem_atividade';
+}
+
 function labelStatusChamado(status: string): string {
   if (status === 'concluido') return 'Concluído';
   if (status === 'em_andamento') return 'Em andamento';
@@ -108,16 +116,22 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
     if (filtroFunil !== 'todos' && c.kanban_nome !== filtroFunil) return false;
     if (filtroTag === 'especial' && !c.especial) return false;
     if (filtroPrazo !== 'todos') {
-      const tier = classificarProximaAtividadeTier(c.proxima_atividade, c.prazo_atividade, hoje);
+      const tier = tierCard(c.atividades, hoje);
       if (filtroPrazo === 'atrasada' && tier !== 'atrasada') return false;
       if (filtroPrazo === 'hoje' && tier !== 'hoje') return false;
-      if (filtroPrazo === 'futura' && (tier !== 'futura' || !c.prazo_atividade)) return false;
-      if (filtroPrazo === 'sem_prazo' && (tier !== 'futura' || c.prazo_atividade != null)) return false;
+      if (filtroPrazo === 'futura' && (tier !== 'futura' || !c.atividades[0]?.prazo)) return false;
+      if (filtroPrazo === 'sem_prazo' && (tier !== 'futura' || c.atividades[0]?.prazo != null)) return false;
     }
     return true;
   });
 
-  const ordenadas = sortKanbanCardsPorProximaAtividade(filtradas);
+  const ordenadas = sortKanbanCardsPorProximaAtividade(
+    filtradas.map(c => ({
+      ...c,
+      proxima_atividade: c.atividades[0]?.descricao ?? null,
+      prazo_atividade: c.atividades[0]?.prazo ?? null,
+    }))
+  );
 
   async function handleMostrarConcluidas(checked: boolean) {
     setMostrarConcluidas(checked);
@@ -224,7 +238,6 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
       {/* Lista de atividades ativas */}
       <div className="space-y-2">
         {ordenadas.map(c => {
-          const tier = classificarProximaAtividadeTier(c.proxima_atividade, c.prazo_atividade, hoje);
           const chamadosDoCard = mostrarChamados ? (chamadosPorCard.get(c.id) ?? []) : [];
           return (
             <div key={c.id} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
@@ -250,25 +263,34 @@ export function ProximasAtividadesConteudo({ cards, kanbanNames }: Props) {
                   </>
                 )}
               </div>
-              {/* Próxima atividade */}
-              <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-xs">
-                <ProximaAtividadeTag tier={tier} prazo={c.prazo_atividade} />
-                <span className="flex-1 text-stone-700">{c.proxima_atividade}</span>
-                <span className="text-stone-500">{c.franqueado_nome ?? '—'}</span>
-                {c.comentarios_count > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => void handleVerComentarios(c.id)}
-                    title={`${c.comentarios_count} comentário${c.comentarios_count !== 1 ? 's' : ''}`}
-                    className="flex items-center gap-1 text-stone-400 hover:text-blue-600 transition-colors"
-                  >
-                    {loadingComentarios === c.id
-                      ? <span className="text-[10px]">…</span>
-                      : <><MessageCircle className="h-3.5 w-3.5" /><span className="text-[10px]">{c.comentarios_count}</span></>
-                    }
-                  </button>
-                )}
-              </div>
+              {/* Atividades */}
+              {c.atividades.map((a, idx) => {
+                const aTier = classificarProximaAtividadeTier(a.descricao, a.prazo, hoje);
+                return (
+                  <div key={a.id} className={`flex flex-wrap items-center gap-2 px-4 py-2 text-xs${idx > 0 ? ' border-t border-stone-50' : ''}`}>
+                    <ProximaAtividadeTag tier={aTier} prazo={a.prazo} />
+                    <span className="flex-1 text-stone-700">{a.descricao}</span>
+                    {idx === 0 && (
+                      <>
+                        <span className="text-stone-500">{c.franqueado_nome ?? '—'}</span>
+                        {c.comentarios_count > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => void handleVerComentarios(c.id)}
+                            title={`${c.comentarios_count} comentário${c.comentarios_count !== 1 ? 's' : ''}`}
+                            className="flex items-center gap-1 text-stone-400 hover:text-blue-600 transition-colors"
+                          >
+                            {loadingComentarios === c.id
+                              ? <span className="text-[10px]">…</span>
+                              : <><MessageCircle className="h-3.5 w-3.5" /><span className="text-[10px]">{c.comentarios_count}</span></>
+                            }
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
               {/* Comentários inline */}
               {comentariosAbertos === c.id && (
                 <div className="border-t border-stone-100 px-4 py-2">
