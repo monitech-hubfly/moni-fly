@@ -110,6 +110,7 @@ export default function TodoPlanningPage() {
 
       {effectiveProfileId && (
         <ModalAgendamento
+          key={effectiveProfileId}
           aberto={modal.aberto}
           onFechar={fecharModal}
           onSalvar={modal.salvar}

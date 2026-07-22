@@ -189,6 +189,21 @@ export function ModalAgendamento({
   const preenchidoRef = useRef(preenchido);
   preenchidoRef.current = preenchido;
 
+  // ── Limpa listas cacheadas ao trocar de usuário simulado ─────────────────
+  const prevProfileRef = useRef<string>(profileId);
+  const prevAreaRef    = useRef<string | null>(areaId);
+  useEffect(() => {
+    if (prevProfileRef.current !== profileId || prevAreaRef.current !== areaId) {
+      prevProfileRef.current = profileId;
+      prevAreaRef.current    = areaId;
+      setSireneItems([]);
+      setAtividItems([]);
+      setKanbanItems([]);
+      setSelItem(null);
+      setAbaAtiva(null);
+    }
+  }, [profileId, areaId]);
+
   // ── FIX Issue 2: carrega dados assim que areaId resolve ──────────────────
   useEffect(() => {
     if (!areaId) return;
