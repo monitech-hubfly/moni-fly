@@ -3131,6 +3131,12 @@
   border: var(--moni-border-width) solid var(--moni-green-400);
 }
 
+.moni-kanban-card-status-badge--danger {
+  background: var(--moni-status-overdue-bg);
+  color: var(--moni-status-overdue-text);
+  border-color: var(--moni-status-overdue-border);
+}
+
 .moni-funding-tipo-badge {
   display: inline-flex;
   align-items: center;
