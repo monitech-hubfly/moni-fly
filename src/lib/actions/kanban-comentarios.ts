@@ -293,7 +293,8 @@ export async function publicarComentarioKanbanCard(input: {
   // Deduplicação: @mencionados têm prioridade; participantes extras recebem alerta separado
   const mencionadosSemAutor = mencoesIds.filter(uid => uid !== user.id);
   const mencionadosSet = new Set(mencionadosSemAutor);
-  const extrasSemAutor = participantesExtras.filter(uid => uid !== user.id && !mencionadosSet.has(uid));
+  const extrasSet = new Set(participantesExtras.filter(uid => uid !== user.id && !mencionadosSet.has(uid)));
+  const extrasSemAutor = [...extrasSet];
 
   const adminDb = await dbParaMencoes(supabase);
 
