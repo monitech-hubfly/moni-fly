@@ -209,7 +209,7 @@ export function ProcessoQuatroSecoesDados({
           </div>
           <div>
             <span className="text-xs text-stone-500">Valor do Terreno</span>
-            <div className="text-stone-800">{show(r?.valor_terreno)}</div>
+            <div className="text-stone-800">{fmtMoedaKanban(r?.valor_terreno)}</div>
           </div>
           <div>
             <span className="text-xs text-stone-500">VGV pretendido</span>

@@ -8010,7 +8010,7 @@ export function KanbanCardModal({
                   }}
                 />,
               )}
-            {!exibirDadosLoteadorPersistente && secaoHead(
+            {secaoHead(
               'novoNegocio',
               'Dados do Negócio',
               ehFunilFunding && !isLegado ? (
