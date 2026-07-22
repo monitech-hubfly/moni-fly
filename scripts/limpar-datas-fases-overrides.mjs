@@ -17,6 +17,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import pg from 'pg';
 import { parsePostgresUrl } from './pg-dev-client.mjs';
+import { garantirShadowKanbanCardLegadoPg } from './pg-garantir-shadow-legado.mjs';
 
 const KANBAN_IDS = {
   STEP_ONE: '4d89f111-cef6-48aa-93ff-72d6406f0a32',
@@ -268,6 +269,22 @@ async function main() {
      WHERE c.id = $1`,
     [cardId],
   );
+  if (!cardRes.rows.length) {
+    const shadowOk = await garantirShadowKanbanCardLegadoPg(client, cardId);
+    if (shadowOk) {
+      const retry = await client.query(
+        `SELECT c.id, c.titulo, c.kanban_id, c.processo_step_one_id, k.nome AS kanban_nome, f.slug AS fase_slug
+         FROM kanban_cards c
+         LEFT JOIN kanbans k ON k.id = c.kanban_id
+         LEFT JOIN kanban_fases f ON f.id = c.fase_id
+         WHERE c.id = $1`,
+        [cardId],
+      );
+      if (retry.rows.length) {
+        cardRes.rows = retry.rows;
+      }
+    }
+  }
   if (!cardRes.rows.length) {
     console.log('Card não encontrado.');
     await client.end();

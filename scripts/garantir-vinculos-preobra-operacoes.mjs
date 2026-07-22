@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import pg from 'pg';
 import { parsePostgresUrl } from './pg-dev-client.mjs';
+import { garantirShadowKanbanCardLegadoPg } from './pg-garantir-shadow-legado.mjs';
 
 /** Cards alvo padrão (batch) */
 const CARD_IDS_DEFAULT = [
@@ -166,6 +167,10 @@ async function processarCard(client, cardId) {
   );
   const pai = paiRes.rows[0];
   if (!pai) {
+    const shadowOk = await garantirShadowKanbanCardLegadoPg(client, cardId);
+    if (shadowOk) {
+      return processarCard(client, cardId);
+    }
     console.log(`\nSKIP: card ${cardId} não encontrado em PROD`);
     return { cardId, before: null, after: null, created: [], notFound: true };
   }
