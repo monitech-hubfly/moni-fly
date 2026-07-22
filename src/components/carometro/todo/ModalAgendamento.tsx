@@ -10,8 +10,8 @@ export type OrigemTipo = 'sirene' | 'pastelaria' | 'kanban' | 'atividades';
 export type RecorrenciaConfig = {
   frequencia: 'diario' | 'semanal' | 'mensal';
   intervalo: number;
-  diasSemana?: number[];   // 0=Dom (semanal)
-  ate: string;             // YYYY-MM-DD
+  diasSemana?: number[];
+  ate: string;
 };
 
 export type DadosAgendamento = {
@@ -62,7 +62,7 @@ export type ModalAgendamentoProps = {
   origemInfo?: OrigemInfo;
 };
 
-// ── Utilitários ───────────────────────────────────────────────────────────────
+// ── Utilidades ────────────────────────────────────────────────────────────────
 
 const DIAS_SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
@@ -71,7 +71,6 @@ export function gerarOcorrencias(dataInicio: string, cfg: RecorrenciaConfig): st
   const ate = new Date(cfg.ate + 'T00:00:00');
   let cur = new Date(dataInicio + 'T00:00:00');
   const max = 365;
-
   while (cur <= ate && datas.length < max) {
     if (cfg.frequencia === 'semanal' && cfg.diasSemana?.length) {
       if (cfg.diasSemana.includes(cur.getDay())) datas.push(cur.toISOString().slice(0, 10));
@@ -86,116 +85,149 @@ export function gerarOcorrencias(dataInicio: string, cfg: RecorrenciaConfig): st
   return datas;
 }
 
-// ── Cabeçalho de seção ────────────────────────────────────────────────────────
-function SecaoHeader({
-  titulo, obrigatorio, aberta, onToggle, erro,
-}: {
-  titulo: string; obrigatorio?: boolean; aberta: boolean; onToggle: () => void; erro?: boolean;
-}) {
+// ── Badge de status ───────────────────────────────────────────────────────────
+
+const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  nao_iniciado: { bg: '#f3f4f6', text: '#374151', label: 'não iniciado' },
+  em_andamento: { bg: '#dbeafe', text: '#1e40af', label: 'em andamento' },
+  atrasado:     { bg: '#fee2e2', text: '#991b1b', label: 'atrasado'     },
+};
+
+function statusBadge(status: string) {
+  const s = STATUS_BADGE[status] ?? { bg: '#f3f4f6', text: '#374151', label: status };
   return (
-    <button type="button"
-      className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${erro ? 'bg-red-50' : 'hover:bg-gray-50'}`}
-      onClick={onToggle}>
-      <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
-        {titulo}
-        {obrigatorio && <span className="text-[10px] text-gray-400 font-normal">obrigatório</span>}
-        {erro && <span className="text-[10px] text-red-500 font-normal">• campo obrigatório</span>}
-      </span>
-      <span className="text-gray-400 text-xs">{aberta ? '▲' : '▼'}</span>
-    </button>
+    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: s.bg, color: s.text, flexShrink: 0 }}>
+      {s.label}
+    </span>
   );
 }
+
+// ── Seção colapsável ──────────────────────────────────────────────────────────
+
+function Secao({
+  titulo, aberta, onToggle, children, erro,
+}: {
+  titulo: string; aberta: boolean; onToggle: () => void;
+  children: React.ReactNode; erro?: boolean;
+}) {
+  return (
+    <div className="border-b border-gray-100">
+      <button type="button"
+        className={`w-full flex items-center justify-between px-4 py-3 text-left ${erro ? 'bg-red-50' : 'hover:bg-gray-50'} transition-colors`}
+        onClick={onToggle}>
+        <span className="text-xs font-medium text-gray-600 uppercase tracking-wide flex items-center gap-2">
+          {titulo}
+          {erro && <span className="text-[10px] text-red-500 normal-case font-normal tracking-normal">• obrigatório</span>}
+        </span>
+        <span className="text-gray-400 text-xs">{aberta ? '▲' : '▼'}</span>
+      </button>
+      {aberta && <div className="px-4 pb-4 pt-0">{children}</div>}
+    </div>
+  );
+}
+
+// ── Tipos internos ────────────────────────────────────────────────────────────
+
+type AbaAtiva = 'sirene' | 'atividades' | 'kanban';
 
 type BacklogItem = {
   id: string;
   label: string;
-  subtipo: 'sirene' | 'kanban';
-  detalhe?: string | null;    // proxima_atividade ou status sirene
-  badge?: string | null;      // fase_nome ou tipo sirene
-  kanban_nome?: string | null;
+  sub: string;
+  status?: string;   // para sirene
+  badge?: string;    // texto do badge
+  badgeBg?: string;
+  badgeText?: string;
+  extra?: string;    // proxima_atividade (kanban) ou objetivo (atividade)
+  objetivoId?: string | null;
+};
+
+type CardRaw = {
+  id: string; titulo: string | null; proxima_atividade: string | null;
+  arquivado?: boolean; concluido?: boolean;
+  fase: { nome: string } | { nome: string }[] | null;
+  kanban: { nome: string } | { nome: string }[] | null;
 };
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
+
 export function ModalAgendamento({
   aberto, onFechar, onSalvar, preenchido, modo, profileId, areaId, isSaving, origemInfo,
 }: ModalAgendamentoProps) {
   const supabase = useMemo(() => createClient(), []);
-
   const [form, setForm] = useState<DadosAgendamento>({ ...EMPTY });
-  // [origem, comportamento, meta, datahora, participantes, link, recorrencia, vinculo, obs]
-  const [abertas, setAbertas] = useState([true, true, true, true, false, false, false, false, false]);
-  const [erros, setErros] = useState({ comportamento: false, meta: false, data: false, titulo: false });
 
-  // ── Dados dos selects — carregados assim que areaId/profileId disponíveis ──
-  const [acoes,       setAcoes]       = useState<{ id: string; tipo_atividade: string }[]>([]);
-  const [objetivos,   setObjetivos]   = useState<{ id: string; descricao: string; tipo: string | null }[]>([]);
-  const [acoesCrg,    setAcoesCrg]   = useState(false); // carregando
+  // Abas e seleção de item
+  const [abaAtiva, setAbaAtiva] = useState<AbaAtiva | null>(null);
+  const [query, setQuery]       = useState('');
+  const [selItem, setSelItem]   = useState<BacklogItem | null>(null);
+
+  // Dados das listas
+  const [sireneItems, setSireneItems]     = useState<BacklogItem[]>([]);
+  const [atividItems, setAtividItems]     = useState<BacklogItem[]>([]);
+  const [kanbanItems, setKanbanItems]     = useState<BacklogItem[]>([]);
+  const [listLoading, setListLoading]     = useState(false);
+
+  // Objetivo para aba Atividades (picker separado após seleção de acao)
+  const [objetivos,   setObjetivos]       = useState<{ id: string; descricao: string; tipo: string | null }[]>([]);
+
+  // Vínculos
   const [casas,       setCasas]       = useState<{ id: string; nome: string }[]>([]);
   const [franqueados, setFranqueados] = useState<{ id: string; nome: string }[]>([]);
   const [loteadores,  setLoteadores]  = useState<{ id: string; nome: string }[]>([]);
   const [condominios, setCondominios] = useState<{ id: string; nome: string }[]>([]);
   const [cnpjs,       setCnpjs]       = useState<{ id: string; cnpj: string; descritivo: string | null }[]>([]);
-  const [pessoas,     setPessoas]     = useState<{ profile_id: string; nome: string }[]>([]);
 
-  // ── Backlog picker (sirene / kanban) ──────────────────────────────────────
-  const [backlogItems,   setBacklogItems]   = useState<BacklogItem[]>([]);
-  const [backlogQuery,   setBacklogQuery]   = useState('');
-  const [backlogLoading, setBacklogLoading] = useState(false);
-  const [backlogSel,     setBacklogSel]     = useState<BacklogItem | null>(null);
+  // Participantes
+  const [pessoas,   setPessoas]   = useState<{ profile_id: string; nome: string }[]>([]);
+  const [ocupados,  setOcupados]  = useState<Set<string>>(new Set());
 
-  // ── Disponibilidade de participantes ──────────────────────────────────────
-  const [ocupados, setOcupados] = useState<Set<string>>(new Set());
+  // Seções colapsáveis (data, participantes, link, recorrência, vínculo, obs)
+  const [abertas, setAbertas] = useState([true, false, false, false, false, false]);
+  const [erros,   setErros]   = useState({ origem: false, data: false });
 
   const preenchidoRef = useRef(preenchido);
   preenchidoRef.current = preenchido;
 
-  // ── FIX Issue 2: carrega acoes/objetivos/pessoas assim que areaId resolve,
-  //    INDEPENDENTE de o modal estar aberto ──────────────────────────────────
+  // ── FIX Issue 2: carrega dados assim que areaId resolve ──────────────────
   useEffect(() => {
     if (!areaId) return;
-    setAcoesCrg(true);
     void (async () => {
       try {
-        const [acoesRes, objRes, pessoasRes] = await Promise.all([
-          supabase.from('acoes').select('id, tipo_atividade').eq('area_id', areaId).order('tipo_atividade'),
+        const [objRes, pessoasRes] = await Promise.all([
           supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', areaId).eq('status', 'ativo').order('descricao'),
-          // Todos os usuários do sistema (não apenas da área)
           supabase.from('area_pessoas').select('profile_id, nome').not('profile_id', 'is', null).order('nome'),
         ]);
-        setAcoes((acoesRes.data ?? []) as { id: string; tipo_atividade: string }[]);
         setObjetivos((objRes.data ?? []) as { id: string; descricao: string; tipo: string | null }[]);
-        // Dedup por profile_id e excluir o próprio usuário
-        const rawPessoas = (pessoasRes.data ?? []) as { profile_id: string; nome: string }[];
-        const seenPid = new Set<string>();
-        const pessoasDedup = rawPessoas.filter(p => {
-          if (p.profile_id === profileId || seenPid.has(p.profile_id)) return false;
-          seenPid.add(p.profile_id);
+        const raw = (pessoasRes.data ?? []) as { profile_id: string; nome: string }[];
+        const seen = new Set<string>();
+        setPessoas(raw.filter(p => {
+          if (p.profile_id === profileId || seen.has(p.profile_id)) return false;
+          seen.add(p.profile_id);
           return true;
-        });
-        setPessoas(pessoasDedup);
-      } catch (e) { console.error('[ModalAgendamento] acoes:', e); }
-      finally { setAcoesCrg(false); }
+        }));
+      } catch (e) { console.error('[Modal] objetivos/pessoas:', e); }
     })();
   }, [areaId, profileId, supabase]);
 
-  // ── Carrega vínculos (casas, franqueados…) uma vez ao montar ─────────────
+  // ── Carrega vínculos uma vez ──────────────────────────────────────────────
   useEffect(() => {
     void (async () => {
       try {
-        const [casasRes, frankRes, loteadoresRes, condRes, cnpjsRes] = await Promise.all([
+        const [c, f, l, co, cn] = await Promise.all([
           supabase.from('casas').select('id, nome').order('nome').limit(100),
           supabase.from('rede_franqueados').select('id, nome_completo').order('nome_completo').limit(100),
           supabase.from('rede_loteadores').select('id, nome').order('nome').limit(100),
           supabase.from('condominios').select('id, nome').order('nome').limit(100),
           supabase.from('adm_cnpjs').select('id, cnpj, descritivo').order('cnpj').limit(100),
         ]);
-        setCasas((casasRes.data ?? []) as { id: string; nome: string }[]);
-        setFranqueados(((frankRes.data ?? []) as { id: string; nome_completo?: string | null }[])
+        setCasas((c.data ?? []) as { id: string; nome: string }[]);
+        setFranqueados(((f.data ?? []) as { id: string; nome_completo?: string | null }[])
           .map(x => ({ id: x.id, nome: String(x.nome_completo ?? '').trim() || '—' })));
-        setLoteadores((loteadoresRes.data ?? []) as { id: string; nome: string }[]);
-        setCondominios((condRes.data ?? []) as { id: string; nome: string }[]);
-        setCnpjs((cnpjsRes.data ?? []) as { id: string; cnpj: string; descritivo: string | null }[]);
-      } catch (e) { console.error('[ModalAgendamento] vínculos:', e); }
+        setLoteadores((l.data ?? []) as { id: string; nome: string }[]);
+        setCondominios((co.data ?? []) as { id: string; nome: string }[]);
+        setCnpjs((cn.data ?? []) as { id: string; cnpj: string; descritivo: string | null }[]);
+      } catch (e) { console.error('[Modal] vínculos:', e); }
     })();
   }, [supabase]);
 
@@ -207,109 +239,139 @@ export function ModalAgendamento({
       const [h, m] = base.hora_inicio.split(':').map(Number);
       base.hora_fim = `${String(Math.min(23, h + 1)).padStart(2, '0')}:${String(m ?? 0).padStart(2, '0')}`;
     }
-    if (!base.origem_tipo && origemInfo) {
-      base.origem_tipo = origemInfo.tipo === 'pastelaria' ? 'pastelaria'
-        : origemInfo.tipo === 'sirene' ? 'sirene'
-        : origemInfo.tipo === 'kanban' ? 'kanban' : null;
-    }
     setForm(base);
-    setBacklogSel(null);
-    setBacklogItems([]);
-    setBacklogQuery('');
-    setAbertas([true, true, true, true, false, false, false, false, false]);
-    setErros({ comportamento: false, meta: false, data: false, titulo: false });
+    setSelItem(null);
+    setQuery('');
+    setErros({ origem: false, data: false });
+    setAbertas([true, false, false, false, false, false]);
+
+    // Aba inicial
+    const origemInicial: AbaAtiva | null =
+      base.origem_tipo === 'sirene' || base.origem_tipo === 'pastelaria' ? 'sirene'
+      : base.origem_tipo === 'kanban' ? 'kanban'
+      : base.origem_tipo === 'atividades' ? 'atividades'
+      : origemInfo
+        ? (origemInfo.tipo === 'kanban' ? 'kanban' : 'sirene')
+        : null;
+    setAbaAtiva(origemInicial);
   }, [aberto, origemInfo]);
 
-  // ── Carrega itens do backlog conforme a origem ────────────────────────────
-  const origemEfetiva: OrigemTipo | null = form.origem_tipo
-    ?? (origemInfo ? (origemInfo.tipo === 'pastelaria' ? 'pastelaria' : origemInfo.tipo) as OrigemTipo : null);
-  const isSirene  = origemEfetiva === 'sirene' || origemEfetiva === 'pastelaria';
-  const isKanban  = origemEfetiva === 'kanban';
-  const isAtividade = origemEfetiva === 'atividades';
-
-  type CardRaw = {
-    id: string; titulo: string | null; proxima_atividade: string | null;
-    arquivado?: boolean; concluido?: boolean;
-    fase: { nome: string } | { nome: string }[] | null;
-    kanban: { nome: string } | { nome: string }[] | null;
-  };
-
+  // ── Carrega lista Sirene ao abrir aba ─────────────────────────────────────
   useEffect(() => {
-    if (!aberto) return;
-    if (!isSirene && !isKanban) { setBacklogItems([]); return; }
+    if (!aberto || abaAtiva !== 'sirene' || sireneItems.length > 0) return;
     if (!profileId) return;
-    setBacklogLoading(true);
+    setListLoading(true);
     void (async () => {
       try {
-        if (isSirene) {
-          const { data } = await supabase
-            .from('sirene_topicos')
-            .select('id, descricao, status, tipo')
-            .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
-            .in('status', ['nao_iniciado', 'em_andamento'])
-            .eq('arquivado', false)
-            .order('created_at', { ascending: false })
-            .limit(80);
-          setBacklogItems(((data ?? []) as { id: string; descricao: string; status: string; tipo: string | null }[])
-            .map(t => ({
-              id: t.id,
-              label: t.descricao ?? '(sem título)',
-              subtipo: 'sirene' as const,
-              detalhe: t.status,
-              badge: t.tipo ?? undefined,
-            })));
-        } else {
-          // Kanban: multi-fonte para cobrir todos os casos
-          const CARD_SELECT = 'id, titulo, proxima_atividade, arquivado, concluido, fase:kanban_fases(nome), kanban:kanbans(nome)';
-          const [dirRes, atvRes] = await Promise.all([
-            // Fonte A: responsável direto no card
-            supabase
-              .from('kanban_cards')
-              .select(CARD_SELECT)
-              .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
-              .eq('arquivado', false)
-              .eq('concluido', false)
-              .limit(60),
-            // Fonte B: responsável em atividades do card
-            supabase
-              .from('kanban_atividades')
-              .select(`card_id, card:kanban_cards(${CARD_SELECT})`)
-              .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
-              .neq('status', 'concluido')
-              .not('card_id', 'is', null),
-          ]);
-
-          const mapa = new Map<string, BacklogItem>();
-
-          const toItem = (c: CardRaw): BacklogItem => {
-            const fase   = Array.isArray(c.fase)   ? c.fase[0]   : c.fase;
-            const kanban = Array.isArray(c.kanban) ? c.kanban[0] : c.kanban;
-            return {
-              id: c.id,
-              label: c.titulo ?? '(sem título)',
-              subtipo: 'kanban',
-              detalhe: c.proxima_atividade ?? null,
-              badge: fase?.nome ?? null,
-              kanban_nome: kanban?.nome ?? null,
-            };
-          };
-
-          ((dirRes.data ?? []) as unknown as CardRaw[]).forEach(c => {
-            if (!c.arquivado && !c.concluido) mapa.set(c.id, toItem(c));
-          });
-          ((atvRes.data ?? []) as unknown as { card: CardRaw | CardRaw[] | null }[]).forEach(row => {
-            const c = Array.isArray(row.card) ? row.card[0] : row.card;
-            if (c && !c.arquivado && !c.concluido && !mapa.has(c.id)) mapa.set(c.id, toItem(c));
-          });
-
-          setBacklogItems(Array.from(mapa.values()));
-        }
-      } catch (e) { console.error('[ModalAgendamento] backlog:', e); }
-      finally { setBacklogLoading(false); }
+        const { data } = await supabase
+          .from('sirene_topicos')
+          .select('id, descricao, status, tipo')
+          .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
+          .in('status', ['nao_iniciado', 'em_andamento', 'atrasado'])
+          .eq('arquivado', false)
+          .order('created_at', { ascending: false })
+          .limit(80);
+        const sb = STATUS_BADGE;
+        setSireneItems(((data ?? []) as { id: string; descricao: string; status: string; tipo: string | null }[])
+          .map(t => ({
+            id: t.id,
+            label: t.descricao ?? '(sem título)',
+            sub: t.tipo ?? '—',
+            status: t.status,
+            badge: (sb[t.status] ?? sb['nao_iniciado']).label,
+            badgeBg: (sb[t.status] ?? sb['nao_iniciado']).bg,
+            badgeText: (sb[t.status] ?? sb['nao_iniciado']).text,
+          })));
+      } catch (e) { console.error('[Modal] sirene:', e); }
+      finally { setListLoading(false); }
     })();
-  }, [aberto, isSirene, isKanban, profileId, supabase]);
+  }, [aberto, abaAtiva, sireneItems.length, profileId, supabase]);
 
-  // ── Disponibilidade dos participantes ────────────────────────────────────
+  // ── Carrega lista Atividades ao abrir aba ─────────────────────────────────
+  useEffect(() => {
+    if (!aberto || abaAtiva !== 'atividades' || atividItems.length > 0) return;
+    if (!areaId) return;
+    setListLoading(true);
+    void (async () => {
+      try {
+        const { data } = await supabase
+          .from('acoes')
+          .select('id, tipo_atividade')
+          .eq('area_id', areaId)
+          .order('tipo_atividade');
+        setAtividItems(((data ?? []) as { id: string; tipo_atividade: string }[])
+          .map(a => ({
+            id: a.id,
+            label: a.tipo_atividade,
+            sub: '',
+            badgeBg: '#ede9fe',
+            badgeText: '#5b21b6',
+          })));
+      } catch (e) { console.error('[Modal] acoes:', e); }
+      finally { setListLoading(false); }
+    })();
+  }, [aberto, abaAtiva, atividItems.length, areaId, supabase]);
+
+  // ── Carrega lista Kanban ao abrir aba ─────────────────────────────────────
+  useEffect(() => {
+    if (!aberto || abaAtiva !== 'kanban' || kanbanItems.length > 0) return;
+    if (!profileId) return;
+    setListLoading(true);
+    void (async () => {
+      try {
+        const CARD_SEL = 'id, titulo, proxima_atividade, arquivado, concluido, fase:kanban_fases(nome), kanban:kanbans(nome)';
+        const [dirRes, atvRes, frankRes] = await Promise.all([
+          // Responsável direto no card
+          supabase.from('kanban_cards').select(CARD_SEL)
+            .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
+            .eq('arquivado', false).eq('concluido', false).limit(60),
+          // Responsável em atividade do card
+          supabase.from('kanban_atividades')
+            .select(`card_id, card:kanban_cards(${CARD_SEL})`)
+            .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
+            .neq('status', 'concluido').not('card_id', 'is', null),
+          // Franqueado linkado ao profileId
+          supabase.from('kanban_cards')
+            .select(`${CARD_SEL}, rede_franqueado:rede_franqueados(id, user_id)`)
+            .eq('arquivado', false).eq('concluido', false).limit(100),
+        ]);
+
+        const toItem = (c: CardRaw): BacklogItem => {
+          const fase   = Array.isArray(c.fase)   ? c.fase[0]   : c.fase;
+          const kanban = Array.isArray(c.kanban) ? c.kanban[0] : c.kanban;
+          const parts  = [kanban?.nome, fase?.nome].filter(Boolean);
+          return {
+            id: c.id,
+            label: c.titulo ?? '(sem título)',
+            sub: parts.join(' · '),
+            extra: c.proxima_atividade ?? undefined,
+            badgeBg: '#f3f4f6', badgeText: '#374151',
+          };
+        };
+
+        const mapa = new Map<string, BacklogItem>();
+
+        ((dirRes.data ?? []) as unknown as CardRaw[]).forEach(c => {
+          if (!c.arquivado && !c.concluido) mapa.set(c.id, toItem(c));
+        });
+        ((atvRes.data ?? []) as unknown as { card: CardRaw | CardRaw[] | null }[]).forEach(row => {
+          const c = Array.isArray(row.card) ? row.card[0] : row.card;
+          if (c && !c.arquivado && !c.concluido && !mapa.has(c.id)) mapa.set(c.id, toItem(c));
+        });
+        // Franqueado
+        type CardFrank = CardRaw & { rede_franqueado: { id: string; user_id: string | null } | { id: string; user_id: string | null }[] | null };
+        ((frankRes.data ?? []) as unknown as CardFrank[]).forEach(c => {
+          const rf = Array.isArray(c.rede_franqueado) ? c.rede_franqueado[0] : c.rede_franqueado;
+          if (rf?.user_id === profileId && !c.arquivado && !c.concluido && !mapa.has(c.id)) mapa.set(c.id, toItem(c));
+        });
+
+        setKanbanItems(Array.from(mapa.values()));
+      } catch (e) { console.error('[Modal] kanban:', e); }
+      finally { setListLoading(false); }
+    })();
+  }, [aberto, abaAtiva, kanbanItems.length, profileId, supabase]);
+
+  // ── Disponibilidade ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!form.data || !form.hora_inicio || form.participantes.length === 0) {
       setOcupados(new Set()); return;
@@ -334,24 +396,12 @@ export function ModalAgendamento({
     })();
   }, [form.data, form.hora_inicio, form.hora_fim, form.participantes, supabase]);
 
-  const toggleSecao = (i: number) => setAbertas(prev => prev.map((v, idx) => idx === i ? !v : v));
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const set = <K extends keyof DadosAgendamento>(key: K, value: DadosAgendamento[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
 
-  const handleHoraInicio = (v: string) => {
-    set('hora_inicio', v || null);
-    if (v && !form.hora_fim) {
-      const [h, m] = v.split(':').map(Number);
-      set('hora_fim', `${String(Math.min(23, h + 1)).padStart(2, '0')}:${String(m ?? 0).padStart(2, '0')}`);
-    }
-  };
-
-  const selecionarBacklogItem = (item: BacklogItem) => {
-    setBacklogSel(item);
-    set('titulo', item.label);
-    if (item.subtipo === 'kanban') set('card_id', item.id);
-    setErros(p => ({ ...p, titulo: false }));
-  };
+  const toggleSecao = (i: number) =>
+    setAbertas(prev => prev.map((v, idx) => idx === i ? !v : v));
 
   const toggleParticipante = (pid: string) =>
     setForm(prev => ({
@@ -361,70 +411,141 @@ export function ModalAgendamento({
         : [...prev.participantes, pid],
     }));
 
+  const handleAba = (aba: AbaAtiva) => {
+    setAbaAtiva(aba);
+    setSelItem(null);
+    setQuery('');
+    setForm(prev => ({
+      ...prev, acao_id: null, titulo: null, card_id: null, objetivo_id: null,
+      origem_tipo: aba === 'sirene' ? 'sirene' : aba === 'kanban' ? 'kanban' : 'atividades',
+    }));
+    setErros(p => ({ ...p, origem: false }));
+  };
+
+  const handleSelItem = (item: BacklogItem) => {
+    setSelItem(item);
+    if (abaAtiva === 'atividades') {
+      set('acao_id', item.id);
+      set('titulo', null);
+      set('card_id', null);
+    } else if (abaAtiva === 'kanban') {
+      set('card_id', item.id);
+      set('titulo', item.label);
+      set('acao_id', null);
+    } else {
+      set('titulo', item.label);
+      set('acao_id', null);
+      set('card_id', null);
+    }
+    setErros(p => ({ ...p, origem: false }));
+  };
+
+  const handleHoraInicio = (v: string) => {
+    set('hora_inicio', v || null);
+    if (v && !form.hora_fim) {
+      const [h, m] = v.split(':').map(Number);
+      set('hora_fim', `${String(Math.min(23, h + 1)).padStart(2, '0')}:${String(m ?? 0).padStart(2, '0')}`);
+    }
+  };
+
   const recCfg = (form.recorrencia_config ?? {}) as Partial<RecorrenciaConfig>;
   const setRecCfg = (patch: Partial<RecorrenciaConfig>) =>
     set('recorrencia_config', { ...recCfg, ...patch } as RecorrenciaConfig);
-
-  // Progresso
-  const camposOk = [
-    isKanban  ? !!form.titulo || !!backlogSel : isAtividade ? !!form.acao_id : !!form.titulo || !!backlogSel,
-    isKanban || isSirene ? true : !!form.objetivo_id,
-    !!(form.data && form.hora_inicio),
-  ];
-  const progresso = camposOk.filter(Boolean).length;
-
-  const handleSalvar = () => {
-    const semTitulo = (isKanban || isSirene) && !form.titulo && !backlogSel;
-    const novosErros = {
-      comportamento: isAtividade && !form.acao_id,
-      titulo:        semTitulo,
-      meta:          isAtividade && !form.objetivo_id,
-      data:          !(form.data && form.hora_inicio),
-    };
-    setErros(novosErros);
-    if (Object.values(novosErros).some(Boolean)) {
-      setAbertas(prev => {
-        const n = [...prev];
-        if (novosErros.comportamento || novosErros.titulo) n[1] = true;
-        if (novosErros.meta)  n[2] = true;
-        if (novosErros.data)  n[3] = true;
-        return n;
-      });
-      return;
-    }
-    onSalvar({ ...form, origem_tipo: origemEfetiva });
-  };
-
-  if (!aberto) return null;
-
-  const backlogFiltrado = backlogItems.filter(i =>
-    !backlogQuery || i.label.toLowerCase().includes(backlogQuery.toLowerCase())
-  );
 
   let ocorrenciasPreview = 0;
   if (form.recorrente && recCfg.frequencia && recCfg.ate && form.data) {
     try { ocorrenciasPreview = gerarOcorrencias(form.data, recCfg as RecorrenciaConfig).length; } catch { /**/ }
   }
 
+  const handleSalvar = () => {
+    const semOrigem = !abaAtiva || !selItem;
+    const novosErros = {
+      origem: semOrigem,
+      data: !(form.data && form.hora_inicio),
+    };
+    setErros(novosErros);
+    if (Object.values(novosErros).some(Boolean)) {
+      if (novosErros.data) setAbertas(prev => { const n = [...prev]; n[0] = true; return n; });
+      return;
+    }
+    onSalvar({ ...form, origem_tipo: abaAtiva === 'sirene' ? 'sirene' : abaAtiva === 'kanban' ? 'kanban' : 'atividades' });
+  };
+
+  if (!aberto) return null;
+
+  const itensAba = abaAtiva === 'sirene' ? sireneItems
+    : abaAtiva === 'atividades' ? atividItems
+    : abaAtiva === 'kanban' ? kanbanItems : [];
+
+  const itensFiltrados = query
+    ? itensAba.filter(i => i.label.toLowerCase().includes(query.toLowerCase()))
+    : itensAba;
+
+  const progresso = [!!abaAtiva && !!selItem, !!(form.data && form.hora_inicio)].filter(Boolean).length;
+
+  // ── Tab button ────────────────────────────────────────────────────────────
+  const TabBtn = ({ aba, icon, label }: { aba: AbaAtiva; icon: string; label: string }) => {
+    const ativo = abaAtiva === aba;
+    return (
+      <button type="button"
+        className={`flex-1 flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg border text-[11px] font-medium transition-colors leading-tight cursor-pointer ${
+          ativo ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 hover:bg-white'
+        }`}
+        onClick={() => handleAba(aba)}>
+        <span className="text-sm" aria-hidden="true">{icon}</span>
+        {label}
+      </button>
+    );
+  };
+
+  // ── Card de item do backlog ───────────────────────────────────────────────
+  const ItemCard = ({ item }: { item: BacklogItem }) => {
+    const selecionado = selItem?.id === item.id;
+    return (
+      <button type="button"
+        className={`w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors ${
+          selecionado ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+        }`}
+        onClick={() => handleSelItem(item)}>
+        {item.badgeBg && (
+          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: item.badgeBg, color: item.badgeText, flexShrink: 0, whiteSpace: 'nowrap' }}>
+            {item.badge ?? item.sub}
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className={`text-xs font-medium truncate ${selecionado ? 'text-blue-800' : 'text-gray-800'}`}>
+            {item.label}
+          </p>
+          {item.sub && !item.badgeBg && (
+            <p className="text-[10px] text-gray-400 truncate">{item.sub}</p>
+          )}
+          {item.sub && item.badgeBg && (
+            <p className={`text-[10px] truncate ${selecionado ? 'text-blue-500' : 'text-gray-400'}`}>{item.sub}</p>
+          )}
+        </div>
+      </button>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onFechar} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
 
         {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-gray-100">
+        <div className="px-5 pt-5 pb-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-semibold text-gray-800">
+            <h2 className="text-sm font-semibold text-gray-800">
               {modo === 'criar' ? 'Nova atividade' : 'Editar atividade'}
             </h2>
-            <button type="button" onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+            <button type="button" onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-base leading-none">✕</button>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all duration-300"
-                style={{ width: `${(progresso / 3) * 100}%`, backgroundColor: progresso === 3 ? '#22c55e' : '#3b82f6' }} />
+                style={{ width: `${(progresso / 2) * 100}%`, backgroundColor: progresso === 2 ? '#22c55e' : '#3b82f6' }} />
             </div>
-            <span className="text-xs text-gray-500 whitespace-nowrap">{progresso}/3 obrigatórios</span>
+            <span className="text-[10px] text-gray-400 whitespace-nowrap">{progresso}/2 obrigatórios</span>
           </div>
         </div>
 
@@ -435,374 +556,272 @@ export function ModalAgendamento({
           {origemInfo && (
             <div className="flex items-start gap-2 px-4 py-2.5 bg-blue-50 border-b border-blue-100">
               <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-blue-500 mt-0.5">
-                {origemInfo.tipo === 'sirene' ? 'Sirene' : origemInfo.tipo === 'pastelaria' ? 'Pastelaria' : 'Kanban'}
+                {origemInfo.tipo === 'kanban' ? 'Kanban' : origemInfo.tipo === 'pastelaria' ? 'Pastelaria' : 'Sirene'}
               </span>
               <div className="min-w-0">
-                <p className="text-xs text-blue-800 font-medium leading-snug truncate">{origemInfo.titulo}</p>
-                {origemInfo.subtitulo && <p className="text-[10px] text-blue-500 leading-snug">{origemInfo.subtitulo}</p>}
+                <p className="text-xs text-blue-800 font-medium truncate">{origemInfo.titulo}</p>
+                {origemInfo.subtitulo && <p className="text-[10px] text-blue-500">{origemInfo.subtitulo}</p>}
               </div>
             </div>
           )}
 
-          {/* Seção 0 — Origem (apenas no criar sem drag) */}
-          {!origemInfo && modo === 'criar' && (
-            <div className="border-b border-gray-100">
-              <SecaoHeader titulo="0. Origem da atividade" aberta={abertas[0]} onToggle={() => toggleSecao(0)} />
-              {abertas[0] && (
-                <div className="px-4 pb-4 pt-1 flex flex-col gap-2">
-                  {([
-                    { tipo: 'atividades'     as OrigemTipo, label: 'Atividades Planejadas', desc: 'Comportamento do Carômetro' },
-                    { tipo: 'sirene'         as OrigemTipo, label: 'Sirene / Pastelaria',   desc: 'Chamado, atendimento ou tarefa' },
-                    { tipo: 'kanban'         as OrigemTipo, label: 'Cards / Kanban',        desc: 'Próxima atividade de um card' },
-                  ]).map(({ tipo, label, desc }) => (
-                    <button key={tipo} type="button"
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${
-                        origemEfetiva === tipo ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                      onClick={() => { set('origem_tipo', tipo); setBacklogSel(null); setBacklogQuery(''); }}>
-                      <div className={`w-3 h-3 rounded-full border-2 shrink-0 ${origemEfetiva === tipo ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`} />
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{label}</p>
-                        <p className="text-[11px] text-gray-500">{desc}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {/* ── BLOCO UNIFICADO: Origem + Item ── */}
+          <div className={`border-b border-gray-100 px-4 pt-4 pb-4 ${erros.origem ? 'bg-red-50' : ''}`}>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
+              Origem e atividade
+              {erros.origem && <span className="text-red-500 ml-2 normal-case">• selecione um item</span>}
+            </p>
 
-          {/* Seção 1 — Comportamento / Item do backlog */}
-          <div className="border-b border-gray-100">
-            <SecaoHeader
-              titulo={isAtividade ? '1. Comportamento / Atividade' : isKanban ? '1. Card do Kanban' : '1. Item do Backlog'}
-              obrigatorio
-              aberta={abertas[1]}
-              onToggle={() => toggleSecao(1)}
-              erro={erros.comportamento || erros.titulo}
-            />
-            {abertas[1] && (
-              <div className="px-4 pb-4 pt-1">
-                {isAtividade ? (
-                  /* Dropdown de comportamentos */
-                  acoesCrg ? (
-                    <div className="text-xs text-gray-400 py-2">Carregando comportamentos...</div>
-                  ) : (
-                    <select
-                      className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.comportamento ? 'border-red-400' : 'border-gray-300'}`}
-                      value={form.acao_id ?? ''}
-                      onChange={e => { set('acao_id', e.target.value || null); setErros(p => ({ ...p, comportamento: false })); }}>
-                      <option value="">— Selecionar comportamento —</option>
-                      {acoes.map(a => <option key={a.id} value={a.id}>{a.tipo_atividade}</option>)}
-                    </select>
-                  )
-                ) : (isSirene || isKanban) ? (
-                  /* Picker 2 colunas — lista | detalhe */
-                  <div className="flex gap-3" style={{ minHeight: 200 }}>
-                    {/* ── Coluna esquerda: busca + lista ── */}
-                    <div className="flex flex-col gap-2 flex-1 min-w-0">
-                      <input
-                        type="text"
-                        placeholder={isSirene ? 'Buscar tópico Sirene...' : 'Buscar card...'}
-                        className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                        value={backlogQuery}
-                        onChange={e => setBacklogQuery(e.target.value)}
-                      />
-                      {backlogLoading ? (
-                        <div className="text-xs text-gray-400 py-1">Carregando...</div>
-                      ) : (
-                        <div className="overflow-y-auto flex flex-col gap-1" style={{ maxHeight: 200 }}>
-                          {backlogFiltrado.length === 0 ? (
-                            <p className="text-xs text-gray-400 py-1">Nenhum item encontrado.</p>
-                          ) : backlogFiltrado.slice(0, 25).map(item => (
-                            <button key={item.id} type="button"
-                              className={`text-left px-2.5 py-1.5 rounded border transition-colors ${
-                                backlogSel?.id === item.id
-                                  ? 'border-blue-400 bg-blue-50'
-                                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                              }`}
-                              onClick={() => selecionarBacklogItem(item)}>
-                              <p className={`text-xs font-medium leading-snug truncate ${backlogSel?.id === item.id ? 'text-blue-800' : 'text-gray-700'}`}>
-                                {item.label}
-                              </p>
-                              {(item.badge || item.kanban_nome) && (
-                                <p className="text-[10px] text-gray-400 truncate leading-tight">
-                                  {[item.kanban_nome, item.badge].filter(Boolean).join(' · ')}
-                                </p>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {/* Título manual quando não encontra */}
-                      {!backlogSel && (
-                        <div className="mt-0.5">
-                          <label className="text-[10px] text-gray-400 mb-1 block">Ou descreva manualmente</label>
-                          <input type="text"
-                            className={`w-full text-xs border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.titulo ? 'border-red-400' : 'border-gray-300'}`}
-                            placeholder="Título da atividade..."
-                            value={form.titulo ?? ''}
-                            onChange={e => { set('titulo', e.target.value || null); setErros(p => ({ ...p, titulo: false })); }}
-                          />
-                        </div>
-                      )}
+            {/* 3 abas */}
+            {!origemInfo && (
+              <div className="flex gap-2 mb-3">
+                <TabBtn aba="sirene"     icon="🔔" label="Sirene / Pastelaria" />
+                <TabBtn aba="atividades" icon="📋" label="Atividades planejadas" />
+                <TabBtn aba="kanban"     icon="🗂" label="Cards / Kanban" />
+              </div>
+            )}
+
+            {/* Conteúdo da aba */}
+            {abaAtiva ? (
+              <div>
+                <input type="text"
+                  className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder={
+                    abaAtiva === 'sirene' ? 'Buscar tópico Sirene...'
+                    : abaAtiva === 'atividades' ? 'Buscar comportamento ou atividade...'
+                    : 'Buscar card...'
+                  }
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                />
+
+                {/* Lista */}
+                {listLoading ? (
+                  <p className="text-xs text-gray-400 py-2">Carregando...</p>
+                ) : itensFiltrados.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-2">Nenhum item encontrado.</p>
+                ) : (
+                  <div className="flex flex-col gap-1 max-h-44 overflow-y-auto">
+                    {itensFiltrados.slice(0, 30).map(item => (
+                      <ItemCard key={item.id} item={item} />
+                    ))}
+                  </div>
+                )}
+
+                {/* Item selecionado — abaixo da lista */}
+                {selItem && (
+                  <div className="mt-3 px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-blue-800 truncate">{selItem.label}</p>
+                        {selItem.sub && <p className="text-[10px] text-blue-500 mt-0.5">{selItem.sub}</p>}
+                        {selItem.extra && (
+                          <p className="text-[10px] text-blue-600 mt-1">
+                            <span className="text-blue-400">Próxima atividade: </span>{selItem.extra}
+                          </p>
+                        )}
+                      </div>
+                      <button type="button" className="text-blue-300 hover:text-blue-500 text-xs shrink-0"
+                        onClick={() => { setSelItem(null); set('acao_id', null); set('titulo', null); set('card_id', null); }}>
+                        ✕
+                      </button>
                     </div>
 
-                    {/* ── Coluna direita: detalhe do item selecionado ── */}
-                    {backlogSel ? (
-                      <div className="w-44 shrink-0 border border-blue-100 rounded-lg bg-blue-50 p-3 flex flex-col gap-2">
-                        <div className="flex items-start justify-between gap-1">
-                          <p className="text-xs font-semibold text-blue-800 leading-snug flex-1">{backlogSel.label}</p>
-                          <button type="button" className="text-blue-300 hover:text-blue-600 shrink-0 text-xs leading-none"
-                            onClick={() => { setBacklogSel(null); set('titulo', null); set('card_id', null); }}>✕</button>
-                        </div>
-                        {backlogSel.kanban_nome && (
-                          <p className="text-[10px] text-blue-600 font-medium">{backlogSel.kanban_nome}</p>
-                        )}
-                        {backlogSel.badge && (
-                          <span className="self-start text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                            {backlogSel.badge}
-                          </span>
-                        )}
-                        {backlogSel.detalhe && (
-                          <div className="border-t border-blue-100 pt-2">
-                            <p className="text-[10px] text-blue-400 mb-0.5 uppercase tracking-wide">
-                              {isKanban ? 'Próxima atividade' : 'Status'}
-                            </p>
-                            <p className="text-xs text-blue-700 leading-snug">{backlogSel.detalhe}</p>
-                          </div>
-                        )}
-                        <p className="text-[10px] text-blue-500 mt-auto">✓ Selecionado</p>
-                      </div>
-                    ) : (
-                      <div className="w-44 shrink-0 border border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-                        <p className="text-[10px] text-gray-300 text-center px-3">Selecione um item para ver detalhes</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* Nenhuma origem selecionada ainda */
-                  <p className="text-xs text-gray-400 py-1">Selecione uma origem acima primeiro.</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Seção 2 — Meta (apenas para Atividades Planejadas) */}
-          {isAtividade && (
-            <div className="border-b border-gray-100">
-              <SecaoHeader titulo="2. Meta vinculada" obrigatorio aberta={abertas[2]} onToggle={() => toggleSecao(2)} erro={erros.meta} />
-              {abertas[2] && (
-                <div className="px-4 pb-4 pt-1">
-                  <select
-                    className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.meta ? 'border-red-400' : 'border-gray-300'}`}
-                    value={form.objetivo_id ?? ''}
-                    onChange={e => { set('objetivo_id', e.target.value || null); setErros(p => ({ ...p, meta: false })); }}>
-                    <option value="">— Selecionar meta —</option>
-                    {objetivos.map(o => <option key={o.id} value={o.id}>{o.descricao}{o.tipo ? ` (${o.tipo})` : ''}</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Seção 3 — Data e Horário */}
-          <div className="border-b border-gray-100">
-            <SecaoHeader titulo="3. Data e Horário" obrigatorio aberta={abertas[3]} onToggle={() => toggleSecao(3)} erro={erros.data} />
-            {abertas[3] && (
-              <div className="px-4 pb-4 pt-1 grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Data</label>
-                  <input type="date"
-                    className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.data && !form.data ? 'border-red-400' : 'border-gray-300'}`}
-                    value={form.data ?? ''}
-                    onChange={e => { set('data', e.target.value || null); setErros(p => ({ ...p, data: false })); }} />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Início</label>
-                  <input type="time"
-                    className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.data && !form.hora_inicio ? 'border-red-400' : 'border-gray-300'}`}
-                    value={form.hora_inicio ?? ''}
-                    onChange={e => handleHoraInicio(e.target.value)} />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Fim</label>
-                  <input type="time"
-                    className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.hora_fim ?? ''}
-                    onChange={e => set('hora_fim', e.target.value || null)} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Seção 4 — Participantes */}
-          <div className="border-b border-gray-100">
-            <SecaoHeader titulo={`4. Participantes${form.participantes.length > 0 ? ` (${form.participantes.length})` : ''}`} aberta={abertas[4]} onToggle={() => toggleSecao(4)} />
-            {abertas[4] && (
-              <div className="px-4 pb-4 pt-1">
-                {pessoas.length === 0 ? (
-                  <p className="text-xs text-gray-400">Nenhuma pessoa encontrada na área.</p>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {pessoas.map(p => {
-                      const selecionado = form.participantes.includes(p.profile_id);
-                      const ocupado = selecionado && ocupados.has(p.profile_id);
-                      return (
-                        <button key={p.profile_id} type="button"
-                          onClick={() => toggleParticipante(p.profile_id)}
-                          className={`flex items-center gap-3 px-3 py-2 rounded-lg border text-left transition-colors ${selecionado ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                          <div className={`w-4 h-4 rounded border-2 shrink-0 flex items-center justify-center text-white text-[10px] ${selecionado ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
-                            {selecionado && '✓'}
-                          </div>
-                          <span className="text-sm text-gray-700 flex-1">{p.nome}</span>
-                          {ocupado && <span className="text-[10px] text-orange-500 font-medium">ocupado</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Seção 5 — Link da reunião */}
-          <div className="border-b border-gray-100">
-            <SecaoHeader titulo="5. Link da reunião" aberta={abertas[5]} onToggle={() => toggleSecao(5)} />
-            {abertas[5] && (
-              <div className="px-4 pb-4 pt-1">
-                <input type="url"
-                  placeholder="https://meet.google.com/... ou https://zoom.us/..."
-                  className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  value={form.link_reuniao ?? ''}
-                  onChange={e => set('link_reuniao', e.target.value || null)} />
-              </div>
-            )}
-          </div>
-
-          {/* Seção 6 — Recorrência */}
-          <div className="border-b border-gray-100">
-            <SecaoHeader titulo="6. Recorrência" aberta={abertas[6]} onToggle={() => toggleSecao(6)} />
-            {abertas[6] && (
-              <div className="px-4 pb-4 pt-1 flex flex-col gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" className="rounded" checked={form.recorrente}
-                    onChange={e => set('recorrente', e.target.checked)} />
-                  <span className="text-sm text-gray-700">Atividade recorrente</span>
-                </label>
-                {form.recorrente && (
-                  <div className="flex flex-col gap-3 pl-1">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">Frequência</label>
-                        <select className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2"
-                          value={recCfg.frequencia ?? ''}
-                          onChange={e => setRecCfg({ frequencia: e.target.value as RecorrenciaConfig['frequencia'], intervalo: 1, diasSemana: [] })}>
-                          <option value="">—</option>
-                          <option value="diario">Diariamente</option>
-                          <option value="semanal">Semanalmente</option>
-                          <option value="mensal">Mensalmente</option>
+                    {/* Meta vinculada — somente para Atividades Planejadas */}
+                    {abaAtiva === 'atividades' && (
+                      <div className="mt-2 pt-2 border-t border-blue-100">
+                        <label className="text-[10px] text-blue-500 mb-1 block">Meta vinculada</label>
+                        <select
+                          className="w-full text-xs border border-blue-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                          value={form.objetivo_id ?? ''}
+                          onChange={e => set('objetivo_id', e.target.value || null)}>
+                          <option value="">— Selecionar meta —</option>
+                          {objetivos.map(o => (
+                            <option key={o.id} value={o.id}>
+                              {o.descricao}{o.tipo ? ` (${o.tipo})` : ''}
+                            </option>
+                          ))}
                         </select>
                       </div>
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">
-                          A cada {recCfg.frequencia === 'diario' ? 'dia(s)' : recCfg.frequencia === 'semanal' ? 'semana(s)' : 'mês(es)'}
-                        </label>
-                        <input type="number" min={1} max={30}
-                          className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2"
-                          value={recCfg.intervalo ?? 1}
-                          onChange={e => setRecCfg({ intervalo: Math.max(1, Number(e.target.value)) })} />
-                      </div>
-                    </div>
-                    {recCfg.frequencia === 'semanal' && (
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1.5 block">Dias da semana</label>
-                        <div className="flex gap-1.5">
-                          {DIAS_SEMANA.map((d, i) => {
-                            const sel = (recCfg.diasSemana ?? []).includes(i);
-                            return (
-                              <button key={i} type="button"
-                                className={`w-8 h-8 rounded-full text-xs font-medium transition-colors ${sel ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                                onClick={() => {
-                                  const cur = recCfg.diasSemana ?? [];
-                                  setRecCfg({ diasSemana: sel ? cur.filter(x => x !== i) : [...cur, i].sort() });
-                                }}>{d}</button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">Termina em</label>
-                      <input type="date" className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2"
-                        value={recCfg.ate ?? ''}
-                        onChange={e => setRecCfg({ ate: e.target.value })} />
-                    </div>
-                    {ocorrenciasPreview > 0 && (
-                      <p className="text-xs text-blue-600 font-medium">→ {ocorrenciasPreview} ocorrência{ocorrenciasPreview !== 1 ? 's' : ''} serão criadas</p>
                     )}
                   </div>
                 )}
               </div>
+            ) : (
+              <p className="text-xs text-gray-400 py-1">Selecione uma categoria acima.</p>
             )}
           </div>
 
-          {/* Seção 7 — Vínculo */}
-          <div className="border-b border-gray-100">
-            <SecaoHeader titulo="7. Vínculo" aberta={abertas[7]} onToggle={() => toggleSecao(7)} />
-            {abertas[7] && (
-              <div className="px-4 pb-4 pt-1 grid grid-cols-2 gap-3">
-                {([
-                  { label: 'Casa',       key: 'casa_id'          as const, opts: casas },
-                  { label: 'Franqueado', key: 'franqueado_id'    as const, opts: franqueados },
-                  { label: 'Loteador',   key: 'rede_loteador_id' as const, opts: loteadores },
-                  { label: 'Condomínio', key: 'condominio_id'    as const, opts: condominios },
-                ] as const).map(({ label, key, opts }) => (
-                  <div key={key}>
-                    <label className="text-xs text-gray-500 mb-1 block">{label}</label>
-                    <select className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2"
-                      value={(form[key] as string | null) ?? ''}
-                      onChange={e => set(key, e.target.value || null)}>
+          {/* ── Data e Horário ── */}
+          <Secao titulo="Data e horário" aberta={abertas[0]} onToggle={() => toggleSecao(0)} erro={erros.data}>
+            <div className="grid grid-cols-3 gap-3 mt-1">
+              <div>
+                <label className="text-[10px] text-gray-400 mb-1 block">Data</label>
+                <input type="date"
+                  className={`w-full text-xs border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.data && !form.data ? 'border-red-400' : 'border-gray-300'}`}
+                  value={form.data ?? ''}
+                  onChange={e => { set('data', e.target.value || null); setErros(p => ({ ...p, data: false })); }} />
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-400 mb-1 block">Início</label>
+                <input type="time"
+                  className={`w-full text-xs border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.data && !form.hora_inicio ? 'border-red-400' : 'border-gray-300'}`}
+                  value={form.hora_inicio ?? ''}
+                  onChange={e => handleHoraInicio(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-400 mb-1 block">Fim</label>
+                <input type="time"
+                  className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  value={form.hora_fim ?? ''}
+                  onChange={e => set('hora_fim', e.target.value || null)} />
+              </div>
+            </div>
+          </Secao>
+
+          {/* ── Participantes ── */}
+          <Secao titulo={`Participantes${form.participantes.length > 0 ? ` (${form.participantes.length})` : ''}`} aberta={abertas[1]} onToggle={() => toggleSecao(1)}>
+            {pessoas.length === 0 ? (
+              <p className="text-xs text-gray-400 mt-1">Nenhum usuário encontrado.</p>
+            ) : (
+              <div className="flex flex-col gap-1 mt-1 max-h-40 overflow-y-auto">
+                {pessoas.map(p => {
+                  const sel = form.participantes.includes(p.profile_id);
+                  const ocupado = sel && ocupados.has(p.profile_id);
+                  return (
+                    <label key={p.profile_id}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${sel ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input type="checkbox" className="w-3.5 h-3.5 rounded accent-blue-500"
+                        checked={sel}
+                        onChange={() => toggleParticipante(p.profile_id)} />
+                      <span className="text-xs text-gray-700 flex-1">{p.nome}</span>
+                      {ocupado && <span className="text-[10px] text-orange-500">ocupado</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </Secao>
+
+          {/* ── Link da reunião ── */}
+          <Secao titulo="Link da reunião" aberta={abertas[2]} onToggle={() => toggleSecao(2)}>
+            <input type="url" className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              placeholder="https://meet.google.com/..."
+              value={form.link_reuniao ?? ''}
+              onChange={e => set('link_reuniao', e.target.value || null)} />
+          </Secao>
+
+          {/* ── Recorrência ── */}
+          <Secao titulo="Recorrência" aberta={abertas[3]} onToggle={() => toggleSecao(3)}>
+            <label className="flex items-center gap-2 mt-1 cursor-pointer">
+              <input type="checkbox" className="rounded accent-blue-500" checked={form.recorrente}
+                onChange={e => set('recorrente', e.target.checked)} />
+              <span className="text-xs text-gray-700">Atividade recorrente</span>
+            </label>
+            {form.recorrente && (
+              <div className="mt-3 flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] text-gray-400 mb-1 block">Frequência</label>
+                    <select className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
+                      value={recCfg.frequencia ?? ''}
+                      onChange={e => setRecCfg({ frequencia: e.target.value as RecorrenciaConfig['frequencia'], intervalo: 1, diasSemana: [] })}>
                       <option value="">—</option>
-                      {opts.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                      <option value="diario">Diariamente</option>
+                      <option value="semanal">Semanalmente</option>
+                      <option value="mensal">Mensalmente</option>
                     </select>
                   </div>
-                ))}
+                  <div>
+                    <label className="text-[10px] text-gray-400 mb-1 block">
+                      A cada {recCfg.frequencia === 'diario' ? 'dia(s)' : recCfg.frequencia === 'semanal' ? 'semana(s)' : 'mês(es)'}
+                    </label>
+                    <input type="number" min={1} max={30}
+                      className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
+                      value={recCfg.intervalo ?? 1}
+                      onChange={e => setRecCfg({ intervalo: Math.max(1, Number(e.target.value)) })} />
+                  </div>
+                </div>
+                {recCfg.frequencia === 'semanal' && (
+                  <div>
+                    <label className="text-[10px] text-gray-400 mb-1.5 block">Dias da semana</label>
+                    <div className="flex gap-1.5">
+                      {DIAS_SEMANA.map((d, i) => {
+                        const sel = (recCfg.diasSemana ?? []).includes(i);
+                        return (
+                          <button key={i} type="button"
+                            className={`w-7 h-7 rounded-full text-[10px] font-medium transition-colors ${sel ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            onClick={() => {
+                              const cur = recCfg.diasSemana ?? [];
+                              setRecCfg({ diasSemana: sel ? cur.filter(x => x !== i) : [...cur, i].sort() });
+                            }}>{d}</button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">CNPJ Administrativo</label>
-                  <select className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2"
-                    value={form.adm_cnpj_id ?? ''} onChange={e => set('adm_cnpj_id', e.target.value || null)}>
+                  <label className="text-[10px] text-gray-400 mb-1 block">Termina em</label>
+                  <input type="date" className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
+                    value={recCfg.ate ?? ''}
+                    onChange={e => setRecCfg({ ate: e.target.value })} />
+                </div>
+                {ocorrenciasPreview > 0 && (
+                  <p className="text-xs text-blue-600 font-medium">
+                    → {ocorrenciasPreview} ocorrência{ocorrenciasPreview !== 1 ? 's' : ''} serão criadas
+                  </p>
+                )}
+              </div>
+            )}
+          </Secao>
+
+          {/* ── Vínculo ── */}
+          <Secao titulo="Vínculo" aberta={abertas[4]} onToggle={() => toggleSecao(4)}>
+            <div className="grid grid-cols-2 gap-3 mt-1">
+              {([
+                { label: 'Casa',       key: 'casa_id'          as const, opts: casas.map(x => ({ id: x.id, nome: x.nome })) },
+                { label: 'Franqueado', key: 'franqueado_id'    as const, opts: franqueados },
+                { label: 'Loteador',   key: 'rede_loteador_id' as const, opts: loteadores },
+                { label: 'Condomínio', key: 'condominio_id'    as const, opts: condominios },
+              ] as const).map(({ label, key, opts }) => (
+                <div key={key}>
+                  <label className="text-[10px] text-gray-400 mb-1 block">{label}</label>
+                  <select className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
+                    value={(form[key] as string | null) ?? ''}
+                    onChange={e => set(key, e.target.value || null)}>
                     <option value="">—</option>
-                    {cnpjs.map(c => <option key={c.id} value={c.id}>{c.cnpj}{c.descritivo ? ` — ${c.descritivo}` : ''}</option>)}
+                    {opts.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
                   </select>
                 </div>
+              ))}
+              <div>
+                <label className="text-[10px] text-gray-400 mb-1 block">CNPJ Administrativo</label>
+                <select className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
+                  value={form.adm_cnpj_id ?? ''} onChange={e => set('adm_cnpj_id', e.target.value || null)}>
+                  <option value="">—</option>
+                  {cnpjs.map(c => <option key={c.id} value={c.id}>{c.cnpj}{c.descritivo ? ` — ${c.descritivo}` : ''}</option>)}
+                </select>
               </div>
-            )}
-          </div>
+            </div>
+          </Secao>
 
-          {/* Seção 8 — Observações */}
-          <div>
-            <SecaoHeader titulo="8. Observações" aberta={abertas[8]} onToggle={() => toggleSecao(8)} />
-            {abertas[8] && (
-              <div className="px-4 pb-4 pt-1">
-                <textarea
-                  className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  rows={3} placeholder="Notas livres..."
-                  value={form.observacoes ?? ''}
-                  onChange={e => set('observacoes', e.target.value || null)} />
-              </div>
-            )}
-          </div>
+          {/* ── Observações ── */}
+          <Secao titulo="Observações" aberta={abertas[5]} onToggle={() => toggleSecao(5)}>
+            <textarea className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mt-1 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
+              rows={3} placeholder="Notas livres..."
+              value={form.observacoes ?? ''}
+              onChange={e => set('observacoes', e.target.value || null)} />
+          </Secao>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+        <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
           <button type="button" onClick={onFechar}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+            className="px-4 py-2 text-xs text-gray-600 hover:text-gray-800 transition-colors">
             Cancelar
           </button>
           <button type="button" onClick={handleSalvar} disabled={isSaving}
-            className="px-5 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors">
+            className="px-5 py-2 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors font-medium">
             {isSaving ? 'Salvando...' : modo === 'criar'
               ? (ocorrenciasPreview > 1 ? `Criar ${ocorrenciasPreview} ocorrências` : 'Criar atividade')
               : 'Salvar alterações'}
