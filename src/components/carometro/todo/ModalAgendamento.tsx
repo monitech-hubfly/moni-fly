@@ -159,11 +159,20 @@ export function ModalAgendamento({
         const [acoesRes, objRes, pessoasRes] = await Promise.all([
           supabase.from('acoes').select('id, tipo_atividade').eq('area_id', areaId).order('tipo_atividade'),
           supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', areaId).eq('status', 'ativo').order('descricao'),
-          supabase.from('area_pessoas').select('profile_id, nome').eq('area_id', areaId).not('profile_id', 'is', null),
+          // Todos os usuários do sistema (não apenas da área)
+          supabase.from('area_pessoas').select('profile_id, nome').not('profile_id', 'is', null).order('nome'),
         ]);
         setAcoes((acoesRes.data ?? []) as { id: string; tipo_atividade: string }[]);
         setObjetivos((objRes.data ?? []) as { id: string; descricao: string; tipo: string | null }[]);
-        setPessoas(((pessoasRes.data ?? []) as { profile_id: string; nome: string }[]).filter(p => p.profile_id !== profileId));
+        // Dedup por profile_id e excluir o próprio usuário
+        const rawPessoas = (pessoasRes.data ?? []) as { profile_id: string; nome: string }[];
+        const seenPid = new Set<string>();
+        const pessoasDedup = rawPessoas.filter(p => {
+          if (p.profile_id === profileId || seenPid.has(p.profile_id)) return false;
+          seenPid.add(p.profile_id);
+          return true;
+        });
+        setPessoas(pessoasDedup);
       } catch (e) { console.error('[ModalAgendamento] acoes:', e); }
       finally { setAcoesCrg(false); }
     })();
