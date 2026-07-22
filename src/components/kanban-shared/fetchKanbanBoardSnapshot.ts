@@ -1088,6 +1088,7 @@ export async function fetchKanbanBoardSnapshot(
       franqueado_id: fid,
       arquivado: Boolean((cMerged as { arquivado?: boolean | null }).arquivado),
       motivo_arquivamento: (cMerged as { motivo_arquivamento?: string | null }).motivo_arquivamento ?? null,
+      resultado: ((cMerged as { resultado?: string | null }).resultado ?? null) as 'perda' | 'ganho' | null,
       concluido: Boolean((cMerged as { concluido?: boolean | null }).concluido),
       concluido_em:
         (cMerged as { concluido_em?: string | null }).concluido_em != null

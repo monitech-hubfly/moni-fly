@@ -507,6 +507,7 @@ export function KanbanColumn({
           const slaAtrasado = !arquivado && !concluido && sla.status === 'atrasado';
           const statusLateral = slaAtrasado ? 'vermelho' : 'cinza';
           const motivo = (card.motivo_arquivamento ?? '').trim();
+          const resultado = card.resultado ?? null;
           const responsavelNome = card.responsavel_fase_nome?.trim() || '';
           const hasAvatar = Boolean(responsavelNome);
           const hasBadge = arquivado || concluido;
@@ -666,8 +667,14 @@ export function KanbanColumn({
                       {hasBadge || hasAvatar ? (
                         <div className="moni-kanban-card-header-end">
                           {arquivado ? (
-                            <span className="moni-kanban-card-status-badge moni-kanban-card-status-badge--archived">
-                              ARQUIVADO
+                            <span className={
+                              resultado === 'perda'
+                                ? 'moni-kanban-card-status-badge moni-kanban-card-status-badge--danger'
+                                : resultado === 'ganho'
+                                  ? 'moni-kanban-card-status-badge moni-kanban-card-status-badge--done'
+                                  : 'moni-kanban-card-status-badge moni-kanban-card-status-badge--archived'
+                            }>
+                              {resultado === 'perda' ? 'PERDA' : resultado === 'ganho' ? 'GANHO' : 'ARQUIVADO'}
                             </span>
                           ) : concluido ? (
                             <span className="moni-kanban-card-status-badge moni-kanban-card-status-badge--done">

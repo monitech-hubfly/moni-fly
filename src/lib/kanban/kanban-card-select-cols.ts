@@ -8,6 +8,7 @@ export const KANBAN_CARD_SELECT_BASE = `
       franqueado_id,
       arquivado,
       motivo_arquivamento,
+      resultado,
       concluido,
       concluido_em,
       rede_franqueado_id,

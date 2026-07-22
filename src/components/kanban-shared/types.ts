@@ -61,6 +61,8 @@ export type KanbanCardBrief = {
   /** Cards nativos arquivados (`kanban_cards.arquivado`). Legado: ausente / false. */
   arquivado?: boolean;
   motivo_arquivamento?: string | null;
+  /** Resultado do arquivamento: 'perda', 'ganho' ou null (arquivado simples). Migration 473. */
+  resultado?: 'perda' | 'ganho' | null;
   /** Nativo: finalizado pelo usuário (`kanban_cards.concluido`). Legado: ausente / false. */
   concluido?: boolean;
   concluido_em?: string | null;
