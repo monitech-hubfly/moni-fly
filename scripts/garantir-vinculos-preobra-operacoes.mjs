@@ -11,14 +11,33 @@ import { resolve } from 'node:path';
 import pg from 'pg';
 import { parsePostgresUrl } from './pg-dev-client.mjs';
 
-/** Cards alvo desta execução */
-const CARD_IDS = [
+/** Cards alvo padrão (batch) */
+const CARD_IDS_DEFAULT = [
   'd58bc8ec-1b7f-4732-81c5-aff61f412b9a', // FK0012 Genesis II
   '17b5aef3-aab9-410a-b0d2-8ebcdca71c50', // Artesano Galleria
   'ca66b708-bba0-41f2-85c0-b1963bd05af6',
   '0824cdc0-8163-4a42-b385-e95c0c98e761',
   '6b419ba4-7f55-4ef9-ae5d-51060edf398f',
 ];
+
+function argValue(name) {
+  const eq = process.argv.find((a) => a.startsWith(`${name}=`));
+  if (eq) return eq.slice(name.length + 1);
+  const idx = process.argv.indexOf(name);
+  if (idx >= 0 && process.argv[idx + 1] && !process.argv[idx + 1].startsWith('--')) {
+    return process.argv[idx + 1];
+  }
+  return null;
+}
+
+function resolverCardIds() {
+  const raw = (argValue('--card-id') || argValue('--card-ids') || '').trim();
+  if (!raw) return CARD_IDS_DEFAULT;
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 const KANBAN = {
   OPERACOES: 'f6bba1de-a7a1-4b14-89d1-10c2f7bba636',
@@ -215,8 +234,10 @@ async function main() {
 
   try {
     if (!dryRun) await client.query('BEGIN');
+    const cardIds = resolverCardIds();
+    console.log('Cards alvo:', cardIds);
     const results = [];
-    for (const id of CARD_IDS) {
+    for (const id of cardIds) {
       results.push(await processarCard(client, id));
     }
     if (!dryRun) await client.query('COMMIT');
