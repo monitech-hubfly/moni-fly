@@ -106,7 +106,14 @@ function SecaoHeader({
   );
 }
 
-type BacklogItem = { id: string; label: string; subtipo: 'sirene' | 'kanban' };
+type BacklogItem = {
+  id: string;
+  label: string;
+  subtipo: 'sirene' | 'kanban';
+  detalhe?: string | null;    // proxima_atividade ou status sirene
+  badge?: string | null;      // fase_nome ou tipo sirene
+  kanban_nome?: string | null;
+};
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 export function ModalAgendamento({
@@ -211,6 +218,13 @@ export function ModalAgendamento({
   const isKanban  = origemEfetiva === 'kanban';
   const isAtividade = origemEfetiva === 'atividades';
 
+  type CardRaw = {
+    id: string; titulo: string | null; proxima_atividade: string | null;
+    arquivado?: boolean; concluido?: boolean;
+    fase: { nome: string } | { nome: string }[] | null;
+    kanban: { nome: string } | { nome: string }[] | null;
+  };
+
   useEffect(() => {
     if (!aberto) return;
     if (!isSirene && !isKanban) { setBacklogItems([]); return; }
@@ -221,25 +235,65 @@ export function ModalAgendamento({
         if (isSirene) {
           const { data } = await supabase
             .from('sirene_topicos')
-            .select('id, descricao, status')
+            .select('id, descricao, status, tipo')
             .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
             .in('status', ['nao_iniciado', 'em_andamento'])
             .eq('arquivado', false)
             .order('created_at', { ascending: false })
             .limit(80);
-          setBacklogItems(((data ?? []) as { id: string; descricao: string }[])
-            .map(t => ({ id: t.id, label: t.descricao ?? '(sem título)', subtipo: 'sirene' as const })));
+          setBacklogItems(((data ?? []) as { id: string; descricao: string; status: string; tipo: string | null }[])
+            .map(t => ({
+              id: t.id,
+              label: t.descricao ?? '(sem título)',
+              subtipo: 'sirene' as const,
+              detalhe: t.status,
+              badge: t.tipo ?? undefined,
+            })));
         } else {
-          const { data } = await supabase
-            .from('kanban_cards')
-            .select('id, titulo')
-            .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
-            .eq('arquivado', false)
-            .eq('concluido', false)
-            .order('created_at', { ascending: false })
-            .limit(80);
-          setBacklogItems(((data ?? []) as { id: string; titulo: string | null }[])
-            .map(c => ({ id: c.id, label: c.titulo ?? '(sem título)', subtipo: 'kanban' as const })));
+          // Kanban: multi-fonte para cobrir todos os casos
+          const CARD_SELECT = 'id, titulo, proxima_atividade, arquivado, concluido, fase:kanban_fases(nome), kanban:kanbans(nome)';
+          const [dirRes, atvRes] = await Promise.all([
+            // Fonte A: responsável direto no card
+            supabase
+              .from('kanban_cards')
+              .select(CARD_SELECT)
+              .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
+              .eq('arquivado', false)
+              .eq('concluido', false)
+              .limit(60),
+            // Fonte B: responsável em atividades do card
+            supabase
+              .from('kanban_atividades')
+              .select(`card_id, card:kanban_cards(${CARD_SELECT})`)
+              .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
+              .neq('status', 'concluido')
+              .not('card_id', 'is', null),
+          ]);
+
+          const mapa = new Map<string, BacklogItem>();
+
+          const toItem = (c: CardRaw): BacklogItem => {
+            const fase   = Array.isArray(c.fase)   ? c.fase[0]   : c.fase;
+            const kanban = Array.isArray(c.kanban) ? c.kanban[0] : c.kanban;
+            return {
+              id: c.id,
+              label: c.titulo ?? '(sem título)',
+              subtipo: 'kanban',
+              detalhe: c.proxima_atividade ?? null,
+              badge: fase?.nome ?? null,
+              kanban_nome: kanban?.nome ?? null,
+            };
+          };
+
+          ((dirRes.data ?? []) as unknown as CardRaw[]).forEach(c => {
+            if (!c.arquivado && !c.concluido) mapa.set(c.id, toItem(c));
+          });
+          ((atvRes.data ?? []) as unknown as { card: CardRaw | CardRaw[] | null }[]).forEach(row => {
+            const c = Array.isArray(row.card) ? row.card[0] : row.card;
+            if (c && !c.arquivado && !c.concluido && !mapa.has(c.id)) mapa.set(c.id, toItem(c));
+          });
+
+          setBacklogItems(Array.from(mapa.values()));
         }
       } catch (e) { console.error('[ModalAgendamento] backlog:', e); }
       finally { setBacklogLoading(false); }
@@ -434,54 +488,86 @@ export function ModalAgendamento({
                     </select>
                   )
                 ) : (isSirene || isKanban) ? (
-                  /* Picker de item do backlog */
-                  <div className="flex flex-col gap-2">
-                    {/* Item selecionado */}
-                    {backlogSel && (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-                        <span className="text-xs text-blue-700 font-medium flex-1 truncate">{backlogSel.label}</span>
-                        <button type="button" className="text-blue-400 hover:text-blue-600 text-xs"
-                          onClick={() => { setBacklogSel(null); set('titulo', null); set('card_id', null); }}>✕</button>
+                  /* Picker 2 colunas — lista | detalhe */
+                  <div className="flex gap-3" style={{ minHeight: 200 }}>
+                    {/* ── Coluna esquerda: busca + lista ── */}
+                    <div className="flex flex-col gap-2 flex-1 min-w-0">
+                      <input
+                        type="text"
+                        placeholder={isSirene ? 'Buscar tópico Sirene...' : 'Buscar card...'}
+                        className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        value={backlogQuery}
+                        onChange={e => setBacklogQuery(e.target.value)}
+                      />
+                      {backlogLoading ? (
+                        <div className="text-xs text-gray-400 py-1">Carregando...</div>
+                      ) : (
+                        <div className="overflow-y-auto flex flex-col gap-1" style={{ maxHeight: 200 }}>
+                          {backlogFiltrado.length === 0 ? (
+                            <p className="text-xs text-gray-400 py-1">Nenhum item encontrado.</p>
+                          ) : backlogFiltrado.slice(0, 25).map(item => (
+                            <button key={item.id} type="button"
+                              className={`text-left px-2.5 py-1.5 rounded border transition-colors ${
+                                backlogSel?.id === item.id
+                                  ? 'border-blue-400 bg-blue-50'
+                                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                              }`}
+                              onClick={() => selecionarBacklogItem(item)}>
+                              <p className={`text-xs font-medium leading-snug truncate ${backlogSel?.id === item.id ? 'text-blue-800' : 'text-gray-700'}`}>
+                                {item.label}
+                              </p>
+                              {(item.badge || item.kanban_nome) && (
+                                <p className="text-[10px] text-gray-400 truncate leading-tight">
+                                  {[item.kanban_nome, item.badge].filter(Boolean).join(' · ')}
+                                </p>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {/* Título manual quando não encontra */}
+                      {!backlogSel && (
+                        <div className="mt-0.5">
+                          <label className="text-[10px] text-gray-400 mb-1 block">Ou descreva manualmente</label>
+                          <input type="text"
+                            className={`w-full text-xs border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.titulo ? 'border-red-400' : 'border-gray-300'}`}
+                            placeholder="Título da atividade..."
+                            value={form.titulo ?? ''}
+                            onChange={e => { set('titulo', e.target.value || null); setErros(p => ({ ...p, titulo: false })); }}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Coluna direita: detalhe do item selecionado ── */}
+                    {backlogSel ? (
+                      <div className="w-44 shrink-0 border border-blue-100 rounded-lg bg-blue-50 p-3 flex flex-col gap-2">
+                        <div className="flex items-start justify-between gap-1">
+                          <p className="text-xs font-semibold text-blue-800 leading-snug flex-1">{backlogSel.label}</p>
+                          <button type="button" className="text-blue-300 hover:text-blue-600 shrink-0 text-xs leading-none"
+                            onClick={() => { setBacklogSel(null); set('titulo', null); set('card_id', null); }}>✕</button>
+                        </div>
+                        {backlogSel.kanban_nome && (
+                          <p className="text-[10px] text-blue-600 font-medium">{backlogSel.kanban_nome}</p>
+                        )}
+                        {backlogSel.badge && (
+                          <span className="self-start text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                            {backlogSel.badge}
+                          </span>
+                        )}
+                        {backlogSel.detalhe && (
+                          <div className="border-t border-blue-100 pt-2">
+                            <p className="text-[10px] text-blue-400 mb-0.5 uppercase tracking-wide">
+                              {isKanban ? 'Próxima atividade' : 'Status'}
+                            </p>
+                            <p className="text-xs text-blue-700 leading-snug">{backlogSel.detalhe}</p>
+                          </div>
+                        )}
+                        <p className="text-[10px] text-blue-500 mt-auto">✓ Selecionado</p>
                       </div>
-                    )}
-                    {/* Search */}
-                    <input
-                      type="text"
-                      placeholder={isSirene ? 'Buscar tópico Sirene...' : 'Buscar card...'}
-                      className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                      value={backlogQuery}
-                      onChange={e => setBacklogQuery(e.target.value)}
-                    />
-                    {/* Lista */}
-                    {backlogLoading ? (
-                      <div className="text-xs text-gray-400 py-1">Carregando...</div>
                     ) : (
-                      <div className="max-h-48 overflow-y-auto flex flex-col gap-1">
-                        {backlogFiltrado.length === 0 ? (
-                          <p className="text-xs text-gray-400 py-1">Nenhum item encontrado.</p>
-                        ) : backlogFiltrado.slice(0, 20).map(item => (
-                          <button key={item.id} type="button"
-                            className={`text-left text-xs px-3 py-2 rounded border transition-colors ${
-                              backlogSel?.id === item.id
-                                ? 'border-blue-400 bg-blue-50 text-blue-800'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700'
-                            }`}
-                            onClick={() => selecionarBacklogItem(item)}>
-                            {item.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {/* Campo de título manual caso não encontre */}
-                    {!backlogSel && (
-                      <div className="mt-1">
-                        <label className="text-[10px] text-gray-400 mb-1 block">Ou descreva manualmente</label>
-                        <input type="text"
-                          className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.titulo ? 'border-red-400' : 'border-gray-300'}`}
-                          placeholder="Título da atividade..."
-                          value={form.titulo ?? ''}
-                          onChange={e => { set('titulo', e.target.value || null); setErros(p => ({ ...p, titulo: false })); }}
-                        />
+                      <div className="w-44 shrink-0 border border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+                        <p className="text-[10px] text-gray-300 text-center px-3">Selecione um item para ver detalhes</p>
                       </div>
                     )}
                   </div>
