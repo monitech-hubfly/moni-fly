@@ -34,7 +34,7 @@ import { buscarResponsavelDaFaseSalvoPorFases } from '@/lib/kanban/responsavel-f
 import { filterStepOneCalculadoraFases } from '@/lib/kanban/stepone-fase-slugs';
 import { fetchCondominioRowById } from '@/lib/condominios';
 import { condominioPrazosSlaFromRow } from '@/lib/kanban/condominio-prazos-aprovacao';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/client';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export type CalculadoraPublicaCard = {
