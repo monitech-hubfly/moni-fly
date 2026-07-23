@@ -175,7 +175,7 @@ export function ModalAgendamento({
   const [cnpjs,       setCnpjs]       = useState<{ id: string; cnpj: string; descritivo: string | null }[]>([]);
 
   // Participantes
-  const [pessoas,   setPessoas]   = useState<{ profile_id: string; nome: string; email: string | null; area: string | null }[]>([]);
+  const [pessoas,   setPessoas]   = useState<{ profile_id: string; nome: string; nomeCompleto: string | null; email: string | null; area: string | null }[]>([]);
   const [ocupados,  setOcupados]  = useState<Set<string>>(new Set());
 
   // Seções colapsáveis (data, participantes, link, recorrência, vínculo, obs)
@@ -270,14 +270,24 @@ export function ModalAgendamento({
         });
         // Busca emails separadamente (evita falha por FK inexistente no PostgREST)
         const ids = dedup.map(p => p.profile_id);
-        const emailMap = new Map<string, string>();
+        const emailMap    = new Map<string, string>();
+        const fullNameMap = new Map<string, string>();
         if (ids.length > 0) {
-          const { data: profs } = await supabase.from('profiles').select('id, email').in('id', ids);
-          ((profs ?? []) as { id: string; email: string | null }[]).forEach(r => { if (r.email) emailMap.set(r.id, r.email); });
+          const { data: profs } = await supabase.from('profiles').select('id, email, full_name').in('id', ids);
+          ((profs ?? []) as { id: string; email: string | null; full_name: string | null }[]).forEach(r => {
+            if (r.email)     emailMap.set(r.id, r.email);
+            if (r.full_name) fullNameMap.set(r.id, r.full_name);
+          });
         }
         setPessoas(dedup.map(p => {
           const areaObj = Array.isArray(p.areas) ? p.areas[0] : p.areas;
-          return { profile_id: p.profile_id, nome: p.nome, email: emailMap.get(p.profile_id) ?? null, area: areaObj?.nome ?? null };
+          return {
+            profile_id:   p.profile_id,
+            nome:         p.nome,
+            nomeCompleto: fullNameMap.get(p.profile_id) ?? null,
+            email:        emailMap.get(p.profile_id) ?? null,
+            area:         areaObj?.nome ?? null,
+          };
         }));
       } catch (e) { console.error('[Modal] objetivos/pessoas:', e); }
     })();
@@ -708,7 +718,7 @@ export function ModalAgendamento({
           {/* ── Participantes ── */}
           <Secao
             titulo={form.participantes.length > 0
-              ? `Participantes (${form.participantes.length}) · ${pessoas.filter(p => form.participantes.includes(p.profile_id)).map(p => p.nome.split(' ')[0]).join(', ')}`
+              ? `Participantes (${form.participantes.length}) · ${pessoas.filter(p => form.participantes.includes(p.profile_id)).map(p => (p.nomeCompleto ?? p.nome).split(' ')[0]).join(', ')}`
               : 'Participantes'}
             aberta={abertas[1]} onToggle={() => toggleSecao(1)}>
             {pessoas.length === 0 ? (
@@ -728,7 +738,7 @@ export function ModalAgendamento({
                         checked={sel}
                         onChange={() => toggleParticipante(p.profile_id)} />
                       <div className="flex-1 min-w-0 flex items-center gap-1 overflow-hidden">
-                        <span className="text-xs text-gray-700 font-medium shrink-0">{p.nome}</span>
+                        <span className="text-xs text-gray-700 font-medium shrink-0">{p.nomeCompleto ?? p.nome}</span>
                         {p.area && <><span className="text-gray-300 shrink-0">·</span><span className="text-[10px] text-gray-400 shrink-0">{p.area}</span></>}
                         {p.email && <><span className="text-gray-300 shrink-0">·</span><span className="text-[10px] text-gray-400 truncate">{p.email}</span></>}
                       </div>
