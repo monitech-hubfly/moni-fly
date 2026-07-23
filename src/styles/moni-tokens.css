@@ -506,6 +506,36 @@
   border: var(--moni-border-width) solid var(--moni-status-active-border);
 }
 
+/* Vínculos — cards linked across funis (modal sidebar) */
+.moni-vinculos-section {
+  font-family: var(--moni-font-sans);
+}
+
+.moni-vinculos-item a:focus-visible {
+  outline: 2px solid var(--moni-status-active-border);
+  outline-offset: 2px;
+  border-radius: var(--moni-radius-md);
+}
+
+.moni-vinculos-remove:hover {
+  background: var(--moni-surface-200);
+  color: var(--moni-status-overdue-text);
+}
+
+@media (max-width: 640px) {
+  .moni-vinculos-item > div {
+    padding: 10px 12px;
+  }
+
+  .moni-vinculos-remove {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
 .moni-tag-especial {
   display: inline-flex;
   align-items: center;

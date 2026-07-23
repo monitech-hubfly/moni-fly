@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { faseNomeExibicaoVinculoCard } from '@/lib/kanban/acoplamento-tag-pai';
 import { escolherTituloExibicaoCard, montarTituloCardSync } from '@/lib/kanban/card-sync-group';
+import { statusVinculoCard } from '@/lib/kanban/kanban-vinculos-display';
 
 export type CardProjetoEsteiraRow = {
   id: string;
@@ -176,13 +177,14 @@ export function statusIndicadorCardProjeto(row: Pick<CardProjetoEsteiraRow, 'arq
   rotulo: 'ativo' | 'concluído' | 'arquivado';
   classe: string;
 } {
-  if (row.arquivado) {
-    return { rotulo: 'arquivado', classe: 'text-stone-500 bg-stone-100 border-stone-200' };
+  const st = statusVinculoCard(row);
+  if (st.status === 'arquivado') {
+    return { rotulo: 'arquivado', classe: 'moni-tag-arquivado' };
   }
-  if (row.concluido) {
-    return { rotulo: 'concluído', classe: 'text-emerald-800 bg-emerald-50 border-emerald-200' };
+  if (st.status === 'concluido') {
+    return { rotulo: 'concluído', classe: 'moni-tag-concluido' };
   }
-  return { rotulo: 'ativo', classe: 'text-sky-800 bg-sky-50 border-sky-200' };
+  return { rotulo: 'ativo', classe: 'moni-tag-info' };
 }
 
 export function agruparCardsProjetoPorKanban(

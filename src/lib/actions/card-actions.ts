@@ -3004,6 +3004,9 @@ export type RelacionamentoCardRow = {
   fase_nome: string;
   tipo: TipoRelacionamentoDisplay;
   vinculo_id: string | null;
+  arquivado?: boolean;
+  concluido?: boolean;
+  created_at?: string | null;
 };
 
 async function perfilEhAdminOuConsultor(
@@ -3113,9 +3116,18 @@ function faseNomeExibicaoCardRow(row: {
   return faseNomeExibicaoVinculoCard(faseNomeDeJoin(row), row.arquivado);
 }
 
+type CardVinculoMapInfo = {
+  titulo: string;
+  kanban_nome: string;
+  fase_nome: string;
+  arquivado?: boolean;
+  concluido?: boolean;
+  created_at?: string | null;
+};
+
 async function enriquecerMapInfoCardsLegado(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  mapInfo: Map<string, { titulo: string; kanban_nome: string; fase_nome: string }>,
+  mapInfo: Map<string, CardVinculoMapInfo>,
   cardIds: string[],
 ): Promise<void> {
   const missing = cardIds.filter((id) => !mapInfo.has(id));
@@ -3150,7 +3162,7 @@ type CardTituloKanbanRow = {
 
 async function enriquecerTitulosMapInfoCards(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  mapInfo: Map<string, { titulo: string; kanban_nome: string; fase_nome: string }>,
+  mapInfo: Map<string, CardVinculoMapInfo>,
   cardRows: CardTituloKanbanRow[],
 ): Promise<void> {
   if (cardRows.length === 0) return;
@@ -3197,7 +3209,7 @@ async function enriquecerTitulosMapInfoCards(
 
 async function enriquecerTitulosMapInfoComAncestrais(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  mapInfo: Map<string, { titulo: string; kanban_nome: string; fase_nome: string }>,
+  mapInfo: Map<string, CardVinculoMapInfo>,
   cardRows: CardTituloKanbanRow[],
 ): Promise<void> {
   const byId = new Map(cardRows.map((r) => [String(r.id), r]));
@@ -3346,15 +3358,12 @@ export async function listarRelacionamentosCard(
 
   const origemIdsParaDetalhe = [...ancestorIds, ...descendantIds];
   if (origemIdsParaDetalhe.length > 0) {
-    const mapOrigem = new Map<
-      string,
-      { titulo: string; kanban_nome: string; fase_nome: string }
-    >();
+    const mapOrigem = new Map<string, CardVinculoMapInfo>();
 
     const { data: cardsOrigem, error: errCardsOrigem } = await supabase
       .from('kanban_cards')
       .select(
-        'id, titulo, arquivado, origem_card_id, rede_franqueado_id, nome_condominio, quadra, lote, kanban_fases ( nome ), kanbans ( nome )',
+        'id, titulo, arquivado, concluido, created_at, origem_card_id, rede_franqueado_id, nome_condominio, quadra, lote, kanban_fases ( nome ), kanbans ( nome )',
       )
       .in('id', origemIdsParaDetalhe);
     if (errCardsOrigem) return { ok: false, error: errCardsOrigem.message };
@@ -3365,6 +3374,8 @@ export async function listarRelacionamentosCard(
         id: string;
         titulo: string | null;
         arquivado?: boolean | null;
+        concluido?: boolean | null;
+        created_at?: string | null;
         origem_card_id?: string | null;
         rede_franqueado_id?: string | null;
         nome_condominio?: string | null;
@@ -3378,6 +3389,9 @@ export async function listarRelacionamentosCard(
         titulo: (row.titulo ?? '').trim() || '(sem título)',
         kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
         fase_nome: faseNomeExibicaoCardRow(row),
+        arquivado: Boolean(row.arquivado),
+        concluido: Boolean(row.concluido),
+        created_at: row.created_at != null ? String(row.created_at) : null,
       });
     }
 
@@ -3395,6 +3409,9 @@ export async function listarRelacionamentosCard(
         fase_nome: info.fase_nome,
         tipo: 'depende_de',
         vinculo_id: null,
+        arquivado: info.arquivado,
+        concluido: info.concluido,
+        created_at: info.created_at ?? null,
       });
     }
 
@@ -3408,6 +3425,9 @@ export async function listarRelacionamentosCard(
         fase_nome: info.fase_nome,
         tipo: 'originou',
         vinculo_id: null,
+        arquivado: info.arquivado,
+        concluido: info.concluido,
+        created_at: info.created_at ?? null,
       });
     }
   }
@@ -3435,21 +3455,20 @@ export async function listarRelacionamentosCard(
     const { data: cards, error: cErr } = await supabase
       .from('kanban_cards')
       .select(
-        'id, titulo, arquivado, origem_card_id, rede_franqueado_id, nome_condominio, quadra, lote, kanban_fases ( nome ), kanbans ( nome )',
+        'id, titulo, arquivado, concluido, created_at, origem_card_id, rede_franqueado_id, nome_condominio, quadra, lote, kanban_fases ( nome ), kanbans ( nome )',
       )
       .in('id', [...idSet]);
     if (cErr) return { ok: false, error: cErr.message };
 
-    const mapInfo = new Map<
-      string,
-      { titulo: string; kanban_nome: string; fase_nome: string }
-    >();
+    const mapInfo = new Map<string, CardVinculoMapInfo>();
     const rowsVinculo: CardTituloKanbanRow[] = [];
     for (const c of cards ?? []) {
       const row = c as {
         id: string;
         titulo: string | null;
         arquivado?: boolean | null;
+        concluido?: boolean | null;
+        created_at?: string | null;
         origem_card_id?: string | null;
         rede_franqueado_id?: string | null;
         nome_condominio?: string | null;
@@ -3463,6 +3482,9 @@ export async function listarRelacionamentosCard(
         titulo: (row.titulo ?? '').trim() || '(sem título)',
         kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
         fase_nome: faseNomeExibicaoCardRow(row),
+        arquivado: Boolean(row.arquivado),
+        concluido: Boolean(row.concluido),
+        created_at: row.created_at != null ? String(row.created_at) : null,
       });
     }
 
@@ -3483,6 +3505,9 @@ export async function listarRelacionamentosCard(
         fase_nome: info.fase_nome,
         tipo,
         vinculo_id: v.id,
+        arquivado: info.arquivado,
+        concluido: info.concluido,
+        created_at: info.created_at ?? null,
       });
     }
   }

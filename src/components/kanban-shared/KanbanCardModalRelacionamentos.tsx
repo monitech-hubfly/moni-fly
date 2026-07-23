@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import {
   buscarCardsParaVinculo,
   criarVinculoCard,
@@ -11,7 +11,6 @@ import {
   removerVinculoCard,
   type BuscaCardVinculoRow,
   type RelacionamentoCardRow,
-  type TipoRelacionamentoDisplay,
 } from '@/lib/actions/card-actions';
 import {
   abrirChamadoJuridicoDoCard,
@@ -34,22 +33,11 @@ import { createClient } from '@/lib/supabase/client';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
 import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
-
-function iconeTipoRelacionamento(tipo: TipoRelacionamentoDisplay): string {
-  if (tipo === 'originou') return '🔗';
-  if (tipo === 'depende_de') return '⬆';
-  if (tipo === 'bloqueia') return '🚫';
-  if (tipo === 'retornou') return '↩';
-  return '↔';
-}
-
-function labelTipoRelacionamento(tipo: TipoRelacionamentoDisplay): string {
-  if (tipo === 'originou') return 'originou';
-  if (tipo === 'depende_de') return 'originado por';
-  if (tipo === 'bloqueia') return 'bloqueia';
-  if (tipo === 'retornou') return 'retornou';
-  return 'relacionado';
-}
+import { KanbanCardVinculosSection } from './KanbanCardVinculosSection';
+import {
+  agruparItensVinculoPorKanban,
+  itemVinculoFromRelacionamento,
+} from '@/lib/kanban/kanban-vinculos-display';
 
 const BOTAO_ABRIR_FUNIL_CLASS =
   'w-full rounded-md border border-stone-200 bg-white px-2.5 py-2 text-left text-[11px] font-semibold text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50';
@@ -98,7 +86,6 @@ export function KanbanCardModalRelacionamentos({
 
   const pid = projetoId != null && String(projetoId).trim() !== '' ? String(projetoId).trim() : null;
 
-  const tituloAtualLc = (cardTitulo || '').trim().toLowerCase();
   const kanbanOrigemId = useMemo(
     () => resolverKanbanOrigemIdParaEsteiraManual(kanbanId, kanbanNome),
     [kanbanId, kanbanNome],
@@ -327,6 +314,21 @@ export function KanbanCardModalRelacionamentos({
     await recarregar();
   }
 
+  const gruposManuais = useMemo(() => {
+    const itens = rowsVisiveis.map((row) =>
+      itemVinculoFromRelacionamento(
+        row,
+        hrefAbrirCardKanban(row.kanban_nome, row.card_id),
+        podeGerenciar && row.vinculo_id
+          ? () => {
+              void handleRemover(row.vinculo_id!);
+            }
+          : undefined,
+      ),
+    );
+    return agruparItensVinculoPorKanban(itens);
+  }, [rowsVisiveis, podeGerenciar, basePath]);
+
   return (
     <div className="space-y-3">
       {projetoId != null && String(projetoId).trim() !== '' ? (
@@ -340,67 +342,21 @@ export function KanbanCardModalRelacionamentos({
         </div>
       ) : null}
 
-      {projetoId != null && String(projetoId).trim() !== '' && rowsVisiveis.length > 0 ? (
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Vínculos manuais</p>
+      {pid && rowsVisiveis.length > 0 ? (
+        <p
+          className="text-[10px] font-semibold uppercase tracking-wide"
+          style={{ color: 'var(--moni-text-tertiary)' }}
+        >
+          Vínculos manuais
+        </p>
       ) : null}
 
-      {loading ? (
-        <div className="flex items-center gap-2 text-xs text-stone-500">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-          Carregando…
-        </div>
-      ) : rowsVisiveis.length === 0 ? (
-        pid ? null : <p className="text-xs text-stone-500">Nenhum relacionamento</p>
-      ) : (
-        <ul className="list-none space-y-2">
-          {rowsVisiveis.map((row) => {
-            const href = hrefAbrirCardKanban(row.kanban_nome, row.card_id);
-            const tituloDiferente = row.titulo.trim().toLowerCase() !== tituloAtualLc;
-            return (
-              <li
-                key={row.key}
-                className="flex items-start justify-between gap-2 rounded border border-stone-100 bg-stone-50/80 px-2 py-1.5"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-stone-600">
-                    <span title={labelTipoRelacionamento(row.tipo)} aria-hidden>
-                      {iconeTipoRelacionamento(row.tipo)}
-                    </span>
-                    <span className="font-medium text-stone-700">{row.kanban_nome}</span>
-                    <span className="text-stone-400">·</span>
-                    <span>{row.fase_nome}</span>
-                  </div>
-                  {tituloDiferente ? (
-                    <Link
-                      href={href}
-                      className="mt-0.5 block text-[11px] font-medium text-moni-primary hover:underline"
-                    >
-                      {row.titulo}
-                    </Link>
-                  ) : (
-                    <Link
-                      href={href}
-                      className="mt-0.5 block text-[11px] font-medium text-moni-primary hover:underline"
-                    >
-                      Abrir card
-                    </Link>
-                  )}
-                </div>
-                {podeGerenciar && row.vinculo_id ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleRemover(row.vinculo_id!)}
-                    className="shrink-0 rounded p-0.5 text-stone-400 transition hover:bg-stone-200 hover:text-red-600"
-                    aria-label="Remover vínculo"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <KanbanCardVinculosSection
+        grupos={gruposManuais}
+        loading={loading}
+        emptyMessage={pid ? null : 'Nenhum relacionamento'}
+        variant="sidebar"
+      />
 
       {toast ? (
         <p
