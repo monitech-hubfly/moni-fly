@@ -479,20 +479,6 @@ async function assertEditableFromSirene(
   if (isPastelariaSyntheticId(interacaoId)) {
     return { ok: false, error: 'Cards da Pastelaria não aceitam atividades neste painel.' };
   }
-  const { data } = await supabase
-    .from('kanban_atividades')
-    .select('origem, card_id')
-    .eq('id', interacaoId)
-    .maybeSingle();
-  if (!data) return { ok: false, error: 'Chamado não encontrado.' };
-  if (
-    !chamadoEditavelNaSirene({
-      origem: String((data as { origem?: string }).origem ?? ''),
-      card_id: (data as { card_id?: string | null }).card_id ?? null,
-    })
-  ) {
-    return { ok: false, error: 'Este chamado só pode ser alterado no card vinculado.' };
-  }
   return null;
 }
 
