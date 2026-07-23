@@ -106,6 +106,122 @@ const PRIO_BADGE: Record<string, { bg: string; text: string }> = {
   P6: { bg: '#f3f4f6', text: '#6b7280' },
 };
 
+// ── Grade de disponibilidade ──────────────────────────────────────────────────
+
+const GRADE_INICIO = 10;
+const GRADE_FIM    = 18;
+const SLOT_MIN     = 30; // colunas de 30 min
+const TOTAL_SLOTS  = (GRADE_FIM - GRADE_INICIO) * (60 / SLOT_MIN); // 16
+
+function slotParaMinutos(slot: number) {
+  return GRADE_INICIO * 60 + slot * SLOT_MIN;
+}
+
+function horaParaMinutos(h: string) {
+  const [hh, mm] = h.split(':').map(Number);
+  return hh * 60 + (mm ?? 0);
+}
+
+function GradeDisponibilidade({
+  participantes, pessoas, busySlots, horaInicio, horaFim,
+}: {
+  participantes: string[];
+  pessoas: { profile_id: string; nome: string; nomeCompleto: string | null }[];
+  busySlots: Map<string, { hora_inicio: string; hora_fim: string | null }[]>;
+  horaInicio: string | null;
+  horaFim: string | null;
+}) {
+  if (participantes.length === 0) return null;
+
+  const selIni = horaInicio ? horaParaMinutos(horaInicio) : null;
+  const selFim = horaFim    ? horaParaMinutos(horaFim)    : null;
+
+  const slots = Array.from({ length: TOTAL_SLOTS }, (_, i) => i);
+
+  const pessoas_selecionadas = participantes
+    .map(pid => pessoas.find(p => p.profile_id === pid))
+    .filter(Boolean) as { profile_id: string; nome: string; nomeCompleto: string | null }[];
+
+  const isSlotSelecionado = (slotIdx: number) => {
+    if (selIni == null || selFim == null) return false;
+    const ini = slotParaMinutos(slotIdx);
+    const fim = ini + SLOT_MIN;
+    return ini < selFim && fim > selIni;
+  };
+
+  const isSlotOcupado = (pid: string, slotIdx: number) => {
+    const pSlots = busySlots.get(pid) ?? [];
+    const ini    = slotParaMinutos(slotIdx);
+    const fim    = ini + SLOT_MIN;
+    return pSlots.some(s => {
+      const rI = horaParaMinutos(s.hora_inicio);
+      const rF = s.hora_fim ? horaParaMinutos(s.hora_fim) : rI + 60;
+      return rI < fim && rF > ini;
+    });
+  };
+
+  const horasLabel = Array.from({ length: GRADE_FIM - GRADE_INICIO + 1 }, (_, i) =>
+    `${String(GRADE_INICIO + i).padStart(2, '0')}h`
+  );
+
+  return (
+    <div className="mt-3 pt-3 border-t border-gray-100">
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+        Disponibilidade no dia
+      </p>
+      {/* Header horas */}
+      <div className="flex text-[9px] text-gray-400 mb-0.5" style={{ paddingLeft: 64 }}>
+        {horasLabel.map((h, i) => (
+          <div key={i} style={{ width: `${100 / TOTAL_SLOTS}%`, flexShrink: 0 }}
+            className={i % 2 === 0 ? '' : 'invisible'}>
+            {h}
+          </div>
+        ))}
+      </div>
+      {/* Linhas por participante */}
+      {pessoas_selecionadas.map(p => {
+        const primeiroNome = (p.nomeCompleto ?? p.nome).split(' ')[0];
+        return (
+          <div key={p.profile_id} className="flex items-center gap-2 mb-0.5">
+            <span className="text-[10px] text-gray-500 truncate" style={{ width: 60, flexShrink: 0 }}>
+              {primeiroNome}
+            </span>
+            <div className="flex flex-1 rounded overflow-hidden border border-gray-200" style={{ height: 14 }}>
+              {slots.map(i => {
+                const ocupado   = isSlotOcupado(p.profile_id, i);
+                const selecionado = isSlotSelecionado(i);
+                let bg = '#f0fdf4'; // verde claro — livre
+                let border = '';
+                if (ocupado && selecionado) { bg = '#fca5a5'; border = 'ring-1 ring-red-400'; } // conflito
+                else if (ocupado)           { bg = '#fed7aa'; } // laranja — ocupado
+                else if (selecionado)       { bg = '#bfdbfe'; } // azul — selecionado livre
+                return (
+                  <div key={i} className={border}
+                    style={{ flex: 1, backgroundColor: bg, borderRight: i < TOTAL_SLOTS - 1 ? '1px solid #e5e7eb' : undefined }} />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      {/* Legenda */}
+      <div className="flex gap-3 mt-1.5">
+        {[
+          { bg: '#f0fdf4', label: 'Livre' },
+          { bg: '#bfdbfe', label: 'Horário sel.' },
+          { bg: '#fed7aa', label: 'Ocupado' },
+          { bg: '#fca5a5', label: 'Conflito' },
+        ].map(({ bg, label }) => (
+          <div key={label} className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded-sm border border-gray-200" style={{ backgroundColor: bg }} />
+            <span className="text-[9px] text-gray-400">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Seção colapsável ──────────────────────────────────────────────────────────
 
 function Secao({
@@ -783,6 +899,13 @@ export function ModalAgendamento({
                 })}
               </div>
             )}
+            <GradeDisponibilidade
+              participantes={form.participantes}
+              pessoas={pessoas}
+              busySlots={busySlots}
+              horaInicio={form.hora_inicio}
+              horaFim={form.hora_fim}
+            />
           </Secao>
 
           {/* ── Link da reunião ── */}
