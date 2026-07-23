@@ -174,7 +174,7 @@ export function ModalAgendamento({
   const [cnpjs,       setCnpjs]       = useState<{ id: string; cnpj: string; descritivo: string | null }[]>([]);
 
   // Participantes
-  const [pessoas,   setPessoas]   = useState<{ profile_id: string; nome: string }[]>([]);
+  const [pessoas,   setPessoas]   = useState<{ profile_id: string; nome: string; email: string | null }[]>([]);
   const [ocupados,  setOcupados]  = useState<Set<string>>(new Set());
 
   // Seções colapsáveis (data, participantes, link, recorrência, vínculo, obs)
@@ -255,15 +255,19 @@ export function ModalAgendamento({
       try {
         const [objRes, pessoasRes] = await Promise.all([
           supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', areaId).eq('status', 'ativo').order('descricao'),
-          supabase.from('area_pessoas').select('profile_id, nome').not('profile_id', 'is', null).order('nome'),
+          supabase.from('area_pessoas').select('profile_id, nome, profiles(email)').not('profile_id', 'is', null).order('nome'),
         ]);
         setObjetivos((objRes.data ?? []) as { id: string; descricao: string; tipo: string | null }[]);
-        const raw = (pessoasRes.data ?? []) as { profile_id: string; nome: string }[];
+        type PessoaRaw = { profile_id: string; nome: string; profiles: { email: string } | { email: string }[] | null };
+        const raw = (pessoasRes.data ?? []) as PessoaRaw[];
         const seen = new Set<string>();
         setPessoas(raw.filter(p => {
           if (p.profile_id === profileId || seen.has(p.profile_id)) return false;
           seen.add(p.profile_id);
           return true;
+        }).map(p => {
+          const prof = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+          return { profile_id: p.profile_id, nome: p.nome, email: prof?.email ?? null };
         }));
       } catch (e) { console.error('[Modal] objetivos/pessoas:', e); }
     })();
@@ -629,8 +633,11 @@ export function ModalAgendamento({
             {pessoas.length === 0 ? (
               <p className="text-xs text-gray-400 mt-1">Nenhum usuário encontrado.</p>
             ) : (
-              <div className="flex flex-col gap-1 mt-1 max-h-40 overflow-y-auto">
-                {pessoas.map(p => {
+              <div className="flex flex-col gap-1 mt-1 max-h-48 overflow-y-auto">
+                {[
+                  ...pessoas.filter(p => form.participantes.includes(p.profile_id)),
+                  ...pessoas.filter(p => !form.participantes.includes(p.profile_id)),
+                ].map(p => {
                   const sel = form.participantes.includes(p.profile_id);
                   const ocupado = sel && ocupados.has(p.profile_id);
                   return (
@@ -639,8 +646,11 @@ export function ModalAgendamento({
                       <input type="checkbox" className="w-3.5 h-3.5 rounded accent-blue-500"
                         checked={sel}
                         onChange={() => toggleParticipante(p.profile_id)} />
-                      <span className="text-xs text-gray-700 flex-1">{p.nome}</span>
-                      {ocupado && <span className="text-[10px] text-orange-500">ocupado</span>}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-700 font-medium truncate">{p.nome}</p>
+                        {p.email && <p className="text-[10px] text-gray-400 truncate">{p.email}</p>}
+                      </div>
+                      {ocupado && <span className="text-[10px] text-orange-500 shrink-0">ocupado</span>}
                     </label>
                   );
                 })}
