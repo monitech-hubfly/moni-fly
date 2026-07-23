@@ -111,14 +111,16 @@ export async function buildSlugParaFaseIdMap(
 }
 
 /**
- * Alinha `fase_id` do card com `processo_step_one.etapa_painel` no kanban atual.
- * Corrige linhas nativas com UUID de outro funil ou `kanban_cards.fase_id` desatualizado.
+ * Alinha `fase_id` do card legado (shadow `processo_step_one.id`) com `etapa_painel`.
+ * Cards nativos com UUID próprio mantêm `kanban_cards.fase_id` — não reconciliar por processo.
  */
 export function aplicarFasePorEtapaPainel(
   card: KanbanCardBrief,
   etapaPorProcesso: Map<string, ProcessoEtapaPainelRow>,
   slugParaFaseId: Map<string, string>,
 ): KanbanCardBrief {
+  if (card.origem !== 'legado') return card;
+
   const proc = etapaPorProcesso.get(card.id);
   if (!proc) return card;
 
@@ -141,11 +143,15 @@ export function aplicarFasePorEtapaPainelEmLote(
   return cards.map((c) => aplicarFasePorEtapaPainel(c, etapaPorProcesso, slugParaFaseId));
 }
 
-/** IDs de processo presentes nos briefs (board + concluídos). */
+/** IDs shadow/legado (`card.id === processo_step_one.id`) para reconciliar etapa do painel. */
 export function coletarIdsProcessoDosCards(...listas: KanbanCardBrief[][]): string[] {
   return [
     ...new Set(
-      listas.flat().map((c) => String(c.id ?? '').trim()).filter(Boolean),
+      listas
+        .flat()
+        .filter((c) => c.origem === 'legado')
+        .map((c) => String(c.id ?? '').trim())
+        .filter(Boolean),
     ),
   ];
 }

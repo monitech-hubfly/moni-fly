@@ -1052,13 +1052,17 @@ export async function fetchKanbanBoardSnapshot(
   }
   const processoCamposMap = await fetchProcessoCamposPorIds(supabase, [...processoIdsCampos]);
 
+  const isFunilOperacoes = kanbanIdStr === KANBAN_IDS.OPERACOES;
+
   const cardsNativosRaw = [
     ...((cardsRaw ?? []) as Record<string, unknown>[]),
     ...((conclRaw ?? []) as Record<string, unknown>[]),
     ...((arquivRaw ?? []) as Record<string, unknown>[]),
   ];
   const cardsParaAncestrais = cardsNativosRaw.filter(cardNativoPrecisaCamposAncestrais);
-  const cardsParaIrmaos = cardsNativosRaw.filter(cardNativoPrecisaIrmaosProjeto);
+  const cardsParaIrmaos = isFunilOperacoes
+    ? []
+    : cardsNativosRaw.filter(cardNativoPrecisaIrmaosProjeto);
   const [ancestraisMap, irmaosProjetoMap] = await Promise.all([
     cardsParaAncestrais.length > 0
       ? fetchCamposAncestraisPorCard(supabase, cardsParaAncestrais)
@@ -1126,10 +1130,12 @@ export async function fetchKanbanBoardSnapshot(
     const filhoBastao = isFilhoBastaoCard(c);
     const cMerged = filhoBastao
       ? c
-      : mesclarCamposComProjetoIrmaos(
-          mesclarCamposComAncestrais(c, ancestraisMap),
-          irmaosProjetoMap,
-        );
+      : isFunilOperacoes
+        ? mesclarCamposComAncestrais(c, ancestraisMap)
+        : mesclarCamposComProjetoIrmaos(
+            mesclarCamposComAncestrais(c, ancestraisMap),
+            irmaosProjetoMap,
+          );
     const fid = String(cMerged.franqueado_id ?? '');
     const redeId = String((cMerged as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
     const cardId = String(cMerged.id ?? '');
@@ -1276,29 +1282,32 @@ export async function fetchKanbanBoardSnapshot(
   let cardsConcluidos = (conclRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
   let cardsArquivadosNativo = (arquivRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
 
-  /** `processo_step_one.etapa_painel` prevalece sobre `kanban_cards.fase_id` (incl. UUID de outro funil). */
-  const processoIdsReconciliar = coletarIdsProcessoDosCards(
-    cardsNativo,
-    cardsConcluidos,
-    cardsArquivadosNativo,
-    cardsLegado,
-  );
-  const etapaPorProcesso = await fetchEtapaPainelPorProcessoIds(supabase, processoIdsReconciliar);
-  const slugsEtapa = [...etapaPorProcesso.values()].map((p) => p.etapa_painel);
-  const slugParaFaseId = await buildSlugParaFaseIdMap(supabase, kanbanIdStr, fases, slugsEtapa);
+  /** Legado/shadow: `processo_step_one.etapa_painel` alinha coluna. Operações nativo usa `fase_id` do card. */
+  let cardsLegadoReconciliados = cardsLegado;
+  if (!isFunilOperacoes) {
+    const processoIdsReconciliar = coletarIdsProcessoDosCards(
+      cardsNativo,
+      cardsConcluidos,
+      cardsArquivadosNativo,
+      cardsLegado,
+    );
+    const etapaPorProcesso = await fetchEtapaPainelPorProcessoIds(supabase, processoIdsReconciliar);
+    const slugsEtapa = [...etapaPorProcesso.values()].map((p) => p.etapa_painel);
+    const slugParaFaseId = await buildSlugParaFaseIdMap(supabase, kanbanIdStr, fases, slugsEtapa);
 
-  cardsNativo = aplicarFasePorEtapaPainelEmLote(cardsNativo, etapaPorProcesso, slugParaFaseId);
-  cardsConcluidos = aplicarFasePorEtapaPainelEmLote(cardsConcluidos, etapaPorProcesso, slugParaFaseId);
-  cardsArquivadosNativo = aplicarFasePorEtapaPainelEmLote(
-    cardsArquivadosNativo,
-    etapaPorProcesso,
-    slugParaFaseId,
-  );
-  const cardsLegadoReconciliados = aplicarFasePorEtapaPainelEmLote(
-    cardsLegado,
-    etapaPorProcesso,
-    slugParaFaseId,
-  );
+    cardsNativo = aplicarFasePorEtapaPainelEmLote(cardsNativo, etapaPorProcesso, slugParaFaseId);
+    cardsConcluidos = aplicarFasePorEtapaPainelEmLote(cardsConcluidos, etapaPorProcesso, slugParaFaseId);
+    cardsArquivadosNativo = aplicarFasePorEtapaPainelEmLote(
+      cardsArquivadosNativo,
+      etapaPorProcesso,
+      slugParaFaseId,
+    );
+    cardsLegadoReconciliados = aplicarFasePorEtapaPainelEmLote(
+      cardsLegado,
+      etapaPorProcesso,
+      slugParaFaseId,
+    );
+  }
 
   const legadoPorId = new Map(cardsLegadoReconciliados.map((c) => [c.id, c]));
   const mesclarDatasLegado = (lista: KanbanCardBrief[]) =>
