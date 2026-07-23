@@ -47,7 +47,9 @@ export async function renderKanbanDatabasePage(
   guardLoginRequired(user);
 
   const { kanban, fases, cards, cardsConcluidos, role, isAdmin, snapshotMode } =
-    await fetchKanbanBoardSnapshot(supabase, config.kanbanNomeDb, user.id);
+    await fetchKanbanBoardSnapshot(supabase, config.kanbanNomeDb, user.id, {
+      skipCalculadoraSlaEnrich: modalCardAberto,
+    });
 
   const exibirNovoCard = config.novoCardApenasStaff ? isAdmin : true;
 

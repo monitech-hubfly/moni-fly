@@ -37,6 +37,26 @@ export const KANBAN_APP_BASE_PATHS: string[] = [
   ),
 ];
 
+/** Monta URL do card na rota atual do funil (`basePath` + query `card` / `kanbanCard`). */
+export function hrefAbrirCardNaRota(
+  basePath: string,
+  cardId: string,
+  param = 'card',
+  origem?: 'legado' | 'nativo',
+): string {
+  const id = String(cardId ?? '').trim();
+  const [path, qs] = basePath.split('?');
+  const sp = new URLSearchParams(qs ?? '');
+  sp.delete('tab');
+  sp.delete('novo');
+  if (id) sp.set(param, id);
+  else sp.delete(param);
+  if (origem === 'legado') sp.set('origem', 'legado');
+  else sp.delete('origem');
+  const tail = sp.toString();
+  return tail ? `${path}?${tail}` : path;
+}
+
 /** URL absoluta de path para abrir o card no funil correspondente. */
 export function hrefAbrirCardKanban(kanbanNomeDb: string, cardId: string): string {
   const cfg = KANBAN_NOME_DB_PARA_APP[kanbanNomeDb.trim()];

@@ -43,7 +43,42 @@ export type KanbanBoardSnapshotMode = 'lean' | 'full' | 'arquivados' | 'concluid
 
 export type FetchKanbanBoardSnapshotOptions = {
   mode?: KanbanBoardSnapshotMode;
+  /** Evita enrich pesado da Calculadora ao abrir modal (`?card=`). */
+  skipCalculadoraSlaEnrich?: boolean;
 };
+
+/** Processos já cobertos por linha nativa (evita duplicata legado+nativo no board híbrido). */
+async function buildProcessoIdsCobertosPorNativo(
+  supabase: SupabaseClient,
+  cardsNativo: KanbanCardBrief[],
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (const c of cardsNativo) {
+    const id = String(c.id ?? '').trim();
+    if (id) out.add(id);
+    const proj = String(c.projeto_id ?? '').trim();
+    if (proj) out.add(proj);
+  }
+
+  const ids = cardsNativo.map((c) => c.id).filter(Boolean);
+  if (ids.length === 0) return out;
+
+  const { data } = await supabase
+    .from('kanban_cards')
+    .select('id, processo_step_one_id')
+    .in('id', ids);
+
+  for (const row of data ?? []) {
+    const id = String((row as { id?: string }).id ?? '').trim();
+    if (id) out.add(id);
+    const proc = String(
+      (row as { processo_step_one_id?: string | null }).processo_step_one_id ?? '',
+    ).trim();
+    if (proc) out.add(proc);
+  }
+
+  return out;
+}
 
 export type KanbanBoardSnapshot = {
   kanban: { id: string } | null;
@@ -1242,12 +1277,19 @@ export async function fetchKanbanBoardSnapshot(
     ...cardsConcluidos.map((c) => c.id),
     ...cardsArquivadosNativo.map((c) => c.id),
   ]);
+  const processoIdsCobertosPorNativo = await buildProcessoIdsCobertosPorNativo(
+    supabase,
+    [...cardsNativo, ...cardsArquivadosNativo],
+  );
 
-  // Nativo prevalece quando existe linha; legado só preenche lacunas (sem duplicata por id).
+  // Nativo prevalece quando existe linha; legado só preenche lacunas (sem duplicata por id/processo).
   let cards = [
     ...cardsNativo,
     ...cardsArquivadosNativo,
-    ...cardsLegadoReconciliados.filter((c) => !idsComLinhaNativa.has(c.id)),
+    ...cardsLegadoReconciliados.filter(
+      (c) =>
+        !idsComLinhaNativa.has(c.id) && !processoIdsCobertosPorNativo.has(c.id),
+    ),
   ].filter((c) => {
     const id = String(c.id ?? '').trim();
     return Boolean(id);
@@ -1307,12 +1349,14 @@ export async function fetchKanbanBoardSnapshot(
       enrichCardsComResponsavelFase(supabase, cardsConcluidosTagged),
     ]);
 
-    const cardsComCalculadora = await enrichCardsComCalculadoraSlaEstourado(
-      supabase,
-      cardsComResp,
-      kanbanIdStr,
-      fasesComOrfas,
-    );
+    const cardsComCalculadora = options?.skipCalculadoraSlaEnrich
+      ? cardsComResp
+      : await enrichCardsComCalculadoraSlaEstourado(
+          supabase,
+          cardsComResp,
+          kanbanIdStr,
+          fasesComOrfas,
+        );
 
     return {
       kanban: { id: kanbanIdStr },
@@ -1330,12 +1374,14 @@ export async function fetchKanbanBoardSnapshot(
     enrichCardsComResponsavelFase(supabase, cardsConcluidos),
   ]);
 
-  const cardsComCalculadora = await enrichCardsComCalculadoraSlaEstourado(
-    supabase,
-    cardsComResp,
-    kanbanIdStr,
-    fasesComOrfas,
-  );
+  const cardsComCalculadora = options?.skipCalculadoraSlaEnrich
+    ? cardsComResp
+    : await enrichCardsComCalculadoraSlaEstourado(
+        supabase,
+        cardsComResp,
+        kanbanIdStr,
+        fasesComOrfas,
+      );
 
   return {
     kanban: { id: kanbanIdStr },

@@ -2,9 +2,10 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { NovoCardModal } from '@/app/funil-stepone/NovoCardModal';
 import { NovoCardFundingModal } from '@/app/funil-funding/NovoCardFundingModal';
+import { hrefAbrirCardNaRota } from '@/lib/kanban/kanban-card-href';
 import type { CamposPorFaseMap, KanbanFase, KanbanNomeDisplay } from './types';
 
 /** Modal pesado — carrega só quando há `?card=` (code-split + sem SSR). */
@@ -34,6 +35,15 @@ type UrlModalState = {
   cardOrigem: 'legado' | 'nativo';
   novoAberto: boolean;
 };
+
+type KanbanOpenCardFn = (cardId: string, origem?: 'legado' | 'nativo') => void;
+
+const KanbanOpenCardContext = createContext<KanbanOpenCardFn | null>(null);
+
+/** Abre card no modal sem esperar o RSC sincronizar `useSearchParams`. */
+export function useKanbanOpenCard(): KanbanOpenCardFn | null {
+  return useContext(KanbanOpenCardContext);
+}
 
 type SearchParamsLike = { get: (key: string) => string | null };
 
@@ -187,6 +197,25 @@ export function KanbanWrapper({
     setUrlState((prev) => (urlStateIgual(prev, s) ? prev : s));
   }, []);
 
+  /** Atualiza estado local na hora; URL segue em `replace` para não competir com modal anterior. */
+  const openCard = useCallback<KanbanOpenCardFn>(
+    (cardId, origem) => {
+      const id = String(cardId ?? '').trim();
+      if (!id) return;
+      const cardOrigem = origem === 'legado' ? 'legado' : 'nativo';
+      setUrlState((prev) => ({
+        ...prev,
+        cardId: id,
+        cardOrigem,
+        deepLinkInteracaoId: null,
+        deepLinkTopicoId: null,
+        novoAberto: false,
+      }));
+      router.replace(hrefAbrirCardNaRota(basePath, id, cardQueryParam, origem), { scroll: false });
+    },
+    [basePath, cardQueryParam, router],
+  );
+
   /** Fecha na hora (estado local) e só depois sincroniza a URL — evita flicker se o Suspense atrasar. */
   const onCloseModals = useCallback(() => {
     setUrlState((prev) =>
@@ -204,7 +233,7 @@ export function KanbanWrapper({
   }, [basePath, router]);
 
   return (
-    <>
+    <KanbanOpenCardContext.Provider value={openCard}>
       {children}
       <Suspense fallback={null}>
         <KanbanUrlSync
@@ -224,6 +253,6 @@ export function KanbanWrapper({
         urlState={urlState}
         onCloseModals={onCloseModals}
       />
-    </>
+    </KanbanOpenCardContext.Provider>
   );
 }

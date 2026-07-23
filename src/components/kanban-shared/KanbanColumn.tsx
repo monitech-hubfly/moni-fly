@@ -23,6 +23,8 @@ import {
   TAG_AGUARDANDO_DOCUMENTACAO,
   tagSlaKanbanParaExibicao,
 } from '@/lib/kanban/kanban-card-sla';
+import { hrefAbrirCardNaRota } from '@/lib/kanban/kanban-card-href';
+import { useKanbanOpenCard } from '@/components/kanban-shared/KanbanWrapper';
 import {
   moverCardKanbanDrag,
   reordenarCardKanbanDrag,
@@ -109,25 +111,6 @@ type SlaModalPendente = {
   obrigatoria: boolean;
 };
 
-function hrefAbrirCard(
-  basePath: string,
-  cardId: string,
-  param: string,
-  origem?: KanbanCardBrief['origem'],
-) {
-  const [path, qs] = basePath.split('?');
-  const sp = new URLSearchParams(qs ?? '');
-  sp.delete('tab');
-  sp.set(param, cardId);
-  if (origem === 'legado') {
-    sp.set('origem', 'legado');
-  } else {
-    sp.delete('origem');
-  }
-  const tail = sp.toString();
-  return tail ? `${path}?${tail}` : `${path}?${param}=${encodeURIComponent(cardId)}`;
-}
-
 function cardArquivadoVisual(card: KanbanCardBrief): boolean {
   return card.origem !== 'legado' && Boolean(card.arquivado);
 }
@@ -199,6 +182,7 @@ export function KanbanColumn({
 }: KanbanColumnProps) {
   const faseSlug = fase.slug?.trim() ?? '';
   const router = useRouter();
+  const openCardFromContext = useKanbanOpenCard();
   const [pending, startTransition] = useTransition();
   const suppressClickRef = useRef(false);
   const [dragOverCardId, setDragOverCardId] = useState<string | null>(null);
@@ -254,7 +238,11 @@ export function KanbanColumn({
 
   const abrirCard = (card: KanbanCardBrief) => {
     if (suppressClickRef.current) return;
-    router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem));
+    if (openCardFromContext) {
+      openCardFromContext(card.id, card.origem);
+      return;
+    }
+    router.push(hrefAbrirCardNaRota(basePath, card.id, cardQueryParam, card.origem));
   };
 
   const handleDragOverColumn = (e: DragEvent<HTMLDivElement>) => {
