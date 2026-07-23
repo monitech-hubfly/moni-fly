@@ -3407,14 +3407,29 @@
   font-weight: 600;
 }
 
-/* Rodapé: alerta à esquerda · menu ⋯ à direita (coluna do avatar) */
+/* Rodapé: bolinhas/menu (linha 1) · reunião (linha 2, abaixo das bolinhas) */
 .moni-kanban-card-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  margin-top: var(--moni-card-gap-footer);
+  min-height: 20px;
+}
+
+.moni-kanban-card-footer-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: var(--moni-card-gap-footer);
-  min-height: 20px;
+  min-width: 0;
+}
+
+.moni-kanban-card-footer-reuniao {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding-top: 2px;
 }
 
 .moni-kanban-card-footer-start {
