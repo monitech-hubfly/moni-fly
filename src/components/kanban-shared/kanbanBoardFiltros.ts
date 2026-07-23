@@ -263,6 +263,7 @@ export function textoVisivelCardKanbanFechado(
       temFilhoProjetosLocais: card.tem_filho_projetos_locais,
       filhoProjetosLocaisArquivado: card.filho_projetos_locais_arquivado,
       projetosLocaisFilhoFase: card.projetos_locais_filho_fase,
+      projetosLocaisFilhoConcluido: card.projetos_locais_filho_concluido,
     },
     { labelsCompletos: false },
   );

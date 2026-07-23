@@ -90,6 +90,8 @@ export type MontarChipsParalelasInput = {
   filhoProjetosLocaisArquivado?: boolean;
   /** Operações: fase atual do filho Projetos Locais. */
   projetosLocaisFilhoFase?: string | null;
+  /** Operações: filho Projetos Locais na fase concluída. */
+  projetosLocaisFilhoConcluido?: boolean;
 };
 
 export type MontarChipsParalelasOptions = {
@@ -406,7 +408,7 @@ export function montarChipsParalelas(
           faseNomeChip,
           'Projetos Locais',
           'Projetos Locais',
-          boolFlag(f.projetos_locais_ok),
+          Boolean(input.projetosLocaisFilhoConcluido),
           opts,
         ),
       );
@@ -652,6 +654,7 @@ type EnrichOperacoesFilhosMaps = {
   filhoProjetoLegalConcluidoPorPai: Map<string, boolean>;
   paisComFilhoProjetoLegalArquivado: Set<string>;
   filhoProjetosLocaisPorPai: Map<string, string>;
+  filhoProjetosLocaisConcluidoPorPai: Map<string, boolean>;
   paisComFilhoProjetosLocaisArquivado: Set<string>;
   filhoCreditoObraPorPai: Map<string, string>;
   paisComFilhoCreditoObraArquivado: Set<string>;
@@ -674,10 +677,27 @@ function criarMapsOperacoesFilhos(): EnrichOperacoesFilhosMaps {
     filhoProjetoLegalConcluidoPorPai: new Map(),
     paisComFilhoProjetoLegalArquivado: new Set(),
     filhoProjetosLocaisPorPai: new Map(),
+    filhoProjetosLocaisConcluidoPorPai: new Map(),
     paisComFilhoProjetosLocaisArquivado: new Set(),
     filhoCreditoObraPorPai: new Map(),
     paisComFilhoCreditoObraArquivado: new Set(),
   };
+}
+
+function registrarFilhoProjetosLocaisPai(
+  maps: EnrichOperacoesFilhosMaps,
+  boardId: string,
+  fase: FaseJoin | null | undefined,
+  concluido?: boolean,
+): void {
+  const faseNome = String(fase?.nome ?? '').trim();
+  if (faseNome && !maps.filhoProjetosLocaisPorPai.has(boardId)) {
+    maps.filhoProjetosLocaisPorPai.set(boardId, faseNome);
+  }
+  const slug = String(fase?.slug ?? '').trim();
+  if (concluido === true || slug === FASE_SLUGS.PROJETOS_LOCAIS_CONCLUIDO) {
+    maps.filhoProjetosLocaisConcluidoPorPai.set(boardId, true);
+  }
 }
 
 function aplicarFilhoParalelaRpcRow(
@@ -718,9 +738,7 @@ function aplicarFilhoParalelaRpcRow(
     }
     if (filhoKanbanId === KANBAN_IDS.PROJETOS_LOCAIS) {
       if (arquivado) maps.paisComFilhoProjetosLocaisArquivado.add(boardId);
-      else if (!maps.filhoProjetosLocaisPorPai.has(boardId)) {
-        maps.filhoProjetosLocaisPorPai.set(boardId, String(fase.nome ?? '').trim());
-      }
+      else registrarFilhoProjetosLocaisPai(maps, boardId, fase, concluido);
       continue;
     }
     if (filhoKanbanId === KANBAN_IDS.CREDITO_OBRA) {
@@ -1278,7 +1296,7 @@ export async function enrichCardsParalelasContext(
         .in('origem_card_id', origemIdsConsulta),
       supabase
         .from('kanban_cards')
-        .select('origem_card_id, kanban_fases ( nome, slug )')
+        .select('origem_card_id, concluido, kanban_fases ( nome, slug )')
         .eq('kanban_id', KANBAN_IDS.PROJETOS_LOCAIS)
         .eq('arquivado', false)
         .in('origem_card_id', origemIdsConsulta),
@@ -1297,6 +1315,7 @@ export async function enrichCardsParalelasContext(
       filhoProjetoLegalConcluidoPorPai,
       paisComFilhoProjetoLegalArquivado,
       filhoProjetosLocaisPorPai,
+      filhoProjetosLocaisConcluidoPorPai,
       paisComFilhoProjetosLocaisArquivado,
       filhoCreditoObraPorPai,
       paisComFilhoCreditoObraArquivado,
@@ -1376,8 +1395,12 @@ export async function enrichCardsParalelasContext(
         (row as { kanban_fases?: FaseJoin | FaseJoin[] | null }).kanban_fases ?? null,
       );
       for (const boardId of boardCardsDoFilhoOrigem(oid, cardIds, ancestraisPorBoardCard)) {
-        if (filhoProjetosLocaisPorPai.has(boardId)) continue;
-        filhoProjetosLocaisPorPai.set(boardId, String(fase?.nome ?? '').trim());
+        registrarFilhoProjetosLocaisPai(
+          maps,
+          boardId,
+          fase,
+          (row as { concluido?: boolean | null }).concluido === true,
+        );
       }
     }
 
@@ -1453,8 +1476,7 @@ export async function enrichCardsParalelasContext(
       KANBAN_IDS.PROJETOS_LOCAIS,
       ancestraisPorBoardCard,
       (boardId, fase) => {
-        if (filhoProjetosLocaisPorPai.has(boardId)) return;
-        filhoProjetosLocaisPorPai.set(boardId, String(fase?.nome ?? '').trim());
+        registrarFilhoProjetosLocaisPai(maps, boardId, fase);
       },
     );
     await enrichFilhosEsteiraArquivadosPorVinculos(
@@ -1524,6 +1546,8 @@ export async function enrichCardsParalelasContext(
       if (temFilhoProjetosLocais) {
         patch.tem_filho_projetos_locais = true;
         patch.projetos_locais_filho_fase = filhoProjetosLocaisPorPai.get(c.id) ?? null;
+        patch.projetos_locais_filho_concluido =
+          filhoProjetosLocaisConcluidoPorPai.get(c.id) === true;
       }
       if (filhoProjetosLocaisArquivado) patch.filho_projetos_locais_arquivado = true;
       return { ...c, ...patch };

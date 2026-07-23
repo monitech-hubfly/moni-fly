@@ -108,6 +108,8 @@ export type KanbanCardBrief = {
   filho_projetos_locais_arquivado?: boolean;
   /** Operações: fase atual do filho Projetos Locais. */
   projetos_locais_filho_fase?: string | null;
+  /** Operações: filho Projetos Locais na fase concluída. */
+  projetos_locais_filho_concluido?: boolean;
   /** Step One: fase atual do card Portfolio com mesmo `projeto_id`. */
   portfolio_vinculo_rotulo?: string | null;
   /** Portfolio: existe card filho no Funil Jurídico (`origem_card_id`). */
