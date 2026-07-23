@@ -108,10 +108,10 @@ const PRIO_BADGE: Record<string, { bg: string; text: string }> = {
 
 // ── Grade de disponibilidade ──────────────────────────────────────────────────
 
-const GRADE_INICIO = 10;
-const GRADE_FIM    = 18;
+const GRADE_INICIO = 8;
+const GRADE_FIM    = 20;
 const SLOT_MIN     = 30; // colunas de 30 min
-const TOTAL_SLOTS  = (GRADE_FIM - GRADE_INICIO) * (60 / SLOT_MIN); // 16
+const TOTAL_SLOTS  = (GRADE_FIM - GRADE_INICIO) * (60 / SLOT_MIN); // 24
 
 function slotParaMinutos(slot: number) {
   return GRADE_INICIO * 60 + slot * SLOT_MIN;
@@ -160,23 +160,23 @@ function GradeDisponibilidade({
     });
   };
 
-  const horasLabel = Array.from({ length: GRADE_FIM - GRADE_INICIO + 1 }, (_, i) =>
-    `${String(GRADE_INICIO + i).padStart(2, '0')}h`
-  );
+  const totalHoras = GRADE_FIM - GRADE_INICIO; // 12
 
   return (
     <div className="mt-3 pt-3 border-t border-gray-100">
       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
         Disponibilidade no dia
       </p>
-      {/* Header horas */}
+      {/* Header horas — 1 label por hora, alinhado com a grade */}
       <div className="flex text-[9px] text-gray-400 mb-0.5" style={{ paddingLeft: 64 }}>
-        {horasLabel.map((h, i) => (
-          <div key={i} style={{ width: `${100 / TOTAL_SLOTS}%`, flexShrink: 0 }}
-            className={i % 2 === 0 ? '' : 'invisible'}>
-            {h}
+        {Array.from({ length: totalHoras }, (_, i) => (
+          <div key={i} style={{ width: `${100 / totalHoras}%`, flexShrink: 0 }}>
+            {`${String(GRADE_INICIO + i).padStart(2, '0')}h`}
           </div>
         ))}
+        <span className="text-[9px] text-gray-400 shrink-0">
+          {`${String(GRADE_FIM).padStart(2, '0')}h`}
+        </span>
       </div>
       {/* Linhas por participante */}
       {pessoas_selecionadas.map(p => {
