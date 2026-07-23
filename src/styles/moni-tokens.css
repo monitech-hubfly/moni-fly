@@ -3789,18 +3789,19 @@
 /* Zebra — facilita seguir a linha horizontalmente */
 .moni-pipeline-esteira-table tbody tr:nth-child(even) .moni-pipeline-esteira-td-info,
 .moni-pipeline-esteira-table tbody tr:nth-child(even) .moni-pipeline-esteira-dc {
-  background: var(--moni-surface-50, #f8f7f5);
+  background: var(--moni-surface-100);
 }
 
 /* Hover na linha inteira para reuniões */
 .moni-pipeline-esteira-table tbody tr:hover .moni-pipeline-esteira-td-info,
 .moni-pipeline-esteira-table tbody tr:hover .moni-pipeline-esteira-dc {
-  background: color-mix(in srgb, var(--moni-kanban-portfolio-light) 30%, transparent) !important;
+  background: var(--moni-green-50) !important;
 }
 
 /* Linha atrasada — acento esquerdo vermelho */
 .moni-pipeline-esteira-table tbody tr.linha-atrasada .moni-pipeline-esteira-td-info:first-child {
-  border-left: 3px solid var(--moni-status-overdue-border);
+  border-left: 4px solid var(--moni-status-overdue-border);
+  padding-left: 7px;
 }
 
 .moni-pipeline-esteira-th {
@@ -3895,10 +3896,9 @@
   vertical-align: middle;
 }
 
-/* Fase atual — destaque mais forte */
 .moni-pipeline-esteira-dc.cur {
   background: var(--moni-pipeline-esteira-cur-bg);
-  box-shadow: inset 0 -2px 0 var(--moni-status-active-text);
+  box-shadow: inset 0 -2px 0 var(--moni-status-active-border);
 }
 
 .moni-pipeline-esteira-dc.cur-at {
