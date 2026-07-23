@@ -144,6 +144,8 @@ export type KanbanCardBrief = {
   funding_descritivo?: string | null;
   proxima_atividade?: string | null;
   prazo_atividade?: string | null;
+  /** SLA estourado na fase atual segundo a Calculadora (borda lateral vermelha no board). */
+  calculadora_sla_estourado?: boolean;
 };
 
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */

@@ -201,6 +201,12 @@ export function labelSufixoDataCalculadoraFase(
   return temDataRealRegistrada ? 'real' : 'est.';
 }
 
+/** Fase atual da calculadora com SLA estourado (`atual_atrasada`). */
+export function faseAtualCalculadoraSlaEstourada(linhas: CalculadoraFaseLinha[]): boolean {
+  const faseAtual = linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada');
+  return faseAtual?.status === 'atual_atrasada';
+}
+
 /** Fase ultrapassou o SLA estimado (inclui futuras com previsão vencida). */
 export function faseUltrapassouSlaCalculadora(
   status: FaseTimelineStatus,

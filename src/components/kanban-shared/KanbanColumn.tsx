@@ -503,8 +503,9 @@ export function KanbanColumn({
           });
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
-          // Faixa lateral vermelha só com SLA estourado; demais ficam cinza discreto.
-          const slaAtrasado = !arquivado && !concluido && sla.status === 'atrasado';
+          // Faixa lateral vermelha: SLA estourado na Calculadora (fase atual `atual_atrasada`).
+          const slaAtrasado =
+            !arquivado && !concluido && card.calculadora_sla_estourado === true;
           const statusLateral = slaAtrasado ? 'vermelho' : 'cinza';
           const motivo = (card.motivo_arquivamento ?? '').trim();
           const resultado = card.resultado ?? null;

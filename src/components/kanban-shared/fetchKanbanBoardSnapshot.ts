@@ -10,6 +10,7 @@ import {
 } from '@/lib/kanban/fetch-kanban-fases';
 import { enrichCardsParalelasContext } from '@/lib/kanban/kanban-paralelas-chips';
 import { enrichCardsComResponsavelFase } from '@/lib/kanban/responsavel-fase-checklist';
+import { enrichCardsComCalculadoraSlaEstourado } from '@/lib/kanban/fetch-kanban-board-calculadora-sla';
 import {
   aplicarFasePorEtapaPainelEmLote,
   buildSlugParaFaseIdMap,
@@ -1306,10 +1307,17 @@ export async function fetchKanbanBoardSnapshot(
       enrichCardsComResponsavelFase(supabase, cardsConcluidosTagged),
     ]);
 
+    const cardsComCalculadora = await enrichCardsComCalculadoraSlaEstourado(
+      supabase,
+      cardsComResp,
+      kanbanIdStr,
+      fasesComOrfas,
+    );
+
     return {
       kanban: { id: kanbanIdStr },
       fases: fasesComOrfas,
-      cards: cardsComResp,
+      cards: cardsComCalculadora,
       cardsConcluidos: cardsConcluidosComResp,
       role,
       isAdmin,
@@ -1322,10 +1330,17 @@ export async function fetchKanbanBoardSnapshot(
     enrichCardsComResponsavelFase(supabase, cardsConcluidos),
   ]);
 
+  const cardsComCalculadora = await enrichCardsComCalculadoraSlaEstourado(
+    supabase,
+    cardsComResp,
+    kanbanIdStr,
+    fasesComOrfas,
+  );
+
   return {
     kanban: { id: kanbanIdStr },
     fases: fasesComOrfas,
-    cards: cardsComResp,
+    cards: cardsComCalculadora,
     cardsConcluidos: cardsConcluidosComResp,
     role,
     isAdmin,
