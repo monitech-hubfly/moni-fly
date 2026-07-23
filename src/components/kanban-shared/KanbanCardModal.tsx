@@ -4060,7 +4060,8 @@ export function KanbanCardModal({
         const cur = { ...prevOv };
         if (campo === 'inicio') {
           cur.dataInicio = valor;
-          // Sempre remove override de fim ao mudar início — motor recalcula estimativa pelo SLA.
+          // Ao mudar início: sempre remove override de fim para o motor recalcular a estimativa.
+          // Fases posteriores com datas manuais são preservadas (não apagar seus overrides).
           delete cur.dataFim;
         } else {
           cur.dataFim = valor;
@@ -4070,7 +4071,7 @@ export function KanbanCardModal({
         } else {
           next.set(faseId, cur);
         }
-        for (const fid of fasesPosteriores) next.delete(fid);
+        // Não limpar fasesPosteriores: datas manuais definidas em fases seguintes devem ser preservadas.
         return next;
       });
     },
@@ -4132,7 +4133,8 @@ export function KanbanCardModal({
       }
 
       const supabase = createClient();
-      // Ao mudar início: sempre limpa data_fim no banco para o motor recalcular pelo SLA.
+      // Ao mudar início: sempre limpa data_fim no banco para o motor recalcular a estimativa.
+      // Fases posteriores com datas manuais não são alteradas (preservadas no banco).
       const patch =
         campo === 'inicio'
           ? { dataInicio: valor, dataFim: null }
@@ -4155,9 +4157,7 @@ export function KanbanCardModal({
         return result;
       }
 
-      if (fasesPosteriores.length > 0) {
-        await limparDatasManuaisCalculadoraSyncGroup(supabase, cardId, fasesPosteriores);
-      }
+      // Não limpar fasesPosteriores no banco: datas manuais das fases seguintes são preservadas.
 
       if (campoPreObraProcesso) {
         const pid = modalDetalhes.processo?.id?.trim();
