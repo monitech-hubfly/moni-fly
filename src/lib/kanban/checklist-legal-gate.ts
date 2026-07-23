@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 const ERRO_CHECKLIST_LEGAL =
   'Conclua o Checklist Legal do condomínio antes de avançar. Preencha em Dados do Negócio ou use o link público.';
 
-type SupabaseLike = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
+type SupabaseLike = Pick<Awaited<ReturnType<typeof createClient>>, 'from' | 'rpc'>;
 
 export async function obterChecklistLegalConcluidoPorCondominio(
   db: SupabaseLike,

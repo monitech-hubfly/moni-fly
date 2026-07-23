@@ -213,23 +213,30 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           fase: FaseKanban | FaseKanban[] | null;
         };
 
+        // semanas_selecionadas é o campo correto — semana_ano_fim é NULL na maioria
+        // dos registros do Gantt (que só populam semanas_selecionadas)
+        const semanasAtrasadas  = [semana - 2, semana - 1];
+        const semanasRecentes   = [semana - 2, semana - 1, semana];
+        const semanasFuturas    = [semana, semana + 1, semana + 2];
+
         const [
           ganttAtrasadasRes, ganttConcluidasRes, ganttPlanejdasRes,
           kanbanAbertosRes, kanbanConcluidosRes,
         ] = await Promise.all([
-          // Atividades atrasadas abertas com prazo nas últimas 2 semanas (janela)
+          // Atividades atrasadas: planejadas nas 2 semanas anteriores, ainda abertas
           supabase.from('gantt_planejamento').select('id')
             .or(orGantt).is('data_conclusao_real', null)
-            .gte('semana_ano_fim', semana - 2).lt('semana_ano_fim', semana),
+            .overlaps('semanas_selecionadas', semanasAtrasadas),
 
-          // Atividades concluídas com prazo nas últimas 2 semanas
+          // Atividades concluídas: planejadas no período recente e já concluídas
           supabase.from('gantt_planejamento').select('id')
             .or(orGantt).not('data_conclusao_real', 'is', null)
-            .gte('semana_ano_fim', semana - 2).lte('semana_ano_fim', semana),
+            .overlaps('semanas_selecionadas', semanasRecentes),
 
-          // Atividades abertas no prazo / futuras (informativo)
+          // Atividades planejadas: abertas para esta semana ou próximas
           supabase.from('gantt_planejamento').select('id')
-            .or(orGantt).is('data_conclusao_real', null).gte('semana_ano_fim', semana),
+            .or(orGantt).is('data_conclusao_real', null)
+            .overlaps('semanas_selecionadas', semanasFuturas),
 
           // Cards abertos (para calcular SLA)
           supabase.from('kanban_cards')
