@@ -19,7 +19,6 @@ import {
 import {
   computarDatasEsteiraCalculadora,
   formatDataCelulaEsteira,
-  isCelulaCtoDuplo,
   labelFaseAtualCalculadora,
   ordemGlobalFaseCalculadora,
   resolverFaseAtualCalculadora,
@@ -70,32 +69,6 @@ function CelulaData({
   );
 }
 
-function CelulaCtoDuplo({
-  cp,
-  contrato,
-  ordemAtual,
-}: {
-  cp: CelulaEsteiraCalculadora;
-  contrato: CelulaEsteiraCalculadora;
-  ordemAtual: number;
-}) {
-  const cpConcluida = ordemAtual > 0;
-  const contratoConcluida = ordemAtual > 0;
-
-  return (
-    <div className="moni-pipeline-esteira-cto-duplo">
-      <div className="moni-pipeline-esteira-cto-linha">
-        <span className="moni-pipeline-esteira-cto-label">CP</span>
-        <CelulaData celula={cp} concluida={cpConcluida && !cp.isCurrent} />
-      </div>
-      <div className="moni-pipeline-esteira-cto-linha">
-        <span className="moni-pipeline-esteira-cto-label">Contrato</span>
-        <CelulaData celula={contrato} concluida={contratoConcluida && !contrato.isCurrent} />
-      </div>
-    </div>
-  );
-}
-
 export function PipelineEsteiraTable({ cards, esteiraCalculadora = {} }: PipelineEsteiraTableProps) {
   const linhas = useMemo(() => {
     const grupos = agruparCardsEsteiraCalculadora(cards);
@@ -139,10 +112,17 @@ export function PipelineEsteiraTable({ cards, esteiraCalculadora = {} }: Pipelin
 
   const colPort = ESTEIRA_CALCULADORA_COLUNAS_PORT.length;
   const colOp = ESTEIRA_CALCULADORA_COLUNAS_OP.length;
+  const totalColunas = 2 + ESTEIRA_CALCULADORA_COLUNAS.length;
+  const larguraColuna = `${100 / totalColunas}%`;
 
   return (
     <div className="moni-pipeline-esteira-scroll">
       <table className="moni-pipeline-esteira-table">
+        <colgroup>
+          {Array.from({ length: totalColunas }, (_, i) => (
+            <col key={i} style={{ width: larguraColuna }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             <th colSpan={2} className="moni-pipeline-esteira-th-info">
@@ -194,14 +174,6 @@ export function PipelineEsteiraTable({ cards, esteiraCalculadora = {} }: Pipelin
                     return (
                       <td key={col.slug} className="moni-pipeline-esteira-dc">
                         <span className="moni-pipeline-esteira-date-none">—</span>
-                      </td>
-                    );
-                  }
-
-                  if (isCelulaCtoDuplo(val)) {
-                    return (
-                      <td key={col.slug} className="moni-pipeline-esteira-dc moni-pipeline-esteira-dc-cto">
-                        <CelulaCtoDuplo cp={val.cp} contrato={val.contrato} ordemAtual={ordemAtual} />
                       </td>
                     );
                   }

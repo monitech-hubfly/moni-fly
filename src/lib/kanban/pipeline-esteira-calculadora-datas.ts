@@ -2,8 +2,6 @@ import { parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import type { CalculadoraFaseLinha } from '@/lib/kanban/calculadora-fases';
 import {
   ESTEIRA_CALCULADORA_COLUNAS,
-  ESTEIRA_CTO_CONTRATO_SLUGS,
-  ESTEIRA_CTO_CP_SLUGS,
   type EsteiraCalculadoraColuna,
 } from '@/lib/kanban/pipeline-esteira-calculadora-colunas';
 
@@ -14,15 +12,7 @@ export type CelulaEsteiraCalculadora = {
   isCurrent: boolean;
 };
 
-export type CelulaEsteiraCtoDuplo = {
-  cp: CelulaEsteiraCalculadora;
-  contrato: CelulaEsteiraCalculadora;
-};
-
-export type DatasEsteiraCalculadora = Record<
-  string,
-  CelulaEsteiraCalculadora | CelulaEsteiraCtoDuplo
->;
+export type DatasEsteiraCalculadora = Record<string, CelulaEsteiraCalculadora>;
 
 function normSlug(slug: string | null | undefined): string {
   return String(slug ?? '').trim().toLowerCase();
@@ -81,24 +71,11 @@ export function extrairCelulaCalculadora(linha: CalculadoraFaseLinha | null): Ce
   return { tipo: 'est', date, isCurrent };
 }
 
-function extrairCtoDuplo(linhas: CalculadoraFaseLinha[]): CelulaEsteiraCtoDuplo {
-  return {
-    cp: extrairCelulaCalculadora(resolverLinhaCalculadoraPorSlugs(linhas, ESTEIRA_CTO_CP_SLUGS)),
-    contrato: extrairCelulaCalculadora(
-      resolverLinhaCalculadoraPorSlugs(linhas, ESTEIRA_CTO_CONTRATO_SLUGS),
-    ),
-  };
-}
-
-/** Monta mapa slug-coluna → célula(s) a partir das linhas completas da calculadora. */
+/** Monta mapa slug-coluna → célula a partir das linhas completas da calculadora. */
 export function computarDatasEsteiraCalculadora(linhas: CalculadoraFaseLinha[]): DatasEsteiraCalculadora {
   const result: DatasEsteiraCalculadora = {};
 
   for (const col of ESTEIRA_CALCULADORA_COLUNAS) {
-    if (col.ctoDuplo) {
-      result[col.slug] = extrairCtoDuplo(linhas);
-      continue;
-    }
     const linha = resolverLinhaCalculadoraPorSlugs(linhas, col.faseSlugs);
     result[col.slug] = extrairCelulaCalculadora(linha);
   }
@@ -141,15 +118,10 @@ export function parseDataCelulaEsteira(iso: string | null): Date | null {
 export function formatDataCelulaEsteira(iso: string | null): string {
   const d = parseDataCelulaEsteira(iso);
   if (!d) return '—';
-  return d
-    .toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
-    .replace(/\./g, '');
-}
-
-export function isCelulaCtoDuplo(
-  val: CelulaEsteiraCalculadora | CelulaEsteiraCtoDuplo,
-): val is CelulaEsteiraCtoDuplo {
-  return 'cp' in val && 'contrato' in val;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = String(d.getFullYear() % 100).padStart(2, '0');
+  return `${day}-${month}-${year}`;
 }
 
 export function ordemGlobalFaseCalculadora(

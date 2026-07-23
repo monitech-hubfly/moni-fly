@@ -9,8 +9,6 @@ export type EsteiraCalculadoraColuna = {
   segmento: EsteiraCalculadoraSegmento;
   /** Slugs canônicos da fase na calculadora (primeiro match vence). */
   faseSlugs: readonly string[];
-  /** Coluna especial com duas datas (CTO CP + Contrato). */
-  ctoDuplo?: boolean;
 };
 
 /** Colunas da Esteira Pipeline — datas fim da Calculadora (Portfólio + Pré Obra e Obra). */
@@ -34,11 +32,10 @@ export const ESTEIRA_CALCULADORA_COLUNAS: readonly EsteiraCalculadoraColuna[] = 
     faseSlugs: [FASE_SLUGS.STEP_5],
   },
   {
-    slug: 'cto',
-    label: 'CTO CP / Contrato',
+    slug: 'contrato',
+    label: 'Contrato',
     segmento: 'port',
-    faseSlugs: [],
-    ctoDuplo: true,
+    faseSlugs: [FASE_SLUGS.STEP_7, 'contrato'],
   },
   {
     slug: 'projeto_legal',
@@ -83,10 +80,6 @@ export const ESTEIRA_CALCULADORA_COLUNAS: readonly EsteiraCalculadoraColuna[] = 
     faseSlugs: [FASE_SLUGS.EM_OBRA],
   },
 ] as const;
-
-/** Slugs das duas datas na coluna CTO. */
-export const ESTEIRA_CTO_CP_SLUGS = [FASE_SLUGS.CTO_CONDICOES_PRECEDENTES] as const;
-export const ESTEIRA_CTO_CONTRATO_SLUGS = [FASE_SLUGS.STEP_7, 'contrato'] as const;
 
 export const ESTEIRA_CALCULADORA_COLUNAS_PORT = ESTEIRA_CALCULADORA_COLUNAS.filter(
   (c) => c.segmento === 'port',
