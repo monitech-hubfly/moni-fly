@@ -178,7 +178,8 @@ export function ModalAgendamento({
   const [ocupados,  setOcupados]  = useState<Set<string>>(new Set());
 
   // Seções colapsáveis (data, participantes, link, recorrência, vínculo, obs)
-  const [abertas, setAbertas] = useState([true, false, false, false, false, false]);
+  // 0=Data+Recorrência, 1=Participantes, 2=Link, 3=Info adicionais, 4=Observações
+  const [abertas, setAbertas] = useState([true, false, false, false, false]);
   const [erros,   setErros]   = useState({ origem: false, data: false });
 
   const preenchidoRef = useRef(preenchido);
@@ -255,20 +256,24 @@ export function ModalAgendamento({
       try {
         const [objRes, pessoasRes] = await Promise.all([
           supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', areaId).eq('status', 'ativo').order('descricao'),
-          supabase.from('area_pessoas').select('profile_id, nome, profiles(email)').not('profile_id', 'is', null).order('nome'),
+          supabase.from('area_pessoas').select('profile_id, nome').not('profile_id', 'is', null).order('nome'),
         ]);
         setObjetivos((objRes.data ?? []) as { id: string; descricao: string; tipo: string | null }[]);
-        type PessoaRaw = { profile_id: string; nome: string; profiles: { email: string } | { email: string }[] | null };
-        const raw = (pessoasRes.data ?? []) as PessoaRaw[];
+        const rawPessoas = (pessoasRes.data ?? []) as { profile_id: string; nome: string }[];
         const seen = new Set<string>();
-        setPessoas(raw.filter(p => {
+        const dedup = rawPessoas.filter(p => {
           if (p.profile_id === profileId || seen.has(p.profile_id)) return false;
           seen.add(p.profile_id);
           return true;
-        }).map(p => {
-          const prof = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
-          return { profile_id: p.profile_id, nome: p.nome, email: prof?.email ?? null };
-        }));
+        });
+        // Busca emails separadamente (evita falha por FK inexistente no PostgREST)
+        const ids = dedup.map(p => p.profile_id);
+        const emailMap = new Map<string, string>();
+        if (ids.length > 0) {
+          const { data: profs } = await supabase.from('profiles').select('id, email').in('id', ids);
+          ((profs ?? []) as { id: string; email: string | null }[]).forEach(r => { if (r.email) emailMap.set(r.id, r.email); });
+        }
+        setPessoas(dedup.map(p => ({ profile_id: p.profile_id, nome: p.nome, email: emailMap.get(p.profile_id) ?? null })));
       } catch (e) { console.error('[Modal] objetivos/pessoas:', e); }
     })();
   }, [areaId, profileId, supabase]);
@@ -309,7 +314,7 @@ export function ModalAgendamento({
     setSelItem(null);
     setQuery('');
     setErros({ origem: false, data: false });
-    setAbertas([true, false, false, false, false, false]);
+    setAbertas([true, false, false, false, false]);
 
     // Aba inicial
     const origemInicial: AbaAtiva | null =
@@ -604,8 +609,8 @@ export function ModalAgendamento({
             )}
           </div>
 
-          {/* ── Data e Horário ── */}
-          <Secao titulo="Data e horário" aberta={abertas[0]} onToggle={() => toggleSecao(0)} erro={erros.data}>
+          {/* ── Data, Horário e Recorrência ── */}
+          <Secao titulo="Data, horário e recorrência" aberta={abertas[0]} onToggle={() => toggleSecao(0)} erro={erros.data}>
             <div className="grid grid-cols-3 gap-3 mt-1">
               <div>
                 <label className="text-[10px] text-gray-400 mb-1 block">Data</label>
@@ -628,6 +633,70 @@ export function ModalAgendamento({
                   value={form.hora_fim ?? ''}
                   onChange={e => set('hora_fim', e.target.value || null)} />
               </div>
+            </div>
+
+            {/* Recorrência — dentro da mesma seção */}
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" className="rounded accent-blue-500" checked={form.recorrente}
+                  onChange={e => set('recorrente', e.target.checked)} />
+                <span className="text-xs text-gray-700">Atividade recorrente</span>
+              </label>
+              {form.recorrente && (
+                <div className="mt-3 flex flex-col gap-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-gray-400 mb-1 block">Frequência</label>
+                      <select className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
+                        value={recCfg.frequencia ?? ''}
+                        onChange={e => setRecCfg({ frequencia: e.target.value as RecorrenciaConfig['frequencia'], intervalo: 1, diasSemana: [] })}>
+                        <option value="">—</option>
+                        <option value="diario">Diariamente</option>
+                        <option value="semanal">Semanalmente</option>
+                        <option value="mensal">Mensalmente</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-gray-400 mb-1 block">
+                        A cada {recCfg.frequencia === 'diario' ? 'dia(s)' : recCfg.frequencia === 'semanal' ? 'semana(s)' : 'mês(es)'}
+                      </label>
+                      <input type="number" min={1} max={30}
+                        className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
+                        value={recCfg.intervalo ?? 1}
+                        onChange={e => setRecCfg({ intervalo: Math.max(1, Number(e.target.value)) })} />
+                    </div>
+                  </div>
+                  {recCfg.frequencia === 'semanal' && (
+                    <div>
+                      <label className="text-[10px] text-gray-400 mb-1.5 block">Dias da semana</label>
+                      <div className="flex gap-1.5">
+                        {DIAS_SEMANA.map((d, i) => {
+                          const sel = (recCfg.diasSemana ?? []).includes(i);
+                          return (
+                            <button key={i} type="button"
+                              className={`w-7 h-7 rounded-full text-[10px] font-medium transition-colors ${sel ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                              onClick={() => {
+                                const cur = recCfg.diasSemana ?? [];
+                                setRecCfg({ diasSemana: sel ? cur.filter(x => x !== i) : [...cur, i].sort() });
+                              }}>{d}</button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-[10px] text-gray-400 mb-1 block">Termina em</label>
+                    <input type="date" className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
+                      value={recCfg.ate ?? ''}
+                      onChange={e => setRecCfg({ ate: e.target.value })} />
+                  </div>
+                  {ocorrenciasPreview > 0 && (
+                    <p className="text-xs text-blue-600 font-medium">
+                      → {ocorrenciasPreview} ocorrência{ocorrenciasPreview !== 1 ? 's' : ''} serão criadas
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </Secao>
 
@@ -669,72 +738,8 @@ export function ModalAgendamento({
               onChange={e => set('link_reuniao', e.target.value || null)} />
           </Secao>
 
-          {/* ── Recorrência ── */}
-          <Secao titulo="Recorrência" aberta={abertas[3]} onToggle={() => toggleSecao(3)}>
-            <label className="flex items-center gap-2 mt-1 cursor-pointer">
-              <input type="checkbox" className="rounded accent-blue-500" checked={form.recorrente}
-                onChange={e => set('recorrente', e.target.checked)} />
-              <span className="text-xs text-gray-700">Atividade recorrente</span>
-            </label>
-            {form.recorrente && (
-              <div className="mt-3 flex flex-col gap-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] text-gray-400 mb-1 block">Frequência</label>
-                    <select className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
-                      value={recCfg.frequencia ?? ''}
-                      onChange={e => setRecCfg({ frequencia: e.target.value as RecorrenciaConfig['frequencia'], intervalo: 1, diasSemana: [] })}>
-                      <option value="">—</option>
-                      <option value="diario">Diariamente</option>
-                      <option value="semanal">Semanalmente</option>
-                      <option value="mensal">Mensalmente</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-gray-400 mb-1 block">
-                      A cada {recCfg.frequencia === 'diario' ? 'dia(s)' : recCfg.frequencia === 'semanal' ? 'semana(s)' : 'mês(es)'}
-                    </label>
-                    <input type="number" min={1} max={30}
-                      className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
-                      value={recCfg.intervalo ?? 1}
-                      onChange={e => setRecCfg({ intervalo: Math.max(1, Number(e.target.value)) })} />
-                  </div>
-                </div>
-                {recCfg.frequencia === 'semanal' && (
-                  <div>
-                    <label className="text-[10px] text-gray-400 mb-1.5 block">Dias da semana</label>
-                    <div className="flex gap-1.5">
-                      {DIAS_SEMANA.map((d, i) => {
-                        const sel = (recCfg.diasSemana ?? []).includes(i);
-                        return (
-                          <button key={i} type="button"
-                            className={`w-7 h-7 rounded-full text-[10px] font-medium transition-colors ${sel ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                            onClick={() => {
-                              const cur = recCfg.diasSemana ?? [];
-                              setRecCfg({ diasSemana: sel ? cur.filter(x => x !== i) : [...cur, i].sort() });
-                            }}>{d}</button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <label className="text-[10px] text-gray-400 mb-1 block">Termina em</label>
-                  <input type="date" className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
-                    value={recCfg.ate ?? ''}
-                    onChange={e => setRecCfg({ ate: e.target.value })} />
-                </div>
-                {ocorrenciasPreview > 0 && (
-                  <p className="text-xs text-blue-600 font-medium">
-                    → {ocorrenciasPreview} ocorrência{ocorrenciasPreview !== 1 ? 's' : ''} serão criadas
-                  </p>
-                )}
-              </div>
-            )}
-          </Secao>
-
-          {/* ── Vínculo ── */}
-          <Secao titulo="Informações adicionais" aberta={abertas[4]} onToggle={() => toggleSecao(4)}>
+          {/* ── Informações adicionais ── */}
+          <Secao titulo="Informações adicionais" aberta={abertas[3]} onToggle={() => toggleSecao(3)}>
             <div className="grid grid-cols-2 gap-3 mt-1">
               {([
                 { label: 'Casa',       key: 'casa_id'          as const, opts: casas.map(x => ({ id: x.id, nome: x.nome })) },
@@ -764,7 +769,7 @@ export function ModalAgendamento({
           </Secao>
 
           {/* ── Observações ── */}
-          <Secao titulo="Observações" aberta={abertas[5]} onToggle={() => toggleSecao(5)}>
+          <Secao titulo="Observações" aberta={abertas[4]} onToggle={() => toggleSecao(4)}>
             <textarea className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mt-1 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
               rows={3} placeholder="Notas livres..."
               value={form.observacoes ?? ''}
