@@ -16,3 +16,12 @@ scripts/test-bastoes-prod.mjs
 
 # Instruções locais para o Claude Code (não versionar)
 CLAUDE.md
+
+# Arquivos temporários locais (diagnóstico, Claude Code, etc.)
+_*.txt
+_*.mjs
+_q*.sql
+migration_*_temp.sql
+tsc_*.txt
+/migration_[0-9]*.sql
+scripts/deploy-para-main.ps1
