@@ -1,0 +1,4 @@
+=== Abrindo http://localhost:3000/sirene/chamados
+[BROWSER ERROR] Failed to load resource: the server responded with a status of 404 (Not Found)
+=== Aguardando login manual (até 2 min)...
+=== TIMEOUT: login não detectado em 2 min. Encerrando.

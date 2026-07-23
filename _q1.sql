@@ -1,0 +1,1 @@
+SELECT id, numero, card_id, topico_id, status, criado_em, criado_por_profile_id, responsavel_id, titulo FROM sirene_chamados WHERE numero = 335 LIMIT 1;

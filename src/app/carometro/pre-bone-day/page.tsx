@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { GuardaConstrucao } from '@/components/carometro/GuardaConstrucao';
 import { createClient } from '@/lib/supabase/client';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import {
@@ -712,7 +713,7 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo }: {
 }
 
 // ── Página principal ──────────────────────────────────────────────────────────
-export default function PreBoneDayPage() {
+function PreBoneDayPageContent() {
   const supabase = useMemo(() => createClient(), []);
   const { effectiveProfileId } = useEffectiveUser();
 
@@ -973,4 +974,8 @@ export default function PreBoneDayPage() {
       )}
     </div>
   );
+}
+
+export default function PreBoneDayPage() {
+  return <GuardaConstrucao><PreBoneDayPageContent /></GuardaConstrucao>;
 }

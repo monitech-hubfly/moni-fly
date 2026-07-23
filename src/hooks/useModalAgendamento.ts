@@ -14,6 +14,7 @@ export type UseModalAgendamentoResult = {
   preenchido: Partial<DadosAgendamento>;
   modo: Modo;
   isSaving: boolean;
+  erroSalvar: string | null;
   abrirParaCriar: (preenchido?: Partial<DadosAgendamento>) => void;
   abrirParaEditar: (id: string) => void;
   fechar: () => void;
@@ -31,6 +32,7 @@ export function useModalAgendamento(
   const [modo,       setModo]       = useState<Modo>('criar');
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [isSaving,   setIsSaving]   = useState(false);
+  const [erroSalvar, setErroSalvar] = useState<string | null>(null);
 
   const abrirParaCriar = useCallback((dados?: Partial<DadosAgendamento>) => {
     setPreenchido(dados ?? {});
@@ -86,11 +88,13 @@ export function useModalAgendamento(
     setAberto(false);
     setPreenchido({});
     setEditandoId(null);
+    setErroSalvar(null);
   }, []);
 
   const salvar = useCallback(async (dados: DadosAgendamento) => {
     if (!effectiveProfileId) return;
     setIsSaving(true);
+    setErroSalvar(null);
     try {
       const semana = dados.data ? isoWeek(new Date(dados.data)) : null;
       const payload: Record<string, unknown> = {
@@ -129,15 +133,19 @@ export function useModalAgendamento(
           : null;
 
         // Insere uma linha por ocorrência
-        const inserts = datas.map(dt => ({
-          ...payload,
-          data:                dt,
-          semana_ano_inicio:   isoWeek(new Date(dt)),
-          semana_ano_fim:      isoWeek(new Date(dt)),
-          profile_id:          effectiveProfileId,
-          origem:              'agenda',
-          recorrencia_grupo_id: recorrenciaGrupoId,
-        }));
+        const inserts = datas.map(dt => {
+          const semDt = isoWeek(new Date(dt));
+          return {
+            ...payload,
+            data:                dt,
+            semana_ano_inicio:   semDt,
+            semana_ano_fim:      semDt,
+            semanas_selecionadas: [semDt],
+            profile_id:          effectiveProfileId,
+            origem:              'agenda',
+            recorrencia_grupo_id: recorrenciaGrupoId,
+          };
+        });
 
         const { data: inserted, error } = await supabase
           .from('gantt_planejamento')
@@ -186,10 +194,14 @@ export function useModalAgendamento(
 
       fechar();
       onSalvo?.();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : JSON.stringify(e);
+      console.error('[salvar] erro:', e);
+      setErroSalvar(msg);
     } finally {
       setIsSaving(false);
     }
   }, [supabase, effectiveProfileId, areaId, modo, editandoId, fechar, onSalvo]);
 
-  return { aberto, preenchido, modo, isSaving, abrirParaCriar, abrirParaEditar, fechar, salvar };
+  return { aberto, preenchido, modo, isSaving, erroSalvar, abrirParaCriar, abrirParaEditar, fechar, salvar };
 }

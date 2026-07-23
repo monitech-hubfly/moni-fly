@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { GuardaConstrucao } from '@/components/carometro/GuardaConstrucao';
 import { isoWeek } from '@/utils/periodos';
 import { useDashboardGeral, DiaDetalhe } from '@/hooks/useDashboardGeral';
 
@@ -80,7 +81,7 @@ function LinhaDetalhe({ dias, ncols }: { dias: DiaDetalhe[]; ncols: number }) {
 }
 
 // ── Página ────────────────────────────────────────────────────────────────────
-export default function DashboardGeralPage() {
+function DashboardGeralPageContent() {
   const supabase  = useMemo(() => createClient(), []);
   const [isAdmin, setIsAdmin]   = useState<boolean | null>(null);
   const [nSemanas, setNSemanas] = useState(8);
@@ -244,4 +245,8 @@ export default function DashboardGeralPage() {
       </div>
     </div>
   );
+}
+
+export default function DashboardGeralPage() {
+  return <GuardaConstrucao><DashboardGeralPageContent /></GuardaConstrucao>;
 }

@@ -10,6 +10,7 @@ import { ModalAgendamento } from '@/components/carometro/todo/ModalAgendamento';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import { useModalAgendamento } from '@/hooks/useModalAgendamento';
 import { MetasIndicadoresBloco } from '@/components/carometro/todo/MetasIndicadoresBloco';
+import { GuardaConstrucao } from '@/components/carometro/GuardaConstrucao';
 
 function SecaoColapsavel({ titulo, children, defaultOpen = true }: {
   titulo: string;
@@ -36,7 +37,7 @@ function SecaoColapsavel({ titulo, children, defaultOpen = true }: {
   );
 }
 
-export default function TodoPlanningPage() {
+function TodoPlanningPageContent() {
   const { effectiveProfileId, areaId } = useEffectiveUser();
 
   // Chave de refresh: incrementar força re-fetch da Agenda
@@ -119,9 +120,14 @@ export default function TodoPlanningPage() {
           profileId={effectiveProfileId}
           areaId={areaId}
           isSaving={modal.isSaving}
+          erroSalvar={modal.erroSalvar}
           origemInfo={origemInfo}
         />
       )}
     </DndContext>
   );
+}
+
+export default function TodoPlanningPage() {
+  return <GuardaConstrucao><TodoPlanningPageContent /></GuardaConstrucao>;
 }

@@ -61,6 +61,7 @@ export type ModalAgendamentoProps = {
   profileId: string;
   areaId: string | null;
   isSaving?: boolean;
+  erroSalvar?: string | null;
   origemInfo?: OrigemInfo;
 };
 
@@ -148,7 +149,7 @@ type BacklogItem = {
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
 export function ModalAgendamento({
-  aberto, onFechar, onSalvar, preenchido, modo, profileId, areaId, isSaving, origemInfo,
+  aberto, onFechar, onSalvar, preenchido, modo, profileId, areaId, isSaving, erroSalvar, origemInfo,
 }: ModalAgendamentoProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -778,17 +779,22 @@ export function ModalAgendamento({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
-          <button type="button" onClick={onFechar}
-            className="px-4 py-2 text-xs text-gray-600 hover:text-gray-800 transition-colors">
-            Cancelar
-          </button>
-          <button type="button" onClick={handleSalvar} disabled={isSaving}
-            className="px-5 py-2 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors font-medium">
-            {isSaving ? 'Salvando...' : modo === 'criar'
-              ? (ocorrenciasPreview > 1 ? `Criar ${ocorrenciasPreview} ocorrências` : 'Criar atividade')
-              : 'Salvar alterações'}
-          </button>
+        <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+          {erroSalvar
+            ? <p className="text-xs text-red-600 truncate max-w-xs" title={erroSalvar}>Erro: {erroSalvar}</p>
+            : <span />}
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={onFechar}
+              className="px-4 py-2 text-xs text-gray-600 hover:text-gray-800 transition-colors">
+              Cancelar
+            </button>
+            <button type="button" onClick={handleSalvar} disabled={isSaving}
+              className="px-5 py-2 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors font-medium">
+              {isSaving ? 'Salvando...' : modo === 'criar'
+                ? (ocorrenciasPreview > 1 ? `Salvar ${ocorrenciasPreview} ocorrências` : 'Salvar')
+                : 'Salvar alterações'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
