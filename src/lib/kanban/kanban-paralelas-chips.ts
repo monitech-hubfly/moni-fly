@@ -599,27 +599,16 @@ async function coletarCadeiaOrigemAncestraisBatch(
   return { ancestraisPorBoardCard, origemIdsConsulta: [...allIds] };
 }
 
-function registrarPeerOrigemConsulta(
-  boardCards: KanbanCardBrief[],
-  boardId: string,
-  peerId: string,
-  ancestraisPorBoardCard: Map<string, Set<string>>,
-  allIds: Set<string>,
-): void {
-  const pid = String(peerId ?? '').trim();
-  const bid = String(boardId ?? '').trim();
-  if (!pid || !bid || pid === bid) return;
-  allIds.add(pid);
-  const anc = ancestraisPorBoardCard.get(bid) ?? new Set<string>();
-  anc.add(pid);
-  ancestraisPorBoardCard.set(bid, anc);
+/** Inclui id na consulta de filhos (origem_card_id / RPC), sem expandir atribuição ao board. */
+function registrarIdOrigemConsulta(allIds: Set<string>, id: string): void {
+  const pid = String(id ?? '').trim();
+  if (pid) allIds.add(pid);
 }
 
 /** Cards com mesmo FK#### no título (ex.: Portfolio pai do Acoplamento sem origem_card_id). */
 async function expandirConsultaPorNumeroFranquiaTitulo(
   supabase: SupabaseClient,
   boardCards: KanbanCardBrief[],
-  ancestraisPorBoardCard: Map<string, Set<string>>,
   allIds: Set<string>,
 ): Promise<void> {
   const numerosPorBoard = new Map<string, string>();
@@ -643,9 +632,10 @@ async function expandirConsultaPorNumeroFranquiaTitulo(
       String((row as { titulo?: string | null }).titulo ?? ''),
     );
     if (!peerId || !peerNum) continue;
-    for (const [boardId, num] of numerosPorBoard) {
+    for (const num of numerosPorBoard.values()) {
       if (num === peerNum) {
-        registrarPeerOrigemConsulta(boardCards, boardId, peerId, ancestraisPorBoardCard, allIds);
+        registrarIdOrigemConsulta(allIds, peerId);
+        break;
       }
     }
   }
@@ -668,23 +658,12 @@ async function coletarOrigemConsultaOperacoesBatch(
     boardCardIds.map(async (boardId) => {
       const groupIds = await listarKanbanCardIdsSyncGroup(supabase, boardId);
       for (const gid of groupIds) {
-        registrarPeerOrigemConsulta(
-          boardCards,
-          boardId,
-          gid,
-          ancestraisPorBoardCard,
-          allIds,
-        );
+        registrarIdOrigemConsulta(allIds, gid);
       }
     }),
   );
 
-  await expandirConsultaPorNumeroFranquiaTitulo(
-    supabase,
-    boardCards,
-    ancestraisPorBoardCard,
-    allIds,
-  );
+  await expandirConsultaPorNumeroFranquiaTitulo(supabase, boardCards, allIds);
 
   return { ancestraisPorBoardCard, origemIdsConsulta: [...allIds] };
 }

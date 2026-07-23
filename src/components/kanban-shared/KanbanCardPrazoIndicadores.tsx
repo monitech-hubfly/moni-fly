@@ -28,10 +28,23 @@ export function KanbanSlaTag({
 }) {
   const tag = tagSlaKanbanParaExibicao(sla);
   if (!tag) return null;
+  return <KanbanSlaChipLabel texto={tag.texto} variante={tag.variante} className={className} />;
+}
+
+/** Chip SLA/atraso com rótulo curto (ex.: "3 d.u."). */
+export function KanbanSlaChipLabel({
+  texto,
+  variante,
+  className = '',
+}: {
+  texto: string;
+  variante: 'ok' | 'atencao' | 'atrasado';
+  className?: string;
+}) {
   return (
-    <span className={`${classeTagSlaKanban(tag.variante)} ${className}`.trim()} title={tag.texto}>
+    <span className={`${classeTagSlaKanban(variante)} ${className}`.trim()} title={texto}>
       <Clock className="moni-kanban-card-sla-icon" aria-hidden />
-      {tag.texto}
+      {texto}
     </span>
   );
 }

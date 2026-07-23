@@ -37,11 +37,15 @@ export function parseCamposDoTituloCard(titulo: string): {
 }
 
 /** Remove o segmento do nome do franqueado em títulos legados `FK - Nome - …`. */
-function tituloFallbackSemFranqueado(fb: string, nFranquia: string | null | undefined): string {
+function tituloFallbackSemFranqueado(
+  fb: string,
+  nFranquia: string | null | undefined,
+  nomeFranqueado?: string | null,
+): string {
   const t = fb.trim();
   if (!t) return t;
   const num = (nFranquia ?? '').trim();
-  const parts = t.split(' - ').filter(Boolean);
+  const parts = t.split(' - ').map((p) => p.trim()).filter(Boolean);
   if (parts.length <= 1) {
     // Título legado só com nome do franqueado → substituir pelo FK quando conhecido.
     if (num && parts[0] !== num) return num;
@@ -49,8 +53,29 @@ function tituloFallbackSemFranqueado(fb: string, nFranquia: string | null | unde
   }
   const fk = num || parts[0]!;
   if (parts[0] !== fk) return t;
-  if (parts.length === 2) return fk;
-  return [fk, ...parts.slice(2)].join(' - ');
+
+  const franqNorm = (nomeFranqueado ?? '').trim().toLowerCase();
+  const part1Norm = (parts[1] ?? '').trim().toLowerCase();
+  const part1EhFranqueado =
+    franqNorm.length > 0 &&
+    (part1Norm === franqNorm ||
+      part1Norm.startsWith(`${franqNorm} `) ||
+      franqNorm.startsWith(`${part1Norm} `));
+
+  // Legado: FK - Franqueado - Condomínio - Quadra - Lote (5 segmentos)
+  if (parts.length >= 5 && /^FK\d/i.test(parts[0] ?? '')) {
+    return [fk, ...parts.slice(2)].join(' - ');
+  }
+  // Legado com franqueado identificado no 2º segmento
+  if (parts.length >= 3 && part1EhFranqueado) {
+    return [fk, ...parts.slice(2)].join(' - ');
+  }
+  if (parts.length === 2 && part1EhFranqueado) {
+    return fk;
+  }
+
+  // Formato atual FK - Condomínio - Quadra - Lote: preservar condomínio
+  return t;
 }
 
 function tituloParaNumeroFranquiaSync(titulo: string): string {
@@ -262,8 +287,6 @@ export const KANBAN_CARD_CAMPOS_SYNC = [
   'rede_franqueado_id',
   'nome_condominio',
   'condominio_id',
-  'quadra',
-  'lote',
   'data_reuniao',
   'hora_reuniao',
 ] as const;
@@ -564,7 +587,7 @@ export function montarTituloCardSync(params: {
   if (partes.length > 0) return partes.join(' - ');
   const fb = params.tituloFallback?.trim();
   if (!fb) return null;
-  return tituloFallbackSemFranqueado(fb, params.nFranquia);
+  return tituloFallbackSemFranqueado(fb, params.nFranquia, params.nomeFranqueado);
 }
 
 /** Prefere o título mais completo (FK + condomínio + quadra + lote). */
@@ -572,9 +595,10 @@ export function escolherTituloExibicaoCard(
   tituloAtual: string | null | undefined,
   tituloCalculado: string | null | undefined,
   nFranquia?: string | null,
+  nomeFranqueado?: string | null,
 ): string {
   const calc = String(tituloCalculado ?? '').trim();
-  const atual = tituloFallbackSemFranqueado(String(tituloAtual ?? ''), nFranquia);
+  const atual = tituloFallbackSemFranqueado(String(tituloAtual ?? ''), nFranquia, nomeFranqueado);
   const partes = (t: string) => t.split(' - ').map((p) => p.trim()).filter(Boolean).length;
   if (atual && calc && partes(atual) > partes(calc)) return atual;
   if (calc) return calc;
@@ -651,9 +675,7 @@ export async function propagarCamposKanbanCards(
     syncPatch.titulo !== undefined ||
     syncPatch.rede_franqueado_id !== undefined ||
     syncPatch.nome_condominio !== undefined ||
-    syncPatch.condominio_id !== undefined ||
-    syncPatch.quadra !== undefined ||
-    syncPatch.lote !== undefined;
+    syncPatch.condominio_id !== undefined;
 
   let tituloCanonico: string | null | undefined =
     syncPatch.titulo !== undefined ? syncPatch.titulo : undefined;
@@ -723,8 +745,6 @@ export async function propagarCamposKanbanCards(
     const processoSource: Record<string, unknown> = {};
     if (syncPatch.nome_condominio !== undefined) processoSource.nome_condominio = syncPatch.nome_condominio;
     if (syncPatch.condominio_id !== undefined) processoSource.condominio_id = syncPatch.condominio_id;
-    if (syncPatch.quadra !== undefined) processoSource.quadra = syncPatch.quadra;
-    if (syncPatch.lote !== undefined) processoSource.lote = syncPatch.lote;
     if (syncPatch.rede_franqueado_id !== undefined) {
       processoSource.origem_rede_franqueados_id = syncPatch.rede_franqueado_id;
     }
@@ -732,8 +752,6 @@ export async function propagarCamposKanbanCards(
     const processoPatch = pickSyncFields(processoSource, [
       'nome_condominio',
       'condominio_id',
-      'quadra',
-      'lote',
       'origem_rede_franqueados_id',
     ]);
 
@@ -788,8 +806,6 @@ export async function propagarCamposProcesso(
   const kanbanMirror: KanbanCardCamposSync = {};
   if (procPatch.nome_condominio !== undefined) kanbanMirror.nome_condominio = procPatch.nome_condominio;
   if (procPatch.condominio_id !== undefined) kanbanMirror.condominio_id = procPatch.condominio_id;
-  if (procPatch.quadra !== undefined) kanbanMirror.quadra = procPatch.quadra;
-  if (procPatch.lote !== undefined) kanbanMirror.lote = procPatch.lote;
   if (procPatch.origem_rede_franqueados_id != null && String(procPatch.origem_rede_franqueados_id).trim()) {
     kanbanMirror.rede_franqueado_id = procPatch.origem_rede_franqueados_id;
   }
@@ -809,8 +825,6 @@ const CAMPOS_COALESCE_GRUPO_SYNC = new Set<string>([
   'rede_franqueado_id',
   'nome_condominio',
   'condominio_id',
-  'quadra',
-  'lote',
   'titulo',
   'data_reuniao',
   'hora_reuniao',
@@ -827,7 +841,7 @@ export async function fetchCamposKanbanCanonicos(
 
   const { data: rows, error } = await db
     .from('kanban_cards')
-    .select(`id, ${KANBAN_CARD_CAMPOS_SYNC.join(',')}`)
+    .select(`id, quadra, lote, ${KANBAN_CARD_CAMPOS_SYNC.join(',')}`)
     .in('id', cardIds);
   if (error || !rows?.length) return null;
 
@@ -860,8 +874,14 @@ export async function fetchCamposKanbanCanonicos(
   const tituloRecalc = await resolverTituloCardKanban(db, {
     rede_franqueado_id: out.rede_franqueado_id,
     nome_condominio: out.nome_condominio,
-    quadra: out.quadra,
-    lote: out.lote,
+    quadra:
+      primarioRow.quadra != null && String(primarioRow.quadra).trim() !== ''
+        ? String(primarioRow.quadra)
+        : null,
+    lote:
+      primarioRow.lote != null && String(primarioRow.lote).trim() !== ''
+        ? String(primarioRow.lote)
+        : null,
     titulo: out.titulo,
   });
   if (tituloRecalc) {

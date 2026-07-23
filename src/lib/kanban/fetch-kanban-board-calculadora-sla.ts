@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
-import { faseAtualCalculadoraSlaEstourada } from '@/lib/kanban/calculadora-fases';
+import { faseAtualCalculadoraAtraso, faseAtualCalculadoraSlaEstourada } from '@/lib/kanban/calculadora-fases';
 import { segmentoEsteiraCardCalculadora } from '@/lib/kanban/calculadora-fases-esteira';
 import {
   montarCalculadoraPack,
@@ -207,19 +207,30 @@ export async function enrichCardsComCalculadoraSlaEstourado(
     try {
       const pack = await montarCalculadoraPack(supabase, cardParaCalculadoraPack(rep));
       const estourado = pack ? faseAtualCalculadoraSlaEstourada(pack.linhas) : false;
-      return { ids: membros.map((m) => m.id), estourado };
+      const atraso = pack && estourado ? faseAtualCalculadoraAtraso(pack.linhas) : null;
+      return { ids: membros.map((m) => m.id), estourado, atraso };
     } catch {
-      return { ids: membros.map((m) => m.id), estourado: false };
+      return { ids: membros.map((m) => m.id), estourado: false, atraso: null };
     }
   });
 
   const estouradoPorId = new Map<string, boolean>();
-  for (const { ids, estourado } of resultados) {
-    for (const id of ids) estouradoPorId.set(id, estourado);
+  const atrasoPorId = new Map<string, { dias: number; slaTipo: 'uteis' | 'corridos' }>();
+  for (const { ids, estourado, atraso } of resultados) {
+    for (const id of ids) {
+      estouradoPorId.set(id, estourado);
+      if (atraso) atrasoPorId.set(id, { dias: atraso.dias, slaTipo: atraso.slaTipo });
+    }
   }
 
   return cards.map((card) => {
     if (!estouradoPorId.has(card.id)) return card;
-    return { ...card, calculadora_sla_estourado: estouradoPorId.get(card.id) === true };
+    const atraso = atrasoPorId.get(card.id);
+    return {
+      ...card,
+      calculadora_sla_estourado: estouradoPorId.get(card.id) === true,
+      calculadora_atraso_dias: atraso?.dias ?? null,
+      calculadora_atraso_tipo: atraso?.slaTipo ?? null,
+    };
   });
 }

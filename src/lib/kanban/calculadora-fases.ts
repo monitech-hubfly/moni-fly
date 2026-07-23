@@ -207,6 +207,28 @@ export function faseAtualCalculadoraSlaEstourada(linhas: CalculadoraFaseLinha[])
   return faseAtual?.status === 'atual_atrasada';
 }
 
+/** Dias de atraso na fase atual da Calculadora (borda vermelha no board). */
+export function faseAtualCalculadoraAtraso(
+  linhas: CalculadoraFaseLinha[],
+): { dias: number; slaTipo: SlaTipo } | null {
+  const faseAtual = linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada');
+  if (!faseAtual || faseAtual.status !== 'atual_atrasada') return null;
+
+  let dias = faseAtual.atrasoDias;
+  if (dias == null || dias <= 0) {
+    const hoje = formatLocalYmd(new Date());
+    if (faseAtual.dataFimEstimada) {
+      const diff =
+        faseAtual.slaTipo === 'corridos'
+          ? calendarDaysBetween(faseAtual.dataFimEstimada, hoje)
+          : businessDaysBetween(faseAtual.dataFimEstimada, hoje);
+      if (diff > 0) dias = diff;
+    }
+  }
+  if (dias == null || dias <= 0) return { dias: 1, slaTipo: faseAtual.slaTipo };
+  return { dias, slaTipo: faseAtual.slaTipo };
+}
+
 /** Fase ultrapassou o SLA estimado (inclui futuras com previsão vencida). */
 export function faseUltrapassouSlaCalculadora(
   status: FaseTimelineStatus,

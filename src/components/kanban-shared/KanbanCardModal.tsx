@@ -268,7 +268,13 @@ import {
   type KanbanComentarioAnexoRow,
 } from '@/lib/actions/kanban-comentario-anexos';
 import { uploadAnexosComentarioPendentes } from '@/lib/kanban/upload-anexos-comentario-card';
-import { montarTituloCardSync, fetchContextoCalculadoraSyncGroup, type ContextoCalculadoraSyncGroup } from '@/lib/kanban/card-sync-group';
+import {
+  escolherTituloExibicaoCard,
+  extrairNumeroFranquiaDoTitulo,
+  montarTituloCardSync,
+  fetchContextoCalculadoraSyncGroup,
+  type ContextoCalculadoraSyncGroup,
+} from '@/lib/kanban/card-sync-group';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import { AnexosAtividadeDraft } from './AnexosAtividadeDraft';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
@@ -1469,24 +1475,85 @@ export function KanbanCardModal({
               lote?: string | null;
               condominio_id?: string | null;
             };
+            const nFranquiaLegado =
+              String(pr.numero_franquia ?? '').trim() ||
+              extrairNumeroFranquiaDoTitulo(cardParaEstado.titulo) ||
+              null;
             const tituloCalc = montarTituloCardSync({
-              nFranquia: pr.numero_franquia,
+              nFranquia: nFranquiaLegado,
               nomeCondominio: pr.nome_condominio ?? cardParaEstado.nome_condominio,
-              quadra: pr.quadra ?? cardParaEstado.quadra,
-              lote: pr.lote ?? cardParaEstado.lote,
+              quadra: cardParaEstado.quadra ?? pr.quadra,
+              lote: cardParaEstado.lote ?? pr.lote,
               tituloFallback: cardParaEstado.titulo,
             });
             cardParaEstado = {
               ...cardParaEstado,
               nome_condominio: pr.nome_condominio ?? cardParaEstado.nome_condominio,
               condominio_id: pr.condominio_id ?? cardParaEstado.condominio_id,
-              quadra: pr.quadra ?? cardParaEstado.quadra,
-              lote: pr.lote ?? cardParaEstado.lote,
-              titulo: tituloCalc ?? cardParaEstado.titulo,
+              quadra: cardParaEstado.quadra ?? pr.quadra,
+              lote: cardParaEstado.lote ?? pr.lote,
+              titulo: escolherTituloExibicaoCard(cardParaEstado.titulo, tituloCalc, nFranquiaLegado),
             };
           }
         } catch {
           /* mantém título da view */
+        }
+      } else {
+        try {
+          const processoId = String(cardParaEstado.processo_step_one_id ?? '').trim();
+          type ProcTituloRow = {
+            numero_franquia?: string | null;
+            nome_condominio?: string | null;
+            quadra?: string | null;
+            lote?: string | null;
+            condominio_id?: string | null;
+          };
+          let procRow: ProcTituloRow | null = null;
+          if (processoId) {
+            const { data } = await supabase
+              .from('processo_step_one')
+              .select('numero_franquia, nome_condominio, quadra, lote, condominio_id')
+              .eq('id', processoId)
+              .maybeSingle();
+            procRow = (data as ProcTituloRow | null) ?? null;
+          }
+
+          let nFranquia: string | null = null;
+          const redeId = String(cardParaEstado.rede_franqueado_id ?? '').trim();
+          if (redeId) {
+            const { data: redeRow } = await supabase
+              .from('rede_franqueados')
+              .select('n_franquia')
+              .eq('id', redeId)
+              .maybeSingle();
+            nFranquia =
+              String((redeRow as { n_franquia?: string | null } | null)?.n_franquia ?? '').trim() ||
+              null;
+          }
+          if (!nFranquia) {
+            nFranquia =
+              String(procRow?.numero_franquia ?? '').trim() ||
+              extrairNumeroFranquiaDoTitulo(cardParaEstado.titulo) ||
+              null;
+          }
+
+          const tituloCalc = montarTituloCardSync({
+            nFranquia,
+            nomeCondominio: procRow?.nome_condominio ?? cardParaEstado.nome_condominio,
+            quadra: cardParaEstado.quadra ?? procRow?.quadra,
+            lote: cardParaEstado.lote ?? procRow?.lote,
+            tituloFallback: cardParaEstado.titulo,
+          });
+          cardParaEstado = {
+            ...cardParaEstado,
+            nome_condominio: procRow?.nome_condominio ?? cardParaEstado.nome_condominio,
+            condominio_id: procRow?.condominio_id ?? cardParaEstado.condominio_id,
+            quadra: cardParaEstado.quadra ?? procRow?.quadra,
+            lote: cardParaEstado.lote ?? procRow?.lote,
+            titulo: escolherTituloExibicaoCard(cardParaEstado.titulo, tituloCalc, nFranquia),
+          };
+        } catch {
+          /* mantém título do kanban_cards */
         }
       }
 
@@ -1639,8 +1706,6 @@ export function KanbanCardModal({
                 if (c.condominio_id !== undefined) {
                   next = { ...next, condominio_id: c.condominio_id };
                 }
-                if (c.quadra !== undefined) next = { ...next, quadra: c.quadra };
-                if (c.lote !== undefined) next = { ...next, lote: c.lote };
                 if (c.data_reuniao !== undefined) {
                   const drCanon = c.data_reuniao ? String(c.data_reuniao).slice(0, 10) : '';
                   if (drCanon && dataIsoInputValida(drCanon)) setDataReuniao(drCanon);

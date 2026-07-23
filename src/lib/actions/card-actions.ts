@@ -82,6 +82,7 @@ import {
   propagarCamposProcesso,
   reconciliarFranqueadoNoSyncGroup,
   resolverProcessoStepOneIdDoCard,
+  resolverTituloCardKanban,
   type KanbanCardCamposSync,
 } from '@/lib/kanban/card-sync-group';
 import {
@@ -3720,10 +3721,25 @@ export async function salvarFranqueadoCardVinculado(input: {
     const sync = await propagarCamposKanbanCards(admin, cardId, {
       rede_franqueado_id: redeId,
       nome_condominio: input.nomeCondominio?.trim() || null,
-      quadra: input.quadra?.trim() || null,
-      lote: input.lote?.trim() || null,
     }, { actorUserId: user.id });
     if (!sync.ok) return sync;
+
+    const quadra = input.quadra?.trim() || null;
+    const lote = input.lote?.trim() || null;
+    if (quadra !== null || lote !== null) {
+      const tituloCalc = await resolverTituloCardKanban(admin, {
+        rede_franqueado_id: redeId,
+        nome_condominio: input.nomeCondominio?.trim() || null,
+        quadra,
+        lote,
+      });
+      const patch: Record<string, string | null> = {};
+      if (quadra !== null) patch.quadra = quadra;
+      if (lote !== null) patch.lote = lote;
+      if (tituloCalc) patch.titulo = tituloCalc;
+      const { error: updErr } = await admin.from('kanban_cards').update(patch as never).eq('id', cardId);
+      if (updErr) return { ok: false, error: updErr.message };
+    }
   } else {
     const sync = await propagarCamposProcesso(admin, cardId, cardId, {
       origem_rede_franqueados_id: redeId,

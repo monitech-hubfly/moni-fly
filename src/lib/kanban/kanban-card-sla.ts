@@ -33,6 +33,19 @@ export function tagSlaKanbanParaExibicao(
   };
 }
 
+/** Chip de atraso da Calculadora na fase atual (borda vermelha no board). */
+export function tagCalculadoraAtrasoParaExibicao(
+  dias: number | null | undefined,
+  slaTipo: SlaTipo | string | null | undefined,
+): { texto: string; variante: 'atrasado' } | null {
+  if (dias == null || dias <= 0) return null;
+  const unidade = rotuloUnidadeSla(slaTipo);
+  return {
+    texto: `${Math.max(1, dias)} ${unidade}`,
+    variante: 'atrasado',
+  };
+}
+
 /** @deprecated Preferir tagSlaKanbanParaExibicao — mantido para follow-up (FU). */
 export function indicadorBolinhaSlaKanban(
   sla: SlaKanbanResult,

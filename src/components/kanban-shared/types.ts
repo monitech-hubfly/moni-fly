@@ -148,6 +148,9 @@ export type KanbanCardBrief = {
   prazo_atividade?: string | null;
   /** SLA estourado na fase atual segundo a Calculadora (borda lateral vermelha no board). */
   calculadora_sla_estourado?: boolean;
+  /** Atraso na fase atual da Calculadora — exibido no chip quando `calculadora_sla_estourado`. */
+  calculadora_atraso_dias?: number | null;
+  calculadora_atraso_tipo?: 'uteis' | 'corridos' | null;
 };
 
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */

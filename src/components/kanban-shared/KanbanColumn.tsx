@@ -21,6 +21,7 @@ import {
   creditoObraAguardandoDocumentacao,
   CLASSE_TAG_AGUARDANDO_DOCUMENTACAO,
   TAG_AGUARDANDO_DOCUMENTACAO,
+  tagCalculadoraAtrasoParaExibicao,
   tagSlaKanbanParaExibicao,
 } from '@/lib/kanban/kanban-card-sla';
 import { hrefAbrirCardNaRota } from '@/lib/kanban/kanban-card-href';
@@ -36,7 +37,7 @@ import {
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardMenu } from './KanbanCardMenu';
-import { KanbanSlaTag, TextoReuniaoCard } from './KanbanCardPrazoIndicadores';
+import { KanbanSlaChipLabel, TextoReuniaoCard } from './KanbanCardPrazoIndicadores';
 import { KanbanCardBoardTags } from './KanbanCardBoardTags';
 import { ResponsavelFaseAvatar } from './ResponsavelFaseAvatar';
 import { indicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
@@ -511,8 +512,17 @@ export function KanbanColumn({
             subtituloCard !== franqueadoNome &&
             subtituloCard !== responsavelNome;
           const { codigo: codigoCard, tituloLimpo } = separarCodigoTitulo(card.titulo);
+          const calculadoraAtrasoChip =
+            slaAtrasado && !arquivado && !concluido
+              ? tagCalculadoraAtrasoParaExibicao(
+                  card.calculadora_atraso_dias,
+                  card.calculadora_atraso_tipo,
+                )
+              : null;
           const slaChip =
-            !arquivado && !concluido && !aguardandoDoc ? tagSlaKanbanParaExibicao(sla) : null;
+            !arquivado && !concluido && !aguardandoDoc
+              ? calculadoraAtrasoChip ?? tagSlaKanbanParaExibicao(sla)
+              : null;
           const reuniaoIso =
             !arquivado && !concluido && card.data_reuniao
               ? String(card.data_reuniao)
@@ -726,7 +736,9 @@ export function KanbanColumn({
                           {TAG_AGUARDANDO_DOCUMENTACAO}
                         </span>
                       ) : null}
-                      {slaChip ? <KanbanSlaTag sla={sla} /> : null}
+                      {slaChip ? (
+                        <KanbanSlaChipLabel texto={slaChip.texto} variante={slaChip.variante} />
+                      ) : null}
                     </div>
                   ) : null}
                 </button>

@@ -1171,26 +1171,37 @@ export async function fetchKanbanBoardSnapshot(
         String((cMerged as { condominio_id?: string | null }).condominio_id ?? '').trim(),
       ),
     );
-    const quadra = coalesceTextoCampo(
-      (cMerged as { quadra?: string | null }).quadra,
-      proc?.quadra,
-      parsedTitulo.quadra,
-      quadraLoteProc ? quadraLoteProc.split('/')[0] : null,
-    );
-    const lote = coalesceTextoCampo(
-      (cMerged as { lote?: string | null }).lote,
-      proc?.lote,
-      parsedTitulo.lote,
-      quadraLoteProc ? quadraLoteProc.split('/')[1] : null,
-    );
+    const quadra = isFunilOperacoes
+      ? coalesceTextoCampo(
+          (cMerged as { quadra?: string | null }).quadra,
+          parsedTitulo.quadra,
+        )
+      : coalesceTextoCampo(
+          (cMerged as { quadra?: string | null }).quadra,
+          proc?.quadra,
+          parsedTitulo.quadra,
+          quadraLoteProc ? quadraLoteProc.split('/')[0] : null,
+        );
+    const lote = isFunilOperacoes
+      ? coalesceTextoCampo(
+          (cMerged as { lote?: string | null }).lote,
+          parsedTitulo.lote,
+        )
+      : coalesceTextoCampo(
+          (cMerged as { lote?: string | null }).lote,
+          proc?.lote,
+          parsedTitulo.lote,
+          quadraLoteProc ? quadraLoteProc.split('/')[1] : null,
+        );
     const nFranquiaCard = redeId
       ? nFranquiaByRedeId.get(redeId)
       : nFranquiaPorCardId.get(cardId) ?? extrairNumeroFranquiaDoTitulo(tituloRaw);
+    const nomeFranqueadoCard = redeId
+      ? redeNomeDiretoMap.get(redeId)
+      : franqueadoNomePorCardId.get(cardId);
     const tituloCalc = montarTituloCardSync({
       nFranquia: nFranquiaCard,
-      nomeFranqueado: redeId
-        ? redeNomeDiretoMap.get(redeId)
-        : franqueadoNomePorCardId.get(cardId),
+      nomeFranqueado: nomeFranqueadoCard,
       nomeCondominio,
       quadra,
       lote,
@@ -1198,8 +1209,8 @@ export async function fetchKanbanBoardSnapshot(
     });
 
     let tituloExibicao = filhoBastao && tituloRaw
-      ? escolherTituloExibicaoCard(tituloRaw, null, nFranquiaCard)
-      : escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquiaCard);
+      ? escolherTituloExibicaoCard(tituloRaw, null, nFranquiaCard, nomeFranqueadoCard)
+      : escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquiaCard, nomeFranqueadoCard);
     let subtituloCard: string | null = null;
     let profilesLinha: KanbanCardBrief['profiles'] =
       redeId && redeNomeDiretoMap.has(redeId)
