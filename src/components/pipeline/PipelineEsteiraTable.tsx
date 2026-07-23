@@ -173,7 +173,7 @@ export function PipelineEsteiraTable({ cards, esteiraCalculadora = {} }: Pipelin
             const faseLabel = labelFaseAtualCalculadora(faseAtual);
 
             return (
-              <tr key={chave}>
+              <tr key={chave} className={isCurAtrasado ? 'linha-atrasada' : ''}>
                 <td className="moni-pipeline-esteira-td-info">
                   <div className="moni-pipeline-esteira-proj-linha">
                     <span className="moni-pipeline-esteira-fk">{card.n_franquia ?? '—'}</span>

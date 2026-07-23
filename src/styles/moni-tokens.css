@@ -3786,15 +3786,32 @@
   font-family: var(--moni-font-sans);
 }
 
+/* Zebra — facilita seguir a linha horizontalmente */
+.moni-pipeline-esteira-table tbody tr:nth-child(even) .moni-pipeline-esteira-td-info,
+.moni-pipeline-esteira-table tbody tr:nth-child(even) .moni-pipeline-esteira-dc {
+  background: var(--moni-surface-50, #f8f7f5);
+}
+
+/* Hover na linha inteira para reuniões */
+.moni-pipeline-esteira-table tbody tr:hover .moni-pipeline-esteira-td-info,
+.moni-pipeline-esteira-table tbody tr:hover .moni-pipeline-esteira-dc {
+  background: color-mix(in srgb, var(--moni-kanban-portfolio-light) 30%, transparent) !important;
+}
+
+/* Linha atrasada — acento esquerdo vermelho */
+.moni-pipeline-esteira-table tbody tr.linha-atrasada .moni-pipeline-esteira-td-info:first-child {
+  border-left: 3px solid var(--moni-status-overdue-border);
+}
+
 .moni-pipeline-esteira-th {
-  padding: 5px 8px;
-  font-size: 9px;
-  font-weight: 500;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--moni-text-tertiary);
+  color: var(--moni-text-secondary);
   text-align: center;
-  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-bottom: 1px solid var(--moni-border-strong);
   border-right: var(--moni-border-width) solid var(--moni-border-default);
   white-space: nowrap;
   background: var(--moni-surface-0);
@@ -3808,60 +3825,60 @@
 }
 
 .moni-pipeline-esteira-th-info {
-  padding: 5px 8px;
-  font-size: 9px;
-  font-weight: 500;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   text-align: left;
-  color: var(--moni-text-tertiary);
+  color: var(--moni-text-secondary);
   background: var(--moni-surface-100);
-  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-bottom: 1px solid var(--moni-border-strong);
   border-right: var(--moni-border-width) solid var(--moni-border-default);
 }
 
 .moni-pipeline-esteira-th-step {
-  padding: 5px 8px;
-  font-size: 9px;
-  font-weight: 500;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   text-align: center;
   background: var(--moni-pipeline-esteira-step-bg);
   color: var(--moni-pipeline-esteira-step-text);
-  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-bottom: 1px solid var(--moni-border-strong);
   border-right: var(--moni-border-width) solid var(--moni-border-default);
 }
 
 .moni-pipeline-esteira-th-port {
-  padding: 5px 8px;
-  font-size: 9px;
-  font-weight: 500;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   text-align: center;
   background: var(--moni-pipeline-esteira-port-bg);
   color: var(--moni-pipeline-esteira-port-text);
-  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-bottom: 1px solid var(--moni-border-strong);
   border-right: var(--moni-border-width) solid var(--moni-border-default);
 }
 
 .moni-pipeline-esteira-th-op {
-  padding: 5px 8px;
-  font-size: 9px;
-  font-weight: 500;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   text-align: center;
   background: var(--moni-pipeline-esteira-op-bg);
   color: var(--moni-pipeline-esteira-op-text);
-  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-bottom: 1px solid var(--moni-border-strong);
   border-right: var(--moni-border-width) solid var(--moni-border-default);
 }
 
 .moni-pipeline-esteira-td-info {
-  padding: 6px 8px;
-  vertical-align: top;
+  padding: 8px 10px;
+  vertical-align: middle;
   border-bottom: var(--moni-border-width) solid var(--moni-border-default);
   border-right: var(--moni-border-width) solid var(--moni-border-default);
   background: var(--moni-surface-0);
@@ -3870,85 +3887,91 @@
 .moni-pipeline-esteira-dc {
   text-align: center;
   white-space: nowrap;
-  min-width: 54px;
-  padding: 4px 6px;
+  min-width: 58px;
+  padding: 6px 8px;
   border-bottom: var(--moni-border-width) solid var(--moni-border-default);
   border-right: var(--moni-border-width) solid var(--moni-border-default);
   background: var(--moni-surface-0);
+  vertical-align: middle;
 }
 
+/* Fase atual — destaque mais forte */
 .moni-pipeline-esteira-dc.cur {
   background: var(--moni-pipeline-esteira-cur-bg);
+  box-shadow: inset 0 -2px 0 var(--moni-status-active-text);
 }
 
 .moni-pipeline-esteira-dc.cur-at {
   background: var(--moni-pipeline-esteira-cur-at-bg);
+  box-shadow: inset 0 -2px 0 var(--moni-status-overdue-border);
 }
 
 .moni-pipeline-esteira-date-real {
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--moni-pipeline-esteira-date-real);
 }
 
 .moni-pipeline-esteira-date-concluida {
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 400;
   color: var(--moni-pipeline-esteira-date-concluida);
+  opacity: 0.7;
 }
 
 .moni-pipeline-esteira-date-est {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--moni-pipeline-esteira-date-est);
 }
 
 .moni-pipeline-esteira-date-at {
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 700;
   color: var(--moni-pipeline-esteira-date-at);
 }
 
 .moni-pipeline-esteira-date-none {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--moni-text-tertiary);
+  opacity: 0.35;
 }
 
 .moni-pipeline-esteira-proj-linha {
   display: flex;
   align-items: baseline;
-  gap: 5px;
+  gap: 6px;
   margin-bottom: 2px;
 }
 
 .moni-pipeline-esteira-fk {
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--moni-text-secondary);
 }
 
 .moni-pipeline-esteira-frank-nome {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--moni-text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 110px;
+  max-width: 120px;
 }
 
 .moni-pipeline-esteira-proj-nome {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--moni-text-primary);
   white-space: nowrap;
-  max-width: 170px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .moni-pipeline-esteira-fase-badge {
-  font-size: 9px;
-  font-weight: 500;
-  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
   border-radius: var(--moni-radius-sm, 4px);
   display: inline-block;
   white-space: nowrap;
@@ -3972,30 +3995,31 @@
 .moni-pipeline-esteira-fase-badge.atrasado {
   background: var(--moni-status-overdue-bg);
   color: var(--moni-status-overdue-text);
+  font-weight: 700;
 }
 
 .moni-pipeline-esteira-cto-duplo {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 72px;
+  gap: 3px;
+  min-width: 80px;
 }
 
 .moni-pipeline-esteira-cto-linha {
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: 5px;
   white-space: nowrap;
 }
 
 .moni-pipeline-esteira-cto-label {
   flex-shrink: 0;
   font-size: 9px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--moni-text-tertiary);
-  min-width: 42px;
+  min-width: 44px;
 }
 
 .moni-pipeline-esteira-dc-cto {
