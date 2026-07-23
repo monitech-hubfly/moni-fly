@@ -2703,7 +2703,7 @@ export async function salvarDadosPreObra(input: SalvarDadosPreObraInput): Promis
       if (k === 'updated_at') continue;
       procPatch[k] = v as string | null;
     }
-    const sync = await propagarCamposProcesso(admin, cardOrigem, pid, procPatch);
+    const sync = await propagarCamposProcesso(admin, cardOrigem, pid, procPatch, { actorUserId: user.id });
     if (!sync.ok) return sync;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -2892,7 +2892,9 @@ export async function uploadProcessoNegocioAnexo(
   const col = PROCESSO_NEGOCIO_ANEXO_COL[field];
 
   try {
-    const sync = await propagarCamposProcesso(admin, cardOrigemId, processoId, { [col]: path });
+    const sync = await propagarCamposProcesso(admin, cardOrigemId, processoId, { [col]: path }, {
+      actorUserId: user.id,
+    });
     if (!sync.ok) return sync;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -3695,13 +3697,13 @@ export async function salvarFranqueadoCardVinculado(input: {
       nome_condominio: input.nomeCondominio?.trim() || null,
       quadra: input.quadra?.trim() || null,
       lote: input.lote?.trim() || null,
-    });
+    }, { actorUserId: user.id });
     if (!sync.ok) return sync;
   } else {
     const sync = await propagarCamposProcesso(admin, cardId, cardId, {
       origem_rede_franqueados_id: redeId,
       numero_franquia: input.nFranquia?.trim() || null,
-    });
+    }, { actorUserId: user.id });
     if (!sync.ok) return sync;
   }
 

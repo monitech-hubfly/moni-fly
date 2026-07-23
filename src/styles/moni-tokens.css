@@ -3827,6 +3827,19 @@
   text-align: left;
 }
 
+.moni-pipeline-esteira-th-fase {
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.moni-pipeline-esteira-td-fase {
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+  overflow: visible;
+}
+
 .moni-pipeline-esteira-th-info {
   padding: 6px 10px;
   font-size: 10px;
@@ -3973,10 +3986,16 @@
 .moni-pipeline-esteira-fase-badge {
   font-size: 10px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: var(--moni-radius-sm, 4px);
-  display: inline-block;
-  white-space: nowrap;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  line-height: 1.25;
+  text-align: center;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 .moni-pipeline-esteira-fase-badge.step {

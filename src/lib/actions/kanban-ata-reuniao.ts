@@ -305,7 +305,9 @@ export async function salvarDataReuniaoCard(input: {
       const msg = e instanceof Error ? e.message : String(e);
       return { ok: false, error: msg };
     }
-    const sync = await propagarCamposKanbanCards(admin, cardId, { data_reuniao: valor });
+    const sync = await propagarCamposKanbanCards(admin, cardId, { data_reuniao: valor }, {
+      actorUserId: user.id,
+    });
     if (!sync.ok) return { ok: false, error: sync.error };
   } else {
     const q =
@@ -357,7 +359,9 @@ export async function salvarHoraReuniaoCard(input: {
       const msg = e instanceof Error ? e.message : String(e);
       return { ok: false, error: msg };
     }
-    const sync = await propagarCamposKanbanCards(admin, cardId, { hora_reuniao: valor });
+    const sync = await propagarCamposKanbanCards(admin, cardId, { hora_reuniao: valor }, {
+      actorUserId: user.id,
+    });
     if (!sync.ok) return { ok: false, error: sync.error };
   } else if (input.origem === 'nativo') {
     const { error } = await supabase.from('kanban_cards').update({ hora_reuniao: valor }).eq('id', cardId);

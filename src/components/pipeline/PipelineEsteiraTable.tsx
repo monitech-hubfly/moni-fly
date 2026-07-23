@@ -42,6 +42,24 @@ function abreviarNome(nome: string | null | undefined): string {
   return parts.slice(0, 2).join(' ');
 }
 
+/** Nome do projeto na esteira — sem repetir o número de franquia (já exibido acima). */
+function tituloProjetoEsteira(
+  card: Pick<PipelineCardRow, 'titulo' | 'n_franquia' | 'projeto_titulo'>,
+): string {
+  const projeto = String(card.projeto_titulo ?? '').trim();
+  if (projeto) return projeto;
+
+  const titulo = String(card.titulo ?? '').trim();
+  if (!titulo || titulo === '(sem título)') return '—';
+
+  const fk = String(card.n_franquia ?? '').trim();
+  if (!fk) return titulo;
+
+  const prefixo = new RegExp(`^${fk.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[-–—]\\s*`, 'i');
+  const semFk = titulo.replace(prefixo, '').trim();
+  return semFk || titulo;
+}
+
 function clsCelula(celula: CelulaEsteiraCalculadora, concluida: boolean): string {
   if (!celula.date) return 'none';
   if (celula.isCurrent) {
@@ -112,15 +130,18 @@ export function PipelineEsteiraTable({ cards, esteiraCalculadora = {} }: Pipelin
 
   const colPort = ESTEIRA_CALCULADORA_COLUNAS_PORT.length;
   const colOp = ESTEIRA_CALCULADORA_COLUNAS_OP.length;
-  const totalColunas = 2 + ESTEIRA_CALCULADORA_COLUNAS.length;
-  const larguraColuna = `${100 / totalColunas}%`;
+  const larguraProjeto = '28%';
+  const larguraFase = '68px';
+  const larguraData = `calc((100% - 28% - 68px) / ${ESTEIRA_CALCULADORA_COLUNAS.length})`;
 
   return (
     <div className="moni-pipeline-esteira-scroll">
       <table className="moni-pipeline-esteira-table">
         <colgroup>
-          {Array.from({ length: totalColunas }, (_, i) => (
-            <col key={i} style={{ width: larguraColuna }} />
+          <col style={{ width: larguraProjeto }} />
+          <col style={{ width: larguraFase }} />
+          {ESTEIRA_CALCULADORA_COLUNAS.map((col) => (
+            <col key={col.slug} style={{ width: larguraData }} />
           ))}
         </colgroup>
         <thead>
@@ -137,7 +158,7 @@ export function PipelineEsteiraTable({ cards, esteiraCalculadora = {} }: Pipelin
           </tr>
           <tr>
             <th className="moni-pipeline-esteira-th cl">Franqueado / Projeto</th>
-            <th className="moni-pipeline-esteira-th cl">Fase atual</th>
+            <th className="moni-pipeline-esteira-th cl moni-pipeline-esteira-th-fase">Fase atual</th>
             {ESTEIRA_CALCULADORA_COLUNAS.map((col) => (
               <th key={col.slug} className="moni-pipeline-esteira-th">
                 {col.label}
@@ -151,6 +172,7 @@ export function PipelineEsteiraTable({ cards, esteiraCalculadora = {} }: Pipelin
             const badgeCls = isCurAtrasado ? 'atrasado' : segmento;
             const nomeAbrev = abreviarNome(card.franqueado_nome);
             const faseLabel = labelFaseAtualCalculadora(faseAtual);
+            const projetoLabel = tituloProjetoEsteira(card);
 
             return (
               <tr key={chave} className={isCurAtrasado ? 'linha-atrasada' : ''}>
@@ -161,11 +183,11 @@ export function PipelineEsteiraTable({ cards, esteiraCalculadora = {} }: Pipelin
                       <span className="moni-pipeline-esteira-frank-nome">{nomeAbrev}</span>
                     ) : null}
                   </div>
-                  <div className="moni-pipeline-esteira-proj-nome" title={card.titulo}>
-                    {card.titulo}
+                  <div className="moni-pipeline-esteira-proj-nome" title={projetoLabel}>
+                    {projetoLabel}
                   </div>
                 </td>
-                <td className="moni-pipeline-esteira-td-info">
+                <td className="moni-pipeline-esteira-td-info moni-pipeline-esteira-td-fase">
                   <span className={`moni-pipeline-esteira-fase-badge ${badgeCls}`}>{faseLabel}</span>
                 </td>
                 {ESTEIRA_CALCULADORA_COLUNAS.map((col) => {

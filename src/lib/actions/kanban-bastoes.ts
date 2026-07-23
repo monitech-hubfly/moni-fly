@@ -27,6 +27,7 @@ import {
   sincronizarCamposCalculadoraBastaoFilho,
 } from '@/lib/kanban/card-sync-group';
 import { tipoKanbanHistoricoFromAcao } from '@/lib/kanban/kanban-historico-tipo';
+import { resolveUsuarioNomeHistorico } from '@/lib/kanban/kanban-historico-actor';
 
 /** Verifica se já existe card filho no Funil Jurídico para o card pai. */
 export async function existeChamadoJuridicoParaCard(cardPaiId: string): Promise<boolean> {
@@ -419,6 +420,7 @@ export async function criarCardFilho(
     const syncCalc = await sincronizarCamposCalculadoraBastaoFilho(db, cardPaiId, filhoId, {
       faseDestinoId: faseId,
       faseDestinoSlug: faseDestinoSlug,
+      actorUserId: criadoPor,
     });
     if (!syncCalc.ok) throw new Error(syncCalc.error);
 
@@ -501,6 +503,7 @@ export async function criarCardFilho(
   const syncCalc = await sincronizarCamposCalculadoraBastaoFilho(db, cardPaiId, cardFilhoId, {
     faseDestinoId: faseId,
     faseDestinoSlug: faseDestinoSlug,
+    actorUserId: criadoPor,
   });
   if (!syncCalc.ok) throw new Error(syncCalc.error);
 
@@ -689,7 +692,7 @@ async function finalizarCardPortfolioRitualEncerramento(cardPaiId: string): Prom
 
   const { data: paiRow, error: errPai } = await db
     .from('kanban_cards')
-    .select('id, kanban_id, concluido, arquivado, titulo')
+    .select('id, kanban_id, concluido, arquivado, titulo, franqueado_id')
     .eq('id', paiId)
     .maybeSingle();
 
@@ -704,6 +707,7 @@ async function finalizarCardPortfolioRitualEncerramento(cardPaiId: string): Prom
     concluido?: boolean | null;
     arquivado?: boolean | null;
     titulo?: string | null;
+    franqueado_id?: string | null;
   };
 
   if (String(row.kanban_id ?? '') !== KANBAN_IDS.PORTFOLIO) return;
@@ -725,10 +729,12 @@ async function finalizarCardPortfolioRitualEncerramento(cardPaiId: string): Prom
   }
 
   const titulo = String(row.titulo ?? '').trim() || 'Card';
+  const usuarioId = String(row.franqueado_id ?? '').trim() || null;
+  const usuarioNome = await resolveUsuarioNomeHistorico(db, usuarioId);
   const { error: errHist } = await db.from('kanban_historico').insert({
     card_id: paiId,
-    usuario_id: null,
-    usuario_nome: 'Sistema',
+    usuario_id: usuarioId,
+    usuario_nome: usuarioNome,
     acao: 'card_finalizado',
     tipo: tipoKanbanHistoricoFromAcao('card_finalizado'),
     detalhe: {

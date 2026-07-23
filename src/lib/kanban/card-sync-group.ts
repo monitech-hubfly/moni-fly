@@ -6,8 +6,12 @@ import {
   segmentoEsteiraCardCalculadora,
 } from '@/lib/kanban/calculadora-fases-esteira';
 import { tipoKanbanHistoricoFromAcao } from '@/lib/kanban/kanban-historico-tipo';
+import {
+  resolveUsuarioNomeHistorico,
+  withKanbanHistoricoActor,
+} from '@/lib/kanban/kanban-historico-actor';
 
-type SyncDb = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
+type SyncDb = Pick<Awaited<ReturnType<typeof createClient>>, 'from' | 'rpc'>;
 
 export function extrairNumeroFranquiaDoTitulo(titulo: string): string {
   const t = titulo.trim();
@@ -537,7 +541,7 @@ export async function propagarCamposKanbanCards(
   db: SyncDb,
   cardOrigemId: string,
   patch: KanbanCardCamposSync,
-  options?: { skipProcessoMirror?: boolean },
+  options?: { skipProcessoMirror?: boolean; actorUserId?: string | null },
 ): Promise<{ ok: true; atualizados: number } | { ok: false; error: string }> {
   const origem = String(cardOrigemId ?? '').trim();
   if (!origem) return { ok: false, error: 'Card inválido.' };
@@ -596,8 +600,16 @@ export async function propagarCamposKanbanCards(
 
     if (Object.keys(rowPatch).length === 0) continue;
 
-    const { error } = await db.from('kanban_cards').update(rowPatch as never).eq('id', targetId);
-    if (error) return { ok: false, error: error.message };
+    const applyUpdate = async () => {
+      const { error } = await db.from('kanban_cards').update(rowPatch as never).eq('id', targetId);
+      if (error) return { ok: false as const, error: error.message };
+      return { ok: true as const };
+    };
+
+    const result = options?.actorUserId
+      ? await withKanbanHistoricoActor(db, options.actorUserId, applyUpdate)
+      : await applyUpdate();
+    if (!result.ok) return result;
     atualizados++;
   }
 
@@ -660,6 +672,7 @@ export async function propagarCamposProcesso(
   cardOrigemId: string,
   processoId: string,
   patch: ProcessoCamposSync,
+  options?: { actorUserId?: string | null },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const pid = String(processoId ?? '').trim();
   const origem = String(cardOrigemId ?? '').trim();
@@ -687,7 +700,10 @@ export async function propagarCamposProcesso(
   }
 
   if (Object.keys(kanbanMirror).length > 0) {
-    const sync = await propagarCamposKanbanCards(db, origem, kanbanMirror, { skipProcessoMirror: true });
+    const sync = await propagarCamposKanbanCards(db, origem, kanbanMirror, {
+      skipProcessoMirror: true,
+      actorUserId: options?.actorUserId,
+    });
     if (!sync.ok) return sync;
   }
 
@@ -1232,6 +1248,7 @@ async function espelharHistoricoCalculadoraCadeiaPai(
   cardPaiId: string,
   faseDestinoId: string,
   faseDestinoSlug: string,
+  actorUserId?: string | null,
 ): Promise<void> {
   const filhoId = String(cardFilhoId ?? '').trim();
   const paiId = String(cardPaiId ?? '').trim();
@@ -1293,11 +1310,22 @@ async function espelharHistoricoCalculadoraCadeiaPai(
     .limit(1);
   if (!(jaCriado ?? []).length) {
     const now = new Date().toISOString();
+    let usuarioId = String(actorUserId ?? '').trim() || null;
+    if (!usuarioId) {
+      const { data: filhoRow } = await db
+        .from('kanban_cards')
+        .select('franqueado_id')
+        .eq('id', filhoId)
+        .maybeSingle();
+      usuarioId = String((filhoRow as { franqueado_id?: string | null } | null)?.franqueado_id ?? '').trim() || null;
+    }
+    const usuarioNome = await resolveUsuarioNomeHistorico(db, usuarioId);
     const { error: criadoErr } = await db.from('kanban_historico').insert({
       card_id: filhoId,
       acao: 'card_criado',
       tipo: tipoKanbanHistoricoFromAcao('card_criado'),
-      usuario_nome: 'Sistema',
+      usuario_id: usuarioId,
+      usuario_nome: usuarioNome,
       detalhe: { fase_id: faseDestinoId, fase_slug: faseDestinoSlug },
       criado_em: now,
     } as never);
@@ -1358,7 +1386,7 @@ export async function sincronizarCamposCalculadoraBastaoFilho(
   db: SyncDb,
   cardPaiId: string,
   cardFilhoId: string,
-  options?: { faseDestinoId?: string; faseDestinoSlug?: string },
+  options?: { faseDestinoId?: string; faseDestinoSlug?: string; actorUserId?: string | null },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const paiId = String(cardPaiId ?? '').trim();
   const filhoId = String(cardFilhoId ?? '').trim();
@@ -1379,14 +1407,28 @@ export async function sincronizarCamposCalculadoraBastaoFilho(
     if (createdAt) patch.created_at = createdAt;
 
     if (Object.keys(patch).length > 0) {
-      const { error: updErr } = await db.from('kanban_cards').update(patch as never).eq('id', filhoId);
-      if (updErr) return { ok: false, error: updErr.message };
+      const applyUpdate = async () => {
+        const { error: updErr } = await db.from('kanban_cards').update(patch as never).eq('id', filhoId);
+        if (updErr) return { ok: false as const, error: updErr.message };
+        return { ok: true as const };
+      };
+      const upd = options?.actorUserId
+        ? await withKanbanHistoricoActor(db, options.actorUserId, applyUpdate)
+        : await applyUpdate();
+      if (!upd.ok) return upd;
     }
 
     const faseDestinoId = String(options?.faseDestinoId ?? '').trim();
     const faseDestinoSlug = String(options?.faseDestinoSlug ?? '').trim();
     if (faseDestinoId && faseDestinoSlug) {
-      await espelharHistoricoCalculadoraCadeiaPai(db, filhoId, paiId, faseDestinoId, faseDestinoSlug);
+      await espelharHistoricoCalculadoraCadeiaPai(
+        db,
+        filhoId,
+        paiId,
+        faseDestinoId,
+        faseDestinoSlug,
+        options?.actorUserId,
+      );
     }
 
     await espelharDatasManuaisCalculadoraDoPai(db, paiId, filhoId);

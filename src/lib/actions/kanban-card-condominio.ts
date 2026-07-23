@@ -199,7 +199,7 @@ export async function vincularCondominioAoCard(input: {
       nome_condominio: nome,
       quadra,
       lote,
-    });
+    }, { actorUserId: user.id });
     if (!sync.ok) return { ok: false, error: sync.error };
   } else {
     const sync = await propagarCamposProcesso(admin, cardId, cardId, {
@@ -207,7 +207,7 @@ export async function vincularCondominioAoCard(input: {
       nome_condominio: nome,
       quadra,
       lote,
-    });
+    }, { actorUserId: user.id });
     if (!sync.ok) return { ok: false, error: sync.error };
   }
 
@@ -296,6 +296,12 @@ export async function salvarQuadraLoteCard(input: {
   nomeCondominio?: string | null;
   basePath?: string;
 }): Promise<KanbanCondominioActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
   const cardId = String(input.cardId ?? '').trim();
   if (!cardId) return { ok: false, error: 'Card inválido.' };
 
@@ -314,10 +320,12 @@ export async function salvarQuadraLoteCard(input: {
     const patch: { quadra: string | null; lote: string | null; nome_condominio?: string } = { quadra, lote };
     const nome = input.nomeCondominio?.trim();
     if (nome) patch.nome_condominio = nome;
-    const sync = await propagarCamposKanbanCards(admin, cardId, patch);
+    const sync = await propagarCamposKanbanCards(admin, cardId, patch, { actorUserId: user.id });
     if (!sync.ok) return { ok: false, error: sync.error };
   } else {
-    const sync = await propagarCamposProcesso(admin, cardId, cardId, { quadra, lote });
+    const sync = await propagarCamposProcesso(admin, cardId, cardId, { quadra, lote }, {
+      actorUserId: user.id,
+    });
     if (!sync.ok) return { ok: false, error: sync.error };
   }
 

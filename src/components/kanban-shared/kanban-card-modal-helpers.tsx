@@ -557,8 +557,8 @@ export function formatDataHoraHistorico(iso: string): string {
 
 export function rotuloUsuarioHistorico(nome: string | null | undefined): string {
   const n = nome?.trim();
-  if (n) return n;
-  return 'Sistema';
+  if (n && n !== 'Sistema') return n;
+  return 'Usuário';
 }
 
 export function textoResumidoAcaoHistorico(acao: string, detalhe: Record<string, unknown> | null): string {
