@@ -115,6 +115,7 @@ function TodoPlanningPageContent() {
           aberto={modal.aberto}
           onFechar={fecharModal}
           onSalvar={modal.salvar}
+          onExcluir={modal.excluir}
           preenchido={modal.preenchido}
           modo={modal.modo}
           profileId={effectiveProfileId}

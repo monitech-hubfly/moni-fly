@@ -35,6 +35,9 @@ export type UseAgendaResult = {
   navegar: (delta: number) => void;
   irParaHoje: () => void;
   concluir: (id: string) => Promise<void>;
+  desconcluir: (id: string) => Promise<void>;
+  atualizarHorario: (id: string, hora_fim: string) => Promise<void>;
+  excluir: (id: string) => Promise<void>;
 };
 
 const DIAS  = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
@@ -223,5 +226,34 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
     ));
   }, [supabase]);
 
-  return { atividades, diasDaSemana, semanaLabel, semanaOffset, isLoading, error, navegar, irParaHoje, concluir };
+  const desconcluir = useCallback(async (id: string) => {
+    const { error } = await supabase
+      .from('gantt_planejamento')
+      .update({ data_conclusao_real: null })
+      .eq('id', id);
+    if (error) throw error;
+    setAtividades(prev => prev.map(a =>
+      a.id === id ? { ...a, concluido: false, cor: COR_PADRAO } : a
+    ));
+  }, [supabase]);
+
+  const atualizarHorario = useCallback(async (id: string, hora_fim: string) => {
+    const { error } = await supabase
+      .from('gantt_planejamento')
+      .update({ hora_fim })
+      .eq('id', id);
+    if (error) throw error;
+    setAtividades(prev => prev.map(a =>
+      a.id === id ? { ...a, hora_fim } : a
+    ));
+  }, [supabase]);
+
+  const excluir = useCallback(async (id: string) => {
+    await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', id);
+    const { error } = await supabase.from('gantt_planejamento').delete().eq('id', id);
+    if (error) throw error;
+    setAtividades(prev => prev.filter(a => a.id !== id));
+  }, [supabase]);
+
+  return { atividades, diasDaSemana, semanaLabel, semanaOffset, isLoading, error, navegar, irParaHoje, concluir, desconcluir, atualizarHorario, excluir };
 }

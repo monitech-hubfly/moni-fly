@@ -19,6 +19,7 @@ export type UseModalAgendamentoResult = {
   abrirParaEditar: (id: string) => void;
   fechar: () => void;
   salvar: (dados: DadosAgendamento) => Promise<void>;
+  excluir: () => Promise<void>;
 };
 
 export function useModalAgendamento(
@@ -203,5 +204,23 @@ export function useModalAgendamento(
     }
   }, [supabase, effectiveProfileId, areaId, modo, editandoId, fechar, onSalvo]);
 
-  return { aberto, preenchido, modo, isSaving, erroSalvar, abrirParaCriar, abrirParaEditar, fechar, salvar };
+  const excluir = useCallback(async () => {
+    if (!editandoId) return;
+    setIsSaving(true);
+    setErroSalvar(null);
+    try {
+      await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', editandoId);
+      const { error } = await supabase.from('gantt_planejamento').delete().eq('id', editandoId);
+      if (error) throw error;
+      fechar();
+      onSalvo?.();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : JSON.stringify(e);
+      setErroSalvar(msg);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [supabase, editandoId, fechar, onSalvo]);
+
+  return { aberto, preenchido, modo, isSaving, erroSalvar, abrirParaCriar, abrirParaEditar, fechar, salvar, excluir };
 }

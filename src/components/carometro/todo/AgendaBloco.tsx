@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useAgenda, AtividadeAgenda, DiaAgenda } from '@/hooks/useAgenda';
 import type { DadosAgendamento } from './ModalAgendamento';
@@ -34,18 +35,66 @@ function AgendaCard({
   atv,
   onAbrirParaEditar,
   onConcluir,
+  onDesconcluir,
+  onAtualizarHorario,
 }: {
   atv: AtividadeAgenda;
   onAbrirParaEditar: (id: string) => void;
   onConcluir: (id: string) => void;
+  onDesconcluir: (id: string) => void;
+  onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
 }) {
   const [h, m] = atv.hora_inicio.split(':').map(Number);
   const topPx  = (h - HORA_INICIO) * ALTURA_HORA + (m ?? 0);
+
+  const [visualHoraFim, setVisualHoraFim] = useState<string | null>(null);
+  const visualHoraFimRef = useRef<string | null>(null);
+  const resizingRef = useRef(false);
+
+  const horaFimEfetiva = visualHoraFim ?? atv.hora_fim;
   let heightPx = 30;
-  if (atv.hora_fim) {
-    const [hf, mf] = atv.hora_fim.split(':').map(Number);
+  if (horaFimEfetiva) {
+    const [hf, mf] = horaFimEfetiva.split(':').map(Number);
     heightPx = Math.max(30, (hf * 60 + (mf ?? 0)) - (h * 60 + (m ?? 0)));
   }
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    resizingRef.current = true;
+
+    const startY       = e.clientY;
+    const horaFimBase  = horaFimEfetiva ?? `${String(Math.min(HORA_FIM, h + 1)).padStart(2, '0')}:00`;
+    const [hfb, mfb]   = horaFimBase.split(':').map(Number);
+    const minutosBase  = hfb * 60 + mfb;
+    const minutosInicio = h * 60 + (m ?? 0);
+
+    const onMove = (me: MouseEvent) => {
+      const delta     = me.clientY - startY;
+      const rawMin    = minutosBase + Math.round(delta / ALTURA_HORA * 60 / 15) * 15;
+      const clamped   = Math.max(minutosInicio + 15, Math.min(HORA_FIM * 60, rawMin));
+      const nh        = Math.floor(clamped / 60);
+      const nm        = clamped % 60;
+      const newVal    = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+      setVisualHoraFim(newVal);
+      visualHoraFimRef.current = newVal;
+    };
+
+    const onUp = async () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      resizingRef.current = false;
+      const finalHoraFim = visualHoraFimRef.current;
+      if (finalHoraFim && finalHoraFim !== atv.hora_fim) {
+        await onAtualizarHorario(atv.id, finalHoraFim);
+      }
+      setVisualHoraFim(null);
+      visualHoraFimRef.current = null;
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
 
   return (
     <div
@@ -54,6 +103,7 @@ function AgendaCard({
       style={{ top: topPx, height: heightPx, left: 2, right: 2, backgroundColor: atv.cor, zIndex: 10,
                opacity: atv.concluido ? 0.6 : 1 }}
       onClick={(e) => {
+        if (resizingRef.current) return;
         if ((e.target as HTMLElement).closest('[data-action]')) return;
         e.stopPropagation();
         onAbrirParaEditar(atv.id);
@@ -66,7 +116,7 @@ function AgendaCard({
           </div>
           {heightPx >= 40 && (
             <div className="opacity-80 text-[10px]">
-              {atv.hora_inicio}{atv.hora_fim ? ` – ${atv.hora_fim}` : ''}
+              {atv.hora_inicio}{horaFimEfetiva ? ` – ${horaFimEfetiva}` : ''}
               {atv.link_reuniao && (
                 <a
                   data-action="link"
@@ -91,31 +141,51 @@ function AgendaCard({
             type="button"
             title="Marcar como concluído"
             className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5 w-4 h-4 rounded-full border border-white/70 flex items-center justify-center hover:bg-white/20"
-            onClick={(e) => {
-              e.stopPropagation();
-              onConcluir(atv.id);
-            }}
+            onClick={(e) => { e.stopPropagation(); onConcluir(atv.id); }}
           >
             <span className="text-[9px] leading-none">✓</span>
           </button>
         )}
+
+        {/* Botão desfazer conclusão */}
         {atv.concluido && (
-          <span className="shrink-0 mt-0.5 text-[10px] opacity-70">✓</span>
+          <button
+            data-action="desconcluir"
+            type="button"
+            title="Desfazer conclusão"
+            className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5 w-4 h-4 rounded-full border border-white/70 flex items-center justify-center hover:bg-white/20 text-[9px] leading-none"
+            onClick={(e) => { e.stopPropagation(); onDesconcluir(atv.id); }}
+          >
+            ↩
+          </button>
         )}
       </div>
+
+      {/* Handle de resize — aparece no hover, na borda inferior */}
+      {!atv.concluido && (
+        <div
+          data-action="resize"
+          className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize opacity-0 group-hover:opacity-100 flex items-center justify-center"
+          onMouseDown={handleResizeStart}
+        >
+          <div className="w-8 h-0.5 rounded-full bg-white/60" />
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Coluna de um dia ──────────────────────────────────────────────────────────
 function ColunaDia({
-  dia, atividades, onAbrirModal, onAbrirParaEditar, onConcluir,
+  dia, atividades, onAbrirModal, onAbrirParaEditar, onConcluir, onDesconcluir, onAtualizarHorario,
 }: {
   dia: DiaAgenda;
   atividades: AtividadeAgenda[];
   onAbrirModal: (p: Partial<DadosAgendamento>) => void;
   onAbrirParaEditar: (id: string) => void;
   onConcluir: (id: string) => void;
+  onDesconcluir: (id: string) => void;
+  onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
 }) {
   const horas = Array.from({ length: TOTAL_HORAS }, (_, i) => HORA_INICIO + i);
 
@@ -146,6 +216,8 @@ function ColunaDia({
           atv={atv}
           onAbrirParaEditar={onAbrirParaEditar}
           onConcluir={onConcluir}
+          onDesconcluir={onDesconcluir}
+          onAtualizarHorario={onAtualizarHorario}
         />
       ))}
     </div>
@@ -193,7 +265,7 @@ type AgendaBlocoProps = {
 export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }: AgendaBlocoProps) {
   const {
     atividades, diasDaSemana, semanaLabel, semanaOffset,
-    isLoading, error, navegar, irParaHoje, concluir,
+    isLoading, error, navegar, irParaHoje, concluir, desconcluir, atualizarHorario,
   } = useAgenda(refreshKey);
 
   return (
@@ -252,6 +324,8 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
               onAbrirModal={onAbrirModal}
               onAbrirParaEditar={onAbrirParaEditar}
               onConcluir={concluir}
+              onDesconcluir={desconcluir}
+              onAtualizarHorario={atualizarHorario}
             />
           ))}
           <LinhaAgora semanaOffset={semanaOffset} />

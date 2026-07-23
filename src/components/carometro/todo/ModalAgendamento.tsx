@@ -56,6 +56,7 @@ export type ModalAgendamentoProps = {
   aberto: boolean;
   onFechar: () => void;
   onSalvar: (dados: DadosAgendamento) => void;
+  onExcluir?: () => Promise<void>;
   preenchido?: Partial<DadosAgendamento>;
   modo: 'criar' | 'editar';
   profileId: string;
@@ -149,7 +150,7 @@ type BacklogItem = {
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
 export function ModalAgendamento({
-  aberto, onFechar, onSalvar, preenchido, modo, profileId, areaId, isSaving, erroSalvar, origemInfo,
+  aberto, onFechar, onSalvar, onExcluir, preenchido, modo, profileId, areaId, isSaving, erroSalvar, origemInfo,
 }: ModalAgendamentoProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -175,8 +176,10 @@ export function ModalAgendamento({
   const [cnpjs,       setCnpjs]       = useState<{ id: string; cnpj: string; descritivo: string | null }[]>([]);
 
   // Participantes
-  const [pessoas,   setPessoas]   = useState<{ profile_id: string; nome: string; nomeCompleto: string | null; email: string | null; area: string | null }[]>([]);
-  const [ocupados,  setOcupados]  = useState<Set<string>>(new Set());
+  const [pessoas,    setPessoas]    = useState<{ profile_id: string; nome: string; nomeCompleto: string | null; email: string | null; area: string | null }[]>([]);
+  const [ocupados,   setOcupados]   = useState<Set<string>>(new Set());
+  const [busySlots,  setBusySlots]  = useState<Map<string, { hora_inicio: string; hora_fim: string | null }[]>>(new Map());
+  const [confirmarExcluir, setConfirmarExcluir] = useState(false);
 
   // Seções colapsáveis (data, participantes, link, recorrência, vínculo, obs)
   // 0=Data+Recorrência, 1=Participantes, 2=Link, 3=Info adicionais, 4=Observações
@@ -344,8 +347,10 @@ export function ModalAgendamento({
 
   // ── Disponibilidade ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (!form.data || !form.hora_inicio || form.participantes.length === 0) {
-      setOcupados(new Set()); return;
+    if (!form.data || form.participantes.length === 0) {
+      setOcupados(new Set());
+      setBusySlots(new Map());
+      return;
     }
     void (async () => {
       const { data } = await supabase
@@ -355,15 +360,31 @@ export function ModalAgendamento({
         .eq('data', form.data)
         .not('hora_inicio', 'is', null);
       if (!data) return;
-      const [hI] = form.hora_inicio!.split(':').map(Number);
-      const [hF] = (form.hora_fim ?? `${Math.min(23, hI + 1)}:00`).split(':').map(Number);
-      const set = new Set<string>();
-      for (const row of data as { profile_id: string; hora_inicio: string; hora_fim: string | null }[]) {
-        const [rI] = row.hora_inicio.split(':').map(Number);
-        const [rF] = (row.hora_fim ?? `${Math.min(23, rI + 1)}:00`).split(':').map(Number);
-        if (rI < hF && rF > hI) set.add(row.profile_id);
+      type BusyRow = { profile_id: string; hora_inicio: string; hora_fim: string | null };
+      const rows = data as BusyRow[];
+      // Monta mapa de slots por participante
+      const slotMap = new Map<string, { hora_inicio: string; hora_fim: string | null }[]>();
+      for (const row of rows) {
+        const existing = slotMap.get(row.profile_id) ?? [];
+        slotMap.set(row.profile_id, [...existing, { hora_inicio: row.hora_inicio, hora_fim: row.hora_fim }]);
       }
-      setOcupados(set);
+      setBusySlots(slotMap);
+      // Detecta conflitos com horário selecionado
+      if (form.hora_inicio) {
+        const [hI] = form.hora_inicio.split(':').map(Number);
+        const [hF] = (form.hora_fim ?? `${Math.min(23, hI + 1)}:00`).split(':').map(Number);
+        const set = new Set<string>();
+        for (const [pid, slots] of slotMap) {
+          for (const slot of slots) {
+            const [rI] = slot.hora_inicio.split(':').map(Number);
+            const [rF] = (slot.hora_fim ?? `${Math.min(23, rI + 1)}:00`).split(':').map(Number);
+            if (rI < hF && rF > hI) { set.add(pid); break; }
+          }
+        }
+        setOcupados(set);
+      } else {
+        setOcupados(new Set());
+      }
     })();
   }, [form.data, form.hora_inicio, form.hora_fim, form.participantes, supabase]);
 
@@ -729,20 +750,34 @@ export function ModalAgendamento({
                   ...pessoas.filter(p => form.participantes.includes(p.profile_id)),
                   ...pessoas.filter(p => !form.participantes.includes(p.profile_id)),
                 ].map(p => {
-                  const sel = form.participantes.includes(p.profile_id);
+                  const sel     = form.participantes.includes(p.profile_id);
                   const ocupado = sel && ocupados.has(p.profile_id);
+                  const slots   = sel ? (busySlots.get(p.profile_id) ?? []) : [];
+                  const meta    = [p.area, p.email].filter(Boolean).join(' · ');
                   return (
                     <label key={p.profile_id}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${sel ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <input type="checkbox" className="w-3.5 h-3.5 rounded accent-blue-500"
+                      className={`flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${sel ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input type="checkbox" className="w-3.5 h-3.5 rounded accent-blue-500 mt-0.5 shrink-0"
                         checked={sel}
                         onChange={() => toggleParticipante(p.profile_id)} />
-                      <div className="flex-1 min-w-0 flex items-center gap-1 overflow-hidden">
-                        <span className="text-xs text-gray-700 font-medium shrink-0">{p.nomeCompleto ?? p.nome}</span>
-                        {p.area && <><span className="text-gray-300 shrink-0">·</span><span className="text-[10px] text-gray-400 shrink-0">{p.area}</span></>}
-                        {p.email && <><span className="text-gray-300 shrink-0">·</span><span className="text-[10px] text-gray-400 truncate">{p.email}</span></>}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-xs font-semibold leading-tight ${sel ? 'text-blue-800' : 'text-gray-700'}`}>
+                            {p.nomeCompleto ?? p.nome}
+                          </span>
+                          {ocupado && <span className="text-[10px] text-orange-600 font-medium shrink-0">⚠ conflito</span>}
+                        </div>
+                        {meta && <p className="text-[10px] text-gray-400 leading-tight mt-0.5 truncate">{meta}</p>}
+                        {slots.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {slots.map((s, i) => (
+                              <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
+                                {s.hora_inicio.slice(0, 5)}{s.hora_fim ? `–${s.hora_fim.slice(0, 5)}` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      {ocupado && <span className="text-[10px] text-orange-500 shrink-0">ocupado</span>}
                     </label>
                   );
                 })}
@@ -799,9 +834,33 @@ export function ModalAgendamento({
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
-          {erroSalvar
-            ? <p className="text-xs text-red-600 truncate max-w-xs" title={erroSalvar}>Erro: {erroSalvar}</p>
-            : <span />}
+          <div className="flex items-center gap-2 min-w-0">
+            {erroSalvar && (
+              <p className="text-xs text-red-600 truncate max-w-[200px]" title={erroSalvar}>Erro: {erroSalvar}</p>
+            )}
+            {modo === 'editar' && onExcluir && !erroSalvar && !confirmarExcluir && (
+              <button type="button"
+                className="text-xs text-red-500 hover:text-red-700 underline transition-colors"
+                onClick={() => setConfirmarExcluir(true)}>
+                Excluir
+              </button>
+            )}
+            {confirmarExcluir && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-600">Confirmar exclusão?</span>
+                <button type="button" disabled={isSaving}
+                  className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50 transition-colors"
+                  onClick={async () => { await onExcluir?.(); setConfirmarExcluir(false); }}>
+                  Sim, excluir
+                </button>
+                <button type="button"
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                  onClick={() => setConfirmarExcluir(false)}>
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <button type="button" onClick={onFechar}
               className="px-4 py-2 text-xs text-gray-600 hover:text-gray-800 transition-colors">
