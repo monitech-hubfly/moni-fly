@@ -150,6 +150,20 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
       const meta = await buscarMetaNotificacaoChamado(db, interacaoId);
       if (!meta) continue;
 
+      // Verificar se a kanban_atividade vinculada está arquivada ou concluída
+      const { data: kaCheck } = await db
+        .from('kanban_atividades')
+        .select('status, arquivado')
+        .eq('id', interacaoId)
+        .maybeSingle();
+      if (kaCheck) {
+        const kaStatus = String((kaCheck as { status?: string | null }).status ?? '').toLowerCase();
+        const kaArquivado = Boolean((kaCheck as { arquivado?: boolean | null }).arquivado);
+        if (kaArquivado || kaStatus === 'concluida' || kaStatus === 'concluído' || kaStatus === 'cancelada') {
+          continue;
+        }
+      }
+
       const tituloAtiv =
         String(row.nome ?? row.descricao ?? 'Atividade').trim() || 'Atividade';
       const tituloChamado = meta.titulo.trim() || 'Chamado';
