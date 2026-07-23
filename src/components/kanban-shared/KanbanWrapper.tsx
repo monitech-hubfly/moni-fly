@@ -110,7 +110,8 @@ function KanbanUrlSync({
 }) {
   const searchParams = useSearchParams();
   useEffect(() => {
-    onChange(estadoModalDaSearchParams(searchParams, cardQueryParam, tabBloqueiaCard));
+    // `useSearchParams` atrasa após `history.replaceState`; a barra de endereços prevalece.
+    onChange(estadoModalDoWindow(cardQueryParam, tabBloqueiaCard));
   }, [searchParams, cardQueryParam, tabBloqueiaCard, onChange]);
   return null;
 }
@@ -140,6 +141,7 @@ function KanbanModals({
     <>
       {urlState.cardId ? (
         <KanbanCardModal
+          key={urlState.cardId}
           cardId={urlState.cardId}
           kanbanNome={kanbanNome}
           onClose={onCloseModals}
@@ -193,16 +195,34 @@ export function KanbanWrapper({
     estadoModalDoWindow(cardQueryParam, tabBloqueiaCard),
   );
 
-  const onUrlChange = useCallback((s: UrlModalState) => {
-    setUrlState((prev) => (urlStateIgual(prev, s) ? prev : s));
-  }, []);
+  const onUrlChange = useCallback(
+    (s: UrlModalState) => {
+      setUrlState((prev) => {
+        if (urlStateIgual(prev, s)) return prev;
+        const win =
+          typeof window !== 'undefined'
+            ? estadoModalDoWindow(cardQueryParam, tabBloqueiaCard)
+            : s;
+        // Suspense atrasado não pode reverter card já aberto via replaceState local.
+        if (prev.cardId && win.cardId === prev.cardId && s.cardId !== prev.cardId) {
+          return prev;
+        }
+        if (win.cardId !== s.cardId) {
+          return urlStateIgual(prev, win) ? prev : win;
+        }
+        return s;
+      });
+    },
+    [cardQueryParam, tabBloqueiaCard],
+  );
 
-  /** Atualiza estado local na hora; URL segue em `replace` para não competir com modal anterior. */
+  /** Atualiza estado local na hora; URL via history (sem refetch RSC). */
   const openCard = useCallback<KanbanOpenCardFn>(
     (cardId, origem) => {
       const id = String(cardId ?? '').trim();
       if (!id) return;
       const cardOrigem = origem === 'legado' ? 'legado' : 'nativo';
+      const href = hrefAbrirCardNaRota(basePath, id, cardQueryParam, origem);
       setUrlState((prev) => ({
         ...prev,
         cardId: id,
@@ -211,10 +231,20 @@ export function KanbanWrapper({
         deepLinkTopicoId: null,
         novoAberto: false,
       }));
-      router.replace(hrefAbrirCardNaRota(basePath, id, cardQueryParam, origem), { scroll: false });
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(window.history.state, '', href);
+      }
     },
-    [basePath, cardQueryParam, router],
+    [basePath, cardQueryParam],
   );
+
+  useEffect(() => {
+    const onPopState = () => {
+      setUrlState(estadoModalDoWindow(cardQueryParam, tabBloqueiaCard));
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [cardQueryParam, tabBloqueiaCard]);
 
   /** Fecha na hora (estado local) e só depois sincroniza a URL — evita flicker se o Suspense atrasar. */
   const onCloseModals = useCallback(() => {
@@ -229,7 +259,7 @@ export function KanbanWrapper({
           }
         : prev,
     );
-    router.push(basePath);
+    router.replace(basePath, { scroll: false });
   }, [basePath, router]);
 
   return (
