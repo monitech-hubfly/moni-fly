@@ -101,10 +101,6 @@ function boolFlag(v: boolean | null | undefined): boolean {
   return Boolean(v);
 }
 
-function flagParalelaDefinida(v: boolean | null | undefined): boolean {
-  return v !== null && v !== undefined;
-}
-
 /** Ordem fixa das bolinhas no card fechado do Funil Operações. */
 export const OPERACOES_CHIPS_ORDEM: readonly string[] = [
   KANBAN_IDS.ACOPLAMENTO,
@@ -398,11 +394,7 @@ export function montarChipsParalelas(
     const temFilhoProjetosLocais = Boolean(input.temFilhoProjetosLocais);
     const filhoProjetosLocaisArquivado =
       Boolean(input.filhoProjetosLocaisArquivado) && !temFilhoProjetosLocais;
-    if (
-      temFilhoProjetosLocais ||
-      filhoProjetosLocaisArquivado ||
-      flagParalelaDefinida(f.projetos_locais_ok)
-    ) {
+    if (temFilhoProjetosLocais || filhoProjetosLocaisArquivado) {
       const faseNomeChip = filhoProjetosLocaisArquivado
         ? FASE_EXIBICAO_CARD_ARQUIVADO
         : String(input.projetosLocaisFilhoFase ?? '').trim() || null;
@@ -414,7 +406,7 @@ export function montarChipsParalelas(
           faseNomeChip,
           'Projetos Locais',
           'Projetos Locais',
-          boolFlag(f.projetos_locais_ok) || temFilhoProjetosLocais,
+          boolFlag(f.projetos_locais_ok),
           opts,
         ),
       );
@@ -791,10 +783,10 @@ async function enrichFilhosOperacoesPorTituloFranquia(
   if (numeros.length === 0) return;
 
   const tituloFilter = filtroOrTituloFranquia(numeros);
+  /** Projetos Locais: só origem_card_id / vínculo — FK#### sozinho gera falso positivo entre negócios. */
   const esteiras: { kanbanId: string; kind: keyof EnrichOperacoesFilhosMaps }[] = [
     { kanbanId: KANBAN_IDS.ACOPLAMENTO, kind: 'filhoAcoplamentoPorPai' },
     { kanbanId: KANBAN_IDS.PROJETO_LEGAL, kind: 'filhoProjetoLegalPorPai' },
-    { kanbanId: KANBAN_IDS.PROJETOS_LOCAIS, kind: 'filhoProjetosLocaisPorPai' },
     { kanbanId: KANBAN_IDS.CREDITO_OBRA, kind: 'filhoCreditoObraPorPai' },
   ];
 
