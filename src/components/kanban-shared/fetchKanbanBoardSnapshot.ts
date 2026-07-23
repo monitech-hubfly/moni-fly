@@ -272,6 +272,11 @@ function partesTituloCard(t: string): number {
   return t.split(' - ').map((p) => p.trim()).filter(Boolean).length;
 }
 
+/** Card filho de bastão (`origem_card_id`) — exibe dados próprios, sem merge de identidade do pai. */
+function isFilhoBastaoCard(c: Record<string, unknown>): boolean {
+  return Boolean(String((c as { origem_card_id?: string | null }).origem_card_id ?? '').trim());
+}
+
 /** Evita walk recursivo em `origem_card_id` quando o card já tem campos de exibição completos. */
 function cardNativoPrecisaCamposAncestrais(c: Record<string, unknown>): boolean {
   const origem = String((c as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
@@ -318,7 +323,7 @@ function mesclarCamposDeFonte(
 
   return {
     ...dest,
-    titulo: partesTituloCard(tituloFonte) > partesTituloCard(tituloDest) ? tituloFonte : tituloDest,
+    titulo: tituloDest ? tituloDest : tituloFonte,
     nome_condominio:
       coalesceTextoCampo(dest.nome_condominio, fonte.nome_condominio, parsedFonte.nomeCondominio) ??
       dest.nome_condominio,
@@ -1118,10 +1123,13 @@ export async function fetchKanbanBoardSnapshot(
   }
 
   const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => {
-    const cMerged = mesclarCamposComProjetoIrmaos(
-      mesclarCamposComAncestrais(c, ancestraisMap),
-      irmaosProjetoMap,
-    );
+    const filhoBastao = isFilhoBastaoCard(c);
+    const cMerged = filhoBastao
+      ? c
+      : mesclarCamposComProjetoIrmaos(
+          mesclarCamposComAncestrais(c, ancestraisMap),
+          irmaosProjetoMap,
+        );
     const fid = String(cMerged.franqueado_id ?? '');
     const redeId = String((cMerged as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
     const cardId = String(cMerged.id ?? '');
@@ -1165,13 +1173,16 @@ export async function fetchKanbanBoardSnapshot(
       tituloFallback: tituloRaw,
     });
 
-    let tituloExibicao = escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquiaCard);
+    let tituloExibicao = filhoBastao && tituloRaw
+      ? escolherTituloExibicaoCard(tituloRaw, null, nFranquiaCard)
+      : escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquiaCard);
     let subtituloCard: string | null = null;
-    let profilesLinha: KanbanCardBrief['profiles'] = redeNomeDiretoMap.has(redeId)
-      ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
-      : franqueadoNomePorCardId.has(cardId)
-        ? { full_name: franqueadoNomePorCardId.get(cardId) ?? null }
-        : null;
+    let profilesLinha: KanbanCardBrief['profiles'] =
+      redeId && redeNomeDiretoMap.has(redeId)
+        ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
+        : !filhoBastao && franqueadoNomePorCardId.has(cardId)
+          ? { full_name: franqueadoNomePorCardId.get(cardId) ?? null }
+          : null;
 
     if (isFunilLoteadores) {
       const redeLoteadorId = String(

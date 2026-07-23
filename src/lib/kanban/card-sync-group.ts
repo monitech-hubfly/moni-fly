@@ -178,6 +178,56 @@ async function resolverProcessoIdExplicitoDoCard(db: SyncDb, cardId: string): Pr
   return proc?.id ? String(proc.id) : null;
 }
 
+/**
+ * Propagação cross-funil só entre pai/filho direto (`origem_card_id`).
+ * Evita espelhar título/franqueado em cards de outro funil ligados só por vínculo/processo.
+ */
+async function filtrarTargetsPropagacaoKanban(
+  db: SyncDb,
+  origemId: string,
+  cardIds: string[],
+): Promise<string[]> {
+  if (cardIds.length <= 1) return cardIds;
+
+  const { data: origemRow } = await db
+    .from('kanban_cards')
+    .select('kanban_id, origem_card_id')
+    .eq('id', origemId)
+    .maybeSingle();
+  const origemKanban = String(
+    (origemRow as { kanban_id?: string | null } | null)?.kanban_id ?? '',
+  ).trim();
+  const origemPaiId = String(
+    (origemRow as { origem_card_id?: string | null } | null)?.origem_card_id ?? '',
+  ).trim();
+
+  const { data: rows } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, origem_card_id')
+    .in('id', cardIds);
+
+  const out: string[] = [];
+  for (const row of rows ?? []) {
+    const id = String((row as { id?: string }).id ?? '').trim();
+    if (!id) continue;
+    if (id === origemId) {
+      out.push(id);
+      continue;
+    }
+    const kanban = String((row as { kanban_id?: string | null }).kanban_id ?? '').trim();
+    if (kanban && kanban === origemKanban) {
+      out.push(id);
+      continue;
+    }
+    const pai = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+    if (pai === origemId || origemPaiId === id) {
+      out.push(id);
+    }
+  }
+
+  return out.length > 0 ? out : [origemId];
+}
+
 /** Resolve `processo_step_one.id` a partir do card kanban (sem importar módulo server-only). */
 async function resolverProcessoIdDoCard(db: SyncDb, cardId: string): Promise<string | null> {
   const cid = String(cardId ?? '').trim();
@@ -590,7 +640,11 @@ export async function propagarCamposKanbanCards(
   const syncPatch = pickSyncFields(patch as Record<string, unknown>, KANBAN_CARD_CAMPOS_SYNC);
   if (Object.keys(syncPatch).length === 0) return { ok: true, atualizados: 0 };
 
-  const cardIds = await listarCardIdsSyncGroup(db, origem);
+  const cardIds = await filtrarTargetsPropagacaoKanban(
+    db,
+    origem,
+    await listarCardIdsSyncGroup(db, origem),
+  );
   let atualizados = 0;
 
   const precisaTitulo =
