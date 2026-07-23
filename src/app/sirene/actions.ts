@@ -1138,10 +1138,10 @@ export async function buscarCardsParaNovoChamadoSirene(
   const pattern = q ? `%${q.replace(/%/g, '\\%').replace(/_/g, '\\_')}%` : null;
   const out: SireneVinculoCardBuscaItem[] = [];
   const seen = new Set<string>();
-  const limit = kanbanId ? 80 : 18;
+  const limit = kanbanId ? 500 : 18;
 
   // --- Nativos ---
-  let nativeQ = admin.from('kanban_cards').select('id, titulo, kanban_id, fase_id').eq('arquivado', false);
+  let nativeQ = admin.from('kanban_cards').select('id, titulo, kanban_id, fase_id').eq('arquivado', false).eq('concluido', false);
   if (kanbanId) nativeQ = nativeQ.eq('kanban_id', kanbanId);
   if (pattern) nativeQ = nativeQ.ilike('titulo', pattern);
   nativeQ = nativeQ.order('titulo').limit(limit);
@@ -1183,52 +1183,7 @@ export async function buscarCardsParaNovoChamadoSirene(
     });
   }
 
-  // --- Legados (IDs são de processo_step_one → usam processo_id, sem FK constraint em card_id) ---
-  let legQ = admin.from('v_processo_como_kanban_cards').select('id, titulo, kanban_id, fase_id, etapa_slug');
-  if (kanbanId) legQ = legQ.eq('kanban_id', kanbanId);
-  if (pattern) legQ = legQ.ilike('titulo', pattern);
-  legQ = legQ.order('titulo').limit(limit);
-  const { data: legRows, error: lErr } = await legQ;
-  if (lErr) return { ok: false, error: lErr.message };
-
-  const legFaseIds = [...new Set((legRows ?? []).map((r) => String((r as { fase_id?: string }).fase_id ?? '')).filter(Boolean))];
-  const legFaseNomeById = new Map<string, string>();
-  if (legFaseIds.length > 0) {
-    const { data: legFases } = await admin.from('kanban_fases').select('id, nome').in('id', legFaseIds);
-    (legFases ?? []).forEach((f) => legFaseNomeById.set(String((f as { id: string }).id), String((f as { nome?: string }).nome ?? '')));
-  }
-
-  const kidSet2 = new Set<string>();
-  for (const r of legRows ?? []) {
-    const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
-    if (kid) kidSet2.add(kid);
-  }
-  let kbNome2 = new Map<string, string>();
-  if (kidSet2.size > 0) {
-    const { data: kbs2 } = await admin.from('kanbans').select('id, nome').in('id', [...kidSet2]);
-    kbNome2 = new Map(
-      (kbs2 ?? []).map((k) => [String((k as { id: string }).id), String((k as { nome?: string }).nome ?? '')]),
-    );
-  }
-  for (const r of legRows ?? []) {
-    const id = String((r as { id: string }).id);
-    const key = `l:${id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
-    const fid = String((r as { fase_id?: string }).fase_id ?? '');
-    const etapaSlug = String((r as { etapa_slug?: string | null }).etapa_slug ?? '');
-    out.push({
-      card_id: null,
-      processo_id: id,
-      titulo: String((r as { titulo?: string | null }).titulo ?? 'Sem título'),
-      kanban_nome: kbNome2.get(kid) || '—',
-      etapa: legFaseNomeById.get(fid) || etapaSlug || null,
-      origem: 'legado',
-    });
-  }
-
-  return { ok: true, items: out.slice(0, kanbanId ? 160 : 24) };
+  return { ok: true, items: out.slice(0, kanbanId ? 500 : 30) };
 }
 
 /** Redirecionar chamado para HDM. Apenas Bombeiro. */
