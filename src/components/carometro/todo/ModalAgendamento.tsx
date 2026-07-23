@@ -284,7 +284,10 @@ export function ModalAgendamento({
           supabase.from('condominios').select('id, nome').order('nome').limit(100),
           supabase.from('adm_cnpjs').select('id, cnpj, descritivo').order('cnpj').limit(100),
         ]);
-        setCasas((c.data ?? []) as { id: string; nome: string }[]);
+        // Deduplica casas por nome (mantém primeiro ID encontrado)
+        const casasRaw = (c.data ?? []) as { id: string; nome: string }[];
+        const casasVistas = new Set<string>();
+        setCasas(casasRaw.filter(x => { if (casasVistas.has(x.nome)) return false; casasVistas.add(x.nome); return true; }));
         setFranqueados(((f.data ?? []) as { id: string; nome_completo?: string | null }[])
           .map(x => ({ id: x.id, nome: String(x.nome_completo ?? '').trim() || '—' })));
         setLoteadores((l.data ?? []) as { id: string; nome: string }[]);
@@ -731,7 +734,7 @@ export function ModalAgendamento({
           </Secao>
 
           {/* ── Vínculo ── */}
-          <Secao titulo="Vínculo" aberta={abertas[4]} onToggle={() => toggleSecao(4)}>
+          <Secao titulo="Informações adicionais" aberta={abertas[4]} onToggle={() => toggleSecao(4)}>
             <div className="grid grid-cols-2 gap-3 mt-1">
               {([
                 { label: 'Casa',       key: 'casa_id'          as const, opts: casas.map(x => ({ id: x.id, nome: x.nome })) },
