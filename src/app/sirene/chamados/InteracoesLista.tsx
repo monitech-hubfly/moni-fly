@@ -460,6 +460,7 @@ function InteracoesListaInner({
   const [salvandoArquivarTopico, setSalvandoArquivarTopico] = useState(false);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [podeArquivar, setPodeArquivar] = useState(false);
+  const [sessionRole, setSessionRole] = useState<string>('');
   const [detalheExpandido, setDetalheExpandido] = useState<Record<string, boolean>>({});
   const [atividadesExpandido, setAtividadesExpandido] = useState<Record<string, boolean>>({});
   const [horasModalChamado, setHorasModalChamado] = useState<{ chamadoId: number; titulo: string } | null>(null);
@@ -518,6 +519,7 @@ function InteracoesListaInner({
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
       const role = String((profile as { role?: string | null } | null)?.role ?? '').toLowerCase();
       setPodeArquivar(role === 'admin' || role === 'team');
+      setSessionRole(role);
     })();
   }, []);
 
@@ -1932,6 +1934,7 @@ function InteracoesListaInner({
           }}
           highlightTopicoId={highlightTopicoId}
           sessionEhAdmin={sessionEhAdmin}
+          sessionRole={sessionRole}
           onRecarregarTopicos={() => {
             if (detalheRowEff) void carregarTopicosSeNecessario(detalheRowEff, true);
           }}

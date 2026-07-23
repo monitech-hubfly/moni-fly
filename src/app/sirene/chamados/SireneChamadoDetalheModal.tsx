@@ -12,7 +12,7 @@ import {
 } from './SireneChamadoEdicaoForms';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
-import { chamadoEditavelNaSirene } from '@/lib/kanban/sirene-chamado-permissoes';
+import { chamadoEditavelNaSirene, usuarioPodeAdicionarAtividadeChamado } from '@/lib/kanban/sirene-chamado-permissoes';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
 import type { StatusInteracaoDb } from './actions';
 import type { SubInteracaoStatusDb } from '@/lib/actions/card-actions';
@@ -98,6 +98,7 @@ type Props = {
   onEncerrarAtividadeRecusada?: (topicoId: number) => void;
   highlightTopicoId?: number | null;
   sessionEhAdmin?: boolean;
+  sessionRole?: string;
   onRecarregarTopicos?: () => void;
   rankLabel?: string | null;
 };
@@ -191,6 +192,7 @@ export function SireneChamadoDetalheModal({
   onEncerrarAtividadeRecusada,
   highlightTopicoId = null,
   sessionEhAdmin = false,
+  sessionRole,
   onRecarregarTopicos,
   rankLabel,
 }: Props) {
@@ -198,6 +200,22 @@ export function SireneChamadoDetalheModal({
   const hrefCard = ccid ? rotaCardOrigem(row.kanban_nome, ccid) : null;
   const editando = editingKanban || editingSirene;
   const podeEditar = chamadoEditavelNaSirene(row);
+
+  const responsaveisAtividades = topicos
+    .flatMap(t => [
+      String(t.responsavel_id ?? '').trim(),
+      ...(t.responsaveis_ids ?? []).map((r: string) => String(r ?? '').trim()),
+    ])
+    .filter(Boolean);
+
+  const podeAdicionarAtividade = usuarioPodeAdicionarAtividadeChamado({
+    sessionEhAdmin: sessionEhAdmin ?? false,
+    sessionRole: sessionRole ?? null,
+    currentUserId: currentUserId ?? null,
+    chamadoAbertoPor: String(row.criado_por ?? '').trim() || null,
+    responsaveisIds: responsaveisAtividades,
+  });
+
   const [novaAtivAberta, setNovaAtivAberta] = useState(false);
   const [mostrarConcluidas, setMostrarConcluidas] = useState(false);
 
@@ -791,7 +809,7 @@ export function SireneChamadoDetalheModal({
             </section>
           ) : null}
 
-          {podeEditar && !editando ? (
+          {podeAdicionarAtividade && !editando ? (
             <ChamadoAtividadeCollapsibleSection
               aberto={novaAtivAberta}
               onAbrir={() => setNovaAtivAberta(true)}
