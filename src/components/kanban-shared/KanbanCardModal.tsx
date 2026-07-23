@@ -80,6 +80,7 @@ import {
   gerarFormTokenCandidato,
   enviarEmailCard,
   reconciliarGboxPlanilhaMapaChecklist,
+  garantirShadowCardLegadoParaHistorico,
   type SubInteracaoStatusDb,
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
@@ -1754,13 +1755,19 @@ export function KanbanCardModal({
                   setResponsaveisOpcoes([]);
                 }
                 try {
+                  if (origem === 'legado') {
+                    await garantirShadowCardLegadoParaHistorico(cardId);
+                  }
                   setVisitsCalculadoraCarregado(false);
+                  const histOrigem = origem === 'legado' ? 'legado' : 'nativo';
+                  const procStepOneId = loaded.processo_step_one_id ?? null;
                   const hist = await loadHistoricoCardModal(
                     supabase,
                     cardId,
-                    origem === 'legado' ? 'legado' : 'nativo',
+                    histOrigem,
                     fasesParaHistorico,
                     loaded.kanban_id,
+                    procStepOneId,
                   );
                   setHistorico(hist);
                   if (origem !== 'legado') {
@@ -1769,6 +1776,7 @@ export function KanbanCardModal({
                       cardId,
                       'nativo',
                       fasesEsteiraCalculadora,
+                      procStepOneId,
                     );
                     setHistoricoCalculadora(histCalc);
                     const visitsCalc = await buildVisitsCalculadoraEsteiraSyncGroup(
@@ -1776,6 +1784,7 @@ export function KanbanCardModal({
                       cardId,
                       'nativo',
                       fasesEsteiraCalculadora,
+                      procStepOneId,
                     );
                     setVisitsCalculadora(visitsCalc);
                     setVisitsCalculadoraCarregado(true);

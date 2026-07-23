@@ -241,7 +241,14 @@ export async function loadPipelineCardDrawerData(
   card: PipelineCardDisplay,
 ): Promise<PipelineCardDrawerData> {
   const [historico, fasesBase, chamadosSirene] = await Promise.all([
-    loadHistoricoCardModal(supabase, card.id, card.origem, [], card.kanban_id),
+    loadHistoricoCardModal(
+      supabase,
+      card.id,
+      card.origem,
+      [],
+      card.kanban_id,
+      card.processo_step_one_id ?? null,
+    ),
     fetchKanbanFasesAtivas(supabase, card.kanban_id),
     fetchChamadosSireneCard(supabase, card.id),
   ]);

@@ -32,6 +32,8 @@ import {
 } from '@/lib/kanban/portfolio-paralelas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { inserirKanbanCardVinculo, garantirShadowKanbanCardLegadoPorId } from '@/lib/kanban/kanban-card-vinculos';
+import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
+import type { HistoricoItem } from '@/components/kanban-shared/kanban-card-modal-helpers';
 import { kanbanPermiteVinculoComProjetoLegal } from '@/lib/kanban/esteira-manual-destinos';
 import {
   faseNomeExibicaoVinculoCard,
@@ -5700,6 +5702,67 @@ export type FaseChecklistResposta = {
   preenchido_por: string | null;
   preenchido_em: string | null;
 };
+
+/** Garante shadow em `kanban_cards` para card legado antes de gravar/ler histórico. */
+export async function garantirShadowCardLegadoParaHistorico(cardId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
+  const { data: existing } = await supabase.from('kanban_cards').select('id').eq('id', cid).maybeSingle();
+  if (existing?.id) return { ok: true };
+
+  try {
+    const admin = createAdminClient();
+    return garantirShadowKanbanCardLegadoPorId(admin, cid);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg || 'Erro ao preparar card legado para histórico.' };
+  }
+}
+
+/** Histórico unificado (kanban_historico + processo_card_eventos) para modal/painel. */
+export async function carregarHistoricoUnificadoCard(input: {
+  cardId: string;
+  origem?: 'legado' | 'nativo';
+  kanbanId?: string | null;
+  processoStepOneId?: string | null;
+}): Promise<{ ok: true; items: HistoricoItem[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  const cid = String(input.cardId ?? '').trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
+  const origem = input.origem === 'legado' ? 'legado' : 'nativo';
+  if (origem === 'legado') {
+    const shadow = await garantirShadowCardLegadoParaHistorico(cid);
+    if (!shadow.ok) return { ok: false, error: shadow.error };
+  }
+
+  try {
+    const items = await loadHistoricoCardModal(
+      supabase,
+      cid,
+      origem,
+      [],
+      input.kanbanId?.trim() || undefined,
+      input.processoStepOneId ?? null,
+    );
+    return { ok: true, items };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg || 'Erro ao carregar histórico.' };
+  }
+}
 
 export async function listarFaseChecklistItens(faseId: string): Promise<FaseChecklistItem[]> {
   const supabase = await createClient();

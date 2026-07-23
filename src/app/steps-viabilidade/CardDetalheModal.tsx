@@ -49,12 +49,19 @@ import {
   updateDocumentoCardAnexos,
   removeDocumentoCard,
   getCardChecklistAnexosHistory,
-  getCardActionsHistory,
   getDadosComiteCard,
   upsertDadosComiteCard,
   getOrCreatePublicFormLink,
 } from './card-actions';
 import { createClient } from '@/lib/supabase/client';
+import { carregarHistoricoUnificadoCard } from '@/lib/actions/card-actions';
+import {
+  formatDataHoraHistorico,
+  iconeHistoricoAcao,
+  rotuloUsuarioHistorico,
+  textoResumidoAcaoHistorico,
+  type HistoricoItem,
+} from '@/components/kanban-shared/kanban-card-modal-helpers';
 import { finalizarEstudoStep1 } from '@/app/step-one/[id]/etapa/actions';
 import { ATIVIDADE_TIMES } from '@/lib/atividade-times';
 import {
@@ -259,9 +266,7 @@ export function CardDetalheModal({
   const [loadingComentario, setLoadingComentario] = useState(false);
 
   const [loadingActionsHistory, setLoadingActionsHistory] = useState(false);
-  const [actionsHistory, setActionsHistory] = useState<
-    Array<{ id: string; autor_nome: string | null; etapa_painel: string | null; tipo: string; descricao: string | null; created_at: string }>
-  >([]);
+  const [actionsHistory, setActionsHistory] = useState<HistoricoItem[]>([]);
 
   const [loadingChecklistHistory, setLoadingChecklistHistory] = useState(false);
   const [checklistAnexosHistory, setChecklistAnexosHistory] = useState<
@@ -716,8 +721,11 @@ export function CardDetalheModal({
   const loadActionsHistory = async () => {
     setLoadingActionsHistory(true);
     try {
-      const r = await getCardActionsHistory(processoId);
-      if (r.ok) setActionsHistory(r.eventos);
+      const r = await carregarHistoricoUnificadoCard({
+        cardId: processoId,
+        origem: 'legado',
+      });
+      if (r.ok) setActionsHistory(r.items);
     } finally {
       setLoadingActionsHistory(false);
     }
@@ -5689,13 +5697,17 @@ export function CardDetalheModal({
                 ) : (
                   <ul className="mt-2 space-y-2">
                     {actionsHistory.map((e) => (
-                      <li key={e.id} className="rounded border border-stone-100 bg-stone-50 p-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-stone-800">{e.autor_nome ?? 'Anônimo'}</p>
-                          <p className="text-xs text-stone-400">{new Date(e.created_at).toLocaleString('pt-BR')}</p>
+                      <li key={e.id} className="flex gap-2 rounded border border-stone-100 bg-stone-50 p-2">
+                        <span className="mt-0.5 shrink-0">{iconeHistoricoAcao(e.acao)}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-stone-800">
+                              {textoResumidoAcaoHistorico(e.acao, e.detalhe)}
+                            </p>
+                            <p className="text-xs text-stone-400">{formatDataHoraHistorico(e.criado_em)}</p>
+                          </div>
+                          <p className="mt-1 text-xs text-stone-500">{rotuloUsuarioHistorico(e.usuario_nome)}</p>
                         </div>
-                        <p className="mt-1 text-sm text-stone-700">{e.descricao ?? e.tipo}</p>
-                        {e.etapa_painel ? <p className="text-xs text-stone-500">Etapa: {e.etapa_painel}</p> : null}
                       </li>
                     ))}
                   </ul>

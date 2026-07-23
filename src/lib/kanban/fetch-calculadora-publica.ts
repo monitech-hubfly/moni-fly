@@ -108,7 +108,13 @@ export async function montarCalculadoraPack(
   const [fasesEsteiraMap, fasesKanban, visits] = await Promise.all([
     fetchCalculadoraEsteiraFasesMap(supabase),
     fetchKanbanFasesAtivas(supabase, kanbanId),
-    buildVisitsCalculadoraEsteiraSyncGroup(supabase, card.id, 'nativo', new Map()),
+    buildVisitsCalculadoraEsteiraSyncGroup(
+      supabase,
+      card.id,
+      'nativo',
+      new Map(),
+      card.processo_step_one_id ?? null,
+    ),
   ]);
 
   const fasesMap = mesclarFasesKanbanAtualNoMapa(fasesEsteiraMap, kanbanId, fasesKanban);
