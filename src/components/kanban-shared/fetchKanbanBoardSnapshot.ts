@@ -462,7 +462,7 @@ export async function fetchKanbanBoardSnapshot(
   let isAdmin = false;
 
   const profilePromise = userId
-    ? supabase.from('profiles').select('role').eq('id', userId).single()
+    ? supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
     : Promise.resolve({ data: null as { role?: string | null } | null });
 
   const [profileRes, kanban] = await Promise.all([
@@ -1226,17 +1226,15 @@ export async function fetchKanbanBoardSnapshot(
   cardsConcluidos = mesclarDatasLegado(cardsConcluidos);
   cardsArquivadosNativo = mesclarDatasLegado(cardsArquivadosNativo);
 
-  [cardsNativo, cardsConcluidos, cardsArquivadosNativo] = await Promise.all([
-    enrichCardsDatasFromProcesso(supabase, cardsNativo),
-    enrichCardsDatasFromProcesso(supabase, cardsConcluidos),
-    enrichCardsDatasFromProcesso(supabase, cardsArquivadosNativo),
-  ]);
-
-  [cardsNativo, cardsConcluidos, cardsArquivadosNativo] = await Promise.all([
-    enrichCardsFollowupFromAtividades(supabase, cardsNativo),
-    enrichCardsFollowupFromAtividades(supabase, cardsConcluidos),
-    enrichCardsFollowupFromAtividades(supabase, cardsArquivadosNativo),
-  ]);
+  const todosParaEnrichDatas = [...cardsNativo, ...cardsConcluidos, ...cardsArquivadosNativo];
+  if (todosParaEnrichDatas.length > 0) {
+    const enrichedDatas = await enrichCardsDatasFromProcesso(supabase, todosParaEnrichDatas);
+    const enrichedFollowup = await enrichCardsFollowupFromAtividades(supabase, enrichedDatas);
+    const porId = new Map(enrichedFollowup.map((c) => [c.id, c]));
+    cardsNativo = cardsNativo.map((c) => porId.get(c.id) ?? c);
+    cardsConcluidos = cardsConcluidos.map((c) => porId.get(c.id) ?? c);
+    cardsArquivadosNativo = cardsArquivadosNativo.map((c) => porId.get(c.id) ?? c);
+  }
 
   const idsComLinhaNativa = new Set([
     ...cardsNativo.map((c) => c.id),
@@ -1255,13 +1253,10 @@ export async function fetchKanbanBoardSnapshot(
   });
 
   const supabaseEnrich = supabaseParaEnriquecerParalelas(supabase);
-  cards = await enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cards, supabase);
-  cardsConcluidos = await enrichCardsParalelasContext(
-    supabaseEnrich,
-    kanbanIdStr,
-    cardsConcluidos,
-    supabase,
-  );
+  [cards, cardsConcluidos] = await Promise.all([
+    enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cards, supabase),
+    enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cardsConcluidos, supabase),
+  ]);
 
   const allCardIds = [...new Set([...cards.map((c) => c.id), ...cardsConcluidos.map((c) => c.id)].filter(Boolean))];
   const faseIdsOrfas = [...cards.map((c) => c.fase_id), ...cardsConcluidos.map((c) => c.fase_id)];

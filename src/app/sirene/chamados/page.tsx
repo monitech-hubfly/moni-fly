@@ -44,7 +44,8 @@ export default async function SireneChamadosPage({
           'sla_status',
         ].join(', '),
       )
-      .order('criado_em', { ascending: false }),
+      .order('criado_em', { ascending: false })
+      .limit(500),
     createClient(),
   ]);
   const { data: viewRows, error: viewErr } = viewResult;

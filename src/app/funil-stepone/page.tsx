@@ -25,27 +25,14 @@ export default async function FunilStepOnePage({
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-  const role = (profile?.role as string) ?? 'frank';
+  const { kanban, fases, cards, cardsConcluidos, role, isAdmin, snapshotMode } =
+    await fetchKanbanBoardSnapshot(supabase, 'Funil Step One', user.id);
+
   const isStaff =
     role === 'admin' || role === 'team' || role === 'consultor' || role === 'supervisor';
-
   if (isStaff) {
     await autoCurarCardsFunilStepOneAusentes(user.id);
   }
-
-  const { kanban, fases, cards, cardsConcluidos, role: boardRole, snapshotMode } =
-    await fetchKanbanBoardSnapshot(supabase, 'Funil Step One', user.id);
-
-  const isAdmin =
-    boardRole === 'admin' ||
-    boardRole === 'consultor' ||
-    boardRole === 'supervisor' ||
-    boardRole === 'team';
 
   if (!kanban) {
     return (

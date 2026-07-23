@@ -1284,19 +1284,19 @@ export function KanbanCardModal({
           'funding_tipo, funding_localizacao, funding_descritivo';
         const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}`;
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at`;
-        let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).single();
+        let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).maybeSingle();
         if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
           const cardSelectSemFunding = `${cardSelectCore}, ${cardSelectPreObra}, sla_iniciado_em, entered_fase_at`;
-          cardRes = await supabase.from('kanban_cards').select(cardSelectSemFunding).eq('id', cardId).single();
+          cardRes = await supabase.from('kanban_cards').select(cardSelectSemFunding).eq('id', cardId).maybeSingle();
         }
         if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(`${cardSelectBase}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).single();
+          cardRes = await supabase.from('kanban_cards').select(`${cardSelectBase}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).maybeSingle();
         }
         if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(`${cardSelectCore}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).single();
+          cardRes = await supabase.from('kanban_cards').select(`${cardSelectCore}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).maybeSingle();
         }
         if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(cardSelectCore).eq('id', cardId).single();
+          cardRes = await supabase.from('kanban_cards').select(cardSelectCore).eq('id', cardId).maybeSingle();
         }
         const { data: cardData, error: cardError } = cardRes;
 
@@ -1558,7 +1558,7 @@ export function KanbanCardModal({
                 .from('profiles')
                 .select('full_name')
                 .eq('id', loaded.franqueado_id)
-                .single();
+                .maybeSingle();
               if (profileData) next = { ...next, profiles: profileData };
             } catch {
               /* ignore */

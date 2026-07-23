@@ -318,14 +318,15 @@ export async function contarRedeSemCardFunilStepOne(): Promise<
   if (errKanban) return { ok: false, error: errKanban.message };
   if (!kanban?.id) return { ok: true, total: 0 };
 
-  const { data: redeRows, error: errRede } = await db.from('rede_franqueados').select('id');
+  const [{ data: redeRows, error: errRede }, { data: cards, error: errCards }] = await Promise.all([
+    db.from('rede_franqueados').select('id'),
+    db
+      .from('kanban_cards')
+      .select('rede_franqueado_id')
+      .eq('kanban_id', String(kanban.id))
+      .not('rede_franqueado_id', 'is', null),
+  ]);
   if (errRede) return { ok: false, error: errRede.message };
-
-  const { data: cards, error: errCards } = await db
-    .from('kanban_cards')
-    .select('rede_franqueado_id')
-    .eq('kanban_id', String(kanban.id))
-    .not('rede_franqueado_id', 'is', null);
   if (errCards) return { ok: false, error: errCards.message };
 
   const comCard = new Set(
@@ -337,12 +338,24 @@ export async function contarRedeSemCardFunilStepOne(): Promise<
   return { ok: true, total };
 }
 
+/** Evita varrer rede+cards a cada pageview do Step One (TTL por instância). */
+const AUTO_CURAR_TTL_MS = 5 * 60 * 1000;
+let autoCurarUltimaVerificacaoMs = 0;
+let autoCurarUltimoTotalPendente = 0;
+
 /**
  * Auto-cura silenciosa: cria cards ausentes ao carregar o Funil Step One (staff).
  * Idempotente — só executa backfill quando há rede sem card.
  */
 export async function autoCurarCardsFunilStepOneAusentes(fallbackUserId: string): Promise<void> {
+  const agora = Date.now();
+  if (agora - autoCurarUltimaVerificacaoMs < AUTO_CURAR_TTL_MS && autoCurarUltimoTotalPendente === 0) {
+    return;
+  }
+  autoCurarUltimaVerificacaoMs = agora;
+
   const count = await contarRedeSemCardFunilStepOne();
+  autoCurarUltimoTotalPendente = count.ok ? count.total : 0;
   if (!count.ok || count.total === 0) return;
 
   const res = await garantirCardsFunilStepOneParaTodaRede(fallbackUserId);
