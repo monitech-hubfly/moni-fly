@@ -4927,7 +4927,7 @@ export async function buscarChamadosDosCards(cardIds: string[]): Promise<Chamado
     .from('sirene_chamados')
     .select('id, card_id, numero, incendio, status, data_abertura')
     .in('card_id', cardIds as any)
-    .not('status', 'in', '("concluido","arquivado","concluído")')
+    .not('status', 'in', '(concluido,arquivado,concluído)')
     .eq('arquivado', false)
     .order('data_abertura', { ascending: false });
 
