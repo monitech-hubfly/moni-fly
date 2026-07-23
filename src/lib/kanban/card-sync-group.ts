@@ -138,10 +138,53 @@ export async function resolverProcessoStepOneIdDoCard(
   return null;
 }
 
+/**
+ * Resolve processo só por FK explícita (`processo_step_one_id`, `projeto_id`, shadow id).
+ * Usado no grupo de sync — evita agrupar cards distintos via rede/FK0000 heurístico.
+ */
+async function resolverProcessoIdExplicitoDoCard(db: SyncDb, cardId: string): Promise<string | null> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return null;
+
+  const { data: card } = await db
+    .from('kanban_cards')
+    .select('projeto_id, processo_step_one_id')
+    .eq('id', cid)
+    .maybeSingle();
+  const row = card as {
+    projeto_id?: string | null;
+    processo_step_one_id?: string | null;
+  } | null;
+
+  const processoStepOneId = String(row?.processo_step_one_id ?? '').trim();
+  if (processoStepOneId) {
+    const { data: byCol } = await db
+      .from('processo_step_one')
+      .select('id')
+      .eq('id', processoStepOneId)
+      .maybeSingle();
+    if (byCol?.id) return String(byCol.id);
+    // FK órfã: não inferir processo por projeto/rede (evita espelhar cards distintos).
+    return null;
+  }
+
+  const projetoId = String(row?.projeto_id ?? '').trim();
+  if (projetoId) {
+    const { data: byProjeto } = await db.from('processo_step_one').select('id').eq('id', projetoId).maybeSingle();
+    if (byProjeto?.id) return String(byProjeto.id);
+  }
+
+  const { data: proc } = await db.from('processo_step_one').select('id').eq('id', cid).maybeSingle();
+  return proc?.id ? String(proc.id) : null;
+}
+
 /** Resolve `processo_step_one.id` a partir do card kanban (sem importar módulo server-only). */
 async function resolverProcessoIdDoCard(db: SyncDb, cardId: string): Promise<string | null> {
   const cid = String(cardId ?? '').trim();
   if (!cid) return null;
+
+  const explicito = await resolverProcessoIdExplicitoDoCard(db, cid);
+  if (explicito) return explicito;
 
   const { data: card } = await db
     .from('kanban_cards')
@@ -155,16 +198,12 @@ async function resolverProcessoIdDoCard(db: SyncDb, cardId: string): Promise<str
     titulo?: string | null;
   } | null;
 
-  const resolved = await resolverProcessoStepOneIdDoCard(db, {
+  return resolverProcessoStepOneIdDoCard(db, {
     cardProcessoStepOneId: row?.processo_step_one_id,
     cardProjetoId: row?.projeto_id,
     redeFranqueadoId: row?.rede_franqueado_id,
     cardTitulo: row?.titulo,
   });
-  if (resolved) return resolved;
-
-  const { data: proc } = await db.from('processo_step_one').select('id').eq('id', cid).maybeSingle();
-  return proc?.id ? String(proc.id) : null;
 }
 
 /** Campos de `kanban_cards` replicados em todos os cards do grupo de sync. */
@@ -368,7 +407,7 @@ async function expandirOrigemCardId(db: SyncDb, ids: Set<string>): Promise<void>
 async function expandirProcessoShadow(db: SyncDb, ids: Set<string>): Promise<void> {
   const processoIds = new Set<string>();
   for (const cid of [...ids]) {
-    const pid = await resolverProcessoIdDoCard(db, cid);
+    const pid = await resolverProcessoIdExplicitoDoCard(db, cid);
     if (pid) processoIds.add(pid);
   }
 
@@ -378,7 +417,9 @@ async function expandirProcessoShadow(db: SyncDb, ids: Set<string>): Promise<voi
     const { data: porProcesso } = await db
       .from('kanban_cards')
       .select('id')
-      .or(`projeto_id.eq.${pid},processo_step_one_id.eq.${pid}`);
+      .or(
+        `id.eq.${pid},processo_step_one_id.eq.${pid},and(projeto_id.eq.${pid},processo_step_one_id.is.null)`,
+      );
 
     for (const row of porProcesso ?? []) {
       const id = String((row as { id?: string }).id ?? '').trim();

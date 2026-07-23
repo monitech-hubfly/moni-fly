@@ -80,6 +80,24 @@ async function buildProcessoIdsCobertosPorNativo(
   return out;
 }
 
+/** Remove duplicatas por `id` após merge nativo+legado; nativo prevalece sobre legado. */
+function dedupeKanbanCardsPreferindoNativo(cards: KanbanCardBrief[]): KanbanCardBrief[] {
+  const byId = new Map<string, KanbanCardBrief>();
+  for (const c of cards) {
+    const id = String(c.id ?? '').trim();
+    if (!id) continue;
+    const existing = byId.get(id);
+    if (!existing) {
+      byId.set(id, c);
+      continue;
+    }
+    if (existing.origem === 'legado' && c.origem !== 'legado') {
+      byId.set(id, c);
+    }
+  }
+  return [...byId.values()];
+}
+
 export type KanbanBoardSnapshot = {
   kanban: { id: string } | null;
   fases: KanbanFase[];
@@ -269,9 +287,16 @@ function cardNativoPrecisaCamposAncestrais(c: Record<string, unknown>): boolean 
   return !temCondominio || !temQuadra || !temLote || !temRede || partesTituloCard(titulo) < 3;
 }
 
+function chaveIrmaosProcessoCard(c: Record<string, unknown>): string {
+  const proc = String((c as { processo_step_one_id?: string | null }).processo_step_one_id ?? '').trim();
+  if (proc) return `proc:${proc}`;
+  const proj = String((c as { projeto_id?: string | null }).projeto_id ?? '').trim();
+  if (proj) return `proj:${proj}`;
+  return '';
+}
+
 function cardNativoPrecisaIrmaosProjeto(c: Record<string, unknown>): boolean {
-  const pid = String((c as { projeto_id?: string | null }).projeto_id ?? '').trim();
-  if (!pid) return false;
+  if (!chaveIrmaosProcessoCard(c)) return false;
   const titulo = String(c.titulo ?? '').trim();
   const parsed = parseCamposDoTituloCard(titulo);
   const temCondominio = Boolean(coalesceTextoCampo(c.nome_condominio, parsed.nomeCondominio));
@@ -326,11 +351,11 @@ function mesclarCamposComAncestrais(
 
 function mesclarCamposComProjetoIrmaos(
   card: Record<string, unknown>,
-  porProjeto: Map<string, Record<string, unknown>>,
+  porChaveProcesso: Map<string, Record<string, unknown>>,
 ): Record<string, unknown> {
-  const pid = String((card as { projeto_id?: string | null }).projeto_id ?? '').trim();
-  if (!pid) return card;
-  const fonte = porProjeto.get(pid);
+  const chave = chaveIrmaosProcessoCard(card);
+  if (!chave) return card;
+  const fonte = porChaveProcesso.get(chave);
   if (!fonte) return card;
   return mesclarCamposDeFonte(card, fonte);
 }
@@ -339,36 +364,46 @@ async function fetchCamposIrmaosPorProjeto(
   supabase: SupabaseClient,
   cards: Array<Record<string, unknown>>,
 ): Promise<Map<string, Record<string, unknown>>> {
-  const projetoIds = [
-    ...new Set(
-      cards
-        .map((c) => String((c as { projeto_id?: string | null }).projeto_id ?? '').trim())
-        .filter(Boolean),
-    ),
-  ];
+  const chaves = [...new Set(cards.map((c) => chaveIrmaosProcessoCard(c)).filter(Boolean))];
   const out = new Map<string, Record<string, unknown>>();
-  if (projetoIds.length === 0) return out;
+  if (chaves.length === 0) return out;
+
+  const processoIds = chaves.filter((k) => k.startsWith('proc:')).map((k) => k.slice(5));
+  const projetoIds = chaves.filter((k) => k.startsWith('proj:')).map((k) => k.slice(5));
 
   const chunkSize = 100;
   const rows: Record<string, unknown>[] = [];
+
+  for (let i = 0; i < processoIds.length; i += chunkSize) {
+    const chunk = processoIds.slice(i, i + chunkSize);
+    const { data } = await supabase
+      .from('kanban_cards')
+      .select(
+        'id, projeto_id, processo_step_one_id, titulo, nome_condominio, quadra, lote, rede_franqueado_id, data_followup, data_reuniao',
+      )
+      .in('processo_step_one_id', chunk);
+    rows.push(...((data ?? []) as Record<string, unknown>[]));
+  }
+
   for (let i = 0; i < projetoIds.length; i += chunkSize) {
     const chunk = projetoIds.slice(i, i + chunkSize);
     const { data } = await supabase
       .from('kanban_cards')
       .select(
-        'id, projeto_id, titulo, nome_condominio, quadra, lote, rede_franqueado_id, data_followup, data_reuniao',
+        'id, projeto_id, processo_step_one_id, titulo, nome_condominio, quadra, lote, rede_franqueado_id, data_followup, data_reuniao',
       )
-      .in('projeto_id', chunk);
+      .in('projeto_id', chunk)
+      .is('processo_step_one_id', null);
     rows.push(...((data ?? []) as Record<string, unknown>[]));
   }
 
-  for (const pid of projetoIds) {
-    const siblings = rows.filter((r) => String(r.projeto_id ?? '').trim() === pid);
+  for (const chave of chaves) {
+    const siblings = rows.filter((r) => chaveIrmaosProcessoCard(r) === chave);
     let agg: Record<string, unknown> = {};
     for (const sib of siblings) {
       agg = mesclarCamposDeFonte(agg, sib);
     }
-    if (Object.keys(agg).length > 0) out.set(pid, agg);
+    if (Object.keys(agg).length > 0) out.set(chave, agg);
   }
 
   return out;
@@ -1294,6 +1329,7 @@ export async function fetchKanbanBoardSnapshot(
     const id = String(c.id ?? '').trim();
     return Boolean(id);
   });
+  cards = dedupeKanbanCardsPreferindoNativo(cards);
 
   const supabaseEnrich = supabaseParaEnriquecerParalelas(supabase);
   [cards, cardsConcluidos] = await Promise.all([
