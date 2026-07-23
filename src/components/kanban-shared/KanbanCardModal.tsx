@@ -4060,12 +4060,8 @@ export function KanbanCardModal({
         const cur = { ...prevOv };
         if (campo === 'inicio') {
           cur.dataInicio = valor;
-          // Sem fim manual prévio: remove override de fim para o motor recalcular estimativa.
-          const tinhaFimManual =
-            'dataFim' in prevOv && prevOv.dataFim != null && String(prevOv.dataFim).trim() !== '';
-          if (!tinhaFimManual) {
-            delete cur.dataFim;
-          }
+          // Sempre remove override de fim ao mudar início — motor recalcula estimativa pelo SLA.
+          delete cur.dataFim;
         } else {
           cur.dataFim = valor;
         }
@@ -4097,10 +4093,6 @@ export function KanbanCardModal({
 
       const idx = calculadoraFasesPack.faseIds.indexOf(faseId);
       const fasesPosteriores = idx >= 0 ? calculadoraFasesPack.faseIds.slice(idx + 1) : [];
-
-      const prevOv = datasManuaisCalculadora.get(faseId) ?? {};
-      const tinhaFimManual =
-        'dataFim' in prevOv && prevOv.dataFim != null && String(prevOv.dataFim).trim() !== '';
 
       aplicarOverrideCalculadoraLocal(faseId, campo, valor);
 
@@ -4140,12 +4132,10 @@ export function KanbanCardModal({
       }
 
       const supabase = createClient();
-      // Ao mudar só o início sem fim manual: limpa data_fim no banco para não “congelar” a estimativa antiga.
+      // Ao mudar início: sempre limpa data_fim no banco para o motor recalcular pelo SLA.
       const patch =
         campo === 'inicio'
-          ? tinhaFimManual
-            ? { dataInicio: valor }
-            : { dataInicio: valor, dataFim: null }
+          ? { dataInicio: valor, dataFim: null }
           : { dataFim: valor };
       const result = await salvarDataManualCalculadoraSyncGroup(
         supabase,
