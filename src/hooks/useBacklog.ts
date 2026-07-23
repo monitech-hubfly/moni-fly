@@ -25,6 +25,7 @@ export type SireneItem = {
 
 export type AtividadeItem = {
   id: string;
+  acao_id: string | null;
   nome_acao: string | null;
   comportamento_chave: boolean;
   semana_ano_inicio: number | null;
@@ -237,6 +238,7 @@ export function useBacklog(): UseBacklogResult {
         const acaoObj = Array.isArray(row.acoes) ? row.acoes[0] : row.acoes;
         return {
           id:                    row.id,
+          acao_id:               row.acao_id,
           nome_acao:             acaoObj?.nome ?? null,
           comportamento_chave:   row.comportamento_chave ?? false,
           semana_ano_inicio:     row.semana_ano_inicio,

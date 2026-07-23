@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useBacklog }        from '@/hooks/useBacklog';
+import { useBacklogKanban }  from '@/hooks/useBacklogKanban';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -93,14 +95,14 @@ const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> 
   atrasado:     { bg: '#fee2e2', text: '#991b1b', label: 'atrasado'     },
 };
 
-function statusBadge(status: string) {
-  const s = STATUS_BADGE[status] ?? { bg: '#f3f4f6', text: '#374151', label: status };
-  return (
-    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: s.bg, color: s.text, flexShrink: 0 }}>
-      {s.label}
-    </span>
-  );
-}
+const PRIO_BADGE: Record<string, { bg: string; text: string }> = {
+  P1: { bg: '#fee2e2', text: '#991b1b' },
+  P2: { bg: '#ffedd5', text: '#c2410c' },
+  P3: { bg: '#fef9c3', text: '#92400e' },
+  P4: { bg: '#dbeafe', text: '#1e40af' },
+  P5: { bg: '#f3f4f6', text: '#374151' },
+  P6: { bg: '#f3f4f6', text: '#6b7280' },
+};
 
 // ── Seção colapsável ──────────────────────────────────────────────────────────
 
@@ -134,19 +136,13 @@ type BacklogItem = {
   id: string;
   label: string;
   sub: string;
-  status?: string;   // para sirene
-  badge?: string;    // texto do badge
+  status?: string;
+  badge?: string;
   badgeBg?: string;
   badgeText?: string;
-  extra?: string;    // proxima_atividade (kanban) ou objetivo (atividade)
+  extra?: string;
   objetivoId?: string | null;
-};
-
-type CardRaw = {
-  id: string; titulo: string | null; proxima_atividade: string | null;
-  arquivado?: boolean; concluido?: boolean;
-  fase: { nome: string } | { nome: string }[] | null;
-  kanban: { nome: string } | { nome: string }[] | null;
+  acoId?: string | null;       // acao_id real (gantt_planejamento.acao_id) para atividades
 };
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -155,6 +151,11 @@ export function ModalAgendamento({
   aberto, onFechar, onSalvar, preenchido, modo, profileId, areaId, isSaving, origemInfo,
 }: ModalAgendamentoProps) {
   const supabase = useMemo(() => createClient(), []);
+
+  // ── Hooks do backlog (mesma fonte que os blocos da página) ────────────────
+  const backlog    = useBacklog();
+  const kanbanData = useBacklogKanban();
+
   const [form, setForm] = useState<DadosAgendamento>({ ...EMPTY });
 
   // Abas e seleção de item
@@ -162,14 +163,8 @@ export function ModalAgendamento({
   const [query, setQuery]       = useState('');
   const [selItem, setSelItem]   = useState<BacklogItem | null>(null);
 
-  // Dados das listas
-  const [sireneItems, setSireneItems]     = useState<BacklogItem[]>([]);
-  const [atividItems, setAtividItems]     = useState<BacklogItem[]>([]);
-  const [kanbanItems, setKanbanItems]     = useState<BacklogItem[]>([]);
-  const [listLoading, setListLoading]     = useState(false);
-
   // Objetivo para aba Atividades (picker separado após seleção de acao)
-  const [objetivos,   setObjetivos]       = useState<{ id: string; descricao: string; tipo: string | null }[]>([]);
+  const [objetivos, setObjetivos] = useState<{ id: string; descricao: string; tipo: string | null }[]>([]);
 
   // Vínculos
   const [casas,       setCasas]       = useState<{ id: string; nome: string }[]>([]);
@@ -189,20 +184,69 @@ export function ModalAgendamento({
   const preenchidoRef = useRef(preenchido);
   preenchidoRef.current = preenchido;
 
-  // ── Limpa listas cacheadas ao trocar de usuário simulado ─────────────────
-  const prevProfileRef = useRef<string>(profileId);
-  const prevAreaRef    = useRef<string | null>(areaId);
-  useEffect(() => {
-    if (prevProfileRef.current !== profileId || prevAreaRef.current !== areaId) {
-      prevProfileRef.current = profileId;
-      prevAreaRef.current    = areaId;
-      setSireneItems([]);
-      setAtividItems([]);
-      setKanbanItems([]);
-      setSelItem(null);
-      setAbaAtiva(null);
-    }
-  }, [profileId, areaId]);
+  // ── Listas derivadas dos hooks (mesma ordenação e dados do backlog) ───────
+  const sireneItems = useMemo<BacklogItem[]>(() => [
+    ...backlog.sirene.map(t => {
+      const s = STATUS_BADGE[t.status] ?? STATUS_BADGE.nao_iniciado;
+      return {
+        id:       t.id,
+        label:    t.descricao ?? '(sem título)',
+        sub:      t.frank_nome
+          ? `${t.frank_nome}${t.chamado_numero ? ` #${t.chamado_numero}` : ''}`
+          : t.tipo ?? '—',
+        status:   t.status,
+        badge:    s.label,
+        badgeBg:  s.bg,
+        badgeText: s.text,
+      };
+    }),
+    ...backlog.pastelaria.map(p => ({
+      id:       p.id,
+      label:    p.nome,
+      sub:      p.coluna,
+      badge:    'pastelaria',
+      badgeBg:  '#ede9fe',
+      badgeText: '#5b21b6',
+    })),
+  ], [backlog.sirene, backlog.pastelaria]);
+
+  const atividItems = useMemo<BacklogItem[]>(() =>
+    backlog.atividades.map(a => {
+      const chave = a.comportamento_chave;
+      return {
+        id:         a.id,
+        label:      a.nome_acao ?? '(sem nome)',
+        sub:        a.semana_ano_fim ? `Até S${a.semana_ano_fim}` : '—',
+        badge:      chave ? '⭐ chave' : 'atividade',
+        badgeBg:    chave ? '#fef9c3' : '#f3f4f6',
+        badgeText:  chave ? '#92400e' : '#374151',
+        objetivoId: a.objetivo_id,
+        acoId:      a.acao_id,
+      };
+    }),
+  [backlog.atividades]);
+
+  const kanbanItems = useMemo<BacklogItem[]>(() =>
+    [...kanbanData.cards, ...kanbanData.sndCards].map(c => {
+      const parts = [c.kanban_nome, c.fase_nome].filter(Boolean);
+      const prio  = c.prioridade ?? null;
+      const pb    = prio ? (PRIO_BADGE[prio] ?? PRIO_BADGE.P6) : { bg: '#f3f4f6', text: '#6b7280' };
+      return {
+        id:        c.id,
+        label:     c.titulo ?? '(sem título)',
+        sub:       parts.join(' · '),
+        extra:     c.proxima_atividade ?? undefined,
+        badge:     prio ?? undefined,
+        badgeBg:   pb.bg,
+        badgeText: pb.text,
+      };
+    }),
+  [kanbanData.cards, kanbanData.sndCards]);
+
+  const listLoading =
+    (abaAtiva === 'sirene'     && backlog.isLoading) ||
+    (abaAtiva === 'atividades' && backlog.isLoading) ||
+    (abaAtiva === 'kanban'     && kanbanData.isLoading);
 
   // ── FIX Issue 2: carrega dados assim que areaId resolve ──────────────────
   useEffect(() => {
@@ -271,121 +315,6 @@ export function ModalAgendamento({
     setAbaAtiva(origemInicial);
   }, [aberto, origemInfo]);
 
-  // ── Carrega lista Sirene ao abrir aba ─────────────────────────────────────
-  useEffect(() => {
-    if (!aberto || abaAtiva !== 'sirene' || sireneItems.length > 0) return;
-    if (!profileId) return;
-    setListLoading(true);
-    void (async () => {
-      try {
-        const { data } = await supabase
-          .from('sirene_topicos')
-          .select('id, descricao, status, tipo')
-          .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
-          .in('status', ['nao_iniciado', 'em_andamento', 'atrasado'])
-          .eq('arquivado', false)
-          .order('created_at', { ascending: false })
-          .limit(80);
-        const sb = STATUS_BADGE;
-        setSireneItems(((data ?? []) as { id: string; descricao: string; status: string; tipo: string | null }[])
-          .map(t => ({
-            id: t.id,
-            label: t.descricao ?? '(sem título)',
-            sub: t.tipo ?? '—',
-            status: t.status,
-            badge: (sb[t.status] ?? sb['nao_iniciado']).label,
-            badgeBg: (sb[t.status] ?? sb['nao_iniciado']).bg,
-            badgeText: (sb[t.status] ?? sb['nao_iniciado']).text,
-          })));
-      } catch (e) { console.error('[Modal] sirene:', e); }
-      finally { setListLoading(false); }
-    })();
-  }, [aberto, abaAtiva, sireneItems.length, profileId, supabase]);
-
-  // ── Carrega lista Atividades ao abrir aba ─────────────────────────────────
-  useEffect(() => {
-    if (!aberto || abaAtiva !== 'atividades' || atividItems.length > 0) return;
-    if (!areaId) return;
-    setListLoading(true);
-    void (async () => {
-      try {
-        const { data } = await supabase
-          .from('acoes')
-          .select('id, tipo_atividade')
-          .eq('area_id', areaId)
-          .order('tipo_atividade');
-        setAtividItems(((data ?? []) as { id: string; tipo_atividade: string }[])
-          .map(a => ({
-            id: a.id,
-            label: a.tipo_atividade,
-            sub: '',
-            badgeBg: '#ede9fe',
-            badgeText: '#5b21b6',
-          })));
-      } catch (e) { console.error('[Modal] acoes:', e); }
-      finally { setListLoading(false); }
-    })();
-  }, [aberto, abaAtiva, atividItems.length, areaId, supabase]);
-
-  // ── Carrega lista Kanban ao abrir aba ─────────────────────────────────────
-  useEffect(() => {
-    if (!aberto || abaAtiva !== 'kanban' || kanbanItems.length > 0) return;
-    if (!profileId) return;
-    setListLoading(true);
-    void (async () => {
-      try {
-        const CARD_SEL = 'id, titulo, proxima_atividade, arquivado, concluido, fase:kanban_fases(nome), kanban:kanbans(nome)';
-        const [dirRes, atvRes, frankRes] = await Promise.all([
-          // Responsável direto no card
-          supabase.from('kanban_cards').select(CARD_SEL)
-            .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
-            .eq('arquivado', false).eq('concluido', false).limit(60),
-          // Responsável em atividade do card
-          supabase.from('kanban_atividades')
-            .select(`card_id, card:kanban_cards(${CARD_SEL})`)
-            .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
-            .neq('status', 'concluido').not('card_id', 'is', null),
-          // Franqueado linkado ao profileId
-          supabase.from('kanban_cards')
-            .select(`${CARD_SEL}, rede_franqueado:rede_franqueados(id, user_id)`)
-            .eq('arquivado', false).eq('concluido', false).limit(100),
-        ]);
-
-        const toItem = (c: CardRaw): BacklogItem => {
-          const fase   = Array.isArray(c.fase)   ? c.fase[0]   : c.fase;
-          const kanban = Array.isArray(c.kanban) ? c.kanban[0] : c.kanban;
-          const parts  = [kanban?.nome, fase?.nome].filter(Boolean);
-          return {
-            id: c.id,
-            label: c.titulo ?? '(sem título)',
-            sub: parts.join(' · '),
-            extra: c.proxima_atividade ?? undefined,
-            badgeBg: '#f3f4f6', badgeText: '#374151',
-          };
-        };
-
-        const mapa = new Map<string, BacklogItem>();
-
-        ((dirRes.data ?? []) as unknown as CardRaw[]).forEach(c => {
-          if (!c.arquivado && !c.concluido) mapa.set(c.id, toItem(c));
-        });
-        ((atvRes.data ?? []) as unknown as { card: CardRaw | CardRaw[] | null }[]).forEach(row => {
-          const c = Array.isArray(row.card) ? row.card[0] : row.card;
-          if (c && !c.arquivado && !c.concluido && !mapa.has(c.id)) mapa.set(c.id, toItem(c));
-        });
-        // Franqueado
-        type CardFrank = CardRaw & { rede_franqueado: { id: string; user_id: string | null } | { id: string; user_id: string | null }[] | null };
-        ((frankRes.data ?? []) as unknown as CardFrank[]).forEach(c => {
-          const rf = Array.isArray(c.rede_franqueado) ? c.rede_franqueado[0] : c.rede_franqueado;
-          if (rf?.user_id === profileId && !c.arquivado && !c.concluido && !mapa.has(c.id)) mapa.set(c.id, toItem(c));
-        });
-
-        setKanbanItems(Array.from(mapa.values()));
-      } catch (e) { console.error('[Modal] kanban:', e); }
-      finally { setListLoading(false); }
-    })();
-  }, [aberto, abaAtiva, kanbanItems.length, profileId, supabase]);
-
   // ── Disponibilidade ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!form.data || !form.hora_inicio || form.participantes.length === 0) {
@@ -440,7 +369,8 @@ export function ModalAgendamento({
   const handleSelItem = (item: BacklogItem) => {
     setSelItem(item);
     if (abaAtiva === 'atividades') {
-      set('acao_id', item.id);
+      set('acao_id', item.acoId ?? null);          // acao_id real do gantt
+      set('objetivo_id', item.objetivoId ?? null); // pré-preenche meta vinculada
       set('titulo', null);
       set('card_id', null);
     } else if (abaAtiva === 'kanban') {
@@ -617,7 +547,7 @@ export function ModalAgendamento({
                   <p className="text-xs text-gray-400 py-2">Nenhum item encontrado.</p>
                 ) : (
                   <div className="flex flex-col gap-1 max-h-44 overflow-y-auto">
-                    {itensFiltrados.slice(0, 30).map(item => (
+                    {itensFiltrados.slice(0, 50).map(item => (
                       <ItemCard key={item.id} item={item} />
                     ))}
                   </div>
