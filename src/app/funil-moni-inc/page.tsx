@@ -202,6 +202,8 @@ export default async function FunilMoniIncPage({
               currentUserId={user.id}
               mostrarLinkNovoCard={exibirNovoCard}
               podeCriarCards={exibirNovoCard ? true : false}
+              kanbanNome={KANBAN_NOME_FUNIL_LOTEADORES}
+              kanbanNomeDb={KANBAN_NOME_FUNIL_LOTEADORES}
               kanbanId={kanban.id}
             />
           </main>

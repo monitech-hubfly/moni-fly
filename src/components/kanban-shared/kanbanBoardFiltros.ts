@@ -1,5 +1,22 @@
-import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
+import { formatDataPtBr, indicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
+import {
+  calcularSlaKanbanCard,
+  creditoObraAguardandoDocumentacao,
+  TAG_AGUARDANDO_DOCUMENTACAO,
+  tagSlaKanbanParaExibicao,
+} from '@/lib/kanban/kanban-card-sla';
+import {
+  flagsParalelasFromCard,
+  montarChipsParalelas,
+} from '@/lib/kanban/kanban-paralelas-chips';
+import { isKanbanTagEspecialNome } from '@/lib/kanban/kanban-tag-especial';
 import type { KanbanCardBrief, KanbanFase } from './types';
+
+export type KanbanCardBuscaBoardContext = {
+  kanbanId: string;
+  fase?: KanbanFase | null;
+  hipotesesOrdemMin?: number | null;
+};
 
 export type KanbanBoardFiltrosStatus = 'ativos' | 'arquivados' | 'concluidos';
 export type KanbanBoardFiltrosSla = 'todos' | 'atrasados' | 'vence_hoje' | 'dentro_prazo';
@@ -103,48 +120,156 @@ function labelDataCardKanbanBusca(dataIso: string): string {
   return `Em ${diffDias}d`;
 }
 
+function separarCodigoTituloCardBusca(titulo: string): { codigo: string | null; tituloLimpo: string } {
+  const t = String(titulo ?? '').trim();
+  const m = t.match(/^(FK\d+)\s*[-–—]\s*(.+)$/i);
+  if (m?.[1] && m?.[2]) {
+    return { codigo: m[1].toUpperCase(), tituloLimpo: m[2].trim() };
+  }
+  return { codigo: null, tituloLimpo: t };
+}
+
+function labelPrazoProximaAtividadeBusca(prazo: string | null | undefined): string {
+  const p = String(prazo ?? '').trim();
+  if (!p) return '';
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (p < hoje) return 'Atrasada';
+  if (p === hoje) return 'Vence hoje';
+  const [y, m, d] = p.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function resolveKanbanCardBuscaBoardContext(
+  card: KanbanCardBrief,
+  ctx: KanbanCardBuscaBoardContext | KanbanFase | null | undefined,
+): KanbanCardBuscaBoardContext {
+  if (ctx && typeof ctx === 'object' && 'kanbanId' in ctx) return ctx;
+  return {
+    kanbanId: String(card.kanban_id ?? '').trim(),
+    fase: (ctx as KanbanFase | null | undefined) ?? null,
+  };
+}
+
 /** Texto agregado com tudo que o card fechado exibe no board (para busca). */
 export function textoVisivelCardKanbanFechado(
   card: KanbanCardBrief,
-  fase?: KanbanFase | null,
+  ctx: KanbanCardBuscaBoardContext | KanbanFase | null | undefined = null,
 ): string {
+  const context = resolveKanbanCardBuscaBoardContext(card, ctx);
+  const fase = context.fase ?? null;
+  const faseSlug = fase?.slug?.trim() ?? '';
+  const arquivado = card.origem !== 'legado' && Boolean(card.arquivado);
+  const concluido = card.origem !== 'legado' && Boolean(card.concluido);
+  const { codigo, tituloLimpo } = separarCodigoTituloCardBusca(card.titulo);
+  const franqueadoNome = card.profiles?.full_name?.trim() ?? '';
+  const responsavelNome = card.responsavel_fase_nome?.trim() ?? '';
+  const subtitulo = card.subtitulo?.trim() ?? '';
+
   const partes: string[] = [
     card.titulo,
-    card.status,
+    codigo ?? '',
+    tituloLimpo,
+    franqueadoNome,
+    responsavelNome,
+    subtitulo,
     card.motivo_arquivamento ?? '',
-    card.profiles?.full_name ?? '',
-    card.responsavel_fase_nome ?? '',
   ];
 
-  if (card.origem !== 'legado' && card.arquivado) partes.push('ARQUIVADO');
-  if (card.origem !== 'legado' && card.concluido) partes.push('CONCLUÍDO');
+  if (card.funding_tipo) partes.push(card.funding_tipo);
 
-  if (card.data_reuniao) {
-    partes.push('Reunião', labelDataCardKanbanBusca(card.data_reuniao), card.data_reuniao);
-  }
-  if (card.data_followup) {
-    partes.push('Follow-up', 'Follow up', labelDataCardKanbanBusca(card.data_followup), card.data_followup);
-  }
+  if (arquivado) partes.push('ARQUIVADO');
+  if (concluido) partes.push('CONCLUÍDO');
 
   for (const t of card.tagsCard ?? []) {
     partes.push(t.nome);
+    if (isKanbanTagEspecialNome(t.nome)) partes.push('Especial');
   }
 
-  const created = new Date(card.created_at);
-  if (!Number.isNaN(created.getTime())) {
-    partes.push('Criado', created.toLocaleDateString('pt-BR'), created.toISOString().slice(0, 10));
-    const sla = calcularSlaKanbanCard({
-      created_at: card.created_at,
-      entered_fase_at: card.entered_fase_at,
-      sla_iniciado_em: card.sla_iniciado_em,
-      faseSlug: fase?.slug,
+  const aguardandoDoc =
+    card.origem !== 'legado' &&
+    !arquivado &&
+    !concluido &&
+    creditoObraAguardandoDocumentacao({
+      faseSlug,
       alvara_url: card.alvara_url,
       docs_terreno_url: card.docs_terreno_url,
-      sla_dias: fase?.sla_dias,
-      sla_tipo: fase?.sla_tipo,
     });
+  if (aguardandoDoc) partes.push(TAG_AGUARDANDO_DOCUMENTACAO);
+
+  const sla = calcularSlaKanbanCard({
+    created_at: card.created_at,
+    entered_fase_at: card.entered_fase_at,
+    sla_iniciado_em: card.sla_iniciado_em,
+    faseSlug,
+    alvara_url: card.alvara_url,
+    docs_terreno_url: card.docs_terreno_url,
+    sla_dias: fase?.sla_dias,
+    sla_tipo: fase?.sla_tipo,
+  });
+
+  if (!arquivado && !concluido && !aguardandoDoc) {
+    const slaChip = tagSlaKanbanParaExibicao(sla);
+    if (slaChip?.texto) partes.push(slaChip.texto);
     if (sla.label) partes.push(sla.label);
-    partes.push(sla.status);
+  }
+
+  if (!arquivado && !concluido && card.data_reuniao) {
+    const reuniaoIso = String(card.data_reuniao);
+    const ind = indicadorDataKanban('reuniao', reuniaoIso);
+    partes.push('Reunião', formatDataPtBr(reuniaoIso), reuniaoIso, labelDataCardKanbanBusca(reuniaoIso));
+    if (ind) {
+      partes.push(ind.rotuloCurto, ind.title);
+    }
+  }
+
+  const proxima = String(card.proxima_atividade ?? '').trim();
+  if (!arquivado && !concluido) {
+    if (proxima) {
+      partes.push(proxima, 'Próxima atividade');
+    } else {
+      partes.push('Próxima atividade não definida');
+    }
+    const prazoLabel = labelPrazoProximaAtividadeBusca(card.prazo_atividade);
+    if (prazoLabel) {
+      partes.push(prazoLabel, String(card.prazo_atividade ?? '').trim());
+    }
+  }
+
+  const chipsParalelas = montarChipsParalelas(
+    {
+      kanbanId: context.kanbanId,
+      faseSlug,
+      faseNome: fase?.nome,
+      faseOrdem: fase?.ordem,
+      hipotesesOrdemMin: context.hipotesesOrdemMin ?? null,
+      origem: card.origem,
+      flags: flagsParalelasFromCard(card),
+      portfolioVinculoRotulo: card.portfolio_vinculo_rotulo,
+      temFilhoJuridico: card.tem_filho_juridico,
+      temFilhoAcoplamento: card.tem_filho_acoplamento,
+      filhoAcoplamentoArquivado: card.filho_acoplamento_arquivado,
+      temFilhoOperacoes: card.tem_filho_operacoes,
+      filhoOperacoesArquivado: card.filho_operacoes_arquivado,
+      operacoesFilhoConcluido: card.operacoes_filho_concluido,
+      operacoesFilhoFaseRotulo: card.operacoes_filho_fase_rotulo,
+      juridicoFilhoFaseRotulo: card.juridico_filho_fase_nome,
+      temFilhoProjetoLegal: card.tem_filho_projeto_legal,
+      filhoProjetoLegalArquivado: card.filho_projeto_legal_arquivado,
+      projetoLegalFilhoConcluido: card.projeto_legal_filho_concluido,
+      projetoLegalFilhoFase: card.projeto_legal_filho_fase,
+      temFilhoCreditoObra: card.tem_filho_credito_obra,
+      filhoCreditoObraArquivado: card.filho_credito_obra_arquivado,
+      creditoObraFilhoFase: card.credito_obra_filho_fase,
+      temFilhoProjetosLocais: card.tem_filho_projetos_locais,
+      filhoProjetosLocaisArquivado: card.filho_projetos_locais_arquivado,
+      projetosLocaisFilhoFase: card.projetos_locais_filho_fase,
+    },
+    { labelsCompletos: false },
+  );
+  for (const chip of chipsParalelas) {
+    partes.push(chip.label);
+    if (chip.funilNome) partes.push(chip.funilNome);
+    if (chip.faseNome) partes.push(chip.faseNome);
   }
 
   return partes.filter(Boolean).join(' ');
@@ -155,9 +280,14 @@ export function cardKanbanMatchBuscaVisivel(
   card: KanbanCardBrief,
   query: string,
   faseMap: Map<string, KanbanFase>,
+  kanbanId: string,
+  hipotesesOrdemMin?: number | null,
 ): boolean {
-  const fase = faseMap.get(card.fase_id);
-  return textoMatchBuscaKanbanPalavras(textoVisivelCardKanbanFechado(card, fase), query);
+  const fase = faseMap.get(card.fase_id) ?? null;
+  return textoMatchBuscaKanbanPalavras(
+    textoVisivelCardKanbanFechado(card, { kanbanId, fase, hipotesesOrdemMin }),
+    query,
+  );
 }
 
 export function cardPassaFiltrosBoard(

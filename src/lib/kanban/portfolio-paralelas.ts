@@ -72,8 +72,14 @@ export async function resolverCardPaiParaAcoplamento(
 
   if (!error && card?.id) {
     const kanbanId = String((card as { kanban_id?: string | null }).kanban_id ?? '').trim();
-    // Loteadores ou Pré Obra e Obra (Operações) como pai do vínculo manual de Acoplamento
-    if (kanbanId === KANBAN_IDS.LOTEADORES || kanbanId === KANBAN_IDS.OPERACOES) return cid;
+    // Set Up (Step One), Loteadores ou Pré Obra e Obra como pai do vínculo manual de Acoplamento
+    if (
+      kanbanId === KANBAN_IDS.STEP_ONE ||
+      kanbanId === KANBAN_IDS.LOTEADORES ||
+      kanbanId === KANBAN_IDS.OPERACOES
+    ) {
+      return cid;
+    }
 
     const origemId = String((card as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
     if (origemId) {
@@ -86,7 +92,11 @@ export async function resolverCardPaiParaAcoplamento(
       const origemKanban = String(
         (origem as { kanban_id?: string | null } | null)?.kanban_id ?? '',
       ).trim();
-      if (origemKanban === KANBAN_IDS.LOTEADORES || origemKanban === KANBAN_IDS.OPERACOES) {
+      if (
+        origemKanban === KANBAN_IDS.STEP_ONE ||
+        origemKanban === KANBAN_IDS.LOTEADORES ||
+        origemKanban === KANBAN_IDS.OPERACOES
+      ) {
         return origemId;
       }
     }
@@ -158,5 +168,10 @@ export function deveDispararBastaoAcoplamentoAutomatico(
 
 export function kanbanPermiteAbrirFunilAcoplamentoManual(kanbanId: string | null | undefined): boolean {
   const id = String(kanbanId ?? '').trim();
-  return id === KANBAN_IDS.PORTFOLIO || id === KANBAN_IDS.LOTEADORES || id === KANBAN_IDS.OPERACOES;
+  return (
+    id === KANBAN_IDS.STEP_ONE ||
+    id === KANBAN_IDS.PORTFOLIO ||
+    id === KANBAN_IDS.LOTEADORES ||
+    id === KANBAN_IDS.OPERACOES
+  );
 }

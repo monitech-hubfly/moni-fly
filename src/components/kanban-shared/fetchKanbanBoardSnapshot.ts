@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAccessRole } from '@/lib/authz';
 import { KANBAN_ID_BY_NOME, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { tryCreateAdminClient } from '@/lib/supabase/admin';
 import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 import { prepareStepOneBoardSnapshot } from '@/lib/kanban/stepone-fase-slugs';
 import {
@@ -217,6 +218,35 @@ function partesTituloCard(t: string): number {
   return t.split(' - ').map((p) => p.trim()).filter(Boolean).length;
 }
 
+/** Evita walk recursivo em `origem_card_id` quando o card já tem campos de exibição completos. */
+function cardNativoPrecisaCamposAncestrais(c: Record<string, unknown>): boolean {
+  const origem = String((c as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+  if (!origem) return false;
+  const titulo = String(c.titulo ?? '').trim();
+  const parsed = parseCamposDoTituloCard(titulo);
+  const temCondominio = Boolean(coalesceTextoCampo(c.nome_condominio, parsed.nomeCondominio));
+  const temQuadra = Boolean(coalesceTextoCampo(c.quadra, parsed.quadra));
+  const temLote = Boolean(coalesceTextoCampo(c.lote, parsed.lote));
+  const temRede = Boolean(
+    String((c as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim(),
+  );
+  return !temCondominio || !temQuadra || !temLote || !temRede || partesTituloCard(titulo) < 3;
+}
+
+function cardNativoPrecisaIrmaosProjeto(c: Record<string, unknown>): boolean {
+  const pid = String((c as { projeto_id?: string | null }).projeto_id ?? '').trim();
+  if (!pid) return false;
+  const titulo = String(c.titulo ?? '').trim();
+  const parsed = parseCamposDoTituloCard(titulo);
+  const temCondominio = Boolean(coalesceTextoCampo(c.nome_condominio, parsed.nomeCondominio));
+  const temQuadra = Boolean(coalesceTextoCampo(c.quadra, parsed.quadra));
+  const temLote = Boolean(coalesceTextoCampo(c.lote, parsed.lote));
+  const temRede = Boolean(
+    String((c as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim(),
+  );
+  return !temCondominio || !temQuadra || !temLote || !temRede || partesTituloCard(titulo) < 3;
+}
+
 function mesclarCamposDeFonte(
   dest: Record<string, unknown>,
   fonte: Record<string, unknown>,
@@ -388,6 +418,22 @@ async function resolveKanbanAtivo(
 
   const row = kanbans?.[0];
   return row?.id ? { id: String(row.id) } : null;
+}
+
+/** Enriquecimento de bolinhas: service role evita RLS bloquear filhos de outros funis. */
+export function supabaseParaEnriquecerParalelas(userClient: SupabaseClient): SupabaseClient {
+  const admin = tryCreateAdminClient();
+  if (!admin) {
+    const msg =
+      '[kanban] enrich paralelas: service role indisponível — filhos cross-funil dependem da RPC kanban_filhos_paralelas_por_pais (migration 473)';
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+      console.error(msg);
+    } else {
+      console.warn(msg);
+    }
+    return userClient;
+  }
+  return admin;
 }
 
 /**
@@ -935,9 +981,15 @@ export async function fetchKanbanBoardSnapshot(
     ...((conclRaw ?? []) as Record<string, unknown>[]),
     ...((arquivRaw ?? []) as Record<string, unknown>[]),
   ];
+  const cardsParaAncestrais = cardsNativosRaw.filter(cardNativoPrecisaCamposAncestrais);
+  const cardsParaIrmaos = cardsNativosRaw.filter(cardNativoPrecisaIrmaosProjeto);
   const [ancestraisMap, irmaosProjetoMap] = await Promise.all([
-    fetchCamposAncestraisPorCard(supabase, cardsNativosRaw),
-    fetchCamposIrmaosPorProjeto(supabase, cardsNativosRaw),
+    cardsParaAncestrais.length > 0
+      ? fetchCamposAncestraisPorCard(supabase, cardsParaAncestrais)
+      : Promise.resolve(new Map<string, Record<string, unknown>>()),
+    cardsParaIrmaos.length > 0
+      ? fetchCamposIrmaosPorProjeto(supabase, cardsParaIrmaos)
+      : Promise.resolve(new Map<string, Record<string, unknown>>()),
   ]);
 
   const loteadorPorId = new Map<
@@ -1142,12 +1194,6 @@ export async function fetchKanbanBoardSnapshot(
   let cardsConcluidos = (conclRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
   let cardsArquivadosNativo = (arquivRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
 
-  [cardsNativo, cardsConcluidos, cardsArquivadosNativo] = await Promise.all([
-    enrichCardsParalelasContext(supabase, kanbanIdStr, cardsNativo),
-    enrichCardsParalelasContext(supabase, kanbanIdStr, cardsConcluidos),
-    enrichCardsParalelasContext(supabase, kanbanIdStr, cardsArquivadosNativo),
-  ]);
-
   /** `processo_step_one.etapa_painel` prevalece sobre `kanban_cards.fase_id` (incl. UUID de outro funil). */
   const processoIdsReconciliar = coletarIdsProcessoDosCards(
     cardsNativo,
@@ -1180,13 +1226,17 @@ export async function fetchKanbanBoardSnapshot(
   cardsConcluidos = mesclarDatasLegado(cardsConcluidos);
   cardsArquivadosNativo = mesclarDatasLegado(cardsArquivadosNativo);
 
-  cardsNativo = await enrichCardsDatasFromProcesso(supabase, cardsNativo);
-  cardsConcluidos = await enrichCardsDatasFromProcesso(supabase, cardsConcluidos);
-  cardsArquivadosNativo = await enrichCardsDatasFromProcesso(supabase, cardsArquivadosNativo);
+  [cardsNativo, cardsConcluidos, cardsArquivadosNativo] = await Promise.all([
+    enrichCardsDatasFromProcesso(supabase, cardsNativo),
+    enrichCardsDatasFromProcesso(supabase, cardsConcluidos),
+    enrichCardsDatasFromProcesso(supabase, cardsArquivadosNativo),
+  ]);
 
-  cardsNativo = await enrichCardsFollowupFromAtividades(supabase, cardsNativo);
-  cardsConcluidos = await enrichCardsFollowupFromAtividades(supabase, cardsConcluidos);
-  cardsArquivadosNativo = await enrichCardsFollowupFromAtividades(supabase, cardsArquivadosNativo);
+  [cardsNativo, cardsConcluidos, cardsArquivadosNativo] = await Promise.all([
+    enrichCardsFollowupFromAtividades(supabase, cardsNativo),
+    enrichCardsFollowupFromAtividades(supabase, cardsConcluidos),
+    enrichCardsFollowupFromAtividades(supabase, cardsArquivadosNativo),
+  ]);
 
   const idsComLinhaNativa = new Set([
     ...cardsNativo.map((c) => c.id),
@@ -1203,6 +1253,15 @@ export async function fetchKanbanBoardSnapshot(
     const id = String(c.id ?? '').trim();
     return Boolean(id);
   });
+
+  const supabaseEnrich = supabaseParaEnriquecerParalelas(supabase);
+  cards = await enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cards, supabase);
+  cardsConcluidos = await enrichCardsParalelasContext(
+    supabaseEnrich,
+    kanbanIdStr,
+    cardsConcluidos,
+    supabase,
+  );
 
   const allCardIds = [...new Set([...cards.map((c) => c.id), ...cardsConcluidos.map((c) => c.id)].filter(Boolean))];
   const faseIdsOrfas = [...cards.map((c) => c.fase_id), ...cardsConcluidos.map((c) => c.fase_id)];

@@ -15,6 +15,7 @@ import { precisaMotivoReprovacaoComiteNoCancelamento } from '@/lib/painel/dashbo
 import { allocNextOrdemColunaPainel } from '@/lib/painel-coluna-ordem';
 import { getPainelDbForPublicEdit } from '@/lib/painel-public-edit';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
+import { calcularDataEmissaoAlvara } from '@/lib/pre-obra/emissao-alvara-data';
 
 const STEP2_NOVO_NEGOCIO_ESTUDOS_DOCS_TITULOS = [
   'BCA',
@@ -276,16 +277,21 @@ export async function updateDadosPreObra(
   const previsaoPref = normalize(payload.previsao_aprovacao_prefeitura);
   const envioCreditoObra =
     previsaoPref != null ? calcularDataEnvioCreditoObra(previsaoPref) : normalize(payload.previsao_liberacao_credito_obra);
+  const previsaoAlvara =
+    previsaoPref != null ? calcularDataEmissaoAlvara(previsaoPref) : normalize(payload.previsao_emissao_alvara);
+  const dataPref = normalize(payload.data_aprovacao_prefeitura);
+  const dataAlvara =
+    dataPref != null ? calcularDataEmissaoAlvara(dataPref) : normalize(payload.data_emissao_alvara);
 
   const { error } = await supabase
     .from('processo_step_one')
     .update({
       previsao_aprovacao_condominio: normalize(payload.previsao_aprovacao_condominio),
       previsao_aprovacao_prefeitura: previsaoPref,
-      previsao_emissao_alvara: normalize(payload.previsao_emissao_alvara),
+      previsao_emissao_alvara: previsaoAlvara,
       data_aprovacao_condominio: normalize(payload.data_aprovacao_condominio),
-      data_aprovacao_prefeitura: normalize(payload.data_aprovacao_prefeitura),
-      data_emissao_alvara: normalize(payload.data_emissao_alvara),
+      data_aprovacao_prefeitura: dataPref,
+      data_emissao_alvara: dataAlvara,
       data_aprovacao_credito: normalize(payload.data_aprovacao_credito),
       previsao_liberacao_credito_obra: envioCreditoObra,
       previsao_inicio_obra: normalize(payload.previsao_inicio_obra),

@@ -1,6 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { Suspense } from 'react';
 import { HDM_RESPONSAVEIS_TODOS_EMAILS } from '@/lib/times-responsaveis';
 import { InteracoesLista, type InteracaoSireneRow } from './InteracoesLista';
 
@@ -20,31 +19,35 @@ export default async function SireneChamadosPage({
 
   const admin = createAdminClient();
 
-  const { data: viewRows, error: viewErr } = await admin
-    .from('v_atividades_unificadas')
-    .select(
-      [
-        'id',
-        'card_id',
-        'card_titulo',
-        'fase_nome',
-        'kanban_nome',
-        'kanban_id',
-        'responsavel_id',
-        'responsavel_nome',
-        'tipo',
-        'titulo',
-        'descricao',
-        'atividade_status',
-        'data_vencimento',
-        'time_nome',
-        'times_nomes',
-        'franqueado_nome',
-        'criado_em',
-        'sla_status',
-      ].join(', '),
-    )
-    .order('criado_em', { ascending: false });
+  const [viewResult, supabaseUser] = await Promise.all([
+    admin
+      .from('v_atividades_unificadas')
+      .select(
+        [
+          'id',
+          'card_id',
+          'card_titulo',
+          'fase_nome',
+          'kanban_nome',
+          'kanban_id',
+          'responsavel_id',
+          'responsavel_nome',
+          'tipo',
+          'titulo',
+          'descricao',
+          'atividade_status',
+          'data_vencimento',
+          'time_nome',
+          'times_nomes',
+          'franqueado_nome',
+          'criado_em',
+          'sla_status',
+        ].join(', '),
+      )
+      .order('criado_em', { ascending: false }),
+    createClient(),
+  ]);
+  const { data: viewRows, error: viewErr } = viewResult;
 
   let painelErro: string | null = null;
   let interacoesListaProps: {
@@ -60,7 +63,6 @@ export default async function SireneChamadosPage({
   if (viewErr) {
     painelErro = viewErr.message;
   } else {
-    const supabaseUser = await createClient();
     const {
       data: { user },
     } = await supabaseUser.auth.getUser();
@@ -97,14 +99,21 @@ export default async function SireneChamadosPage({
     >();
     if (ids.length > 0) {
       const chunk = 200;
+      const slices: string[][] = [];
       for (let i = 0; i < ids.length; i += chunk) {
-        const slice = ids.slice(i, i + chunk);
-        const { data: kaRows } = await admin
-          .from('kanban_atividades')
-          .select(
-            'id, trava, origem, responsaveis_ids, times_ids, responsavel_nome_texto, sirene_chamado_id, categoria, time_abertura_nome, numero, criado_por',
-          )
-          .in('id', slice);
+        slices.push(ids.slice(i, i + chunk));
+      }
+      const kaChunkResults = await Promise.all(
+        slices.map((slice) =>
+          admin
+            .from('kanban_atividades')
+            .select(
+              'id, trava, origem, responsaveis_ids, times_ids, responsavel_nome_texto, sirene_chamado_id, categoria, time_abertura_nome, numero, criado_por',
+            )
+            .in('id', slice),
+        ),
+      );
+      for (const { data: kaRows } of kaChunkResults) {
         for (const r of kaRows ?? []) {
           const id = String((r as { id: string }).id);
           const raw = (r as { responsaveis_ids?: unknown }).responsaveis_ids;
@@ -539,17 +548,15 @@ export default async function SireneChamadosPage({
         {painelErro ? (
           <p className="text-red-700">Erro ao carregar o painel: {painelErro}</p>
         ) : interacoesListaProps ? (
-          <Suspense fallback={<p className="text-sm text-[color:var(--moni-text-tertiary)]">Carregando chamados…</p>}>
-            <InteracoesLista
-              interacoes={interacoesListaProps.interacoes}
-              times={interacoesListaProps.times}
-              responsaveis={interacoesListaProps.responsaveis}
-              currentUserId={interacoesListaProps.currentUserId}
-              sessionEhAdmin={interacoesListaProps.sessionEhAdmin}
-              comentariosCountByCardId={interacoesListaProps.comentariosCountByCardId}
-              filtroTipoChamado={interacoesListaProps.filtroTipoChamado}
-            />
-          </Suspense>
+          <InteracoesLista
+            interacoes={interacoesListaProps.interacoes}
+            times={interacoesListaProps.times}
+            responsaveis={interacoesListaProps.responsaveis}
+            currentUserId={interacoesListaProps.currentUserId}
+            sessionEhAdmin={interacoesListaProps.sessionEhAdmin}
+            comentariosCountByCardId={interacoesListaProps.comentariosCountByCardId}
+            filtroTipoChamado={interacoesListaProps.filtroTipoChamado}
+          />
         ) : null}
       </section>
     </main>

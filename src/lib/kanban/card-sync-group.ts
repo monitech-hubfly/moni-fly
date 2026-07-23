@@ -5,6 +5,7 @@ import {
   cardKanbanNaEsteiraPrincipalCalculadora,
   segmentoEsteiraCardCalculadora,
 } from '@/lib/kanban/calculadora-fases-esteira';
+import { tipoKanbanHistoricoFromAcao } from '@/lib/kanban/kanban-historico-tipo';
 
 type SyncDb = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
 
@@ -1249,7 +1250,7 @@ async function espelharHistoricoCalculadoraCadeiaPai(
 
   const { data: rows, error } = await db
     .from('kanban_historico')
-    .select('acao, usuario_id, usuario_nome, detalhe, criado_em')
+    .select('acao, tipo, usuario_id, usuario_nome, detalhe, criado_em')
     .in('card_id', chainIds)
     .in('acao', ['fase_avancada', 'fase_retrocedida'])
     .order('criado_em', { ascending: true });
@@ -1263,12 +1264,15 @@ async function espelharHistoricoCalculadoraCadeiaPai(
     const nov = String(det?.fase_nova_id ?? '').trim();
     const criado = String((row as { criado_em?: string }).criado_em ?? '').trim();
     const acao = String((row as { acao?: string }).acao ?? '').trim();
+    const tipoRaw = String((row as { tipo?: string | null }).tipo ?? '').trim();
+    const tipo = tipoRaw || tipoKanbanHistoricoFromAcao(acao);
     const key = `${criado}|${acao}|${ant}|${nov}`;
     if (!criado || seen.has(key)) continue;
     seen.add(key);
     inserts.push({
       card_id: filhoId,
       acao,
+      tipo,
       usuario_id: (row as { usuario_id?: string | null }).usuario_id ?? null,
       usuario_nome: (row as { usuario_nome?: string | null }).usuario_nome ?? null,
       detalhe: det,
@@ -1292,6 +1296,7 @@ async function espelharHistoricoCalculadoraCadeiaPai(
     const { error: criadoErr } = await db.from('kanban_historico').insert({
       card_id: filhoId,
       acao: 'card_criado',
+      tipo: tipoKanbanHistoricoFromAcao('card_criado'),
       usuario_nome: 'Sistema',
       detalhe: { fase_id: faseDestinoId, fase_slug: faseDestinoSlug },
       criado_em: now,

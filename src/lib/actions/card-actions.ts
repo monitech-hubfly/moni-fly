@@ -23,6 +23,7 @@ import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
 import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
+import { calcularDataEmissaoAlvara } from '@/lib/pre-obra/emissao-alvara-data';
 import type { FundingTipo } from '@/lib/kanban/funding-card-fields';
 import {
   deveValidarGateLoteadoresComite,
@@ -31,6 +32,7 @@ import {
 } from '@/lib/kanban/portfolio-paralelas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { inserirKanbanCardVinculo, garantirShadowKanbanCardLegadoPorId } from '@/lib/kanban/kanban-card-vinculos';
+import { kanbanPermiteVinculoComProjetoLegal } from '@/lib/kanban/esteira-manual-destinos';
 import {
   faseNomeExibicaoVinculoCard,
   limparTagAcoplamentoPaiDoFilhoArquivado,
@@ -2682,6 +2684,13 @@ export async function salvarDadosPreObra(input: SalvarDadosPreObraInput): Promis
   if (input.previsao_aprovacao_prefeitura !== undefined) {
     update.previsao_liberacao_credito_obra =
       calcularDataEnvioCreditoObra(String(input.previsao_aprovacao_prefeitura ?? '')) ?? null;
+    update.previsao_emissao_alvara =
+      calcularDataEmissaoAlvara(String(input.previsao_aprovacao_prefeitura ?? '')) ?? null;
+  }
+
+  if (input.data_aprovacao_prefeitura !== undefined) {
+    update.data_emissao_alvara =
+      calcularDataEmissaoAlvara(String(input.data_aprovacao_prefeitura ?? '')) ?? null;
   }
 
   const cardOrigem = String(input.cardOrigemId ?? pid).trim();
@@ -2705,12 +2714,14 @@ export async function salvarDadosPreObra(input: SalvarDadosPreObraInput): Promis
 }
 
 /** Salva dados do negócio no processo e propaga ao grupo de sync. */
+export type SalvarDadosNegocioKanbanResult = ActionResult & { processoId?: string };
+
 export async function salvarDadosNegocioKanban(input: {
   cardId: string;
   processoId: string;
   payload: ProcessoNegocioUpdatePayload;
   basePath?: string;
-}): Promise<ActionResult> {
+}): Promise<SalvarDadosNegocioKanbanResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -2787,7 +2798,7 @@ export async function salvarDadosNegocioKanban(input: {
 
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
-  return { ok: true };
+  return { ok: true, processoId: dedicado.processoId };
 }
 
 export type UploadContratoFranquiaResult = ActionResult & { path?: string };
@@ -3717,6 +3728,16 @@ export async function buscarCardsParaVinculo(
   if (t.length < 2) return { ok: true, items: [] };
 
   const ex = String(excetoCardId ?? '').trim();
+  let kanbanOrigemId = '';
+  if (ex) {
+    const { data: origRow } = await supabase
+      .from('kanban_cards')
+      .select('kanban_id')
+      .eq('id', ex)
+      .maybeSingle();
+    kanbanOrigemId = String((origRow as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim();
+  }
+
   let q = supabase
     .from('kanban_cards')
     .select('id, titulo, kanban_id, kanbans(nome)')
@@ -3730,6 +3751,7 @@ export async function buscarCardsParaVinculo(
   const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
   const role = (prof as { role?: string | null } | null)?.role;
   const ocultarInternos = isFrankOrFranqueadoRole(role);
+  const permiteProjetoLegal = kanbanPermiteVinculoComProjetoLegal(kanbanOrigemId);
 
   const items: BuscaCardVinculoRow[] = (data ?? [])
     .map((row) => {
@@ -3742,6 +3764,10 @@ export async function buscarCardsParaVinculo(
       };
     })
     .filter((it) => !ocultarInternos || !isKanbanIdInterno(it.kanban_id))
+    .filter(
+      (it) =>
+        permiteProjetoLegal || String(it.kanban_id ?? '').trim() !== KANBAN_IDS.PROJETO_LEGAL,
+    )
     .map(({ id, titulo, kanban_nome }) => ({ id, titulo, kanban_nome }));
 
   return { ok: true, items };
@@ -3783,6 +3809,28 @@ export async function criarVinculoCard(input: {
   if (!shadowOrig.ok) return { ok: false, error: shadowOrig.error };
   const shadowDest = await garantirShadowKanbanCardLegadoPorId(db, dest);
   if (!shadowDest.ok) return { ok: false, error: shadowDest.error };
+
+  const { data: cardsKanban } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id')
+    .in('id', [orig, dest]);
+  const kanbanPorCard = new Map(
+    (cardsKanban ?? []).map((row) => {
+      const r = row as { id: string; kanban_id?: string | null };
+      return [String(r.id), String(r.kanban_id ?? '').trim()] as const;
+    }),
+  );
+  const kanbanOrigem = kanbanPorCard.get(orig) ?? '';
+  const kanbanDestino = kanbanPorCard.get(dest) ?? '';
+  if (
+    kanbanDestino === KANBAN_IDS.PROJETO_LEGAL &&
+    !kanbanPermiteVinculoComProjetoLegal(kanbanOrigem)
+  ) {
+    return {
+      ok: false,
+      error: 'Somente cards do Funil Pré Obra e Obra podem vincular com Funil Projeto Legal.',
+    };
+  }
 
   const { error } = await inserirKanbanCardVinculo(db, {
     cardOrigemId: orig,
@@ -5679,6 +5727,21 @@ export async function upsertFaseChecklistResposta(input: {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  const cardId = String(input.card_id ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { data: cardExists } = await supabase.from('kanban_cards').select('id').eq('id', cardId).maybeSingle();
+  if (!cardExists?.id) {
+    try {
+      const admin = createAdminClient();
+      const shadow = await garantirShadowKanbanCardLegadoPorId(admin, cardId);
+      if (!shadow.ok) return { ok: false, error: shadow.error };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg || 'Erro ao preparar card legado para checklist.' };
+    }
+  }
 
   const { data: itemRow } = await supabase
     .from('kanban_fase_checklist_itens')

@@ -32,6 +32,7 @@ export function ResponsavelDaFaseSidebar({ cardId, faseId, readOnly = false, onA
   const [valor, setValor] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [carregando, setCarregando] = useState(true);
+  const [erroSalvar, setErroSalvar] = useState<string | null>(null);
 
   const selectOptions = useMemo(
     () => OPCOES_RESPONSAVEL_DA_FASE.map((opcao) => ({ value: opcao, label: opcao })),
@@ -95,15 +96,22 @@ export function ResponsavelDaFaseSidebar({ cardId, faseId, readOnly = false, onA
   async function salvar(novoValor: string) {
     if (!itemId || readOnly) return;
     const v = normalizarValorLista(novoValor);
+    const valorAnterior = valor;
     setValor(v);
     setSalvando(true);
-    await upsertFaseChecklistResposta({
+    setErroSalvar(null);
+    const res = await upsertFaseChecklistResposta({
       item_id: itemId,
       card_id: cardId,
       valor: v || null,
     });
-    onAlterado?.(faseId, v);
     setSalvando(false);
+    if (!res.ok) {
+      setValor(valorAnterior);
+      setErroSalvar(res.error ?? 'Não foi possível salvar o responsável da fase.');
+      return;
+    }
+    onAlterado?.(faseId, v);
   }
 
   if (carregando) {
@@ -129,6 +137,11 @@ export function ResponsavelDaFaseSidebar({ cardId, faseId, readOnly = false, onA
   return (
     <div>
       {salvando ? <Loader2 size={10} className="mb-1 inline animate-spin" /> : null}
+      {erroSalvar ? (
+        <p className="mb-1 text-[10px]" style={{ color: 'var(--moni-error-600, #9b2c2c)' }}>
+          {erroSalvar}
+        </p>
+      ) : null}
       <SearchableSelect
         value={valor}
         onChange={(v) => void salvar(v)}

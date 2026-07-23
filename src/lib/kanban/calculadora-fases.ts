@@ -11,6 +11,7 @@ import { custoPadraoPorSlug } from '@/lib/kanban/custo-padrao-por-slug';
 import { resolverSlaCalculadoraFase } from '@/lib/kanban/sla-fallback-calculadora-por-slug';
 import type { CondominioPrazosAprovacaoSla } from '@/lib/kanban/condominio-prazos-aprovacao';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { calcularDataEmissaoAlvara } from '@/lib/pre-obra/emissao-alvara-data';
 
 export type { FaseTimelineStatus };
 
@@ -114,6 +115,42 @@ export function idxAprovacaoCondominioCalculadora(linhas: CalculadoraFaseLinha[]
       String(l.faseSlug ?? '').trim() === CALCULADORA_ANCORA_CONDOMINIO_SLUG ||
       /aprova[cç][aã]o\s+(?:n[oa]\s+)?condom[ií]nio/i.test(String(l.faseNome ?? '').trim()),
   );
+}
+
+/** Slug canônico da fase "Aprovação na Prefeitura". */
+export const CALCULADORA_APROVACAO_PREFEITURA_SLUG = FASE_SLUGS.APROVACAO_PREFEITURA;
+
+/** Localiza a linha da fase "Aprovação na Prefeitura" (por slug ou nome). */
+export function idxAprovacaoPrefeituraCalculadora(linhas: CalculadoraFaseLinha[]): number {
+  return linhas.findIndex(
+    (l) =>
+      String(l.faseSlug ?? '').trim() === CALCULADORA_APROVACAO_PREFEITURA_SLUG ||
+      /aprova[cç][aã]o\s+(?:n[oa]\s+)?prefeitura/i.test(String(l.faseNome ?? '').trim()),
+  );
+}
+
+/** Datas de aprovação em Dados Pré Obra (processo / draft). */
+export type CalculadoraDatasAprovacaoPreObra = {
+  dataAprovacaoCondominio?: string | null;
+  dataAprovacaoPrefeitura?: string | null;
+};
+
+/** Campo Pré Obra espelhado pela fase de aprovação na Calculadora (ou null). */
+export type CampoDataAprovacaoPreObra =
+  | 'data_aprovacao_condominio'
+  | 'data_aprovacao_prefeitura';
+
+/**
+ * Mapeia slug da Calculadora → campo Dados Pré Obra.
+ * Espelho: Data Aprovação Condomínio/Prefeitura ↔ data fim real das fases.
+ */
+export function campoDataAprovacaoPreObraPorFaseSlug(
+  slug: string | null | undefined,
+): CampoDataAprovacaoPreObra | null {
+  const s = String(slug ?? '').trim();
+  if (s === CALCULADORA_ANCORA_CONDOMINIO_SLUG) return 'data_aprovacao_condominio';
+  if (s === CALCULADORA_APROVACAO_PREFEITURA_SLUG) return 'data_aprovacao_prefeitura';
+  return null;
 }
 
 /**
@@ -731,6 +768,211 @@ export function aplicarOverlayAncoraOcultarFasesAnteriores(
       status: 'concluida' as const,
     };
   });
+}
+
+export type ExtrairDatasAprovacaoPreObraOpts = {
+  /** Overrides manuais (kanban_calculadora_fase_datas) — precedência sobre linha após overlay de âncora. */
+  overrides?: Map<string, CalculadoraFaseDataManualOverride>;
+};
+
+/**
+ * Data fim efetiva de fase de aprovação concluída (status concluída / concluída_atraso).
+ * Precedência: override manual de fim → dataFimReal → dataFimEstimada (fase concluída sem fim real).
+ */
+export function dataFimRealAprovacaoConcluida(
+  linha: CalculadoraFaseLinha | null | undefined,
+  override?: CalculadoraFaseDataManualOverride,
+): string | null {
+  if (!linha) return null;
+  const st = linha.status;
+  if (st !== 'concluida' && st !== 'concluida_atraso') return null;
+  if (overrideTemFimManual(override)) {
+    return toYmd(override!.dataFim);
+  }
+  const real = toYmd(linha.dataFimReal);
+  if (real) return real;
+  return toYmd(linha.dataFimEstimada);
+}
+
+/**
+ * Extrai datas de aprovação a partir das linhas da Calculadora (fase concluída + fim efetivo).
+ * Preferir linhas **sem** overlay de âncora (datas anteriores à âncora não são zeradas).
+ */
+export function extrairDatasAprovacaoPreObraDaCalculadora(
+  linhas: CalculadoraFaseLinha[],
+  opts?: ExtrairDatasAprovacaoPreObraOpts,
+): CalculadoraDatasAprovacaoPreObra {
+  if (linhas.length === 0) {
+    return { dataAprovacaoCondominio: null, dataAprovacaoPrefeitura: null };
+  }
+  const overrides = opts?.overrides;
+  const idxCondo = idxAprovacaoCondominioCalculadora(linhas);
+  const idxPref = idxAprovacaoPrefeituraCalculadora(linhas);
+  const resolver = (idx: number): string | null => {
+    if (idx < 0) return null;
+    const linha = linhas[idx]!;
+    const ov = overrides?.get(linha.faseId);
+    return dataFimRealAprovacaoConcluida(linha, ov);
+  };
+  return {
+    dataAprovacaoCondominio: resolver(idxCondo),
+    dataAprovacaoPrefeitura: resolver(idxPref),
+  };
+}
+
+/**
+ * Precedência: Calculadora (concluída + data fim real) manda sobre Pré Obra.
+ * Se a fase ainda não tem fim real concluído, mantém a data Pré Obra (overlay).
+ */
+export function resolverDatasAprovacaoComPrecedenciaCalculadora(
+  linhas: CalculadoraFaseLinha[],
+  datasPreObra: CalculadoraDatasAprovacaoPreObra | null | undefined,
+): CalculadoraDatasAprovacaoPreObra {
+  const daCalc = extrairDatasAprovacaoPreObraDaCalculadora(linhas);
+  return {
+    dataAprovacaoCondominio:
+      daCalc.dataAprovacaoCondominio ?? toYmd(datasPreObra?.dataAprovacaoCondominio) ?? null,
+    dataAprovacaoPrefeitura:
+      daCalc.dataAprovacaoPrefeitura ?? toYmd(datasPreObra?.dataAprovacaoPrefeitura) ?? null,
+  };
+}
+
+/**
+ * Patch dos campos Pré Obra que divergem (ou estão vazios) da Calculadora concluída.
+ * Retorna `null` quando já alinhados.
+ */
+export function patchPreObraAlinharComCalculadora(
+  linhas: CalculadoraFaseLinha[],
+  preObra: {
+    data_aprovacao_condominio?: string | null;
+    data_aprovacao_prefeitura?: string | null;
+    data_emissao_alvara?: string | null;
+  },
+  opts?: ExtrairDatasAprovacaoPreObraOpts,
+): Partial<{
+  data_aprovacao_condominio: string;
+  data_aprovacao_prefeitura: string;
+  data_emissao_alvara: string;
+}> | null {
+  const daCalc = extrairDatasAprovacaoPreObraDaCalculadora(linhas, opts);
+  const patch: Partial<{
+    data_aprovacao_condominio: string;
+    data_aprovacao_prefeitura: string;
+    data_emissao_alvara: string;
+  }> = {};
+
+  if (daCalc.dataAprovacaoCondominio) {
+    const atual = toYmd(preObra.data_aprovacao_condominio) ?? '';
+    if (atual !== daCalc.dataAprovacaoCondominio) {
+      patch.data_aprovacao_condominio = daCalc.dataAprovacaoCondominio;
+    }
+  }
+  if (daCalc.dataAprovacaoPrefeitura) {
+    const atual = toYmd(preObra.data_aprovacao_prefeitura) ?? '';
+    if (atual !== daCalc.dataAprovacaoPrefeitura) {
+      patch.data_aprovacao_prefeitura = daCalc.dataAprovacaoPrefeitura;
+    }
+  }
+
+  const prefEfetiva =
+    daCalc.dataAprovacaoPrefeitura ?? toYmd(preObra.data_aprovacao_prefeitura) ?? null;
+  if (prefEfetiva) {
+    const alvaraCalc = calcularDataEmissaoAlvara(prefEfetiva);
+    if (alvaraCalc) {
+      const atualAlvara = toYmd(preObra.data_emissao_alvara) ?? '';
+      if (atualAlvara !== alvaraCalc) {
+        patch.data_emissao_alvara = alvaraCalc;
+      }
+    }
+  }
+
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
+/**
+ * Dados Pré Obra ↔ Calculadora (fases Aprovação no Condomínio / na Prefeitura).
+ *
+ * Com data efetiva, a fase recebe data fim real e status concluída
+ * (ou concluída em atraso se estourar SLA) — coluna «real» na UI.
+ *
+ * Precedência (qualquer card com processo):
+ * 1. Calculadora com fase concluída + data fim real é a fonte autoritativa →
+ *    Pré Obra deve espelhar esse YMD (hidratação no load + alinhamento se divergir).
+ * 2. Overlay Pré Obra → Calculadora só preenche quando a Calculadora ainda não tem
+ *    fim real concluído (ex.: usuário marcou aprovação só em Pré Obra).
+ * 3. Use `resolverDatasAprovacaoComPrecedenciaCalculadora` antes do overlay.
+ * 4. Editar fim / marcar concluída na Calculadora grava o mesmo YMD em Pré Obra;
+ *    salvar Pré Obra persiste data_fim na Calculadora (espelho bidirecional na edição).
+ */
+export function aplicarDatasAprovacaoPreObraCalculadora(
+  linhas: CalculadoraFaseLinha[],
+  datas: CalculadoraDatasAprovacaoPreObra | null | undefined,
+  card: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+): CalculadoraFaseLinha[] {
+  if (!datas || linhas.length === 0) return linhas;
+
+  // Não sobrescrever fim real já concluído na Calculadora com Pré Obra divergente.
+  const efetivas = resolverDatasAprovacaoComPrecedenciaCalculadora(linhas, datas);
+  const dataCondo = toYmd(efetivas.dataAprovacaoCondominio);
+  const dataPref = toYmd(efetivas.dataAprovacaoPrefeitura);
+  if (!dataCondo && !dataPref) return linhas;
+
+  const hoje = hojeYmd(hojeRef);
+  const ordemAtual = ordemAtualCalculadoraLinhas(linhas, card);
+  let out = linhas.map((l) => ({ ...l }));
+
+  const forcarFaseConcluidaComFimReal = (idx: number, dataFim: string) => {
+    if (idx < 0 || idx >= out.length) return;
+    const row = out[idx]!;
+    const dataInicioReal = reconciliarInicioComFimReal(row.dataInicioReal, dataFim);
+    const dataFimEstimada =
+      dataInicioReal && row.slaDias != null && row.slaDias > 0
+        ? fimEstimadaPorSla(dataInicioReal, row.slaDias, row.slaTipo)
+        : row.dataFimEstimada;
+    const atrasada = faseUltrapassouSla(
+      dataInicioReal,
+      dataFim,
+      dataFimEstimada,
+      row.slaDias,
+      row.slaTipo,
+    );
+    const status: FaseTimelineStatus = atrasada ? 'concluida_atraso' : 'concluida';
+    const atrasoDias = resolveAtraso(
+      status,
+      dataInicioReal,
+      dataFimEstimada,
+      dataFim,
+      hoje,
+      row.slaTipo,
+      row.slaDias,
+    );
+    out[idx] = {
+      ...row,
+      dataInicioReal,
+      dataFimReal: dataFim,
+      dataFimEstimada,
+      status,
+      atrasoDias,
+    };
+  };
+
+  const idxCondo = dataCondo ? idxAprovacaoCondominioCalculadora(out) : -1;
+  const idxPref = dataPref ? idxAprovacaoPrefeituraCalculadora(out) : -1;
+  if (dataCondo) forcarFaseConcluidaComFimReal(idxCondo, dataCondo);
+  if (dataPref) forcarFaseConcluidaComFimReal(idxPref, dataPref);
+
+  const indices = [idxCondo, idxPref].filter((i) => i >= 0);
+  if (indices.length === 0) return linhas;
+
+  const desde = Math.min(...indices);
+  out = propagarLinhasCalculadoraForward(out, desde, card, ordemAtual, hoje);
+  // Propagação / resolveStatus podem marcar a fase atual como "em andamento" mesmo com fim real —
+  // reaplica o force para manter concluída + data fim real das aprovações Pré Obra.
+  if (dataCondo) forcarFaseConcluidaComFimReal(idxAprovacaoCondominioCalculadora(out), dataCondo);
+  if (dataPref) forcarFaseConcluidaComFimReal(idxAprovacaoPrefeituraCalculadora(out), dataPref);
+
+  return out;
 }
 
 /**
@@ -1431,8 +1673,15 @@ export function inferirFimRealPorProximaFase(
     if (row.dataFimReal) continue;
     const ov = overrides?.get(row.faseId);
     if (overrideTemFimManual(ov)) continue;
-    // Override com fim null (limpeza intencional) — não repor pela próxima fase.
-    if (ov && 'dataFim' in ov && ov.dataFim == null) continue;
+    // Limpeza intencional (início+fim null) — não repor pela próxima fase.
+    const limparDatasIntencional =
+      ov &&
+      'dataInicio' in ov &&
+      ov.dataInicio == null &&
+      'dataFim' in ov &&
+      ov.dataFim == null;
+    if (limparDatasIntencional) continue;
+    // Override só com fim null (ex.: início manual sem fim) em fase já superada: infere pela próxima.
     const concluida = row.status === 'concluida' || row.status === 'concluida_atraso';
     if (!concluida) continue;
     const proximoInicio = out[i + 1]!.dataInicioReal;

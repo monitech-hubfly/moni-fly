@@ -2,20 +2,36 @@
 
 import { useMemo } from 'react';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
-import type { PipelineCardRow, PipelineEsteiraHistoricoPorCard } from '@/lib/kanban/pipeline-cards-types';
+import type {
+  PipelineCardRow,
+  PipelineEsteiraCalculadoraPorGrupo,
+} from '@/lib/kanban/pipeline-cards-types';
 import {
-  ESTEIRA_COLUNAS,
-  computarDatasEsteira,
-  extrairHistoricoDeSaida,
-  parseEnteredFaseAtEsteira,
-  resolverColunaEsteira,
-} from '@/lib/kanban/pipeline-esteira-datas';
+  ESTEIRA_CALCULADORA_COLUNAS,
+  ESTEIRA_CALCULADORA_COLUNAS_OP,
+  ESTEIRA_CALCULADORA_COLUNAS_PORT,
+} from '@/lib/kanban/pipeline-esteira-calculadora-colunas';
+import {
+  agruparCardsEsteiraCalculadora,
+  chaveGrupoEsteiraCalculadora,
+  resolverPackEsteiraCalculadora,
+} from '@/lib/kanban/fetch-pipeline-esteira-calculadora';
+import {
+  computarDatasEsteiraCalculadora,
+  formatDataCelulaEsteira,
+  isCelulaCtoDuplo,
+  labelFaseAtualCalculadora,
+  ordemGlobalFaseCalculadora,
+  resolverFaseAtualCalculadora,
+  segmentoBadgeFaseCalculadora,
+  type CelulaEsteiraCalculadora,
+} from '@/lib/kanban/pipeline-esteira-calculadora-datas';
 
-const ESTEIRA_KANBAN_IDS = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES] as const;
+const ESTEIRA_KANBAN_IDS = new Set<string>([KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES]);
 
 export type PipelineEsteiraTableProps = {
   cards: PipelineCardRow[];
-  historico: PipelineEsteiraHistoricoPorCard;
+  esteiraCalculadora?: PipelineEsteiraCalculadoraPorGrupo;
 };
 
 function abreviarNome(nome: string | null | undefined): string {
@@ -27,51 +43,88 @@ function abreviarNome(nome: string | null | undefined): string {
   return parts.slice(0, 2).join(' ');
 }
 
-function formatDataCelula(date: Date): string {
-  return date
-    .toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
-    .replace(/\./g, '');
+function clsCelula(celula: CelulaEsteiraCalculadora, concluida: boolean): string {
+  if (!celula.date) return 'none';
+  if (celula.isCurrent) {
+    return celula.tipo === 'at' ? 'at' : 'est';
+  }
+  if (concluida) return 'concluida';
+  return celula.tipo === 'real' ? 'real' : celula.tipo === 'at' ? 'at' : 'est';
 }
 
-function badgeSegmentoEsteira(ordemGlobal: number): 'step' | 'port' | 'op' {
-  if (ordemGlobal >= 11) return 'op';
-  if (ordemGlobal >= 4) return 'port';
-  return 'step';
+function CelulaData({
+  celula,
+  concluida,
+}: {
+  celula: CelulaEsteiraCalculadora;
+  concluida: boolean;
+}) {
+  if (!celula.date) {
+    return <span className="moni-pipeline-esteira-date-none">—</span>;
+  }
+
+  const cls = clsCelula(celula, concluida);
+
+  return (
+    <span className={`moni-pipeline-esteira-date-${cls}`}>{formatDataCelulaEsteira(celula.date)}</span>
+  );
 }
 
-export function PipelineEsteiraTable({ cards, historico }: PipelineEsteiraTableProps) {
+function CelulaCtoDuplo({
+  cp,
+  contrato,
+  ordemAtual,
+}: {
+  cp: CelulaEsteiraCalculadora;
+  contrato: CelulaEsteiraCalculadora;
+  ordemAtual: number;
+}) {
+  const cpConcluida = ordemAtual > 0;
+  const contratoConcluida = ordemAtual > 0;
+
+  return (
+    <div className="moni-pipeline-esteira-cto-duplo">
+      <div className="moni-pipeline-esteira-cto-linha">
+        <span className="moni-pipeline-esteira-cto-label">CP</span>
+        <CelulaData celula={cp} concluida={cpConcluida && !cp.isCurrent} />
+      </div>
+      <div className="moni-pipeline-esteira-cto-linha">
+        <span className="moni-pipeline-esteira-cto-label">Contrato</span>
+        <CelulaData celula={contrato} concluida={contratoConcluida && !contrato.isCurrent} />
+      </div>
+    </div>
+  );
+}
+
+export function PipelineEsteiraTable({ cards, esteiraCalculadora = {} }: PipelineEsteiraTableProps) {
   const linhas = useMemo(() => {
-    return cards
-      .filter((card) => (ESTEIRA_KANBAN_IDS as readonly string[]).includes(card.kanban_id))
-      .map((card) => {
-        const faseCol = resolverColunaEsteira(card);
-        if (!faseCol) return null;
+    const grupos = agruparCardsEsteiraCalculadora(cards);
 
-        const hist = extrairHistoricoDeSaida(historico[card.id] ?? []);
-        const datas = computarDatasEsteira(
-          {
-            faseId: card.fase_id,
-            faseSlug: card.fase_slug,
-            enteredFaseAt: parseEnteredFaseAtEsteira(card.entered_fase_at, card.created_at),
-            slaAtual: card.fase_sla_dias,
-            slaAtualTipo: card.fase_sla_tipo,
-          },
-          hist,
-          faseCol.ordemGlobal,
-        );
+    return [...grupos.entries()]
+      .map(([chave, { rep }]) => {
+        const pack =
+          esteiraCalculadora[chave] ?? resolverPackEsteiraCalculadora(rep, esteiraCalculadora);
+        if (!pack || pack.linhas.length === 0) return null;
 
-        return { card, faseCol, datas };
+        const datas = computarDatasEsteiraCalculadora(pack.linhas);
+        const faseAtual = resolverFaseAtualCalculadora(pack.linhas);
+        const ordemAtual = ordemGlobalFaseCalculadora(pack.linhas, faseAtual);
+
+        return {
+          chave,
+          card: rep,
+          datas,
+          faseAtual,
+          ordemAtual,
+          isCurAtrasado: faseAtual?.status === 'atual_atrasada',
+        };
       })
       .filter((linha): linha is NonNullable<typeof linha> => linha != null)
       .sort((a, b) => {
-        if (b.faseCol.ordemGlobal !== a.faseCol.ordemGlobal) {
-          return b.faseCol.ordemGlobal - a.faseCol.ordemGlobal;
-        }
-        const aEnt = parseEnteredFaseAtEsteira(a.card.entered_fase_at, a.card.created_at).getTime();
-        const bEnt = parseEnteredFaseAtEsteira(b.card.entered_fase_at, b.card.created_at).getTime();
-        return aEnt - bEnt;
+        if (b.ordemAtual !== a.ordemAtual) return b.ordemAtual - a.ordemAtual;
+        return String(a.card.titulo ?? '').localeCompare(String(b.card.titulo ?? ''), 'pt-BR');
       });
-  }, [cards, historico]);
+  }, [cards, esteiraCalculadora]);
 
   if (linhas.length === 0) {
     return (
@@ -79,10 +132,13 @@ export function PipelineEsteiraTable({ cards, historico }: PipelineEsteiraTableP
         className="rounded-xl border border-dashed px-4 py-10 text-center text-[11px]"
         style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-tertiary)' }}
       >
-        Nenhum card nas fases-chave da esteira com os filtros atuais.
+        Nenhum card em Portfólio ou Pré Obra e Obra com os filtros atuais.
       </p>
     );
   }
+
+  const colPort = ESTEIRA_CALCULADORA_COLUNAS_PORT.length;
+  const colOp = ESTEIRA_CALCULADORA_COLUNAS_OP.length;
 
   return (
     <div className="moni-pipeline-esteira-scroll">
@@ -92,20 +148,17 @@ export function PipelineEsteiraTable({ cards, historico }: PipelineEsteiraTableP
             <th colSpan={2} className="moni-pipeline-esteira-th-info">
               Projeto
             </th>
-            <th colSpan={3} className="moni-pipeline-esteira-th-step">
-              Step One
-            </th>
-            <th colSpan={7} className="moni-pipeline-esteira-th-port">
+            <th colSpan={colPort} className="moni-pipeline-esteira-th-port">
               Portfólio
             </th>
-            <th colSpan={4} className="moni-pipeline-esteira-th-op">
+            <th colSpan={colOp} className="moni-pipeline-esteira-th-op">
               Pré Obra e Obra
             </th>
           </tr>
           <tr>
             <th className="moni-pipeline-esteira-th cl">Franqueado / Projeto</th>
             <th className="moni-pipeline-esteira-th cl">Fase atual</th>
-            {ESTEIRA_COLUNAS.map((col) => (
+            {ESTEIRA_CALCULADORA_COLUNAS.map((col) => (
               <th key={col.slug} className="moni-pipeline-esteira-th">
                 {col.label}
               </th>
@@ -113,29 +166,31 @@ export function PipelineEsteiraTable({ cards, historico }: PipelineEsteiraTableP
           </tr>
         </thead>
         <tbody>
-          {linhas.map(({ card, faseCol, datas }) => {
-            const isCurAtrasado = Object.values(datas).some((d) => d.isCurrent && d.tipo === 'at');
-            const segmento = badgeSegmentoEsteira(faseCol.ordemGlobal);
+          {linhas.map(({ chave, card, datas, faseAtual, ordemAtual, isCurAtrasado }) => {
+            const segmento = segmentoBadgeFaseCalculadora(faseAtual);
             const badgeCls = isCurAtrasado ? 'atrasado' : segmento;
             const nomeAbrev = abreviarNome(card.franqueado_nome);
+            const faseLabel = labelFaseAtualCalculadora(faseAtual);
 
             return (
-              <tr key={card.id}>
+              <tr key={chave}>
                 <td className="moni-pipeline-esteira-td-info">
                   <div className="moni-pipeline-esteira-proj-linha">
                     <span className="moni-pipeline-esteira-fk">{card.n_franquia ?? '—'}</span>
-                    {nomeAbrev ? <span className="moni-pipeline-esteira-frank-nome">{nomeAbrev}</span> : null}
+                    {nomeAbrev ? (
+                      <span className="moni-pipeline-esteira-frank-nome">{nomeAbrev}</span>
+                    ) : null}
                   </div>
                   <div className="moni-pipeline-esteira-proj-nome" title={card.titulo}>
                     {card.titulo}
                   </div>
                 </td>
                 <td className="moni-pipeline-esteira-td-info">
-                  <span className={`moni-pipeline-esteira-fase-badge ${badgeCls}`}>{faseCol.label}</span>
+                  <span className={`moni-pipeline-esteira-fase-badge ${badgeCls}`}>{faseLabel}</span>
                 </td>
-                {ESTEIRA_COLUNAS.map((col) => {
-                  const celula = datas[col.slug];
-                  if (!celula?.date) {
+                {ESTEIRA_CALCULADORA_COLUNAS.map((col) => {
+                  const val = datas[col.slug];
+                  if (!val) {
                     return (
                       <td key={col.slug} className="moni-pipeline-esteira-dc">
                         <span className="moni-pipeline-esteira-date-none">—</span>
@@ -143,19 +198,15 @@ export function PipelineEsteiraTable({ cards, historico }: PipelineEsteiraTableP
                     );
                   }
 
-                  const dateStr = formatDataCelula(celula.date);
-                  const isConcluida = col.ordemGlobal < faseCol.ordemGlobal;
-                  const cls = celula.isCurrent
-                    ? celula.tipo === 'at'
-                      ? 'at'
-                      : 'est'
-                    : isConcluida
-                      ? 'concluida'
-                      : celula.tipo === 'real'
-                        ? 'real'
-                        : celula.tipo === 'at'
-                          ? 'at'
-                          : 'est';
+                  if (isCelulaCtoDuplo(val)) {
+                    return (
+                      <td key={col.slug} className="moni-pipeline-esteira-dc moni-pipeline-esteira-dc-cto">
+                        <CelulaCtoDuplo cp={val.cp} contrato={val.contrato} ordemAtual={ordemAtual} />
+                      </td>
+                    );
+                  }
+
+                  const celula = val as CelulaEsteiraCalculadora;
                   const curCls =
                     celula.isCurrent && celula.tipo === 'at'
                       ? ' cur-at'
@@ -165,7 +216,7 @@ export function PipelineEsteiraTable({ cards, historico }: PipelineEsteiraTableP
 
                   return (
                     <td key={col.slug} className={`moni-pipeline-esteira-dc${curCls}`}>
-                      <span className={`moni-pipeline-esteira-date-${cls}`}>{dateStr}</span>
+                      <CelulaData celula={celula} concluida={ordemAtual > 0 && !celula.isCurrent} />
                     </td>
                   );
                 })}
@@ -177,3 +228,11 @@ export function PipelineEsteiraTable({ cards, historico }: PipelineEsteiraTableP
     </div>
   );
 }
+
+/** Filtra cards elegíveis para a esteira calculadora (export para testes). */
+export function cardsElegiveisEsteiraCalculadora(cards: PipelineCardRow[]): PipelineCardRow[] {
+  return cards.filter((c) => ESTEIRA_KANBAN_IDS.has(c.kanban_id));
+}
+
+/** Chave de grupo exposta para testes. */
+export { chaveGrupoEsteiraCalculadora };

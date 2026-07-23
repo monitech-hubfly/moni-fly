@@ -74,7 +74,7 @@ export function negocioDraftFromProcesso(
   return {
     tipo_aquisicao_terreno: tipo,
     valor_terreno: moedaCampoValorInicial(proc.valor_terreno),
-    vgv_pretendido: proc.vgv_pretendido != null ? String(proc.vgv_pretendido) : '',
+    vgv_pretendido: moedaCampoValorInicial(proc.vgv_pretendido),
     produto_modelo_casa: proc.produto_modelo_casa ?? '',
     link_pasta_drive: proc.link_pasta_drive ?? '',
     link_bca: proc.link_bca ?? '',

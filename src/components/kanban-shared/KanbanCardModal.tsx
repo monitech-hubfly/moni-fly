@@ -87,6 +87,8 @@ import { deletarChamado, listAnexosPorChamados, uploadAnexoChamado, getAnexoCham
 import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { resolverKanbanOrigemIdParaEsteiraManual } from '@/lib/kanban/esteira-manual-destinos';
+import { isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import {
   autorizarAberturaCreditoObra,
   consultarAberturaCreditoObraPendente,
@@ -94,6 +96,10 @@ import {
 } from '@/lib/actions/credito-obra-abertura-automatica';
 import { garantirBastaoPassagemWayser } from '@/lib/actions/kanban-bastoes';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
+import {
+  aplicarDataEmissaoAlvaraNoPreObra,
+  aplicarPrevisaoEmissaoAlvaraNoPreObra,
+} from '@/lib/pre-obra/emissao-alvara-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
 import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import {
@@ -157,8 +163,10 @@ import {
 } from '@/lib/kanban/dados-negocio-prazo';
 import {
   negociacaoLinhasToDb,
+  parseNegociacaoLinhasFromDb,
   parseVinculoCalculadoraNegociacao,
   type NegociacaoLinha,
+  type NegociacaoLinhaDraft,
 } from '@/lib/kanban/negociacao-linhas';
 import {
   negocioDraftFromProcesso,
@@ -178,8 +186,10 @@ import { montarTimelineCalculadoraComMarcos } from '@/lib/kanban/calculadora-fas
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
 import { KanbanCardModalCalculadoraFases } from './KanbanCardModalCalculadoraFases';
 import {
+  campoDataAprovacaoOperacoesPorFaseSlug,
   operacoesPreObraDraftFromCard,
   OPERACOES_PRE_OBRA_DRAFT_EMPTY,
+  patchOperacoesPreObraAlinharComCalculadora,
   type OperacoesPreObraDraft,
 } from '@/lib/kanban/previsibilidade-operacoes';
 import {
@@ -330,7 +340,7 @@ import {
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { DadosMoniCapitalPersistentPanel } from './DadosMoniCapitalPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, aplicarDatasAprovacaoPreObraCalculadora, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, campoDataAprovacaoPreObraPorFaseSlug, patchPreObraAlinharComCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -415,6 +425,12 @@ type Card = {
   filho_projeto_legal_arquivado?: boolean;
   projeto_legal_filho_concluido?: boolean;
   projeto_legal_filho_fase?: string | null;
+  tem_filho_credito_obra?: boolean;
+  filho_credito_obra_arquivado?: boolean;
+  credito_obra_filho_fase?: string | null;
+  tem_filho_projetos_locais?: boolean;
+  filho_projetos_locais_arquivado?: boolean;
+  projetos_locais_filho_fase?: string | null;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
   processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
@@ -599,13 +615,17 @@ export function KanbanCardModal({
     Map<string, CalculadoraFaseDataManual>
   >(() => new Map());
   const ultimaEdicaoDatasManuaisRef = useRef(0);
+  /** Evita re-persistir o mesmo alinhamento Pré Obra ← Calculadora no mesmo card. */
+  const preObraAlinhadoComCalcRef = useRef<string | null>(null);
+  /** Evita re-persistir o mesmo alinhamento Pré Obra Operações ← Calculadora no mesmo card. */
+  const operacoesPreObraAlinhadoComCalcRef = useRef<string | null>(null);
   const [calculadoraSlaCondominio, setCalculadoraSlaCondominio] =
     useState<CondominioPrazosAprovacaoSla | null>(null);
   const [responsavelDaFaseSalvoPorFase, setResponsavelDaFaseSalvoPorFase] = useState<Map<string, string>>(
     () => new Map(),
   );
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
-  const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
+  const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>(() => ({
     calculadora: false,
     cronologia: false,
     franqueado: false,
@@ -618,11 +638,11 @@ export function KanbanCardModal({
     preObra: false,
     obra: false,
     documentacaoCreditoObra: true,
-    relacionamentos: false,
+    relacionamentos: isLoteadoresKanbanRef(undefined, kanbanNome),
     atasReuniao: false,
     chamados: false,
     historico: false,
-  });
+  }));
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [historicoCalculadora, setHistoricoCalculadora] = useState<HistoricoItem[]>([]);
@@ -646,6 +666,8 @@ export function KanbanCardModal({
   const [criandoTag, setCriandoTag] = useState(false);
   const [editandoFunding, setEditandoFunding] = useState(false);
   const [negocioDraft, setNegocioDraft] = useState<NegocioDraftKanban>(() => negocioDraftVazio());
+  const negocioDraftRef = useRef(negocioDraft);
+  negocioDraftRef.current = negocioDraft;
   const [fasesNegocioPrazo, setFasesNegocioPrazo] = useState<FaseNegocioPrazoOpcao[]>([]);
   const [salvandoNegocio, setSalvandoNegocio] = useState(false);
   const [editandoFranqueado, setEditandoFranqueado] = useState(false);
@@ -844,6 +866,8 @@ export function KanbanCardModal({
     setFiltrosOpen(false);
     setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
     setPreObraDraft(preObraDraftFromProcesso(null));
+    preObraAlinhadoComCalcRef.current = null;
+    operacoesPreObraAlinhadoComCalcRef.current = null;
     setFundingDraft(fundingDraftVazio());
     setOperacoesPreObraDraft({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY });
     setCreditoObraAbertura(null);
@@ -1572,6 +1596,16 @@ export function KanbanCardModal({
                   operacoes_filho_fase_rotulo: enrichedRow.operacoes_filho_fase_rotulo,
                   operacoes_filho_concluido: enrichedRow.operacoes_filho_concluido,
                   juridico_filho_fase_nome: enrichedRow.juridico_filho_fase_nome,
+                  tem_filho_projeto_legal: enrichedRow.tem_filho_projeto_legal,
+                  filho_projeto_legal_arquivado: enrichedRow.filho_projeto_legal_arquivado,
+                  projeto_legal_filho_concluido: enrichedRow.projeto_legal_filho_concluido,
+                  projeto_legal_filho_fase: enrichedRow.projeto_legal_filho_fase,
+                  tem_filho_credito_obra: enrichedRow.tem_filho_credito_obra,
+                  filho_credito_obra_arquivado: enrichedRow.filho_credito_obra_arquivado,
+                  credito_obra_filho_fase: enrichedRow.credito_obra_filho_fase,
+                  tem_filho_projetos_locais: enrichedRow.tem_filho_projetos_locais,
+                  filho_projetos_locais_arquivado: enrichedRow.filho_projetos_locais_arquivado,
+                  projetos_locais_filho_fase: enrichedRow.projetos_locais_filho_fase,
                   acoplamento_filho_fase_nome: enrichedRow.filho_acoplamento_arquivado
                     ? enrichedRow.acoplamento_filho_fase_nome ?? null
                     : enrichedRow.acoplamento_filho_fase_nome ?? next.acoplamento_filho_fase_nome,
@@ -3140,6 +3174,10 @@ export function KanbanCardModal({
     if (!card?.id) return;
     setSalvandoPreObra(true);
     try {
+      const dataCondo = String(operacoesPreObraDraft.condominio_aprovada_em ?? '').trim().slice(0, 10);
+      const dataPref = String(operacoesPreObraDraft.prefeitura_aprovada_em ?? '').trim().slice(0, 10);
+      const ymdOrNull = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+
       const res = await salvarDadosPreObraOperacoes({
         cardId: card.id,
         condominio_aprovada_em: operacoesPreObraDraft.condominio_aprovada_em,
@@ -3151,6 +3189,43 @@ export function KanbanCardModal({
         alert(res.error);
         return;
       }
+
+      // Espelho Pré Obra Operações → Calculadora: persiste data fim nas fases de aprovação.
+      const cardId = card.id.trim();
+      if (cardId && calculadoraSlugPorFaseId.size > 0) {
+        const supabase = createClient();
+        const patches: Array<{ faseId: string; dataFim: string | null }> = [];
+        for (const [faseId, slug] of calculadoraSlugPorFaseId) {
+          const campo = campoDataAprovacaoOperacoesPorFaseSlug(slug);
+          if (!campo) continue;
+          const dataFim =
+            campo === 'condominio_aprovada_em' ? ymdOrNull(dataCondo) : ymdOrNull(dataPref);
+          patches.push({ faseId, dataFim });
+        }
+        if (patches.length > 0) {
+          ultimaEdicaoDatasManuaisRef.current = Date.now();
+          setDatasManuaisCalculadora((prev) => {
+            const next = new Map(prev);
+            for (const p of patches) {
+              const cur = { ...(next.get(p.faseId) ?? {}) };
+              cur.dataFim = p.dataFim;
+              if (cur.dataInicio == null && cur.dataFim == null) next.delete(p.faseId);
+              else next.set(p.faseId, cur);
+            }
+            return next;
+          });
+          for (const p of patches) {
+            await salvarDataManualCalculadoraSyncGroup(
+              supabase,
+              cardId,
+              p.faseId,
+              { dataFim: p.dataFim },
+              modalSessao.userId,
+            );
+          }
+        }
+      }
+
       await loadCard({ silencioso: true });
       router.refresh();
     } catch {
@@ -3204,6 +3279,10 @@ export function KanbanCardModal({
     }
     setSalvandoPreObra(true);
     try {
+      const dataCondo = String(preObraDraft.data_aprovacao_condominio ?? '').trim().slice(0, 10);
+      const dataPref = String(preObraDraft.data_aprovacao_prefeitura ?? '').trim().slice(0, 10);
+      const ymdOrNull = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+
       const res = await salvarDadosPreObra({
         processoId: pid,
         cardOrigemId: card?.id,
@@ -3222,6 +3301,56 @@ export function KanbanCardModal({
         alert(res.error);
         return;
       }
+
+      // Espelho Pré Obra → Calculadora: persiste data fim nas fases de aprovação.
+      const cardId = card?.id?.trim();
+      if (cardId && calculadoraSlugPorFaseId.size > 0) {
+        const supabase = createClient();
+        const patches: Array<{ faseId: string; dataFim: string | null }> = [];
+        for (const [faseId, slug] of calculadoraSlugPorFaseId) {
+          const campo = campoDataAprovacaoPreObraPorFaseSlug(slug);
+          if (!campo) continue;
+          const dataFim =
+            campo === 'data_aprovacao_condominio' ? ymdOrNull(dataCondo) : ymdOrNull(dataPref);
+          patches.push({ faseId, dataFim });
+        }
+        if (patches.length > 0) {
+          ultimaEdicaoDatasManuaisRef.current = Date.now();
+          setDatasManuaisCalculadora((prev) => {
+            const next = new Map(prev);
+            for (const p of patches) {
+              const cur = { ...(next.get(p.faseId) ?? {}) };
+              cur.dataFim = p.dataFim;
+              if (cur.dataInicio == null && cur.dataFim == null) next.delete(p.faseId);
+              else next.set(p.faseId, cur);
+            }
+            return next;
+          });
+          for (const p of patches) {
+            await salvarDataManualCalculadoraSyncGroup(
+              supabase,
+              cardId,
+              p.faseId,
+              { dataFim: p.dataFim },
+              modalSessao.userId,
+            );
+          }
+        }
+      }
+
+      setModalDetalhes((prev) =>
+        prev.processo
+          ? {
+              ...prev,
+              processo: {
+                ...prev.processo,
+                data_aprovacao_condominio: ymdOrNull(dataCondo),
+                data_aprovacao_prefeitura: ymdOrNull(dataPref),
+              },
+            }
+          : prev,
+      );
+
       await loadCard();
       router.refresh();
     } catch {
@@ -3235,13 +3364,14 @@ export function KanbanCardModal({
     if (!card) return;
     setSalvandoNegocio(true);
     try {
-      const limparPrazos100Cv = isTipoNegociacao100CompraVenda(negocioDraft.tipo_aquisicao_terreno);
+      const draft = negocioDraftRef.current;
+      const limparPrazos100Cv = isTipoNegociacao100CompraVenda(draft.tipo_aquisicao_terreno);
       const prazoOpcao = limparPrazos100Cv
         ? { ...NEGOCIO_PRAZO_VALORES_VAZIO }
-        : negocioPrazoValoresFromDraft(negocioDraft.prazo_opcao);
+        : negocioPrazoValoresFromDraft(draft.prazo_opcao);
       const prazoInstrumento = limparPrazos100Cv
         ? { ...NEGOCIO_PRAZO_VALORES_VAZIO }
-        : negocioPrazoValoresFromDraft(negocioDraft.prazo_instrumento_garantidor);
+        : negocioPrazoValoresFromDraft(draft.prazo_instrumento_garantidor);
       const prazoOpcaoDb = negocioPrazoDbPatchFromValores(prazoOpcao, 'prazo_opcao');
       const prazoInstrumentoDb = negocioPrazoDbPatchFromValores(
         prazoInstrumento,
@@ -3251,26 +3381,26 @@ export function KanbanCardModal({
         cardId: card.id,
         processoId: modalDetalhes.processo?.id ?? '',
         payload: {
-          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
-          valor_terreno: negocioDraft.valor_terreno || null,
-          vgv_pretendido: negocioDraft.vgv_pretendido || null,
-          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
-          link_pasta_drive: negocioDraft.link_pasta_drive || null,
-          link_bca: negocioDraft.link_bca?.trim() || null,
-          link_gbox: negocioDraft.link_gbox?.trim() || null,
-          link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
-          link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
-          link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
-          link_opcao_permuta: negocioDraft.link_opcao_permuta?.trim() || null,
-          link_contrato_permuta: negocioDraft.link_contrato_permuta?.trim() || null,
-          link_seguro_garantia: negocioDraft.link_seguro_garantia?.trim() || null,
-          link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
+          tipo_aquisicao_terreno: draft.tipo_aquisicao_terreno || null,
+          valor_terreno: draft.valor_terreno || null,
+          vgv_pretendido: draft.vgv_pretendido || null,
+          produto_modelo_casa: draft.produto_modelo_casa || null,
+          link_pasta_drive: draft.link_pasta_drive || null,
+          link_bca: draft.link_bca?.trim() || null,
+          link_gbox: draft.link_gbox?.trim() || null,
+          link_mapa_competidores: draft.link_mapa_competidores?.trim() || null,
+          link_acoplamento: draft.link_acoplamento?.trim() || null,
+          link_apresentacao_comite: draft.link_apresentacao_comite?.trim() || null,
+          link_opcao_permuta: draft.link_opcao_permuta?.trim() || null,
+          link_contrato_permuta: draft.link_contrato_permuta?.trim() || null,
+          link_seguro_garantia: draft.link_seguro_garantia?.trim() || null,
+          link_moni_capital_seguro_garantia: draft.link_moni_capital_seguro_garantia?.trim() || null,
           comentario_moni_capital_seguro_garantia:
-            negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
+            draft.comentario_moni_capital_seguro_garantia?.trim() || null,
           link_moni_capital_gastos_aporte_inicial:
-            negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
+            draft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
           comentario_moni_capital_gastos_aporte_inicial:
-            negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
+            draft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
           prazo_opcao_dias: prazoOpcaoDb.prazo_opcao_dias as number | null,
           prazo_opcao_sla_tipo: prazoOpcaoDb.prazo_opcao_sla_tipo as 'uteis' | 'corridos' | null,
           prazo_opcao_modo: prazoOpcaoDb.prazo_opcao_modo as 'fase' | 'data' | null,
@@ -3289,7 +3419,7 @@ export function KanbanCardModal({
             | string
             | null,
           prazo_instrumento_garantidor_data: prazoInstrumentoDb.prazo_instrumento_garantidor_data as string | null,
-          negociacao_linhas: negociacaoLinhasToDb(negocioDraft.negociacao_linhas),
+          negociacao_linhas: negociacaoLinhasToDb(draft.negociacao_linhas),
         },
         basePath,
       });
@@ -3298,6 +3428,41 @@ export function KanbanCardModal({
       await loadCard();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Erro ao salvar dados do negócio.');
+    } finally {
+      setSalvandoNegocio(false);
+    }
+  }
+
+  async function handlePersistNegociacaoLinhas(linhas: NegociacaoLinhaDraft[]) {
+    if (!card) return;
+    setNegocioDraft((d) => ({ ...d, negociacao_linhas: linhas }));
+    setSalvandoNegocio(true);
+    try {
+      const processoIdAntes = modalDetalhes.processo?.id ?? '';
+      const dbLinhas = negociacaoLinhasToDb(linhas);
+      const upd = await salvarDadosNegocioKanban({
+        cardId: card.id,
+        processoId: processoIdAntes,
+        payload: { negociacao_linhas: dbLinhas },
+        basePath,
+      });
+      if (!upd.ok) throw new Error(upd.error);
+
+      const processoIdDepois = upd.processoId?.trim() || processoIdAntes;
+      if (processoIdDepois && processoIdDepois !== processoIdAntes) {
+        await loadCard({ silencioso: true });
+        return;
+      }
+
+      const parsed = parseNegociacaoLinhasFromDb(dbLinhas ?? []);
+      setModalDetalhes((prev) =>
+        prev.processo
+          ? { ...prev, processo: { ...prev.processo, negociacao_linhas: parsed } }
+          : prev,
+      );
+    } catch (e) {
+      console.error('[negociacao] persistência data manual:', e);
+      alert(e instanceof Error ? e.message : 'Erro ao salvar data da negociação.');
     } finally {
       setSalvandoNegocio(false);
     }
@@ -3905,6 +4070,15 @@ export function KanbanCardModal({
     [calculadoraFasesPack.faseIds],
   );
 
+  const calculadoraSlugPorFaseId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [id, f] of calculadoraFasesMeta) {
+      const slug = String(f.slug ?? '').trim();
+      if (slug) map.set(id, slug);
+    }
+    return map;
+  }, [calculadoraFasesMeta]);
+
   const salvarDataCalculadora = useCallback(
     async (faseId: string, campo: 'inicio' | 'fim', valor: string | null) => {
       const cardId = card?.id?.trim();
@@ -3918,6 +4092,41 @@ export function KanbanCardModal({
         'dataFim' in prevOv && prevOv.dataFim != null && String(prevOv.dataFim).trim() !== '';
 
       aplicarOverrideCalculadoraLocal(faseId, campo, valor);
+
+      // Espelho Calculadora → Pré Obra: data fim real das fases de aprovação.
+      const slug = calculadoraSlugPorFaseId.get(faseId);
+      const campoPreObraProcesso = campo === 'fim' ? campoDataAprovacaoPreObraPorFaseSlug(slug) : null;
+      const campoPreObraOperacoes = campo === 'fim' ? campoDataAprovacaoOperacoesPorFaseSlug(slug) : null;
+      const ymdPreObra =
+        valor && /^\d{4}-\d{2}-\d{2}$/.test(String(valor).trim().slice(0, 10))
+          ? String(valor).trim().slice(0, 10)
+          : '';
+      if (campoPreObraProcesso) {
+        setPreObraDraft((d) => {
+          const next = { ...d, [campoPreObraProcesso]: ymdPreObra };
+          return campoPreObraProcesso === 'data_aprovacao_prefeitura'
+            ? aplicarDataEmissaoAlvaraNoPreObra(next)
+            : next;
+        });
+        setModalDetalhes((prev) => {
+          if (!prev.processo) return prev;
+          const procNext = {
+            ...prev.processo,
+            [campoPreObraProcesso]: ymdPreObra || null,
+          };
+          if (campoPreObraProcesso === 'data_aprovacao_prefeitura' && ymdPreObra) {
+            const alvara = aplicarDataEmissaoAlvaraNoPreObra({
+              data_aprovacao_prefeitura: ymdPreObra,
+              data_emissao_alvara: String(prev.processo.data_emissao_alvara ?? '').slice(0, 10),
+            }).data_emissao_alvara;
+            if (alvara) procNext.data_emissao_alvara = alvara;
+          }
+          return { ...prev, processo: procNext };
+        });
+      }
+      if (campoPreObraOperacoes) {
+        setOperacoesPreObraDraft((d) => ({ ...d, [campoPreObraOperacoes]: ymdPreObra }));
+      }
 
       const supabase = createClient();
       // Ao mudar só o início sem fim manual: limpa data_fim no banco para não “congelar” a estimativa antiga.
@@ -3949,27 +4158,47 @@ export function KanbanCardModal({
         await limparDatasManuaisCalculadoraSyncGroup(supabase, cardId, fasesPosteriores);
       }
 
+      if (campoPreObraProcesso) {
+        const pid = modalDetalhes.processo?.id?.trim();
+        if (pid) {
+          const syncPreObra = await salvarDadosPreObra({
+            processoId: pid,
+            cardOrigemId: cardId,
+            [campoPreObraProcesso]: ymdPreObra || null,
+            basePath,
+          });
+          if (!syncPreObra.ok) {
+            return { ok: false, error: syncPreObra.error ?? 'Falha ao espelhar Pré Obra.' };
+          }
+        }
+      }
+      if (campoPreObraOperacoes) {
+        const syncOperacoes = await salvarDadosPreObraOperacoes({
+          cardId,
+          [campoPreObraOperacoes]: ymdPreObra || null,
+          basePath,
+        });
+        if (!syncOperacoes.ok) {
+          return { ok: false, error: syncOperacoes.error ?? 'Falha ao espelhar Pré Obra Operações.' };
+        }
+      }
+
       return result;
     },
     [
       card?.id,
+      card?.kanban_id,
       modalSessao.userId,
       calculadoraFasesPack.faseIds,
       aplicarOverrideCalculadoraLocal,
       datasManuaisCalculadora,
+      calculadoraSlugPorFaseId,
+      modalDetalhes.processo?.id,
+      basePath,
     ],
   );
 
-  const calculadoraSlugPorFaseId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const [id, f] of calculadoraFasesMeta) {
-      const slug = String(f.slug ?? '').trim();
-      if (slug) map.set(id, slug);
-    }
-    return map;
-  }, [calculadoraFasesMeta]);
-
-  const calculadoraLinhasEncadeadas = useMemo(() => {
+  const calculadoraLinhasPreAncoraOverlay = useMemo(() => {
     if (!card) return calculadoraFasesPack.linhas;
     const ctx = contextoCalculadoraSyncGroup;
     const cardEncadeamento = ctx
@@ -4012,10 +4241,33 @@ export function KanbanCardModal({
             cardEncadeamento,
           )
         : sincronizadas;
+    return normalizarIntervaloDatasCalculadoraLinhas(comOverridesFinais, cardEncadeamento);
+  }, [
+    card,
+    contextoCalculadoraSyncGroup,
+    calculadoraFasesPack.linhas,
+    calculadoraFasesPack.visits,
+    calculadoraFasesFlat,
+    calculadoraMarcosInput.contrato_assinado_em,
+    datasManuaisCalculadora,
+  ]);
+
+  const calculadoraLinhasSemPreObra = useMemo(() => {
+    if (!card) return calculadoraLinhasPreAncoraOverlay;
+    const ctx = contextoCalculadoraSyncGroup;
+    const cardEncadeamento = ctx
+      ? ctx.cardCalcCanonico
+      : {
+          fase_id: card.fase_id,
+          created_at: card.created_at,
+          entered_fase_at: card.entered_fase_at,
+          concluido: card.concluido,
+          concluido_em: card.concluido_em,
+        };
     // Overlay oculta visitas/encadeamento nas fases anteriores à âncora; overrides manuais
     // reaplicados por último para não perder data digitada (ex.: M0 Contrato «est.»).
     const comAncoraOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(
-      comOverridesFinais,
+      calculadoraLinhasPreAncoraOverlay,
       calculadoraAncora,
     );
     const comOverridesPosOverlay =
@@ -4026,16 +4278,142 @@ export function KanbanCardModal({
             cardEncadeamento,
           )
         : comAncoraOverlay;
-    return normalizarIntervaloDatasCalculadoraLinhas(comOverridesPosOverlay, cardEncadeamento);
+    return normalizarIntervaloDatasCalculadoraLinhas(
+      comOverridesPosOverlay,
+      cardEncadeamento,
+    );
   }, [
     card,
     contextoCalculadoraSyncGroup,
-    calculadoraFasesPack.linhas,
-    calculadoraFasesPack.visits,
-    calculadoraFasesFlat,
-    calculadoraMarcosInput.contrato_assinado_em,
+    calculadoraLinhasPreAncoraOverlay,
     datasManuaisCalculadora,
     calculadoraAncora,
+  ]);
+
+  const calculadoraLinhasEncadeadas = useMemo(() => {
+    if (!card) return calculadoraLinhasSemPreObra;
+    const ctx = contextoCalculadoraSyncGroup;
+    const cardEncadeamento = ctx
+      ? ctx.cardCalcCanonico
+      : {
+          fase_id: card.fase_id,
+          created_at: card.created_at,
+          entered_fase_at: card.entered_fase_at,
+          concluido: card.concluido,
+          concluido_em: card.concluido_em,
+        };
+    // Pré Obra por último: Calculadora concluída+fim real tem precedência sobre Pré Obra divergente.
+    const datasPreObraOverlay =
+      card.kanban_id === KANBAN_IDS.OPERACOES
+        ? {
+            dataAprovacaoCondominio: operacoesPreObraDraft.condominio_aprovada_em,
+            dataAprovacaoPrefeitura: operacoesPreObraDraft.prefeitura_aprovada_em,
+          }
+        : {
+            dataAprovacaoCondominio: preObraDraft.data_aprovacao_condominio,
+            dataAprovacaoPrefeitura: preObraDraft.data_aprovacao_prefeitura,
+          };
+    return aplicarDatasAprovacaoPreObraCalculadora(
+      calculadoraLinhasSemPreObra,
+      datasPreObraOverlay,
+      cardEncadeamento,
+    );
+  }, [
+    card,
+    contextoCalculadoraSyncGroup,
+    calculadoraLinhasSemPreObra,
+    preObraDraft.data_aprovacao_condominio,
+    preObraDraft.data_aprovacao_prefeitura,
+    operacoesPreObraDraft.condominio_aprovada_em,
+    operacoesPreObraDraft.prefeitura_aprovada_em,
+  ]);
+
+  // Hidratação no load: se aprovação está concluída com fim real na Calculadora e Pré Obra
+  // está vazio/divergente, alinha draft + persiste (Calculadora manda).
+  useEffect(() => {
+    const cardId = card?.id?.trim();
+    const processoId = modalDetalhes.processo?.id?.trim();
+    if (!cardId || !processoId || calculadoraLinhasSemPreObra.length === 0) return;
+
+    const patch = patchPreObraAlinharComCalculadora(
+      calculadoraLinhasPreAncoraOverlay,
+      preObraDraft,
+      { overrides: datasManuaisCalculadora },
+    );
+    if (!patch) return;
+
+    const chave = `${cardId}|${patch.data_aprovacao_condominio ?? ''}|${patch.data_aprovacao_prefeitura ?? ''}|${patch.data_emissao_alvara ?? ''}`;
+    if (preObraAlinhadoComCalcRef.current === chave) return;
+    preObraAlinhadoComCalcRef.current = chave;
+
+    setPreObraDraft((d) => ({ ...d, ...patch }));
+    setModalDetalhes((prev) =>
+      prev.processo
+        ? {
+            ...prev,
+            processo: {
+              ...prev.processo,
+              ...(patch.data_aprovacao_condominio !== undefined
+                ? { data_aprovacao_condominio: patch.data_aprovacao_condominio }
+                : {}),
+              ...(patch.data_aprovacao_prefeitura !== undefined
+                ? { data_aprovacao_prefeitura: patch.data_aprovacao_prefeitura }
+                : {}),
+              ...(patch.data_emissao_alvara !== undefined
+                ? { data_emissao_alvara: patch.data_emissao_alvara }
+                : {}),
+            },
+          }
+        : prev,
+    );
+
+    void salvarDadosPreObra({
+      processoId,
+      cardOrigemId: cardId,
+      ...patch,
+      basePath,
+    });
+  }, [
+    card?.id,
+    modalDetalhes.processo?.id,
+    calculadoraLinhasPreAncoraOverlay,
+    datasManuaisCalculadora,
+    preObraDraft.data_aprovacao_condominio,
+    preObraDraft.data_aprovacao_prefeitura,
+    preObraDraft.data_emissao_alvara,
+    basePath,
+  ]);
+
+  // Hidratação no load (Operações): Calculadora concluída → kanban_cards.condominio/prefeitura_aprovada_em.
+  useEffect(() => {
+    const cardId = card?.id?.trim();
+    if (!cardId || card?.kanban_id !== KANBAN_IDS.OPERACOES || calculadoraLinhasSemPreObra.length === 0) {
+      return;
+    }
+
+    const patch = patchOperacoesPreObraAlinharComCalculadora(
+      calculadoraLinhasSemPreObra,
+      operacoesPreObraDraft,
+    );
+    if (!patch) return;
+
+    const chave = `${cardId}|${patch.condominio_aprovada_em ?? ''}|${patch.prefeitura_aprovada_em ?? ''}`;
+    if (operacoesPreObraAlinhadoComCalcRef.current === chave) return;
+    operacoesPreObraAlinhadoComCalcRef.current = chave;
+
+    setOperacoesPreObraDraft((d) => ({ ...d, ...patch }));
+    void salvarDadosPreObraOperacoes({
+      cardId,
+      ...patch,
+      basePath,
+    });
+  }, [
+    card?.id,
+    card?.kanban_id,
+    calculadoraLinhasSemPreObra,
+    operacoesPreObraDraft.condominio_aprovada_em,
+    operacoesPreObraDraft.prefeitura_aprovada_em,
+    basePath,
   ]);
 
   const calculadoraCardConcluidoCanonico =
@@ -4359,7 +4737,9 @@ export function KanbanCardModal({
     !isLegado &&
     !ocultarGestaoCard &&
     Boolean(card.kanban_id) &&
-    (KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(card.kanban_id) &&
+    (KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(
+      resolverKanbanOrigemIdParaEsteiraManual(card.kanban_id, kanbanNome),
+    ) &&
     !['frank', 'franqueado'].includes(userRoleLc) &&
     !portalFrank;
 
@@ -4406,6 +4786,12 @@ export function KanbanCardModal({
             filhoProjetoLegalArquivado: card.filho_projeto_legal_arquivado,
             projetoLegalFilhoConcluido: card.projeto_legal_filho_concluido,
             projetoLegalFilhoFase: card.projeto_legal_filho_fase,
+            temFilhoCreditoObra: card.tem_filho_credito_obra,
+            filhoCreditoObraArquivado: card.filho_credito_obra_arquivado,
+            creditoObraFilhoFase: card.credito_obra_filho_fase,
+            temFilhoProjetosLocais: card.tem_filho_projetos_locais,
+            filhoProjetosLocaisArquivado: card.filho_projetos_locais_arquivado,
+            projetosLocaisFilhoFase: card.projetos_locais_filho_fase,
           },
           { labelsCompletos: true },
         )
@@ -7668,7 +8054,7 @@ export function KanbanCardModal({
                   }}
                 />,
               )}
-            {!exibirDadosLoteadorPersistente && secaoHead(
+            {secaoHead(
               'novoNegocio',
               'Dados do Negócio',
               ehFunilFunding && !isLegado ? (
@@ -7735,11 +8121,9 @@ export function KanbanCardModal({
                       </label>
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">VGV pretendido</span>
-                        <input
-                          type="text"
+                        <KanbanCardModalMoedaField
                           value={negocioDraft.vgv_pretendido}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, vgv_pretendido: e.target.value }))}
-                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                          onChange={(vgv_pretendido) => setNegocioDraft((d) => ({ ...d, vgv_pretendido }))}
                         />
                       </label>
                       <label className="block">
@@ -7787,6 +8171,9 @@ export function KanbanCardModal({
                       linhas={negocioDraft.negociacao_linhas}
                       onChange={(negociacao_linhas) =>
                         setNegocioDraft((d) => ({ ...d, negociacao_linhas }))
+                      }
+                      onPersistLinhas={(negociacao_linhas) =>
+                        void handlePersistNegociacaoLinhas(negociacao_linhas)
                       }
                       disabled={salvandoNegocio}
                       opcoesVinculo={calculadoraOpcoesVinculoNegociacao}
@@ -7965,10 +8352,12 @@ export function KanbanCardModal({
                         value={preObraDraft.previsao_aprovacao_prefeitura}
                         onChange={(e) =>
                           setPreObraDraft((d) =>
-                            aplicarDataEnvioCreditoObraNoPreObra({
-                              ...d,
-                              previsao_aprovacao_prefeitura: e.target.value,
-                            }),
+                            aplicarPrevisaoEmissaoAlvaraNoPreObra(
+                              aplicarDataEnvioCreditoObraNoPreObra({
+                                ...d,
+                                previsao_aprovacao_prefeitura: e.target.value,
+                              }),
+                            ),
                           )
                         }
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
@@ -8024,7 +8413,12 @@ export function KanbanCardModal({
                         type="date"
                         value={preObraDraft.data_aprovacao_prefeitura}
                         onChange={(e) =>
-                          setPreObraDraft((d) => ({ ...d, data_aprovacao_prefeitura: e.target.value }))
+                          setPreObraDraft((d) =>
+                            aplicarDataEmissaoAlvaraNoPreObra({
+                              ...d,
+                              data_aprovacao_prefeitura: e.target.value,
+                            }),
+                          )
                         }
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-1 py-1 text-[11px] text-stone-800"
                       />
@@ -8107,6 +8501,7 @@ export function KanbanCardModal({
                   cardId={card.id}
                   cardTitulo={cardTitulo}
                   kanbanId={card.kanban_id}
+                  kanbanNome={kanbanNome}
                   basePath={basePath}
                   podeGerenciar={podeGerenciarRelacionamentos}
                   projetoId={card.projeto_id}

@@ -8,6 +8,7 @@ import {
   deveExibirModalJustificativaSla,
   isMovimentoParaFasePosterior,
 } from '@/lib/kanban/kanban-sla-justificativa';
+import { tipoKanbanHistoricoFromAcao } from '@/lib/kanban/kanban-historico-tipo';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import type { ActionResult } from './card-actions';
@@ -216,6 +217,7 @@ export async function salvarJustificativaSla(input: {
     usuario_id: user.id,
     usuario_nome: usuarioNome,
     acao: 'sla_justificado',
+    tipo: tipoKanbanHistoricoFromAcao('sla_justificado'),
     detalhe: {
       fase_id: faseId,
       fase_nome: fase.nome ?? '',
