@@ -323,7 +323,13 @@ function mesclarCamposDeFonte(
 
   return {
     ...dest,
-    titulo: tituloDest ? tituloDest : tituloFonte,
+    titulo: (() => {
+      if (!tituloDest) return tituloFonte;
+      if (!tituloFonte) return tituloDest;
+      return partesTituloCard(tituloDest) >= partesTituloCard(tituloFonte)
+        ? tituloDest
+        : tituloFonte;
+    })(),
     nome_condominio:
       coalesceTextoCampo(dest.nome_condominio, fonte.nome_condominio, parsedFonte.nomeCondominio) ??
       dest.nome_condominio,
@@ -864,8 +870,12 @@ export async function fetchKanbanBoardSnapshot(
     for (const c of cardsSemRede) {
       const id = String(c.id ?? '').trim();
       const pid = String(c.projeto_id ?? '').trim();
+      const procId = String(
+        (c as { processo_step_one_id?: string | null }).processo_step_one_id ?? '',
+      ).trim();
       if (id) processoIdsToFetch.add(id);
       if (pid) processoIdsToFetch.add(pid);
+      if (procId) processoIdsToFetch.add(procId);
       const num = extrairNumeroFranquiaDoTitulo(String(c.titulo ?? ''));
       if (num) numerosFranquia.add(num);
     }
@@ -1047,8 +1057,12 @@ export async function fetchKanbanBoardSnapshot(
   for (const c of allNativeCards) {
     const id = String(c.id ?? '').trim();
     const pid = String(c.projeto_id ?? '').trim();
+    const procId = String(
+      (c as { processo_step_one_id?: string | null }).processo_step_one_id ?? '',
+    ).trim();
     if (id) processoIdsCampos.add(id);
     if (pid) processoIdsCampos.add(pid);
+    if (procId) processoIdsCampos.add(procId);
   }
   const processoCamposMap = await fetchProcessoCamposPorIds(supabase, [...processoIdsCampos]);
 
@@ -1140,8 +1154,12 @@ export async function fetchKanbanBoardSnapshot(
     const redeId = String((cMerged as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
     const cardId = String(cMerged.id ?? '');
     const tituloRaw = String(cMerged.titulo ?? '');
+    const procStepOneId = String(
+      (cMerged as { processo_step_one_id?: string | null }).processo_step_one_id ?? '',
+    ).trim();
     const proc =
       processoCamposMap.get(cardId) ??
+      (procStepOneId ? processoCamposMap.get(procStepOneId) : undefined) ??
       (cMerged.projeto_id ? processoCamposMap.get(String(cMerged.projeto_id)) : undefined);
     const parsedTitulo = parseCamposDoTituloCard(tituloRaw);
     const quadraLoteProc = String(proc?.quadra_lote ?? '').trim();

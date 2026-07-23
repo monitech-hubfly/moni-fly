@@ -30,6 +30,7 @@ export const KANBAN_CARD_SELECT_BASE = `
       projetos_legais_ok,
       projetos_locais_ok,
       projeto_id,
+      processo_step_one_id,
       origem_card_id,
       ordem_coluna,
       alvara_url,
