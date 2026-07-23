@@ -88,7 +88,10 @@ import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { resolverKanbanOrigemIdParaEsteiraManual } from '@/lib/kanban/esteira-manual-destinos';
-import { isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
+import {
+  isLoteadoresKanbanRef,
+  isPortfolioKanbanRef,
+} from '@/lib/kanban/portfolio-paralelas';
 import {
   autorizarAberturaCreditoObra,
   consultarAberturaCreditoObraPendente,
@@ -101,7 +104,6 @@ import {
   aplicarPrevisaoEmissaoAlvaraNoPreObra,
 } from '@/lib/pre-obra/emissao-alvara-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
-import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import {
   deveConfirmarSaidaFasePortfolio,
   portfolioConfirmacaoPergunta,
