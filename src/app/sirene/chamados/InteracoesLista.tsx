@@ -888,7 +888,10 @@ function InteracoesListaInner({
       chamadoAbertoPor: String(row.criado_por ?? '').trim() || null,
       responsaveisIds: responsaveisAtvs,
     });
-    if (!podeAdicionar) return;
+    if (!podeAdicionar) {
+      setMsgErro('Sem permissão para adicionar atividade neste chamado.');
+      return;
+    }
 
     const d = novaAtivDraft;
     if (!d.nome.trim()) {
@@ -1983,6 +1986,7 @@ function InteracoesListaInner({
           onClose={() => setModalNovoAberto(false)}
           onSuccess={() => {
             setModalNovoAberto(false);
+            setMsgSucesso('Chamado aberto com sucesso!');
             router.refresh();
           }}
         />
