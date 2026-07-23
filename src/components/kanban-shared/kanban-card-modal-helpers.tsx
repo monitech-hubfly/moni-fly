@@ -600,10 +600,40 @@ export function textoResumidoAcaoHistorico(acao: string, detalhe: Record<string,
       if (desc) return desc;
       const campos = d.campos;
       if (Array.isArray(campos) && campos.length > 0) {
-        const nomes = campos
-          .map((c) => (c && typeof c === 'object' ? String((c as { campo?: string }).campo ?? '') : ''))
+        const rotulos: Record<string, string> = {
+          titulo: 'Título',
+          data_reuniao: 'Data reunião',
+          data_followup: 'Data follow-up',
+          nome_condominio: 'Condomínio',
+        };
+        const partes = campos
+          .map((c) => {
+            if (!c || typeof c !== 'object') return '';
+            const obj = c as Record<string, unknown>;
+            const campo = String(obj.campo ?? '').trim();
+            if (!campo) return '';
+            const rotulo = rotulos[campo] ?? campo;
+            const ant =
+              obj.valor_anterior ??
+              obj[`${campo}_anterior`] ??
+              null;
+            const novo =
+              obj.valor_novo ??
+              obj[`${campo}_novo`] ??
+              obj[`${campo}_nova`] ??
+              null;
+            if (ant != null || novo != null) {
+              const fmt = (v: unknown) => {
+                const s = String(v ?? '').trim();
+                return s || '—';
+              };
+              return `${rotulo}: "${fmt(ant)}" → "${fmt(novo)}"`;
+            }
+            return rotulo;
+          })
           .filter(Boolean);
-        if (nomes.length) return `Campos alterados: ${nomes.join(', ')}`;
+        if (partes.length === 1) return partes[0];
+        if (partes.length) return `Campos alterados: ${partes.join('; ')}`;
       }
       return 'Campo do card alterado';
     }
