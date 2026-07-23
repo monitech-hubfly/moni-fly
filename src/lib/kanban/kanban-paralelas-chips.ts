@@ -124,9 +124,16 @@ function filtroOrTituloFranquia(numeros: string[]): string {
   return numeros.map((n) => `titulo.ilike.${n}%`).join(',');
 }
 
-function faseParalelaFallback(concluido: boolean, fase?: string | null): string {
+export const FASE_EXIBICAO_NAO_VINCULADO = 'Não vinculado';
+
+function faseParalelaFallback(
+  concluido: boolean,
+  fase?: string | null,
+  vinculado = true,
+): string {
   const f = String(fase ?? '').trim();
   if (f) return f;
+  if (!vinculado) return FASE_EXIBICAO_NAO_VINCULADO;
   return concluido ? 'Concluído' : 'Em andamento';
 }
 
@@ -146,6 +153,7 @@ function chipEsteira(
   labelCurto: string,
   concluido: boolean,
   opts?: MontarChipsParalelasOptions,
+  vinculado = true,
 ): ParalelaChip {
   return {
     label: opts?.labelsCompletos ? label : labelCurto,
@@ -153,8 +161,41 @@ function chipEsteira(
     variant: 'esteira',
     kanbanId,
     funilNome,
-    faseNome: faseParalelaFallback(concluido, faseNome),
+    faseNome: faseParalelaFallback(concluido, faseNome, vinculado),
   };
+}
+
+type OperacoesFilhoChipInput = {
+  temFilho: boolean;
+  filhoArquivado: boolean;
+  filhoFase?: string | null;
+  filhoConcluido?: boolean;
+};
+
+/** Bolinha de esteira paralela no Funil Operações — sempre exibida; tooltip reflete vínculo real. */
+function chipOperacoesParalela(
+  kanbanId: string,
+  label: string,
+  input: OperacoesFilhoChipInput,
+  opts?: MontarChipsParalelasOptions,
+): ParalelaChip {
+  const vinculado = input.temFilho || input.filhoArquivado;
+  const faseRaw = input.filhoArquivado
+    ? FASE_EXIBICAO_CARD_ARQUIVADO
+    : vinculado
+      ? String(input.filhoFase ?? '').trim() || null
+      : null;
+  const concluido = vinculado && Boolean(input.filhoConcluido);
+  return chipEsteira(
+    kanbanId,
+    nomeFunilParalela(kanbanId),
+    faseRaw,
+    label,
+    label,
+    concluido,
+    opts,
+    vinculado,
+  );
 }
 
 function portfolioFaseStep4OuAcoplamento(slug: string): boolean {
@@ -361,7 +402,7 @@ export function montarChipsParalelas(
     const temFilhoAcoplamento = Boolean(input.temFilhoAcoplamento);
     const filhoAcoplamentoArquivado =
       Boolean(input.filhoAcoplamentoArquivado) && !temFilhoAcoplamento;
-    if (temFilhoAcoplamento || filhoAcoplamentoArquivado || boolFlag(f.acoplamento_concluido)) {
+    if (temFilhoAcoplamento || filhoAcoplamentoArquivado) {
       const acoplChips: ParalelaChip[] = [];
       pushChipAcoplamentoPortfolio(acoplChips, f, {
         ...opts,
@@ -370,73 +411,74 @@ export function montarChipsParalelas(
       });
       const acopl = acoplChips[0];
       if (acopl) chipMap.set(KANBAN_IDS.ACOPLAMENTO, acopl);
+    } else {
+      chipMap.set(
+        KANBAN_IDS.ACOPLAMENTO,
+        chipOperacoesParalela(
+          KANBAN_IDS.ACOPLAMENTO,
+          'Acoplamento',
+          { temFilho: false, filhoArquivado: false },
+          opts,
+        ),
+      );
     }
 
     const temFilhoProjetoLegal = Boolean(input.temFilhoProjetoLegal);
     const filhoProjetoLegalArquivado =
       Boolean(input.filhoProjetoLegalArquivado) && !temFilhoProjetoLegal;
-    if (temFilhoProjetoLegal || filhoProjetoLegalArquivado) {
-      const faseNomeChip = filhoProjetoLegalArquivado
-        ? null
-        : String(input.projetoLegalFilhoFase ?? '').trim() || null;
-      chipMap.set(
+    chipMap.set(
+      KANBAN_IDS.PROJETO_LEGAL,
+      chipOperacoesParalela(
         KANBAN_IDS.PROJETO_LEGAL,
-        chipEsteira(
-          KANBAN_IDS.PROJETO_LEGAL,
-          nomeFunilParalela(KANBAN_IDS.PROJETO_LEGAL),
-          filhoProjetoLegalArquivado ? FASE_EXIBICAO_CARD_ARQUIVADO : faseNomeChip,
-          'Projeto Legal',
-          'Projeto Legal',
-          temFilhoProjetoLegal && Boolean(input.projetoLegalFilhoConcluido ?? temFilhoProjetoLegal),
-          opts,
-        ),
-      );
-    }
+        'Projeto Legal',
+        {
+          temFilho: temFilhoProjetoLegal,
+          filhoArquivado: filhoProjetoLegalArquivado,
+          filhoFase: input.projetoLegalFilhoFase,
+          filhoConcluido: input.projetoLegalFilhoConcluido,
+        },
+        opts,
+      ),
+    );
 
     const temFilhoProjetosLocais = Boolean(input.temFilhoProjetosLocais);
     const filhoProjetosLocaisArquivado =
       Boolean(input.filhoProjetosLocaisArquivado) && !temFilhoProjetosLocais;
-    if (temFilhoProjetosLocais || filhoProjetosLocaisArquivado) {
-      const faseNomeChip = filhoProjetosLocaisArquivado
-        ? FASE_EXIBICAO_CARD_ARQUIVADO
-        : String(input.projetosLocaisFilhoFase ?? '').trim() || null;
-      chipMap.set(
+    chipMap.set(
+      KANBAN_IDS.PROJETOS_LOCAIS,
+      chipOperacoesParalela(
         KANBAN_IDS.PROJETOS_LOCAIS,
-        chipEsteira(
-          KANBAN_IDS.PROJETOS_LOCAIS,
-          nomeFunilParalela(KANBAN_IDS.PROJETOS_LOCAIS),
-          faseNomeChip,
-          'Projetos Locais',
-          'Projetos Locais',
-          Boolean(input.projetosLocaisFilhoConcluido),
-          opts,
-        ),
-      );
-    }
+        'Projetos Locais',
+        {
+          temFilho: temFilhoProjetosLocais,
+          filhoArquivado: filhoProjetosLocaisArquivado,
+          filhoFase: input.projetosLocaisFilhoFase,
+          filhoConcluido: input.projetosLocaisFilhoConcluido,
+        },
+        opts,
+      ),
+    );
 
     const temFilhoCreditoObra = Boolean(input.temFilhoCreditoObra);
     const filhoCreditoObraArquivado =
       Boolean(input.filhoCreditoObraArquivado) && !temFilhoCreditoObra;
-    if (temFilhoCreditoObra || filhoCreditoObraArquivado || boolFlag(f.credito_obra_ok)) {
-      const faseNomeChip = filhoCreditoObraArquivado
-        ? FASE_EXIBICAO_CARD_ARQUIVADO
-        : String(input.creditoObraFilhoFase ?? '').trim() || null;
-      chipMap.set(
+    chipMap.set(
+      KANBAN_IDS.CREDITO_OBRA,
+      chipOperacoesParalela(
         KANBAN_IDS.CREDITO_OBRA,
-        chipEsteira(
-          KANBAN_IDS.CREDITO_OBRA,
-          nomeFunilParalela(KANBAN_IDS.CREDITO_OBRA),
-          faseNomeChip,
-          'Cash Me',
-          'Cash Me',
-          boolFlag(f.credito_obra_ok),
-          opts,
-        ),
-      );
-    }
+        'Cash Me',
+        {
+          temFilho: temFilhoCreditoObra,
+          filhoArquivado: filhoCreditoObraArquivado,
+          filhoFase: input.creditoObraFilhoFase,
+          filhoConcluido: boolFlag(f.credito_obra_ok),
+        },
+        opts,
+      ),
+    );
 
     return ordenarChipsOperacoesParalelas(
-      OPERACOES_CHIPS_ORDEM.map((id) => chipMap.get(id)).filter(Boolean) as ParalelaChip[],
+      OPERACOES_CHIPS_ORDEM.map((id) => chipMap.get(id)!).filter(Boolean) as ParalelaChip[],
     );
   }
 
