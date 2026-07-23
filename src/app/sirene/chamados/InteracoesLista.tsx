@@ -50,7 +50,7 @@ import {
   ATIVIDADE_FORM_DRAFT_VAZIO,
   type AtividadeFormDraft,
 } from '@/components/kanban-shared/KanbanAtividadeFormFields';
-import { chamadoEditavelNaSirene } from '@/lib/kanban/sirene-chamado-permissoes';
+import { chamadoEditavelNaSirene, usuarioPodeAdicionarAtividadeChamado } from '@/lib/kanban/sirene-chamado-permissoes';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
 import { ConclusaoChamadoCriadorModal } from '@/components/sirene/ConclusaoChamadoCriadorModal';
@@ -437,6 +437,7 @@ function InteracoesListaInner({
   /** Campos da linha após edição inline (merge sobre `interacoes`). */
   const [rowPatch, setRowPatch] = useState<Record<string, Partial<InteracaoSireneRow>>>({});
   const [msgErro, setMsgErro] = useState<string | null>(null);
+  const [msgSucesso, setMsgSucesso] = useState<string | null>(null);
   const [conclusaoInteracaoId, setConclusaoInteracaoId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [commentsOpenByRow, setCommentsOpenByRow] = useState<Record<string, boolean>>({});
@@ -872,10 +873,23 @@ function InteracoesListaInner({
   }
 
   async function handleAdicionarAtividadeModal(row: InteracaoSireneRow) {
-    if (!chamadoEditavelNaSirene(row)) {
-      setMsgErro('Este chamado só pode ser alterado no card vinculado.');
-      return;
-    }
+    const topicosDoChamado = topicosPorAlvo[topicosAlvoKey(row)] ?? [];
+    const responsaveisAtvs = topicosDoChamado
+      .flatMap((t) => [
+        String((t as { responsavel_id?: string | null }).responsavel_id ?? '').trim(),
+        ...((t as { responsaveis_ids?: string[] }).responsaveis_ids ?? []).map((r: string) => String(r ?? '').trim()),
+      ])
+      .filter(Boolean);
+
+    const podeAdicionar = usuarioPodeAdicionarAtividadeChamado({
+      sessionEhAdmin: sessionEhAdmin ?? false,
+      sessionRole: sessionRole,
+      currentUserId: currentUserId ?? null,
+      chamadoAbertoPor: String(row.criado_por ?? '').trim() || null,
+      responsaveisIds: responsaveisAtvs,
+    });
+    if (!podeAdicionar) return;
+
     const d = novaAtivDraft;
     if (!d.nome.trim()) {
       setMsgErro('Informe o nome da atividade.');
@@ -892,6 +906,7 @@ function InteracoesListaInner({
     const alvoKey = topicosAlvoKey(row);
     setSalvandoTopico((s) => ({ ...s, [alvoKey]: true }));
     setMsgErro(null);
+    setMsgSucesso(null);
     const res = await criarSubInteracao({
       interacao_id: row.id,
       nome: d.nome.trim(),
@@ -906,10 +921,11 @@ function InteracoesListaInner({
     });
     setSalvandoTopico((s) => ({ ...s, [alvoKey]: false }));
     if (!res.ok) {
-      setMsgErro(res.error);
+      setMsgErro(res.error ?? 'Erro ao abrir atividade.');
       return;
     }
     setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+    setMsgSucesso('Atividade aberta com sucesso!');
     void carregarTopicosSeNecessario(row, true);
   }
 
@@ -1442,6 +1458,11 @@ function InteracoesListaInner({
       {msgErro && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {msgErro}
+        </div>
+      )}
+      {msgSucesso && (
+        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+          {msgSucesso}
         </div>
       )}
 
