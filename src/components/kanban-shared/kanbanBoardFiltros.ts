@@ -166,6 +166,7 @@ export function textoVisivelCardKanbanFechado(
   const subtitulo = card.subtitulo?.trim() ?? '';
 
   const partes: string[] = [
+    card.id,
     card.titulo,
     codigo ?? '',
     tituloLimpo,

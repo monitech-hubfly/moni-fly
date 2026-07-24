@@ -448,7 +448,7 @@ export function PipelineCardsView({
                 type="search"
                 value={filtros.busca}
                 onChange={(e) => setFiltros((f) => ({ ...f, busca: e.target.value }))}
-                placeholder="Buscar título, funil, fase..."
+                placeholder="Buscar título, ID do card, funil, fase..."
                 aria-label="Buscar cards"
                 className="w-full placeholder:text-[var(--moni-text-tertiary)]"
                 style={filterSearchStyle}

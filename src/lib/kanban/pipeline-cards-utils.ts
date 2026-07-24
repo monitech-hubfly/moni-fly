@@ -83,6 +83,8 @@ export function slaCategoriaPipeline(
 
 function textoBuscaPipelineCard(card: PipelineCardDisplay): string {
   return [
+    card.id,
+    card.processo_step_one_id ?? '',
     card.titulo,
     card.kanban_nome,
     card.fase_nome,

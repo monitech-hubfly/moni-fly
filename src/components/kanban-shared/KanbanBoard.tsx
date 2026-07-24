@@ -331,8 +331,8 @@ export function KanbanBoard({
           type="search"
           value={buscaCard}
           onChange={(e) => setBuscaCard(e.target.value)}
-          placeholder="Buscar no card (título, tags, SLA, paralelas…)…"
-          aria-label="Buscar cards por qualquer informação visível no card"
+          placeholder="Buscar no card (título, ID, tags, SLA, paralelas…)…"
+          aria-label="Buscar cards por título, ID (UUID), tags ou informações visíveis no card"
           className="moni-kanban-fpill moni-kanban-fpill--search"
         />
         <ExportKanbanButton
