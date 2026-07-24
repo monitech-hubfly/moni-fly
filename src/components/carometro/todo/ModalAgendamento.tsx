@@ -298,7 +298,8 @@ export function ModalAgendamento({
   const [ocupados,   setOcupados]   = useState<Set<string>>(new Set());
   const [busySlots,  setBusySlots]  = useState<Map<string, { hora_inicio: string; hora_fim: string | null }[]>>(new Map());
   const [confirmarExcluir, setConfirmarExcluir] = useState(false);
-  const [externEmail, setExternEmail] = useState('');
+  const [externEmail,      setExternEmail]      = useState('');
+  const [gerandoMeet,      setGerandoMeet]      = useState(false);
 
   // Seções colapsáveis (data, participantes, link, recorrência, vínculo, obs)
   // 0=Data+Recorrência, 1=Participantes, 2=Link, 3=Info adicionais, 4=Observações
@@ -533,9 +534,24 @@ export function ModalAgendamento({
   const removeExterno = (email: string) =>
     set('participantes_externos', form.participantes_externos.filter(e => e !== email));
 
-  const gerarMeet = () => {
-    const id = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
-    set('link_reuniao', `https://meet.jit.si/moni-${id}`);
+  const gerarMeet = async () => {
+    setGerandoMeet(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) { alert('Usuário sem e-mail cadastrado.'); return; }
+      const res  = await fetch('/api/meet/criar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userEmail: user.email }),
+      });
+      const json = (await res.json()) as { url?: string; error?: string };
+      if (json.url) set('link_reuniao', json.url);
+      else alert(json.error ?? 'Erro ao gerar link Meet');
+    } catch {
+      alert('Erro ao conectar com o servidor');
+    } finally {
+      setGerandoMeet(false);
+    }
   };
 
   const CASA_MONI = 'R. Butantã, 461 - Pinheiros, São Paulo - SP, 05424-140';

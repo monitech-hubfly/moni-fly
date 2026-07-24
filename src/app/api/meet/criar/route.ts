@@ -3,21 +3,31 @@ import crypto from 'crypto';
 
 export const runtime = 'nodejs';
 
-export async function POST() {
-  const email       = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const rawKey      = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  const impersonate = process.env.GOOGLE_IMPERSONATE_EMAIL;
+export async function POST(req: Request) {
+  const email  = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
 
-  if (!email || !rawKey || !impersonate) {
+  if (!email || !rawKey) {
     return NextResponse.json(
       { error: 'Credenciais Google não configuradas no servidor.' },
       { status: 503 },
     );
   }
 
+  // Recebe o e-mail do usuário logado para impersonação
+  const body = await req.json().catch(() => ({})) as { userEmail?: string };
+  const userEmail = body.userEmail?.trim();
+
+  if (!userEmail) {
+    return NextResponse.json(
+      { error: 'E-mail do usuário não informado.' },
+      { status: 400 },
+    );
+  }
+
   const privateKey = rawKey.replace(/\\n/g, '\n');
 
-  // ── 1. JWT com impersonation (domain-wide delegation) ──────────────────────
+  // ── 1. JWT com impersonação dinâmica ──────────────────────────────────────
   const now = Math.floor(Date.now() / 1000);
   const toB64 = (obj: object) =>
     Buffer.from(JSON.stringify(obj)).toString('base64url');
@@ -25,7 +35,7 @@ export async function POST() {
   const header  = { alg: 'RS256', typ: 'JWT' };
   const payload = {
     iss:   email,
-    sub:   impersonate,   // impersona um usuário real do Workspace
+    sub:   userEmail,   // impersona o usuário que clicou no botão
     scope: 'https://www.googleapis.com/auth/meetings.space.created',
     aud:   'https://oauth2.googleapis.com/token',
     iat:   now,
