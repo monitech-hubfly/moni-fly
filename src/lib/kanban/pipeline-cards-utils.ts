@@ -3,6 +3,7 @@ import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-fr
 import { slaKanbanCardFromPipelineRow } from '@/lib/kanban/pipeline-card-readonly';
 import {
   normalizeBuscaKanbanTexto,
+  cardIdMatchBuscaKanban,
   textoMatchBuscaKanbanPalavras,
 } from '@/components/kanban-shared/kanbanBoardFiltros';
 import type {
@@ -105,7 +106,13 @@ export function filtrarPipelineCards(
 ): PipelineCardDisplay[] {
   const q = normalizeBuscaKanbanTexto(filtros.busca);
   return cards.filter((card) => {
-    if (q && !textoMatchBuscaKanbanPalavras(textoBuscaPipelineCard(card), q)) return false;
+    if (
+      q &&
+      !cardIdMatchBuscaKanban(card.id, filtros.busca) &&
+      !textoMatchBuscaKanbanPalavras(textoBuscaPipelineCard(card), q)
+    ) {
+      return false;
+    }
     if (filtros.unidade !== 'todas' && String(card.rede_franqueado_id ?? '') !== filtros.unidade) return false;
     if (filtros.kanban !== 'todos' && card.kanban_id !== filtros.kanban) return false;
     if (filtros.fase !== 'todas' && card.fase_id !== filtros.fase) return false;

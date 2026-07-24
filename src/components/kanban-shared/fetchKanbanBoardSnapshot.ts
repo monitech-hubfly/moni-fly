@@ -368,6 +368,25 @@ function mesclarCamposComProjetoIrmaos(
   if (!chave) return card;
   const fonte = porChaveProcesso.get(chave);
   if (!fonte) return card;
+
+  const nomeCard = String(
+    coalesceTextoCampo(
+      card.nome_condominio,
+      parseCamposDoTituloCard(String(card.titulo ?? '')).nomeCondominio,
+    ) ?? '',
+  )
+    .trim()
+    .toLowerCase();
+  const nomeFonte = String(
+    coalesceTextoCampo(
+      fonte.nome_condominio,
+      parseCamposDoTituloCard(String(fonte.titulo ?? '')).nomeCondominio,
+    ) ?? '',
+  )
+    .trim()
+    .toLowerCase();
+  if (nomeCard && nomeFonte && nomeCard !== nomeFonte) return card;
+
   return mesclarCamposDeFonte(card, fonte);
 }
 
@@ -1158,9 +1177,8 @@ export async function fetchKanbanBoardSnapshot(
       (cMerged as { processo_step_one_id?: string | null }).processo_step_one_id ?? '',
     ).trim();
     const proc =
-      processoCamposMap.get(cardId) ??
       (procStepOneId ? processoCamposMap.get(procStepOneId) : undefined) ??
-      (cMerged.projeto_id ? processoCamposMap.get(String(cMerged.projeto_id)) : undefined);
+      (!procStepOneId && processoCamposMap.has(cardId) ? processoCamposMap.get(cardId) : undefined);
     const parsedTitulo = parseCamposDoTituloCard(tituloRaw);
     const quadraLoteProc = String(proc?.quadra_lote ?? '').trim();
     const nomeCondominio = coalesceTextoCampo(

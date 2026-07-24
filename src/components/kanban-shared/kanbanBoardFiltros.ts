@@ -97,6 +97,14 @@ export function normalizeBuscaKanbanTexto(value: string): string {
     .trim();
 }
 
+/** Busca por UUID do card (completo ou trecho, ignora hífens). */
+export function cardIdMatchBuscaKanban(cardId: string, query: string): boolean {
+  const q = normalizeBuscaKanbanTexto(query).replace(/-/g, '');
+  if (!q || q.length < 4) return false;
+  const id = normalizeBuscaKanbanTexto(cardId).replace(/-/g, '');
+  return id.includes(q);
+}
+
 /** Qualquer token da busca que apareça no texto (sem acento, case-insensitive). */
 export function textoMatchBuscaKanbanPalavras(texto: string, query: string): boolean {
   const q = normalizeBuscaKanbanTexto(query);

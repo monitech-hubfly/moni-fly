@@ -7136,7 +7136,7 @@ export function KanbanCardModal({
                     {exibirChecklistCredito && !processoIdChecklists ? (
                       <p className="text-xs text-stone-500">
                         Processo Step One não vinculado a este card. O Checklist de Crédito ficará disponível quando
-                        houver um processo associado (via rede do franqueado ou número FK no título).
+                        houver um processo associado explicitamente ao card.
                       </p>
                     ) : null}
 
@@ -7152,10 +7152,8 @@ export function KanbanCardModal({
                       isAdmin={isAdmin}
                       processoId={processoIdChecklists}
                       linkGboxProcesso={
-                        proc?.link_gbox ??
-                        proc?.link_mapa_competidores ??
-                        negocioDraft.link_gbox ??
-                        negocioDraft.link_mapa_competidores ??
+                        procCondominioExplicito?.link_gbox ??
+                        procCondominioExplicito?.link_mapa_competidores ??
                         null
                       }
                       onLinkGboxEspelhado={() => void loadCard({ silencioso: true })}

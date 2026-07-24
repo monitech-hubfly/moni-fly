@@ -296,32 +296,9 @@ async function filtrarTargetsPropagacaoKanban(
   return out.length > 0 ? out : [origemId];
 }
 
-/** Resolve `processo_step_one.id` a partir do card kanban (sem importar módulo server-only). */
+/** Resolve `processo_step_one.id` a partir do card kanban — só vínculo explícito (propagação/sync). */
 async function resolverProcessoIdDoCard(db: SyncDb, cardId: string): Promise<string | null> {
-  const cid = String(cardId ?? '').trim();
-  if (!cid) return null;
-
-  const explicito = await resolverProcessoIdExplicitoDoCard(db, cid);
-  if (explicito) return explicito;
-
-  const { data: card } = await db
-    .from('kanban_cards')
-    .select('projeto_id, processo_step_one_id, rede_franqueado_id, titulo')
-    .eq('id', cid)
-    .maybeSingle();
-  const row = card as {
-    projeto_id?: string | null;
-    processo_step_one_id?: string | null;
-    rede_franqueado_id?: string | null;
-    titulo?: string | null;
-  } | null;
-
-  return resolverProcessoStepOneIdDoCard(db, {
-    cardProcessoStepOneId: row?.processo_step_one_id,
-    cardProjetoId: row?.projeto_id,
-    redeFranqueadoId: row?.rede_franqueado_id,
-    cardTitulo: row?.titulo,
-  });
+  return resolverProcessoIdExplicitoDoCard(db, cardId);
 }
 
 /** Campos de `kanban_cards` replicados em todos os cards do grupo de sync. */

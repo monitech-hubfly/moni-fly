@@ -12,6 +12,7 @@ import {
   countKanbanBoardFiltrosAtivos,
   KANBAN_BOARD_FILTROS_DEFAULT,
   poolCardsPorStatus,
+  cardIdMatchBuscaKanban,
   textoMatchBuscaKanbanPalavras,
   textoVisivelCardKanbanFechado,
   type KanbanBoardFiltros,
@@ -258,7 +259,11 @@ export function KanbanBoard({
     const busca = buscaCard.trim();
     return poolStatus.filter((c) => {
       if (!cardPassaFiltrosBoard(c, filtros, faseMap, currentUserId)) return false;
-      if (busca && !textoMatchBuscaKanbanPalavras(textoBuscaPorCardId.get(c.id) ?? '', busca)) {
+      if (
+        busca &&
+        !cardIdMatchBuscaKanban(c.id, busca) &&
+        !textoMatchBuscaKanbanPalavras(textoBuscaPorCardId.get(c.id) ?? '', busca)
+      ) {
         return false;
       }
       return true;
