@@ -156,6 +156,7 @@ import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociaca
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
+  NEGOCIO_PRAZO_OPCAO_FASE_SLUG,
   NEGOCIO_PRAZO_VALORES_VAZIO,
   faseLabelFromOpcoes,
   formatNegocioPrazoDisplay,
@@ -354,7 +355,7 @@ import {
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { DadosMoniCapitalPersistentPanel } from './DadosMoniCapitalPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoComiteCtoDiligenciaNasLinhas, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, aplicarDatasAprovacaoPreObraCalculadora, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, campoDataAprovacaoPreObraPorFaseSlug, patchPreObraAlinharComCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoComiteCtoDiligenciaNasLinhas, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, aplicarPrazoOpcaoCalculadoraLinhas, aplicarDatasAprovacaoPreObraCalculadora, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, campoDataAprovacaoPreObraPorFaseSlug, patchPreObraAlinharComCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -4336,6 +4337,39 @@ export function KanbanCardModal({
         return result;
       }
 
+      // Opção (step_3): ancora a calculadora, limpa Step One e alinha prazo do negócio.
+      if (campo === 'fim' && slug === NEGOCIO_PRAZO_OPCAO_FASE_SLUG && valor) {
+        const ancoraResult = await salvarAncoraCalculadoraKanban({
+          cardId,
+          faseSlug: slug,
+          dataFim: valor,
+          basePath,
+        });
+        if (!ancoraResult.ok) {
+          return { ok: false, error: ancoraResult.error ?? 'Falha ao ancorar a calculadora.' };
+        }
+        setModalDetalhes((prev) =>
+          prev.processo
+            ? {
+                ...prev,
+                processo: {
+                  ...prev.processo,
+                  calculadora_ancora_fase_slug: slug,
+                  calculadora_ancora_data_fim: valor,
+                  prazo_opcao_modo: 'data',
+                  prazo_opcao_data: valor,
+                },
+              }
+            : prev,
+        );
+        const mapAncora = await buscarDatasManuaisCalculadoraSyncGroup(
+          supabase,
+          cardId,
+          calculadoraFasesPack.faseIds,
+        );
+        startTransition(() => setDatasManuaisCalculadora(mapAncora));
+      }
+
       // Não limpar fasesPosteriores no banco: datas manuais das fases seguintes são preservadas.
 
       if (campoPreObraProcesso) {
@@ -4434,7 +4468,16 @@ export function KanbanCardModal({
             cardEncadeamento,
           )
         : sincronizadas;
-    return normalizarIntervaloDatasCalculadoraLinhas(comOverridesFinais, cardEncadeamento);
+    const comPrazoOpcao = aplicarPrazoOpcaoCalculadoraLinhas(
+      comOverridesFinais,
+      calculadoraMarcosInput.prazo_opcao,
+      cardEncadeamento,
+      {
+        opcaoAssinadaEm: calculadoraMarcosInput.opcao_assinada_em,
+        overrides: datasManuaisCalculadora,
+      },
+    );
+    return normalizarIntervaloDatasCalculadoraLinhas(comPrazoOpcao, cardEncadeamento);
   }, [
     card,
     contextoCalculadoraSyncGroup,
@@ -4442,6 +4485,8 @@ export function KanbanCardModal({
     calculadoraFasesPack.visits,
     calculadoraFasesFlat,
     calculadoraMarcosInput.contrato_assinado_em,
+    calculadoraMarcosInput.prazo_opcao,
+    calculadoraMarcosInput.opcao_assinada_em,
     card?.contrato_condicoes_precedentes,
     datasManuaisCalculadora,
   ]);

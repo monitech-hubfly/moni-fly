@@ -270,6 +270,19 @@ export type NegocioPrazoDbPatch = {
   data: string | null;
 };
 
+/** Normaliza coluna date/timestamptz do Postgres (Date ou ISO) para YYYY-MM-DD. */
+export function toYmdFromDbValue(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) {
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(value.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const head = String(value).trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : null;
+}
+
 export function negocioPrazoValoresFromProcessoRow(
   row: Record<string, unknown> | null | undefined,
   prefix: 'prazo_opcao' | 'prazo_instrumento_garantidor',
@@ -286,8 +299,7 @@ export function negocioPrazoValoresFromProcessoRow(
   const slaTipo = slaRaw === 'corridos' ? 'corridos' : slaRaw === 'uteis' ? 'uteis' : null;
   const faseRaw = row[`${prefix}_fase_id`];
   const faseId = faseRaw != null && String(faseRaw).trim() ? String(faseRaw) : null;
-  const dataRaw = row[`${prefix}_data`];
-  const data = dataRaw != null && String(dataRaw).trim() ? String(dataRaw).slice(0, 10) : null;
+  const data = toYmdFromDbValue(row[`${prefix}_data`]);
   return { dias, slaTipo, modo, faseId, data };
 }
 

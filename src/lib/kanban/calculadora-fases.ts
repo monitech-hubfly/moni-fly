@@ -12,6 +12,10 @@ import { resolverSlaCalculadoraFase } from '@/lib/kanban/sla-fallback-calculador
 import type { CondominioPrazosAprovacaoSla } from '@/lib/kanban/condominio-prazos-aprovacao';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { calcularDataEmissaoAlvara } from '@/lib/pre-obra/emissao-alvara-data';
+import {
+  resolverDataPrazoNegocioYmd,
+  type NegocioPrazoValores,
+} from '@/lib/kanban/dados-negocio-prazo';
 
 export type { FaseTimelineStatus };
 
@@ -805,6 +809,179 @@ export function aplicarOverlayAncoraOcultarFasesAnteriores(
       status: 'concluida' as const,
     };
   });
+}
+
+/** Localiza fase Opção (Funil Portfólio — slug step_3 / opcao). */
+export function idxOpcaoCalculadoraLinhas(linhas: CalculadoraFaseLinha[]): number {
+  return linhas.findIndex(
+    (l) =>
+      String(l.faseSlug ?? '').trim() === FASE_SLUGS.STEP_3 ||
+      String(l.faseSlug ?? '').trim() === FASE_SLUGS.OPCAO ||
+      /^op[cç][aã]o$/i.test(String(l.faseNome ?? '').trim()),
+  );
+}
+
+/**
+ * Oculta datas das fases Step One quando o card já está em Portfólio ou Pré Obra.
+ * Mesmo padrão do overlay de âncora — evita encadeamento cruzado distorcendo Portfólio.
+ */
+export function aplicarOverlayOcultarFasesStepOneCalculadoraLinhas(
+  linhas: CalculadoraFaseLinha[],
+  faseIdsStepOne: readonly string[],
+): CalculadoraFaseLinha[] {
+  if (linhas.length === 0 || faseIdsStepOne.length === 0) return linhas;
+  const ocultar = new Set(faseIdsStepOne);
+  return linhas.map((row) => {
+    if (!ocultar.has(row.faseId)) return row;
+    return {
+      ...row,
+      dataInicioReal: null,
+      dataFimReal: null,
+      dataFimEstimada: null,
+      atrasoDias: null,
+      status:
+        row.status === 'futura' || row.status === 'atual' || row.status === 'atual_atrasada'
+          ? row.status
+          : ('concluida' as const),
+    };
+  });
+}
+
+/** Recalcula encadeamento do Portfólio após ocultar Step One (início = created_at do card). */
+export function recalcularEncadeamentoPortfolioAposOcultarStepOne(
+  linhas: CalculadoraFaseLinha[],
+  faseIdsPortfolio: readonly string[],
+  card: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+  overrides?: Map<string, CalculadoraFaseDataManualOverride>,
+): CalculadoraFaseLinha[] {
+  if (linhas.length === 0 || faseIdsPortfolio.length === 0) return linhas;
+
+  const idxPort = linhas.findIndex((l) => faseIdsPortfolio.includes(l.faseId));
+  if (idxPort < 0) return linhas;
+
+  const hoje = hojeYmd(hojeRef);
+  const ordemAtual = ordemAtualCalculadoraLinhas(linhas, card);
+  const out = linhas.map((l) => ({ ...l }));
+  const row = out[idxPort]!;
+
+  if (!row.dataInicioReal) {
+    const inicio = toYmd(card.created_at);
+    out[idxPort] = {
+      ...row,
+      dataInicioReal: inicio ? primeiroDiaUtilDe(inicio) : null,
+    };
+  }
+
+  const propagadas = propagarLinhasCalculadoraForward(
+    out,
+    idxPort,
+    card,
+    ordemAtual,
+    hoje,
+    overrides,
+  );
+  return recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef);
+}
+
+/**
+ * Aplica Prazo Opção (Dados do Negócio) na fase Opção da calculadora.
+ * Precedência: opcao_assinada_em → prazo_opcao (data ou fase+dias).
+ * Protege fim de inferirFimRealPorProximaFase (+1 dia da fase seguinte).
+ */
+export function aplicarPrazoOpcaoCalculadoraLinhas(
+  linhas: CalculadoraFaseLinha[],
+  prazoOpcao: NegocioPrazoValores | null | undefined,
+  card: CalculadoraFasesInput['card'],
+  opts?: {
+    opcaoAssinadaEm?: string | null;
+    hoje?: Date;
+    overrides?: Map<string, CalculadoraFaseDataManualOverride>;
+  },
+): CalculadoraFaseLinha[] {
+  const idx = idxOpcaoCalculadoraLinhas(linhas);
+  if (idx < 0) return linhas;
+
+  const realAssinada = toYmd(opts?.opcaoAssinadaEm);
+  let dataFim: string | null = realAssinada;
+  let isPrevisto = !realAssinada;
+
+  if (!dataFim && prazoOpcao?.modo) {
+    if (prazoOpcao.modo === 'data') {
+      dataFim = toYmd(prazoOpcao.data);
+      isPrevisto = true;
+    } else {
+      const resolved = resolverDataPrazoNegocioYmd(prazoOpcao, linhas);
+      dataFim = resolved.data;
+      isPrevisto = resolved.isPrevisto;
+    }
+  }
+
+  if (!dataFim) return linhas;
+
+  const hoje = hojeYmd(opts?.hoje);
+  const ordemAtual = ordemAtualCalculadoraLinhas(linhas, card);
+  const row = linhas[idx]!;
+  const concluida = row.ordem < ordemAtual;
+
+  let dataFimReal: string | null = realAssinada;
+  let dataFimEstimada: string | null = null;
+
+  if (realAssinada) {
+    dataFimEstimada =
+      row.dataInicioReal && row.slaDias != null && row.slaDias > 0
+        ? fimEstimadaPorSla(row.dataInicioReal, row.slaDias, row.slaTipo)
+        : row.dataFimEstimada;
+  } else if (concluida) {
+    dataFimEstimada = dataFim;
+    dataFimReal = null;
+  } else {
+    dataFimEstimada = dataFim;
+    dataFimReal = null;
+  }
+
+  let dataInicioReal = row.dataInicioReal;
+  if (dataInicioReal && dataFim && dataInicioReal > dataFim) {
+    dataInicioReal = dataFim;
+  }
+
+  const status = resolveStatus(
+    row.faseId,
+    card,
+    dataInicioReal,
+    dataFimReal,
+    dataFimEstimada,
+    row.ordem,
+    ordemAtual,
+    hoje,
+    row.slaDias,
+    row.slaTipo,
+  );
+  const atrasoDias = resolveAtraso(
+    status,
+    dataInicioReal,
+    dataFimEstimada,
+    dataFimReal,
+    hoje,
+    row.slaTipo,
+    row.slaDias,
+  );
+
+  let out = linhas.map((l) => ({ ...l }));
+  out[idx] = {
+    ...row,
+    dataInicioReal,
+    dataFimReal,
+    dataFimEstimada,
+    status,
+    atrasoDias,
+  };
+
+  const overrides = new Map(opts?.overrides ?? []);
+  overrides.set(row.faseId, { dataFim });
+
+  out = propagarLinhasCalculadoraForward(out, idx, card, ordemAtual, hoje, overrides);
+  return recomputarStatusAtrasoLinhasCalculadora(out, card, opts?.hoje);
 }
 
 export type ExtrairDatasAprovacaoPreObraOpts = {

@@ -15,6 +15,8 @@ import { notificarMencoesSirene, resolverMencoesSirene } from '@/lib/actions/sir
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
+import { listarFaseIdsAnterioresAncoraCalculadoraEsteira } from '@/lib/kanban/calculadora-fases-esteira';
+import { NEGOCIO_PRAZO_OPCAO_FASE_SLUG } from '@/lib/kanban/dados-negocio-prazo';
 import { validarMotivoArquivamento } from '@/lib/kanban/motivos-arquivamento';
 import type { PortfolioConfirmacaoFaseTipo } from '@/lib/kanban/portfolio-confirmacao-fase';
 import type { OperacoesConfirmacaoFaseTipo } from '@/lib/kanban/operacoes-confirmacao-fase';
@@ -3641,11 +3643,15 @@ export async function salvarAncoraCalculadoraKanban(input: {
       if (propErr) return { ok: false, error: propErr.message };
     }
 
-    const patch = {
+    const patch: Record<string, unknown> = {
       calculadora_ancora_fase_slug: remover ? null : faseSlug,
       calculadora_ancora_data_fim: remover ? null : dataFim,
       updated_at: new Date().toISOString(),
     };
+    if (faseSlug === NEGOCIO_PRAZO_OPCAO_FASE_SLUG && dataFim) {
+      patch.prazo_opcao_modo = 'data';
+      patch.prazo_opcao_data = dataFim;
+    }
 
     for (const pid of processoIds) {
       const { error } = await admin
@@ -3655,48 +3661,29 @@ export async function salvarAncoraCalculadoraKanban(input: {
       if (error) return { ok: false, error: error.message };
     }
 
-    // Ao ancorar: remove overrides manuais das fases anteriores (senão a UI
-    // reaplica datas após `aplicarAncoraCalculadoraLinhas`).
+    // Ao ancorar: remove overrides manuais das fases anteriores na esteira global
+    // (inclui Step One antes de Opção / Portfólio) — senão a UI reaplica datas.
     if (!remover) {
-      const { data: fasesAncora } = await admin
+      const faseIdsAnteriores = await listarFaseIdsAnterioresAncoraCalculadoraEsteira(
+        admin,
+        faseSlug,
+      );
+      const { data: extras } = await admin
         .from('kanban_fases')
-        .select('id, ordem, kanban_id, slug')
-        .eq('slug', faseSlug)
-        .limit(8);
-      const ancoraRow = (fasesAncora ?? [])[0] as
-        | { id: string; ordem: number; kanban_id: string; slug: string }
-        | undefined;
-      if (ancoraRow) {
-        const { data: anteriores } = await admin
-          .from('kanban_fases')
-          .select('id')
-          .eq('kanban_id', ancoraRow.kanban_id)
-          .lt('ordem', ancoraRow.ordem);
-        const faseIdsAnteriores = [
-          ...new Set(
-            (anteriores ?? [])
-              .map((r) => String((r as { id?: string }).id ?? '').trim())
-              .filter(Boolean),
-          ),
-        ];
-        // Slugs espelhados fora do kanban Operações (ex.: planialtimetrico paralelo).
-        const { data: extras } = await admin
-          .from('kanban_fases')
-          .select('id')
-          .in('slug', ['planialtimetrico', 'sondagem', 'projeto_legal']);
-        for (const r of extras ?? []) {
-          const id = String((r as { id?: string }).id ?? '').trim();
-          if (id && id !== ancoraRow.id) faseIdsAnteriores.push(id);
-        }
-        const fids = [...new Set(faseIdsAnteriores)];
-        if (fids.length > 0 && kanbanCardIds.length > 0) {
-          const { error: delErr } = await admin
-            .from('kanban_calculadora_fase_datas')
-            .delete()
-            .in('card_id', kanbanCardIds)
-            .in('fase_id', fids);
-          if (delErr) return { ok: false, error: delErr.message };
-        }
+        .select('id')
+        .in('slug', ['planialtimetrico', 'sondagem', 'projeto_legal']);
+      for (const r of extras ?? []) {
+        const id = String((r as { id?: string }).id ?? '').trim();
+        if (id) faseIdsAnteriores.push(id);
+      }
+      const fids = [...new Set(faseIdsAnteriores)];
+      if (fids.length > 0 && kanbanCardIds.length > 0) {
+        const { error: delErr } = await admin
+          .from('kanban_calculadora_fase_datas')
+          .delete()
+          .in('card_id', kanbanCardIds)
+          .in('fase_id', fids);
+        if (delErr) return { ok: false, error: delErr.message };
       }
     }
 

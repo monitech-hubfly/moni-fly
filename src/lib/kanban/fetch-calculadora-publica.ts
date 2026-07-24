@@ -8,6 +8,7 @@ import {
   aplicarEncadeamentoMarcoContratoNasLinhas,
   aplicarDatasManuaisCalculadoraLinhas,
   aplicarOverlayAncoraOcultarFasesAnteriores,
+  aplicarPrazoOpcaoCalculadoraLinhas,
   aplicarDatasAprovacaoPreObraCalculadora,
   enriquecerLinhasCalculadoraComCusto,
   enriquecerLinhasCalculadoraComResponsavelDaFase,
@@ -17,6 +18,7 @@ import {
 } from '@/lib/kanban/calculadora-fases';
 import type { CalculadoraMarcosInput } from '@/lib/kanban/calculadora-fases-marcos';
 import { calculadoraMarcosInputFromProcessoRow } from '@/lib/kanban/calculadora-fases-marcos';
+import { negocioPrazoValoresFromProcessoRow } from '@/lib/kanban/dados-negocio-prazo';
 import { parseNegociacaoLinhasFromDb, type NegociacaoLinha } from '@/lib/kanban/negociacao-linhas';
 import {
   CALCULADORA_ESTEIRA_KANBAN_IDS,
@@ -129,17 +131,19 @@ export async function montarCalculadoraPack(
   let calculadoraAncora = calculadoraAncoraFromProcesso(null);
   let dataAprovacaoCondominio: string | null = null;
   let dataAprovacaoPrefeitura: string | null = null;
+  let prazoOpcaoCalculadora: import('@/lib/kanban/dados-negocio-prazo').NegocioPrazoValores | null = null;
   const procIdAncora = String(card.processo_step_one_id ?? '').trim();
   if (procIdAncora) {
     const { data: procAncora } = await supabase
       .from('processo_step_one')
       .select(
-        'calculadora_ancora_fase_slug, calculadora_ancora_data_fim, data_aprovacao_condominio, data_aprovacao_prefeitura',
+        'calculadora_ancora_fase_slug, calculadora_ancora_data_fim, data_aprovacao_condominio, data_aprovacao_prefeitura, prazo_opcao_dias, prazo_opcao_sla_tipo, prazo_opcao_modo, prazo_opcao_fase_id, prazo_opcao_data',
       )
       .eq('id', procIdAncora)
       .maybeSingle();
     const procRow = (procAncora as Record<string, unknown> | null) ?? null;
     calculadoraAncora = calculadoraAncoraFromProcesso(procRow);
+    prazoOpcaoCalculadora = negocioPrazoValoresFromProcessoRow(procRow, 'prazo_opcao');
     const condo = String(procRow?.data_aprovacao_condominio ?? '').trim().slice(0, 10);
     const pref = String(procRow?.data_aprovacao_prefeitura ?? '').trim().slice(0, 10);
     dataAprovacaoCondominio = /^\d{4}-\d{2}-\d{2}$/.test(condo) ? condo : null;
@@ -253,9 +257,20 @@ export async function montarCalculadoraPack(
           overrides,
         );
         const comOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(encadeadas, calculadoraAncora);
-        return overrides.size > 0
-          ? aplicarDatasManuaisCalculadoraLinhas(comOverlay, overrides, cardCalcInput)
-          : comOverlay;
+        const comOverridesBase =
+          overrides.size > 0
+            ? aplicarDatasManuaisCalculadoraLinhas(comOverlay, overrides, cardCalcInput)
+            : comOverlay;
+        return aplicarPrazoOpcaoCalculadoraLinhas(
+          comOverridesBase,
+          prazoOpcaoCalculadora?.modo ? prazoOpcaoCalculadora : null,
+          cardCalcInput,
+          {
+            opcaoAssinadaEm:
+              ctx?.marcosCanonicos.opcao_assinada_em ?? card.opcao_assinada_em,
+            overrides,
+          },
+        );
       })(),
       cardCalcInput,
     ),

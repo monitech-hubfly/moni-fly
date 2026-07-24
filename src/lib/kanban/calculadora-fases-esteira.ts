@@ -8,6 +8,8 @@ import {
   aplicarAncoraCalculadoraLinhas,
   aplicarDatasManuaisCalculadoraLinhas,
   aplicarOverlayAncoraOcultarFasesAnteriores,
+  aplicarOverlayOcultarFasesStepOneCalculadoraLinhas,
+  recalcularEncadeamentoPortfolioAposOcultarStepOne,
   normalizarIntervaloDatasCalculadoraLinhas,
   calcularResumoExecutivoCalculadoraFases,
   type CalculadoraAncora,
@@ -122,6 +124,23 @@ export function montarFasesCalculadoraEsteira(
   }
 
   return result;
+}
+
+/** Fases anteriores à âncora na ordem global Step One → Portfólio → Pré Obra e Obra. */
+export async function listarFaseIdsAnterioresAncoraCalculadoraEsteira(
+  supabase: SupabaseClient,
+  faseSlug: string,
+): Promise<string[]> {
+  const slug = String(faseSlug ?? '').trim();
+  if (!slug) return [];
+  const map = await fetchCalculadoraEsteiraFasesMap(supabase);
+  const meta = montarFasesCalculadoraEsteira(map);
+  const idx = meta.findIndex((m) => String(m.slug ?? '').trim() === slug);
+  if (idx <= 0) return [];
+  return meta
+    .slice(0, idx)
+    .map((m) => String(m.id ?? '').trim())
+    .filter(Boolean);
 }
 
 function aplicarOrdemRelativaFaseAtual(
@@ -283,10 +302,26 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
   });
 
   const comSegmento = aplicarRegrasSegmentoEsteira(linhas, meta, segmentoCard);
+  const faseIdsStepOne = meta.filter((m) => m.segmentoEsteira === 0).map((m) => m.id);
+  const faseIdsPortfolio = meta.filter((m) => m.segmentoEsteira === 1).map((m) => m.id);
+  const comStepOneOculto =
+    segmentoCard >= 1
+      ? aplicarOverlayOcultarFasesStepOneCalculadoraLinhas(comSegmento, faseIdsStepOne)
+      : comSegmento;
+  const comEncadeamentoPort =
+    segmentoCard >= 1
+      ? recalcularEncadeamentoPortfolioAposOcultarStepOne(
+          comStepOneOculto,
+          faseIdsPortfolio,
+          { ...input.card, fase_id: faseIdCalc },
+          input.hoje,
+          input.overrides,
+        )
+      : comStepOneOculto;
   const faseOrdemRelativa =
     meta.some((m) => m.id === input.card.fase_id) ? input.card.fase_id : faseIdCalc;
   const cardCalc = { ...input.card, fase_id: faseOrdemRelativa };
-  const comOrdem = aplicarOrdemRelativaFaseAtual(comSegmento, meta, faseOrdemRelativa);
+  const comOrdem = aplicarOrdemRelativaFaseAtual(comEncadeamentoPort, meta, faseOrdemRelativa);
   const comInferencia = inferirFimRealPorProximaFase(comOrdem);
   const comAncora = aplicarAncoraCalculadoraLinhas(comInferencia, input.ancora, cardCalc, input.hoje);
   const comDatasManuais = aplicarDatasManuaisCalculadoraLinhas(
