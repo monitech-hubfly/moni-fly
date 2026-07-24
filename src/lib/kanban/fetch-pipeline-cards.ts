@@ -22,6 +22,7 @@ import type {
   PipelineFranqueadoraEnrichment,
 } from '@/lib/kanban/pipeline-cards-types';
 import { fetchPipelineEsteiraCalculadora } from '@/lib/kanban/fetch-pipeline-esteira-calculadora';
+import { isSupabaseMissingColumnError } from '@/lib/kanban/kanban-card-select-cols';
 
 const ESTEIRA_KANBAN_IDS = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES] as const;
 
@@ -606,6 +607,52 @@ export type FetchPipelineCardsOpts = {
   comEnrichment?: boolean;
 };
 
+const PIPELINE_CARD_SELECTS = [
+  CARD_SELECT_WITH_FUNIL,
+  CARD_SELECT_WITH_CONTRATO,
+  CARD_SELECT_BASE.trim(),
+  CARD_SELECT_SEM_PROJETO,
+] as const;
+
+async function carregarPipelineCardsRaw(
+  supabase: SupabaseClient,
+  opts: Pick<FetchPipelineCardsOpts, 'incluirEncerrados'> & {
+    mode: 'franqueadora' | 'unidade';
+    redeId: string;
+  },
+): Promise<RawCard[]> {
+  let lastError: string | null = null;
+
+  for (let i = 0; i < PIPELINE_CARD_SELECTS.length; i++) {
+    const select = PIPELINE_CARD_SELECTS[i]!;
+    let q = supabase.from('kanban_cards').select(select).eq('status', 'ativo');
+
+    if (!opts.incluirEncerrados) {
+      q = q.eq('arquivado', false).eq('concluido', false);
+    }
+    if (opts.mode === 'unidade') {
+      q = q.eq('rede_franqueado_id', opts.redeId);
+    } else {
+      q = q.not('rede_franqueado_id', 'is', null);
+    }
+
+    const res = await q.order('updated_at', { ascending: false });
+    if (!res.error) return ((res.data as unknown as RawCard[] | null) ?? []);
+
+    lastError = res.error.message;
+    const isLast = i === PIPELINE_CARD_SELECTS.length - 1;
+    const colunaAusente =
+      isSupabaseMissingColumnError(lastError) ||
+      /projeto_negocio|projeto_id|prev_|opcao_assinada|comite_aprovado|contrato_assinado|prefeitura_aprovada|obra_iniciada|obra_finalizada/i.test(
+        lastError,
+      );
+
+    if (!colunaAusente || isLast) break;
+  }
+
+  throw new Error(lastError ?? 'Erro ao carregar cards do pipeline.');
+}
+
 /**
  * Carrega cards nativos vinculados a unidades de franquia.
  * Fonte única: `kanban_cards` + `kanban_fases` + `kanbans` (mesmos joins do board).
@@ -634,60 +681,14 @@ export async function fetchPipelineCards(
 
   const frResPromise = franqueadosQuery;
 
-  let cardsQuery = supabase.from('kanban_cards').select(CARD_SELECT_WITH_FUNIL).eq('status', 'ativo');
-
-  if (!opts.incluirEncerrados) {
-    cardsQuery = cardsQuery.eq('arquivado', false).eq('concluido', false);
-  }
-
-  if (mode === 'unidade') {
-    cardsQuery = cardsQuery.eq('rede_franqueado_id', redeId);
-  } else {
-    cardsQuery = cardsQuery.not('rede_franqueado_id', 'is', null);
-  }
-
-  cardsQuery = cardsQuery.order('updated_at', { ascending: false });
-
-  const [frRes, cardResInitial] = await Promise.all([frResPromise, cardsQuery]);
-
-  let cardData: RawCard[] | null = (cardResInitial.data as RawCard[] | null) ?? null;
-  if (cardResInitial.error) {
-    const errMsg = cardResInitial.error.message;
-    if (/opcao_assinada|comite_aprovado|contrato_assinado|prefeitura_aprovada|obra_iniciada|obra_finalizada/i.test(errMsg)) {
-      let fallbackQuery = supabase
-        .from('kanban_cards')
-        .select(/opcao_assinada|comite_aprovado/i.test(errMsg) ? CARD_SELECT_WITH_CONTRATO : CARD_SELECT_BASE)
-        .eq('status', 'ativo');
-      if (!opts.incluirEncerrados) {
-        fallbackQuery = fallbackQuery.eq('arquivado', false).eq('concluido', false);
-      }
-      if (mode === 'unidade') {
-        fallbackQuery = fallbackQuery.eq('rede_franqueado_id', redeId);
-      } else {
-        fallbackQuery = fallbackQuery.not('rede_franqueado_id', 'is', null);
-      }
-      fallbackQuery = fallbackQuery.order('updated_at', { ascending: false });
-      const fallbackRes = await fallbackQuery;
-      if (fallbackRes.error) throw new Error(fallbackRes.error.message);
-      cardData = (fallbackRes.data as unknown as RawCard[] | null) ?? null;
-    } else if (/projeto_negocio|projeto_id/i.test(errMsg)) {
-      let fallbackQuery = supabase.from('kanban_cards').select(CARD_SELECT_SEM_PROJETO).eq('status', 'ativo');
-      if (!opts.incluirEncerrados) {
-        fallbackQuery = fallbackQuery.eq('arquivado', false).eq('concluido', false);
-      }
-      if (mode === 'unidade') {
-        fallbackQuery = fallbackQuery.eq('rede_franqueado_id', redeId);
-      } else {
-        fallbackQuery = fallbackQuery.not('rede_franqueado_id', 'is', null);
-      }
-      fallbackQuery = fallbackQuery.order('updated_at', { ascending: false });
-      const fallbackRes = await fallbackQuery;
-      if (fallbackRes.error) throw new Error(fallbackRes.error.message);
-      cardData = (fallbackRes.data as unknown as RawCard[] | null) ?? null;
-    } else {
-      throw new Error(cardResInitial.error.message);
-    }
-  }
+  const [frRes, cardData] = await Promise.all([
+    frResPromise,
+    carregarPipelineCardsRaw(supabase, {
+      mode: mode as 'franqueadora' | 'unidade',
+      redeId,
+      incluirEncerrados: opts.incluirEncerrados,
+    }),
+  ]);
 
   if (frRes.error) throw new Error(frRes.error.message);
 
@@ -701,7 +702,7 @@ export async function fetchPipelineCards(
       ),
     );
 
-  const cardsRaw = (cardData ?? [])
+  const cardsRaw = cardData
     .map((r) => mapPipelineCardRow(r as RawCard))
     .filter((c): c is PipelineCardRow => c != null);
 
@@ -724,10 +725,23 @@ export async function fetchPipelineCards(
   const esteiraCardIds = cards
     .filter((c) => (ESTEIRA_KANBAN_IDS as readonly string[]).includes(c.kanban_id))
     .map((c) => c.id);
-  const [historico, esteiraCalculadora] = await Promise.all([
-    fetchHistoricoEsteiraCards(supabase, esteiraCardIds),
-    fetchPipelineEsteiraCalculadora(supabase, cards),
-  ]);
+
+  let historico: PipelineEsteiraHistoricoPorCard = {};
+  let esteiraCalculadora: Awaited<ReturnType<typeof fetchPipelineEsteiraCalculadora>> = {};
+
+  try {
+    [historico, esteiraCalculadora] = await Promise.all([
+      fetchHistoricoEsteiraCards(supabase, esteiraCardIds),
+      fetchPipelineEsteiraCalculadora(supabase, cards),
+    ]);
+  } catch (e) {
+    console.error('[fetchPipelineCards] esteira/histórico', e);
+    try {
+      historico = await fetchHistoricoEsteiraCards(supabase, esteiraCardIds);
+    } catch {
+      historico = {};
+    }
+  }
 
   return { cards, franqueados, historico, esteiraCalculadora, enrichment };
 }

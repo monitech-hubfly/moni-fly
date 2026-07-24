@@ -1303,6 +1303,7 @@ export async function fetchContextoCalculadoraSyncGroup(
   const kanbanCardIds = await listarKanbanCardIdsSyncGroup(db, cid);
   if (kanbanCardIds.length === 0) return null;
 
+  const camposBastao = [...KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA];
   const selectCols = [
     'id',
     'kanban_id',
@@ -1314,13 +1315,32 @@ export async function fetchContextoCalculadoraSyncGroup(
     'titulo',
     'rede_franqueado_id',
     'condominio_id',
-    ...KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA,
+    ...camposBastao,
   ].join(', ');
 
-  const { data: rows, error } = await db
-    .from('kanban_cards')
-    .select(selectCols)
-    .in('id', kanbanCardIds);
+  let rows: unknown[] | null = null;
+  let error: { message: string } | null = null;
+
+  ({ data: rows, error } = await db.from('kanban_cards').select(selectCols).in('id', kanbanCardIds));
+
+  if (error && /contrato_condicoes_precedentes/i.test(error.message)) {
+    const camposSemCond = camposBastao.filter((c) => c !== 'contrato_condicoes_precedentes');
+    const selectFallback = [
+      'id',
+      'kanban_id',
+      'fase_id',
+      'created_at',
+      'entered_fase_at',
+      'concluido',
+      'concluido_em',
+      'titulo',
+      'rede_franqueado_id',
+      'condominio_id',
+      ...camposSemCond,
+    ].join(', ');
+    ({ data: rows, error } = await db.from('kanban_cards').select(selectFallback).in('id', kanbanCardIds));
+  }
+
   if (error || !rows?.length) {
     if (error) console.error('[fetchContextoCalculadoraSyncGroup]', error.message);
     return null;

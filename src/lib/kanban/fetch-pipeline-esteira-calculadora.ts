@@ -113,8 +113,13 @@ export async function fetchPipelineEsteiraCalculadora(
 
   const entries = [...grupos.entries()];
   const packs = await mapWithConcurrency(entries, 4, async ([chave, { rep }]) => {
-    const pack = await montarCalculadoraPack(supabase, cardParaCalculadora(rep));
-    return { chave, pack: pack ? { cardId: rep.id, linhas: pack.linhas } : null };
+    try {
+      const pack = await montarCalculadoraPack(supabase, cardParaCalculadora(rep));
+      return { chave, pack: pack ? { cardId: rep.id, linhas: pack.linhas } : null };
+    } catch (e) {
+      console.error('[fetchPipelineEsteiraCalculadora]', rep.id, e);
+      return { chave, pack: null };
+    }
   });
 
   const result: PipelineEsteiraCalculadoraPorGrupo = {};

@@ -147,7 +147,7 @@ export async function updateSession(request: NextRequest) {
   // Try to read role from cache cookie first (avoids DB round-trip on every request)
   const PROFILE_CACHE_COOKIE = 'moni_profile_cache';
   const cachedProfile = request.cookies.get(PROFILE_CACHE_COOKIE)?.value;
-  let profileRow: { role?: string | null; cargo?: string | null } | null = null;
+  let profileRow: { role?: string | null; cargo?: string | null; full_name?: string | null } | null = null;
   let profileFromCache = false;
 
   if (cachedProfile) {
@@ -161,13 +161,13 @@ export async function updateSession(request: NextRequest) {
 
   if (!profileRow) {
     const profileWithTimeout = await Promise.race([
-      supabase.from('profiles').select('role, cargo').eq('id', user.id).maybeSingle(),
+      supabase.from('profiles').select('role, cargo, full_name').eq('id', user.id).maybeSingle(),
       new Promise<{ data: null }>((resolve) =>
         setTimeout(() => resolve({ data: null }), 3000),
       ),
     ]);
     const { data: profile } = profileWithTimeout;
-    profileRow = profile as { role?: string | null; cargo?: string | null } | null;
+    profileRow = profile as { role?: string | null; cargo?: string | null; full_name?: string | null } | null;
     // Cache the profile in a cookie for 5 minutes
     if (profileRow) {
       response.cookies.set(PROFILE_CACHE_COOKIE, JSON.stringify(profileRow), {
