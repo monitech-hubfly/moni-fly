@@ -45,7 +45,7 @@ const CARD_SELECT_BASE = `
   concluido,
   status,
   kanbans ( nome ),
-  kanban_fases ( nome, slug, ordem, sla_dias, sla_tipo, fase_conversao ),
+  kanban_fases!fase_id ( nome, slug, ordem, sla_dias, sla_tipo, fase_conversao ),
   rede_franqueados ( n_franquia, nome_completo, ordem ),
   projeto_negocio ( titulo )
 `;
@@ -90,7 +90,7 @@ const CARD_SELECT_SEM_PROJETO = `
   concluido,
   status,
   kanbans ( nome ),
-  kanban_fases ( nome, slug, ordem, sla_dias, sla_tipo, fase_conversao ),
+  kanban_fases!fase_id ( nome, slug, ordem, sla_dias, sla_tipo, fase_conversao ),
   rede_franqueados ( n_franquia, nome_completo, ordem )
 `.trim();
 
