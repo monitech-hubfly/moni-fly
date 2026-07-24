@@ -104,6 +104,7 @@ export function usePlanoBoneDay(
           .select('profile_id, nome')
           .eq('area_id', areaId)
           .eq('ativo', true)
+          .not('profile_id', 'is', null)
           .order('nome'),
       ]);
 
@@ -116,7 +117,34 @@ export function usePlanoBoneDay(
         ordem: number | null; profile_id: string | null;
       };
 
-      const respArr = (respRes.data ?? []) as ResponsavelItem[];
+      // Enriquecer com full_name do profiles e deduplicar por profile_id
+      type AreaPessoaRow = { profile_id: string; nome: string };
+      const areaPessoasRaw = (respRes.data ?? []) as AreaPessoaRow[];
+      const profileIds = [...new Set(areaPessoasRaw.map(r => r.profile_id))];
+      let respArr: ResponsavelItem[] = [];
+      if (profileIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', profileIds);
+        const profilesMap = new Map(
+          ((profilesData ?? []) as { id: string; full_name: string | null }[])
+            .map(p => [p.id, p.full_name])
+        );
+        // Deduplica por profile_id, prefere full_name do profiles
+        const seen = new Set<string>();
+        respArr = areaPessoasRaw.reduce<ResponsavelItem[]>((acc, r) => {
+          if (!seen.has(r.profile_id)) {
+            seen.add(r.profile_id);
+            acc.push({
+              profile_id: r.profile_id,
+              nome: profilesMap.get(r.profile_id) ?? r.nome,
+            });
+          }
+          return acc;
+        }, []);
+        respArr.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      }
       setResponsaveis(respArr);
       const respMap = new Map(respArr.map(r => [r.profile_id, r.nome]));
 
