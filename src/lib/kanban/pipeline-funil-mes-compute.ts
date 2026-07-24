@@ -1,5 +1,9 @@
-import { KANBAN_IDS, FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import {
+  FUNIL_MES_ETAPA_FASES,
+  kanbanIdsFunilMesEtapa,
+  slugsFunilMesEtapa,
+} from '@/lib/kanban/pipeline-funil-mes-etapas';
 import type {
   PipelineCardRow,
   PipelineFunilMesBarSegment,
@@ -27,23 +31,17 @@ const UNIDADE_BAR_COLORS = [
   'var(--moni-earth-400)',
 ] as const;
 
-const ETAPAS: { key: PipelineFunilMesEtapaKey; label: string; operacoes?: boolean }[] = [
+const ETAPAS: { key: PipelineFunilMesEtapaKey; label: string }[] = [
   { key: 'hipoteses', label: 'Hipóteses' },
   { key: 'opcoes', label: 'Opções' },
   { key: 'comites', label: 'Comitês' },
   { key: 'contratos', label: 'Contratos' },
-  { key: 'aprovacoes', label: 'Aprovações', operacoes: true },
-  { key: 'aguardando_credito', label: 'Aguardando Crédito', operacoes: true },
-  { key: 'obras_iniciadas', label: 'Obras em andamento', operacoes: true },
-  { key: 'obras_finalizadas', label: 'Obras finalizadas', operacoes: true },
+  { key: 'aprovacoes', label: 'Aprovações' },
+  { key: 'garantia_transferencia', label: 'Garantia + Transferência' },
+  { key: 'aguardando_credito', label: 'Aguardando Crédito' },
+  { key: 'obras_iniciadas', label: 'Obras em andamento' },
+  { key: 'obras_finalizadas', label: 'Obras finalizadas' },
 ];
-
-const ETAPAS_OPERACOES = new Set<PipelineFunilMesEtapaKey>([
-  'aprovacoes',
-  'aguardando_credito',
-  'obras_iniciadas',
-  'obras_finalizadas',
-]);
 
 function inicioMesCorrente(): Date {
   const now = new Date();
@@ -81,24 +79,7 @@ export function diaDoMesCorrente(): number {
 }
 
 export function funilMesFieldsAvailable(cards: PipelineCardRow[]): boolean {
-  return cards.some(
-    (c) =>
-      c.opcao_assinada !== undefined ||
-      c.comite_aprovado !== undefined ||
-      c.contrato_assinado !== undefined ||
-      c.prefeitura_aprovada !== undefined ||
-      c.obra_iniciada !== undefined ||
-      c.obra_finalizada !== undefined,
-  );
-}
-
-export function funilMesOperacoesFieldsAvailable(cards: PipelineCardRow[]): boolean {
-  return cards.some(
-    (c) =>
-      c.prefeitura_aprovada !== undefined ||
-      c.obra_iniciada !== undefined ||
-      c.obra_finalizada !== undefined,
-  );
+  return cards.some((c) => String(c.kanban_id ?? '').trim() && c.fase_slug);
 }
 
 export function quantidadeParaDots(qtd: number): { filled: PipelineFunilMesDotNivel; showPlus: boolean } {
@@ -134,55 +115,50 @@ export function dotCorUnidadeMetric(qtd: number, indisponivel = false): Pipeline
   return 'cinza';
 }
 
-function isCardOperacoes(c: PipelineCardRow): boolean {
-  return String(c.kanban_id ?? '').trim() === KANBAN_IDS.OPERACOES;
+function cardContaEtapaPorFases(
+  c: PipelineCardRow,
+  key: PipelineFunilMesEtapaKey,
+  periodo: PipelineFunilPeriodo,
+): boolean {
+  const kanbanIds = kanbanIdsFunilMesEtapa(key);
+  const slugs = slugsFunilMesEtapa(key);
+  if (!kanbanIds?.length || !slugs?.size) return false;
+
+  const kanbanId = String(c.kanban_id ?? '').trim();
+  if (!kanbanIds.includes(kanbanId)) return false;
+
+  const slug = String(c.fase_slug ?? '').trim();
+  if (!slug || !slugs.has(slug)) return false;
+
+  return isNoPeriodoCorrente(c.entered_fase_at, periodo);
 }
 
-function etapaOperacoesIndisponivel(cards: PipelineCardRow[], key: PipelineFunilMesEtapaKey): boolean {
-  if (key === 'aguardando_credito') return false;
-  if (!ETAPAS_OPERACOES.has(key)) return false;
-  return !funilMesOperacoesFieldsAvailable(cards);
-}
-
-function cardContaEtapa(
+export function cardContaEtapa(
   c: PipelineCardRow,
   key: PipelineFunilMesEtapaKey,
   periodo: PipelineFunilPeriodo = 'mes',
 ): boolean {
-  const noPeriodo = (iso: string | null | undefined) => isNoPeriodoCorrente(iso, periodo);
   if (key === 'hipoteses') {
-    return isHipotesesFaseSlug(c.fase_slug) && noPeriodo(c.entered_fase_at);
+    return isHipotesesFaseSlug(c.fase_slug) && isNoPeriodoCorrente(c.entered_fase_at, periodo);
   }
-  if (key === 'opcoes') {
-    return c.opcao_assinada === true && noPeriodo(c.opcao_assinada_em);
+  const regra = FUNIL_MES_ETAPA_FASES[key];
+  if (!regra) return false;
+  return cardContaEtapaPorFases(c, key, periodo);
+}
+
+/** Etapa indisponível quando não há cards do funil/fase mapeados no dataset. */
+function etapaFunilMesIndisponivel(cards: PipelineCardRow[], key: PipelineFunilMesEtapaKey): boolean {
+  if (key === 'hipoteses') {
+    return !cards.some((c) => isHipotesesFaseSlug(c.fase_slug));
   }
-  if (key === 'comites') {
-    return c.comite_aprovado === true && noPeriodo(c.comite_aprovado_em);
-  }
-  if (key === 'contratos') {
-    return c.contrato_assinado === true && noPeriodo(c.contrato_assinado_em);
-  }
-  if (!isCardOperacoes(c)) return false;
-  if (key === 'aprovacoes') {
-    if (c.prefeitura_aprovada === undefined) return false;
-    return c.prefeitura_aprovada === true && noPeriodo(c.prefeitura_aprovada_em);
-  }
-  if (key === 'aguardando_credito') {
-    if (!isCardOperacoes(c)) return false;
-    return (
-      String(c.fase_slug ?? '').trim() === FASE_SLUGS.AGUARDANDO_CREDITO &&
-      noPeriodo(c.entered_fase_at)
-    );
-  }
-  if (key === 'obras_iniciadas') {
-    if (c.obra_iniciada === undefined) return false;
-    return c.obra_iniciada === true && noPeriodo(c.obra_iniciada_em);
-  }
-  if (key === 'obras_finalizadas') {
-    if (c.obra_finalizada === undefined) return false;
-    return c.obra_finalizada === true && noPeriodo(c.obra_finalizada_em);
-  }
-  return false;
+  const regra = FUNIL_MES_ETAPA_FASES[key];
+  if (!regra) return true;
+  const kanbanSet = new Set(regra.kanbanIds.map((id) => String(id).trim()));
+  return !cards.some((c) => {
+    const kid = String(c.kanban_id ?? '').trim();
+    if (!kanbanSet.has(kid)) return false;
+    return Boolean(String(c.fase_slug ?? '').trim());
+  });
 }
 
 function cardsElegiveisFunilMes(cards: PipelineCardRow[]): PipelineCardRow[] {
@@ -236,7 +212,7 @@ function buildColuna(
   franqueados: PipelineFranqueadoUnidade[],
   periodo: PipelineFunilPeriodo,
 ): PipelineFunilMesColuna {
-  const totalIndisponivel = etapaOperacoesIndisponivel(cards, key);
+  const totalIndisponivel = etapaFunilMesIndisponivel(cards, key);
   let total = 0;
   if (!totalIndisponivel) {
     for (const c of cards) {
@@ -296,6 +272,8 @@ function compactValue(compact: PipelineFunilMesCompact, key: PipelineFunilMesEta
       return compact.contratos;
     case 'aprovacoes':
       return compact.aprovacoes;
+    case 'garantia_transferencia':
+      return compact.garantiaTransferencia;
     case 'aguardando_credito':
       return compact.aguardandoCredito;
     case 'obras_iniciadas':
@@ -313,6 +291,7 @@ export function computeFunilMesCompact(cards: PipelineCardRow[]): PipelineFunilM
     comites: elegiveis.filter((c) => cardContaEtapa(c, 'comites')).length,
     contratos: elegiveis.filter((c) => cardContaEtapa(c, 'contratos')).length,
     aprovacoes: elegiveis.filter((c) => cardContaEtapa(c, 'aprovacoes')).length,
+    garantiaTransferencia: elegiveis.filter((c) => cardContaEtapa(c, 'garantia_transferencia')).length,
     aguardandoCredito: elegiveis.filter((c) => cardContaEtapa(c, 'aguardando_credito')).length,
     obrasIniciadas: elegiveis.filter((c) => cardContaEtapa(c, 'obras_iniciadas')).length,
     obrasFinalizadas: elegiveis.filter((c) => cardContaEtapa(c, 'obras_finalizadas')).length,
@@ -342,7 +321,7 @@ export function computeFunilMesUnidade(cards: PipelineCardRow[]): PipelineFunilM
   const compact = computeFunilMesCompact(elegiveis);
 
   const metricas: PipelineFunilMesUnidadeMetric[] = ETAPAS.map((e) => {
-    const totalIndisponivel = etapaOperacoesIndisponivel(cards, e.key);
+    const totalIndisponivel = etapaFunilMesIndisponivel(cards, e.key);
     const total = totalIndisponivel ? 0 : compactValue(compact, e.key);
     const { filled } = quantidadeParaDots(total);
     return {

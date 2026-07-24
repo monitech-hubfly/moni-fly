@@ -250,6 +250,7 @@ export type PipelineFunilMesEtapaKey =
   | 'comites'
   | 'contratos'
   | 'aprovacoes'
+  | 'garantia_transferencia'
   | 'aguardando_credito'
   | 'obras_iniciadas'
   | 'obras_finalizadas';
@@ -297,6 +298,7 @@ export type PipelineFunilMesCompact = {
   comites: number;
   contratos: number;
   aprovacoes: number;
+  garantiaTransferencia: number;
   aguardandoCredito: number;
   obrasIniciadas: number;
   obrasFinalizadas: number;
