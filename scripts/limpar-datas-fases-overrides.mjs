@@ -108,7 +108,8 @@ function isFaseNegociacao(slug, nome) {
 function isFaseContrato(slug, nome, contratoSlug) {
   const s = String(slug ?? '').trim();
   const n = String(nome ?? '').trim();
-  if (contratoSlug && s === contratoSlug) return true;
+  const anchor = String(contratoSlug ?? '').trim();
+  if (anchor) return s === anchor;
   return s === 'step_7' || /^contrato$/i.test(n);
 }
 
@@ -139,17 +140,47 @@ async function montarMetaCalculadoraEsteira(client) {
   return meta;
 }
 
+async function resolverAnchorOrdemGlobal(client, anchorSlug, meta) {
+  const slug = String(anchorSlug ?? '').trim();
+  let anchor = meta.find((m) => m.slug === slug);
+  if (anchor) return anchor.ordemGlobal;
+
+  /** Fases do Portfólio fora da calculadora (ex.: captacao_moni_capital). */
+  const pf = await client.query(
+    `SELECT kf.slug, kf.nome, kf.ordem, kf.kanban_id
+     FROM kanban_fases kf
+     JOIN kanbans k ON k.id = kf.kanban_id
+     WHERE kf.slug = $1 AND kf.ativo = true AND k.nome ILIKE '%Portfólio%'
+     ORDER BY kf.ordem LIMIT 1`,
+    [slug],
+  );
+  if (!pf.rows[0]) {
+    throw new Error(`Fase âncora não encontrada (slug=${slug}).`);
+  }
+  const ordemPortfolio = Number(pf.rows[0].ordem);
+  const portfolioMeta = meta.filter((m) => m.kanban_id === KANBAN_IDS.PORTFOLIO);
+  const anterioresPortfolio = portfolioMeta.filter((m) => m.ordem < ordemPortfolio);
+  if (anterioresPortfolio.length === 0) {
+    throw new Error(`Nenhuma fase calculadora antes de ${slug} no Portfólio.`);
+  }
+  return Math.max(...anterioresPortfolio.map((m) => m.ordemGlobal)) + 1;
+}
+
 async function resolverSlugsAntesDeContrato(client, opts = {}) {
   const contratoSlug = String(opts.contratoSlug ?? 'step_7').trim();
   const excluirNegociacao = opts.excluirNegociacao !== false;
   const meta = await montarMetaCalculadoraEsteira(client);
 
-  const contrato = meta.find((m) => isFaseContrato(m.slug, m.nome, contratoSlug));
-  if (!contrato) {
-    throw new Error(`Fase Contrato não encontrada (slug=${contratoSlug}).`);
+  let ordemLimite = null;
+  let contrato = meta.find((m) => isFaseContrato(m.slug, m.nome, contratoSlug));
+  if (contrato) {
+    ordemLimite = contrato.ordemGlobal;
+  } else {
+    ordemLimite = await resolverAnchorOrdemGlobal(client, contratoSlug, meta);
+    contrato = { slug: contratoSlug, ordemGlobal: ordemLimite, nome: contratoSlug };
   }
 
-  const antesContrato = meta.filter((m) => m.ordemGlobal < contrato.ordemGlobal);
+  const antesContrato = meta.filter((m) => m.ordemGlobal < ordemLimite);
   const excluidasNegociacao = excluirNegociacao
     ? antesContrato.filter((m) => isFaseNegociacao(m.slug, m.nome))
     : [];
