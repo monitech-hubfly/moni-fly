@@ -10,7 +10,11 @@ import type {
   PipelineUnidadeDisplayBloco,
   PipelineUnidadeSaudeMes,
 } from '@/lib/kanban/pipeline-cards-types';
-import { PIPELINE_INATIVIDADE_DIAS, slaCategoriaPipeline } from '@/lib/kanban/pipeline-cards-utils';
+import {
+  cardElegivelMetricasSlaPipeline,
+  PIPELINE_INATIVIDADE_DIAS,
+  slaCategoriaPipeline,
+} from '@/lib/kanban/pipeline-cards-utils';
 import { saudeMesUnidadePipeline } from '@/lib/kanban/pipeline-franqueadora-compute';
 
 const MAX_O_QUE_FAZER = 10;
@@ -31,10 +35,12 @@ export function calcularKpisPipelineUnidadeExtended(
   const cardIds = new Set(cards.map((c) => c.id));
   const chamadosComTrava = chamados.filter((c) => c.trava && c.aberto && cardIds.has(c.cardId)).length;
 
+  const elegiveisSla = cards.filter(cardElegivelMetricasSlaPipeline);
+
   return {
     cardsAtivos: cards.length,
-    cardsAtrasados: cards.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length,
-    cardsSemMovimentacao: cards.filter((c) => c.inativo).length,
+    cardsAtrasados: elegiveisSla.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length,
+    cardsSemMovimentacao: elegiveisSla.filter((c) => c.inativo).length,
     proximosVencimentos: cards.filter((c) => {
       const cat = slaCategoriaPipeline(c);
       return cat === 'atencao_outros' || cat === 'vence_hoje';

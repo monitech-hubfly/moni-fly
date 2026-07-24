@@ -19,6 +19,27 @@ import type {
 /** Dias úteis após vencimento do SLA para sinalizar sem movimentação no pipeline. */
 export const PIPELINE_INATIVIDADE_DIAS = 7;
 
+/** Card legado (shadow `processo_step_one.id` espelhado em `kanban_cards`). */
+export function isPipelineCardLegado(
+  card: Pick<PipelineCardRow, 'id' | 'processo_step_one_id'> & { origem?: 'nativo' | 'legado' },
+): boolean {
+  if (card.origem === 'legado') return true;
+  const id = String(card.id ?? '').trim();
+  const pid = String(card.processo_step_one_id ?? '').trim();
+  return Boolean(id && pid && id === pid);
+}
+
+/** Cards que entram em KPIs de SLA operacional (atrasados / sem movimentação). */
+export function cardElegivelMetricasSlaPipeline(
+  card: Pick<PipelineCardRow, 'arquivado' | 'concluido' | 'id' | 'processo_step_one_id'> & {
+    origem?: 'nativo' | 'legado';
+  },
+): boolean {
+  if (card.arquivado || card.concluido) return false;
+  if (isPipelineCardLegado(card)) return false;
+  return true;
+}
+
 export function cardSemMovimentacaoPosSlaPipeline(
   card: Pick<PipelineCardDisplay, 'sla' | 'diasSemMovimento'>,
 ): boolean {
@@ -98,10 +119,10 @@ export function filtrarPipelineCards(
     }
     if (filtros.status !== 'todos') {
       const cat = slaCategoriaPipeline(card);
-      if (filtros.status === 'atrasados' && cat !== 'atrasado') return false;
+      if (filtros.status === 'atrasados' && (cat !== 'atrasado' || !cardElegivelMetricasSlaPipeline(card))) return false;
       if (filtros.status === 'vence_hoje' && cat !== 'vence_hoje') return false;
       if (filtros.status === 'vencendo_breve' && cat !== 'atencao_outros' && cat !== 'vence_hoje') return false;
-      if (filtros.status === 'sem_movimentacao' && !card.inativo) return false;
+      if (filtros.status === 'sem_movimentacao' && (!card.inativo || !cardElegivelMetricasSlaPipeline(card))) return false;
       if (
         filtros.status === 'dentro_prazo' &&
         (cat === 'atrasado' || cat === 'vence_hoje' || cat === 'atencao_outros' || card.inativo)
@@ -117,10 +138,12 @@ export function filtrarPipelineCards(
 export function calcularKpisPipelineFranqueadora(cards: PipelineCardDisplay[]): PipelineCardsKpis {
   const elegiveis = cards.filter((c) => !excluirFranquiaDosGraficosVisaoGeral(c.n_franquia));
 
+  const elegiveisSla = elegiveis.filter(cardElegivelMetricasSlaPipeline);
+
   return {
     cardsAtivos: elegiveis.length,
-    cardsAtrasados: elegiveis.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length,
-    cardsSemMovimentacao: elegiveis.filter((c) => c.inativo).length,
+    cardsAtrasados: elegiveisSla.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length,
+    cardsSemMovimentacao: elegiveisSla.filter((c) => c.inativo).length,
     cardsVencendoEmBreve: elegiveis.filter((c) => {
       const cat = slaCategoriaPipeline(c);
       return cat === 'atencao_outros' || cat === 'vence_hoje';
@@ -145,10 +168,12 @@ export function calcularKpisPipelineUnidade(cards: PipelineCardDisplay[]): Pipel
   const funis = new Set<string>();
   for (const card of cards) funis.add(card.kanban_id);
 
+  const elegiveisSla = cards.filter(cardElegivelMetricasSlaPipeline);
+
   return {
     cardsAtivos: cards.length,
-    cardsAtrasados: cards.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length,
-    cardsSemMovimentacao: cards.filter((c) => c.inativo).length,
+    cardsAtrasados: elegiveisSla.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length,
+    cardsSemMovimentacao: elegiveisSla.filter((c) => c.inativo).length,
     proximosVencimentos: cards.filter((c) => {
       const cat = slaCategoriaPipeline(c);
       return cat === 'atencao_outros' || cat === 'vence_hoje';

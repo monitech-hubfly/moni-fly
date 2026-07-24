@@ -22,6 +22,7 @@ import type {
   PipelineFranqueadoraEnrichment,
 } from '@/lib/kanban/pipeline-cards-types';
 import { fetchPipelineEsteiraCalculadora } from '@/lib/kanban/fetch-pipeline-esteira-calculadora';
+import { isPipelineCardLegado } from '@/lib/kanban/pipeline-cards-utils';
 import { isSupabaseMissingColumnError } from '@/lib/kanban/kanban-card-select-cols';
 
 const ESTEIRA_KANBAN_IDS = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES] as const;
@@ -712,7 +713,10 @@ export async function fetchPipelineCards(
     cardsComResp.map((c) => c.id),
   );
   const cardsComTag = marcarCardsComTagEspecial(cardsComResp, tagEspecialIds);
-  const cards = await enriquecerCardsProcessoProvisionado(supabase, cardsComTag);
+  const cardsProvisionados = await enriquecerCardsProcessoProvisionado(supabase, cardsComTag);
+  const cards = cardsProvisionados.filter(
+    (c) => !c.arquivado && !c.concluido && !isPipelineCardLegado(c),
+  );
 
   let enrichment: PipelineFranqueadoraEnrichment | null = null;
   if (comEnrichment) {

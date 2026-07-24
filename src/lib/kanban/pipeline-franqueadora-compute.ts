@@ -19,6 +19,7 @@ import type {
   PipelineUnidadeSaudeMes,
 } from '@/lib/kanban/pipeline-cards-types';
 import {
+  cardElegivelMetricasSlaPipeline,
   enriquecerPipelineCard,
   slaCategoriaPipeline,
   labelFranqueadoPipeline,
@@ -199,6 +200,7 @@ export function calcularKpisPipelineFranqueadoraExtended(
   enrichment: PipelineFranqueadoraEnrichment | null | undefined,
 ): PipelineCardsKpis {
   const elegiveis = cardsElegiveisFranqueadora(cards);
+  const elegiveisSla = elegiveis.filter(cardElegivelMetricasSlaPipeline);
   const ranking =
     enrichment?.gargaloRanking?.length
       ? enrichment.gargaloRanking
@@ -212,8 +214,8 @@ export function calcularKpisPipelineFranqueadoraExtended(
 
   return {
     cardsAtivos: elegiveis.length,
-    cardsAtrasados: elegiveis.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length,
-    cardsSemMovimentacao: elegiveis.filter((c) => c.inativo).length,
+    cardsAtrasados: elegiveisSla.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length,
+    cardsSemMovimentacao: elegiveisSla.filter((c) => c.inativo).length,
     cardsVencendoEmBreve: elegiveis.filter((c) => {
       const cat = slaCategoriaPipeline(c);
       return cat === 'atencao_outros' || cat === 'vence_hoje';
@@ -228,7 +230,9 @@ export function alertasUnidadePipeline(
   chamados: PainelChamadoUnificadoDTO[],
 ): PipelineUnidadeAlertas {
   const cardIds = new Set(cards.map((c) => c.id));
-  const atrasados = cards.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length;
+  const atrasados = cards
+    .filter(cardElegivelMetricasSlaPipeline)
+    .filter((c) => slaCategoriaPipeline(c) === 'atrasado').length;
   const parados = cards.filter((c) => cardParado(c)).length;
   const chamadosTrava = chamados.filter((c) => c.trava && c.aberto && cardIds.has(c.cardId)).length;
   const venceEm2Dias = cards.filter((c) => cardVenceEm2DiasUteis(c)).length;
@@ -422,7 +426,9 @@ export function computePipelineAnalises(
   }
   franquiasTravadas.sort((a, b) => b.diasParado - a.diasParado);
 
-  const atrasados = cards.filter((c) => slaCategoriaPipeline(c) === 'atrasado');
+  const atrasados = cards
+    .filter(cardElegivelMetricasSlaPipeline)
+    .filter((c) => slaCategoriaPipeline(c) === 'atrasado');
   const totalAtrasos = atrasados.length;
   const porFase = new Map<string, { fase: string; funil: string; n: number }>();
   for (const c of atrasados) {
@@ -457,7 +463,9 @@ export function computePipelineAnalises(
     const unitCards = porRedeCards.get(f.rede_franqueado_id) ?? [];
     const label = labelFranqueadoPipeline(f);
     const ativos = unitCards.length;
-    const atras = unitCards.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length;
+    const atras = unitCards
+      .filter(cardElegivelMetricasSlaPipeline)
+      .filter((c) => slaCategoriaPipeline(c) === 'atrasado').length;
     const parados = unitCards.filter((c) => cardParado(c)).length;
     const taxaAtraso = ativos === 0 ? 0 : (atras / ativos) * 100;
     const pctParados = ativos === 0 ? 0 : (parados / ativos) * 100;
