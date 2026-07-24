@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useBacklog, SireneItem, AtividadeItem, PastelariaItem } from '@/hooks/useBacklog';
@@ -8,6 +8,8 @@ import { BacklogColunaCard, StatusPrazo } from './BacklogColuna';
 import { isoWeek } from '@/utils/periodos';
 import type { DadosAgendamento } from './ModalAgendamento';
 import { BacklogKanbanColuna } from './BacklogKanbanColuna';
+import { createClient } from '@/lib/supabase/client';
+import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 
 const STATUS_ORDER: Record<StatusPrazo, number> = {
   atrasado: 0, esta_semana: 1, sem_prazo: 2, futuro: 3,
@@ -71,6 +73,157 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
   );
 }
 
+// ── NovaAtividadeDrawer ───────────────────────────────────────────────────────
+type Tarefa = { id: string; nome: string };
+const RECORR_OPTS = [
+  { value: 'unica', label: 'Atividade única' },
+  { value: 'diaria', label: 'Diária' },
+  { value: 'semanal', label: 'Semanal' },
+  { value: 'mensal', label: 'Mensal' },
+  { value: 'trimestral', label: 'Trimestral' },
+];
+
+function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFechar: () => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [tarefas,     setTarefas]     = useState<Tarefa[]>([]);
+  const [tarefaId,    setTarefaId]    = useState('');
+  const [novaTarefa,  setNovaTarefa]  = useState('');
+  const [criandoComp, setCriandoComp] = useState(false);
+  const [nome,        setNome]        = useState('');
+  const [tempoVal,    setTempoVal]    = useState('');
+  const [tempoUnit,   setTempoUnit]   = useState<'minutos' | 'horas'>('minutos');
+  const [canetaVerde, setCanetaVerde] = useState('nao');
+  const [recorrencia, setRecorrencia] = useState('unica');
+  const [salvando,    setSalvando]    = useState(false);
+  const [erro,        setErro]        = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!areaId) return;
+    void supabase.from('tarefas').select('id, nome').eq('area_id', areaId).order('nome').then(({ data }) => {
+      setTarefas((data ?? []) as Tarefa[]);
+    });
+  }, [supabase, areaId]);
+
+  const handleSalvar = async () => {
+    if (!nome.trim()) { setErro('Nome da atividade é obrigatório.'); return; }
+    setSalvando(true); setErro(null);
+    try {
+      let tId = tarefaId;
+      if (criandoComp) {
+        if (!novaTarefa.trim()) { setErro('Nome do comportamento é obrigatório.'); setSalvando(false); return; }
+        const { data: ins, error: e } = await supabase
+          .from('tarefas').insert({ area_id: areaId, nome: novaTarefa.trim() }).select('id').single();
+        if (e) throw e;
+        tId = (ins as { id: string }).id;
+        setTarefas(prev => [...prev, { id: tId, nome: novaTarefa.trim() }]);
+        setTarefaId(tId); setCriandoComp(false); setNovaTarefa('');
+      }
+      if (!tId) { setErro('Selecione um comportamento.'); setSalvando(false); return; }
+      const tempoMin = tempoVal ? (tempoUnit === 'horas' ? Math.round(Number(tempoVal) * 60) : Math.round(Number(tempoVal))) : null;
+      const { error: e2 } = await supabase.from('acoes').insert({
+        tarefa_id: tId, nome: nome.trim(),
+        tempo_estimado_minutos: tempoMin,
+        caneta_verde: canetaVerde,
+        recorrencia,
+      });
+      if (e2) throw e2;
+      onFechar();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Erro ao salvar.');
+    } finally { setSalvando(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end" onClick={onFechar}>
+      <div className="w-80 bg-white h-full shadow-xl flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700">Nova atividade</h3>
+          <button type="button" onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+          {/* Comportamento */}
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Comportamento</label>
+            {criandoComp ? (
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                  placeholder="Nome do comportamento"
+                  value={novaTarefa} onChange={e => setNovaTarefa(e.target.value)} autoFocus />
+                <button type="button" onClick={() => setCriandoComp(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <select
+                  className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none"
+                  value={tarefaId} onChange={e => setTarefaId(e.target.value)}>
+                  <option value="">— Selecione —</option>
+                  {tarefas.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                </select>
+                <button type="button" onClick={() => setCriandoComp(true)}
+                  className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap">+ Novo</button>
+              </div>
+            )}
+          </div>
+
+          {/* Nome da atividade */}
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Nome da atividade *</label>
+            <input
+              className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+              placeholder="Nome da atividade"
+              value={nome} onChange={e => setNome(e.target.value)} />
+          </div>
+
+          {/* Tempo */}
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Tempo</label>
+            <div className="flex gap-2">
+              <input type="number" min="0"
+                className="w-20 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none"
+                placeholder="0" value={tempoVal} onChange={e => setTempoVal(e.target.value)} />
+              <select className="text-xs border border-gray-300 rounded px-2 py-1.5"
+                value={tempoUnit} onChange={e => setTempoUnit(e.target.value as 'minutos' | 'horas')}>
+                <option value="minutos">min</option>
+                <option value="horas">h</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Caneta verde */}
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Caneta verde</label>
+            <select className="text-xs border border-gray-300 rounded px-2 py-1.5 w-full"
+              value={canetaVerde} onChange={e => setCanetaVerde(e.target.value)}>
+              <option value="nao">Não</option>
+              <option value="sim">Sim</option>
+            </select>
+          </div>
+
+          {/* Recorrência */}
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Recorrência</label>
+            <select className="text-xs border border-gray-300 rounded px-2 py-1.5 w-full"
+              value={recorrencia} onChange={e => setRecorrencia(e.target.value)}>
+              {RECORR_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          {erro && <p className="text-xs text-red-500">{erro}</p>}
+        </div>
+
+        <div className="px-4 py-3 border-t border-gray-100 flex gap-2 justify-end">
+          <button type="button" onClick={onFechar} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+          <button type="button" onClick={handleSalvar} disabled={salvando}
+            className="text-xs px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors">
+            {salvando ? 'Salvando...' : 'Salvar atividade'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Sirene ────────────────────────────────────────────────────────────────────
 type ColunaSireneProps = { items: SireneItem[]; pastelariaItems?: PastelariaItem[] };
 function ColunaSirene({ items, pastelariaItems = [] }: ColunaSireneProps) {
@@ -100,6 +253,7 @@ function ColunaSirene({ items, pastelariaItems = [] }: ColunaSireneProps) {
               status={status}
               origemBadge="Sirene"
               href={item.chamado_id ? `/sirene/chamados?id=${item.chamado_id}` : undefined}
+              abertoPor={item.aberto_por_nome}
             />
           </DraggableSirene>
         );
@@ -116,6 +270,7 @@ function ColunaSirene({ items, pastelariaItems = [] }: ColunaSireneProps) {
             prazo={null}
             status={statusPastelaria(item)}
             origemBadge="Pastelaria"
+            href="/carometro/pastelaria"
           />
         </DraggableSirene>
       ))}
@@ -174,9 +329,9 @@ function DraggableSirene({ dragId, dragData, children }: { dragId: string; dragD
 type ColunaAtividadesProps = {
   items: AtividadeItem[];
   semanaAtual: number;
-  onAbrirModal?: (p: Partial<DadosAgendamento>) => void;
+  onAbrirNovaAtividade?: () => void;
 };
-function ColunaAtividades({ items, semanaAtual, onAbrirModal }: ColunaAtividadesProps) {
+function ColunaAtividades({ items, semanaAtual, onAbrirNovaAtividade }: ColunaAtividadesProps) {
   const comStatus = items.map(i => ({ item: i, status: statusAtividade(i, semanaAtual) }));
 
   return (
@@ -192,10 +347,10 @@ function ColunaAtividades({ items, semanaAtual, onAbrirModal }: ColunaAtividades
           />
         </DraggableAtividade>
       ))}
-      {onAbrirModal && (
+      {onAbrirNovaAtividade && (
         <button
           type="button"
-          onClick={() => onAbrirModal({})}
+          onClick={onAbrirNovaAtividade}
           className="mt-2 w-full text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 border border-dashed border-gray-300 hover:border-blue-300 rounded-md py-1.5 transition-colors"
         >
           + Nova atividade
@@ -212,7 +367,9 @@ type BacklogBlocoProps = {
 
 export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
   const { sirene, pastelaria, atividades, isLoading, error } = useBacklog();
+  const { areaId } = useEffectiveUser();
   const semanaAtual = isoWeek(new Date());
+  const [drawerAberto, setDrawerAberto] = useState(false);
 
   // Contadores para dots de status
   const sireneAtrasados  = sirene.filter(i => statusSirene(i) === 'atrasado').length;
@@ -275,13 +432,17 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
             <ColunaAtividades
               items={atividades}
               semanaAtual={semanaAtual}
-              onAbrirModal={onAbrirModal}
+              onAbrirNovaAtividade={() => setDrawerAberto(true)}
             />
           </div>
 
           {/* Coluna 3 — Cards / Kanban */}
           <BacklogKanbanColuna />
         </div>
+      )}
+
+      {drawerAberto && (
+        <NovaAtividadeDrawer areaId={areaId} onFechar={() => setDrawerAberto(false)} />
       )}
     </section>
   );

@@ -21,6 +21,7 @@ export type SireneItem = {
   frank_nome: string | null;
   trava: boolean;
   te_trata: boolean;
+  aberto_por_nome: string | null;
 };
 
 export type AtividadeItem = {
@@ -117,9 +118,9 @@ export function useBacklog(): UseBacklogResult {
             chamado_id,
             interacao_id,
             trava,
-            sirene_chamados(numero, frank_id, frank_nome, te_trata),
+            sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome),
             kanban_atividades!sirene_topicos_interacao_id_fkey(
-              sirene_chamados(numero, frank_id, frank_nome, te_trata)
+              sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome)
             )
           `)
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
@@ -158,7 +159,7 @@ export function useBacklog(): UseBacklogResult {
 
       if (sireneRes.error) throw sireneRes.error;
 
-      type ChamadoRaw = { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null } | { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null }[] | null;
+      type ChamadoRaw = { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null } | { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null }[] | null;
       type SireneRaw = {
         id: string;
         tipo: string;
@@ -208,11 +209,12 @@ export function useBacklog(): UseBacklogResult {
           status:         row.status,
           chamado_id:     row.chamado_id,
           chamado_numero: chamado?.numero ?? null,
-          prioridade:     prioridade_label,
+          prioridade:      prioridade_label,
           frank_id,
           frank_nome,
           trava,
           te_trata,
+          aberto_por_nome: chamado?.aberto_por_nome ?? null,
         };
       });
 

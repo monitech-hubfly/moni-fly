@@ -13,6 +13,7 @@ type BacklogColunaProps = {
   status: StatusPrazo;
   origemBadge?: string;
   href?: string;
+  abertoPor?: string | null;
 };
 
 const BORDER_COLOR: Record<StatusPrazo, string> = {
@@ -74,6 +75,7 @@ export function BacklogColunaCard({
   status,
   origemBadge,
   href,
+  abertoPor,
 }: BacklogColunaProps) {
   const borderColor = BORDER_COLOR[status];
   const prazoLabel  = formatarPrazo(prazo, status);
@@ -122,6 +124,9 @@ export function BacklogColunaCard({
         )}
         {numeroChamado && (
           <span className="text-gray-400 font-normal">#{numeroChamado}</span>
+        )}
+        {abertoPor && (
+          <span className="text-gray-400 font-normal">por {abertoPor}</span>
         )}
         <span>{prazoLabel}</span>
       </div>

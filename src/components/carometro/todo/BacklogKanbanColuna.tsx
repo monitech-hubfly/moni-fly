@@ -129,7 +129,7 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
         </div>
       ) : null}
 
-      {/* Linha 2: badge SLA + badge origem + funil · fase */}
+      {/* Linha 2: badge SLA + badge origem (exceto checklist) + funil · fase + prazo */}
       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
         {slaBadge ? (
           <span
@@ -143,14 +143,29 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
             {slaBadge.texto}
           </span>
         ) : null}
-        <span className={`text-[10px] font-medium px-1 py-0.5 rounded ${badgeCls}`}>
-          {ORIGEM_LABEL[card.origem]}
-        </span>
+        {card.origem !== 'checklist' && (
+          <span className={`text-[10px] font-medium px-1 py-0.5 rounded ${badgeCls}`}>
+            {ORIGEM_LABEL[card.origem]}
+          </span>
+        )}
         {card.kanban_nome && (
           <span className="text-[10px] text-gray-400 truncate max-w-[8rem]">{card.kanban_nome}</span>
         )}
         {card.fase_nome && (
           <span className="text-[10px] text-gray-400 truncate">· {card.fase_nome}</span>
+        )}
+        {card.prazo_atividade && (
+          <span className="text-[10px] text-gray-500 ml-auto shrink-0">
+            {(() => {
+              const d = new Date(`${card.prazo_atividade}T00:00:00`);
+              const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+              if (d < hoje) {
+                const diff = Math.round((hoje.getTime() - d.getTime()) / 86400000);
+                return <span className="text-red-600 font-medium">Atrasado {diff}d</span>;
+              }
+              return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+            })()}
+          </span>
         )}
       </div>
     </div>

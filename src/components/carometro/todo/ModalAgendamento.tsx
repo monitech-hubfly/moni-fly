@@ -302,6 +302,7 @@ export function ModalAgendamento({
   const [gerandoMeet,      setGerandoMeet]      = useState(false);
   const [metaDefinida,     setMetaDefinida]     = useState(false);
   const [partAbertas,      setPartAbertas]      = useState([true, false]); // [internos, externos]
+  const [buscaInternos,    setBuscaInternos]    = useState('');
 
   // Seções colapsáveis
   // 0=Data+Recorrência, 1=VínculoMeta, 2=Participantes, 3=Link, 4=Info, 5=Obs
@@ -953,6 +954,14 @@ export function ModalAgendamento({
               </button>
               {partAbertas[0] && (
                 <div className="px-3 pb-3 pt-1 border-t border-gray-100">
+                  {/* Busca por nome */}
+                  <input
+                    type="text"
+                    placeholder="Buscar participante..."
+                    value={buscaInternos}
+                    onChange={e => setBuscaInternos(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-md px-2.5 py-1.5 mt-1 mb-1 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                  />
                   {pessoas.length === 0 ? (
                     <p className="text-xs text-gray-400 mt-1">Nenhum usuário encontrado.</p>
                   ) : (
@@ -960,7 +969,12 @@ export function ModalAgendamento({
                       {[
                         ...pessoas.filter(p => form.participantes.includes(p.profile_id)),
                         ...pessoas.filter(p => !form.participantes.includes(p.profile_id)),
-                      ].map(p => {
+                      ].filter(p => {
+                        if (!buscaInternos.trim()) return true;
+                        const q = buscaInternos.toLowerCase();
+                        return (p.nomeCompleto ?? p.nome ?? '').toLowerCase().includes(q)
+                          || (p.area ?? '').toLowerCase().includes(q);
+                      }).map(p => {
                         const sel     = form.participantes.includes(p.profile_id);
                         const ocupado = sel && ocupados.has(p.profile_id);
                         const slots   = sel ? (busySlots.get(p.profile_id) ?? []) : [];

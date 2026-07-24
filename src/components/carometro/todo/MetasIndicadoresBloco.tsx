@@ -533,6 +533,121 @@ function MetaCard({
   );
 }
 
+// ── Blockers ──────────────────────────────────────────────────────────────────
+type BlockerRow = { id: string; descricao: string; objetivo_id: string | null; criado_em: string | null; resolvido: boolean };
+
+function BlockersSection({ areaId, metas }: { areaId: string | null; metas: MetaItem[] }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [aberto,      setAberto]      = useState(false);
+  const [blockers,    setBlockers]    = useState<BlockerRow[]>([]);
+  const [loading,     setLoading]     = useState(false);
+  const [adicionando, setAdicionando] = useState(false);
+  const [descricao,   setDescricao]   = useState('');
+  const [objetivoId,  setObjetivoId]  = useState('');
+  const [salvando,    setSalvando]    = useState(false);
+
+  const carregar = useCallback(async () => {
+    if (!areaId) return;
+    setLoading(true);
+    const { data } = await supabase.from('blockers').select('id, descricao, objetivo_id, criado_em, resolvido')
+      .eq('area_id', areaId).eq('resolvido', false).order('criado_em', { ascending: false });
+    setBlockers((data ?? []) as BlockerRow[]);
+    setLoading(false);
+  }, [supabase, areaId]);
+
+  useEffect(() => { if (aberto) carregar(); }, [aberto, carregar]);
+
+  const handleSalvar = async () => {
+    if (!descricao.trim() || !areaId) return;
+    setSalvando(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from('blockers').insert({
+      area_id: areaId, descricao: descricao.trim(),
+      objetivo_id: objetivoId || null,
+      criado_por: user?.id,
+    });
+    if (!error) { setDescricao(''); setObjetivoId(''); setAdicionando(false); await carregar(); }
+    setSalvando(false);
+  };
+
+  const handleResolver = async (id: string) => {
+    await supabase.from('blockers').update({ resolvido: true, resolvido_em: new Date().toISOString() }).eq('id', id);
+    setBlockers(prev => prev.filter(b => b.id !== id));
+  };
+
+  const metaNome = (id: string | null) => metas.find(m => m.id === id)?.descricao ?? null;
+
+  return (
+    <div className="mt-4 border-t border-gray-200 pt-3">
+      <button type="button"
+        onClick={() => setAberto(v => !v)}
+        className="w-full flex items-center justify-between text-left">
+        <span className="text-xs font-semibold text-red-600 uppercase tracking-wide">
+          🚧 Blockers {blockers.length > 0 && !loading ? `(${blockers.length})` : ''}
+        </span>
+        <span className="text-gray-400 text-[10px]">{aberto ? '▲' : '▼'}</span>
+      </button>
+
+      {aberto && (
+        <div className="mt-2 flex flex-col gap-2">
+          {loading ? (
+            <p className="text-xs text-gray-400">Carregando...</p>
+          ) : blockers.length === 0 && !adicionando ? (
+            <p className="text-xs text-gray-400">Nenhum blocker ativo.</p>
+          ) : (
+            blockers.map(b => (
+              <div key={b.id} className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-red-800 font-medium leading-snug">{b.descricao}</p>
+                  {b.objetivo_id && metaNome(b.objetivo_id) && (
+                    <p className="text-[10px] text-red-500 mt-0.5">Meta: {metaNome(b.objetivo_id)}</p>
+                  )}
+                </div>
+                <button type="button" onClick={() => handleResolver(b.id)} title="Marcar como resolvido"
+                  className="text-[11px] text-green-600 hover:text-green-800 font-bold shrink-0 mt-0.5">✓</button>
+              </div>
+            ))
+          )}
+
+          {adicionando ? (
+            <div className="bg-white border border-red-200 rounded-lg p-3 flex flex-col gap-2">
+              <textarea
+                rows={2}
+                placeholder="Descreva o blocker *"
+                value={descricao}
+                onChange={e => setDescricao(e.target.value)}
+                className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-red-300"
+              />
+              {metas.length > 0 && (
+                <select
+                  className="text-xs border border-gray-300 rounded px-2 py-1.5"
+                  value={objetivoId}
+                  onChange={e => setObjetivoId(e.target.value)}>
+                  <option value="">— Vincular à meta (opcional) —</option>
+                  {metas.map(m => <option key={m.id} value={m.id}>{m.descricao}</option>)}
+                </select>
+              )}
+              <div className="flex gap-2 justify-end">
+                <button type="button" onClick={() => { setAdicionando(false); setDescricao(''); setObjetivoId(''); }}
+                  className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+                <button type="button" onClick={handleSalvar} disabled={!descricao.trim() || salvando}
+                  className="text-xs px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50 transition-colors">
+                  {salvando ? 'Salvando...' : 'Adicionar blocker'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setAdicionando(true)}
+              className="w-full text-xs text-red-400 hover:text-red-600 border border-dashed border-red-300 hover:border-red-400 rounded-lg py-1.5 transition-colors">
+              + Blocker
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── MetasIndicadoresBloco ─────────────────────────────────────────────────────
 export function MetasIndicadoresBloco() {
   const supabase = useMemo(() => createClient(), []);
@@ -723,6 +838,9 @@ export function MetasIndicadoresBloco() {
                   )}
                 </div>
               )}
+
+              {/* Blockers */}
+              <BlockersSection areaId={areaId} metas={metas} />
             </>
           )}
         </div>
