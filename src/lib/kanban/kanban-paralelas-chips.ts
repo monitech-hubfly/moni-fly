@@ -14,7 +14,6 @@ import {
   isHipotesesFaseSlug,
 } from '@/lib/kanban/stepone-fase-slugs';
 import { extrairNumeroFranquiaDoTitulo } from '@/lib/kanban/card-sync-group';
-import { listarKanbanCardIdsSyncGroup } from '@/lib/kanban/card-sync-group';
 
 export type { PortfolioParalelasFlags };
 export { HIPOTESES_FASE_SLUGS };
@@ -642,6 +641,91 @@ async function expandirConsultaPorNumeroFranquiaTitulo(
 }
 
 /**
+ * Batch equivalente a N×listarKanbanCardIdsSyncGroup para o Funil Operações.
+ * Reduz de N×(4-8 queries) para 3 queries: processo, irmãos, vínculos diretos.
+ * A cadeia origem_card_id já foi resolvida por coletarCadeiaOrigemAncestraisBatch.
+ */
+async function coletarSyncGroupIdsBatchOperacoes(
+  supabase: SupabaseClient,
+  boardCardIds: string[],
+  allIds: Set<string>,
+): Promise<void> {
+  if (boardCardIds.length === 0) return;
+
+  // 1. processo_step_one_id e projeto_id de todos os cards — 1 query
+  const { data: cardRows } = await supabase
+    .from('kanban_cards')
+    .select('id, processo_step_one_id, projeto_id')
+    .in('id', boardCardIds);
+
+  const processoIds = new Set<string>();
+  for (const row of (cardRows ?? []) as {
+    id?: string;
+    processo_step_one_id?: string | null;
+    projeto_id?: string | null;
+  }[]) {
+    const id = String(row.id ?? '').trim();
+    const procId = String(row.processo_step_one_id ?? '').trim();
+    const projId = String(row.projeto_id ?? '').trim();
+    // O próprio id pode ser shadow de processo
+    if (id) processoIds.add(id);
+    if (procId) processoIds.add(procId);
+    if (projId) processoIds.add(projId);
+  }
+
+  if (processoIds.size === 0) return;
+
+  // Shadow ids de processo entram diretamente
+  for (const pid of processoIds) allIds.add(pid);
+
+  // 2. Cards irmãos pelo mesmo processo — 1 query batch
+  const idsParam = [...processoIds].join(',');
+  const { data: siblings } = await supabase
+    .from('kanban_cards')
+    .select('id')
+    .or(
+      `processo_step_one_id.in.(${idsParam}),and(projeto_id.in.(${idsParam}),processo_step_one_id.is.null)`,
+    )
+    .limit(500);
+
+  for (const row of (siblings ?? []) as { id?: string }[]) {
+    const id = String(row.id ?? '').trim();
+    if (id) allIds.add(id);
+  }
+
+  // 3. Vínculos — BFS completo em batch (equivalente a expandirVinculos, mas 1 query por nível
+  //    em vez de 1 query por card×nível como no listarKanbanCardIdsSyncGroup original).
+  let frontier = [...allIds];
+  const seenEdges = new Set<string>();
+
+  while (frontier.length > 0) {
+    const frontierParam = frontier.join(',');
+    const { data: vinculos } = await supabase
+      .from('kanban_card_vinculos')
+      .select('card_origem_id, card_destino_id')
+      .or(`card_origem_id.in.(${frontierParam}),card_destino_id.in.(${frontierParam})`);
+
+    const novos: string[] = [];
+    for (const v of (vinculos ?? []) as {
+      card_origem_id?: string;
+      card_destino_id?: string;
+    }[]) {
+      const a = String(v.card_origem_id ?? '').trim();
+      const b = String(v.card_destino_id ?? '').trim();
+      const edgeKey = a < b ? `${a}|${b}` : `${b}|${a}`;
+      if (seenEdges.has(edgeKey)) continue;
+      seenEdges.add(edgeKey);
+      for (const nid of [a, b]) {
+        if (!nid || allIds.has(nid)) continue;
+        allIds.add(nid);
+        novos.push(nid);
+      }
+    }
+    frontier = novos;
+  }
+}
+
+/**
  * Operações: sync group (vínculos + processo) + FK#### + cadeia origem_card_id.
  * Cards em em_obra costumam ter origem_card_id/projeto_id nulos — filhos ficam no Portfolio ou Cash Me.
  */
@@ -654,14 +738,7 @@ async function coletarOrigemConsultaOperacoesBatch(
   const ancestraisPorBoardCard = cadeia.ancestraisPorBoardCard;
   const allIds = new Set(cadeia.origemIdsConsulta);
 
-  await Promise.all(
-    boardCardIds.map(async (boardId) => {
-      const groupIds = await listarKanbanCardIdsSyncGroup(supabase, boardId);
-      for (const gid of groupIds) {
-        registrarIdOrigemConsulta(allIds, gid);
-      }
-    }),
-  );
+  await coletarSyncGroupIdsBatchOperacoes(supabase, boardCardIds, allIds);
 
   await expandirConsultaPorNumeroFranquiaTitulo(supabase, boardCards, allIds);
 
@@ -1191,20 +1268,22 @@ export async function enrichCardsParalelasContext(
       if (oid) paisComFilhoOperacoesArquivado.add(oid);
     }
 
-    await enrichFilhosAcoplamentoPorVinculos(
-      supabase,
-      cardIds,
-      cardIds,
-      new Map(cardIds.map((id) => [id, new Set<string>()])),
-      filhoAcoplamentoPorPai,
-    );
-    await enrichFilhosAcoplamentoArquivadosPorVinculos(
-      supabase,
-      cardIds,
-      cardIds,
-      new Map(cardIds.map((id) => [id, new Set<string>()])),
-      paisComFilhoArquivado,
-    );
+    await Promise.all([
+      enrichFilhosAcoplamentoPorVinculos(
+        supabase,
+        cardIds,
+        cardIds,
+        new Map(cardIds.map((id) => [id, new Set<string>()])),
+        filhoAcoplamentoPorPai,
+      ),
+      enrichFilhosAcoplamentoArquivadosPorVinculos(
+        supabase,
+        cardIds,
+        cardIds,
+        new Map(cardIds.map((id) => [id, new Set<string>()])),
+        paisComFilhoArquivado,
+      ),
+    ]);
 
     return cards.map((c) => {
       const filhoAcop = filhoAcoplamentoPorPai.get(c.id);
@@ -1433,81 +1512,80 @@ export async function enrichCardsParalelasContext(
       }
     }
 
-    await enrichFilhosAcoplamentoPorVinculos(
-      supabase,
-      cardIds,
-      origemIdsConsulta,
-      ancestraisPorBoardCard,
-      filhoAcoplamentoPorPai,
-    );
-    await enrichFilhosAcoplamentoArquivadosPorVinculos(
-      supabase,
-      cardIds,
-      origemIdsConsulta,
-      ancestraisPorBoardCard,
-      paisComFilhoAcoplamentoArquivado,
-    );
-
-    await enrichFilhosEsteiraPorVinculos(
-      supabase,
-      cardIds,
-      origemIdsConsulta,
-      KANBAN_IDS.PROJETO_LEGAL,
-      ancestraisPorBoardCard,
-      (boardId, fase) => {
-        const faseNome = String(fase?.nome ?? '').trim();
-        if (faseNome && !filhoProjetoLegalPorPai.has(boardId)) {
-          filhoProjetoLegalPorPai.set(boardId, faseNome);
-        }
-      },
-    );
-    await enrichFilhosEsteiraArquivadosPorVinculos(
-      supabase,
-      cardIds,
-      origemIdsConsulta,
-      KANBAN_IDS.PROJETO_LEGAL,
-      ancestraisPorBoardCard,
-      paisComFilhoProjetoLegalArquivado,
-    );
-
-    await enrichFilhosEsteiraPorVinculos(
-      supabase,
-      cardIds,
-      origemIdsConsulta,
-      KANBAN_IDS.CREDITO_OBRA,
-      ancestraisPorBoardCard,
-      (boardId, fase) => {
-        if (filhoCreditoObraPorPai.has(boardId)) return;
-        filhoCreditoObraPorPai.set(boardId, String(fase?.nome ?? '').trim());
-      },
-    );
-    await enrichFilhosEsteiraArquivadosPorVinculos(
-      supabase,
-      cardIds,
-      origemIdsConsulta,
-      KANBAN_IDS.CREDITO_OBRA,
-      ancestraisPorBoardCard,
-      paisComFilhoCreditoObraArquivado,
-    );
-
-    await enrichFilhosEsteiraPorVinculos(
-      supabase,
-      cardIds,
-      origemIdsConsulta,
-      KANBAN_IDS.PROJETOS_LOCAIS,
-      ancestraisPorBoardCard,
-      (boardId, fase) => {
-        registrarFilhoProjetosLocaisPai(maps, boardId, fase);
-      },
-    );
-    await enrichFilhosEsteiraArquivadosPorVinculos(
-      supabase,
-      cardIds,
-      origemIdsConsulta,
-      KANBAN_IDS.PROJETOS_LOCAIS,
-      ancestraisPorBoardCard,
-      paisComFilhoProjetosLocaisArquivado,
-    );
+    await Promise.all([
+      enrichFilhosAcoplamentoPorVinculos(
+        supabase,
+        cardIds,
+        origemIdsConsulta,
+        ancestraisPorBoardCard,
+        filhoAcoplamentoPorPai,
+      ),
+      enrichFilhosAcoplamentoArquivadosPorVinculos(
+        supabase,
+        cardIds,
+        origemIdsConsulta,
+        ancestraisPorBoardCard,
+        paisComFilhoAcoplamentoArquivado,
+      ),
+      enrichFilhosEsteiraPorVinculos(
+        supabase,
+        cardIds,
+        origemIdsConsulta,
+        KANBAN_IDS.PROJETO_LEGAL,
+        ancestraisPorBoardCard,
+        (boardId, fase) => {
+          const faseNome = String(fase?.nome ?? '').trim();
+          if (faseNome && !filhoProjetoLegalPorPai.has(boardId)) {
+            filhoProjetoLegalPorPai.set(boardId, faseNome);
+          }
+        },
+      ),
+      enrichFilhosEsteiraArquivadosPorVinculos(
+        supabase,
+        cardIds,
+        origemIdsConsulta,
+        KANBAN_IDS.PROJETO_LEGAL,
+        ancestraisPorBoardCard,
+        paisComFilhoProjetoLegalArquivado,
+      ),
+      enrichFilhosEsteiraPorVinculos(
+        supabase,
+        cardIds,
+        origemIdsConsulta,
+        KANBAN_IDS.CREDITO_OBRA,
+        ancestraisPorBoardCard,
+        (boardId, fase) => {
+          if (filhoCreditoObraPorPai.has(boardId)) return;
+          filhoCreditoObraPorPai.set(boardId, String(fase?.nome ?? '').trim());
+        },
+      ),
+      enrichFilhosEsteiraArquivadosPorVinculos(
+        supabase,
+        cardIds,
+        origemIdsConsulta,
+        KANBAN_IDS.CREDITO_OBRA,
+        ancestraisPorBoardCard,
+        paisComFilhoCreditoObraArquivado,
+      ),
+      enrichFilhosEsteiraPorVinculos(
+        supabase,
+        cardIds,
+        origemIdsConsulta,
+        KANBAN_IDS.PROJETOS_LOCAIS,
+        ancestraisPorBoardCard,
+        (boardId, fase) => {
+          registrarFilhoProjetosLocaisPai(maps, boardId, fase);
+        },
+      ),
+      enrichFilhosEsteiraArquivadosPorVinculos(
+        supabase,
+        cardIds,
+        origemIdsConsulta,
+        KANBAN_IDS.PROJETOS_LOCAIS,
+        ancestraisPorBoardCard,
+        paisComFilhoProjetosLocaisArquivado,
+      ),
+    ]);
 
     await enrichFilhosOperacoesPorTituloFranquia(supabase, cards, maps);
 
