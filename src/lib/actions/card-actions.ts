@@ -3749,52 +3749,36 @@ export async function salvarFranqueadoCardVinculado(input: {
 
 export type BuscaCardVinculoRow = { id: string; titulo: string; kanban_nome: string };
 
-/** Busca cards por título (admin/consultor) para vincular. */
-export async function buscarCardsParaVinculo(
-  termo: string,
-  excetoCardId: string,
-): Promise<{ ok: true; items: BuscaCardVinculoRow[] } | { ok: false; error: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+const BUSCA_VINCULO_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-  const pode = await perfilEhAdminOuTeam(supabase, user.id);
-  if (!pode) return { ok: false, error: 'Sem permissão para buscar cards.' };
+function normalizarTermoBuscaVinculo(termo: string): string {
+  return String(termo ?? '')
+    .trim()
+    .replace(/%/g, '')
+    .slice(0, 120);
+}
 
-  const t = String(termo ?? '').trim().replace(/%/g, '').replace(/_/g, ' ').slice(0, 120);
-  if (t.length < 2) return { ok: true, items: [] };
+function termoBuscaVinculoValido(termo: string): boolean {
+  const t = normalizarTermoBuscaVinculo(termo);
+  if (!t) return false;
+  if (BUSCA_VINCULO_UUID_RE.test(t)) return true;
+  return t.length >= 2;
+}
 
-  const ex = String(excetoCardId ?? '').trim();
-  let kanbanOrigemId = '';
-  if (ex) {
-    const { data: origRow } = await supabase
-      .from('kanban_cards')
-      .select('kanban_id')
-      .eq('id', ex)
-      .maybeSingle();
-    kanbanOrigemId = String((origRow as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim();
-  }
+type CandidatoBuscaVinculoRow = {
+  id: string;
+  titulo: string | null;
+  kanban_id?: string;
+  kanbans?: unknown;
+};
 
-  let q = supabase
-    .from('kanban_cards')
-    .select('id, titulo, kanban_id, kanbans(nome)')
-    .eq('status', 'ativo')
-    .eq('arquivado', false)
-    .ilike('titulo', `%${t}%`)
-    .limit(25);
-  if (ex) q = q.neq('id', ex);
-
-  const { data, error } = await q;
-  if (error) return { ok: false, error: error.message };
-
-  const candidatos = (data ?? []) as Array<{
-    id: string;
-    titulo: string | null;
-    kanban_id?: string;
-    kanbans?: unknown;
-  }>;
+async function filtrarCandidatosBuscaVinculo(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  kanbanOrigemId: string,
+  candidatos: CandidatoBuscaVinculoRow[],
+): Promise<BuscaCardVinculoRow[]> {
   const candidatoIds = candidatos.map((row) => String(row.id ?? '').trim()).filter(Boolean);
 
   const legadoIds = new Set<string>();
@@ -3829,31 +3813,91 @@ export async function buscarCardsParaVinculo(
     }
   }
 
-  const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+  const { data: prof } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
   const role = (prof as { role?: string | null } | null)?.role;
   const ocultarInternos = isFrankOrFranqueadoRole(role);
   const permiteProjetoLegal = kanbanPermiteVinculoComProjetoLegal(kanbanOrigemId);
 
-  const items: BuscaCardVinculoRow[] = candidatos
+  return candidatos
     .filter((row) => {
       const id = String(row.id ?? '').trim();
       return id && !legadoIds.has(id) && !processoExcluidoIds.has(id);
     })
-    .map((row) => {
-      return {
-        id: String(row.id),
-        titulo: (row.titulo ?? '').trim() || '(sem título)',
-        kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
-        kanban_id: String(row.kanban_id ?? ''),
-      };
-    })
+    .map((row) => ({
+      id: String(row.id),
+      titulo: (row.titulo ?? '').trim() || '(sem título)',
+      kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
+      kanban_id: String(row.kanban_id ?? ''),
+    }))
     .filter((it) => !ocultarInternos || !isKanbanIdInterno(it.kanban_id))
     .filter(
       (it) =>
         permiteProjetoLegal || String(it.kanban_id ?? '').trim() !== KANBAN_IDS.PROJETO_LEGAL,
     )
     .map(({ id, titulo, kanban_nome }) => ({ id, titulo, kanban_nome }));
+}
 
+/** Busca cards por título, código FK (FK####) ou UUID para vincular. */
+export async function buscarCardsParaVinculo(
+  termo: string,
+  excetoCardId: string,
+): Promise<{ ok: true; items: BuscaCardVinculoRow[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const pode = await perfilEhAdminOuTeam(supabase, user.id);
+  if (!pode) return { ok: false, error: 'Sem permissão para buscar cards.' };
+
+  const t = normalizarTermoBuscaVinculo(termo);
+  if (!termoBuscaVinculoValido(t)) return { ok: true, items: [] };
+
+  const ex = String(excetoCardId ?? '').trim();
+  let kanbanOrigemId = '';
+  if (ex) {
+    const { data: origRow } = await supabase
+      .from('kanban_cards')
+      .select('kanban_id')
+      .eq('id', ex)
+      .maybeSingle();
+    kanbanOrigemId = String((origRow as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim();
+  }
+
+  const baseSelect = () =>
+    supabase
+      .from('kanban_cards')
+      .select('id, titulo, kanban_id, kanbans(nome)')
+      .eq('status', 'ativo')
+      .eq('arquivado', false)
+      .limit(25);
+
+  let candidatos: CandidatoBuscaVinculoRow[] = [];
+
+  if (BUSCA_VINCULO_UUID_RE.test(t)) {
+    let q = baseSelect().eq('id', t.toLowerCase());
+    if (ex) q = q.neq('id', ex);
+    const { data, error } = await q;
+    if (error) return { ok: false, error: error.message };
+    candidatos = (data ?? []) as CandidatoBuscaVinculoRow[];
+  } else if (/^FK[\dA-Za-z]/i.test(t)) {
+    const fkTerm = t.replace(/_/g, ' ').toUpperCase();
+    let q = baseSelect().ilike('titulo', `${fkTerm}%`);
+    if (ex) q = q.neq('id', ex);
+    const { data, error } = await q;
+    if (error) return { ok: false, error: error.message };
+    candidatos = (data ?? []) as CandidatoBuscaVinculoRow[];
+  } else {
+    const tituloTerm = t.replace(/_/g, ' ');
+    let q = baseSelect().ilike('titulo', `%${tituloTerm}%`);
+    if (ex) q = q.neq('id', ex);
+    const { data, error } = await q;
+    if (error) return { ok: false, error: error.message };
+    candidatos = (data ?? []) as CandidatoBuscaVinculoRow[];
+  }
+
+  const items = await filtrarCandidatosBuscaVinculo(supabase, user.id, kanbanOrigemId, candidatos);
   return { ok: true, items };
 }
 

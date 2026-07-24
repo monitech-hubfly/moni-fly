@@ -177,7 +177,8 @@ export function KanbanCardModalRelacionamentos({
       return;
     }
     const t = buscaVinculo.trim();
-    if (t.length < 2) {
+    const uuidOk = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(t);
+    if (!uuidOk && t.length < 2) {
       setResultadosBusca([]);
       return;
     }
@@ -468,12 +469,12 @@ export function KanbanCardModalRelacionamentos({
               {modo === 'vincular' ? (
                 <div className="space-y-2">
                   <label className="block text-[10px] font-medium text-stone-600">
-                    Buscar por título
+                    Buscar por título ou ID (FK / UUID)
                     <input
                       type="search"
                       value={buscaVinculo}
                       onChange={(e) => setBuscaVinculo(e.target.value)}
-                      placeholder="Mín. 2 caracteres…"
+                      placeholder="Ex.: FK0006, UUID ou nome…"
                       className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-[11px] text-stone-800"
                     />
                   </label>
@@ -495,7 +496,10 @@ export function KanbanCardModalRelacionamentos({
                         </li>
                       ))}
                     </ul>
-                  ) : buscaVinculo.trim().length >= 2 ? (
+                  ) : buscaVinculo.trim().length >= 2 ||
+                    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                      buscaVinculo.trim(),
+                    ) ? (
                     <p className="text-[10px] text-stone-500">Nenhum card encontrado.</p>
                   ) : null}
                   <button
