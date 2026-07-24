@@ -1174,6 +1174,19 @@ function overrideTemFimManual(ov: CalculadoraFaseDataManualOverride | undefined)
   return Boolean(ov && 'dataFim' in ov && ov.dataFim != null && String(ov.dataFim).trim());
 }
 
+/** Override explícito início+fim null = limpar datas na UI (Step One / âncora). */
+function overrideLimparDatasIntencional(
+  ov: CalculadoraFaseDataManualOverride | undefined,
+): boolean {
+  return Boolean(
+    ov &&
+      'dataInicio' in ov &&
+      ov.dataInicio == null &&
+      'dataFim' in ov &&
+      ov.dataFim == null,
+  );
+}
+
 /**
  * Fim manual em fase aberta (sem real) = estimativa digitada.
  * Em concluída / com real: fim digitado é autoritativo (dataFimReal), para não ser
@@ -1227,6 +1240,11 @@ export function propagarLinhasCalculadoraForward(
 ): CalculadoraFaseLinha[] {
   const out = linhas.map((l) => ({ ...l }));
   const ancRow = out[desdeIdx]!;
+  // Não propagar a partir de fase com limpeza intencional — senão zera estimativas
+  // das fases posteriores (incl. fase atual) e quebra encadeamento por SLA.
+  if (overrideLimparDatasIntencional(overrides?.get(ancRow.faseId))) {
+    return linhas;
+  }
   const fimAncoraEfetivo = ancRow.dataFimReal ?? ancRow.dataFimEstimada;
   let fimFaseAnteriorReal: string | null = ancRow.dataFimReal;
   let fimFaseAnteriorEstimado: string | null = ancRow.dataFimReal
@@ -1331,12 +1349,7 @@ function aplicarOverrideManualEmLinhaCalculadora(
   const temFimManual = overrideTemFimManual(ov);
 
   // Override explícito início+fim null = limpar datas (UI «—») e concluir se já passou.
-  const limparDatasIntencional =
-    'dataInicio' in ov &&
-    ov.dataInicio == null &&
-    'dataFim' in ov &&
-    ov.dataFim == null;
-  if (limparDatasIntencional) {
+  if (overrideLimparDatasIntencional(ov)) {
     let statusLimpo: FaseTimelineStatus = 'futura';
     if (linha.faseId === card.fase_id && !card.concluido) statusLimpo = 'atual';
     else if (linha.ordem < ordemAtual) statusLimpo = 'concluida';
@@ -1469,12 +1482,21 @@ export function aplicarDatasManuaisCalculadoraLinhas(
     .filter((i) => i >= 0)
     .sort((a, b) => a - b);
 
+  let teveLimpezaIntencional = false;
+
   for (const idx of indicesOverride) {
     const ov = overrides.get(out[idx]!.faseId);
     if (ov) {
+      if (overrideLimparDatasIntencional(ov)) teveLimpezaIntencional = true;
       out[idx] = aplicarOverrideManualEmLinhaCalculadora(out[idx]!, ov, card, ordemAtual, hoje);
     }
-    out = propagarLinhasCalculadoraForward(out, idx, card, ordemAtual, hoje, overrides);
+    if (!overrideLimparDatasIntencional(ov)) {
+      out = propagarLinhasCalculadoraForward(out, idx, card, ordemAtual, hoje, overrides);
+    }
+  }
+
+  if (teveLimpezaIntencional) {
+    return sincronizarEstimativasFuturasAPartirFaseAtual(out, card, hojeRef, overrides);
   }
 
   return recomputarStatusAtrasoLinhasCalculadora(out, card, hojeRef);
@@ -1702,13 +1724,7 @@ export function inferirFimRealPorProximaFase(
     const ov = overrides?.get(row.faseId);
     if (overrideTemFimManual(ov)) continue;
     // Limpeza intencional (início+fim null) — não repor pela próxima fase.
-    const limparDatasIntencional =
-      ov &&
-      'dataInicio' in ov &&
-      ov.dataInicio == null &&
-      'dataFim' in ov &&
-      ov.dataFim == null;
-    if (limparDatasIntencional) continue;
+    if (overrideLimparDatasIntencional(ov)) continue;
     // Override só com fim null (ex.: início manual sem fim) em fase já superada: infere pela próxima.
     const concluida = row.status === 'concluida' || row.status === 'concluida_atraso';
     if (!concluida) continue;
