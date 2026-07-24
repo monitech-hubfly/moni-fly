@@ -1210,7 +1210,13 @@ export async function fetchKanbanBoardSnapshot(
 
     let tituloExibicao = filhoBastao && tituloRaw
       ? escolherTituloExibicaoCard(tituloRaw, null, nFranquiaCard, nomeFranqueadoCard)
-      : escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquiaCard, nomeFranqueadoCard);
+      : escolherTituloExibicaoCard(
+          tituloRaw,
+          tituloCalc,
+          nFranquiaCard,
+          nomeFranqueadoCard,
+          { nomeCondominio, quadra, lote },
+        );
     let subtituloCard: string | null = null;
     let profilesLinha: KanbanCardBrief['profiles'] =
       redeId && redeNomeDiretoMap.has(redeId)

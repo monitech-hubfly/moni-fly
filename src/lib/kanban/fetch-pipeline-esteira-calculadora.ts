@@ -40,6 +40,7 @@ function cardParaCalculadora(card: PipelineCardRow): CalculadoraPublicaCard {
     concluido: card.concluido,
     concluido_em: null,
     contrato_assinado_em: card.contrato_assinado_em ?? null,
+    contrato_condicoes_precedentes: null,
     obra_iniciada_em: card.obra_iniciada_em ?? null,
     obra_finalizada_em: card.obra_finalizada_em ?? null,
     opcao_assinada_em: card.opcao_assinada_em ?? null,

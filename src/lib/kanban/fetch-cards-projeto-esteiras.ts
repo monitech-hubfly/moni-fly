@@ -142,12 +142,15 @@ export async function fetchCardsProjetoEsteiras(
     const tituloRaw = String(row.titulo ?? '').trim();
     const redeId = String(row.rede_franqueado_id ?? '').trim();
     const nFranquia = redeId ? nFranquiaPorRede.get(redeId) : null;
+    const nomeCondominioRow = row.nome_condominio ?? camposProjeto.nome_condominio;
+    const quadraRow = row.quadra ?? camposProjeto.quadra;
+    const loteRow = row.lote ?? camposProjeto.lote;
     const tituloCalc = montarTituloCardSync({
       nFranquia,
       nomeFranqueado: redeId ? nomeFranqueadoPorRede.get(redeId) : null,
-      nomeCondominio: row.nome_condominio ?? camposProjeto.nome_condominio,
-      quadra: row.quadra ?? camposProjeto.quadra,
-      lote: row.lote ?? camposProjeto.lote,
+      nomeCondominio: nomeCondominioRow,
+      quadra: quadraRow,
+      lote: loteRow,
       tituloFallback: row.titulo,
     });
     const nFranquiaCanonico = redeCanonica ? nFranquiaPorRede.get(redeCanonica) : null;
@@ -155,9 +158,19 @@ export async function fetchCardsProjetoEsteiras(
       id: String(row.id),
       titulo:
         escolherTituloExibicaoCard(
-          escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquia),
+          escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquia, undefined, {
+            nomeCondominio: nomeCondominioRow,
+            quadra: quadraRow,
+            lote: loteRow,
+          }),
           tituloCanonicoProjeto,
           nFranquiaCanonico ?? nFranquia,
+          undefined,
+          {
+            nomeCondominio: camposProjeto.nome_condominio,
+            quadra: camposProjeto.quadra,
+            lote: camposProjeto.lote,
+          },
         ) || '—',
       status: String(row.status ?? 'ativo'),
       concluido: Boolean(row.concluido),

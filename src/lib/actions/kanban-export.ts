@@ -84,6 +84,7 @@ function cardParaCalculadoraPack(
     concluido: card.concluido ?? false,
     concluido_em: card.concluido_em ?? null,
     contrato_assinado_em: null,
+    contrato_condicoes_precedentes: null,
     obra_iniciada_em: null,
     obra_finalizada_em: null,
     opcao_assinada_em: null,

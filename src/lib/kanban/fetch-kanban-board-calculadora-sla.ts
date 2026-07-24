@@ -78,6 +78,7 @@ function cardParaCalculadoraPack(ctx: CardCalculadoraCtx): CalculadoraPublicaCar
     concluido: ctx.concluido,
     concluido_em: ctx.concluido_em,
     contrato_assinado_em: ctx.contrato_assinado_em,
+    contrato_condicoes_precedentes: null,
     obra_iniciada_em: ctx.obra_iniciada_em,
     obra_finalizada_em: ctx.obra_finalizada_em,
     opcao_assinada_em: ctx.opcao_assinada_em,
