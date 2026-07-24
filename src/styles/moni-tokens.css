@@ -279,8 +279,13 @@
   /* Legado revisão → mesmo padrão Média (sem roxo saturado no board) */
   --moni-card-chip-revisao-bg:    var(--moni-card-tag-bg);
   --moni-card-chip-revisao-text:  var(--moni-card-tag-text);
-  --moni-card-chip-prazo-bg:      #faf2f0;                  /* atrasado: fundo bem suave */
-  --moni-card-chip-prazo-text:    #a15a4f;                  /* atrasado: texto menos saturado */
+  --moni-card-chip-prazo-bg:      var(--moni-status-overdue-bg);
+  --moni-card-chip-prazo-text:    var(--moni-status-overdue-text);
+  --moni-card-chip-prazo-border:  var(--moni-status-overdue-border);
+  --moni-card-sla-font-size:      10px;                     /* chip X d.u. no board */
+  --moni-card-sla-height:         20px;
+  --moni-card-sla-padding-x:      8px;
+  --moni-card-sla-icon-size:      11px;
 
   /* Linha lateral de status — vermelho sóbrio (nunca #dc2626 / nunca laranja) */
   --moni-card-status-verde:    var(--moni-green-400);       /* no prazo */
@@ -3245,7 +3250,7 @@
 .moni-kanban-card-sla--atrasado {
   background: var(--moni-card-chip-prazo-bg);
   color: var(--moni-card-chip-prazo-text);
-  border-color: transparent;
+  border-color: var(--moni-card-chip-prazo-border);
   font-weight: var(--moni-weight-medium);
 }
 
@@ -3262,21 +3267,21 @@
 }
 
 /* Chips minimalistas dentro do card fechado (escopo local — não afeta modal/pipeline)
-   altura 24px · pill · fonte 12px/600 · sem sombra · fundos suaves */
+   altura 20px · pill · fonte 10px/600 · sem sombra · fundos suaves */
 .moni-kanban-card .moni-kanban-card-sla {
-  height: 24px;
-  min-height: 24px;
-  padding: 0 10px;
-  gap: 5px;
-  border: none;
+  height: var(--moni-card-sla-height);
+  min-height: var(--moni-card-sla-height);
+  padding: 0 var(--moni-card-sla-padding-x);
+  gap: 4px;
+  border: var(--moni-border-width) solid transparent;
   border-radius: var(--moni-radius-pill);
-  font-size: 12px;
+  font-size: var(--moni-card-sla-font-size);
   font-weight: 600;
 }
 
 .moni-kanban-card .moni-kanban-card-sla-icon {
-  width: 13px;
-  height: 13px;
+  width: var(--moni-card-sla-icon-size);
+  height: var(--moni-card-sla-icon-size);
 }
 
 .moni-kanban-card .moni-kanban-card-sla-dot {
@@ -3297,12 +3302,13 @@
 .moni-kanban-card .moni-kanban-card-sla--atrasado {
   background: var(--moni-card-chip-prazo-bg);
   color: var(--moni-card-chip-prazo-text);
-  font-weight: 500;
+  border-color: var(--moni-card-chip-prazo-border);
+  font-weight: 600;
 }
 
 .moni-kanban-card .moni-kanban-card-sla--atrasado .moni-kanban-card-sla-icon {
   color: var(--moni-card-chip-prazo-text);
-  opacity: 0.85;
+  opacity: 1;
 }
 
 /* Tags de conteúdo no card — força padrão Média (sobrescreve cor inline do DB) */
