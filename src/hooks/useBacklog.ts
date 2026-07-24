@@ -131,6 +131,7 @@ export function useBacklog(): UseBacklogResult {
           .select('id, acao_id, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
           .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
           .is('data_conclusao_real', null)
+          .not('acao_id', 'is', null)  // exclui registros de agenda sem vínculo a atividade
           .overlaps('semanas_selecionadas', [
             semanaAtual - 4, semanaAtual - 3, semanaAtual - 2,
             semanaAtual - 1, semanaAtual, semanaAtual + 1, semanaAtual + 2,
@@ -151,6 +152,7 @@ export function useBacklog(): UseBacklogResult {
           .select('id, acao_id, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
           .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
           .is('data_conclusao_real', null)
+          .not('acao_id', 'is', null)  // exclui registros de agenda sem vínculo a atividade
           .lt('semana_ano_fim', semanaAtual - 4),
       ]);
 

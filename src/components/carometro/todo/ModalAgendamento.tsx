@@ -394,7 +394,7 @@ export function ModalAgendamento({
         const [objRes, pessoasRes] = await Promise.all([
           resolvedAreaId
             ? supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', resolvedAreaId).eq('status', 'ativo').order('descricao')
-            : Promise.resolve({ data: [] as { id: string; descricao: string; tipo: string | null }[], error: null }),
+            : supabase.from('objetivos').select('id, descricao, tipo').eq('status', 'ativo').order('descricao'), // admin sem área: exibe todas
           supabase.from('area_pessoas').select('profile_id, nome, areas(nome)').not('profile_id', 'is', null).order('nome'),
         ]);
         setObjetivos((objRes.data ?? []) as { id: string; descricao: string; tipo: string | null }[]);
