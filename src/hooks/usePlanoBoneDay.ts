@@ -131,8 +131,11 @@ export function usePlanoBoneDay(
 
       // Bloco 2: todas as metas ativas (sem filtro de prazo)
       const metasArr = ((objAtivRes.data ?? []) as ObjRow[]).map(toMeta);
-      // Bloco 1: todas as não concluídas (sem filtro de prazo)
-      const metasNaoConclArr = ((objNaoConclRes.data ?? []) as ObjRow[]).map(toMeta);
+      // Bloco 1: não concluídas que ainda NÃO estão no Bloco 2 (evita duplicata)
+      const metasAtivasIds = new Set(metasArr.map(m => m.id));
+      const metasNaoConclArr = ((objNaoConclRes.data ?? []) as ObjRow[])
+        .map(toMeta)
+        .filter(m => !metasAtivasIds.has(m.id));
 
       setMetas(metasArr);
       setMetasNaoConcluidas(metasNaoConclArr);
