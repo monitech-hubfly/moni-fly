@@ -300,11 +300,12 @@ export function ModalAgendamento({
   const [confirmarExcluir, setConfirmarExcluir] = useState(false);
   const [externEmail,      setExternEmail]      = useState('');
   const [gerandoMeet,      setGerandoMeet]      = useState(false);
+  const [metaDefinida,     setMetaDefinida]     = useState(false);
 
-  // Seções colapsáveis (data, participantes, link, recorrência, vínculo, obs)
-  // 0=Data+Recorrência, 1=Participantes, 2=Link, 3=Info adicionais, 4=Observações
-  const [abertas, setAbertas] = useState([true, false, false, false, false]);
-  const [erros,   setErros]   = useState({ origem: false, data: false });
+  // Seções colapsáveis
+  // 0=Data+Recorrência, 1=VínculoMeta, 2=Participantes, 3=Ext, 4=Link, 5=Info, 6=Obs
+  const [abertas, setAbertas] = useState([true, false, false, false, false, false, false]);
+  const [erros,   setErros]   = useState({ origem: false, data: false, titulo: false, meta: false });
 
   const preenchidoRef = useRef(preenchido);
   preenchidoRef.current = preenchido;
@@ -451,8 +452,10 @@ export function ModalAgendamento({
     setForm(base);
     setSelItem(null);
     setQuery('');
-    setErros({ origem: false, data: false });
-    setAbertas([true, false, false, false, false]);
+    setExternEmail('');
+    setErros({ origem: false, data: false, titulo: false, meta: false });
+    setAbertas([true, false, false, false, false, false, false]);
+    setMetaDefinida(modo === 'editar');
 
     // Aba inicial
     const origemInicial: AbaAtiva | null =
@@ -463,7 +466,7 @@ export function ModalAgendamento({
         ? (origemInfo.tipo === 'kanban' ? 'kanban' : 'sirene')
         : null;
     setAbaAtiva(origemInicial);
-  }, [aberto, origemInfo]);
+  }, [aberto, origemInfo, modo]);
 
   // ── Disponibilidade ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -574,6 +577,7 @@ export function ModalAgendamento({
       set('objetivo_id', item.objetivoId ?? null); // pré-preenche meta vinculada
       set('titulo', null);
       set('card_id', null);
+      setMetaDefinida(true); // atividade já tem meta definida (ou nenhuma)
     } else if (abaAtiva === 'kanban') {
       set('card_id', item.id);
       set('titulo', item.label);
@@ -608,10 +612,13 @@ export function ModalAgendamento({
     const novosErros = {
       origem: semOrigem,
       data: !(form.data && form.hora_inicio),
+      titulo: !form.titulo?.trim(),
+      meta: !metaDefinida,
     };
     setErros(novosErros);
     if (Object.values(novosErros).some(Boolean)) {
       if (novosErros.data) setAbertas(prev => { const n = [...prev]; n[0] = true; return n; });
+      if (novosErros.meta) setAbertas(prev => { const n = [...prev]; n[1] = true; return n; });
       return;
     }
     onSalvar({ ...form, origem_tipo: abaAtiva === 'sirene' ? 'sirene' : abaAtiva === 'kanban' ? 'kanban' : 'atividades' });
@@ -627,7 +634,7 @@ export function ModalAgendamento({
     ? itensAba.filter(i => i.label.toLowerCase().includes(query.toLowerCase()))
     : itensAba;
 
-  const progresso = [!!abaAtiva && !!selItem, !!(form.data && form.hora_inicio)].filter(Boolean).length;
+  const progresso = [!!abaAtiva && !!selItem, !!(form.data && form.hora_inicio), !!form.titulo?.trim(), metaDefinida].filter(Boolean).length;
 
   // ── Tab button ────────────────────────────────────────────────────────────
   const TabBtn = ({ aba, icon, label }: { aba: AbaAtiva; icon: string; label: string }) => {
@@ -691,7 +698,7 @@ export function ModalAgendamento({
               <div className="h-full rounded-full transition-all duration-300"
                 style={{ width: `${(progresso / 2) * 100}%`, backgroundColor: progresso === 2 ? '#22c55e' : '#3b82f6' }} />
             </div>
-            <span className="text-[10px] text-gray-400 whitespace-nowrap">{progresso}/2 obrigatórios</span>
+            <span className="text-[10px] text-gray-400 whitespace-nowrap">{progresso}/4 obrigatórios</span>
           </div>
         </div>
 
@@ -773,29 +780,27 @@ export function ModalAgendamento({
                       </button>
                     </div>
 
-                    {/* Meta vinculada — somente para Atividades Planejadas */}
-                    {abaAtiva === 'atividades' && (
-                      <div className="mt-2 pt-2 border-t border-blue-100">
-                        <label className="text-[10px] text-blue-500 mb-1 block">Meta vinculada</label>
-                        <select
-                          className="w-full text-xs border border-blue-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-                          value={form.objetivo_id ?? ''}
-                          onChange={e => set('objetivo_id', e.target.value || null)}>
-                          <option value="">— Selecionar meta —</option>
-                          {objetivos.map(o => (
-                            <option key={o.id} value={o.id}>
-                              {o.descricao}{o.tipo ? ` (${o.tipo})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
             ) : (
               <p className="text-xs text-gray-400 py-1">Selecione uma categoria acima.</p>
             )}
+          </div>
+
+          {/* ── Título ── */}
+          <div className={`border-b border-gray-100 px-4 py-3 ${erros.titulo ? 'bg-red-50' : ''}`}>
+            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">
+              Título
+              {erros.titulo && <span className="text-red-500 ml-2 normal-case font-normal tracking-normal">• obrigatório</span>}
+            </label>
+            <input
+              type="text"
+              className={`w-full text-xs border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.titulo ? 'border-red-400' : 'border-gray-300'}`}
+              placeholder="Título da atividade"
+              value={form.titulo ?? ''}
+              onChange={e => { set('titulo', e.target.value || null); setErros(p => ({ ...p, titulo: false })); }}
+            />
           </div>
 
           {/* ── Data, Horário e Recorrência ── */}
@@ -889,12 +894,36 @@ export function ModalAgendamento({
             </div>
           </Secao>
 
+          {/* ── Vínculo Meta ── */}
+          <Secao titulo="Vínculo Meta" aberta={abertas[1]} onToggle={() => toggleSecao(1)} erro={erros.meta}>
+            <div className="mt-1">
+              <select
+                className={`w-full text-xs border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.meta ? 'border-red-400' : 'border-gray-300'}`}
+                value={!metaDefinida ? '' : (form.objetivo_id ?? 'sem_vinculo')}
+                onChange={e => {
+                  const v = e.target.value;
+                  if (v === '') return;
+                  setMetaDefinida(true);
+                  set('objetivo_id', v === 'sem_vinculo' ? null : v);
+                  setErros(p => ({ ...p, meta: false }));
+                }}>
+                <option value="">— Selecione uma opção —</option>
+                <option value="sem_vinculo">Sem vínculo à meta</option>
+                {objetivos.map(o => (
+                  <option key={o.id} value={o.id}>
+                    {o.descricao}{o.tipo ? ` (${o.tipo})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </Secao>
+
           {/* ── Participantes ── */}
           <Secao
             titulo={form.participantes.length > 0
               ? `Participantes (${form.participantes.length}) · ${pessoas.filter(p => form.participantes.includes(p.profile_id)).map(p => (p.nomeCompleto ?? p.nome).split(' ')[0]).join(', ')}`
               : 'Participantes'}
-            aberta={abertas[1]} onToggle={() => toggleSecao(1)}>
+            aberta={abertas[2]} onToggle={() => toggleSecao(2)}>
             {pessoas.length === 0 ? (
               <p className="text-xs text-gray-400 mt-1">Nenhum usuário encontrado.</p>
             ) : (
@@ -943,10 +972,15 @@ export function ModalAgendamento({
               horaInicio={form.hora_inicio}
               horaFim={form.hora_fim}
             />
+          </Secao>
 
-            {/* ── Participantes externos ── */}
-            <div className="mt-3 border-t border-gray-100 pt-3">
-              <p className="text-[10px] text-gray-400 mb-1.5 font-medium uppercase tracking-wide">Externos (e-mail)</p>
+          {/* ── Participantes externos ── */}
+          <Secao
+            titulo={form.participantes_externos.length > 0
+              ? `Participantes externos (${form.participantes_externos.length})`
+              : 'Participantes externos'}
+            aberta={abertas[3]} onToggle={() => toggleSecao(3)}>
+            <div className="mt-1">
               <div className="flex gap-1.5">
                 <input
                   type="email"
@@ -984,7 +1018,7 @@ export function ModalAgendamento({
           </Secao>
 
           {/* ── Link / Local da reunião ── */}
-          <Secao titulo="Link / Local da reunião" aberta={abertas[2]} onToggle={() => toggleSecao(2)}>
+          <Secao titulo="Link / Local da reunião" aberta={abertas[4]} onToggle={() => toggleSecao(4)}>
             <div className="flex gap-1.5 mt-1">
               <input type="url" className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
                 placeholder="https://meet.google.com/ ou endereço físico"
@@ -1028,7 +1062,7 @@ export function ModalAgendamento({
           </Secao>
 
           {/* ── Informações adicionais ── */}
-          <Secao titulo="Informações adicionais" aberta={abertas[3]} onToggle={() => toggleSecao(3)}>
+          <Secao titulo="Informações adicionais" aberta={abertas[5]} onToggle={() => toggleSecao(5)}>
             <div className="grid grid-cols-2 gap-3 mt-1">
               {([
                 { label: 'Casa',       key: 'casa_id'          as const, opts: casas.map(x => ({ id: x.id, nome: x.nome })) },
@@ -1058,7 +1092,7 @@ export function ModalAgendamento({
           </Secao>
 
           {/* ── Observações ── */}
-          <Secao titulo="Observações" aberta={abertas[4]} onToggle={() => toggleSecao(4)}>
+          <Secao titulo="Observações" aberta={abertas[6]} onToggle={() => toggleSecao(6)}>
             <textarea className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mt-1 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
               rows={3} placeholder="Notas livres..."
               value={form.observacoes ?? ''}
