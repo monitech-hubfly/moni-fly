@@ -34,14 +34,20 @@ async function limparDataReuniaoAposAta(
   origem: 'nativo' | 'legado',
 ): Promise<KanbanAtaActionResult> {
   if (origem === 'legado') {
-    const { error } = await db.from('processo_step_one').update({ data_reuniao: null }).eq('id', cardId);
+    const { error } = await db
+      .from('processo_step_one')
+      .update({ data_reuniao: null, data_reuniao_etapa_slug: null })
+      .eq('id', cardId);
     if (error) return { ok: false, error: error.message };
     return { ok: true };
   }
 
   const cardIds = await listarCardIdsSyncGroup(db, cardId);
   const ids = cardIds.length > 0 ? cardIds : [cardId];
-  const { error: updErr } = await db.from('kanban_cards').update({ data_reuniao: null }).in('id', ids);
+  const { error: updErr } = await db
+    .from('kanban_cards')
+    .update({ data_reuniao: null, data_reuniao_fase_id: null })
+    .in('id', ids);
   if (updErr) return { ok: false, error: updErr.message };
 
   await espelharDataReuniaoEmProcesso(db as unknown as Awaited<ReturnType<typeof createClient>>, cardId, null);
@@ -282,6 +288,8 @@ export async function salvarDataReuniaoCard(input: {
   cardId: string;
   origem: 'nativo' | 'legado';
   dataReuniao: string;
+  faseId?: string | null;
+  etapaSlug?: string | null;
   basePath?: string;
 }): Promise<KanbanAtaActionResult> {
   const supabase = await createClient();
@@ -297,6 +305,9 @@ export async function salvarDataReuniaoCard(input: {
   const valor = raw && dataIsoInputValida(raw) ? raw : raw ? null : null;
   if (raw && !valor) return { ok: false, error: 'Data de reunião inválida. Informe o ano completo (4 dígitos).' };
 
+  const faseId = valor ? String(input.faseId ?? '').trim() || null : null;
+  const etapaSlug = valor ? String(input.etapaSlug ?? '').trim() || null : null;
+
   if (input.origem === 'nativo' && valor) {
     let admin: ReturnType<typeof createAdminClient>;
     try {
@@ -309,13 +320,33 @@ export async function salvarDataReuniaoCard(input: {
       actorUserId: user.id,
     });
     if (!sync.ok) return { ok: false, error: sync.error };
-  } else {
-    const q =
-      input.origem === 'nativo'
-        ? supabase.from('kanban_cards').update({ data_reuniao: valor }).eq('id', cardId)
-        : supabase.from('processo_step_one').update({ data_reuniao: valor }).eq('id', cardId);
 
-    const { error } = await q;
+    const { error: faseErr } = await admin
+      .from('kanban_cards')
+      .update({ data_reuniao_fase_id: faseId })
+      .eq('id', cardId);
+    if (faseErr) return { ok: false, error: faseErr.message };
+  } else if (input.origem === 'nativo') {
+    let admin: ReturnType<typeof createAdminClient>;
+    try {
+      admin = createAdminClient();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
+    }
+    const cardIds = await listarCardIdsSyncGroup(admin, cardId);
+    const ids = cardIds.length > 0 ? cardIds : [cardId];
+    const { error: clrErr } = await admin
+      .from('kanban_cards')
+      .update({ data_reuniao: null, data_reuniao_fase_id: null })
+      .in('id', ids);
+    if (clrErr) return { ok: false, error: clrErr.message };
+    await espelharDataReuniaoEmProcesso(supabase, cardId, null);
+  } else {
+    const { error } = await supabase
+      .from('processo_step_one')
+      .update({ data_reuniao: valor, data_reuniao_etapa_slug: etapaSlug })
+      .eq('id', cardId);
     if (error) return { ok: false, error: error.message };
   }
 

@@ -12,6 +12,8 @@ type Props = {
   origem: 'nativo' | 'legado';
   basePath: string;
   dataReuniao: string;
+  faseId?: string | null;
+  etapaSlug?: string | null;
   onDataReuniaoChange: (v: string) => void;
   onAtaSalva: () => void;
 };
@@ -26,6 +28,8 @@ export function KanbanCardDatasFields({
   origem,
   basePath,
   dataReuniao,
+  faseId,
+  etapaSlug,
   onDataReuniaoChange,
   onAtaSalva,
 }: Props) {
@@ -45,6 +49,8 @@ export function KanbanCardDatasFields({
         cardId,
         origem,
         dataReuniao: valor,
+        faseId: faseId ?? null,
+        etapaSlug: etapaSlug ?? null,
         basePath,
       });
       if (!res.ok) alert(res.error);

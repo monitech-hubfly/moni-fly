@@ -257,6 +257,8 @@ import {
 import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
+import { KanbanCardReuniaoFasePassouModal } from './KanbanCardReuniaoFasePassouModal';
+import { devePerguntarReinicioReuniao } from '@/lib/kanban/reuniao-fase-passou';
 import { KanbanCardSlaBolinha } from './KanbanCardPrazoIndicadores';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, augmentKanbanFasesComFasesDosCards, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
@@ -720,6 +722,9 @@ export function KanbanCardModal({
   const [enviandoHipotesePortfolio, setEnviandoHipotesePortfolio] = useState(false);
   const [dataReuniao, setDataReuniao] = useState('');
   const [horaReuniao, setHoraReuniao] = useState('');
+  const [dataReuniaoFaseId, setDataReuniaoFaseId] = useState<string | null>(null);
+  const [dataReuniaoEtapaSlug, setDataReuniaoEtapaSlug] = useState<string | null>(null);
+  const [modalReuniaoFasePassou, setModalReuniaoFasePassou] = useState(false);
   const [interacoes, setInteracoes] = useState<InteracaoModal[]>([]);
   const [erroCarregarChamados, setErroCarregarChamados] = useState<string | null>(null);
   const [modalSessao, setModalSessao] = useState<{
@@ -946,6 +951,9 @@ export function KanbanCardModal({
     setEmailMensagem('');
     setDataReuniao('');
     setHoraReuniao('');
+    setDataReuniaoFaseId(null);
+    setDataReuniaoEtapaSlug(null);
+    setModalReuniaoFasePassou(false);
     setDetalhesCarregando(true);
     setChamadosCarregando(true);
   }, [cardId]);
@@ -1182,6 +1190,8 @@ export function KanbanCardModal({
         data_reuniao?: string | null;
         data_followup?: string | null;
         hora_reuniao?: string | null;
+        data_reuniao_fase_id?: string | null;
+        data_reuniao_etapa_slug?: string | null;
         projeto_id?: string | null;
         processo_step_one_id?: string | null;
         acoplamento_concluido?: boolean;
@@ -1262,7 +1272,7 @@ export function KanbanCardModal({
         };
 
         try {
-          const [pmRes, evRes] = await Promise.all([
+          const [pmRes, evRes, procAnchorRes] = await Promise.all([
             supabase.from('processo_step_one').select('status, updated_at').eq('id', loaded.id).maybeSingle(),
             supabase
               .from('processo_card_eventos')
@@ -1270,6 +1280,11 @@ export function KanbanCardModal({
               .eq('processo_id', loaded.id)
               .eq('tipo', 'card_move')
               .order('created_at', { ascending: true }),
+            supabase
+              .from('processo_step_one')
+              .select('data_reuniao_etapa_slug')
+              .eq('id', loaded.id)
+              .maybeSingle(),
           ]);
           const pm = pmRes.data as { status?: string | null; updated_at?: string | null } | null;
           loaded.processo_meta = pm
@@ -1278,6 +1293,10 @@ export function KanbanCardModal({
                 updated_at: String(pm.updated_at ?? ''),
               }
             : null;
+          const anchorSlug = (procAnchorRes.data as { data_reuniao_etapa_slug?: string | null } | null)
+            ?.data_reuniao_etapa_slug;
+          loaded.data_reuniao_etapa_slug =
+            anchorSlug != null && String(anchorSlug).trim() !== '' ? String(anchorSlug).trim() : null;
           const evRows = (evRes.data ?? []) as { created_at: string; detalhes?: unknown }[];
           setLegadoCronologiaMoves(
             evRows.map((r) => ({
@@ -1294,7 +1313,7 @@ export function KanbanCardModal({
         const cardSelectConfirmacao =
           'opcao_assinada_em, contrato_assinado_em, contrato_condicoes_precedentes, obra_iniciada_em, obra_finalizada_em';
         const cardSelectCore =
-          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
+          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_reuniao_fase_id, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
         const cardSelectPreObra =
           'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra';
         const cardSelectFunding =
@@ -1346,6 +1365,10 @@ export function KanbanCardModal({
           rede_franqueado_id:
             (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null,
           data_reuniao: (cardData as { data_reuniao?: string | null }).data_reuniao ?? null,
+          data_reuniao_fase_id: (() => {
+            const fid = (cardData as { data_reuniao_fase_id?: string | null }).data_reuniao_fase_id;
+            return fid != null && String(fid).trim() !== '' ? String(fid) : null;
+          })(),
           data_followup: (cardData as { data_followup?: string | null }).data_followup ?? null,
           hora_reuniao: (cardData as { hora_reuniao?: string | null }).hora_reuniao ?? null,
           projeto_id: (() => {
@@ -1639,9 +1662,30 @@ export function KanbanCardModal({
       setCard(cardParaEstado);
       {
         const drShell = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
-        setDataReuniao(drShell && dataIsoInputValida(drShell) ? drShell : '');
+        const drValida = drShell && dataIsoInputValida(drShell) ? drShell : '';
+        setDataReuniao(drValida);
         setHoraReuniao(
           loaded.hora_reuniao ? String(loaded.hora_reuniao).trim().slice(0, 5) : '',
+        );
+        const faseAnchor =
+          loaded.data_reuniao_fase_id != null && String(loaded.data_reuniao_fase_id).trim() !== ''
+            ? String(loaded.data_reuniao_fase_id).trim()
+            : null;
+        const etapaAnchor =
+          loaded.data_reuniao_etapa_slug != null && String(loaded.data_reuniao_etapa_slug).trim() !== ''
+            ? String(loaded.data_reuniao_etapa_slug).trim()
+            : null;
+        setDataReuniaoFaseId(faseAnchor);
+        setDataReuniaoEtapaSlug(etapaAnchor);
+        setModalReuniaoFasePassou(
+          devePerguntarReinicioReuniao({
+            dataReuniao: drValida || loaded.data_reuniao,
+            origem,
+            faseIdAtual: loaded.fase_id,
+            dataReuniaoFaseId: faseAnchor,
+            etapaSlugAtual: loaded.etapa_slug ?? null,
+            dataReuniaoEtapaSlug: etapaAnchor,
+          }),
         );
       }
       if (!silencioso) setLoading(false);
@@ -6770,6 +6814,8 @@ export function KanbanCardModal({
               origem={origem}
               basePath={basePath}
               dataReuniao={dataReuniao}
+              faseId={card.fase_id}
+              etapaSlug={card.etapa_slug ?? faseAtual?.slug ?? null}
               onDataReuniaoChange={setDataReuniao}
               onAtaSalva={() => setAtasReuniaoTick((t) => t + 1)}
             />
@@ -8999,6 +9045,32 @@ export function KanbanCardModal({
           </div>
         </div>
       </div>
+    ) : null}
+
+    {modalReuniaoFasePassou && card ? (
+      <KanbanCardReuniaoFasePassouModal
+        cardId={card.id}
+        origem={origem}
+        basePath={basePath}
+        faseId={card.fase_id}
+        etapaSlug={card.etapa_slug ?? faseAtual?.slug ?? null}
+        onClose={() => setModalReuniaoFasePassou(false)}
+        onAtualizado={(dr) => {
+          setDataReuniao(dr);
+          if (!dr) {
+            setDataReuniaoFaseId(null);
+            setDataReuniaoEtapaSlug(null);
+            return;
+          }
+          if (origem === 'legado') {
+            const slug = card.etapa_slug ?? faseAtual?.slug ?? null;
+            setDataReuniaoEtapaSlug(slug);
+          } else {
+            setDataReuniaoFaseId(card.fase_id);
+          }
+          setModalReuniaoFasePassou(false);
+        }}
+      />
     ) : null}
 
     <CreditoObraAberturaAutorizacaoModal
