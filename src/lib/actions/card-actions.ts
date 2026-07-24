@@ -217,6 +217,31 @@ export async function listarTagsCard(
   });
 }
 
+/** Sincroniza tags automáticas (ex.: Inst. Garantidor no Pré Obra) após mudança de fase fora de moverCardParaFase. */
+export async function sincronizarTagsAutomaticasCard(cardId: string): Promise<void> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return;
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id, kanban_fases(slug)')
+    .eq('id', cid)
+    .maybeSingle();
+  if (!data) return;
+
+  const fase = Array.isArray(data.kanban_fases) ? data.kanban_fases[0] : data.kanban_fases;
+  const { sincronizarTagInstGarantidorOperacoes } = await import(
+    '@/lib/kanban/operacoes-tag-inst-garantidor'
+  );
+  await sincronizarTagInstGarantidorOperacoes(
+    supabase,
+    cid,
+    String((data as { kanban_id?: string }).kanban_id ?? ''),
+    String((fase as { slug?: string } | null)?.slug ?? ''),
+  );
+}
+
 export async function vincularTagCard(
   cardId: string,
   tagId: string,
@@ -5324,6 +5349,16 @@ export async function moverCardParaFase(input: {
   await executarBastoes(cardId, novaFaseSlug);
   await executarBastaoDeVolta(cardId, novaFaseSlug);
   await sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug);
+
+  const { sincronizarTagInstGarantidorOperacoes } = await import(
+    '@/lib/kanban/operacoes-tag-inst-garantidor'
+  );
+  await sincronizarTagInstGarantidorOperacoes(
+    supabase,
+    cardId,
+    String((cardKanban as { kanban_id?: string } | null)?.kanban_id ?? ''),
+    novaFaseSlug,
+  );
 
   const { propagarResponsavelFaseAoEntrarFase, propagarResponsavelDaFaseAoEntrarFase } =
     await import('@/lib/kanban/responsavel-fase-checklist');

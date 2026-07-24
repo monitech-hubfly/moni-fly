@@ -82,6 +82,7 @@ import {
   enviarEmailCard,
   reconciliarGboxPlanilhaMapaChecklist,
   garantirShadowCardLegadoParaHistorico,
+  sincronizarTagsAutomaticasCard,
   type SubInteracaoStatusDb,
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
@@ -2716,6 +2717,7 @@ export function KanbanCardModal({
       } else {
         const { error } = await supabase.from('kanban_cards').update({ fase_id: destinoFase.id }).eq('id', card.id);
         if (error) throw error;
+        await sincronizarTagsAutomaticasCard(card.id);
       }
       await loadCard({ silencioso: true });
       router.refresh();
