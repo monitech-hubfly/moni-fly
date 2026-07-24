@@ -3772,6 +3772,8 @@ export async function buscarCardsParaVinculo(
   let q = supabase
     .from('kanban_cards')
     .select('id, titulo, kanban_id, kanbans(nome)')
+    .eq('status', 'ativo')
+    .eq('arquivado', false)
     .ilike('titulo', `%${t}%`)
     .limit(25);
   if (ex) q = q.neq('id', ex);
@@ -3779,19 +3781,62 @@ export async function buscarCardsParaVinculo(
   const { data, error } = await q;
   if (error) return { ok: false, error: error.message };
 
+  const candidatos = (data ?? []) as Array<{
+    id: string;
+    titulo: string | null;
+    kanban_id?: string;
+    kanbans?: unknown;
+  }>;
+  const candidatoIds = candidatos.map((row) => String(row.id ?? '').trim()).filter(Boolean);
+
+  const legadoIds = new Set<string>();
+  const processoExcluidoIds = new Set<string>();
+  if (candidatoIds.length > 0) {
+    const [{ data: legados }, { data: processos }] = await Promise.all([
+      supabase.from('v_processo_como_kanban_cards').select('id').in('id', candidatoIds),
+      supabase
+        .from('processo_step_one')
+        .select('id, status, cancelado_em, removido_em')
+        .in('id', candidatoIds),
+    ]);
+
+    for (const row of legados ?? []) {
+      const id = String((row as { id?: string }).id ?? '').trim();
+      if (id) legadoIds.add(id);
+    }
+
+    for (const row of processos ?? []) {
+      const r = row as {
+        id?: string;
+        status?: string | null;
+        cancelado_em?: string | null;
+        removido_em?: string | null;
+      };
+      const id = String(r.id ?? '').trim();
+      if (!id) continue;
+      const st = String(r.status ?? '').toLowerCase();
+      if (st === 'cancelado' || st === 'removido' || Boolean(r.cancelado_em) || Boolean(r.removido_em)) {
+        processoExcluidoIds.add(id);
+      }
+    }
+  }
+
   const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
   const role = (prof as { role?: string | null } | null)?.role;
   const ocultarInternos = isFrankOrFranqueadoRole(role);
   const permiteProjetoLegal = kanbanPermiteVinculoComProjetoLegal(kanbanOrigemId);
 
-  const items: BuscaCardVinculoRow[] = (data ?? [])
+  const items: BuscaCardVinculoRow[] = candidatos
+    .filter((row) => {
+      const id = String(row.id ?? '').trim();
+      return id && !legadoIds.has(id) && !processoExcluidoIds.has(id);
+    })
     .map((row) => {
-      const r = row as { id: string; titulo: string | null; kanban_id?: string; kanbans?: unknown };
       return {
-        id: String(r.id),
-        titulo: (r.titulo ?? '').trim() || '(sem título)',
-        kanban_nome: kanbanNomeDeJoin(r) || 'Kanban',
-        kanban_id: String(r.kanban_id ?? ''),
+        id: String(row.id),
+        titulo: (row.titulo ?? '').trim() || '(sem título)',
+        kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
+        kanban_id: String(row.kanban_id ?? ''),
       };
     })
     .filter((it) => !ocultarInternos || !isKanbanIdInterno(it.kanban_id))
