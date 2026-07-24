@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
 import { calcularSlaKanbanCard, type SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
 
-const ADMIN_EMAIL = 'danilo.n@moni.casa';
+const ADMIN_EMAIL  = 'danilo.n@moni.casa';
+const INGRID_EMAIL = 'ingrid.hora@moni.casa';
 
 export type PrioridadeGrupo = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6';
 
@@ -61,10 +62,11 @@ function calcPrioridade(c: KanbanCardItem, hojeIso: string): PrioridadeGrupo {
 
 export function useBacklogKanban(refreshKey = 0) {
   const supabase   = useMemo(() => createClient(), []);
-  const [cards,     setCards]     = useState<KanbanCardItem[]>([]);
-  const [sndCards,  setSndCards]  = useState<KanbanCardItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error,     setError]     = useState<string | null>(null);
+  const [cards,        setCards]        = useState<KanbanCardItem[]>([]);
+  const [sndCards,     setSndCards]     = useState<KanbanCardItem[]>([]);
+  const [orphanCards,  setOrphanCards]  = useState<KanbanCardItem[]>([]);
+  const [isLoading,    setIsLoading]    = useState(true);
+  const [error,        setError]        = useState<string | null>(null);
   const callIdRef = useRef(0);
   const { simulacao } = useSimulacaoUsuario();
   const simProfileId = simulacao?.profileId ?? null;
@@ -343,7 +345,7 @@ export function useBacklogKanban(refreshKey = 0) {
 
       const hojeIso = new Date().toISOString().slice(0, 10);
       const todasCards = Array.from(mapa.values());
-      const sndResultado = todasCards.filter(c => c.sla_dias === null);
+      let sndResultado = todasCards.filter(c => c.sla_dias === null);
       const comSla = todasCards.filter(c => c.sla_dias !== null);
 
       comSla.forEach(c => { c.prioridade = calcPrioridade(c, hojeIso); });
@@ -362,7 +364,58 @@ export function useBacklogKanban(refreshKey = 0) {
         return 0;
       });
 
+      // Ingrid: visão global — todos os cards SND + todos os cards sem responsável
+      let ingridOrphans: KanbanCardItem[] = [];
+      if (user.email === INGRID_EMAIL && !simProfileId) {
+        type CardGlobal = CardBase & {
+          responsavel_id: string | null;
+          responsaveis_ids: string[] | null;
+        };
+        const { data: globalRaw } = await supabase
+          .from('kanban_cards')
+          .select(`
+            id, titulo, arquivado, concluido,
+            created_at, entered_fase_at, sla_iniciado_em,
+            proxima_atividade, prazo_atividade,
+            responsavel_id, responsaveis_ids,
+            fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+            kanban:kanbans(nome)
+          `)
+          .eq('arquivado', false)
+          .eq('concluido', false);
+
+        const sndMap = new Map(sndResultado.map(c => [c.id, c]));
+        const orphanMap = new Map<string, KanbanCardItem>();
+
+        ((globalRaw ?? []) as unknown as CardGlobal[]).forEach(card => {
+          const fase   = Array.isArray(card.fase)   ? card.fase[0]   : card.fase;
+          const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
+          const item: KanbanCardItem = {
+            id: card.id, titulo: card.titulo,
+            fase_nome:         fase?.nome   ?? null,
+            kanban_nome:       kanban?.nome ?? null,
+            sla_dias:          fase?.sla_dias ?? null,
+            sla:               computeSla(card, fase ?? null),
+            origem:            'sem_atividade',
+            proxima_atividade: card.proxima_atividade,
+            prazo_atividade:   card.prazo_atividade,
+            especial:          especialSet.has(card.id),
+          };
+          if (fase?.sla_dias === null || fase?.sla_dias === undefined) {
+            if (!sndMap.has(card.id)) sndMap.set(card.id, item);
+          } else {
+            const hasResp = !!card.responsavel_id ||
+              (Array.isArray(card.responsaveis_ids) && card.responsaveis_ids.length > 0);
+            if (!hasResp && !orphanMap.has(card.id)) orphanMap.set(card.id, item);
+          }
+        });
+
+        sndResultado = Array.from(sndMap.values());
+        ingridOrphans = Array.from(orphanMap.values());
+      }
+
       if (callId !== callIdRef.current) return;
+      setOrphanCards(ingridOrphans);
       setCards(resultado);
       setSndCards(sndResultado);
     } catch (e) {
@@ -375,5 +428,5 @@ export function useBacklogKanban(refreshKey = 0) {
   }, [supabase, simProfileId, simAreaId, simNome, refreshKey]);
 
   useEffect(() => { carregar(); }, [carregar]);
-  return { cards, sndCards, isLoading, error };
+  return { cards, sndCards, orphanCards, isLoading, error };
 }

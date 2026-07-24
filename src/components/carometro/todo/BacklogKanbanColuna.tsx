@@ -177,8 +177,9 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
 }
 
 export function BacklogKanbanColuna() {
-  const { cards, sndCards, isLoading, error } = useBacklogKanban();
-  const [sndAberto, setSndAberto] = useState(false);
+  const { cards, sndCards, orphanCards, isLoading, error } = useBacklogKanban();
+  const [sndAberto,    setSndAberto]    = useState(false);
+  const [orphanAberto, setOrphanAberto] = useState(false);
 
   const atrasados  = cards.filter(c => c.sla?.status === 'atrasado').length;
   const atencao    = cards.filter(c => c.sla?.status === 'atencao').length;
@@ -236,6 +237,27 @@ export function BacklogKanbanColuna() {
               {sndAberto && (
                 <div className="flex flex-col gap-1.5 mt-1.5 max-h-[12rem] overflow-y-auto">
                   {sndCards.map(card => (
+                    <DraggableKanbanCard key={card.id} card={card}>
+                      <KanbanCard card={card} />
+                    </DraggableKanbanCard>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {orphanCards.length > 0 && (
+            <div className="mt-2 border-t border-gray-200 pt-2">
+              <button
+                type="button"
+                onClick={() => setOrphanAberto(v => !v)}
+                className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 w-full text-left"
+              >
+                <span>{orphanAberto ? '▾' : '▸'}</span>
+                <span className="text-amber-600 font-medium">Sem responsável ({orphanCards.length})</span>
+              </button>
+              {orphanAberto && (
+                <div className="flex flex-col gap-1.5 mt-1.5 max-h-[12rem] overflow-y-auto">
+                  {orphanCards.map(card => (
                     <DraggableKanbanCard key={card.id} card={card}>
                       <KanbanCard card={card} />
                     </DraggableKanbanCard>
