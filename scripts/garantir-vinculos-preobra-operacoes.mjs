@@ -14,11 +14,10 @@ import { garantirShadowKanbanCardLegadoPg } from './pg-garantir-shadow-legado.mj
 
 /** Cards alvo padrão (batch) */
 const CARD_IDS_DEFAULT = [
-  'd58bc8ec-1b7f-4732-81c5-aff61f412b9a', // FK0012 Genesis II
-  '17b5aef3-aab9-410a-b0d2-8ebcdca71c50', // Artesano Galleria
-  'ca66b708-bba0-41f2-85c0-b1963bd05af6',
-  '0824cdc0-8163-4a42-b385-e95c0c98e761',
-  '6b419ba4-7f55-4ef9-ae5d-51060edf398f',
+  '321fa6d8-9cec-4882-a0fa-4f30837c03fe', // FK0002 Villa Jardim 06-10
+  'a7a8df28-d316-40cd-a89d-10b40766b51b', // FK0020 Terras São José Q06-L14
+  'c8514c06-7377-42ca-a3ef-500802066960', // FK0000 Artesano Galleria K-01
+  '357bb243-09cc-427a-bb51-0c2e7a91545d', // FK0020 Terras São José 06-17
 ];
 
 function argValue(name) {
