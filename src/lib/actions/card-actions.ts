@@ -83,7 +83,7 @@ import {
   propagarCamposKanbanCards,
   propagarCamposProcesso,
   reconciliarFranqueadoNoSyncGroup,
-  resolverProcessoStepOneIdDoCard,
+  resolverProcessoIdExplicitoDoCard,
   resolverTituloCardKanban,
   type KanbanCardCamposSync,
 } from '@/lib/kanban/card-sync-group';
@@ -3573,23 +3573,7 @@ async function resolverProcessosDoSyncGroup(
   const processoIds = new Set<string>();
   const kanbanCardIds = await listarKanbanCardIdsSyncGroup(admin, cardId);
   for (const cid of kanbanCardIds) {
-    const { data: card } = await admin
-      .from('kanban_cards')
-      .select('projeto_id, processo_step_one_id, rede_franqueado_id, titulo')
-      .eq('id', cid)
-      .maybeSingle();
-    const row = card as {
-      projeto_id?: string | null;
-      processo_step_one_id?: string | null;
-      rede_franqueado_id?: string | null;
-      titulo?: string | null;
-    } | null;
-    const pid = await resolverProcessoStepOneIdDoCard(admin, {
-      cardProcessoStepOneId: row?.processo_step_one_id,
-      cardProjetoId: row?.projeto_id,
-      redeFranqueadoId: row?.rede_franqueado_id,
-      cardTitulo: row?.titulo,
-    });
+    const pid = await resolverProcessoIdExplicitoDoCard(admin, cid);
     if (pid) processoIds.add(pid);
   }
   return processoIds;

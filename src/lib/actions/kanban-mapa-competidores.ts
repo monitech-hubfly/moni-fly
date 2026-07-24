@@ -3,7 +3,7 @@
 import type { CasaRow } from '@/app/step-one/[id]/etapa/Etapa4Casas';
 import { normalizeAccessRole } from '@/lib/authz';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
-import { resolverProcessoStepOneIdDoCard } from '@/lib/kanban/card-sync-group';
+import { resolverProcessoIdExplicitoDoCard } from '@/lib/kanban/card-sync-group';
 import {
   criarEVincularProcessoStepOneAoCard,
 } from '@/lib/kanban/processo-step-one-card';
@@ -135,35 +135,14 @@ async function resolverPracaCard(
 
 type SupabaseDb = Awaited<ReturnType<typeof createClient>>;
 
-/** Processo Step One do card (hierarquia canônica via `resolverProcessoStepOneIdDoCard`). */
+/** Processo Step One do card — só vínculo explícito (sem `rede.processo_id` / FK heurístico). */
 export async function resolverProcessoIdViaRedeFranqueado(
   supabase: SupabaseDb,
   cardId: string,
 ): Promise<string | null> {
   const cid = cardId.trim();
   if (!cid) return null;
-
-  const { data: card } = await supabase
-    .from('kanban_cards')
-    .select('processo_step_one_id, projeto_id, rede_franqueado_id, titulo')
-    .eq('id', cid)
-    .maybeSingle();
-
-  if (!card) return null;
-
-  const row = card as {
-    processo_step_one_id?: string | null;
-    projeto_id?: string | null;
-    rede_franqueado_id?: string | null;
-    titulo?: string | null;
-  };
-
-  return resolverProcessoStepOneIdDoCard(supabase, {
-    cardProcessoStepOneId: row.processo_step_one_id,
-    cardProjetoId: row.projeto_id,
-    redeFranqueadoId: row.rede_franqueado_id,
-    cardTitulo: row.titulo,
-  });
+  return resolverProcessoIdExplicitoDoCard(supabase, cid);
 }
 
 /**
@@ -259,28 +238,15 @@ async function resolverProcessoIdParaMapa(
   let pid = String(processoId ?? '').trim();
 
   if (!pid && cardId?.trim()) {
-    const viaRede = await resolverProcessoIdViaRedeFranqueado(supabase, cardId.trim());
-    if (viaRede) pid = viaRede;
+    const explicito = await resolverProcessoIdExplicitoDoCard(supabase, cardId.trim());
+    if (explicito) pid = explicito;
   }
 
   if (!pid) {
-    const cid = cardId?.trim();
-    if (!cid) return { ok: false, error: 'Processo Step One não vinculado.' };
-    const ensured = await ensureProcessoStepOneForKanbanCard(cid);
-    if (!ensured.ok) return ensured;
-    pid = ensured.processoId;
-  } else if (cardId?.trim()) {
-    const { data: cardRow } = await supabase
-      .from('kanban_cards')
-      .select('processo_step_one_id, projeto_id')
-      .eq('id', cardId.trim())
-      .maybeSingle();
-    const row = cardRow as { processo_step_one_id?: string | null; projeto_id?: string | null } | null;
-    const projetoId = String(row?.processo_step_one_id ?? row?.projeto_id ?? '').trim();
-    if (!projetoId) {
-      const ensured = await ensureProcessoStepOneForKanbanCard(cardId.trim());
-      if (ensured.ok) pid = ensured.processoId;
-    }
+    return {
+      ok: false,
+      error: 'Processo Step One não vinculado a este card. Vincule um processo antes de usar o mapa.',
+    };
   }
 
   return { ok: true, processoId: pid };

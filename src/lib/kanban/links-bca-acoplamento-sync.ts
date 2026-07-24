@@ -1,5 +1,5 @@
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
-import { resolverProcessoStepOneIdDoCard } from '@/lib/kanban/card-sync-group';
+import { resolverProcessoIdExplicitoDoCard } from '@/lib/kanban/card-sync-group';
 import { tipoKanbanHistoricoFromAcao } from '@/lib/kanban/kanban-historico-tipo';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
@@ -43,28 +43,7 @@ export async function resolverProcessoIdDoCard(
   const cid = String(cardId ?? '').trim();
   if (!cid) return null;
 
-  const { data: card } = await db
-    .from('kanban_cards')
-    .select('projeto_id, processo_step_one_id, rede_franqueado_id, titulo')
-    .eq('id', cid)
-    .maybeSingle();
-  const row = card as {
-    projeto_id?: string | null;
-    processo_step_one_id?: string | null;
-    rede_franqueado_id?: string | null;
-    titulo?: string | null;
-  } | null;
-
-  const resolved = await resolverProcessoStepOneIdDoCard(db, {
-    cardProcessoStepOneId: row?.processo_step_one_id,
-    cardProjetoId: row?.projeto_id,
-    redeFranqueadoId: row?.rede_franqueado_id,
-    cardTitulo: row?.titulo,
-  });
-  if (resolved) return resolved;
-
-  const { data: proc } = await db.from('processo_step_one').select('id').eq('id', cid).maybeSingle();
-  return proc?.id ? String(proc.id) : null;
+  return resolverProcessoIdExplicitoDoCard(db, cid);
 }
 
 /** Cards do mesmo processo + componente conexo em `kanban_card_vinculos`. */

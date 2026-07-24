@@ -5080,7 +5080,17 @@ export function KanbanCardModal({
     ? proc
     : null;
   const podeEditarNegocio =
-    !ocultarGestaoCard && Boolean(proc) && !(ehFunilFunding && !isLegado);
+    !ocultarGestaoCard &&
+    processoExplicitamenteVinculadoAoCard(
+      {
+        cardId: card.id,
+        cardProcessoStepOneId: card.processo_step_one_id,
+        cardProjetoId: card.projeto_id,
+      },
+      proc?.id,
+    ) &&
+    Boolean(proc) &&
+    !(ehFunilFunding && !isLegado);
   const condominioIdSidebar = card.condominio_id ?? procCondominioExplicito?.condominio_id ?? null;
   const condominioIdChecklistLegal =
     card.condominio_id?.trim() || procCondominioExplicito?.condominio_id?.trim() || null;
@@ -5094,7 +5104,16 @@ export function KanbanCardModal({
   const exibirChecklistCredito =
     !isLegado &&
     deveExibirChecklistCreditoNaFase(card.kanban_id, faseAtual?.slug ?? card.etapa_slug);
-  const processoIdChecklists = proc?.id?.trim() || null;
+  const processoIdChecklists = processoExplicitamenteVinculadoAoCard(
+    {
+      cardId: card.id,
+      cardProcessoStepOneId: card.processo_step_one_id,
+      cardProjetoId: card.projeto_id,
+    },
+    proc?.id,
+  )
+    ? proc?.id?.trim() || null
+    : null;
   const enderecoCasaLinha = rede
     ? [
         rede.endereco_casa_frank,

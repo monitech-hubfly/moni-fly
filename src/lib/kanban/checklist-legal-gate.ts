@@ -1,4 +1,4 @@
-import { resolverProcessoStepOneIdDoCard } from '@/lib/kanban/card-sync-group';
+import { resolverProcessoIdExplicitoDoCard } from '@/lib/kanban/card-sync-group';
 import { createClient } from '@/lib/supabase/server';
 
 const ERRO_CHECKLIST_LEGAL =
@@ -34,25 +34,16 @@ export async function resolverCondominioIdDoCard(
 
   const { data: card } = await db
     .from('kanban_cards')
-    .select('condominio_id, projeto_id, rede_franqueado_id, titulo')
+    .select('condominio_id')
     .eq('id', cid)
     .maybeSingle();
 
-  const row = card as {
-    condominio_id?: string | null;
-    projeto_id?: string | null;
-    rede_franqueado_id?: string | null;
-    titulo?: string | null;
-  } | null;
+  const row = card as { condominio_id?: string | null } | null;
 
   const direct = String(row?.condominio_id ?? '').trim();
   if (direct) return direct;
 
-  const processoId = await resolverProcessoStepOneIdDoCard(db, {
-    cardProjetoId: row?.projeto_id,
-    redeFranqueadoId: row?.rede_franqueado_id,
-    cardTitulo: row?.titulo,
-  });
+  const processoId = await resolverProcessoIdExplicitoDoCard(db, cid);
   if (processoId) {
     const { data: proc } = await db
       .from('processo_step_one')

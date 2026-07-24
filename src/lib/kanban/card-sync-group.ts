@@ -1220,12 +1220,8 @@ async function resolverCamposCalculadoraCanonicosCadeia(
 
   if (createdAtCanonico) merged.created_at = createdAtCanonico;
 
-  const procResolvido = await resolverProcessoStepOneIdDoCard(db, {
-    cardProcessoStepOneId: merged.processo_step_one_id as string | null | undefined,
-    cardProjetoId: merged.projeto_id as string | null | undefined,
-    redeFranqueadoId,
-    cardTitulo: String(byId.get(chainIds[0]!)?.titulo ?? '').trim() || null,
-  });
+  const cardFilhoId = String(chainIds[0] ?? '').trim();
+  const procResolvido = cardFilhoId ? await resolverProcessoIdExplicitoDoCard(db, cardFilhoId) : null;
   if (procResolvido) merged.processo_step_one_id = procResolvido;
 
   return merged;
