@@ -180,8 +180,8 @@ export function usePlanoBoneDay(
       })));
 
       // 2. Queries sequenciais usando dados já buscados
-      const metaIds    = metasArr.map(m => m.id);
-      const profileIds = respArr.map(r => r.profile_id);
+      const metaIds         = metasArr.map(m => m.id);
+      const ganttProfileIds = respArr.map(r => r.profile_id);
 
       const [comportamentosRes, ganttRes] = await Promise.all([
         supabase
@@ -192,10 +192,10 @@ export function usePlanoBoneDay(
           .order('ordem', { ascending: true }),
 
         // gantt do Boné Day (sem area_id na tabela — filtra por profiles da área)
-        profileIds.length > 0
+        ganttProfileIds.length > 0
           ? supabase.from('gantt_planejamento')
               .select('id, acao_id, profile_id, semana_ano_inicio, semana_ano_fim, tempo_estimado_horas, objetivo_id')
-              .in('profile_id', profileIds)
+              .in('profile_id', ganttProfileIds)
               .eq('origem', 'pre_bone_day')
               .eq('pre_bone_day_mes', mes)
           : Promise.resolve({ data: [], error: null }),
