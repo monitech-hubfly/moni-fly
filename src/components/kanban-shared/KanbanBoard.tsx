@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { podeComFallbackStaff } from '@/lib/permissoes-types';
 import { fetchKanbanBoardStatusPool } from '@/lib/actions/kanban-board-snapshot';
+import { ExportKanbanButton } from './ExportKanbanButton';
 import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
 import { KanbanColumn } from './KanbanColumn';
 import {
@@ -333,6 +334,12 @@ export function KanbanBoard({
           placeholder="Buscar no card (título, tags, SLA, paralelas…)…"
           aria-label="Buscar cards por qualquer informação visível no card"
           className="moni-kanban-fpill moni-kanban-fpill--search"
+        />
+        <ExportKanbanButton
+          kanbanId={kanbanId}
+          kanbanNome={kanbanNome}
+          fases={fases}
+          cards={cardsFiltrados}
         />
         {filtrosOpen ? (
           <div
