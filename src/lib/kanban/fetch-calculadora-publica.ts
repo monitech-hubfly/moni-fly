@@ -4,6 +4,7 @@ import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   calcularLinhasCalculadoraFases,
   calculadoraAncoraFromProcesso,
+  aplicarEncadeamentoComiteCtoDiligenciaNasLinhas,
   aplicarEncadeamentoMarcoContratoNasLinhas,
   aplicarDatasManuaisCalculadoraLinhas,
   aplicarOverlayAncoraOcultarFasesAnteriores,
@@ -47,6 +48,7 @@ export type CalculadoraPublicaCard = {
   concluido: boolean;
   concluido_em: string | null;
   contrato_assinado_em: string | null;
+  contrato_condicoes_precedentes: boolean | null;
   obra_iniciada_em: string | null;
   obra_finalizada_em: string | null;
   opcao_assinada_em: string | null;
@@ -226,8 +228,20 @@ export async function montarCalculadoraPack(
   linhas = aplicarDatasAprovacaoPreObraCalculadora(
     normalizarIntervaloDatasCalculadoraLinhas(
       (() => {
-        const encadeadas = aplicarEncadeamentoMarcoContratoNasLinhas(
+        const comComiteCtoDil = aplicarEncadeamentoComiteCtoDiligenciaNasLinhas(
           linhas,
+          fasesFlatFinal,
+          {
+            contrato_condicoes_precedentes:
+              ctx?.marcosCanonicos.contrato_condicoes_precedentes ??
+              card.contrato_condicoes_precedentes,
+          },
+          cardCalcInput,
+          undefined,
+          overrides,
+        );
+        const encadeadas = aplicarEncadeamentoMarcoContratoNasLinhas(
+          comComiteCtoDil,
           fasesFlatFinal,
           {
             contrato_assinado_em:
@@ -328,7 +342,7 @@ export async function fetchCalculadoraPublicaByToken(
   const { data: row, error } = await admin
     .from('kanban_cards')
     .select(
-      'id, titulo, kanban_id, fase_id, created_at, entered_fase_at, concluido, concluido_em, contrato_assinado_em, obra_iniciada_em, obra_finalizada_em, opcao_assinada_em, processo_step_one_id, condominio_id, status',
+      'id, titulo, kanban_id, fase_id, created_at, entered_fase_at, concluido, concluido_em, contrato_assinado_em, contrato_condicoes_precedentes, obra_iniciada_em, obra_finalizada_em, opcao_assinada_em, processo_step_one_id, condominio_id, status',
     )
     .eq('id', cardId)
     .eq('status', 'ativo')
@@ -350,6 +364,10 @@ export async function fetchCalculadoraPublicaByToken(
     concluido_em: row.concluido_em != null ? String(row.concluido_em) : null,
     contrato_assinado_em:
       row.contrato_assinado_em != null ? String(row.contrato_assinado_em) : null,
+    contrato_condicoes_precedentes: (() => {
+      const v = row.contrato_condicoes_precedentes as boolean | null | undefined;
+      return v === true || v === false ? v : null;
+    })(),
     obra_iniciada_em:
       row.obra_iniciada_em != null ? String(row.obra_iniciada_em) : null,
     obra_finalizada_em:

@@ -3190,7 +3190,11 @@ async function enriquecerTitulosMapInfoCards(
       lote: row.lote,
       tituloFallback: row.titulo,
     });
-    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc, nFranquia);
+    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc, nFranquia, undefined, {
+      nomeCondominio: row.nome_condominio,
+      quadra: row.quadra,
+      lote: row.lote,
+    });
   }
 }
 
@@ -3275,7 +3279,11 @@ async function enriquecerTitulosMapInfoComAncestrais(
       lote: merged.lote,
       tituloFallback: merged.titulo,
     });
-    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc, nFranquia);
+    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc, nFranquia, undefined, {
+      nomeCondominio: merged.nome_condominio,
+      quadra: merged.quadra,
+      lote: merged.lote,
+    });
   }
 }
 
@@ -4679,6 +4687,44 @@ export async function registrarConfirmacaoFasePortfolio(input: {
   const { error: updErr } = await supabase
     .from('kanban_cards')
     .update(patchByTipo[tipo] as never)
+    .eq('id', cardId);
+
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Grava resposta do popup «Contrato com Condições Precedentes?» ao sair do Comitê. */
+export async function registrarContratoCondicoesPrecedentesPortfolio(input: {
+  cardId: string;
+  comCondicoesPrecedentes: boolean;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar a confirmação.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Dados inválidos.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.PORTFOLIO) {
+    return { ok: false, error: 'Confirmação aplicável apenas ao Funil Portfólio.' };
+  }
+
+  const { error: updErr } = await supabase
+    .from('kanban_cards')
+    .update({ contrato_condicoes_precedentes: Boolean(input.comCondicoesPrecedentes) } as never)
     .eq('id', cardId);
 
   if (updErr) return { ok: false, error: updErr.message };

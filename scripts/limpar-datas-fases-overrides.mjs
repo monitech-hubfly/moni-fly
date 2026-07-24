@@ -11,6 +11,9 @@
  *     --card-id=<uuid> --antes-de-contrato --prod --dry-run
  *
  *   node --env-file=.env.local scripts/limpar-datas-fases-overrides.mjs \
+ *     --card-id=<uuid> --step-one --prod --dry-run
+ *
+ *   node --env-file=.env.local scripts/limpar-datas-fases-overrides.mjs \
  *     --card-id=<uuid> --slugs=revisao_bca --prod --confirm-prod
  */
 import { readFileSync } from 'node:fs';
@@ -250,13 +253,14 @@ async function resolverFasesPorSlug(client, slugs, cardKanbanId, fasesPrecarrega
 async function main() {
   const cardId = (argValue('--card-id') || '').trim();
   const antesDeContrato = process.argv.includes('--antes-de-contrato');
+  const stepOneOnly = process.argv.includes('--step-one');
   const incluirNegociacao = process.argv.includes('--incluir-negociacao');
   const contratoSlug = (argValue('--contrato-slug') || 'step_7').trim();
   const slugsRaw = (argValue('--slugs') || argValue('--slug') || '').trim();
 
   if (!cardId) {
     console.error(
-      'Uso: --card-id=<uuid> (--slugs=slug1,slug2 | --antes-de-contrato) [--prod] [--dry-run|--confirm-prod]',
+      'Uso: --card-id=<uuid> (--slugs=slug1,slug2 | --antes-de-contrato | --step-one) [--prod] [--dry-run|--confirm-prod]',
     );
     process.exit(1);
   }
@@ -346,6 +350,12 @@ async function main() {
     console.log(
       `Excluídas (negociação): ${excluidasNegociacao.map((m) => m.slug).join(', ') || '(nenhuma)'}`,
     );
+  } else if (stepOneOnly) {
+    const meta = await montarMetaCalculadoraEsteira(client);
+    const stepOneFases = meta.filter((m) => m.kanban_id === KANBAN_IDS.STEP_ONE);
+    SLUGS = stepOneFases.map((m) => m.slug);
+    porSlugPrecarregado = new Map(stepOneFases.map((m) => [m.slug, m]));
+    console.log(`\nModo --step-one (${SLUGS.length} fases)`);
   }
 
   if (SLUGS.length === 0) {

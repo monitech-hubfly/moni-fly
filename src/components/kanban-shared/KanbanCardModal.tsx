@@ -57,6 +57,7 @@ import {
   moverCardParaFase,
   registrarConfirmacaoFaseOperacoes,
   registrarConfirmacaoFasePortfolio,
+  registrarContratoCondicoesPrecedentesPortfolio,
   verificarGateComiteLoteadores,
   listarTagsCard,
   listarTagsKanban,
@@ -107,8 +108,9 @@ import {
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
 import {
   deveConfirmarSaidaFasePortfolio,
-  portfolioConfirmacaoPergunta,
+  portfolioConfirmacaoModalPergunta,
   type PortfolioConfirmacaoFaseTipo,
+  type PortfolioConfirmacaoModalTipo,
 } from '@/lib/kanban/portfolio-confirmacao-fase';
 import {
   deveConfirmarEntradaFaseOperacoes,
@@ -349,7 +351,7 @@ import {
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { DadosMoniCapitalPersistentPanel } from './DadosMoniCapitalPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, aplicarDatasAprovacaoPreObraCalculadora, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, campoDataAprovacaoPreObraPorFaseSlug, patchPreObraAlinharComCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoComiteCtoDiligenciaNasLinhas, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, aplicarDatasAprovacaoPreObraCalculadora, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, campoDataAprovacaoPreObraPorFaseSlug, patchPreObraAlinharComCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -414,6 +416,7 @@ type Card = {
   entered_fase_at?: string | null;
   opcao_assinada_em?: string | null;
   contrato_assinado_em?: string | null;
+  contrato_condicoes_precedentes?: boolean | null;
   obra_iniciada_em?: string | null;
   obra_finalizada_em?: string | null;
   funding_tipo?: 'Investidor' | 'Broker' | null;
@@ -849,7 +852,7 @@ export function KanbanCardModal({
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
   const [modalConfirmacaoPortfolio, setModalConfirmacaoPortfolio] = useState<{
     dominio: 'portfolio' | 'operacoes';
-    tipo: PortfolioConfirmacaoFaseTipo | OperacoesConfirmacaoFaseTipo;
+    tipo: PortfolioConfirmacaoModalTipo | OperacoesConfirmacaoFaseTipo;
     destinoFase: KanbanFase;
     direcao: 'avancar' | 'retroceder';
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string };
@@ -1194,6 +1197,7 @@ export function KanbanCardModal({
         entered_fase_at?: string | null;
         opcao_assinada_em?: string | null;
         contrato_assinado_em?: string | null;
+        contrato_condicoes_precedentes?: boolean | null;
         obra_iniciada_em?: string | null;
         obra_finalizada_em?: string | null;
         funding_tipo?: 'Investidor' | 'Broker' | null;
@@ -1287,7 +1291,7 @@ export function KanbanCardModal({
       } else {
         setLegadoCronologiaMoves([]);
         const cardSelectConfirmacao =
-          'opcao_assinada_em, contrato_assinado_em, obra_iniciada_em, obra_finalizada_em';
+          'opcao_assinada_em, contrato_assinado_em, contrato_condicoes_precedentes, obra_iniciada_em, obra_finalizada_em';
         const cardSelectCore =
           `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
         const cardSelectPreObra =
@@ -1385,6 +1389,11 @@ export function KanbanCardModal({
             (cardData as { contrato_assinado_em?: string | null }).contrato_assinado_em != null
               ? String((cardData as { contrato_assinado_em?: string | null }).contrato_assinado_em)
               : null,
+          contrato_condicoes_precedentes: (() => {
+            const v = (cardData as { contrato_condicoes_precedentes?: boolean | null })
+              .contrato_condicoes_precedentes;
+            return v === true || v === false ? v : null;
+          })(),
           obra_iniciada_em:
             (cardData as { obra_iniciada_em?: string | null }).obra_iniciada_em != null
               ? String((cardData as { obra_iniciada_em?: string | null }).obra_iniciada_em)
@@ -1455,6 +1464,7 @@ export function KanbanCardModal({
         entered_fase_at: loaded.entered_fase_at ?? null,
         opcao_assinada_em: loaded.opcao_assinada_em ?? null,
         contrato_assinado_em: loaded.contrato_assinado_em ?? null,
+        contrato_condicoes_precedentes: loaded.contrato_condicoes_precedentes ?? null,
         obra_iniciada_em: loaded.obra_iniciada_em ?? null,
         obra_finalizada_em: loaded.obra_finalizada_em ?? null,
         funding_tipo: loaded.funding_tipo ?? null,
@@ -1496,7 +1506,17 @@ export function KanbanCardModal({
               condominio_id: pr.condominio_id ?? cardParaEstado.condominio_id,
               quadra: cardParaEstado.quadra ?? pr.quadra,
               lote: cardParaEstado.lote ?? pr.lote,
-              titulo: escolherTituloExibicaoCard(cardParaEstado.titulo, tituloCalc, nFranquiaLegado),
+              titulo: escolherTituloExibicaoCard(
+                cardParaEstado.titulo,
+                tituloCalc,
+                nFranquiaLegado,
+                undefined,
+                {
+                  nomeCondominio: pr.nome_condominio ?? cardParaEstado.nome_condominio,
+                  quadra: cardParaEstado.quadra ?? pr.quadra,
+                  lote: cardParaEstado.lote ?? pr.lote,
+                },
+              ),
             };
           }
         } catch {
@@ -1554,7 +1574,17 @@ export function KanbanCardModal({
             condominio_id: procRow?.condominio_id ?? cardParaEstado.condominio_id,
             quadra: cardParaEstado.quadra ?? procRow?.quadra,
             lote: cardParaEstado.lote ?? procRow?.lote,
-            titulo: escolherTituloExibicaoCard(cardParaEstado.titulo, tituloCalc, nFranquia),
+            titulo: escolherTituloExibicaoCard(
+              cardParaEstado.titulo,
+              tituloCalc,
+              nFranquia,
+              undefined,
+              {
+                nomeCondominio: procRow?.nome_condominio ?? cardParaEstado.nome_condominio,
+                quadra: cardParaEstado.quadra ?? procRow?.quadra,
+                lote: cardParaEstado.lote ?? procRow?.lote,
+              },
+            ),
           };
         } catch {
           /* mantém título do kanban_cards */
@@ -2720,7 +2750,7 @@ export function KanbanCardModal({
     if (modal.dominio === 'operacoes') {
       return operacoesConfirmacaoPergunta(modal.tipo as OperacoesConfirmacaoFaseTipo);
     }
-    return portfolioConfirmacaoPergunta(modal.tipo as PortfolioConfirmacaoFaseTipo);
+    return portfolioConfirmacaoModalPergunta(modal.tipo as PortfolioConfirmacaoModalTipo);
   }
 
   async function iniciarMovimentoFasePortfolio(
@@ -2768,7 +2798,20 @@ export function KanbanCardModal({
     if (!modal || !card) return;
     setSalvandoConfirmacaoPortfolio(true);
     try {
-      if (confirmou) {
+      if (modal.dominio === 'portfolio' && modal.tipo === 'condicoes_precedentes') {
+        const res = await registrarContratoCondicoesPrecedentesPortfolio({
+          cardId: card.id,
+          comCondicoesPrecedentes: confirmou,
+          basePath,
+        });
+        if (!res.ok) {
+          alert(res.error ?? 'Não foi possível registrar a confirmação.');
+          return;
+        }
+        setCard((prev) =>
+          prev ? { ...prev, contrato_condicoes_precedentes: confirmou } : prev,
+        );
+      } else if (confirmou) {
         const res =
           modal.dominio === 'operacoes'
             ? await registrarConfirmacaoFaseOperacoes({
@@ -2785,6 +2828,21 @@ export function KanbanCardModal({
           alert(res.error ?? 'Não foi possível registrar a confirmação.');
           return;
         }
+      }
+
+      if (
+        modal.dominio === 'portfolio' &&
+        modal.tipo === 'comite' &&
+        modal.direcao === 'avancar'
+      ) {
+        setModalConfirmacaoPortfolio({
+          dominio: 'portfolio',
+          tipo: 'condicoes_precedentes',
+          destinoFase: modal.destinoFase,
+          direcao: modal.direcao,
+          opts: modal.opts,
+        });
+        return;
       }
 
       if (
@@ -4286,8 +4344,21 @@ export function KanbanCardModal({
           concluido: card.concluido,
           concluido_em: card.concluido_em,
         };
-    const encadeadas = aplicarEncadeamentoMarcoContratoNasLinhas(
+    const comComiteCtoDil = aplicarEncadeamentoComiteCtoDiligenciaNasLinhas(
       calculadoraFasesPack.linhas,
+      calculadoraFasesFlat,
+      {
+        contrato_condicoes_precedentes:
+          contextoCalculadoraSyncGroup?.marcosCanonicos.contrato_condicoes_precedentes ??
+          card.contrato_condicoes_precedentes ??
+          null,
+      },
+      cardEncadeamento,
+      undefined,
+      datasManuaisCalculadora,
+    );
+    const encadeadas = aplicarEncadeamentoMarcoContratoNasLinhas(
+      comComiteCtoDil,
       calculadoraFasesFlat,
       { contrato_assinado_em: calculadoraMarcosInput.contrato_assinado_em },
       cardEncadeamento,
@@ -4325,6 +4396,7 @@ export function KanbanCardModal({
     calculadoraFasesPack.visits,
     calculadoraFasesFlat,
     calculadoraMarcosInput.contrato_assinado_em,
+    card?.contrato_condicoes_precedentes,
     datasManuaisCalculadora,
   ]);
 

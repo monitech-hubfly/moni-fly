@@ -20,7 +20,16 @@ export function extrairNumeroFranquiaDoTitulo(titulo: string): string {
   return i >= 0 ? t.slice(0, i).trim() : t;
 }
 
-/** Extrai condomínio/quadra/lote de títulos `FK#### - …`. */
+function parseSegmentoQuadraLoteTitulo(seg: string): { quadra?: string; lote?: string; raw?: string } {
+  const s = seg.trim();
+  const qm = /^Q:\s*(.+)$/i.exec(s);
+  if (qm) return { quadra: qm[1]!.trim() };
+  const lm = /^L:\s*(.+)$/i.exec(s);
+  if (lm) return { lote: lm[1]!.trim() };
+  return { raw: s };
+}
+
+/** Extrai condomínio/quadra/lote de títulos `FK#### - …` (com ou sem prefixos Q:/L:). */
 export function parseCamposDoTituloCard(titulo: string): {
   nomeCondominio?: string;
   quadra?: string;
@@ -31,9 +40,24 @@ export function parseCamposDoTituloCard(titulo: string): {
     .map((p) => p.trim())
     .filter(Boolean);
   if (parts.length < 2 || !/^FK\d+/i.test(parts[0] ?? '')) return {};
-  if (parts.length === 2) return { nomeCondominio: parts[1] };
-  if (parts.length === 3) return { nomeCondominio: parts[1], quadra: parts[2] };
-  return { nomeCondominio: parts[1], quadra: parts[2], lote: parts[3] };
+
+  const nomeCondominio = parts[1];
+  let quadra: string | undefined;
+  let lote: string | undefined;
+
+  for (let i = 2; i < parts.length; i++) {
+    const parsed = parseSegmentoQuadraLoteTitulo(parts[i]!);
+    if (parsed.quadra !== undefined) {
+      quadra = parsed.quadra;
+    } else if (parsed.lote !== undefined) {
+      lote = parsed.lote;
+    } else if (parsed.raw) {
+      if (!quadra) quadra = parsed.raw;
+      else if (!lote) lote = parsed.raw;
+    }
+  }
+
+  return { nomeCondominio, quadra, lote };
 }
 
 /** Remove o segmento do nome do franqueado em títulos legados `FK - Nome - …`. */
@@ -598,8 +622,8 @@ export function montarTituloCardSync(params: {
   const partes = [
     params.nFranquia?.trim() ?? '',
     params.nomeCondominio?.trim() ?? '',
-    quadra,
-    lote,
+    quadra ? `Q: ${quadra}` : '',
+    lote ? `L: ${lote}` : '',
   ].filter(Boolean);
   if (partes.length > 0) return deduplicarSegmentoFinalTitulo(partes.join(' - '));
   const fb = params.tituloFallback?.trim();
@@ -609,17 +633,30 @@ export function montarTituloCardSync(params: {
   );
 }
 
-/** Prefere o título mais completo (FK + condomínio + quadra + lote). */
+export type EscolherTituloExibicaoCampos = {
+  nomeCondominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
+};
+
+/** Prefere o título calculado quando há campos estruturados; senão o mais completo. */
 export function escolherTituloExibicaoCard(
   tituloAtual: string | null | undefined,
   tituloCalculado: string | null | undefined,
   nFranquia?: string | null,
   nomeFranqueado?: string | null,
+  campos?: EscolherTituloExibicaoCampos,
 ): string {
   const calc = deduplicarSegmentoFinalTitulo(String(tituloCalculado ?? '').trim());
   const atual = deduplicarSegmentoFinalTitulo(
     tituloFallbackSemFranqueado(String(tituloAtual ?? ''), nFranquia, nomeFranqueado),
   );
+  const temCamposEstruturados = !!(
+    campos?.nomeCondominio?.trim() ||
+    campos?.quadra?.trim() ||
+    campos?.lote?.trim()
+  );
+  if (calc && temCamposEstruturados) return calc;
   const partes = (t: string) => t.split(' - ').map((p) => p.trim()).filter(Boolean).length;
   if (atual && calc && partes(atual) > partes(calc)) return atual;
   if (calc) return calc;
@@ -910,7 +947,17 @@ export async function fetchCamposKanbanCanonicos(
       out.rede_franqueado_id != null
         ? await nFranquiaDeRede(db, out.rede_franqueado_id)
         : extrairNumeroFranquiaDoTitulo(String(out.titulo ?? '')) || null;
-    out.titulo = escolherTituloExibicaoCard(out.titulo, tituloRecalc, nFq);
+    out.titulo = escolherTituloExibicaoCard(out.titulo, tituloRecalc, nFq, undefined, {
+      nomeCondominio: out.nome_condominio,
+      quadra:
+        primarioRow.quadra != null && String(primarioRow.quadra).trim() !== ''
+          ? String(primarioRow.quadra)
+          : null,
+      lote:
+        primarioRow.lote != null && String(primarioRow.lote).trim() !== ''
+          ? String(primarioRow.lote)
+          : null,
+    });
     if (out.titulo === '(sem título)') out.titulo = null;
   }
 
@@ -1044,6 +1091,7 @@ export const KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA = [
   'comite_aprovado_em',
   'contrato_assinado',
   'contrato_assinado_em',
+  'contrato_condicoes_precedentes',
   'obra_iniciada',
   'obra_iniciada_em',
   'obra_finalizada',
@@ -1166,6 +1214,7 @@ async function resolverCamposCalculadoraCanonicosCadeia(
 
 export type MarcosCanonicosCalculadora = {
   contrato_assinado_em: string | null;
+  contrato_condicoes_precedentes: boolean | null;
   obra_iniciada_em: string | null;
   obra_finalizada_em: string | null;
   opcao_assinada_em: string | null;
@@ -1229,8 +1278,13 @@ function marcosCanonicosFromMerged(merged: Record<string, unknown>): MarcosCanon
     if (v == null || String(v).trim() === '') return null;
     return String(v).trim();
   };
+  const pickBoolean = (k: string): boolean | null => {
+    const v = merged[k];
+    return v === true || v === false ? v : null;
+  };
   return {
     contrato_assinado_em: pick('contrato_assinado_em'),
+    contrato_condicoes_precedentes: pickBoolean('contrato_condicoes_precedentes'),
     obra_iniciada_em: pick('obra_iniciada_em'),
     obra_finalizada_em: pick('obra_finalizada_em'),
     opcao_assinada_em: pick('opcao_assinada_em'),

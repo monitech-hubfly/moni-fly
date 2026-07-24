@@ -1504,6 +1504,146 @@ export function aplicarDatasManuaisCalculadoraLinhas(
 
 type EncadeamentoMarcoContratoInput = { contrato_assinado_em?: string | null };
 
+type EncadeamentoComiteCtoDiligenciaInput = {
+  contrato_condicoes_precedentes?: boolean | null;
+};
+
+function atualizarLinhaEncadeadaCalculadora(
+  row: CalculadoraFaseLinha,
+  card: CalculadoraFasesInput['card'],
+  ordemAtual: number,
+  hoje: string,
+  patch: {
+    dataInicioReal: string | null;
+    dataFimReal?: string | null;
+    dataFimEstimada: string | null;
+  },
+): CalculadoraFaseLinha {
+  const dataFimReal = patch.dataFimReal !== undefined ? patch.dataFimReal : row.dataFimReal;
+  const dataInicioReal = reconciliarInicioComFimReal(patch.dataInicioReal, dataFimReal);
+  const status = resolveStatus(
+    row.faseId,
+    card,
+    dataInicioReal,
+    dataFimReal,
+    patch.dataFimEstimada,
+    row.ordem,
+    ordemAtual,
+    hoje,
+    row.slaDias,
+    row.slaTipo,
+  );
+  const atrasoDias = resolveAtraso(
+    status,
+    dataInicioReal,
+    patch.dataFimEstimada,
+    dataFimReal,
+    hoje,
+    row.slaTipo,
+    row.slaDias,
+  );
+  return {
+    ...row,
+    dataInicioReal,
+    dataFimReal,
+    dataFimEstimada: patch.dataFimEstimada,
+    status,
+    atrasoDias,
+  };
+}
+
+/**
+ * Encadeia Cto Condições Precedentes após Comitê e Diligência conforme flag do card.
+ * Deve rodar antes de aplicarEncadeamentoMarcoContratoNasLinhas.
+ */
+export function aplicarEncadeamentoComiteCtoDiligenciaNasLinhas(
+  linhas: CalculadoraFaseLinha[],
+  fases: KanbanFase[],
+  input: EncadeamentoComiteCtoDiligenciaInput,
+  card: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+  overrides?: Map<string, CalculadoraFaseDataManualOverride>,
+): CalculadoraFaseLinha[] {
+  if (linhas.length === 0) return linhas;
+
+  const slugs = new Map(fases.map((f) => [f.id, f.slug]));
+  const idxComite = idxFasePorSlugOuNome(
+    linhas,
+    slugs,
+    (slug, nome) => slug === FASE_SLUGS.STEP_5 || /comit[eê]/i.test(nome.trim()),
+  );
+  if (idxComite < 0) return linhas;
+
+  const idxCto = idxFasePorSlugOuNome(
+    linhas,
+    slugs,
+    (slug, nome) =>
+      slug === FASE_SLUGS.CTO_CONDICOES_PRECEDENTES ||
+      /condi[cç][õo]es\s+precedentes/i.test(nome.trim()),
+  );
+  const idxDiligencia = idxFasePorSlugOuNome(
+    linhas,
+    slugs,
+    (slug, nome) => slug === FASE_SLUGS.STEP_6 || /dilig[eê]ncia/i.test(nome.trim()),
+  );
+
+  const hoje = hojeYmd(hojeRef);
+  const ordemAtual =
+    linhas.find((l) => l.faseId === card.fase_id)?.ordem ??
+    linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada')?.ordem ??
+    linhas.find((l) => l.status === 'futura')?.ordem ??
+    Number.MAX_SAFE_INTEGER;
+
+  const out = linhas.map((l) => ({ ...l }));
+  const comite = out[idxComite]!;
+  let desdeIdx = idxComite;
+
+  if (idxCto >= 0) {
+    const rowCto = out[idxCto]!;
+    const inicioCto = inicioPorFimFaseAnterior(comite.dataFimReal, comite.dataFimEstimada);
+    const fimEstimadoCto =
+      inicioCto && rowCto.slaDias != null && rowCto.slaDias > 0
+        ? fimEstimadaPorSla(inicioCto, rowCto.slaDias, rowCto.slaTipo)
+        : null;
+    out[idxCto] = atualizarLinhaEncadeadaCalculadora(rowCto, card, ordemAtual, hoje, {
+      dataInicioReal: inicioCto,
+      dataFimEstimada: fimEstimadoCto,
+    });
+    desdeIdx = idxCto;
+  }
+
+  if (idxDiligencia >= 0) {
+    const rowDil = out[idxDiligencia]!;
+    const comCondicoes = input.contrato_condicoes_precedentes === true;
+    let inicioDiligencia: string | null;
+    if (comCondicoes && idxCto >= 0) {
+      const cto = out[idxCto]!;
+      inicioDiligencia = inicioPorFimFaseAnterior(cto.dataFimReal, cto.dataFimEstimada);
+    } else {
+      inicioDiligencia = inicioPorFimFaseAnterior(comite.dataFimReal, comite.dataFimEstimada);
+    }
+    const fimEstimadoDil =
+      inicioDiligencia && rowDil.slaDias != null && rowDil.slaDias > 0
+        ? fimEstimadaPorSla(inicioDiligencia, rowDil.slaDias, rowDil.slaTipo)
+        : null;
+    out[idxDiligencia] = atualizarLinhaEncadeadaCalculadora(rowDil, card, ordemAtual, hoje, {
+      dataInicioReal: inicioDiligencia,
+      dataFimEstimada: fimEstimadoDil,
+    });
+    desdeIdx = idxDiligencia;
+  }
+
+  const propagadas = propagarLinhasCalculadoraForward(
+    out,
+    desdeIdx,
+    card,
+    ordemAtual,
+    hoje,
+    overrides,
+  );
+  return recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef);
+}
+
 /**
  * Fim real do marco M0 (Contrato): saída da fase no histórico, override manual de fim,
  * fim real já na linha, ou início da fase seguinte (inferência).
