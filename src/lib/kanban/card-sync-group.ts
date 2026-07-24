@@ -187,11 +187,30 @@ export async function resolverProcessoStepOneIdDoCard(
   return null;
 }
 
+/** Processo ligado explicitamente ao card (coluna, projeto ou shadow legado) — não heurística de rede/FK. */
+export function processoExplicitamenteVinculadoAoCard(
+  ctx: {
+    cardId?: string | null;
+    cardProcessoStepOneId?: string | null;
+    cardProjetoId?: string | null;
+  },
+  processoId: string | null | undefined,
+): boolean {
+  const pid = String(processoId ?? '').trim();
+  if (!pid) return false;
+  const col = String(ctx.cardProcessoStepOneId ?? '').trim();
+  if (col && col === pid) return true;
+  const proj = String(ctx.cardProjetoId ?? '').trim();
+  if (proj && proj === pid) return true;
+  const cid = String(ctx.cardId ?? '').trim();
+  return cid !== '' && cid === pid;
+}
+
 /**
  * Resolve processo só por FK explícita (`processo_step_one_id`, `projeto_id`, shadow id).
  * Usado no grupo de sync — evita agrupar cards distintos via rede/FK0000 heurístico.
  */
-async function resolverProcessoIdExplicitoDoCard(db: SyncDb, cardId: string): Promise<string | null> {
+export async function resolverProcessoIdExplicitoDoCard(db: SyncDb, cardId: string): Promise<string | null> {
   const cid = String(cardId ?? '').trim();
   if (!cid) return null;
 
@@ -1416,12 +1435,10 @@ export async function fetchContextoCalculadoraSyncGroup(
 
   let condominioIdResolvido = condominioIdCanonico ?? null;
   if (!condominioIdResolvido) {
-    const procId = await resolverProcessoStepOneIdDoCard(db, {
-      cardProcessoStepOneId: merged.processo_step_one_id as string | null | undefined,
-      cardProjetoId: merged.projeto_id as string | null | undefined,
-      redeFranqueadoId: redeFranqueadoIdCanonico ?? null,
-      cardTitulo: String(cardAvancado.titulo ?? '').trim() || null,
-    });
+    const cardAvancadoId = String(cardAvancado.id ?? '').trim();
+    const procId = cardAvancadoId
+      ? await resolverProcessoIdExplicitoDoCard(db, cardAvancadoId)
+      : null;
     if (procId) {
       const { data: proc } = await db
         .from('processo_step_one')

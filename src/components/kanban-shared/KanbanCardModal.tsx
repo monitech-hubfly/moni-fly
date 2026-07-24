@@ -279,6 +279,7 @@ import {
   extrairNumeroFranquiaDoTitulo,
   montarTituloCardSync,
   fetchContextoCalculadoraSyncGroup,
+  processoExplicitamenteVinculadoAoCard,
   type ContextoCalculadoraSyncGroup,
 } from '@/lib/kanban/card-sync-group';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
@@ -4201,9 +4202,18 @@ export function KanbanCardModal({
   }, []);
 
   const condominioIdCalculadora =
-    contextoCalculadoraSyncGroup?.condominioIdCanonico?.trim() ||
-    modalDetalhes.processo?.condominio_id?.trim() ||
     card?.condominio_id?.trim() ||
+    contextoCalculadoraSyncGroup?.condominioIdCanonico?.trim() ||
+    (processoExplicitamenteVinculadoAoCard(
+      {
+        cardId: card?.id,
+        cardProcessoStepOneId: card?.processo_step_one_id,
+        cardProjetoId: card?.projeto_id,
+      },
+      modalDetalhes.processo?.id,
+    )
+      ? modalDetalhes.processo?.condominio_id?.trim()
+      : null) ||
     null;
 
   useEffect(() => {
@@ -5059,11 +5069,21 @@ export function KanbanCardModal({
 
   const rede = modalDetalhes.rede;
   const proc = modalDetalhes.processo;
+  const procCondominioExplicito = processoExplicitamenteVinculadoAoCard(
+    {
+      cardId: card.id,
+      cardProcessoStepOneId: card.processo_step_one_id,
+      cardProjetoId: card.projeto_id,
+    },
+    proc?.id,
+  )
+    ? proc
+    : null;
   const podeEditarNegocio =
     !ocultarGestaoCard && Boolean(proc) && !(ehFunilFunding && !isLegado);
-  const condominioIdSidebar = card.condominio_id ?? proc?.condominio_id ?? null;
+  const condominioIdSidebar = card.condominio_id ?? procCondominioExplicito?.condominio_id ?? null;
   const condominioIdChecklistLegal =
-    card.condominio_id?.trim() || proc?.condominio_id?.trim() || null;
+    card.condominio_id?.trim() || procCondominioExplicito?.condominio_id?.trim() || null;
   const exibirChecklistLegalCondominio =
     !isLegado &&
     deveExibirChecklistLegalNaFase(
@@ -7151,10 +7171,11 @@ export function KanbanCardModal({
                           ? {
                               origem,
                               basePath,
-                              condominioId: card.condominio_id ?? proc?.condominio_id ?? null,
-                              quadra: card.quadra ?? proc?.quadra ?? null,
-                              lote: card.lote ?? proc?.lote ?? null,
-                              nomeCondominioLegado: card.nome_condominio ?? proc?.nome_condominio ?? null,
+                              condominioId: card.condominio_id ?? procCondominioExplicito?.condominio_id ?? null,
+                              quadra: card.quadra ?? procCondominioExplicito?.quadra ?? null,
+                              lote: card.lote ?? procCondominioExplicito?.lote ?? null,
+                              nomeCondominioLegado:
+                                card.nome_condominio ?? procCondominioExplicito?.nome_condominio ?? null,
                               podeEditar: !ocultarGestaoCard && modalSessao.ehAdminOuTeam,
                               podeCadastrarNovo: !ocultarGestaoCard && modalSessao.ehAdminOuTeam,
                               onSalvo: () => {

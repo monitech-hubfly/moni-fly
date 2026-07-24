@@ -456,22 +456,15 @@ async function fetchProcessoById(supabase: SupabaseClient, id: string) {
 }
 
 /**
- * Resolve `processo_step_one` para card nativo: FK em rede, origem na rede, ou número de franquia.
+ * Resolve `processo_step_one` para card nativo — só vínculo explícito (`processo_step_one_id`, `projeto_id`, shadow).
+ * Não usa `rede.processo_id` nem FK do título: um franqueado pode ter vários negócios/condomínios em paralelo.
  */
 async function resolveProcessoNativo(
   supabase: SupabaseClient,
-  cardTitulo: string,
-  cardProjetoId?: string | null,
-  redeFranqueadoId?: string | null,
-  cardProcessoStepOneId?: string | null,
+  cardId: string,
 ): Promise<ProcessoModalNegocioPreObra | null> {
-  const { resolverProcessoStepOneIdDoCard } = await import('@/lib/kanban/card-sync-group');
-  const processoId = await resolverProcessoStepOneIdDoCard(supabase, {
-    cardProcessoStepOneId,
-    cardProjetoId,
-    redeFranqueadoId,
-    cardTitulo,
-  });
+  const { resolverProcessoIdExplicitoDoCard } = await import('@/lib/kanban/card-sync-group');
+  const processoId = await resolverProcessoIdExplicitoDoCard(supabase, cardId);
   if (!processoId) return null;
   return fetchProcessoById(supabase, processoId);
 }
@@ -727,13 +720,7 @@ export async function fetchKanbanCardModalDetalhes(
           .maybeSingle()
           .then((r) => mapRede((r.data as Record<string, unknown> | null) ?? null))
       : Promise.resolve(null as RedeFranqueadoModalRow | null),
-    resolveProcessoNativo(
-      supabase,
-      cardTitulo,
-      cardProjetoId,
-      redeFranqueadoId,
-      cardProcessoStepOneId,
-    ),
+    resolveProcessoNativo(supabase, cardId),
   ]);
   const rede = redeRow;
   const processo = ocultarTipoNegociacaoHerdadoDoProcesso(processoRaw, {
