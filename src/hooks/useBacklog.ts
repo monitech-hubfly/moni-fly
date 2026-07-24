@@ -22,6 +22,8 @@ export type SireneItem = {
   trava: boolean;
   te_trata: boolean;
   aberto_por_nome: string | null;
+  card_id: string | null;
+  card_kanban_nome: string | null;
 };
 
 export type AtividadeItem = {
@@ -120,6 +122,10 @@ export function useBacklog(): UseBacklogResult {
             trava,
             sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome),
             kanban_atividades!sirene_topicos_interacao_id_fkey(
+              card_id,
+              card:kanban_cards(
+                kanban:kanbans(nome)
+              ),
               sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome)
             )
           `)
@@ -160,6 +166,11 @@ export function useBacklog(): UseBacklogResult {
       if (sireneRes.error) throw sireneRes.error;
 
       type ChamadoRaw = { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null } | { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null }[] | null;
+      type KanbanAtivRaw = {
+        card_id: string | null;
+        card: { kanban: { nome: string } | { nome: string }[] | null } | { kanban: { nome: string } | { nome: string }[] | null }[] | null;
+        sirene_chamados: ChamadoRaw;
+      };
       type SireneRaw = {
         id: string;
         tipo: string;
@@ -171,7 +182,7 @@ export function useBacklog(): UseBacklogResult {
         interacao_id: string | null;
         trava: boolean | null;
         sirene_chamados: ChamadoRaw;
-        kanban_atividades: { sirene_chamados: ChamadoRaw } | { sirene_chamados: ChamadoRaw }[] | null;
+        kanban_atividades: KanbanAtivRaw | KanbanAtivRaw[] | null;
       };
 
       const sireneArr: SireneItem[] = ((sireneRes.data ?? []) as unknown as SireneRaw[]).map(row => {
@@ -187,6 +198,17 @@ export function useBacklog(): UseBacklogResult {
               : interacaoRaw.sirene_chamados)
           : null;
         const chamado = chamadoDireto ?? chamadoViaInteracao;
+        // card via kanban_atividade (para link de origem)
+        const cardId = interacaoRaw?.card_id ?? null;
+        const cardNested = interacaoRaw
+          ? (Array.isArray(interacaoRaw.card) ? interacaoRaw.card[0] ?? null : interacaoRaw.card)
+          : null;
+        const cardKanban = cardNested
+          ? (Array.isArray((cardNested as { kanban: unknown }).kanban)
+              ? ((cardNested as { kanban: { nome: string }[] }).kanban)[0] ?? null
+              : (cardNested as { kanban: { nome: string } | null }).kanban)
+          : null;
+        const cardKanbanNome = cardKanban?.nome ?? null;
         const trava    = Boolean(row.trava);
         const te_trata = Boolean(chamado?.te_trata);
         const frank_id   = chamado?.frank_id   ?? null;
@@ -215,6 +237,8 @@ export function useBacklog(): UseBacklogResult {
           trava,
           te_trata,
           aberto_por_nome: chamado?.aberto_por_nome ?? null,
+          card_id:         cardId,
+          card_kanban_nome: cardKanbanNome,
         };
       });
 

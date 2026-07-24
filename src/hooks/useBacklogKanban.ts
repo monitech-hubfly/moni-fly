@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
-import { calcularSlaKanbanCard, type SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
+import { calcularSlaKanbanCard, resolveDataBaseSlaKanban, type SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
+import { adicionarDiasUteis, adicionarDiasCorridos, normalizarSlaTipo } from '@/lib/dias-uteis';
 
 const ADMIN_EMAIL  = 'danilo.n@moni.casa';
 const INGRID_EMAIL = 'ingrid.hora@moni.casa';
@@ -17,6 +18,7 @@ export type KanbanCardItem = {
   kanban_nome: string | null;
   sla_dias: number | null;
   sla: SlaKanbanResult | null;
+  sla_prazo_iso: string | null;
   origem: 'franqueado' | 'atividade' | 'checklist' | 'proxima_atividade' | 'sem_atividade';
   proxima_atividade?: string | null;
   prazo_atividade?: string | null;
@@ -39,6 +41,20 @@ function computeSla(
     sla_tipo: fase?.sla_tipo ?? null,
     faseSlug: fase?.slug ?? null,
   });
+}
+
+function computeSlaPrazo(
+  card: { created_at: string; entered_fase_at?: string | null; sla_iniciado_em?: string | null },
+  fase: FaseRelSla | null,
+): string | null {
+  if (!fase?.sla_dias || fase.sla_dias <= 0) return null;
+  const base = resolveDataBaseSlaKanban({ ...card, faseSlug: fase.slug });
+  if (!base) return null;
+  const slaTipo = normalizarSlaTipo(fase.sla_tipo);
+  const prazoDate = slaTipo === 'corridos'
+    ? adicionarDiasCorridos(base, fase.sla_dias)
+    : adicionarDiasUteis(base, fase.sla_dias);
+  return prazoDate.toISOString().slice(0, 10);
 }
 
 const RANK: Record<PrioridadeGrupo, number> = { P1: 1, P2: 2, P3: 3, P4: 4, P5: 5, P6: 6 };
@@ -176,7 +192,9 @@ export function useBacklogKanban(refreshKey = 0) {
             )
           `)
           .eq('criado_por', effectiveProfileId)
-          .is('concluido_em', null),
+          .is('concluido_em', null)
+          .then((r: any) => r)
+          .catch(() => ({ data: [], error: null })),
 
         supabase
           .from('kanban_tags')
@@ -224,6 +242,7 @@ export function useBacklogKanban(refreshKey = 0) {
           kanban_nome:       kanban?.nome ?? null,
           sla_dias:          fase?.sla_dias ?? null,
           sla:               computeSla(card, fase ?? null),
+          sla_prazo_iso:     computeSlaPrazo(card, fase ?? null),
           origem:            'franqueado',
           proxima_atividade: card.proxima_atividade,
           prazo_atividade:   card.prazo_atividade,
@@ -249,6 +268,7 @@ export function useBacklogKanban(refreshKey = 0) {
           kanban_nome:       kanban?.nome ?? null,
           sla_dias:          fase?.sla_dias ?? null,
           sla:               computeSla(card, fase ?? null),
+          sla_prazo_iso:     computeSlaPrazo(card, fase ?? null),
           origem:            'atividade',
           proxima_atividade: card.proxima_atividade,
           prazo_atividade:   card.prazo_atividade,
@@ -273,6 +293,7 @@ export function useBacklogKanban(refreshKey = 0) {
           kanban_nome:       kanban?.nome ?? null,
           sla_dias:          fase?.sla_dias ?? null,
           sla:               computeSla(card, fase ?? null),
+          sla_prazo_iso:     computeSlaPrazo(card, fase ?? null),
           origem:            'checklist',
           proxima_atividade: card.proxima_atividade,
           prazo_atividade:   card.prazo_atividade,
@@ -296,6 +317,7 @@ export function useBacklogKanban(refreshKey = 0) {
           kanban_nome:       kanban?.nome ?? null,
           sla_dias:          fase?.sla_dias ?? null,
           sla:               computeSla(card, fase ?? null),
+          sla_prazo_iso:     computeSlaPrazo(card, fase ?? null),
           origem:            'proxima_atividade',
           proxima_atividade: card.proxima_atividade,
           prazo_atividade:   card.prazo_atividade,
@@ -316,6 +338,7 @@ export function useBacklogKanban(refreshKey = 0) {
           kanban_nome:       kanban?.nome ?? null,
           sla_dias:          fase?.sla_dias ?? null,
           sla:               computeSla(card, fase ?? null),
+          sla_prazo_iso:     computeSlaPrazo(card, fase ?? null),
           origem:            'sem_atividade',
           proxima_atividade: card.proxima_atividade,
           prazo_atividade:   card.prazo_atividade,
@@ -336,6 +359,7 @@ export function useBacklogKanban(refreshKey = 0) {
           kanban_nome:       kanban?.nome ?? null,
           sla_dias:          fase?.sla_dias ?? null,
           sla:               computeSla(card, fase ?? null),
+          sla_prazo_iso:     computeSlaPrazo(card, fase ?? null),
           origem:            'proxima_atividade',
           proxima_atividade: card.proxima_atividade,
           prazo_atividade:   card.prazo_atividade,
@@ -396,6 +420,7 @@ export function useBacklogKanban(refreshKey = 0) {
             kanban_nome:       kanban?.nome ?? null,
             sla_dias:          fase?.sla_dias ?? null,
             sla:               computeSla(card, fase ?? null),
+            sla_prazo_iso:     computeSlaPrazo(card, fase ?? null),
             origem:            'sem_atividade',
             proxima_atividade: card.proxima_atividade,
             prazo_atividade:   card.prazo_atividade,

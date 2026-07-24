@@ -129,7 +129,7 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
         </div>
       ) : null}
 
-      {/* Linha 2: badge SLA + badge origem (exceto checklist) + funil · fase + prazo */}
+      {/* Linha 2: badge SLA + badge origem (exceto checklist) + funil · fase */}
       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
         {slaBadge ? (
           <span
@@ -154,20 +154,36 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
         {card.fase_nome && (
           <span className="text-[10px] text-gray-400 truncate">· {card.fase_nome}</span>
         )}
-        {card.prazo_atividade && (
-          <span className="text-[10px] text-gray-500 ml-auto shrink-0">
-            {(() => {
-              const d = new Date(`${card.prazo_atividade}T00:00:00`);
-              const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-              if (d < hoje) {
-                const diff = Math.round((hoje.getTime() - d.getTime()) / 86400000);
-                return <span className="text-red-600 font-medium">Atrasado {diff}d</span>;
-              }
-              return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-            })()}
-          </span>
-        )}
       </div>
+
+      {/* Linha 3: prazo SLA + prazo atividade */}
+      {(card.sla_prazo_iso ?? card.prazo_atividade) && (
+        <div className="mt-0.5 flex items-center gap-2 flex-wrap">
+          {card.sla_prazo_iso && (() => {
+            const d = new Date(`${card.sla_prazo_iso}T00:00:00`);
+            const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+            const atrasado = d < hoje;
+            const fmt = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+            return (
+              <span className={`text-[10px] ${atrasado ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                SLA {fmt}
+              </span>
+            );
+          })()}
+          {card.prazo_atividade && (() => {
+            const d = new Date(`${card.prazo_atividade}T00:00:00`);
+            const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+            const atrasado = d < hoje;
+            const diff = Math.round((hoje.getTime() - d.getTime()) / 86400000);
+            const fmt = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+            return (
+              <span className={`text-[10px] ${atrasado ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                Ativ {atrasado ? `+${diff}d` : fmt}
+              </span>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }

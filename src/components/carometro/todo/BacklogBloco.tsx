@@ -10,6 +10,7 @@ import type { DadosAgendamento } from './ModalAgendamento';
 import { BacklogKanbanColuna } from './BacklogKanbanColuna';
 import { createClient } from '@/lib/supabase/client';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
+import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 
 const STATUS_ORDER: Record<StatusPrazo, number> = {
   atrasado: 0, esta_semana: 1, sem_prazo: 2, futuro: 3,
@@ -75,27 +76,33 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
 
 // ── NovaAtividadeDrawer ───────────────────────────────────────────────────────
 type Tarefa = { id: string; nome: string };
+type Acao   = { id: string; nome: string };
 const RECORR_OPTS = [
-  { value: 'unica', label: 'Atividade única' },
-  { value: 'diaria', label: 'Diária' },
-  { value: 'semanal', label: 'Semanal' },
-  { value: 'mensal', label: 'Mensal' },
+  { value: 'unica',      label: 'Atividade única' },
+  { value: 'diaria',     label: 'Diária' },
+  { value: 'semanal',    label: 'Semanal' },
+  { value: 'mensal',     label: 'Mensal' },
   { value: 'trimestral', label: 'Trimestral' },
 ];
 
 function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFechar: () => void }) {
   const supabase = useMemo(() => createClient(), []);
-  const [tarefas,     setTarefas]     = useState<Tarefa[]>([]);
-  const [tarefaId,    setTarefaId]    = useState('');
-  const [novaTarefa,  setNovaTarefa]  = useState('');
-  const [criandoComp, setCriandoComp] = useState(false);
-  const [nome,        setNome]        = useState('');
-  const [tempoVal,    setTempoVal]    = useState('');
-  const [tempoUnit,   setTempoUnit]   = useState<'minutos' | 'horas'>('minutos');
-  const [canetaVerde, setCanetaVerde] = useState('nao');
-  const [recorrencia, setRecorrencia] = useState('unica');
-  const [salvando,    setSalvando]    = useState(false);
-  const [erro,        setErro]        = useState<string | null>(null);
+  const [tarefas,       setTarefas]       = useState<Tarefa[]>([]);
+  const [tarefaId,      setTarefaId]      = useState('');
+  const [tarefaNome,    setTarefaNome]    = useState('');
+  const [novaTarefa,    setNovaTarefa]    = useState('');
+  const [criandoComp,   setCriandoComp]   = useState(false);
+  const [step,          setStep]          = useState<'comportamento' | 'atividades'>('comportamento');
+  const [acoes,         setAcoes]         = useState<Acao[]>([]);
+  const [loadingAcoes,  setLoadingAcoes]  = useState(false);
+  const [adicionando,   setAdicionando]   = useState(false);
+  const [nome,          setNome]          = useState('');
+  const [tempoVal,      setTempoVal]      = useState('');
+  const [tempoUnit,     setTempoUnit]     = useState<'minutos' | 'horas'>('minutos');
+  const [canetaVerde,   setCanetaVerde]   = useState('nao');
+  const [recorrencia,   setRecorrencia]   = useState('unica');
+  const [salvando,      setSalvando]      = useState(false);
+  const [erro,          setErro]          = useState<string | null>(null);
 
   useEffect(() => {
     if (!areaId) return;
@@ -104,120 +111,178 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
     });
   }, [supabase, areaId]);
 
-  const handleSalvar = async () => {
+  const carregarAcoes = async (tId: string) => {
+    setLoadingAcoes(true);
+    const { data } = await supabase.from('acoes').select('id, nome').eq('tarefa_id', tId).order('nome');
+    setAcoes((data ?? []) as Acao[]);
+    setLoadingAcoes(false);
+  };
+
+  const handleSelectComp = async (tId: string) => {
+    if (!tId) return;
+    const t = tarefas.find(x => x.id === tId);
+    setTarefaId(tId);
+    setTarefaNome(t?.nome ?? '');
+    await carregarAcoes(tId);
+    setStep('atividades');
+  };
+
+  const handleCriarComp = async () => {
+    if (!novaTarefa.trim()) { setErro('Nome obrigatório.'); return; }
+    setSalvando(true); setErro(null);
+    const { data: ins, error: e } = await supabase
+      .from('tarefas').insert({ area_id: areaId, nome: novaTarefa.trim() }).select('id, nome').single();
+    if (e) { setErro(e.message); setSalvando(false); return; }
+    const t = ins as Tarefa;
+    setTarefas(prev => [...prev, t]);
+    setTarefaId(t.id); setTarefaNome(t.nome);
+    setNovaTarefa(''); setCriandoComp(false);
+    setAcoes([]); setStep('atividades');
+    setSalvando(false);
+  };
+
+  const handleSalvarAtividade = async () => {
     if (!nome.trim()) { setErro('Nome da atividade é obrigatório.'); return; }
     setSalvando(true); setErro(null);
-    try {
-      let tId = tarefaId;
-      if (criandoComp) {
-        if (!novaTarefa.trim()) { setErro('Nome do comportamento é obrigatório.'); setSalvando(false); return; }
-        const { data: ins, error: e } = await supabase
-          .from('tarefas').insert({ area_id: areaId, nome: novaTarefa.trim() }).select('id').single();
-        if (e) throw e;
-        tId = (ins as { id: string }).id;
-        setTarefas(prev => [...prev, { id: tId, nome: novaTarefa.trim() }]);
-        setTarefaId(tId); setCriandoComp(false); setNovaTarefa('');
-      }
-      if (!tId) { setErro('Selecione um comportamento.'); setSalvando(false); return; }
-      const tempoMin = tempoVal ? (tempoUnit === 'horas' ? Math.round(Number(tempoVal) * 60) : Math.round(Number(tempoVal))) : null;
-      const { error: e2 } = await supabase.from('acoes').insert({
-        tarefa_id: tId, nome: nome.trim(),
-        tempo_estimado_minutos: tempoMin,
-        caneta_verde: canetaVerde,
-        recorrencia,
-      });
-      if (e2) throw e2;
-      onFechar();
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Erro ao salvar.');
-    } finally { setSalvando(false); }
+    const tempoMin = tempoVal
+      ? (tempoUnit === 'horas' ? Math.round(Number(tempoVal) * 60) : Math.round(Number(tempoVal)))
+      : null;
+    const { error: e } = await supabase.from('acoes').insert({
+      tarefa_id: tarefaId, nome: nome.trim(),
+      tempo_estimado_minutos: tempoMin,
+      caneta_verde: canetaVerde,
+      recorrencia,
+    });
+    if (e) { setErro(e.message); setSalvando(false); return; }
+    setNome(''); setTempoVal(''); setAdicionando(false);
+    await carregarAcoes(tarefaId);
+    setSalvando(false);
   };
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end" onClick={onFechar}>
       <div className="w-80 bg-white h-full shadow-xl flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700">Nova atividade</h3>
-          <button type="button" onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-          {/* Comportamento */}
-          <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Comportamento</label>
-            {criandoComp ? (
-              <div className="flex gap-2">
-                <input
-                  className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
-                  placeholder="Nome do comportamento"
-                  value={novaTarefa} onChange={e => setNovaTarefa(e.target.value)} autoFocus />
-                <button type="button" onClick={() => setCriandoComp(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <select
-                  className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none"
-                  value={tarefaId} onChange={e => setTarefaId(e.target.value)}>
-                  <option value="">— Selecione —</option>
-                  {tarefas.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
-                </select>
-                <button type="button" onClick={() => setCriandoComp(true)}
-                  className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap">+ Novo</button>
-              </div>
-            )}
-          </div>
-
-          {/* Nome da atividade */}
-          <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Nome da atividade *</label>
-            <input
-              className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
-              placeholder="Nome da atividade"
-              value={nome} onChange={e => setNome(e.target.value)} />
-          </div>
-
-          {/* Tempo */}
-          <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Tempo</label>
-            <div className="flex gap-2">
-              <input type="number" min="0"
-                className="w-20 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none"
-                placeholder="0" value={tempoVal} onChange={e => setTempoVal(e.target.value)} />
-              <select className="text-xs border border-gray-300 rounded px-2 py-1.5"
-                value={tempoUnit} onChange={e => setTempoUnit(e.target.value as 'minutos' | 'horas')}>
-                <option value="minutos">min</option>
-                <option value="horas">h</option>
-              </select>
+          {step === 'atividades' ? (
+            <div className="flex items-center gap-2 min-w-0">
+              <button type="button" onClick={() => { setStep('comportamento'); setAdicionando(false); setErro(null); }}
+                className="text-gray-400 hover:text-gray-600 text-base shrink-0">←</button>
+              <h3 className="text-sm font-semibold text-gray-700 truncate">{tarefaNome}</h3>
             </div>
-          </div>
-
-          {/* Caneta verde */}
-          <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Caneta verde</label>
-            <select className="text-xs border border-gray-300 rounded px-2 py-1.5 w-full"
-              value={canetaVerde} onChange={e => setCanetaVerde(e.target.value)}>
-              <option value="nao">Não</option>
-              <option value="sim">Sim</option>
-            </select>
-          </div>
-
-          {/* Recorrência */}
-          <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Recorrência</label>
-            <select className="text-xs border border-gray-300 rounded px-2 py-1.5 w-full"
-              value={recorrencia} onChange={e => setRecorrencia(e.target.value)}>
-              {RECORR_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-
-          {erro && <p className="text-xs text-red-500">{erro}</p>}
+          ) : (
+            <h3 className="text-sm font-semibold text-gray-700">Nova atividade</h3>
+          )}
+          <button type="button" onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-lg shrink-0">✕</button>
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-100 flex gap-2 justify-end">
-          <button type="button" onClick={onFechar} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
-          <button type="button" onClick={handleSalvar} disabled={salvando}
-            className="text-xs px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors">
-            {salvando ? 'Salvando...' : 'Salvar atividade'}
-          </button>
+        <div className="flex-1 overflow-y-auto p-4">
+          {step === 'comportamento' ? (
+            /* Passo 1: selecionar comportamento */
+            <div className="flex flex-col gap-3">
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                Comportamento / Grupo
+              </label>
+              {criandoComp ? (
+                <div className="flex flex-col gap-2">
+                  <input
+                    className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                    placeholder="Nome do comportamento"
+                    value={novaTarefa} onChange={e => setNovaTarefa(e.target.value)} autoFocus />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={handleCriarComp} disabled={salvando}
+                      className="flex-1 text-xs px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50">
+                      {salvando ? 'Criando...' : 'Criar'}
+                    </button>
+                    <button type="button" onClick={() => { setCriandoComp(false); setErro(null); }}
+                      className="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-1.5">
+                    {tarefas.map(t => (
+                      <button key={t.id} type="button" onClick={() => handleSelectComp(t.id)}
+                        className="text-left text-xs px-3 py-2 rounded-md border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-gray-700">
+                        {t.nome}
+                      </button>
+                    ))}
+                    {tarefas.length === 0 && (
+                      <p className="text-xs text-gray-400 text-center py-4">Nenhum comportamento cadastrado</p>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => setCriandoComp(true)}
+                    className="mt-1 w-full text-xs text-blue-500 hover:text-blue-700 border border-dashed border-blue-200 hover:border-blue-400 rounded-md py-1.5 transition-colors">
+                    + Novo comportamento / grupo
+                  </button>
+                </>
+              )}
+              {erro && <p className="text-xs text-red-500">{erro}</p>}
+            </div>
+          ) : (
+            /* Passo 2: lista de atividades do comportamento */
+            <div className="flex flex-col gap-3">
+              {loadingAcoes ? (
+                <div className="flex flex-col gap-1.5">
+                  {[0, 1, 2].map(i => <div key={i} className="h-8 bg-gray-100 animate-pulse rounded" />)}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {acoes.map(a => (
+                    <div key={a.id} className="text-xs px-3 py-2 rounded-md bg-gray-50 text-gray-600 border border-gray-100">
+                      {a.nome}
+                    </div>
+                  ))}
+                  {acoes.length === 0 && !adicionando && (
+                    <p className="text-xs text-gray-400 text-center py-3">Nenhuma atividade cadastrada</p>
+                  )}
+                </div>
+              )}
+
+              {adicionando ? (
+                <div className="border border-blue-200 rounded-md p-3 bg-blue-50 flex flex-col gap-2.5">
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Nova atividade</p>
+                  <input autoFocus
+                    className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white"
+                    placeholder="Nome *"
+                    value={nome} onChange={e => setNome(e.target.value)} />
+                  <div className="flex gap-2">
+                    <input type="number" min="0"
+                      className="w-16 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none bg-white"
+                      placeholder="0" value={tempoVal} onChange={e => setTempoVal(e.target.value)} />
+                    <select className="text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
+                      value={tempoUnit} onChange={e => setTempoUnit(e.target.value as 'minutos' | 'horas')}>
+                      <option value="minutos">min</option>
+                      <option value="horas">h</option>
+                    </select>
+                    <select className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
+                      value={canetaVerde} onChange={e => setCanetaVerde(e.target.value)}>
+                      <option value="nao">Caneta: Não</option>
+                      <option value="sim">Caneta: Sim</option>
+                    </select>
+                  </div>
+                  <select className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
+                    value={recorrencia} onChange={e => setRecorrencia(e.target.value)}>
+                    {RECORR_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  {erro && <p className="text-xs text-red-500">{erro}</p>}
+                  <div className="flex gap-2 justify-end">
+                    <button type="button" onClick={() => { setAdicionando(false); setErro(null); setNome(''); setTempoVal(''); }}
+                      className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+                    <button type="button" onClick={handleSalvarAtividade} disabled={salvando}
+                      className="text-xs px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50">
+                      {salvando ? 'Salvando...' : 'Salvar'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => { setAdicionando(true); setErro(null); }}
+                  className="w-full text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 border border-dashed border-gray-300 hover:border-blue-300 rounded-md py-1.5 transition-colors">
+                  + Adicionar Nova Atividade
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -252,7 +317,13 @@ function ColunaSirene({ items, pastelariaItems = [] }: ColunaSireneProps) {
               numeroChamado={item.chamado_numero}
               status={status}
               origemBadge="Sirene"
-              href={item.chamado_id ? `/sirene/chamados?id=${item.chamado_id}` : undefined}
+              href={
+                item.chamado_id
+                  ? `/sirene/chamados?id=${item.chamado_id}`
+                  : item.card_id
+                    ? hrefAbrirCardKanban(item.card_kanban_nome ?? '', item.card_id)
+                    : undefined
+              }
               abertoPor={item.aberto_por_nome}
             />
           </DraggableSirene>
