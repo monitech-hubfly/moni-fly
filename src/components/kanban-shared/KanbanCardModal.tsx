@@ -8004,6 +8004,10 @@ export function KanbanCardModal({
                         <div className="text-xs text-stone-800">{displayOrDash(rede.classificacao_franqueado)}</div>
                       </div>
                       <div>
+                        <div className="text-[11px] font-medium text-stone-500">Regional</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(rede.regional)}</div>
+                      </div>
+                      <div>
                         <div className="text-[11px] font-medium text-stone-500">Área de atuação</div>
                         <div className="text-xs text-stone-800">{displayOrDash(rede.area_atuacao)}</div>
                       </div>

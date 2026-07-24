@@ -12,6 +12,7 @@ export type RedeFranqueadoModalRow = {
   status_franquia: string | null;
   modalidade: string | null;
   classificacao_franqueado: string | null;
+  regional: string | null;
   area_atuacao: string | null;
   email_frank: string | null;
   telefone_frank: string | null;
@@ -94,6 +95,7 @@ const REDE_SELECT = [
   'status_franquia',
   'modalidade',
   'classificacao_franqueado',
+  'regional',
   'area_atuacao',
   'email_frank',
   'telefone_frank',
@@ -330,6 +332,7 @@ function mapRede(r: Record<string, unknown> | null): RedeFranqueadoModalRow | nu
     status_franquia: g('status_franquia'),
     modalidade: g('modalidade'),
     classificacao_franqueado: g('classificacao_franqueado'),
+    regional: g('regional'),
     area_atuacao: g('area_atuacao'),
     email_frank: g('email_frank'),
     telefone_frank: g('telefone_frank'),
