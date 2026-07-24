@@ -110,6 +110,14 @@ export type KanbanCardBrief = {
   projetos_locais_filho_fase?: string | null;
   /** Operações: filho Projetos Locais na fase concluída. */
   projetos_locais_filho_concluido?: boolean;
+  /** Portfólio / Operações: existe card filho no Funil Divify (`origem_card_id`). */
+  tem_filho_divify?: boolean;
+  /** Portfólio / Operações: filho Divify arquivado (sem filho ativo). */
+  filho_divify_arquivado?: boolean;
+  /** Portfólio / Operações: filho Divify concluído. */
+  divify_filho_concluido?: boolean;
+  /** Portfólio / Operações: fase atual do filho Divify. */
+  divify_filho_fase?: string | null;
   /** Step One: fase atual do card Portfolio com mesmo `projeto_id`. */
   portfolio_vinculo_rotulo?: string | null;
   /** Portfolio: existe card filho no Funil Jurídico (`origem_card_id`). */

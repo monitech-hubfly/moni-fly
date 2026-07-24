@@ -2,11 +2,9 @@ import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  PORTFOLIO_PARALELAS,
   type PortfolioParalelasFlags,
-  type PortfolioParalelaFlag,
 } from '@/lib/kanban/portfolio-paralelas';
-import { PARALELA_KANBAN_CREDITO_TERRENO, nomeFunilParalela } from '@/lib/kanban/kanban-paralelas-cores';
+import { nomeFunilParalela } from '@/lib/kanban/kanban-paralelas-cores';
 import { labelChipAcoplamentoPai, FASE_EXIBICAO_CARD_ARQUIVADO } from '@/lib/kanban/acoplamento-tag-pai';
 import {
   HIPOTESES_FASE_SLUGS,
@@ -91,6 +89,14 @@ export type MontarChipsParalelasInput = {
   projetosLocaisFilhoFase?: string | null;
   /** Operações: filho Projetos Locais na fase concluída. */
   projetosLocaisFilhoConcluido?: boolean;
+  /** Portfólio / Operações: existe card filho no Funil Divify (`origem_card_id`). */
+  temFilhoDivify?: boolean;
+  /** Portfólio / Operações: filho Divify arquivado (sem filho ativo). */
+  filhoDivifyArquivado?: boolean;
+  /** Portfólio / Operações: filho Divify concluído. */
+  divifyFilhoConcluido?: boolean;
+  /** Portfólio / Operações: fase atual do filho Divify. */
+  divifyFilhoFase?: string | null;
 };
 
 export type MontarChipsParalelasOptions = {
@@ -102,16 +108,20 @@ function boolFlag(v: boolean | null | undefined): boolean {
   return Boolean(v);
 }
 
-/** Ordem fixa das bolinhas no card fechado do Funil Operações. */
-export const OPERACOES_CHIPS_ORDEM: readonly string[] = [
+/** Ordem fixa das 5 bolinhas de esteiras paralelas (Portfólio e Pré Obra e Obra). */
+export const ESTEIRAS_PARALELAS_CHIPS_ORDEM: readonly string[] = [
   KANBAN_IDS.ACOPLAMENTO,
   KANBAN_IDS.PROJETO_LEGAL,
   KANBAN_IDS.PROJETOS_LOCAIS,
   KANBAN_IDS.CREDITO_OBRA,
+  KANBAN_IDS.MONI_CAPITAL,
 ];
 
-function ordenarChipsOperacoesParalelas(chips: ParalelaChip[]): ParalelaChip[] {
-  const ordem = new Map(OPERACOES_CHIPS_ORDEM.map((id, i) => [id, i]));
+/** @deprecated Preferir ESTEIRAS_PARALELAS_CHIPS_ORDEM */
+export const OPERACOES_CHIPS_ORDEM = ESTEIRAS_PARALELAS_CHIPS_ORDEM;
+
+function ordenarChipsEsteirasParalelas(chips: ParalelaChip[]): ParalelaChip[] {
+  const ordem = new Map(ESTEIRAS_PARALELAS_CHIPS_ORDEM.map((id, i) => [id, i]));
   return [...chips].sort((a, b) => {
     const ia = ordem.get(String(a.kanbanId ?? '')) ?? 999;
     const ib = ordem.get(String(b.kanbanId ?? '')) ?? 999;
@@ -135,14 +145,6 @@ function faseParalelaFallback(
   if (!vinculado) return FASE_EXIBICAO_NAO_VINCULADO;
   return concluido ? 'Concluído' : 'Em andamento';
 }
-
-const FLAG_KANBAN_ID: Record<PortfolioParalelaFlag, string> = {
-  acoplamento_concluido: KANBAN_IDS.ACOPLAMENTO,
-  credito_terreno_ok: PARALELA_KANBAN_CREDITO_TERRENO,
-  contabilidade_ok: KANBAN_IDS.CONTABILIDADE,
-  juridico_ok: KANBAN_IDS.JURIDICO,
-  capital_ok: KANBAN_IDS.MONI_CAPITAL,
-};
 
 function chipEsteira(
   kanbanId: string,
@@ -197,9 +199,112 @@ function chipOperacoesParalela(
   );
 }
 
-function portfolioFaseStep4OuAcoplamento(slug: string): boolean {
-  const s = String(slug ?? '').trim();
-  return s === 'step_4' || s === 'acoplamento';
+/** Sempre 5 bolinhas: Acoplamento, PL, PLocais, Cash Me, Divify. */
+function montarChipsEsteirasParalelasFixas(
+  input: MontarChipsParalelasInput,
+  opts?: MontarChipsParalelasOptions,
+): ParalelaChip[] {
+  const f = input.flags;
+  const chipMap = new Map<string, ParalelaChip>();
+
+  const temFilhoAcoplamento = Boolean(input.temFilhoAcoplamento);
+  const filhoAcoplamentoArquivado =
+    Boolean(input.filhoAcoplamentoArquivado) && !temFilhoAcoplamento;
+  if (temFilhoAcoplamento || filhoAcoplamentoArquivado) {
+    const acoplChips: ParalelaChip[] = [];
+    pushChipAcoplamentoPortfolio(acoplChips, f, {
+      ...opts,
+      temFilhoAtivo: temFilhoAcoplamento,
+      filhoArquivado: filhoAcoplamentoArquivado,
+    });
+    const acopl = acoplChips[0];
+    if (acopl) chipMap.set(KANBAN_IDS.ACOPLAMENTO, acopl);
+  } else {
+    chipMap.set(
+      KANBAN_IDS.ACOPLAMENTO,
+      chipOperacoesParalela(
+        KANBAN_IDS.ACOPLAMENTO,
+        'Acoplamento',
+        { temFilho: false, filhoArquivado: false },
+        opts,
+      ),
+    );
+  }
+
+  const temFilhoProjetoLegal = Boolean(input.temFilhoProjetoLegal);
+  const filhoProjetoLegalArquivado =
+    Boolean(input.filhoProjetoLegalArquivado) && !temFilhoProjetoLegal;
+  chipMap.set(
+    KANBAN_IDS.PROJETO_LEGAL,
+    chipOperacoesParalela(
+      KANBAN_IDS.PROJETO_LEGAL,
+      'Projeto Legal',
+      {
+        temFilho: temFilhoProjetoLegal,
+        filhoArquivado: filhoProjetoLegalArquivado,
+        filhoFase: input.projetoLegalFilhoFase,
+        filhoConcluido: input.projetoLegalFilhoConcluido,
+      },
+      opts,
+    ),
+  );
+
+  const temFilhoProjetosLocais = Boolean(input.temFilhoProjetosLocais);
+  const filhoProjetosLocaisArquivado =
+    Boolean(input.filhoProjetosLocaisArquivado) && !temFilhoProjetosLocais;
+  chipMap.set(
+    KANBAN_IDS.PROJETOS_LOCAIS,
+    chipOperacoesParalela(
+      KANBAN_IDS.PROJETOS_LOCAIS,
+      'Projetos Locais',
+      {
+        temFilho: temFilhoProjetosLocais,
+        filhoArquivado: filhoProjetosLocaisArquivado,
+        filhoFase: input.projetosLocaisFilhoFase,
+        filhoConcluido: input.projetosLocaisFilhoConcluido,
+      },
+      opts,
+    ),
+  );
+
+  const temFilhoCreditoObra = Boolean(input.temFilhoCreditoObra);
+  const filhoCreditoObraArquivado =
+    Boolean(input.filhoCreditoObraArquivado) && !temFilhoCreditoObra;
+  chipMap.set(
+    KANBAN_IDS.CREDITO_OBRA,
+    chipOperacoesParalela(
+      KANBAN_IDS.CREDITO_OBRA,
+      'Cash Me',
+      {
+        temFilho: temFilhoCreditoObra,
+        filhoArquivado: filhoCreditoObraArquivado,
+        filhoFase: input.creditoObraFilhoFase,
+        filhoConcluido: boolFlag(f.credito_obra_ok),
+      },
+      opts,
+    ),
+  );
+
+  const temFilhoDivify = Boolean(input.temFilhoDivify);
+  const filhoDivifyArquivado = Boolean(input.filhoDivifyArquivado) && !temFilhoDivify;
+  chipMap.set(
+    KANBAN_IDS.MONI_CAPITAL,
+    chipOperacoesParalela(
+      KANBAN_IDS.MONI_CAPITAL,
+      'Divify',
+      {
+        temFilho: temFilhoDivify,
+        filhoArquivado: filhoDivifyArquivado,
+        filhoFase: input.divifyFilhoFase,
+        filhoConcluido: input.divifyFilhoConcluido ?? boolFlag(f.capital_ok),
+      },
+      opts,
+    ),
+  );
+
+  return ordenarChipsEsteirasParalelas(
+    ESTEIRAS_PARALELAS_CHIPS_ORDEM.map((id) => chipMap.get(id)!).filter(Boolean) as ParalelaChip[],
+  );
 }
 
 function pushChipAcoplamentoPortfolio(
@@ -313,53 +418,8 @@ export function montarChipsParalelas(
   }
 
   if (kid === KANBAN_IDS.PORTFOLIO) {
-    const emStep4OuAcoplamento = portfolioFaseStep4OuAcoplamento(slug);
-    const chipAcoplamentoOpts = {
-      ...opts,
-      temFilhoAtivo: input.temFilhoAcoplamento,
-      filhoArquivado: input.filhoAcoplamentoArquivado,
-    };
-    if (emStep4OuAcoplamento) {
-      for (const p of PORTFOLIO_PARALELAS) {
-        if (p.flag === 'acoplamento_concluido') {
-          pushChipAcoplamentoPortfolio(chips, f, chipAcoplamentoOpts);
-          continue;
-        }
-        const kanbanId = FLAG_KANBAN_ID[p.flag];
-        chips.push(
-          chipEsteira(
-            kanbanId,
-            nomeFunilParalela(kanbanId, p.label),
-            null,
-            p.label,
-            p.labelCurto,
-            boolFlag(f[p.flag]),
-            opts,
-          ),
-        );
-      }
-    }
-    if (slug === FASE_SLUGS.CAPTACAO_CAPITAL) {
-      chips.push(
-        chipEsteira(
-          KANBAN_IDS.MONI_CAPITAL,
-          nomeFunilParalela(KANBAN_IDS.MONI_CAPITAL),
-          null,
-          'Divify',
-          'Divify',
-          boolFlag(f.capital_ok),
-          opts,
-        ),
-      );
-    }
-    if (
-      !emStep4OuAcoplamento &&
-      (input.temFilhoAcoplamento ||
-        input.filhoAcoplamentoArquivado ||
-        boolFlag(f.acoplamento_concluido))
-    ) {
-      pushChipAcoplamentoPortfolio(chips, f, chipAcoplamentoOpts);
-    }
+    chips.push(...montarChipsEsteirasParalelasFixas(input, opts));
+
     if (input.temFilhoJuridico || boolFlag(f.juridico_ok)) {
       chips.push(
         chipEsteira(
@@ -396,89 +456,7 @@ export function montarChipsParalelas(
   }
 
   if (kid === KANBAN_IDS.OPERACOES) {
-    const chipMap = new Map<string, ParalelaChip>();
-
-    const temFilhoAcoplamento = Boolean(input.temFilhoAcoplamento);
-    const filhoAcoplamentoArquivado =
-      Boolean(input.filhoAcoplamentoArquivado) && !temFilhoAcoplamento;
-    if (temFilhoAcoplamento || filhoAcoplamentoArquivado) {
-      const acoplChips: ParalelaChip[] = [];
-      pushChipAcoplamentoPortfolio(acoplChips, f, {
-        ...opts,
-        temFilhoAtivo: temFilhoAcoplamento,
-        filhoArquivado: filhoAcoplamentoArquivado,
-      });
-      const acopl = acoplChips[0];
-      if (acopl) chipMap.set(KANBAN_IDS.ACOPLAMENTO, acopl);
-    } else {
-      chipMap.set(
-        KANBAN_IDS.ACOPLAMENTO,
-        chipOperacoesParalela(
-          KANBAN_IDS.ACOPLAMENTO,
-          'Acoplamento',
-          { temFilho: false, filhoArquivado: false },
-          opts,
-        ),
-      );
-    }
-
-    const temFilhoProjetoLegal = Boolean(input.temFilhoProjetoLegal);
-    const filhoProjetoLegalArquivado =
-      Boolean(input.filhoProjetoLegalArquivado) && !temFilhoProjetoLegal;
-    chipMap.set(
-      KANBAN_IDS.PROJETO_LEGAL,
-      chipOperacoesParalela(
-        KANBAN_IDS.PROJETO_LEGAL,
-        'Projeto Legal',
-        {
-          temFilho: temFilhoProjetoLegal,
-          filhoArquivado: filhoProjetoLegalArquivado,
-          filhoFase: input.projetoLegalFilhoFase,
-          filhoConcluido: input.projetoLegalFilhoConcluido,
-        },
-        opts,
-      ),
-    );
-
-    const temFilhoProjetosLocais = Boolean(input.temFilhoProjetosLocais);
-    const filhoProjetosLocaisArquivado =
-      Boolean(input.filhoProjetosLocaisArquivado) && !temFilhoProjetosLocais;
-    chipMap.set(
-      KANBAN_IDS.PROJETOS_LOCAIS,
-      chipOperacoesParalela(
-        KANBAN_IDS.PROJETOS_LOCAIS,
-        'Projetos Locais',
-        {
-          temFilho: temFilhoProjetosLocais,
-          filhoArquivado: filhoProjetosLocaisArquivado,
-          filhoFase: input.projetosLocaisFilhoFase,
-          filhoConcluido: input.projetosLocaisFilhoConcluido,
-        },
-        opts,
-      ),
-    );
-
-    const temFilhoCreditoObra = Boolean(input.temFilhoCreditoObra);
-    const filhoCreditoObraArquivado =
-      Boolean(input.filhoCreditoObraArquivado) && !temFilhoCreditoObra;
-    chipMap.set(
-      KANBAN_IDS.CREDITO_OBRA,
-      chipOperacoesParalela(
-        KANBAN_IDS.CREDITO_OBRA,
-        'Cash Me',
-        {
-          temFilho: temFilhoCreditoObra,
-          filhoArquivado: filhoCreditoObraArquivado,
-          filhoFase: input.creditoObraFilhoFase,
-          filhoConcluido: boolFlag(f.credito_obra_ok),
-        },
-        opts,
-      ),
-    );
-
-    return ordenarChipsOperacoesParalelas(
-      OPERACOES_CHIPS_ORDEM.map((id) => chipMap.get(id)!).filter(Boolean) as ParalelaChip[],
-    );
+    return montarChipsEsteirasParalelasFixas(input, opts);
   }
 
   if (kid === KANBAN_IDS.ACOPLAMENTO) {
@@ -756,6 +734,9 @@ type EnrichOperacoesFilhosMaps = {
   paisComFilhoProjetosLocaisArquivado: Set<string>;
   filhoCreditoObraPorPai: Map<string, string>;
   paisComFilhoCreditoObraArquivado: Set<string>;
+  filhoDivifyPorPai: Map<string, string>;
+  filhoDivifyConcluidoPorPai: Map<string, boolean>;
+  paisComFilhoDivifyArquivado: Set<string>;
 };
 
 type FilhoParalelaRpcRow = {
@@ -779,6 +760,9 @@ function criarMapsOperacoesFilhos(): EnrichOperacoesFilhosMaps {
     paisComFilhoProjetosLocaisArquivado: new Set(),
     filhoCreditoObraPorPai: new Map(),
     paisComFilhoCreditoObraArquivado: new Set(),
+    filhoDivifyPorPai: new Map(),
+    filhoDivifyConcluidoPorPai: new Map(),
+    paisComFilhoDivifyArquivado: new Set(),
   };
 }
 
@@ -843,6 +827,20 @@ function aplicarFilhoParalelaRpcRow(
       if (arquivado) maps.paisComFilhoCreditoObraArquivado.add(boardId);
       else if (!maps.filhoCreditoObraPorPai.has(boardId)) {
         maps.filhoCreditoObraPorPai.set(boardId, String(fase.nome ?? '').trim());
+      }
+      continue;
+    }
+    if (filhoKanbanId === KANBAN_IDS.MONI_CAPITAL) {
+      if (arquivado) {
+        maps.paisComFilhoDivifyArquivado.add(boardId);
+      } else {
+        const faseNome = String(fase.nome ?? '').trim();
+        if (faseNome && !maps.filhoDivifyPorPai.has(boardId)) {
+          maps.filhoDivifyPorPai.set(boardId, faseNome);
+        }
+        if (!maps.filhoDivifyConcluidoPorPai.has(boardId)) {
+          maps.filhoDivifyConcluidoPorPai.set(boardId, concluido);
+        }
       }
     }
   }
@@ -1178,6 +1176,14 @@ export async function enrichCardsParalelasContext(
       { data: filhosAcoplamentoArq },
       { data: filhosOperacoes },
       { data: filhosOperacoesArq },
+      { data: filhosProjetoLegal },
+      { data: filhosProjetoLegalArq },
+      { data: filhosProjetosLocais },
+      { data: filhosProjetosLocaisArq },
+      { data: filhosCreditoObra },
+      { data: filhosCreditoObraArq },
+      { data: filhosDivify },
+      { data: filhosDivifyArq },
     ] = await Promise.all([
       supabase
         .from('kanban_cards')
@@ -1207,6 +1213,54 @@ export async function enrichCardsParalelasContext(
         .from('kanban_cards')
         .select('origem_card_id')
         .eq('kanban_id', KANBAN_IDS.OPERACOES)
+        .eq('arquivado', true)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id, concluido, kanban_fases ( nome, slug )')
+        .eq('kanban_id', KANBAN_IDS.PROJETO_LEGAL)
+        .eq('arquivado', false)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id')
+        .eq('kanban_id', KANBAN_IDS.PROJETO_LEGAL)
+        .eq('arquivado', true)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id, concluido, kanban_fases ( nome, slug )')
+        .eq('kanban_id', KANBAN_IDS.PROJETOS_LOCAIS)
+        .eq('arquivado', false)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id')
+        .eq('kanban_id', KANBAN_IDS.PROJETOS_LOCAIS)
+        .eq('arquivado', true)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id, kanban_fases ( nome, slug )')
+        .eq('kanban_id', KANBAN_IDS.CREDITO_OBRA)
+        .eq('arquivado', false)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id')
+        .eq('kanban_id', KANBAN_IDS.CREDITO_OBRA)
+        .eq('arquivado', true)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id, concluido, kanban_fases ( nome, slug )')
+        .eq('kanban_id', KANBAN_IDS.MONI_CAPITAL)
+        .eq('arquivado', false)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id')
+        .eq('kanban_id', KANBAN_IDS.MONI_CAPITAL)
         .eq('arquivado', true)
         .in('origem_card_id', cardIds),
     ]);
@@ -1268,20 +1322,193 @@ export async function enrichCardsParalelasContext(
       if (oid) paisComFilhoOperacoesArquivado.add(oid);
     }
 
+    const mapsPortfolio = criarMapsOperacoesFilhos();
+    const {
+      filhoProjetoLegalPorPai,
+      filhoProjetoLegalConcluidoPorPai,
+      paisComFilhoProjetoLegalArquivado,
+      filhoProjetosLocaisPorPai,
+      filhoProjetosLocaisConcluidoPorPai,
+      paisComFilhoProjetosLocaisArquivado,
+      filhoCreditoObraPorPai,
+      paisComFilhoCreditoObraArquivado,
+      filhoDivifyPorPai,
+      filhoDivifyConcluidoPorPai,
+      paisComFilhoDivifyArquivado,
+    } = mapsPortfolio;
+
+    for (const row of filhosProjetoLegal ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (!oid) continue;
+      const fase = unwrapFase(
+        (row as { kanban_fases?: FaseJoin | FaseJoin[] | null }).kanban_fases ?? null,
+      );
+      const faseNome = String(fase?.nome ?? '').trim();
+      if (faseNome && !filhoProjetoLegalPorPai.has(oid)) {
+        filhoProjetoLegalPorPai.set(oid, faseNome);
+      }
+      if (!filhoProjetoLegalConcluidoPorPai.has(oid)) {
+        filhoProjetoLegalConcluidoPorPai.set(
+          oid,
+          (row as { concluido?: boolean | null }).concluido === true,
+        );
+      }
+    }
+    for (const row of filhosProjetoLegalArq ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (oid) paisComFilhoProjetoLegalArquivado.add(oid);
+    }
+
+    for (const row of filhosProjetosLocais ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (!oid) continue;
+      const fase = unwrapFase(
+        (row as { kanban_fases?: FaseJoin | FaseJoin[] | null }).kanban_fases ?? null,
+      );
+      registrarFilhoProjetosLocaisPai(
+        mapsPortfolio,
+        oid,
+        fase,
+        (row as { concluido?: boolean | null }).concluido === true,
+      );
+    }
+    for (const row of filhosProjetosLocaisArq ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (oid) paisComFilhoProjetosLocaisArquivado.add(oid);
+    }
+
+    for (const row of filhosCreditoObra ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (!oid) continue;
+      const fase = unwrapFase(
+        (row as { kanban_fases?: FaseJoin | FaseJoin[] | null }).kanban_fases ?? null,
+      );
+      if (!filhoCreditoObraPorPai.has(oid)) {
+        filhoCreditoObraPorPai.set(oid, String(fase?.nome ?? '').trim());
+      }
+    }
+    for (const row of filhosCreditoObraArq ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (oid) paisComFilhoCreditoObraArquivado.add(oid);
+    }
+
+    for (const row of filhosDivify ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (!oid) continue;
+      const fase = unwrapFase(
+        (row as { kanban_fases?: FaseJoin | FaseJoin[] | null }).kanban_fases ?? null,
+      );
+      const faseNome = String(fase?.nome ?? '').trim();
+      if (faseNome && !filhoDivifyPorPai.has(oid)) {
+        filhoDivifyPorPai.set(oid, faseNome);
+      }
+      if (!filhoDivifyConcluidoPorPai.has(oid)) {
+        filhoDivifyConcluidoPorPai.set(
+          oid,
+          (row as { concluido?: boolean | null }).concluido === true,
+        );
+      }
+    }
+    for (const row of filhosDivifyArq ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (oid) paisComFilhoDivifyArquivado.add(oid);
+    }
+
+    const ancestraisVazios = new Map(cardIds.map((id) => [id, new Set<string>()]));
+
     await Promise.all([
       enrichFilhosAcoplamentoPorVinculos(
         supabase,
         cardIds,
         cardIds,
-        new Map(cardIds.map((id) => [id, new Set<string>()])),
+        ancestraisVazios,
         filhoAcoplamentoPorPai,
       ),
       enrichFilhosAcoplamentoArquivadosPorVinculos(
         supabase,
         cardIds,
         cardIds,
-        new Map(cardIds.map((id) => [id, new Set<string>()])),
+        ancestraisVazios,
         paisComFilhoArquivado,
+      ),
+      enrichFilhosEsteiraPorVinculos(
+        supabase,
+        cardIds,
+        cardIds,
+        KANBAN_IDS.PROJETO_LEGAL,
+        ancestraisVazios,
+        (boardId, fase) => {
+          const faseNome = String(fase?.nome ?? '').trim();
+          if (faseNome && !filhoProjetoLegalPorPai.has(boardId)) {
+            filhoProjetoLegalPorPai.set(boardId, faseNome);
+          }
+        },
+      ),
+      enrichFilhosEsteiraArquivadosPorVinculos(
+        supabase,
+        cardIds,
+        cardIds,
+        KANBAN_IDS.PROJETO_LEGAL,
+        ancestraisVazios,
+        paisComFilhoProjetoLegalArquivado,
+      ),
+      enrichFilhosEsteiraPorVinculos(
+        supabase,
+        cardIds,
+        cardIds,
+        KANBAN_IDS.PROJETOS_LOCAIS,
+        ancestraisVazios,
+        (boardId, fase) => {
+          registrarFilhoProjetosLocaisPai(mapsPortfolio, boardId, fase);
+        },
+      ),
+      enrichFilhosEsteiraArquivadosPorVinculos(
+        supabase,
+        cardIds,
+        cardIds,
+        KANBAN_IDS.PROJETOS_LOCAIS,
+        ancestraisVazios,
+        paisComFilhoProjetosLocaisArquivado,
+      ),
+      enrichFilhosEsteiraPorVinculos(
+        supabase,
+        cardIds,
+        cardIds,
+        KANBAN_IDS.CREDITO_OBRA,
+        ancestraisVazios,
+        (boardId, fase) => {
+          if (filhoCreditoObraPorPai.has(boardId)) return;
+          filhoCreditoObraPorPai.set(boardId, String(fase?.nome ?? '').trim());
+        },
+      ),
+      enrichFilhosEsteiraArquivadosPorVinculos(
+        supabase,
+        cardIds,
+        cardIds,
+        KANBAN_IDS.CREDITO_OBRA,
+        ancestraisVazios,
+        paisComFilhoCreditoObraArquivado,
+      ),
+      enrichFilhosEsteiraPorVinculos(
+        supabase,
+        cardIds,
+        cardIds,
+        KANBAN_IDS.MONI_CAPITAL,
+        ancestraisVazios,
+        (boardId, fase) => {
+          const faseNome = String(fase?.nome ?? '').trim();
+          if (faseNome && !filhoDivifyPorPai.has(boardId)) {
+            filhoDivifyPorPai.set(boardId, faseNome);
+          }
+        },
+      ),
+      enrichFilhosEsteiraArquivadosPorVinculos(
+        supabase,
+        cardIds,
+        cardIds,
+        KANBAN_IDS.MONI_CAPITAL,
+        ancestraisVazios,
+        paisComFilhoDivifyArquivado,
       ),
     ]);
 
@@ -1293,12 +1520,31 @@ export async function enrichCardsParalelasContext(
       const temFilhoOperacoes = filhoOperacoesPorPai.has(c.id);
       const filhoOperacoesArquivado =
         paisComFilhoOperacoesArquivado.has(c.id) && !temFilhoOperacoes;
+      const temFilhoProjetoLegal = filhoProjetoLegalPorPai.has(c.id);
+      const filhoProjetoLegalArquivado =
+        paisComFilhoProjetoLegalArquivado.has(c.id) && !temFilhoProjetoLegal;
+      const temFilhoProjetosLocais = filhoProjetosLocaisPorPai.has(c.id);
+      const filhoProjetosLocaisArquivado =
+        paisComFilhoProjetosLocaisArquivado.has(c.id) && !temFilhoProjetosLocais;
+      const temFilhoCreditoObra = filhoCreditoObraPorPai.has(c.id);
+      const filhoCreditoObraArquivado =
+        paisComFilhoCreditoObraArquivado.has(c.id) && !temFilhoCreditoObra;
+      const temFilhoDivify = filhoDivifyPorPai.has(c.id);
+      const filhoDivifyArquivado = paisComFilhoDivifyArquivado.has(c.id) && !temFilhoDivify;
       if (
         !temFilhoAcoplamento &&
         !temJuridico &&
         !filhoArquivado &&
         !temFilhoOperacoes &&
-        !filhoOperacoesArquivado
+        !filhoOperacoesArquivado &&
+        !temFilhoProjetoLegal &&
+        !filhoProjetoLegalArquivado &&
+        !temFilhoProjetosLocais &&
+        !filhoProjetosLocaisArquivado &&
+        !temFilhoCreditoObra &&
+        !filhoCreditoObraArquivado &&
+        !temFilhoDivify &&
+        !filhoDivifyArquivado
       ) {
         return c;
       }
@@ -1317,6 +1563,30 @@ export async function enrichCardsParalelasContext(
         patch.operacoes_filho_concluido = filhoOperacoesConcluidoPorPai.get(c.id) === true;
       }
       if (filhoOperacoesArquivado) patch.filho_operacoes_arquivado = true;
+      if (temFilhoProjetoLegal) {
+        patch.tem_filho_projeto_legal = true;
+        patch.projeto_legal_filho_fase = filhoProjetoLegalPorPai.get(c.id) ?? null;
+        patch.projeto_legal_filho_concluido = filhoProjetoLegalConcluidoPorPai.get(c.id) === true;
+      }
+      if (filhoProjetoLegalArquivado) patch.filho_projeto_legal_arquivado = true;
+      if (temFilhoProjetosLocais) {
+        patch.tem_filho_projetos_locais = true;
+        patch.projetos_locais_filho_fase = filhoProjetosLocaisPorPai.get(c.id) ?? null;
+        patch.projetos_locais_filho_concluido =
+          filhoProjetosLocaisConcluidoPorPai.get(c.id) === true;
+      }
+      if (filhoProjetosLocaisArquivado) patch.filho_projetos_locais_arquivado = true;
+      if (temFilhoCreditoObra) {
+        patch.tem_filho_credito_obra = true;
+        patch.credito_obra_filho_fase = filhoCreditoObraPorPai.get(c.id) || null;
+      }
+      if (filhoCreditoObraArquivado) patch.filho_credito_obra_arquivado = true;
+      if (temFilhoDivify) {
+        patch.tem_filho_divify = true;
+        patch.divify_filho_fase = filhoDivifyPorPai.get(c.id) ?? null;
+        patch.divify_filho_concluido = filhoDivifyConcluidoPorPai.get(c.id) === true;
+      }
+      if (filhoDivifyArquivado) patch.filho_divify_arquivado = true;
       if (filhoAcop) {
         if (!String(c.acoplamento_filho_fase_slug ?? '').trim() && filhoAcop.slug) {
           patch.acoplamento_filho_fase_slug = filhoAcop.slug;
@@ -1357,6 +1627,8 @@ export async function enrichCardsParalelasContext(
       { data: filhosCreditoObraArq },
       { data: filhosProjetosLocais },
       { data: filhosProjetosLocaisArq },
+      { data: filhosDivify },
+      { data: filhosDivifyArq },
     ] = await Promise.all([
       supabase
         .from('kanban_cards')
@@ -1406,6 +1678,18 @@ export async function enrichCardsParalelasContext(
         .eq('kanban_id', KANBAN_IDS.PROJETOS_LOCAIS)
         .eq('arquivado', true)
         .in('origem_card_id', origemIdsConsulta),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id, concluido, kanban_fases ( nome, slug )')
+        .eq('kanban_id', KANBAN_IDS.MONI_CAPITAL)
+        .eq('arquivado', false)
+        .in('origem_card_id', origemIdsConsulta),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id')
+        .eq('kanban_id', KANBAN_IDS.MONI_CAPITAL)
+        .eq('arquivado', true)
+        .in('origem_card_id', origemIdsConsulta),
     ]);
 
     const {
@@ -1419,6 +1703,9 @@ export async function enrichCardsParalelasContext(
       paisComFilhoProjetosLocaisArquivado,
       filhoCreditoObraPorPai,
       paisComFilhoCreditoObraArquivado,
+      filhoDivifyPorPai,
+      filhoDivifyConcluidoPorPai,
+      paisComFilhoDivifyArquivado,
     } = maps;
 
     for (const row of filhosProjetoLegal ?? []) {
@@ -1512,6 +1799,34 @@ export async function enrichCardsParalelasContext(
       }
     }
 
+    for (const row of filhosDivify ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (!oid) continue;
+      const fase = unwrapFase(
+        (row as { kanban_fases?: FaseJoin | FaseJoin[] | null }).kanban_fases ?? null,
+      );
+      for (const boardId of boardCardsDoFilhoOrigem(oid, cardIds, ancestraisPorBoardCard)) {
+        const faseNome = String(fase?.nome ?? '').trim();
+        if (faseNome && !filhoDivifyPorPai.has(boardId)) {
+          filhoDivifyPorPai.set(boardId, faseNome);
+        }
+        if (!filhoDivifyConcluidoPorPai.has(boardId)) {
+          filhoDivifyConcluidoPorPai.set(
+            boardId,
+            (row as { concluido?: boolean | null }).concluido === true,
+          );
+        }
+      }
+    }
+
+    for (const row of filhosDivifyArq ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (!oid) continue;
+      for (const boardId of boardCardsDoFilhoOrigem(oid, cardIds, ancestraisPorBoardCard)) {
+        paisComFilhoDivifyArquivado.add(boardId);
+      }
+    }
+
     await Promise.all([
       enrichFilhosAcoplamentoPorVinculos(
         supabase,
@@ -1585,6 +1900,27 @@ export async function enrichCardsParalelasContext(
         ancestraisPorBoardCard,
         paisComFilhoProjetosLocaisArquivado,
       ),
+      enrichFilhosEsteiraPorVinculos(
+        supabase,
+        cardIds,
+        origemIdsConsulta,
+        KANBAN_IDS.MONI_CAPITAL,
+        ancestraisPorBoardCard,
+        (boardId, fase) => {
+          const faseNome = String(fase?.nome ?? '').trim();
+          if (faseNome && !filhoDivifyPorPai.has(boardId)) {
+            filhoDivifyPorPai.set(boardId, faseNome);
+          }
+        },
+      ),
+      enrichFilhosEsteiraArquivadosPorVinculos(
+        supabase,
+        cardIds,
+        origemIdsConsulta,
+        KANBAN_IDS.MONI_CAPITAL,
+        ancestraisPorBoardCard,
+        paisComFilhoDivifyArquivado,
+      ),
     ]);
 
     await enrichFilhosOperacoesPorTituloFranquia(supabase, cards, maps);
@@ -1603,6 +1939,8 @@ export async function enrichCardsParalelasContext(
       const temFilhoProjetosLocais = filhoProjetosLocaisPorPai.has(c.id);
       const filhoProjetosLocaisArquivado =
         paisComFilhoProjetosLocaisArquivado.has(c.id) && !temFilhoProjetosLocais;
+      const temFilhoDivify = filhoDivifyPorPai.has(c.id);
+      const filhoDivifyArquivado = paisComFilhoDivifyArquivado.has(c.id) && !temFilhoDivify;
 
       if (
         !temFilhoProjetoLegal &&
@@ -1612,7 +1950,9 @@ export async function enrichCardsParalelasContext(
         !temFilhoCreditoObra &&
         !filhoCreditoObraArquivado &&
         !temFilhoProjetosLocais &&
-        !filhoProjetosLocaisArquivado
+        !filhoProjetosLocaisArquivado &&
+        !temFilhoDivify &&
+        !filhoDivifyArquivado
       ) {
         return c;
       }
@@ -1649,6 +1989,12 @@ export async function enrichCardsParalelasContext(
           filhoProjetosLocaisConcluidoPorPai.get(c.id) === true;
       }
       if (filhoProjetosLocaisArquivado) patch.filho_projetos_locais_arquivado = true;
+      if (temFilhoDivify) {
+        patch.tem_filho_divify = true;
+        patch.divify_filho_fase = filhoDivifyPorPai.get(c.id) ?? null;
+        patch.divify_filho_concluido = filhoDivifyConcluidoPorPai.get(c.id) === true;
+      }
+      if (filhoDivifyArquivado) patch.filho_divify_arquivado = true;
       return { ...c, ...patch };
     });
   }

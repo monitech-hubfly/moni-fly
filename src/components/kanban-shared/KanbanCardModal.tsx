@@ -441,6 +441,10 @@ type Card = {
   filho_projetos_locais_arquivado?: boolean;
   projetos_locais_filho_fase?: string | null;
   projetos_locais_filho_concluido?: boolean;
+  tem_filho_divify?: boolean;
+  filho_divify_arquivado?: boolean;
+  divify_filho_concluido?: boolean;
+  divify_filho_fase?: string | null;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
   processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
@@ -1678,6 +1682,10 @@ export function KanbanCardModal({
                   filho_projetos_locais_arquivado: enrichedRow.filho_projetos_locais_arquivado,
                   projetos_locais_filho_fase: enrichedRow.projetos_locais_filho_fase,
                   projetos_locais_filho_concluido: enrichedRow.projetos_locais_filho_concluido,
+                  tem_filho_divify: enrichedRow.tem_filho_divify,
+                  filho_divify_arquivado: enrichedRow.filho_divify_arquivado,
+                  divify_filho_concluido: enrichedRow.divify_filho_concluido,
+                  divify_filho_fase: enrichedRow.divify_filho_fase,
                   acoplamento_filho_fase_nome: enrichedRow.filho_acoplamento_arquivado
                     ? enrichedRow.acoplamento_filho_fase_nome ?? null
                     : enrichedRow.acoplamento_filho_fase_nome ?? next.acoplamento_filho_fase_nome,
@@ -4861,6 +4869,10 @@ export function KanbanCardModal({
             filhoProjetosLocaisArquivado: card.filho_projetos_locais_arquivado,
             projetosLocaisFilhoFase: card.projetos_locais_filho_fase,
             projetosLocaisFilhoConcluido: card.projetos_locais_filho_concluido,
+            temFilhoDivify: card.tem_filho_divify,
+            filhoDivifyArquivado: card.filho_divify_arquivado,
+            divifyFilhoConcluido: card.divify_filho_concluido,
+            divifyFilhoFase: card.divify_filho_fase,
           },
           { labelsCompletos: true },
         )
