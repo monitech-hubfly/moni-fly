@@ -348,6 +348,15 @@ function inicioPorFimFaseAnterior(fimReal: string | null, fimEstimado: string | 
   return primeiroDiaUtilDe(formatLocalYmd(next));
 }
 
+/** Encadeamento por SLA — prioriza fim estimado (início+SLA) sobre saída real atrasada. */
+function inicioEncadeadoPorFimAnterior(
+  fimEstimada: string | null,
+  fimReal: string | null,
+): string | null {
+  if (fimEstimada) return inicioPorFimFaseAnterior(null, fimEstimada);
+  return inicioPorFimFaseAnterior(fimReal, null);
+}
+
 /**
  * Quando início propagado ultrapassa fim real (histórico/manual), prioriza entrada da visita
  * ou limita início ao fim — fim real é a saída autoritativa da fase.
@@ -1258,7 +1267,7 @@ export function propagarLinhasCalculadoraForward(
     let dataInicioReal =
       inicioManual !== undefined
         ? inicioManual
-        : inicioPorFimFaseAnterior(fimFaseAnteriorReal, fimFaseAnteriorEstimado);
+        : inicioEncadeadoPorFimAnterior(fimFaseAnteriorEstimado, fimFaseAnteriorReal);
 
     const concluidaPorOrdem = row.ordem < ordemAtual;
     const concluidaManual = faseConcluidaManualmente(row, ordemAtual);
@@ -1600,7 +1609,7 @@ export function aplicarEncadeamentoComiteCtoDiligenciaNasLinhas(
 
   if (idxCto >= 0) {
     const rowCto = out[idxCto]!;
-    const inicioCto = inicioPorFimFaseAnterior(comite.dataFimReal, comite.dataFimEstimada);
+    const inicioCto = inicioEncadeadoPorFimAnterior(comite.dataFimEstimada, comite.dataFimReal);
     const fimEstimadoCto =
       inicioCto && rowCto.slaDias != null && rowCto.slaDias > 0
         ? fimEstimadaPorSla(inicioCto, rowCto.slaDias, rowCto.slaTipo)
@@ -1618,9 +1627,9 @@ export function aplicarEncadeamentoComiteCtoDiligenciaNasLinhas(
     let inicioDiligencia: string | null;
     if (comCondicoes && idxCto >= 0) {
       const cto = out[idxCto]!;
-      inicioDiligencia = inicioPorFimFaseAnterior(cto.dataFimReal, cto.dataFimEstimada);
+      inicioDiligencia = inicioEncadeadoPorFimAnterior(cto.dataFimEstimada, cto.dataFimReal);
     } else {
-      inicioDiligencia = inicioPorFimFaseAnterior(comite.dataFimReal, comite.dataFimEstimada);
+      inicioDiligencia = inicioEncadeadoPorFimAnterior(comite.dataFimEstimada, comite.dataFimReal);
     }
     const fimEstimadoDil =
       inicioDiligencia && rowDil.slaDias != null && rowDil.slaDias > 0
@@ -1735,10 +1744,10 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
   let inicioContrato: string | null = null;
   if (idxDiligencia >= 0) {
     const dil = out[idxDiligencia]!;
-    inicioContrato = inicioPorFimFaseAnterior(dil.dataFimReal, dil.dataFimEstimada);
+    inicioContrato = inicioEncadeadoPorFimAnterior(dil.dataFimEstimada, dil.dataFimReal);
   } else if (idxContrato > 0) {
     const ant = out[idxContrato - 1]!;
-    inicioContrato = inicioPorFimFaseAnterior(ant.dataFimReal, ant.dataFimEstimada);
+    inicioContrato = inicioEncadeadoPorFimAnterior(ant.dataFimEstimada, ant.dataFimReal);
   }
 
   const realFim = resolverFimRealMarcoContrato(

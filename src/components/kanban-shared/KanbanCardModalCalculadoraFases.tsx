@@ -367,14 +367,14 @@ function CalculadoraMarcoRow({
   // O limite regulatório M4 (+4 meses) fica só no rótulo, não ocupa a coluna início.
   const inicio = marco.dataInicioReal ?? marco.dataInicio;
   const fim =
-    marco.dataFimReal ??
     marco.dataFimEstimada ??
+    marco.dataFimReal ??
     marco.dataFim ??
     marco.data;
   const inicioLabel = labelSufixoDataCalculadora(Boolean(marco.dataInicioReal));
   const fimLabel = isM4ComLimite
-    ? `${labelSufixoDataCalculadora(Boolean(marco.dataFimReal))} · lim. ${fmtData(limiteContrato ?? null)}`
-    : labelSufixoDataCalculadora(Boolean(marco.dataFimReal));
+    ? `${labelSufixoDataCalculadora(Boolean(marco.dataFimReal && fim === marco.dataFimReal))} · lim. ${fmtData(limiteContrato ?? null)}`
+    : labelSufixoDataCalculadora(Boolean(marco.dataFimReal && fim === marco.dataFimReal));
   const fimAtraso =
     marco.status === 'atual_atrasada' ||
     (marco.status === 'concluida_atraso' && Boolean(marco.dataFimReal));
@@ -808,9 +808,13 @@ function CalculadoraFaseRow({
   const isGargalo = row.atrasoDias !== null && row.atrasoDias > 0;
   const hoje = calculadoraHojeYmd();
   const inicioData = row.dataInicioReal;
-  const fimData = row.dataFimReal ?? row.dataFimEstimada;
+  const fimData = row.dataFimEstimada ?? row.dataFimReal;
   const inicioLabel = labelSufixoDataCalculadoraFase(row.status, 'inicio', Boolean(row.dataInicioReal));
-  const fimLabel = labelSufixoDataCalculadoraFase(row.status, 'fim', Boolean(row.dataFimReal));
+  const fimLabel = labelSufixoDataCalculadoraFase(
+    row.status,
+    'fim',
+    Boolean(row.dataFimReal && fimData === row.dataFimReal),
+  );
   const unidadeAtraso = row.slaTipo === 'corridos' ? 'd.c.' : 'd.u.';
 
   const fimAtraso = faseUltrapassouSlaCalculadora(
