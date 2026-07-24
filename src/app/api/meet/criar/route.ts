@@ -4,20 +4,20 @@ import crypto from 'crypto';
 export const runtime = 'nodejs';
 
 export async function POST() {
-  const email  = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  const email       = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const rawKey      = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  const impersonate = process.env.GOOGLE_IMPERSONATE_EMAIL;
 
-  if (!email || !rawKey) {
+  if (!email || !rawKey || !impersonate) {
     return NextResponse.json(
       { error: 'Credenciais Google não configuradas no servidor.' },
       { status: 503 },
     );
   }
 
-  // Env vars armazenam \n como \\n — desfaz o escape
   const privateKey = rawKey.replace(/\\n/g, '\n');
 
-  // ── 1. Montar JWT ──────────────────────────────────────────────────────────
+  // ── 1. JWT com impersonation (domain-wide delegation) ──────────────────────
   const now = Math.floor(Date.now() / 1000);
   const toB64 = (obj: object) =>
     Buffer.from(JSON.stringify(obj)).toString('base64url');
@@ -25,6 +25,7 @@ export async function POST() {
   const header  = { alg: 'RS256', typ: 'JWT' };
   const payload = {
     iss:   email,
+    sub:   impersonate,   // impersona um usuário real do Workspace
     scope: 'https://www.googleapis.com/auth/meetings.space.created',
     aud:   'https://oauth2.googleapis.com/token',
     iat:   now,

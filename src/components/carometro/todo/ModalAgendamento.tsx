@@ -33,6 +33,7 @@ export type DadosAgendamento = {
   recorrencia_config: RecorrenciaConfig | null;
   observacoes: string | null;
   link_reuniao: string | null;
+  local_reuniao: string | null;
   titulo: string | null;
   participantes: string[];
   participantes_externos: string[];
@@ -44,7 +45,7 @@ const EMPTY: DadosAgendamento = {
   casa_id: null, franqueado_id: null, rede_loteador_id: null, condominio_id: null,
   adm_cnpj_id: null, sirene_chamado_id: null, card_id: null,
   recorrente: false, recorrencia_config: null, observacoes: null,
-  link_reuniao: null, titulo: null, participantes: [], participantes_externos: [], origem_tipo: null,
+  link_reuniao: null, local_reuniao: null, titulo: null, participantes: [], participantes_externos: [], origem_tipo: null,
 };
 
 export type OrigemInfo = {
@@ -297,8 +298,7 @@ export function ModalAgendamento({
   const [ocupados,   setOcupados]   = useState<Set<string>>(new Set());
   const [busySlots,  setBusySlots]  = useState<Map<string, { hora_inicio: string; hora_fim: string | null }[]>>(new Map());
   const [confirmarExcluir, setConfirmarExcluir] = useState(false);
-  const [externEmail,      setExternEmail]      = useState('');
-  const [gerandoMeet,      setGerandoMeet]      = useState(false);
+  const [externEmail, setExternEmail] = useState('');
 
   // Seções colapsáveis (data, participantes, link, recorrência, vínculo, obs)
   // 0=Data+Recorrência, 1=Participantes, 2=Link, 3=Info adicionais, 4=Observações
@@ -533,19 +533,12 @@ export function ModalAgendamento({
   const removeExterno = (email: string) =>
     set('participantes_externos', form.participantes_externos.filter(e => e !== email));
 
-  const gerarMeet = async () => {
-    setGerandoMeet(true);
-    try {
-      const res  = await fetch('/api/meet/criar', { method: 'POST' });
-      const json = (await res.json()) as { url?: string; error?: string };
-      if (json.url) set('link_reuniao', json.url);
-      else alert(json.error ?? 'Erro ao gerar link Meet');
-    } catch {
-      alert('Erro ao conectar com o servidor');
-    } finally {
-      setGerandoMeet(false);
-    }
+  const gerarMeet = () => {
+    const id = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+    set('link_reuniao', `https://meet.jit.si/moni-${id}`);
   };
+
+  const CASA_MONI = 'R. Butantã, 461 - Pinheiros, São Paulo - SP, 05424-140';
 
   const handleAba = (aba: AbaAtiva) => {
     setAbaAtiva(aba);
@@ -994,6 +987,27 @@ export function ModalAgendamento({
                 </svg>
                 {gerandoMeet ? 'Gerando…' : 'Meet'}
               </button>
+            </div>
+
+            {/* ── Local físico ── */}
+            <div className="mt-2">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Local físico</label>
+                <button
+                  type="button"
+                  onClick={() => set('local_reuniao', 'R. Butantã, 461 - Pinheiros, São Paulo - SP, 05424-140')}
+                  className="text-[10px] text-blue-500 hover:text-blue-700 transition-colors"
+                >
+                  🏠 Casa Moní
+                </button>
+              </div>
+              <input
+                type="text"
+                className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                placeholder="Endereço ou nome do local"
+                value={form.local_reuniao ?? ''}
+                onChange={e => set('local_reuniao', e.target.value || null)}
+              />
             </div>
           </Secao>
 
