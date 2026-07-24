@@ -569,6 +569,18 @@ export async function resolverCardPrimarioSyncGroup(db: SyncDb, cardId: string):
   return cur;
 }
 
+/** Remove segmento final repetido (ex.: `- 41 - 41` quando quadra === lote). */
+export function deduplicarSegmentoFinalTitulo(titulo: string): string {
+  const parts = titulo
+    .split(' - ')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length >= 2 && parts[parts.length - 1] === parts[parts.length - 2]) {
+    parts.pop();
+  }
+  return parts.join(' - ');
+}
+
 export function montarTituloCardSync(params: {
   nFranquia?: string | null;
   /** Ignorado no título — nome do franqueado fica no subtítulo do card. */
@@ -578,16 +590,23 @@ export function montarTituloCardSync(params: {
   lote?: string | null;
   tituloFallback?: string | null;
 }): string | null {
+  let quadra = params.quadra?.trim() ?? '';
+  let lote = params.lote?.trim() ?? '';
+  if (quadra && lote && quadra.toLowerCase() === lote.toLowerCase()) {
+    lote = '';
+  }
   const partes = [
     params.nFranquia?.trim() ?? '',
     params.nomeCondominio?.trim() ?? '',
-    params.quadra?.trim() ?? '',
-    params.lote?.trim() ?? '',
+    quadra,
+    lote,
   ].filter(Boolean);
-  if (partes.length > 0) return partes.join(' - ');
+  if (partes.length > 0) return deduplicarSegmentoFinalTitulo(partes.join(' - '));
   const fb = params.tituloFallback?.trim();
   if (!fb) return null;
-  return tituloFallbackSemFranqueado(fb, params.nFranquia, params.nomeFranqueado);
+  return deduplicarSegmentoFinalTitulo(
+    tituloFallbackSemFranqueado(fb, params.nFranquia, params.nomeFranqueado),
+  );
 }
 
 /** Prefere o título mais completo (FK + condomínio + quadra + lote). */
@@ -597,8 +616,10 @@ export function escolherTituloExibicaoCard(
   nFranquia?: string | null,
   nomeFranqueado?: string | null,
 ): string {
-  const calc = String(tituloCalculado ?? '').trim();
-  const atual = tituloFallbackSemFranqueado(String(tituloAtual ?? ''), nFranquia, nomeFranqueado);
+  const calc = deduplicarSegmentoFinalTitulo(String(tituloCalculado ?? '').trim());
+  const atual = deduplicarSegmentoFinalTitulo(
+    tituloFallbackSemFranqueado(String(tituloAtual ?? ''), nFranquia, nomeFranqueado),
+  );
   const partes = (t: string) => t.split(' - ').map((p) => p.trim()).filter(Boolean).length;
   if (atual && calc && partes(atual) > partes(calc)) return atual;
   if (calc) return calc;
