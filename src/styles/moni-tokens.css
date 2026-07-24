@@ -3343,6 +3343,19 @@
   border-color: var(--moni-card-tag-border) !important;
 }
 
+/* Tag «Contratar Inst. Garantidor» — vermelho sóbrio no board */
+.moni-kanban-card .moni-tag-atrasado {
+  height: var(--moni-card-tag-height);
+  padding: 0 var(--moni-card-tag-padding-x);
+  border-radius: 999px;
+  font-size: var(--moni-card-tag-font-size);
+  font-weight: 600;
+  line-height: 1;
+  background: var(--moni-status-overdue-bg) !important;
+  color: var(--moni-status-overdue-text) !important;
+  border: var(--moni-border-width) solid var(--moni-status-overdue-border) !important;
+}
+
 /* ★ Especial — só estrela à esquerda do título (não pill / não linha “Especial”) */
 .moni-kanban-card-title-row {
   display: flex;
