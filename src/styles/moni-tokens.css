@@ -286,7 +286,7 @@
   --moni-card-sla-height:         20px;
   --moni-card-sla-padding-x:      8px;
   --moni-card-sla-icon-size:      11px;
-  --moni-card-fase-conclusao-opacity: 0.44;                /* última fase ativa do funil */
+  --moni-card-fase-conclusao-opacity: 0.44;                /* fases de conclusão do funil */
   --moni-card-fase-conclusao-muted-opacity: 0.32;          /* arquivado/concluído na fase fin */
 
   /* Linha lateral de status — vermelho sóbrio (nunca #dc2626 / nunca laranja) */
@@ -2531,7 +2531,7 @@
   color: var(--moni-text-tertiary);
 }
 
-/* Cards na última fase ativa (conclusão do funil) — mais transparentes */
+/* Cards em fases de conclusão (terminal / paralisados / última coluna) — mais transparentes */
 .moni-kanban-column--fin .moni-kanban-card {
   opacity: var(--moni-card-fase-conclusao-opacity);
 }

@@ -18,8 +18,8 @@ import {
 } from './kanbanBoardFiltros';
 import { hipotesesOrdemMinima } from '@/lib/kanban/kanban-paralelas-chips';
 import { sortKanbanCardsPorProximaAtividade } from '@/lib/kanban/kanban-proxima-atividade-ordem';
-import type { KanbanNomeDisplay } from './types';
-import type { KanbanCardBrief, KanbanFase } from './types';
+import type { KanbanNomeDisplay, KanbanCardBrief, KanbanFase } from './types';
+import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
 
 const BOARD_ROW_STYLE: CSSProperties = {
   display: 'flex',
@@ -404,6 +404,7 @@ export function KanbanBoard({
               const listaVaziaPorFiltro = clientFiltersActive && raw.length > 0 && vis.length === 0;
               const isPrimeiraColuna = fase.ordem === ordemMinima;
               const isUltimaFaseAtiva = fase.ativo !== false && fase.ordem === maxOrdemAtiva;
+              const isFaseConclusao = isFaseConclusaoKanban(fase) || isUltimaFaseAtiva;
               return (
                 <KanbanColumn
                   key={fase.id}
@@ -419,7 +420,7 @@ export function KanbanBoard({
                   hipotesesOrdemMin={hipotesesOrdemMin}
                   dragEnabled={podeMoverCards}
                   fasesFunil={fasesAtivas}
-                  isUltimaFaseAtiva={isUltimaFaseAtiva}
+                  isFaseConclusao={isFaseConclusao}
                   exibirAdicionarCard={isPrimeiraColuna && exibirBotaoNovoCard}
                   novoCardHref={novoCardHref}
                 />

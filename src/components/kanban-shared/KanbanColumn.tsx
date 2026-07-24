@@ -78,8 +78,8 @@ export type KanbanColumnProps = {
   comentariosCountPorCard?: Record<string, number>;
   /** Contagem de anexos Sirene por card_id — quando fornecido, exibe badge no card. */
   anexosCountPorCard?: Record<string, number>;
-  /** Última fase ativa do funil (header com tom distinto). */
-  isUltimaFaseAtiva?: boolean;
+  /** Fase de conclusão do funil (terminal / paralisados / última ativa). */
+  isFaseConclusao?: boolean;
   /** Botão «Adicionar card» no rodapé da coluna (primeira fase). */
   exibirAdicionarCard?: boolean;
   /** Href do modal de novo card (`?novo=true`). */
@@ -175,7 +175,7 @@ export function KanbanColumn({
   hipotesesOrdemMin = null,
   dragEnabled = false,
   fasesFunil = [],
-  isUltimaFaseAtiva = false,
+  isFaseConclusao = false,
   exibirAdicionarCard = false,
   novoCardHref = '',
   comentariosCountPorCard,
@@ -434,11 +434,11 @@ export function KanbanColumn({
   return (
     <>
     <div
-      className={`moni-kanban-column${isUltimaFaseAtiva ? ' moni-kanban-column--fin' : ''}${columnDragOver && dndAtivo ? ' moni-kanban-column--drag-over' : ''}`}
+      className={`moni-kanban-column${isFaseConclusao ? ' moni-kanban-column--fin' : ''}${columnDragOver && dndAtivo ? ' moni-kanban-column--drag-over' : ''}`}
       style={columnStyle}
     >
       <div
-        className={`moni-kanban-column-hd ${isUltimaFaseAtiva ? 'moni-kanban-column-hd--fin' : ''}`}
+        className={`moni-kanban-column-hd ${isFaseConclusao ? 'moni-kanban-column-hd--fin' : ''}`}
       >
         <div className="moni-kanban-column-hd-top">
           <div className="moni-kanban-column-hd-text">
