@@ -301,10 +301,11 @@ export function ModalAgendamento({
   const [externEmail,      setExternEmail]      = useState('');
   const [gerandoMeet,      setGerandoMeet]      = useState(false);
   const [metaDefinida,     setMetaDefinida]     = useState(false);
+  const [partAbertas,      setPartAbertas]      = useState([true, false]); // [internos, externos]
 
   // Seções colapsáveis
-  // 0=Data+Recorrência, 1=VínculoMeta, 2=Participantes, 3=Ext, 4=Link, 5=Info, 6=Obs
-  const [abertas, setAbertas] = useState([true, false, false, false, false, false, false]);
+  // 0=Data+Recorrência, 1=VínculoMeta, 2=Participantes, 3=Link, 4=Info, 5=Obs
+  const [abertas, setAbertas] = useState([true, false, false, false, false, false]);
   const [erros,   setErros]   = useState({ origem: false, data: false, titulo: false, meta: false });
 
   const preenchidoRef = useRef(preenchido);
@@ -374,13 +375,26 @@ export function ModalAgendamento({
     (abaAtiva === 'atividades' && backlog.isLoading) ||
     (abaAtiva === 'kanban'     && kanbanData.isLoading);
 
-  // ── FIX Issue 2: carrega dados assim que areaId resolve ──────────────────
+  // ── Carrega objetivos e pessoas — resolve areaId via profileId se necessário ─
   useEffect(() => {
-    if (!areaId) return;
+    if (!profileId) return;
     void (async () => {
       try {
+        // Se areaId não veio via prop (ex: admin sem simulação), busca pela área do profileId
+        let resolvedAreaId = areaId;
+        if (!resolvedAreaId) {
+          const { data: ap } = await supabase
+            .from('area_pessoas')
+            .select('area_id')
+            .eq('profile_id', profileId)
+            .maybeSingle();
+          resolvedAreaId = (ap?.area_id as string | null) ?? null;
+        }
+
         const [objRes, pessoasRes] = await Promise.all([
-          supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', areaId).eq('status', 'ativo').order('descricao'),
+          resolvedAreaId
+            ? supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', resolvedAreaId).eq('status', 'ativo').order('descricao')
+            : Promise.resolve({ data: [] as { id: string; descricao: string; tipo: string | null }[], error: null }),
           supabase.from('area_pessoas').select('profile_id, nome, areas(nome)').not('profile_id', 'is', null).order('nome'),
         ]);
         setObjetivos((objRes.data ?? []) as { id: string; descricao: string; tipo: string | null }[]);
@@ -454,7 +468,8 @@ export function ModalAgendamento({
     setQuery('');
     setExternEmail('');
     setErros({ origem: false, data: false, titulo: false, meta: false });
-    setAbertas([true, false, false, false, false, false, false]);
+    setAbertas([true, false, false, false, false, false]);
+    setPartAbertas([true, false]);
     setMetaDefinida(modo === 'editar');
 
     // Aba inicial
@@ -718,6 +733,21 @@ export function ModalAgendamento({
             </div>
           )}
 
+          {/* ── Título ── */}
+          <div className={`border-b border-gray-100 px-4 py-3 ${erros.titulo ? 'bg-red-50' : ''}`}>
+            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">
+              Título
+              {erros.titulo && <span className="text-red-500 ml-2 normal-case font-normal tracking-normal">• obrigatório</span>}
+            </label>
+            <input
+              type="text"
+              className={`w-full text-xs border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.titulo ? 'border-red-400' : 'border-gray-300'}`}
+              placeholder="Título da atividade"
+              value={form.titulo ?? ''}
+              onChange={e => { set('titulo', e.target.value || null); setErros(p => ({ ...p, titulo: false })); }}
+            />
+          </div>
+
           {/* ── BLOCO UNIFICADO: Origem + Item ── */}
           <div className={`border-b border-gray-100 px-4 pt-4 pb-4 ${erros.origem ? 'bg-red-50' : ''}`}>
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
@@ -786,21 +816,6 @@ export function ModalAgendamento({
             ) : (
               <p className="text-xs text-gray-400 py-1">Selecione uma categoria acima.</p>
             )}
-          </div>
-
-          {/* ── Título ── */}
-          <div className={`border-b border-gray-100 px-4 py-3 ${erros.titulo ? 'bg-red-50' : ''}`}>
-            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">
-              Título
-              {erros.titulo && <span className="text-red-500 ml-2 normal-case font-normal tracking-normal">• obrigatório</span>}
-            </label>
-            <input
-              type="text"
-              className={`w-full text-xs border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 ${erros.titulo ? 'border-red-400' : 'border-gray-300'}`}
-              placeholder="Título da atividade"
-              value={form.titulo ?? ''}
-              onChange={e => { set('titulo', e.target.value || null); setErros(p => ({ ...p, titulo: false })); }}
-            />
           </div>
 
           {/* ── Data, Horário e Recorrência ── */}
@@ -920,105 +935,120 @@ export function ModalAgendamento({
 
           {/* ── Participantes ── */}
           <Secao
-            titulo={form.participantes.length > 0
-              ? `Participantes (${form.participantes.length}) · ${pessoas.filter(p => form.participantes.includes(p.profile_id)).map(p => (p.nomeCompleto ?? p.nome).split(' ')[0]).join(', ')}`
-              : 'Participantes'}
+            titulo={(() => {
+              const total = form.participantes.length + form.participantes_externos.length;
+              return total > 0 ? `Participantes (${total})` : 'Participantes';
+            })()}
             aberta={abertas[2]} onToggle={() => toggleSecao(2)}>
-            {pessoas.length === 0 ? (
-              <p className="text-xs text-gray-400 mt-1">Nenhum usuário encontrado.</p>
-            ) : (
-              <div className="flex flex-col gap-1 mt-1 max-h-48 overflow-y-auto">
-                {[
-                  ...pessoas.filter(p => form.participantes.includes(p.profile_id)),
-                  ...pessoas.filter(p => !form.participantes.includes(p.profile_id)),
-                ].map(p => {
-                  const sel     = form.participantes.includes(p.profile_id);
-                  const ocupado = sel && ocupados.has(p.profile_id);
-                  const slots   = sel ? (busySlots.get(p.profile_id) ?? []) : [];
-                  const meta    = [p.area, p.email].filter(Boolean).join(' · ');
-                  return (
-                    <label key={p.profile_id}
-                      className={`flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${sel ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <input type="checkbox" className="w-3.5 h-3.5 rounded accent-blue-500 mt-0.5 shrink-0"
-                        checked={sel}
-                        onChange={() => toggleParticipante(p.profile_id)} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={`text-xs font-semibold leading-tight ${sel ? 'text-blue-800' : 'text-gray-700'}`}>
-                            {p.nomeCompleto ?? p.nome}
-                          </span>
-                          {ocupado && <span className="text-[10px] text-orange-600 font-medium shrink-0">⚠ conflito</span>}
-                        </div>
-                        {meta && <p className="text-[10px] text-gray-400 leading-tight mt-0.5 truncate">{meta}</p>}
-                        {slots.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {slots.map((s, i) => (
-                              <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
-                                {s.hora_inicio.slice(0, 5)}{s.hora_fim ? `–${s.hora_fim.slice(0, 5)}` : ''}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-            <GradeDisponibilidade
-              participantes={form.participantes}
-              pessoas={pessoas}
-              busySlots={busySlots}
-              horaInicio={form.hora_inicio}
-              horaFim={form.hora_fim}
-            />
-          </Secao>
 
-          {/* ── Participantes externos ── */}
-          <Secao
-            titulo={form.participantes_externos.length > 0
-              ? `Participantes externos (${form.participantes_externos.length})`
-              : 'Participantes externos'}
-            aberta={abertas[3]} onToggle={() => toggleSecao(3)}>
-            <div className="mt-1">
-              <div className="flex gap-1.5">
-                <input
-                  type="email"
-                  placeholder="nome@empresa.com"
-                  className="flex-1 text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  value={externEmail}
-                  onChange={e => setExternEmail(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addExterno())}
-                />
-                <button
-                  type="button"
-                  onClick={addExterno}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors"
-                >
-                  Adicionar
-                </button>
-              </div>
-              {form.participantes_externos.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {form.participantes_externos.map(email => (
-                    <span key={email} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
-                      {email}
-                      <button
-                        type="button"
-                        onClick={() => removeExterno(email)}
-                        className="text-gray-400 hover:text-red-500 leading-none"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+            {/* Sub-seção: Internos */}
+            <div className="border border-gray-200 rounded-lg overflow-hidden mt-1">
+              <button type="button"
+                className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                onClick={() => setPartAbertas(p => [!p[0], p[1]])}>
+                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                  Internos{form.participantes.length > 0 ? ` · ${pessoas.filter(p => form.participantes.includes(p.profile_id)).map(p => (p.nomeCompleto ?? p.nome).split(' ')[0]).join(', ')}` : ''}
+                </span>
+                <span className="text-gray-400 text-xs">{partAbertas[0] ? '▲' : '▼'}</span>
+              </button>
+              {partAbertas[0] && (
+                <div className="px-3 pb-3 pt-1 border-t border-gray-100">
+                  {pessoas.length === 0 ? (
+                    <p className="text-xs text-gray-400 mt-1">Nenhum usuário encontrado.</p>
+                  ) : (
+                    <div className="flex flex-col gap-1 mt-1 max-h-48 overflow-y-auto">
+                      {[
+                        ...pessoas.filter(p => form.participantes.includes(p.profile_id)),
+                        ...pessoas.filter(p => !form.participantes.includes(p.profile_id)),
+                      ].map(p => {
+                        const sel     = form.participantes.includes(p.profile_id);
+                        const ocupado = sel && ocupados.has(p.profile_id);
+                        const slots   = sel ? (busySlots.get(p.profile_id) ?? []) : [];
+                        const meta    = [p.area, p.email].filter(Boolean).join(' · ');
+                        return (
+                          <label key={p.profile_id}
+                            className={`flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${sel ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                            <input type="checkbox" className="w-3.5 h-3.5 rounded accent-blue-500 mt-0.5 shrink-0"
+                              checked={sel}
+                              onChange={() => toggleParticipante(p.profile_id)} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-xs font-semibold leading-tight ${sel ? 'text-blue-800' : 'text-gray-700'}`}>
+                                  {p.nomeCompleto ?? p.nome}
+                                </span>
+                                {ocupado && <span className="text-[10px] text-orange-600 font-medium shrink-0">⚠ conflito</span>}
+                              </div>
+                              {meta && <p className="text-[10px] text-gray-400 leading-tight mt-0.5 truncate">{meta}</p>}
+                              {slots.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {slots.map((s, i) => (
+                                    <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
+                                      {s.hora_inicio.slice(0, 5)}{s.hora_fim ? `–${s.hora_fim.slice(0, 5)}` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <GradeDisponibilidade
+                    participantes={form.participantes}
+                    pessoas={pessoas}
+                    busySlots={busySlots}
+                    horaInicio={form.hora_inicio}
+                    horaFim={form.hora_fim}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* ── Sub-seção: Externos ── */}
+            <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+              <button type="button"
+                className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                onClick={() => setPartAbertas(p => [p[0], !p[1]])}>
+                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                  Externos (e-mail){form.participantes_externos.length > 0 ? ` · ${form.participantes_externos.length}` : ''}
+                </span>
+                <span className="text-gray-400 text-xs">{partAbertas[1] ? '▲' : '▼'}</span>
+              </button>
+              {partAbertas[1] && (
+                <div className="px-3 pb-3 pt-1 border-t border-gray-100">
+                  <div className="flex gap-1.5 mt-1">
+                    <input
+                      type="email"
+                      placeholder="nome@empresa.com"
+                      className="flex-1 text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      value={externEmail}
+                      onChange={e => setExternEmail(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addExterno())}
+                    />
+                    <button type="button" onClick={addExterno}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors">
+                      Adicionar
+                    </button>
+                  </div>
+                  {form.participantes_externos.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {form.participantes_externos.map(email => (
+                        <span key={email} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                          {email}
+                          <button type="button" onClick={() => removeExterno(email)}
+                            className="text-gray-400 hover:text-red-500 leading-none">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </Secao>
 
           {/* ── Link / Local da reunião ── */}
-          <Secao titulo="Link / Local da reunião" aberta={abertas[4]} onToggle={() => toggleSecao(4)}>
+          <Secao titulo="Link / Local da reunião" aberta={abertas[3]} onToggle={() => toggleSecao(3)}>
             <div className="flex gap-1.5 mt-1">
               <input type="url" className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
                 placeholder="https://meet.google.com/ ou endereço físico"
@@ -1062,7 +1092,7 @@ export function ModalAgendamento({
           </Secao>
 
           {/* ── Informações adicionais ── */}
-          <Secao titulo="Informações adicionais" aberta={abertas[5]} onToggle={() => toggleSecao(5)}>
+          <Secao titulo="Informações adicionais" aberta={abertas[4]} onToggle={() => toggleSecao(4)}>
             <div className="grid grid-cols-2 gap-3 mt-1">
               {([
                 { label: 'Casa',       key: 'casa_id'          as const, opts: casas.map(x => ({ id: x.id, nome: x.nome })) },
@@ -1092,7 +1122,7 @@ export function ModalAgendamento({
           </Secao>
 
           {/* ── Observações ── */}
-          <Secao titulo="Observações" aberta={abertas[6]} onToggle={() => toggleSecao(6)}>
+          <Secao titulo="Observações" aberta={abertas[5]} onToggle={() => toggleSecao(5)}>
             <textarea className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mt-1 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
               rows={3} placeholder="Notas livres..."
               value={form.observacoes ?? ''}
