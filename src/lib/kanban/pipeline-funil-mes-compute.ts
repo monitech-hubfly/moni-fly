@@ -1,4 +1,4 @@
-import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { KANBAN_IDS, FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import type {
   PipelineCardRow,
@@ -33,12 +33,14 @@ const ETAPAS: { key: PipelineFunilMesEtapaKey; label: string; operacoes?: boolea
   { key: 'comites', label: 'Comitês' },
   { key: 'contratos', label: 'Contratos' },
   { key: 'aprovacoes', label: 'Aprovações', operacoes: true },
-  { key: 'obras_iniciadas', label: 'Obras iniciadas', operacoes: true },
+  { key: 'aguardando_credito', label: 'Aguardando Crédito', operacoes: true },
+  { key: 'obras_iniciadas', label: 'Obras em andamento', operacoes: true },
   { key: 'obras_finalizadas', label: 'Obras finalizadas', operacoes: true },
 ];
 
 const ETAPAS_OPERACOES = new Set<PipelineFunilMesEtapaKey>([
   'aprovacoes',
+  'aguardando_credito',
   'obras_iniciadas',
   'obras_finalizadas',
 ]);
@@ -137,6 +139,7 @@ function isCardOperacoes(c: PipelineCardRow): boolean {
 }
 
 function etapaOperacoesIndisponivel(cards: PipelineCardRow[], key: PipelineFunilMesEtapaKey): boolean {
+  if (key === 'aguardando_credito') return false;
   if (!ETAPAS_OPERACOES.has(key)) return false;
   return !funilMesOperacoesFieldsAvailable(cards);
 }
@@ -163,6 +166,13 @@ function cardContaEtapa(
   if (key === 'aprovacoes') {
     if (c.prefeitura_aprovada === undefined) return false;
     return c.prefeitura_aprovada === true && noPeriodo(c.prefeitura_aprovada_em);
+  }
+  if (key === 'aguardando_credito') {
+    if (!isCardOperacoes(c)) return false;
+    return (
+      String(c.fase_slug ?? '').trim() === FASE_SLUGS.AGUARDANDO_CREDITO &&
+      noPeriodo(c.entered_fase_at)
+    );
   }
   if (key === 'obras_iniciadas') {
     if (c.obra_iniciada === undefined) return false;
@@ -286,6 +296,8 @@ function compactValue(compact: PipelineFunilMesCompact, key: PipelineFunilMesEta
       return compact.contratos;
     case 'aprovacoes':
       return compact.aprovacoes;
+    case 'aguardando_credito':
+      return compact.aguardandoCredito;
     case 'obras_iniciadas':
       return compact.obrasIniciadas;
     case 'obras_finalizadas':
@@ -301,6 +313,7 @@ export function computeFunilMesCompact(cards: PipelineCardRow[]): PipelineFunilM
     comites: elegiveis.filter((c) => cardContaEtapa(c, 'comites')).length,
     contratos: elegiveis.filter((c) => cardContaEtapa(c, 'contratos')).length,
     aprovacoes: elegiveis.filter((c) => cardContaEtapa(c, 'aprovacoes')).length,
+    aguardandoCredito: elegiveis.filter((c) => cardContaEtapa(c, 'aguardando_credito')).length,
     obrasIniciadas: elegiveis.filter((c) => cardContaEtapa(c, 'obras_iniciadas')).length,
     obrasFinalizadas: elegiveis.filter((c) => cardContaEtapa(c, 'obras_finalizadas')).length,
   };
