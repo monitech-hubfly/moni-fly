@@ -125,7 +125,7 @@ function AgendaCard({
                   rel="noopener noreferrer"
                   className="ml-1 underline opacity-80 hover:opacity-100"
                   onClick={e => e.stopPropagation()}
-                  title="Abrir link da reunião"
+                  title="Abrir link / local da reunião"
                 >
                   🔗
                 </a>

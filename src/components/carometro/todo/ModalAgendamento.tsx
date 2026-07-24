@@ -35,6 +35,7 @@ export type DadosAgendamento = {
   link_reuniao: string | null;
   titulo: string | null;
   participantes: string[];
+  participantes_externos: string[];
   origem_tipo: OrigemTipo | null;
 };
 
@@ -43,7 +44,7 @@ const EMPTY: DadosAgendamento = {
   casa_id: null, franqueado_id: null, rede_loteador_id: null, condominio_id: null,
   adm_cnpj_id: null, sirene_chamado_id: null, card_id: null,
   recorrente: false, recorrencia_config: null, observacoes: null,
-  link_reuniao: null, titulo: null, participantes: [], origem_tipo: null,
+  link_reuniao: null, titulo: null, participantes: [], participantes_externos: [], origem_tipo: null,
 };
 
 export type OrigemInfo = {
@@ -296,6 +297,8 @@ export function ModalAgendamento({
   const [ocupados,   setOcupados]   = useState<Set<string>>(new Set());
   const [busySlots,  setBusySlots]  = useState<Map<string, { hora_inicio: string; hora_fim: string | null }[]>>(new Map());
   const [confirmarExcluir, setConfirmarExcluir] = useState(false);
+  const [externEmail,      setExternEmail]      = useState('');
+  const [gerandoMeet,      setGerandoMeet]      = useState(false);
 
   // Seções colapsáveis (data, participantes, link, recorrência, vínculo, obs)
   // 0=Data+Recorrência, 1=Participantes, 2=Link, 3=Info adicionais, 4=Observações
@@ -518,6 +521,31 @@ export function ModalAgendamento({
         ? prev.participantes.filter(x => x !== pid)
         : [...prev.participantes, pid],
     }));
+
+  const addExterno = () => {
+    const email = externEmail.trim().toLowerCase();
+    if (!email || !email.includes('@')) return;
+    if (form.participantes_externos.includes(email)) return;
+    set('participantes_externos', [...form.participantes_externos, email]);
+    setExternEmail('');
+  };
+
+  const removeExterno = (email: string) =>
+    set('participantes_externos', form.participantes_externos.filter(e => e !== email));
+
+  const gerarMeet = async () => {
+    setGerandoMeet(true);
+    try {
+      const res  = await fetch('/api/meet/criar', { method: 'POST' });
+      const json = (await res.json()) as { url?: string; error?: string };
+      if (json.url) set('link_reuniao', json.url);
+      else alert(json.error ?? 'Erro ao gerar link Meet');
+    } catch {
+      alert('Erro ao conectar com o servidor');
+    } finally {
+      setGerandoMeet(false);
+    }
+  };
 
   const handleAba = (aba: AbaAtiva) => {
     setAbaAtiva(aba);
@@ -906,14 +934,67 @@ export function ModalAgendamento({
               horaInicio={form.hora_inicio}
               horaFim={form.hora_fim}
             />
+
+            {/* ── Participantes externos ── */}
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <p className="text-[10px] text-gray-400 mb-1.5 font-medium uppercase tracking-wide">Externos (e-mail)</p>
+              <div className="flex gap-1.5">
+                <input
+                  type="email"
+                  placeholder="nome@empresa.com"
+                  className="flex-1 text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  value={externEmail}
+                  onChange={e => setExternEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addExterno())}
+                />
+                <button
+                  type="button"
+                  onClick={addExterno}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors"
+                >
+                  Adicionar
+                </button>
+              </div>
+              {form.participantes_externos.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {form.participantes_externos.map(email => (
+                    <span key={email} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                      {email}
+                      <button
+                        type="button"
+                        onClick={() => removeExterno(email)}
+                        className="text-gray-400 hover:text-red-500 leading-none"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </Secao>
 
-          {/* ── Link da reunião ── */}
-          <Secao titulo="Link da reunião" aberta={abertas[2]} onToggle={() => toggleSecao(2)}>
-            <input type="url" className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              placeholder="https://meet.google.com/..."
-              value={form.link_reuniao ?? ''}
-              onChange={e => set('link_reuniao', e.target.value || null)} />
+          {/* ── Link / Local da reunião ── */}
+          <Secao titulo="Link / Local da reunião" aberta={abertas[2]} onToggle={() => toggleSecao(2)}>
+            <div className="flex gap-1.5 mt-1">
+              <input type="url" className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                placeholder="https://meet.google.com/ ou endereço físico"
+                value={form.link_reuniao ?? ''}
+                onChange={e => set('link_reuniao', e.target.value || null)} />
+              <button
+                type="button"
+                onClick={gerarMeet}
+                disabled={gerandoMeet}
+                title="Gerar link Google Meet"
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50 shrink-0"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M16.5 6H7.5C5.567 6 4 7.567 4 9.5v5C4 16.433 5.567 18 7.5 18H16.5C18.433 18 20 16.433 20 14.5v-5C20 7.567 18.433 6 16.5 6Z" stroke="#34A853" strokeWidth="1.5"/>
+                  <path d="M20 9.5l3-2v9l-3-2v-5Z" stroke="#34A853" strokeWidth="1.5" strokeLinejoin="round"/>
+                </svg>
+                {gerandoMeet ? 'Gerando…' : 'Meet'}
+              </button>
+            </div>
           </Secao>
 
           {/* ── Informações adicionais ── */}

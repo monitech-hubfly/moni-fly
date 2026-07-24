@@ -74,10 +74,11 @@ export function useModalAgendamento(
         recorrente:        Boolean(r.recorrente),
         recorrencia_config: (r.recorrencia_config as RecorrenciaConfig | null) ?? null,
         observacoes:       (r.comentario_conclusao as string | null) ?? null,
-        link_reuniao:      (r.link_reuniao as string | null)      ?? null,
-        titulo:            (r.titulo as string | null)            ?? null,
+        link_reuniao:           (r.link_reuniao as string | null)           ?? null,
+        titulo:                 (r.titulo as string | null)                 ?? null,
         participantes,
-        origem_tipo:       (r.origem_tipo as DadosAgendamento['origem_tipo']) ?? null,
+        participantes_externos: (r.participantes_externos as string[] | null) ?? [],
+        origem_tipo:            (r.origem_tipo as DadosAgendamento['origem_tipo']) ?? null,
       });
     }
     setModo('editar');
@@ -114,9 +115,10 @@ export function useModalAgendamento(
         recorrente:          dados.recorrente,
         recorrencia_config:  dados.recorrente ? dados.recorrencia_config : null,
         comentario_conclusao: dados.observacoes,
-        link_reuniao:        dados.link_reuniao,
-        titulo:              dados.titulo,
-        origem_tipo:         dados.origem_tipo,
+        link_reuniao:           dados.link_reuniao,
+        titulo:                 dados.titulo,
+        origem_tipo:            dados.origem_tipo,
+        participantes_externos: dados.participantes_externos ?? [],
       };
 
       if (modo === 'criar') {
