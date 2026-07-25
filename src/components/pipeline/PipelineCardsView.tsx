@@ -39,7 +39,6 @@ import { PipelineOQueFazerHoje } from '@/components/pipeline/PipelineOQueFazerHo
 import { PipelineFunilMesRede } from '@/components/pipeline/PipelineFunilMesRede';
 import { PipelineFunilProvisionadoRede } from '@/components/pipeline/PipelineFunilProvisionadoRede';
 import { PipelineFunilMesUnidade } from '@/components/pipeline/PipelineFunilMesUnidade';
-import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 import { PIPELINE_READONLY_NOTA } from '@/lib/kanban/pipeline-card-readonly';
 
 export type PipelineCardsViewProps = {
