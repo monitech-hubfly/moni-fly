@@ -1,9 +1,7 @@
-import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
-import { isPipelineCardLegado } from '@/lib/kanban/pipeline-cards-utils';
 import {
+  cardAtivoNaEtapaFunilMes,
   FUNIL_MES_ETAPA_FASES,
   kanbanIdsFunilMesEtapa,
-  slugsFunilMesEtapa,
 } from '@/lib/kanban/pipeline-funil-mes-etapas';
 import type {
   PipelineCardRow,
@@ -19,7 +17,7 @@ import type {
   PipelineFunilPeriodo,
   PipelineFranqueadoUnidade,
 } from '@/lib/kanban/pipeline-cards-types';
-import { fkFranqueadoPipeline } from '@/lib/kanban/pipeline-cards-utils';
+import { fkFranqueadoPipeline, isPipelineCardLegado } from '@/lib/kanban/pipeline-cards-utils';
 import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 
 const UNIDADE_BAR_COLORS = [
@@ -116,44 +114,19 @@ export function dotCorUnidadeMetric(qtd: number, indisponivel = false): Pipeline
   return 'cinza';
 }
 
-function cardContaEtapaPorFases(
-  c: PipelineCardRow,
-  key: PipelineFunilMesEtapaKey,
-): boolean {
-  const kanbanIds = kanbanIdsFunilMesEtapa(key);
-  const slugs = slugsFunilMesEtapa(key);
-  if (!kanbanIds?.length || !slugs?.size) return false;
-
-  const kanbanId = String(c.kanban_id ?? '').trim();
-  if (!kanbanIds.includes(kanbanId)) return false;
-
-  const slug = String(c.fase_slug ?? '').trim();
-  if (!slug || !slugs.has(slug)) return false;
-
-  return true;
+/** Card elegível para contagem no funil do mês (rede). */
+function cardsElegiveisFunilMes(cards: PipelineCardRow[]): PipelineCardRow[] {
+  return cards.filter(
+    (c) => !excluirFranquiaDosGraficosVisaoGeral(c.n_franquia) && !isPipelineCardLegado(c),
+  );
 }
 
-export function cardContaEtapa(
-  c: PipelineCardRow,
-  key: PipelineFunilMesEtapaKey,
-  periodo: PipelineFunilPeriodo = 'mes',
-): boolean {
-  if (key === 'hipoteses') {
-    return isHipotesesFaseSlug(c.fase_slug) && isNoPeriodoCorrente(c.entered_fase_at, periodo);
-  }
-  const regra = FUNIL_MES_ETAPA_FASES[key];
-  if (!regra) return false;
-  return cardContaEtapaPorFases(c, key);
+export function cardContaEtapa(c: PipelineCardRow, key: PipelineFunilMesEtapaKey): boolean {
+  return cardAtivoNaEtapaFunilMes(c, key);
 }
 
-/** Etapa indisponível quando não há cards do funil/fase mapeados no dataset. */
 function etapaFunilMesIndisponivel(cards: PipelineCardRow[], key: PipelineFunilMesEtapaKey): boolean {
-  if (key === 'hipoteses') {
-    return !cards.some((c) => isHipotesesFaseSlug(c.fase_slug));
-  }
-  const regra = FUNIL_MES_ETAPA_FASES[key];
-  if (!regra) return true;
-  const kanbanSet = new Set(regra.kanbanIds.map((id) => String(id).trim()));
+  const kanbanSet = new Set(kanbanIdsFunilMesEtapa(key).map((id) => String(id).trim()));
   return !cards.some((c) => {
     const kid = String(c.kanban_id ?? '').trim();
     if (!kanbanSet.has(kid)) return false;
@@ -161,21 +134,14 @@ function etapaFunilMesIndisponivel(cards: PipelineCardRow[], key: PipelineFunilM
   });
 }
 
-function cardsElegiveisFunilMes(cards: PipelineCardRow[]): PipelineCardRow[] {
-  return cards.filter(
-    (c) => !excluirFranquiaDosGraficosVisaoGeral(c.n_franquia) && !isPipelineCardLegado(c),
-  );
-}
-
 function contarPorRede(
   cards: PipelineCardRow[],
   key: PipelineFunilMesEtapaKey,
   franqueados: PipelineFranqueadoUnidade[],
-  periodo: PipelineFunilPeriodo,
 ): PipelineFunilMesUnidadeRow[] {
   const porRede = new Map<string, number>();
   for (const c of cards) {
-    if (!cardContaEtapa(c, key, periodo)) continue;
+    if (!cardContaEtapa(c, key)) continue;
     const rid = String(c.rede_franqueado_id ?? '').trim();
     if (!rid) continue;
     porRede.set(rid, (porRede.get(rid) ?? 0) + 1);
@@ -212,16 +178,11 @@ function buildColuna(
   label: string,
   cards: PipelineCardRow[],
   franqueados: PipelineFranqueadoUnidade[],
-  periodo: PipelineFunilPeriodo,
 ): PipelineFunilMesColuna {
   const totalIndisponivel = etapaFunilMesIndisponivel(cards, key);
-  let total = 0;
-  if (!totalIndisponivel) {
-    for (const c of cards) {
-      if (cardContaEtapa(c, key, periodo)) total += 1;
-    }
-  }
-  const porUnidade = totalIndisponivel ? [] : contarPorRede(cards, key, franqueados, periodo);
+  const matched = totalIndisponivel ? [] : cards.filter((c) => cardContaEtapa(c, key));
+  const total = matched.length;
+  const porUnidade = totalIndisponivel ? [] : contarPorRede(cards, key, franqueados);
   const idsComQtd = new Set(porUnidade.map((r) => r.redeId));
   const porUnidadeZeradas: PipelineFunilMesUnidadeRow[] = totalIndisponivel
     ? []
@@ -287,16 +248,19 @@ function compactValue(compact: PipelineFunilMesCompact, key: PipelineFunilMesEta
 
 export function computeFunilMesCompact(cards: PipelineCardRow[]): PipelineFunilMesCompact {
   const elegiveis = cardsElegiveisFunilMes(cards);
+  const count = (key: PipelineFunilMesEtapaKey) =>
+    elegiveis.filter((c) => cardContaEtapa(c, key)).length;
+
   return {
-    hipoteses: elegiveis.filter((c) => cardContaEtapa(c, 'hipoteses')).length,
-    opcoes: elegiveis.filter((c) => cardContaEtapa(c, 'opcoes')).length,
-    comites: elegiveis.filter((c) => cardContaEtapa(c, 'comites')).length,
-    contratos: elegiveis.filter((c) => cardContaEtapa(c, 'contratos')).length,
-    aprovacoes: elegiveis.filter((c) => cardContaEtapa(c, 'aprovacoes')).length,
-    garantiaTransferencia: elegiveis.filter((c) => cardContaEtapa(c, 'garantia_transferencia')).length,
-    aguardandoCredito: elegiveis.filter((c) => cardContaEtapa(c, 'aguardando_credito')).length,
-    obrasIniciadas: elegiveis.filter((c) => cardContaEtapa(c, 'obras_iniciadas')).length,
-    obrasFinalizadas: elegiveis.filter((c) => cardContaEtapa(c, 'obras_finalizadas')).length,
+    hipoteses: count('hipoteses'),
+    opcoes: count('opcoes'),
+    comites: count('comites'),
+    contratos: count('contratos'),
+    aprovacoes: count('aprovacoes'),
+    garantiaTransferencia: count('garantia_transferencia'),
+    aguardandoCredito: count('aguardando_credito'),
+    obrasIniciadas: count('obras_iniciadas'),
+    obrasFinalizadas: count('obras_finalizadas'),
   };
 }
 
@@ -308,7 +272,7 @@ export function computeFunilMesRede(
   const elegiveis = cardsElegiveisFunilMes(cards);
   const franqueadosElegiveis = franqueados.filter((f) => !excluirFranquiaDosGraficosVisaoGeral(f.n_franquia));
 
-  const colunas = ETAPAS.map((e) => buildColuna(e.key, e.label, elegiveis, franqueadosElegiveis, periodo));
+  const colunas = ETAPAS.map((e) => buildColuna(e.key, e.label, elegiveis, franqueadosElegiveis));
 
   return {
     colunas,
@@ -341,4 +305,12 @@ export function computeFunilMesUnidade(cards: PipelineCardRow[]): PipelineFunilM
     conversoes: buildConversoes(metricas),
     disponivel: elegiveis.length > 0 || funilMesFieldsAvailable(cards),
   };
+}
+
+/** Etapas do funil do mês (ordem das colunas). */
+export const FUNIL_MES_ETAPAS = ETAPAS;
+
+/** Chaves com regra de fases configurada (para testes/diagnóstico). */
+export function etapasFunilMesConfiguradas(): PipelineFunilMesEtapaKey[] {
+  return Object.keys(FUNIL_MES_ETAPA_FASES) as PipelineFunilMesEtapaKey[];
 }
