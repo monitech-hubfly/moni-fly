@@ -17,8 +17,7 @@ import type {
   PipelineFunilPeriodo,
   PipelineFranqueadoUnidade,
 } from '@/lib/kanban/pipeline-cards-types';
-import { fkFranqueadoPipeline, isPipelineCardLegado } from '@/lib/kanban/pipeline-cards-utils';
-import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
+import { fkFranqueadoPipeline } from '@/lib/kanban/pipeline-cards-utils';
 
 const UNIDADE_BAR_COLORS = [
   'var(--moni-navy-800)',
@@ -114,11 +113,9 @@ export function dotCorUnidadeMetric(qtd: number, indisponivel = false): Pipeline
   return 'cinza';
 }
 
-/** Card elegível para contagem no funil do mês (rede). */
+/** Cards ativos elegíveis para o funil do mês — mesma base do board (sem filtros extras). */
 function cardsElegiveisFunilMes(cards: PipelineCardRow[]): PipelineCardRow[] {
-  return cards.filter(
-    (c) => !excluirFranquiaDosGraficosVisaoGeral(c.n_franquia) && !isPipelineCardLegado(c),
-  );
+  return cards;
 }
 
 export function cardContaEtapa(c: PipelineCardRow, key: PipelineFunilMesEtapaKey): boolean {
@@ -270,7 +267,7 @@ export function computeFunilMesRede(
   periodo: PipelineFunilPeriodo = 'mes',
 ): PipelineFunilMesRede {
   const elegiveis = cardsElegiveisFunilMes(cards);
-  const franqueadosElegiveis = franqueados.filter((f) => !excluirFranquiaDosGraficosVisaoGeral(f.n_franquia));
+  const franqueadosElegiveis = franqueados;
 
   const colunas = ETAPAS.map((e) => buildColuna(e.key, e.label, elegiveis, franqueadosElegiveis));
 

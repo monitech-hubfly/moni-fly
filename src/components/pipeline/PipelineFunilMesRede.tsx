@@ -11,7 +11,6 @@ import {
   computeFunilMesRede,
   formatFunilMesConversaoSeta,
 } from '@/lib/kanban/pipeline-funil-mes-compute';
-import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 import { PipelineFunilColunaUnidadeTabela } from '@/components/pipeline/PipelineFunilColunaUnidadeTabela';
 import {
   PipelineFunilRedeVisaoToggle,
@@ -82,14 +81,9 @@ export function PipelineFunilMesRede({
 }: Props) {
   const [periodo, setPeriodo] = useState<PipelineFunilPeriodo>('mes');
 
-  const franqueadosElegiveis = useMemo(
-    () => franqueados.filter((f) => !excluirFranquiaDosGraficosVisaoGeral(f.n_franquia)),
-    [franqueados],
-  );
-
   const funil = useMemo(
-    () => computeFunilMesRede(cards, franqueadosElegiveis, periodo),
-    [cards, franqueadosElegiveis, periodo],
+    () => computeFunilMesRede(cards, franqueados, periodo),
+    [cards, franqueados, periodo],
   );
 
   if (!funil.disponivel) return null;

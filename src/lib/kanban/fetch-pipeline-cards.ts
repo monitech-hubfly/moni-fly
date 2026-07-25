@@ -22,7 +22,6 @@ import type {
   PipelineFranqueadoraEnrichment,
 } from '@/lib/kanban/pipeline-cards-types';
 import { fetchPipelineEsteiraCalculadora } from '@/lib/kanban/fetch-pipeline-esteira-calculadora';
-import { isPipelineCardLegado } from '@/lib/kanban/pipeline-cards-utils';
 import { isSupabaseMissingColumnError } from '@/lib/kanban/kanban-card-select-cols';
 
 const ESTEIRA_KANBAN_IDS = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES] as const;
@@ -654,6 +653,44 @@ async function carregarPipelineCardsRaw(
   throw new Error(lastError ?? 'Erro ao carregar cards do pipeline.');
 }
 
+/** Cards ativos da esteira principal sem `rede_franqueado_id` (mesma visibilidade do board Kanban). */
+async function carregarEsteiraCardsSemRede(
+  supabase: SupabaseClient,
+  opts: Pick<FetchPipelineCardsOpts, 'incluirEncerrados'>,
+): Promise<RawCard[]> {
+  const select = CARD_SELECT_BASE.trim();
+  let q = supabase
+    .from('kanban_cards')
+    .select(select)
+    .eq('status', 'ativo')
+    .is('rede_franqueado_id', null)
+    .in('kanban_id', [...ESTEIRA_KANBAN_IDS]);
+
+  if (!opts.incluirEncerrados) {
+    q = q.eq('arquivado', false).eq('concluido', false);
+  }
+
+  const res = await q.order('updated_at', { ascending: false });
+  if (res.error) {
+    console.error('[carregarEsteiraCardsSemRede]', res.error.message);
+    return [];
+  }
+  return (res.data as unknown as RawCard[] | null) ?? [];
+}
+
+function mergePipelineCardsRawPorId(primary: RawCard[], extra: RawCard[]): RawCard[] {
+  if (extra.length === 0) return primary;
+  const seen = new Set(primary.map((r) => String(r.id ?? '').trim()).filter(Boolean));
+  const out = [...primary];
+  for (const row of extra) {
+    const id = String(row.id ?? '').trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(row);
+  }
+  return out;
+}
+
 /**
  * Carrega cards nativos vinculados a unidades de franquia.
  * Fonte única: `kanban_cards` + `kanban_fases` + `kanbans` (mesmos joins do board).
@@ -682,14 +719,22 @@ export async function fetchPipelineCards(
 
   const frResPromise = franqueadosQuery;
 
-  const [frRes, cardData] = await Promise.all([
+  const [frRes, cardDataBase, cardDataSemRede] = await Promise.all([
     frResPromise,
     carregarPipelineCardsRaw(supabase, {
       mode: mode as 'franqueadora' | 'unidade',
       redeId,
       incluirEncerrados: opts.incluirEncerrados,
     }),
+    mode === 'franqueadora'
+      ? carregarEsteiraCardsSemRede(supabase, { incluirEncerrados: opts.incluirEncerrados })
+      : Promise.resolve([]),
   ]);
+
+  const cardData =
+    mode === 'franqueadora'
+      ? mergePipelineCardsRawPorId(cardDataBase, cardDataSemRede)
+      : cardDataBase;
 
   if (frRes.error) throw new Error(frRes.error.message);
 
@@ -714,9 +759,7 @@ export async function fetchPipelineCards(
   );
   const cardsComTag = marcarCardsComTagEspecial(cardsComResp, tagEspecialIds);
   const cardsProvisionados = await enriquecerCardsProcessoProvisionado(supabase, cardsComTag);
-  const cards = cardsProvisionados.filter(
-    (c) => !c.arquivado && !c.concluido && !isPipelineCardLegado(c),
-  );
+  const cards = cardsProvisionados.filter((c) => !c.arquivado && !c.concluido);
 
   let enrichment: PipelineFranqueadoraEnrichment | null = null;
   if (comEnrichment) {

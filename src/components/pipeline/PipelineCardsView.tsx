@@ -321,12 +321,12 @@ export function PipelineCardsView({
 
   const funilRedeCards = useMemo(() => {
     if (viewMode !== 'franqueadora') return [];
-    return cardsElegiveisFranqueadora(cardsFiltrados);
+    return cardsFiltrados;
   }, [viewMode, cardsFiltrados]);
 
   const funilRedeFranqueados = useMemo(() => {
     if (viewMode !== 'franqueadora') return [];
-    return scoped.franqueados.filter((f) => !excluirFranquiaDosGraficosVisaoGeral(f.n_franquia));
+    return scoped.franqueados;
   }, [viewMode, scoped.franqueados]);
 
   const funilMesUnidade = useMemo(
