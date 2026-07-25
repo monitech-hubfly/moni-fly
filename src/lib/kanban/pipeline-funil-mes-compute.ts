@@ -1,4 +1,5 @@
 import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { isPipelineCardLegado } from '@/lib/kanban/pipeline-cards-utils';
 import {
   FUNIL_MES_ETAPA_FASES,
   kanbanIdsFunilMesEtapa,
@@ -118,7 +119,6 @@ export function dotCorUnidadeMetric(qtd: number, indisponivel = false): Pipeline
 function cardContaEtapaPorFases(
   c: PipelineCardRow,
   key: PipelineFunilMesEtapaKey,
-  periodo: PipelineFunilPeriodo,
 ): boolean {
   const kanbanIds = kanbanIdsFunilMesEtapa(key);
   const slugs = slugsFunilMesEtapa(key);
@@ -130,7 +130,7 @@ function cardContaEtapaPorFases(
   const slug = String(c.fase_slug ?? '').trim();
   if (!slug || !slugs.has(slug)) return false;
 
-  return isNoPeriodoCorrente(c.entered_fase_at, periodo);
+  return true;
 }
 
 export function cardContaEtapa(
@@ -143,7 +143,7 @@ export function cardContaEtapa(
   }
   const regra = FUNIL_MES_ETAPA_FASES[key];
   if (!regra) return false;
-  return cardContaEtapaPorFases(c, key, periodo);
+  return cardContaEtapaPorFases(c, key);
 }
 
 /** Etapa indisponível quando não há cards do funil/fase mapeados no dataset. */
@@ -162,7 +162,9 @@ function etapaFunilMesIndisponivel(cards: PipelineCardRow[], key: PipelineFunilM
 }
 
 function cardsElegiveisFunilMes(cards: PipelineCardRow[]): PipelineCardRow[] {
-  return cards.filter((c) => !excluirFranquiaDosGraficosVisaoGeral(c.n_franquia));
+  return cards.filter(
+    (c) => !excluirFranquiaDosGraficosVisaoGeral(c.n_franquia) && !isPipelineCardLegado(c),
+  );
 }
 
 function contarPorRede(

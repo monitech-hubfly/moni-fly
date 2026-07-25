@@ -23,7 +23,8 @@ export const SLUG_REVISAO_BCA = 'revisao_bca' as const;
 
 /**
  * Mapeamento das colunas do Funil do mês — rede → funil + fases que alimentam contagem/lista.
- * Contagem: card entrou na fase no período (`entered_fase_at`) estando na fase correspondente.
+ * Contagem: cards ativos atualmente em qualquer fase mapeada (soma das fases com «+»).
+ * Período Mês/Tri aplica-se apenas à etapa Hipóteses.
  */
 export const FUNIL_MES_ETAPA_FASES: Partial<Record<PipelineFunilMesEtapaKey, FunilMesEtapaFaseRegra>> = {
   /** Funil Portfólio — Análise de Novo Negócio + Opção */
