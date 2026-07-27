@@ -92,6 +92,71 @@ export async function criarProcessoStepOneMinimo(
   return { ok: true, processoId: String((novo as { id: string }).id) };
 }
 
+/** Campos de negócio copiados ao criar processo dedicado a partir de outro (ex.: raiz da franquia). */
+const NEGOCIO_COPY_FIELDS = [
+  'tipo_aquisicao_terreno',
+  'valor_terreno',
+  'vgv_pretendido',
+  'produto_modelo_casa',
+  'link_pasta_drive',
+  'link_bca',
+  'link_gbox',
+  'link_mapa_competidores',
+  'link_acoplamento',
+  'link_apresentacao_comite',
+  'link_opcao_permuta',
+  'link_contrato_permuta',
+  'link_seguro_garantia',
+  'link_moni_capital_seguro_garantia',
+  'comentario_moni_capital_seguro_garantia',
+  'link_moni_capital_gastos_aporte_inicial',
+  'comentario_moni_capital_gastos_aporte_inicial',
+  'anexo_opcao_permuta_path',
+  'anexo_contrato_permuta_path',
+  'anexo_seguro_garantia_path',
+  'prazo_opcao_dias',
+  'prazo_opcao_sla_tipo',
+  'prazo_opcao_modo',
+  'prazo_opcao_fase_id',
+  'prazo_opcao_data',
+  'prazo_instrumento_garantidor_dias',
+  'prazo_instrumento_garantidor_sla_tipo',
+  'prazo_instrumento_garantidor_modo',
+  'prazo_instrumento_garantidor_fase_id',
+  'prazo_instrumento_garantidor_data',
+  'negociacao_linhas',
+] as const;
+
+/** Copia campos preenchidos de negócio de um processo para outro (split dedicado). */
+async function copiarCamposNegocioEntreProcessos(
+  db: SupabaseClient,
+  deProcessoId: string,
+  paraProcessoId: string,
+): Promise<void> {
+  const deId = deProcessoId.trim();
+  const paraId = paraProcessoId.trim();
+  if (!deId || !paraId || deId === paraId) return;
+
+  const { data: src } = await db
+    .from('processo_step_one')
+    .select(NEGOCIO_COPY_FIELDS.join(', '))
+    .eq('id', deId)
+    .maybeSingle();
+  if (!src) return;
+
+  const patch: Record<string, unknown> = {};
+  for (const k of NEGOCIO_COPY_FIELDS) {
+    const v = (src as Record<string, unknown>)[k];
+    if (v == null || v === '') continue;
+    if (Array.isArray(v) && v.length === 0) continue;
+    patch[k] = v;
+  }
+  if (Object.keys(patch).length === 0) return;
+
+  patch.updated_at = new Date().toISOString();
+  await db.from('processo_step_one').update(patch as never).eq('id', paraId);
+}
+
 function isMissingProcessoStepOneColumnError(message: string): boolean {
   return /processo_step_one_id.*schema cache|could not find.*processo_step_one_id/i.test(message);
 }
@@ -295,6 +360,10 @@ export async function garantirProcessoNegocioDedicadoAoCard(
     redeFranqueadoId: redeId || null,
   });
   if (!link.ok) return link;
+
+  if (processoIdAtual) {
+    await copiarCamposNegocioEntreProcessos(db, processoIdAtual, criado.processoId);
+  }
 
   return { ok: true, processoId: criado.processoId };
 }
