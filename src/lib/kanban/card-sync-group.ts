@@ -247,6 +247,86 @@ export async function resolverProcessoIdExplicitoDoCard(db: SyncDb, cardId: stri
 }
 
 /**
+ * Resolve `processo_step_one` para exibição de Dados do Negócio no modal.
+ * Além do vínculo explícito, considera `projeto_negocio` (Portfolio) e processo dedicado por condomínio/rede.
+ * Não retorna o processo raiz da franquia (`rede_franqueados.processo_id`) salvo vínculo explícito no card.
+ */
+export async function resolverProcessoNegocioDoCard(db: SyncDb, cardId: string): Promise<string | null> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return null;
+
+  const explicit = await resolverProcessoIdExplicitoDoCard(db, cid);
+  if (explicit) return explicit;
+
+  const { data: card } = await db
+    .from('kanban_cards')
+    .select('projeto_id, rede_franqueado_id, titulo, nome_condominio, processo_step_one_id')
+    .eq('id', cid)
+    .maybeSingle();
+  const row = card as {
+    projeto_id?: string | null;
+    rede_franqueado_id?: string | null;
+    titulo?: string | null;
+    nome_condominio?: string | null;
+    processo_step_one_id?: string | null;
+  } | null;
+  if (!row) return null;
+
+  const cardPid = String(row.processo_step_one_id ?? '').trim();
+  if (cardPid) return cardPid;
+
+  const projetoId = String(row.projeto_id ?? '').trim();
+  if (projetoId) {
+    const { data: pn } = await db.from('projeto_negocio').select('id').eq('id', projetoId).maybeSingle();
+    if (pn?.id) {
+      const { data: irmaos } = await db
+        .from('kanban_cards')
+        .select('processo_step_one_id')
+        .eq('projeto_id', projetoId)
+        .not('processo_step_one_id', 'is', null)
+        .neq('id', cid)
+        .limit(1);
+      const irmaoPid = String(
+        (irmaos?.[0] as { processo_step_one_id?: string | null } | undefined)?.processo_step_one_id ?? '',
+      ).trim();
+      if (irmaoPid) return irmaoPid;
+    }
+  }
+
+  const redeId = String(row.rede_franqueado_id ?? '').trim();
+  if (!redeId) return null;
+
+  const { data: rede } = await db
+    .from('rede_franqueados')
+    .select('processo_id, n_franquia')
+    .eq('id', redeId)
+    .maybeSingle();
+  const redeRow = rede as { processo_id?: string | null; n_franquia?: string | null } | null;
+  const redeProcessoId = String(redeRow?.processo_id ?? '').trim();
+  const nFranquia =
+    String(redeRow?.n_franquia ?? '').trim() || extrairNumeroFranquiaDoTitulo(String(row.titulo ?? ''));
+
+  const camposTitulo = parseCamposDoTituloCard(String(row.titulo ?? ''));
+  const nomeCondominio = String(row.nome_condominio ?? camposTitulo.nomeCondominio ?? '').trim();
+  if (!nomeCondominio) return null;
+
+  let procQuery = db
+    .from('processo_step_one')
+    .select('id')
+    .eq('origem_rede_franqueados_id', redeId)
+    .ilike('nome_condominio', nomeCondominio);
+  if (nFranquia) procQuery = procQuery.eq('numero_franquia', nFranquia);
+  const { data: byCondominio } = await procQuery
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const foundPid = String((byCondominio as { id?: string } | null)?.id ?? '').trim();
+  if (foundPid && foundPid !== redeProcessoId) return foundPid;
+
+  return null;
+}
+
+/**
  * Propagação cross-funil só entre pai/filho direto (`origem_card_id`).
  * Evita espelhar título/franqueado em cards de outro funil ligados só por vínculo/processo.
  */

@@ -463,8 +463,8 @@ async function resolveProcessoNativo(
   supabase: SupabaseClient,
   cardId: string,
 ): Promise<ProcessoModalNegocioPreObra | null> {
-  const { resolverProcessoIdExplicitoDoCard } = await import('@/lib/kanban/card-sync-group');
-  const processoId = await resolverProcessoIdExplicitoDoCard(supabase, cardId);
+  const { resolverProcessoNegocioDoCard } = await import('@/lib/kanban/card-sync-group');
+  const processoId = await resolverProcessoNegocioDoCard(supabase, cardId);
   if (!processoId) return null;
   return fetchProcessoById(supabase, processoId);
 }

@@ -5081,16 +5081,16 @@ export function KanbanCardModal({
     : null;
   const podeEditarNegocio =
     !ocultarGestaoCard &&
-    processoExplicitamenteVinculadoAoCard(
+    !(ehFunilFunding && !isLegado) &&
+    (processoExplicitamenteVinculadoAoCard(
       {
         cardId: card.id,
         cardProcessoStepOneId: card.processo_step_one_id,
         cardProjetoId: card.projeto_id,
       },
       proc?.id,
-    ) &&
-    Boolean(proc) &&
-    !(ehFunilFunding && !isLegado);
+    ) ||
+      (!proc && Boolean(card.rede_franqueado_id?.trim()) && modalSessao.ehAdminOuTeam));
   const condominioIdSidebar = card.condominio_id ?? procCondominioExplicito?.condominio_id ?? null;
   const condominioIdChecklistLegal =
     card.condominio_id?.trim() || procCondominioExplicito?.condominio_id?.trim() || null;

@@ -2334,6 +2334,29 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, user.id);
   await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
 
+  if (kanbanId === KANBAN_IDS.PORTFOLIO) {
+    let adminPortfolio: ReturnType<typeof createAdminClient> | null = null;
+    try {
+      adminPortfolio = createAdminClient();
+    } catch {
+      adminPortfolio = null;
+    }
+    const writeDbPortfolio = adminPortfolio ?? supabase;
+    const { criarEVincularProcessoStepOneAoCard } = await import('@/lib/kanban/processo-step-one-card');
+    const processoRes = await criarEVincularProcessoStepOneAoCard(writeDbPortfolio, {
+      cardId,
+      userId: user.id,
+      titulo: tituloFinal,
+      nomeCondominio,
+      quadra,
+      lote,
+      redeFranqueadoId: redeId || null,
+    });
+    if (!processoRes.ok) {
+      console.warn('[criarCard Portfolio] Falha ao vincular processo:', processoRes.error);
+    }
+  }
+
   const bp = (input.basePath ?? '').trim() || '/';
   revalidatePath(bp);
   revalidatePath('/');
@@ -4112,7 +4135,7 @@ export async function enviarHipoteseAoPortfolio(
   const { data: cardRow, error: errCard } = await supabase
     .from('kanban_cards')
     .select(
-      'id, titulo, franqueado_id, rede_franqueado_id, nome_condominio, quadra, lote, kanban_fases(slug)',
+      'id, titulo, franqueado_id, rede_franqueado_id, nome_condominio, quadra, lote, processo_step_one_id, kanban_fases(slug)',
     )
     .eq('id', cid)
     .maybeSingle();
@@ -4247,6 +4270,52 @@ export async function enviarHipoteseAoPortfolio(
 
   if (errVinc) {
     return { ok: false, error: errVinc.message };
+  }
+
+  const origemPid = String(
+    (cardRow as { processo_step_one_id?: string | null }).processo_step_one_id ?? '',
+  ).trim();
+  let redeProcessoId = '';
+  const { data: redeProcRow } = await admin
+    .from('rede_franqueados')
+    .select('processo_id')
+    .eq('id', redeFranqueadoId)
+    .maybeSingle();
+  redeProcessoId = String((redeProcRow as { processo_id?: string | null } | null)?.processo_id ?? '').trim();
+
+  const {
+    criarEVincularProcessoStepOneAoCard,
+    vincularProcessoStepOneAoCard,
+  } = await import('@/lib/kanban/processo-step-one-card');
+  const nomeCondominioOrigem = String(
+    (cardRow as { nome_condominio?: string | null }).nome_condominio ?? '',
+  ).trim();
+  const quadraOrigem = String((cardRow as { quadra?: string | null }).quadra ?? '').trim();
+  const loteOrigem = String((cardRow as { lote?: string | null }).lote ?? '').trim();
+
+  if (origemPid && redeProcessoId && origemPid !== redeProcessoId) {
+    const link = await vincularProcessoStepOneAoCard(admin, cardPortfolioId, origemPid, {
+      nomeCondominio: nomeCondominioOrigem || null,
+      quadra: quadraOrigem || null,
+      lote: loteOrigem || null,
+      redeFranqueadoId,
+    });
+    if (!link.ok) {
+      console.warn('[enviarHipoteseAoPortfolio] Falha ao copiar processo dedicado:', link.error);
+    }
+  } else {
+    const processoRes = await criarEVincularProcessoStepOneAoCard(admin, {
+      cardId: cardPortfolioId,
+      userId: user.id,
+      titulo,
+      nomeCondominio: nomeCondominioOrigem || null,
+      quadra: quadraOrigem || null,
+      lote: loteOrigem || null,
+      redeFranqueadoId,
+    });
+    if (!processoRes.ok) {
+      console.warn('[enviarHipoteseAoPortfolio] Falha ao criar processo dedicado:', processoRes.error);
+    }
   }
 
   revalidatePath('/funil-stepone');
