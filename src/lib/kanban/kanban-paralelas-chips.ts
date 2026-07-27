@@ -531,46 +531,33 @@ type CadeiaOrigemBatch = {
   origemIdsConsulta: string[];
 };
 
-/** Sobe `origem_card_id` em lote para incluir filhos ligados a ancestrais (ex.: stub Portfolio). */
+/**
+ * Sobe `origem_card_id` em lote via RPC recursiva (migration 488).
+ * Uma única query substitui o while-loop sequencial por nível.
+ * Zero impacto em dados — é apenas leitura.
+ */
 async function coletarCadeiaOrigemAncestraisBatch(
   supabase: SupabaseClient,
   boardCardIds: string[],
 ): Promise<CadeiaOrigemBatch> {
   const boardSet = new Set(boardCardIds.filter(Boolean));
-  const paiPorFilho = new Map<string, string>();
-  const allIds = new Set(boardSet);
-  let frontier = [...boardSet];
-
-  while (frontier.length > 0) {
-    const { data } = await supabase
-      .from('kanban_cards')
-      .select('id, origem_card_id')
-      .in('id', frontier);
-    const next: string[] = [];
-    for (const row of data ?? []) {
-      const id = String((row as { id?: string | null }).id ?? '').trim();
-      const pai = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
-      if (!id || !pai) continue;
-      paiPorFilho.set(id, pai);
-      if (!allIds.has(pai)) {
-        allIds.add(pai);
-        next.push(pai);
-      }
-    }
-    frontier = next;
-  }
-
   const ancestraisPorBoardCard = new Map<string, Set<string>>();
-  for (const boardId of boardSet) {
-    const anc = new Set<string>();
-    let cur = boardId;
-    for (let depth = 0; depth < 32; depth++) {
-      const pai = paiPorFilho.get(cur);
-      if (!pai) break;
-      anc.add(pai);
-      cur = pai;
-    }
-    ancestraisPorBoardCard.set(boardId, anc);
+  const allIds = new Set(boardSet);
+
+  for (const id of boardSet) ancestraisPorBoardCard.set(id, new Set());
+
+  if (boardSet.size === 0) return { ancestraisPorBoardCard, origemIdsConsulta: [...allIds] };
+
+  const { data } = await supabase.rpc('kanban_ancestrais_origem_batch', {
+    card_ids: [...boardSet],
+  });
+
+  for (const row of (data ?? []) as { board_card_id?: string; ancestral_id?: string }[]) {
+    const boardId = String(row.board_card_id ?? '').trim();
+    const ancId = String(row.ancestral_id ?? '').trim();
+    if (!boardId || !ancId) continue;
+    ancestraisPorBoardCard.get(boardId)?.add(ancId);
+    allIds.add(ancId);
   }
 
   return { ancestraisPorBoardCard, origemIdsConsulta: [...allIds] };
