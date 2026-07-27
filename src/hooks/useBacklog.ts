@@ -123,9 +123,6 @@ export function useBacklog(): UseBacklogResult {
             sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome),
             kanban_atividades!sirene_topicos_interacao_id_fkey(
               card_id,
-              card:kanban_cards(
-                kanban:kanbans(nome)
-              ),
               sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome)
             )
           `)
@@ -168,7 +165,6 @@ export function useBacklog(): UseBacklogResult {
       type ChamadoRaw = { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null } | { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null }[] | null;
       type KanbanAtivRaw = {
         card_id: string | null;
-        card: { kanban: { nome: string } | { nome: string }[] | null } | { kanban: { nome: string } | { nome: string }[] | null }[] | null;
         sirene_chamados: ChamadoRaw;
       };
       type SireneRaw = {
@@ -200,15 +196,7 @@ export function useBacklog(): UseBacklogResult {
         const chamado = chamadoDireto ?? chamadoViaInteracao;
         // card via kanban_atividade (para link de origem)
         const cardId = interacaoRaw?.card_id ?? null;
-        const cardNested = interacaoRaw
-          ? (Array.isArray(interacaoRaw.card) ? interacaoRaw.card[0] ?? null : interacaoRaw.card)
-          : null;
-        const cardKanban = cardNested
-          ? (Array.isArray((cardNested as { kanban: unknown }).kanban)
-              ? ((cardNested as { kanban: { nome: string }[] }).kanban)[0] ?? null
-              : (cardNested as { kanban: { nome: string } | null }).kanban)
-          : null;
-        const cardKanbanNome = cardKanban?.nome ?? null;
+        const cardKanbanNome = null; // FK aninhada não disponível via PostgREST nesse contexto
         const trava    = Boolean(row.trava);
         const te_trata = Boolean(chamado?.te_trata);
         const frank_id   = chamado?.frank_id   ?? null;
