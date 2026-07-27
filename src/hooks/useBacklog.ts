@@ -123,6 +123,7 @@ export function useBacklog(): UseBacklogResult {
             sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome),
             kanban_atividades!sirene_topicos_interacao_id_fkey(
               card_id,
+              sirene_chamado_id,
               sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome)
             )
           `)
@@ -165,6 +166,7 @@ export function useBacklog(): UseBacklogResult {
       type ChamadoRaw = { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null } | { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null }[] | null;
       type KanbanAtivRaw = {
         card_id: string | null;
+        sirene_chamado_id: number | null;
         sirene_chamados: ChamadoRaw;
       };
       type SireneRaw = {
@@ -197,6 +199,11 @@ export function useBacklog(): UseBacklogResult {
         // card via kanban_atividade (para link de origem)
         const cardId = interacaoRaw?.card_id ?? null;
         const cardKanbanNome = null; // FK aninhada não disponível via PostgREST nesse contexto
+        // chamado_id via interação: sirene_chamado_id é a FK real de kanban_atividades→sirene_chamados
+        // sirene_chamado_id é BIGINT → converter para string para manter tipo de chamado_id
+        const chamadoIdViaInteracao = interacaoRaw?.sirene_chamado_id != null
+          ? String(interacaoRaw.sirene_chamado_id)
+          : null;
         const trava    = Boolean(row.trava);
         const te_trata = Boolean(chamado?.te_trata);
         const frank_id   = chamado?.frank_id   ?? null;
@@ -217,7 +224,7 @@ export function useBacklog(): UseBacklogResult {
           data_fim:       row.data_fim,
           prazo_proposto: row.prazo_proposto,
           status:         row.status,
-          chamado_id:     row.chamado_id,
+          chamado_id:     row.chamado_id ?? chamadoIdViaInteracao,
           chamado_numero: chamado?.numero ?? null,
           prioridade:      prioridade_label,
           frank_id,
