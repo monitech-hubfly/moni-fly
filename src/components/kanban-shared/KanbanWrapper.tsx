@@ -98,6 +98,28 @@ function urlStateIgual(a: UrlModalState, b: UrlModalState): boolean {
   );
 }
 
+/** Reaplica `?card=` após `router.refresh()` quando o card foi aberto via `history.replaceState`. */
+function restaurarCardNaBarraSeModalAberto(
+  basePath: string,
+  cardQueryParam: string,
+  tabBloqueiaCard: string,
+  cardId: string,
+  cardOrigem: 'legado' | 'nativo',
+): void {
+  if (typeof window === 'undefined') return;
+  const sp = new URLSearchParams(window.location.search);
+  if (sp.get('tab') === tabBloqueiaCard) return;
+  const atual = lerCardIdDaUrl(sp, cardQueryParam);
+  if (atual === cardId) return;
+  const href = hrefAbrirCardNaRota(
+    basePath,
+    cardId,
+    cardQueryParam,
+    cardOrigem === 'legado' ? 'legado' : undefined,
+  );
+  window.history.replaceState(window.history.state, '', href);
+}
+
 /** Só sincroniza a URL — vive dentro do Suspense do `useSearchParams`. */
 function KanbanUrlSync({
   cardQueryParam,
@@ -199,21 +221,25 @@ export function KanbanWrapper({
     (s: UrlModalState) => {
       setUrlState((prev) => {
         if (urlStateIgual(prev, s)) return prev;
-        const win =
-          typeof window !== 'undefined'
-            ? estadoModalDoWindow(cardQueryParam, tabBloqueiaCard)
-            : s;
-        // Suspense atrasado não pode reverter card já aberto via replaceState local.
-        if (prev.cardId && win.cardId === prev.cardId && s.cardId !== prev.cardId) {
-          return prev;
+        // Modal aberto localmente: `router.refresh()` pode strip ?card= da URL (replaceState
+        // não atualiza o router interno do Next). Restaura a barra e mantém o drawer aberto.
+        if (prev.cardId && !s.cardId) {
+          restaurarCardNaBarraSeModalAberto(
+            basePath,
+            cardQueryParam,
+            tabBloqueiaCard,
+            prev.cardId,
+            prev.cardOrigem,
+          );
+          const depois = estadoModalDoWindow(cardQueryParam, tabBloqueiaCard);
+          if (depois.cardId === prev.cardId) return prev;
+          if (depois.cardId) return depois;
         }
-        if (win.cardId !== s.cardId) {
-          return urlStateIgual(prev, win) ? prev : win;
-        }
+        if (prev.cardId && s.cardId === prev.cardId) return prev;
         return s;
       });
     },
-    [cardQueryParam, tabBloqueiaCard],
+    [basePath, cardQueryParam, tabBloqueiaCard],
   );
 
   /** Atualiza estado local na hora; URL via history (sem refetch RSC). */
