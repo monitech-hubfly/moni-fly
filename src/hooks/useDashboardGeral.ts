@@ -8,27 +8,33 @@ import { listarAreas } from '@/utils/areasOrder';
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 export type DiaDetalhe = {
   data: string;
-  sirene: number | null;
-  engajamento: number | null;
-  indicadores: number | null;
-  score: number | null;
+  sireneScore: number | null;
+  atividadesScore: number | null;
+  cardsScore: number | null;
 };
 
 export type SemanaData = {
-  score: number | null;
+  sireneScore: number | null;
+  atividadesScore: number | null;
+  cardsScore: number | null;
   dias: DiaDetalhe[];
+};
+
+export type UsuarioDashboard = {
+  profileId: string;
+  nome: string;
+  porSemana: Record<number, SemanaData>;
 };
 
 export type AreaDashboard = {
   id: string;
   nome: string;
-  scoreAcumulado: number | null;
-  porSemana: Record<number, SemanaData>;
+  usuarios: UsuarioDashboard[];
 };
 
 export type UseDashboardGeralResult = {
   areas: AreaDashboard[];
-  semanas: number[];       // ISO week numbers em ordem crescente
+  semanas: number[];
   semanaAtual: number;
   isLoading: boolean;
   error: string | null;
@@ -39,20 +45,34 @@ function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-function extractNum(obj: unknown, key: string): number | null {
-  if (!obj || typeof obj !== 'object') return null;
-  const v = (obj as Record<string, unknown>)[key];
+function extractSireneScore(sirene: unknown): number | null {
+  if (!sirene || typeof sirene !== 'object') return null;
+  const v = (sirene as Record<string, unknown>)['score'];
   return typeof v === 'number' ? v : null;
 }
 
-function calcDayScore(sirene: unknown, engajamento: unknown, indicadores: unknown): number | null {
-  const vals = [
-    extractNum(sirene,      'score'),
-    extractNum(engajamento, 'score'),
-    extractNum(indicadores, 'media'),
-  ].filter((v): v is number => v !== null);
-  if (!vals.length) return null;
-  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+function extractAtividadesScore(engajamento: unknown): number | null {
+  if (!engajamento || typeof engajamento !== 'object') return null;
+  const eng = engajamento as Record<string, unknown>;
+  const atv = eng['atividades'] as Record<string, unknown> | null;
+  if (!atv) return null;
+  const concluidas = typeof atv['concluidas'] === 'number' ? atv['concluidas'] : 0;
+  const atrasadas  = typeof atv['atrasadas']  === 'number' ? atv['atrasadas']  : 0;
+  const denom = concluidas + atrasadas;
+  if (denom === 0) return null;
+  return Math.round((concluidas / denom) * 100);
+}
+
+function extractCardsScore(engajamento: unknown): number | null {
+  if (!engajamento || typeof engajamento !== 'object') return null;
+  const eng = engajamento as Record<string, unknown>;
+  const cards = eng['cards'] as Record<string, unknown> | null;
+  if (!cards) return null;
+  const concluidos = typeof cards['concluidos'] === 'number' ? cards['concluidos'] : 0;
+  const atrasados  = typeof cards['atrasados']  === 'number' ? cards['atrasados']  : 0;
+  const denom = concluidos + atrasados;
+  if (denom === 0) return null;
+  return Math.round((concluidos / denom) * 100);
 }
 
 function avgOrNull(nums: (number | null)[]): number | null {
@@ -106,67 +126,92 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
 
       const areaIds = listaAreas.map(a => a.id);
 
-      // 3. Buscar carometro_status_diario no intervalo
-      console.log('[useDashboardGeral] query carometro_status_diario', { areaIds: areaIds.length, startStr, endStr });
+      // 3. Buscar carometro_status_diario no intervalo (inclui profile_id)
       const { data: rows, error: rowsErr } = await supabase
         .from('carometro_status_diario')
-        .select('area_id, data, sirene, engajamento, indicadores')
+        .select('area_id, profile_id, data, sirene, engajamento')
         .in('area_id', areaIds)
         .gte('data', startStr)
         .lte('data', endStr);
 
       if (rowsErr) throw rowsErr;
 
-      // 4. Agrupar por área + semana
+      // 4. Coletar todos os profile_ids únicos
       type StatusRow = {
-        area_id: string; data: string;
-        sirene: unknown; engajamento: unknown; indicadores: unknown;
+        area_id: string; profile_id: string; data: string;
+        sirene: unknown; engajamento: unknown;
       };
       const statusRows = (rows ?? []) as StatusRow[];
+      const profileIds = [...new Set(statusRows.map(r => r.profile_id).filter(Boolean))];
 
-      // Mapa: areaId → semana → DiaDetalhe[]
-      const mapa = new Map<string, Map<number, DiaDetalhe[]>>();
+      // 5. Buscar nomes dos usuários em area_pessoas
+      const nomesPorProfile = new Map<string, string>();
+      if (profileIds.length > 0) {
+        const { data: pessoas } = await supabase
+          .from('area_pessoas')
+          .select('profile_id, nome')
+          .in('profile_id', profileIds);
+        for (const p of (pessoas ?? []) as { profile_id: string; nome: string }[]) {
+          if (p.profile_id && p.nome) nomesPorProfile.set(p.profile_id, p.nome);
+        }
+      }
+
+      // 6. Agrupar por area_id → profile_id → semana → DiaDetalhe[]
+      // mapa: areaId → profileId → semana → DiaDetalhe[]
+      const mapa = new Map<string, Map<string, Map<number, DiaDetalhe[]>>>();
       for (const a of listaAreas) mapa.set(a.id, new Map());
 
       for (const r of statusRows) {
         const semana = isoWeek(new Date(`${r.data}T12:00:00`));
         const areaMap = mapa.get(r.area_id);
         if (!areaMap) continue;
-        if (!areaMap.has(semana)) areaMap.set(semana, []);
+        if (!areaMap.has(r.profile_id)) areaMap.set(r.profile_id, new Map());
+        const profMap = areaMap.get(r.profile_id)!;
+        if (!profMap.has(semana)) profMap.set(semana, []);
+
         const dia: DiaDetalhe = {
-          data:         r.data,
-          sirene:       extractNum(r.sirene,      'score'),
-          engajamento:  extractNum(r.engajamento, 'score'),
-          indicadores:  extractNum(r.indicadores, 'media'),
-          score:        calcDayScore(r.sirene, r.engajamento, r.indicadores),
+          data:            r.data,
+          sireneScore:     extractSireneScore(r.sirene),
+          atividadesScore: extractAtividadesScore(r.engajamento),
+          cardsScore:      extractCardsScore(r.engajamento),
         };
-        areaMap.get(semana)!.push(dia);
+        profMap.get(semana)!.push(dia);
       }
 
-      // 5. Construir AreaDashboard[]
+      // 7. Construir AreaDashboard[]
       const areasResult: AreaDashboard[] = listaAreas.map(a => {
-        const areaMap = mapa.get(a.id) ?? new Map<number, DiaDetalhe[]>();
-        const porSemana: Record<number, SemanaData> = {};
+        const areaMap = mapa.get(a.id) ?? new Map<string, Map<number, DiaDetalhe[]>>();
 
-        for (const sem of semList) {
-          const dias = areaMap.get(sem) ?? [];
-          dias.sort((x, y) => x.data.localeCompare(y.data));
-          porSemana[sem] = {
-            score: avgOrNull(dias.map(d => d.score)),
-            dias,
-          };
+        const usuarios: UsuarioDashboard[] = [];
+        for (const [profileId, profMap] of areaMap) {
+          const porSemana: Record<number, SemanaData> = {};
+
+          for (const sem of semList) {
+            const dias = profMap.get(sem) ?? [];
+            dias.sort((x, y) => x.data.localeCompare(y.data));
+            porSemana[sem] = {
+              sireneScore:     avgOrNull(dias.map(d => d.sireneScore)),
+              atividadesScore: avgOrNull(dias.map(d => d.atividadesScore)),
+              cardsScore:      avgOrNull(dias.map(d => d.cardsScore)),
+              dias,
+            };
+          }
+
+          usuarios.push({
+            profileId,
+            nome: nomesPorProfile.get(profileId) ?? profileId.slice(0, 8),
+            porSemana,
+          });
         }
 
-        const allScores = semList.map(s => porSemana[s]?.score ?? null);
-        return {
-          id:              a.id,
-          nome:            a.nome,
-          scoreAcumulado:  avgOrNull(allScores),
-          porSemana,
-        };
+        // Ordenar usuários por nome
+        usuarios.sort((a, b) => a.nome.localeCompare(b.nome));
+
+        return { id: a.id, nome: a.nome, usuarios };
       });
 
-      setAreas(areasResult);
+      // Filtrar áreas sem usuários com dados
+      setAreas(areasResult.filter(a => a.usuarios.length > 0));
     } catch (e) {
       console.error('[useDashboardGeral]', e);
       setError(e instanceof Error ? e.message : JSON.stringify(e));
