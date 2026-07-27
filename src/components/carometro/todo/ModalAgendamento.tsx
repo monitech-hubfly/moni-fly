@@ -591,7 +591,7 @@ export function ModalAgendamento({
     if (abaAtiva === 'atividades') {
       set('acao_id', item.acoId ?? null);          // acao_id real do gantt
       set('objetivo_id', item.objetivoId ?? null); // pré-preenche meta vinculada
-      set('titulo', null);
+      set('titulo', item.label);                   // pré-preenche título com nome da atividade
       set('card_id', null);
       setMetaDefinida(true); // atividade já tem meta definida (ou nenhuma)
     } else if (abaAtiva === 'kanban') {

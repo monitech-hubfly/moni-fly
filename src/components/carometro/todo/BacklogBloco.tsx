@@ -97,6 +97,7 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
   const [loadingAcoes,  setLoadingAcoes]  = useState(false);
   const [adicionando,   setAdicionando]   = useState(false);
   const [nome,          setNome]          = useState('');
+  const [prazo,         setPrazo]         = useState('');
   const [tempoVal,      setTempoVal]      = useState('');
   const [tempoUnit,     setTempoUnit]     = useState<'minutos' | 'horas'>('minutos');
   const [canetaVerde,   setCanetaVerde]   = useState('nao');
@@ -147,21 +148,37 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
     const tempoMin = tempoVal
       ? (tempoUnit === 'horas' ? Math.round(Number(tempoVal) * 60) : Math.round(Number(tempoVal)))
       : null;
-    const { error: e } = await supabase.from('acoes').insert({
+    const { data: novaAcao, error: e } = await supabase.from('acoes').insert({
       tarefa_id: tarefaId, nome: nome.trim(),
       tempo_estimado_minutos: tempoMin,
       caneta_verde: canetaVerde,
       recorrencia,
-    });
+    }).select('id').single();
     if (e) { setErro(e.message); setSalvando(false); return; }
-    setNome(''); setTempoVal(''); setAdicionando(false);
+    // Se prazo informado, cria entrada no Planejamento (gantt_planejamento)
+    if (prazo && novaAcao) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const semanaFim = isoWeek(new Date(prazo + 'T12:00:00'));
+        await supabase.from('gantt_planejamento').insert({
+          acao_id: novaAcao.id,
+          profile_id: user.id,
+          semana_ano_fim: semanaFim,
+          semana_ano_inicio: semanaFim,
+          semanas_selecionadas: [semanaFim],
+          comportamento_chave: false,
+          origem: 'manual',
+        });
+      }
+    }
+    setNome(''); setTempoVal(''); setPrazo(''); setAdicionando(false);
     await carregarAcoes(tarefaId);
     setSalvando(false);
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end" onClick={onFechar}>
-      <div className="w-80 bg-white h-full shadow-xl flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30" onClick={onFechar}>
+      <div className="w-[480px] max-h-[85vh] bg-white rounded-xl shadow-xl flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           {step === 'atividades' ? (
@@ -246,6 +263,12 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
                     className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white"
                     placeholder="Nome *"
                     value={nome} onChange={e => setNome(e.target.value)} />
+                  <div className="flex gap-2 items-center">
+                    <label className="text-[10px] text-gray-500 shrink-0">Prazo</label>
+                    <input type="date"
+                      className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white"
+                      value={prazo} onChange={e => setPrazo(e.target.value)} />
+                  </div>
                   <div className="flex gap-2">
                     <input type="number" min="0"
                       className="w-16 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none bg-white"
@@ -267,7 +290,7 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
                   </select>
                   {erro && <p className="text-xs text-red-500">{erro}</p>}
                   <div className="flex gap-2 justify-end">
-                    <button type="button" onClick={() => { setAdicionando(false); setErro(null); setNome(''); setTempoVal(''); }}
+                    <button type="button" onClick={() => { setAdicionando(false); setErro(null); setNome(''); setTempoVal(''); setPrazo(''); }}
                       className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
                     <button type="button" onClick={handleSalvarAtividade} disabled={salvando}
                       className="text-xs px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50">
@@ -289,7 +312,7 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
   );
 }
 
-// ── Sirene ────────────────────────────────────────────────────────────────────
+// ── Sirene ───────────────────────────────────────────────────────────────────
 type ColunaSireneProps = { items: SireneItem[]; pastelariaItems?: PastelariaItem[] };
 function ColunaSirene({ items, pastelariaItems = [] }: ColunaSireneProps) {
   const comStatus = items

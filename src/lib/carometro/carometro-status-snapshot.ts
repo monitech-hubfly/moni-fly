@@ -84,12 +84,14 @@ export async function gerarSnapshotCarometro(
     ganttAtrasadasRes, ganttConcluidasRes, ganttPlanejdasRes,
     kanbanAbertosRes, kanbanConcluidosRes,
   ] = await Promise.all([
+    // Atrasadas: qualquer semana passada não concluída (sem janela artificial de 2 semanas)
     db.from('gantt_planejamento').select('id')
       .or(orGantt).is('data_conclusao_real', null)
-      .gte('semana_ano_fim', semana - 2).lt('semana_ano_fim', semana),
+      .lt('semana_ano_fim', semana),
+    // Concluídas: filtrar pela data real de conclusão nos últimos 14 dias
     db.from('gantt_planejamento').select('id')
       .or(orGantt).not('data_conclusao_real', 'is', null)
-      .gte('semana_ano_fim', semana - 2).lte('semana_ano_fim', semana),
+      .gte('data_conclusao_real', cutoffStr),
     db.from('gantt_planejamento').select('id')
       .or(orGantt).is('data_conclusao_real', null).gte('semana_ano_fim', semana),
     db.from('kanban_cards')
