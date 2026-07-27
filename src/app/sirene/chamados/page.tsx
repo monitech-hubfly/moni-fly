@@ -170,13 +170,14 @@ export default async function SireneChamadosPage({
         processo_id: string | null;
         processo_titulo: string | null;
         processo_kanban_nome: string | null;
+        card_id: string | null;
       }
     >();
     if (sireneIds.length > 0) {
       const { data: scRows } = await admin
         .from('sirene_chamados')
         .select(
-          'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel, arquivado, te_trata, prioridade, processo_id, processo_titulo, processo_kanban_nome',
+          'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel, arquivado, te_trata, prioridade, processo_id, processo_titulo, processo_kanban_nome, card_id',
         )
         .in('id', sireneIds);
       for (const s of scRows ?? []) {
@@ -197,7 +198,54 @@ export default async function SireneChamadosPage({
           processo_id: (s as { processo_id?: string | null }).processo_id ?? null,
           processo_titulo: (s as { processo_titulo?: string | null }).processo_titulo ?? null,
           processo_kanban_nome: (s as { processo_kanban_nome?: string | null }).processo_kanban_nome ?? null,
+          card_id: (s as { card_id?: string | null }).card_id ?? null,
         });
+      }
+    }
+
+    // Busca info de card/fase/funil para chamados diretos (sirene_chamados.card_id)
+    const cardInfoBySireneId = new Map<number, { card_titulo: string; fase_nome: string; kanban_nome: string }>();
+    {
+      const sireneCardPairs: { sireneId: number; cardId: string }[] = [];
+      for (const [sid, meta] of sireneById.entries()) {
+        if (meta.card_id) sireneCardPairs.push({ sireneId: sid, cardId: meta.card_id });
+      }
+      if (sireneCardPairs.length > 0) {
+        const uniqueCardIds = [...new Set(sireneCardPairs.map((p) => p.cardId))];
+        const { data: cardRows } = await admin
+          .from('kanban_cards')
+          .select('id, titulo, fase_id, kanban_id')
+          .in('id', uniqueCardIds);
+        const cardMap = new Map<string, { titulo: string; fase_id: string | null; kanban_id: string | null }>();
+        for (const c of cardRows ?? []) {
+          const cr = c as { id: string; titulo?: string | null; fase_id?: string | null; kanban_id?: string | null };
+          cardMap.set(String(cr.id), { titulo: cr.titulo ?? '', fase_id: cr.fase_id ?? null, kanban_id: cr.kanban_id ?? null });
+        }
+        const faseIds = [...new Set([...cardMap.values()].map((c) => c.fase_id).filter((x): x is string => x != null))];
+        const kanbanIds = [...new Set([...cardMap.values()].map((c) => c.kanban_id).filter((x): x is string => x != null))];
+        const [faseRows, kanbanRows] = await Promise.all([
+          faseIds.length > 0 ? admin.from('kanban_fases').select('id, nome').in('id', faseIds) : { data: [] },
+          kanbanIds.length > 0 ? admin.from('kanbans').select('id, nome').in('id', kanbanIds) : { data: [] },
+        ]);
+        const faseNomeById = new Map<string, string>();
+        for (const f of (faseRows as { data: unknown[] }).data ?? []) {
+          const fr = f as { id: string; nome?: string | null };
+          faseNomeById.set(String(fr.id), fr.nome ?? '');
+        }
+        const kanbanNomeById = new Map<string, string>();
+        for (const k of (kanbanRows as { data: unknown[] }).data ?? []) {
+          const kr = k as { id: string; nome?: string | null };
+          kanbanNomeById.set(String(kr.id), kr.nome ?? '');
+        }
+        for (const { sireneId, cardId } of sireneCardPairs) {
+          const ci = cardMap.get(cardId);
+          if (!ci) continue;
+          cardInfoBySireneId.set(sireneId, {
+            card_titulo: ci.titulo,
+            fase_nome: ci.fase_id ? (faseNomeById.get(ci.fase_id) ?? '') : '',
+            kanban_nome: ci.kanban_id ? (kanbanNomeById.get(ci.kanban_id) ?? '') : '',
+          });
+        }
       }
     }
 
@@ -387,6 +435,9 @@ export default async function SireneChamadosPage({
           processo_id: ka?.origem === 'sirene' && scMeta ? scMeta.processo_id : null,
           processo_titulo: ka?.origem === 'sirene' && scMeta ? scMeta.processo_titulo : null,
           processo_kanban_nome: ka?.origem === 'sirene' && scMeta ? scMeta.processo_kanban_nome : null,
+          card_titulo_direto: ka?.origem === 'sirene' && sid != null ? (cardInfoBySireneId.get(sid)?.card_titulo ?? null) : null,
+          fase_nome_direto: ka?.origem === 'sirene' && sid != null ? (cardInfoBySireneId.get(sid)?.fase_nome ?? null) : null,
+          kanban_nome_direto: ka?.origem === 'sirene' && sid != null ? (cardInfoBySireneId.get(sid)?.kanban_nome ?? null) : null,
         };
       });
 

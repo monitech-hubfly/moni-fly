@@ -146,7 +146,7 @@ async function copiarCamposNegocioEntreProcessos(
 
   const patch: Record<string, unknown> = {};
   for (const k of NEGOCIO_COPY_FIELDS) {
-    const v = (src as Record<string, unknown>)[k];
+    const v = (src as unknown as Record<string, unknown>)[k];
     if (v == null || v === '') continue;
     if (Array.isArray(v) && v.length === 0) continue;
     patch[k] = v;
