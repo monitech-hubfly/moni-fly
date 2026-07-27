@@ -211,6 +211,38 @@ export function faseAtualCalculadoraSlaEstourada(linhas: CalculadoraFaseLinha[])
   return faseAtual?.status === 'atual_atrasada';
 }
 
+/**
+ * Atraso só da fase em andamento: dias decorridos na fase − SLA da fase (nunca soma fases anteriores).
+ */
+export function calcularAtrasoDiasFaseCalculadoraAtual(
+  linha: Pick<
+    CalculadoraFaseLinha,
+    'status' | 'dataInicioReal' | 'dataFimEstimada' | 'slaDias' | 'slaTipo'
+  >,
+  hojeRef?: Date,
+): number | null {
+  if (linha.status !== 'atual_atrasada') return null;
+  const hoje = hojeYmd(hojeRef);
+  const slaDias = linha.slaDias;
+  const slaTipo = linha.slaTipo;
+
+  if (linha.dataInicioReal && slaDias != null && slaDias > 0) {
+    const elapsed = diasDecorridosPorSla(linha.dataInicioReal, hoje, slaTipo);
+    const atraso = elapsed - slaDias;
+    if (atraso > 0) return atraso;
+  }
+
+  if (linha.dataFimEstimada) {
+    const diff =
+      slaTipo === 'corridos'
+        ? calendarDaysBetween(linha.dataFimEstimada, hoje)
+        : businessDaysBetween(linha.dataFimEstimada, hoje);
+    if (diff > 0) return diff;
+  }
+
+  return null;
+}
+
 /** Dias de atraso na fase atual da Calculadora (borda vermelha no board). */
 export function faseAtualCalculadoraAtraso(
   linhas: CalculadoraFaseLinha[],
@@ -218,17 +250,7 @@ export function faseAtualCalculadoraAtraso(
   const faseAtual = linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada');
   if (!faseAtual || faseAtual.status !== 'atual_atrasada') return null;
 
-  let dias = faseAtual.atrasoDias;
-  if (dias == null || dias <= 0) {
-    const hoje = formatLocalYmd(new Date());
-    if (faseAtual.dataFimEstimada) {
-      const diff =
-        faseAtual.slaTipo === 'corridos'
-          ? calendarDaysBetween(faseAtual.dataFimEstimada, hoje)
-          : businessDaysBetween(faseAtual.dataFimEstimada, hoje);
-      if (diff > 0) dias = diff;
-    }
-  }
+  const dias = calcularAtrasoDiasFaseCalculadoraAtual(faseAtual);
   if (dias == null || dias <= 0) return { dias: 1, slaTipo: faseAtual.slaTipo };
   return { dias, slaTipo: faseAtual.slaTipo };
 }
@@ -702,7 +724,7 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
       if (!dataInicioReal) {
         dataInicioReal = entrouVisita;
         if (!dataInicioReal && fase.id === card.fase_id) {
-          dataInicioReal = toYmd(card.entered_fase_at) ?? toYmd(card.created_at);
+          dataInicioReal = toYmd(card.entered_fase_at);
         }
         if (!dataInicioReal && fase.ordem === sorted[0]?.ordem) {
           dataInicioReal = toYmd(card.created_at);

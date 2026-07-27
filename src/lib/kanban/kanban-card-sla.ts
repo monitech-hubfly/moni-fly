@@ -110,13 +110,16 @@ export function resolveDataBaseSlaKanban(input: {
   ) {
     return null;
   }
-  // sla_iniciado_em: override explícito (ex.: Crédito Obra após docs).
-  const slaIniciado = parseDataIso(input.sla_iniciado_em);
-  if (slaIniciado) return slaIniciado;
-  // entered_fase_at: entrada na fase atual (migration 213) — base correta do SLA por fase.
+  const faseSlug = String(input.faseSlug ?? '').trim();
+  // sla_iniciado_em só na fase Documentação Alvará (relógio após upload dos docs).
+  if (faseSlug === FASE_SLUGS.CO_DOCUMENTACAO_ALVARA) {
+    const slaIniciado = parseDataIso(input.sla_iniciado_em);
+    if (slaIniciado) return slaIniciado;
+  }
+  // entered_fase_at: entrada na fase atual — base do SLA por fase (sem acumular fases anteriores).
   const enteredFase = parseDataIso(input.entered_fase_at);
   if (enteredFase) return enteredFase;
-  return parseDataIso(input.created_at);
+  return null;
 }
 
 export function calcularSlaKanbanCard(input: {
