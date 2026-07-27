@@ -5,13 +5,14 @@ import { ArrowRight } from 'lucide-react';
 import type {
   PipelineCardRow,
   PipelineFranqueadoUnidade,
+  PipelineFunilMesColuna,
   PipelineFunilPeriodo,
 } from '@/lib/kanban/pipeline-cards-types';
 import {
   computeFunilMesRede,
   formatFunilMesConversaoSeta,
 } from '@/lib/kanban/pipeline-funil-mes-compute';
-import { PipelineFunilColunaUnidadeTabela } from '@/components/pipeline/PipelineFunilColunaUnidadeTabela';
+import { PipelineFunilColunaDetalheModal } from '@/components/pipeline/PipelineFunilColunaDetalheModal';
 import {
   PipelineFunilRedeVisaoToggle,
   type PipelineFunilRedeVisao,
@@ -80,6 +81,7 @@ export function PipelineFunilMesRede({
   onFunilRedeVisaoChange,
 }: Props) {
   const [periodo, setPeriodo] = useState<PipelineFunilPeriodo>('mes');
+  const [colunaModal, setColunaModal] = useState<PipelineFunilMesColuna | null>(null);
 
   const funil = useMemo(
     () => computeFunilMesRede(cards, franqueados, periodo),
@@ -121,12 +123,24 @@ export function PipelineFunilMesRede({
               >
                 {col.label}
               </p>
-              <p
-                className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight"
-                style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
-              >
-                {col.totalIndisponivel ? '—' : col.total}
-              </p>
+              {col.totalIndisponivel ? (
+                <p
+                  className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight"
+                  style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
+                >
+                  —
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setColunaModal(col)}
+                  className="mt-0.5 cursor-pointer text-left text-2xl font-semibold tabular-nums tracking-tight transition hover:opacity-75"
+                  style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
+                  aria-label={`Ver detalhes de ${col.label}: ${col.total} cards`}
+                >
+                  {col.total}
+                </button>
+              )}
               <p className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                 {idx === 0 ? 'total rede' : 'total'}
               </p>
@@ -147,11 +161,6 @@ export function PipelineFunilMesRede({
                 ))}
               </div>
 
-              <PipelineFunilColunaUnidadeTabela
-                porUnidade={col.porUnidade}
-                porUnidadeZeradas={col.porUnidadeZeradas}
-                temZerosGlobal={temZerosGlobal}
-              />
             </div>
 
             {idx < funil.colunas.length - 1 ? (
@@ -168,6 +177,13 @@ export function PipelineFunilMesRede({
           </Fragment>
         ))}
       </div>
+
+      <PipelineFunilColunaDetalheModal
+        open={colunaModal != null}
+        coluna={colunaModal}
+        temZerosGlobal={temZerosGlobal}
+        onClose={() => setColunaModal(null)}
+      />
     </section>
   );
 }
