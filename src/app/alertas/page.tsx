@@ -143,15 +143,37 @@ export default async function AlertasPage({
     if (cid != null) chamadoIdsSet.add(cid);
   }
 
-  type ChamadoEnrich = { numero: number | null; aberto_por_nome: string | null; card_kanban_nome: string | null };
+  type ChamadoEnrich = { numero: number | null; aberto_por_nome: string | null; card_kanban_nome: string | null; card_titulo: string | null; prioridade: string | null; card_id: string | null };
   const chamadoMap = new Map<number, ChamadoEnrich>();
   if (chamadoIdsSet.size > 0) {
     const { data: chamados } = await supabase
       .from('sirene_chamados')
-      .select('id, numero, aberto_por_nome, card_kanban_nome')
+      .select('id, numero, aberto_por_nome, card_kanban_nome, card_titulo, prioridade, card_id')
       .in('id', [...chamadoIdsSet]);
-    for (const c of (chamados ?? []) as { id: number; numero: number | null; aberto_por_nome: string | null; card_kanban_nome: string | null }[]) {
-      chamadoMap.set(c.id, { numero: c.numero, aberto_por_nome: c.aberto_por_nome, card_kanban_nome: c.card_kanban_nome });
+    for (const c of (chamados ?? []) as { id: number; numero: number | null; aberto_por_nome: string | null; card_kanban_nome: string | null; card_titulo: string | null; prioridade: string | null; card_id: string | null }[]) {
+      chamadoMap.set(c.id, { numero: c.numero, aberto_por_nome: c.aberto_por_nome, card_kanban_nome: c.card_kanban_nome, card_titulo: c.card_titulo, prioridade: c.prioridade, card_id: c.card_id });
+    }
+  }
+
+  // Buscar fases dos cards vinculados aos chamados Sirene
+  const cardIdsSirene = [...new Set(
+    [...chamadoMap.values()]
+      .map(c => c.card_id)
+      .filter((id): id is string => Boolean(id))
+  )];
+  type FaseEnrich = { card_id: string; fase_nome: string | null; kanban_nome: string | null };
+  const faseMap = new Map<string, FaseEnrich>();
+  if (cardIdsSirene.length > 0) {
+    const { data: fasesData } = await supabase
+      .from('kanban_cards')
+      .select('id, kanban_fases(nome), kanbans(nome)')
+      .in('id', cardIdsSirene);
+    for (const f of (fasesData ?? []) as unknown as { id: string; kanban_fases: { nome: string | null }[] | null; kanbans: { nome: string | null }[] | null }[]) {
+      faseMap.set(f.id, {
+        card_id: f.id,
+        fase_nome: f.kanban_fases?.[0]?.nome ?? null,
+        kanban_nome: f.kanbans?.[0]?.nome ?? null,
+      });
     }
   }
 
@@ -228,14 +250,14 @@ export default async function AlertasPage({
   return (
     <div className="min-h-screen bg-[var(--moni-surface-50)]">
       <header className="border-b border-[color:var(--moni-border-default)] bg-white">
-        <div className="mx-auto flex h-14 max-w-3xl items-center gap-4 px-4">
+        <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-4">
           <Link href="/" className="text-sm text-[color:var(--moni-primary)] hover:underline">← Início</Link>
           <span className="text-stone-400">/</span>
           <span className="text-sm font-medium text-stone-700">Alertas</span>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-8">
+      <main className="mx-auto max-w-5xl px-4 py-8">
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-[color:var(--moni-dark)]">Alertas</h1>
           <p className="mt-1 text-sm text-stone-500">Atualizações dos seus chamados, cards e planejamento.</p>
@@ -374,6 +396,7 @@ export default async function AlertasPage({
               const topicoIdNum = topicoIdStr ? Number(topicoIdStr) : null;
               const sireneChamadoId = interacaoId ? (atividadeMap.get(interacaoId) ?? null) : null;
               const chamadoEnrich = sireneChamadoId != null ? (chamadoMap.get(sireneChamadoId) ?? null) : null;
+              const faseEnrich = chamadoEnrich?.card_id ? faseMap.get(chamadoEnrich.card_id) : null;
               const topicoData = topicoIdNum && Number.isFinite(topicoIdNum) ? topicoMap.get(topicoIdNum) : undefined;
               const descricaoTexto = topicoData
                 ? (topicoData.descricao_detalhe?.trim() || topicoData.descricao?.trim() || '')
@@ -420,18 +443,50 @@ export default async function AlertasPage({
                   {cat === 'sirene' && (chamadoEnrich || topicoData !== undefined) ? (
                     <div className="mb-3 space-y-1">
                       {chamadoEnrich ? (
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                          {chamadoEnrich.card_kanban_nome ? (
-                            <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-600">
-                              {chamadoEnrich.card_kanban_nome}
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-stone-500">
+                          {/* Funil e fase */}
+                          {(chamadoEnrich.card_kanban_nome || faseEnrich?.fase_nome) && (
+                            <span>
+                              {chamadoEnrich.card_kanban_nome ?? ''}
+                              {faseEnrich?.fase_nome ? <span className="text-stone-400"> · {faseEnrich.fase_nome}</span> : null}
                             </span>
-                          ) : null}
-                          {chamadoEnrich.numero != null ? (
-                            <span className="tabular-nums">#{chamadoEnrich.numero}</span>
-                          ) : null}
-                          {chamadoEnrich.aberto_por_nome ? (
+                          )}
+                          {/* Número do chamado */}
+                          {chamadoEnrich.numero != null && (
+                            <span className="tabular-nums text-stone-400">#{chamadoEnrich.numero}</span>
+                          )}
+                          {/* Card vinculado */}
+                          {chamadoEnrich.card_titulo && (
+                            <span className="text-stone-400">Card: <span className="font-medium text-stone-500">{chamadoEnrich.card_titulo}</span></span>
+                          )}
+                          {/* Aberto por */}
+                          {chamadoEnrich.aberto_por_nome && (
                             <span>Aberto por: <span className="font-medium text-stone-600">{chamadoEnrich.aberto_por_nome}</span></span>
-                          ) : null}
+                          )}
+                          {/* Badge P1-P6 */}
+                          {chamadoEnrich.prioridade && (
+                            <span
+                              title={
+                                chamadoEnrich.prioridade === 'P1' ? 'P1 — Crítico: impacto imediato no negócio' :
+                                chamadoEnrich.prioridade === 'P2' ? 'P2 — Alto: urgente, resolver hoje' :
+                                chamadoEnrich.prioridade === 'P3' ? 'P3 — Médio: resolver esta semana' :
+                                chamadoEnrich.prioridade === 'P4' ? 'P4 — Baixo: sem urgência imediata' :
+                                chamadoEnrich.prioridade === 'P5' ? 'P5 — Mínimo: melhorias futuras' :
+                                chamadoEnrich.prioridade === 'P6' ? 'P6 — Informativo: sem ação necessária' :
+                                chamadoEnrich.prioridade
+                              }
+                              className={`cursor-help rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                chamadoEnrich.prioridade === 'P1' ? 'bg-red-100 text-red-700' :
+                                chamadoEnrich.prioridade === 'P2' ? 'bg-orange-100 text-orange-700' :
+                                chamadoEnrich.prioridade === 'P3' ? 'bg-yellow-100 text-yellow-700' :
+                                chamadoEnrich.prioridade === 'P4' ? 'bg-blue-100 text-blue-700' :
+                                chamadoEnrich.prioridade === 'P5' ? 'bg-stone-100 text-stone-600' :
+                                'bg-stone-50 text-stone-400'
+                              }`}
+                            >
+                              {chamadoEnrich.prioridade}
+                            </span>
+                          )}
                         </div>
                       ) : null}
                       {topicoData !== undefined ? (

@@ -13,7 +13,7 @@ export function KanbanAtividadeEnrich({
   const [expandido, setExpandido] = useState(false);
 
   return (
-    <div className="mb-3 space-y-1">
+    <div className="mb-3 space-y-1.5">
       {linhaCard ? (
         <p className="text-xs text-stone-500">{linhaCard}</p>
       ) : null}
