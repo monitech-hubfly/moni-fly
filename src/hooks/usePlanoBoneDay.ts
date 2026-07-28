@@ -33,6 +33,11 @@ export type AgendaMacroItem = {
   objetivo_id: string | null;
 };
 
+export type ObjetivoResponsavel = {
+  objetivo_id: string;
+  profile_id: string;
+};
+
 function mesAtualStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -45,6 +50,7 @@ export type UsePlanoBoneDayResult = {
   responsaveis: ResponsavelItem[];
   comportamentos: ComportamentoItem[];
   agendaMacro: AgendaMacroItem[];
+  objetivoResponsaveis: ObjetivoResponsavel[];
   mes: string;
   setMes: (m: string) => void;
   isLoading: boolean;
@@ -63,6 +69,7 @@ export function usePlanoBoneDay(
   const [responsaveis,       setResponsaveis]       = useState<ResponsavelItem[]>([]);
   const [comportamentos,     setComportamentos]     = useState<ComportamentoItem[]>([]);
   const [agendaMacro,        setAgendaMacro]        = useState<AgendaMacroItem[]>([]);
+  const [objetivoResponsaveis, setObjetivoResponsaveis] = useState<ObjetivoResponsavel[]>([]);
   const [mes,                setMes]                = useState(mesAtualStr);
   const [isLoading,          setIsLoading]          = useState(true);
   const [error,              setError]              = useState<string | null>(null);
@@ -79,6 +86,7 @@ export function usePlanoBoneDay(
           .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, status, ordem, profile_id')
           .eq('area_id', areaId)
           .eq('status', 'ativo')
+          .eq('mes', mes)
           .is('objetivo_pai_id', null)
           .order('is_chave', { ascending: false })
           .order('ordem', { ascending: true }),
@@ -88,6 +96,8 @@ export function usePlanoBoneDay(
           .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, status, ordem, profile_id')
           .eq('area_id', areaId)
           .neq('status', 'concluido')
+          .lt('mes', mes)
+          .not('mes', 'is', null)
           .is('objetivo_pai_id', null)
           .order('is_chave', { ascending: false })
           .order('ordem', { ascending: true }),
@@ -168,6 +178,17 @@ export function usePlanoBoneDay(
       setMetas(metasArr);
       setMetasNaoConcluidas(metasNaoConclArr);
 
+      const objIds = metasArr.map(m => m.id);
+      if (objIds.length > 0) {
+        const { data: orData } = await supabase
+          .from('objetivo_responsaveis')
+          .select('objetivo_id, profile_id')
+          .in('objetivo_id', objIds);
+        setObjetivoResponsaveis((orData ?? []) as ObjetivoResponsavel[]);
+      } else {
+        setObjetivoResponsaveis([]);
+      }
+
       type IndRow = {
         id: string; nome: string; indicador_chave: boolean | null;
         semaforo_faixas: unknown; objetivo_id: string | null; profile_id: string | null;
@@ -238,7 +259,7 @@ export function usePlanoBoneDay(
 
   return {
     metas, metasNaoConcluidas, indicadores, responsaveis,
-    comportamentos, agendaMacro, mes, setMes,
+    comportamentos, agendaMacro, objetivoResponsaveis, mes, setMes,
     isLoading, error, recarregar: carregar,
   };
 }

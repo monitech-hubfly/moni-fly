@@ -53,11 +53,17 @@ export type ResponsavelItem = {
   nome: string;
 };
 
+export type ObjetivoResponsavel = {
+  objetivo_id: string;
+  profile_id: string;
+};
+
 export type UseMetasIndicadoresResult = {
   metas: MetaItem[];
   subMetas: SubMetaItem[];
   indicadores: IndicadorItemMeta[];
   responsaveis: ResponsavelItem[];
+  objetivoResponsaveis: ObjetivoResponsavel[];
   semanaRelativa: number;
   isLoading: boolean;
   error: string | null;
@@ -73,6 +79,7 @@ export function useMetasIndicadores(
   const [subMetas,        setSubMetas]        = useState<SubMetaItem[]>([]);
   const [indicadores,     setIndicadores]     = useState<IndicadorItemMeta[]>([]);
   const [responsaveis,    setResponsaveis]    = useState<ResponsavelItem[]>([]);
+  const [objetivoResponsaveis, setObjetivoResponsaveis] = useState<ObjetivoResponsavel[]>([]);
   const [semanaRelativa,  setSemanaRelativa]  = useState(0);
   const [isLoading,       setIsLoading]       = useState(true);
   const [error,           setError]           = useState<string | null>(null);
@@ -228,6 +235,17 @@ export function useMetasIndicadores(
           return a.nome.localeCompare(b.nome, 'pt-BR');
         });
 
+      const metaIds2 = ((objRes.data ?? []) as { id: string }[]).map(o => o.id);
+      if (metaIds2.length > 0) {
+        const { data: orData } = await supabase
+          .from('objetivo_responsaveis')
+          .select('objetivo_id, profile_id')
+          .in('objetivo_id', metaIds2);
+        setObjetivoResponsaveis((orData ?? []) as ObjetivoResponsavel[]);
+      } else {
+        setObjetivoResponsaveis([]);
+      }
+
       setMetas(metasArr);
       setSubMetas(subMetasArr);
       setIndicadores(indicadoresArr);
@@ -241,5 +259,5 @@ export function useMetasIndicadores(
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  return { metas, subMetas, indicadores, responsaveis, semanaRelativa, isLoading, error, recarregar: carregar };
+  return { metas, subMetas, indicadores, responsaveis, objetivoResponsaveis, semanaRelativa, isLoading, error, recarregar: carregar };
 }

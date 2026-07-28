@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import {
   useMetasIndicadores,
-  MetaItem, SubMetaItem, IndicadorItemMeta, ResponsavelItem,
+  MetaItem, SubMetaItem, IndicadorItemMeta, ResponsavelItem, ObjetivoResponsavel,
 } from '@/hooks/useMetasIndicadores';
 import { registrarLog } from '@/hooks/useAuditLog';
 import { labelSemanaIsoAtual } from '@/utils/metaCiclo';
@@ -653,17 +653,20 @@ export function MetasIndicadoresBloco() {
   const supabase = useMemo(() => createClient(), []);
   const { effectiveProfileId, areaId } = useEffectiveUser();
 
-  const { metas, subMetas: hookSubMetas, indicadores, responsaveis, semanaRelativa, isLoading, error, recarregar } =
+  const { metas, subMetas: hookSubMetas, indicadores, responsaveis, objetivoResponsaveis, semanaRelativa, isLoading, error, recarregar } =
     useMetasIndicadores(effectiveProfileId, areaId);
 
   const [expandido,     setExpandido]     = useState(false);
   const [localSubMetas, setLocalSubMetas] = useState<SubMetaItem[]>([]);
   const [isAdminUser,   setIsAdminUser]   = useState(false);
+  const [filtroMinhas,  setFiltroMinhas]  = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setCurrentUserId(user.id);
       const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
       setIsAdminUser((prof as { role?: string } | null)?.role === 'admin');
     })();
@@ -764,6 +767,13 @@ export function MetasIndicadoresBloco() {
     } finally { setSalvandoNovaMeta(false); }
   }, [supabase, areaId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const metasFiltradas = useMemo(() => {
+    if (!filtroMinhas || !currentUserId) return metas;
+    return metas.filter(m =>
+      objetivoResponsaveis.some(r => r.objetivo_id === m.id && r.profile_id === currentUserId)
+    );
+  }, [metas, filtroMinhas, currentUserId, objetivoResponsaveis]);
+
   const totalLabel = [
     metas.length       > 0 ? `${metas.length} metas`            : '',
     indicadores.length > 0 ? `${indicadores.length} indicadores` : '',
@@ -776,6 +786,10 @@ export function MetasIndicadoresBloco() {
         onClick={() => setExpandido(v => !v)}>
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-gray-700">Metas &amp; Indicadores</span>
+          <button type="button" onClick={e => { e.stopPropagation(); setFiltroMinhas(v => !v); }}
+            className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${filtroMinhas ? 'bg-blue-100 text-blue-700 border-blue-300' : 'text-gray-400 border-gray-200 hover:border-blue-300 hover:text-blue-500'}`}>
+            {filtroMinhas ? '✓ minhas' : 'minhas'}
+          </button>
           {!isLoading && totalLabel && <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">{totalLabel}</span>}
           {isLoading && <span className="text-xs text-gray-400">carregando...</span>}
         </div>
@@ -796,7 +810,7 @@ export function MetasIndicadoresBloco() {
                 <p className="text-xs text-gray-400">Nenhuma meta ativa para esta área.</p>
               ) : (
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  {metas.map(meta => (
+                  {metasFiltradas.map(meta => (
                     <MetaCard
                       key={meta.id}
                       meta={meta}

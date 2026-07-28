@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import {
   usePlanoBoneDay, IndicadorBone, ComportamentoItem, AgendaMacroItem,
-  semanasDoMes, getMonthOptions,
+  ObjetivoResponsavel, semanasDoMes, getMonthOptions,
 } from '@/hooks/usePlanoBoneDay';
 import type { MetaItem, ResponsavelItem } from '@/hooks/useMetasIndicadores';
 import { SeletorUsuarioAdmin } from '@/components/carometro/todo/SeletorUsuarioAdmin';
@@ -293,10 +293,13 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   );
 }
 
-function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, onUpdate, onConcluir, onExcluir }: {
+function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, onUpdate, onConcluir, onExcluir, objetivoResponsaveis, currentUserId, onToggleResponsavel }: {
   meta: MetaItem; indicadores: IndicadorBone[]; responsaveis: ResponsavelItem[];
   isAdmin: boolean; areaId: string; onUpdate: () => void;
   onConcluir: (id: string) => Promise<void>; onExcluir: (id: string) => Promise<void>;
+  objetivoResponsaveis: ObjetivoResponsavel[];
+  currentUserId: string | null;
+  onToggleResponsavel: (objetivoId: string) => Promise<void>;
 }) {
   const [confirmExcl, setConfirmExcl]   = useState(false);
   const [confirmConc, setConfirmConc]   = useState(false);
@@ -318,6 +321,29 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
         <span className={`text-sm font-medium text-gray-800 flex-1 leading-snug ${meta.status === 'concluido' ? 'line-through text-gray-400' : ''}`}>
           {meta.descricao}
         </span>
+        {(() => {
+          const resps = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id);
+          const ismine = resps.some(r => r.profile_id === currentUserId);
+          return resps.length > 0 || true ? (
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {resps.map(r => {
+                const nome = responsaveis.find(p => p.profile_id === r.profile_id)?.nome ?? '?';
+                return (
+                  <span key={r.profile_id}
+                    className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold flex items-center justify-center flex-shrink-0"
+                    title={nome}>
+                    {nome.charAt(0).toUpperCase()}
+                  </span>
+                );
+              })}
+              <button type="button" onClick={() => void onToggleResponsavel(meta.id)}
+                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0 ${ismine ? 'bg-blue-100 text-blue-700 border-blue-300' : 'text-gray-400 border-gray-200 hover:border-blue-300 hover:text-blue-500'}`}
+                title={ismine ? 'Remover minha responsabilidade' : 'Me atrelar a esta meta'}>
+                {ismine ? '✓ minha' : '+ minha'}
+              </button>
+            </div>
+          ) : null;
+        })()}
         <div className="flex items-center gap-1.5 text-xs text-gray-500 flex-shrink-0">
           {meta.responsavel_nome && <span>{meta.responsavel_nome}</span>}
           {meta.meta_unidade && <span>· Prazo: {meta.meta_unidade}</span>}
@@ -398,11 +424,12 @@ const META_CORES = [
   { bg: '#e0f2fe', border: '#7dd3fc', text: '#075985' },
 ];
 
-function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas, isAdmin, mes, areaId, onAdd, onDelete }: {
+function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas, isAdmin, mes, areaId, onAdd, onDelete, onAddLivre }: {
   pessoa: ResponsavelItem; comportamentos: ComportamentoItem[]; metas: MetaItem[];
   atividades: AgendaMacroItem[]; semanas: number[]; isAdmin: boolean; mes: string; areaId: string;
   onAdd: (profileId: string, acoId: string, semana: number, horas: number, objetivoId: string | null) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onAddLivre: (profileId: string, nome: string, semana: number, horas: number, objetivoId: string | null) => Promise<void>;
 }) {
   const [expandido,          setExpandido]          = useState(true);
   const [celAtiva,           setCelAtiva]           = useState<CelulaKey | null>(null);
@@ -415,6 +442,11 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
   const [addSemana,          setAddSemana]          = useState('');
   const [addHoras,           setAddHoras]           = useState('1');
   const [salvandoAdd,        setSalvandoAdd]        = useState(false);
+  const [novaCelAtiva,       setNovaCelAtiva]       = useState<number | null>(null);
+  const [novoNome,           setNovoNome]           = useState('');
+  const [novoObjId,          setNovoObjId]          = useState('');
+  const [novaHoras2,         setNovaHoras2]         = useState('1');
+  const [salvandoNovo,       setSalvandoNovo]       = useState(false);
 
   // Linhas = apenas comportamentos que já têm atividades (grade começa vazia)
   const comportamentosUsados = useMemo(() => {
@@ -461,6 +493,16 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
   };
 
   const linhas = comportamentosUsados;
+
+  const handleAddLivre = async (sem: number) => {
+    if (!novoNome.trim()) return;
+    setSalvandoNovo(true);
+    try {
+      await onAddLivre(pessoa.profile_id, novoNome.trim(), sem, parseFloat(novaHoras2) || 1, novoObjId || null);
+      setNovaCelAtiva(null);
+      setNovoNome(''); setNovoObjId(''); setNovaHoras2('1');
+    } finally { setSalvandoNovo(false); }
+  };
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
@@ -552,6 +594,48 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
                   <td colSpan={semanas.length + 1} className="px-3 py-4 text-center text-xs text-gray-400">
                     Nenhum comportamento planejado ainda.
                   </td>
+                </tr>
+              )}
+
+              {isAdmin && (
+                <tr>
+                  <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-400 border-r border-gray-100 text-[11px] italic">
+                    + nova atividade
+                  </td>
+                  {semanas.map(sem => (
+                    <td key={sem} className="px-2 py-1.5 text-center align-top">
+                      {novaCelAtiva === sem ? (
+                        <div className="flex flex-col gap-1 text-left" style={{ minWidth: 140 }}>
+                          <input
+                            type="text" autoFocus
+                            className="w-full text-xs border border-blue-300 rounded px-1.5 py-1 focus:outline-none"
+                            placeholder="O que será feito..."
+                            value={novoNome} onChange={e => setNovoNome(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') void handleAddLivre(sem); if (e.key === 'Escape') setNovaCelAtiva(null); }}
+                          />
+                          <select className="text-xs border border-gray-300 rounded px-1 py-0.5"
+                            value={novoObjId} onChange={e => setNovoObjId(e.target.value)}>
+                            <option value="">— meta —</option>
+                            {metas.map(m => <option key={m.id} value={m.id}>{m.descricao}</option>)}
+                          </select>
+                          <input type="number" min="0.5" step="0.5"
+                            className="w-16 text-xs border border-gray-300 rounded px-1 py-0.5"
+                            value={novaHoras2} onChange={e => setNovaHoras2(e.target.value)} />
+                          <div className="flex gap-1">
+                            <button type="button" onClick={() => void handleAddLivre(sem)} disabled={!novoNome.trim() || salvandoNovo}
+                              className="text-[10px] text-blue-600 hover:underline disabled:opacity-50">
+                              {salvandoNovo ? '…' : 'OK'}
+                            </button>
+                            <button type="button" onClick={() => setNovaCelAtiva(null)} className="text-[10px] text-gray-400">✕</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button type="button"
+                          onClick={() => { setNovaCelAtiva(sem); setNovoNome(''); setNovoObjId(''); setNovaHoras2('1'); }}
+                          className="text-gray-300 hover:text-blue-500 text-xl transition-colors leading-none">+</button>
+                      )}
+                    </td>
+                  ))}
                 </tr>
               )}
             </tbody>
@@ -649,8 +733,8 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
 }
 
 // ── Formulário de nova meta ───────────────────────────────────────────────────
-function FormNovaMeta({ areaId, responsaveis, onSalvo }: {
-  areaId: string; responsaveis: ResponsavelItem[]; onSalvo: () => void;
+function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
+  areaId: string; responsaveis: ResponsavelItem[]; onSalvo: () => void; mes: string;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [aberto,   setAberto]   = useState(false);
@@ -664,7 +748,7 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo }: {
     try {
       const { data: ins, error: e } = await supabase.from('objetivos')
         .insert({ area_id: areaId, descricao: form.descricao.trim(), tipo: form.tipo,
-          profile_id: form.respId || null, meta_unidade: form.metaUnidade || null, status: 'ativo' })
+          profile_id: form.respId || null, meta_unidade: form.metaUnidade || null, status: 'ativo', mes })
         .select('id').single();
       if (e) { console.error('[NovaMeta]', e); return; }
       LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: String((ins as { id: unknown }).id),
@@ -741,14 +825,15 @@ function PreBoneDayPageContent() {
 
   const areaId = selectedAreaId || null; // alias usado por handlers e hook
 
-  const [isAdmin,    setIsAdmin]    = useState<boolean | null>(null);
+  const [isAdmin,      setIsAdmin]      = useState<boolean | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [bloco1Open, setBloco1Open] = useState(false);
   const [bloco2Open, setBloco2Open] = useState(true);
   const [bloco3Open, setBloco3Open] = useState(true);
 
   const {
     metas, metasNaoConcluidas, indicadores, responsaveis, comportamentos, agendaMacro,
-    mes, setMes, isLoading, error, recarregar,
+    objetivoResponsaveis, mes, setMes, isLoading, error, recarregar,
   } = usePlanoBoneDay(areaId, effectiveProfileId);
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -760,6 +845,7 @@ function PreBoneDayPageContent() {
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setIsAdmin(false); return; }
+      setCurrentUserId(user.id);
       const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
       setIsAdmin((prof as { role?: string } | null)?.role === 'admin');
     })();
@@ -767,13 +853,23 @@ function PreBoneDayPageContent() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleRelançar = useCallback(async (id: string, f: { metaUnidade: string; respId: string }) => {
-    const { error: e } = await supabase.from('objetivos')
-      .update({ meta_unidade: f.metaUnidade || null, profile_id: f.respId || null, status: 'ativo' }).eq('id', id);
+    const metaOriginal = metasNaoConcluidas.find(m => m.id === id);
+    if (!metaOriginal || !areaId) return;
+    const { error: e } = await supabase.from('objetivos').insert({
+      area_id: areaId,
+      descricao: metaOriginal.descricao,
+      tipo: metaOriginal.tipo,
+      is_chave: metaOriginal.is_chave,
+      profile_id: f.respId || metaOriginal.profile_id || null,
+      meta_unidade: f.metaUnidade || metaOriginal.meta_unidade || null,
+      status: 'ativo',
+      mes,
+    });
     if (e) { console.error('[Relançar]', e); return; }
     LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id,
-      operacao: 'UPDATE', descricao: 'Meta relançada no Plano Boné Day' });
+      operacao: 'INSERT', descricao: `Meta relançada no mês ${mes}: ${metaOriginal.descricao}` });
     recarregar();
-  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, areaId, mes, metasNaoConcluidas, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleConcluirMeta = useCallback(async (id: string) => {
     const { error: e } = await supabase.from('objetivos')
@@ -827,6 +923,42 @@ function PreBoneDayPageContent() {
     if (e) { console.error('[DeleteAtividade]', e); return; }
     recarregar();
   }, [supabase, recarregar]);
+
+  const handleAddAtividadeLivre = useCallback(async (profileId: string, nome: string, semana: number, horas: number, objetivoId: string | null) => {
+    if (!areaId) return;
+    const pidValido = effectiveProfileId ?? profileId;
+    const { data: novaTarefa, error: errT } = await supabase
+      .from('tarefas').insert({ area_id: areaId, nome: nome.trim(), ordem: 0 }).select('id').single();
+    if (errT || !novaTarefa) { console.error('[AddLivre] tarefa:', errT); return; }
+    const tarefaId = (novaTarefa as { id: string }).id;
+    const { data: novaAcao, error: errA } = await supabase
+      .from('acoes').insert({ nome: nome.trim(), tarefa_id: tarefaId }).select('id').single();
+    if (errA || !novaAcao) { console.error('[AddLivre] acao:', errA); return; }
+    const acaoId = (novaAcao as { id: string }).id;
+    const { data: ins, error: e } = await supabase.from('gantt_planejamento')
+      .insert({ acao_id: acaoId, profile_id: pidValido, semana_ano_inicio: semana, semana_ano_fim: semana,
+        tempo_estimado_horas: horas, origem: 'pre_bone_day', pre_bone_day_mes: mes,
+        comportamento_chave: false, objetivo_id: objetivoId })
+      .select('id').single();
+    if (e) { console.error('[AddLivre] gantt:', e); return; }
+    LOG({ modulo: 'Planejamento', entidade: 'gantt_planejamento',
+      entidade_id: String((ins as { id: unknown }).id), operacao: 'INSERT',
+      descricao: `Atividade livre S${semana}: ${nome}` });
+    recarregar();
+  }, [supabase, areaId, effectiveProfileId, mes, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleToggleResponsavel = useCallback(async (objetivoId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const jaExiste = objetivoResponsaveis.some(r => r.objetivo_id === objetivoId && r.profile_id === user.id);
+    if (jaExiste) {
+      await supabase.from('objetivo_responsaveis').delete()
+        .eq('objetivo_id', objetivoId).eq('profile_id', user.id);
+    } else {
+      await supabase.from('objetivo_responsaveis').insert({ objetivo_id: objetivoId, profile_id: user.id });
+    }
+    recarregar();
+  }, [supabase, objetivoResponsaveis, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const mesLabel = monthOptions.find(o => o.value === mes)?.label ?? mes;
 
@@ -930,11 +1062,14 @@ function PreBoneDayPageContent() {
                       onUpdate={recarregar}
                       onConcluir={handleConcluirMeta}
                       onExcluir={handleExcluirMeta}
+                      objetivoResponsaveis={objetivoResponsaveis}
+                      currentUserId={currentUserId}
+                      onToggleResponsavel={handleToggleResponsavel}
                     />
                   ))
                 )}
                 {isAdmin && areaId && (
-                  <FormNovaMeta areaId={areaId} responsaveis={responsaveis} onSalvo={recarregar} />
+                  <FormNovaMeta areaId={areaId} responsaveis={responsaveis} onSalvo={recarregar} mes={mes} />
                 )}
               </div>
             )}
@@ -964,6 +1099,7 @@ function PreBoneDayPageContent() {
                       metas={metas} atividades={agendaMacro} semanas={semanas}
                       isAdmin={Boolean(isAdmin)} mes={mes} areaId={areaId ?? ''}
                       onAdd={handleAddAtividade} onDelete={handleDeleteAtividade}
+                      onAddLivre={handleAddAtividadeLivre}
                     />
                   ))
                 )}
