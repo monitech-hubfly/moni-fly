@@ -238,7 +238,38 @@ export default async function AlertasPage({
     return true;
   });
 
-  const naoLidasNaVisao = alertasFiltrados.filter(a => !a.lido).length;
+  // Agrupar alertas do mesmo chamado Sirene — manter apenas o mais atrasado
+  function extrairDiasAtrasado(msg: string): number {
+    const m = msg.match(/Atrasado (\d+) d\.u\./);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
+  const alertasAgrupados = (() => {
+    const grupoMap = new Map<string, { alerta: typeof alertasFiltrados[0]; count: number }>();
+    const semGrupo: typeof alertasFiltrados = [];
+
+    for (const a of alertasFiltrados) {
+      const topicoId = parseQsParam(String((a as { referencia_path?: string | null }).referencia_path ?? ''), 'topico');
+      if (!topicoId || !['sla_atividade_atrasado', 'sla_atividade_atencao'].includes(String(a.tipo ?? ''))) {
+        semGrupo.push(a);
+        continue;
+      }
+      const key = topicoId;
+      const existing = grupoMap.get(key);
+      const diasAtual = extrairDiasAtrasado(String(a.mensagem ?? ''));
+      if (!existing || diasAtual > extrairDiasAtrasado(String(existing.alerta.mensagem ?? ''))) {
+        grupoMap.set(key, { alerta: a, count: (existing?.count ?? 0) + 1 });
+      } else {
+        grupoMap.get(key)!.count += 1;
+      }
+    }
+
+    const grupos = [...grupoMap.values()];
+    return [...semGrupo, ...grupos.map(g => ({ ...g.alerta, _alertCount: g.count }))]
+      .sort((a, b) => new Date(String(b.created_at ?? '')).getTime() - new Date(String(a.created_at ?? '')).getTime());
+  })();
+
+  const naoLidasNaVisao = alertasAgrupados.filter(a => !a.lido).length;
 
   const hrefNaoLidas = categoriaAtiva !== 'todos'
     ? `/alertas?categoria=${categoriaAtiva}`
@@ -366,7 +397,7 @@ export default async function AlertasPage({
         </div>
 
         {/* Lista */}
-        {!alertasFiltrados.length ? (
+        {!alertasAgrupados.length ? (
           <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-white p-8 text-center text-sm text-stone-500">
             {soNaoLidas
               ? `Nenhum alerta não lido${categoriaAtiva !== 'todos' ? ` em "${labelCategoria(categoriaAtiva as CategoriaAlerta)}"` : ''}.`
@@ -375,7 +406,7 @@ export default async function AlertasPage({
           </div>
         ) : (
           <ul className="space-y-2">
-            {alertasFiltrados.map((a) => {
+            {alertasAgrupados.map((a) => {
               const tipo = String(a.tipo ?? '');
               const cat = categorizarAlerta(tipo);
               const cores = corCategoria(cat);
@@ -424,6 +455,11 @@ export default async function AlertasPage({
                       {atrasado && (
                         <span className="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
                           ⚠ Atrasado
+                        </span>
+                      )}
+                      {(a as { _alertCount?: number })._alertCount != null && (a as { _alertCount?: number })._alertCount! > 1 && (
+                        <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-500">
+                          {(a as { _alertCount?: number })._alertCount}x
                         </span>
                       )}
                     </div>
