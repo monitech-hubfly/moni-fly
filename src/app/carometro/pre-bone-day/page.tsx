@@ -338,8 +338,8 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
               })}
               <button type="button" onClick={() => void onToggleResponsavel(meta.id)}
                 className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0 ${ismine ? 'bg-blue-100 text-blue-700 border-blue-300' : 'text-gray-400 border-gray-200 hover:border-blue-300 hover:text-blue-500'}`}
-                title={ismine ? 'Remover minha responsabilidade' : 'Me atrelar a esta meta'}>
-                {ismine ? '✓ minha' : '+ minha'}
+                title={ismine ? 'Remover minha responsabilidade' : 'Assumir esta meta'}>
+                {ismine ? '✓ Assumida' : 'Assumir'}
               </button>
             </div>
           ) : null;
@@ -436,13 +436,8 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
   const [novaComportamentoId, setNovaComportamentoId] = useState('');
   const [novaHoras,          setNovaHoras]          = useState('1');
   const [salvando,           setSalvando]           = useState(false);
-  const [addFormAberto,      setAddFormAberto]      = useState(false);
-  const [addComportamentoId, setAddComportamentoId] = useState('');
-  const [addObjetivoId,      setAddObjetivoId]      = useState('');
-  const [addSemana,          setAddSemana]          = useState('');
-  const [addHoras,           setAddHoras]           = useState('1');
-  const [salvandoAdd,        setSalvandoAdd]        = useState(false);
-  const [novaCelAtiva,       setNovaCelAtiva]       = useState<number | null>(null);
+  // Popup "nova atividade livre"
+  const [popupSem,           setPopupSem]           = useState<number | null>(null);
   const [novoNome,           setNovoNome]           = useState('');
   const [novoObjId,          setNovoObjId]          = useState('');
   const [novaHoras2,         setNovaHoras2]         = useState('1');
@@ -508,12 +503,59 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
     setSalvandoNovo(true);
     try {
       await onAddLivre(pessoa.profile_id, novoNome.trim(), sem, parseFloat(novaHoras2) || 1, novoObjId || null);
-      setNovaCelAtiva(null);
+      setPopupSem(null);
       setNovoNome(''); setNovoObjId(''); setNovaHoras2('1');
     } finally { setSalvandoNovo(false); }
   };
 
+  const abrirPopup = (sem: number) => { setPopupSem(sem); setNovoNome(''); setNovoObjId(''); setNovaHoras2('1'); };
+  const fecharPopup = () => { setPopupSem(null); setNovoNome(''); setNovoObjId(''); setNovaHoras2('1'); };
+
   return (
+    <>
+    {/* Modal popup nova atividade livre */}
+    {popupSem !== null && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        onClick={fecharPopup}>
+        <div className="bg-white rounded-xl shadow-xl p-5 w-80 flex flex-col gap-3"
+          onClick={e => e.stopPropagation()}>
+          <h3 className="text-sm font-semibold text-gray-800">Nova atividade — S{popupSem}</h3>
+          <div>
+            <label className="text-[10px] text-gray-500 mb-1 block">O que será feito?</label>
+            <input type="text" autoFocus
+              className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              placeholder="Descreva a atividade..."
+              value={novoNome} onChange={e => setNovoNome(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') void handleAddLivre(popupSem); if (e.key === 'Escape') fecharPopup(); }}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 mb-1 block">Meta vinculada</label>
+            <select className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2"
+              value={novoObjId} onChange={e => setNovoObjId(e.target.value)}>
+              <option value="">— opcional —</option>
+              {metas.map(m => <option key={m.id} value={m.id}>{m.descricao}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 mb-1 block">Horas estimadas</label>
+            <input type="number" min="0.5" step="0.5"
+              className="w-24 text-xs border border-gray-300 rounded-lg px-3 py-2"
+              value={novaHoras2} onChange={e => setNovaHoras2(e.target.value)} />
+          </div>
+          <div className="flex gap-2 justify-end pt-1">
+            <button type="button" onClick={fecharPopup}
+              className="text-xs px-3 py-1.5 text-gray-500 hover:text-gray-700">Cancelar</button>
+            <button type="button"
+              disabled={!novoNome.trim() || salvandoNovo}
+              onClick={() => void handleAddLivre(popupSem)}
+              className="text-xs px-4 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors">
+              {salvandoNovo ? 'Salvando…' : 'Adicionar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
       {/* Header da pessoa */}
       <button type="button" onClick={() => setExpandido(v => !v)}
@@ -644,37 +686,9 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
                     + nova atividade
                   </td>
                   {semanas.map(sem => (
-                    <td key={sem} className="px-2 py-1.5 text-center align-top">
-                      {novaCelAtiva === sem ? (
-                        <div className="flex flex-col gap-1 text-left" style={{ minWidth: 140 }}>
-                          <input
-                            type="text" autoFocus
-                            className="w-full text-xs border border-blue-300 rounded px-1.5 py-1 focus:outline-none"
-                            placeholder="O que será feito..."
-                            value={novoNome} onChange={e => setNovoNome(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') void handleAddLivre(sem); if (e.key === 'Escape') setNovaCelAtiva(null); }}
-                          />
-                          <select className="text-xs border border-gray-300 rounded px-1 py-0.5"
-                            value={novoObjId} onChange={e => setNovoObjId(e.target.value)}>
-                            <option value="">— meta —</option>
-                            {metas.map(m => <option key={m.id} value={m.id}>{m.descricao}</option>)}
-                          </select>
-                          <input type="number" min="0.5" step="0.5"
-                            className="w-16 text-xs border border-gray-300 rounded px-1 py-0.5"
-                            value={novaHoras2} onChange={e => setNovaHoras2(e.target.value)} />
-                          <div className="flex gap-1">
-                            <button type="button" onClick={() => void handleAddLivre(sem)} disabled={!novoNome.trim() || salvandoNovo}
-                              className="text-[10px] text-blue-600 hover:underline disabled:opacity-50">
-                              {salvandoNovo ? '…' : 'OK'}
-                            </button>
-                            <button type="button" onClick={() => setNovaCelAtiva(null)} className="text-[10px] text-gray-400">✕</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button type="button"
-                          onClick={() => { setNovaCelAtiva(sem); setNovoNome(''); setNovoObjId(''); setNovaHoras2('1'); }}
-                          className="text-gray-300 hover:text-blue-500 text-xl transition-colors leading-none">+</button>
-                      )}
+                    <td key={sem} className="px-2 py-1.5 text-center">
+                      <button type="button" onClick={() => abrirPopup(sem)}
+                        className="text-gray-300 hover:text-blue-500 text-xl transition-colors leading-none">+</button>
                     </td>
                   ))}
                 </tr>
@@ -699,77 +713,10 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
           </div>
         )}
 
-        {/* Mini-form: + Adicionar comportamento */}
-        {isAdmin && (
-          <div className="px-4 py-3 border-t border-gray-100">
-            {addFormAberto ? (
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-end gap-2">
-                  <div>
-                    <label className="text-[10px] text-gray-500 mb-0.5 block">Comportamento</label>
-                    <select className="text-xs border border-gray-300 rounded px-2 py-1.5 max-w-[220px]"
-                      value={addComportamentoId} onChange={e => setAddComportamentoId(e.target.value)}>
-                      <option value="">— selecionar —</option>
-                      {comportamentos.filter(c => !linhas.some(l => l.id === c.id)).map(c => (
-                        <option key={c.id} value={c.id}>{c.nome}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-gray-500 mb-0.5 block">Meta vinculada</label>
-                    <select className="text-xs border border-gray-300 rounded px-2 py-1.5 max-w-[200px]"
-                      value={addObjetivoId} onChange={e => setAddObjetivoId(e.target.value)}>
-                      <option value="">— opcional —</option>
-                      {metas.map(m => (
-                        <option key={m.id} value={m.id}>{m.descricao}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-gray-500 mb-0.5 block">Semana</label>
-                    <select className="text-xs border border-gray-300 rounded px-2 py-1.5"
-                      value={addSemana} onChange={e => setAddSemana(e.target.value)}>
-                      <option value="">— semana —</option>
-                      {semanas.map(s => <option key={s} value={String(s)}>S{s}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-gray-500 mb-0.5 block">Horas est.</label>
-                    <input type="number" min="0.5" step="0.5" className="w-16 text-xs border border-gray-300 rounded px-2 py-1.5"
-                      value={addHoras} onChange={e => setAddHoras(e.target.value)} />
-                  </div>
-                  <button type="button"
-                    disabled={!addComportamentoId || !addSemana || salvandoAdd}
-                    onClick={async () => {
-                      if (!addComportamentoId || !addSemana) return;
-                      setSalvandoAdd(true);
-                      try {
-                        await onAdd(pessoa.profile_id, addComportamentoId, parseInt(addSemana, 10), parseFloat(addHoras) || 1, addObjetivoId || null);
-                        setAddComportamentoId(''); setAddObjetivoId(''); setAddSemana(''); setAddHoras('1'); setAddFormAberto(false);
-                      } finally { setSalvandoAdd(false); }
-                    }}
-                    className="text-xs px-3 py-1.5 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600 transition-colors">
-                    {salvandoAdd ? 'Salvando...' : 'Adicionar'}
-                  </button>
-                  <button type="button" onClick={() => { setAddFormAberto(false); setAddComportamentoId(''); setAddObjetivoId(''); }}
-                    className="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
-                </div>
-                <a href={`/carometro/comportamentos-e-atividades?area=${areaId}`}
-                  className="text-[10px] text-blue-500 hover:underline">
-                  Não encontrou? Cadastre em Comportamentos e Atividades →
-                </a>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setAddFormAberto(true)}
-                className="text-xs text-gray-400 hover:text-blue-600 transition-colors">
-                + Adicionar comportamento
-              </button>
-            )}
-          </div>
-        )}
         </>
       )}
     </div>
+    </>
   );
 }
 
