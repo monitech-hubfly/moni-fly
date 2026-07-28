@@ -450,14 +450,23 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
 
   // Linhas = apenas comportamentos que já têm atividades (grade começa vazia)
   const comportamentosUsados = useMemo(() => {
-    const ids = new Set(atividades.filter(a => a.profile_id === pessoa.profile_id).map(a => a.tarefa_id ?? a.acao_id));
+    const ids = new Set(
+      atividades
+        .filter(a => a.profile_id === pessoa.profile_id && (a.tarefa_id || a.acao_id))
+        .map(a => a.tarefa_id ?? a.acao_id)
+    );
     return comportamentos.filter(c => ids.has(c.id));
   }, [atividades, comportamentos, pessoa.profile_id]);
+
+  // Itens livres (descricao_livre, sem tarefa/acao)
+  const atividadesLivres = useMemo(() =>
+    atividades.filter(a => a.profile_id === pessoa.profile_id && !a.tarefa_id && !a.acao_id && a.descricao_livre),
+  [atividades, pessoa.profile_id]);
 
   // Mapa: "acoId::semana" → atividade
   const mapaAtiv = useMemo(() => {
     const m = new Map<string, AgendaMacroItem>();
-    atividades.filter(a => a.profile_id === pessoa.profile_id).forEach(a => {
+    atividades.filter(a => a.profile_id === pessoa.profile_id && (a.tarefa_id || a.acao_id)).forEach(a => {
       const s = a.semana_ano_inicio ?? 0;
       m.set(`${a.tarefa_id ?? a.acao_id}::${s}`, a);
     });
@@ -589,13 +598,45 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
               ))}
 
               {/* Linha vazia se grade está vazia */}
-              {linhas.length === 0 && (
+              {linhas.length === 0 && atividadesLivres.length === 0 && (
                 <tr>
                   <td colSpan={semanas.length + 1} className="px-3 py-4 text-center text-xs text-gray-400">
                     Nenhum comportamento planejado ainda.
                   </td>
                 </tr>
               )}
+
+              {/* Atividades livres (descrição sem comportamento vinculado) */}
+              {atividadesLivres.map(atv => {
+                const cor = atv.objetivo_id ? corDeMeta.get(atv.objetivo_id) : undefined;
+                return (
+                  <tr key={atv.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                    <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-600 border-r border-gray-100 text-[12px] italic">
+                      {atv.descricao_livre}
+                    </td>
+                    {semanas.map(sem => {
+                      if (sem === (atv.semana_ano_inicio ?? 0)) {
+                        return (
+                          <td key={sem} className="px-2 py-1.5 text-center"
+                            style={cor ? { backgroundColor: cor.bg } : undefined}>
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="font-medium"
+                                style={cor ? { color: cor.text } : { color: '#374151' }}>
+                                {atv.tempo_estimado_horas ? `${atv.tempo_estimado_horas}h` : '—'}
+                              </span>
+                              {isAdmin && (
+                                <button type="button" onClick={() => onDelete(atv.id)}
+                                  className="text-red-400 hover:text-red-600 text-[10px]">✕</button>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      }
+                      return <td key={sem} className="px-2 py-1.5 text-center text-gray-200">—</td>;
+                    })}
+                  </tr>
+                );
+              })}
 
               {isAdmin && (
                 <tr>
@@ -892,7 +933,7 @@ function PreBoneDayPageContent() {
     // Agenda Macro é visual por pessoa — o INSERT usa sempre o usuário logado para evitar FK violation
     const pidValido = effectiveProfileId ?? profileId;
 
-    // acao_id é NOT NULL — buscar ou criar placeholder para a tarefa
+    // Atividades de comportamento ainda precisam de acao_id — buscar ou criar placeholder
     const { data: acaoExistente } = await supabase
       .from('acoes').select('id').eq('tarefa_id', tarefaId).limit(1).maybeSingle();
 
@@ -927,16 +968,9 @@ function PreBoneDayPageContent() {
   const handleAddAtividadeLivre = useCallback(async (profileId: string, nome: string, semana: number, horas: number, objetivoId: string | null) => {
     if (!areaId) return;
     const pidValido = effectiveProfileId ?? profileId;
-    const { data: novaTarefa, error: errT } = await supabase
-      .from('tarefas').insert({ area_id: areaId, nome: nome.trim(), ordem: 0 }).select('id').single();
-    if (errT || !novaTarefa) { console.error('[AddLivre] tarefa:', errT); return; }
-    const tarefaId = (novaTarefa as { id: string }).id;
-    const { data: novaAcao, error: errA } = await supabase
-      .from('acoes').insert({ nome: nome.trim(), tarefa_id: tarefaId }).select('id').single();
-    if (errA || !novaAcao) { console.error('[AddLivre] acao:', errA); return; }
-    const acaoId = (novaAcao as { id: string }).id;
     const { data: ins, error: e } = await supabase.from('gantt_planejamento')
-      .insert({ acao_id: acaoId, profile_id: pidValido, semana_ano_inicio: semana, semana_ano_fim: semana,
+      .insert({ acao_id: null, descricao_livre: nome.trim(), profile_id: pidValido,
+        semana_ano_inicio: semana, semana_ano_fim: semana,
         tempo_estimado_horas: horas, origem: 'pre_bone_day', pre_bone_day_mes: mes,
         comportamento_chave: false, objetivo_id: objetivoId })
       .select('id').single();
