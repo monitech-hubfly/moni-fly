@@ -247,7 +247,7 @@ export function usePlanoBoneDay(
         const acoTarefaMap = new Map(
           (acoesData ?? []).map((a: { id: string; tarefa_id: string | null }) => [a.id, a.tarefa_id])
         );
-        ganttArr.forEach(g => { g.tarefa_id = acoTarefaMap.get(g.acao_id) ?? null; });
+        ganttArr.forEach(g => { g.tarefa_id = g.acao_id ? (acoTarefaMap.get(g.acao_id) ?? null) : null; });
       }
       setAgendaMacro(ganttArr);
     } catch (e) {
