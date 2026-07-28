@@ -24,6 +24,9 @@ export type PipelineCardRow = {
   rede_franqueado_id: string | null;
   n_franquia: string | null;
   franqueado_nome: string | null;
+  nome_condominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
   rede_ordem: number;
   created_at: string;
   updated_at: string;

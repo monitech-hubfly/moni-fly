@@ -90,7 +90,6 @@ export function PipelineFunilMesRede({
 
   if (!funil.disponivel) return null;
 
-  const temZerosGlobal = funil.colunas.some((c) => c.porUnidadeZeradas.length > 0);
   const tituloPeriodo = periodo === 'mes' ? 'Funil do mês — rede' : 'Funil do tri — rede';
 
   return (
@@ -181,7 +180,7 @@ export function PipelineFunilMesRede({
       <PipelineFunilColunaDetalheModal
         open={colunaModal != null}
         coluna={colunaModal}
-        temZerosGlobal={temZerosGlobal}
+        cards={cards}
         onClose={() => setColunaModal(null)}
       />
     </section>

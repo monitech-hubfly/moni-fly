@@ -1,18 +1,19 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
-import type { PipelineFunilMesColuna } from '@/lib/kanban/pipeline-cards-types';
-import { PipelineFunilColunaUnidadeTabela } from '@/components/pipeline/PipelineFunilColunaUnidadeTabela';
+import type { PipelineCardRow, PipelineFunilMesColuna } from '@/lib/kanban/pipeline-cards-types';
+import { cardContaEtapa } from '@/lib/kanban/pipeline-funil-mes-compute';
+import { PipelineFunilColunaCardsTabela } from '@/components/pipeline/PipelineFunilColunaCardsTabela';
 
 type Props = {
   open: boolean;
   coluna: PipelineFunilMesColuna | null;
-  temZerosGlobal: boolean;
+  cards: PipelineCardRow[];
   onClose: () => void;
 };
 
-export function PipelineFunilColunaDetalheModal({ open, coluna, temZerosGlobal, onClose }: Props) {
+export function PipelineFunilColunaDetalheModal({ open, coluna, cards, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -21,6 +22,11 @@ export function PipelineFunilColunaDetalheModal({ open, coluna, temZerosGlobal, 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+
+  const cardsColuna = useMemo(() => {
+    if (!coluna || coluna.totalIndisponivel) return [];
+    return cards.filter((c) => cardContaEtapa(c, coluna.key));
+  }, [cards, coluna]);
 
   if (!open || !coluna) return null;
 
@@ -39,7 +45,7 @@ export function PipelineFunilColunaDetalheModal({ open, coluna, temZerosGlobal, 
         role="dialog"
         aria-modal="true"
         aria-labelledby="funil-coluna-modal-titulo"
-        className="flex max-h-[92vh] w-full max-w-sm flex-col overflow-hidden sm:max-h-[85vh]"
+        className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden sm:max-h-[85vh]"
         style={{
           borderRadius: 'var(--moni-radius-lg)',
           border: 'var(--moni-border-width) solid var(--moni-border-default)',
@@ -76,11 +82,7 @@ export function PipelineFunilColunaDetalheModal({ open, coluna, temZerosGlobal, 
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5">
-          <PipelineFunilColunaUnidadeTabela
-            porUnidade={coluna.porUnidade}
-            porUnidadeZeradas={coluna.porUnidadeZeradas}
-            temZerosGlobal={temZerosGlobal}
-          />
+          <PipelineFunilColunaCardsTabela cards={cardsColuna} />
         </div>
       </div>
     </div>
