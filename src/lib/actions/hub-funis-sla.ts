@@ -29,7 +29,9 @@ const HUB_KANBAN_IDS = [
   KANBAN_IDS.HDM_PRODUTO,
   KANBAN_IDS.HDM_MODELO_VIRTUAL,
   KANBAN_IDS.HDM_HOMOLOGACOES,
-];
+] as const;
+
+const HUB_KANBAN_ID_SET = new Set<string>(HUB_KANBAN_IDS);
 
 /**
  * Conta cards ativos por kanban com SLA vencido ou vencendo hoje,
@@ -117,7 +119,7 @@ async function fetchChamadosPorKanban(
   for (const chamado of data) {
     const kc = chamado.kanban_cards as unknown as { kanban_id: string } | null;
     const kid = kc?.kanban_id;
-    if (kid && HUB_KANBAN_IDS.includes(kid)) {
+    if (kid && HUB_KANBAN_ID_SET.has(kid)) {
       counts[kid] = (counts[kid] ?? 0) + 1;
     }
   }
