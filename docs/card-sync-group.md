@@ -25,7 +25,7 @@ União transitiva de três relações:
 | `nome_condominio` | Nome do condomínio |
 | `condominio_id` | FK condomínio |
 | `quadra`, `lote` | Identificação do lote |
-| `data_reuniao`, `data_followup` | Datas de reunião |
+| `data_reuniao`, `hora_reuniao` | Datas de reunião |
 
 ### `processo_step_one` (fonte canônica negócio/pré-obra)
 
@@ -42,9 +42,11 @@ Todos os campos de negócio, links, anexos e datas pré-obra listados em `PROCES
 - `kanban-card-modal-detalhes.ts` — `updateProcessoNegocioCampos` (negócio)
 - `links-bca-acoplamento-sync.ts` — Gbox/Acoplamento (já existia)
 
-## Leitura canônica
+## Propagação
 
-No modal, após carregar o card, campos compartilhados de `kanban_cards` são sobrescritos pelos valores do **card primário** (raiz da cadeia `origem_card_id` no grupo). Dados de negócio/pré-obra continuam resolvidos via `processo_step_one` + rede.
+Alterações em qualquer card do grupo (pai, filho ou vinculado via `kanban_card_vinculos`) propagam para **todos** os cards kanban do grupo, inclusive cross-funil (ex.: Portfólio ↔ Pré Obra e Obra).
+
+Leitura canônica usa o card primário (raiz da cadeia `origem_card_id`) e coalesce de campos entre peers.
 
 ## Anti-loop
 

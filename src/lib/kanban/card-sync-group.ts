@@ -326,56 +326,6 @@ export async function resolverProcessoNegocioDoCard(db: SyncDb, cardId: string):
   return null;
 }
 
-/**
- * Propagação cross-funil só entre pai/filho direto (`origem_card_id`).
- * Evita espelhar título/franqueado em cards de outro funil ligados só por vínculo/processo.
- */
-async function filtrarTargetsPropagacaoKanban(
-  db: SyncDb,
-  origemId: string,
-  cardIds: string[],
-): Promise<string[]> {
-  if (cardIds.length <= 1) return cardIds;
-
-  const { data: origemRow } = await db
-    .from('kanban_cards')
-    .select('kanban_id, origem_card_id')
-    .eq('id', origemId)
-    .maybeSingle();
-  const origemKanban = String(
-    (origemRow as { kanban_id?: string | null } | null)?.kanban_id ?? '',
-  ).trim();
-  const origemPaiId = String(
-    (origemRow as { origem_card_id?: string | null } | null)?.origem_card_id ?? '',
-  ).trim();
-
-  const { data: rows } = await db
-    .from('kanban_cards')
-    .select('id, kanban_id, origem_card_id')
-    .in('id', cardIds);
-
-  const out: string[] = [];
-  for (const row of rows ?? []) {
-    const id = String((row as { id?: string }).id ?? '').trim();
-    if (!id) continue;
-    if (id === origemId) {
-      out.push(id);
-      continue;
-    }
-    const kanban = String((row as { kanban_id?: string | null }).kanban_id ?? '').trim();
-    if (kanban && kanban === origemKanban) {
-      out.push(id);
-      continue;
-    }
-    const pai = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
-    if (pai === origemId || origemPaiId === id) {
-      out.push(id);
-    }
-  }
-
-  return out.length > 0 ? out : [origemId];
-}
-
 /** Resolve `processo_step_one.id` a partir do card kanban — só vínculo explícito (propagação/sync). */
 async function resolverProcessoIdDoCard(db: SyncDb, cardId: string): Promise<string | null> {
   return resolverProcessoIdExplicitoDoCard(db, cardId);
@@ -387,6 +337,8 @@ export const KANBAN_CARD_CAMPOS_SYNC = [
   'rede_franqueado_id',
   'nome_condominio',
   'condominio_id',
+  'quadra',
+  'lote',
   'data_reuniao',
   'hora_reuniao',
 ] as const;
@@ -403,6 +355,8 @@ export const PROCESSO_CAMPOS_SYNC = [
   'produto_modelo_casa',
   'link_pasta_drive',
   'link_bca',
+  'link_gbox',
+  'link_acoplamento',
   'link_mapa_competidores',
   'link_apresentacao_comite',
   'anexo_opcao_permuta_path',
@@ -798,11 +752,7 @@ export async function propagarCamposKanbanCards(
   const syncPatch = pickSyncFields(patch as Record<string, unknown>, KANBAN_CARD_CAMPOS_SYNC);
   if (Object.keys(syncPatch).length === 0) return { ok: true, atualizados: 0 };
 
-  const cardIds = await filtrarTargetsPropagacaoKanban(
-    db,
-    origem,
-    await listarCardIdsSyncGroup(db, origem),
-  );
+  const cardIds = await listarKanbanCardIdsSyncGroup(db, origem);
   let atualizados = 0;
 
   const precisaTitulo =
@@ -879,6 +829,8 @@ export async function propagarCamposKanbanCards(
     const processoSource: Record<string, unknown> = {};
     if (syncPatch.nome_condominio !== undefined) processoSource.nome_condominio = syncPatch.nome_condominio;
     if (syncPatch.condominio_id !== undefined) processoSource.condominio_id = syncPatch.condominio_id;
+    if (syncPatch.quadra !== undefined) processoSource.quadra = syncPatch.quadra;
+    if (syncPatch.lote !== undefined) processoSource.lote = syncPatch.lote;
     if (syncPatch.rede_franqueado_id !== undefined) {
       processoSource.origem_rede_franqueados_id = syncPatch.rede_franqueado_id;
     }
@@ -886,6 +838,8 @@ export async function propagarCamposKanbanCards(
     const processoPatch = pickSyncFields(processoSource, [
       'nome_condominio',
       'condominio_id',
+      'quadra',
+      'lote',
       'origem_rede_franqueados_id',
     ]);
 
@@ -913,7 +867,7 @@ export async function propagarCamposKanbanCards(
   return { ok: true, atualizados };
 }
 
-/** Atualiza `processo_step_one` canônico e espelha condomínio/título nos cards do grupo. */
+/** Atualiza todos os `processo_step_one` do grupo e espelha condomínio/título nos cards. */
 export async function propagarCamposProcesso(
   db: SyncDb,
   cardOrigemId: string,
@@ -928,18 +882,29 @@ export async function propagarCamposProcesso(
   const procPatch = pickSyncFields(patch as Record<string, unknown>, PROCESSO_CAMPOS_SYNC);
   if (Object.keys(procPatch).length === 0) return { ok: true };
 
-  const { data: updated, error: errProc } = await db
-    .from('processo_step_one')
-    .update({ ...procPatch, updated_at: new Date().toISOString() } as never)
-    .eq('id', pid)
-    .select('id')
-    .maybeSingle();
-  if (errProc) return { ok: false, error: errProc.message };
-  if (!updated?.id) return { ok: false, error: 'Processo não encontrado ao salvar dados.' };
+  const processoIds = new Set<string>([pid]);
+  const kanbanCardIds = await listarKanbanCardIdsSyncGroup(db, origem);
+  for (const cid of kanbanCardIds) {
+    const resolved = await resolverProcessoIdDoCard(db, cid);
+    if (resolved) processoIds.add(resolved);
+  }
+
+  for (const procId of processoIds) {
+    const { data: updated, error: errProc } = await db
+      .from('processo_step_one')
+      .update({ ...procPatch, updated_at: new Date().toISOString() } as never)
+      .eq('id', procId)
+      .select('id')
+      .maybeSingle();
+    if (errProc) return { ok: false, error: errProc.message };
+    if (!updated?.id) return { ok: false, error: 'Processo não encontrado ao salvar dados.' };
+  }
 
   const kanbanMirror: KanbanCardCamposSync = {};
   if (procPatch.nome_condominio !== undefined) kanbanMirror.nome_condominio = procPatch.nome_condominio;
   if (procPatch.condominio_id !== undefined) kanbanMirror.condominio_id = procPatch.condominio_id;
+  if (procPatch.quadra !== undefined) kanbanMirror.quadra = procPatch.quadra;
+  if (procPatch.lote !== undefined) kanbanMirror.lote = procPatch.lote;
   if (procPatch.origem_rede_franqueados_id != null && String(procPatch.origem_rede_franqueados_id).trim()) {
     kanbanMirror.rede_franqueado_id = procPatch.origem_rede_franqueados_id;
   }
@@ -959,6 +924,8 @@ const CAMPOS_COALESCE_GRUPO_SYNC = new Set<string>([
   'rede_franqueado_id',
   'nome_condominio',
   'condominio_id',
+  'quadra',
+  'lote',
   'titulo',
   'data_reuniao',
   'hora_reuniao',
@@ -975,7 +942,7 @@ export async function fetchCamposKanbanCanonicos(
 
   const { data: rows, error } = await db
     .from('kanban_cards')
-    .select(`id, quadra, lote, ${KANBAN_CARD_CAMPOS_SYNC.join(',')}`)
+    .select(`id, ${KANBAN_CARD_CAMPOS_SYNC.join(',')}`)
     .in('id', cardIds);
   if (error || !rows?.length) return null;
 
@@ -1008,14 +975,8 @@ export async function fetchCamposKanbanCanonicos(
   const tituloRecalc = await resolverTituloCardKanban(db, {
     rede_franqueado_id: out.rede_franqueado_id,
     nome_condominio: out.nome_condominio,
-    quadra:
-      primarioRow.quadra != null && String(primarioRow.quadra).trim() !== ''
-        ? String(primarioRow.quadra)
-        : null,
-    lote:
-      primarioRow.lote != null && String(primarioRow.lote).trim() !== ''
-        ? String(primarioRow.lote)
-        : null,
+    quadra: out.quadra,
+    lote: out.lote,
     titulo: out.titulo,
   });
   if (tituloRecalc) {
@@ -1025,19 +986,102 @@ export async function fetchCamposKanbanCanonicos(
         : extrairNumeroFranquiaDoTitulo(String(out.titulo ?? '')) || null;
     out.titulo = escolherTituloExibicaoCard(out.titulo, tituloRecalc, nFq, undefined, {
       nomeCondominio: out.nome_condominio,
-      quadra:
-        primarioRow.quadra != null && String(primarioRow.quadra).trim() !== ''
-          ? String(primarioRow.quadra)
-          : null,
-      lote:
-        primarioRow.lote != null && String(primarioRow.lote).trim() !== ''
-          ? String(primarioRow.lote)
-          : null,
+      quadra: out.quadra,
+      lote: out.lote,
     });
     if (out.titulo === '(sem título)') out.titulo = null;
   }
 
   return Object.keys(out).length > 0 ? out : null;
+}
+
+/**
+ * Resolve `processo_step_one` canônico do grupo (card primário → fallback no card atual).
+ * Garante que cards filho/vinculados leiam os mesmos dados de negócio/pré-obra do pai.
+ */
+export async function resolverProcessoIdCanonicosSyncGroup(
+  db: SyncDb,
+  cardId: string,
+): Promise<string | null> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return null;
+
+  const primario = await resolverCardPrimarioSyncGroup(db, cid);
+  const pidPrimario = await resolverProcessoNegocioDoCard(db, primario);
+  if (pidPrimario) return pidPrimario;
+
+  return resolverProcessoNegocioDoCard(db, cid);
+}
+
+/** Sincroniza todos os campos compartilhados do card primário para o grupo inteiro (backfill). */
+export async function sincronizarGrupoSyncFromPrimario(
+  db: SyncDb,
+  startCardId: string,
+  options?: { actorUserId?: string | null },
+): Promise<
+  | { ok: true; kanbanAtualizados: number; processosAtualizados: number }
+  | { ok: false; error: string }
+> {
+  const cid = String(startCardId ?? '').trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
+  const primario = await resolverCardPrimarioSyncGroup(db, cid);
+  const campos = await fetchCamposKanbanCanonicos(db, cid);
+  if (!campos) return { ok: true, kanbanAtualizados: 0, processosAtualizados: 0 };
+
+  const kanbanPatch: KanbanCardCamposSync = {};
+  for (const k of KANBAN_CARD_CAMPOS_SYNC) {
+    if (campos[k] !== undefined) kanbanPatch[k] = campos[k] ?? null;
+  }
+
+  let kanbanAtualizados = 0;
+  if (Object.keys(kanbanPatch).length > 0) {
+    const sync = await propagarCamposKanbanCards(db, primario, kanbanPatch, {
+      actorUserId: options?.actorUserId,
+    });
+    if (!sync.ok) return sync;
+    kanbanAtualizados = sync.atualizados;
+  }
+
+  const processoId = await resolverProcessoIdCanonicosSyncGroup(db, cid);
+  let processosAtualizados = 0;
+  if (processoId) {
+    const { data: procRow, error: procErr } = await db
+      .from('processo_step_one')
+      .select(PROCESSO_CAMPOS_SYNC.join(','))
+      .eq('id', processoId)
+      .maybeSingle();
+    if (procErr) return { ok: false, error: procErr.message };
+    if (procRow) {
+      const procPatch: ProcessoCamposSync = {};
+      for (const k of PROCESSO_CAMPOS_SYNC) {
+        const v = (procRow as Record<string, unknown>)[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') {
+          procPatch[k] = String(v);
+        }
+      }
+      if (Object.keys(procPatch).length > 0) {
+        const processoIds = new Set<string>();
+        const kanbanCardIds = await listarKanbanCardIdsSyncGroup(db, cid);
+        for (const kid of kanbanCardIds) {
+          const resolved = await resolverProcessoIdDoCard(db, kid);
+          if (resolved) processoIds.add(resolved);
+        }
+        if (processoIds.size === 0) processoIds.add(processoId);
+
+        for (const procId of processoIds) {
+          const { error: updErr } = await db
+            .from('processo_step_one')
+            .update({ ...procPatch, updated_at: new Date().toISOString() } as never)
+            .eq('id', procId);
+          if (updErr) return { ok: false, error: updErr.message };
+          processosAtualizados++;
+        }
+      }
+    }
+  }
+
+  return { ok: true, kanbanAtualizados, processosAtualizados };
 }
 
 /**

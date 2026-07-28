@@ -14,7 +14,7 @@ import {
 } from '@/lib/condominios';
 import { parseTicketMedioFaixaParaCadastro } from '@/lib/kanban/ticket-medio-faixa';
 import { normalizeAccessRole } from '@/lib/authz';
-import { propagarCamposKanbanCards, propagarCamposProcesso, resolverTituloCardKanban } from '@/lib/kanban/card-sync-group';
+import { propagarCamposKanbanCards, propagarCamposProcesso, resolverTituloCardKanban, type KanbanCardCamposSync } from '@/lib/kanban/card-sync-group';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -200,6 +200,8 @@ export async function vincularCondominioAoCard(input: {
       {
         condominio_id: condominioId,
         nome_condominio: nome,
+        quadra,
+        lote,
       },
       { actorUserId: user.id },
     );
@@ -217,10 +219,15 @@ export async function vincularCondominioAoCard(input: {
       lote,
       titulo: (cardRow as { titulo?: string | null } | null)?.titulo,
     });
-    const patch: Record<string, string | null> = { quadra, lote };
-    if (tituloCalc) patch.titulo = tituloCalc;
-    const { error: updErr } = await admin.from('kanban_cards').update(patch as never).eq('id', cardId);
-    if (updErr) return { ok: false, error: updErr.message };
+    if (tituloCalc) {
+      const tituloSync = await propagarCamposKanbanCards(
+        admin,
+        cardId,
+        { titulo: tituloCalc },
+        { actorUserId: user.id },
+      );
+      if (!tituloSync.ok) return { ok: false, error: tituloSync.error };
+    }
   } else {
     const sync = await propagarCamposProcesso(admin, cardId, cardId, {
       condominio_id: condominioId,
@@ -354,12 +361,12 @@ export async function salvarQuadraLoteCard(input: {
       titulo: (cardRow as { titulo?: string | null }).titulo,
     });
 
-    const patch: Record<string, string | null> = { quadra, lote };
+    const patch: KanbanCardCamposSync = { quadra, lote };
     if (nome) patch.nome_condominio = nome;
     if (tituloCalc) patch.titulo = tituloCalc;
 
-    const { error: updErr } = await admin.from('kanban_cards').update(patch as never).eq('id', cardId);
-    if (updErr) return { ok: false, error: updErr.message };
+    const sync = await propagarCamposKanbanCards(admin, cardId, patch, { actorUserId: user.id });
+    if (!sync.ok) return { ok: false, error: sync.error };
   } else {
     const sync = await propagarCamposProcesso(admin, cardId, cardId, { quadra, lote }, {
       actorUserId: user.id,

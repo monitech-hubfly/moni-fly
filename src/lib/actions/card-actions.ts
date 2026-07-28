@@ -82,13 +82,14 @@ import {
   montarTituloCardSync,
   propagarCamposKanbanCards,
   propagarCamposProcesso,
+  PROCESSO_CAMPOS_SYNC,
   reconciliarFranqueadoNoSyncGroup,
   resolverProcessoIdExplicitoDoCard,
   resolverTituloCardKanban,
   type KanbanCardCamposSync,
+  type ProcessoCamposSync,
 } from '@/lib/kanban/card-sync-group';
 import {
-  updateProcessoNegocioCampos,
   type ProcessoNegocioUpdatePayload,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
 
@@ -2814,8 +2815,47 @@ export async function salvarDadosNegocioKanban(input: {
     payloadNegocio.link_gbox = payloadNegocio.link_mapa_competidores;
   }
 
-  const upd = await updateProcessoNegocioCampos(supabase, dedicado.processoId, payloadNegocio);
-  if (!upd.ok) return upd;
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
+  const procPatch: ProcessoCamposSync = {};
+  for (const k of PROCESSO_CAMPOS_SYNC) {
+    const v = payloadNegocio[k as keyof ProcessoNegocioUpdatePayload];
+    if (v === undefined) continue;
+    if (v != null && String(v).trim() !== '') procPatch[k] = String(v);
+    else procPatch[k] = null;
+  }
+
+  if (Object.keys(procPatch).length > 0) {
+    const sync = await propagarCamposProcesso(admin, cardId, dedicado.processoId, procPatch, {
+      actorUserId: user.id,
+    });
+    if (!sync.ok) return sync;
+  }
+
+  if (payloadNegocio.negociacao_linhas !== undefined) {
+    const kanbanCardIds = await listarKanbanCardIdsSyncGroup(admin, cardId);
+    const processoIds = new Set<string>([dedicado.processoId]);
+    for (const kid of kanbanCardIds) {
+      const resolved = await resolverProcessoIdExplicitoDoCard(admin, kid);
+      if (resolved) processoIds.add(resolved);
+    }
+    for (const procId of processoIds) {
+      const { error: negErr } = await admin
+        .from('processo_step_one')
+        .update({
+          negociacao_linhas: payloadNegocio.negociacao_linhas,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq('id', procId);
+      if (negErr) return { ok: false, error: negErr.message };
+    }
+  }
 
   const linkPlanilhaMapa =
     payloadNegocio.link_gbox !== undefined
@@ -3734,6 +3774,8 @@ export async function salvarFranqueadoCardVinculado(input: {
     const sync = await propagarCamposKanbanCards(admin, cardId, {
       rede_franqueado_id: redeId,
       nome_condominio: input.nomeCondominio?.trim() || null,
+      quadra: input.quadra?.trim() || null,
+      lote: input.lote?.trim() || null,
     }, { actorUserId: user.id });
     if (!sync.ok) return sync;
 
@@ -3746,12 +3788,12 @@ export async function salvarFranqueadoCardVinculado(input: {
         quadra,
         lote,
       });
-      const patch: Record<string, string | null> = {};
-      if (quadra !== null) patch.quadra = quadra;
-      if (lote !== null) patch.lote = lote;
-      if (tituloCalc) patch.titulo = tituloCalc;
-      const { error: updErr } = await admin.from('kanban_cards').update(patch as never).eq('id', cardId);
-      if (updErr) return { ok: false, error: updErr.message };
+      if (tituloCalc) {
+        const tituloSync = await propagarCamposKanbanCards(admin, cardId, { titulo: tituloCalc }, {
+          actorUserId: user.id,
+        });
+        if (!tituloSync.ok) return tituloSync;
+      }
     }
   } else {
     const sync = await propagarCamposProcesso(admin, cardId, cardId, {

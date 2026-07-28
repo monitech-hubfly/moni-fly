@@ -1791,6 +1791,12 @@ export function KanbanCardModal({
                 if (c.condominio_id !== undefined) {
                   next = { ...next, condominio_id: c.condominio_id };
                 }
+                if (c.quadra !== undefined) {
+                  next = { ...next, quadra: c.quadra };
+                }
+                if (c.lote !== undefined) {
+                  next = { ...next, lote: c.lote };
+                }
                 if (c.data_reuniao !== undefined) {
                   const drCanon = c.data_reuniao ? String(c.data_reuniao).slice(0, 10) : '';
                   if (drCanon && dataIsoInputValida(drCanon)) setDataReuniao(drCanon);
