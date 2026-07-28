@@ -213,6 +213,12 @@ export function useBacklogKanban(refreshKey = 0) {
         ((cardTagRows ?? []) as Array<{ card_id: string }>).forEach(r => especialSet.add(r.card_id));
       }
 
+      // DEBUG TEMPORÁRIO — remover após diagnóstico
+      console.log('[BacklogKanban] effectiveProfileId:', effectiveProfileId);
+      console.log('[BacklogKanban] fonte1.data?.length:', fonte1.data?.length, 'error:', fonte1.error?.message);
+      console.log('[BacklogKanban] fonte4.data?.length:', fonte4.data?.length, 'error:', fonte4.error?.message);
+      console.log('[BacklogKanban] fonte5.data?.length:', fonte5.data?.length, 'error:', fonte5.error?.message);
+
       const mapa = new Map<string, KanbanCardItem>();
 
       // Processar fonte 1 — cards onde franqueado_id = effectiveProfileId
