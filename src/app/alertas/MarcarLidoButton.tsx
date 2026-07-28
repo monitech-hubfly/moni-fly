@@ -1,23 +1,60 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { marcarAlertaLido } from './actions';
+import { marcarAlertaLido, marcarAlertasPorTopicoLidos } from './actions';
 
-export function MarcarLidoButton({ alertaId }: { alertaId: string }) {
+type Props = { alertaId: string; alertCount?: number; topicoId?: string };
+
+export function MarcarLidoButton({ alertaId, alertCount, topicoId }: Props) {
   const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
 
-  const handleClick = async () => {
-    await marcarAlertaLido(alertaId);
+  async function handleClick() {
+    if (alertCount && alertCount > 1 && topicoId && !confirmando) {
+      setConfirmando(true);
+      return;
+    }
+    setPending(true);
+    if (alertCount && alertCount > 1 && topicoId) {
+      await marcarAlertasPorTopicoLidos(topicoId);
+    } else {
+      await marcarAlertaLido(alertaId);
+    }
+    setPending(false);
+    setConfirmando(false);
     router.refresh();
-  };
+  }
 
-  return (
+  return confirmando ? (
+    <div className="flex items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-1.5">
+      <span className="text-xs text-amber-800">Marcar {alertCount} notificações como lidas?</span>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={pending}
+        className="rounded bg-amber-500 px-2 py-0.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+      >
+        {pending ? 'Marcando…' : 'Confirmar'}
+      </button>
+      <button
+        type="button"
+        onClick={() => setConfirmando(false)}
+        disabled={pending}
+        className="text-xs text-amber-700 hover:underline"
+      >
+        Cancelar
+      </button>
+    </div>
+  ) : (
     <button
       type="button"
       onClick={handleClick}
-      className="shrink-0 rounded border border-stone-300 bg-white px-2 py-1 text-xs text-stone-600 hover:bg-stone-50"
+      disabled={pending}
+      className="rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-600 hover:bg-stone-50 disabled:opacity-50"
     >
-      Marcar como lido
+      {pending ? 'Marcando…' : 'Marcar como lido'}
     </button>
   );
 }

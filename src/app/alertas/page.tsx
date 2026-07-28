@@ -580,7 +580,11 @@ export default async function AlertasPage({
                       </Link>
                     ) : <span />}
                     {!a.lido
-                      ? <MarcarLidoButton alertaId={a.id} />
+                      ? <MarcarLidoButton
+                          alertaId={String(a.id)}
+                          alertCount={(a as { _alertCount?: number })._alertCount}
+                          topicoId={parseQsParam(String((a as { referencia_path?: string | null }).referencia_path ?? ''), 'topico') ?? undefined}
+                        />
                       : <span className="rounded border border-stone-200 bg-stone-100 px-2 py-0.5 text-xs text-stone-400">Lido</span>
                     }
                   </div>

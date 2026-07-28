@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { categorizarAlerta, priorizarAlerta } from './categorizar';
 
@@ -17,6 +18,25 @@ export async function marcarAlertaLido(alertaId: string): Promise<ActionResult> 
     .eq('id', alertaId)
     .eq('user_id', user.id);
   if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function marcarAlertasPorTopicoLidos(
+  topicoId: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { error } = await supabase
+    .from('alertas')
+    .update({ lido: true })
+    .eq('user_id', user.id)
+    .eq('lido', false)
+    .like('referencia_path', `%topico=${topicoId}%`);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/alertas');
   return { ok: true };
 }
 
