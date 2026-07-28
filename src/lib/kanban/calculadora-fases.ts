@@ -736,6 +736,17 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
         dataInicioReal = reconciliarInicioComFimReal(dataInicioReal, dataFimReal, entrouVisita);
       }
 
+      // Fase atual: entered_fase_at prevalece sobre encadeamento antigo (histórico incompleto).
+      if (fase.id === card.fase_id) {
+        const enteredFase = toYmd(card.entered_fase_at);
+        if (enteredFase) {
+          const inicioEntered = primeiroDiaUtilDe(enteredFase);
+          if (dataInicioReal && inicioEntered > dataInicioReal) {
+            dataInicioReal = inicioEntered;
+          }
+        }
+      }
+
       const slug = String(fase.slug ?? '').trim();
       const slaResolvido = resolverSlaCalculadoraFase(
         slug,

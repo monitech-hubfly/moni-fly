@@ -21,7 +21,6 @@ import {
   creditoObraAguardandoDocumentacao,
   CLASSE_TAG_AGUARDANDO_DOCUMENTACAO,
   TAG_AGUARDANDO_DOCUMENTACAO,
-  tagCalculadoraAtrasoParaExibicao,
   tagSlaKanbanParaExibicao,
 } from '@/lib/kanban/kanban-card-sla';
 import { hrefAbrirCardNaRota } from '@/lib/kanban/kanban-card-href';
@@ -492,9 +491,11 @@ export function KanbanColumn({
           });
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
-          // Faixa lateral vermelha: SLA estourado na Calculadora (fase atual `atual_atrasada`).
+          // Faixa lateral vermelha: SLA da fase atrasado ou Calculadora estourada na fase atual.
           const slaAtrasado =
-            !arquivado && !concluido && card.calculadora_sla_estourado === true;
+            !arquivado &&
+            !concluido &&
+            (sla.status === 'atrasado' || card.calculadora_sla_estourado === true);
           const statusLateral = slaAtrasado ? 'vermelho' : 'cinza';
           const motivo = (card.motivo_arquivamento ?? '').trim();
           const resultado = card.resultado ?? null;
@@ -512,16 +513,9 @@ export function KanbanColumn({
             subtituloCard !== franqueadoNome &&
             subtituloCard !== responsavelNome;
           const { codigo: codigoCard, tituloLimpo } = separarCodigoTitulo(card.titulo);
-          const calculadoraAtrasoChip =
-            slaAtrasado && !arquivado && !concluido
-              ? tagCalculadoraAtrasoParaExibicao(
-                  card.calculadora_atraso_dias,
-                  card.calculadora_atraso_tipo,
-                )
-              : null;
           const slaChip =
             !arquivado && !concluido && !aguardandoDoc
-              ? calculadoraAtrasoChip ?? tagSlaKanbanParaExibicao(sla)
+              ? tagSlaKanbanParaExibicao(sla)
               : null;
           const reuniaoIso =
             !arquivado && !concluido && card.data_reuniao
