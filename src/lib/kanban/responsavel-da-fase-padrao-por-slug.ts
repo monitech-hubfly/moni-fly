@@ -49,6 +49,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
 
   // Funil Crédito Obra
   co_novo_projeto: 'moni',
+  co_book: 'moni',
   co_envio_cashme: 'moni',
   co_outro_parceiro: 'moni',
   co_documentacao_alvara: 'moni',

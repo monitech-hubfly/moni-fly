@@ -125,6 +125,7 @@ export const FASE_SLUGS = {
   ACOPLAMENTO_REPROVADO:     'acoplamento_reprovado',
   // Funil Crédito Obra (KANBAN_IDS.CREDITO_OBRA) — fluxo ordem 1–23
   CO_NOVO_PROJETO:            'co_novo_projeto',
+  CO_BOOK:                    'co_book',
   CO_ENVIO_CASHME:            'co_envio_cashme',
   CO_OUTRO_PARCEIRO:          'co_outro_parceiro',
   CO_DOCUMENTACAO_ALVARA:     'co_documentacao_alvara',
