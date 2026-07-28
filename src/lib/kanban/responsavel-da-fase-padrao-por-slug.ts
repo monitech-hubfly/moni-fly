@@ -112,11 +112,13 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
 
   // Funil Divify / Moní Capital (emissor = franqueado)
   capital_recebimento: 'moni',
+  capital_primeiro_contato: 'moni',
   capital_abertura_spe: 'franqueado',
   capital_abertura_conta: 'franqueado',
   capital_cadastro_plataforma: 'franqueado',
   capital_materiais_projeto: 'moni',
   capital_informacoes_obrigatorias: 'franqueado',
+  capital_preenchimento_oferta: 'franqueado',
   capital_formalizacao: 'moni',
   capital_concluido: 'moni',
   capital_nao_elegivel: 'moni',

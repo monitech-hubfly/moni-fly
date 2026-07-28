@@ -171,11 +171,13 @@ export const FASE_SLUGS = {
   JURIDICO_CONCLUIDO:        'juridico_concluido',
   // Funil Divify / Moní Capital (KANBAN_IDS.MONI_CAPITAL) — fluxo ordem 1–9
   CAPITAL_RECEBIMENTO:            'capital_recebimento',
+  CAPITAL_PRIMEIRO_CONTATO:        'capital_primeiro_contato',
   CAPITAL_ABERTURA_SPE:           'capital_abertura_spe',
   CAPITAL_ABERTURA_CONTA:         'capital_abertura_conta',
   CAPITAL_CADASTRO_PLATAFORMA:    'capital_cadastro_plataforma',
   CAPITAL_MATERIAIS_PROJETO:      'capital_materiais_projeto',
   CAPITAL_INFORMACOES_OBRIG:      'capital_informacoes_obrigatorias',
+  CAPITAL_PREENCHIMENTO_OFERTA:   'capital_preenchimento_oferta',
   CAPITAL_FORMALIZACAO:           'capital_formalizacao',
   CAPITAL_CONCLUIDO:              'capital_concluido',
   CAPITAL_NAO_ELEGIVEL:           'capital_nao_elegivel',
