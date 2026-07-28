@@ -25,7 +25,7 @@ import { uploadAnexosAtividadePendentes } from '@/lib/kanban/upload-anexos-ativi
 const GRUPOS_FUNIL: { label: string; nomes: string[] }[] = [
   {
     label: 'Novos Negócios',
-    nomes: ['Funil Step One', 'Funil Loteadores', 'Funil Acoplamento', 'Funil Portfólio', 'Funil Cash Me', 'Funil Divify'],
+    nomes: ['Funil Step One', 'Funil Loteadores', 'Funil Acoplamento', 'Funil Portfólio', 'Funil Crédito Obra', 'Funil Divify'],
   },
   {
     label: 'Operações',

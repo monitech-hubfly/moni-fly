@@ -45,7 +45,7 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
     faseDestinoSlug: 'rh_vaga',
   },
   credito_obra: {
-    label: 'Cash Me',
+    label: 'Crédito Obra',
     kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA,
     faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
   },

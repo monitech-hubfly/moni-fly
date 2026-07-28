@@ -18,7 +18,7 @@ export type KanbanNomeDisplay =
   | 'Funil Projetos Legais'
   | 'Funil Pré Obra e Obra'
   | 'Funil Contabilidade'
-  | 'Funil Cash Me'
+  | 'Funil Crédito Obra'
   | 'Funil Motor 01';
 
 export type KanbanFaseMaterialTipo = 'link' | 'documento' | 'video';
@@ -96,11 +96,11 @@ export type KanbanCardBrief = {
   projeto_legal_filho_concluido?: boolean;
   /** Operações: fase atual do filho Projeto Legal. */
   projeto_legal_filho_fase?: string | null;
-  /** Operações: existe card filho no Funil Cash Me. */
+  /** Operações: existe card filho no Funil Crédito Obra. */
   tem_filho_credito_obra?: boolean;
-  /** Operações: filho Cash Me arquivado (sem filho ativo). */
+  /** Operações: filho Crédito Obra arquivado (sem filho ativo). */
   filho_credito_obra_arquivado?: boolean;
-  /** Operações: fase atual do filho Cash Me. */
+  /** Operações: fase atual do filho Crédito Obra. */
   credito_obra_filho_fase?: string | null;
   /** Operações: existe card filho no Funil Projetos Locais. */
   tem_filho_projetos_locais?: boolean;
@@ -138,7 +138,7 @@ export type KanbanCardBrief = {
   juridico_filho_fase_nome?: string | null;
   /** Ordem na coluna (menor = mais acima). Nativo: `kanban_cards.ordem_coluna`; legado: `processo_step_one.ordem_coluna_painel`. */
   ordem_coluna?: number | null;
-  /** Funil Cash Me — fase co_documentacao_alvara */
+  /** Funil Crédito Obra — fase co_documentacao_alvara */
   alvara_url?: string | null;
   docs_terreno_url?: string | null;
   /** Entrada na fase atual — base do SLA por fase (migration 213). */

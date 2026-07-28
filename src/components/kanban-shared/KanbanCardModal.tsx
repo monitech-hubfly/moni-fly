@@ -4932,7 +4932,7 @@ export function KanbanCardModal({
     !isLegado && isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome));
   const exibirSecaoDocumentacaoCreditoObra =
     !isLegado &&
-    kanbanNome === 'Funil Cash Me' &&
+    (kanbanNome === 'Funil Crédito Obra' || kanbanNome === 'Funil Cash Me') &&
     faseSlugAtual === FASE_SLUGS.CO_DOCUMENTACAO_ALVARA;
   const cardNativoConcluido = !isLegado && Boolean(card.concluido);
   const cardLegadoConcluido = isLegado && card.processo_meta?.status === 'concluido';

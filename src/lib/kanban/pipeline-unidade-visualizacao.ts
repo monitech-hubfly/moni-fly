@@ -30,7 +30,7 @@ export const PARALELOS_ESTEIRA_LINHAS = [
   },
   {
     id: 'credito_obra',
-    label: 'Cash Me',
+    label: 'Crédito Obra',
     kanbanIds: [KANBAN_IDS.CREDITO_OBRA],
   },
   {

@@ -20,15 +20,18 @@ export const KANBAN_IDS = {
   MOTOR01:         '202527ea-d284-4c49-94f5-e75b25d6910e',
 } as const
 
+/** Nome canônico em `kanbans.nome` — Funil Crédito Obra. */
+export const KANBAN_NOME_CREDITO_OBRA = 'Funil Crédito Obra' as const;
+
 /** `kanbans.nome` → UUID canônico (PROD). Preferir na resolução do board. */
 export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Step One': KANBAN_IDS.STEP_ONE,
   'Funil Portfólio': KANBAN_IDS.PORTFOLIO,
   'Funil Acoplamento': KANBAN_IDS.ACOPLAMENTO,
   'Funil Contabilidade': KANBAN_IDS.CONTABILIDADE,
+  [KANBAN_NOME_CREDITO_OBRA]: KANBAN_IDS.CREDITO_OBRA,
+  /** @deprecated legado (migration 420) — preferir Funil Crédito Obra */
   'Funil Cash Me': KANBAN_IDS.CREDITO_OBRA,
-  /** @deprecated legado — preferir Funil Cash Me */
-  'Funil Crédito Obra': KANBAN_IDS.CREDITO_OBRA,
   /** @deprecated legado (migration 114) */
   'Funil Crédito': KANBAN_IDS.CREDITO_OBRA,
   'Funil Loteadores': KANBAN_IDS.LOTEADORES,
@@ -287,7 +290,7 @@ export const KANBANS_INTERNOS_NOMES = [
   'Funil Divify',
   'Funding',
   'Funil Contabilidade',
-  'Funil Cash Me',
+  'Funil Crédito Obra',
   'Funil Contratações',
   'Funil Produto',
   'Funil Modelo Virtual',

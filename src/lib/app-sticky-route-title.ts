@@ -16,7 +16,7 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/funil-stepone', title: 'Funil Step One' },
   { prefix: '/funil-motor01', title: 'Funil Motor 01' },
   { prefix: '/painel-contabilidade', title: 'Funil Contabilidade' },
-  { prefix: '/funil-credito-obra', title: 'Funil Cash Me' },
+  { prefix: '/funil-credito-obra', title: 'Funil Crédito Obra' },
   { prefix: '/painel-novos-negocios', title: 'Portfolio + Operações' },
   { prefix: '/comunidade', title: 'Comunidade' },
   { prefix: '/catalogo-produtos-moni', title: 'Catálogo de Produtos Moní' },

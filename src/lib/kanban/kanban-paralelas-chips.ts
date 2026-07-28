@@ -75,11 +75,11 @@ export type MontarChipsParalelasInput = {
   projetoLegalFilhoConcluido?: boolean;
   /** Operações: fase atual do filho Projeto Legal. */
   projetoLegalFilhoFase?: string | null;
-  /** Operações: existe card filho no Funil Cash Me (`origem_card_id`). */
+  /** Operações: existe card filho no Funil Crédito Obra (`origem_card_id`). */
   temFilhoCreditoObra?: boolean;
-  /** Operações: filho Cash Me arquivado (sem filho ativo). */
+  /** Operações: filho Crédito Obra arquivado (sem filho ativo). */
   filhoCreditoObraArquivado?: boolean;
-  /** Operações: fase atual do filho Cash Me. */
+  /** Operações: fase atual do filho Crédito Obra. */
   creditoObraFilhoFase?: string | null;
   /** Operações: existe card filho no Funil Projetos Locais. */
   temFilhoProjetosLocais?: boolean;
@@ -199,7 +199,7 @@ function chipOperacoesParalela(
   );
 }
 
-/** Sempre 5 bolinhas: Acoplamento, PL, PLocais, Cash Me, Divify. */
+/** Sempre 5 bolinhas: Acoplamento, PL, PLocais, Crédito Obra, Divify. */
 function montarChipsEsteirasParalelasFixas(
   input: MontarChipsParalelasInput,
   opts?: MontarChipsParalelasOptions,
@@ -274,7 +274,7 @@ function montarChipsEsteirasParalelasFixas(
     KANBAN_IDS.CREDITO_OBRA,
     chipOperacoesParalela(
       KANBAN_IDS.CREDITO_OBRA,
-      'Cash Me',
+      'Crédito Obra',
       {
         temFilho: temFilhoCreditoObra,
         filhoArquivado: filhoCreditoObraArquivado,
@@ -692,7 +692,7 @@ async function coletarSyncGroupIdsBatchOperacoes(
 
 /**
  * Operações: sync group (vínculos + processo) + FK#### + cadeia origem_card_id.
- * Cards em em_obra costumam ter origem_card_id/projeto_id nulos — filhos ficam no Portfolio ou Cash Me.
+ * Cards em em_obra costumam ter origem_card_id/projeto_id nulos — filhos ficam no Portfolio ou Crédito Obra.
  */
 async function coletarOrigemConsultaOperacoesBatch(
   supabase: SupabaseClient,

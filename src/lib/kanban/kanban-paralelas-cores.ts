@@ -26,7 +26,7 @@ export const PARALELA_FUNIL_NOMES: Record<string, string> = {
   [KANBAN_IDS.ACOPLAMENTO]: 'Acoplamento',
   [PARALELA_KANBAN_CREDITO_TERRENO]: 'Crédito Terreno',
   [KANBAN_IDS.CONTABILIDADE]: 'Contabilidade',
-  [KANBAN_IDS.CREDITO_OBRA]: 'Cash Me',
+  [KANBAN_IDS.CREDITO_OBRA]: 'Crédito Obra',
   [KANBAN_IDS.JURIDICO]: 'Jurídico',
   [KANBAN_IDS.MONI_CAPITAL]: 'Divify',
   [KANBAN_IDS.PROJETO_LEGAL]: 'Projeto Legal',

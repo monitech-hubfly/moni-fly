@@ -45,8 +45,8 @@ export function rotaCardOrigem(kanbanNome: string, cardId: string | null | undef
       return `/operacoes?card=${q}&origem=legado`;
     case 'Funil Contabilidade':
       return `/painel-contabilidade?card=${q}&origem=legado`;
-    case 'Funil Cash Me':
     case 'Funil Crédito Obra':
+    case 'Funil Cash Me':
     case 'Funil Crédito':
       return `/funil-credito-obra?card=${q}&origem=legado`;
     case 'Sirene':

@@ -2069,7 +2069,7 @@ function CreditoObraEspecificidadesSection({
           className="text-base font-semibold"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
         >
-          Especificidades — Cash Me
+          Especificidades — Crédito Obra
         </h2>
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
           Ciclo por tranche, aprovação da 1ª tranche, espera entre fases co_* e correlação com Operações
@@ -2111,7 +2111,7 @@ function CreditoObraEspecificidadesSection({
         {data.correlacaoAtrasoOperacoes != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Relação Cash Me × Operações
+              Relação Crédito Obra × Operações
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
               Projetos com card ativo atrasado (SLA) simultaneamente nos dois funis (projeto_negocio_id).
@@ -2261,7 +2261,7 @@ function ContabilidadeEspecificidadesSection({
           Especificidades — Contabilidade
         </h2>
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Tempo de abertura por tipo, bloqueio ao Cash Me e cumprimento de SLA
+          Tempo de abertura por tipo, bloqueio ao Crédito Obra e cumprimento de SLA
         </p>
       </div>
 
@@ -2282,15 +2282,15 @@ function ContabilidadeEspecificidadesSection({
           />
           <div className="min-w-0 flex-1">
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Cards bloqueando Cash Me
+              Cards bloqueando Crédito Obra
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-secondary)' }}>
-              Ativos em abertura contábil com card ativo no Cash Me (mesmo projeto_negocio_id).
+              Ativos em abertura contábil com card ativo no Crédito Obra (mesmo projeto_negocio_id).
             </p>
             {data.bloqueandoCreditoObra.projetoIndisponivel ? (
               <DegradeNote>projeto_negocio_id indisponível — cruzamento cross-funil não calculado.</DegradeNote>
             ) : data.bloqueandoCreditoObra.creditoObraIndisponivel ? (
-              <DegradeNote>Cards Cash Me vinculados indisponíveis.</DegradeNote>
+              <DegradeNote>Cards Crédito Obra vinculados indisponíveis.</DegradeNote>
             ) : (
               <>
                 <p

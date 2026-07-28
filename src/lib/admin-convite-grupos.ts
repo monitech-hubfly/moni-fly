@@ -16,7 +16,7 @@ export const FUNIS_KANBAN_NOMES = [
   'Funil Jurídico',
   'Funil Divify',
   'Funil Contabilidade',
-  'Funil Cash Me',
+  'Funil Crédito Obra',
 ] as const;
 
 export type FunilKanbanNome = (typeof FUNIS_KANBAN_NOMES)[number];

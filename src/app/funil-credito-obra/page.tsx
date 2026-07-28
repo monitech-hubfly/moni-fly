@@ -1,3 +1,4 @@
+import { KANBAN_NOME_CREDITO_OBRA } from '@/lib/constants/kanban-ids';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
@@ -30,7 +31,7 @@ export default async function PainelCreditoPage({
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const snapshot = await fetchKanbanBoardSnapshot(supabase, 'Funil Cash Me', user.id);
+  const snapshot = await fetchKanbanBoardSnapshot(supabase, KANBAN_NOME_CREDITO_OBRA, user.id);
 
   const primeiro = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const modalOuProcessoAberto = Boolean(
@@ -48,7 +49,7 @@ export default async function PainelCreditoPage({
         basePath="/funil-credito-obra"
         isAdmin={snapshot.isAdmin}
         kanbanId={snapshot.kanban.id}
-        kanbanNome="Funil Cash Me"
+        kanbanNome={KANBAN_NOME_CREDITO_OBRA}
         fases={snapshot.fases}
         cardQueryParam="kanbanCard"
         enableNovoCardModal
@@ -71,8 +72,8 @@ export default async function PainelCreditoPage({
                 currentUserId={user?.id ?? null}
                 mostrarLinkNovoCard
                 podeCriarCards={snapshot.isAdmin ? true : undefined}
-                kanbanNome="Funil Cash Me"
-                kanbanNomeDb="Funil Cash Me"
+                kanbanNome={KANBAN_NOME_CREDITO_OBRA}
+                kanbanNomeDb={KANBAN_NOME_CREDITO_OBRA}
                 kanbanId={snapshot.kanban!.id}
                 snapshotLean={snapshot.snapshotMode === 'lean'}
               />
@@ -80,7 +81,7 @@ export default async function PainelCreditoPage({
           ) : (
             <main className="mx-auto max-w-[1600px] px-6 py-8">
               <PainelPerformance
-                kanbanNome="Funil Cash Me"
+                kanbanNome={KANBAN_NOME_CREDITO_OBRA}
                 kanbanId={snapshot.kanban.id}
                 fases={snapshot.fases}
                 cards={snapshot.cards}

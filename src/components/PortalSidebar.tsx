@@ -61,7 +61,7 @@ const CREDITO_JURIDICO_SUBITENS_STAFF: NavItem[] = [
 ];
 const CREDITO_JURIDICO_SUBITENS_ADMIN: NavItem[] = [
   ...CREDITO_JURIDICO_SUBITENS_STAFF,
-  { href: HUB_FUNIS_PATH, label: 'Funil Cash Me' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Crédito Obra' },
   { href: HUB_FUNIS_PATH, label: 'Funil Contabilidade' },
 ];
 const PRE_OBRA_SUBITENS: NavItem[] = [

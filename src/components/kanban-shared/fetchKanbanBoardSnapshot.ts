@@ -130,8 +130,8 @@ const KANBANS_SEMPRE_NATIVOS = new Set([
 const KANBANS_HIBRIDOS_COM_VIEW_LEGADO = new Set([
   'Funil Operações',
   'Funil Contabilidade',
-  'Funil Cash Me',
   'Funil Crédito Obra',
+  'Funil Cash Me',
   'Funil Crédito',
 ]);
 
@@ -545,7 +545,7 @@ export function supabaseParaEnriquecerParalelas(userClient: SupabaseClient): Sup
  *
  * Se não houver linhas em `kanban_cards` para o kanban, os cards vêm de
  * `v_processo_como_kanban_cards` (processo_step_one) com `origem: 'legado'`.
- * Híbridos Contabilidade/Cash Me mantêm a view no lean; demais nativos pulam a view.
+ * Híbridos Contabilidade/Crédito Obra mantêm a view no lean; demais nativos pulam a view.
  * Escape hatch: `mode: 'full'` ou env `KANBAN_BOARD_SNAPSHOT_FULL=1`.
  */
 export async function fetchKanbanBoardSnapshot(
