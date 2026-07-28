@@ -73,7 +73,7 @@ type Props = {
   onDefinirAncoraCondominio?: (ativar: boolean) => Promise<{ ok: boolean; error?: string }>;
 };
 
-function fmtData(iso: string | null): string {
+function fmtData(iso: string | null | undefined): string {
   if (!iso) return '—';
   return formatIsoDateOnlyPtBr(iso) ?? iso;
 }

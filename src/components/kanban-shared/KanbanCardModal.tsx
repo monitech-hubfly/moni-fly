@@ -6898,8 +6898,6 @@ export function KanbanCardModal({
               origem={origem}
               basePath={basePath}
               dataReuniao={dataReuniao}
-              faseId={card.fase_id}
-              etapaSlug={card.etapa_slug ?? faseAtual?.slug ?? null}
               onDataReuniaoChange={setDataReuniao}
               onAtaSalva={() => setAtasReuniaoTick((t) => t + 1)}
             />
