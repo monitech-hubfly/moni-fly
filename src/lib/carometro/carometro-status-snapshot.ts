@@ -78,7 +78,7 @@ export async function gerarSnapshotCarometro(
   const cutoffStr = cutoffDate.toISOString().slice(0, 10);
 
   const orGantt  = `profile_id.eq.${profileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`;
-  const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`;
+  const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}},franqueado_id.eq.${profileId}`;
 
   const [
     ganttAtrasadasRes, ganttConcluidasRes, ganttPlanejdasRes,

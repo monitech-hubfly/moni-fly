@@ -204,7 +204,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         cutoffDate.setDate(cutoffDate.getDate() - 14);
         const cutoffStr = cutoffDate.toISOString().slice(0, 10);
         const orGantt = `profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`;
-        const orKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`;
+        const orKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}},franqueado_id.eq.${effectiveProfileId}`;
 
         type FaseKanban = { sla_dias: number | null; sla_tipo: string | null; slug: string | null };
         type KanbanCardSla = {
