@@ -6,6 +6,7 @@ import { PRE_BATALHA_PUBLIC_LEITURA_PATH } from '@/lib/pre-batalha-secoes';
  * Demais seções (Steps, Catálogo, Crédito interno, etc.) ficam só para `admin`.
  */
 export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
+  '/hub-funis',
   '/dashboard',
   '/rede-franqueados',
   '/comunidade',
@@ -48,6 +49,7 @@ export function isTeamAllowedPath(pathname: string): boolean {
  * Fora daqui: Rede/Comunidade/Sirene matriz, Contabilidade/Crédito e demais `ADMIN_ONLY_PATH_PREFIXES`.
  */
 export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
+  '/hub-funis',
   '/dashboard',
   '/portal-frank',
   '/treinamento-bca',

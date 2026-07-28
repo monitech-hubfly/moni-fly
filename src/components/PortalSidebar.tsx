@@ -43,35 +43,36 @@ const STEPS_SUBITENS: NavItem[] = [
   { href: '/step-6', label: 'Diligência' },
   { href: '/step-7', label: 'Contrato' },
 ];
+const HUB_FUNIS_PATH = '/hub-funis';
 const NOVOS_NEGOCIOS_SUBITENS: NavItem[] = [
-  { href: '/funil-stepone', label: 'Funil Step One' },
-  { href: '/portfolio', label: 'Funil Portfolio' },
-  { href: '/loteadores', label: 'Funil Loteadores' },
-  { href: '/funil-acoplamento', label: 'Funil Acoplamento' },
-  { href: '/funil-motor01', label: 'Motor 01' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Step One' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Portfolio' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Loteadores' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Acoplamento' },
+  { href: HUB_FUNIS_PATH, label: 'Motor 01' },
 ];
 const NOVOS_NEGOCIOS_SUBITENS_FRANK: NavItem[] = [
-  { href: '/funil-stepone', label: 'Funil Step One' },
-  { href: '/portfolio', label: 'Funil Portfolio' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Step One' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Portfolio' },
 ];
 const CREDITO_JURIDICO_SUBITENS_STAFF: NavItem[] = [
-  { href: '/funil-moni-capital', label: 'Funil Divify' },
-  { href: '/funil-funding', label: 'Funding' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Divify' },
+  { href: HUB_FUNIS_PATH, label: 'Funding' },
 ];
 const CREDITO_JURIDICO_SUBITENS_ADMIN: NavItem[] = [
   ...CREDITO_JURIDICO_SUBITENS_STAFF,
-  { href: '/funil-credito-obra', label: 'Funil Cash Me' },
-  { href: '/painel-contabilidade', label: 'Funil Contabilidade' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Cash Me' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Contabilidade' },
 ];
 const PRE_OBRA_SUBITENS: NavItem[] = [
-  { href: '/operacoes', label: 'Funil Pré Obra e Obra' },
-  { href: '/funil-projeto-legal', label: 'Funil Projeto Legal' },
-  { href: '/projetos-locais', label: 'Projetos Locais' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Pré Obra e Obra' },
+  { href: HUB_FUNIS_PATH, label: 'Funil Projeto Legal' },
+  { href: HUB_FUNIS_PATH, label: 'Projetos Locais' },
 ];
 const HDM_SUBITENS: NavItem[] = [
-  { href: '/funil-produto', label: 'Produto' },
-  { href: '/funil-modelo-virtual', label: 'Modelo Virtual' },
-  { href: '/funil-homologacoes', label: 'Homologações' },
+  { href: HUB_FUNIS_PATH, label: 'Produto' },
+  { href: HUB_FUNIS_PATH, label: 'Modelo Virtual' },
+  { href: HUB_FUNIS_PATH, label: 'Homologações' },
 ];
 const INTERNO_SUBITENS: NavItem[] = [{ href: '/funil-contratacoes', label: 'Contratações' }];
 const SIRENE_SUBITENS: NavItem[] = [
