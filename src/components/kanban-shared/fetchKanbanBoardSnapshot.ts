@@ -614,7 +614,7 @@ export async function fetchKanbanBoardSnapshot(
   /**
    * Arquivados/concluídos: só nativos no filtro STATUS.
    * Nativos puros: skip view.
-   * Híbridos Contabilidade/Cash Me: mantêm view no lean para lacunas (proteção).
+   * Híbridos Contabilidade/Crédito Obra: mantêm view no lean para lacunas (proteção).
    */
   const skipLegadoView =
     snapshotMode === 'arquivados' ||
