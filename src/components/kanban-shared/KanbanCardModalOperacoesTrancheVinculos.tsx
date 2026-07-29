@@ -17,6 +17,7 @@ function itensTrancheVinculoPreset(): TrancheVinculoListItem[] {
   return OPERACOES_TRANCHE_VINCULOS.map((cfg) => ({
     index: cfg.index,
     nome: cfg.nome,
+    tagLabel: cfg.tagLabel,
     status: 'pendente' as const,
     pct_fisico_financeiro: null,
     nfts_url: null,
@@ -42,6 +43,7 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
   onSelecionar,
 }: SidebarProps) {
   const [items, setItems] = useState<TrancheVinculoListItem[]>([]);
+  const [temPrimeiroCard, setTemPrimeiroCard] = useState(false);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -58,16 +60,20 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
         if (res.error === 'Faça login.' || res.error.includes('Funil Pré Obra')) {
           setErro(res.error);
           setItems([]);
+          setTemPrimeiroCard(false);
           return;
         }
         setErro(null);
         setItems(itensTrancheVinculoPreset());
+        setTemPrimeiroCard(false);
         return;
       }
       setItems(res.items);
+      setTemPrimeiroCard(res.temPrimeiroCardCreditoObra);
     } catch {
       setErro(null);
       setItems(itensTrancheVinculoPreset());
+      setTemPrimeiroCard(false);
     } finally {
       setLoading(false);
     }
@@ -90,21 +96,20 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
     return <p className="rounded border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-800">{erro}</p>;
   }
 
-  const filhoId = items[0]?.filhoCreditoObraId ?? null;
-  const filhoFase = items[0]?.filhoFaseNome ?? null;
+  const filhoId = items.find((i) => i.filhoCreditoObraId)?.filhoCreditoObraId ?? null;
 
   return (
     <div className="space-y-2">
-      {filhoId ? (
-        <p className="text-[10px] leading-snug text-stone-500">
-          Card Crédito Obra vinculado · fase atual:{' '}
-          <span className="font-medium text-stone-700">{filhoFase ?? '—'}</span>
-        </p>
-      ) : (
+      {!temPrimeiroCard ? (
         <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-900">
-          Nenhum card filho no Funil Crédito Obra. Abra a esteira antes de concluir vínculos.
+          Abra o primeiro card no Funil Crédito Obra (tag 1ª tranche) antes de solicitar tranches
+          adicionais.
         </p>
-      )}
+      ) : filhoId ? (
+        <p className="text-[10px] leading-snug text-stone-500">
+          Cards adicionais recebem a tag da tranche ao concluir o vínculo.
+        </p>
+      ) : null}
       <ul className="space-y-1">
         {items.map((item) => {
           const ativo = trancheSelecionado === item.index;
@@ -120,6 +125,9 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
               >
                 <ChevronRight className="h-3 w-3 shrink-0 text-stone-400" aria-hidden />
                 <span className="min-w-0 flex-1 font-medium text-stone-800">{item.nome}</span>
+                <span className="shrink-0 rounded-full bg-stone-100 px-1.5 py-0.5 text-[9px] font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">
+                  {item.tagLabel}
+                </span>
                 {concluido ? (
                   <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-green-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-green-800 ring-1 ring-inset ring-green-200">
                     <CheckCircle2 className="h-2.5 w-2.5" aria-hidden />
@@ -236,7 +244,7 @@ export function KanbanCardModalOperacoesTrancheVinculoForm({
 
   async function handleConcluir() {
     if (!cfg) return;
-    if (!confirm(`Concluir "${cfg.nome}" e mover o card Crédito Obra para "${cfg.faseDestinoLabel}"?`)) {
+    if (!confirm(`Concluir "${cfg.nome}" e abrir card Crédito Obra com tag "${cfg.tagLabel}"?`)) {
       return;
     }
     setErro(null);
@@ -256,7 +264,7 @@ export function KanbanCardModalOperacoesTrancheVinculoForm({
         return;
       }
       setConcluidoEm(new Date().toISOString());
-      setOkMsg(`Vínculo concluído. Card Crédito Obra movido para "${cfg.faseDestinoLabel}".`);
+      setOkMsg(`Vínculo concluído. Novo card Crédito Obra criado com tag "${cfg.tagLabel}".`);
       onConcluido();
     } finally {
       setConcluindo(false);
@@ -277,8 +285,9 @@ export function KanbanCardModalOperacoesTrancheVinculoForm({
       <div>
         <h4 className="text-sm font-semibold text-stone-900">{cfg.nome}</h4>
         <p className="mt-1 text-xs text-stone-600">
-          Ao concluir, o card filho no Funil Crédito Obra será movido para{' '}
-          <strong className="font-medium">{cfg.faseDestinoLabel}</strong>.
+          Ao concluir, será criado um novo card no Funil Crédito Obra (fase{' '}
+          <strong className="font-medium">{cfg.faseDestinoLabel}</strong>) com a tag{' '}
+          <strong className="font-medium">{cfg.tagLabel}</strong>.
         </p>
         {filhoFaseNome ? (
           <p className="mt-1 text-[11px] text-stone-500">

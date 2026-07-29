@@ -245,6 +245,7 @@ export async function autorizarAberturaCreditoObra(
       redeFranqueadoId: String(ctx.card.rede_franqueado_id ?? '').trim() || null,
       kanbanOrigemSlug: 'operacoes',
       faseOrigemSlug: FASE_SLUGS.APROVACAO_PREFEITURA,
+      creditoObraTranche: 1,
     });
 
     if (!filho?.id) {

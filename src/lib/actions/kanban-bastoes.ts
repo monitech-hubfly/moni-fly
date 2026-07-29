@@ -73,6 +73,8 @@ export interface CriarCardFilhoParams {
   faseOrigemSlug: string;
   /** Bastão automático → Acoplamento: UUID do funil que disparou (migration 389). */
   origemKanbanId?: string | null;
+  /** Funil Crédito Obra: tranche da tag (1ª automática; 2ª–6ª cria card adicional). */
+  creditoObraTranche?: 1 | 2 | 3 | 4 | 5 | 6;
 }
 
 export interface KanbanCardFilhoCriado {
@@ -293,7 +295,12 @@ export async function criarCardFilho(
     throw new Error(`Serviço indisponível: ${msg}`);
   }
 
-  const existente = await buscarCardFilhoExistente(db, cardPaiId, kanbanDestinoId);
+  const existente =
+    kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA &&
+    params.creditoObraTranche != null &&
+    params.creditoObraTranche > 1
+      ? null
+      : await buscarCardFilhoExistente(db, cardPaiId, kanbanDestinoId);
 
   if (existente?.id && !Boolean(existente.arquivado)) {
     if (kanbanDestinoId === KANBAN_IDS.OPERACOES) {
@@ -424,6 +431,12 @@ export async function criarCardFilho(
     });
     if (!syncCalc.ok) throw new Error(syncCalc.error);
 
+    if (kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA) {
+      const { aplicarTagTrancheCreditoObra } = await import('@/lib/kanban/credito-obra-tag-tranche');
+      const tranche = params.creditoObraTranche ?? 1;
+      await aplicarTagTrancheCreditoObra(db, filhoId, tranche, kanbanDestinoId);
+    }
+
     return filhoReativado as KanbanCardFilhoCriado;
   }
 
@@ -506,6 +519,12 @@ export async function criarCardFilho(
     actorUserId: criadoPor,
   });
   if (!syncCalc.ok) throw new Error(syncCalc.error);
+
+  if (kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA) {
+    const { aplicarTagTrancheCreditoObra } = await import('@/lib/kanban/credito-obra-tag-tranche');
+    const tranche = params.creditoObraTranche ?? 1;
+    await aplicarTagTrancheCreditoObra(db, cardFilhoId, tranche, kanbanDestinoId);
+  }
 
   return filho as KanbanCardFilhoCriado;
 }
@@ -947,9 +966,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     ],
     [FASE_SLUGS.PASSAGEM_WAYSER]: [
       { kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' },
-    ],
-    [FASE_SLUGS.AGUARDANDO_CREDITO]: [
-      { kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA, faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO },
     ],
     [FASE_SLUGS.PROD_PUBLICADO]: [
       { kanbanDestinoId: KANBAN_IDS.HDM_MODELO_VIRTUAL, faseDestinoSlug: 'mv_recebimento' },
@@ -1464,6 +1480,9 @@ export async function dispararEsteiraManualDoCard(
       redeFranqueadoId: pai.rede_franqueado_id ?? null,
       kanbanOrigemSlug: kanbanOrigemSlugPorId(kanbanId),
       faseOrigemSlug,
+      ...(destino.kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA
+        ? { creditoObraTranche: 1 as const }
+        : {}),
     });
 
     if (!filho?.id) {
