@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { GuardaConstrucao } from '@/components/carometro/GuardaConstrucao';
+import { BoneDayTabs } from '@/components/carometro/BoneDayTabs';
 import { isoWeek } from '@/utils/periodos';
 import { useDashboardGeral, DiaDetalhe } from '@/hooks/useDashboardGeral';
 
@@ -281,5 +282,10 @@ function DashboardGeralPageContent() {
 }
 
 export default function DashboardGeralPage() {
-  return <GuardaConstrucao><DashboardGeralPageContent /></GuardaConstrucao>;
+  return (
+    <GuardaConstrucao>
+      <BoneDayTabs />
+      <DashboardGeralPageContent />
+    </GuardaConstrucao>
+  );
 }

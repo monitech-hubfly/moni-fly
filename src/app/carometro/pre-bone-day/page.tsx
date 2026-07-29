@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { GuardaConstrucao } from '@/components/carometro/GuardaConstrucao';
+import { BoneDayTabs } from '@/components/carometro/BoneDayTabs';
 import { createClient } from '@/lib/supabase/client';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import {
@@ -1094,5 +1095,10 @@ function PreBoneDayPageContent() {
 }
 
 export default function PreBoneDayPage() {
-  return <GuardaConstrucao><PreBoneDayPageContent /></GuardaConstrucao>;
+  return (
+    <GuardaConstrucao>
+      <BoneDayTabs />
+      <PreBoneDayPageContent />
+    </GuardaConstrucao>
+  );
 }
