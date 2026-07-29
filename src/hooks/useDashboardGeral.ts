@@ -126,7 +126,21 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
 
       const areaIds = listaAreas.map(a => a.id);
 
-      // 3. Buscar carometro_status_diario no intervalo (inclui profile_id)
+      // 3. Fonte da verdade de membros: area_pessoas ativo + com profile_id
+      type PessoaRow = { profile_id: string; nome: string; area_id: string };
+      const { data: pessoasData } = await supabase
+        .from('area_pessoas')
+        .select('profile_id, nome, area_id')
+        .in('area_id', areaIds)
+        .eq('ativo', true)
+        .not('profile_id', 'is', null);
+      const pessoasPorArea = new Map<string, PessoaRow[]>();
+      for (const p of (pessoasData ?? []) as PessoaRow[]) {
+        if (!pessoasPorArea.has(p.area_id)) pessoasPorArea.set(p.area_id, []);
+        pessoasPorArea.get(p.area_id)!.push(p);
+      }
+
+      // 4. Buscar snapshots no intervalo
       const { data: rows, error: rowsErr } = await supabase
         .from('carometro_status_diario')
         .select('area_id, profile_id, data, sirene, engajamento')
@@ -136,28 +150,12 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
 
       if (rowsErr) throw rowsErr;
 
-      // 4. Coletar todos os profile_ids únicos
+      // 5. Agrupar snapshots: areaId → profileId → semana → DiaDetalhe[]
       type StatusRow = {
         area_id: string; profile_id: string; data: string;
         sirene: unknown; engajamento: unknown;
       };
       const statusRows = (rows ?? []) as StatusRow[];
-      const profileIds = [...new Set(statusRows.map(r => r.profile_id).filter(Boolean))];
-
-      // 5. Buscar nomes dos usuários em area_pessoas
-      const nomesPorProfile = new Map<string, string>();
-      if (profileIds.length > 0) {
-        const { data: pessoas } = await supabase
-          .from('area_pessoas')
-          .select('profile_id, nome')
-          .in('profile_id', profileIds);
-        for (const p of (pessoas ?? []) as { profile_id: string; nome: string }[]) {
-          if (p.profile_id && p.nome) nomesPorProfile.set(p.profile_id, p.nome);
-        }
-      }
-
-      // 6. Agrupar por area_id → profile_id → semana → DiaDetalhe[]
-      // mapa: areaId → profileId → semana → DiaDetalhe[]
       const mapa = new Map<string, Map<string, Map<number, DiaDetalhe[]>>>();
       for (const a of listaAreas) mapa.set(a.id, new Map());
 
@@ -168,27 +166,24 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
         if (!areaMap.has(r.profile_id)) areaMap.set(r.profile_id, new Map());
         const profMap = areaMap.get(r.profile_id)!;
         if (!profMap.has(semana)) profMap.set(semana, []);
-
-        const dia: DiaDetalhe = {
+        profMap.get(semana)!.push({
           data:            r.data,
           sireneScore:     extractSireneScore(r.sirene),
           atividadesScore: extractAtividadesScore(r.engajamento),
           cardsScore:      extractCardsScore(r.engajamento),
-        };
-        profMap.get(semana)!.push(dia);
+        });
       }
 
-      // 7. Construir AreaDashboard[]
+      // 6. Construir AreaDashboard[] usando area_pessoas como lista oficial
       const areasResult: AreaDashboard[] = listaAreas.map(a => {
+        const pessoas = pessoasPorArea.get(a.id) ?? [];
         const areaMap = mapa.get(a.id) ?? new Map<string, Map<number, DiaDetalhe[]>>();
 
-        const usuarios: UsuarioDashboard[] = [];
-        for (const [profileId, profMap] of areaMap) {
+        const usuarios: UsuarioDashboard[] = pessoas.map(p => {
+          const profMap = areaMap.get(p.profile_id) ?? new Map<number, DiaDetalhe[]>();
           const porSemana: Record<number, SemanaData> = {};
-
           for (const sem of semList) {
-            const dias = profMap.get(sem) ?? [];
-            dias.sort((x, y) => x.data.localeCompare(y.data));
+            const dias = (profMap.get(sem) ?? []).sort((x, y) => x.data.localeCompare(y.data));
             porSemana[sem] = {
               sireneScore:     avgOrNull(dias.map(d => d.sireneScore)),
               atividadesScore: avgOrNull(dias.map(d => d.atividadesScore)),
@@ -196,21 +191,14 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
               dias,
             };
           }
+          return { profileId: p.profile_id, nome: p.nome, porSemana };
+        });
 
-          usuarios.push({
-            profileId,
-            nome: nomesPorProfile.get(profileId) ?? profileId.slice(0, 8),
-            porSemana,
-          });
-        }
-
-        // Ordenar usuários por nome
         usuarios.sort((a, b) => a.nome.localeCompare(b.nome));
-
         return { id: a.id, nome: a.nome, usuarios };
       });
 
-      // Filtrar áreas sem usuários com dados
+      // Exibir apenas áreas com pelo menos 1 membro ativo
       setAreas(areasResult.filter(a => a.usuarios.length > 0));
     } catch (e) {
       console.error('[useDashboardGeral]', e);
