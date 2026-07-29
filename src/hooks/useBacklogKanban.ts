@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
 import { calcularSlaKanbanCard, resolveDataBaseSlaKanban, type SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
 import { adicionarDiasUteis, adicionarDiasCorridos, normalizarSlaTipo } from '@/lib/dias-uteis';
+import { enrichCardsComResponsavelFase } from '@/lib/kanban/responsavel-fase-checklist';
+import type { KanbanCardBrief } from '@/components/kanban-shared/types';
 
 const ADMIN_EMAIL  = 'danilo.n@moni.casa';
 const INGRID_EMAIL = 'ingrid.hora@moni.casa';
@@ -99,32 +101,36 @@ export function useBacklogKanban(refreshKey = 0) {
       if (!user) throw new Error('Não autenticado');
 
       const isAdmin = user.email === ADMIN_EMAIL;
-      const effectiveProfileId = (isAdmin && simProfileId)
-        ? simProfileId
-        : user.id;
+      const effectiveProfileId  = (isAdmin && simProfileId) ? simProfileId : user.id;
+      const effectiveUserEmail  = (isAdmin && simEmail) ? simEmail : (user.email ?? '');
 
-      // Fonte única: cards onde o usuário é franqueado_id (dono do card)
-      const [responsavelRes, tagEspecialRes] = await Promise.all([
+      // 1. Busca todos os cards abertos + tag Especial em paralelo
+      type RawCard = {
+        id: string; titulo: string | null; arquivado: boolean; concluido: boolean;
+        created_at: string; entered_fase_at: string | null; sla_iniciado_em: string | null;
+        proxima_atividade: string | null; prazo_atividade: string | null;
+        kanban_id: string; fase_id: string;
+        fase: FaseRelSla | FaseRelSla[] | null;
+        kanban: { nome: string } | { nome: string }[] | null;
+      };
+
+      const [allCardsRes, tagEspecialRes] = await Promise.all([
         supabase
           .from('kanban_cards')
           .select(`
             id, titulo, arquivado, concluido,
             created_at, entered_fase_at, sla_iniciado_em,
             proxima_atividade, prazo_atividade,
+            kanban_id, fase_id,
             fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
-          .eq('franqueado_id', effectiveProfileId)
           .eq('arquivado', false)
           .eq('concluido', false),
-
-        supabase
-          .from('kanban_tags')
-          .select('id')
-          .eq('nome', '⭐Especial'),
+        supabase.from('kanban_tags').select('id').eq('nome', '⭐Especial'),
       ]);
 
-      // Busca cards da tag Especial
+      // 2. Tag Especial
       const especialSet = new Set<string>();
       const tagIds = ((tagEspecialRes.data ?? []) as Array<{ id: string }>).map(r => r.id);
       if (tagIds.length > 0) {
@@ -135,36 +141,53 @@ export function useBacklogKanban(refreshKey = 0) {
         ((cardTagRows ?? []) as Array<{ card_id: string }>).forEach(r => especialSet.add(r.card_id));
       }
 
+      const allCards = (allCardsRes.data ?? []) as unknown as RawCard[];
+      const rawMap = new Map(allCards.map(c => [c.id, c]));
+
+      // 3. Monta KanbanCardBrief mínimos para enrichCardsComResponsavelFase
+      //    (a função só precisa de id, fase_id, kanban_id para resolver o responsavel_fase)
+      const briefs = allCards.map(c => ({
+        id:          c.id,
+        titulo:      c.titulo ?? '',
+        status:      'ativo',
+        created_at:  c.created_at,
+        fase_id:     c.fase_id,
+        kanban_id:   c.kanban_id,
+        franqueado_id: '',
+        entered_fase_at: c.entered_fase_at,
+        sla_iniciado_em: c.sla_iniciado_em,
+        arquivado:   c.arquivado,
+        concluido:   c.concluido,
+        proxima_atividade: c.proxima_atividade,
+        prazo_atividade:   c.prazo_atividade,
+      })) as unknown as KanbanCardBrief[];
+
+      // 4. Enrich: resolve responsavel_fase_id para cada card
+      //    (checklist explícito → default por kanban → Step One via rede_franqueado)
+      const enriched = await enrichCardsComResponsavelFase(supabase, briefs);
+
+      // 5. Monta mapa apenas dos cards onde o usuário é o responsavel_fase
       const mapa = new Map<string, KanbanCardItem>();
-
-      type FaseRel   = FaseRelSla;
-      type KanbanRel = { nome: string };
-      type CardBase  = {
-        id: string; titulo: string | null; arquivado: boolean; concluido: boolean;
-        created_at: string; entered_fase_at: string | null; sla_iniciado_em: string | null;
-        proxima_atividade: string | null;
-        prazo_atividade: string | null;
-        fase: FaseRel | FaseRel[] | null;
-        kanban: KanbanRel | KanbanRel[] | null;
-      };
-
-      ((responsavelRes.data ?? []) as unknown as CardBase[]).forEach(card => {
-        if (card.arquivado || card.concluido) return;
-        const fase   = Array.isArray(card.fase)   ? card.fase[0]   : card.fase;
-        const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
-        mapa.set(card.id, {
-          id: card.id, titulo: card.titulo,
+      for (const ec of enriched) {
+        if (ec.responsavel_fase_id !== effectiveProfileId) continue;
+        const raw = rawMap.get(ec.id);
+        if (!raw) continue;
+        const fase   = Array.isArray(raw.fase)   ? raw.fase[0]   : raw.fase;
+        const kanban = Array.isArray(raw.kanban) ? raw.kanban[0] : raw.kanban;
+        mapa.set(ec.id, {
+          id:                raw.id,
+          titulo:            raw.titulo,
           fase_nome:         fase?.nome   ?? null,
           kanban_nome:       kanban?.nome ?? null,
           sla_dias:          fase?.sla_dias ?? null,
-          sla:               computeSla(card, fase ?? null),
-          sla_prazo_iso:     computeSlaPrazo(card, fase ?? null),
-          origem:            card.proxima_atividade ? 'proxima_atividade' : 'sem_atividade',
-          proxima_atividade: card.proxima_atividade,
-          prazo_atividade:   card.prazo_atividade,
-          especial:          especialSet.has(card.id),
+          sla:               computeSla(raw, fase ?? null),
+          sla_prazo_iso:     computeSlaPrazo(raw, fase ?? null),
+          origem:            raw.proxima_atividade ? 'proxima_atividade' : 'sem_atividade',
+          proxima_atividade: raw.proxima_atividade,
+          prazo_atividade:   raw.prazo_atividade,
+          especial:          especialSet.has(raw.id),
         });
-      });
+      }
 
       const hojeIso = new Date().toISOString().slice(0, 10);
       const todasCards = Array.from(mapa.values());
@@ -187,53 +210,44 @@ export function useBacklogKanban(refreshKey = 0) {
         return 0;
       });
 
-      // Ingrid: visão global — todos os cards SND + todos os cards sem responsável
+      // 6. Ingrid: SND global (fases sem SLA → ela cadastra) +
+      //            Orphan global (cards sem responsavel_fase → ela atribui)
       let ingridOrphans: KanbanCardItem[] = [];
       const isIngridView = user.email === INGRID_EMAIL || simEmail === INGRID_EMAIL;
       if (isIngridView) {
-        type CardGlobal = CardBase & { franqueado_id: string | null };
-        const { data: globalRaw } = await supabase
-          .from('kanban_cards')
-          .select(`
-            id, titulo, arquivado, concluido,
-            created_at, entered_fase_at, sla_iniciado_em,
-            proxima_atividade, prazo_atividade,
-            franqueado_id,
-            fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
-            kanban:kanbans(nome)
-          `)
-          .eq('arquivado', false)
-          .eq('concluido', false);
-
-        const sndMap = new Map(sndResultado.map(c => [c.id, c]));
+        const sndMap    = new Map<string, KanbanCardItem>();
         const orphanMap = new Map<string, KanbanCardItem>();
 
-        ((globalRaw ?? []) as unknown as CardGlobal[]).forEach(card => {
-          const fase   = Array.isArray(card.fase)   ? card.fase[0]   : card.fase;
-          const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
+        for (const ec of enriched) {
+          const raw = rawMap.get(ec.id);
+          if (!raw) continue;
+          const fase   = Array.isArray(raw.fase)   ? raw.fase[0]   : raw.fase;
+          const kanban = Array.isArray(raw.kanban) ? raw.kanban[0] : raw.kanban;
           const item: KanbanCardItem = {
-            id: card.id, titulo: card.titulo,
+            id:                raw.id,
+            titulo:            raw.titulo,
             fase_nome:         fase?.nome   ?? null,
             kanban_nome:       kanban?.nome ?? null,
             sla_dias:          fase?.sla_dias ?? null,
-            sla:               computeSla(card, fase ?? null),
-            sla_prazo_iso:     computeSlaPrazo(card, fase ?? null),
+            sla:               computeSla(raw, fase ?? null),
+            sla_prazo_iso:     computeSlaPrazo(raw, fase ?? null),
             origem:            'sem_atividade',
-            proxima_atividade: card.proxima_atividade,
-            prazo_atividade:   card.prazo_atividade,
-            especial:          especialSet.has(card.id),
+            proxima_atividade: raw.proxima_atividade,
+            prazo_atividade:   raw.prazo_atividade,
+            especial:          especialSet.has(raw.id),
           };
-          if (fase?.sla_dias === null || fase?.sla_dias === undefined) {
-            if (!sndMap.has(card.id)) sndMap.set(card.id, item);
-          } else {
-            // Orphan = card com SLA definido mas sem dono (franqueado_id)
-            if (!card.franqueado_id && !orphanMap.has(card.id)) orphanMap.set(card.id, item);
+          if (!fase?.sla_dias) {
+            sndMap.set(raw.id, item);
+          } else if (!ec.responsavel_fase_id) {
+            orphanMap.set(raw.id, item);
           }
-        });
+        }
 
-        sndResultado = Array.from(sndMap.values());
+        sndResultado  = Array.from(sndMap.values());
         ingridOrphans = Array.from(orphanMap.values());
       }
+
+      void effectiveUserEmail; // usado implicitamente via effectiveProfileId
 
       if (callId !== callIdRef.current) return;
       setOrphanCards(ingridOrphans);

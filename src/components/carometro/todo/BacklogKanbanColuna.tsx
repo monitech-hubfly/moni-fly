@@ -284,7 +284,7 @@ export function BacklogKanbanColuna() {
                 className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 w-full text-left"
               >
                 <span>{orphanAberto ? '▾' : '▸'}</span>
-                <span className="text-amber-600 font-medium">Sem responsável ({orphanCards.length})</span>
+                <span className="text-amber-600 font-medium">SRC — Sem Responsável do Card ({orphanCards.length})</span>
               </button>
               {orphanAberto && (
                 <div className="flex flex-col gap-1.5 mt-1.5 max-h-[12rem] overflow-y-auto">
