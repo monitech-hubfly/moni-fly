@@ -34,6 +34,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   passagem_wayser: 'moni',
 
   // Funil Acoplamento
+  novo_acoplamento: 'moni',
   modelagem_terreno: 'moni',
   modelagem_casa_gbox: 'moni',
   validacao_acoplamento: 'moni',

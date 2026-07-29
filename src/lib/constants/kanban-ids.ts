@@ -112,6 +112,8 @@ export const FASE_SLUGS = {
   LOTEADORES_COMITE: 'comite_moni_inc',
   /** Funil Loteadores — diligência antes de Moní Capital. */
   LOTEADORES_DILIGENCIA: 'diligencia_moni_inc',
+  /** Funil Acoplamento — primeira fase (entrada). */
+  ACOPLAMENTO_NOVO: 'novo_acoplamento',
   /** Funil Acoplamento — gate Gbox/Acoplamento antes de avançar. */
   MODELAGEM_CASA_GBOX: 'modelagem_casa_gbox',
   /** Funil Acoplamento — entre Validação e Alterações. */

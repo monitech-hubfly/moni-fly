@@ -10,6 +10,7 @@ import type {
 const ORIGEM_NAO_REGISTRADA = 'Origem não registrada';
 
 const FASES_TECNICAS_SLUGS = [
+  'novo_acoplamento',
   'modelagem_terreno',
   FASE_SLUGS.MODELAGEM_CASA_GBOX,
   'validacao_acoplamento',
