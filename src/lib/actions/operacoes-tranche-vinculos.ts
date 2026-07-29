@@ -131,7 +131,7 @@ async function resolverFilhoCreditoObraExiste(
 
   if (rpcErr) return false;
 
-  return (filhos ?? []).some((row) => {
+  return (filhos ?? []).some((row: unknown) => {
     const kid = String((row as { filho_kanban_id?: string | null }).filho_kanban_id ?? '').trim();
     const arquivado = Boolean((row as { arquivado?: boolean | null }).arquivado);
     return kid === KANBAN_IDS.CREDITO_OBRA && !arquivado;
