@@ -1455,6 +1455,11 @@ export async function atualizarStatusSubInteracao(
     topicoResponsavelId === user.id ||
     topicoResponsaveisIds.includes(user.id);
   if (!isResponsavel) {
+    // Se o tópico tem responsável definido, apenas ele pode alterar o status
+    const hasResponsavel = topicoResponsavelId != null || topicoResponsaveisIds.length > 0;
+    if (hasResponsavel) {
+      return { ok: false, error: 'Somente o responsável pela atividade pode alterar seu status.' };
+    }
     const bloqueio = await assertEditableFromSirene(supabase, interacaoId, viaSirene);
     if (bloqueio) return bloqueio;
   }
