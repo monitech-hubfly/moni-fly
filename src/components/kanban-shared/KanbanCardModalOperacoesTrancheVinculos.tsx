@@ -77,17 +77,15 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
           setTemPrimeiroCard(false);
           return;
         }
-        setErro(null);
+        setErro(res.error ?? 'Erro ao carregar vínculos.');
         setItems(itensTrancheVinculoPreset());
-        setTemPrimeiroCard(false);
         return;
       }
       setItems(res.items);
       setTemPrimeiroCard(res.temPrimeiroCardCreditoObra);
     } catch {
-      setErro(null);
+      setErro('Erro ao carregar vínculos.');
       setItems(itensTrancheVinculoPreset());
-      setTemPrimeiroCard(false);
     } finally {
       setLoading(false);
     }

@@ -66,6 +66,22 @@ function erroTabelaTrancheVinculosAusente(err: { code?: string; message?: string
   );
 }
 
+function erroConsultaTrancheVinculosIgnoravel(err: { code?: string; message?: string }): boolean {
+  if (erroTabelaTrancheVinculosAusente(err)) return true;
+  const msg = String(err.message ?? '').toLowerCase();
+  return msg.includes('permission denied') && msg.includes('kanban_operacoes_tranche_vinculos');
+}
+
+async function resolverFaseSlugPorFaseId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  faseId: string | null | undefined,
+): Promise<string | null> {
+  const fid = String(faseId ?? '').trim();
+  if (!fid) return null;
+  const { data: faseRow } = await supabase.from('kanban_fases').select('slug').eq('id', fid).maybeSingle();
+  return String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim() || null;
+}
+
 async function resolverFaseSlugOperacoesCard(
   supabase: Awaited<ReturnType<typeof createClient>>,
   operacoesCardId: string,
@@ -75,22 +91,16 @@ async function resolverFaseSlugOperacoesCard(
 
   const { data: card, error: cardErr } = await supabase
     .from('kanban_cards')
-    .select('fase_id, kanban_fases ( slug )')
+    .select('fase_id')
     .eq('id', cid)
     .maybeSingle();
 
   if (!cardErr && card) {
-    const faseEmbed = (card as { kanban_fases?: { slug?: string } | { slug?: string }[] | null }).kanban_fases;
-    const faseNode = Array.isArray(faseEmbed) ? faseEmbed[0] : faseEmbed;
-    const slug = String(faseNode?.slug ?? '').trim();
+    const slug = await resolverFaseSlugPorFaseId(
+      supabase,
+      (card as { fase_id?: string | null }).fase_id,
+    );
     if (slug) return slug;
-
-    const faseId = String((card as { fase_id?: string | null }).fase_id ?? '').trim();
-    if (faseId) {
-      const { data: faseRow } = await supabase.from('kanban_fases').select('slug').eq('id', faseId).maybeSingle();
-      const s = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim();
-      if (s) return s;
-    }
   }
 
   const { data: vLeg } = await supabase
@@ -99,11 +109,10 @@ async function resolverFaseSlugOperacoesCard(
     .eq('id', cid)
     .maybeSingle();
 
-  const faseIdLeg = String((vLeg as { fase_id?: string | null } | null)?.fase_id ?? '').trim();
-  if (!faseIdLeg) return null;
-
-  const { data: faseLeg } = await supabase.from('kanban_fases').select('slug').eq('id', faseIdLeg).maybeSingle();
-  return String((faseLeg as { slug?: string | null } | null)?.slug ?? '').trim() || null;
+  return resolverFaseSlugPorFaseId(
+    supabase,
+    (vLeg as { fase_id?: string | null } | null)?.fase_id,
+  );
 }
 
 async function resolverFilhoCreditoObraExiste(
@@ -175,7 +184,7 @@ export async function listarTrancheVinculosOperacoes(
       .eq('operacoes_card_id', cid);
 
     if (rowsErr) {
-      if (erroTabelaTrancheVinculosAusente(rowsErr)) {
+      if (erroConsultaTrancheVinculosIgnoravel(rowsErr)) {
         return {
           ok: true,
           items: montarItensTrancheVinculo(new Map()),
@@ -365,7 +374,7 @@ export async function abrirTrancheVinculoOperacoes(input: {
 
   const { data: paiRow, error: errPai } = await supabase
     .from('kanban_cards')
-    .select('id, titulo, projeto_id, rede_franqueado_id, fase_id, kanban_fases(slug)')
+    .select('id, titulo, projeto_id, rede_franqueado_id, fase_id')
     .eq('id', operacoesId)
     .maybeSingle();
 
@@ -373,9 +382,11 @@ export async function abrirTrancheVinculoOperacoes(input: {
     return { ok: false, error: 'Card de Operações não encontrado.' };
   }
 
-  const faseEmbed = (paiRow as { kanban_fases?: { slug?: string } | { slug?: string }[] | null }).kanban_fases;
-  const faseNode = Array.isArray(faseEmbed) ? faseEmbed[0] : faseEmbed;
-  const faseOrigemSlug = String(faseNode?.slug ?? '').trim() || 'operacoes';
+  const faseOrigemSlug =
+    (await resolverFaseSlugPorFaseId(
+      supabase,
+      (paiRow as { fase_id?: string | null }).fase_id,
+    )) || 'operacoes';
 
   let novoFilhoId: string;
   try {
