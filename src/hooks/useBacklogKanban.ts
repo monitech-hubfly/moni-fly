@@ -88,6 +88,7 @@ export function useBacklogKanban(refreshKey = 0) {
   const simProfileId = simulacao?.profileId ?? null;
   const simAreaId    = simulacao?.areaId    ?? null;
   const simNome      = simulacao?.nomeUsuario ?? null;
+  const simEmail     = simulacao?.email ?? null;
 
   const carregar = useCallback(async () => {
     const callId = ++callIdRef.current;
@@ -386,7 +387,8 @@ export function useBacklogKanban(refreshKey = 0) {
 
       // Ingrid: visão global — todos os cards SND + todos os cards sem responsável
       let ingridOrphans: KanbanCardItem[] = [];
-      if (user.email === INGRID_EMAIL && !simProfileId) {
+      const isIngridView = user.email === INGRID_EMAIL || simEmail === INGRID_EMAIL;
+      if (isIngridView) {
         type CardGlobal = CardBase & {
           responsavel_id: string | null;
           responsaveis_ids: string[] | null;

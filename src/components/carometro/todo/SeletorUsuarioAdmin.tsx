@@ -9,6 +9,7 @@ export type SimulacaoUsuario = {
   areaId: string;
   nomeUsuario: string;
   label: string;
+  email: string;
 };
 
 type SimulacaoCtx = {
@@ -140,6 +141,7 @@ export function SeletorUsuarioAdmin() {
       areaId:       primeiraArea.areaId,
       nomeUsuario:  primeiraArea.nomeUsuario,
       label:        `${p.fullName} — ${primeiraArea.areaNome}`,
+      email:        p.email,
     });
   };
 
@@ -152,6 +154,7 @@ export function SeletorUsuarioAdmin() {
       areaId:      area.areaId,
       nomeUsuario: area.nomeUsuario,
       label:       `${profileAtual.fullName} — ${area.areaNome}`,
+      email:       profileAtual.email,
     });
   };
 
