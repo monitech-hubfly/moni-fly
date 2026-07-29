@@ -43,37 +43,6 @@ const STEPS_SUBITENS: NavItem[] = [
   { href: '/step-6', label: 'Diligência' },
   { href: '/step-7', label: 'Contrato' },
 ];
-const HUB_FUNIS_PATH = '/hub-funis';
-const NOVOS_NEGOCIOS_SUBITENS: NavItem[] = [
-  { href: HUB_FUNIS_PATH, label: 'Funil Step One' },
-  { href: HUB_FUNIS_PATH, label: 'Funil Portfolio' },
-  { href: HUB_FUNIS_PATH, label: 'Funil Loteadores' },
-  { href: HUB_FUNIS_PATH, label: 'Funil Acoplamento' },
-  { href: HUB_FUNIS_PATH, label: 'Motor 01' },
-];
-const NOVOS_NEGOCIOS_SUBITENS_FRANK: NavItem[] = [
-  { href: HUB_FUNIS_PATH, label: 'Funil Step One' },
-  { href: HUB_FUNIS_PATH, label: 'Funil Portfolio' },
-];
-const CREDITO_JURIDICO_SUBITENS_STAFF: NavItem[] = [
-  { href: HUB_FUNIS_PATH, label: 'Funil Divify' },
-  { href: HUB_FUNIS_PATH, label: 'Funding' },
-];
-const CREDITO_JURIDICO_SUBITENS_ADMIN: NavItem[] = [
-  ...CREDITO_JURIDICO_SUBITENS_STAFF,
-  { href: HUB_FUNIS_PATH, label: 'Funil Crédito Obra' },
-  { href: HUB_FUNIS_PATH, label: 'Funil Contabilidade' },
-];
-const PRE_OBRA_SUBITENS: NavItem[] = [
-  { href: HUB_FUNIS_PATH, label: 'Funil Pré Obra e Obra' },
-  { href: HUB_FUNIS_PATH, label: 'Funil Projeto Legal' },
-  { href: HUB_FUNIS_PATH, label: 'Projetos Locais' },
-];
-const HDM_SUBITENS: NavItem[] = [
-  { href: HUB_FUNIS_PATH, label: 'Produto' },
-  { href: HUB_FUNIS_PATH, label: 'Modelo Virtual' },
-  { href: HUB_FUNIS_PATH, label: 'Homologações' },
-];
 const INTERNO_SUBITENS: NavItem[] = [{ href: '/funil-contratacoes', label: 'Contratações' }];
 const SIRENE_SUBITENS: NavItem[] = [
   { href: '/sirene/chamados', label: 'Chamados' },
@@ -126,24 +95,9 @@ function isRedeFranqueadosActive(pathname: string) {
   }
   return pathname === '/rede' || (pathname.startsWith('/rede') && !pathname.startsWith('/rede-franqueados'));
 }
-function buildNovosNegociosSubitens(role: string): NavItem[] {
-  const base =
-    normalizeAccessRole(role) !== 'frank' ? NOVOS_NEGOCIOS_SUBITENS : NOVOS_NEGOCIOS_SUBITENS_FRANK;
-
-  if (!isRedeStaffRole(role)) return base;
-
-  return [{ href: '/portfolio/saude', label: 'Saúde' }, ...base];
-}
-
-function isNovosNegociosSubitemActive(pathname: string, href: string): boolean {
-  if (href === '/portfolio') {
-    return pathname === '/portfolio';
-  }
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function isNovosNegociosActive(pathname: string) {
+function isHubFunisActive(pathname: string) {
   return (
+    pathname.startsWith('/hub-funis') ||
     pathname.startsWith('/painel-novos-negocios') ||
     pathname.startsWith('/portfolio') ||
     pathname.startsWith('/funil-acoplamento') ||
@@ -151,31 +105,16 @@ function isNovosNegociosActive(pathname: string) {
     pathname.startsWith('/funil-stepone') ||
     pathname.startsWith('/funil-motor01') ||
     pathname.startsWith('/loteadores') ||
-    pathname.startsWith('/funil-moni-inc')
-  );
-}
-
-function isCreditoJuridicoActive(pathname: string) {
-  return (
+    pathname.startsWith('/funil-moni-inc') ||
     pathname.startsWith('/funil-juridico') ||
     pathname.startsWith('/funil-moni-capital') ||
     pathname.startsWith('/funil-funding') ||
     pathname.startsWith('/painel-contabilidade') ||
-    pathname.startsWith('/funil-credito-obra')
-  );
-}
-
-function isPreObraActive(pathname: string) {
-  return (
+    pathname.startsWith('/funil-credito-obra') ||
     pathname.startsWith('/operacoes') ||
     pathname.startsWith('/funil-projeto-legal') ||
     pathname.startsWith('/projetos-locais') ||
-    pathname.startsWith('/projetos-legais')
-  );
-}
-
-function isHdmActive(pathname: string) {
-  return (
+    pathname.startsWith('/projetos-legais') ||
     pathname.startsWith('/funil-produto') ||
     pathname.startsWith('/funil-modelo-virtual') ||
     pathname.startsWith('/funil-homologacoes')
@@ -218,13 +157,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const roleNorm = normalizeAccessRole(resolvedRole);
   const isFrank = roleNorm === 'frank';
   const isStaff = isAdmin || roleNorm === 'team';
-  const showNovosNegociosNav = isStaff || isFrank;
-  const showCreditoJuridicoNav = isStaff;
-  const showPreObraNav = isStaff;
-  const showHdmNav = isStaff;
-
-  const novosNegociosSubitens = useMemo(() => buildNovosNegociosSubitens(resolvedRole), [resolvedRole]);
-  const creditoJuridicoSubitens = isAdmin ? CREDITO_JURIDICO_SUBITENS_ADMIN : CREDITO_JURIDICO_SUBITENS_STAFF;
+  const showHubFunisNav = isStaff || isFrank;
 
   useEffect(() => {
     setResolvedRole(userRole);
@@ -251,12 +184,6 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const [redeFranqueadosOpen, setRedeFranqueadosOpen] = useState(() => isRedeFranqueadosActive(pathname ?? ''));
   const [catalogoOpen, setCatalogoOpen] = useState(() => isCatalogoActive(pathname ?? ''));
   const [stepsOpen, setStepsOpen] = useState(() => isStepsActive(pathname ?? ''));
-  const [novosNegociosOpen, setNovosNegociosOpen] = useState(() => isNovosNegociosActive(pathname ?? ''));
-  const [creditoJuridicoOpen, setCreditoJuridicoOpen] = useState(() =>
-    isCreditoJuridicoActive(pathname ?? ''),
-  );
-  const [preObraOpen, setPreObraOpen] = useState(() => isPreObraActive(pathname ?? ''));
-  const [hdmOpen, setHdmOpen] = useState(() => isHdmActive(pathname ?? ''));
   const [internoOpen, setInternoOpen] = useState(() => isInternoNavActive(pathname ?? ''));
   const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
   const [carometroOpen, setCarometroOpen] = useState(() => isCarometroNavActive(pathname ?? ''));
@@ -278,10 +205,6 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
     ) {
       setPerfilOpen(true);
     }
-    if (isNovosNegociosActive(p)) setNovosNegociosOpen(true);
-    if (isCreditoJuridicoActive(p)) setCreditoJuridicoOpen(true);
-    if (isPreObraActive(p)) setPreObraOpen(true);
-    if (isHdmActive(p)) setHdmOpen(true);
     if (isInternoNavActive(p)) setInternoOpen(true);
     if (isSireneNavActive(p)) setSireneOpen(true);
     if (isCarometroNavActive(p)) setCarometroOpen(true);
@@ -413,49 +336,14 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
           />
         )}
 
-        {showNovosNegociosNav &&
-          renderMacro(
-            'novosNegocios',
-            'Novos Negócios',
-            isNovosNegociosActive(pathname ?? ''),
-            novosNegociosOpen,
-            setNovosNegociosOpen,
-            novosNegociosSubitens,
-            (href) => isNovosNegociosSubitemActive(pathname ?? '', href),
-          )}
-
-        {showCreditoJuridicoNav &&
-          renderMacro(
-            'creditoJuridico',
-            'Moní Capital',
-            isCreditoJuridicoActive(pathname ?? ''),
-            creditoJuridicoOpen,
-            setCreditoJuridicoOpen,
-            creditoJuridicoSubitens,
-            (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
-          )}
-
-        {showPreObraNav &&
-          renderMacro(
-            'preObra',
-            'Operações',
-            isPreObraActive(pathname ?? ''),
-            preObraOpen,
-            setPreObraOpen,
-            PRE_OBRA_SUBITENS,
-            (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
-          )}
-
-        {showHdmNav &&
-          renderMacro(
-            'hdm',
-            'HDM',
-            isHdmActive(pathname ?? ''),
-            hdmOpen,
-            setHdmOpen,
-            HDM_SUBITENS,
-            (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
-          )}
+        {showHubFunisNav && (
+          <Link
+            href="/hub-funis"
+            className={linkClassPrincipal(isHubFunisActive(pathname ?? ''))}
+          >
+            Hub de Funis
+          </Link>
+        )}
 
         {!limitedRelease && showInternoNav &&
           renderMacro(
