@@ -32,12 +32,10 @@ const GRUPOS: GrupoDef[] = [
     titulo: 'Moní Capital',
     cor: '#7a5c1e',
     funis: [
-      { id: KANBAN_IDS.MONI_CAPITAL,  label: 'Divify',       href: '/funil-moni-capital' },
-      { id: KANBAN_IDS.FUNDING,       label: 'Funding',       href: '/funil-funding' },
-      { id: KANBAN_IDS.CONTRATACOES,  label: 'Contratações',  href: '/funil-contratacoes' },
-      { id: KANBAN_IDS.CREDITO_OBRA,  label: 'Crédito Obra', href: '/funil-credito-obra' },
-      { id: KANBAN_IDS.CONTABILIDADE, label: 'Contabilidade', href: '/painel-contabilidade' },
-      { id: KANBAN_IDS.JURIDICO,      label: 'Jurídico',      href: '/funil-juridico' },
+      { id: KANBAN_IDS.MONI_CAPITAL, label: 'Divify',      href: '/funil-moni-capital' },
+      { id: KANBAN_IDS.FUNDING,      label: 'Funding',      href: '/funil-funding' },
+      { id: KANBAN_IDS.CREDITO_OBRA, label: 'Crédito Obra', href: '/funil-credito-obra' },
+      { id: KANBAN_IDS.JURIDICO,     label: 'Jurídico',     href: '/funil-juridico' },
     ],
   },
   {
@@ -56,6 +54,14 @@ const GRUPOS: GrupoDef[] = [
       { id: KANBAN_IDS.HDM_PRODUTO,        label: 'Produto',        href: '/funil-produto' },
       { id: KANBAN_IDS.HDM_MODELO_VIRTUAL, label: 'Modelo Virtual', href: '/funil-modelo-virtual' },
       { id: KANBAN_IDS.HDM_HOMOLOGACOES,   label: 'Homologações',   href: '/funil-homologacoes' },
+    ],
+  },
+  {
+    titulo: 'ADM',
+    cor: '#3d3d3d',
+    funis: [
+      { id: KANBAN_IDS.CONTRATACOES,  label: 'Contratações',  href: '/funil-contratacoes' },
+      { id: KANBAN_IDS.CONTABILIDADE, label: 'Contabilidade', href: '/painel-contabilidade' },
     ],
   },
 ];
