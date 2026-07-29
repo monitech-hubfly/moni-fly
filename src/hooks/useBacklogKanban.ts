@@ -103,7 +103,7 @@ export function useBacklogKanban(refreshKey = 0) {
         ? simProfileId
         : user.id;
 
-      // Fonte única: cards onde o usuário é responsável (responsavel_id ou responsaveis_ids)
+      // Fonte única: cards onde o usuário é franqueado_id (dono do card)
       const [responsavelRes, tagEspecialRes] = await Promise.all([
         supabase
           .from('kanban_cards')
@@ -114,7 +114,7 @@ export function useBacklogKanban(refreshKey = 0) {
             fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
-          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+          .eq('franqueado_id', effectiveProfileId)
           .eq('arquivado', false)
           .eq('concluido', false),
 
@@ -191,17 +191,14 @@ export function useBacklogKanban(refreshKey = 0) {
       let ingridOrphans: KanbanCardItem[] = [];
       const isIngridView = user.email === INGRID_EMAIL || simEmail === INGRID_EMAIL;
       if (isIngridView) {
-        type CardGlobal = CardBase & {
-          responsavel_id: string | null;
-          responsaveis_ids: string[] | null;
-        };
+        type CardGlobal = CardBase & { franqueado_id: string | null };
         const { data: globalRaw } = await supabase
           .from('kanban_cards')
           .select(`
             id, titulo, arquivado, concluido,
             created_at, entered_fase_at, sla_iniciado_em,
             proxima_atividade, prazo_atividade,
-            responsavel_id, responsaveis_ids,
+            franqueado_id,
             fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
@@ -229,9 +226,8 @@ export function useBacklogKanban(refreshKey = 0) {
           if (fase?.sla_dias === null || fase?.sla_dias === undefined) {
             if (!sndMap.has(card.id)) sndMap.set(card.id, item);
           } else {
-            const hasResp = !!card.responsavel_id ||
-              (Array.isArray(card.responsaveis_ids) && card.responsaveis_ids.length > 0);
-            if (!hasResp && !orphanMap.has(card.id)) orphanMap.set(card.id, item);
+            // Orphan = card com SLA definido mas sem dono (franqueado_id)
+            if (!card.franqueado_id && !orphanMap.has(card.id)) orphanMap.set(card.id, item);
           }
         });
 

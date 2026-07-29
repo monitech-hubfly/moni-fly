@@ -44,6 +44,16 @@ function mesAtualStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+const LS_MES_KEY = 'bone_day_ultimo_mes';
+
+function mesInicial(): string {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem(LS_MES_KEY);
+    if (saved && /^\d{4}-\d{2}$/.test(saved)) return saved;
+  }
+  return mesAtualStr();
+}
+
 export type UsePlanoBoneDayResult = {
   metas: MetaItem[];
   metasNaoConcluidas: MetaItem[];
@@ -71,7 +81,11 @@ export function usePlanoBoneDay(
   const [comportamentos,     setComportamentos]     = useState<ComportamentoItem[]>([]);
   const [agendaMacro,        setAgendaMacro]        = useState<AgendaMacroItem[]>([]);
   const [objetivoResponsaveis, setObjetivoResponsaveis] = useState<ObjetivoResponsavel[]>([]);
-  const [mes,                setMes]                = useState(mesAtualStr);
+  const [mes, setMesState] = useState(mesInicial);
+  const setMes = useCallback((m: string) => {
+    localStorage.setItem(LS_MES_KEY, m);
+    setMesState(m);
+  }, []);
   const [isLoading,          setIsLoading]          = useState(true);
   const [error,              setError]              = useState<string | null>(null);
 
