@@ -517,16 +517,16 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
     {popupSem !== null && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
         onClick={fecharPopup}>
-        <div className="bg-white rounded-xl shadow-xl p-5 w-80 flex flex-col gap-3"
+        <div className="bg-white rounded-xl shadow-xl p-6 w-[520px] flex flex-col gap-4"
           onClick={e => e.stopPropagation()}>
           <h3 className="text-sm font-semibold text-gray-800">Nova atividade — S{popupSem}</h3>
           <div>
             <label className="text-[10px] text-gray-500 mb-1 block">O que será feito?</label>
-            <input type="text" autoFocus
-              className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              placeholder="Descreva a atividade..."
+            <textarea autoFocus rows={4}
+              className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+              placeholder="Descreva seus comportamentos e atividades para atingir as metas de sua área"
               value={novoNome} onChange={e => setNovoNome(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') void handleAddLivre(popupSem); if (e.key === 'Escape') fecharPopup(); }}
+              onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) void handleAddLivre(popupSem); if (e.key === 'Escape') fecharPopup(); }}
             />
           </div>
           <div>
