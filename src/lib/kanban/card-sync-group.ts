@@ -1055,7 +1055,7 @@ export async function sincronizarGrupoSyncFromPrimario(
     if (procRow) {
       const procPatch: ProcessoCamposSync = {};
       for (const k of PROCESSO_CAMPOS_SYNC) {
-        const v = (procRow as Record<string, unknown>)[k];
+        const v = (procRow as unknown as Record<string, unknown>)[k];
         if (v !== undefined && v !== null && String(v).trim() !== '') {
           procPatch[k] = String(v);
         }
