@@ -413,17 +413,28 @@ export async function abrirTrancheVinculoOperacoes(input: {
   }
 
   const now = new Date().toISOString();
-  const { error: upsertErr } = await supabase.from('kanban_operacoes_tranche_vinculos').upsert(
-    {
-      operacoes_card_id: operacoesId,
-      tranche_index: idx,
-      concluido_em: now,
-      concluido_por: user.id,
-      credito_obra_card_id: novoFilhoId,
-      updated_at: now,
-    } as never,
-    { onConflict: 'operacoes_card_id,tranche_index' },
-  );
+  const patchVinculo = {
+    operacoes_card_id: operacoesId,
+    tranche_index: idx,
+    concluido_em: now,
+    concluido_por: user.id,
+    credito_obra_card_id: novoFilhoId,
+    updated_at: now,
+  };
+
+  let upsertErr: { message: string } | null = null;
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from('kanban_operacoes_tranche_vinculos')
+      .upsert(patchVinculo as never, { onConflict: 'operacoes_card_id,tranche_index' });
+    upsertErr = error;
+  } catch {
+    const { error } = await supabase
+      .from('kanban_operacoes_tranche_vinculos')
+      .upsert(patchVinculo as never, { onConflict: 'operacoes_card_id,tranche_index' });
+    upsertErr = error;
+  }
 
   if (upsertErr) return { ok: false, error: upsertErr.message };
 

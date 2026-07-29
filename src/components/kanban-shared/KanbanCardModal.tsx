@@ -8752,6 +8752,7 @@ export function KanbanCardModal({
                   <KanbanCardModalOperacoesTrancheVinculosSidebar
                     key={`${card.id}-tranche-vinculos-${trancheVinculosTick}`}
                     cardId={card.id}
+                    faseSlug={faseAtual?.slug ?? null}
                     basePath={basePath}
                     refreshKey={trancheVinculosTick}
                     podeGerenciar={podeGerenciarRelacionamentos}

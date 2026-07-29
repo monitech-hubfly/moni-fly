@@ -9,6 +9,7 @@ import {
 } from '@/lib/actions/operacoes-tranche-vinculos';
 import {
   configTrancheVinculo,
+  faseOperacoesPresumePrimeiraTrancheCo,
   OPERACOES_TRANCHE_VINCULOS,
 } from '@/lib/operacoes/tranche-vinculos-config';
 import {
@@ -39,6 +40,8 @@ function corTextoTagTranche(cor: string): string {
 
 type SidebarProps = {
   cardId: string;
+  /** Slug da fase atual (modal) — fallback local para presumir 1ª tranche CO. */
+  faseSlug?: string | null;
   basePath: string;
   refreshKey: number;
   podeGerenciar: boolean;
@@ -48,14 +51,16 @@ type SidebarProps = {
 
 export function KanbanCardModalOperacoesTrancheVinculosSidebar({
   cardId,
+  faseSlug,
   basePath,
   refreshKey,
   podeGerenciar,
   cardDesabilitado = false,
   onConcluido,
 }: SidebarProps) {
+  const presumePrimeiraTrancheLocal = faseOperacoesPresumePrimeiraTrancheCo(faseSlug);
   const [items, setItems] = useState<TrancheVinculoListItem[]>([]);
-  const [temPrimeiroCard, setTemPrimeiroCard] = useState(false);
+  const [temPrimeiroCard, setTemPrimeiroCard] = useState(presumePrimeiraTrancheLocal);
   const [loading, setLoading] = useState(true);
   const [abrindoIndex, setAbrindoIndex] = useState<number | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -79,17 +84,23 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
         }
         setErro(res.error ?? 'Erro ao carregar vínculos.');
         setItems(itensTrancheVinculoPreset());
+        setTemPrimeiroCard(presumePrimeiraTrancheLocal);
         return;
       }
       setItems(res.items);
-      setTemPrimeiroCard(res.temPrimeiroCardCreditoObra);
+      setTemPrimeiroCard(res.temPrimeiroCardCreditoObra || presumePrimeiraTrancheLocal);
     } catch {
       setErro('Erro ao carregar vínculos.');
       setItems(itensTrancheVinculoPreset());
+      setTemPrimeiroCard(presumePrimeiraTrancheLocal);
     } finally {
       setLoading(false);
     }
-  }, [cardId]);
+  }, [cardId, presumePrimeiraTrancheLocal]);
+
+  useEffect(() => {
+    setTemPrimeiroCard((prev) => prev || presumePrimeiraTrancheLocal);
+  }, [presumePrimeiraTrancheLocal]);
 
   useEffect(() => {
     void carregar();
