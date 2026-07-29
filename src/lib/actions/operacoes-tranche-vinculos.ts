@@ -12,6 +12,7 @@ import {
 } from '@/lib/operacoes/tranche-vinculos-config';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { listarKanbanCardIdsSyncGroup } from '@/lib/kanban/card-sync-group';
 
 export type TrancheVinculoRow = {
   tranche_index: TrancheVinculoIndex;
@@ -68,17 +69,32 @@ async function resolverFilhoCreditoObraExiste(
   supabase: Awaited<ReturnType<typeof createClient>>,
   operacoesCardId: string,
 ): Promise<boolean> {
-  const { data, error } = await supabase
+  const cid = String(operacoesCardId ?? '').trim();
+  if (!cid) return false;
+
+  const { data: direct, error: directErr } = await supabase
     .from('kanban_cards')
     .select('id')
-    .eq('origem_card_id', operacoesCardId)
+    .eq('origem_card_id', cid)
     .eq('kanban_id', KANBAN_IDS.CREDITO_OBRA)
     .eq('arquivado', false)
-    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
 
-  return !error && Boolean(data?.id);
+  if (!directErr && direct?.id) return true;
+
+  const consultaIds = await listarKanbanCardIdsSyncGroup(supabase, cid);
+  const { data: filhos, error: rpcErr } = await supabase.rpc('kanban_filhos_paralelas_por_pais', {
+    p_pai_ids: consultaIds.length > 0 ? consultaIds : [cid],
+  });
+
+  if (rpcErr) return false;
+
+  return (filhos ?? []).some((row) => {
+    const kid = String((row as { filho_kanban_id?: string | null }).filho_kanban_id ?? '').trim();
+    const arquivado = Boolean((row as { arquivado?: boolean | null }).arquivado);
+    return kid === KANBAN_IDS.CREDITO_OBRA && !arquivado;
+  });
 }
 
 /** Lista os vínculos 2ª–6ª tranche com status. */
