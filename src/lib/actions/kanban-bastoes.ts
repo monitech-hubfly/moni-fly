@@ -1032,7 +1032,10 @@ const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'acoplamento_concluido',
   [FASE_SLUGS.ACOPLAMENTO_REPROVADO]: 'acoplamento_concluido',
   [FASE_SLUGS.CO_OUTRO_PARCEIRO]: 'credito_obra_ok',
+  [FASE_SLUGS.CO_SHAREPOINT_3A]: 'credito_obra_ok',
+  /** @deprecated legado — cards em fase inativa (migration 494) */
   [FASE_SLUGS.CREDITO_OBRA_APROVADO]: 'credito_obra_ok',
+  /** @deprecated legado — cards em fase inativa (migration 494) */
   [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'credito_obra_ok',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'contabilidade_ok',
   [FASE_SLUGS.JURIDICO_CONCLUIDO]: 'juridico_ok',
@@ -1046,7 +1049,10 @@ const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'Acoplamento (aprovado)',
   [FASE_SLUGS.ACOPLAMENTO_REPROVADO]: 'Acoplamento (paralisado)',
   [FASE_SLUGS.CO_OUTRO_PARCEIRO]: 'Crédito Obra (outro parceiro)',
+  [FASE_SLUGS.CO_SHAREPOINT_3A]: 'Crédito Obra (concluído)',
+  /** @deprecated legado */
   [FASE_SLUGS.CREDITO_OBRA_APROVADO]: 'Crédito Obra (aprovado)',
+  /** @deprecated legado */
   [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'Crédito Obra (reprovado)',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'Contabilidade',
   [FASE_SLUGS.JURIDICO_CONCLUIDO]: 'Jurídico',
@@ -1063,6 +1069,7 @@ const DESFECHO_APENAS_FLAG_SEM_MOVER_PAI = new Set<string>([
   FASE_SLUGS.ACOPLAMENTO_APROVADO,
   FASE_SLUGS.ACOPLAMENTO_REPROVADO,
   FASE_SLUGS.CO_OUTRO_PARCEIRO,
+  FASE_SLUGS.CO_SHAREPOINT_3A,
   FASE_SLUGS.CREDITO_OBRA_APROVADO,
   FASE_SLUGS.CREDITO_OBRA_REPROVADO,
   FASE_SLUGS.CONTABILIDADE_CONCLUIDO,

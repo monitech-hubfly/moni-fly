@@ -16,29 +16,14 @@ const CO_FASE_SLUGS = (Object.values(FASE_SLUGS) as string[]).filter((v) => v.st
 
 const TRANCHE_BLOCOS = [
   {
-    label: '1ª tranche',
+    label: 'Tranche',
     inicio: FASE_SLUGS.CO_AGUARDANDO_1A_TRANCHE,
     fim: FASE_SLUGS.CO_ACOMPANHAMENTO_TRANCHE,
   },
   {
-    label: '3ª tranche',
+    label: 'Captação adicional',
     inicio: FASE_SLUGS.CO_NECESSIDADE_3A_TRANCHE,
-    fim: FASE_SLUGS.CO_ACOMPANHAMENTO_3A,
-  },
-  {
-    label: '4ª tranche',
-    inicio: FASE_SLUGS.CO_NECESSIDADE_4A_TRANCHE,
-    fim: FASE_SLUGS.CO_ACOMPANHAMENTO_4A,
-  },
-  {
-    label: '5ª tranche',
-    inicio: FASE_SLUGS.CO_NECESSIDADE_5A_TRANCHE,
-    fim: FASE_SLUGS.CO_ACOMPANHAMENTO_5A,
-  },
-  {
-    label: '6ª tranche',
-    inicio: FASE_SLUGS.CO_NECESSIDADE_6A_TRANCHE,
-    fim: FASE_SLUGS.CO_ACOMPANHAMENTO_6A,
+    fim: FASE_SLUGS.CO_SHAREPOINT_3A,
   },
 ] as const;
 

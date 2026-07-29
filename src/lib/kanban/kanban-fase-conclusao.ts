@@ -3,6 +3,8 @@ import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 /** Slugs terminais explícitos (evita falso positivo em *_projeto_aprovado). */
 const SLUGS_APROVADO_TERMINAL = new Set<string>([
   FASE_SLUGS.ACOPLAMENTO_APROVADO,
+  FASE_SLUGS.CO_SHAREPOINT_3A,
+  /** @deprecated legado — migration 494 */
   FASE_SLUGS.CREDITO_OBRA_APROVADO,
   FASE_SLUGS.HOM_APROVADO,
 ]);

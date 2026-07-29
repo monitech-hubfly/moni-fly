@@ -8751,7 +8751,7 @@ export function KanbanCardModal({
             {exibirSecaoDocumentacaoCreditoObra
               ? secaoHead(
                   'documentacaoCreditoObra',
-                  'Documentação Alvará e Terreno SPE',
+                  'Docs Alvará e Terreno SPE',
                   <KanbanCardModalCreditoObraDocumentacao
                     cardId={card.id}
                     alvaraUrl={card.alvara_url ?? null}

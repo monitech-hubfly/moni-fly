@@ -62,8 +62,9 @@ export const FASE_IDS = {
   // Acoplamento — bastão de volta
   ACOPLAMENTO_APROVADO:      'b6a83104-e74f-4d0b-902b-2c4227227411',
   ACOPLAMENTO_REPROVADO:     '6d383485-9c9e-4f41-9d2a-c23c20b950c9',
-  // Funil Crédito Obra — terminais ordem 24–25 (bastão de volta)
+  /** @deprecated legado — fase inativa desde migration 494; desfecho em CO_SHAREPOINT_3A */
   CREDITO_OBRA_APROVADO:     'da6b7ed6-3137-42aa-9cc7-0d3aec4e6cfd',
+  /** @deprecated legado — fase inativa desde migration 494 */
   CREDITO_OBRA_REPROVADO:    'aadb078e-d11a-48d1-9a4e-ee10b9fe7df5',
   // Contabilidade
   CONTABILIDADE_SPE:         'a5facdfc-b6f2-41cb-aea2-63614712910b',
@@ -123,10 +124,11 @@ export const FASE_SLUGS = {
   // Gatilhos de VOLTA
   ACOPLAMENTO_APROVADO:      'acoplamento_aprovado',
   ACOPLAMENTO_REPROVADO:     'acoplamento_reprovado',
-  // Funil Crédito Obra (KANBAN_IDS.CREDITO_OBRA) — fluxo ordem 1–23
+  // Funil Crédito Obra (KANBAN_IDS.CREDITO_OBRA) — fluxo ordem 1–13 (migration 494)
   CO_NOVO_PROJETO:            'co_novo_projeto',
   CO_BOOK:                    'co_book',
   CO_ENVIO_CASHME:            'co_envio_cashme',
+  /** @deprecated legado — fase inativa (migration 491) */
   CO_OUTRO_PARCEIRO:          'co_outro_parceiro',
   CO_DOCUMENTACAO_ALVARA:     'co_documentacao_alvara',
   CO_VALIDACAO_CONTRATO:      'co_validacao_contrato',
@@ -137,19 +139,31 @@ export const FASE_SLUGS = {
   CO_SHAREPOINT_CASHME:       'co_sharepoint_cashme',
   CO_ACOMPANHAMENTO_TRANCHE:  'co_acompanhamento_tranche',
   CO_NECESSIDADE_3A_TRANCHE:  'co_necessidade_3a_tranche',
+  /** Fase terminal — Concluídos (bastão credito_obra_ok) */
   CO_SHAREPOINT_3A:           'co_sharepoint_3a',
+  /** @deprecated legado — fase inativa (migration 494) */
   CO_ACOMPANHAMENTO_3A:       'co_acompanhamento_3a',
+  /** @deprecated legado — fase inativa (migration 494) */
   CO_NECESSIDADE_4A_TRANCHE:  'co_necessidade_4a_tranche',
+  /** @deprecated legado — fase inativa (migration 494) */
   CO_SHAREPOINT_4A:           'co_sharepoint_4a',
+  /** @deprecated legado — fase inativa (migration 494) */
   CO_ACOMPANHAMENTO_4A:       'co_acompanhamento_4a',
+  /** @deprecated legado — fase inativa (migration 494) */
   CO_NECESSIDADE_5A_TRANCHE:  'co_necessidade_5a_tranche',
+  /** @deprecated legado — fase inativa (migration 494) */
   CO_SHAREPOINT_5A:           'co_sharepoint_5a',
+  /** @deprecated legado — fase inativa (migration 494) */
   CO_ACOMPANHAMENTO_5A:       'co_acompanhamento_5a',
+  /** @deprecated legado — fase inativa (migration 494) */
   CO_NECESSIDADE_6A_TRANCHE:  'co_necessidade_6a_tranche',
+  /** @deprecated legado — fase inativa (migration 494) */
   CO_SHAREPOINT_6A:           'co_sharepoint_6a',
+  /** @deprecated legado — fase inativa (migration 494) */
   CO_ACOMPANHAMENTO_6A:       'co_acompanhamento_6a',
-  // Funil Crédito Obra — terminais ordem 24–25
+  /** @deprecated legado — fase inativa (migration 494) */
   CREDITO_OBRA_APROVADO:      'credito_obra_aprovado',
+  /** @deprecated legado — fase inativa (migration 494) */
   CREDITO_OBRA_REPROVADO:     'credito_obra_reprovado',
   // Funil Projeto Legal (KANBAN_IDS.PROJETO_LEGAL) — fluxo ordem 1–14 (PROD)
   PL_NOVA_DEMANDA:              'pl_nova_demanda',
