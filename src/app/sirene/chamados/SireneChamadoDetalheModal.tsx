@@ -646,7 +646,11 @@ export function SireneChamadoDetalheModal({
                           <select
                             value={t.status}
                             onChange={(e) => onSubStatusChange(t.id, e.target.value as SubInteracaoStatusDb)}
-                            className={`min-w-[7.5rem] text-[10px] ${selectClass}`}
+                            disabled={
+                              currentUserId == null ||
+                              (t.responsavel_id != null && t.responsavel_id !== currentUserId)
+                            }
+                            className={`min-w-[7.5rem] text-[10px] ${selectClass} disabled:cursor-not-allowed disabled:opacity-50`}
                             aria-label="Status da atividade"
                           >
                             <option value="nao_iniciado">Não iniciado</option>
