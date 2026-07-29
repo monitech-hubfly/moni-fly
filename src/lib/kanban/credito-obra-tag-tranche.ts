@@ -15,7 +15,7 @@ export type CreditoObraTrancheNumero = (typeof CREDITO_OBRA_TRANCHES)[number]['n
 
 type DbTagClient = Pick<ReturnType<typeof createAdminClient>, 'from'>;
 
-const NOMES_TRANCHE = new Set(CREDITO_OBRA_TRANCHES.map((t) => t.nome));
+const NOMES_TRANCHE = new Set<string>(CREDITO_OBRA_TRANCHES.map((t) => t.nome));
 
 export function nomeTagTrancheCreditoObra(numero: CreditoObraTrancheNumero): string {
   return CREDITO_OBRA_TRANCHES.find((t) => t.numero === numero)?.nome ?? `${numero}ª tranche`;

@@ -1,17 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, ChevronRight, Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 import {
-  concluirTrancheVinculoOperacoes,
+  abrirTrancheVinculoOperacoes,
   listarTrancheVinculosOperacoes,
-  salvarTrancheVinculoOperacoes,
   type TrancheVinculoListItem,
 } from '@/lib/actions/operacoes-tranche-vinculos';
 import {
   configTrancheVinculo,
   OPERACOES_TRANCHE_VINCULOS,
 } from '@/lib/operacoes/tranche-vinculos-config';
+import {
+  corTagTrancheCreditoObra,
+  trancheNumeroFromIndex,
+} from '@/lib/kanban/credito-obra-tag-tranche';
 
 function itensTrancheVinculoPreset(): TrancheVinculoListItem[] {
   return OPERACOES_TRANCHE_VINCULOS.map((cfg) => ({
@@ -19,33 +22,44 @@ function itensTrancheVinculoPreset(): TrancheVinculoListItem[] {
     nome: cfg.nome,
     tagLabel: cfg.tagLabel,
     status: 'pendente' as const,
-    pct_fisico_financeiro: null,
-    nfts_url: null,
-    evidencias_url: null,
     concluido_em: null,
     filhoCreditoObraId: null,
-    filhoFaseSlug: null,
-    filhoFaseNome: null,
   }));
+}
+
+function corTextoTagTranche(cor: string): string {
+  const hex = cor.replace('#', '');
+  if (hex.length !== 6) return 'var(--moni-text-inverse)';
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? 'var(--moni-text-primary)' : 'var(--moni-text-inverse)';
 }
 
 type SidebarProps = {
   cardId: string;
+  basePath: string;
   refreshKey: number;
-  trancheSelecionado: number | null;
-  onSelecionar: (index: number) => void;
+  podeGerenciar: boolean;
+  cardDesabilitado?: boolean;
+  onConcluido?: () => void;
 };
 
 export function KanbanCardModalOperacoesTrancheVinculosSidebar({
   cardId,
+  basePath,
   refreshKey,
-  trancheSelecionado,
-  onSelecionar,
+  podeGerenciar,
+  cardDesabilitado = false,
+  onConcluido,
 }: SidebarProps) {
   const [items, setItems] = useState<TrancheVinculoListItem[]>([]);
   const [temPrimeiroCard, setTemPrimeiroCard] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [abrindoIndex, setAbrindoIndex] = useState<number | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     if (!cardId) {
@@ -83,300 +97,199 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
     void carregar();
   }, [carregar, refreshKey]);
 
+  async function handleAbrir(index: number) {
+    const cfg = configTrancheVinculo(index);
+    if (!cfg) return;
+
+    const item = items.find((i) => i.index === index);
+    if (item?.status === 'concluido') return;
+
+    if (
+      !confirm(
+        `Abrir card no Funil Crédito Obra com tag "${cfg.tagLabel}"?\n\nSerá criado um novo card filho vinculado a este projeto.`,
+      )
+    ) {
+      return;
+    }
+
+    setErro(null);
+    setOkMsg(null);
+    setAbrindoIndex(index);
+    try {
+      const res = await abrirTrancheVinculoOperacoes({
+        operacoesCardId: cardId,
+        trancheIndex: index,
+        basePath,
+      });
+      if (!res.ok) {
+        setErro(res.error);
+        return;
+      }
+      setOkMsg(`Card Crédito Obra criado com tag "${cfg.tagLabel}".`);
+      await carregar();
+      onConcluido?.();
+    } finally {
+      setAbrindoIndex(null);
+    }
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center gap-2 py-2 text-[11px] text-stone-500">
+      <div
+        className="flex items-center gap-2 py-2 text-[11px]"
+        style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
+      >
         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
         Carregando vínculos…
       </div>
     );
   }
 
-  if (erro) {
-    return <p className="rounded border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-800">{erro}</p>;
+  if (erro && items.length === 0) {
+    return (
+      <p
+        className="rounded-lg px-2 py-1.5 text-[11px]"
+        style={{
+          border: 'var(--moni-border-width) solid var(--moni-card-status-vermelho)',
+          background: 'color-mix(in srgb, var(--moni-card-status-vermelho) 12%, white)',
+          color: 'var(--moni-earth-800)',
+          fontFamily: 'var(--moni-font-sans)',
+        }}
+      >
+        {erro}
+      </p>
+    );
   }
 
-  const filhoId = items.find((i) => i.filhoCreditoObraId)?.filhoCreditoObraId ?? null;
+  const readOnly = !podeGerenciar || cardDesabilitado;
 
   return (
     <div className="space-y-2">
       {!temPrimeiroCard ? (
-        <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-900">
+        <p
+          className="rounded-lg px-2 py-1.5 text-[10px] leading-snug"
+          style={{
+            border: 'var(--moni-border-width) solid var(--moni-gold-400)',
+            background: 'var(--moni-kanban-credito-light)',
+            color: 'var(--moni-text-secondary)',
+            fontFamily: 'var(--moni-font-sans)',
+          }}
+        >
           Abra o primeiro card no Funil Crédito Obra (tag 1ª tranche) antes de solicitar tranches
           adicionais.
         </p>
-      ) : filhoId ? (
-        <p className="text-[10px] leading-snug text-stone-500">
-          Cards adicionais recebem a tag da tranche ao concluir o vínculo.
+      ) : (
+        <p
+          className="text-[10px] leading-snug"
+          style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
+        >
+          Clique para criar um novo card Crédito Obra com a tag da tranche.
+        </p>
+      )}
+
+      {erro ? (
+        <p
+          className="rounded-lg px-2 py-1.5 text-[10px]"
+          style={{
+            border: 'var(--moni-border-width) solid var(--moni-card-status-vermelho)',
+            background: 'color-mix(in srgb, var(--moni-card-status-vermelho) 12%, white)',
+            color: 'var(--moni-earth-800)',
+            fontFamily: 'var(--moni-font-sans)',
+          }}
+        >
+          {erro}
         </p>
       ) : null}
+
+      {okMsg ? (
+        <p
+          className="rounded-lg px-2 py-1.5 text-[10px]"
+          style={{
+            border: 'var(--moni-border-width) solid var(--moni-green-800)',
+            background: 'var(--moni-kanban-portfolio-light)',
+            color: 'var(--moni-green-800)',
+            fontFamily: 'var(--moni-font-sans)',
+          }}
+        >
+          {okMsg}
+        </p>
+      ) : null}
+
       <ul className="space-y-1">
         {items.map((item) => {
-          const ativo = trancheSelecionado === item.index;
           const concluido = item.status === 'concluido';
+          const abrindo = abrindoIndex === item.index;
+          const trancheNum = trancheNumeroFromIndex(item.index);
+          const tagCor = trancheNum ? corTagTrancheCreditoObra(trancheNum) : 'var(--moni-navy-800)';
+          const tagTextoCor = trancheNum ? corTextoTagTranche(tagCor) : 'var(--moni-text-inverse)';
+          const desabilitado = readOnly || !temPrimeiroCard || concluido || abrindo;
+
           return (
             <li key={item.index}>
               <button
                 type="button"
-                onClick={() => onSelecionar(item.index)}
-                className={`flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-[11px] transition hover:bg-stone-50 ${
-                  ativo ? 'border-violet-300 bg-violet-50 ring-1 ring-inset ring-violet-200' : 'border-stone-200 bg-white'
-                }`}
+                onClick={() => void handleAbrir(item.index)}
+                disabled={desabilitado}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] transition disabled:cursor-default disabled:opacity-60"
+                style={{
+                  border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                  borderRadius: 'var(--moni-radius-md)',
+                  background: concluido ? 'var(--moni-kanban-portfolio-light)' : 'var(--moni-surface-0)',
+                  fontFamily: 'var(--moni-font-sans)',
+                }}
               >
-                <ChevronRight className="h-3 w-3 shrink-0 text-stone-400" aria-hidden />
-                <span className="min-w-0 flex-1 font-medium text-stone-800">{item.nome}</span>
-                <span className="shrink-0 rounded-full bg-stone-100 px-1.5 py-0.5 text-[9px] font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">
+                {abrindo ? (
+                  <Loader2
+                    className="h-3 w-3 shrink-0 animate-spin"
+                    style={{ color: 'var(--moni-text-tertiary)' }}
+                    aria-hidden
+                  />
+                ) : concluido ? (
+                  <CheckCircle2
+                    className="h-3 w-3 shrink-0"
+                    style={{ color: 'var(--moni-green-800)' }}
+                    aria-hidden
+                  />
+                ) : (
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{ background: 'var(--moni-border-default)' }}
+                    aria-hidden
+                  />
+                )}
+                <span
+                  className="min-w-0 flex-1 font-medium"
+                  style={{ color: 'var(--moni-text-primary)' }}
+                >
+                  {item.nome}
+                </span>
+                <span
+                  className="shrink-0 px-1.5 py-0.5 text-[9px] font-semibold"
+                  style={{
+                    borderRadius: 'var(--moni-radius-md)',
+                    background: tagCor,
+                    color: tagTextoCor,
+                  }}
+                >
                   {item.tagLabel}
                 </span>
                 {concluido ? (
-                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-green-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-green-800 ring-1 ring-inset ring-green-200">
-                    <CheckCircle2 className="h-2.5 w-2.5" aria-hidden />
-                    Concluído
+                  <span className="moni-tag-concluido shrink-0 px-1.5 py-0.5 text-[9px] font-semibold uppercase">
+                    Criado
                   </span>
-                ) : (
-                  <span className="shrink-0 rounded-full bg-stone-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-stone-600 ring-1 ring-inset ring-stone-200">
-                    Pendente
+                ) : abrindo ? (
+                  <span
+                    className="shrink-0 text-[9px] font-semibold uppercase"
+                    style={{ color: 'var(--moni-text-tertiary)' }}
+                  >
+                    Abrindo…
                   </span>
-                )}
+                ) : null}
               </button>
             </li>
           );
         })}
       </ul>
-    </div>
-  );
-}
-
-type FormProps = {
-  cardId: string;
-  trancheIndex: number;
-  basePath: string;
-  refreshKey: number;
-  podeGerenciar: boolean;
-  cardDesabilitado?: boolean;
-  onVoltar: () => void;
-  onConcluido: () => void;
-};
-
-export function KanbanCardModalOperacoesTrancheVinculoForm({
-  cardId,
-  trancheIndex,
-  basePath,
-  refreshKey,
-  podeGerenciar,
-  cardDesabilitado = false,
-  onVoltar,
-  onConcluido,
-}: FormProps) {
-  const cfg = configTrancheVinculo(trancheIndex);
-  const [pct, setPct] = useState('');
-  const [nfts, setNfts] = useState('');
-  const [evidencias, setEvidencias] = useState('');
-  const [concluidoEm, setConcluidoEm] = useState<string | null>(null);
-  const [filhoFaseNome, setFilhoFaseNome] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [salvando, setSalvando] = useState(false);
-  const [concluindo, setConcluindo] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-  const [okMsg, setOkMsg] = useState<string | null>(null);
-
-  const readOnly = !podeGerenciar || cardDesabilitado || Boolean(concluidoEm);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setErro(null);
-      setOkMsg(null);
-      try {
-        const res = await listarTrancheVinculosOperacoes(cardId);
-        if (cancelled) return;
-        if (!res.ok) {
-          setErro(res.error);
-          return;
-        }
-        const item = res.items.find((i) => i.index === trancheIndex);
-        if (item) {
-          setPct(item.pct_fisico_financeiro != null ? String(item.pct_fisico_financeiro) : '');
-          setNfts(item.nfts_url ?? '');
-          setEvidencias(item.evidencias_url ?? '');
-          setConcluidoEm(item.concluido_em);
-          setFilhoFaseNome(item.filhoFaseNome);
-        }
-      } catch {
-        if (!cancelled) setErro('Erro ao carregar dados do vínculo.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [cardId, trancheIndex, refreshKey]);
-
-  if (!cfg) {
-    return <p className="text-xs text-stone-500">Vínculo inválido.</p>;
-  }
-
-  async function handleSalvar() {
-    setErro(null);
-    setOkMsg(null);
-    setSalvando(true);
-    try {
-      const res = await salvarTrancheVinculoOperacoes({
-        operacoesCardId: cardId,
-        trancheIndex,
-        pct_fisico_financeiro: pct.trim() || null,
-        nfts_url: nfts.trim() || null,
-        evidencias_url: evidencias.trim() || null,
-        basePath,
-      });
-      if (!res.ok) {
-        setErro(res.error);
-        return;
-      }
-      setOkMsg('Rascunho salvo.');
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  async function handleConcluir() {
-    if (!cfg) return;
-    if (!confirm(`Concluir "${cfg.nome}" e abrir card Crédito Obra com tag "${cfg.tagLabel}"?`)) {
-      return;
-    }
-    setErro(null);
-    setOkMsg(null);
-    setConcluindo(true);
-    try {
-      const res = await concluirTrancheVinculoOperacoes({
-        operacoesCardId: cardId,
-        trancheIndex,
-        pct_fisico_financeiro: pct.trim() || null,
-        nfts_url: nfts.trim() || null,
-        evidencias_url: evidencias.trim() || null,
-        basePath,
-      });
-      if (!res.ok) {
-        setErro(res.error);
-        return;
-      }
-      setConcluidoEm(new Date().toISOString());
-      setOkMsg(`Vínculo concluído. Novo card Crédito Obra criado com tag "${cfg.tagLabel}".`);
-      onConcluido();
-    } finally {
-      setConcluindo(false);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 py-8 text-sm text-stone-500">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-        Carregando…
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h4 className="text-sm font-semibold text-stone-900">{cfg.nome}</h4>
-        <p className="mt-1 text-xs text-stone-600">
-          Ao concluir, será criado um novo card no Funil Crédito Obra (fase{' '}
-          <strong className="font-medium">{cfg.faseDestinoLabel}</strong>) com a tag{' '}
-          <strong className="font-medium">{cfg.tagLabel}</strong>.
-        </p>
-        {filhoFaseNome ? (
-          <p className="mt-1 text-[11px] text-stone-500">
-            Fase atual do Crédito Obra: <span className="font-medium text-stone-700">{filhoFaseNome}</span>
-          </p>
-        ) : null}
-        {concluidoEm ? (
-          <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-semibold text-green-800 ring-1 ring-inset ring-green-200">
-            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-            Concluído em {new Date(concluidoEm).toLocaleString('pt-BR')}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-4 text-xs">
-        <label className="block">
-          <span className="font-medium text-stone-700">% físico financeiro</span>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            step={0.01}
-            value={pct}
-            onChange={(e) => setPct(e.target.value)}
-            disabled={readOnly}
-            placeholder="Ex.: 72,5"
-            className="mt-1 w-full rounded border border-stone-300 bg-white px-2 py-1.5 text-xs text-stone-800 disabled:bg-stone-50"
-          />
-        </label>
-        <label className="block">
-          <span className="font-medium text-stone-700">NFs (link)</span>
-          <input
-            type="url"
-            value={nfts}
-            onChange={(e) => setNfts(e.target.value)}
-            disabled={readOnly}
-            placeholder="https://…"
-            className="mt-1 w-full rounded border border-stone-300 bg-white px-2 py-1.5 text-xs text-stone-800 disabled:bg-stone-50"
-          />
-        </label>
-        <label className="block">
-          <span className="font-medium text-stone-700">Evidências / fotos obra (link)</span>
-          <input
-            type="url"
-            value={evidencias}
-            onChange={(e) => setEvidencias(e.target.value)}
-            disabled={readOnly}
-            placeholder="https://…"
-            className="mt-1 w-full rounded border border-stone-300 bg-white px-2 py-1.5 text-xs text-stone-800 disabled:bg-stone-50"
-          />
-        </label>
-      </div>
-
-      {erro ? (
-        <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{erro}</p>
-      ) : null}
-      {okMsg ? (
-        <p className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">{okMsg}</p>
-      ) : null}
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onVoltar}
-          className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-50"
-        >
-          Voltar
-        </button>
-        {podeGerenciar && !concluidoEm && !cardDesabilitado ? (
-          <>
-            <button
-              type="button"
-              onClick={() => void handleSalvar()}
-              disabled={salvando || concluindo}
-              className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-stone-800 hover:bg-stone-50 disabled:opacity-50"
-            >
-              {salvando ? 'Salvando…' : 'Salvar rascunho'}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleConcluir()}
-              disabled={salvando || concluindo}
-              className="rounded-lg border border-moni-primary bg-moni-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
-            >
-              {concluindo ? 'Concluindo…' : 'Concluir vínculo'}
-            </button>
-          </>
-        ) : null}
-      </div>
     </div>
   );
 }

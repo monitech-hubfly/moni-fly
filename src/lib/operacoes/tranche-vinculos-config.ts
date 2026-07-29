@@ -12,7 +12,6 @@ export type TrancheVinculoConfig = {
   tagLabel: string;
   /** Slug de destino do novo card (Funil Crédito Obra) */
   faseDestinoSlug: string;
-  faseDestinoLabel: string;
 };
 
 /** Vínculos preset Operações → Crédito Obra (2ª–6ª tranche). Ao concluir, cria card filho com tag. */
@@ -23,7 +22,6 @@ export const OPERACOES_TRANCHE_VINCULOS: TrancheVinculoConfig[] = [
     tagTranche: 2,
     tagLabel: '2ª tranche',
     faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
-    faseDestinoLabel: 'Novo Projeto',
   },
   {
     index: 3,
@@ -31,7 +29,6 @@ export const OPERACOES_TRANCHE_VINCULOS: TrancheVinculoConfig[] = [
     tagTranche: 3,
     tagLabel: '3ª tranche',
     faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
-    faseDestinoLabel: 'Novo Projeto',
   },
   {
     index: 4,
@@ -39,7 +36,6 @@ export const OPERACOES_TRANCHE_VINCULOS: TrancheVinculoConfig[] = [
     tagTranche: 4,
     tagLabel: '4ª tranche',
     faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
-    faseDestinoLabel: 'Novo Projeto',
   },
   {
     index: 5,
@@ -47,7 +43,6 @@ export const OPERACOES_TRANCHE_VINCULOS: TrancheVinculoConfig[] = [
     tagTranche: 5,
     tagLabel: '5ª tranche',
     faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
-    faseDestinoLabel: 'Novo Projeto',
   },
   {
     index: 6,
@@ -55,7 +50,6 @@ export const OPERACOES_TRANCHE_VINCULOS: TrancheVinculoConfig[] = [
     tagTranche: 6,
     tagLabel: '6ª tranche',
     faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
-    faseDestinoLabel: 'Novo Projeto',
   },
 ];
 
