@@ -74,8 +74,17 @@ export function SireneModalHoras({ chamadoId, titulo, onClose, onSaved }: Props)
 
   const [semanaIdx, setSemanaIdx] = useState(semanas.length - 1);
   const [grid, setGrid] = useState<GridSemana>({ seg: { ...CELULA_VAZIA }, ter: { ...CELULA_VAZIA }, qua: { ...CELULA_VAZIA }, qui: { ...CELULA_VAZIA }, sex: { ...CELULA_VAZIA } });
+  const [resolucao, setResolucao] = useState('');
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  // Pré-carrega resolução existente (se o card já foi criado antes)
+  useEffect(() => {
+    void garantirPastelariaCardParaChamado(chamadoId, titulo).then((res) => {
+      if (res.ok && res.resolucao) setResolucao(res.resolucao);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chamadoId]);
 
   const semanaLabel = semanas[semanaIdx] ?? semanaAtualLabel;
   const dias = getDiasDaSemana(semanaLabel);
@@ -85,6 +94,10 @@ export function SireneModalHoras({ chamadoId, titulo, onClose, onSaved }: Props)
   }
 
   async function handleSalvar() {
+    if (!resolucao.trim()) {
+      setErro('Preencha como você resolveu essa atividade antes de salvar.');
+      return;
+    }
     setSaving(true);
     setErro(null);
     try {
@@ -99,7 +112,7 @@ export function SireneModalHoras({ chamadoId, titulo, onClose, onSaved }: Props)
         seg_unidade: grid.seg.unidade, ter_unidade: grid.ter.unidade,
         qua_unidade: grid.qua.unidade, qui_unidade: grid.qui.unidade,
         sex_unidade: grid.sex.unidade,
-      });
+      }, resolucao.trim());
 
       if (!res.ok) { setErro(res.error); setSaving(false); return; }
       onSaved();
@@ -171,6 +184,21 @@ export function SireneModalHoras({ chamadoId, titulo, onClose, onSaved }: Props)
             <span className="text-[color:var(--moni-text-tertiary)]">Total da semana</span>
             <span className="font-semibold text-[color:var(--moni-text-primary)]">{formatTotal(grid)}</span>
             {totalEmHoras(grid) === 0 && <span className="text-xs text-[color:var(--moni-text-tertiary)]">— nenhum dia preenchido</span>}
+          </div>
+
+          <div className="mt-4">
+            <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-[color:var(--moni-text-primary)]">
+              Como você resolveu essa atividade?
+              <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={resolucao}
+              onChange={(e) => setResolucao(e.target.value)}
+              placeholder="Descreva como você resolveu essa atividade…"
+              rows={3}
+              disabled={saving}
+              className="w-full resize-none rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-2 text-sm text-[color:var(--moni-text-primary)] placeholder:text-[color:var(--moni-text-tertiary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--moni-accent-500)] disabled:opacity-60"
+            />
           </div>
 
           {erro ? <p className="mt-2 text-xs text-red-600">{erro}</p> : null}
