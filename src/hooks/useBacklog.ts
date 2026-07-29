@@ -107,6 +107,9 @@ export function useBacklog(): UseBacklogResult {
       }
 
       // Busca Sirene, Atividades, Pastelaria e Atrasadas fora da janela em paralelo
+      // NOTA: o join kanban_atividades→sirene_chamados foi removido do select principal
+      // para evitar join duplo aninhado (sirene_topicos→kanban_atividades→sirene_chamados)
+      // que causava statement timeout. Agora kanban_atividades é buscado em round separado.
       const [sireneRes, atividadesRes, pastelariaRes, atividadesAtrasadasRes] = await Promise.all([
         supabase
           .from('sirene_topicos')
@@ -120,12 +123,7 @@ export function useBacklog(): UseBacklogResult {
             chamado_id,
             interacao_id,
             trava,
-            sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome),
-            kanban_atividades!sirene_topicos_interacao_id_fkey(
-              card_id,
-              sirene_chamado_id,
-              sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome)
-            )
+            sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome)
           `)
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['nao_iniciado', 'em_andamento'])
@@ -165,6 +163,7 @@ export function useBacklog(): UseBacklogResult {
 
       type ChamadoRaw = { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null } | { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null }[] | null;
       type KanbanAtivRaw = {
+        id: string;
         card_id: string | null;
         sirene_chamado_id: number | null;
         sirene_chamados: ChamadoRaw;
@@ -180,16 +179,31 @@ export function useBacklog(): UseBacklogResult {
         interacao_id: string | null;
         trava: boolean | null;
         sirene_chamados: ChamadoRaw;
-        kanban_atividades: KanbanAtivRaw | KanbanAtivRaw[] | null;
       };
+
+      // Round 2: buscar kanban_atividades apenas para os tópicos com interacao_id
+      // (evita join duplo aninhado que causava timeout)
+      const interacaoIds = ((sireneRes.data ?? []) as SireneRaw[])
+        .map(r => r.interacao_id)
+        .filter((id): id is string => !!id);
+
+      const kanbanAtivRes = interacaoIds.length > 0
+        ? await supabase
+            .from('kanban_atividades')
+            .select('id, card_id, sirene_chamado_id, sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome)')
+            .in('id', interacaoIds)
+        : { data: [] as KanbanAtivRaw[], error: null };
+
+      // Mapa interacao_id → kanban_atividade (com chamado aninhado já resolvido)
+      const kanbanAtivMap = new Map<string, KanbanAtivRaw>(
+        ((kanbanAtivRes.data ?? []) as KanbanAtivRaw[]).map(r => [r.id, r]),
+      );
 
       const sireneArr: SireneItem[] = ((sireneRes.data ?? []) as unknown as SireneRaw[]).map(row => {
         const chamadoDireto = Array.isArray(row.sirene_chamados)
           ? row.sirene_chamados[0] ?? null
           : row.sirene_chamados;
-        const interacaoRaw = Array.isArray(row.kanban_atividades)
-          ? row.kanban_atividades[0] ?? null
-          : row.kanban_atividades;
+        const interacaoRaw = row.interacao_id ? kanbanAtivMap.get(row.interacao_id) ?? null : null;
         const chamadoViaInteracao = interacaoRaw
           ? (Array.isArray(interacaoRaw.sirene_chamados)
               ? interacaoRaw.sirene_chamados[0] ?? null
