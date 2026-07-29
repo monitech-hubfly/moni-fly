@@ -5,11 +5,19 @@ import { createClient } from '@/lib/supabase/client';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
 import { calcularSlaKanbanCard, resolveDataBaseSlaKanban, type SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
 import { adicionarDiasUteis, adicionarDiasCorridos, normalizarSlaTipo } from '@/lib/dias-uteis';
-import { enrichCardsComResponsavelFase } from '@/lib/kanban/responsavel-fase-checklist';
-import type { KanbanCardBrief } from '@/components/kanban-shared/types';
+import {
+  EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN,
+  CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO,
+} from '@/lib/kanban/responsavel-fase-checklist';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 
 const ADMIN_EMAIL  = 'danilo.n@moni.casa';
 const INGRID_EMAIL = 'ingrid.hora@moni.casa';
+
+// Kanbans sem responsável padrão: cards sem dono = orphan da Ingrid (SRC)
+const KANBANS_SEM_DEFAULT = Object.values(KANBAN_IDS).filter(
+  id => !EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN[id],
+);
 
 export type PrioridadeGrupo = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6';
 
@@ -78,6 +86,23 @@ function calcPrioridade(c: KanbanCardItem, hojeIso: string): PrioridadeGrupo {
   return 'P6';
 }
 
+const CARD_FIELDS = `
+  id, titulo, arquivado, concluido, fase_id, kanban_id,
+  created_at, entered_fase_at, sla_iniciado_em,
+  proxima_atividade, prazo_atividade,
+  fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
+  kanban:kanbans(nome)
+` as const;
+
+type CardRaw = {
+  id: string; titulo: string | null; arquivado: boolean; concluido: boolean;
+  fase_id: string; kanban_id: string;
+  created_at: string; entered_fase_at: string | null; sla_iniciado_em: string | null;
+  proxima_atividade: string | null; prazo_atividade: string | null;
+  fase: FaseRelSla | FaseRelSla[] | null;
+  kanban: { nome: string } | { nome: string }[] | null;
+};
+
 export function useBacklogKanban(refreshKey = 0) {
   const supabase   = useMemo(() => createClient(), []);
   const [cards,        setCards]        = useState<KanbanCardItem[]>([]);
@@ -100,83 +125,107 @@ export function useBacklogKanban(refreshKey = 0) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      const isAdmin = user.email === ADMIN_EMAIL;
-      const effectiveProfileId  = (isAdmin && simProfileId) ? simProfileId : user.id;
-      const effectiveUserEmail  = (isAdmin && simEmail) ? simEmail : (user.email ?? '');
+      const isAdmin            = user.email === ADMIN_EMAIL;
+      const effectiveProfileId = (isAdmin && simProfileId) ? simProfileId : user.id;
+      const effectiveEmail     = (isAdmin && simEmail) ? simEmail : (user.email ?? '');
+      const isIngridView       = user.email === INGRID_EMAIL || simEmail === INGRID_EMAIL;
 
-      // 1. Busca todos os cards abertos + tag Especial em paralelo
-      type RawCard = {
-        id: string; titulo: string | null; arquivado: boolean; concluido: boolean;
-        created_at: string; entered_fase_at: string | null; sla_iniciado_em: string | null;
-        proxima_atividade: string | null; prazo_atividade: string | null;
-        kanban_id: string; fase_id: string;
-        fase: FaseRelSla | FaseRelSla[] | null;
-        kanban: { nome: string } | { nome: string }[] | null;
-      };
+      // Kanbans onde o usuário é o responsável padrão
+      const myDefaultKanbanIds = Object.entries(EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN)
+        .filter(([, email]) => email === effectiveEmail)
+        .map(([id]) => id);
 
-      const [allCardsRes, tagEspecialRes] = await Promise.all([
+      // ── Round 1: item_ids + tag Especial + cards default (paralelo) ──────────
+      const [itensRes, tagRes, defaultCardsRes] = await Promise.all([
+        // Itens de checklist que representam responsável de fase
         supabase
-          .from('kanban_cards')
-          .select(`
-            id, titulo, arquivado, concluido,
-            created_at, entered_fase_at, sla_iniciado_em,
-            proxima_atividade, prazo_atividade,
-            kanban_id, fase_id,
-            fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
-            kanban:kanbans(nome)
-          `)
-          .eq('arquivado', false)
-          .eq('concluido', false),
+          .from('kanban_fase_checklist_itens')
+          .select('id, fase_id')
+          .in('campo_slug', [...CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO]),
+
         supabase.from('kanban_tags').select('id').eq('nome', '⭐Especial'),
+
+        myDefaultKanbanIds.length > 0
+          ? supabase
+              .from('kanban_cards')
+              .select(CARD_FIELDS)
+              .in('kanban_id', myDefaultKanbanIds)
+              .eq('arquivado', false)
+              .eq('concluido', false)
+          : Promise.resolve({ data: [] as CardRaw[], error: null }),
       ]);
 
-      // 2. Tag Especial
-      const especialSet = new Set<string>();
-      const tagIds = ((tagEspecialRes.data ?? []) as Array<{ id: string }>).map(r => r.id);
-      if (tagIds.length > 0) {
-        const { data: cardTagRows } = await supabase
-          .from('kanban_card_tags')
-          .select('card_id')
-          .in('tag_id', tagIds);
-        ((cardTagRows ?? []) as Array<{ card_id: string }>).forEach(r => especialSet.add(r.card_id));
-      }
+      // item_id → fase_id
+      const itemFaseMap = new Map<string, string>(
+        ((itensRes.data ?? []) as Array<{ id: string; fase_id: string }>)
+          .map(i => [i.id, i.fase_id]),
+      );
+      const responsavelItemIds = [...itemFaseMap.keys()];
 
-      const allCards = (allCardsRes.data ?? []) as unknown as RawCard[];
-      const rawMap = new Map(allCards.map(c => [c.id, c]));
+      const defaultCards   = (defaultCardsRes.data ?? []) as CardRaw[];
+      const defaultCardIds = defaultCards.map(c => c.id);
+      const tagIds         = ((tagRes.data ?? []) as Array<{ id: string }>).map(r => r.id);
 
-      // 3. Monta KanbanCardBrief mínimos para enrichCardsComResponsavelFase
-      //    (a função só precisa de id, fase_id, kanban_id para resolver o responsavel_fase)
-      const briefs = allCards.map(c => ({
-        id:          c.id,
-        titulo:      c.titulo ?? '',
-        status:      'ativo',
-        created_at:  c.created_at,
-        fase_id:     c.fase_id,
-        kanban_id:   c.kanban_id,
-        franqueado_id: '',
-        entered_fase_at: c.entered_fase_at,
-        sla_iniciado_em: c.sla_iniciado_em,
-        arquivado:   c.arquivado,
-        concluido:   c.concluido,
-        proxima_atividade: c.proxima_atividade,
-        prazo_atividade:   c.prazo_atividade,
-      })) as unknown as KanbanCardBrief[];
+      // ── Round 2: respostas + tag_cards + overrides (paralelo) ───────────────
+      const [respostasRes, tagCardsRes, overrideRes] = await Promise.all([
+        responsavelItemIds.length > 0
+          ? supabase
+              .from('kanban_fase_checklist_respostas')
+              .select('card_id, item_id')
+              .eq('valor', effectiveProfileId)
+              .in('item_id', responsavelItemIds)
+          : Promise.resolve({ data: [] as Array<{ card_id: string; item_id: string }>, error: null }),
 
-      // 4. Enrich: resolve responsavel_fase_id para cada card
-      //    (checklist explícito → default por kanban → Step One via rede_franqueado)
-      const enriched = await enrichCardsComResponsavelFase(supabase, briefs);
+        tagIds.length > 0
+          ? supabase
+              .from('kanban_card_tags')
+              .select('card_id')
+              .in('tag_id', tagIds)
+          : Promise.resolve({ data: [] as Array<{ card_id: string }>, error: null }),
 
-      // 5. Monta mapa apenas dos cards onde o usuário é o responsavel_fase
-      const mapa = new Map<string, KanbanCardItem>();
-      for (const ec of enriched) {
-        if (ec.responsavel_fase_id !== effectiveProfileId) continue;
-        const raw = rawMap.get(ec.id);
-        if (!raw) continue;
+        // Override: quaisquer respostas de responsavel nos cards default
+        responsavelItemIds.length > 0 && defaultCardIds.length > 0
+          ? supabase
+              .from('kanban_fase_checklist_respostas')
+              .select('card_id, item_id')
+              .not('valor', 'is', null)
+              .in('item_id', responsavelItemIds)
+              .in('card_id', defaultCardIds)
+          : Promise.resolve({ data: [] as Array<{ card_id: string; item_id: string }>, error: null }),
+      ]);
+
+      const especialSet = new Set<string>(
+        ((tagCardsRes.data ?? []) as Array<{ card_id: string }>).map(r => r.card_id),
+      );
+
+      // card_id → item_id (para validar fase)
+      const cardItemMap = new Map<string, string>();
+      ((respostasRes.data ?? []) as Array<{ card_id: string; item_id: string }>)
+        .forEach(r => cardItemMap.set(r.card_id, r.item_id));
+
+      const overrideCardItemMap = new Map<string, string>();
+      ((overrideRes.data ?? []) as Array<{ card_id: string; item_id: string }>)
+        .forEach(r => overrideCardItemMap.set(r.card_id, r.item_id));
+
+      // ── Round 3: detalhes dos cards explícitos ───────────────────────────────
+      const explicitIds = [...cardItemMap.keys()];
+      const explicitCardsRes = explicitIds.length > 0
+        ? await supabase
+            .from('kanban_cards')
+            .select(CARD_FIELDS)
+            .in('id', explicitIds)
+            .eq('arquivado', false)
+            .eq('concluido', false)
+        : { data: [] as CardRaw[], error: null };
+
+      const explicitCards = (explicitCardsRes.data ?? []) as CardRaw[];
+
+      // ── Montar mapa ──────────────────────────────────────────────────────────
+      function toItem(raw: CardRaw): KanbanCardItem {
         const fase   = Array.isArray(raw.fase)   ? raw.fase[0]   : raw.fase;
         const kanban = Array.isArray(raw.kanban) ? raw.kanban[0] : raw.kanban;
-        mapa.set(ec.id, {
-          id:                raw.id,
-          titulo:            raw.titulo,
+        return {
+          id: raw.id, titulo: raw.titulo,
           fase_nome:         fase?.nome   ?? null,
           kanban_nome:       kanban?.nome ?? null,
           sla_dias:          fase?.sla_dias ?? null,
@@ -186,16 +235,38 @@ export function useBacklogKanban(refreshKey = 0) {
           proxima_atividade: raw.proxima_atividade,
           prazo_atividade:   raw.prazo_atividade,
           especial:          especialSet.has(raw.id),
-        });
+        };
       }
 
-      const hojeIso = new Date().toISOString().slice(0, 10);
-      const todasCards = Array.from(mapa.values());
-      let sndResultado = todasCards.filter(c => c.sla_dias === null);
-      const comSla = todasCards.filter(c => c.sla_dias !== null);
+      const mapa = new Map<string, KanbanCardItem>();
+
+      // Explícitos: só incluir se item.fase_id === card.fase_id (fase atual)
+      explicitCards.forEach(card => {
+        const itemId    = cardItemMap.get(card.id);
+        if (!itemId) return;
+        const itemFaseId = itemFaseMap.get(itemId);
+        if (itemFaseId !== card.fase_id) return; // entrada histórica → ignorar
+        mapa.set(card.id, toItem(card));
+      });
+
+      // Default kanbans: excluir cards com override explícito na fase atual
+      defaultCards.forEach(card => {
+        if (mapa.has(card.id)) return; // já incluído como explícito
+        const oItemId  = overrideCardItemMap.get(card.id);
+        if (oItemId) {
+          const oFaseId = itemFaseMap.get(oItemId);
+          if (oFaseId === card.fase_id) return; // outro usuário é responsavel nesta fase
+        }
+        mapa.set(card.id, toItem(card));
+      });
+
+      // ── Prioridades e sort ───────────────────────────────────────────────────
+      const hojeIso    = new Date().toISOString().slice(0, 10);
+      const todasCards = [...mapa.values()];
+      let sndFinal     = todasCards.filter(c => c.sla_dias === null);
+      const comSla     = todasCards.filter(c => c.sla_dias !== null);
 
       comSla.forEach(c => { c.prioridade = calcPrioridade(c, hojeIso); });
-
       const resultado = comSla.sort((a, b) => {
         const pa = RANK[a.prioridade!], pb = RANK[b.prioridade!];
         if (pa !== pb) return pa - pb;
@@ -210,49 +281,70 @@ export function useBacklogKanban(refreshKey = 0) {
         return 0;
       });
 
-      // 6. Ingrid: SND global (fases sem SLA → ela cadastra) +
-      //            Orphan global (cards sem responsavel_fase → ela atribui)
+      // ── Ingrid: SND global + SRC global ─────────────────────────────────────
       let ingridOrphans: KanbanCardItem[] = [];
-      const isIngridView = user.email === INGRID_EMAIL || simEmail === INGRID_EMAIL;
       if (isIngridView) {
-        const sndMap    = new Map<string, KanbanCardItem>();
-        const orphanMap = new Map<string, KanbanCardItem>();
+        // Round 4a: fases SND + orphan candidates (paralelo)
+        const [sndFasesRes, orphanCandRes] = await Promise.all([
+          supabase.from('kanban_fases').select('id').is('sla_dias', null),
 
-        for (const ec of enriched) {
-          const raw = rawMap.get(ec.id);
-          if (!raw) continue;
-          const fase   = Array.isArray(raw.fase)   ? raw.fase[0]   : raw.fase;
-          const kanban = Array.isArray(raw.kanban) ? raw.kanban[0] : raw.kanban;
-          const item: KanbanCardItem = {
-            id:                raw.id,
-            titulo:            raw.titulo,
-            fase_nome:         fase?.nome   ?? null,
-            kanban_nome:       kanban?.nome ?? null,
-            sla_dias:          fase?.sla_dias ?? null,
-            sla:               computeSla(raw, fase ?? null),
-            sla_prazo_iso:     computeSlaPrazo(raw, fase ?? null),
-            origem:            'sem_atividade',
-            proxima_atividade: raw.proxima_atividade,
-            prazo_atividade:   raw.prazo_atividade,
-            especial:          especialSet.has(raw.id),
-          };
-          if (!fase?.sla_dias) {
-            sndMap.set(raw.id, item);
-          } else if (!ec.responsavel_fase_id) {
-            orphanMap.set(raw.id, item);
-          }
-        }
+          KANBANS_SEM_DEFAULT.length > 0
+            ? supabase
+                .from('kanban_cards')
+                .select(CARD_FIELDS)
+                .in('kanban_id', KANBANS_SEM_DEFAULT)
+                .eq('arquivado', false)
+                .eq('concluido', false)
+            : Promise.resolve({ data: [] as CardRaw[], error: null }),
+        ]);
 
-        sndResultado  = Array.from(sndMap.values());
-        ingridOrphans = Array.from(orphanMap.values());
+        const sndFaseIds         = ((sndFasesRes.data ?? []) as Array<{ id: string }>).map(f => f.id);
+        const orphanCandidates   = (orphanCandRes.data ?? []) as CardRaw[];
+        const orphanCandidateIds = orphanCandidates.map(c => c.id);
+
+        // Round 4b: cards SND + overrides orphan (paralelo)
+        const [sndCardsRes, orphanOverrideRes] = await Promise.all([
+          sndFaseIds.length > 0
+            ? supabase
+                .from('kanban_cards')
+                .select(CARD_FIELDS)
+                .in('fase_id', sndFaseIds)
+                .eq('arquivado', false)
+                .eq('concluido', false)
+            : Promise.resolve({ data: [] as CardRaw[], error: null }),
+
+          responsavelItemIds.length > 0 && orphanCandidateIds.length > 0
+            ? supabase
+                .from('kanban_fase_checklist_respostas')
+                .select('card_id, item_id')
+                .not('valor', 'is', null)
+                .in('item_id', responsavelItemIds)
+                .in('card_id', orphanCandidateIds)
+            : Promise.resolve({ data: [] as Array<{ card_id: string; item_id: string }>, error: null }),
+        ]);
+
+        // SND final
+        sndFinal = ((sndCardsRes.data ?? []) as CardRaw[]).map(toItem);
+
+        // SRC: orphan candidates sem responsavel explícito na fase atual
+        const orphanOvrMap = new Map<string, string>();
+        ((orphanOverrideRes.data ?? []) as Array<{ card_id: string; item_id: string }>)
+          .forEach(r => orphanOvrMap.set(r.card_id, r.item_id));
+
+        ingridOrphans = orphanCandidates
+          .filter(card => {
+            const oItemId = orphanOvrMap.get(card.id);
+            if (!oItemId) return true; // sem responsavel → orphan
+            const oFaseId = itemFaseMap.get(oItemId);
+            return oFaseId !== card.fase_id; // override em fase diferente → ainda orphan
+          })
+          .map(toItem);
       }
 
-      void effectiveUserEmail; // usado implicitamente via effectiveProfileId
-
       if (callId !== callIdRef.current) return;
-      setOrphanCards(ingridOrphans);
       setCards(resultado);
-      setSndCards(sndResultado);
+      setSndCards(sndFinal);
+      setOrphanCards(ingridOrphans);
     } catch (e) {
       if (callId !== callIdRef.current) return;
       console.error('[useBacklogKanban]', e);
