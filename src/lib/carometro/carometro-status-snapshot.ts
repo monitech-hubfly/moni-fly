@@ -95,7 +95,7 @@ export async function gerarSnapshotCarometro(
     db.from('gantt_planejamento').select('id')
       .or(orGantt).is('data_conclusao_real', null).gte('semana_ano_fim', semana),
     db.from('kanban_cards')
-      .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
+      .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
       .or(orKanban).eq('arquivado', false).eq('concluido', false),
     db.from('kanban_cards').select('id')
       .or(orKanban).eq('concluido', true).eq('arquivado', false)

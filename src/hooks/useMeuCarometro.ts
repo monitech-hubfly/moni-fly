@@ -240,7 +240,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
           // Cards abertos (para calcular SLA)
           supabase.from('kanban_cards')
-            .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
+            .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
             .or(orKanban).eq('arquivado', false).eq('concluido', false),
 
           // Cards concluídos nos últimos 14 dias

@@ -110,7 +110,7 @@ export function useBacklogKanban(refreshKey = 0) {
             id, titulo, arquivado, concluido,
             created_at, entered_fase_at, sla_iniciado_em,
             proxima_atividade, prazo_atividade,
-            fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+            fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
           .eq('franqueado_id', effectiveProfileId)
@@ -125,7 +125,7 @@ export function useBacklogKanban(refreshKey = 0) {
               id, titulo, arquivado, concluido,
               created_at, entered_fase_at, sla_iniciado_em,
               proxima_atividade, prazo_atividade,
-              fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+              fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
               kanban:kanbans(nome)
             )
           `)
@@ -141,7 +141,7 @@ export function useBacklogKanban(refreshKey = 0) {
               id, titulo, arquivado, concluido,
               created_at, entered_fase_at, sla_iniciado_em,
               proxima_atividade, prazo_atividade,
-              fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+              fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
               kanban:kanbans(nome)
             )
           `)
@@ -155,7 +155,7 @@ export function useBacklogKanban(refreshKey = 0) {
             id, titulo, arquivado, concluido,
             created_at, entered_fase_at, sla_iniciado_em,
             proxima_atividade, prazo_atividade,
-            fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+            fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
@@ -170,7 +170,7 @@ export function useBacklogKanban(refreshKey = 0) {
             id, titulo, arquivado, concluido,
             created_at, entered_fase_at, sla_iniciado_em,
             proxima_atividade, prazo_atividade,
-            fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+            fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
@@ -187,7 +187,7 @@ export function useBacklogKanban(refreshKey = 0) {
               id, titulo, arquivado, concluido,
               created_at, entered_fase_at, sla_iniciado_em,
               proxima_atividade, prazo_atividade,
-              fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+              fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
               kanban:kanbans(nome)
             )
           `)
@@ -212,12 +212,6 @@ export function useBacklogKanban(refreshKey = 0) {
           .in('tag_id', tagIds);
         ((cardTagRows ?? []) as Array<{ card_id: string }>).forEach(r => especialSet.add(r.card_id));
       }
-
-      // DEBUG TEMPORÁRIO — remover após diagnóstico
-      console.log('[BacklogKanban] effectiveProfileId:', effectiveProfileId);
-      console.log('[BacklogKanban] fonte1.data?.length:', fonte1.data?.length, 'error:', fonte1.error?.message);
-      console.log('[BacklogKanban] fonte4.data?.length:', fonte4.data?.length, 'error:', fonte4.error?.message);
-      console.log('[BacklogKanban] fonte5.data?.length:', fonte5.data?.length, 'error:', fonte5.error?.message);
 
       const mapa = new Map<string, KanbanCardItem>();
 
@@ -404,7 +398,7 @@ export function useBacklogKanban(refreshKey = 0) {
             created_at, entered_fase_at, sla_iniciado_em,
             proxima_atividade, prazo_atividade,
             responsavel_id, responsaveis_ids,
-            fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+            fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
           .eq('arquivado', false)
