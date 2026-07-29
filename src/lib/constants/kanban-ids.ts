@@ -114,6 +114,8 @@ export const FASE_SLUGS = {
   LOTEADORES_DILIGENCIA: 'diligencia_moni_inc',
   /** Funil Acoplamento — gate Gbox/Acoplamento antes de avançar. */
   MODELAGEM_CASA_GBOX: 'modelagem_casa_gbox',
+  /** Funil Acoplamento — entre Validação e Alterações. */
+  ACOPLAMENTO_AGUARDANDO_COMITE: 'aguardando_comite_acoplamento',
   APROVACAO_PREFEITURA: 'aprovacao_prefeitura',
   /** Funil Operações — Transferência do Terreno (slug legado: processos_cartorarios). */
   PROCESSOS_CARTORARIOS: 'processos_cartorarios',

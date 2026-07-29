@@ -37,6 +37,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   modelagem_terreno: 'moni',
   modelagem_casa_gbox: 'moni',
   validacao_acoplamento: 'moni',
+  aguardando_comite_acoplamento: 'moni',
   alteracoes_acoplamento: 'moni',
   acoplamento_aprovado: 'moni',
   acoplamento_reprovado: 'moni',
