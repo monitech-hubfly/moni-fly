@@ -72,6 +72,72 @@ function erroConsultaTrancheVinculosIgnoravel(err: { code?: string; message?: st
   return msg.includes('permission denied') && msg.includes('kanban_operacoes_tranche_vinculos');
 }
 
+function erroUpsertSemUniqueConstraint(err: { message?: string } | null): boolean {
+  const msg = String(err?.message ?? '').toLowerCase();
+  return msg.includes('no unique or exclusion constraint');
+}
+
+type TrancheVinculoPatch = {
+  operacoes_card_id: string;
+  tranche_index: TrancheVinculoIndex;
+  concluido_em: string;
+  concluido_por: string;
+  credito_obra_card_id: string;
+  updated_at: string;
+};
+
+/** Persiste vínculo de tranche; upsert com fallback insert/update se UNIQUE ainda não existir. */
+async function salvarTrancheVinculoOperacoes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  patch: TrancheVinculoPatch,
+): Promise<{ error: string | null }> {
+  const dbClients: Array<
+    ReturnType<typeof createAdminClient> | Awaited<ReturnType<typeof createClient>>
+  > = [];
+  try {
+    dbClients.push(createAdminClient());
+  } catch {
+    /* service role indisponível — tenta client autenticado */
+  }
+  dbClients.push(supabase);
+
+  for (const db of dbClients) {
+    const { error: upsertError } = await db
+      .from('kanban_operacoes_tranche_vinculos')
+      .upsert(patch as never, { onConflict: 'operacoes_card_id,tranche_index' });
+
+    if (!upsertError) return { error: null };
+
+    if (erroUpsertSemUniqueConstraint(upsertError)) {
+      const { data: existing } = await db
+        .from('kanban_operacoes_tranche_vinculos')
+        .select('id')
+        .eq('operacoes_card_id', patch.operacoes_card_id)
+        .eq('tranche_index', patch.tranche_index)
+        .maybeSingle();
+
+      if ((existing as { id?: string } | null)?.id) {
+        const { error: updateError } = await db
+          .from('kanban_operacoes_tranche_vinculos')
+          .update(patch as never)
+          .eq('id', String((existing as { id: string }).id));
+        if (!updateError) return { error: null };
+        return { error: updateError.message };
+      }
+
+      const { error: insertError } = await db
+        .from('kanban_operacoes_tranche_vinculos')
+        .insert(patch as never);
+      if (!insertError) return { error: null };
+      return { error: insertError.message };
+    }
+
+    return { error: upsertError.message };
+  }
+
+  return { error: 'Não foi possível salvar o vínculo de tranche.' };
+}
+
 async function resolverFaseSlugPorFaseId(
   supabase: Awaited<ReturnType<typeof createClient>>,
   faseId: string | null | undefined,
@@ -422,21 +488,8 @@ export async function abrirTrancheVinculoOperacoes(input: {
     updated_at: now,
   };
 
-  let upsertErr: { message: string } | null = null;
-  try {
-    const admin = createAdminClient();
-    const { error } = await admin
-      .from('kanban_operacoes_tranche_vinculos')
-      .upsert(patchVinculo as never, { onConflict: 'operacoes_card_id,tranche_index' });
-    upsertErr = error;
-  } catch {
-    const { error } = await supabase
-      .from('kanban_operacoes_tranche_vinculos')
-      .upsert(patchVinculo as never, { onConflict: 'operacoes_card_id,tranche_index' });
-    upsertErr = error;
-  }
-
-  if (upsertErr) return { ok: false, error: upsertErr.message };
+  const { error: salvarErr } = await salvarTrancheVinculoOperacoes(supabase, patchVinculo);
+  if (salvarErr) return { ok: false, error: salvarErr };
 
   revalidatePath(input.basePath?.trim() || '/operacoes');
   revalidatePath('/funil-credito-obra');
