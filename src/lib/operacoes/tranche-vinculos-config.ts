@@ -53,6 +53,20 @@ export const OPERACOES_TRANCHE_VINCULOS: TrancheVinculoConfig[] = [
   },
 ];
 
+/** Fases Operações em que o 1º card Crédito Obra (1ª tranche) já se presume aberto. */
+export const OPERACOES_FASES_COM_PRIMEIRA_TRANCHE_CO = [
+  FASE_SLUGS.APROVACAO_PREFEITURA,
+  FASE_SLUGS.REVISAO_BCA,
+  FASE_SLUGS.AGUARDANDO_CREDITO,
+  FASE_SLUGS.EM_OBRA,
+] as const;
+
+export function faseOperacoesPresumePrimeiraTrancheCo(faseSlug: string | null | undefined): boolean {
+  const s = String(faseSlug ?? '').trim();
+  if (!s) return false;
+  return (OPERACOES_FASES_COM_PRIMEIRA_TRANCHE_CO as readonly string[]).includes(s);
+}
+
 export function configTrancheVinculo(index: number): TrancheVinculoConfig | null {
   return OPERACOES_TRANCHE_VINCULOS.find((v) => v.index === index) ?? null;
 }

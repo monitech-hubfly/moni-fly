@@ -6,6 +6,7 @@ import { criarCardFilho } from '@/lib/actions/kanban-bastoes';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   configTrancheVinculo,
+  faseOperacoesPresumePrimeiraTrancheCo,
   indiceTrancheValido,
   OPERACOES_TRANCHE_VINCULOS,
   type TrancheVinculoIndex,
@@ -65,6 +66,46 @@ function erroTabelaTrancheVinculosAusente(err: { code?: string; message?: string
   );
 }
 
+async function resolverFaseSlugOperacoesCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  operacoesCardId: string,
+): Promise<string | null> {
+  const cid = String(operacoesCardId ?? '').trim();
+  if (!cid) return null;
+
+  const { data: card, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('fase_id, kanban_fases ( slug )')
+    .eq('id', cid)
+    .maybeSingle();
+
+  if (!cardErr && card) {
+    const faseEmbed = (card as { kanban_fases?: { slug?: string } | { slug?: string }[] | null }).kanban_fases;
+    const faseNode = Array.isArray(faseEmbed) ? faseEmbed[0] : faseEmbed;
+    const slug = String(faseNode?.slug ?? '').trim();
+    if (slug) return slug;
+
+    const faseId = String((card as { fase_id?: string | null }).fase_id ?? '').trim();
+    if (faseId) {
+      const { data: faseRow } = await supabase.from('kanban_fases').select('slug').eq('id', faseId).maybeSingle();
+      const s = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim();
+      if (s) return s;
+    }
+  }
+
+  const { data: vLeg } = await supabase
+    .from('v_processo_como_kanban_cards')
+    .select('fase_id')
+    .eq('id', cid)
+    .maybeSingle();
+
+  const faseIdLeg = String((vLeg as { fase_id?: string | null } | null)?.fase_id ?? '').trim();
+  if (!faseIdLeg) return null;
+
+  const { data: faseLeg } = await supabase.from('kanban_fases').select('slug').eq('id', faseIdLeg).maybeSingle();
+  return String((faseLeg as { slug?: string | null } | null)?.slug ?? '').trim() || null;
+}
+
 async function resolverFilhoCreditoObraExiste(
   supabase: Awaited<ReturnType<typeof createClient>>,
   operacoesCardId: string,
@@ -97,6 +138,15 @@ async function resolverFilhoCreditoObraExiste(
   });
 }
 
+async function resolverPrimeiroCardCreditoObraDisponivel(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  operacoesCardId: string,
+): Promise<boolean> {
+  const faseSlug = await resolverFaseSlugOperacoesCard(supabase, operacoesCardId);
+  if (faseOperacoesPresumePrimeiraTrancheCo(faseSlug)) return true;
+  return resolverFilhoCreditoObraExiste(supabase, operacoesCardId);
+}
+
 /** Lista os vínculos 2ª–6ª tranche com status. */
 export async function listarTrancheVinculosOperacoes(
   operacoesCardId: string,
@@ -117,7 +167,7 @@ export async function listarTrancheVinculosOperacoes(
     const cardOk = await resolverOperacoesCard(supabase, cid);
     if (!cardOk.ok) return cardOk;
 
-    const temPrimeiroCard = await resolverFilhoCreditoObraExiste(supabase, cid);
+    const temPrimeiroCard = await resolverPrimeiroCardCreditoObraDisponivel(supabase, cid);
 
     const { data: rows, error: rowsErr } = await supabase
       .from('kanban_operacoes_tranche_vinculos')
@@ -304,7 +354,7 @@ export async function abrirTrancheVinculoOperacoes(input: {
     return { ok: false, error: 'Este vínculo já foi concluído.' };
   }
 
-  const temPrimeiroCard = await resolverFilhoCreditoObraExiste(supabase, operacoesId);
+  const temPrimeiroCard = await resolverPrimeiroCardCreditoObraDisponivel(supabase, operacoesId);
   if (!temPrimeiroCard) {
     return {
       ok: false,

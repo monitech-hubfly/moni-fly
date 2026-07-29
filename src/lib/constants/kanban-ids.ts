@@ -123,6 +123,7 @@ export const FASE_SLUGS = {
   PROCESSOS_CARTORARIOS: 'processos_cartorarios',
   /** Funil Operações — fase Em Obra. */
   EM_OBRA:            'em_obra',
+  REVISAO_BCA:        'revisao_bca',
   PROJETO_LEGAL:      'projeto_legal',
   LOTEADOR_JURIDICO:  'loteador_juridico',
   // Gatilhos de VOLTA
