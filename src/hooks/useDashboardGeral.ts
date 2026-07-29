@@ -127,18 +127,32 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
       const areaIds = listaAreas.map(a => a.id);
 
       // 3. Fonte da verdade de membros: area_pessoas ativo + com profile_id
-      type PessoaRow = { profile_id: string; nome: string; area_id: string };
+      type PessoaRow = { profile_id: string; area_id: string };
       const { data: pessoasData } = await supabase
         .from('area_pessoas')
-        .select('profile_id, nome, area_id')
+        .select('profile_id, area_id')
         .in('area_id', areaIds)
         .eq('ativo', true)
         .not('profile_id', 'is', null);
+
+      // Deduplicar: um profile_id só aparece uma vez por área
       const pessoasPorArea = new Map<string, PessoaRow[]>();
       for (const p of (pessoasData ?? []) as PessoaRow[]) {
         if (!pessoasPorArea.has(p.area_id)) pessoasPorArea.set(p.area_id, []);
-        pessoasPorArea.get(p.area_id)!.push(p);
+        const lista = pessoasPorArea.get(p.area_id)!;
+        if (!lista.some(x => x.profile_id === p.profile_id)) lista.push(p);
       }
+
+      // Buscar nome real de profiles (full_name)
+      const allProfileIds = [...new Set((pessoasData ?? []).map((p: unknown) => (p as PessoaRow).profile_id))];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', allProfileIds);
+      const profileNome = new Map<string, string>(
+        ((profilesData ?? []) as { id: string; full_name: string | null }[])
+          .map(p => [p.id, p.full_name ?? p.id])
+      );
 
       // 4. Buscar snapshots no intervalo
       const { data: rows, error: rowsErr } = await supabase
@@ -191,7 +205,7 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
               dias,
             };
           }
-          return { profileId: p.profile_id, nome: p.nome, porSemana };
+          return { profileId: p.profile_id, nome: profileNome.get(p.profile_id) ?? p.profile_id, porSemana };
         });
 
         usuarios.sort((a, b) => a.nome.localeCompare(b.nome));
