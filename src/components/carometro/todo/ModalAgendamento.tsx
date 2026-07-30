@@ -339,19 +339,16 @@ export function ModalAgendamento({
   ], [backlog.sirene, backlog.pastelaria]);
 
   const atividItems = useMemo<BacklogItem[]>(() =>
-    backlog.atividades.map(a => {
-      const chave = a.comportamento_chave;
-      return {
-        id:         a.id,
-        label:      a.nome_acao ?? '(sem nome)',
-        sub:        a.semana_ano_fim ? `Até S${a.semana_ano_fim}` : '—',
-        badge:      chave ? '⭐ chave' : 'atividade',
-        badgeBg:    chave ? '#fef9c3' : '#f3f4f6',
-        badgeText:  chave ? '#92400e' : '#374151',
-        objetivoId: a.objetivo_id,
-        acoId:      a.acao_id,
-      };
-    }),
+    backlog.atividades.map(a => ({
+      id:         a.id,
+      label:      a.nome ?? '(sem nome)',
+      sub:        '—',
+      badge:      'atividade',
+      badgeBg:    '#f3f4f6',
+      badgeText:  '#374151',
+      objetivoId: null,
+      acoId:      a.id,
+    })),
   [backlog.atividades]);
 
   const kanbanItems = useMemo<BacklogItem[]>(() =>
