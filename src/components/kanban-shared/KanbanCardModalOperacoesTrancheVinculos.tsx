@@ -82,7 +82,8 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
           setTemPrimeiroCard(false);
           return;
         }
-        setErro(res.error ?? 'Erro ao carregar vínculos.');
+        // Preset local ainda permite abrir tranches; não exibir banner de erro assustador.
+        setErro(null);
         setItems(itensTrancheVinculoPreset());
         setTemPrimeiroCard(presumePrimeiraTrancheLocal);
         return;
@@ -90,7 +91,7 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
       setItems(res.items);
       setTemPrimeiroCard(res.temPrimeiroCardCreditoObra || presumePrimeiraTrancheLocal);
     } catch {
-      setErro('Erro ao carregar vínculos.');
+      setErro(null);
       setItems(itensTrancheVinculoPreset());
       setTemPrimeiroCard(presumePrimeiraTrancheLocal);
     } finally {

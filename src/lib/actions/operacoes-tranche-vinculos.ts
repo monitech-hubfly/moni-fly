@@ -68,8 +68,14 @@ function erroTabelaTrancheVinculosAusente(err: { code?: string; message?: string
 
 function erroConsultaTrancheVinculosIgnoravel(err: { code?: string; message?: string }): boolean {
   if (erroTabelaTrancheVinculosAusente(err)) return true;
+  const code = String(err.code ?? '').trim();
   const msg = String(err.message ?? '').toLowerCase();
-  return msg.includes('permission denied') && msg.includes('kanban_operacoes_tranche_vinculos');
+  return (
+    code === '42501' ||
+    msg.includes('permission denied') ||
+    msg.includes('row-level security') ||
+    msg.includes('violates row-level security policy')
+  );
 }
 
 function erroUpsertSemUniqueConstraint(err: { message?: string } | null): boolean {
@@ -86,22 +92,73 @@ type TrancheVinculoPatch = {
   updated_at: string;
 };
 
-/** Persiste vínculo de tranche; upsert com fallback insert/update se UNIQUE ainda não existir. */
-async function salvarTrancheVinculoOperacoes(
+type TrancheVinculosDbClient =
+  | ReturnType<typeof createAdminClient>
+  | Awaited<ReturnType<typeof createClient>>;
+
+function montarDbClientsTrancheVinculos(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  patch: TrancheVinculoPatch,
-): Promise<{ error: string | null }> {
-  const dbClients: Array<
-    ReturnType<typeof createAdminClient> | Awaited<ReturnType<typeof createClient>>
-  > = [];
+): TrancheVinculosDbClient[] {
+  const dbClients: TrancheVinculosDbClient[] = [];
   try {
     dbClients.push(createAdminClient());
   } catch {
     /* service role indisponível — tenta client autenticado */
   }
   dbClients.push(supabase);
+  return dbClients;
+}
 
-  for (const db of dbClients) {
+/** SELECT em kanban_operacoes_tranche_vinculos com fallback service role (como salvar). */
+async function consultarTrancheVinculosSalvos(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  operacoesCardId: string,
+  options?: { trancheIndex?: TrancheVinculoIndex },
+): Promise<
+  | { ok: true; rows: TrancheVinculoRow[] }
+  | { ok: false; error: string; ignoravel: boolean }
+> {
+  const cid = String(operacoesCardId ?? '').trim();
+  let lastErr: { code?: string; message?: string } | null = null;
+
+  for (const db of montarDbClientsTrancheVinculos(supabase)) {
+    let query = db
+      .from('kanban_operacoes_tranche_vinculos')
+      .select('tranche_index, concluido_em, credito_obra_card_id')
+      .eq('operacoes_card_id', cid);
+
+    if (options?.trancheIndex != null) {
+      query = query.eq('tranche_index', options.trancheIndex);
+    }
+
+    const { data: rows, error: rowsErr } = await query;
+    if (!rowsErr) {
+      const mapped = (rows ?? []).map((r) => mapRow(r as Record<string, unknown>));
+      return { ok: true, rows: mapped };
+    }
+
+    lastErr = rowsErr;
+    if (erroConsultaTrancheVinculosIgnoravel(rowsErr)) continue;
+    return { ok: false, error: rowsErr.message, ignoravel: false };
+  }
+
+  if (lastErr && erroConsultaTrancheVinculosIgnoravel(lastErr)) {
+    return { ok: true, rows: [] };
+  }
+
+  return {
+    ok: false,
+    error: lastErr?.message || 'Não foi possível carregar vínculos de tranche.',
+    ignoravel: Boolean(lastErr && erroConsultaTrancheVinculosIgnoravel(lastErr)),
+  };
+}
+
+/** Persiste vínculo de tranche; upsert com fallback insert/update se UNIQUE ainda não existir. */
+async function salvarTrancheVinculoOperacoes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  patch: TrancheVinculoPatch,
+): Promise<{ error: string | null }> {
+  for (const db of montarDbClientsTrancheVinculos(supabase)) {
     const { error: upsertError } = await db
       .from('kanban_operacoes_tranche_vinculos')
       .upsert(patch as never, { onConflict: 'operacoes_card_id,tranche_index' });
@@ -244,25 +301,20 @@ export async function listarTrancheVinculosOperacoes(
 
     const temPrimeiroCard = await resolverPrimeiroCardCreditoObraDisponivel(supabase, cid);
 
-    const { data: rows, error: rowsErr } = await supabase
-      .from('kanban_operacoes_tranche_vinculos')
-      .select('tranche_index, concluido_em, credito_obra_card_id')
-      .eq('operacoes_card_id', cid);
-
-    if (rowsErr) {
-      if (erroConsultaTrancheVinculosIgnoravel(rowsErr)) {
+    const consulta = await consultarTrancheVinculosSalvos(supabase, cid);
+    if (!consulta.ok) {
+      if (consulta.ignoravel) {
         return {
           ok: true,
           items: montarItensTrancheVinculo(new Map()),
           temPrimeiroCardCreditoObra: temPrimeiroCard,
         };
       }
-      return { ok: false, error: rowsErr.message };
+      return { ok: false, error: consulta.error };
     }
 
     const porIndex = new Map<number, TrancheVinculoRow>();
-    for (const r of rows ?? []) {
-      const mapped = mapRow(r as Record<string, unknown>);
+    for (const mapped of consulta.rows) {
       porIndex.set(mapped.tranche_index, mapped);
     }
 
@@ -417,14 +469,14 @@ export async function abrirTrancheVinculoOperacoes(input: {
 
   const operacoesId = cardOk.cardId;
 
-  const { data: existente } = await supabase
-    .from('kanban_operacoes_tranche_vinculos')
-    .select('concluido_em, credito_obra_card_id')
-    .eq('operacoes_card_id', operacoesId)
-    .eq('tranche_index', idx)
-    .maybeSingle();
+  const consultaExistente = await consultarTrancheVinculosSalvos(supabase, operacoesId, {
+    trancheIndex: idx,
+  });
+  if (!consultaExistente.ok) {
+    return { ok: false, error: consultaExistente.error };
+  }
 
-  const row = existente as { concluido_em?: string | null; credito_obra_card_id?: string | null } | null;
+  const row = consultaExistente.rows[0] ?? null;
   if (row?.concluido_em || row?.credito_obra_card_id) {
     return { ok: false, error: 'Este vínculo já foi concluído.' };
   }
