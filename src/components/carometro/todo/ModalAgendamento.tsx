@@ -276,6 +276,18 @@ export function ModalAgendamento({
   const backlog    = useBacklog();
   const kanbanData = useBacklogKanban();
 
+  // Filtra atividades pelo mesmo conjunto que o BacklogBloco exibe
+  const [ativoIds, setAtivoIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      try {
+        const raw = JSON.parse(localStorage.getItem(`backlog_ativo_${user.id}`) ?? '[]') as string[];
+        setAtivoIds(new Set(raw));
+      } catch { /* ignore */ }
+    });
+  }, [supabase]);
+
   const [form, setForm] = useState<DadosAgendamento>({ ...EMPTY });
 
   // Abas e seleção de item
@@ -339,17 +351,19 @@ export function ModalAgendamento({
   ], [backlog.sirene, backlog.pastelaria]);
 
   const atividItems = useMemo<BacklogItem[]>(() =>
-    backlog.atividades.map(a => ({
-      id:         a.id,
-      label:      a.nome ?? '(sem nome)',
-      sub:        '—',
-      badge:      'atividade',
-      badgeBg:    '#f3f4f6',
-      badgeText:  '#374151',
-      objetivoId: null,
-      acoId:      a.id,
-    })),
-  [backlog.atividades]);
+    backlog.atividades
+      .filter(a => ativoIds.has(a.id))
+      .map(a => ({
+        id:         a.id,
+        label:      a.nome ?? '(sem nome)',
+        sub:        '—',
+        badge:      'atividade',
+        badgeBg:    '#f3f4f6',
+        badgeText:  '#374151',
+        objetivoId: null,
+        acoId:      a.id,
+      })),
+  [backlog.atividades, ativoIds]);
 
   const kanbanItems = useMemo<BacklogItem[]>(() =>
     [...kanbanData.cards, ...kanbanData.sndCards].map(c => {
