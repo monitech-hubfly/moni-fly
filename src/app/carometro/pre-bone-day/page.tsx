@@ -637,10 +637,20 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
     return comportamentos.filter(c => ids.has(c.id));
   }, [atividades, comportamentos, pessoa.profile_id]);
 
-  // Itens livres (descricao_livre, sem tarefa/acao)
+  // Itens livres (descricao_livre, sem tarefa/acao) — agrupados por descrição
   const atividadesLivres = useMemo(() =>
     atividades.filter(a => a.profile_id === pessoa.profile_id && !a.tarefa_id && !a.acao_id && a.descricao_livre),
   [atividades, pessoa.profile_id]);
+
+  const atividadesLivresAgrupadas = useMemo(() => {
+    const map = new Map<string, AgendaMacroItem[]>();
+    atividadesLivres.forEach(a => {
+      const key = a.descricao_livre ?? '';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
+    });
+    return [...map.entries()].map(([desc, items]) => ({ desc, items }));
+  }, [atividadesLivres]);
 
   // Mapa: "acoId::semana" → atividade
   const mapaAtiv = useMemo(() => {
@@ -722,7 +732,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
             </select>
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 mb-1 block">Horas estimadas</label>
+            <label className="text-[10px] text-gray-500 mb-1 block">Horas Estimadas Semanais</label>
             <input type="number" min="0.5" step="0.5"
               className="w-24 text-xs border border-gray-300 rounded-lg px-3 py-2"
               value={novaHoras2} onChange={e => setNovaHoras2(e.target.value)} />
@@ -769,8 +779,9 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
             <tbody>
               {linhas.map(comportamento => (
                 <tr key={comportamento.id} className="border-b border-gray-100 hover:bg-gray-50/50">
-                  <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-700 border-r border-gray-100 font-medium">
-                    {comportamento.nome}
+                  <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-700 border-r border-gray-100 font-medium max-w-[160px]"
+                    title={comportamento.nome}>
+                    <span className="block truncate">{comportamento.nome}</span>
                   </td>
                   {semanas.map(sem => {
                     const key = `${comportamento.id}::${sem}` as CelulaKey;
@@ -832,37 +843,37 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
                 </tr>
               )}
 
-              {/* Atividades livres (descrição sem comportamento vinculado) */}
-              {atividadesLivres.map(atv => {
-                const cor = atv.objetivo_id ? corDeMeta.get(atv.objetivo_id) : undefined;
-                return (
-                  <tr key={atv.id} className="border-b border-gray-100 hover:bg-gray-50/50">
-                    <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-600 border-r border-gray-100 text-[12px] italic">
-                      {atv.descricao_livre}
-                    </td>
-                    {semanas.map(sem => {
-                      if (sem === (atv.semana_ano_inicio ?? 0)) {
-                        return (
-                          <td key={sem} className="px-2 py-1.5 text-center"
-                            style={cor ? { backgroundColor: cor.bg } : undefined}>
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className="font-medium"
-                                style={cor ? { color: cor.text } : { color: '#374151' }}>
-                                {atv.tempo_estimado_horas ? `${atv.tempo_estimado_horas}h` : '—'}
-                              </span>
-                              {podeEditar && (
-                                <button type="button" onClick={() => onDelete(atv.id)}
-                                  className="text-red-400 hover:text-red-600 text-[10px]">✕</button>
-                              )}
-                            </div>
-                          </td>
-                        );
-                      }
-                      return <td key={sem} className="px-2 py-1.5 text-center text-gray-200">—</td>;
-                    })}
-                  </tr>
-                );
-              })}
+              {/* Atividades livres — agrupadas por descrição (1 linha por descrição única) */}
+              {atividadesLivresAgrupadas.map(({ desc, items }) => (
+                <tr key={desc} className="border-b border-gray-100 hover:bg-gray-50/50">
+                  <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-600 border-r border-gray-100 text-[12px] italic max-w-[160px]"
+                    title={desc}>
+                    <span className="block truncate">{desc}</span>
+                  </td>
+                  {semanas.map(sem => {
+                    const atv = items.find(a => (a.semana_ano_inicio ?? 0) === sem);
+                    if (atv) {
+                      const cor = atv.objetivo_id ? corDeMeta.get(atv.objetivo_id) : undefined;
+                      return (
+                        <td key={sem} className="px-2 py-1.5 text-center"
+                          style={cor ? { backgroundColor: cor.bg } : undefined}>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="font-medium"
+                              style={cor ? { color: cor.text } : { color: '#374151' }}>
+                              {atv.tempo_estimado_horas ? `${atv.tempo_estimado_horas}h` : '—'}
+                            </span>
+                            {podeEditar && (
+                              <button type="button" onClick={() => onDelete(atv.id)}
+                                className="text-red-400 hover:text-red-600 text-[10px]">✕</button>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    }
+                    return <td key={sem} className="px-2 py-1.5 text-center text-gray-200">—</td>;
+                  })}
+                </tr>
+              ))}
 
               {podeEditar && (
                 <tr>
