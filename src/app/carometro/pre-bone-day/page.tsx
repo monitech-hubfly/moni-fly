@@ -177,7 +177,7 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
     onUpdate();
   };
 
-  const respNome  = responsaveis.find(r => r.profile_id === ind.profile_id)?.nome ?? '—';
+  const respNome  = responsaveis.find(r => r.profile_id === ind.profile_id)?.nome ?? 'Sem responsável';
 
   return (
     <tr className="border-b border-gray-100 group hover:bg-gray-50/50">
@@ -193,7 +193,7 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
         {isAdmin ? (
           <select className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 max-w-[130px] disabled:opacity-50"
             value={ind.profile_id ?? ''} onChange={e => handleRespChange(e.target.value)} disabled={salvandoResp}>
-            <option value="">—</option>
+            <option value="">Sem responsável</option>
             {responsaveis.map(r => <option key={r.profile_id} value={r.profile_id}>{r.nome}</option>)}
           </select>
         ) : (
@@ -218,6 +218,53 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
 }
 
 type EscalaCustom = { id: string; nome: string; modo: 'lista' | 'percentual' | 'numero'; valores?: string[] };
+type FaixaForm   = { cor: string; limite: string; comparacao: 'gte' | 'lte' | 'eq' };
+
+const PRESET_FAIXAS_MAP: Record<string, FaixaForm[]> = {
+  percentual: [
+    { cor: '#1e7a3a', limite: '75', comparacao: 'gte' },
+    { cor: '#52b36f', limite: '64', comparacao: 'gte' },
+    { cor: '#f2c94c', limite: '35', comparacao: 'gte' },
+    { cor: '#d24141', limite: '0',  comparacao: 'gte' },
+  ],
+  quantidade: [
+    { cor: '#1e7a3a', limite: '75', comparacao: 'gte' },
+    { cor: '#52b36f', limite: '64', comparacao: 'gte' },
+    { cor: '#f2c94c', limite: '35', comparacao: 'gte' },
+    { cor: '#d24141', limite: '0',  comparacao: 'gte' },
+  ],
+  sim_nao: [
+    { cor: '#1e7a3a', limite: 'SIM',      comparacao: 'eq' },
+    { cor: '#52b36f', limite: 'SIM',      comparacao: 'eq' },
+    { cor: '#f2c94c', limite: 'NAO',      comparacao: 'eq' },
+    { cor: '#d24141', limite: 'NAO',      comparacao: 'eq' },
+  ],
+  status_3: [
+    { cor: '#1e7a3a', limite: 'OK',       comparacao: 'eq' },
+    { cor: '#52b36f', limite: 'OK',       comparacao: 'eq' },
+    { cor: '#f2c94c', limite: 'ANDAMENTO',comparacao: 'eq' },
+    { cor: '#d24141', limite: 'NAO_OK',   comparacao: 'eq' },
+  ],
+};
+
+function presetFaixasParaTipo(tipo: string, ecs: EscalaCustom[]): FaixaForm[] {
+  if (PRESET_FAIXAS_MAP[tipo]) return PRESET_FAIXAS_MAP[tipo].map(f => ({ ...f }));
+  if (tipo.startsWith('custom:')) {
+    const ec = ecs.find(e => e.id === tipo.slice(7));
+    if (!ec) return [{ cor: '#1e7a3a', limite: '', comparacao: 'gte' }];
+    if (ec.modo === 'lista') {
+      const v = ec.valores ?? ['', ''];
+      return [
+        { cor: '#1e7a3a', limite: v[0] ?? '',              comparacao: 'eq' },
+        { cor: '#52b36f', limite: v[0] ?? '',              comparacao: 'eq' },
+        { cor: '#f2c94c', limite: v[1] ?? '',              comparacao: 'eq' },
+        { cor: '#d24141', limite: v[v.length - 1] ?? '',   comparacao: 'eq' },
+      ];
+    }
+    return PRESET_FAIXAS_MAP.percentual.map(f => ({ ...f }));
+  }
+  return PRESET_FAIXAS_MAP.percentual.map(f => ({ ...f }));
+}
 
 function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   metaId: string; areaId: string; responsaveis: ResponsavelItem[]; onSalvo: () => void;
@@ -225,7 +272,8 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   const supabase = useMemo(() => createClient(), []);
   const [aberto,   setAberto]   = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [form, setForm] = useState({ nome: '', tipo: 'percentual', verde: '75', amarelo: '35', chave: false });
+  const [form, setForm] = useState({ nome: '', tipo: 'percentual', chave: false });
+  const [faixas, setFaixas] = useState<FaixaForm[]>(() => PRESET_FAIXAS_MAP.percentual.map(f => ({ ...f })));
   const set = (k: string, v: string | boolean) => setForm(p => ({ ...p, [k]: v }));
 
   // Escalas customizadas
@@ -247,6 +295,7 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   const handleTipoChange = (v: string) => {
     if (v === '__add_escala__') { setAdicionandoEscala(true); return; }
     set('tipo', v);
+    setFaixas(presetFaixasParaTipo(v, escalasCustom));
   };
 
   const handleSalvarEscala = async () => {
@@ -260,8 +309,11 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
         valores: novaEscalaModo === 'lista' ? novaEscalaValores.filter(v => v.trim()) : undefined,
       });
       if (!res.ok) { setErroEscala(res.erro ?? 'Erro ao salvar'); return; }
-      setEscalasCustom((listarEscalasCustom as () => EscalaCustom[])());
-      set('tipo', `custom:${res.escala.id}`);
+      const novasEscalas = (listarEscalasCustom as () => EscalaCustom[])();
+      setEscalasCustom(novasEscalas);
+      const novoTipo = `custom:${res.escala.id}`;
+      set('tipo', novoTipo);
+      setFaixas(presetFaixasParaTipo(novoTipo, novasEscalas));
       setAdicionandoEscala(false);
       setNovaEscalaNome(''); setNovaEscalaModo('lista'); setNovaEscalaValores(['', '']);
     } finally { setSalvandoEscala(false); }
@@ -271,8 +323,11 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
     if (!form.nome.trim()) return;
     setSalvando(true);
     try {
-      const sf = buildSemaforoFaixas(form.tipo, form.verde, form.amarelo);
-      const tipoDb = form.tipo === 'percentual' ? 'percentual' : form.tipo === 'quantidade' ? 'quantidade' : 'outro';
+      const tipo = form.tipo;
+      const escalaCustomId = tipo.startsWith('custom:') ? tipo.slice(7) : null;
+      const escalaTipo = escalaCustomId ? 'custom' : tipo === 'sim_nao' ? 'sim_nao' : tipo === 'status_3' ? 'status_3' : tipo;
+      const sf = { escala_tipo: escalaTipo, escala_custom_id: escalaCustomId, faixas };
+      const tipoDb = tipo === 'percentual' ? 'percentual' : tipo === 'quantidade' ? 'quantidade' : 'outro';
       const { data: ins, error: e } = await supabase.from('indicadores')
         .insert({ area_id: areaId, nome: form.nome.trim(), objetivo_id: metaId,
           profile_id: null, indicador_chave: form.chave,
@@ -282,7 +337,8 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
       LOG({ modulo: 'Planejamento', entidade: 'indicadores',
         entidade_id: String((ins as { id: unknown }).id), operacao: 'INSERT',
         descricao: `Indicador criado para meta ${metaId}: ${form.nome}` });
-      setForm({ nome: '', tipo: 'percentual', verde: '75', amarelo: '35', chave: false });
+      setForm({ nome: '', tipo: 'percentual', chave: false });
+      setFaixas(PRESET_FAIXAS_MAP.percentual.map(f => ({ ...f })));
       setAberto(false); onSalvo();
     } finally { setSalvando(false); }
   };
@@ -311,51 +367,51 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
         <option value="__add_escala__">+ Adicionar escala…</option>
       </select>
 
-      {/* Faixas do semáforo com bolinhas */}
-      {(form.tipo === 'percentual' || form.tipo === 'quantidade') && (
-        <div className="flex flex-col gap-1 bg-white border border-gray-100 rounded-lg px-3 py-2">
-          <p className="text-[9px] text-gray-400 uppercase tracking-wide mb-0.5">Faixas do semáforo</p>
-          {[
-            { cor: '#1e7a3a', label: 'Verde escuro ≥', key: 'verde' as const, auto: false },
-            { cor: '#52b36f', label: 'Verde claro ≥',  key: null,            auto: true,  autoVal: () => String(Math.round((parseFloat(form.verde) || 75) * 0.85)) },
-            { cor: '#f2c94c', label: 'Amarelo ≥',      key: 'amarelo' as const, auto: false },
-            { cor: '#d24141', label: 'Vermelho ≥',      key: null,            auto: true,  autoVal: () => '0' },
-          ].map((f, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: f.cor }} />
-              <span className="text-[10px] text-gray-500 w-24 flex-shrink-0">{f.label}</span>
-              {!f.auto && f.key ? (
-                <input type="number" className="text-xs border border-gray-300 rounded px-2 py-0.5 w-16"
-                  value={form[f.key]} onChange={e => set(f.key!, e.target.value)} />
-              ) : (
-                <span className="text-[10px] text-gray-400 italic">{f.autoVal?.()}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-      {form.tipo === 'sim_nao' && (
-        <div className="flex gap-1.5 items-center bg-white border border-gray-100 rounded-lg px-3 py-2">
-          <p className="text-[9px] text-gray-400 uppercase tracking-wide mr-1">Faixas:</p>
-          {[{cor:'#1e7a3a',l:'SIM'},{cor:'#52b36f',l:'SIM'},{cor:'#f2c94c',l:'NÃO'},{cor:'#d24141',l:'NÃO'}].map((f,i) => (
-            <div key={i} className="flex items-center gap-0.5">
-              <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor:f.cor}} />
-              <span className="text-[9px] text-gray-500">{f.l}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {form.tipo === 'status_3' && (
-        <div className="flex gap-1.5 items-center bg-white border border-gray-100 rounded-lg px-3 py-2">
-          <p className="text-[9px] text-gray-400 uppercase tracking-wide mr-1">Faixas:</p>
-          {[{cor:'#1e7a3a',l:'OK'},{cor:'#52b36f',l:'OK'},{cor:'#f2c94c',l:'And.'},{cor:'#d24141',l:'Não OK'}].map((f,i) => (
-            <div key={i} className="flex items-center gap-0.5">
-              <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor:f.cor}} />
-              <span className="text-[9px] text-gray-500">{f.l}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Editor completo de faixas */}
+      {(() => {
+        const isEq = form.tipo === 'sim_nao' || form.tipo === 'status_3' ||
+          (form.tipo.startsWith('custom:') && escalasCustom.find(e => e.id === form.tipo.slice(7))?.modo === 'lista');
+        const updateFaixa = (i: number, k: keyof FaixaForm, v: string) =>
+          setFaixas(prev => prev.map((f, j) => j === i ? { ...f, [k]: v } : f));
+        return (
+          <div className="flex flex-col gap-1 bg-white border border-gray-100 rounded-lg px-3 py-2">
+            <p className="text-[9px] text-gray-400 uppercase tracking-wide mb-0.5">Faixas do semáforo</p>
+            {faixas.map((f, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                {/* Bolinha = color picker */}
+                <label className="relative w-4 h-4 rounded-full cursor-pointer flex-shrink-0 overflow-hidden"
+                  style={{ backgroundColor: f.cor }}>
+                  <input type="color" value={f.cor} onChange={e => updateFaixa(i, 'cor', e.target.value)}
+                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
+                </label>
+                {/* Comparação */}
+                {isEq ? (
+                  <span className="text-[10px] text-gray-400 w-6 text-center">=</span>
+                ) : (
+                  <select className="text-[10px] border border-gray-200 rounded px-1 py-0.5 w-10"
+                    value={f.comparacao} onChange={e => updateFaixa(i, 'comparacao', e.target.value as 'gte' | 'lte' | 'eq')}>
+                    <option value="gte">≥</option>
+                    <option value="lte">≤</option>
+                    <option value="eq">=</option>
+                  </select>
+                )}
+                {/* Limite */}
+                <input className="text-xs border border-gray-300 rounded px-2 py-0.5 flex-1 min-w-0"
+                  value={f.limite} onChange={e => updateFaixa(i, 'limite', e.target.value)}
+                  placeholder="Valor" />
+                {/* Remover */}
+                {faixas.length > 1 && (
+                  <button type="button" onClick={() => setFaixas(prev => prev.filter((_, j) => j !== i))}
+                    className="text-red-300 hover:text-red-500 text-xs flex-shrink-0">✕</button>
+                )}
+              </div>
+            ))}
+            <button type="button"
+              onClick={() => setFaixas(prev => [...prev, { cor: '#cccccc', limite: '', comparacao: isEq ? 'eq' : 'gte' as 'gte' | 'eq' }])}
+              className="text-[10px] text-blue-500 hover:underline text-left mt-0.5">+ Adicionar faixa</button>
+          </div>
+        );
+      })()}
 
       {/* Sub-formulário: nova escala personalizada */}
       {adicionandoEscala && (
@@ -500,7 +556,13 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
       {/* Tabela de indicadores */}
       {indicadores.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-xs table-fixed">
+            <colgroup>
+              <col style={{ width: '45%' }} />
+              <col style={{ width: '30%' }} />
+              <col style={{ width: '25%' }} />
+              {isAdmin && <col style={{ width: '40px' }} />}
+            </colgroup>
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-[10px] uppercase tracking-wide">
                 <th className="px-3 py-1.5 text-left">Indicador</th>
