@@ -1020,6 +1020,25 @@ export function MetasIndicadoresBloco() {
                 </>
               )}
 
+              {/* Legenda global de cores do semáforo */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 pt-3 border-t border-gray-100 text-[10px] text-gray-500">
+                <span className="font-medium text-gray-400 uppercase tracking-wide mr-1">Legenda:</span>
+                {([
+                  { cor: 've', label: 'Verde escuro' },
+                  { cor: 'vc', label: 'Verde claro' },
+                  { cor: 'am', label: 'Amarelo' },
+                  { cor: 'vm', label: 'Vermelho' },
+                ] as const).map(({ cor, label }) => (
+                  <span key={cor} className="flex items-center gap-1">
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: FAROL_HEX[cor] }}
+                    />
+                    {label}
+                  </span>
+                ))}
+              </div>
+
               {isAdminUser && (
                 <div className="mt-4">
                   {adicionandoMeta ? (

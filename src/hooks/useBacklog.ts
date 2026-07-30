@@ -118,7 +118,7 @@ export function useBacklog(): UseBacklogResult {
             chamado_id,
             interacao_id,
             trava,
-            sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome)
+            sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado)
           `)
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['nao_iniciado', 'em_andamento'])
@@ -143,7 +143,7 @@ export function useBacklog(): UseBacklogResult {
 
       if (sireneRes.error) throw sireneRes.error;
 
-      type ChamadoRaw = { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null } | { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null }[] | null;
+      type ChamadoRaw = { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null; arquivado: boolean | null } | { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null; arquivado: boolean | null }[] | null;
       type KanbanAtivRaw = {
         id: string;
         card_id: string | null;
@@ -233,11 +233,24 @@ export function useBacklog(): UseBacklogResult {
         };
       });
 
+      // Remove tópicos cujo chamado direto está arquivado
+      // (sirene_chamados.arquivado=true → chamado concluído/arquivado no painel Sirene)
+      const sireneArrFiltrado = sireneArr.filter(item => {
+        const row = ((sireneRes.data ?? []) as unknown as SireneRaw[]).find(r => r.id === item.id);
+        if (!row) return true;
+        const chamadoD = Array.isArray(row.sirene_chamados)
+          ? row.sirene_chamados[0] ?? null
+          : row.sirene_chamados;
+        if (chamadoD?.arquivado === true) return false;
+        return true;
+      });
+
       // Ordenação: grupo P1-P6 → prazo → criação (via compareChamadosPainelRank)
-      sireneArr.sort((a, b) => compareChamadosPainelRank(
+      sireneArrFiltrado.sort((a, b) => compareChamadosPainelRank(
         { frank_id: a.frank_id, franqueado_nome: a.frank_nome, trava: a.trava, te_trata: a.te_trata, data_vencimento: a.data_fim ?? a.prazo_proposto, atividade_status: a.status },
         { frank_id: b.frank_id, franqueado_nome: b.frank_nome, trava: b.trava, te_trata: b.te_trata, data_vencimento: b.data_fim ?? b.prazo_proposto, atividade_status: b.status },
       ));
+      const sireneArr = sireneArrFiltrado;
 
       type TarefaComAcoesRaw = {
         id: string;
