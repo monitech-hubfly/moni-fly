@@ -11,8 +11,9 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 
+// sem_prazo = 0 (mais crítico — sem data definida = urgente)
 const STATUS_ORDER: Record<StatusPrazo, number> = {
-  atrasado: 0, esta_semana: 1, sem_prazo: 2, futuro: 3,
+  sem_prazo: 0, atrasado: 1, esta_semana: 2, futuro: 3,
 };
 
 function getSexta(): Date {
@@ -76,8 +77,9 @@ type Acao   = { id: string; nome: string; caneta_verde: string | null; prazo: st
 
 type HiddenState = { tarefas: string[]; acoes: string[] };
 
-function NovaAtividadeDrawer({ areaId, onFechar, onSaved }: {
+function NovaAtividadeDrawer({ areaId, onFechar, onSaved, ativoIds, onAtivar }: {
   areaId: string | null; onFechar: () => void; onSaved?: () => void;
+  ativoIds?: Set<string>; onAtivar?: (id: string) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -188,7 +190,7 @@ function NovaAtividadeDrawer({ areaId, onFechar, onSaved }: {
     setSalvando(false);
   };
 
-  // Item 3: salva prazo/caneta em acao existente
+  // Item 3: salva prazo/caneta em acao existente + ativa no backlog do usuário
   const handleSalvarAcaoPopup = async () => {
     if (!acaoPopup) return;
     setSalvandoPopup(true);
@@ -196,6 +198,7 @@ function NovaAtividadeDrawer({ areaId, onFechar, onSaved }: {
       prazo:        acaoPopup.prazo || null,
       caneta_verde: acaoPopup.caneta,
     }).eq('id', acaoPopup.id);
+    onAtivar?.(acaoPopup.id);
     setAcaoPopup(null);
     setSalvandoPopup(false);
     await carregarAcoes(tarefaId);
@@ -216,6 +219,11 @@ function NovaAtividadeDrawer({ areaId, onFechar, onSaved }: {
       recorrencia:            'unica',
     });
     if (e) { setErro(e.message); setSalvando(false); return; }
+    // Ativa no backlog: busca o id do acao recém-criado
+    const { data: novaAcao } = await supabase.from('acoes')
+      .select('id').eq('tarefa_id', tarefaId).eq('nome', nome.trim())
+      .order('criado_em', { ascending: false }).limit(1).maybeSingle();
+    if (novaAcao) onAtivar?.((novaAcao as { id: string }).id);
     setNome(''); setPrazo(''); setCanetaVerde('nao'); setAdicionando(false);
     await carregarAcoes(tarefaId);
     onSaved?.();
@@ -371,8 +379,9 @@ function NovaAtividadeDrawer({ areaId, onFechar, onSaved }: {
                           <div className="flex items-center gap-1 group">
                             <button type="button"
                               onClick={() => setAcaoPopup({ id: a.id, nome: a.nome, prazo: a.prazo ?? '', caneta: a.caneta_verde ?? 'nao' })}
-                              className="flex-1 text-left text-xs px-3 py-2 rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 text-gray-600 border border-gray-100 transition-colors">
+                              className={`flex-1 text-left text-xs px-3 py-2 rounded-md border transition-colors ${ativoIds?.has(a.id) ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-50 hover:bg-blue-50 hover:border-blue-200 text-gray-600 border-gray-100'}`}>
                               <span className="flex items-center gap-1.5">
+                                {ativoIds?.has(a.id) && <span title="No seu backlog" className="text-[10px]">🔖</span>}
                                 {a.caneta_verde === 'sim' && <span title="Caneta verde" className="text-[10px]">🖊️</span>}
                                 {a.nome}
                                 {a.prazo && <span className="ml-auto text-[9px] text-gray-400 shrink-0">{a.prazo}</span>}
@@ -571,33 +580,38 @@ function DraggableSirene({ dragId, dragData, children }: { dragId: string; dragD
 // ── Atividades Planejadas ─────────────────────────────────────────────────────
 type ColunaAtividadesProps = {
   items: AtividadeItem[];
-  onAbrirNovaAtividade?: () => void;
+  onDesativar?: (id: string) => void;
 };
-function ColunaAtividades({ items, onAbrirNovaAtividade }: ColunaAtividadesProps) {
-  const comStatus = items.map(i => ({ item: i, status: statusAtividade(i) }));
+function ColunaAtividades({ items, onDesativar }: ColunaAtividadesProps) {
+  const comStatus = items
+    .map(i => ({ item: i, status: statusAtividade(i) }))
+    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
 
   return (
     <div className={`flex flex-col gap-1.5 ${items.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
       {items.length === 0 && <EmptyState />}
       {comStatus.map(({ item, status }) => (
         <DraggableAtividade key={item.id} id={item.id}>
-          <BacklogColunaCard
-            tipo="atividade"
-            titulo={item.nome}
-            prazo={item.prazo ?? null}
-            status={status}
-          />
+          <div className="relative group">
+            <BacklogColunaCard
+              tipo="atividade"
+              titulo={item.nome}
+              prazo={item.prazo ?? null}
+              status={status}
+            />
+            {onDesativar && (
+              <button
+                type="button"
+                onClick={() => onDesativar(item.id)}
+                title="Remover do backlog"
+                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 text-[10px] px-1 transition-opacity"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </DraggableAtividade>
       ))}
-      {onAbrirNovaAtividade && (
-        <button
-          type="button"
-          onClick={onAbrirNovaAtividade}
-          className="mt-2 w-full text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 border border-dashed border-gray-300 hover:border-blue-300 rounded-md py-1.5 transition-colors"
-        >
-          + Nova atividade
-        </button>
-      )}
     </div>
   );
 }
@@ -610,16 +624,58 @@ type BacklogBlocoProps = {
 export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
   const { sirene, pastelaria, atividades, isLoading, error, recarregar } = useBacklog();
   const { areaId } = useEffectiveUser();
+  const supabase = useMemo(() => createClient(), []);
   const [drawerAberto, setDrawerAberto] = useState(false);
+
+  // ── Ativo: quais acoes este usuário quer ver no backlog ────────────────────
+  const [userId,   setUserId]   = useState<string | null>(null);
+  const [ativoIds, setAtivoIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      setUserId(user.id);
+      try {
+        const raw = JSON.parse(localStorage.getItem(`backlog_ativo_${user.id}`) ?? '[]') as string[];
+        setAtivoIds(new Set(raw));
+      } catch { /* ignore */ }
+    });
+  }, [supabase]);
+
+  const salvarAtivo = (next: Set<string>, uid: string | null) => {
+    if (!uid) return;
+    localStorage.setItem(`backlog_ativo_${uid}`, JSON.stringify([...next]));
+  };
+
+  const handleAtivar = (id: string) => {
+    setAtivoIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      salvarAtivo(next, userId);
+      return next;
+    });
+  };
+
+  const handleDesativar = (id: string) => {
+    setAtivoIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      salvarAtivo(next, userId);
+      return next;
+    });
+  };
+
+  // Apenas acoes que o usuário ativou
+  const atividadesAtivas = atividades.filter(i => ativoIds.has(i.id));
 
   // Contadores para dots de status
   const sireneAtrasados  = sirene.filter(i => statusSirene(i) === 'atrasado').length;
   const sireneEstaSemana = sirene.filter(i => statusSirene(i) === 'esta_semana').length;
   const sireneFuturos    = sirene.filter(i => statusSirene(i) === 'futuro').length;
 
-  const atividadesAtrasadas  = atividades.filter(i => statusAtividade(i) === 'atrasado').length;
-  const atividadesEstaSemana = atividades.filter(i => statusAtividade(i) === 'esta_semana').length;
-  const atividadesFuturas    = atividades.filter(i => statusAtividade(i) === 'futuro').length;
+  const atividadesAtrasadas  = atividadesAtivas.filter(i => statusAtividade(i) === 'atrasado').length;
+  const atividadesEstaSemana = atividadesAtivas.filter(i => statusAtividade(i) === 'esta_semana').length;
+  const atividadesFuturas    = atividadesAtivas.filter(i => statusAtividade(i) === 'futuro').length;
 
   return (
     <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 shadow-sm">
@@ -658,21 +714,32 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
           {/* Coluna 2 — Atividades Planejadas */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-600">Atividades Planejadas</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium text-gray-600">Atividades Planejadas</span>
+                <button
+                  type="button"
+                  onClick={() => setDrawerAberto(true)}
+                  title="Adicionar atividade"
+                  className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded px-1 text-xs transition-colors"
+                >
+                  +
+                </button>
+              </div>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5">
+                  <StatusDot cor="bg-gray-400"  count={atividadesAtivas.filter(i => statusAtividade(i) === 'sem_prazo').length} />
                   <StatusDot cor="bg-red-500"   count={atividadesAtrasadas} />
                   <StatusDot cor="bg-green-500" count={atividadesEstaSemana} />
-                  <StatusDot cor="bg-gray-400"  count={atividadesFuturas} />
+                  <StatusDot cor="bg-gray-300"  count={atividadesFuturas} />
                 </div>
                 <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
-                  {atividades.length}
+                  {atividadesAtivas.length}
                 </span>
               </div>
             </div>
             <ColunaAtividades
-              items={atividades}
-              onAbrirNovaAtividade={() => setDrawerAberto(true)}
+              items={atividadesAtivas}
+              onDesativar={handleDesativar}
             />
           </div>
 
@@ -686,6 +753,8 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
           areaId={areaId}
           onFechar={() => setDrawerAberto(false)}
           onSaved={recarregar}
+          ativoIds={ativoIds}
+          onAtivar={handleAtivar}
         />
       )}
     </section>
