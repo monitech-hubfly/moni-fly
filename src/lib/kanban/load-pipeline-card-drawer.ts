@@ -10,6 +10,10 @@ import {
 } from '@/lib/kanban/kanban-card-timeline';
 import type { PipelineCardDisplay } from '@/lib/kanban/pipeline-cards-types';
 import {
+  fetchKanbanCardModalDetalhes,
+  type KanbanCardModalDetalhes,
+} from '@/lib/kanban/kanban-card-modal-detalhes';
+import {
   diasNaFasePipeline,
   sincronizarLinhaFaseAtualComCard,
 } from '@/lib/kanban/pipeline-card-readonly';
@@ -46,6 +50,7 @@ export type PipelineCardDrawerData = {
   chamadosSirene: PipelineDrawerChamadoSirene[];
   statusLabel: string;
   eventosBrutos: HistoricoItem[];
+  detalhes: KanbanCardModalDetalhes | null;
 };
 
 function calcularSlaHistoricoFase(
@@ -240,7 +245,7 @@ export async function loadPipelineCardDrawerData(
   supabase: SupabaseClient,
   card: PipelineCardDisplay,
 ): Promise<PipelineCardDrawerData> {
-  const [historico, fasesBase, chamadosSirene] = await Promise.all([
+  const [historico, fasesBase, chamadosSirene, detalhes] = await Promise.all([
     loadHistoricoCardModal(
       supabase,
       card.id,
@@ -251,6 +256,14 @@ export async function loadPipelineCardDrawerData(
     ),
     fetchKanbanFasesAtivas(supabase, card.kanban_id),
     fetchChamadosSireneCard(supabase, card.id),
+    fetchKanbanCardModalDetalhes(supabase, {
+      origem: card.origem,
+      cardId: card.id,
+      cardTitulo: card.titulo,
+      redeFranqueadoId: card.rede_franqueado_id,
+      cardProjetoId: card.projeto_id ?? null,
+      cardProcessoStepOneId: card.processo_step_one_id ?? null,
+    }),
   ]);
 
   const fases = await augmentKanbanFasesComFasesDosCards(
@@ -278,6 +291,7 @@ export async function loadPipelineCardDrawerData(
     chamadosSirene,
     statusLabel: labelStatusOperacionalPipeline(status),
     eventosBrutos: historico,
+    detalhes,
   };
 }
 

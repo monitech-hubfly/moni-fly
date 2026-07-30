@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import type {
+  PipelineCardDisplay,
   PipelineCardRow,
   PipelineEsteiraCalculadoraPorGrupo,
 } from '@/lib/kanban/pipeline-cards-types';
@@ -29,8 +30,9 @@ import {
 const ESTEIRA_KANBAN_IDS = new Set<string>([KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES]);
 
 export type PipelineEsteiraTableProps = {
-  cards: PipelineCardRow[];
+  cards: PipelineCardDisplay[];
   esteiraCalculadora?: PipelineEsteiraCalculadoraPorGrupo;
+  onCardClick?: (card: PipelineCardDisplay) => void;
 };
 
 function abreviarNome(nome: string | null | undefined): string {
@@ -87,7 +89,7 @@ function CelulaData({
   );
 }
 
-export function PipelineEsteiraTable({ cards, esteiraCalculadora = {} }: PipelineEsteiraTableProps) {
+export function PipelineEsteiraTable({ cards, esteiraCalculadora = {}, onCardClick }: PipelineEsteiraTableProps) {
   const linhas = useMemo(() => {
     const grupos = agruparCardsEsteiraCalculadora(cards);
 
@@ -176,7 +178,23 @@ export function PipelineEsteiraTable({ cards, esteiraCalculadora = {} }: Pipelin
 
             return (
               <tr key={chave} className={isCurAtrasado ? 'linha-atrasada' : ''}>
-                <td className="moni-pipeline-esteira-td-info">
+                <td
+                  className={`moni-pipeline-esteira-td-info${onCardClick ? ' moni-pipeline-esteira-td-proj-click' : ''}`}
+                  role={onCardClick ? 'button' : undefined}
+                  tabIndex={onCardClick ? 0 : undefined}
+                  aria-label={onCardClick ? `Abrir detalhes de ${projetoLabel}` : undefined}
+                  onClick={onCardClick ? () => onCardClick(card as PipelineCardDisplay) : undefined}
+                  onKeyDown={
+                    onCardClick
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onCardClick(card as PipelineCardDisplay);
+                          }
+                        }
+                      : undefined
+                  }
+                >
                   <div className="moni-pipeline-esteira-proj-linha">
                     <span className="moni-pipeline-esteira-fk">{card.n_franquia ?? '—'}</span>
                     {nomeAbrev ? (

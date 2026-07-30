@@ -569,6 +569,7 @@ export function PipelineCardsView({
         <PipelineEsteiraTable
           cards={cardsFiltrados}
           esteiraCalculadora={dataset.esteiraCalculadora}
+          onCardClick={setDrawerCard}
         />
       ) : viewMode === 'franqueadora' ? (
         blocosFranqueadora.length === 0 ? (

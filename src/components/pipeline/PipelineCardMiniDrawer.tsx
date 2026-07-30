@@ -24,6 +24,7 @@ import {
 } from '@/lib/kanban/pipeline-card-readonly';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 import { formatDataHoraHistorico } from '@/components/kanban-shared/kanban-card-modal-helpers';
+import { PipelineCardDrawerDadosSecoes } from '@/components/pipeline/PipelineCardDrawerDadosSecoes';
 
 type Props = {
   card: PipelineCardDisplay | null;
@@ -169,6 +170,18 @@ export function PipelineCardMiniDrawer({ card, onClose }: Props) {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <PipelineCardDrawerDadosSecoes
+            card={card}
+            detalhes={drawerData?.detalhes ?? null}
+            loading={loading}
+          />
+
+          <h3
+            className="mb-3 text-xs font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--moni-text-tertiary)' }}
+          >
+            Funil e SLA
+          </h3>
           <dl className="grid grid-cols-2 gap-x-3 gap-y-3 text-xs">
             <div>
               <dt style={{ color: 'var(--moni-text-tertiary)' }}>Funil atual</dt>

@@ -3984,6 +3984,22 @@
   background: var(--moni-surface-0);
 }
 
+.moni-pipeline-esteira-td-proj-click {
+  cursor: pointer;
+}
+
+.moni-pipeline-esteira-td-proj-click:hover .moni-pipeline-esteira-proj-nome,
+.moni-pipeline-esteira-td-proj-click:focus-visible .moni-pipeline-esteira-proj-nome {
+  color: var(--moni-navy-800);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.moni-pipeline-esteira-td-proj-click:focus-visible {
+  outline: 1px solid var(--moni-navy-800);
+  outline-offset: -1px;
+}
+
 .moni-pipeline-esteira-dc {
   text-align: center;
   white-space: nowrap;
