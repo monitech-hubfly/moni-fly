@@ -74,3 +74,16 @@ export function configTrancheVinculo(index: number): TrancheVinculoConfig | null
 export function indiceTrancheValido(index: number): index is TrancheVinculoIndex {
   return Number.isInteger(index) && index >= 2 && index <= 6;
 }
+
+/** Papéis que podem abrir tranches 2ª–6ª (sidebar Vínculos + server action). */
+export const ROLES_PODE_ABRIR_TRANCHE_VINCULOS = [
+  'admin',
+  'team',
+  'consultor',
+  'supervisor',
+] as const;
+
+export function rolePodeAbrirTrancheVinculosOperacoes(role: string | null | undefined): boolean {
+  const r = String(role ?? '').trim().toLowerCase();
+  return (ROLES_PODE_ABRIR_TRANCHE_VINCULOS as readonly string[]).includes(r);
+}

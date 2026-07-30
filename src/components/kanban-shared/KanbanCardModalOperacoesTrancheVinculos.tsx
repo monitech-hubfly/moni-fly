@@ -67,29 +67,27 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const readOnly = !podeGerenciar || cardDesabilitado;
 
-  const carregar = useCallback(async (options?: { preserveErro?: boolean }) => {
+  const carregar = useCallback(async (options?: { preserveErro?: boolean; preserveOk?: boolean }) => {
     if (!cardId) {
       setItems([]);
       return;
     }
     setLoading(true);
     if (!options?.preserveErro) setErro(null);
+    if (!options?.preserveOk) setOkMsg(null);
     try {
       const res = await listarTrancheVinculosOperacoes(cardId);
       if (!res.ok) {
-        if (res.error === 'Faça login.' || res.error.includes('Funil Pré Obra')) {
-          setErro(res.error);
-          setItems([]);
-          setTemPrimeiroCard(false);
-          return;
-        }
+        setErro(res.error ?? 'Não foi possível carregar vínculos de tranche.');
         setItems(itensTrancheVinculoPreset());
         setTemPrimeiroCard(presumePrimeiraTrancheLocal);
         return;
       }
       setItems(res.items);
       setTemPrimeiroCard(res.temPrimeiroCardCreditoObra || presumePrimeiraTrancheLocal);
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erro ao carregar vínculos.';
+      setErro(msg);
       setItems(itensTrancheVinculoPreset());
       setTemPrimeiroCard(presumePrimeiraTrancheLocal);
     } finally {
@@ -107,9 +105,15 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
 
   async function handleAbrir(index: number) {
     const cfg = configTrancheVinculo(index);
-    if (!cfg) return;
+    if (!cfg) {
+      setErro('Vínculo inválido.');
+      return;
+    }
 
     const item = items.find((i) => i.index === index);
+
+    if (abrindoIndex != null) return;
+
     if (item?.status === 'concluido') {
       setErro('Este vínculo já foi concluído.');
       return;
@@ -121,15 +125,9 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
     }
 
     if (!temPrimeiroCard) {
-      setErro('Abra o primeiro card no Funil Crédito Obra (1ª tranche) antes de solicitar tranches adicionais.');
-      return;
-    }
-
-    if (
-      !confirm(
-        `Abrir card no Funil Crédito Obra com tag "${cfg.tagLabel}"?\n\nSerá criado um novo card filho vinculado a este projeto.`,
-      )
-    ) {
+      setErro(
+        'Abra o primeiro card no Funil Crédito Obra (1ª tranche) antes de solicitar tranches adicionais.',
+      );
       return;
     }
 
@@ -149,6 +147,8 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
         }
         return;
       }
+
+      const agora = new Date().toISOString();
       setOkMsg(`Card Crédito Obra criado com tag "${cfg.tagLabel}".`);
       setItems((prev) =>
         prev.map((i) =>
@@ -156,14 +156,17 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
             ? {
                 ...i,
                 status: 'concluido' as const,
-                concluido_em: new Date().toISOString(),
+                concluido_em: agora,
                 filhoCreditoObraId: res.creditoObraCardId ?? i.filhoCreditoObraId,
               }
             : i,
         ),
       );
-      await carregar();
       onConcluido?.();
+      await carregar({ preserveErro: true, preserveOk: true });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erro inesperado ao abrir tranche.';
+      setErro(msg || 'Erro inesperado ao abrir tranche.');
     } finally {
       setAbrindoIndex(null);
     }
@@ -178,22 +181,6 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
         Carregando vínculos…
       </div>
-    );
-  }
-
-  if (erro && items.length === 0) {
-    return (
-      <p
-        className="rounded-lg px-2 py-1.5 text-[11px]"
-        style={{
-          border: 'var(--moni-border-width) solid var(--moni-card-status-vermelho)',
-          background: 'color-mix(in srgb, var(--moni-card-status-vermelho) 12%, white)',
-          color: 'var(--moni-earth-800)',
-          fontFamily: 'var(--moni-font-sans)',
-        }}
-      >
-        {erro}
-      </p>
     );
   }
 

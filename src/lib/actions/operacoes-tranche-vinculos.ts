@@ -9,9 +9,10 @@ import {
   faseOperacoesPresumePrimeiraTrancheCo,
   indiceTrancheValido,
   OPERACOES_TRANCHE_VINCULOS,
+  rolePodeAbrirTrancheVinculosOperacoes,
   type TrancheVinculoIndex,
 } from '@/lib/operacoes/tranche-vinculos-config';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createAdminClient, tryCreateAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { listarKanbanCardIdsSyncGroup } from '@/lib/kanban/card-sync-group';
 
@@ -100,11 +101,8 @@ function montarDbClientsTrancheVinculos(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): TrancheVinculosDbClient[] {
   const dbClients: TrancheVinculosDbClient[] = [];
-  try {
-    dbClients.push(createAdminClient());
-  } catch {
-    /* service role indisponível — tenta client autenticado */
-  }
+  const admin = tryCreateAdminClient();
+  if (admin) dbClients.push(admin);
   dbClients.push(supabase);
   return dbClients;
 }
@@ -253,29 +251,45 @@ async function resolverFilhoCreditoObraExiste(
   const cid = String(operacoesCardId ?? '').trim();
   if (!cid) return false;
 
-  const { data: direct, error: directErr } = await supabase
-    .from('kanban_cards')
-    .select('id')
-    .eq('origem_card_id', cid)
-    .eq('kanban_id', KANBAN_IDS.CREDITO_OBRA)
-    .eq('arquivado', false)
-    .limit(1)
-    .maybeSingle();
+  const readers: TrancheVinculosDbClient[] = [];
+  const admin = tryCreateAdminClient();
+  if (admin) readers.push(admin);
+  readers.push(supabase);
 
-  if (!directErr && direct?.id) return true;
+  for (const db of readers) {
+    const { data: direct, error: directErr } = await db
+      .from('kanban_cards')
+      .select('id')
+      .eq('origem_card_id', cid)
+      .eq('kanban_id', KANBAN_IDS.CREDITO_OBRA)
+      .eq('arquivado', false)
+      .limit(1)
+      .maybeSingle();
+
+    if (!directErr && direct?.id) return true;
+    if (directErr && !erroConsultaTrancheVinculosIgnoravel(directErr)) continue;
+  }
 
   const consultaIds = await listarKanbanCardIdsSyncGroup(supabase, cid);
-  const { data: filhos, error: rpcErr } = await supabase.rpc('kanban_filhos_paralelas_por_pais', {
-    p_pai_ids: consultaIds.length > 0 ? consultaIds : [cid],
-  });
+  for (const db of readers) {
+    const { data: filhos, error: rpcErr } = await db.rpc('kanban_filhos_paralelas_por_pais', {
+      p_pai_ids: consultaIds.length > 0 ? consultaIds : [cid],
+    });
 
-  if (rpcErr) return false;
+    if (rpcErr) {
+      if (erroConsultaTrancheVinculosIgnoravel(rpcErr)) continue;
+      return false;
+    }
 
-  return (filhos ?? []).some((row: unknown) => {
-    const kid = String((row as { filho_kanban_id?: string | null }).filho_kanban_id ?? '').trim();
-    const arquivado = Boolean((row as { arquivado?: boolean | null }).arquivado);
-    return kid === KANBAN_IDS.CREDITO_OBRA && !arquivado;
-  });
+    const achou = (filhos ?? []).some((row: unknown) => {
+      const kid = String((row as { filho_kanban_id?: string | null }).filho_kanban_id ?? '').trim();
+      const arquivado = Boolean((row as { arquivado?: boolean | null }).arquivado);
+      return kid === KANBAN_IDS.CREDITO_OBRA && !arquivado;
+    });
+    if (achou) return true;
+  }
+
+  return false;
 }
 
 async function resolverPrimeiroCardCreditoObraDisponivel(
@@ -551,8 +565,9 @@ async function perfilPodeAbrirTrancheOperacoes(
   userId: string,
 ): Promise<boolean> {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
-  const role = String((profile as { role?: string } | null)?.role ?? '').toLowerCase();
-  return role === 'admin' || role === 'team' || role === 'consultor' || role === 'supervisor';
+  return rolePodeAbrirTrancheVinculosOperacoes(
+    (profile as { role?: string } | null)?.role ?? '',
+  );
 }
 
 async function buscarCardOperacoesPai(

@@ -254,6 +254,7 @@ import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos
 import {
   KanbanCardModalOperacoesTrancheVinculosSidebar,
 } from './KanbanCardModalOperacoesTrancheVinculos';
+import { rolePodeAbrirTrancheVinculosOperacoes } from '@/lib/operacoes/tranche-vinculos-config';
 import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
@@ -5001,6 +5002,9 @@ export function KanbanCardModal({
     card.kanban_id === KANBAN_IDS.FUNDING || kanbanNome === 'Funding';
   const podeGerenciarRelacionamentos =
     !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
+  const podeAbrirTrancheVinculos =
+    !ocultarGestaoCard &&
+    (modalSessao.ehAdminOuTeam || rolePodeAbrirTrancheVinculosOperacoes(modalSessao.roleNorm));
   const painelCentroAlternativo =
     abaCentro === 'chamados' || abaCentro === 'calculadora';
   const cardTitulo = card.titulo;
@@ -8750,12 +8754,12 @@ export function KanbanCardModal({
               <div className="space-y-3">
                 {ehFunilOperacoes ? (
                   <KanbanCardModalOperacoesTrancheVinculosSidebar
-                    key={`${card.id}-tranche-vinculos-${trancheVinculosTick}`}
+                    key={`${card.id}-tranche-vinculos`}
                     cardId={card.id}
                     faseSlug={faseAtual?.slug ?? null}
                     basePath={basePath}
                     refreshKey={trancheVinculosTick}
-                    podeGerenciar={podeGerenciarRelacionamentos}
+                    podeGerenciar={podeAbrirTrancheVinculos}
                     cardDesabilitado={
                       cardNativoArquivado ||
                       cardLegadoArquivado ||
@@ -8763,7 +8767,6 @@ export function KanbanCardModal({
                       cardLegadoConcluido
                     }
                     onConcluido={() => {
-                      setTrancheVinculosTick((t) => t + 1);
                       setRelacionamentosTick((t) => t + 1);
                       void loadCard();
                     }}
