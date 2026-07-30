@@ -250,7 +250,6 @@ export function useBacklog(): UseBacklogResult {
         { frank_id: a.frank_id, franqueado_nome: a.frank_nome, trava: a.trava, te_trata: a.te_trata, data_vencimento: a.data_fim ?? a.prazo_proposto, atividade_status: a.status },
         { frank_id: b.frank_id, franqueado_nome: b.frank_nome, trava: b.trava, te_trata: b.te_trata, data_vencimento: b.data_fim ?? b.prazo_proposto, atividade_status: b.status },
       ));
-      const sireneArr = sireneArrFiltrado;
 
       type TarefaComAcoesRaw = {
         id: string;
@@ -296,7 +295,7 @@ export function useBacklog(): UseBacklogResult {
       );
 
       if (callId !== callIdRef.current) return;
-      setSirene(sireneArr);
+      setSirene(sireneArrFiltrado);
       setPastelaria(pastelariaArr);
       setAtividades(atividadesArr);
       setAtivoIds(ativoSet);
