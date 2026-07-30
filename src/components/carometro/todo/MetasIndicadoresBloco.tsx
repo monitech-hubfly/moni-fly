@@ -9,6 +9,7 @@ import {
 } from '@/hooks/useMetasIndicadores';
 import { registrarLog } from '@/hooks/useAuditLog';
 import { getMonthOptions } from '@/hooks/usePlanoBoneDay';
+import { statusSemaforoPorValor } from '@/utils/semaforoFaixas';
 
 // ── Utilitários ────────────────────────────────────────────────────────────────
 const TIPO_BADGE: Record<string, string> = {
@@ -49,14 +50,28 @@ const COMP: Record<string, string> = {
   gte: '≥', lte: '≤', gt: '>', lt: '<', eq: '=',
 };
 
+const FAROL_TEXT: Record<string, string> = {
+  ve: '#ffffff', vc: '#ffffff', am: '#1f2937', vm: '#ffffff',
+};
+
+function corParaTexto(hex: string): string {
+  if (hex === '#f2c94c') return '#1f2937'; // amarelo → escuro
+  return '#ffffff';
+}
+
 function FaixasLegenda({ faixas }: { faixas: FaixaItem[] }) {
   if (!faixas.length) return null;
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex items-center gap-1 flex-wrap">
       {faixas.map((f, i) => (
-        <span key={i} className="flex items-center gap-0.5 text-[9px] text-gray-500">
-          <span className="w-2 h-2 rounded-full inline-block flex-shrink-0"
-            style={{ backgroundColor: FAROL_HEX[f.cor] ?? '#d1d5db' }} />
+        <span
+          key={i}
+          className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+          style={{
+            backgroundColor: FAROL_HEX[f.cor] ?? '#9ca3af',
+            color: FAROL_TEXT[f.cor] ?? '#ffffff',
+          }}
+        >
           {COMP[f.comparacao] ?? f.comparacao}{f.limite}
         </span>
       ))}
@@ -270,37 +285,47 @@ function IndicadorLinha({ ind, podeEditar, isAdmin, semanaAtual, semanaAnterior,
   onEditarIndicador: (id: string, nome: string) => Promise<void>;
   onExcluirIndicador: (id: string) => Promise<void>;
 }) {
-  const [editandoAtual,     setEditandoAtual]     = useState(false);
-  const [valorEditAtual,    setValorEditAtual]     = useState(ind.valorAtual ?? '');
-  const [salvandoAtual,     setSalvandoAtual]      = useState(false);
-  const [editandoAnterior,  setEditandoAnterior]   = useState(false);
-  const [valorEditAnterior, setValorEditAnterior]  = useState(ind.valorAnterior ?? '');
-  const [salvandoAnterior,  setSalvandoAnterior]   = useState(false);
-  const [editandoNome,      setEditandoNome]       = useState(false);
-  const [nomeEdit,          setNomeEdit]           = useState(ind.nome);
-  const [salvandoNome,      setSalvandoNome]       = useState(false);
-  const [confirmExcl,       setConfirmExcl]        = useState(false);
-  const [salvandoExcl,      setSalvandoExcl]       = useState(false);
+  const [valorEditAtual,    setValorEditAtual]    = useState(ind.valorAtual    ?? '');
+  const [valorEditAnterior, setValorEditAnterior] = useState(ind.valorAnterior ?? '');
+  const [salvandoAtual,     setSalvandoAtual]     = useState(false);
+  const [salvandoAnterior,  setSalvandoAnterior]  = useState(false);
+  const [editandoNome,      setEditandoNome]      = useState(false);
+  const [nomeEdit,          setNomeEdit]          = useState(ind.nome);
+  const [salvandoNome,      setSalvandoNome]      = useState(false);
+  const [confirmExcl,       setConfirmExcl]       = useState(false);
+  const [salvandoExcl,      setSalvandoExcl]      = useState(false);
+
+  // Sync quando hook recarrega
+  useEffect(() => { setValorEditAtual(ind.valorAtual ?? '');       }, [ind.valorAtual]);
+  useEffect(() => { setValorEditAnterior(ind.valorAnterior ?? ''); }, [ind.valorAnterior]);
 
   const faixas = (ind.semaforo_faixas as { faixas?: FaixaItem[] } | null)?.faixas ?? [];
   const isEq   = faixas.length > 0 && faixas.every(f => f.comparacao === 'eq');
 
-  const infoAtual    = anoRelativo > 0 ? isoWeekToDates(semanaAtual, anoRelativo)    : { label: `S${semanaAtual}`,    range: '' };
+  const infoAtual    = anoRelativo > 0 ? isoWeekToDates(semanaAtual,    anoRelativo) : { label: `S${semanaAtual}`,    range: '' };
   const infoAnterior = anoRelativo > 0 ? isoWeekToDates(semanaAnterior, anoRelativo) : { label: `S${semanaAnterior}`, range: '' };
 
-  const handleLancarAtual = async () => {
-    if (!valorEditAtual.trim()) { setEditandoAtual(false); return; }
+  // Cores das células
+  const hexAtual    = ind.corHex; // já calculado no hook
+  const semaforoAnt = ind.valorAnterior != null
+    ? (statusSemaforoPorValor(ind, ind.valorAnterior) as string | null)
+    : null;
+  const hexAnterior = semaforoAnt ? (FAROL_HEX[semaforoAnt] ?? '#e5e7eb') : '#e5e7eb';
+  const VAZIO_HEX   = '#e5e7eb';
+
+  const handleLancarAtual = async (val?: string) => {
+    const v = (val !== undefined ? val : valorEditAtual).trim();
+    if (!v) return;
     setSalvandoAtual(true);
-    await onLancar(ind.id, valorEditAtual.trim(), semanaAtual);
+    await onLancar(ind.id, v, semanaAtual);
     setSalvandoAtual(false);
-    setEditandoAtual(false);
   };
-  const handleLancarAnterior = async () => {
-    if (!valorEditAnterior.trim()) { setEditandoAnterior(false); return; }
+  const handleLancarAnterior = async (val?: string) => {
+    const v = (val !== undefined ? val : valorEditAnterior).trim();
+    if (!v) return;
     setSalvandoAnterior(true);
-    await onLancar(ind.id, valorEditAnterior.trim(), semanaAnterior);
+    await onLancar(ind.id, v, semanaAnterior);
     setSalvandoAnterior(false);
-    setEditandoAnterior(false);
   };
   const handleSalvarNome = async () => {
     if (!nomeEdit.trim() || nomeEdit === ind.nome) { setEditandoNome(false); return; }
@@ -323,11 +348,10 @@ function IndicadorLinha({ ind, podeEditar, isAdmin, semanaAtual, semanaAnterior,
           onBlur={handleSalvarNome}
           onKeyDown={e => { if (e.key === 'Enter') handleSalvarNome(); if (e.key === 'Escape') { setNomeEdit(ind.nome); setEditandoNome(false); } }}
           autoFocus />
-        <span className="text-xs text-gray-400">{salvandoNome ? '…' : ''}</span>
+        {salvandoNome && <span className="text-xs text-gray-400">…</span>}
       </div>
     );
   }
-
   if (confirmExcl) {
     return (
       <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-red-50 border border-red-100 text-xs text-red-600">
@@ -339,51 +363,52 @@ function IndicadorLinha({ ind, podeEditar, isAdmin, semanaAtual, semanaAnterior,
     );
   }
 
-  const renderValorCell = (
-    isAtual: boolean,
-    info: { label: string; range: string },
-    valorAtual: string | null,
-    editando: boolean,
-    setEditando: (v: boolean) => void,
-    valorEdit: string,
-    setValorEdit: (v: string) => void,
-    salvando: boolean,
-    handleLancar: () => Promise<void>,
-  ) => {
-    const corHex = isAtual ? ind.corHex : '#d1d5db'; // anterior sempre cinza (sem cálculo)
+  // Célula de lançamento (semana anterior ou atual)
+  const CelulaLancamento = ({
+    isAtual, info, hex, valor, setValor, salvando, onLancarFn,
+  }: {
+    isAtual: boolean;
+    info: { label: string; range: string };
+    hex: string;
+    valor: string;
+    setValor: (v: string) => void;
+    salvando: boolean;
+    onLancarFn: (val?: string) => Promise<void>;
+  }) => {
+    const temValor = !!valor.trim();
+    const bg       = temValor ? hex : VAZIO_HEX;
+    const fg       = temValor ? corParaTexto(hex) : '#6b7280';
+    const baseInput = 'w-full text-xs font-semibold rounded px-1.5 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors disabled:opacity-60';
+
     return (
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1 mb-0.5">
-          <span className="text-[9px] font-semibold text-gray-500">{info.label}</span>
+        <div className="flex items-center gap-1 mb-1">
+          <span className="text-[9px] font-semibold text-gray-600">{info.label}</span>
+          {isAtual && <span className="text-[8px] text-yellow-500 font-bold">★</span>}
           {info.range && <span className="text-[8px] text-gray-400">{info.range}</span>}
         </div>
-        {editando ? (
-          isEq ? (
-            <select className="w-full text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none"
-              value={valorEdit} onChange={e => setValorEdit(e.target.value)} onBlur={handleLancar} autoFocus>
-              <option value="">—</option>
-              {faixas.map(f => <option key={f.limite} value={f.limite}>{f.limite}</option>)}
-            </select>
-          ) : (
-            <input className="w-full text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none"
-              value={valorEdit} onChange={e => setValorEdit(e.target.value)}
-              onBlur={handleLancar}
-              onKeyDown={e => { if (e.key === 'Enter') handleLancar(); if (e.key === 'Escape') { setEditando(false); } }}
-              autoFocus />
-          )
-        ) : (
-          <div
-            className={`flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium tabular-nums ${
-              podeEditar
-                ? 'cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition-colors'
-                : ''
-            } ${valorAtual ? 'bg-white border-gray-200 text-gray-700' : 'bg-gray-50 border-dashed border-gray-200 text-gray-400'}`}
-            onClick={() => podeEditar && !salvando && (setValorEdit(valorAtual ?? ''), setEditando(true))}
-            title={podeEditar ? 'Clique para lançar' : undefined}
+        {isEq ? (
+          <select
+            disabled={!podeEditar || salvando}
+            value={valor}
+            onChange={e => { setValor(e.target.value); void onLancarFn(e.target.value); }}
+            className={baseInput}
+            style={{ backgroundColor: bg, color: fg, border: `1px solid ${temValor ? hex : '#d1d5db'}` }}
           >
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: corHex }} />
-            {salvando ? '…' : (valorAtual ?? '—')}
-          </div>
+            <option value="">—</option>
+            {faixas.map(f => <option key={f.limite} value={f.limite}>{f.limite}</option>)}
+          </select>
+        ) : (
+          <input
+            disabled={!podeEditar || salvando}
+            value={salvando ? '…' : valor}
+            placeholder="—"
+            onChange={e => setValor(e.target.value)}
+            onBlur={() => void onLancarFn()}
+            onKeyDown={e => { if (e.key === 'Enter') void onLancarFn(); }}
+            className={baseInput}
+            style={{ backgroundColor: bg, color: fg, border: `1px solid ${temValor ? hex : '#d1d5db'}` }}
+          />
         )}
       </div>
     );
@@ -391,10 +416,11 @@ function IndicadorLinha({ ind, podeEditar, isAdmin, semanaAtual, semanaAnterior,
 
   return (
     <div className="flex flex-col gap-1.5 px-2 py-2 rounded bg-gray-50 border border-gray-100 group">
-      {/* Linha 1: nome + ações admin */}
-      <div className="flex items-center gap-1.5">
+      {/* Linha 1: nome + faixas coloridas + ações admin */}
+      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
         {ind.indicador_chave && <span className="text-[11px] leading-none flex-shrink-0">🔑</span>}
-        <span className="text-xs text-gray-700 flex-1 leading-snug">{ind.nome}</span>
+        <span className="text-xs text-gray-700 leading-snug flex-1 min-w-0">{ind.nome}</span>
+        {faixas.length > 0 && <FaixasLegenda faixas={faixas} />}
         {isAdmin && (
           <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
             <button type="button" onClick={() => setEditandoNome(true)} title="Editar indicador"
@@ -405,24 +431,20 @@ function IndicadorLinha({ ind, podeEditar, isAdmin, semanaAtual, semanaAnterior,
         )}
       </div>
 
-      {/* Linha 2: faixas legend */}
-      {faixas.length > 0 && <FaixasLegenda faixas={faixas} />}
-
-      {/* Linha 3: células das duas semanas */}
+      {/* Linha 2: células das duas semanas */}
       <div className="flex items-stretch gap-2">
-        {renderValorCell(
-          false, infoAnterior, ind.valorAnterior,
-          editandoAnterior, setEditandoAnterior,
-          valorEditAnterior, setValorEditAnterior,
-          salvandoAnterior, handleLancarAnterior,
-        )}
-        <div className="w-px bg-gray-200 self-stretch" />
-        {renderValorCell(
-          true, infoAtual, ind.valorAtual,
-          editandoAtual, setEditandoAtual,
-          valorEditAtual, setValorEditAtual,
-          salvandoAtual, handleLancarAtual,
-        )}
+        <CelulaLancamento
+          isAtual={false} info={infoAnterior} hex={hexAnterior}
+          valor={valorEditAnterior} setValor={setValorEditAnterior}
+          salvando={salvandoAnterior} onLancarFn={handleLancarAnterior}
+        />
+        <div className="w-px bg-gray-200 self-stretch flex-shrink-0" />
+        <CelulaLancamento
+          isAtual hex={hexAtual}
+          info={infoAtual}
+          valor={valorEditAtual} setValor={setValorEditAtual}
+          salvando={salvandoAtual} onLancarFn={handleLancarAtual}
+        />
       </div>
     </div>
   );
