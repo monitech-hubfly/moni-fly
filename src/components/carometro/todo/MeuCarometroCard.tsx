@@ -31,7 +31,7 @@ function dayLabel(data: string): string {
 
 const TOOLTIP_FORMULA: Record<string, string> = {
   sirene: '100 − (atrasados × 20 + semPrazo × 5)',
-  engajamento: 'concluídas (2 sem.) / (concluídas + atrasadas 2 sem.) × 100',
+  engajamento: 'atividades no prazo / total planejadas × 100',
   indicadores: 'média dos % de cada indicador',
 };
 
@@ -42,8 +42,6 @@ type MeuCarometroCardProps = {
   tipo: 'sirene' | 'engajamento' | 'indicadores';
   children?: ReactNode;
 };
-
-const CARINHA_SIZE = 80;
 
 export function MeuCarometroCard({
   titulo,
@@ -61,16 +59,16 @@ export function MeuCarometroCard({
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 flex flex-col gap-3">
       <p className="text-center text-sm font-semibold text-gray-700">{titulo}</p>
 
-      <div className="flex items-center justify-center gap-4 py-1">
+      <div className="flex items-center justify-center gap-3 py-2">
         <img
           src={carinhaImg}
           alt="carinha"
-          style={{ width: CARINHA_SIZE, height: CARINHA_SIZE }}
-          className="object-contain shrink-0"
+          className="w-14 h-14 object-contain shrink-0"
+          style={{ mixBlendMode: 'multiply' }}
           title={score !== null ? `${score}%` : 'Sem dados'}
         />
-        <span className={`text-3xl font-bold tabular-nums leading-none ${scoreCls}`}>
-          {score !== null ? `${score.toFixed(1)}%` : '—'}
+        <span className={`text-4xl font-bold tabular-nums leading-none ${scoreCls}`}>
+          {score !== null ? `${score}%` : '—'}
         </span>
       </div>
 
@@ -93,15 +91,9 @@ export function MeuCarometroCard({
                 <div key={dia.data} className="flex flex-col items-center gap-1 group relative">
                   {/* Tooltip com fórmula */}
                   <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 hidden group-hover:flex flex-col items-center pointer-events-none">
-                    <div className="bg-gray-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap max-w-[240px] text-center leading-tight">
+                    <div className="bg-gray-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap max-w-[180px] text-center leading-tight">
                       <span className="font-semibold">{dayLabel(dia.data)}</span>
                       {dia.score !== null ? `: ${dia.score}%` : ': sem dados'}
-                      {dia.detalhe && (
-                        <>
-                          <br />
-                          <span className="text-gray-200">{dia.detalhe}</span>
-                        </>
-                      )}
                       <br />
                       <span className="text-gray-300">{formula}</span>
                     </div>

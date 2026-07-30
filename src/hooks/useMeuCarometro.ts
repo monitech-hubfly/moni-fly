@@ -9,7 +9,6 @@ import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
 export type DiaStatus = {
   data: string;
   score: number | null;
-  detalhe?: string | null;
 };
 
 export type SireneSnapshot = {
@@ -20,8 +19,9 @@ export type SireneSnapshot = {
 };
 
 export type EngajamentoSnapshot = {
-  atividades: { concluidas: number; atrasadas: number; planejadas: number };
-  cards: { concluidos: number; atrasados: number; abertos: number };
+  atividadesAtrasadas: number;
+  acumuladoDias: number;
+  cards: { atrasados: number; abertos: number };
   score: number | null;
 };
 
@@ -164,7 +164,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       );
 
       // ── Sirene (fallback runtime) ────────────────────────────────────────────
-      // Inclui responsáveis secundários (responsaveis_ids)
+      // Busca tópicos onde o usuário é responsável principal OU está nos responsáveis secundários
       const { data: topicos } = await supabase
         .from('sirene_topicos')
         .select('id, data_fim, prazo_proposto')
@@ -179,11 +179,11 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         if (!prazo) return false;
         return new Date(prazo) < hoje;
       }).length;
-      // Score: % de abertos que estão no prazo
+      // Score: % de abertos que estão no prazo (abertos - atrasados) / abertos
       const sireneScore =
         topicosArr.length === 0
           ? 100
-          : Math.max(0, Math.round(((topicosArr.length - topicosAtrasados) / topicosArr.length) * 1000) / 10);
+          : Math.max(0, Math.round(((topicosArr.length - topicosAtrasados) / topicosArr.length) * 100));
 
       const sireneRuntime: SireneSnapshot = {
         atrasados: topicosAtrasados,
@@ -194,87 +194,81 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
       // ── Engajamento (Atividades Planejadas + Cards/Kanban) ───────────────────
       let engajamentoRuntime: EngajamentoSnapshot = {
-        atividades: { concluidas: 0, atrasadas: 0, planejadas: 0 },
-        cards: { concluidos: 0, atrasados: 0, abertos: 0 },
+        atividadesAtrasadas: 0,
+        acumuladoDias: 0,
+        cards: { atrasados: 0, abertos: 0 },
         score: null,
       };
 
       {
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - 14);
-        const cutoffStr = cutoffDate.toISOString().slice(0, 10);
-        const orGantt = `profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`;
-        const orKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}},franqueado_id.eq.${effectiveProfileId}`;
+        // Atividades Planejadas (gantt_planejamento) — janela ±4 semanas + semana atual
+        const semanaJanela = [
+          semana - 4, semana - 3, semana - 2, semana - 1,
+          semana, semana + 1, semana + 2,
+        ];
+        const ganttQuery = supabase
+          .from('gantt_planejamento')
+          .select('id, semana_ano_inicio, semana_ano_fim, semanas_selecionadas')
+          .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
+          .is('data_conclusao_real', null)
+          .overlaps('semanas_selecionadas', semanaJanela);
 
-        type FaseKanban = { sla_dias: number | null; sla_tipo: string | null; slug: string | null };
-        type KanbanCardSla = {
-          id: string; created_at: string; entered_fase_at: string | null;
+        // Cards/Kanban abertos — inclui campos de SLA para cálculo correto
+        const kanbanQuery = supabase
+          .from('kanban_cards')
+          .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
+          .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+          .eq('arquivado', false)
+          .eq('concluido', false);
+
+        const [ganttRes, kanbanRes] = await Promise.all([ganttQuery, kanbanQuery]);
+
+        const ganttArr = ganttRes.data ?? [];
+        const kanbanArr = (kanbanRes.data ?? []) as Array<{
+          id: string;
+          created_at: string;
+          entered_fase_at: string | null;
           sla_iniciado_em: string | null;
-          fase: FaseKanban | FaseKanban[] | null;
-        };
+          fase: { sla_dias: number | null; sla_tipo: string | null; slug: string | null } | Array<{ sla_dias: number | null; sla_tipo: string | null; slug: string | null }> | null;
+        }>;
 
-        // semanas_selecionadas é o campo correto — semana_ano_fim é NULL na maioria
-        // dos registros do Gantt (que só populam semanas_selecionadas)
-        const semanasAtrasadas  = [semana - 2, semana - 1];
-        const semanasRecentes   = [semana - 2, semana - 1, semana];
-        const semanasFuturas    = [semana, semana + 1, semana + 2];
+        // Atividades atrasadas: semana_ano_fim < semana atual (sem conclusão)
+        const atividadesAtrasadas = ganttArr.filter(g => {
+          const sf = g.semana_ano_fim ?? (
+            Array.isArray(g.semanas_selecionadas) && g.semanas_selecionadas.length
+              ? Math.max(...(g.semanas_selecionadas as number[]))
+              : null
+          );
+          return sf != null && Number(sf) < semana;
+        }).length;
 
-        const [
-          ganttAtrasadasRes, ganttConcluidasRes, ganttPlanejdasRes,
-          kanbanAbertosRes, kanbanConcluidosRes,
-        ] = await Promise.all([
-          // Atividades atrasadas: planejadas nas 2 semanas anteriores, ainda abertas
-          supabase.from('gantt_planejamento').select('id')
-            .or(orGantt).is('data_conclusao_real', null)
-            .overlaps('semanas_selecionadas', semanasAtrasadas),
-
-          // Atividades concluídas: planejadas no período recente e já concluídas
-          supabase.from('gantt_planejamento').select('id')
-            .or(orGantt).not('data_conclusao_real', 'is', null)
-            .overlaps('semanas_selecionadas', semanasRecentes),
-
-          // Atividades planejadas: abertas para esta semana ou próximas
-          supabase.from('gantt_planejamento').select('id')
-            .or(orGantt).is('data_conclusao_real', null)
-            .overlaps('semanas_selecionadas', semanasFuturas),
-
-          // Cards abertos (para calcular SLA)
-          supabase.from('kanban_cards')
-            .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
-            .or(orKanban).eq('arquivado', false).eq('concluido', false),
-
-          // Cards concluídos nos últimos 14 dias
-          supabase.from('kanban_cards').select('id')
-            .or(orKanban).eq('concluido', true).eq('arquivado', false)
-            .gte('concluido_em', cutoffStr),
-        ]);
-
-        const atividadesAtrasadas  = ganttAtrasadasRes.data?.length  ?? 0;
-        const atividadesConcluidas = ganttConcluidasRes.data?.length ?? 0;
-        const atividadesPlanejadas = ganttPlanejdasRes.data?.length  ?? 0;
-        const cardsConcluidos      = kanbanConcluidosRes.data?.length ?? 0;
-
-        const kanbanArr = (kanbanAbertosRes.data ?? []) as KanbanCardSla[];
+        // Cards atrasados: usa mesmo cálculo de SLA do BacklogKanban
         const cardsAtrasados = kanbanArr.filter(c => {
           const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
-          return calcularSlaKanbanCard({
-            created_at: c.created_at, entered_fase_at: c.entered_fase_at,
-            sla_iniciado_em: c.sla_iniciado_em, sla_dias: fase?.sla_dias ?? null,
-            sla_tipo: fase?.sla_tipo ?? null, faseSlug: fase?.slug ?? null,
-          }).status === 'atrasado';
+          const sla = calcularSlaKanbanCard({
+            created_at: c.created_at,
+            entered_fase_at: c.entered_fase_at,
+            sla_iniciado_em: c.sla_iniciado_em,
+            sla_dias: fase?.sla_dias ?? null,
+            sla_tipo: fase?.sla_tipo ?? null,
+            faseSlug: fase?.slug ?? null,
+          });
+          return sla.status === 'atrasado';
         }).length;
-        const cardsAbertos = kanbanArr.length - cardsAtrasados;
 
-        // Score: concluídas / (concluídas + atrasadas_abertas)
-        const numerador   = atividadesConcluidas + cardsConcluidos;
-        const denominador = numerador + atividadesAtrasadas + cardsAtrasados;
-        const engScore = denominador === 0
+        const totalAtiv   = ganttArr.length;
+        const totalCards  = kanbanArr.length;
+        const totalGeral  = totalAtiv + totalCards;
+        const totalAtrasados = atividadesAtrasadas + cardsAtrasados;
+
+        const engScore = totalGeral === 0
           ? null
-          : Math.max(0, Math.round((numerador / denominador) * 1000) / 10);
+          : Math.max(0, Math.round(((totalGeral - totalAtrasados) / totalGeral) * 100));
 
         engajamentoRuntime = {
-          atividades: { concluidas: atividadesConcluidas, atrasadas: atividadesAtrasadas, planejadas: atividadesPlanejadas },
-          cards: { concluidos: cardsConcluidos, atrasados: cardsAtrasados, abertos: cardsAbertos },
+          atividadesAtrasadas,
+          acumuladoDias: totalAtiv,
+          cards: { atrasados: cardsAtrasados, abertos: totalCards },
           score: engScore,
         };
       }
@@ -342,24 +336,11 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         }
       }
 
-      // ── Detalhes para tooltip do dia atual ──────────────────────────────────
-      const sireneDetalhe =
-        `${topicosAtrasados} atrasados · ${topicosArr.length} abertos · ${topicosSemPrazo} sem prazo`;
-
-      const { atividades: eng_atv, cards: eng_cards } = engajamentoRuntime;
-      const engNumerador   = eng_atv.concluidas + eng_cards.concluidos;
-      const engDenominador = engNumerador + eng_atv.atrasadas + eng_cards.atrasados;
-      const engDetalhe =
-        `${eng_atv.concluidas} ativ. concluídas · ${eng_atv.atrasadas} atrasadas` +
-        ` · ${eng_cards.concluidos} cards concluídos · ${eng_cards.atrasados} atrasados` +
-        ` → ${engNumerador}/${engDenominador}`;
-
       // ── Dias da semana com scores (snapshot > runtime de hoje) ───────────────
       const buildDias = (
         snapKey: 'sirene' | 'engajamento' | 'indicadores',
         scoreField: string,
         runtimeScore: number | null,
-        runtimeDetalhe?: string,
       ): DiaStatus[] =>
         diasSemana.map(data => {
           const snap = snapshotMap.get(data);
@@ -367,7 +348,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             const s = snap[snapKey] as Record<string, unknown>;
             return { data, score: typeof s[scoreField] === 'number' ? (s[scoreField] as number) : null };
           }
-          if (data === hojeStr) return { data, score: runtimeScore, detalhe: runtimeDetalhe };
+          if (data === hojeStr) return { data, score: runtimeScore };
           return { data, score: null };
         });
 
@@ -375,8 +356,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       setSirene(sireneRuntime);
       setEngajamento(engajamentoRuntime);
       setIndicadores(indicadoresRuntime);
-      setDiasSirene(buildDias('sirene', 'score', sireneScore, sireneDetalhe));
-      setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score, engDetalhe));
+      setDiasSirene(buildDias('sirene', 'score', sireneScore));
+      setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score));
       setDiasIndicadores(buildDias('indicadores', 'media', indicadoresRuntime.media));
     } catch (e) {
       if (callId !== callIdRef.current) return;
