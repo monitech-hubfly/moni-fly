@@ -9,6 +9,7 @@ import {
 } from '@/hooks/useMetasIndicadores';
 import { registrarLog } from '@/hooks/useAuditLog';
 import { labelSemanaIsoAtual } from '@/utils/metaCiclo';
+import { getMonthOptions } from '@/hooks/usePlanoBoneDay';
 
 // ── Utilitários ────────────────────────────────────────────────────────────────
 const TIPO_BADGE: Record<string, string> = {
@@ -649,12 +650,27 @@ function BlockersSection({ areaId, metas }: { areaId: string | null; metas: Meta
 }
 
 // ── MetasIndicadoresBloco ─────────────────────────────────────────────────────
+const LS_MES_KEY = 'bone_day_ultimo_mes';
+
+function mesInicial(): string {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem(LS_MES_KEY);
+    if (saved && /^\d{4}-\d{2}$/.test(saved)) return saved;
+  }
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function MetasIndicadoresBloco() {
   const supabase = useMemo(() => createClient(), []);
   const { effectiveProfileId, areaId } = useEffectiveUser();
 
+  const [mes, setMesState] = useState(mesInicial);
+  const setMes = (m: string) => { localStorage.setItem(LS_MES_KEY, m); setMesState(m); };
+  const mesOptions = useMemo(() => getMonthOptions(), []);
+
   const { metas, subMetas: hookSubMetas, indicadores, responsaveis, objetivoResponsaveis, semanaRelativa, isLoading, error, recarregar } =
-    useMetasIndicadores(effectiveProfileId, areaId);
+    useMetasIndicadores(effectiveProfileId, areaId, mes);
 
   const [expandido,     setExpandido]     = useState(false);
   const [localSubMetas, setLocalSubMetas] = useState<SubMetaItem[]>([]);
@@ -784,12 +800,19 @@ export function MetasIndicadoresBloco() {
       <button type="button"
         className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 transition-colors"
         onClick={() => setExpandido(v => !v)}>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold text-gray-700">Metas &amp; Indicadores</span>
           <button type="button" onClick={e => { e.stopPropagation(); setFiltroMinhas(v => !v); }}
             className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${filtroMinhas ? 'bg-blue-100 text-blue-700 border-blue-300' : 'text-gray-400 border-gray-200 hover:border-blue-300 hover:text-blue-500'}`}>
             {filtroMinhas ? '✓ minhas' : 'minhas'}
           </button>
+          <select
+            className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            value={mes}
+            onClick={e => e.stopPropagation()}
+            onChange={e => { e.stopPropagation(); setMes(e.target.value); }}>
+            {mesOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
           {!isLoading && totalLabel && <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">{totalLabel}</span>}
           {isLoading && <span className="text-xs text-gray-400">carregando...</span>}
         </div>

@@ -14,6 +14,7 @@ import { SeletorUsuarioAdmin } from '@/components/carometro/todo/SeletorUsuarioA
 import { registrarLog } from '@/hooks/useAuditLog';
 import { isoWeek } from '@/utils/periodos';
 import { listarAreas } from '@/utils/areasOrder';
+import { listarEscalasCustom, carregarEscalasCustom, salvarNovaEscalaCustom } from '@/utils/escalasCustom';
 
 const LOG = (args: Record<string, unknown>) =>
   void (registrarLog as unknown as (a: Record<string, unknown>) => Promise<void>)(args);
@@ -60,6 +61,9 @@ function SemaforoBadges({ semaforo_faixas }: { semaforo_faixas: unknown }) {
 }
 
 function buildSemaforoFaixas(tipo: string, verde: string, amarelo: string): object {
+  if (tipo.startsWith('custom:')) {
+    return { escala_tipo: 'custom', escala_custom_id: tipo.slice(7), faixas: [] };
+  }
   if (tipo === 'sim_nao') {
     return { escala_tipo: 'sim_nao', escala_custom_id: null, faixas: [
       { cor: '#1e7a3a', limite: 'SIM', comparacao: 'eq' }, { cor: '#52b36f', limite: 'SIM', comparacao: 'eq' },
@@ -174,9 +178,6 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
   };
 
   const respNome  = responsaveis.find(r => r.profile_id === ind.profile_id)?.nome ?? '—';
-  const metaLabel = ind.meta_valor !== null
-    ? `${ind.meta_valor}${ind.meta_unidade ? ' ' + ind.meta_unidade : ''}`
-    : '—';
 
   return (
     <tr className="border-b border-gray-100 group hover:bg-gray-50/50">
@@ -199,7 +200,6 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
           <span className="text-[11px] text-gray-500">{respNome}</span>
         )}
       </td>
-      <td className="px-3 py-2"><span className="text-[11px] text-gray-500">{metaLabel}</span></td>
       {isAdmin && (
         <td className="px-2 py-2 text-right">
           {confirmExcl ? (
@@ -217,6 +217,8 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
   );
 }
 
+type EscalaCustom = { id: string; nome: string; modo: 'lista' | 'percentual' | 'numero'; valores?: string[] };
+
 function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   metaId: string; areaId: string; responsaveis: ResponsavelItem[]; onSalvo: () => void;
 }) {
@@ -226,16 +228,55 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   const [form, setForm] = useState({ nome: '', profileId: '', tipo: 'percentual', verde: '75', amarelo: '35', chave: false });
   const set = (k: string, v: string | boolean) => setForm(p => ({ ...p, [k]: v }));
 
+  // Escalas customizadas
+  const [escalasCustom,     setEscalasCustom]     = useState<EscalaCustom[]>(() => (listarEscalasCustom as () => EscalaCustom[])());
+  const [adicionandoEscala, setAdicionandoEscala] = useState(false);
+  const [novaEscalaNome,    setNovaEscalaNome]    = useState('');
+  const [novaEscalaModo,    setNovaEscalaModo]    = useState<'lista' | 'percentual' | 'numero'>('lista');
+  const [novaEscalaValores, setNovaEscalaValores] = useState(['', '']);
+  const [salvandoEscala,    setSalvandoEscala]    = useState(false);
+  const [erroEscala,        setErroEscala]        = useState('');
+
+  useEffect(() => {
+    if (aberto) {
+      void (carregarEscalasCustom as (s: ReturnType<typeof createClient>) => Promise<void>)(supabase)
+        .then(() => setEscalasCustom((listarEscalasCustom as () => EscalaCustom[])()));
+    }
+  }, [aberto, supabase]);
+
+  const handleTipoChange = (v: string) => {
+    if (v === '__add_escala__') { setAdicionandoEscala(true); return; }
+    set('tipo', v);
+  };
+
+  const handleSalvarEscala = async () => {
+    if (!novaEscalaNome.trim()) { setErroEscala('Nome obrigatório'); return; }
+    setSalvandoEscala(true);
+    setErroEscala('');
+    try {
+      const res = await (salvarNovaEscalaCustom as (s: ReturnType<typeof createClient>, d: unknown) => Promise<{ ok: boolean; erro?: string; escala: EscalaCustom }>)(supabase, {
+        nome: novaEscalaNome.trim(),
+        modo: novaEscalaModo,
+        valores: novaEscalaModo === 'lista' ? novaEscalaValores.filter(v => v.trim()) : undefined,
+      });
+      if (!res.ok) { setErroEscala(res.erro ?? 'Erro ao salvar'); return; }
+      setEscalasCustom((listarEscalasCustom as () => EscalaCustom[])());
+      set('tipo', `custom:${res.escala.id}`);
+      setAdicionandoEscala(false);
+      setNovaEscalaNome(''); setNovaEscalaModo('lista'); setNovaEscalaValores(['', '']);
+    } finally { setSalvandoEscala(false); }
+  };
+
   const handleSalvar = async () => {
     if (!form.nome.trim()) return;
     setSalvando(true);
     try {
       const sf = buildSemaforoFaixas(form.tipo, form.verde, form.amarelo);
+      const tipoDb = form.tipo === 'percentual' ? 'percentual' : form.tipo === 'quantidade' ? 'quantidade' : 'outro';
       const { data: ins, error: e } = await supabase.from('indicadores')
         .insert({ area_id: areaId, nome: form.nome.trim(), objetivo_id: metaId,
           profile_id: form.profileId || null, indicador_chave: form.chave,
-          tipo: form.tipo === 'percentual' ? 'percentual' : form.tipo === 'quantidade' ? 'quantidade' : 'outro',
-          semaforo_faixas: sf })
+          tipo: tipoDb, semaforo_faixas: sf })
         .select('id').single();
       if (e) { console.error('[AddIndMeta]', e); return; }
       LOG({ modulo: 'Planejamento', entidade: 'indicadores',
@@ -259,8 +300,16 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
       <input className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
         placeholder="Nome do indicador *" value={form.nome} onChange={e => set('nome', e.target.value)} autoFocus />
       <div className="grid grid-cols-3 gap-2">
-        <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={form.tipo} onChange={e => set('tipo', e.target.value)}>
+        <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={form.tipo} onChange={e => handleTipoChange(e.target.value)}>
           {TIPOS_SEMAFORO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          {escalasCustom.length > 0 && (
+            <optgroup label="Escalas personalizadas">
+              {escalasCustom.map(ec => (
+                <option key={ec.id} value={`custom:${ec.id}`}>{ec.nome}</option>
+              ))}
+            </optgroup>
+          )}
+          <option value="__add_escala__">+ Adicionar escala…</option>
         </select>
         {(form.tipo === 'percentual' || form.tipo === 'quantidade') && (
           <>
@@ -271,6 +320,49 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
           </>
         )}
       </div>
+
+      {/* Sub-formulário: nova escala personalizada */}
+      {adicionandoEscala && (
+        <div className="border border-blue-200 rounded-lg p-3 bg-blue-50 flex flex-col gap-2">
+          <p className="text-[10px] font-semibold text-blue-700">Nova escala personalizada</p>
+          <input className="text-xs border border-gray-300 rounded px-2 py-1.5"
+            placeholder="Nome da escala *" value={novaEscalaNome} onChange={e => setNovaEscalaNome(e.target.value)} autoFocus />
+          <select className="text-xs border border-gray-300 rounded px-2 py-1.5"
+            value={novaEscalaModo} onChange={e => setNovaEscalaModo(e.target.value as 'lista' | 'percentual' | 'numero')}>
+            <option value="lista">Lista de valores</option>
+            <option value="percentual">Percentual</option>
+            <option value="numero">Número</option>
+          </select>
+          {novaEscalaModo === 'lista' && (
+            <div className="flex flex-col gap-1">
+              <p className="text-[10px] text-gray-500">Valores (mín. 2)</p>
+              {novaEscalaValores.map((v, i) => (
+                <div key={i} className="flex gap-1 items-center">
+                  <input className="flex-1 text-xs border border-gray-300 rounded px-2 py-1"
+                    placeholder={`Valor ${i + 1}`} value={v}
+                    onChange={e => { const n = [...novaEscalaValores]; n[i] = e.target.value; setNovaEscalaValores(n); }} />
+                  {novaEscalaValores.length > 2 && (
+                    <button type="button" onClick={() => setNovaEscalaValores(novaEscalaValores.filter((_, j) => j !== i))}
+                      className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                  )}
+                </div>
+              ))}
+              <button type="button" onClick={() => setNovaEscalaValores([...novaEscalaValores, ''])}
+                className="text-[10px] text-blue-600 hover:underline text-left">+ Adicionar valor</button>
+            </div>
+          )}
+          {erroEscala && <p className="text-[10px] text-red-500">{erroEscala}</p>}
+          <div className="flex gap-2 justify-end">
+            <button type="button" onClick={() => { setAdicionandoEscala(false); setErroEscala(''); }}
+              className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+            <button type="button" onClick={handleSalvarEscala} disabled={salvandoEscala || !novaEscalaNome.trim()}
+              className="text-xs px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600">
+              {salvandoEscala ? 'Salvando...' : 'Salvar escala'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2">
         {responsaveis.length > 0 && (
           <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={form.profileId} onChange={e => set('profileId', e.target.value)}>
@@ -386,7 +478,6 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                 <th className="px-3 py-1.5 text-left">Indicador</th>
                 <th className="px-3 py-1.5 text-left">Semáforo</th>
                 <th className="px-3 py-1.5 text-left">Responsável</th>
-                <th className="px-3 py-1.5 text-left">Meta</th>
                 {isAdmin && <th className="px-2 py-1.5" />}
               </tr>
             </thead>

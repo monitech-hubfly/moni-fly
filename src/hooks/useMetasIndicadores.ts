@@ -73,6 +73,7 @@ export type UseMetasIndicadoresResult = {
 export function useMetasIndicadores(
   effectiveProfileId: string | null,
   areaId: string | null,
+  mes?: string | null,
 ): UseMetasIndicadoresResult {
   const supabase = useMemo(() => createClient(), []);
   const [metas,           setMetas]           = useState<MetaItem[]>([]);
@@ -94,12 +95,15 @@ export function useMetasIndicadores(
       const anoISO  = isoWeekYear(hoje);
       const hojeStr = hoje.toISOString().slice(0, 10);
 
+      let objQuery = supabase
+        .from('objetivos')
+        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, status, ordem, objetivo_pai_id, profile_id')
+        .eq('area_id', areaId)
+        .eq('status', 'ativo');
+      if (mes) objQuery = objQuery.eq('mes', mes);
+
       const [objRes, indRes, respRes] = await Promise.all([
-        supabase
-          .from('objetivos')
-          .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, status, ordem, objetivo_pai_id, profile_id')
-          .eq('area_id', areaId)
-          .eq('status', 'ativo'),
+        objQuery,
         supabase
           .from('indicadores')
           .select('id, nome, indicador_chave, semaforo_faixas, tipo, objetivo_id, profile_id')
@@ -255,7 +259,7 @@ export function useMetasIndicadores(
     } finally {
       setIsLoading(false);
     }
-  }, [supabase, areaId, effectiveProfileId]);
+  }, [supabase, areaId, effectiveProfileId, mes]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
