@@ -244,10 +244,11 @@ export function BacklogKanbanColuna() {
         </div>
       ) : error ? (
         <p className="text-xs text-red-500 break-all">{error}</p>
-      ) : cards.length === 0 ? (
+      ) : cards.length === 0 && sndCards.length === 0 && orphanCards.length === 0 ? (
         <EmptyState />
       ) : (
         <>
+          {cards.length > 0 && (
           <div className="flex flex-col gap-1.5 max-h-[22rem] overflow-y-auto pr-0.5">
             {cards.map(card => (
               <DraggableKanbanCard key={card.id} card={card}>
@@ -255,6 +256,7 @@ export function BacklogKanbanColuna() {
               </DraggableKanbanCard>
             ))}
           </div>
+          )}
           {sndCards.length > 0 && (
             <div className="mt-2 border-t border-gray-200 pt-2">
               <button
