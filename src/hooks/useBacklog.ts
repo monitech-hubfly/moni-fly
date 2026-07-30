@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { isoWeek } from '@/utils/periodos';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
 import { rankChamadoPainelUnificado, compareChamadosPainelRank } from '@/lib/sirene-painel-chamados-rank';
 
@@ -27,17 +26,12 @@ export type SireneItem = {
 };
 
 export type AtividadeItem = {
-  id: string;
-  acao_id: string | null;
-  nome_acao: string | null;
-  comportamento_chave: boolean;
-  semana_ano_inicio: number | null;
-  semana_ano_fim: number | null;
-  semanas_selecionadas: number[];
-  origem: string | null;
-  objetivo_id: string | null;
-  hora_inicio: string | null;
-  hora_fim: string | null;
+  id: string;          // acoes.id
+  tarefa_id: string;
+  nome: string;
+  caneta_verde: string | null;
+  prazo: string | null; // date ISO (acoes.prazo)
+  criado_em: string | null;
 };
 
 export type PastelariaItem = {
@@ -53,6 +47,7 @@ export type UseBacklogResult = {
   atividades: AtividadeItem[];
   isLoading: boolean;
   error: string | null;
+  recarregar: () => void;
 };
 
 const ADMIN_EMAIL = 'danilo.n@moni.casa';
@@ -69,7 +64,6 @@ export function useBacklog(): UseBacklogResult {
   const { simulacao } = useSimulacaoUsuario();
   const simProfileId  = simulacao?.profileId   ?? null;
   const simAreaId     = simulacao?.areaId      ?? null;
-  const simNome       = simulacao?.nomeUsuario ?? null;
 
   const carregar = useCallback(async () => {
     const callId = ++callIdRef.current;
@@ -80,16 +74,14 @@ export function useBacklog(): UseBacklogResult {
       if (!user) throw new Error('Não autenticado');
 
       const isAdmin = user.email === ADMIN_EMAIL;
-      const hoje = new Date();
-      const semanaAtual = isoWeek(hoje);
 
       let effectiveProfileId = user.id;
-      let nomeUsuario: string | null = null;
       let areaPessoaId: string | null = null;
+      let effectiveAreaId: string | null = null;
 
       if (isAdmin && simProfileId) {
         effectiveProfileId = simProfileId;
-        nomeUsuario = simNome;
+        effectiveAreaId    = simAreaId;
         const { data: simAP } = await supabase
           .from('area_pessoas')
           .select('id')
@@ -99,18 +91,16 @@ export function useBacklog(): UseBacklogResult {
       } else {
         const { data: areaPessoa } = await supabase
           .from('area_pessoas')
-          .select('id, nome')
+          .select('id, area_id')
           .eq('profile_id', user.id)
           .maybeSingle();
-        nomeUsuario = (areaPessoa?.nome as string | null) ?? null;
-        areaPessoaId = (areaPessoa?.id as string | null) ?? null;
+        areaPessoaId    = (areaPessoa?.id      as string | null) ?? null;
+        effectiveAreaId = (areaPessoa?.area_id as string | null) ?? null;
       }
 
-      // Busca Sirene, Atividades, Pastelaria e Atrasadas fora da janela em paralelo
-      // NOTA: o join kanban_atividades→sirene_chamados foi removido do select principal
-      // para evitar join duplo aninhado (sirene_topicos→kanban_atividades→sirene_chamados)
-      // que causava statement timeout. Agora kanban_atividades é buscado em round separado.
-      const [sireneRes, atividadesRes, pastelariaRes, atividadesAtrasadasRes] = await Promise.all([
+      // Busca Sirene, Atividades (via tarefas/acoes), Pastelaria em paralelo
+      // Atividades Planejadas não depende mais de gantt_planejamento
+      const [sireneRes, tarefasRes, pastelariaRes] = await Promise.all([
         supabase
           .from('sirene_topicos')
           .select(`
@@ -129,16 +119,12 @@ export function useBacklog(): UseBacklogResult {
           .in('status', ['nao_iniciado', 'em_andamento'])
           .eq('arquivado', false),
 
-        supabase
-          .from('gantt_planejamento')
-          .select('id, acao_id, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
-          .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
-          .is('data_conclusao_real', null)
-          .not('acao_id', 'is', null)  // exclui registros de agenda sem vínculo a atividade
-          .overlaps('semanas_selecionadas', [
-            semanaAtual - 4, semanaAtual - 3, semanaAtual - 2,
-            semanaAtual - 1, semanaAtual, semanaAtual + 1, semanaAtual + 2,
-          ]),
+        effectiveAreaId
+          ? supabase
+              .from('tarefas')
+              .select('id, acoes(id, nome, caneta_verde, prazo, criado_em)')
+              .eq('area_id', effectiveAreaId)
+          : Promise.resolve({ data: [], error: null }),
 
         areaPessoaId
           ? supabase
@@ -148,15 +134,6 @@ export function useBacklog(): UseBacklogResult {
               .in('coluna', ['inbox', 'mapped', 'doing'])
               .eq('reclassificado', false)
           : Promise.resolve({ data: [], error: null }),
-
-        // Atividades atrasadas além da janela ±4 semanas (garante cobertura total)
-        supabase
-          .from('gantt_planejamento')
-          .select('id, acao_id, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
-          .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
-          .is('data_conclusao_real', null)
-          .not('acao_id', 'is', null)  // exclui registros de agenda sem vínculo a atividade
-          .lt('semana_ano_fim', semanaAtual - 4),
       ]);
 
       if (sireneRes.error) throw sireneRes.error;
@@ -257,51 +234,32 @@ export function useBacklog(): UseBacklogResult {
         { frank_id: b.frank_id, franqueado_nome: b.frank_nome, trava: b.trava, te_trata: b.te_trata, data_vencimento: b.data_fim ?? b.prazo_proposto, atividade_status: b.status },
       ));
 
-      type AtivRaw = {
+      type TarefaComAcoesRaw = {
         id: string;
-        acao_id: string | null;
-        comportamento_chave: boolean;
-        semana_ano_inicio: number | null;
-        semana_ano_fim: number | null;
-        semanas_selecionadas: number[] | null;
-        origem: string | null;
-        objetivo_id: string | null;
-        hora_inicio: string | null;
-        hora_fim: string | null;
-        acoes: { nome: string } | { nome: string }[] | null;
+        acoes: { id: string; nome: string; caneta_verde: string | null; prazo: string | null; criado_em: string | null }[]
+              | { id: string; nome: string; caneta_verde: string | null; prazo: string | null; criado_em: string | null }
+              | null;
       };
 
-      const mapAtivRaw = (row: AtivRaw): AtividadeItem => {
-        const acaoObj = Array.isArray(row.acoes) ? row.acoes[0] : row.acoes;
-        return {
-          id:                    row.id,
-          acao_id:               row.acao_id,
-          nome_acao:             acaoObj?.nome ?? null,
-          comportamento_chave:   row.comportamento_chave ?? false,
-          semana_ano_inicio:     row.semana_ano_inicio,
-          semana_ano_fim:        row.semana_ano_fim,
-          semanas_selecionadas:  Array.isArray(row.semanas_selecionadas) ? row.semanas_selecionadas : [],
-          origem:                row.origem,
-          objetivo_id:           row.objetivo_id,
-          hora_inicio:           row.hora_inicio,
-          hora_fim:              row.hora_fim,
-        };
-      };
-
-      // Merge com deduplicação: janela principal + atrasadas fora da janela
-      const atividadesMap = new Map<string, AtividadeItem>();
-      ((atividadesRes.data ?? []) as AtivRaw[]).forEach(row => atividadesMap.set(row.id, mapAtivRaw(row)));
-      ((atividadesAtrasadasRes.data ?? []) as AtivRaw[]).forEach(row => {
-        if (!atividadesMap.has(row.id)) atividadesMap.set(row.id, mapAtivRaw(row));
-      });
-      const atividadesArr: AtividadeItem[] = Array.from(atividadesMap.values());
-
-      // Ordenação: semana_ano_fim ASC, com fallback para MAX(semanas_selecionadas)
-      atividadesArr.sort((a, b) => {
-        const fa = a.semana_ano_fim ?? (a.semanas_selecionadas.length ? Math.max(...a.semanas_selecionadas) : Infinity);
-        const fb = b.semana_ano_fim ?? (b.semanas_selecionadas.length ? Math.max(...b.semanas_selecionadas) : Infinity);
-        return fa - fb;
-      });
+      const atividadesArr: AtividadeItem[] = ((tarefasRes.data ?? []) as TarefaComAcoesRaw[])
+        .flatMap(t => {
+          const acoesArr = Array.isArray(t.acoes) ? t.acoes : t.acoes ? [t.acoes] : [];
+          return acoesArr.map(a => ({
+            id:           a.id,
+            tarefa_id:    t.id,
+            nome:         a.nome,
+            caneta_verde: a.caneta_verde,
+            prazo:        a.prazo,
+            criado_em:    a.criado_em,
+          }));
+        })
+        .sort((a, b) => {
+          // prazo ASC; sem prazo por nome
+          if (a.prazo && b.prazo) return a.prazo.localeCompare(b.prazo);
+          if (a.prazo) return -1;
+          if (b.prazo) return 1;
+          return a.nome.localeCompare(b.nome, 'pt-BR');
+        });
 
       type PastelariaRaw = { id: string; nome: string; coluna: string; semana_origem: string };
       const pastelariaArr: PastelariaItem[] = ((pastelariaRes.data ?? []) as PastelariaRaw[]).map(row => ({
@@ -322,9 +280,9 @@ export function useBacklog(): UseBacklogResult {
     } finally {
       if (callId === callIdRef.current) setIsLoading(false);
     }
-  }, [supabase, simProfileId, simAreaId, simNome]);
+  }, [supabase, simProfileId, simAreaId]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  return { sirene, pastelaria, atividades, isLoading, error };
+  return { sirene, pastelaria, atividades, isLoading, error, recarregar: carregar };
 }

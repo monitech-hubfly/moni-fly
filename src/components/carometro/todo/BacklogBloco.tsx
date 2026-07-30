@@ -5,7 +5,6 @@ import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useBacklog, SireneItem, AtividadeItem, PastelariaItem } from '@/hooks/useBacklog';
 import { BacklogColunaCard, StatusPrazo } from './BacklogColuna';
-import { isoWeek } from '@/utils/periodos';
 import type { DadosAgendamento } from './ModalAgendamento';
 import { BacklogKanbanColuna } from './BacklogKanbanColuna';
 import { createClient } from '@/lib/supabase/client';
@@ -37,16 +36,13 @@ function statusSirene(item: SireneItem): StatusPrazo {
   return 'futuro';
 }
 
-function semanaFimEfetiva(item: AtividadeItem): number | null {
-  if (item.semana_ano_fim != null) return item.semana_ano_fim;
-  return item.semanas_selecionadas.length ? Math.max(...item.semanas_selecionadas) : null;
-}
-
-function statusAtividade(item: AtividadeItem, semanaAtual: number): StatusPrazo {
-  const sf = semanaFimEfetiva(item);
-  if (sf == null) return 'sem_prazo';
-  if (sf < semanaAtual) return 'atrasado';
-  if (sf === semanaAtual) return 'esta_semana';
+function statusAtividade(item: AtividadeItem): StatusPrazo {
+  if (!item.prazo) return 'sem_prazo';
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const prazoDate = new Date(item.prazo + 'T00:00:00');
+  if (prazoDate < hoje) return 'atrasado';
+  const sexta = getSexta();
+  if (prazoDate <= sexta) return 'esta_semana';
   return 'futuro';
 }
 
@@ -76,34 +72,82 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
 
 // ── NovaAtividadeDrawer ───────────────────────────────────────────────────────
 type Tarefa = { id: string; nome: string };
-type Acao   = { id: string; nome: string };
-const RECORR_OPTS = [
-  { value: 'unica',      label: 'Atividade única' },
-  { value: 'diaria',     label: 'Diária' },
-  { value: 'semanal',    label: 'Semanal' },
-  { value: 'mensal',     label: 'Mensal' },
-  { value: 'trimestral', label: 'Trimestral' },
-];
+type Acao   = { id: string; nome: string; caneta_verde: string | null; prazo: string | null };
 
-function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFechar: () => void }) {
+type HiddenState = { tarefas: string[]; acoes: string[] };
+
+function NovaAtividadeDrawer({ areaId, onFechar, onSaved }: {
+  areaId: string | null; onFechar: () => void; onSaved?: () => void;
+}) {
   const supabase = useMemo(() => createClient(), []);
-  const [tarefas,       setTarefas]       = useState<Tarefa[]>([]);
-  const [tarefaId,      setTarefaId]      = useState('');
-  const [tarefaNome,    setTarefaNome]    = useState('');
-  const [novaTarefa,    setNovaTarefa]    = useState('');
-  const [criandoComp,   setCriandoComp]   = useState(false);
-  const [step,          setStep]          = useState<'comportamento' | 'atividades'>('comportamento');
-  const [acoes,         setAcoes]         = useState<Acao[]>([]);
-  const [loadingAcoes,  setLoadingAcoes]  = useState(false);
-  const [adicionando,   setAdicionando]   = useState(false);
-  const [nome,          setNome]          = useState('');
-  const [prazo,         setPrazo]         = useState('');
-  const [tempoVal,      setTempoVal]      = useState('');
-  const [tempoUnit,     setTempoUnit]     = useState<'minutos' | 'horas'>('minutos');
-  const [canetaVerde,   setCanetaVerde]   = useState('nao');
-  const [recorrencia,   setRecorrencia]   = useState('unica');
-  const [salvando,      setSalvando]      = useState(false);
-  const [erro,          setErro]          = useState<string | null>(null);
+
+  // Auth + localStorage hidden state
+  const [userId,       setUserId]       = useState<string | null>(null);
+  const [hiddenTarefas, setHiddenTarefas] = useState<Set<string>>(new Set());
+  const [hiddenAcoes,   setHiddenAcoes]   = useState<Set<string>>(new Set());
+
+  const [tarefas,     setTarefas]     = useState<Tarefa[]>([]);
+  const [tarefaId,    setTarefaId]    = useState('');
+  const [tarefaNome,  setTarefaNome]  = useState('');
+  const [novaTarefa,  setNovaTarefa]  = useState('');
+  const [criandoComp, setCriandoComp] = useState(false);
+  const [step,        setStep]        = useState<'comportamento' | 'atividades'>('comportamento');
+  const [acoes,       setAcoes]       = useState<Acao[]>([]);
+  const [loadingAcoes, setLoadingAcoes] = useState(false);
+
+  // Inline popup para atividade existente (Item 3)
+  const [acaoPopup,     setAcaoPopup]     = useState<{ id: string; nome: string; prazo: string; caneta: string } | null>(null);
+  const [salvandoPopup, setSalvandoPopup] = useState(false);
+
+  // Form nova atividade (simplificado — Item 4)
+  const [adicionando,  setAdicionando]  = useState(false);
+  const [nome,         setNome]         = useState('');
+  const [prazo,        setPrazo]        = useState('');
+  const [canetaVerde,  setCanetaVerde]  = useState('nao');
+  const [salvando,     setSalvando]     = useState(false);
+  const [erro,         setErro]         = useState<string | null>(null);
+
+  // Seções "Ocultos" expandidas
+  const [ocultosTExpand, setOcultosTExpand] = useState(false);
+  const [ocultosAExpand, setOcultosAExpand] = useState(false);
+
+  // Carrega userId + hidden do localStorage
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      setUserId(user.id);
+      try {
+        const raw = JSON.parse(localStorage.getItem(`backlog_hidden_${user.id}`) ?? '{}') as HiddenState;
+        setHiddenTarefas(new Set(raw.tarefas ?? []));
+        setHiddenAcoes(new Set(raw.acoes ?? []));
+      } catch { /* ignore */ }
+    });
+  }, [supabase]);
+
+  const salvarHidden = (ht: Set<string>, ha: Set<string>, uid: string | null) => {
+    if (!uid) return;
+    localStorage.setItem(`backlog_hidden_${uid}`, JSON.stringify({
+      tarefas: [...ht], acoes: [...ha],
+    }));
+  };
+
+  const toggleHideTarefa = (id: string) => {
+    setHiddenTarefas(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      salvarHidden(next, hiddenAcoes, userId);
+      return next;
+    });
+  };
+
+  const toggleHideAcao = (id: string) => {
+    setHiddenAcoes(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      salvarHidden(hiddenTarefas, next, userId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!areaId) return;
@@ -114,16 +158,18 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
 
   const carregarAcoes = async (tId: string) => {
     setLoadingAcoes(true);
-    const { data } = await supabase.from('acoes').select('id, nome').eq('tarefa_id', tId).order('nome');
+    const { data } = await supabase.from('acoes')
+      .select('id, nome, caneta_verde, prazo')
+      .eq('tarefa_id', tId).order('nome');
     setAcoes((data ?? []) as Acao[]);
     setLoadingAcoes(false);
   };
 
   const handleSelectComp = async (tId: string) => {
-    if (!tId) return;
     const t = tarefas.find(x => x.id === tId);
     setTarefaId(tId);
     setTarefaNome(t?.nome ?? '');
+    setOcultosAExpand(false);
     await carregarAcoes(tId);
     setStep('atividades');
   };
@@ -135,46 +181,52 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
       .from('tarefas').insert({ area_id: areaId, nome: novaTarefa.trim() }).select('id, nome').single();
     if (e) { setErro(e.message); setSalvando(false); return; }
     const t = ins as Tarefa;
-    setTarefas(prev => [...prev, t]);
+    setTarefas(prev => [...prev, t].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')));
     setTarefaId(t.id); setTarefaNome(t.nome);
     setNovaTarefa(''); setCriandoComp(false);
     setAcoes([]); setStep('atividades');
     setSalvando(false);
   };
 
+  // Item 3: salva prazo/caneta em acao existente
+  const handleSalvarAcaoPopup = async () => {
+    if (!acaoPopup) return;
+    setSalvandoPopup(true);
+    await supabase.from('acoes').update({
+      prazo:        acaoPopup.prazo || null,
+      caneta_verde: acaoPopup.caneta,
+    }).eq('id', acaoPopup.id);
+    setAcaoPopup(null);
+    setSalvandoPopup(false);
+    await carregarAcoes(tarefaId);
+    onSaved?.();
+  };
+
+  // Item 4: form simplificado — sem tempo/recorrencia na UI
   const handleSalvarAtividade = async () => {
     if (!nome.trim()) { setErro('Nome da atividade é obrigatório.'); return; }
     setSalvando(true); setErro(null);
-    const tempoMin = tempoVal
-      ? (tempoUnit === 'horas' ? Math.round(Number(tempoVal) * 60) : Math.round(Number(tempoVal)))
-      : null;
-    const { data: novaAcao, error: e } = await supabase.from('acoes').insert({
-      tarefa_id: tarefaId, nome: nome.trim(),
-      tempo_estimado_minutos: tempoMin,
+    const { error: e } = await supabase.from('acoes').insert({
+      tarefa_id:    tarefaId,
+      nome:         nome.trim(),
+      prazo:        prazo || null,
       caneta_verde: canetaVerde,
-      recorrencia,
-    }).select('id').single();
+      // defaults registrados no banco, ocultos da UI
+      tempo_estimado_minutos: null,
+      recorrencia:            'unica',
+    });
     if (e) { setErro(e.message); setSalvando(false); return; }
-    // Se prazo informado, cria entrada no Planejamento (gantt_planejamento)
-    if (prazo && novaAcao) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const semanaFim = isoWeek(new Date(prazo + 'T12:00:00'));
-        await supabase.from('gantt_planejamento').insert({
-          acao_id: novaAcao.id,
-          profile_id: user.id,
-          semana_ano_fim: semanaFim,
-          semana_ano_inicio: semanaFim,
-          semanas_selecionadas: [semanaFim],
-          comportamento_chave: false,
-          origem: 'manual',
-        });
-      }
-    }
-    setNome(''); setTempoVal(''); setPrazo(''); setAdicionando(false);
+    setNome(''); setPrazo(''); setCanetaVerde('nao'); setAdicionando(false);
     await carregarAcoes(tarefaId);
+    onSaved?.();
     setSalvando(false);
   };
+
+  // Listas ordenadas com separação visíveis/ocultos
+  const tarefasVisiveis = tarefas.filter(t => !hiddenTarefas.has(t.id));
+  const tarefasOcultas  = tarefas.filter(t =>  hiddenTarefas.has(t.id));
+  const acoesVisiveis   = acoes.filter(a => !hiddenAcoes.has(a.id));
+  const acoesOcultas    = acoes.filter(a =>  hiddenAcoes.has(a.id));
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30" onClick={onFechar}>
@@ -183,7 +235,8 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           {step === 'atividades' ? (
             <div className="flex items-center gap-2 min-w-0">
-              <button type="button" onClick={() => { setStep('comportamento'); setAdicionando(false); setErro(null); }}
+              <button type="button"
+                onClick={() => { setStep('comportamento'); setAdicionando(false); setAcaoPopup(null); setErro(null); }}
                 className="text-gray-400 hover:text-gray-600 text-base shrink-0">←</button>
               <h3 className="text-sm font-semibold text-gray-700 truncate">{tarefaNome}</h3>
             </div>
@@ -195,7 +248,7 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
 
         <div className="flex-1 overflow-y-auto p-4">
           {step === 'comportamento' ? (
-            /* Passo 1: selecionar comportamento */
+            /* Passo 1: comportamentos */
             <div className="flex flex-col gap-3">
               <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
                 Comportamento / Grupo
@@ -217,17 +270,52 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
                 </div>
               ) : (
                 <>
-                  <div className="flex flex-col gap-1.5">
-                    {tarefas.map(t => (
-                      <button key={t.id} type="button" onClick={() => handleSelectComp(t.id)}
-                        className="text-left text-xs px-3 py-2 rounded-md border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-gray-700">
-                        {t.nome}
-                      </button>
-                    ))}
-                    {tarefas.length === 0 && (
+                  {/* Lista visível */}
+                  <div className="flex flex-col gap-1">
+                    {tarefasVisiveis.length === 0 && tarefasOcultas.length === 0 && (
                       <p className="text-xs text-gray-400 text-center py-4">Nenhum comportamento cadastrado</p>
                     )}
+                    {tarefasVisiveis.map(t => (
+                      <div key={t.id} className="flex items-center gap-1 group">
+                        <button type="button" onClick={() => handleSelectComp(t.id)}
+                          className="flex-1 text-left text-xs px-3 py-2 rounded-md border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-gray-700">
+                          {t.nome}
+                        </button>
+                        <button type="button" onClick={() => toggleHideTarefa(t.id)} title="Ocultar"
+                          className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-gray-500 text-xs px-1 transition-opacity shrink-0">
+                          👁
+                        </button>
+                      </div>
+                    ))}
                   </div>
+
+                  {/* Seção Ocultos */}
+                  {tarefasOcultas.length > 0 && (
+                    <div className="border-t border-gray-100 pt-2">
+                      <button type="button"
+                        onClick={() => setOcultosTExpand(v => !v)}
+                        className="w-full text-left text-[10px] text-gray-400 hover:text-gray-600 flex items-center justify-between py-0.5">
+                        <span>Itens Ocultos ({tarefasOcultas.length})</span>
+                        <span>{ocultosTExpand ? '▲' : '▼'}</span>
+                      </button>
+                      {ocultosTExpand && (
+                        <div className="flex flex-col gap-1 mt-1.5">
+                          {tarefasOcultas.map(t => (
+                            <div key={t.id} className="flex items-center gap-1 group">
+                              <span className="flex-1 text-xs px-3 py-2 rounded-md bg-gray-50 text-gray-400 line-through border border-gray-100">
+                                {t.nome}
+                              </span>
+                              <button type="button" onClick={() => toggleHideTarefa(t.id)} title="Tornar visível"
+                                className="text-blue-400 hover:text-blue-600 text-xs px-1 shrink-0">
+                                👁
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <button type="button" onClick={() => setCriandoComp(true)}
                     className="mt-1 w-full text-xs text-blue-500 hover:text-blue-700 border border-dashed border-blue-200 hover:border-blue-400 rounded-md py-1.5 transition-colors">
                     + Novo comportamento / grupo
@@ -237,25 +325,99 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
               {erro && <p className="text-xs text-red-500">{erro}</p>}
             </div>
           ) : (
-            /* Passo 2: lista de atividades do comportamento */
+            /* Passo 2: atividades do comportamento */
             <div className="flex flex-col gap-3">
               {loadingAcoes ? (
                 <div className="flex flex-col gap-1.5">
                   {[0, 1, 2].map(i => <div key={i} className="h-8 bg-gray-100 animate-pulse rounded" />)}
                 </div>
               ) : (
-                <div className="flex flex-col gap-1">
-                  {acoes.map(a => (
-                    <div key={a.id} className="text-xs px-3 py-2 rounded-md bg-gray-50 text-gray-600 border border-gray-100">
-                      {a.nome}
+                <>
+                  {/* Lista visível — clicáveis (Item 3) */}
+                  <div className="flex flex-col gap-1">
+                    {acoesVisiveis.length === 0 && !adicionando && acoesOcultas.length === 0 && (
+                      <p className="text-xs text-gray-400 text-center py-3">Nenhuma atividade cadastrada</p>
+                    )}
+                    {acoesVisiveis.map(a => (
+                      <div key={a.id}>
+                        {acaoPopup?.id === a.id ? (
+                          /* Popup inline de prazo/caneta */
+                          <div className="border border-blue-200 rounded-md p-3 bg-blue-50 flex flex-col gap-2">
+                            <p className="text-xs font-semibold text-gray-700 truncate">{a.nome}</p>
+                            <div className="flex gap-2 items-center">
+                              <label className="text-[10px] text-gray-500 shrink-0">Prazo</label>
+                              <input type="date"
+                                className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                value={acaoPopup.prazo}
+                                onChange={e => setAcaoPopup(p => p ? { ...p, prazo: e.target.value } : p)} />
+                            </div>
+                            <select
+                              className="text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
+                              value={acaoPopup.caneta}
+                              onChange={e => setAcaoPopup(p => p ? { ...p, caneta: e.target.value } : p)}>
+                              <option value="nao">Caneta: Não</option>
+                              <option value="sim">Caneta: Sim</option>
+                            </select>
+                            <div className="flex gap-2 justify-end">
+                              <button type="button" onClick={() => setAcaoPopup(null)}
+                                className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+                              <button type="button" onClick={handleSalvarAcaoPopup} disabled={salvandoPopup}
+                                className="text-xs px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50">
+                                {salvandoPopup ? '…' : 'Salvar'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 group">
+                            <button type="button"
+                              onClick={() => setAcaoPopup({ id: a.id, nome: a.nome, prazo: a.prazo ?? '', caneta: a.caneta_verde ?? 'nao' })}
+                              className="flex-1 text-left text-xs px-3 py-2 rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 text-gray-600 border border-gray-100 transition-colors">
+                              <span className="flex items-center gap-1.5">
+                                {a.caneta_verde === 'sim' && <span title="Caneta verde" className="text-[10px]">🖊️</span>}
+                                {a.nome}
+                                {a.prazo && <span className="ml-auto text-[9px] text-gray-400 shrink-0">{a.prazo}</span>}
+                              </span>
+                            </button>
+                            <button type="button" onClick={() => toggleHideAcao(a.id)} title="Ocultar"
+                              className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-gray-500 text-xs px-1 transition-opacity shrink-0">
+                              👁
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Seção Ocultos — atividades */}
+                  {acoesOcultas.length > 0 && (
+                    <div className="border-t border-gray-100 pt-2">
+                      <button type="button"
+                        onClick={() => setOcultosAExpand(v => !v)}
+                        className="w-full text-left text-[10px] text-gray-400 hover:text-gray-600 flex items-center justify-between py-0.5">
+                        <span>Itens Ocultos ({acoesOcultas.length})</span>
+                        <span>{ocultosAExpand ? '▲' : '▼'}</span>
+                      </button>
+                      {ocultosAExpand && (
+                        <div className="flex flex-col gap-1 mt-1.5">
+                          {acoesOcultas.map(a => (
+                            <div key={a.id} className="flex items-center gap-1 group">
+                              <span className="flex-1 text-xs px-3 py-2 rounded-md bg-gray-50 text-gray-400 line-through border border-gray-100">
+                                {a.nome}
+                              </span>
+                              <button type="button" onClick={() => toggleHideAcao(a.id)} title="Tornar visível"
+                                className="text-blue-400 hover:text-blue-600 text-xs px-1 shrink-0">
+                                👁
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
-                  {acoes.length === 0 && !adicionando && (
-                    <p className="text-xs text-gray-400 text-center py-3">Nenhuma atividade cadastrada</p>
                   )}
-                </div>
+                </>
               )}
 
+              {/* Form nova atividade — simplificado (Item 4) */}
               {adicionando ? (
                 <div className="border border-blue-200 rounded-md p-3 bg-blue-50 flex flex-col gap-2.5">
                   <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Nova atividade</p>
@@ -269,28 +431,15 @@ function NovaAtividadeDrawer({ areaId, onFechar }: { areaId: string | null; onFe
                       className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white"
                       value={prazo} onChange={e => setPrazo(e.target.value)} />
                   </div>
-                  <div className="flex gap-2">
-                    <input type="number" min="0"
-                      className="w-16 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none bg-white"
-                      placeholder="0" value={tempoVal} onChange={e => setTempoVal(e.target.value)} />
-                    <select className="text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
-                      value={tempoUnit} onChange={e => setTempoUnit(e.target.value as 'minutos' | 'horas')}>
-                      <option value="minutos">min</option>
-                      <option value="horas">h</option>
-                    </select>
-                    <select className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
-                      value={canetaVerde} onChange={e => setCanetaVerde(e.target.value)}>
-                      <option value="nao">Caneta: Não</option>
-                      <option value="sim">Caneta: Sim</option>
-                    </select>
-                  </div>
-                  <select className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
-                    value={recorrencia} onChange={e => setRecorrencia(e.target.value)}>
-                    {RECORR_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  <select className="text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
+                    value={canetaVerde} onChange={e => setCanetaVerde(e.target.value)}>
+                    <option value="nao">Caneta: Não</option>
+                    <option value="sim">Caneta: Sim</option>
                   </select>
                   {erro && <p className="text-xs text-red-500">{erro}</p>}
                   <div className="flex gap-2 justify-end">
-                    <button type="button" onClick={() => { setAdicionando(false); setErro(null); setNome(''); setTempoVal(''); setPrazo(''); }}
+                    <button type="button"
+                      onClick={() => { setAdicionando(false); setErro(null); setNome(''); setPrazo(''); setCanetaVerde('nao'); }}
                       className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
                     <button type="button" onClick={handleSalvarAtividade} disabled={salvando}
                       className="text-xs px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50">
@@ -422,21 +571,20 @@ function DraggableSirene({ dragId, dragData, children }: { dragId: string; dragD
 // ── Atividades Planejadas ─────────────────────────────────────────────────────
 type ColunaAtividadesProps = {
   items: AtividadeItem[];
-  semanaAtual: number;
   onAbrirNovaAtividade?: () => void;
 };
-function ColunaAtividades({ items, semanaAtual, onAbrirNovaAtividade }: ColunaAtividadesProps) {
-  const comStatus = items.map(i => ({ item: i, status: statusAtividade(i, semanaAtual) }));
+function ColunaAtividades({ items, onAbrirNovaAtividade }: ColunaAtividadesProps) {
+  const comStatus = items.map(i => ({ item: i, status: statusAtividade(i) }));
 
   return (
     <div className={`flex flex-col gap-1.5 ${items.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
       {items.length === 0 && <EmptyState />}
       {comStatus.map(({ item, status }) => (
-        <DraggableAtividade key={item.id} id={String(item.id)}>
+        <DraggableAtividade key={item.id} id={item.id}>
           <BacklogColunaCard
             tipo="atividade"
-            titulo={item.nome_acao ?? '(sem título)'}
-            prazo={semanaFimEfetiva(item) != null ? `S${semanaFimEfetiva(item)}` : null}
+            titulo={item.nome}
+            prazo={item.prazo ?? null}
             status={status}
           />
         </DraggableAtividade>
@@ -460,9 +608,8 @@ type BacklogBlocoProps = {
 };
 
 export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
-  const { sirene, pastelaria, atividades, isLoading, error } = useBacklog();
+  const { sirene, pastelaria, atividades, isLoading, error, recarregar } = useBacklog();
   const { areaId } = useEffectiveUser();
-  const semanaAtual = isoWeek(new Date());
   const [drawerAberto, setDrawerAberto] = useState(false);
 
   // Contadores para dots de status
@@ -470,9 +617,9 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
   const sireneEstaSemana = sirene.filter(i => statusSirene(i) === 'esta_semana').length;
   const sireneFuturos    = sirene.filter(i => statusSirene(i) === 'futuro').length;
 
-  const atividadesAtrasadas  = atividades.filter(i => statusAtividade(i, semanaAtual) === 'atrasado').length;
-  const atividadesEstaSemana = atividades.filter(i => statusAtividade(i, semanaAtual) === 'esta_semana').length;
-  const atividadesFuturas    = atividades.filter(i => statusAtividade(i, semanaAtual) === 'futuro').length;
+  const atividadesAtrasadas  = atividades.filter(i => statusAtividade(i) === 'atrasado').length;
+  const atividadesEstaSemana = atividades.filter(i => statusAtividade(i) === 'esta_semana').length;
+  const atividadesFuturas    = atividades.filter(i => statusAtividade(i) === 'futuro').length;
 
   return (
     <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 shadow-sm">
@@ -525,7 +672,6 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
             </div>
             <ColunaAtividades
               items={atividades}
-              semanaAtual={semanaAtual}
               onAbrirNovaAtividade={() => setDrawerAberto(true)}
             />
           </div>
@@ -536,7 +682,11 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
       )}
 
       {drawerAberto && (
-        <NovaAtividadeDrawer areaId={areaId} onFechar={() => setDrawerAberto(false)} />
+        <NovaAtividadeDrawer
+          areaId={areaId}
+          onFechar={() => setDrawerAberto(false)}
+          onSaved={recarregar}
+        />
       )}
     </section>
   );
