@@ -225,7 +225,7 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   const supabase = useMemo(() => createClient(), []);
   const [aberto,   setAberto]   = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [form, setForm] = useState({ nome: '', profileId: '', tipo: 'percentual', verde: '75', amarelo: '35', chave: false });
+  const [form, setForm] = useState({ nome: '', tipo: 'percentual', verde: '75', amarelo: '35', chave: false });
   const set = (k: string, v: string | boolean) => setForm(p => ({ ...p, [k]: v }));
 
   // Escalas customizadas
@@ -275,14 +275,14 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
       const tipoDb = form.tipo === 'percentual' ? 'percentual' : form.tipo === 'quantidade' ? 'quantidade' : 'outro';
       const { data: ins, error: e } = await supabase.from('indicadores')
         .insert({ area_id: areaId, nome: form.nome.trim(), objetivo_id: metaId,
-          profile_id: form.profileId || null, indicador_chave: form.chave,
+          profile_id: null, indicador_chave: form.chave,
           tipo: tipoDb, semaforo_faixas: sf })
         .select('id').single();
       if (e) { console.error('[AddIndMeta]', e); return; }
       LOG({ modulo: 'Planejamento', entidade: 'indicadores',
         entidade_id: String((ins as { id: unknown }).id), operacao: 'INSERT',
         descricao: `Indicador criado para meta ${metaId}: ${form.nome}` });
-      setForm({ nome: '', profileId: '', tipo: 'percentual', verde: '75', amarelo: '35', chave: false });
+      setForm({ nome: '', tipo: 'percentual', verde: '75', amarelo: '35', chave: false });
       setAberto(false); onSalvo();
     } finally { setSalvando(false); }
   };
@@ -299,27 +299,63 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-2 flex flex-col gap-2">
       <input className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
         placeholder="Nome do indicador *" value={form.nome} onChange={e => set('nome', e.target.value)} autoFocus />
-      <div className="grid grid-cols-3 gap-2">
-        <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={form.tipo} onChange={e => handleTipoChange(e.target.value)}>
-          {TIPOS_SEMAFORO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          {escalasCustom.length > 0 && (
-            <optgroup label="Escalas personalizadas">
-              {escalasCustom.map(ec => (
-                <option key={ec.id} value={`custom:${ec.id}`}>{ec.nome}</option>
-              ))}
-            </optgroup>
-          )}
-          <option value="__add_escala__">+ Adicionar escala…</option>
-        </select>
-        {(form.tipo === 'percentual' || form.tipo === 'quantidade') && (
-          <>
-            <input type="number" className="text-xs border border-gray-300 rounded px-2 py-1.5"
-              placeholder="Verde ≥" value={form.verde} onChange={e => set('verde', e.target.value)} />
-            <input type="number" className="text-xs border border-gray-300 rounded px-2 py-1.5"
-              placeholder="Amarelo ≥" value={form.amarelo} onChange={e => set('amarelo', e.target.value)} />
-          </>
+      <select className="text-xs border border-gray-300 rounded px-2 py-1.5 w-full" value={form.tipo} onChange={e => handleTipoChange(e.target.value)}>
+        {TIPOS_SEMAFORO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        {escalasCustom.length > 0 && (
+          <optgroup label="Escalas personalizadas">
+            {escalasCustom.map(ec => (
+              <option key={ec.id} value={`custom:${ec.id}`}>{ec.nome}</option>
+            ))}
+          </optgroup>
         )}
-      </div>
+        <option value="__add_escala__">+ Adicionar escala…</option>
+      </select>
+
+      {/* Faixas do semáforo com bolinhas */}
+      {(form.tipo === 'percentual' || form.tipo === 'quantidade') && (
+        <div className="flex flex-col gap-1 bg-white border border-gray-100 rounded-lg px-3 py-2">
+          <p className="text-[9px] text-gray-400 uppercase tracking-wide mb-0.5">Faixas do semáforo</p>
+          {[
+            { cor: '#1e7a3a', label: 'Verde escuro ≥', key: 'verde' as const, auto: false },
+            { cor: '#52b36f', label: 'Verde claro ≥',  key: null,            auto: true,  autoVal: () => String(Math.round((parseFloat(form.verde) || 75) * 0.85)) },
+            { cor: '#f2c94c', label: 'Amarelo ≥',      key: 'amarelo' as const, auto: false },
+            { cor: '#d24141', label: 'Vermelho ≥',      key: null,            auto: true,  autoVal: () => '0' },
+          ].map((f, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: f.cor }} />
+              <span className="text-[10px] text-gray-500 w-24 flex-shrink-0">{f.label}</span>
+              {!f.auto && f.key ? (
+                <input type="number" className="text-xs border border-gray-300 rounded px-2 py-0.5 w-16"
+                  value={form[f.key]} onChange={e => set(f.key!, e.target.value)} />
+              ) : (
+                <span className="text-[10px] text-gray-400 italic">{f.autoVal?.()}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {form.tipo === 'sim_nao' && (
+        <div className="flex gap-1.5 items-center bg-white border border-gray-100 rounded-lg px-3 py-2">
+          <p className="text-[9px] text-gray-400 uppercase tracking-wide mr-1">Faixas:</p>
+          {[{cor:'#1e7a3a',l:'SIM'},{cor:'#52b36f',l:'SIM'},{cor:'#f2c94c',l:'NÃO'},{cor:'#d24141',l:'NÃO'}].map((f,i) => (
+            <div key={i} className="flex items-center gap-0.5">
+              <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor:f.cor}} />
+              <span className="text-[9px] text-gray-500">{f.l}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {form.tipo === 'status_3' && (
+        <div className="flex gap-1.5 items-center bg-white border border-gray-100 rounded-lg px-3 py-2">
+          <p className="text-[9px] text-gray-400 uppercase tracking-wide mr-1">Faixas:</p>
+          {[{cor:'#1e7a3a',l:'OK'},{cor:'#52b36f',l:'OK'},{cor:'#f2c94c',l:'And.'},{cor:'#d24141',l:'Não OK'}].map((f,i) => (
+            <div key={i} className="flex items-center gap-0.5">
+              <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor:f.cor}} />
+              <span className="text-[9px] text-gray-500">{f.l}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Sub-formulário: nova escala personalizada */}
       {adicionandoEscala && (
@@ -363,18 +399,10 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
-        {responsaveis.length > 0 && (
-          <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={form.profileId} onChange={e => set('profileId', e.target.value)}>
-            <option value="">— Responsável —</option>
-            {responsaveis.map(r => <option key={r.profile_id} value={r.profile_id}>{r.nome}</option>)}
-          </select>
-        )}
-        <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-          <input type="checkbox" checked={form.chave} onChange={e => set('chave', e.target.checked)} />
-          Indicador chave 🔑
-        </label>
-      </div>
+      <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+        <input type="checkbox" checked={form.chave} onChange={e => set('chave', e.target.checked)} />
+        Indicador chave 🔑
+      </label>
       <div className="flex gap-2 justify-end">
         <button type="button" onClick={() => setAberto(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
         <button type="button" onClick={handleSalvar} disabled={!form.nome.trim() || salvando}
