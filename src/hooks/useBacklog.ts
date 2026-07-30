@@ -45,9 +45,12 @@ export type UseBacklogResult = {
   sirene: SireneItem[];
   pastelaria: PastelariaItem[];
   atividades: AtividadeItem[];
+  ativoIds: Set<string>;
   isLoading: boolean;
   error: string | null;
   recarregar: () => void;
+  ativar: (id: string) => Promise<void>;
+  desativar: (id: string) => Promise<void>;
 };
 
 const ADMIN_EMAIL = 'danilo.n@moni.casa';
@@ -59,6 +62,7 @@ export function useBacklog(): UseBacklogResult {
   const [sirene, setSirene] = useState<SireneItem[]>([]);
   const [pastelaria, setPastelaria] = useState<PastelariaItem[]>([]);
   const [atividades, setAtividades] = useState<AtividadeItem[]>([]);
+  const [ativoIds, setAtivoIds] = useState<Set<string>>(new Set());
   const callIdRef = useRef(0);
 
   const { simulacao } = useSimulacaoUsuario();
@@ -269,10 +273,19 @@ export function useBacklog(): UseBacklogResult {
         semana_origem: row.semana_origem,
       }));
 
+      const { data: ativoData } = await supabase
+        .from('backlog_atividades_usuario')
+        .select('acao_id')
+        .eq('profile_id', effectiveProfileId);
+      const ativoSet = new Set<string>(
+        ((ativoData ?? []) as { acao_id: string }[]).map(r => r.acao_id)
+      );
+
       if (callId !== callIdRef.current) return;
       setSirene(sireneArr);
       setPastelaria(pastelariaArr);
       setAtividades(atividadesArr);
+      setAtivoIds(ativoSet);
     } catch (e) {
       if (callId !== callIdRef.current) return;
       console.error('[useBacklog] erro:', e);
@@ -282,7 +295,25 @@ export function useBacklog(): UseBacklogResult {
     }
   }, [supabase, simProfileId, simAreaId]);
 
+  const ativar = useCallback(async (id: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from('backlog_atividades_usuario').upsert(
+      { profile_id: user.id, acao_id: id },
+      { onConflict: 'profile_id,acao_id' }
+    );
+    setAtivoIds(prev => new Set([...prev, id]));
+  }, [supabase]);
+
+  const desativar = useCallback(async (id: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from('backlog_atividades_usuario')
+      .delete().eq('profile_id', user.id).eq('acao_id', id);
+    setAtivoIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+  }, [supabase]);
+
   useEffect(() => { carregar(); }, [carregar]);
 
-  return { sirene, pastelaria, atividades, isLoading, error, recarregar: carregar };
+  return { sirene, pastelaria, atividades, ativoIds, isLoading, error, recarregar: carregar, ativar, desativar };
 }

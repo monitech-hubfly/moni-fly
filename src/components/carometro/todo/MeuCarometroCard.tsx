@@ -1,26 +1,29 @@
 'use client';
 
 import { ReactNode, useState } from 'react';
-import type { DiaStatus } from '@/hooks/useMeuCarometro';
+import type { DiaStatus, SemanaStatusInd } from '@/hooks/useMeuCarometro';
 
 function getCarinhaImg(score: number | null): string {
   if (score === null) return '/carometro/carometro-emoji-branco.png';
-  if (score > 65)  return '/carometro/carometro-emoji-verde-escuro.png';
-  if (score >= 35) return '/carometro/carometro-emoji-amarelo.png';
+  if (score >= 75) return '/carometro/carometro-emoji-verde-escuro.png';
+  if (score >= 60) return '/carometro/carometro-emoji-verde-claro.png';
+  if (score >= 30) return '/carometro/carometro-emoji-amarelo.png';
   return '/carometro/carometro-emoji-vermelho.png';
 }
 
 function scoreColor(score: number | null): string {
   if (score === null) return 'text-gray-400';
-  if (score > 65)  return 'text-green-700';
-  if (score >= 35) return 'text-yellow-600';
+  if (score >= 75) return 'text-green-700';
+  if (score >= 60) return 'text-green-500';
+  if (score >= 30) return 'text-yellow-600';
   return 'text-red-600';
 }
 
 function dotColor(score: number | null): string {
   if (score === null) return '#d1d5db';
-  if (score > 65) return '#16a34a';
-  if (score >= 35) return '#ca8a04';
+  if (score >= 75) return '#15803d';
+  if (score >= 60) return '#22c55e';
+  if (score >= 30) return '#ca8a04';
   return '#dc2626';
 }
 
@@ -29,16 +32,120 @@ function dayLabel(data: string): string {
   return ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()];
 }
 
-const TOOLTIP_FORMULA: Record<string, string> = {
-  sirene: '100 − (atrasados × 20 + semPrazo × 5)',
-  engajamento: 'atividades no prazo / total planejadas × 100',
-  indicadores: 'média dos % de cada indicador',
-};
+// ── Círculos diários (Sirene / Engajamento) ────────────────────────────────
+function DiariosCirculos({ dias }: { dias: DiaStatus[] }) {
+  const [aberto, setAberto] = useState<string | null>(null);
 
+  const LABEL_MAP: Record<string, string> = {
+    atrasados: 'Atrasados',
+    abertos: 'Abertos',
+    semPrazo: 'Sem prazo',
+    atividadesAtrasadas: 'Ativ. atrasadas',
+    atividadesEmDia: 'Ativ. em dia',
+    cardsAtrasados: 'Cards atrasados',
+    cardsEmDia: 'Cards em dia',
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-around items-end">
+        {dias.map(dia => (
+          <div key={dia.data} className="flex flex-col items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setAberto(aberto === dia.data ? null : dia.data)}
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-80 transition-opacity"
+              style={{ backgroundColor: dotColor(dia.score) }}
+            >
+              <span className="text-[10px] font-bold text-white leading-none">
+                {dia.score !== null ? `${dia.score}%` : '—'}
+              </span>
+            </button>
+            <span className="text-[10px] text-gray-400">{dayLabel(dia.data)}</span>
+          </div>
+        ))}
+      </div>
+      {aberto && (() => {
+        const dia = dias.find(d => d.data === aberto);
+        if (!dia) return null;
+        return (
+          <div className="bg-gray-50 rounded-lg p-2.5 text-xs flex flex-col gap-1.5 border border-gray-100">
+            <span className="font-semibold text-gray-600 text-[10px] uppercase tracking-wide">
+              {dayLabel(dia.data)} — {dia.score !== null ? `${dia.score}%` : 'Sem dados'}
+            </span>
+            {dia.detalhe && Object.entries(dia.detalhe)
+              .filter(([k]) => k !== 'score')
+              .map(([k, v]) => (
+                <div key={k} className="flex justify-between">
+                  <span className="text-gray-500">{LABEL_MAP[k] ?? k.replace(/_/g, ' ')}</span>
+                  <span className="font-medium tabular-nums">{String(v ?? '—')}</span>
+                </div>
+              ))}
+            {!dia.detalhe && <span className="text-gray-400 text-center">Sem detalhes disponíveis</span>}
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ── Círculos semanais (Indicadores) ───────────────────────────────────────
+function SemanaisCirculos({ semanas }: { semanas: SemanaStatusInd[] }) {
+  const [aberto, setAberto] = useState<string | null>(null);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-around items-end">
+        {semanas.map(sem => (
+          <div key={sem.label} className="flex flex-col items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setAberto(aberto === sem.label ? null : sem.label)}
+              className="w-12 h-12 rounded-full flex items-center justify-center hover:opacity-80 transition-opacity"
+              style={{ backgroundColor: dotColor(sem.score) }}
+            >
+              <span className="text-[10px] font-bold text-white leading-none">
+                {sem.score !== null ? `${sem.score}%` : '—'}
+              </span>
+            </button>
+            <span className="text-[11px] text-gray-500 font-medium">{sem.label}</span>
+          </div>
+        ))}
+      </div>
+      {aberto && (() => {
+        const sem = semanas.find(s => s.label === aberto);
+        if (!sem) return null;
+        if (sem.indicadores.length === 0) return (
+          <div className="bg-gray-50 rounded-lg p-2 text-xs text-gray-400 text-center border border-gray-100">
+            Sem lançamentos para {aberto}
+          </div>
+        );
+        return (
+          <div className="bg-gray-50 rounded-lg p-2.5 text-xs flex flex-col gap-1.5 border border-gray-100">
+            <span className="font-semibold text-gray-600 text-[10px] uppercase tracking-wide">
+              {sem.label} — {sem.score !== null ? `${sem.score}%` : 'Sem dados'}
+            </span>
+            {sem.indicadores.map(ind => (
+              <div key={ind.nome} className="flex justify-between gap-2">
+                <span className="text-gray-500 truncate flex-1">{ind.nome}</span>
+                <span className="font-semibold tabular-nums" style={{ color: dotColor(ind.percentual) }}>
+                  {ind.percentual}%
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ── MeuCarometroCard ──────────────────────────────────────────────────────
 type MeuCarometroCardProps = {
   titulo: string;
   score: number | null;
-  diasDaSemana: DiaStatus[];
+  diasDaSemana?: DiaStatus[];
+  semanasIndicadores?: SemanaStatusInd[];
   tipo: 'sirene' | 'engajamento' | 'indicadores';
   children?: ReactNode;
 };
@@ -47,13 +154,13 @@ export function MeuCarometroCard({
   titulo,
   score,
   diasDaSemana,
+  semanasIndicadores,
   tipo,
   children,
 }: MeuCarometroCardProps) {
   const [expandido, setExpandido] = useState(false);
   const carinhaImg = getCarinhaImg(score);
   const scoreCls   = scoreColor(score);
-  const formula = TOOLTIP_FORMULA[tipo];
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 flex flex-col gap-3">
@@ -80,41 +187,16 @@ export function MeuCarometroCard({
         className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors select-none"
       >
         <span>{expandido ? '▲' : '▼'}</span>
-        <span>Ver por dia</span>
+        <span>{tipo === 'indicadores' ? 'Ver por semana' : 'Ver por dia'}</span>
       </button>
 
       {expandido && (
         <div className="flex flex-col gap-3">
-          {diasDaSemana.length > 0 && (
-            <div className="flex justify-around items-end">
-              {diasDaSemana.map(dia => (
-                <div key={dia.data} className="flex flex-col items-center gap-1 group relative">
-                  {/* Tooltip com fórmula */}
-                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 hidden group-hover:flex flex-col items-center pointer-events-none">
-                    <div className="bg-gray-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap max-w-[180px] text-center leading-tight">
-                      <span className="font-semibold">{dayLabel(dia.data)}</span>
-                      {dia.score !== null ? `: ${dia.score}%` : ': sem dados'}
-                      <br />
-                      <span className="text-gray-300">{formula}</span>
-                    </div>
-                    <div className="w-2 h-2 bg-gray-800 rotate-45 -mt-1" />
-                  </div>
-                  {/* Bolinha 40px com % dentro */}
-                  <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: dotColor(dia.score) }}
-                  >
-                    <span
-                      className="text-xs font-bold leading-none"
-                      style={{ color: dia.score !== null ? '#ffffff' : '#6b7280' }}
-                    >
-                      {dia.score !== null ? `${dia.score}%` : '—'}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-gray-400">{dayLabel(dia.data)}</span>
-                </div>
-              ))}
-            </div>
+          {tipo !== 'indicadores' && diasDaSemana && diasDaSemana.length > 0 && (
+            <DiariosCirculos dias={diasDaSemana} />
+          )}
+          {tipo === 'indicadores' && semanasIndicadores && semanasIndicadores.length > 0 && (
+            <SemanaisCirculos semanas={semanasIndicadores} />
           )}
           {children && (
             <div className="text-xs text-gray-600 flex flex-col gap-1 pt-1 border-t border-gray-50">

@@ -74,8 +74,8 @@ export async function gerarSnapshotCarometro(
     return new Date(prazo) < hoje;
   }).length;
   const sireneScore = topicosArr.length === 0
-    ? 100
-    : Math.max(0, Math.round(((topicosArr.length - sireneAtrasados) / topicosArr.length) * 1000) / 10);
+    ? null
+    : Math.max(0, Math.round(((topicosArr.length - sireneAtrasados) / topicosArr.length) * 100));
 
   const sireneData = {
     atrasados: sireneAtrasados,
@@ -84,28 +84,17 @@ export async function gerarSnapshotCarometro(
     score:     sireneScore,
   };
 
-  // ── Engajamento ────────────────────────────────────────────────────────────
+  // ── Engajamento (remove gantt, usa backlog_atividades_usuario + kanban) ──────
   const cutoffDate = new Date(hoje);
   cutoffDate.setDate(cutoffDate.getDate() - 14);
   const cutoffStr = cutoffDate.toISOString().slice(0, 10);
 
-  const orGantt  = `profile_id.eq.${profileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`;
   const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}},franqueado_id.eq.${profileId}`;
 
-  const [
-    ganttAtrasadasRes, ganttConcluidasRes, ganttPlanejdasRes,
-    kanbanAbertosRes, kanbanConcluidosRes,
-  ] = await Promise.all([
-    // Atrasadas: qualquer semana passada não concluída (sem janela artificial de 2 semanas)
-    db.from('gantt_planejamento').select('id')
-      .or(orGantt).is('data_conclusao_real', null)
-      .lt('semana_ano_fim', semana),
-    // Concluídas: filtrar pela data real de conclusão nos últimos 14 dias
-    db.from('gantt_planejamento').select('id')
-      .or(orGantt).not('data_conclusao_real', 'is', null)
-      .gte('data_conclusao_real', cutoffStr),
-    db.from('gantt_planejamento').select('id')
-      .or(orGantt).is('data_conclusao_real', null).gte('semana_ano_fim', semana),
+  const [atividadesEngRes, kanbanAbertosRes, kanbanConcluidosRes] = await Promise.all([
+    db.from('backlog_atividades_usuario')
+      .select('acao_id, acoes(id, prazo)')
+      .eq('profile_id', profileId),
     db.from('kanban_cards')
       .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
       .or(orKanban).eq('arquivado', false).eq('concluido', false),
@@ -114,9 +103,14 @@ export async function gerarSnapshotCarometro(
       .gte('concluido_em', cutoffStr),
   ]);
 
-  const atividadesAtrasadas  = ganttAtrasadasRes.data?.length  ?? 0;
-  const atividadesConcluidas = ganttConcluidasRes.data?.length ?? 0;
-  const atividadesPlanejadas = ganttPlanejdasRes.data?.length  ?? 0;
+  type AcaoEngRaw = { id: string; prazo: string | null };
+  type BauEngRow  = { acao_id: string; acoes: AcaoEngRaw | AcaoEngRaw[] | null };
+  const acoesEng: AcaoEngRaw[] = ((atividadesEngRes.data ?? []) as BauEngRow[])
+    .map(r => (Array.isArray(r.acoes) ? r.acoes[0] : r.acoes))
+    .filter((a): a is AcaoEngRaw => a != null);
+
+  const atividadesAtrasadas  = acoesEng.filter(a => a.prazo && a.prazo < hojeStr).length;
+  const atividadesEmDia      = acoesEng.filter(a => a.prazo && a.prazo >= hojeStr).length;
   const cardsConcluidos      = kanbanConcluidosRes.data?.length ?? 0;
 
   type FaseKanban = { sla_dias: number | null; sla_tipo: string | null; slug: string | null };
@@ -137,25 +131,16 @@ export async function gerarSnapshotCarometro(
       faseSlug:        fase?.slug     ?? null,
     }).status === 'atrasado';
   }).length;
-  const cardsAbertos = kanbanArr.length - cardsAtrasados;
+  const cardsEmDia = kanbanArr.length - cardsAtrasados;
+  const cardsAbertos = kanbanArr.length;
 
-  const engNumerador   = atividadesConcluidas + cardsConcluidos;
-  const engDenominador = engNumerador + atividadesAtrasadas + cardsAtrasados;
-  const engScore = engDenominador === 0
-    ? null
-    : Math.max(0, Math.round((engNumerador / engDenominador) * 1000) / 10);
+  const totalEng  = (atividadesAtrasadas + atividadesEmDia) + cardsAbertos;
+  const emDiaEng  = atividadesEmDia + cardsEmDia;
+  const engScore  = totalEng === 0 ? null : Math.max(0, Math.round((emDiaEng / totalEng) * 100));
 
   const engajamentoData = {
-    atividades: {
-      concluidas: atividadesConcluidas,
-      atrasadas:  atividadesAtrasadas,
-      planejadas: atividadesPlanejadas,
-    },
-    cards: {
-      concluidos: cardsConcluidos,
-      atrasados:  cardsAtrasados,
-      abertos:    cardsAbertos,
-    },
+    atividades: { atrasadas: atividadesAtrasadas, emDia: atividadesEmDia },
+    cards: { concluidos: cardsConcluidos, atrasados: cardsAtrasados, abertos: cardsAbertos, emDia: cardsEmDia },
     score: engScore,
   };
 

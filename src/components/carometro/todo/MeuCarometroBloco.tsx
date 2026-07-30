@@ -11,7 +11,7 @@ export function MeuCarometroBloco() {
     indicadores,
     diasSirene,
     diasEngajamento,
-    diasIndicadores,
+    semanasIndicadores,
     semanaAtual,
     isLoading,
     error,
@@ -76,8 +76,10 @@ export function MeuCarometroBloco() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Ativ. planejadas</span>
-                    <span className="font-medium">{engajamento.acumuladoDias}</span>
+                    <span className="text-gray-500">Ativ. em dia</span>
+                    <span className="font-medium" style={{ color: engajamento.atividadesEmDia > 0 ? '#16a34a' : undefined }}>
+                      {engajamento.atividadesEmDia}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Cards atrasados</span>
@@ -86,8 +88,10 @@ export function MeuCarometroBloco() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Cards abertos</span>
-                    <span className="font-medium">{engajamento.cards.abertos}</span>
+                    <span className="text-gray-500">Cards em dia</span>
+                    <span className="font-medium" style={{ color: engajamento.cards.emDia > 0 ? '#16a34a' : undefined }}>
+                      {engajamento.cards.emDia}
+                    </span>
                   </div>
                 </>
               )}
@@ -97,7 +101,7 @@ export function MeuCarometroBloco() {
             <MeuCarometroCard
               titulo="Indicadores"
               score={indicadores?.media ?? null}
-              diasDaSemana={diasIndicadores}
+              semanasIndicadores={semanasIndicadores}
               tipo="indicadores"
             >
               {indicadores && indicadores.porIndicador.length > 0 ? (
@@ -115,16 +119,20 @@ export function MeuCarometroBloco() {
 
           <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-gray-500">
             <span className="flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-600" />
-              &lt;35% Vermelho
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-700" />
+              ≥75% Verde escuro
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />
+              60–74% Verde claro
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-600" />
-              35–65% Amarelo
+              30–59% Amarelo
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-700" />
-              &gt;65% Verde
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-600" />
+              &lt;30% Vermelho
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300" />

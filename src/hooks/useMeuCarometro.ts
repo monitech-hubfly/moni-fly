@@ -9,6 +9,14 @@ import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
 export type DiaStatus = {
   data: string;
   score: number | null;
+  detalhe?: Record<string, number | string | null>;
+};
+
+export type SemanaStatusInd = {
+  label: string;
+  semana: number;
+  score: number | null;
+  indicadores: Array<{ nome: string; valor: string | null; percentual: number }>;
 };
 
 export type SireneSnapshot = {
@@ -20,8 +28,8 @@ export type SireneSnapshot = {
 
 export type EngajamentoSnapshot = {
   atividadesAtrasadas: number;
-  acumuladoDias: number;
-  cards: { atrasados: number; abertos: number };
+  atividadesEmDia: number;
+  cards: { atrasados: number; abertos: number; emDia: number };
   score: number | null;
 };
 
@@ -43,7 +51,7 @@ export type UseMeuCarometroResult = {
   indicadores: IndicadoresSnapshot | null;
   diasSirene: DiaStatus[];
   diasEngajamento: DiaStatus[];
-  diasIndicadores: DiaStatus[];
+  semanasIndicadores: SemanaStatusInd[];
   semanaAtual: number;
   isLoading: boolean;
   error: string | null;
@@ -107,7 +115,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
   const [indicadores, setIndicadores] = useState<IndicadoresSnapshot | null>(null);
   const [diasSirene, setDiasSirene] = useState<DiaStatus[]>([]);
   const [diasEngajamento, setDiasEngajamento] = useState<DiaStatus[]>([]);
-  const [diasIndicadores, setDiasIndicadores] = useState<DiaStatus[]>([]);
+  const [semanasIndicadores, setSemanasIndicadores] = useState<SemanaStatusInd[]>([]);
   const [semanaAtual, setSemanaAtual] = useState<number>(() => isoWeek(new Date()));
   const callIdRef = useRef(0);
 
@@ -182,7 +190,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       // Score: % de abertos que estão no prazo (abertos - atrasados) / abertos
       const sireneScore =
         topicosArr.length === 0
-          ? 100
+          ? null
           : Math.max(0, Math.round(((topicosArr.length - topicosAtrasados) / topicosArr.length) * 100));
 
       const sireneRuntime: SireneSnapshot = {
@@ -192,84 +200,64 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         score:     sireneScore,
       };
 
-      // ── Engajamento (Atividades Planejadas + Cards/Kanban) ───────────────────
+      // ── Engajamento ─────────────────────────────────────────────────────────────
       let engajamentoRuntime: EngajamentoSnapshot = {
         atividadesAtrasadas: 0,
-        acumuladoDias: 0,
-        cards: { atrasados: 0, abertos: 0 },
+        atividadesEmDia: 0,
+        cards: { atrasados: 0, abertos: 0, emDia: 0 },
         score: null,
       };
 
       {
-        // Atividades Planejadas (gantt_planejamento) — janela ±4 semanas + semana atual
-        const semanaJanela = [
-          semana - 4, semana - 3, semana - 2, semana - 1,
-          semana, semana + 1, semana + 2,
-        ];
-        const ganttQuery = supabase
-          .from('gantt_planejamento')
-          .select('id, semana_ano_inicio, semana_ano_fim, semanas_selecionadas')
-          .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
-          .is('data_conclusao_real', null)
-          .overlaps('semanas_selecionadas', semanaJanela);
+        const [atividadesRes, kanbanRes] = await Promise.all([
+          supabase
+            .from('backlog_atividades_usuario')
+            .select('acao_id, acoes(id, prazo)')
+            .eq('profile_id', effectiveProfileId),
+          supabase
+            .from('kanban_cards')
+            .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
+            .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+            .eq('arquivado', false)
+            .eq('concluido', false),
+        ]);
 
-        // Cards/Kanban abertos — inclui campos de SLA para cálculo correto
-        const kanbanQuery = supabase
-          .from('kanban_cards')
-          .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
-          .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
-          .eq('arquivado', false)
-          .eq('concluido', false);
+        type AcaoRaw = { id: string; prazo: string | null };
+        type BauRow  = { acao_id: string; acoes: AcaoRaw | AcaoRaw[] | null };
+        const acoes: AcaoRaw[] = ((atividadesRes.data ?? []) as BauRow[])
+          .map(r => (Array.isArray(r.acoes) ? r.acoes[0] : r.acoes))
+          .filter((a): a is AcaoRaw => a != null);
 
-        const [ganttRes, kanbanRes] = await Promise.all([ganttQuery, kanbanQuery]);
+        const atividadesAtrasadas = acoes.filter(a => a.prazo && a.prazo < hojeStr).length;
+        const atividadesEmDia     = acoes.filter(a => a.prazo && a.prazo >= hojeStr).length;
 
-        const ganttArr = ganttRes.data ?? [];
         const kanbanArr = (kanbanRes.data ?? []) as Array<{
-          id: string;
-          created_at: string;
-          entered_fase_at: string | null;
+          id: string; created_at: string; entered_fase_at: string | null;
           sla_iniciado_em: string | null;
           fase: { sla_dias: number | null; sla_tipo: string | null; slug: string | null } | Array<{ sla_dias: number | null; sla_tipo: string | null; slug: string | null }> | null;
         }>;
 
-        // Atividades atrasadas: semana_ano_fim < semana atual (sem conclusão)
-        const atividadesAtrasadas = ganttArr.filter(g => {
-          const sf = g.semana_ano_fim ?? (
-            Array.isArray(g.semanas_selecionadas) && g.semanas_selecionadas.length
-              ? Math.max(...(g.semanas_selecionadas as number[]))
-              : null
-          );
-          return sf != null && Number(sf) < semana;
-        }).length;
-
-        // Cards atrasados: usa mesmo cálculo de SLA do BacklogKanban
         const cardsAtrasados = kanbanArr.filter(c => {
           const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
-          const sla = calcularSlaKanbanCard({
+          return calcularSlaKanbanCard({
             created_at: c.created_at,
             entered_fase_at: c.entered_fase_at,
             sla_iniciado_em: c.sla_iniciado_em,
             sla_dias: fase?.sla_dias ?? null,
             sla_tipo: fase?.sla_tipo ?? null,
             faseSlug: fase?.slug ?? null,
-          });
-          return sla.status === 'atrasado';
+          }).status === 'atrasado';
         }).length;
 
-        const totalAtiv   = ganttArr.length;
-        const totalCards  = kanbanArr.length;
-        const totalGeral  = totalAtiv + totalCards;
-        const totalAtrasados = atividadesAtrasadas + cardsAtrasados;
-
-        const engScore = totalGeral === 0
-          ? null
-          : Math.max(0, Math.round(((totalGeral - totalAtrasados) / totalGeral) * 100));
+        const cardsEmDia = kanbanArr.length - cardsAtrasados;
+        const totalScore = (atividadesAtrasadas + atividadesEmDia) + kanbanArr.length;
+        const emDiaTotal = atividadesEmDia + cardsEmDia;
 
         engajamentoRuntime = {
           atividadesAtrasadas,
-          acumuladoDias: totalAtiv,
-          cards: { atrasados: cardsAtrasados, abertos: totalCards },
-          score: engScore,
+          atividadesEmDia,
+          cards: { atrasados: cardsAtrasados, abertos: kanbanArr.length, emDia: cardsEmDia },
+          score: totalScore === 0 ? null : Math.max(0, Math.round((emDiaTotal / totalScore) * 100)),
         };
       }
 
@@ -341,24 +329,75 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         snapKey: 'sirene' | 'engajamento' | 'indicadores',
         scoreField: string,
         runtimeScore: number | null,
+        runtimeDetalhe?: Record<string, number | string | null>,
       ): DiaStatus[] =>
         diasSemana.map(data => {
           const snap = snapshotMap.get(data);
           if (snap?.[snapKey]) {
             const s = snap[snapKey] as Record<string, unknown>;
-            return { data, score: typeof s[scoreField] === 'number' ? (s[scoreField] as number) : null };
+            const score = typeof s[scoreField] === 'number' ? (s[scoreField] as number) : null;
+            // flatten detalhe from nested snapshot structure
+            const detalhe: Record<string, number | string | null> = {};
+            for (const [k, v] of Object.entries(s)) {
+              if (k === scoreField) continue;
+              if (typeof v === 'number' || typeof v === 'string' || v === null) detalhe[k] = v;
+              else if (typeof v === 'object' && v !== null) {
+                for (const [k2, v2] of Object.entries(v as Record<string, unknown>)) {
+                  if (typeof v2 === 'number' || typeof v2 === 'string' || v2 === null) {
+                    detalhe[`${k}_${k2}`] = v2;
+                  }
+                }
+              }
+            }
+            return { data, score, detalhe };
           }
-          if (data === hojeStr) return { data, score: runtimeScore };
+          if (data === hojeStr) return { data, score: runtimeScore, detalhe: runtimeDetalhe };
           return { data, score: null };
         });
+
+      // Weekly indicadores: S-1 and S-atual
+      const semAnteriorInd = semana > 1 ? semana - 1 : 52;
+      const snapPrevWeek = [...snapshotMap.values()].find(s => isoWeek(new Date(s.data + 'T12:00:00')) === semAnteriorInd);
+      type IndSnapData = { porMeta?: Array<{ descricao: string; score: number }>; media?: number | null };
+      const indSnapPrev = snapPrevWeek?.indicadores as IndSnapData | null;
 
       if (callId !== callIdRef.current) return;
       setSirene(sireneRuntime);
       setEngajamento(engajamentoRuntime);
       setIndicadores(indicadoresRuntime);
-      setDiasSirene(buildDias('sirene', 'score', sireneScore));
-      setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score));
-      setDiasIndicadores(buildDias('indicadores', 'media', indicadoresRuntime.media));
+      setDiasSirene(buildDias('sirene', 'score', sireneScore, {
+        atrasados: topicosAtrasados,
+        abertos:   topicosArr.length,
+        semPrazo:  topicosSemPrazo,
+      }));
+      setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score, {
+        atividadesAtrasadas: engajamentoRuntime.atividadesAtrasadas,
+        atividadesEmDia:     engajamentoRuntime.atividadesEmDia,
+        cardsAtrasados:      engajamentoRuntime.cards.atrasados,
+        cardsEmDia:          engajamentoRuntime.cards.emDia,
+      }));
+      setSemanasIndicadores([
+        {
+          label:       `S${String(semAnteriorInd).padStart(2, '0')}`,
+          semana:      semAnteriorInd,
+          score:       indSnapPrev?.media ?? null,
+          indicadores: (indSnapPrev?.porMeta ?? []).map(m => ({
+            nome:       m.descricao,
+            valor:      null,
+            percentual: m.score,
+          })),
+        },
+        {
+          label:       `S${String(semana).padStart(2, '0')}`,
+          semana:      semana,
+          score:       indicadoresRuntime.media,
+          indicadores: indicadoresRuntime.porIndicador.map(i => ({
+            nome:       i.nome,
+            valor:      String(i.valor),
+            percentual: i.percentual,
+          })),
+        },
+      ]);
     } catch (e) {
       if (callId !== callIdRef.current) return;
       setError(e instanceof Error ? e.message : String(e));
@@ -375,7 +414,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
     indicadores,
     diasSirene,
     diasEngajamento,
-    diasIndicadores,
+    semanasIndicadores,
     semanaAtual,
     isLoading,
     error,

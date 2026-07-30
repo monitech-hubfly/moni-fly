@@ -79,7 +79,7 @@ type HiddenState = { tarefas: string[]; acoes: string[] };
 
 function NovaAtividadeDrawer({ areaId, onFechar, onSaved, ativoIds, onAtivar }: {
   areaId: string | null; onFechar: () => void; onSaved?: () => void;
-  ativoIds?: Set<string>; onAtivar?: (id: string) => void;
+  ativoIds?: Set<string>; onAtivar?: (id: string) => Promise<void> | void;
 }) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -622,48 +622,9 @@ type BacklogBlocoProps = {
 };
 
 export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
-  const { sirene, pastelaria, atividades, isLoading, error, recarregar } = useBacklog();
+  const { sirene, pastelaria, atividades, ativoIds, isLoading, error, recarregar, ativar, desativar } = useBacklog();
   const { areaId } = useEffectiveUser();
-  const supabase = useMemo(() => createClient(), []);
   const [drawerAberto, setDrawerAberto] = useState(false);
-
-  // ── Ativo: quais acoes este usuário quer ver no backlog ────────────────────
-  const [userId,   setUserId]   = useState<string | null>(null);
-  const [ativoIds, setAtivoIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    void supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      setUserId(user.id);
-      try {
-        const raw = JSON.parse(localStorage.getItem(`backlog_ativo_${user.id}`) ?? '[]') as string[];
-        setAtivoIds(new Set(raw));
-      } catch { /* ignore */ }
-    });
-  }, [supabase]);
-
-  const salvarAtivo = (next: Set<string>, uid: string | null) => {
-    if (!uid) return;
-    localStorage.setItem(`backlog_ativo_${uid}`, JSON.stringify([...next]));
-  };
-
-  const handleAtivar = (id: string) => {
-    setAtivoIds(prev => {
-      const next = new Set(prev);
-      next.add(id);
-      salvarAtivo(next, userId);
-      return next;
-    });
-  };
-
-  const handleDesativar = (id: string) => {
-    setAtivoIds(prev => {
-      const next = new Set(prev);
-      next.delete(id);
-      salvarAtivo(next, userId);
-      return next;
-    });
-  };
 
   // Apenas acoes que o usuário ativou
   const atividadesAtivas = atividades.filter(i => ativoIds.has(i.id));
@@ -738,7 +699,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
             </div>
             <ColunaAtividades
               items={atividadesAtivas}
-              onDesativar={handleDesativar}
+              onDesativar={desativar}
             />
           </div>
 
@@ -753,7 +714,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
           onFechar={() => setDrawerAberto(false)}
           onSaved={recarregar}
           ativoIds={ativoIds}
-          onAtivar={handleAtivar}
+          onAtivar={ativar}
         />
       )}
     </section>
