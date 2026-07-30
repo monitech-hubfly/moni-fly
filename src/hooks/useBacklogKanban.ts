@@ -218,16 +218,21 @@ export function useBacklogKanban(refreshKey = 0) {
         ((tagCardsRes.data ?? []) as Array<{ card_id: string }>).map(r => r.card_id),
       );
 
-      // card_id → item_id (somente respostas de itens responsavel válidos)
-      const cardItemMap = new Map<string, string>();
+      // card_id → item_ids[] (todas as respostas de itens responsavel válidos para o card)
+      // Usa lista em vez de valor único para evitar overwrite: se o card tem entradas
+      // em múltiplas fases (atual + históricas), o .set() simples descartaria a atual
+      // caso a histórica viesse depois no array, excluindo o card erroneamente.
+      const cardItemsMap = new Map<string, string[]>();
       for (const r of minhasRespostas) {
         if (validItemFaseMap.has(r.item_id)) {
-          cardItemMap.set(r.card_id, r.item_id);
+          const list = cardItemsMap.get(r.card_id) ?? [];
+          list.push(r.item_id);
+          cardItemsMap.set(r.card_id, list);
         }
       }
 
       // ── Round 3: detalhes dos cards explícitos + overrides (paralelo) ──────
-      const explicitIds = [...cardItemMap.keys()];
+      const explicitIds = [...cardItemsMap.keys()];
       const [explicitCardsRes, overrideRes] = await Promise.all([
         explicitIds.length > 0
           ? supabase
@@ -276,12 +281,12 @@ export function useBacklogKanban(refreshKey = 0) {
 
       const mapa = new Map<string, KanbanCardItem>();
 
-      // Explícitos: só incluir se item.fase_id === card.fase_id (fase atual)
+      // Explícitos: só incluir se ao menos UM dos item_ids pertence à fase atual do card
       explicitCards.forEach(card => {
-        const itemId    = cardItemMap.get(card.id);
-        if (!itemId) return;
-        const itemFaseId = validItemFaseMap.get(itemId);
-        if (itemFaseId !== card.fase_id) return; // entrada histórica → ignorar
+        const itemIds = cardItemsMap.get(card.id);
+        if (!itemIds?.length) return;
+        const temFaseAtual = itemIds.some(id => validItemFaseMap.get(id) === card.fase_id);
+        if (!temFaseAtual) return; // só entradas históricas → ignorar
         mapa.set(card.id, toItem(card));
       });
 
