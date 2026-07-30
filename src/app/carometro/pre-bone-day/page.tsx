@@ -606,13 +606,15 @@ const META_CORES = [
   { bg: '#e0f2fe', border: '#7dd3fc', text: '#075985' },
 ];
 
-function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas, isAdmin, mes, areaId, onAdd, onDelete, onAddLivre }: {
+function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas, isAdmin, currentUserId, mes, areaId, onAdd, onDelete, onAddLivre }: {
   pessoa: ResponsavelItem; comportamentos: ComportamentoItem[]; metas: MetaItem[];
-  atividades: AgendaMacroItem[]; semanas: number[]; isAdmin: boolean; mes: string; areaId: string;
+  atividades: AgendaMacroItem[]; semanas: number[]; isAdmin: boolean; currentUserId: string | null; mes: string; areaId: string;
   onAdd: (profileId: string, acoId: string, semana: number, horas: number, objetivoId: string | null) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onAddLivre: (profileId: string, nome: string, semana: number, horas: number, objetivoId: string | null) => Promise<void>;
 }) {
+  // Pode editar: admin pode qualquer card; usuário comum pode apenas o próprio
+  const podeEditar = isAdmin || currentUserId === pessoa.profile_id;
   const [expandido,          setExpandido]          = useState(true);
   const [celAtiva,           setCelAtiva]           = useState<CelulaKey | null>(null);
   const [novaComportamentoId, setNovaComportamentoId] = useState('');
@@ -783,7 +785,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
                               style={cor ? { color: cor.text } : { color: '#374151' }}>
                               {atv.tempo_estimado_horas ? `${atv.tempo_estimado_horas}h` : '—'}
                             </span>
-                            {isAdmin && (
+                            {podeEditar && (
                               <button type="button" onClick={() => onDelete(atv.id)}
                                 className="text-red-400 hover:text-red-600 text-[10px]">✕</button>
                             )}
@@ -791,7 +793,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
                         </td>
                       );
                     }
-                    if (isAdmin) {
+                    if (podeEditar) {
                       return (
                         <td key={sem} className="px-2 py-1.5 text-center">
                           {celAtiva === key ? (
@@ -848,7 +850,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
                                 style={cor ? { color: cor.text } : { color: '#374151' }}>
                                 {atv.tempo_estimado_horas ? `${atv.tempo_estimado_horas}h` : '—'}
                               </span>
-                              {isAdmin && (
+                              {podeEditar && (
                                 <button type="button" onClick={() => onDelete(atv.id)}
                                   className="text-red-400 hover:text-red-600 text-[10px]">✕</button>
                               )}
@@ -862,7 +864,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
                 );
               })}
 
-              {isAdmin && (
+              {podeEditar && (
                 <tr>
                   <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-400 border-r border-gray-100 text-[11px] italic">
                     + nova atividade
@@ -1260,7 +1262,7 @@ function PreBoneDayPageContent() {
                     <AgendaMacroPessoa
                       key={p.profile_id} pessoa={p} comportamentos={comportamentos}
                       metas={metas} atividades={agendaMacro} semanas={semanas}
-                      isAdmin={Boolean(isAdmin)} mes={mes} areaId={areaId ?? ''}
+                      isAdmin={Boolean(isAdmin)} currentUserId={currentUserId} mes={mes} areaId={areaId ?? ''}
                       onAdd={handleAddAtividade} onDelete={handleDeleteAtividade}
                       onAddLivre={handleAddAtividadeLivre}
                     />
