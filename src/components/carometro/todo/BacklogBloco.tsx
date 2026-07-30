@@ -10,6 +10,7 @@ import { BacklogKanbanColuna } from './BacklogKanbanColuna';
 import { createClient } from '@/lib/supabase/client';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 // sem_prazo = 0 (mais crítico — sem data definida = urgente)
 const STATUS_ORDER: Record<StatusPrazo, number> = {
@@ -471,62 +472,108 @@ function NovaAtividadeDrawer({ areaId, onFechar, onSaved, ativoIds, onAtivar }: 
 }
 
 // ── Sirene ───────────────────────────────────────────────────────────────────
-type ColunaSireneProps = { items: SireneItem[]; pastelariaItems?: PastelariaItem[] };
-function ColunaSirene({ items, pastelariaItems = [] }: ColunaSireneProps) {
+type ColunaSireneProps = {
+  items: SireneItem[];
+  pastelariaItems?: PastelariaItem[];
+  onArquivarPastelaria?: (id: string) => Promise<void>;
+};
+function ColunaSirene({ items, pastelariaItems = [], onArquivarPastelaria }: ColunaSireneProps) {
+  const [pastelariaAberta, setPastelariaAberta] = useState(false);
+  const [confirmPastelaria, setConfirmPastelaria] = useState<{ id: string; nome: string } | null>(null);
+
   const comStatus = items
     .map(i => ({ item: i, status: statusSirene(i) }))
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
 
-  const total = comStatus.length + pastelariaItems.length;
-
   return (
-    <div className={`flex flex-col gap-1.5 ${total > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
-      {total === 0 && <EmptyState />}
-      {comStatus.map(({ item, status }) => {
-        const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
-        return (
-          <DraggableSirene
-            key={item.id}
-            dragId={`sirene::${item.id}`}
-            dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
-          >
-            <BacklogColunaCard
-              tipo="sirene"
-              titulo={tituloExibir}
-              prazo={item.data_fim ?? item.prazo_proposto}
-              prioridade={item.prioridade}
-              numeroChamado={item.chamado_numero}
-              status={status}
-              origemBadge="Sirene"
-              href={
-                item.chamado_id
-                  ? `/sirene/chamados?id=${item.chamado_id}`
-                  : item.card_id
-                    ? hrefAbrirCardKanban(item.card_kanban_nome ?? '', item.card_id)
-                    : undefined
-              }
-              abertoPor={item.aberto_por_nome}
-            />
-          </DraggableSirene>
-        );
-      })}
-      {pastelariaItems.map(item => (
-        <DraggableSirene
-          key={item.id}
-          dragId={`pastelaria::${item.id}`}
-          dragData={{ type: 'pastelaria', id: item.id, titulo: item.nome }}
-        >
-          <BacklogColunaCard
-            tipo="sirene"
-            titulo={item.nome}
-            prazo={null}
-            status={statusPastelaria(item)}
-            origemBadge="Pastelaria"
-            href="/carometro/pastelaria"
-          />
-        </DraggableSirene>
-      ))}
-    </div>
+    <>
+      <div className={`flex flex-col gap-1.5 ${comStatus.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
+        {comStatus.length === 0 && pastelariaItems.length === 0 && <EmptyState />}
+        {comStatus.map(({ item, status }) => {
+          const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
+          return (
+            <DraggableSirene
+              key={item.id}
+              dragId={`sirene::${item.id}`}
+              dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
+            >
+              <BacklogColunaCard
+                tipo="sirene"
+                titulo={tituloExibir}
+                prazo={item.data_fim ?? item.prazo_proposto}
+                prioridade={item.prioridade}
+                numeroChamado={item.chamado_numero}
+                status={status}
+                origemBadge="Sirene"
+                href={
+                  item.chamado_id
+                    ? `/sirene/chamados?id=${item.chamado_id}`
+                    : item.card_id
+                      ? hrefAbrirCardKanban(item.card_kanban_nome ?? '', item.card_id)
+                      : undefined
+                }
+                abertoPor={item.aberto_por_nome}
+              />
+            </DraggableSirene>
+          );
+        })}
+
+        {/* Seção Pastelaria — colapsável */}
+        {pastelariaItems.length > 0 && (
+          <div className="border-t border-gray-100 pt-1.5 mt-0.5">
+            <button
+              type="button"
+              onClick={() => setPastelariaAberta(v => !v)}
+              className="w-full text-left text-[10px] text-gray-400 hover:text-gray-600 flex items-center justify-between py-0.5"
+            >
+              <span>Pastelaria ({pastelariaItems.length})</span>
+              <span>{pastelariaAberta ? '▲' : '▼'}</span>
+            </button>
+            {pastelariaAberta && (
+              <div className="flex flex-col gap-1.5 mt-1.5">
+                {pastelariaItems.map(item => (
+                  <div key={item.id} className="flex items-center gap-1 group">
+                    <div className="flex-1 min-w-0">
+                      <BacklogColunaCard
+                        tipo="sirene"
+                        titulo={item.nome}
+                        prazo={null}
+                        status={statusPastelaria(item)}
+                        origemBadge="Pastelaria"
+                        href="/carometro/pastelaria"
+                      />
+                    </div>
+                    {onArquivarPastelaria && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmPastelaria({ id: item.id, nome: item.nome })}
+                        title="Remover da Pastelaria"
+                        className="opacity-0 group-hover:opacity-100 shrink-0 text-gray-300 hover:text-red-400 text-xs px-1 py-1 transition-opacity"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <ConfirmModal
+        open={!!confirmPastelaria}
+        title="Remover da Pastelaria"
+        description={`Deseja remover "${confirmPastelaria?.nome ?? ''}" do backlog? O item será arquivado.`}
+        confirmLabel="Remover"
+        destructive
+        onConfirm={() => {
+          if (confirmPastelaria) void onArquivarPastelaria?.(confirmPastelaria.id);
+          setConfirmPastelaria(null);
+        }}
+        onClose={() => setConfirmPastelaria(null)}
+      />
+    </>
   );
 }
 
@@ -583,36 +630,55 @@ type ColunaAtividadesProps = {
   onDesativar?: (id: string) => void;
 };
 function ColunaAtividades({ items, onDesativar }: ColunaAtividadesProps) {
+  const [confirmItem, setConfirmItem] = useState<{ id: string; nome: string } | null>(null);
+
   const comStatus = items
     .map(i => ({ item: i, status: statusAtividade(i) }))
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
 
   return (
-    <div className={`flex flex-col gap-1.5 ${items.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
-      {items.length === 0 && <EmptyState />}
-      {comStatus.map(({ item, status }) => (
-        <DraggableAtividade key={item.id} id={item.id}>
-          <div className="relative group">
-            <BacklogColunaCard
-              tipo="atividade"
-              titulo={item.nome}
-              prazo={item.prazo ?? null}
-              status={status}
-            />
-            {onDesativar && (
-              <button
-                type="button"
-                onClick={() => onDesativar(item.id)}
-                title="Remover do backlog"
-                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 text-[10px] px-1 transition-opacity"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </DraggableAtividade>
-      ))}
-    </div>
+    <>
+      <div className={`flex flex-col gap-1.5 ${items.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
+        {items.length === 0 && <EmptyState />}
+        {comStatus.map(({ item, status }) => (
+          <DraggableAtividade key={item.id} id={item.id}>
+            <div className="flex items-center gap-1 group">
+              <div className="flex-1 min-w-0">
+                <BacklogColunaCard
+                  tipo="atividade"
+                  titulo={item.nome}
+                  prazo={item.prazo ?? null}
+                  status={status}
+                />
+              </div>
+              {onDesativar && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmItem({ id: item.id, nome: item.nome })}
+                  title="Remover do backlog"
+                  className="opacity-0 group-hover:opacity-100 shrink-0 text-gray-300 hover:text-red-400 text-xs px-1 py-1 transition-opacity"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </DraggableAtividade>
+        ))}
+      </div>
+
+      <ConfirmModal
+        open={!!confirmItem}
+        title="Remover atividade"
+        description={`Deseja remover "${confirmItem?.nome ?? ''}" do seu backlog?`}
+        confirmLabel="Remover"
+        destructive
+        onConfirm={() => {
+          if (confirmItem) onDesativar?.(confirmItem.id);
+          setConfirmItem(null);
+        }}
+        onClose={() => setConfirmItem(null)}
+      />
+    </>
   );
 }
 
@@ -622,7 +688,7 @@ type BacklogBlocoProps = {
 };
 
 export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
-  const { sirene, pastelaria, atividades, ativoIds, isLoading, error, recarregar, ativar, desativar } = useBacklog();
+  const { sirene, pastelaria, atividades, ativoIds, isLoading, error, recarregar, ativar, desativar, arquivarPastelaria } = useBacklog();
   const { areaId } = useEffectiveUser();
   const [drawerAberto, setDrawerAberto] = useState(false);
 
@@ -669,7 +735,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
                 </span>
               </div>
             </div>
-            <ColunaSirene items={sirene} pastelariaItems={pastelaria} />
+            <ColunaSirene items={sirene} pastelariaItems={pastelaria} onArquivarPastelaria={arquivarPastelaria} />
           </div>
 
           {/* Coluna 2 — Atividades Planejadas */}

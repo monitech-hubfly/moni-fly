@@ -51,6 +51,7 @@ export type UseBacklogResult = {
   recarregar: () => void;
   ativar: (id: string) => Promise<void>;
   desativar: (id: string) => Promise<void>;
+  arquivarPastelaria: (id: string) => Promise<void>;
 };
 
 const ADMIN_EMAIL = 'danilo.n@moni.casa';
@@ -313,7 +314,12 @@ export function useBacklog(): UseBacklogResult {
     setAtivoIds(prev => { const next = new Set(prev); next.delete(id); return next; });
   }, [supabase]);
 
+  const arquivarPastelaria = useCallback(async (id: string) => {
+    await supabase.from('pastelaria_cards').update({ reclassificado: true }).eq('id', id);
+    setPastelaria(prev => prev.filter(p => p.id !== id));
+  }, [supabase]);
+
   useEffect(() => { carregar(); }, [carregar]);
 
-  return { sirene, pastelaria, atividades, ativoIds, isLoading, error, recarregar: carregar, ativar, desativar };
+  return { sirene, pastelaria, atividades, ativoIds, isLoading, error, recarregar: carregar, ativar, desativar, arquivarPastelaria };
 }
