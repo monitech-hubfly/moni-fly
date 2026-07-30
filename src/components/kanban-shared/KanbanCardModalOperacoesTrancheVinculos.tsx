@@ -67,13 +67,13 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const readOnly = !podeGerenciar || cardDesabilitado;
 
-  const carregar = useCallback(async () => {
+  const carregar = useCallback(async (options?: { preserveErro?: boolean }) => {
     if (!cardId) {
       setItems([]);
       return;
     }
     setLoading(true);
-    setErro(null);
+    if (!options?.preserveErro) setErro(null);
     try {
       const res = await listarTrancheVinculosOperacoes(cardId);
       if (!res.ok) {
@@ -83,8 +83,6 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
           setTemPrimeiroCard(false);
           return;
         }
-        // Preset local ainda permite abrir tranches; não exibir banner de erro assustador.
-        setErro(null);
         setItems(itensTrancheVinculoPreset());
         setTemPrimeiroCard(presumePrimeiraTrancheLocal);
         return;
@@ -92,7 +90,6 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
       setItems(res.items);
       setTemPrimeiroCard(res.temPrimeiroCardCreditoObra || presumePrimeiraTrancheLocal);
     } catch {
-      setErro(null);
       setItems(itensTrancheVinculoPreset());
       setTemPrimeiroCard(presumePrimeiraTrancheLocal);
     } finally {
@@ -146,9 +143,9 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
         basePath,
       });
       if (!res.ok) {
-        setErro(res.error);
+        setErro(res.error ?? 'Não foi possível abrir a tranche.');
         if (res.error?.includes('já foi concluído')) {
-          await carregar();
+          await carregar({ preserveErro: true });
         }
         return;
       }
@@ -156,7 +153,12 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
       setItems((prev) =>
         prev.map((i) =>
           i.index === index
-            ? { ...i, status: 'concluido' as const, concluido_em: new Date().toISOString() }
+            ? {
+                ...i,
+                status: 'concluido' as const,
+                concluido_em: new Date().toISOString(),
+                filhoCreditoObraId: res.creditoObraCardId ?? i.filhoCreditoObraId,
+              }
             : i,
         ),
       );
@@ -254,15 +256,15 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
           const trancheNum = trancheNumeroFromIndex(item.index);
           const tagCor = trancheNum ? corTagTrancheCreditoObra(trancheNum) : 'var(--moni-navy-800)';
           const tagTextoCor = trancheNum ? corTextoTagTranche(tagCor) : 'var(--moni-text-inverse)';
-          const desabilitado = readOnly || !temPrimeiroCard || concluido || abrindo;
+          const bloqueado = readOnly || !temPrimeiroCard || concluido || abrindo;
 
           return (
             <li key={item.index}>
               <button
                 type="button"
                 onClick={() => void handleAbrir(item.index)}
-                disabled={desabilitado}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] transition disabled:cursor-default disabled:opacity-60"
+                aria-disabled={bloqueado}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] transition aria-disabled:cursor-default aria-disabled:opacity-60"
                 style={{
                   border: 'var(--moni-border-width) solid var(--moni-border-default)',
                   borderRadius: 'var(--moni-radius-md)',

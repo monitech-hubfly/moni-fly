@@ -455,14 +455,14 @@ export async function abrirTrancheVinculoOperacoes(input: {
   operacoesCardId: string;
   trancheIndex: number;
   basePath?: string;
-}): Promise<ActionResult> {
+}): Promise<ActionResult & { creditoObraCardId?: string }> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
-  const pode = await perfilEhAdminOuTeam(supabase, user.id);
+  const pode = await perfilPodeAbrirTrancheOperacoes(supabase, user.id);
   if (!pode) return { ok: false, error: 'Sem permissão para abrir tranches.' };
 
   const cid = String(input.operacoesCardId ?? '').trim();
@@ -498,21 +498,12 @@ export async function abrirTrancheVinculoOperacoes(input: {
     };
   }
 
-  const { data: paiRow, error: errPai } = await supabase
-    .from('kanban_cards')
-    .select('id, titulo, projeto_id, rede_franqueado_id, fase_id')
-    .eq('id', operacoesId)
-    .maybeSingle();
-
-  if (errPai || !paiRow?.id) {
-    return { ok: false, error: 'Card de Operações não encontrado.' };
-  }
+  const paiRes = await buscarCardOperacoesPai(supabase, operacoesId);
+  if (!paiRes.ok) return paiRes;
+  const paiRow = paiRes.row;
 
   const faseOrigemSlug =
-    (await resolverFaseSlugPorFaseId(
-      supabase,
-      (paiRow as { fase_id?: string | null }).fase_id,
-    )) || 'operacoes';
+    (await resolverFaseSlugPorFaseId(supabase, paiRow.fase_id)) || 'operacoes';
 
   let novoFilhoId: string;
   try {
@@ -520,10 +511,9 @@ export async function abrirTrancheVinculoOperacoes(input: {
       cardPaiId: operacoesId,
       kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA,
       faseDestinoSlug: cfg.faseDestinoSlug,
-      titulo: String((paiRow as { titulo?: string | null }).titulo ?? '').trim() || 'Card',
-      projetoId: String((paiRow as { projeto_id?: string | null }).projeto_id ?? '').trim() || null,
-      redeFranqueadoId:
-        String((paiRow as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim() || null,
+      titulo: String(paiRow.titulo ?? '').trim() || 'Card',
+      projetoId: String(paiRow.projeto_id ?? '').trim() || null,
+      redeFranqueadoId: String(paiRow.rede_franqueado_id ?? '').trim() || null,
       kanbanOrigemSlug: 'operacoes',
       faseOrigemSlug,
       creditoObraTranche: cfg.tagTranche,
@@ -553,16 +543,54 @@ export async function abrirTrancheVinculoOperacoes(input: {
 
   revalidatePath(input.basePath?.trim() || '/operacoes');
   revalidatePath('/funil-credito-obra');
-  return { ok: true };
+  return { ok: true, creditoObraCardId: novoFilhoId };
 }
 
-async function perfilEhAdminOuTeam(
+async function perfilPodeAbrirTrancheOperacoes(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
 ): Promise<boolean> {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
   const role = String((profile as { role?: string } | null)?.role ?? '').toLowerCase();
-  return role === 'admin' || role === 'team';
+  return role === 'admin' || role === 'team' || role === 'consultor' || role === 'supervisor';
+}
+
+async function buscarCardOperacoesPai(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  operacoesId: string,
+): Promise<
+  | {
+      ok: true;
+      row: {
+        id: string;
+        titulo: string | null;
+        projeto_id: string | null;
+        rede_franqueado_id: string | null;
+        fase_id: string | null;
+      };
+    }
+  | { ok: false; error: string }
+> {
+  const selectPai = async (
+    db: TrancheVinculosDbClient,
+  ) =>
+    db
+      .from('kanban_cards')
+      .select('id, titulo, projeto_id, rede_franqueado_id, fase_id')
+      .eq('id', operacoesId)
+      .maybeSingle();
+
+  for (const db of montarDbClientsTrancheVinculos(supabase)) {
+    const { data: paiRow, error: errPai } = await selectPai(db);
+    if (!errPai && paiRow?.id) {
+      return { ok: true, row: paiRow as typeof paiRow & { id: string } };
+    }
+    if (errPai && !erroConsultaTrancheVinculosIgnoravel(errPai)) {
+      return { ok: false, error: errPai.message };
+    }
+  }
+
+  return { ok: false, error: 'Card de Operações não encontrado.' };
 }
 
 /** Slugs usados nos testes / documentação. */
