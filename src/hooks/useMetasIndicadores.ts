@@ -43,6 +43,7 @@ export type IndicadorItemMeta = {
   objetivo_id: string | null;
   profile_id: string | null;
   valorAtual: string | null;
+  valorAnterior: string | null;
   corSemaforo: string | null;
   corHex: string;
   percentual: number | null;
@@ -65,6 +66,8 @@ export type UseMetasIndicadoresResult = {
   responsaveis: ResponsavelItem[];
   objetivoResponsaveis: ObjetivoResponsavel[];
   semanaRelativa: number;
+  semanaAnterior: number;
+  anoRelativo: number;
   isLoading: boolean;
   error: string | null;
   recarregar: () => void;
@@ -82,6 +85,8 @@ export function useMetasIndicadores(
   const [responsaveis,    setResponsaveis]    = useState<ResponsavelItem[]>([]);
   const [objetivoResponsaveis, setObjetivoResponsaveis] = useState<ObjetivoResponsavel[]>([]);
   const [semanaRelativa,  setSemanaRelativa]  = useState(0);
+  const [semanaAnterior,  setSemanaAnterior]  = useState(0);
+  const [anoRelativo,     setAnoRelativo]     = useState(0);
   const [isLoading,       setIsLoading]       = useState(true);
   const [error,           setError]           = useState<string | null>(null);
 
@@ -182,8 +187,10 @@ export function useMetasIndicadores(
       const indArr = (indRes.data ?? []) as IndRow[];
       const indIds = indArr.map(i => i.id);
 
-      const lancMap = new Map<string, string>();
-      let semRel = semana;
+      const lancMap         = new Map<string, string>();
+      const lancMapAnterior = new Map<string, string>();
+      let semRel      = semana;
+      let semAnterior = semana > 1 ? semana - 1 : 52;
       if (indIds.length > 0) {
         const { data: periodo } = await supabase
           .from('periodos')
@@ -195,28 +202,36 @@ export function useMetasIndicadores(
           .limit(1)
           .maybeSingle();
 
-        semRel = periodo
+        semRel      = periodo
           ? isoWeek(new Date((periodo as { data_inicio: string }).data_inicio))
           : semana;
+        semAnterior = semRel > 1 ? semRel - 1 : 52;
 
         const { data: lancs } = await supabase
           .from('indicador_lancamentos')
-          .select('indicador_id, valor')
+          .select('indicador_id, valor, semana')
           .in('indicador_id', indIds)
-          .eq('semana', semRel);
+          .in('semana', [semAnterior, semRel]);
 
-        for (const l of (lancs ?? []) as { indicador_id: string; valor: unknown }[]) {
-          if (!lancMap.has(l.indicador_id)) {
-            lancMap.set(l.indicador_id, String(l.valor ?? ''));
+        for (const l of (lancs ?? []) as { indicador_id: string; valor: unknown; semana: number }[]) {
+          const val = String(l.valor ?? '');
+          if (l.semana === semRel && !lancMap.has(l.indicador_id)) {
+            lancMap.set(l.indicador_id, val);
+          } else if (l.semana === semAnterior && !lancMapAnterior.has(l.indicador_id)) {
+            lancMapAnterior.set(l.indicador_id, val);
           }
         }
       }
+
+      setSemanaAnterior(semAnterior);
+      setAnoRelativo(anoISO);
 
       setSemanaRelativa(semRel);
 
       const indicadoresArr: IndicadorItemMeta[] = indArr
         .map(ind => {
-          const valorAtual = lancMap.get(ind.id) ?? null;
+          const valorAtual    = lancMap.get(ind.id) ?? null;
+          const valorAnterior = lancMapAnterior.get(ind.id) ?? null;
           const farol = valorAtual != null
             ? (statusSemaforoPorValor(ind, valorAtual) as string | null)
             : null;
@@ -229,6 +244,7 @@ export function useMetasIndicadores(
             objetivo_id:     ind.objetivo_id,
             profile_id:      ind.profile_id,
             valorAtual,
+            valorAnterior,
             corSemaforo:     farol,
             corHex:          farol ? (FAROL_COR[farol] ?? '#d1d5db') : '#d1d5db',
             percentual:      farol != null ? (FAROL_SCORE[farol] ?? null) : null,
@@ -263,5 +279,5 @@ export function useMetasIndicadores(
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  return { metas, subMetas, indicadores, responsaveis, objetivoResponsaveis, semanaRelativa, isLoading, error, recarregar: carregar };
+  return { metas, subMetas, indicadores, responsaveis, objetivoResponsaveis, semanaRelativa, semanaAnterior, anoRelativo, isLoading, error, recarregar: carregar };
 }

@@ -8,7 +8,6 @@ import {
   MetaItem, SubMetaItem, IndicadorItemMeta, ResponsavelItem, ObjetivoResponsavel,
 } from '@/hooks/useMetasIndicadores';
 import { registrarLog } from '@/hooks/useAuditLog';
-import { labelSemanaIsoAtual } from '@/utils/metaCiclo';
 import { getMonthOptions } from '@/hooks/usePlanoBoneDay';
 
 // ── Utilitários ────────────────────────────────────────────────────────────────
@@ -27,19 +26,40 @@ function TipoBadge({ tipo }: { tipo: string | null }) {
   );
 }
 
-function BolinhaSemaforo({ corHex }: { corHex: string }) {
-  return <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: corHex }} />;
+// ── Semana → range de datas ───────────────────────────────────────────────────
+function isoWeekToDates(week: number, year: number): { label: string; range: string } {
+  // Jan 4 sempre está na semana 1 do ISO
+  const jan4 = new Date(year, 0, 4);
+  const dow = (jan4.getDay() + 6) % 7; // 0=Seg, 6=Dom
+  const weekStart = new Date(jan4);
+  weekStart.setDate(jan4.getDate() - dow + (week - 1) * 7);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return { label: `S${week}`, range: `${fmt(weekStart)}-${fmt(weekEnd)}` };
 }
 
-// ── Barra de progresso ────────────────────────────────────────────────────────
-function ProgressBar({ indicadores }: { indicadores: IndicadorItemMeta[] }) {
-  const comScore = indicadores.filter(i => i.percentual !== null);
-  if (comScore.length === 0) return <div className="h-1.5 bg-gray-200 rounded-full" />;
-  const avg = Math.round(comScore.reduce((s, i) => s + (i.percentual ?? 0), 0) / comScore.length);
-  const cor = avg > 65 ? '#22c55e' : avg >= 35 ? '#f59e0b' : '#ef4444';
+// ── Faixas legend ─────────────────────────────────────────────────────────────
+type FaixaItem = { cor: string; limite: string; comparacao: string };
+
+const FAROL_HEX: Record<string, string> = {
+  ve: '#1e7a3a', vc: '#52b36f', am: '#f2c94c', vm: '#d24141',
+};
+const COMP: Record<string, string> = {
+  gte: '≥', lte: '≤', gt: '>', lt: '<', eq: '=',
+};
+
+function FaixasLegenda({ faixas }: { faixas: FaixaItem[] }) {
+  if (!faixas.length) return null;
   return (
-    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden" title={`${avg}% médio`}>
-      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${avg}%`, backgroundColor: cor }} />
+    <div className="flex items-center gap-2 flex-wrap">
+      {faixas.map((f, i) => (
+        <span key={i} className="flex items-center gap-0.5 text-[9px] text-gray-500">
+          <span className="w-2 h-2 rounded-full inline-block flex-shrink-0"
+            style={{ backgroundColor: FAROL_HEX[f.cor] ?? '#d1d5db' }} />
+          {COMP[f.comparacao] ?? f.comparacao}{f.limite}
+        </span>
+      ))}
     </div>
   );
 }
@@ -88,7 +108,6 @@ function MetaForm({ inicial, responsaveis, onSalvar, onCancelar, salvando, label
           <option value="atingivel">Atingível</option>
           <option value="recorrente">Recorrente</option>
         </select>
-        {/* Prazo: date picker só para atingível; recorrente não tem prazo */}
         {f.tipo === 'atingivel' && (
           <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5"
             value={f.metaUnidade} onChange={e => set('metaUnidade', e.target.value)} />
@@ -240,37 +259,49 @@ function SubMetaEditavel({ sub, onSalvo, onExcluir }: {
 }
 
 // ── Linha de indicador ────────────────────────────────────────────────────────
-type FaixaItem = { cor: string; limite: string; comparacao: string };
-
-function IndicadorLinha({ ind, podeEditar, isAdmin, onLancar, onEditarIndicador, onExcluirIndicador }: {
+function IndicadorLinha({ ind, podeEditar, isAdmin, semanaAtual, semanaAnterior, anoRelativo, onLancar, onEditarIndicador, onExcluirIndicador }: {
   ind: IndicadorItemMeta;
   podeEditar: boolean;
   isAdmin: boolean;
-  onLancar: (indId: string, valor: string) => Promise<void>;
+  semanaAtual: number;
+  semanaAnterior: number;
+  anoRelativo: number;
+  onLancar: (indId: string, valor: string, semana: number) => Promise<void>;
   onEditarIndicador: (id: string, nome: string) => Promise<void>;
   onExcluirIndicador: (id: string) => Promise<void>;
 }) {
-  const [editandoLanc,  setEditandoLanc]  = useState(false);
-  const [valorEdit,     setValorEdit]     = useState(ind.valorAtual ?? '');
-  const [salvandoLanc,  setSalvandoLanc]  = useState(false);
-  const [editandoNome,  setEditandoNome]  = useState(false);
-  const [nomeEdit,      setNomeEdit]      = useState(ind.nome);
-  const [salvandoNome,  setSalvandoNome]  = useState(false);
-  const [confirmExcl,   setConfirmExcl]   = useState(false);
-  const [salvandoExcl,  setSalvandoExcl]  = useState(false);
+  const [editandoAtual,     setEditandoAtual]     = useState(false);
+  const [valorEditAtual,    setValorEditAtual]     = useState(ind.valorAtual ?? '');
+  const [salvandoAtual,     setSalvandoAtual]      = useState(false);
+  const [editandoAnterior,  setEditandoAnterior]   = useState(false);
+  const [valorEditAnterior, setValorEditAnterior]  = useState(ind.valorAnterior ?? '');
+  const [salvandoAnterior,  setSalvandoAnterior]   = useState(false);
+  const [editandoNome,      setEditandoNome]       = useState(false);
+  const [nomeEdit,          setNomeEdit]           = useState(ind.nome);
+  const [salvandoNome,      setSalvandoNome]       = useState(false);
+  const [confirmExcl,       setConfirmExcl]        = useState(false);
+  const [salvandoExcl,      setSalvandoExcl]       = useState(false);
 
   const faixas = (ind.semaforo_faixas as { faixas?: FaixaItem[] } | null)?.faixas ?? [];
   const isEq   = faixas.length > 0 && faixas.every(f => f.comparacao === 'eq');
-  const concluido = ind.corSemaforo === 've' && ind.tipo === 'atingivel';
 
-  const handleLancar = async () => {
-    if (!valorEdit.trim()) { setEditandoLanc(false); return; }
-    setSalvandoLanc(true);
-    await onLancar(ind.id, valorEdit.trim());
-    setSalvandoLanc(false);
-    setEditandoLanc(false);
+  const infoAtual    = anoRelativo > 0 ? isoWeekToDates(semanaAtual, anoRelativo)    : { label: `S${semanaAtual}`,    range: '' };
+  const infoAnterior = anoRelativo > 0 ? isoWeekToDates(semanaAnterior, anoRelativo) : { label: `S${semanaAnterior}`, range: '' };
+
+  const handleLancarAtual = async () => {
+    if (!valorEditAtual.trim()) { setEditandoAtual(false); return; }
+    setSalvandoAtual(true);
+    await onLancar(ind.id, valorEditAtual.trim(), semanaAtual);
+    setSalvandoAtual(false);
+    setEditandoAtual(false);
   };
-
+  const handleLancarAnterior = async () => {
+    if (!valorEditAnterior.trim()) { setEditandoAnterior(false); return; }
+    setSalvandoAnterior(true);
+    await onLancar(ind.id, valorEditAnterior.trim(), semanaAnterior);
+    setSalvandoAnterior(false);
+    setEditandoAnterior(false);
+  };
   const handleSalvarNome = async () => {
     if (!nomeEdit.trim() || nomeEdit === ind.nome) { setEditandoNome(false); return; }
     setSalvandoNome(true);
@@ -278,7 +309,6 @@ function IndicadorLinha({ ind, podeEditar, isAdmin, onLancar, onEditarIndicador,
     setSalvandoNome(false);
     setEditandoNome(false);
   };
-
   const handleExcluir = async () => {
     setSalvandoExcl(true);
     await onExcluirIndicador(ind.id);
@@ -287,7 +317,7 @@ function IndicadorLinha({ ind, podeEditar, isAdmin, onLancar, onEditarIndicador,
 
   if (editandoNome) {
     return (
-      <div className="flex items-center gap-2 px-2 py-1 rounded bg-gray-50 border border-blue-200">
+      <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-gray-50 border border-blue-200">
         <input className="flex-1 text-xs border border-blue-300 rounded px-1.5 py-0.5 focus:outline-none"
           value={nomeEdit} onChange={e => setNomeEdit(e.target.value)}
           onBlur={handleSalvarNome}
@@ -300,7 +330,7 @@ function IndicadorLinha({ ind, podeEditar, isAdmin, onLancar, onEditarIndicador,
 
   if (confirmExcl) {
     return (
-      <div className="flex items-center gap-2 px-2 py-1 rounded bg-red-50 border border-red-100 text-xs text-red-600">
+      <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-red-50 border border-red-100 text-xs text-red-600">
         <span className="flex-1">Excluir &ldquo;{ind.nome}&rdquo;?</span>
         <button type="button" onClick={handleExcluir} disabled={salvandoExcl}
           className="font-medium hover:underline disabled:opacity-50">{salvandoExcl ? '…' : 'Confirmar'}</button>
@@ -309,47 +339,91 @@ function IndicadorLinha({ ind, podeEditar, isAdmin, onLancar, onEditarIndicador,
     );
   }
 
-  return (
-    <div className="flex items-center gap-2 px-2 py-1 rounded bg-gray-50 border border-gray-100 group">
-      {ind.indicador_chave && <span className="text-xs leading-none">🔑</span>}
-      <span className={`text-xs text-gray-700 flex-1 truncate ${concluido ? 'line-through text-green-600' : ''}`}>
-        {ind.nome}
-      </span>
-      {isAdmin && (
-        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-          <button type="button" onClick={() => setEditandoNome(true)} title="Editar indicador"
-            className="text-gray-300 hover:text-gray-500 text-[11px]">✏️</button>
-          <button type="button" onClick={() => setConfirmExcl(true)} title="Excluir indicador"
-            className="text-red-500 hover:text-red-700 font-bold text-[11px]">✕</button>
+  const renderValorCell = (
+    isAtual: boolean,
+    info: { label: string; range: string },
+    valorAtual: string | null,
+    editando: boolean,
+    setEditando: (v: boolean) => void,
+    valorEdit: string,
+    setValorEdit: (v: string) => void,
+    salvando: boolean,
+    handleLancar: () => Promise<void>,
+  ) => {
+    const corHex = isAtual ? ind.corHex : '#d1d5db'; // anterior sempre cinza (sem cálculo)
+    return (
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1 mb-0.5">
+          <span className="text-[9px] font-semibold text-gray-500">{info.label}</span>
+          {info.range && <span className="text-[8px] text-gray-400">{info.range}</span>}
         </div>
-      )}
-      <BolinhaSemaforo corHex={ind.corHex} />
-      {/* Lançamento inline */}
-      {editandoLanc ? (
-        isEq ? (
-          <select className="w-20 text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none"
-            value={valorEdit} onChange={e => setValorEdit(e.target.value)} onBlur={handleLancar} autoFocus>
-            <option value="">—</option>
-            {faixas.map(f => <option key={f.limite} value={f.limite}>{f.limite}</option>)}
-          </select>
+        {editando ? (
+          isEq ? (
+            <select className="w-full text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none"
+              value={valorEdit} onChange={e => setValorEdit(e.target.value)} onBlur={handleLancar} autoFocus>
+              <option value="">—</option>
+              {faixas.map(f => <option key={f.limite} value={f.limite}>{f.limite}</option>)}
+            </select>
+          ) : (
+            <input className="w-full text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none"
+              value={valorEdit} onChange={e => setValorEdit(e.target.value)}
+              onBlur={handleLancar}
+              onKeyDown={e => { if (e.key === 'Enter') handleLancar(); if (e.key === 'Escape') { setEditando(false); } }}
+              autoFocus />
+          )
         ) : (
-          <input className="w-16 text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none"
-            value={valorEdit} onChange={e => setValorEdit(e.target.value)}
-            onBlur={handleLancar}
-            onKeyDown={e => { if (e.key === 'Enter') handleLancar(); if (e.key === 'Escape') { setValorEdit(ind.valorAtual ?? ''); setEditandoLanc(false); } }}
-            autoFocus />
-        )
-      ) : (
-        <span
-          className={`text-xs font-medium tabular-nums min-w-[2.5rem] text-right flex-shrink-0 ${
-            podeEditar ? 'cursor-pointer hover:text-blue-600 hover:underline' : 'text-gray-700'
-          } ${concluido ? 'text-green-600' : ''}`}
-          onClick={() => podeEditar && !salvandoLanc && (setValorEdit(ind.valorAtual ?? ''), setEditandoLanc(true))}
-          title={podeEditar ? 'Clique para lançar' : undefined}
-        >
-          {salvandoLanc ? '…' : (ind.valorAtual ?? '—')}
-        </span>
-      )}
+          <div
+            className={`flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium tabular-nums ${
+              podeEditar
+                ? 'cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition-colors'
+                : ''
+            } ${valorAtual ? 'bg-white border-gray-200 text-gray-700' : 'bg-gray-50 border-dashed border-gray-200 text-gray-400'}`}
+            onClick={() => podeEditar && !salvando && (setValorEdit(valorAtual ?? ''), setEditando(true))}
+            title={podeEditar ? 'Clique para lançar' : undefined}
+          >
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: corHex }} />
+            {salvando ? '…' : (valorAtual ?? '—')}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 px-2 py-2 rounded bg-gray-50 border border-gray-100 group">
+      {/* Linha 1: nome + ações admin */}
+      <div className="flex items-center gap-1.5">
+        {ind.indicador_chave && <span className="text-[11px] leading-none flex-shrink-0">🔑</span>}
+        <span className="text-xs text-gray-700 flex-1 leading-snug">{ind.nome}</span>
+        {isAdmin && (
+          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+            <button type="button" onClick={() => setEditandoNome(true)} title="Editar indicador"
+              className="text-gray-300 hover:text-gray-500 text-[11px]">✏️</button>
+            <button type="button" onClick={() => setConfirmExcl(true)} title="Excluir indicador"
+              className="text-red-400 hover:text-red-600 font-bold text-[11px]">✕</button>
+          </div>
+        )}
+      </div>
+
+      {/* Linha 2: faixas legend */}
+      {faixas.length > 0 && <FaixasLegenda faixas={faixas} />}
+
+      {/* Linha 3: células das duas semanas */}
+      <div className="flex items-stretch gap-2">
+        {renderValorCell(
+          false, infoAnterior, ind.valorAnterior,
+          editandoAnterior, setEditandoAnterior,
+          valorEditAnterior, setValorEditAnterior,
+          salvandoAnterior, handleLancarAnterior,
+        )}
+        <div className="w-px bg-gray-200 self-stretch" />
+        {renderValorCell(
+          true, infoAtual, ind.valorAtual,
+          editandoAtual, setEditandoAtual,
+          valorEditAtual, setValorEditAtual,
+          salvandoAtual, handleLancarAtual,
+        )}
+      </div>
     </div>
   );
 }
@@ -359,7 +433,8 @@ type BlockerRow = { id: string; descricao: string; objetivo_id: string | null; c
 
 // ── MetaCard ──────────────────────────────────────────────────────────────────
 function MetaCard({
-  meta, subMetas, indicadores, responsaveis, isAdmin, podeConcluir, effectiveProfileId, semanaRelativa,
+  meta, subMetas, indicadores, responsaveis, isAdmin, podeConcluir, effectiveProfileId,
+  semanaAtual, semanaAnterior, anoRelativo,
   blockers, onAdicionarBlocker, onResolverBlocker,
   onEditarSubMeta, onExcluirSubMeta, onAddSubMeta,
   onEditarMeta, onExcluirMeta, onConcluirMeta,
@@ -367,7 +442,8 @@ function MetaCard({
 }: {
   meta: MetaItem; subMetas: SubMetaItem[]; indicadores: IndicadorItemMeta[];
   responsaveis: ResponsavelItem[]; isAdmin: boolean; podeConcluir: boolean;
-  effectiveProfileId: string | null; semanaRelativa: number;
+  effectiveProfileId: string | null;
+  semanaAtual: number; semanaAnterior: number; anoRelativo: number;
   blockers: BlockerRow[];
   onAdicionarBlocker: (metaId: string, descricao: string) => Promise<void>;
   onResolverBlocker: (blockerId: string) => Promise<void>;
@@ -377,30 +453,31 @@ function MetaCard({
   onEditarMeta: (id: string, dados: MetaFormState) => Promise<void>;
   onExcluirMeta: (id: string) => Promise<void>;
   onConcluirMeta: (id: string) => Promise<void>;
-  onLancarIndicador: (indId: string, valor: string) => Promise<void>;
+  onLancarIndicador: (indId: string, valor: string, semana: number) => Promise<void>;
   onEditarIndicador: (id: string, nome: string) => Promise<void>;
   onExcluirIndicador: (id: string) => Promise<void>;
 }) {
-  const [secaoFilhas,      setSecaoFilhas]      = useState(false);
-  const [adicionandoFilha, setAdicionandoFilha] = useState(false);
+  const [secaoFilhas,        setSecaoFilhas]        = useState(false);
+  const [adicionandoFilha,   setAdicionandoFilha]   = useState(false);
   const [adicionandoBlocker, setAdicionandoBlocker] = useState(false);
-  const [descricaoBlocker, setDescricaoBlocker] = useState('');
-  const [salvandoBlocker,  setSalvandoBlocker]  = useState(false);
-  const [editandoMeta,     setEditandoMeta]     = useState(false);
-  const [excluindoMeta,    setExcluindoMeta]    = useState(false);
-  const [concluindoMeta,   setConcluindoMeta]   = useState(false);
-  const [salvandoMeta,     setSalvandoMeta]     = useState(false);
-  const [salvandoFilha,    setSalvandoFilha]    = useState(false);
-  const [modalComs,        setModalComs]        = useState(false);
-  const [countLocal,       setCountLocal]       = useState(meta.comentariosCount);
+  const [descricaoBlocker,   setDescricaoBlocker]   = useState('');
+  const [salvandoBlocker,    setSalvandoBlocker]    = useState(false);
+  const [editandoMeta,       setEditandoMeta]       = useState(false);
+  const [excluindoMeta,      setExcluindoMeta]      = useState(false);
+  const [concluindoMeta,     setConcluindoMeta]     = useState(false);
+  const [salvandoMeta,       setSalvandoMeta]       = useState(false);
+  const [salvandoFilha,      setSalvandoFilha]      = useState(false);
+  const [modalComs,          setModalComs]          = useState(false);
+  const [countLocal,         setCountLocal]         = useState(meta.comentariosCount);
 
   useEffect(() => { setCountLocal(meta.comentariosCount); }, [meta.comentariosCount]);
 
-  const semanaLabel   = labelSemanaIsoAtual();
   const metaConcluida = meta.status === 'concluido';
   const isRecorrente  = meta.tipo?.toLowerCase() === 'recorrente';
   const hoje          = new Date().toISOString().slice(0, 10);
   const isAtrasada    = !isRecorrente && !!meta.meta_unidade && meta.meta_unidade < hoje && !metaConcluida;
+  // 🔑 se a própria meta é chave OU se tem algum indicador chave vinculado
+  const hasChave      = meta.is_chave || indicadores.some(i => i.indicador_chave);
 
   const handleSalvarFilha = async (f: MetaFormState) => {
     setSalvandoFilha(true);
@@ -443,12 +520,17 @@ function MetaCard({
 
   return (
     <div className={`bg-white border rounded-lg p-3 shadow-sm flex flex-col gap-1.5 ${isAtrasada ? 'border-amber-300' : 'border-gray-200'}`}>
-      {/* Linha 1: Descrição [Badge] | [⚠️] [💬 Justificar] [💬] [✓] [✏️] [✕] */}
+      {/* Linha 1: [🔑] [⚠️] Descrição · Prazo | badges | ações */}
       <div className="flex items-start gap-1.5 min-w-0">
         <span className={`text-sm font-medium text-gray-800 leading-snug flex-1 min-w-0 ${metaConcluida ? 'line-through text-gray-400' : ''}`}>
-          {meta.is_chave && <span className="mr-1 text-sm">🔑</span>}
-          {isAtrasada && <span className="mr-1 text-sm" title="Meta atrasada">⚠️</span>}
+          {hasChave && <span className="mr-1">🔑</span>}
+          {isAtrasada && <span className="mr-1">⚠️</span>}
           {meta.descricao}
+          {!isRecorrente && meta.meta_unidade && (
+            <span className={`ml-2 text-xs font-normal ${isAtrasada ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
+              · {meta.meta_unidade}
+            </span>
+          )}
         </span>
         <div className="flex items-center gap-1 ml-1 flex-shrink-0">
           <TipoBadge tipo={meta.tipo} />
@@ -477,23 +559,13 @@ function MetaCard({
         </div>
       </div>
 
-      {/* Linha 2: Responsável · Prazo (ocultar prazo para recorrente) */}
-      {(meta.responsavel_nome || meta.meta_valor || (!isRecorrente && meta.meta_unidade)) && (
-        <div className="flex items-center gap-1.5 text-xs text-gray-500 flex-wrap">
-          {meta.responsavel_nome && <span>{meta.responsavel_nome}</span>}
-          {meta.responsavel_nome && (meta.meta_valor || (!isRecorrente && meta.meta_unidade)) && <span>·</span>}
-          {meta.meta_valor && <span>Meta: {meta.meta_valor}</span>}
-          {meta.meta_valor && !isRecorrente && meta.meta_unidade && <span>·</span>}
-          {!isRecorrente && meta.meta_unidade && (
-            <span className={isAtrasada ? 'text-amber-600 font-medium' : ''}>
-              Prazo: {meta.meta_unidade}
-            </span>
-          )}
+      {/* Linha 2: Responsável (sem prazo — foi para o título) */}
+      {meta.responsavel_nome && (
+        <div className="text-xs text-gray-500">
+          {meta.responsavel_nome}
+          {meta.meta_valor && <span> · Meta: {meta.meta_valor}</span>}
         </div>
       )}
-
-      {/* Linha 3: Barra de progresso */}
-      {indicadores.length > 0 && <ProgressBar indicadores={indicadores} />}
 
       {/* Confirmação exclusão */}
       {excluindoMeta && (
@@ -517,19 +589,19 @@ function MetaCard({
 
       {/* Indicadores — sempre visíveis */}
       {indicadores.length > 0 && (
-        <div className="border-t border-gray-100 pt-1.5">
-          <p className="text-xs text-gray-500 mb-1">Indicadores · {semanaLabel} ({indicadores.length})</p>
-          <div className="flex flex-col gap-1">
-            {indicadores.map(ind => (
-              <IndicadorLinha key={ind.id} ind={ind}
-                podeEditar={isAdmin || ind.profile_id === effectiveProfileId}
-                isAdmin={isAdmin}
-                onLancar={onLancarIndicador}
-                onEditarIndicador={onEditarIndicador}
-                onExcluirIndicador={onExcluirIndicador}
-              />
-            ))}
-          </div>
+        <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-1">
+          {indicadores.map(ind => (
+            <IndicadorLinha key={ind.id} ind={ind}
+              podeEditar={podeConcluir || ind.profile_id === effectiveProfileId}
+              isAdmin={isAdmin}
+              semanaAtual={semanaAtual}
+              semanaAnterior={semanaAnterior}
+              anoRelativo={anoRelativo}
+              onLancar={onLancarIndicador}
+              onEditarIndicador={onEditarIndicador}
+              onExcluirIndicador={onExcluirIndicador}
+            />
+          ))}
         </div>
       )}
 
@@ -625,16 +697,19 @@ export function MetasIndicadoresBloco() {
   const setMes = (m: string) => { localStorage.setItem(LS_MES_KEY, m); setMesState(m); };
   const mesOptions = useMemo(() => getMonthOptions(), []);
 
-  const { metas, subMetas: hookSubMetas, indicadores, responsaveis, objetivoResponsaveis, semanaRelativa, isLoading, error, recarregar } =
-    useMetasIndicadores(effectiveProfileId, areaId, mes);
+  const {
+    metas, subMetas: hookSubMetas, indicadores, responsaveis, objetivoResponsaveis,
+    semanaRelativa, semanaAnterior, anoRelativo,
+    isLoading, error, recarregar,
+  } = useMetasIndicadores(effectiveProfileId, areaId, mes);
 
-  const [expandido,     setExpandido]     = useState(false);
-  const [localSubMetas, setLocalSubMetas] = useState<SubMetaItem[]>([]);
-  const [isAdminUser,   setIsAdminUser]   = useState(false);
-  const [isTeamUser,    setIsTeamUser]    = useState(false);
-  const [filtroMinhas,  setFiltroMinhas]  = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [allBlockers,   setAllBlockers]   = useState<BlockerRow[]>([]);
+  const [expandido,      setExpandido]      = useState(false);
+  const [localSubMetas,  setLocalSubMetas]  = useState<SubMetaItem[]>([]);
+  const [isAdminUser,    setIsAdminUser]    = useState(false);
+  const [isTeamUser,     setIsTeamUser]     = useState(false);
+  const [filtroMinhas,   setFiltroMinhas]   = useState(false);
+  const [currentUserId,  setCurrentUserId]  = useState<string | null>(null);
+  const [allBlockers,    setAllBlockers]    = useState<BlockerRow[]>([]);
 
   useEffect(() => {
     void (async () => {
@@ -711,18 +786,18 @@ export function MetasIndicadoresBloco() {
     recarregar();
   }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleLancarIndicador = useCallback(async (indId: string, valor: string) => {
-    if (!semanaRelativa) return;
-    const payload = { indicador_id: indId, semana: semanaRelativa, valor };
+  const handleLancarIndicador = useCallback(async (indId: string, valor: string, semana: number) => {
+    if (!semana) return;
+    const payload = { indicador_id: indId, semana, valor };
     const { error: upsertErr } = await supabase.from('indicador_lancamentos')
       .upsert(payload, { onConflict: 'indicador_id,semana' });
     if (upsertErr) {
-      await supabase.from('indicador_lancamentos').delete().eq('indicador_id', indId).eq('semana', semanaRelativa);
+      await supabase.from('indicador_lancamentos').delete().eq('indicador_id', indId).eq('semana', semana);
       const { error: insErr } = await supabase.from('indicador_lancamentos').insert(payload);
       if (insErr) { console.error('[LancarIndicador]', insErr); return; }
     }
     recarregar();
-  }, [supabase, semanaRelativa, recarregar]);
+  }, [supabase, recarregar]);
 
   const handleEditarIndicador = useCallback(async (id: string, nome: string) => {
     const { error: e } = await supabase.from('indicadores').update({ nome }).eq('id', id);
@@ -751,8 +826,8 @@ export function MetasIndicadoresBloco() {
     setAllBlockers(prev => prev.filter(b => b.id !== blockerId));
   }, [supabase]);
 
-  const [adicionandoMeta, setAdicionandoMeta] = useState(false);
-  const [salvandoNovaMeta, setSalvandoNovaMeta] = useState(false);
+  const [adicionandoMeta,   setAdicionandoMeta]   = useState(false);
+  const [salvandoNovaMeta,  setSalvandoNovaMeta]  = useState(false);
 
   const handleAddMeta = useCallback(async (f: MetaFormState) => {
     if (!areaId) return;
@@ -794,7 +869,9 @@ export function MetasIndicadoresBloco() {
       isAdmin={isAdminUser}
       podeConcluir={podeConcluir}
       effectiveProfileId={effectiveProfileId}
-      semanaRelativa={semanaRelativa}
+      semanaAtual={semanaRelativa}
+      semanaAnterior={semanaAnterior}
+      anoRelativo={anoRelativo}
       blockers={allBlockers.filter(b => b.objetivo_id === meta.id)}
       onAdicionarBlocker={handleAdicionarBlocker}
       onResolverBlocker={handleResolverBlocker}
@@ -809,6 +886,9 @@ export function MetasIndicadoresBloco() {
       onExcluirIndicador={handleExcluirIndicador}
     />
   );
+
+  // suppress unused warning — ObjetivoResponsavel is used in metasFiltradas
+  void ([] as ObjetivoResponsavel[]);
 
   return (
     <section className="rounded-xl border border-gray-200 bg-gray-50 shadow-sm overflow-hidden">
