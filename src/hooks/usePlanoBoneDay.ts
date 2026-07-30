@@ -98,7 +98,7 @@ export function usePlanoBoneDay(
       const [objAtivRes, objNaoConclRes, indRes, respRes] = await Promise.all([
         supabase
           .from('objetivos')
-          .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, status, ordem, profile_id')
+          .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
           .eq('area_id', areaId)
           .eq('status', 'ativo')
           .eq('mes', mes)
@@ -108,7 +108,7 @@ export function usePlanoBoneDay(
 
         supabase
           .from('objetivos')
-          .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, status, ordem, profile_id')
+          .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
           .eq('area_id', areaId)
           .neq('status', 'concluido')
           .lt('mes', mes)
@@ -138,8 +138,8 @@ export function usePlanoBoneDay(
 
       type ObjRow = {
         id: string; descricao: string; tipo: string | null; is_chave: boolean | null;
-        meta_valor: string | null; meta_unidade: string | null; status: string;
-        ordem: number | null; profile_id: string | null;
+        meta_valor: string | null; meta_unidade: string | null; criado_em: string | null;
+        status: string; ordem: number | null; profile_id: string | null;
       };
 
       // Enriquecer com full_name do profiles e deduplicar por profile_id
@@ -176,7 +176,8 @@ export function usePlanoBoneDay(
       const toMeta = (o: ObjRow): MetaItem => ({
         id: o.id, descricao: o.descricao, tipo: o.tipo,
         is_chave: Boolean(o.is_chave), meta_valor: o.meta_valor,
-        meta_unidade: o.meta_unidade, status: o.status, ordem: o.ordem,
+        meta_unidade: o.meta_unidade, criado_em: o.criado_em ?? null,
+        status: o.status, ordem: o.ordem,
         profile_id: o.profile_id,
         responsavel_nome: o.profile_id ? (respMap.get(o.profile_id) ?? null) : null,
         comentariosCount: 0,
