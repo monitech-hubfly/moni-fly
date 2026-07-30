@@ -239,7 +239,7 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
 
   useEffect(() => {
     if (aberto) {
-      void (carregarEscalasCustom as (s: ReturnType<typeof createClient>) => Promise<void>)(supabase)
+      void (carregarEscalasCustom as (s: ReturnType<typeof createClient>) => Promise<unknown>)(supabase)
         .then(() => setEscalasCustom((listarEscalasCustom as () => EscalaCustom[])()));
     }
   }, [aberto, supabase]);
