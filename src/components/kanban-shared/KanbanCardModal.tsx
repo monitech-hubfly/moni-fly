@@ -8764,6 +8764,7 @@ export function KanbanCardModal({
                     }
                     onConcluido={() => {
                       setTrancheVinculosTick((t) => t + 1);
+                      setRelacionamentosTick((t) => t + 1);
                       void loadCard();
                     }}
                   />

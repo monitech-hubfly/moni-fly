@@ -158,6 +158,8 @@ async function salvarTrancheVinculoOperacoes(
   supabase: Awaited<ReturnType<typeof createClient>>,
   patch: TrancheVinculoPatch,
 ): Promise<{ error: string | null }> {
+  let lastErr: string | null = null;
+
   for (const db of montarDbClientsTrancheVinculos(supabase)) {
     const { error: upsertError } = await db
       .from('kanban_operacoes_tranche_vinculos')
@@ -179,6 +181,8 @@ async function salvarTrancheVinculoOperacoes(
           .update(patch as never)
           .eq('id', String((existing as { id: string }).id));
         if (!updateError) return { error: null };
+        lastErr = updateError.message;
+        if (erroConsultaTrancheVinculosIgnoravel(updateError)) continue;
         return { error: updateError.message };
       }
 
@@ -186,13 +190,17 @@ async function salvarTrancheVinculoOperacoes(
         .from('kanban_operacoes_tranche_vinculos')
         .insert(patch as never);
       if (!insertError) return { error: null };
+      lastErr = insertError.message;
+      if (erroConsultaTrancheVinculosIgnoravel(insertError)) continue;
       return { error: insertError.message };
     }
 
+    lastErr = upsertError.message;
+    if (erroConsultaTrancheVinculosIgnoravel(upsertError)) continue;
     return { error: upsertError.message };
   }
 
-  return { error: 'Não foi possível salvar o vínculo de tranche.' };
+  return { error: lastErr || 'Não foi possível salvar o vínculo de tranche.' };
 }
 
 async function resolverFaseSlugPorFaseId(

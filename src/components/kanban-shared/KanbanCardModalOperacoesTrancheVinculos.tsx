@@ -65,6 +65,7 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
   const [abrindoIndex, setAbrindoIndex] = useState<number | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+  const readOnly = !podeGerenciar || cardDesabilitado;
 
   const carregar = useCallback(async () => {
     if (!cardId) {
@@ -112,7 +113,20 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
     if (!cfg) return;
 
     const item = items.find((i) => i.index === index);
-    if (item?.status === 'concluido') return;
+    if (item?.status === 'concluido') {
+      setErro('Este vínculo já foi concluído.');
+      return;
+    }
+
+    if (readOnly) {
+      setErro('Sem permissão para abrir tranches neste card.');
+      return;
+    }
+
+    if (!temPrimeiroCard) {
+      setErro('Abra o primeiro card no Funil Crédito Obra (1ª tranche) antes de solicitar tranches adicionais.');
+      return;
+    }
 
     if (
       !confirm(
@@ -133,9 +147,19 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
       });
       if (!res.ok) {
         setErro(res.error);
+        if (res.error?.includes('já foi concluído')) {
+          await carregar();
+        }
         return;
       }
       setOkMsg(`Card Crédito Obra criado com tag "${cfg.tagLabel}".`);
+      setItems((prev) =>
+        prev.map((i) =>
+          i.index === index
+            ? { ...i, status: 'concluido' as const, concluido_em: new Date().toISOString() }
+            : i,
+        ),
+      );
       await carregar();
       onConcluido?.();
     } finally {
@@ -170,8 +194,6 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
       </p>
     );
   }
-
-  const readOnly = !podeGerenciar || cardDesabilitado;
 
   return (
     <div className="space-y-2">
