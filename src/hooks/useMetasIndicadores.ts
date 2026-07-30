@@ -17,6 +17,7 @@ export type MetaItem = {
   is_chave: boolean;
   meta_valor: string | null;
   meta_unidade: string | null;
+  criado_em: string | null;
   status: string;
   ordem: number | null;
   profile_id: string | null;
@@ -102,7 +103,7 @@ export function useMetasIndicadores(
 
       let objQuery = supabase
         .from('objetivos')
-        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, status, ordem, objetivo_pai_id, profile_id')
+        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, objetivo_pai_id, profile_id')
         .eq('area_id', areaId)
         .eq('status', 'ativo');
       if (mes) objQuery = objQuery.eq('mes', mes);
@@ -132,7 +133,8 @@ export function useMetasIndicadores(
       type ObjRow = {
         id: string; descricao: string; tipo: string | null;
         is_chave: boolean | null; meta_valor: string | null;
-        meta_unidade: string | null; status: string;
+        meta_unidade: string | null; criado_em: string | null;
+        status: string;
         ordem: number | null; objetivo_pai_id: string | null;
         profile_id: string | null;
       };
@@ -158,7 +160,8 @@ export function useMetasIndicadores(
         .map(o => ({
           id: o.id, descricao: o.descricao, tipo: o.tipo,
           is_chave: Boolean(o.is_chave), meta_valor: o.meta_valor,
-          meta_unidade: o.meta_unidade, status: o.status, ordem: o.ordem,
+          meta_unidade: o.meta_unidade, criado_em: o.criado_em ?? null,
+          status: o.status, ordem: o.ordem,
           profile_id: o.profile_id,
           responsavel_nome: o.profile_id ? (respByProfileId.get(o.profile_id) ?? null) : null,
           comentariosCount: comCountMap.get(o.id) ?? 0,

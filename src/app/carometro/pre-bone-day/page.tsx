@@ -20,6 +20,12 @@ const LOG = (args: Record<string, unknown>) =>
   void (registrarLog as unknown as (a: Record<string, unknown>) => Promise<void>)(args);
 
 // ── Utilitários ───────────────────────────────────────────────────────────────
+function formatarDataCurta(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 const TIPO_BADGE: Record<string, string> = {
   atingivel:  'bg-blue-100 text-blue-700',
   recorrente: 'bg-green-100 text-green-700',
@@ -109,6 +115,9 @@ function MetaNaoConcluida({ meta, responsaveis, onRelançar }: {
         <span className="text-sm font-medium text-gray-800 flex-1 leading-snug">{meta.descricao}</span>
         <div className="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
           {meta.meta_unidade && <span>Prazo: {meta.meta_unidade}</span>}
+          {meta.tipo?.toLowerCase() !== 'recorrente' && meta.criado_em && (
+            <span className="text-gray-300">· aberta {formatarDataCurta(meta.criado_em)}</span>
+          )}
           {meta.responsavel_nome && <span>· {meta.responsavel_nome}</span>}
         </div>
         {!aberto && (
@@ -524,6 +533,9 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
         <div className="flex items-center gap-1.5 text-xs text-gray-500 flex-shrink-0">
           {meta.responsavel_nome && <span>{meta.responsavel_nome}</span>}
           {meta.meta_unidade && <span>· Prazo: {meta.meta_unidade}</span>}
+          {meta.tipo?.toLowerCase() !== 'recorrente' && meta.criado_em && (
+            <span className="text-gray-300">· aberta {formatarDataCurta(meta.criado_em)}</span>
+          )}
         </div>
         {isAdmin && (
           <div className="flex items-center gap-1 flex-shrink-0">

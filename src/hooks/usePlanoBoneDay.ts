@@ -291,8 +291,15 @@ export function semanasDoMes(mesStr: string): number[] {
   const semanas: number[] = [];
   const d = new Date(year, month - 1, 1);
   while (d.getMonth() === month - 1) {
-    const w = isoWeek(d);
-    if (!semanas.includes(w)) semanas.push(w);
+    // Encontra a segunda-feira (ISO) da semana de d
+    const dow = d.getDay(); // 0=Dom
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
+    // Só inclui a semana se sua segunda-feira cair no mês alvo
+    if (monday.getFullYear() === year && monday.getMonth() === month - 1) {
+      const w = isoWeek(d);
+      if (!semanas.includes(w)) semanas.push(w);
+    }
     d.setDate(d.getDate() + 7);
   }
   return semanas;

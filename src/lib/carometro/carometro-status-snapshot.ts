@@ -3,33 +3,45 @@ import { isoWeek, isoWeekYear } from '@/utils/periodos';
 import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
 
 // ── Semáforo (replicado de useMeuCarometro) ──────────────────────────────────
-const COR_PARA_SCORE: Record<string, number> = {
-  '#1e7a3a': 100,
-  '#52b36f': 75,
-  '#f2c94c': 50,
-  '#d24141': 0,
-};
+const NOME_SCORE: Record<string, number> = { ve: 100, vc: 75, am: 50, vm: 0 };
 
 type SemaforoFaixa = { cor: string; limite: string | number; comparacao?: string };
 
-function scoreDeValorESemaforo(valor: unknown, semaforo_faixas: unknown): number {
-  if (valor == null || valor === '') return 50;
+/** Retorna 0–100. missing = 0 (rigoroso). Suporta faixas eq (texto) e numéricas. */
+function scoreDeValorESemaforoNomeado(semaforo_faixas: unknown, valor: string): number {
   const faixas = (semaforo_faixas as { faixas?: SemaforoFaixa[] } | null)?.faixas;
   if (!faixas?.length) return 50;
-  const n = Number(String(valor).replace(',', '.'));
-  if (!Number.isFinite(n)) return 50;
+
+  // Tenta eq textual primeiro
+  const valorNorm = valor.toLowerCase().trim();
   for (const f of faixas) {
-    const limite = Number(String(f.limite ?? '').replace(',', '.'));
-    if (!Number.isFinite(limite)) continue;
-    const op = f.comparacao ?? 'gte';
-    let match = false;
-    if (op === 'gte') match = n >= limite;
-    else if (op === 'gt')  match = n > limite;
-    else if (op === 'lte') match = n <= limite;
-    else if (op === 'lt')  match = n < limite;
-    else if (op === 'eq')  match = n === limite;
-    if (match) return COR_PARA_SCORE[f.cor?.toLowerCase()] ?? 50;
+    if ((f.comparacao === 'eq' || !f.comparacao) &&
+        String(f.limite ?? '').toLowerCase().trim() === valorNorm) {
+      const cor = String(f.cor ?? '').toLowerCase();
+      return NOME_SCORE[cor] ?? 50;
+    }
   }
+
+  // Tenta numérico
+  const n = Number(valor.replace(',', '.'));
+  if (Number.isFinite(n)) {
+    for (const f of faixas) {
+      const limite = Number(String(f.limite ?? '').replace(',', '.'));
+      if (!Number.isFinite(limite)) continue;
+      const op = f.comparacao ?? 'gte';
+      let match = false;
+      if (op === 'gte') match = n >= limite;
+      else if (op === 'gt')  match = n > limite;
+      else if (op === 'lte') match = n <= limite;
+      else if (op === 'lt')  match = n < limite;
+      else if (op === 'eq')  match = n === limite;
+      if (match) {
+        const cor = String(f.cor ?? '').toLowerCase();
+        return NOME_SCORE[cor] ?? 50;
+      }
+    }
+  }
+
   return 50;
 }
 
@@ -147,60 +159,101 @@ export async function gerarSnapshotCarometro(
     score: engScore,
   };
 
-  // ── Indicadores ────────────────────────────────────────────────────────────
-  let indicadoresData: Record<string, unknown> = { porIndicador: [], media: null };
+  // ── Indicadores (2 níveis: por meta → por usuário) ────────────────────────
+  let indicadoresData: Record<string, unknown> = { porMeta: [], media: null };
 
-  const { data: indsData } = await db
-    .from('indicadores')
-    .select('id, nome, semaforo_faixas')
-    .eq('area_id', areaId);
+  type MetaRow = { id: string; descricao: string; tipo: string | null; meta_unidade: string | null; status: string };
+  type IndRow  = { id: string; nome: string; semaforo_faixas: unknown; objetivo_id: string | null };
 
-  const indsTyped = ((indsData ?? []) as { id: string; nome: string; semaforo_faixas: unknown }[]);
-  const indIds = indsTyped.map(i => i.id);
+  const { data: metasData } = await db
+    .from('objetivos')
+    .select('id, descricao, tipo, meta_unidade, status')
+    .eq('area_id', areaId)
+    .eq('profile_id', profileId)
+    .eq('status', 'ativo')
+    .is('objetivo_pai_id', null);
 
-  if (indIds.length > 0) {
-    const { data: periodo } = await db
-      .from('periodos')
-      .select('id, data_inicio, data_fim')
-      .lte('data_inicio', hojeStr)
-      .gte('data_fim', hojeStr)
-      .eq('ano', anoISO)
-      .order('data_fim', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+  const metas     = (metasData ?? []) as MetaRow[];
+  const metaIds   = metas.map(m => m.id);
 
-    const semanaRelativa = periodo
-      ? isoWeek(new Date((periodo as { data_inicio: string }).data_inicio))
-      : semana;
+  if (metaIds.length > 0) {
+    const { data: indsData } = await db
+      .from('indicadores')
+      .select('id, nome, semaforo_faixas, objetivo_id')
+      .in('objetivo_id', metaIds);
 
-    const { data: lancamentos } = await db
-      .from('indicador_lancamentos')
-      .select('indicador_id, valor')
-      .in('indicador_id', indIds)
-      .eq('semana', semanaRelativa);
+    const inds   = (indsData ?? []) as IndRow[];
+    const indIds = inds.map(i => i.id);
 
-    const lancMap = new Map<string, unknown>(
-      ((lancamentos ?? []) as { indicador_id: string; valor: unknown }[]).map(l => [l.indicador_id, l.valor])
-    );
+    if (indIds.length > 0) {
+      const { data: periodoData } = await db
+        .from('periodos')
+        .select('data_inicio')
+        .lte('data_inicio', hojeStr)
+        .gte('data_fim', hojeStr)
+        .eq('ano', anoISO)
+        .order('data_fim', { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
-    const porIndicador = indsTyped
-      .filter(ind => lancMap.has(ind.id))
-      .map(ind => {
-        const valor = lancMap.get(ind.id);
-        return {
-          nome:       ind.nome || ind.id,
-          valor:      Number(valor) || 0,
-          meta:       0,
-          percentual: scoreDeValorESemaforo(valor, ind.semaforo_faixas),
-        };
-      });
+      const semRel = periodoData
+        ? isoWeek(new Date((periodoData as { data_inicio: string }).data_inicio))
+        : semana;
+      const semAnt = semRel > 1 ? semRel - 1 : 52;
 
-    const scores = porIndicador.map(i => i.percentual);
-    const media  = scores.length > 0
-      ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length)
-      : null;
+      const { data: lancsData } = await db
+        .from('indicador_lancamentos')
+        .select('indicador_id, valor, semana')
+        .in('indicador_id', indIds)
+        .in('semana', [semAnt, semRel]);
 
-    indicadoresData = { porIndicador, media };
+      // Prefere semana atual; fallback para semana anterior
+      const lancMap = new Map<string, string>();
+      for (const l of (lancsData ?? []) as { indicador_id: string; valor: unknown; semana: number }[]) {
+        const val = String(l.valor ?? '');
+        if (l.semana === semRel) {
+          lancMap.set(l.indicador_id, val);
+        } else if (l.semana === semAnt && !lancMap.has(l.indicador_id)) {
+          lancMap.set(l.indicador_id, val);
+        }
+      }
+
+      const porMeta = metas
+        .map(meta => {
+          const metaInds = inds.filter(i => i.objetivo_id === meta.id);
+          if (metaInds.length === 0) return null; // sem indicadores → exclui da média
+
+          const scores = metaInds.map(ind => {
+            const valor = lancMap.get(ind.id);
+            if (!valor) return 0; // missing = vm = 0 (rigoroso)
+            return scoreDeValorESemaforoNomeado(ind.semaforo_faixas, valor);
+          });
+
+          const mediaMeta = scores.reduce((s, v) => s + v, 0) / scores.length;
+
+          const isRecorrente = meta.tipo?.toLowerCase() === 'recorrente';
+          const isAtrasada   = !isRecorrente &&
+            !!meta.meta_unidade && meta.meta_unidade < hojeStr &&
+            meta.status !== 'concluido';
+
+          const scoreFinal = isAtrasada ? mediaMeta * 0.70 : mediaMeta;
+
+          return {
+            id:         meta.id,
+            descricao:  meta.descricao,
+            score:      Math.round(scoreFinal * 10) / 10,
+            indicadores: scores.length,
+            penalidade:  isAtrasada,
+          };
+        })
+        .filter(Boolean) as Array<{ id: string; descricao: string; score: number; indicadores: number; penalidade: boolean }>;
+
+      const media = porMeta.length > 0
+        ? Math.round(porMeta.reduce((s, m) => s + m.score, 0) / porMeta.length * 10) / 10
+        : null;
+
+      indicadoresData = { porMeta, media };
+    }
   }
 
   // ── Upsert ─────────────────────────────────────────────────────────────────
