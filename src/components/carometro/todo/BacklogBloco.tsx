@@ -719,10 +719,9 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
                 <button
                   type="button"
                   onClick={() => setDrawerAberto(true)}
-                  title="Adicionar atividade"
-                  className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded px-1 text-xs transition-colors"
+                  className="text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 border border-blue-200 rounded px-2 py-0.5 transition-colors"
                 >
-                  +
+                  + Planejar Atividade
                 </button>
               </div>
               <div className="flex items-center gap-2">
