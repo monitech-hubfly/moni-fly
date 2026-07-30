@@ -600,17 +600,16 @@ export function ModalAgendamento({
   const handleSelItem = (item: BacklogItem) => {
     setSelItem(item);
     if (abaAtiva === 'atividades') {
-      set('acao_id', item.acoId ?? null);          // acao_id real do gantt
-      set('objetivo_id', item.objetivoId ?? null); // pré-preenche meta vinculada
-      // título mantido como está — usuário preenche manualmente (campo obrigatório)
+      set('acao_id', item.acoId ?? null);
+      set('objetivo_id', item.objetivoId ?? null);
       set('card_id', null);
-      setMetaDefinida(true); // atividade já tem meta definida (ou nenhuma)
+      setMetaDefinida(true);
     } else if (abaAtiva === 'kanban') {
       set('card_id', item.id);
       set('titulo', item.label);
       set('acao_id', null);
     } else {
-      set('titulo', item.label);
+      // Sirene/Pastelaria: título é livre — não auto-preenche
       set('acao_id', null);
       set('card_id', null);
     }
@@ -635,7 +634,7 @@ export function ModalAgendamento({
   }
 
   const handleSalvar = () => {
-    const semOrigem = !abaAtiva || !selItem;
+    const semOrigem = !abaAtiva || (!selItem && !origemInfo);
     const novosErros = {
       origem: semOrigem,
       data: !(form.data && form.hora_inicio),
@@ -661,7 +660,7 @@ export function ModalAgendamento({
     ? itensAba.filter(i => i.label.toLowerCase().includes(query.toLowerCase()))
     : itensAba;
 
-  const progresso = [!!abaAtiva && !!selItem, !!(form.data && form.hora_inicio), !!form.titulo?.trim(), metaDefinida].filter(Boolean).length;
+  const progresso = [(!!abaAtiva && !!selItem) || !!origemInfo, !!(form.data && form.hora_inicio), !!form.titulo?.trim(), metaDefinida].filter(Boolean).length;
 
   // ── Tab button ────────────────────────────────────────────────────────────
   const TabBtn = ({ aba, icon, label }: { aba: AbaAtiva; icon: string; label: string }) => {
@@ -778,53 +777,54 @@ export function ModalAgendamento({
 
             {/* Conteúdo da aba */}
             {abaAtiva ? (
-              <div>
-                <input type="text"
-                  className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  placeholder={
-                    abaAtiva === 'sirene' ? 'Buscar tópico Sirene...'
-                    : abaAtiva === 'atividades' ? 'Buscar comportamento ou atividade...'
-                    : 'Buscar card...'
-                  }
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                />
+              origemInfo ? null : (
+                <div>
+                  <input type="text"
+                    className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    placeholder={
+                      abaAtiva === 'sirene' ? 'Buscar tópico Sirene...'
+                      : abaAtiva === 'atividades' ? 'Buscar comportamento ou atividade...'
+                      : 'Buscar card...'
+                    }
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                  />
 
-                {/* Lista */}
-                {listLoading ? (
-                  <p className="text-xs text-gray-400 py-2">Carregando...</p>
-                ) : itensFiltrados.length === 0 ? (
-                  <p className="text-xs text-gray-400 py-2">Nenhum item encontrado.</p>
-                ) : (
-                  <div className="flex flex-col gap-1 max-h-44 overflow-y-auto">
-                    {itensFiltrados.slice(0, 50).map(item => (
-                      <ItemCard key={item.id} item={item} />
-                    ))}
-                  </div>
-                )}
-
-                {/* Item selecionado — abaixo da lista */}
-                {selItem && (
-                  <div className="mt-3 px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-blue-800 truncate">{selItem.label}</p>
-                        {selItem.sub && <p className="text-[10px] text-blue-500 mt-0.5">{selItem.sub}</p>}
-                        {selItem.extra && (
-                          <p className="text-[10px] text-blue-600 mt-1">
-                            <span className="text-blue-400">Próxima atividade: </span>{selItem.extra}
-                          </p>
-                        )}
-                      </div>
-                      <button type="button" className="text-blue-300 hover:text-blue-500 text-xs shrink-0"
-                        onClick={() => { setSelItem(null); set('acao_id', null); set('titulo', null); set('card_id', null); }}>
-                        ✕
-                      </button>
+                  {/* Lista */}
+                  {listLoading ? (
+                    <p className="text-xs text-gray-400 py-2">Carregando...</p>
+                  ) : itensFiltrados.length === 0 ? (
+                    <p className="text-xs text-gray-400 py-2">Nenhum item encontrado.</p>
+                  ) : (
+                    <div className="flex flex-col gap-1 max-h-44 overflow-y-auto">
+                      {itensFiltrados.slice(0, 50).map(item => (
+                        <ItemCard key={item.id} item={item} />
+                      ))}
                     </div>
+                  )}
 
-                  </div>
-                )}
-              </div>
+                  {/* Item selecionado — abaixo da lista */}
+                  {selItem && (
+                    <div className="mt-3 px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-blue-800 truncate">{selItem.label}</p>
+                          {selItem.sub && <p className="text-[10px] text-blue-500 mt-0.5">{selItem.sub}</p>}
+                          {selItem.extra && (
+                            <p className="text-[10px] text-blue-600 mt-1">
+                              <span className="text-blue-400">Próxima atividade: </span>{selItem.extra}
+                            </p>
+                          )}
+                        </div>
+                        <button type="button" className="text-blue-300 hover:text-blue-500 text-xs shrink-0"
+                          onClick={() => { setSelItem(null); set('acao_id', null); set('titulo', null); set('card_id', null); }}>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
             ) : (
               <p className="text-xs text-gray-400 py-1">Selecione uma categoria acima.</p>
             )}
