@@ -21,9 +21,15 @@ function normSlug(slug: string | null | undefined): string {
 function linhaCorrespondeSlug(linha: CalculadoraFaseLinha, slug: string): boolean {
   const s = normSlug(slug);
   if (!s) return false;
-  if (normSlug(linha.faseSlug) === s) return true;
-  if (s === 'contrato' && /contrato/i.test(String(linha.faseNome ?? '').trim())) return true;
-  if (s === 'step_7' && normSlug(linha.faseSlug) === 'step_7') return true;
+  const slugLinha = normSlug(linha.faseSlug);
+  if (slugLinha === s) return true;
+  if (s === 'contrato') {
+    if (slugLinha === 'cto_condicoes_precedentes') return false;
+    if (slugLinha === 'step_7' || slugLinha === 'contrato') return true;
+    const nome = String(linha.faseNome ?? '').trim();
+    if (!nome || /condi[cç][oõ]es\s+precedentes/i.test(nome)) return false;
+    return /contrato/i.test(nome);
+  }
   return false;
 }
 
@@ -39,16 +45,28 @@ export function resolverLinhaCalculadoraPorSlugs(
   return null;
 }
 
+function ymdValido(iso: string | null | undefined): string | null {
+  const ymd = String(iso ?? '').trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null;
+}
+
+/** `dataFimReal` válida (YYYY-MM-DD) ou null. */
+export function dataFimRealValidaLinhaCalculadora(
+  linha: CalculadoraFaseLinha | null | undefined,
+): string | null {
+  if (!linha) return null;
+  return ymdValido(linha.dataFimReal);
+}
+
 /**
  * Data fim efetiva da fase — mesma regra da UI da Calculadora:
  * `dataFimReal` (inclui override já aplicado nas linhas) → `dataFimEstimada`.
  */
 export function dataFimEfetivaLinhaCalculadora(linha: CalculadoraFaseLinha | null | undefined): string | null {
   if (!linha) return null;
-  const real = String(linha.dataFimReal ?? '').trim().slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(real)) return real;
-  const est = String(linha.dataFimEstimada ?? '').trim().slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(est) ? est : null;
+  const real = dataFimRealValidaLinhaCalculadora(linha);
+  if (real) return real;
+  return ymdValido(linha.dataFimEstimada);
 }
 
 /** Extrai célula com tipo visual (real / est / atraso) a partir da linha da calculadora. */
@@ -62,7 +80,7 @@ export function extrairCelulaCalculadora(linha: CalculadoraFaseLinha | null): Ce
     return { tipo: null, date: null, isCurrent };
   }
 
-  if (linha.dataFimReal) {
+  if (dataFimRealValidaLinhaCalculadora(linha)) {
     return { tipo: 'real', date, isCurrent };
   }
   if (isCurrent && linha.status === 'atual_atrasada') {
