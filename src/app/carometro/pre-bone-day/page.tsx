@@ -93,8 +93,9 @@ function buildSemaforoFaixas(tipo: string, verde: string, amarelo: string): obje
 }
 
 // ── Bloco 1: Metas não concluídas ─────────────────────────────────────────────
-function MetaNaoConcluida({ meta, responsaveis, onRelançar }: {
+function MetaNaoConcluida({ meta, responsaveis, podeRelançar, onRelançar }: {
   meta: MetaItem; responsaveis: ResponsavelItem[];
+  podeRelançar: boolean;
   onRelançar: (id: string, f: { metaUnidade: string; respId: string }) => Promise<void>;
 }) {
   const [aberto,   setAberto]   = useState(false);
@@ -115,12 +116,12 @@ function MetaNaoConcluida({ meta, responsaveis, onRelançar }: {
         <span className="text-sm font-medium text-gray-800 flex-1 leading-snug">{meta.descricao}</span>
         <div className="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
           {meta.meta_unidade && <span>Prazo: {meta.meta_unidade}</span>}
-          {meta.tipo?.toLowerCase() !== 'recorrente' && meta.criado_em && (
-            <span className="text-gray-300">· aberta {formatarDataCurta(meta.criado_em)}</span>
+          {meta.criado_em && (
+            <span className="text-gray-400">· aberta {formatarDataCurta(meta.criado_em)}</span>
           )}
           {meta.responsavel_nome && <span>· {meta.responsavel_nome}</span>}
         </div>
-        {!aberto && (
+        {podeRelançar && !aberto && (
           <button type="button" onClick={() => setAberto(true)}
             className="text-xs px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 rounded-lg transition-colors">
             Relançar
@@ -173,6 +174,7 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
   const supabase  = useMemo(() => createClient(), []);
   const [salvandoResp, setSalvandoResp] = useState(false);
   const [confirmExcl,  setConfirmExcl]  = useState(false);
+  const [editando,     setEditando]     = useState(false);
 
   const handleRespChange = async (profileId: string) => {
     setSalvandoResp(true);
@@ -186,10 +188,20 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
     onUpdate();
   };
 
-  const respNome  = responsaveis.find(r => r.profile_id === ind.profile_id)?.nome ?? 'Sem responsável';
+  const respNome = responsaveis.find(r => r.profile_id === ind.profile_id)?.nome ?? 'Sem responsável';
+
+  if (editando) {
+    return (
+      <tr className="border-b border-gray-100 bg-blue-50/40">
+        <td colSpan={isAdmin ? 4 : 3} className="px-3 py-2">
+          <FormEditarIndicador ind={ind} onSalvo={() => { setEditando(false); onUpdate(); }} onCancelar={() => setEditando(false)} />
+        </td>
+      </tr>
+    );
+  }
 
   return (
-    <tr className="border-b border-gray-100 group hover:bg-gray-50/50">
+    <tr className="border-b border-gray-100 hover:bg-gray-50/50">
       <td className="px-3 py-2 text-xs text-gray-700">
         <div className="flex items-center gap-1">
           {ind.indicador_chave && <span title="Indicador chave" className="text-[11px]">🔑</span>}
@@ -212,13 +224,17 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
       {isAdmin && (
         <td className="px-2 py-2 text-right">
           {confirmExcl ? (
-            <span className="flex gap-1 text-[10px] text-red-600">
+            <span className="flex gap-1 text-[10px] text-red-600 justify-end">
               <button type="button" onClick={handleExcluir} className="font-medium hover:underline">Sim</button>
               <button type="button" onClick={() => setConfirmExcl(false)} className="text-gray-400">Não</button>
             </span>
           ) : (
-            <button type="button" onClick={() => setConfirmExcl(true)}
-              className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity text-xs">✕</button>
+            <span className="flex gap-1 justify-end items-center">
+              <button type="button" onClick={() => setEditando(true)}
+                className="text-blue-400 hover:text-blue-600 text-xs" title="Editar">✎</button>
+              <button type="button" onClick={() => setConfirmExcl(true)}
+                className="text-red-400 hover:text-red-600 text-xs" title="Excluir">✕</button>
+            </span>
           )}
         </td>
       )}
@@ -273,6 +289,115 @@ function presetFaixasParaTipo(tipo: string, ecs: EscalaCustom[]): FaixaForm[] {
     return PRESET_FAIXAS_MAP.percentual.map(f => ({ ...f }));
   }
   return PRESET_FAIXAS_MAP.percentual.map(f => ({ ...f }));
+}
+
+function FormEditarIndicador({ ind, onSalvo, onCancelar }: {
+  ind: IndicadorBone; onSalvo: () => void; onCancelar: () => void;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [salvando, setSalvando] = useState(false);
+
+  const sf = ind.semaforo_faixas as { escala_tipo?: string; escala_custom_id?: string; faixas?: FaixaItem[] } | null;
+  const initialTipo = sf?.escala_custom_id ? `custom:${sf.escala_custom_id}`
+    : sf?.escala_tipo === 'sim_nao' ? 'sim_nao'
+    : sf?.escala_tipo === 'status_3' ? 'status_3'
+    : ind.tipo ?? 'percentual';
+  const initialFaixas: FaixaForm[] = (sf?.faixas ?? []).map(f => ({
+    cor: f.cor, limite: String(f.limite), comparacao: (f.comparacao as 'gte' | 'lte' | 'eq') ?? 'gte',
+  }));
+
+  const [form, setForm] = useState({ nome: ind.nome, tipo: initialTipo, chave: ind.indicador_chave });
+  const [faixas, setFaixas] = useState<FaixaForm[]>(
+    initialFaixas.length > 0 ? initialFaixas : PRESET_FAIXAS_MAP.percentual.map(f => ({ ...f }))
+  );
+  const [escalasCustom, setEscalasCustom] = useState<EscalaCustom[]>(() => (listarEscalasCustom as () => EscalaCustom[])());
+
+  useEffect(() => {
+    void (carregarEscalasCustom as (s: ReturnType<typeof createClient>) => Promise<unknown>)(supabase)
+      .then(() => setEscalasCustom((listarEscalasCustom as () => EscalaCustom[])()));
+  }, [supabase]);
+
+  const handleTipoChange = (v: string) => {
+    setForm(p => ({ ...p, tipo: v }));
+    setFaixas(presetFaixasParaTipo(v, escalasCustom));
+  };
+
+  const handleSalvar = async () => {
+    if (!form.nome.trim()) return;
+    setSalvando(true);
+    try {
+      const tipo = form.tipo;
+      const escalaCustomId = tipo.startsWith('custom:') ? tipo.slice(7) : null;
+      const escalaTipo = escalaCustomId ? 'custom' : tipo === 'sim_nao' ? 'sim_nao' : tipo === 'status_3' ? 'status_3' : tipo;
+      const sfPayload = { escala_tipo: escalaTipo, escala_custom_id: escalaCustomId, faixas };
+      const tipoDb = tipo === 'percentual' ? 'percentual' : tipo === 'quantidade' ? 'quantidade' : 'outro';
+      const { error: e } = await supabase.from('indicadores')
+        .update({ nome: form.nome.trim(), indicador_chave: form.chave, tipo: tipoDb, semaforo_faixas: sfPayload })
+        .eq('id', ind.id);
+      if (e) { console.error('[EditIndMeta]', e); return; }
+      onSalvo();
+    } finally { setSalvando(false); }
+  };
+
+  const isEq = form.tipo === 'sim_nao' || form.tipo === 'status_3' ||
+    (form.tipo.startsWith('custom:') && escalasCustom.find(e => e.id === form.tipo.slice(7))?.modo === 'lista');
+  const updateFaixa = (i: number, k: keyof FaixaForm, v: string) =>
+    setFaixas(prev => prev.map((f, j) => j === i ? { ...f, [k]: v } : f));
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2 items-center flex-wrap">
+        <input className="flex-1 min-w-[120px] text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+          value={form.nome} onChange={e => setForm(p => ({ ...p, nome: e.target.value }))} autoFocus />
+        <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={form.tipo} onChange={e => handleTipoChange(e.target.value)}>
+          {TIPOS_SEMAFORO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          {escalasCustom.length > 0 && (
+            <optgroup label="Escalas personalizadas">
+              {escalasCustom.map(ec => <option key={ec.id} value={`custom:${ec.id}`}>{ec.nome}</option>)}
+            </optgroup>
+          )}
+        </select>
+        <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer flex-shrink-0">
+          <input type="checkbox" checked={form.chave} onChange={e => setForm(p => ({ ...p, chave: e.target.checked }))} />🔑
+        </label>
+      </div>
+      <div className="flex flex-col gap-1 bg-white border border-gray-100 rounded px-2 py-1.5">
+        <p className="text-[9px] text-gray-400 uppercase tracking-wide mb-0.5">Faixas do semáforo</p>
+        {faixas.map((f, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <label className="relative w-4 h-4 rounded-full cursor-pointer flex-shrink-0 overflow-hidden" style={{ backgroundColor: f.cor }}>
+              <input type="color" value={f.cor} onChange={e => updateFaixa(i, 'cor', e.target.value)}
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
+            </label>
+            {isEq ? (
+              <span className="text-[10px] text-gray-400 w-6 text-center">=</span>
+            ) : (
+              <select className="text-[10px] border border-gray-200 rounded px-1 py-0.5 w-10"
+                value={f.comparacao} onChange={e => updateFaixa(i, 'comparacao', e.target.value as 'gte' | 'lte' | 'eq')}>
+                <option value="gte">≥</option><option value="lte">≤</option><option value="eq">=</option>
+              </select>
+            )}
+            <input className="text-xs border border-gray-300 rounded px-2 py-0.5 flex-1 min-w-0"
+              value={f.limite} onChange={e => updateFaixa(i, 'limite', e.target.value)} placeholder="Valor" />
+            {faixas.length > 1 && (
+              <button type="button" onClick={() => setFaixas(prev => prev.filter((_, j) => j !== i))}
+                className="text-red-300 hover:text-red-500 text-xs flex-shrink-0">✕</button>
+            )}
+          </div>
+        ))}
+        <button type="button"
+          onClick={() => setFaixas(prev => [...prev, { cor: '#cccccc', limite: '', comparacao: isEq ? 'eq' : 'gte' as 'gte' | 'eq' }])}
+          className="text-[10px] text-blue-500 hover:underline text-left mt-0.5">+ Adicionar faixa</button>
+      </div>
+      <div className="flex gap-2 justify-end">
+        <button type="button" onClick={onCancelar} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+        <button type="button" onClick={handleSalvar} disabled={!form.nome.trim() || salvando}
+          className="text-xs px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600">
+          {salvando ? 'Salvando...' : 'Salvar'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
@@ -539,7 +664,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
         </div>
         {isAdmin && (
           <div className="flex items-center gap-1 flex-shrink-0">
-            {meta.status !== 'concluido' && (
+            {meta.status !== 'concluido' && meta.tipo?.toLowerCase() !== 'recorrente' && (
               <button type="button" onClick={() => setConfirmConc(true)} title="Concluir"
                 className="text-[14px] text-green-500 hover:text-green-700 font-bold transition-colors">✓</button>
             )}
@@ -573,7 +698,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
               <col style={{ width: '45%' }} />
               <col style={{ width: '30%' }} />
               <col style={{ width: '25%' }} />
-              {isAdmin && <col style={{ width: '40px' }} />}
+              {isAdmin && <col style={{ width: '60px' }} />}
             </colgroup>
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-[10px] uppercase tracking-wide">
@@ -1020,8 +1145,9 @@ function PreBoneDayPageContent() {
 
   const areaId = selectedAreaId || null; // alias usado por handlers e hook
 
-  const [isAdmin,      setIsAdmin]      = useState<boolean | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isAdmin,          setIsAdmin]          = useState<boolean | null>(null);
+  const [currentUserId,    setCurrentUserId]    = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [bloco1Open, setBloco1Open] = useState(false);
   const [bloco2Open, setBloco2Open] = useState(true);
   const [bloco3Open, setBloco3Open] = useState(true);
@@ -1041,6 +1167,7 @@ function PreBoneDayPageContent() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setIsAdmin(false); return; }
       setCurrentUserId(user.id);
+      setCurrentUserEmail(user.email ?? null);
       const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
       setIsAdmin((prof as { role?: string } | null)?.role === 'admin');
     })();
@@ -1050,7 +1177,9 @@ function PreBoneDayPageContent() {
   const handleRelançar = useCallback(async (id: string, f: { metaUnidade: string; respId: string }) => {
     const metaOriginal = metasNaoConcluidas.find(m => m.id === id);
     if (!metaOriginal || !areaId) return;
-    const { error: e } = await supabase.from('objetivos').insert({
+
+    // 1. Criar nova meta no mês atual
+    const { data: novaMeta, error: e } = await supabase.from('objetivos').insert({
       area_id: areaId,
       descricao: metaOriginal.descricao,
       tipo: metaOriginal.tipo,
@@ -1059,8 +1188,36 @@ function PreBoneDayPageContent() {
       meta_unidade: f.metaUnidade || metaOriginal.meta_unidade || null,
       status: 'ativo',
       mes,
-    });
-    if (e) { console.error('[Relançar]', e); return; }
+    }).select('id').single();
+    if (e || !novaMeta) { console.error('[Relançar]', e); return; }
+
+    const novaMetaId = (novaMeta as { id: string }).id;
+
+    // 2. Marcar original como concluído (remove de Metas não concluídas)
+    await supabase.from('objetivos')
+      .update({ status: 'concluido', concluido_em: new Date().toISOString() })
+      .eq('id', id);
+
+    // 3. Copiar indicadores da meta original para a nova
+    const { data: indsOriginais } = await supabase.from('indicadores')
+      .select('nome, tipo, indicador_chave, semaforo_faixas, profile_id')
+      .eq('objetivo_id', id);
+
+    if (indsOriginais && indsOriginais.length > 0) {
+      type IndRow = { nome: string; tipo: string | null; indicador_chave: boolean | null; semaforo_faixas: unknown; profile_id: string | null };
+      await supabase.from('indicadores').insert(
+        (indsOriginais as IndRow[]).map(ind => ({
+          area_id: areaId,
+          nome: ind.nome,
+          tipo: ind.tipo,
+          indicador_chave: ind.indicador_chave ?? false,
+          semaforo_faixas: ind.semaforo_faixas,
+          profile_id: ind.profile_id,
+          objetivo_id: novaMetaId,
+        }))
+      );
+    }
+
     LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id,
       operacao: 'INSERT', descricao: `Meta relançada no mês ${mes}: ${metaOriginal.descricao}` });
     recarregar();
@@ -1213,7 +1370,9 @@ function PreBoneDayPageContent() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     {metasNaoConcluidas.map(meta => (
-                      <MetaNaoConcluida key={meta.id} meta={meta} responsaveis={responsaveis} onRelançar={handleRelançar} />
+                      <MetaNaoConcluida key={meta.id} meta={meta} responsaveis={responsaveis}
+                        podeRelançar={currentUserEmail === 'danilo.n@moni.casa'}
+                        onRelançar={handleRelançar} />
                     ))}
                   </div>
                 )}
