@@ -455,7 +455,7 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   };
 
   const handleSalvar = async () => {
-    if (!form.nome.trim()) return;
+    if (!form.nome.trim()) { setErroForm('Nome do indicador é obrigatório'); return; }
     setSalvando(true);
     setErroForm('');
     try {
@@ -489,8 +489,11 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   }
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-2 flex flex-col gap-2">
-      <input className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
-        placeholder="Nome do indicador *" value={form.nome} onChange={e => set('nome', e.target.value)} autoFocus />
+      <input
+        className={`w-full text-xs border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 ${erroForm && !form.nome.trim() ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+        placeholder="Nome do indicador *" value={form.nome}
+        onChange={e => { set('nome', e.target.value); if (erroForm) setErroForm(''); }}
+        autoFocus />
       <select className="text-xs border border-gray-300 rounded px-2 py-1.5 w-full" value={form.tipo} onChange={e => handleTipoChange(e.target.value)}>
         {TIPOS_SEMAFORO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         {escalasCustom.length > 0 && (
@@ -600,7 +603,7 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
       )}
       <div className="flex gap-2 justify-end">
         <button type="button" onClick={() => { setAberto(false); setErroForm(''); }} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
-        <button type="button" onClick={handleSalvar} disabled={!form.nome.trim() || salvando}
+        <button type="button" onClick={handleSalvar} disabled={salvando}
           className="text-xs px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600">
           {salvando ? 'Criando...' : 'Criar indicador'}
         </button>
