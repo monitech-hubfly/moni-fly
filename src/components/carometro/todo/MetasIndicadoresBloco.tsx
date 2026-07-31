@@ -895,22 +895,6 @@ export function MetasIndicadoresBloco() {
     setAllBlockers(prev => prev.filter(b => b.id !== blockerId));
   }, [supabase]);
 
-  const [adicionandoMeta,   setAdicionandoMeta]   = useState(false);
-  const [salvandoNovaMeta,  setSalvandoNovaMeta]  = useState(false);
-
-  const handleAddMeta = useCallback(async (f: MetaFormState) => {
-    if (!areaId) return;
-    setSalvandoNovaMeta(true);
-    try {
-      const { data: ins, error: e } = await supabase.from('objetivos')
-        .insert({ area_id: areaId, descricao: f.descricao, tipo: f.tipo, profile_id: f.respId || null, meta_unidade: f.metaUnidade || null, status: 'ativo' })
-        .select('id').single();
-      if (e) { console.error('[AddMeta]', e); return; }
-      log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: String((ins as { id: unknown }).id), operacao: 'INSERT', descricao: `Nova meta: ${f.descricao}` });
-      setAdicionandoMeta(false);
-      recarregar();
-    } finally { setSalvandoNovaMeta(false); }
-  }, [supabase, areaId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const metasFiltradas = useMemo(() => {
     if (!filtroMinhas || !currentUserId) return metas;
@@ -928,6 +912,7 @@ export function MetasIndicadoresBloco() {
     indicadores.length > 0 ? `${indicadores.length} indicadores` : '',
   ].filter(Boolean).join(' · ');
 
+  // TO DO & Planning é read-only estruturalmente: sem editar/excluir metas ou indicadores
   const renderMetaCard = (meta: MetaItem) => (
     <MetaCard
       key={meta.id}
@@ -935,7 +920,7 @@ export function MetasIndicadoresBloco() {
       subMetas={localSubMetas.filter(s => s.objetivo_pai_id === meta.id)}
       indicadores={indicadores.filter(i => i.objetivo_id === meta.id)}
       responsaveis={responsaveis}
-      isAdmin={isAdminUser}
+      isAdmin={false}
       podeConcluir={podeConcluir}
       effectiveProfileId={effectiveProfileId}
       semanaAtual={semanaRelativa}
@@ -1020,43 +1005,6 @@ export function MetasIndicadoresBloco() {
                 </>
               )}
 
-              {/* Legenda global de cores do semáforo */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 pt-3 border-t border-gray-100 text-[10px] text-gray-500">
-                <span className="font-medium text-gray-400 uppercase tracking-wide mr-1">Legenda:</span>
-                {([
-                  { cor: 've', label: 'Verde escuro' },
-                  { cor: 'vc', label: 'Verde claro' },
-                  { cor: 'am', label: 'Amarelo' },
-                  { cor: 'vm', label: 'Vermelho' },
-                ] as const).map(({ cor, label }) => (
-                  <span key={cor} className="flex items-center gap-1">
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: FAROL_HEX[cor] }}
-                    />
-                    {label}
-                  </span>
-                ))}
-              </div>
-
-              {isAdminUser && (
-                <div className="mt-4">
-                  {adicionandoMeta ? (
-                    <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
-                      <p className="text-xs font-medium text-gray-600 mb-1">Nova meta</p>
-                      <MetaForm
-                        inicial={{ descricao: '', tipo: 'atingivel', respId: '', metaUnidade: '' }}
-                        responsaveis={responsaveis} onSalvar={handleAddMeta}
-                        onCancelar={() => setAdicionandoMeta(false)} salvando={salvandoNovaMeta} labelSalvar="Criar meta" />
-                    </div>
-                  ) : (
-                    <button type="button" onClick={() => setAdicionandoMeta(true)}
-                      className="w-full text-xs text-gray-400 hover:text-blue-600 border border-dashed border-gray-300 hover:border-blue-300 rounded-lg py-2 transition-colors">
-                      + Nova meta
-                    </button>
-                  )}
-                </div>
-              )}
             </>
           )}
         </div>
