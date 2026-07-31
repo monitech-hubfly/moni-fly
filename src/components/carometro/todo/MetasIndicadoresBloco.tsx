@@ -463,6 +463,7 @@ type BlockerRow = { id: string; descricao: string; objetivo_id: string | null; c
 // ── MetaCard ──────────────────────────────────────────────────────────────────
 function MetaCard({
   meta, subMetas, indicadores, responsaveis, isAdmin, podeConcluir, effectiveProfileId,
+  assumiu,
   semanaAtual, semanaAnterior, anoRelativo,
   blockers, onAdicionarBlocker, onResolverBlocker,
   onEditarSubMeta, onExcluirSubMeta, onAddSubMeta,
@@ -472,6 +473,7 @@ function MetaCard({
   meta: MetaItem; subMetas: SubMetaItem[]; indicadores: IndicadorItemMeta[];
   responsaveis: ResponsavelItem[]; isAdmin: boolean; podeConcluir: boolean;
   effectiveProfileId: string | null;
+  assumiu: boolean;
   semanaAtual: number; semanaAnterior: number; anoRelativo: number;
   blockers: BlockerRow[];
   onAdicionarBlocker: (metaId: string, descricao: string) => Promise<void>;
@@ -659,7 +661,7 @@ function MetaCard({
             <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-1">
               {indicadores.map(ind => (
                 <IndicadorLinha key={ind.id} ind={ind}
-                  podeEditar={podeConcluir || ind.profile_id === effectiveProfileId}
+                  podeEditar={podeConcluir || assumiu}
                   isAdmin={isAdmin}
                   semanaAtual={semanaAtual}
                   semanaAnterior={semanaAnterior}
@@ -772,13 +774,14 @@ export function MetasIndicadoresBloco() {
     isLoading, error, recarregar,
   } = useMetasIndicadores(effectiveProfileId, areaId, mes);
 
-  const [expandido,      setExpandido]      = useState(false);
-  const [localSubMetas,  setLocalSubMetas]  = useState<SubMetaItem[]>([]);
-  const [isAdminUser,    setIsAdminUser]    = useState(false);
-  const [isTeamUser,     setIsTeamUser]     = useState(false);
-  const [filtroMinhas,   setFiltroMinhas]   = useState(false);
-  const [currentUserId,  setCurrentUserId]  = useState<string | null>(null);
-  const [allBlockers,    setAllBlockers]    = useState<BlockerRow[]>([]);
+  const [expandido,        setExpandido]        = useState(false);
+  const [localSubMetas,    setLocalSubMetas]    = useState<SubMetaItem[]>([]);
+  const [isAdminUser,      setIsAdminUser]      = useState(false);
+  const [isTeamUser,       setIsTeamUser]       = useState(false);
+  const [filtroMinhas,     setFiltroMinhas]     = useState(true);
+  const [disponiveisAberta, setDisponiveisAberta] = useState(false);
+  const [currentUserId,    setCurrentUserId]    = useState<string | null>(null);
+  const [allBlockers,      setAllBlockers]      = useState<BlockerRow[]>([]);
 
   useEffect(() => {
     void (async () => {
@@ -857,16 +860,21 @@ export function MetasIndicadoresBloco() {
 
   const handleLancarIndicador = useCallback(async (indId: string, valor: string, semana: number) => {
     if (!semana) return;
-    const payload = { indicador_id: indId, semana, valor };
+    const profileId = effectiveProfileId ?? currentUserId;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: any = { indicador_id: indId, semana, valor, profile_id: profileId };
     const { error: upsertErr } = await supabase.from('indicador_lancamentos')
-      .upsert(payload, { onConflict: 'indicador_id,semana' });
+      .upsert(payload, { onConflict: 'indicador_id,semana,profile_id' });
     if (upsertErr) {
-      await supabase.from('indicador_lancamentos').delete().eq('indicador_id', indId).eq('semana', semana);
+      await supabase.from('indicador_lancamentos').delete()
+        .eq('indicador_id', indId).eq('semana', semana)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .eq('profile_id' as any, profileId);
       const { error: insErr } = await supabase.from('indicador_lancamentos').insert(payload);
       if (insErr) { console.error('[LancarIndicador]', insErr); return; }
     }
     recarregar();
-  }, [supabase, recarregar]);
+  }, [supabase, effectiveProfileId, currentUserId, recarregar]);
 
   const handleEditarIndicador = useCallback(async (id: string, nome: string) => {
     const { error: e } = await supabase.from('indicadores').update({ nome }).eq('id', id);
@@ -907,13 +915,24 @@ export function MetasIndicadoresBloco() {
   const metasRecorrentes = useMemo(() => metasFiltradas.filter(m => m.tipo?.toLowerCase() === 'recorrente'),  [metasFiltradas]);
   const podeConcluir     = isAdminUser || isTeamUser;
 
+  // Metas da área que o usuário ainda não assumiu
+  const metasDisponiveis = useMemo(() => {
+    if (!currentUserId) return [];
+    return metas.filter(m =>
+      !objetivoResponsaveis.some(r => r.objetivo_id === m.id && r.profile_id === currentUserId)
+    );
+  }, [metas, currentUserId, objetivoResponsaveis]);
+
   const totalLabel = [
     metas.length       > 0 ? `${metas.length} metas`            : '',
     indicadores.length > 0 ? `${indicadores.length} indicadores` : '',
   ].filter(Boolean).join(' · ');
 
   // TO DO & Planning é read-only estruturalmente: sem editar/excluir metas ou indicadores
-  const renderMetaCard = (meta: MetaItem) => (
+  const renderMetaCard = (meta: MetaItem) => {
+    const assumiu = !!currentUserId &&
+      objetivoResponsaveis.some(r => r.objetivo_id === meta.id && r.profile_id === currentUserId);
+    return (
     <MetaCard
       key={meta.id}
       meta={meta}
@@ -923,6 +942,7 @@ export function MetasIndicadoresBloco() {
       isAdmin={false}
       podeConcluir={podeConcluir}
       effectiveProfileId={effectiveProfileId}
+      assumiu={assumiu}
       semanaAtual={semanaRelativa}
       semanaAnterior={semanaAnterior}
       anoRelativo={anoRelativo}
@@ -939,7 +959,8 @@ export function MetasIndicadoresBloco() {
       onEditarIndicador={handleEditarIndicador}
       onExcluirIndicador={handleExcluirIndicador}
     />
-  );
+    );
+  };
 
   // suppress unused warning — ObjetivoResponsavel is used in metasFiltradas
   void ([] as ObjetivoResponsavel[]);
@@ -1005,6 +1026,22 @@ export function MetasIndicadoresBloco() {
                 </>
               )}
 
+              {/* Metas disponíveis na área (ainda não assumidas pelo usuário) — só quando filtro "minhas" ativo */}
+              {filtroMinhas && metasDisponiveis.length > 0 && (
+                <SecaoToggle
+                  label="Disponíveis na área"
+                  count={metasDisponiveis.length}
+                  aberta={disponiveisAberta}
+                  onToggle={() => setDisponiveisAberta(v => !v)}
+                >
+                  <p className="text-[10px] text-gray-400 mb-2">
+                    Assuma estas metas no Boné Day para preenchê-las aqui.
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    {metasDisponiveis.map(renderMetaCard)}
+                  </div>
+                </SecaoToggle>
+              )}
             </>
           )}
         </div>

@@ -210,11 +210,17 @@ export function useMetasIndicadores(
           : semana;
         semAnterior = semRel > 1 ? semRel - 1 : 52;
 
-        const { data: lancs } = await supabase
+        // Filtra por profile_id do usuário atual OU registros sem profile_id (legado)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let lancsQuery: any = supabase
           .from('indicador_lancamentos')
           .select('indicador_id, valor, semana')
           .in('indicador_id', indIds)
           .in('semana', [semAnterior, semRel]);
+        if (effectiveProfileId) {
+          lancsQuery = lancsQuery.or(`profile_id.eq.${effectiveProfileId},profile_id.is.null`);
+        }
+        const { data: lancs } = await lancsQuery;
 
         for (const l of (lancs ?? []) as { indicador_id: string; valor: unknown; semana: number }[]) {
           const val = String(l.valor ?? '');
