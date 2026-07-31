@@ -58,9 +58,8 @@ const CAROMETRO_SUBITENS: NavItem[] = [
   { href: '/carometro/pastelaria', label: 'Pastelaria' },
   { href: '/carometro', label: 'Carômetro' },
   { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
-  { href: '/carometro/todo', label: 'TO DO' },
-  { href: '/carometro/todo-planning', label: 'TO DO & Planning ⚠' },
-  { href: '/carometro/pre-bone-day', label: 'Boné Day ⚠' },
+  { href: '/carometro/todo-planning', label: 'TO DO & Planning' },
+  { href: '/carometro/pre-bone-day', label: 'Boné Day' },
   { href: '/carometro/cadastros', label: 'Cadastros' },
   { href: '/carometro/log', label: 'Log' },
 ];
@@ -73,7 +72,8 @@ const CAROMETRO_SUBITENS_TEAM: NavItem[] = [
   { href: '/carometro/pastelaria', label: 'Pastelaria' },
   { href: '/carometro', label: 'Carômetro' },
   { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
-  { href: '/carometro/todo', label: 'TO DO' },
+  { href: '/carometro/todo-planning', label: 'TO DO & Planning' },
+  { href: '/carometro/pre-bone-day', label: 'Boné Day' },
 ];
 
 const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);

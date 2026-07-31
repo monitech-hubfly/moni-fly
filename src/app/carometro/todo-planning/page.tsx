@@ -10,8 +10,6 @@ import { ModalAgendamento } from '@/components/carometro/todo/ModalAgendamento';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import { useModalAgendamento } from '@/hooks/useModalAgendamento';
 import { MetasIndicadoresBloco } from '@/components/carometro/todo/MetasIndicadoresBloco';
-import { GuardaConstrucao } from '@/components/carometro/GuardaConstrucao';
-
 function SecaoColapsavel({ titulo, children, defaultOpen = true }: {
   titulo: string;
   children: ReactNode;
@@ -134,5 +132,5 @@ function TodoPlanningPageContent() {
 }
 
 export default function TodoPlanningPage() {
-  return <GuardaConstrucao><TodoPlanningPageContent /></GuardaConstrucao>;
+  return <TodoPlanningPageContent />;
 }
