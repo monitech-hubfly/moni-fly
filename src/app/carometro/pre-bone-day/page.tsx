@@ -406,6 +406,7 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   const supabase = useMemo(() => createClient(), []);
   const [aberto,   setAberto]   = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [erroForm, setErroForm] = useState('');
   const [form, setForm] = useState({ nome: '', tipo: 'percentual', chave: false });
   const [faixas, setFaixas] = useState<FaixaForm[]>(() => PRESET_FAIXAS_MAP.percentual.map(f => ({ ...f })));
   const set = (k: string, v: string | boolean) => setForm(p => ({ ...p, [k]: v }));
@@ -456,6 +457,7 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   const handleSalvar = async () => {
     if (!form.nome.trim()) return;
     setSalvando(true);
+    setErroForm('');
     try {
       const tipo = form.tipo;
       const escalaCustomId = tipo.startsWith('custom:') ? tipo.slice(7) : null;
@@ -463,11 +465,11 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
       const sf = { escala_tipo: escalaTipo, escala_custom_id: escalaCustomId, faixas };
       const tipoDb = tipo === 'percentual' ? 'percentual' : tipo === 'quantidade' ? 'quantidade' : 'outro';
       const { data: ins, error: e } = await supabase.from('indicadores')
-        .insert({ area_id: areaId, nome: form.nome.trim(), objetivo_id: metaId,
+        .insert({ area_id: areaId || null, nome: form.nome.trim(), objetivo_id: metaId || null,
           profile_id: null, indicador_chave: form.chave,
           tipo: tipoDb, semaforo_faixas: sf })
         .select('id').single();
-      if (e) { console.error('[AddIndMeta]', e); return; }
+      if (e) { console.error('[AddIndMeta]', e); setErroForm(e.message); return; }
       LOG({ modulo: 'Planejamento', entidade: 'indicadores',
         entidade_id: String((ins as { id: unknown }).id), operacao: 'INSERT',
         descricao: `Indicador criado para meta ${metaId}: ${form.nome}` });
@@ -593,8 +595,11 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
         <input type="checkbox" checked={form.chave} onChange={e => set('chave', e.target.checked)} />
         Indicador chave 🔑
       </label>
+      {erroForm && (
+        <p className="text-[11px] text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">{erroForm}</p>
+      )}
       <div className="flex gap-2 justify-end">
-        <button type="button" onClick={() => setAberto(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+        <button type="button" onClick={() => { setAberto(false); setErroForm(''); }} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
         <button type="button" onClick={handleSalvar} disabled={!form.nome.trim() || salvando}
           className="text-xs px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600">
           {salvando ? 'Criando...' : 'Criar indicador'}
