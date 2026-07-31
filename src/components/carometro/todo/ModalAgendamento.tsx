@@ -91,6 +91,19 @@ export function gerarOcorrencias(dataInicio: string, cfg: RecorrenciaConfig): st
   return datas;
 }
 
+// ── Ordenação por prazo (mesma lógica do BacklogBloco) ───────────────────────
+
+function prazoStatusOrder(prazo: string | null): number {
+  if (!prazo) return 0; // sem_prazo → primeiro
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const d = new Date(`${prazo}T00:00:00`);
+  if (d < hoje) return 1; // atrasado
+  const dow = hoje.getDay() || 7;
+  const sexta = new Date(hoje); sexta.setDate(hoje.getDate() + (5 - dow));
+  if (d <= sexta) return 2; // esta_semana
+  return 3; // futuro
+}
+
 // ── Badge de status ───────────────────────────────────────────────────────────
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
@@ -325,34 +338,45 @@ export function ModalAgendamento({
   preenchidoRef.current = preenchido;
 
   // ── Listas derivadas dos hooks (mesma ordenação e dados do backlog) ───────
-  const sireneItems = useMemo<BacklogItem[]>(() => [
-    ...backlog.sirene.map(t => {
-      const s = STATUS_BADGE[t.status] ?? STATUS_BADGE.nao_iniciado;
-      return {
-        id:       t.id,
-        label:    t.descricao ?? '(sem título)',
-        sub:      t.frank_nome
-          ? `${t.frank_nome}${t.chamado_numero ? ` #${t.chamado_numero}` : ''}`
-          : t.tipo ?? '—',
-        status:   t.status,
-        badge:    s.label,
-        badgeBg:  s.bg,
-        badgeText: s.text,
-      };
-    }),
-    ...backlog.pastelaria.map(p => ({
-      id:       p.id,
-      label:    p.nome,
-      sub:      p.coluna,
-      badge:    'pastelaria',
-      badgeBg:  '#ede9fe',
+  const sireneItems = useMemo<BacklogItem[]>(() => {
+    const sirene = [...backlog.sirene]
+      .sort((a, b) =>
+        prazoStatusOrder(a.data_fim ?? a.prazo_proposto) -
+        prazoStatusOrder(b.data_fim ?? b.prazo_proposto)
+      )
+      .map(t => {
+        const s = STATUS_BADGE[t.status] ?? STATUS_BADGE.nao_iniciado;
+        const subParts = [
+          t.chamado_numero ? `Sirene #${t.chamado_numero}` : null,
+          t.aberto_por_nome ? `por ${t.aberto_por_nome}` : null,
+        ].filter(Boolean);
+        return {
+          id:        t.id,
+          label:     t.descricao ?? '(sem título)',
+          sub:       subParts.join(' · ') || '—',
+          status:    t.status,
+          badge:     s.label,
+          badgeBg:   s.bg,
+          badgeText: s.text,
+        };
+      });
+
+    const pastelaria = backlog.pastelaria.map(p => ({
+      id:        p.id,
+      label:     p.nome,
+      sub:       p.coluna,
+      badge:     'pastelaria',
+      badgeBg:   '#ede9fe',
       badgeText: '#5b21b6',
-    })),
-  ], [backlog.sirene, backlog.pastelaria]);
+    }));
+
+    return [...sirene, ...pastelaria];
+  }, [backlog.sirene, backlog.pastelaria]);
 
   const atividItems = useMemo<BacklogItem[]>(() =>
     backlog.atividades
       .filter(a => ativoIds.has(a.id))
+      .sort((a, b) => prazoStatusOrder(a.prazo) - prazoStatusOrder(b.prazo))
       .map(a => ({
         id:         a.id,
         label:      a.nome ?? '(sem nome)',
@@ -591,7 +615,7 @@ export function ModalAgendamento({
     setSelItem(null);
     setQuery('');
     setForm(prev => ({
-      ...prev, acao_id: null, titulo: null, card_id: null, objetivo_id: null,
+      ...prev, acao_id: null, card_id: null, objetivo_id: null,
       origem_tipo: aba === 'sirene' ? 'sirene' : aba === 'kanban' ? 'kanban' : 'atividades',
     }));
     setErros(p => ({ ...p, origem: false }));
