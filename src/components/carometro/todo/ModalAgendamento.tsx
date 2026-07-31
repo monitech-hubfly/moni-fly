@@ -289,17 +289,8 @@ export function ModalAgendamento({
   const backlog    = useBacklog();
   const kanbanData = useBacklogKanban();
 
-  // Filtra atividades pelo mesmo conjunto que o BacklogBloco exibe
-  const [ativoIds, setAtivoIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    void supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      try {
-        const raw = JSON.parse(localStorage.getItem(`backlog_ativo_${user.id}`) ?? '[]') as string[];
-        setAtivoIds(new Set(raw));
-      } catch { /* ignore */ }
-    });
-  }, [supabase]);
+  // Atividades ativas: mesma fonte do BacklogBloco (backlog_atividades_usuario no Supabase)
+  const ativoIds = backlog.ativoIds;
 
   const [form, setForm] = useState<DadosAgendamento>({ ...EMPTY });
 
