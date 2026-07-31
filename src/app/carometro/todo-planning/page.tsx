@@ -75,7 +75,11 @@ function TodoPlanningPageContent() {
       modal.abrirParaCriar(base);
     } else if (drag.type === 'sirene') {
       setOrigemInfo({ titulo: drag.titulo ?? '', tipo: 'sirene' });
-      modal.abrirParaCriar(base);
+      modal.abrirParaCriar({
+        ...base,
+        sirene_chamado_id: drag.chamado_id ? Number(drag.chamado_id) : null,
+        origem_tipo: 'sirene',
+      });
     } else if (drag.type === 'pastelaria') {
       setOrigemInfo({ titulo: drag.titulo ?? '', tipo: 'pastelaria' });
       modal.abrirParaCriar(base);

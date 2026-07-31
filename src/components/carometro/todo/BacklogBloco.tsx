@@ -209,6 +209,7 @@ function NovaAtividadeDrawer({ areaId, onFechar, onSaved, ativoIds, onAtivar }: 
   // Item 4: form simplificado — sem tempo/recorrencia na UI
   const handleSalvarAtividade = async () => {
     if (!nome.trim()) { setErro('Nome da atividade é obrigatório.'); return; }
+    if (!prazo) { setErro('Prazo é obrigatório.'); return; }
     setSalvando(true); setErro(null);
     const { error: e } = await supabase.from('acoes').insert({
       tarefa_id:    tarefaId,
@@ -436,10 +437,10 @@ function NovaAtividadeDrawer({ areaId, onFechar, onSaved, ativoIds, onAtivar }: 
                     placeholder="Nome *"
                     value={nome} onChange={e => setNome(e.target.value)} />
                   <div className="flex gap-2 items-center">
-                    <label className="text-[10px] text-gray-500 shrink-0">Prazo</label>
+                    <label className="text-[10px] text-gray-500 shrink-0">Prazo *</label>
                     <input type="date"
                       className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white"
-                      value={prazo} onChange={e => setPrazo(e.target.value)} />
+                      value={prazo} onChange={e => { setPrazo(e.target.value); setErro(null); }} />
                   </div>
                   <select className="text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
                     value={canetaVerde} onChange={e => setCanetaVerde(e.target.value)}>

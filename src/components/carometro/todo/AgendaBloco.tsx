@@ -1,8 +1,10 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useAgenda, AtividadeAgenda, DiaAgenda } from '@/hooks/useAgenda';
+import { createClient } from '@/lib/supabase/client';
+import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import type { DadosAgendamento } from './ModalAgendamento';
 
 const HORA_INICIO   = 8;
@@ -40,7 +42,7 @@ function AgendaCard({
 }: {
   atv: AtividadeAgenda;
   onAbrirParaEditar: (id: string) => void;
-  onConcluir: (id: string) => void;
+  onConcluir: (atv: AtividadeAgenda) => void;
   onDesconcluir: (id: string) => void;
   onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
 }) {
@@ -141,7 +143,7 @@ function AgendaCard({
             type="button"
             title="Marcar como concluído"
             className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5 w-4 h-4 rounded-full border border-white/70 flex items-center justify-center hover:bg-white/20"
-            onClick={(e) => { e.stopPropagation(); onConcluir(atv.id); }}
+            onClick={(e) => { e.stopPropagation(); onConcluir(atv); }}
           >
             <span className="text-[9px] leading-none">✓</span>
           </button>
@@ -183,7 +185,7 @@ function ColunaDia({
   atividades: AtividadeAgenda[];
   onAbrirModal: (p: Partial<DadosAgendamento>) => void;
   onAbrirParaEditar: (id: string) => void;
-  onConcluir: (id: string) => void;
+  onConcluir: (atv: AtividadeAgenda) => void;
   onDesconcluir: (id: string) => void;
   onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
 }) {
@@ -255,6 +257,82 @@ function LinhaAgora({ semanaOffset }: { semanaOffset: number }) {
   );
 }
 
+// ── Dialog de confirmação de conclusão ────────────────────────────────────────
+type DialogState = {
+  id: string;
+  tipo: string; // 'sirene' | 'pastelaria' | 'kanban'
+  chamadoId: number | null;
+  cardId: string | null;
+  href: string | null;
+  loading: boolean;
+};
+
+function DialogConcluir({
+  state,
+  onConcluir,
+  onFechar,
+}: {
+  state: DialogState;
+  onConcluir: () => void;
+  onFechar: () => void;
+}) {
+  const ehSirene = state.tipo === 'sirene' || state.tipo === 'pastelaria';
+  const label    = ehSirene ? 'chamado' : 'card';
+  const href     = ehSirene && state.chamadoId
+    ? `/sirene/chamados?id=${state.chamadoId}`
+    : state.href;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/30" onClick={onFechar} />
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-sm p-5 flex flex-col gap-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800 mb-1">Concluir atividade</h3>
+          <p className="text-xs text-gray-500">
+            {ehSirene
+              ? 'Abra o chamado na Sirene, conclua-o lá e depois confirme aqui.'
+              : 'Abra o card no Kanban, conclua-o lá e depois confirme aqui.'}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {state.loading ? (
+            <div className="h-9 bg-gray-100 animate-pulse rounded-lg" />
+          ) : href ? (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"
+            >
+              <span>↗</span>
+              Abrir {label}
+            </a>
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-1">Link não disponível</p>
+          )}
+
+          <button
+            type="button"
+            onClick={onConcluir}
+            className="px-4 py-2 rounded-lg bg-green-500 text-white text-sm font-medium hover:bg-green-600 transition-colors"
+          >
+            Já concluí — fechar atividade
+          </button>
+
+          <button
+            type="button"
+            onClick={onFechar}
+            className="px-4 py-2 rounded-lg border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type AgendaBlocoProps = {
   onAbrirModal: (preenchido: Partial<DadosAgendamento>) => void;
   onAbrirParaEditar: (id: string) => void;
@@ -267,6 +345,63 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
     atividades, diasDaSemana, semanaLabel, semanaOffset,
     isLoading, error, navegar, irParaHoje, concluir, desconcluir, atualizarHorario,
   } = useAgenda(refreshKey);
+
+  const supabase = useMemo(() => createClient(), []);
+  const [dialogState, setDialogState] = useState<DialogState | null>(null);
+
+  const handleConcluir = useCallback(async (atv: AtividadeAgenda) => {
+    const tipo = atv.origem_tipo ?? 'atividades';
+
+    // Atividades Planejadas → concluir direto
+    if (tipo === 'atividades' || (!atv.sirene_chamado_id && !atv.card_id)) {
+      await concluir(atv.id);
+      return;
+    }
+
+    // Sirene / Pastelaria → dialog com link para chamado
+    if (tipo === 'sirene' || tipo === 'pastelaria') {
+      setDialogState({
+        id: atv.id, tipo, chamadoId: atv.sirene_chamado_id,
+        cardId: null, href: null, loading: false,
+      });
+      return;
+    }
+
+    // Kanban → buscar href do card, depois abrir dialog
+    if (tipo === 'kanban' && atv.card_id) {
+      setDialogState({
+        id: atv.id, tipo: 'kanban', chamadoId: null,
+        cardId: atv.card_id, href: null, loading: true,
+      });
+      try {
+        type KanbanCardRow = { kanbans: { nome: string } | { nome: string }[] | null };
+        const { data } = await supabase
+          .from('kanban_cards')
+          .select('kanbans(nome)')
+          .eq('id', atv.card_id)
+          .maybeSingle();
+        const row = data as KanbanCardRow | null;
+        const kanbanObj = row?.kanbans
+          ? (Array.isArray(row.kanbans) ? row.kanbans[0] : row.kanbans)
+          : null;
+        const kanbanNome = kanbanObj?.nome ?? null;
+        const href = kanbanNome ? hrefAbrirCardKanban(kanbanNome, atv.card_id) : null;
+        setDialogState(prev => prev ? { ...prev, href, loading: false } : null);
+      } catch {
+        setDialogState(prev => prev ? { ...prev, loading: false } : null);
+      }
+      return;
+    }
+
+    // Fallback
+    await concluir(atv.id);
+  }, [concluir, supabase]);
+
+  const handleConfirmarConcluir = useCallback(async () => {
+    if (!dialogState) return;
+    await concluir(dialogState.id);
+    setDialogState(null);
+  }, [concluir, dialogState]);
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -323,7 +458,7 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
               atividades={atividades.filter(a => a.data === dia.dateStr)}
               onAbrirModal={onAbrirModal}
               onAbrirParaEditar={onAbrirParaEditar}
-              onConcluir={concluir}
+              onConcluir={handleConcluir}
               onDesconcluir={desconcluir}
               onAtualizarHorario={atualizarHorario}
             />
@@ -331,6 +466,15 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
           <LinhaAgora semanaOffset={semanaOffset} />
         </div>
       </div>
+
+      {/* Dialog de conclusão para Sirene/Kanban */}
+      {dialogState && (
+        <DialogConcluir
+          state={dialogState}
+          onConcluir={() => { void handleConfirmarConcluir(); }}
+          onFechar={() => setDialogState(null)}
+        />
+      )}
     </section>
   );
 }

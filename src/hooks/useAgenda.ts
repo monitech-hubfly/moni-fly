@@ -224,6 +224,7 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
     setAtividades(prev => prev.map(a =>
       a.id === id ? { ...a, concluido: true, cor: COR_CONCLUIDA } : a
     ));
+    window.dispatchEvent(new CustomEvent('backlog-reload'));
   }, [supabase]);
 
   const desconcluir = useCallback(async (id: string) => {
@@ -253,6 +254,7 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
     const { error } = await supabase.from('gantt_planejamento').delete().eq('id', id);
     if (error) throw error;
     setAtividades(prev => prev.filter(a => a.id !== id));
+    window.dispatchEvent(new CustomEvent('backlog-reload'));
   }, [supabase]);
 
   return { atividades, diasDaSemana, semanaLabel, semanaOffset, isLoading, error, navegar, irParaHoje, concluir, desconcluir, atualizarHorario, excluir };

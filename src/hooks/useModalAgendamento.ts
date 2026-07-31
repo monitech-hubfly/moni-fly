@@ -199,6 +199,7 @@ export function useModalAgendamento(
 
       fechar();
       onSalvo?.();
+      window.dispatchEvent(new CustomEvent('backlog-reload'));
     } catch (e) {
       const msg = e instanceof Error ? e.message : JSON.stringify(e);
       console.error('[salvar] erro:', e);
@@ -218,6 +219,7 @@ export function useModalAgendamento(
       if (error) throw error;
       fechar();
       onSalvo?.();
+      window.dispatchEvent(new CustomEvent('backlog-reload'));
     } catch (e) {
       const msg = e instanceof Error ? e.message : JSON.stringify(e);
       setErroSalvar(msg);

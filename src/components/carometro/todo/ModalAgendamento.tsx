@@ -276,6 +276,7 @@ type BacklogItem = {
   extra?: string;
   objetivoId?: string | null;
   acoId?: string | null;       // acao_id real (gantt_planejamento.acao_id) para atividades
+  chamadoId?: string | null;   // sirene_chamados.id (BIGINT como string) para sirene
 };
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -349,6 +350,7 @@ export function ModalAgendamento({
           badge:     s.label,
           badgeBg:   s.bg,
           badgeText: s.text,
+          chamadoId: t.chamado_id,
         };
       });
 
@@ -627,6 +629,9 @@ export function ModalAgendamento({
       // Sirene/Pastelaria: título é livre — não auto-preenche
       set('acao_id', null);
       set('card_id', null);
+      if (abaAtiva === 'sirene' && item.chamadoId) {
+        set('sirene_chamado_id', Number(item.chamadoId));
+      }
     }
     setErros(p => ({ ...p, origem: false }));
   };

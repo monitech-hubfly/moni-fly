@@ -294,10 +294,36 @@ export function useBacklog(): UseBacklogResult {
         ((ativoData ?? []) as { acao_id: string }[]).map(r => r.acao_id)
       );
 
+      // Busca itens agendados hoje em diante ainda não concluídos — para suprimir do backlog
+      const hoje = new Date();
+      const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+      const { data: agendados } = await supabase
+        .from('gantt_planejamento')
+        .select('acao_id, sirene_chamado_id')
+        .eq('profile_id', effectiveProfileId)
+        .gte('data', hojeStr)
+        .is('data_conclusao_real', null);
+
+      type AgendadoRow = { acao_id: string | null; sirene_chamado_id: number | null };
+      const agendadosRows = (agendados ?? []) as AgendadoRow[];
+
+      const scheduledAcoIds = new Set<string>(
+        agendadosRows.map(r => r.acao_id).filter((id): id is string => !!id)
+      );
+      const scheduledChamadoIds = new Set<number>(
+        agendadosRows.map(r => r.sirene_chamado_id).filter((id): id is number => id != null)
+      );
+
+      // Filtra do backlog os itens agendados e pendentes
+      const sireneVisivel = sireneArrFiltrado.filter(s =>
+        !s.chamado_id || !scheduledChamadoIds.has(Number(s.chamado_id))
+      );
+      const atividadesVisiveis = atividadesArr.filter(a => !scheduledAcoIds.has(a.id));
+
       if (callId !== callIdRef.current) return;
-      setSirene(sireneArrFiltrado);
+      setSirene(sireneVisivel);
       setPastelaria(pastelariaArr);
-      setAtividades(atividadesArr);
+      setAtividades(atividadesVisiveis);
       setAtivoIds(ativoSet);
     } catch (e) {
       if (callId !== callIdRef.current) return;
@@ -332,6 +358,13 @@ export function useBacklog(): UseBacklogResult {
   }, [supabase]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Recarrega quando outro hook sinaliza mudança no gantt (agendamento, exclusão, conclusão)
+  useEffect(() => {
+    const handler = () => { void carregar(); };
+    window.addEventListener('backlog-reload', handler);
+    return () => window.removeEventListener('backlog-reload', handler);
+  }, [carregar]);
 
   return { sirene, pastelaria, atividades, ativoIds, isLoading, error, recarregar: carregar, ativar, desativar, arquivarPastelaria };
 }
