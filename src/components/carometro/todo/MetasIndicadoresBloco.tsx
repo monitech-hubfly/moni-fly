@@ -861,14 +861,14 @@ export function MetasIndicadoresBloco() {
   const handleLancarIndicador = useCallback(async (indId: string, valor: string, semana: number) => {
     if (!semana) return;
     const profileId = effectiveProfileId ?? currentUserId;
-    const payload: any = { indicador_id: indId, semana, valor, profile_id: profileId };
-    const { error: upsertErr } = await supabase.from('indicador_lancamentos')
-      .upsert(payload, { onConflict: 'indicador_id,semana,profile_id' });
+    // profile_id ainda não está nos tipos gerados — cast via table: any até regenerar types
+    const table: any = supabase.from('indicador_lancamentos');
+    const payload = { indicador_id: indId, semana, valor, profile_id: profileId };
+    const { error: upsertErr } = await table.upsert(payload, { onConflict: 'indicador_id,semana,profile_id' });
     if (upsertErr) {
-      await supabase.from('indicador_lancamentos').delete()
-        .eq('indicador_id', indId).eq('semana', semana)
-        .eq('profile_id' as any, profileId);
-      const { error: insErr } = await supabase.from('indicador_lancamentos').insert(payload);
+      await (supabase.from('indicador_lancamentos') as any).delete()
+        .eq('indicador_id', indId).eq('semana', semana).eq('profile_id', profileId);
+      const { error: insErr } = await (supabase.from('indicador_lancamentos') as any).insert(payload);
       if (insErr) { console.error('[LancarIndicador]', insErr); return; }
     }
     recarregar();
