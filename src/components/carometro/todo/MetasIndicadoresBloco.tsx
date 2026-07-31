@@ -861,14 +861,12 @@ export function MetasIndicadoresBloco() {
   const handleLancarIndicador = useCallback(async (indId: string, valor: string, semana: number) => {
     if (!semana) return;
     const profileId = effectiveProfileId ?? currentUserId;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload: any = { indicador_id: indId, semana, valor, profile_id: profileId };
     const { error: upsertErr } = await supabase.from('indicador_lancamentos')
       .upsert(payload, { onConflict: 'indicador_id,semana,profile_id' });
     if (upsertErr) {
       await supabase.from('indicador_lancamentos').delete()
         .eq('indicador_id', indId).eq('semana', semana)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .eq('profile_id' as any, profileId);
       const { error: insErr } = await supabase.from('indicador_lancamentos').insert(payload);
       if (insErr) { console.error('[LancarIndicador]', insErr); return; }

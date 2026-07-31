@@ -211,7 +211,6 @@ export function useMetasIndicadores(
         semAnterior = semRel > 1 ? semRel - 1 : 52;
 
         // Filtra por profile_id do usuário atual OU registros sem profile_id (legado)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let lancsQuery: any = supabase
           .from('indicador_lancamentos')
           .select('indicador_id, valor, semana')
