@@ -165,10 +165,10 @@ const TIPOS_SEMAFORO = [
   { value: 'sim_nao', label: 'SIM/NÃO' }, { value: 'status_3', label: 'OK/And./NãoOK' },
 ];
 
-// Indicadores — responsável editável por admin; meta: somente visualização.
-function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
+// Indicadores — responsável editável por admin; todos podem assumir.
+function LinhaIndicador({ ind, responsaveis, isAdmin, currentUserId, onUpdate }: {
   ind: IndicadorBone; responsaveis: ResponsavelItem[];
-  isAdmin: boolean; onUpdate: () => void;
+  isAdmin: boolean; currentUserId: string | null; onUpdate: () => void;
 }) {
   const supabase  = useMemo(() => createClient(), []);
   const [salvandoResp, setSalvandoResp] = useState(false);
@@ -188,6 +188,8 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
   };
 
   const respNome = responsaveis.find(r => r.profile_id === ind.profile_id)?.nome ?? 'Sem responsável';
+
+  const isMinha = !!currentUserId && ind.profile_id === currentUserId;
 
   if (editando) {
     return (
@@ -217,7 +219,20 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, onUpdate }: {
             {responsaveis.map(r => <option key={r.profile_id} value={r.profile_id}>{r.nome}</option>)}
           </select>
         ) : (
-          <span className="text-[11px] text-gray-500">{respNome}</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] text-gray-500 flex-1 min-w-0 truncate">{respNome}</span>
+            {currentUserId && (
+              <button type="button" disabled={salvandoResp}
+                onClick={() => handleRespChange(isMinha ? '' : currentUserId)}
+                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0 disabled:opacity-50 ${
+                  isMinha
+                    ? 'bg-blue-100 text-blue-700 border-blue-300'
+                    : 'text-gray-400 border-gray-200 hover:border-blue-300 hover:text-blue-500'
+                }`}>
+                {isMinha ? '✓ Minha' : 'Assumir'}
+              </button>
+            )}
+          </div>
         )}
       </td>
       {isAdmin && (
@@ -611,23 +626,47 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   );
 }
 
-function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, onUpdate, onConcluir, onExcluir, objetivoResponsaveis, currentUserId, onToggleResponsavel }: {
+function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, onUpdate, onConcluir, onExcluir, objetivoResponsaveis, currentUserId, podeEditarMeta, onToggleResponsavel }: {
   meta: MetaItem; indicadores: IndicadorBone[]; responsaveis: ResponsavelItem[];
   isAdmin: boolean; areaId: string; onUpdate: () => void;
   onConcluir: (id: string) => Promise<void>; onExcluir: (id: string) => Promise<void>;
   objetivoResponsaveis: ObjetivoResponsavel[];
   currentUserId: string | null;
+  podeEditarMeta: boolean;
   onToggleResponsavel: (objetivoId: string) => Promise<void>;
 }) {
-  const [confirmExcl, setConfirmExcl]   = useState(false);
-  const [confirmConc, setConfirmConc]   = useState(false);
-  const [salvando,    setSalvando]      = useState(false);
+  const supabase = useMemo(() => createClient(), []);
+  const [confirmExcl,   setConfirmExcl]   = useState(false);
+  const [confirmConc,   setConfirmConc]   = useState(false);
+  const [salvando,      setSalvando]      = useState(false);
+  const [editandoMeta,  setEditandoMeta]  = useState(false);
+  const [salvandoMeta,  setSalvandoMeta]  = useState(false);
+  const [formMeta, setFormMeta] = useState({
+    descricao: meta.descricao,
+    tipo: meta.tipo ?? 'atingivel',
+    metaUnidade: meta.meta_unidade ?? '',
+    isChave: meta.is_chave,
+  });
 
   const handleConcluir = async () => {
     setSalvando(true); try { await onConcluir(meta.id); } finally { setSalvando(false); }
   };
   const handleExcluir = async () => {
     setSalvando(true); try { await onExcluir(meta.id); } finally { setSalvando(false); }
+  };
+  const handleSalvarMeta = async () => {
+    if (!formMeta.descricao.trim()) return;
+    setSalvandoMeta(true);
+    try {
+      await supabase.from('objetivos').update({
+        descricao: formMeta.descricao.trim(),
+        tipo: formMeta.tipo,
+        meta_unidade: formMeta.metaUnidade || null,
+        is_chave: formMeta.isChave,
+      }).eq('id', meta.id);
+      setEditandoMeta(false);
+      onUpdate();
+    } finally { setSalvandoMeta(false); }
   };
 
   return (
@@ -669,16 +708,22 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
             <span className="text-gray-300">· aberta {formatarDataCurta(meta.criado_em)}</span>
           )}
         </div>
-        {isAdmin && (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {meta.status !== 'concluido' && meta.tipo?.toLowerCase() !== 'recorrente' && (
-              <button type="button" onClick={() => setConfirmConc(true)} title="Concluir"
-                className="text-[14px] text-green-500 hover:text-green-700 font-bold transition-colors">✓</button>
-            )}
-            <button type="button" onClick={() => setConfirmExcl(true)} title="Excluir"
-              className="text-red-400 hover:text-red-600 font-bold text-[12px] transition-colors">✕</button>
-          </div>
-        )}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {podeEditarMeta && (
+            <button type="button" onClick={() => setEditandoMeta(v => !v)} title="Editar meta"
+              className={`text-sm transition-colors ${editandoMeta ? 'text-blue-600' : 'text-blue-400 hover:text-blue-600'}`}>✎</button>
+          )}
+          {isAdmin && (
+            <>
+              {meta.status !== 'concluido' && meta.tipo?.toLowerCase() !== 'recorrente' && (
+                <button type="button" onClick={() => setConfirmConc(true)} title="Concluir"
+                  className="text-[14px] text-green-500 hover:text-green-700 font-bold transition-colors">✓</button>
+              )}
+              <button type="button" onClick={() => setConfirmExcl(true)} title="Excluir"
+                className="text-red-400 hover:text-red-600 font-bold text-[12px] transition-colors">✕</button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Confirmações inline */}
@@ -694,6 +739,34 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
           <span className="flex-1">Excluir esta meta?</span>
           <button type="button" onClick={handleExcluir} disabled={salvando} className="font-medium hover:underline disabled:opacity-50">{salvando ? '…' : 'Confirmar'}</button>
           <button type="button" onClick={() => setConfirmExcl(false)} className="text-gray-400">Cancelar</button>
+        </div>
+      )}
+
+      {/* Form editar meta (Danilo only) */}
+      {editandoMeta && (
+        <div className="px-3 py-2.5 bg-blue-50 border-b border-blue-100 flex flex-col gap-2">
+          <p className="text-[10px] font-semibold text-blue-700">Editar meta</p>
+          <input className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            value={formMeta.descricao} onChange={e => setFormMeta(p => ({ ...p, descricao: e.target.value }))} autoFocus />
+          <div className="grid grid-cols-3 gap-2">
+            <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={formMeta.tipo} onChange={e => setFormMeta(p => ({ ...p, tipo: e.target.value }))}>
+              <option value="atingivel">Atingível</option>
+              <option value="recorrente">Recorrente</option>
+            </select>
+            <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5"
+              value={formMeta.metaUnidade} onChange={e => setFormMeta(p => ({ ...p, metaUnidade: e.target.value }))} />
+            <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+              <input type="checkbox" checked={formMeta.isChave} onChange={e => setFormMeta(p => ({ ...p, isChave: e.target.checked }))} />
+              Chave 🔑
+            </label>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button type="button" onClick={() => setEditandoMeta(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+            <button type="button" onClick={handleSalvarMeta} disabled={!formMeta.descricao.trim() || salvandoMeta}
+              className="text-xs px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600">
+              {salvandoMeta ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -718,7 +791,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
             <tbody>
               {indicadores.map(ind => (
                 <LinhaIndicador key={ind.id} ind={ind} responsaveis={responsaveis}
-                  isAdmin={isAdmin} onUpdate={onUpdate} />
+                  isAdmin={isAdmin} currentUserId={currentUserId} onUpdate={onUpdate} />
               ))}
             </tbody>
           </table>
@@ -1418,6 +1491,7 @@ function PreBoneDayPageContent() {
                       onExcluir={handleExcluirMeta}
                       objetivoResponsaveis={objetivoResponsaveis}
                       currentUserId={currentUserId}
+                      podeEditarMeta={currentUserEmail === 'danilo.n@moni.casa'}
                       onToggleResponsavel={handleToggleResponsavel}
                     />
                   ))
