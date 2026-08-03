@@ -43,8 +43,28 @@ export type UseAgendaResult = {
 const DIAS  = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const ADMIN_EMAIL = 'danilo.n@moni.casa';
-const COR_PADRAO  = '#378ADD';
+const COR_PADRAO    = '#378ADD';
 const COR_CONCLUIDA = '#6b7280';
+
+// Paleta de cores para auto-atribuição por objetivo (deterministico via hash do id)
+const COR_PALETTE = [
+  '#4285F4', // azul
+  '#0F9D58', // verde
+  '#DB4437', // vermelho
+  '#AB47BC', // roxo
+  '#00ACC1', // ciano
+  '#FF7043', // laranja
+  '#26A69A', // teal
+  '#EC407A', // rosa
+  '#F4B400', // amarelo
+  '#78909C', // cinza-azul
+];
+
+function autoObjetivoColor(objetivoId: string | null): string {
+  if (!objetivoId) return COR_PADRAO;
+  const hash = objetivoId.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return COR_PALETTE[hash % COR_PALETTE.length]!;
+}
 
 function toDateStr(d: Date): string {
   const y  = d.getFullYear();
@@ -92,6 +112,8 @@ type GanttRow = {
   link_reuniao: string | null;
   origem_tipo: string | null;
   data_conclusao_real: string | null;
+  cor: string | null;
+  objetivo_id: string | null;
   acoes: { tipo_atividade: string } | { tipo_atividade: string }[] | null;
 };
 
@@ -99,13 +121,17 @@ function rowToAtividade(row: GanttRow): AtividadeAgenda {
   const acao = Array.isArray(row.acoes) ? row.acoes[0] : row.acoes;
   const titulo = acao?.tipo_atividade ?? row.titulo ?? '(sem título)';
   const concluido = !!row.data_conclusao_real;
+  // Prioridade: concluído → cinza | override do usuário → row.cor | meta → auto-cor | fallback → padrão
+  const cor = concluido
+    ? COR_CONCLUIDA
+    : (row.cor ?? autoObjetivoColor(row.objetivo_id));
   return {
     id:                row.id,
     titulo,
     hora_inicio:       row.hora_inicio,
     hora_fim:          row.hora_fim,
     data:              row.data,
-    cor:               concluido ? COR_CONCLUIDA : COR_PADRAO,
+    cor,
     card_id:           row.card_id,
     sirene_chamado_id: row.sirene_chamado_id,
     link_reuniao:      row.link_reuniao,
@@ -114,7 +140,7 @@ function rowToAtividade(row: GanttRow): AtividadeAgenda {
   };
 }
 
-const SELECT_FIELDS = 'id, titulo, hora_inicio, hora_fim, data, card_id, sirene_chamado_id, link_reuniao, origem_tipo, data_conclusao_real, acoes(tipo_atividade)';
+const SELECT_FIELDS = 'id, titulo, hora_inicio, hora_fim, data, card_id, sirene_chamado_id, link_reuniao, origem_tipo, data_conclusao_real, cor, objetivo_id, acoes(tipo_atividade)';
 
 export function useAgenda(refreshKey = 0): UseAgendaResult {
   const supabase = useMemo(() => createClient(), []);

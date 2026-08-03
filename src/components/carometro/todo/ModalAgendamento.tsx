@@ -35,6 +35,7 @@ export type DadosAgendamento = {
   link_reuniao: string | null;
   local_reuniao: string | null;
   titulo: string | null;
+  cor: string | null;
   participantes: string[];
   participantes_externos: string[];
   origem_tipo: OrigemTipo | null;
@@ -45,7 +46,8 @@ const EMPTY: DadosAgendamento = {
   casa_id: null, franqueado_id: null, rede_loteador_id: null, condominio_id: null,
   adm_cnpj_id: null, sirene_chamado_id: null, card_id: null,
   recorrente: false, recorrencia_config: null, observacoes: null,
-  link_reuniao: null, local_reuniao: null, titulo: null, participantes: [], participantes_externos: [], origem_tipo: null,
+  link_reuniao: null, local_reuniao: null, titulo: null, cor: null,
+  participantes: [], participantes_externos: [], origem_tipo: null,
 };
 
 export type OrigemInfo = {
@@ -89,6 +91,27 @@ export function gerarOcorrencias(dataInicio: string, cfg: RecorrenciaConfig): st
     }
   }
   return datas;
+}
+
+// ── Paleta de cores da Agenda ─────────────────────────────────────────────────
+
+export const COR_AGENDA_PALETTE = [
+  '#4285F4', // azul
+  '#0F9D58', // verde
+  '#DB4437', // vermelho
+  '#AB47BC', // roxo
+  '#00ACC1', // ciano
+  '#FF7043', // laranja
+  '#26A69A', // teal
+  '#EC407A', // rosa
+  '#F4B400', // amarelo
+  '#78909C', // cinza-azul
+];
+
+function autoCorObjetivo(objetivoId: string | null): string {
+  if (!objetivoId) return '#378ADD';
+  const hash = objetivoId.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return COR_AGENDA_PALETTE[hash % COR_AGENDA_PALETTE.length]!;
 }
 
 // ── Ordenação por prazo (mesma lógica do BacklogBloco) ───────────────────────
@@ -420,10 +443,11 @@ export function ModalAgendamento({
           resolvedAreaId = (ap?.area_id as string | null) ?? null;
         }
 
+        const mesAtual = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
         const [objRes, pessoasRes] = await Promise.all([
           resolvedAreaId
-            ? supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', resolvedAreaId).eq('status', 'ativo').order('descricao')
-            : supabase.from('objetivos').select('id, descricao, tipo').eq('status', 'ativo').order('descricao'), // admin sem área: exibe todas
+            ? supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', resolvedAreaId).eq('status', 'ativo').eq('mes', mesAtual).order('descricao')
+            : supabase.from('objetivos').select('id, descricao, tipo').eq('status', 'ativo').eq('mes', mesAtual).order('descricao'), // admin sem área: exibe todas do mês
           supabase.from('area_pessoas').select('profile_id, nome, areas(nome)').not('profile_id', 'is', null).order('nome'),
         ]);
         setObjetivos((objRes.data ?? []) as { id: string; descricao: string; tipo: string | null }[]);
@@ -764,7 +788,7 @@ export function ModalAgendamento({
             </div>
           )}
 
-          {/* ── Título ── */}
+          {/* ── Título + Cor ── */}
           <div className={`border-b border-gray-100 px-4 py-3 ${erros.titulo ? 'bg-red-50' : ''}`}>
             <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">
               Título
@@ -777,6 +801,55 @@ export function ModalAgendamento({
               value={form.titulo ?? ''}
               onChange={e => { set('titulo', e.target.value || null); setErros(p => ({ ...p, titulo: false })); }}
             />
+
+            {/* Color picker */}
+            <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+              {/* Cor automática (baseada na meta) */}
+              <button
+                type="button"
+                title="Cor automática (baseada na meta)"
+                onClick={() => set('cor', null)}
+                className={`w-5 h-5 rounded-full border-2 transition-all flex items-center justify-center text-[9px] ${
+                  form.cor === null ? 'border-gray-700 scale-110' : 'border-transparent hover:border-gray-300'
+                }`}
+                style={{ backgroundColor: autoCorObjetivo(form.objetivo_id) }}
+              >
+                {form.cor === null && <span className="text-white font-bold leading-none">A</span>}
+              </button>
+
+              {/* Paleta fixa */}
+              {COR_AGENDA_PALETTE.map(cor => (
+                <button
+                  key={cor}
+                  type="button"
+                  title={cor}
+                  onClick={() => set('cor', form.cor === cor ? null : cor)}
+                  className={`w-5 h-5 rounded-full border-2 transition-all ${
+                    form.cor === cor ? 'border-gray-700 scale-110' : 'border-transparent hover:border-gray-300'
+                  }`}
+                  style={{ backgroundColor: cor }}
+                />
+              ))}
+
+              {/* Cor customizada */}
+              <label
+                title="Cor personalizada"
+                className="w-5 h-5 rounded-full border-2 border-dashed border-gray-300 hover:border-gray-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all"
+                style={form.cor && !COR_AGENDA_PALETTE.includes(form.cor) ? { backgroundColor: form.cor, borderStyle: 'solid', borderColor: '#374151' } : {}}
+              >
+                <input
+                  type="color"
+                  className="opacity-0 absolute w-px h-px"
+                  value={form.cor ?? '#378ADD'}
+                  onChange={e => set('cor', e.target.value)}
+                />
+                {(!form.cor || COR_AGENDA_PALETTE.includes(form.cor)) && (
+                  <span className="text-[10px] text-gray-400 leading-none select-none">+</span>
+                )}
+              </label>
+
+              <span className="text-[10px] text-gray-400 ml-1">Cor do card</span>
+            </div>
           </div>
 
           {/* ── BLOCO UNIFICADO: Origem + Item ── */}
