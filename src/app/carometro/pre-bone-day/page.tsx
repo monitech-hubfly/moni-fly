@@ -831,8 +831,9 @@ const META_CORES = [
   { bg: '#e0f2fe', border: '#7dd3fc', text: '#075985' },
 ];
 
-function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas, isAdmin, currentUserId, mes, areaId, onAdd, onDelete, onAddLivre }: {
+function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis, atividades, semanas, isAdmin, currentUserId, mes, areaId, onAdd, onDelete, onAddLivre }: {
   pessoa: ResponsavelItem; comportamentos: ComportamentoItem[]; metas: MetaItem[];
+  objetivoResponsaveis: ObjetivoResponsavel[];
   atividades: AgendaMacroItem[]; semanas: number[]; isAdmin: boolean; currentUserId: string | null; mes: string; areaId: string;
   onAdd: (profileId: string, acoId: string, semana: number, horas: number, objetivoId: string | null) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -892,6 +893,16 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
       .reduce((s, a) => s + (a.tempo_estimado_horas ?? 0), 0),
   [atividades, pessoa.profile_id]);
 
+  // Metas que essa pessoa assumiu (via objetivo_responsaveis)
+  const metasAssumidas = useMemo(() => {
+    const ids = new Set(
+      objetivoResponsaveis
+        .filter(r => r.profile_id === pessoa.profile_id)
+        .map(r => r.objetivo_id)
+    );
+    return metas.filter(m => ids.has(m.id));
+  }, [metas, objetivoResponsaveis, pessoa.profile_id]);
+
   const corDeMeta = useMemo(() => {
     const m = new Map<string, typeof META_CORES[0]>();
     metas.forEach((meta, i) => { m.set(meta.id, META_CORES[i % META_CORES.length]); });
@@ -950,11 +961,17 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, atividades, semanas,
           </div>
           <div>
             <label className="text-[10px] text-gray-500 mb-1 block">Meta vinculada</label>
-            <select className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2"
-              value={novoObjId} onChange={e => setNovoObjId(e.target.value)}>
-              <option value="">— opcional —</option>
-              {metas.map(m => <option key={m.id} value={m.id}>{m.descricao}</option>)}
-            </select>
+            {metasAssumidas.length > 0 ? (
+              <select className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2"
+                value={novoObjId} onChange={e => setNovoObjId(e.target.value)}>
+                <option value="">— opcional —</option>
+                {metasAssumidas.map(m => <option key={m.id} value={m.id}>{m.descricao}</option>)}
+              </select>
+            ) : (
+              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Nenhuma meta assumida — assuma uma meta para vinculá-la à atividade.
+              </p>
+            )}
           </div>
           <div>
             <label className="text-[10px] text-gray-500 mb-1 block">Horas Estimadas Semanais</label>
@@ -1539,7 +1556,8 @@ function PreBoneDayPageContent() {
                   responsaveis.map(p => (
                     <AgendaMacroPessoa
                       key={p.profile_id} pessoa={p} comportamentos={comportamentos}
-                      metas={metas} atividades={agendaMacro} semanas={semanas}
+                      metas={metas} objetivoResponsaveis={objetivoResponsaveis}
+                      atividades={agendaMacro} semanas={semanas}
                       isAdmin={Boolean(isAdmin)} currentUserId={currentUserId} mes={mes} areaId={areaId ?? ''}
                       onAdd={handleAddAtividade} onDelete={handleDeleteAtividade}
                       onAddLivre={handleAddAtividadeLivre}
