@@ -111,6 +111,7 @@ export function usePlanoBoneDay(
           .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
           .eq('area_id', areaId)
           .neq('status', 'concluido')
+          .neq('status', 'arquivado')
           .lt('mes', mes)
           .not('mes', 'is', null)
           .is('objetivo_pai_id', null)

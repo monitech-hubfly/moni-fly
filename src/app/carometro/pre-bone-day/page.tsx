@@ -92,10 +92,11 @@ function buildSemaforoFaixas(tipo: string, verde: string, amarelo: string): obje
 }
 
 // ── Bloco 1: Metas não concluídas ─────────────────────────────────────────────
-function MetaNaoConcluida({ meta, responsaveis, podeRelançar, onRelançar }: {
+function MetaNaoConcluida({ meta, responsaveis, podeRelançar, onRelançar, onArquivar }: {
   meta: MetaItem; responsaveis: ResponsavelItem[];
   podeRelançar: boolean;
   onRelançar: (id: string, f: { metaUnidade: string; respId: string }) => Promise<void>;
+  onArquivar: (id: string) => Promise<void>;
 }) {
   const [aberto,   setAberto]   = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -121,10 +122,17 @@ function MetaNaoConcluida({ meta, responsaveis, podeRelançar, onRelançar }: {
           {meta.responsavel_nome && <span>· {meta.responsavel_nome}</span>}
         </div>
         {podeRelançar && !aberto && (
-          <button type="button" onClick={() => setAberto(true)}
-            className="text-xs px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 rounded-lg transition-colors">
-            Relançar
-          </button>
+          <div className="flex gap-1.5 flex-shrink-0">
+            <button type="button" onClick={() => setAberto(true)}
+              className="text-xs px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 rounded-lg transition-colors">
+              Relançar
+            </button>
+            <button type="button" onClick={() => void onArquivar(meta.id)}
+              className="text-xs px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-500 border border-gray-300 rounded-lg transition-colors"
+              title="Arquivar — não relançar esta meta">
+              Arquivar
+            </button>
+          </div>
         )}
       </div>
       {aberto && (
@@ -1303,6 +1311,12 @@ function PreBoneDayPageContent() {
     recarregar();
   }, [supabase, areaId, mes, metasNaoConcluidas, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleArquivarMeta = useCallback(async (id: string) => {
+    await supabase.from('objetivos').update({ status: 'arquivado' }).eq('id', id);
+    LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id, operacao: 'UPDATE', descricao: 'Meta arquivada' });
+    recarregar();
+  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleConcluirMeta = useCallback(async (id: string) => {
     const { error: e } = await supabase.from('objetivos')
       .update({ status: 'concluido', concluido_em: new Date().toISOString() }).eq('id', id);
@@ -1452,7 +1466,8 @@ function PreBoneDayPageContent() {
                     {metasNaoConcluidas.map(meta => (
                       <MetaNaoConcluida key={meta.id} meta={meta} responsaveis={responsaveis}
                         podeRelançar={currentUserEmail === 'danilo.n@moni.casa'}
-                        onRelançar={handleRelançar} />
+                        onRelançar={handleRelançar}
+                        onArquivar={handleArquivarMeta} />
                     ))}
                   </div>
                 )}
