@@ -6,6 +6,7 @@ import { useAgenda, AtividadeAgenda, DiaAgenda } from '@/hooks/useAgenda';
 import { createClient } from '@/lib/supabase/client';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import type { DadosAgendamento } from './ModalAgendamento';
+import type { RecorrenciaEscopo } from '@/hooks/useModalAgendamento';
 
 const HORA_INICIO   = 8;
 const HORA_FIM      = 20;
@@ -333,9 +334,52 @@ function DialogConcluir({
   );
 }
 
+// ── Dialog de escopo de recorrência ──────────────────────────────────────────
+function DialogEscopoRecorrencia({
+  onSelecionarEscopo,
+  onFechar,
+}: {
+  onSelecionarEscopo: (escopo: RecorrenciaEscopo) => void;
+  onFechar: () => void;
+}) {
+  const opcoes: { escopo: RecorrenciaEscopo; label: string; desc: string }[] = [
+    { escopo: 'single',    label: 'Este evento',          desc: 'Edita ou exclui apenas esta ocorrência.' },
+    { escopo: 'following', label: 'Este e os seguintes',  desc: 'Afeta esta data e todas as ocorrências futuras.' },
+    { escopo: 'all',       label: 'Todos os eventos',     desc: 'Afeta toda a série de eventos recorrentes.' },
+  ];
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/30" onClick={onFechar} />
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-sm p-5 flex flex-col gap-4">
+        <h3 className="text-sm font-semibold text-gray-800">Editar evento recorrente</h3>
+        <div className="flex flex-col gap-2">
+          {opcoes.map(({ escopo, label, desc }) => (
+            <button
+              key={escopo}
+              type="button"
+              onClick={() => onSelecionarEscopo(escopo)}
+              className="text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+            >
+              <div className="text-sm font-medium text-gray-800">{label}</div>
+              <div className="text-xs text-gray-500 mt-0.5">{desc}</div>
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={onFechar}
+          className="px-4 py-2 rounded-lg border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 transition-colors"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type AgendaBlocoProps = {
   onAbrirModal: (preenchido: Partial<DadosAgendamento>) => void;
-  onAbrirParaEditar: (id: string) => void;
+  onAbrirParaEditar: (id: string, escopo?: RecorrenciaEscopo) => void;
   refreshKey?: number;
 };
 
@@ -348,6 +392,22 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
 
   const supabase = useMemo(() => createClient(), []);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
+  const [pendingEditar, setPendingEditar] = useState<{ id: string } | null>(null);
+
+  const handleAbrirParaEditar = useCallback((id: string) => {
+    const atv = atividades.find(a => a.id === id);
+    if (atv?.recorrencia_grupo_id) {
+      setPendingEditar({ id });
+    } else {
+      onAbrirParaEditar(id);
+    }
+  }, [atividades, onAbrirParaEditar]);
+
+  const handleEscopoSelecionado = useCallback((escopo: RecorrenciaEscopo) => {
+    if (!pendingEditar) return;
+    onAbrirParaEditar(pendingEditar.id, escopo);
+    setPendingEditar(null);
+  }, [pendingEditar, onAbrirParaEditar]);
 
   const handleConcluir = useCallback(async (atv: AtividadeAgenda) => {
     const tipo = atv.origem_tipo ?? 'atividades';
@@ -457,7 +517,7 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
               dia={dia}
               atividades={atividades.filter(a => a.data === dia.dateStr)}
               onAbrirModal={onAbrirModal}
-              onAbrirParaEditar={onAbrirParaEditar}
+              onAbrirParaEditar={handleAbrirParaEditar}
               onConcluir={handleConcluir}
               onDesconcluir={desconcluir}
               onAtualizarHorario={atualizarHorario}
@@ -473,6 +533,14 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
           state={dialogState}
           onConcluir={() => { void handleConfirmarConcluir(); }}
           onFechar={() => setDialogState(null)}
+        />
+      )}
+
+      {/* Dialog de escopo para eventos recorrentes */}
+      {pendingEditar && (
+        <DialogEscopoRecorrencia
+          onSelecionarEscopo={handleEscopoSelecionado}
+          onFechar={() => setPendingEditar(null)}
         />
       )}
     </section>

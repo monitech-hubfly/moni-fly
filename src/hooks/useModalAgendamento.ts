@@ -9,14 +9,17 @@ import { gerarOcorrencias } from '@/components/carometro/todo/ModalAgendamento';
 
 type Modo = 'criar' | 'editar';
 
+export type RecorrenciaEscopo = 'single' | 'following' | 'all';
+
 export type UseModalAgendamentoResult = {
   aberto: boolean;
   preenchido: Partial<DadosAgendamento>;
   modo: Modo;
   isSaving: boolean;
   erroSalvar: string | null;
+  escopo: RecorrenciaEscopo;
   abrirParaCriar: (preenchido?: Partial<DadosAgendamento>) => void;
-  abrirParaEditar: (id: string) => void;
+  abrirParaEditar: (id: string, novoEscopo?: RecorrenciaEscopo) => void;
   fechar: () => void;
   salvar: (dados: DadosAgendamento) => Promise<void>;
   excluir: () => Promise<void>;
@@ -34,6 +37,9 @@ export function useModalAgendamento(
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [isSaving,   setIsSaving]   = useState(false);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
+  const [escopo,     setEscopo]     = useState<RecorrenciaEscopo>('single');
+  const [grupoId,    setGrupoId]    = useState<string | null>(null);
+  const [dataBase,   setDataBase]   = useState<string | null>(null);
 
   const abrirParaCriar = useCallback((dados?: Partial<DadosAgendamento>) => {
     setPreenchido(dados ?? {});
@@ -42,7 +48,7 @@ export function useModalAgendamento(
     setAberto(true);
   }, []);
 
-  const abrirParaEditar = useCallback(async (id: string) => {
+  const abrirParaEditar = useCallback(async (id: string, novoEscopo: RecorrenciaEscopo = 'single') => {
     const { data } = await supabase
       .from('gantt_planejamento')
       .select('*')
@@ -83,6 +89,13 @@ export function useModalAgendamento(
         origem_tipo:            (r.origem_tipo as DadosAgendamento['origem_tipo']) ?? null,
       });
     }
+    setEscopo(novoEscopo);
+    setGrupoId((data as Record<string, unknown> | null)
+      ? ((data as Record<string, unknown>).recorrencia_grupo_id as string | null) ?? null
+      : null);
+    setDataBase((data as Record<string, unknown> | null)
+      ? ((data as Record<string, unknown>).data as string | null) ?? null
+      : null);
     setModo('editar');
     setEditandoId(id);
     setAberto(true);
@@ -93,6 +106,9 @@ export function useModalAgendamento(
     setPreenchido({});
     setEditandoId(null);
     setErroSalvar(null);
+    setEscopo('single');
+    setGrupoId(null);
+    setDataBase(null);
   }, []);
 
   const salvar = useCallback(async (dados: DadosAgendamento) => {
@@ -177,26 +193,60 @@ export function useModalAgendamento(
         });
 
       } else if (editandoId) {
-        const { error } = await supabase
-          .from('gantt_planejamento')
-          .update(payload)
-          .eq('id', editandoId);
-        if (error) throw error;
+        if ((escopo === 'all' || escopo === 'following') && grupoId) {
+          // Atualizar série inteira ou este e seguintes — não altera data de cada ocorrência
+          const groupPayload = { ...payload };
+          delete groupPayload.data;
+          delete groupPayload.semana_ano_inicio;
+          delete groupPayload.semana_ano_fim;
+          delete groupPayload.semanas_selecionadas;
 
-        // Sincronizar participantes: apagar todos e re-inserir
-        await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', editandoId);
-        if (dados.participantes.length > 0) {
-          await supabase.from('gantt_agenda_participantes').insert(
-            dados.participantes.map(profile_id => ({ gantt_id: editandoId, profile_id }))
-          );
+          let q = supabase.from('gantt_planejamento').update(groupPayload)
+            .eq('recorrencia_grupo_id', grupoId);
+          if (escopo === 'following' && dataBase) {
+            q = q.gte('data', dataBase);
+          }
+          const { error: errGroup } = await q;
+          if (errGroup) throw errGroup;
+
+          // Sincronizar participantes para todas as ocorrências do escopo
+          let groupIdsQ = supabase.from('gantt_planejamento').select('id')
+            .eq('recorrencia_grupo_id', grupoId);
+          if (escopo === 'following' && dataBase) groupIdsQ = groupIdsQ.gte('data', dataBase);
+          const { data: groupRows } = await groupIdsQ;
+          const gIds = ((groupRows ?? []) as { id: string }[]).map(r => r.id);
+          if (gIds.length > 0) {
+            await supabase.from('gantt_agenda_participantes').delete().in('gantt_id', gIds);
+            if (dados.participantes.length > 0) {
+              await supabase.from('gantt_agenda_participantes').insert(
+                gIds.flatMap(gantt_id =>
+                  dados.participantes.map(profile_id => ({ gantt_id, profile_id }))
+                )
+              );
+            }
+          }
+        } else {
+          // Apenas este evento
+          const { error } = await supabase
+            .from('gantt_planejamento')
+            .update(payload)
+            .eq('id', editandoId);
+          if (error) throw error;
+
+          await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', editandoId);
+          if (dados.participantes.length > 0) {
+            await supabase.from('gantt_agenda_participantes').insert(
+              dados.participantes.map(profile_id => ({ gantt_id: editandoId, profile_id }))
+            );
+          }
+
+          void (registrarLog as unknown as (a: Record<string, unknown>) => Promise<void>)({
+            modulo: 'Planejamento', area: areaId,
+            entidade: 'gantt_planejamento', entidade_id: editandoId,
+            operacao: 'UPDATE',
+            descricao: `Atividade atualizada: ${dados.data ?? ''}`,
+          });
         }
-
-        void (registrarLog as unknown as (a: Record<string, unknown>) => Promise<void>)({
-          modulo: 'Planejamento', area: areaId,
-          entidade: 'gantt_planejamento', entidade_id: editandoId,
-          operacao: 'UPDATE',
-          descricao: `Atividade atualizada: ${dados.data ?? ''}`,
-        });
       }
 
       fechar();
@@ -209,16 +259,32 @@ export function useModalAgendamento(
     } finally {
       setIsSaving(false);
     }
-  }, [supabase, effectiveProfileId, areaId, modo, editandoId, fechar, onSalvo]);
+  }, [supabase, effectiveProfileId, areaId, modo, editandoId, escopo, grupoId, dataBase, fechar, onSalvo]);
 
   const excluir = useCallback(async () => {
     if (!editandoId) return;
     setIsSaving(true);
     setErroSalvar(null);
     try {
-      await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', editandoId);
-      const { error } = await supabase.from('gantt_planejamento').delete().eq('id', editandoId);
-      if (error) throw error;
+      if ((escopo === 'all' || escopo === 'following') && grupoId) {
+        // Buscar ids do escopo para limpar participantes
+        let idsQ = supabase.from('gantt_planejamento').select('id')
+          .eq('recorrencia_grupo_id', grupoId);
+        if (escopo === 'following' && dataBase) idsQ = idsQ.gte('data', dataBase);
+        const { data: scopeRows } = await idsQ;
+        const scopeIds = ((scopeRows ?? []) as { id: string }[]).map(r => r.id);
+        if (scopeIds.length > 0) {
+          await supabase.from('gantt_agenda_participantes').delete().in('gantt_id', scopeIds);
+        }
+        let delQ = supabase.from('gantt_planejamento').delete().eq('recorrencia_grupo_id', grupoId);
+        if (escopo === 'following' && dataBase) delQ = delQ.gte('data', dataBase);
+        const { error } = await delQ;
+        if (error) throw error;
+      } else {
+        await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', editandoId);
+        const { error } = await supabase.from('gantt_planejamento').delete().eq('id', editandoId);
+        if (error) throw error;
+      }
       fechar();
       onSalvo?.();
       window.dispatchEvent(new CustomEvent('backlog-reload'));
@@ -228,7 +294,7 @@ export function useModalAgendamento(
     } finally {
       setIsSaving(false);
     }
-  }, [supabase, editandoId, fechar, onSalvo]);
+  }, [supabase, editandoId, escopo, grupoId, dataBase, fechar, onSalvo]);
 
-  return { aberto, preenchido, modo, isSaving, erroSalvar, abrirParaCriar, abrirParaEditar, fechar, salvar, excluir };
+  return { aberto, preenchido, modo, isSaving, erroSalvar, escopo, abrirParaCriar, abrirParaEditar, fechar, salvar, excluir };
 }

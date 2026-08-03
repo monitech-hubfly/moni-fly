@@ -16,6 +16,7 @@ export type AtividadeAgenda = {
   link_reuniao: string | null;
   origem_tipo: string | null;
   concluido: boolean;
+  recorrencia_grupo_id: string | null;
 };
 
 export type DiaAgenda = {
@@ -114,6 +115,7 @@ type GanttRow = {
   data_conclusao_real: string | null;
   cor: string | null;
   objetivo_id: string | null;
+  recorrencia_grupo_id: string | null;
   acoes: { tipo_atividade: string } | { tipo_atividade: string }[] | null;
 };
 
@@ -126,21 +128,22 @@ function rowToAtividade(row: GanttRow): AtividadeAgenda {
     ? COR_CONCLUIDA
     : (row.cor ?? autoObjetivoColor(row.objetivo_id));
   return {
-    id:                row.id,
+    id:                   row.id,
     titulo,
-    hora_inicio:       row.hora_inicio,
-    hora_fim:          row.hora_fim,
-    data:              row.data,
+    hora_inicio:          row.hora_inicio,
+    hora_fim:             row.hora_fim,
+    data:                 row.data,
     cor,
-    card_id:           row.card_id,
-    sirene_chamado_id: row.sirene_chamado_id,
-    link_reuniao:      row.link_reuniao,
-    origem_tipo:       row.origem_tipo,
+    card_id:              row.card_id,
+    sirene_chamado_id:    row.sirene_chamado_id,
+    link_reuniao:         row.link_reuniao,
+    origem_tipo:          row.origem_tipo,
     concluido,
+    recorrencia_grupo_id: row.recorrencia_grupo_id,
   };
 }
 
-const SELECT_FIELDS = 'id, titulo, hora_inicio, hora_fim, data, card_id, sirene_chamado_id, link_reuniao, origem_tipo, data_conclusao_real, cor, objetivo_id, acoes(tipo_atividade)';
+const SELECT_FIELDS = 'id, titulo, hora_inicio, hora_fim, data, card_id, sirene_chamado_id, link_reuniao, origem_tipo, data_conclusao_real, cor, objetivo_id, recorrencia_grupo_id, acoes(tipo_atividade)';
 
 export function useAgenda(refreshKey = 0): UseAgendaResult {
   const supabase = useMemo(() => createClient(), []);
