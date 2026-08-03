@@ -364,6 +364,7 @@ export function useBacklog(): UseBacklogResult {
       { onConflict: 'profile_id,acao_id' }
     );
     setAtivoIds(prev => new Set([...prev, id]));
+    window.dispatchEvent(new CustomEvent('backlog-reload'));
   }, [supabase]);
 
   const desativar = useCallback(async (id: string) => {
