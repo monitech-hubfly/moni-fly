@@ -83,24 +83,36 @@ export function useBacklog(): UseBacklogResult {
       let effectiveProfileId = user.id;
       let areaPessoaId: string | null = null;
       let effectiveAreaId: string | null = null;
+      let allAreaPessoaIds: string[] = [];
+      let allAreaIds: string[] = [];
 
       if (isAdmin && simProfileId) {
         effectiveProfileId = simProfileId;
         effectiveAreaId    = simAreaId;
-        const { data: simAP } = await supabase
-          .from('area_pessoas')
-          .select('id')
-          .eq('profile_id', simProfileId)
-          .maybeSingle();
-        areaPessoaId = (simAP as { id?: string } | null)?.id ?? null;
+        if (simAreaId) {
+          const { data: simAP } = await supabase
+            .from('area_pessoas')
+            .select('id')
+            .eq('profile_id', simProfileId)
+            .eq('area_id', simAreaId)
+            .limit(1)
+            .maybeSingle();
+          areaPessoaId = (simAP as { id?: string } | null)?.id ?? null;
+        }
+        allAreaPessoaIds = areaPessoaId ? [areaPessoaId] : [];
+        allAreaIds       = simAreaId    ? [simAreaId]    : [];
       } else {
-        const { data: areaPessoa } = await supabase
+        const { data: apRowsRaw } = await supabase
           .from('area_pessoas')
           .select('id, area_id')
           .eq('profile_id', user.id)
-          .maybeSingle();
-        areaPessoaId    = (areaPessoa?.id      as string | null) ?? null;
-        effectiveAreaId = (areaPessoa?.area_id as string | null) ?? null;
+          .eq('ativo', true)
+          .order('criado_em', { ascending: true });
+        const apRows = (apRowsRaw ?? []) as { id: string; area_id: string }[];
+        areaPessoaId     = apRows[0]?.id      ?? null;
+        effectiveAreaId  = apRows[0]?.area_id ?? null;
+        allAreaPessoaIds = apRows.map(r => r.id);
+        allAreaIds       = [...new Set(apRows.map(r => r.area_id))];
       }
 
       // Busca Sirene, Atividades (via tarefas/acoes), Pastelaria em paralelo
@@ -124,18 +136,18 @@ export function useBacklog(): UseBacklogResult {
           .in('status', ['nao_iniciado', 'em_andamento'])
           .eq('arquivado', false),
 
-        effectiveAreaId
+        allAreaIds.length > 0
           ? supabase
               .from('tarefas')
               .select('id, acoes(id, nome, caneta_verde, prazo, criado_em)')
-              .eq('area_id', effectiveAreaId)
+              .in('area_id', allAreaIds)
           : Promise.resolve({ data: [], error: null }),
 
-        areaPessoaId
+        allAreaPessoaIds.length > 0
           ? supabase
               .from('pastelaria_cards')
               .select('id, nome, coluna, semana_origem')
-              .eq('responsavel_id', areaPessoaId)
+              .in('responsavel_id', allAreaPessoaIds)
               .in('coluna', ['inbox', 'mapped', 'doing'])
               .eq('reclassificado', false)
           : Promise.resolve({ data: [], error: null }),

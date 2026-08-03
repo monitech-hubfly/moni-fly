@@ -78,8 +78,8 @@ type Acao   = { id: string; nome: string; caneta_verde: string | null; prazo: st
 
 type HiddenState = { tarefas: string[]; acoes: string[] };
 
-function NovaAtividadeDrawer({ areaId, onFechar, onSaved, ativoIds, onAtivar }: {
-  areaId: string | null; onFechar: () => void; onSaved?: () => void;
+function NovaAtividadeDrawer({ areaId, areaIds: areaIdsProp, onFechar, onSaved, ativoIds, onAtivar }: {
+  areaId: string | null; areaIds?: string[]; onFechar: () => void; onSaved?: () => void;
   ativoIds?: Set<string>; onAtivar?: (id: string) => Promise<void> | void;
 }) {
   const supabase = useMemo(() => createClient(), []);
@@ -152,12 +152,17 @@ function NovaAtividadeDrawer({ areaId, onFechar, onSaved, ativoIds, onAtivar }: 
     });
   };
 
+  const effectiveAreaIds = areaIdsProp?.length ? areaIdsProp : (areaId ? [areaId] : []);
+  const primaryAreaId    = effectiveAreaIds[0] ?? null;
+
   useEffect(() => {
-    if (!areaId) return;
-    void supabase.from('tarefas').select('id, nome').eq('area_id', areaId).order('nome').then(({ data }) => {
-      setTarefas((data ?? []) as Tarefa[]);
-    });
-  }, [supabase, areaId]);
+    if (effectiveAreaIds.length === 0) return;
+    void supabase.from('tarefas').select('id, nome')
+      .in('area_id', effectiveAreaIds).order('nome')
+      .then(({ data }) => { setTarefas((data ?? []) as Tarefa[]); });
+  // effectiveAreaIds muda só quando as áreas do usuário mudam — join como dep estável
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, effectiveAreaIds.join(',')]);
 
   const carregarAcoes = async (tId: string) => {
     setLoadingAcoes(true);
@@ -181,7 +186,7 @@ function NovaAtividadeDrawer({ areaId, onFechar, onSaved, ativoIds, onAtivar }: 
     if (!novaTarefa.trim()) { setErro('Nome obrigatório.'); return; }
     setSalvando(true); setErro(null);
     const { data: ins, error: e } = await supabase
-      .from('tarefas').insert({ area_id: areaId, nome: novaTarefa.trim() }).select('id, nome').single();
+      .from('tarefas').insert({ area_id: primaryAreaId, nome: novaTarefa.trim() }).select('id, nome').single();
     if (e) { setErro(e.message); setSalvando(false); return; }
     const t = ins as Tarefa;
     setTarefas(prev => [...prev, t].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')));
@@ -691,7 +696,7 @@ type BacklogBlocoProps = {
 
 export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
   const { sirene, pastelaria, atividades, ativoIds, isLoading, error, recarregar, ativar, desativar, arquivarPastelaria } = useBacklog();
-  const { areaId } = useEffectiveUser();
+  const { areaId, areaIds } = useEffectiveUser();
   const [drawerAberto, setDrawerAberto] = useState(false);
 
   // Apenas acoes que o usuário ativou
@@ -779,6 +784,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
       {drawerAberto && (
         <NovaAtividadeDrawer
           areaId={areaId}
+          areaIds={areaIds}
           onFechar={() => setDrawerAberto(false)}
           onSaved={recarregar}
           ativoIds={ativoIds}
