@@ -23,6 +23,7 @@ export type SireneItem = {
   aberto_por_nome: string | null;
   card_id: string | null;
   card_kanban_nome: string | null;
+  interacao_id: string | null;
 };
 
 export type AtividadeItem = {
@@ -242,6 +243,7 @@ export function useBacklog(): UseBacklogResult {
           aberto_por_nome: chamado?.aberto_por_nome ?? null,
           card_id:         cardId,
           card_kanban_nome: cardKanbanNome,
+          interacao_id:    row.interacao_id ?? null,
         };
       });
 

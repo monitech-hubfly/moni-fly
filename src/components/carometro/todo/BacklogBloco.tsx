@@ -514,9 +514,11 @@ function ColunaSirene({ items, pastelariaItems = [], onArquivarPastelaria }: Col
                 href={
                   item.chamado_id
                     ? `/sirene/chamados?id=${item.chamado_id}`
-                    : item.card_id
-                      ? hrefAbrirCardKanban(item.card_kanban_nome ?? '', item.card_id)
-                      : undefined
+                    : item.interacao_id
+                      ? `/sirene/chamados?interacao=${item.interacao_id}`
+                      : item.card_id
+                        ? hrefAbrirCardKanban(item.card_kanban_nome ?? '', item.card_id)
+                        : undefined
                 }
                 abertoPor={item.aberto_por_nome}
               />
