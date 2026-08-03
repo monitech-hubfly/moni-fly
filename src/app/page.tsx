@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { MoniFooter } from '@/components/MoniFooter';
@@ -25,6 +26,13 @@ export default async function HomePage() {
         .eq('id', user.id)
         .maybeSingle();
       accessRole = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
+
+      if (
+        user?.email?.endsWith('@moni.casa') &&
+        (accessRole === 'admin' || accessRole === 'team')
+      ) {
+        redirect('/carometro/todo-planning');
+      }
 
       const [processosRes, ticketsRes] = await Promise.all([
         supabase
