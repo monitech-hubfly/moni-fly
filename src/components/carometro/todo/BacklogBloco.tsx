@@ -656,6 +656,7 @@ function ColunaAtividades({ items, onDesativar }: ColunaAtividadesProps) {
                 <button
                   type="button"
                   onClick={() => setConfirmItem({ id: item.id, nome: item.nome })}
+                  onPointerDown={e => e.stopPropagation()}
                   title="Remover do backlog"
                   className="opacity-0 group-hover:opacity-100 shrink-0 text-gray-300 hover:text-red-400 text-xs px-1 py-1 transition-opacity"
                 >
