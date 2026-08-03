@@ -7,6 +7,7 @@ import { normalizeAccessRole } from '@/lib/authz';
 export default async function HomePage() {
   let user: { id: string; email?: string } | null = null;
   let accessRole = 'pending' as ReturnType<typeof normalizeAccessRole>;
+  let redirectToTodoPlanning = false;
   let processos: {
     id: string;
     cidade: string;
@@ -31,7 +32,7 @@ export default async function HomePage() {
         user?.email?.endsWith('@moni.casa') &&
         (accessRole === 'admin' || accessRole === 'team')
       ) {
-        redirect('/carometro/todo-planning');
+        redirectToTodoPlanning = true;
       }
 
       const [processosRes, ticketsRes] = await Promise.all([
@@ -54,6 +55,10 @@ export default async function HomePage() {
     }
   } catch {
     // Supabase não configurado ou indisponível
+  }
+
+  if (redirectToTodoPlanning) {
+    redirect('/carometro/todo-planning');
   }
 
   if (!user) {

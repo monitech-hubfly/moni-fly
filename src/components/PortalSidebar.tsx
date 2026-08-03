@@ -24,7 +24,7 @@ function getInicialNome(fullName: string | null | undefined): string {
   return (parts[0][0] ?? '?').toUpperCase();
 }
 
-type NavItem = { href: string; label: string };
+type NavItem = { href: string; label: string } | { href: '__sep__'; label: string };
 const REDE_FRANQUEADOS_SUBITENS: NavItem[] = [
   { href: '/rede-franqueados', label: 'Rede Casa Moní' },
   { href: '/comunidade', label: 'Comunidade' },
@@ -48,8 +48,18 @@ const SIRENE_SUBITENS: NavItem[] = [
   { href: '/sirene/chamados', label: 'Chamados' },
   { href: '/sirene/pericias', label: 'Classificações' },
 ];
-const CAROMETRO_SUBITENS: NavItem[] = [
+// Itens visíveis para todos admin/team
+const CAROMETRO_SUBITENS_ATIVOS: NavItem[] = [
   { href: '/carometro/comportamentos-e-atividades', label: 'Comportamentos e Atividades' },
+  { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
+  { href: '/carometro/todo-planning', label: 'TO DO & Planning' },
+  { href: '/carometro/pre-bone-day', label: 'Boné Day' },
+  { href: '/carometro/log', label: 'Log' },
+];
+
+// Itens arquivados — visíveis apenas para danilo.n@moni.casa
+const CAROMETRO_SUBITENS_INATIVAS: NavItem[] = [
+  { href: '__sep__', label: 'Inativas' },
   { href: '/carometro/gantt', label: 'Planejamento (Gantt)' },
   { href: '/carometro/status-preenchimento', label: 'Status de Preenchimento' },
   { href: '/carometro/conquistas', label: 'Conquistas' },
@@ -57,23 +67,8 @@ const CAROMETRO_SUBITENS: NavItem[] = [
   { href: '/carometro/workload', label: 'Workload' },
   { href: '/carometro/pastelaria', label: 'Pastelaria' },
   { href: '/carometro', label: 'Carômetro' },
-  { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
-  { href: '/carometro/todo-planning', label: 'TO DO & Planning' },
-  { href: '/carometro/pre-bone-day', label: 'Boné Day' },
+  { href: '/carometro/todo', label: 'TO DO' },
   { href: '/carometro/cadastros', label: 'Cadastros' },
-  { href: '/carometro/log', label: 'Log' },
-];
-
-const CAROMETRO_SUBITENS_TEAM: NavItem[] = [
-  { href: '/carometro/comportamentos-e-atividades', label: 'Comportamentos e Atividades' },
-  { href: '/carometro/gantt', label: 'Planejamento (Gantt)' },
-  { href: '/carometro/status-preenchimento', label: 'Status de Preenchimento' },
-  { href: '/carometro/conquistas', label: 'Conquistas' },
-  { href: '/carometro/pastelaria', label: 'Pastelaria' },
-  { href: '/carometro', label: 'Carômetro' },
-  { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
-  { href: '/carometro/todo-planning', label: 'TO DO & Planning' },
-  { href: '/carometro/pre-bone-day', label: 'Boné Day' },
 ];
 
 const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);
@@ -156,6 +151,10 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const isFrank = roleNorm === 'frank';
   const isStaff = isAdmin || roleNorm === 'team';
   const showHubFunisNav = isStaff || isFrank;
+  const isSuperAdmin = user?.email?.toLowerCase() === 'danilo.n@moni.casa';
+  const carometroSubitens = isSuperAdmin
+    ? [...CAROMETRO_SUBITENS_ATIVOS, ...CAROMETRO_SUBITENS_INATIVAS]
+    : CAROMETRO_SUBITENS_ATIVOS;
 
   useEffect(() => {
     setResolvedRole(userRole);
@@ -269,15 +268,21 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
         </div>
         {open && (
           <div className="mt-0.5 space-y-0.5">
-            {subitens.map((s) => (
-              <Link
-                key={s.href}
-                href={s.href}
-                className={linkClassSub(isActiveHref(s.href))}
-              >
-                {s.label}
-              </Link>
-            ))}
+            {subitens.map((s) =>
+              s.href === '__sep__' ? (
+                <p key={`sep-${s.label}`} className="px-3 pt-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400">
+                  {s.label}
+                </p>
+              ) : (
+                <Link
+                  key={s.href}
+                  href={s.href}
+                  className={linkClassSub(isActiveHref(s.href))}
+                >
+                  {s.label}
+                </Link>
+              )
+            )}
           </div>
         )}
       </div>
@@ -321,7 +326,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
             isCarometroNavActive(pathname ?? ''),
             carometroOpen,
             setCarometroOpen,
-            isAdmin ? CAROMETRO_SUBITENS : CAROMETRO_SUBITENS_TEAM,
+            carometroSubitens,
             (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
           )}
 
