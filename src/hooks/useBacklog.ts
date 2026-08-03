@@ -160,7 +160,7 @@ export function useBacklog(): UseBacklogResult {
         id: string;
         card_id: string | null;
         sirene_chamado_id: number | null;
-        sirene_chamados: ChamadoRaw;
+        sirene_chamados: ChamadoRaw | (ChamadoRaw & { arquivado?: boolean | null });
       };
       type SireneRaw = {
         id: string;
@@ -184,7 +184,7 @@ export function useBacklog(): UseBacklogResult {
       const kanbanAtivRes = interacaoIds.length > 0
         ? await supabase
             .from('kanban_atividades')
-            .select('id, card_id, sirene_chamado_id, sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome)')
+            .select('id, card_id, sirene_chamado_id, sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado)')
             .in('id', interacaoIds)
         : { data: [] as KanbanAtivRaw[], error: null };
 
@@ -245,7 +245,7 @@ export function useBacklog(): UseBacklogResult {
         };
       });
 
-      // Remove tópicos cujo chamado direto está arquivado
+      // Remove tópicos cujo chamado (direto ou via interacao_id) está arquivado
       // (sirene_chamados.arquivado=true → chamado concluído/arquivado no painel Sirene)
       const sireneArrFiltrado = sireneArr.filter(item => {
         const row = ((sireneRes.data ?? []) as unknown as SireneRaw[]).find(r => r.id === item.id);
@@ -254,6 +254,16 @@ export function useBacklog(): UseBacklogResult {
           ? row.sirene_chamados[0] ?? null
           : row.sirene_chamados;
         if (chamadoD?.arquivado === true) return false;
+        // Verifica também chamado via interacao_id (chamado_id=null nesse caso)
+        if (!chamadoD && row.interacao_id) {
+          const interacaoRaw = kanbanAtivMap.get(row.interacao_id);
+          const chamadoVI = interacaoRaw
+            ? (Array.isArray(interacaoRaw.sirene_chamados)
+                ? interacaoRaw.sirene_chamados[0] ?? null
+                : interacaoRaw.sirene_chamados)
+            : null;
+          if ((chamadoVI as { arquivado?: boolean | null } | null)?.arquivado === true) return false;
+        }
         return true;
       });
 
