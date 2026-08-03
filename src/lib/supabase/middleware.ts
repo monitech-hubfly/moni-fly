@@ -19,7 +19,7 @@ import {
 import { PRE_BATALHA_PUBLIC_LEITURA_PATH } from '@/lib/pre-batalha-secoes';
 import { isLiveLimitedRelease } from '@/lib/release-scope';
 
-const HUB_FLY_HOME_TODO_PATH = '/carometro/todo';
+const HUB_FLY_HOME_TODO_PATH = '/carometro/todo-planning';
 
 function shouldUseTodoAsHubFlyHome(accessRole: ReturnType<typeof normalizeAccessRole>): boolean {
   return (accessRole === 'team' || accessRole === 'admin') && !isLiveLimitedRelease();

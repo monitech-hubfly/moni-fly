@@ -24,7 +24,7 @@ function getInicialNome(fullName: string | null | undefined): string {
   return (parts[0][0] ?? '?').toUpperCase();
 }
 
-type NavItem = { href: string; label: string } | { href: '__sep__'; label: string };
+type NavItem = { href: string; label: string };
 const REDE_FRANQUEADOS_SUBITENS: NavItem[] = [
   { href: '/rede-franqueados', label: 'Rede Casa Moní' },
   { href: '/comunidade', label: 'Comunidade' },
@@ -59,7 +59,6 @@ const CAROMETRO_SUBITENS_ATIVOS: NavItem[] = [
 
 // Itens arquivados — visíveis apenas para danilo.n@moni.casa
 const CAROMETRO_SUBITENS_INATIVAS: NavItem[] = [
-  { href: '__sep__', label: 'Inativas' },
   { href: '/carometro/gantt', label: 'Planejamento (Gantt)' },
   { href: '/carometro/status-preenchimento', label: 'Status de Preenchimento' },
   { href: '/carometro/conquistas', label: 'Conquistas' },
@@ -152,9 +151,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const isStaff = isAdmin || roleNorm === 'team';
   const showHubFunisNav = isStaff || isFrank;
   const isSuperAdmin = user?.email?.toLowerCase() === 'danilo.n@moni.casa';
-  const carometroSubitens = isSuperAdmin
-    ? [...CAROMETRO_SUBITENS_ATIVOS, ...CAROMETRO_SUBITENS_INATIVAS]
-    : CAROMETRO_SUBITENS_ATIVOS;
+  const [inativasOpen, setInativasOpen] = useState(false);
 
   useEffect(() => {
     setResolvedRole(userRole);
@@ -245,6 +242,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
     setOpen: (v: boolean) => void,
     subitens: NavItem[],
     isActiveHref: (href: string) => boolean,
+    inativas?: { label: string; open: boolean; onToggle: () => void; items: NavItem[] },
   ) => {
     const macroClass = linkClassPrincipal(isActive);
     return (
@@ -268,20 +266,35 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
         </div>
         {open && (
           <div className="mt-0.5 space-y-0.5">
-            {subitens.map((s) =>
-              s.href === '__sep__' ? (
-                <p key={`sep-${s.label}`} className="px-3 pt-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400">
-                  {s.label}
-                </p>
-              ) : (
-                <Link
-                  key={s.href}
-                  href={s.href}
-                  className={linkClassSub(isActiveHref(s.href))}
+            {subitens.map((s) => (
+              <Link
+                key={s.href}
+                href={s.href}
+                className={linkClassSub(isActiveHref(s.href))}
+              >
+                {s.label}
+              </Link>
+            ))}
+            {inativas && (
+              <>
+                <button
+                  type="button"
+                  onClick={inativas.onToggle}
+                  className="flex w-full items-center justify-between px-3 pt-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400 hover:text-stone-600 transition-colors"
                 >
-                  {s.label}
-                </Link>
-              )
+                  <span>{inativas.label}</span>
+                  <span className="text-[8px]">{inativas.open ? '▲' : '▼'}</span>
+                </button>
+                {inativas.open && inativas.items.map((s) => (
+                  <Link
+                    key={s.href}
+                    href={s.href}
+                    className={linkClassSub(isActiveHref(s.href))}
+                  >
+                    {s.label}
+                  </Link>
+                ))}
+              </>
             )}
           </div>
         )}
@@ -326,8 +339,14 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
             isCarometroNavActive(pathname ?? ''),
             carometroOpen,
             setCarometroOpen,
-            carometroSubitens,
+            CAROMETRO_SUBITENS_ATIVOS,
             (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
+            isSuperAdmin ? {
+              label: 'Inativas',
+              open: inativasOpen,
+              onToggle: () => setInativasOpen((v) => !v),
+              items: CAROMETRO_SUBITENS_INATIVAS,
+            } : undefined,
           )}
 
         {!limitedRelease && (
