@@ -25,8 +25,8 @@ import {
 } from '@/lib/kanban/card-sync-group';
 import {
   isKanbanFunilLoteadoresRef,
-  montarTituloCardLoteadores,
   subtituloCardLoteadores,
+  tituloExibicaoCardLoteadores,
 } from '@/lib/kanban/loteadores-card-titulo';
 import {
   runKanbanCardSelectWithSlaFallback,
@@ -1250,15 +1250,23 @@ export async function fetchKanbanBoardSnapshot(
       const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
       const nomeLoteador = coalesceTextoCampo(rl?.nome);
       if (nomeLoteador) {
-        // Card com cadastro vinculado: título/subtítulo derivam do cadastro do loteador.
-        const nomeCondominioLoteador = coalesceTextoCampo(rl?.condominio_nome, nomeCondominio);
-        const tituloLoteador = montarTituloCardLoteadores({
-          nomeLoteador,
-          contatoNome: rl?.contato_nome,
-          nomeCondominio: nomeCondominioLoteador,
-          tituloFallback: tituloRaw,
-        });
-        tituloExibicao = tituloLoteador ?? tituloExibicao;
+        // Card com cadastro vinculado: condomínio do card > cadastro compartilhado do loteador.
+        const condominioIdCard = String(
+          (cMerged as { condominio_id?: string | null }).condominio_id ?? '',
+        ).trim();
+        tituloExibicao =
+          tituloExibicaoCardLoteadores(
+            {
+              titulo: tituloRaw,
+              nome_condominio: (cMerged as { nome_condominio?: string | null }).nome_condominio,
+            },
+            rl,
+            {
+              condominioNomeTabela: condominioIdCard
+                ? condominioNomePorId.get(condominioIdCard) ?? null
+                : null,
+            },
+          ) ?? tituloExibicao;
         subtituloCard = subtituloCardLoteadores(rl?.interlocutor_nome);
       } else {
         // Sem cadastro vinculado: mantém o título/subtítulo atuais do card.

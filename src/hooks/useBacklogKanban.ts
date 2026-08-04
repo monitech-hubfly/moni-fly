@@ -9,6 +9,7 @@ import {
   EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN,
   CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO,
 } from '@/lib/kanban/responsavel-fase-checklist';
+import { tituloExibicaoCardLoteadores } from '@/lib/kanban/loteadores-card-titulo';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 
 const ADMIN_EMAIL  = 'danilo.n@moni.casa';
@@ -88,6 +89,7 @@ function calcPrioridade(c: KanbanCardItem, hojeIso: string): PrioridadeGrupo {
 
 const CARD_FIELDS = `
   id, titulo, arquivado, concluido, fase_id, kanban_id,
+  nome_condominio, rede_loteador_id,
   created_at, entered_fase_at, sla_iniciado_em,
   proxima_atividade, prazo_atividade,
   fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
@@ -97,6 +99,8 @@ const CARD_FIELDS = `
 type CardRaw = {
   id: string; titulo: string | null; arquivado: boolean; concluido: boolean;
   fase_id: string; kanban_id: string;
+  nome_condominio?: string | null;
+  rede_loteador_id?: string | null;
   created_at: string; entered_fase_at: string | null; sla_iniciado_em: string | null;
   proxima_atividade: string | null; prazo_atividade: string | null;
   fase: FaseRelSla | FaseRelSla[] | null;
@@ -261,12 +265,55 @@ export function useBacklogKanban(refreshKey = 0) {
       ((overrideRes.data ?? []) as Array<{ card_id: string; item_id: string }>)
         .forEach(r => overrideCardItemMap.set(r.card_id, r.item_id));
 
+      const allCardRaws = [...explicitCards, ...defaultCards];
+      const loteadorIds = [
+        ...new Set(
+          allCardRaws
+            .filter(
+              (c) =>
+                c.kanban_id === KANBAN_IDS.LOTEADORES &&
+                String(c.rede_loteador_id ?? '').trim(),
+            )
+            .map((c) => String(c.rede_loteador_id).trim()),
+        ),
+      ];
+      const loteadorPorId = new Map<
+        string,
+        { nome?: string | null; contato_nome?: string | null; condominio_nome?: string | null }
+      >();
+      if (loteadorIds.length > 0) {
+        const { data: loteadoresRows } = await supabase
+          .from('rede_loteadores')
+          .select('id, nome, contato_nome, condominio_nome')
+          .in('id', loteadorIds);
+        for (const row of loteadoresRows ?? []) {
+          const id = String((row as { id?: string }).id ?? '').trim();
+          if (id) {
+            loteadorPorId.set(id, {
+              nome: (row as { nome?: string | null }).nome,
+              contato_nome: (row as { contato_nome?: string | null }).contato_nome,
+              condominio_nome: (row as { condominio_nome?: string | null }).condominio_nome,
+            });
+          }
+        }
+      }
+
       // ── Montar mapa ──────────────────────────────────────────────────────────
       function toItem(raw: CardRaw): KanbanCardItem {
         const fase   = Array.isArray(raw.fase)   ? raw.fase[0]   : raw.fase;
         const kanban = Array.isArray(raw.kanban) ? raw.kanban[0] : raw.kanban;
+        let tituloCard = raw.titulo;
+        if (raw.kanban_id === KANBAN_IDS.LOTEADORES) {
+          const redeLoteadorId = String(raw.rede_loteador_id ?? '').trim();
+          const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
+          tituloCard =
+            tituloExibicaoCardLoteadores(
+              { titulo: raw.titulo, nome_condominio: raw.nome_condominio },
+              rl,
+            ) ?? tituloCard;
+        }
         return {
-          id: raw.id, titulo: raw.titulo,
+          id: raw.id, titulo: tituloCard,
           fase_nome:         fase?.nome   ?? null,
           kanban_nome:       kanban?.nome ?? null,
           sla_dias:          fase?.sla_dias ?? null,

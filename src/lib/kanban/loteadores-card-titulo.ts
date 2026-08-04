@@ -68,6 +68,84 @@ function coalesceTexto(...vals: unknown[]): string | null {
   return null;
 }
 
+/** Extrai o condomínio/projeto do título quando ainda não está em `nome_condominio`. */
+function extrairCondominioDoTituloLoteador(
+  titulo: string | null | undefined,
+  nomeLoteador: string | null | undefined,
+  contatoNome: string | null | undefined,
+): string | null {
+  const parts = String(titulo ?? '')
+    .trim()
+    .split(/\s*[-–—]\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length <= 1) return null;
+
+  const loteador = String(nomeLoteador ?? '').trim();
+  const contato = String(contatoNome ?? '').trim();
+  let idx = 0;
+  if (loteador && parts[0]?.toLowerCase() === loteador.toLowerCase()) idx = 1;
+  if (contato && parts[idx]?.toLowerCase() === contato.toLowerCase()) idx += 1;
+  if (idx >= parts.length) return null;
+  return parts.slice(idx).join(' - ') || null;
+}
+
+/** Condomínio do card: dados do card > título > cadastro do loteador (mesmo loteador, projetos distintos). */
+export function resolverNomeCondominioCardLoteadores(input: {
+  nomeCondominioCard?: string | null;
+  condominioNomeTabela?: string | null;
+  nomeCondominioCadastro?: string | null;
+  tituloCard?: string | null;
+  nomeLoteador?: string | null;
+  contatoNome?: string | null;
+  override?: string | null;
+}): string | null {
+  const fromOverride = coalesceTexto(input.override);
+  if (fromOverride) return fromOverride;
+
+  const fromCard = coalesceTexto(input.nomeCondominioCard);
+  if (fromCard) return fromCard;
+
+  const fromCondTable = coalesceTexto(input.condominioNomeTabela);
+  if (fromCondTable) return fromCondTable;
+
+  const parsed = extrairCondominioDoTituloLoteador(
+    input.tituloCard,
+    input.nomeLoteador,
+    input.contatoNome,
+  );
+  if (parsed) return parsed;
+
+  return coalesceTexto(input.nomeCondominioCadastro);
+}
+
+/** Título de exibição/persistência — card e título manual têm prioridade sobre o cadastro compartilhado. */
+export function tituloExibicaoCardLoteadores(
+  card: { titulo?: string | null; nome_condominio?: string | null },
+  rl: RedeLoteadorTituloRow | null | undefined,
+  options?: { nomeCondominioExtra?: string | null; condominioNomeTabela?: string | null },
+): string | null {
+  const nomeLoteador = coalesceTexto(rl?.nome);
+  if (!nomeLoteador) return coalesceTexto(card.titulo);
+
+  const nomeCondominio = resolverNomeCondominioCardLoteadores({
+    nomeCondominioCard: card.nome_condominio,
+    condominioNomeTabela: options?.condominioNomeTabela,
+    nomeCondominioCadastro: rl?.condominio_nome,
+    tituloCard: card.titulo,
+    nomeLoteador,
+    contatoNome: rl?.contato_nome,
+    override: options?.nomeCondominioExtra,
+  });
+
+  return montarTituloCardLoteadores({
+    nomeLoteador,
+    contatoNome: rl?.contato_nome,
+    nomeCondominio,
+    tituloFallback: card.titulo,
+  });
+}
+
 /** Persiste `titulo` no card quando o kanban é Funil Loteadores. */
 export async function sincronizarTituloCardLoteadores(
   db: LoteadoresTituloDb,
@@ -106,24 +184,16 @@ export async function sincronizarTituloCardLoteadores(
   // Cadastro ainda sem nome preenchido: preserva o título atual.
   if (!nomeLoteador) return { ok: true };
 
-  let nomeCondominioCard = coalesceTexto(
-    rlRow.condominio_nome,
-    overrides?.nomeCondominio,
-    cardRow.nome_condominio,
-  );
-  if (!nomeCondominioCard) {
-    const condominioId = String(cardRow.condominio_id ?? '').trim();
-    if (condominioId) {
-      const { data: cond } = await db.from('condominios').select('nome').eq('id', condominioId).maybeSingle();
-      nomeCondominioCard = coalesceTexto((cond as { nome?: string | null } | null)?.nome);
-    }
+  let condominioNomeTabela: string | null = null;
+  const condominioId = String(cardRow.condominio_id ?? '').trim();
+  if (condominioId) {
+    const { data: cond } = await db.from('condominios').select('nome').eq('id', condominioId).maybeSingle();
+    condominioNomeTabela = coalesceTexto((cond as { nome?: string | null } | null)?.nome);
   }
 
-  const titulo = montarTituloCardLoteadores({
-    nomeLoteador,
-    contatoNome: rlRow.contato_nome,
-    nomeCondominio: nomeCondominioCard,
-    tituloFallback: cardRow.titulo,
+  const titulo = tituloExibicaoCardLoteadores(cardRow, rlRow, {
+    nomeCondominioExtra: overrides?.nomeCondominio,
+    condominioNomeTabela,
   });
   if (!titulo) return { ok: true };
 
