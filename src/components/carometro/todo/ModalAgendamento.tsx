@@ -13,7 +13,9 @@ export type RecorrenciaConfig = {
   frequencia: 'diario' | 'semanal' | 'mensal';
   intervalo: number;
   diasSemana?: number[];
-  ate: string;
+  tipoTermino: 'nunca' | 'data' | 'ocorrencias';
+  ate?: string;           // usado quando tipoTermino === 'data'
+  numOcorrencias?: number; // usado quando tipoTermino === 'ocorrencias'
 };
 
 export type DadosAgendamento = {
@@ -76,10 +78,32 @@ const DIAS_SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
 export function gerarOcorrencias(dataInicio: string, cfg: RecorrenciaConfig): string[] {
   const datas: string[] = [];
-  const ate = new Date(cfg.ate + 'T00:00:00');
   let cur = new Date(dataInicio + 'T00:00:00');
-  const max = 365;
-  while (cur <= ate && datas.length < max) {
+
+  // Determinar tipo de terminação (compatibilidade com registros antigos sem tipoTermino)
+  const tipoTermino = cfg.tipoTermino ?? (cfg.ate ? 'data' : 'nunca');
+
+  // Limite máximo de ocorrências por tipo de terminação
+  const maxCount = tipoTermino === 'ocorrencias'
+    ? Math.max(1, Math.min(cfg.numOcorrencias ?? 1, 365))
+    : 365;
+
+  // Data limite
+  let ate: Date | null = null;
+  if (tipoTermino === 'data' && cfg.ate) {
+    ate = new Date(cfg.ate + 'T00:00:00');
+  } else if (tipoTermino === 'nunca') {
+    // 1 ano a partir da data de início
+    ate = new Date(dataInicio + 'T00:00:00');
+    ate.setFullYear(ate.getFullYear() + 1);
+  }
+  // tipoTermino === 'ocorrencias': sem limite de data, só contagem
+
+  // Cap absoluto de segurança: nunca ultrapassar 2 anos
+  const capSeguranca = new Date(dataInicio + 'T00:00:00');
+  capSeguranca.setFullYear(capSeguranca.getFullYear() + 2);
+
+  while (datas.length < maxCount && cur <= capSeguranca && (ate === null || cur <= ate)) {
     if (cfg.frequencia === 'semanal' && cfg.diasSemana?.length) {
       if (cfg.diasSemana.includes(cur.getDay())) datas.push(cur.toISOString().slice(0, 10));
       cur.setDate(cur.getDate() + 1);
@@ -347,7 +371,7 @@ export function ModalAgendamento({
   // Seções colapsáveis
   // 0=Data+Recorrência, 1=VínculoMeta, 2=Participantes, 3=Link, 4=Info, 5=Obs
   const [abertas, setAbertas] = useState([true, false, false, false, false, false]);
-  const [erros,   setErros]   = useState({ origem: false, data: false, titulo: false, meta: false });
+  const [erros,   setErros]   = useState({ origem: false, data: false, titulo: false, meta: false, recorrencia: false });
 
   const preenchidoRef = useRef(preenchido);
   preenchidoRef.current = preenchido;
@@ -520,7 +544,7 @@ export function ModalAgendamento({
     setSelItem(null);
     setQuery('');
     setExternEmail('');
-    setErros({ origem: false, data: false, titulo: false, meta: false });
+    setErros({ origem: false, data: false, titulo: false, meta: false, recorrencia: false });
     setAbertas([true, false, false, false, false, false]);
     setPartAbertas([true, false]);
     setMetaDefinida(modo === 'editar');
@@ -672,22 +696,41 @@ export function ModalAgendamento({
   const setRecCfg = (patch: Partial<RecorrenciaConfig>) =>
     set('recorrencia_config', { ...recCfg, ...patch } as RecorrenciaConfig);
 
+  const tipoTerminoAtual = recCfg.tipoTermino ?? (recCfg.ate ? 'data' : 'nunca');
+  const previewValido = form.recorrente && !!recCfg.frequencia && form.data &&
+    (tipoTerminoAtual === 'nunca' ||
+     (tipoTerminoAtual === 'data' && !!recCfg.ate) ||
+     (tipoTerminoAtual === 'ocorrencias' && (recCfg.numOcorrencias ?? 0) > 0));
   let ocorrenciasPreview = 0;
-  if (form.recorrente && recCfg.frequencia && recCfg.ate && form.data) {
-    try { ocorrenciasPreview = gerarOcorrencias(form.data, recCfg as RecorrenciaConfig).length; } catch { /**/ }
+  if (previewValido) {
+    try {
+      ocorrenciasPreview = gerarOcorrencias(form.data!, {
+        ...(recCfg as RecorrenciaConfig),
+        tipoTermino: tipoTerminoAtual,
+      }).length;
+    } catch { /**/ }
   }
 
   const handleSalvar = () => {
     const semOrigem = !abaAtiva || (!selItem && !origemInfo);
+    const tipoTermino = recCfg.tipoTermino ?? (recCfg.ate ? 'data' : 'nunca');
+    const recorrenciaInvalida = form.recorrente && !recCfg.frequencia
+      ? true
+      : form.recorrente && tipoTermino === 'data' && !recCfg.ate
+      ? true
+      : form.recorrente && tipoTermino === 'ocorrencias' && !(recCfg.numOcorrencias && recCfg.numOcorrencias > 0)
+      ? true
+      : false;
     const novosErros = {
       origem: semOrigem,
       data: !(form.data && form.hora_inicio),
       titulo: !form.titulo?.trim(),
       meta: !metaDefinida,
+      recorrencia: recorrenciaInvalida,
     };
     setErros(novosErros);
     if (Object.values(novosErros).some(Boolean)) {
-      if (novosErros.data) setAbertas(prev => { const n = [...prev]; n[0] = true; return n; });
+      if (novosErros.data || novosErros.recorrencia) setAbertas(prev => { const n = [...prev]; n[0] = true; return n; });
       if (novosErros.meta) setAbertas(prev => { const n = [...prev]; n[1] = true; return n; });
       return;
     }
@@ -953,7 +996,12 @@ export function ModalAgendamento({
             <div className="mt-4 pt-3 border-t border-gray-100">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" className="rounded accent-blue-500" checked={form.recorrente}
-                  onChange={e => set('recorrente', e.target.checked)} />
+                  onChange={e => {
+                    set('recorrente', e.target.checked);
+                    if (e.target.checked && !recCfg.tipoTermino) {
+                      setRecCfg({ tipoTermino: 'nunca' });
+                    }
+                  }} />
                 <span className="text-xs text-gray-700">Atividade recorrente</span>
               </label>
               {form.recorrente && (
@@ -998,12 +1046,53 @@ export function ModalAgendamento({
                       </div>
                     </div>
                   )}
+                  {/* ── Termina ── */}
                   <div>
-                    <label className="text-[10px] text-gray-400 mb-1 block">Termina em</label>
-                    <input type="date" className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-2"
-                      value={recCfg.ate ?? ''}
-                      onChange={e => setRecCfg({ ate: e.target.value })} />
+                    <label className="text-[10px] text-gray-400 mb-1.5 block">
+                      Termina
+                      {erros.recorrencia && (
+                        <span className="text-red-500 ml-2 normal-case font-normal">• campo obrigatório</span>
+                      )}
+                    </label>
+                    <div className="flex gap-1.5">
+                      {(['nunca', 'data', 'ocorrencias'] as const).map(tipo => {
+                        const labels = { nunca: 'Nunca', data: 'Na data', ocorrencias: 'Após X vezes' };
+                        const sel = tipoTerminoAtual === tipo;
+                        return (
+                          <button key={tipo} type="button"
+                            className={`flex-1 text-[10px] py-1.5 rounded-lg border font-medium transition-colors ${sel ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-300'} ${erros.recorrencia ? 'border-red-300' : ''}`}
+                            onClick={() => {
+                              setRecCfg({ tipoTermino: tipo });
+                              setErros(p => ({ ...p, recorrencia: false }));
+                            }}>
+                            {labels[tipo]}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {tipoTerminoAtual === 'data' && (
+                      <input type="date"
+                        className={`mt-2 w-full text-xs border rounded-lg px-2.5 py-2 ${erros.recorrencia && !recCfg.ate ? 'border-red-400' : 'border-gray-300'}`}
+                        value={recCfg.ate ?? ''}
+                        onChange={e => { setRecCfg({ ate: e.target.value }); setErros(p => ({ ...p, recorrencia: false })); }} />
+                    )}
+
+                    {tipoTerminoAtual === 'ocorrencias' && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <input type="number" min={1} max={365}
+                          className={`w-24 text-xs border rounded-lg px-2.5 py-2 ${erros.recorrencia && !(recCfg.numOcorrencias && recCfg.numOcorrencias > 0) ? 'border-red-400' : 'border-gray-300'}`}
+                          value={recCfg.numOcorrencias ?? ''}
+                          onChange={e => { setRecCfg({ numOcorrencias: parseInt(e.target.value) || undefined }); setErros(p => ({ ...p, recorrencia: false })); }} />
+                        <span className="text-xs text-gray-500">ocorrência{(recCfg.numOcorrencias ?? 0) !== 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+
+                    {tipoTerminoAtual === 'nunca' && (
+                      <p className="mt-1.5 text-[10px] text-gray-400">Gera ocorrências por 1 ano a partir da data inicial.</p>
+                    )}
                   </div>
+
                   {ocorrenciasPreview > 0 && (
                     <p className="text-xs text-blue-600 font-medium">
                       → {ocorrenciasPreview} ocorrência{ocorrenciasPreview !== 1 ? 's' : ''} serão criadas
