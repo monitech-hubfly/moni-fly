@@ -42,11 +42,22 @@ export type PastelariaItem = {
   semana_origem: string;
 };
 
+export type AgendaInfo = {
+  data: string;
+  hora_inicio: string | null;
+  count: number; // quantas sessões agendadas para este item
+};
+
+export type AtividadeItemAgendada = AtividadeItem & { agendaInfo: AgendaInfo };
+export type SireneItemAgendada    = SireneItem    & { agendaInfo: AgendaInfo };
+
 export type UseBacklogResult = {
   sirene: SireneItem[];
   pastelaria: PastelariaItem[];
   atividades: AtividadeItem[];
   ativoIds: Set<string>;
+  atividadesAgendadas: AtividadeItemAgendada[];
+  sireneAgendadas: SireneItemAgendada[];
   isLoading: boolean;
   error: string | null;
   recarregar: () => void;
@@ -65,6 +76,8 @@ export function useBacklog(): UseBacklogResult {
   const [pastelaria, setPastelaria] = useState<PastelariaItem[]>([]);
   const [atividades, setAtividades] = useState<AtividadeItem[]>([]);
   const [ativoIds, setAtivoIds] = useState<Set<string>>(new Set());
+  const [atividadesAgendadas, setAtividadesAgendadas] = useState<AtividadeItemAgendada[]>([]);
+  const [sireneAgendadas, setSireneAgendadas] = useState<SireneItemAgendada[]>([]);
   const callIdRef = useRef(0);
 
   const { simulacao } = useSimulacaoUsuario();
@@ -318,37 +331,67 @@ export function useBacklog(): UseBacklogResult {
         ((ativoData ?? []) as { acao_id: string }[]).map(r => r.acao_id)
       );
 
-      // Busca itens agendados hoje em diante ainda não concluídos — para suprimir do backlog
+      // Busca itens agendados hoje em diante ainda não concluídos — para suprimir/separar do backlog
       const hoje = new Date();
       const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
       const { data: agendados } = await supabase
         .from('gantt_planejamento')
-        .select('acao_id, sirene_chamado_id')
+        .select('acao_id, sirene_chamado_id, data, hora_inicio')
         .eq('profile_id', effectiveProfileId)
         .gte('data', hojeStr)
-        .is('data_conclusao_real', null);
+        .is('data_conclusao_real', null)
+        .order('data', { ascending: true });
 
-      type AgendadoRow = { acao_id: string | null; sirene_chamado_id: number | null };
+      type AgendadoRow = { acao_id: string | null; sirene_chamado_id: number | null; data: string; hora_inicio: string | null };
       const agendadosRows = (agendados ?? []) as AgendadoRow[];
 
-      const scheduledAcoIds = new Set<string>(
-        agendadosRows.map(r => r.acao_id).filter((id): id is string => !!id)
-      );
-      const scheduledChamadoIds = new Set<number>(
-        agendadosRows.map(r => r.sirene_chamado_id).filter((id): id is number => id != null)
-      );
+      // Mapas: id → primeira ocorrência (data mais próxima) + contagem
+      const acoAgendaMap    = new Map<string, AgendaInfo>();
+      const chamadoAgendaMap = new Map<number, AgendaInfo>();
+      const acoCountMap     = new Map<string, number>();
+      const chamadoCountMap = new Map<number, number>();
 
-      // Filtra do backlog os itens agendados e pendentes
+      for (const r of agendadosRows) {
+        if (r.acao_id) {
+          acoCountMap.set(r.acao_id, (acoCountMap.get(r.acao_id) ?? 0) + 1);
+          if (!acoAgendaMap.has(r.acao_id)) {
+            acoAgendaMap.set(r.acao_id, { data: r.data, hora_inicio: r.hora_inicio, count: 0 });
+          }
+        }
+        if (r.sirene_chamado_id != null) {
+          chamadoCountMap.set(r.sirene_chamado_id, (chamadoCountMap.get(r.sirene_chamado_id) ?? 0) + 1);
+          if (!chamadoAgendaMap.has(r.sirene_chamado_id)) {
+            chamadoAgendaMap.set(r.sirene_chamado_id, { data: r.data, hora_inicio: r.hora_inicio, count: 0 });
+          }
+        }
+      }
+      // Preencher count após contabilizar todos
+      for (const [id, info] of acoAgendaMap)     info.count = acoCountMap.get(id)    ?? 1;
+      for (const [id, info] of chamadoAgendaMap) info.count = chamadoCountMap.get(id) ?? 1;
+
+      const scheduledAcoIds = new Set<string>(acoAgendaMap.keys());
+      const scheduledChamadoIds = new Set<number>(chamadoAgendaMap.keys());
+
+      // Lista visível (não agendados) e lista agendada (separada)
       const sireneVisivel = sireneArrFiltrado.filter(s =>
         !s.chamado_id || !scheduledChamadoIds.has(Number(s.chamado_id))
       );
+      const sireneAgendadasArr: SireneItemAgendada[] = sireneArrFiltrado
+        .filter(s => s.chamado_id && scheduledChamadoIds.has(Number(s.chamado_id)))
+        .map(s => ({ ...s, agendaInfo: chamadoAgendaMap.get(Number(s.chamado_id))! }));
+
       const atividadesVisiveis = atividadesArr.filter(a => !scheduledAcoIds.has(a.id));
+      const atividadesAgendadasArr: AtividadeItemAgendada[] = atividadesArr
+        .filter(a => scheduledAcoIds.has(a.id) && ativoSet.has(a.id))
+        .map(a => ({ ...a, agendaInfo: acoAgendaMap.get(a.id)! }));
 
       if (callId !== callIdRef.current) return;
       setSirene(sireneVisivel);
       setPastelaria(pastelariaArr);
       setAtividades(atividadesVisiveis);
       setAtivoIds(ativoSet);
+      setAtividadesAgendadas(atividadesAgendadasArr);
+      setSireneAgendadas(sireneAgendadasArr);
     } catch (e) {
       if (callId !== callIdRef.current) return;
       console.error('[useBacklog] erro:', e);
@@ -391,5 +434,5 @@ export function useBacklog(): UseBacklogResult {
     return () => window.removeEventListener('backlog-reload', handler);
   }, [carregar]);
 
-  return { sirene, pastelaria, atividades, ativoIds, isLoading, error, recarregar: carregar, ativar, desativar, arquivarPastelaria };
+  return { sirene, pastelaria, atividades, ativoIds, atividadesAgendadas, sireneAgendadas, isLoading, error, recarregar: carregar, ativar, desativar, arquivarPastelaria };
 }

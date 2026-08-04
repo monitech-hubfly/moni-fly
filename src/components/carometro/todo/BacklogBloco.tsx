@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { useBacklog, SireneItem, AtividadeItem, PastelariaItem } from '@/hooks/useBacklog';
+import { useBacklog, SireneItem, AtividadeItem, PastelariaItem, AtividadeItemAgendada, SireneItemAgendada } from '@/hooks/useBacklog';
 import { BacklogColunaCard, StatusPrazo } from './BacklogColuna';
 import type { DadosAgendamento } from './ModalAgendamento';
 import { BacklogKanbanColuna } from './BacklogKanbanColuna';
@@ -51,6 +51,15 @@ function statusAtividade(item: AtividadeItem): StatusPrazo {
 function statusPastelaria(item: PastelariaItem): StatusPrazo {
   if (item.coluna === 'doing') return 'esta_semana';
   return 'sem_prazo';
+}
+
+function formatAgendaBadge(data: string, hora_inicio: string | null, count: number): string {
+  const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const d = new Date(`${data}T00:00:00`);
+  const dia = DIAS[d.getDay()] ?? '';
+  const hora = hora_inicio ? hora_inicio.slice(0, 5) : '';
+  const base = hora ? `${dia} ${hora}` : dia;
+  return count > 1 ? `${base} (+${count - 1})` : base;
 }
 
 function EmptyState() {
@@ -480,11 +489,13 @@ function NovaAtividadeDrawer({ areaId, areaIds: areaIdsProp, onFechar, onSaved, 
 // ── Sirene ───────────────────────────────────────────────────────────────────
 type ColunaSireneProps = {
   items: SireneItem[];
+  agendadas?: SireneItemAgendada[];
   pastelariaItems?: PastelariaItem[];
   onArquivarPastelaria?: (id: string) => Promise<void>;
 };
-function ColunaSirene({ items, pastelariaItems = [], onArquivarPastelaria }: ColunaSireneProps) {
+function ColunaSirene({ items, agendadas = [], pastelariaItems = [], onArquivarPastelaria }: ColunaSireneProps) {
   const [pastelariaAberta, setPastelariaAberta] = useState(false);
+  const [agendadasExpand, setAgendadasExpand] = useState(false);
   const [confirmPastelaria, setConfirmPastelaria] = useState<{ id: string; nome: string } | null>(null);
 
   const comStatus = items
@@ -525,6 +536,40 @@ function ColunaSirene({ items, pastelariaItems = [], onArquivarPastelaria }: Col
             </DraggableSirene>
           );
         })}
+
+        {/* Seção Agendadas — colapsável */}
+        {agendadas.length > 0 && (
+          <div className="border-t border-gray-100 pt-1.5 mt-0.5">
+            <button
+              type="button"
+              onClick={() => setAgendadasExpand(v => !v)}
+              className="w-full text-left text-[10px] text-blue-500 hover:text-blue-700 flex items-center justify-between py-0.5"
+            >
+              <span>📅 {agendadas.length} já agendado{agendadas.length > 1 ? 's' : ''}</span>
+              <span>{agendadasExpand ? '▲' : '▼'}</span>
+            </button>
+            {agendadasExpand && (
+              <div className="flex flex-col gap-1 mt-1.5">
+                {agendadas.map(item => {
+                  const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
+                  const badge = formatAgendaBadge(item.agendaInfo.data, item.agendaInfo.hora_inicio, item.agendaInfo.count);
+                  return (
+                    <DraggableSirene
+                      key={item.id}
+                      dragId={`sirene::${item.id}::agendada`}
+                      dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
+                    >
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-blue-100 bg-blue-50/50 text-xs text-gray-600">
+                        <span className="flex-1 truncate">{tituloExibir}</span>
+                        <span className="text-[9px] text-blue-500 shrink-0 whitespace-nowrap">📅 {badge}</span>
+                      </div>
+                    </DraggableSirene>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Seção Pastelaria — colapsável */}
         {pastelariaItems.length > 0 && (
@@ -635,10 +680,12 @@ function DraggableSirene({ dragId, dragData, children }: { dragId: string; dragD
 // ── Atividades Planejadas ─────────────────────────────────────────────────────
 type ColunaAtividadesProps = {
   items: AtividadeItem[];
+  agendadas?: AtividadeItemAgendada[];
   onDesativar?: (id: string) => void;
 };
-function ColunaAtividades({ items, onDesativar }: ColunaAtividadesProps) {
+function ColunaAtividades({ items, agendadas = [], onDesativar }: ColunaAtividadesProps) {
   const [confirmItem, setConfirmItem] = useState<{ id: string; nome: string } | null>(null);
+  const [agendadasExpand, setAgendadasExpand] = useState(false);
 
   const comStatus = items
     .map(i => ({ item: i, status: statusAtividade(i) }))
@@ -646,8 +693,8 @@ function ColunaAtividades({ items, onDesativar }: ColunaAtividadesProps) {
 
   return (
     <>
-      <div className={`flex flex-col gap-1.5 ${items.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
-        {items.length === 0 && <EmptyState />}
+      <div className={`flex flex-col gap-1.5 ${items.length > 0 || agendadas.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
+        {items.length === 0 && agendadas.length === 0 && <EmptyState />}
         {comStatus.map(({ item, status }) => (
           <DraggableAtividade key={item.id} id={item.id}>
             <div className="flex items-center gap-1 group">
@@ -673,6 +720,35 @@ function ColunaAtividades({ items, onDesativar }: ColunaAtividadesProps) {
             </div>
           </DraggableAtividade>
         ))}
+
+        {/* Seção Agendadas — colapsável */}
+        {agendadas.length > 0 && (
+          <div className="border-t border-gray-100 pt-1.5 mt-0.5">
+            <button
+              type="button"
+              onClick={() => setAgendadasExpand(v => !v)}
+              className="w-full text-left text-[10px] text-blue-500 hover:text-blue-700 flex items-center justify-between py-0.5"
+            >
+              <span>📅 {agendadas.length} já agendado{agendadas.length > 1 ? 's' : ''}</span>
+              <span>{agendadasExpand ? '▲' : '▼'}</span>
+            </button>
+            {agendadasExpand && (
+              <div className="flex flex-col gap-1 mt-1.5">
+                {agendadas.map(item => {
+                  const badge = formatAgendaBadge(item.agendaInfo.data, item.agendaInfo.hora_inicio, item.agendaInfo.count);
+                  return (
+                    <DraggableAtividade key={item.id} id={item.id}>
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-blue-100 bg-blue-50/50 text-xs text-gray-600">
+                        <span className="flex-1 truncate">{item.nome}</span>
+                        <span className="text-[9px] text-blue-500 shrink-0 whitespace-nowrap">📅 {badge}</span>
+                      </div>
+                    </DraggableAtividade>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <ConfirmModal
@@ -697,7 +773,7 @@ type BacklogBlocoProps = {
 };
 
 export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
-  const { sirene, pastelaria, atividades, ativoIds, isLoading, error, recarregar, ativar, desativar, arquivarPastelaria } = useBacklog();
+  const { sirene, pastelaria, atividades, ativoIds, atividadesAgendadas, sireneAgendadas, isLoading, error, recarregar, ativar, desativar, arquivarPastelaria } = useBacklog();
   const { areaId, areaIds } = useEffectiveUser();
   const [drawerAberto, setDrawerAberto] = useState(false);
 
@@ -744,7 +820,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
                 </span>
               </div>
             </div>
-            <ColunaSirene items={sirene} pastelariaItems={pastelaria} onArquivarPastelaria={arquivarPastelaria} />
+            <ColunaSirene items={sirene} agendadas={sireneAgendadas} pastelariaItems={pastelaria} onArquivarPastelaria={arquivarPastelaria} />
           </div>
 
           {/* Coluna 2 — Atividades Planejadas */}
@@ -768,12 +844,13 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
                   <StatusDot cor="bg-gray-300"  count={atividadesFuturas} />
                 </div>
                 <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
-                  {atividadesAtivas.length}
+                  {atividadesAtivas.length + atividadesAgendadas.length}
                 </span>
               </div>
             </div>
             <ColunaAtividades
               items={atividadesAtivas}
+              agendadas={atividadesAgendadas}
               onDesativar={desativar}
             />
           </div>
