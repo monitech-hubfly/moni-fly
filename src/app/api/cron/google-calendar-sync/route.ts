@@ -109,7 +109,7 @@ function toTimeBR(iso: string): string {
 // ── Sync de um usuário ────────────────────────────────────────────────────────
 
 async function syncUser(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof createClient<any, any, any>>,
   credentials: ServiceAccountKey,
   userId: string,
   userEmail: string,
