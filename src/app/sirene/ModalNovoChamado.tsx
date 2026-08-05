@@ -29,7 +29,7 @@ const GRUPOS_FUNIL: { label: string; nomes: string[] }[] = [
   },
   {
     label: 'Operações',
-    nomes: ['Funil Operações', 'Funil Projeto Legal', 'Funil Projetos Legais', 'Funil Projetos Locais', 'Funil Modelo Virtual'],
+    nomes: ['Funil Operações', 'Funil Projeto Legal', 'Funil Projetos Locais', 'Funil Modelo Virtual'],
   },
   {
     label: 'Crédito & Contabilidade',
