@@ -1440,7 +1440,7 @@ export async function atualizarStatusSubInteracao(
 
   const { data: antes } = await supabase
     .from('sirene_topicos')
-    .select('status, interacao_id, chamado_id, responsavel_id, responsaveis_ids')
+    .select('status, interacao_id, chamado_id, responsavel_id, responsaveis_ids, atribuicao_status')
     .eq('id', idNum)
     .maybeSingle();
   if (!antes) return { ok: false, error: 'Atividade não encontrada.' };
@@ -1467,6 +1467,13 @@ export async function atualizarStatusSubInteracao(
   const updatePayload: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
   if (status === 'concluido' && classificacaoConclusao) {
     updatePayload.classificacao_conclusao = classificacaoConclusao;
+  }
+  // Aceite implícito: tópico concluído sem passar pelo fluxo de aceite
+  if (status === 'concluido') {
+    const atribuicaoStatus = (antes as { atribuicao_status?: string | null }).atribuicao_status;
+    if (atribuicaoStatus === 'pendente_aceite') {
+      updatePayload.atribuicao_status = 'aceito';
+    }
   }
   const { error } = await supabase
     .from('sirene_topicos')

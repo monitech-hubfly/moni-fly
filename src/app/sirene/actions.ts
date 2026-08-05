@@ -1853,7 +1853,11 @@ export async function concluirChamadoCriador(
   if (chamado.status === 'concluido')
     return { ok: false, error: 'Este chamado já está concluído.' };
 
-  const topicos = await buscarTopicosStatusChamado(supabase, chamadoId);
+  const admin = createAdminClient();
+
+  // Usa admin para evitar bloqueio de RLS em kanban_atividades para usuários que não
+  // têm acesso direto ao registro (ex.: criador que não é responsável dos tópicos)
+  const topicos = await buscarTopicosStatusChamado(admin, chamadoId);
   if (!todosTopicosFechados(topicos)) {
     return {
       ok: false,
@@ -1869,8 +1873,6 @@ export async function concluirChamadoCriador(
   ) {
     return { ok: false, error: 'Chamado não está em andamento.' };
   }
-
-  const admin = createAdminClient();
 
   if (suficiente) {
     const { error } = await supabase
