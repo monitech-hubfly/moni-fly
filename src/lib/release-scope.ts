@@ -31,7 +31,6 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/painel-novos-negocios',
   '/portfolio',
   '/funil-acoplamento',
-  '/funil-juridico',
   '/funil-moni-capital',
   '/funil-funding',
   '/funil-produto',

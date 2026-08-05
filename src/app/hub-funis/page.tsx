@@ -35,7 +35,6 @@ const GRUPOS: GrupoDef[] = [
       { id: KANBAN_IDS.MONI_CAPITAL, label: 'Divify',      href: '/funil-moni-capital' },
       { id: KANBAN_IDS.FUNDING,      label: 'Funding',      href: '/funil-funding' },
       { id: KANBAN_IDS.CREDITO_OBRA, label: 'Crédito Obra', href: '/funil-credito-obra' },
-      { id: KANBAN_IDS.JURIDICO,     label: 'Jurídico',     href: '/funil-juridico' },
     ],
   },
   {

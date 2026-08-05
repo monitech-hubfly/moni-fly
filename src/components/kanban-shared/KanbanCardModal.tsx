@@ -87,10 +87,8 @@ import {
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
 import { deletarChamado, listAnexosPorChamados, uploadAnexoChamado, getAnexoChamadoDownloadUrl } from '@/app/sirene/actions';
-import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
-import { resolverKanbanOrigemIdParaEsteiraManual } from '@/lib/kanban/esteira-manual-destinos';
 import {
   isLoteadoresKanbanRef,
   isPortfolioKanbanRef,
@@ -4976,17 +4974,7 @@ export function KanbanCardModal({
   const exibirBlocoDesarquivar =
     podeArquivarCardPerm && (cardNativoArquivado || cardLegadoArquivado);
   const roleNormUsuario = normalizeAccessRole(userRoleRaw);
-  const userRoleLc = (userRoleRaw || '').trim().toLowerCase();
   const usuarioFrank = portalFrank || isFrankOrFranqueadoRole(userRoleRaw);
-  const mostrarBotaoJuridico =
-    !isLegado &&
-    !ocultarGestaoCard &&
-    Boolean(card.kanban_id) &&
-    (KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(
-      resolverKanbanOrigemIdParaEsteiraManual(card.kanban_id, kanbanNome),
-    ) &&
-    !['frank', 'franqueado'].includes(userRoleLc) &&
-    !portalFrank;
 
   const mostrarColunaAcoesLateral =
     !ocultarGestaoCard &&
@@ -8782,7 +8770,6 @@ export function KanbanCardModal({
                   podeGerenciar={podeGerenciarRelacionamentos}
                   projetoId={card.projeto_id}
                   ocultarKanbansInternos={usuarioFrank}
-                  mostrarBotaoJuridico={mostrarBotaoJuridico}
                   cardDesabilitado={
                     cardLegadoArquivado ||
                     cardLegadoConcluido ||

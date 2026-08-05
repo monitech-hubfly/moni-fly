@@ -23,7 +23,6 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/operacoes', title: 'Funil Pré Obra e Obra' },
   { prefix: '/portfolio', title: 'Funil Portfolio' },
   { prefix: '/funil-acoplamento', title: 'Funil Acoplamento' },
-  { prefix: '/funil-juridico', title: 'Funil Jurídico' },
   { prefix: '/funil-moni-capital', title: 'Funil Divify' },
   { prefix: '/funil-funding', title: 'Funding' },
   { prefix: '/funil-contratacoes', title: 'Contratações' },

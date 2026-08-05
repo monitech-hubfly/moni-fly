@@ -98,7 +98,6 @@ function isHubFunisActive(pathname: string) {
     pathname.startsWith('/funil-motor01') ||
     pathname.startsWith('/loteadores') ||
     pathname.startsWith('/funil-moni-inc') ||
-    pathname.startsWith('/funil-juridico') ||
     pathname.startsWith('/funil-moni-capital') ||
     pathname.startsWith('/funil-funding') ||
     pathname.startsWith('/painel-contabilidade') ||

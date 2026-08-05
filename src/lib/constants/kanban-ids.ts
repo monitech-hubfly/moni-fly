@@ -280,12 +280,8 @@ export const KANBANS_VINCULO_MANUAL_LIVRE = [
   KANBAN_IDS.OPERACOES,
 ] as const;
 
-// Kanbans onde Frank pode abrir chamado jurídico manualmente
-export const KANBANS_COM_CHAMADO_JURIDICO = [
-  KANBAN_IDS.PORTFOLIO,
-  KANBAN_IDS.LOTEADORES,
-  KANBAN_IDS.OPERACOES,
-] as const
+// Kanbans onde Frank podia abrir chamado jurídico manualmente (funil desativado — vazio)
+export const KANBANS_COM_CHAMADO_JURIDICO = [] as const;
 
 // Kanbans que Frank NÃO deve ver (filtros, esteiras paralelas, etc.)
 export const KANBANS_INTERNOS = [

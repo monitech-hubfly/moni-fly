@@ -2,7 +2,6 @@ import {
   FASE_SLUGS,
   KANBAN_ID_BY_NOME,
   KANBAN_IDS,
-  KANBANS_COM_CHAMADO_JURIDICO,
   KANBANS_INTERNOS,
   KANBANS_VINCULO_MANUAL_LIVRE,
 } from '@/lib/constants/kanban-ids';
@@ -17,7 +16,6 @@ export type DestinoEsteiraManualKey =
   | 'hdm_homologacoes'
   | 'hdm_modelo_virtual'
   | 'hdm_produto'
-  | 'juridico'
   | 'moni_capital'
   | 'motor01'
   | 'pre_obra_obra'
@@ -69,11 +67,6 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
     kanbanDestinoId: KANBAN_IDS.HDM_PRODUTO,
     faseDestinoSlug: 'prod_brief',
   },
-  juridico: {
-    label: 'Jurídico',
-    kanbanDestinoId: KANBAN_IDS.JURIDICO,
-    faseDestinoSlug: 'juridico_recebimento',
-  },
   moni_capital: {
     label: 'Divify',
     kanbanDestinoId: KANBAN_IDS.MONI_CAPITAL,
@@ -111,7 +104,7 @@ const DESTINOS_ESTEIRA_GENERICOS: DestinoEsteiraManualKey[] = (
   Object.keys(DESTINOS_ESTEIRA_MANUAL) as DestinoEsteiraManualKey[]
 ).filter((key) => key !== 'acoplamento');
 
-const MOTOR01_DESTINOS: DestinoEsteiraManualKey[] = ['juridico', 'credito_obra'];
+const MOTOR01_DESTINOS: DestinoEsteiraManualKey[] = ['credito_obra'];
 
 const KANBANS_INTERNOS_SET = new Set<string>(KANBANS_INTERNOS as readonly string[]);
 
@@ -171,7 +164,6 @@ export function resolverKanbanOrigemIdParaEsteiraManual(
 
   const id = String(kanbanId ?? '').trim();
   if ((KANBANS_VINCULO_MANUAL_LIVRE as readonly string[]).includes(id)) return id;
-  if ((KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id)) return id;
   if (id === KANBAN_IDS.MOTOR01) return id;
 
   return id;
@@ -240,11 +232,6 @@ export function destinosEsteiraManualParaKanban(
     );
   } else if (id === KANBAN_IDS.MOTOR01) {
     destinos = aplicarRestricaoProjetoLegal(id, filtrarDestinosEsteiraManual(id, MOTOR01_DESTINOS));
-  } else if ((KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id)) {
-    destinos = aplicarRestricaoProjetoLegal(
-      id,
-      filtrarDestinosEsteiraManual(id, ['juridico', 'credito_obra']),
-    );
   } else {
     destinos = aplicarRestricaoProjetoLegal(id, filtrarDestinosEsteiraManual(id, ['credito_obra']));
   }

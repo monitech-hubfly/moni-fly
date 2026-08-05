@@ -13,10 +13,8 @@ import {
   type RelacionamentoCardRow,
 } from '@/lib/actions/card-actions';
 import {
-  abrirChamadoJuridicoDoCard,
   abrirFunilAcoplamentoManualDoCard,
   dispararEsteiraManualDoCard,
-  existeChamadoJuridicoParaCard,
 } from '@/lib/actions/kanban-bastoes';
 import {
   DESTINOS_ESTEIRA_MANUAL,
@@ -31,7 +29,6 @@ import { kanbanPermiteAbrirFunilAcoplamentoManual } from '@/lib/kanban/portfolio
 import { fetchCardsProjetoEsteiras } from '@/lib/kanban/fetch-cards-projeto-esteiras';
 import { createClient } from '@/lib/supabase/client';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
-import { MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
 import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
 import { KanbanCardVinculosSection } from './KanbanCardVinculosSection';
 import {
@@ -52,7 +49,6 @@ type Props = {
   disabled?: boolean;
   projetoId?: string | null;
   ocultarKanbansInternos?: boolean;
-  mostrarBotaoJuridico?: boolean;
   cardDesabilitado?: boolean;
 };
 
@@ -66,7 +62,6 @@ export function KanbanCardModalRelacionamentos({
   disabled = false,
   projetoId = null,
   ocultarKanbansInternos = false,
-  mostrarBotaoJuridico = false,
   cardDesabilitado = false,
 }: Props) {
   const router = useRouter();
@@ -81,7 +76,6 @@ export function KanbanCardModalRelacionamentos({
   const [toast, setToast] = useState<{ tipo: 'ok' | 'erro'; msg: string; href?: string } | null>(
     null,
   );
-  const [abrindoChamadoJuridico, setAbrindoChamadoJuridico] = useState(false);
   const [projetoPeerIds, setProjetoPeerIds] = useState<Set<string>>(new Set());
 
   const pid = projetoId != null && String(projetoId).trim() !== '' ? String(projetoId).trim() : null;
@@ -280,32 +274,6 @@ export function KanbanCardModalRelacionamentos({
     }
   }
 
-  async function handleAbrirChamadoJuridico() {
-    setAbrindoChamadoJuridico(true);
-    setToast(null);
-    try {
-      const jaExiste = await existeChamadoJuridicoParaCard(cardId);
-      if (jaExiste) {
-        setToast({ tipo: 'erro', msg: MSG_CHAMADO_JURIDICO_JA_EXISTE });
-        return;
-      }
-      if (!confirm('Criar chamado jurídico para este card?')) return;
-
-      const res = await abrirChamadoJuridicoDoCard(cardId, basePath);
-      if (!res.ok) {
-        setToast({ tipo: 'erro', msg: res.error });
-        return;
-      }
-      setToast({ tipo: 'ok', msg: 'Chamado jurídico criado.' });
-      await recarregar();
-      router.refresh();
-    } catch {
-      setToast({ tipo: 'erro', msg: 'Erro ao criar chamado jurídico.' });
-    } finally {
-      setAbrindoChamadoJuridico(false);
-    }
-  }
-
   async function handleRemover(vinculoId: string) {
     const res = await removerVinculoCard(vinculoId, basePath);
     if (!res.ok) {
@@ -417,20 +385,6 @@ export function KanbanCardModalRelacionamentos({
               {disparando ? 'Abrindo…' : botao.label}
             </button>
           ))}
-        </div>
-      ) : null}
-
-      {mostrarBotaoJuridico ? (
-        <div className="border-t border-stone-100 pt-2">
-          <button
-            type="button"
-            onClick={() => void handleAbrirChamadoJuridico()}
-            disabled={abrindoChamadoJuridico || cardDesabilitado}
-            className="w-full rounded-md px-2.5 py-2 text-left text-[11px] font-semibold leading-snug text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ background: 'var(--moni-navy-800)' }}
-          >
-            {abrindoChamadoJuridico ? 'Abrindo…' : 'Abrir chamado jurídico'}
-          </button>
         </div>
       ) : null}
 

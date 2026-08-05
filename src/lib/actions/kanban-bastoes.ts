@@ -949,9 +949,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
   const titulo = String(pai.titulo ?? '').trim() || 'Card';
 
   const BASTOES_DE_IDA: Partial<Record<string, BastaoDestino[]>> = {
-    [FASE_SLUGS.STEP_3]: [
-      { kanbanDestinoId: KANBAN_IDS.JURIDICO, faseDestinoSlug: 'juridico_recebimento' },
-    ],
     [FASE_SLUGS.ACOPLAMENTO]: [
       { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
     ],
@@ -988,9 +985,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         faseDestinoSlug: 'projetos_legais_protocolo',
         flag: null,
       },
-    ],
-    [FASE_SLUGS.LOTEADOR_JURIDICO]: [
-      { kanbanDestinoId: KANBAN_IDS.JURIDICO, faseDestinoSlug: 'juridico_recebimento' },
     ],
     [FASE_SLUGS.M1_PAGAMENTO_ENTRADA]: [
       {

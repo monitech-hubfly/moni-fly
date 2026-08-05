@@ -79,9 +79,15 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>
   [KANBAN_IDS.CONTRATACOES]: 'renata.silva@moni.casa',
   [KANBAN_IDS.HDM_PRODUTO]: 'elisabete.nucci@moni.casa',
   [KANBAN_IDS.HDM_MODELO_VIRTUAL]: 'elisabete.nucci@moni.casa',
-  [KANBAN_IDS.HDM_HOMOLOGACOES]: 'elisabete.nucci@moni.casa',
+  [KANBAN_IDS.HDM_HOMOLOGACOES]: 'karoline.galdino@moni.casa',
   [KANBAN_IDS.PROJETOS_LEGAIS]: 'larissa.lima@moni.casa',
   [KANBAN_IDS.STEP_ONE]: 'renata.silva@moni.casa',
+};
+
+/** E-mail do responsável padrão por slug de fase (prioridade sobre o mapa por kanban). */
+export const EMAIL_RESPONSAVEL_PADRAO_POR_FASE_SLUG: Partial<Record<string, string>> = {
+  novo_acoplamento: 'elisabete.nucci@moni.casa',
+  alteracoes_acoplamento: 'elisabete.nucci@moni.casa',
 };
 
 /** Fallback Moní quando o funil não tem e-mail mapeado. */
@@ -202,6 +208,20 @@ export async function resolverResponsavelPadraoPorKanban(
   const email = EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN[kid];
   if (!email) return null;
   return buscarProfileIdPorEmail(supabase, email);
+}
+
+/** Responsável padrão: slug da fase (se mapeado) → fallback por kanban. */
+export async function resolverResponsavelPadraoPorFase(
+  supabase: SupabaseClient,
+  kanbanId: string,
+  faseSlug: string | null | undefined,
+): Promise<string | null> {
+  const slug = String(faseSlug ?? '').trim();
+  if (slug) {
+    const email = EMAIL_RESPONSAVEL_PADRAO_POR_FASE_SLUG[slug];
+    if (email) return buscarProfileIdPorEmail(supabase, email);
+  }
+  return resolverResponsavelPadraoPorKanban(supabase, kanbanId);
 }
 
 const STAFF_PROFILE_ROLES = new Set(['admin', 'team', 'consultor', 'supervisor']);
@@ -971,12 +991,13 @@ export async function buscarValorResponsavelFaseAnterior(
 
   const { data: faseAtual } = await supabase
     .from('kanban_fases')
-    .select('id, kanban_id, ordem')
+    .select('id, kanban_id, ordem, slug')
     .eq('id', fid)
     .maybeSingle();
   if (!faseAtual?.id) return null;
 
   const kanbanId = String((faseAtual as { kanban_id?: string }).kanban_id ?? '').trim();
+  const faseSlugAtual = String((faseAtual as { slug?: string | null }).slug ?? '').trim();
   const ordemAtual = Number((faseAtual as { ordem?: number }).ordem ?? 0);
   if (!kanbanId) return null;
 
@@ -1002,7 +1023,7 @@ export async function buscarValorResponsavelFaseAnterior(
     }
   }
 
-  return resolverResponsavelPadraoPorKanban(supabase, kanbanId);
+  return resolverResponsavelPadraoPorFase(supabase, kanbanId, faseSlugAtual);
 }
 
 /** Grava o responsável padrão do funil na fase atual (somente se ainda vazio). */
@@ -1026,6 +1047,13 @@ export async function aplicarResponsavelFasePadraoAoCard(
     return;
   }
 
+  const { data: faseRow } = await supabase
+    .from('kanban_fases')
+    .select('slug')
+    .eq('id', fid)
+    .maybeSingle();
+  const faseSlug = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim();
+
   const { data: respAtual } = await supabase
     .from('kanban_fase_checklist_respostas')
     .select('valor')
@@ -1034,7 +1062,7 @@ export async function aplicarResponsavelFasePadraoAoCard(
     .maybeSingle();
   if (valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor)) return;
 
-  const userId = await resolverResponsavelPadraoPorKanban(supabase, kid);
+  const userId = await resolverResponsavelPadraoPorFase(supabase, kid, faseSlug);
   if (!userId) return;
 
   await supabase.from('kanban_fase_checklist_respostas').upsert(
@@ -1438,17 +1466,19 @@ export async function enrichCardsComResponsavelFase(
 
   const { data: fasesRows } = await supabase
     .from('kanban_fases')
-    .select('id, kanban_id, ordem')
+    .select('id, kanban_id, ordem, slug')
     .in('kanban_id', kanbanIds)
     .eq('ativo', true);
 
   const faseOrdemPorId = new Map<string, number>();
+  const faseSlugPorId = new Map<string, string>();
   const allFaseIds: string[] = [];
   for (const row of fasesRows ?? []) {
     const fid = String((row as { id?: string }).id ?? '').trim();
     if (!fid) continue;
     allFaseIds.push(fid);
     faseOrdemPorId.set(fid, Number((row as { ordem?: number }).ordem ?? 0));
+    faseSlugPorId.set(fid, String((row as { slug?: string | null }).slug ?? '').trim());
   }
   if (allFaseIds.length === 0) return cards;
 
@@ -1482,7 +1512,7 @@ export async function enrichCardsComResponsavelFase(
   const valorPorCard = new Map<string, string>();
   const nomeRedePorCard = new Map<string, string>();
   const stepOneCardIds: string[] = [];
-  const outrosSemResposta: { cardId: string; kanbanId: string }[] = [];
+  const outrosSemResposta: { cardId: string; kanbanId: string; faseSlug: string }[] = [];
 
   for (const card of cards) {
     if (isKanbanFunilStepOneId(card.kanban_id)) {
@@ -1502,25 +1532,25 @@ export async function enrichCardsComResponsavelFase(
       continue;
     }
     const kid = String(card.kanban_id ?? '').trim();
-    if (kid) outrosSemResposta.push({ cardId: card.id, kanbanId: kid });
-  }
-
-  const kanbansUnicos = [...new Set(outrosSemResposta.map((o) => o.kanbanId))];
-  const padraoPorKanban = new Map<string, string>();
-  if (kanbansUnicos.length > 0) {
-    const padroes = await Promise.all(
-      kanbansUnicos.map(async (kid) => {
-        const uid = await resolverResponsavelPadraoPorKanban(supabase, kid);
-        return [kid, uid] as const;
-      }),
-    );
-    for (const [kid, uid] of padroes) {
-      if (uid) padraoPorKanban.set(kid, uid);
+    if (kid) {
+      outrosSemResposta.push({
+        cardId: card.id,
+        kanbanId: kid,
+        faseSlug: faseSlugPorId.get(faseId) ?? '',
+      });
     }
   }
-  for (const { cardId, kanbanId } of outrosSemResposta) {
-    const uid = padraoPorKanban.get(kanbanId);
-    if (uid) valorPorCard.set(cardId, uid);
+
+  if (outrosSemResposta.length > 0) {
+    const padroes = await Promise.all(
+      outrosSemResposta.map(async ({ cardId, kanbanId, faseSlug }) => {
+        const uid = await resolverResponsavelPadraoPorFase(supabase, kanbanId, faseSlug);
+        return [cardId, uid] as const;
+      }),
+    );
+    for (const [cardId, uid] of padroes) {
+      if (uid) valorPorCard.set(cardId, uid);
+    }
   }
 
   if (kanbanIds.includes(KANBAN_IDS.LOTEADORES)) {

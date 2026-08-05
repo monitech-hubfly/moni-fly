@@ -420,19 +420,6 @@ export function montarChipsParalelas(
   if (kid === KANBAN_IDS.PORTFOLIO) {
     chips.push(...montarChipsEsteirasParalelasFixas(input, opts));
 
-    if (input.temFilhoJuridico || boolFlag(f.juridico_ok)) {
-      chips.push(
-        chipEsteira(
-          KANBAN_IDS.JURIDICO,
-          nomeFunilParalela(KANBAN_IDS.JURIDICO),
-          input.juridicoFilhoFaseRotulo,
-          'Jurídico',
-          'Jurídico',
-          boolFlag(f.juridico_ok),
-          opts,
-        ),
-      );
-    }
     const emPassagemWayser = slug === FASE_SLUGS.PASSAGEM_WAYSER;
     const temFilhoOperacoes = Boolean(input.temFilhoOperacoes);
     const filhoOperacoesArquivado = Boolean(input.filhoOperacoesArquivado) && !temFilhoOperacoes;
