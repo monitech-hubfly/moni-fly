@@ -155,7 +155,6 @@ async function syncUser(
       .map(a => a.displayName ? `${a.displayName} <${a.email ?? ''}>` : (a.email ?? ''))
       .filter(Boolean);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase.from('gantt_planejamento') as any).upsert({
       profile_id:               userId,
       origem:                   'google_calendar',
