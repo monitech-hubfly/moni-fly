@@ -50,6 +50,10 @@ function AgendaCard({
   const [h, m] = atv.hora_inicio.split(':').map(Number);
   const topPx  = (h - HORA_INICIO) * ALTURA_HORA + (m ?? 0);
 
+  const hoje = new Date();
+  const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
+  const isVencido = !atv.concluido && atv.data < hojeStr;
+
   const [visualHoraFim, setVisualHoraFim] = useState<string | null>(null);
   const visualHoraFimRef = useRef<string | null>(null);
   const resizingRef = useRef(false);
@@ -104,7 +108,8 @@ function AgendaCard({
       data-atividade="true"
       className="absolute rounded px-1.5 py-0.5 text-white text-xs overflow-hidden select-none group"
       style={{ top: topPx, height: heightPx, left: 2, right: 2, backgroundColor: atv.cor, zIndex: 10,
-               opacity: atv.concluido ? 0.6 : 1 }}
+               opacity: atv.concluido ? 0.6 : isVencido ? 0.7 : 1,
+               borderTop: isVencido ? '3px solid rgba(239,159,39,0.9)' : undefined }}
       onClick={(e) => {
         if (resizingRef.current) return;
         if ((e.target as HTMLElement).closest('[data-action]')) return;

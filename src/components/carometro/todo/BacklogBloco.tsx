@@ -53,13 +53,19 @@ function statusPastelaria(item: PastelariaItem): StatusPrazo {
   return 'sem_prazo';
 }
 
-function formatAgendaBadge(data: string, hora_inicio: string | null, count: number): string {
+function getHojeStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatAgendaBadge(data: string, hora_inicio: string | null, count: number): { text: string; isVencido: boolean } {
   const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const d = new Date(`${data}T00:00:00`);
   const dia = DIAS[d.getDay()] ?? '';
   const hora = hora_inicio ? hora_inicio.slice(0, 5) : '';
   const base = hora ? `${dia} ${hora}` : dia;
-  return count > 1 ? `${base} (+${count - 1})` : base;
+  const text = count > 1 ? `${base} (+${count - 1})` : base;
+  return { text, isVencido: data < getHojeStr() };
 }
 
 function EmptyState() {
@@ -538,38 +544,48 @@ function ColunaSirene({ items, agendadas = [], pastelariaItems = [], onArquivarP
         })}
 
         {/* Seção Agendadas — colapsável */}
-        {agendadas.length > 0 && (
-          <div className="border-t border-gray-100 pt-1.5 mt-0.5">
-            <button
-              type="button"
-              onClick={() => setAgendadasExpand(v => !v)}
-              className="w-full text-left text-[10px] text-blue-500 hover:text-blue-700 flex items-center justify-between py-0.5"
-            >
-              <span>📅 {agendadas.length} já agendado{agendadas.length > 1 ? 's' : ''}</span>
-              <span>{agendadasExpand ? '▲' : '▼'}</span>
-            </button>
-            {agendadasExpand && (
-              <div className="flex flex-col gap-1 mt-1.5">
-                {agendadas.map(item => {
-                  const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
-                  const badge = formatAgendaBadge(item.agendaInfo.data, item.agendaInfo.hora_inicio, item.agendaInfo.count);
-                  return (
-                    <DraggableSirene
-                      key={item.id}
-                      dragId={`sirene::${item.id}::agendada`}
-                      dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
-                    >
-                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-blue-100 bg-blue-50/50 text-xs text-gray-600">
-                        <span className="flex-1 truncate">{tituloExibir}</span>
-                        <span className="text-[9px] text-blue-500 shrink-0 whitespace-nowrap">📅 {badge}</span>
-                      </div>
-                    </DraggableSirene>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+        {agendadas.length > 0 && (() => {
+          const hojeStr = getHojeStr();
+          const numVencidos = agendadas.filter(i => i.agendaInfo.data < hojeStr).length;
+          const headerColor = numVencidos === agendadas.length ? 'text-amber-600 hover:text-amber-800' : 'text-blue-500 hover:text-blue-700';
+          const headerLabel = numVencidos === agendadas.length
+            ? `⚠ ${agendadas.length} vencido${agendadas.length > 1 ? 's' : ''} não concluído${agendadas.length > 1 ? 's' : ''}`
+            : `📅 ${agendadas.length} já agendado${agendadas.length > 1 ? 's' : ''}`;
+          return (
+            <div className="border-t border-gray-100 pt-1.5 mt-0.5">
+              <button
+                type="button"
+                onClick={() => setAgendadasExpand(v => !v)}
+                className={`w-full text-left text-[10px] ${headerColor} flex items-center justify-between py-0.5`}
+              >
+                <span>{headerLabel}</span>
+                <span>{agendadasExpand ? '▲' : '▼'}</span>
+              </button>
+              {agendadasExpand && (
+                <div className="flex flex-col gap-1 mt-1.5">
+                  {agendadas.map(item => {
+                    const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
+                    const badge = formatAgendaBadge(item.agendaInfo.data, item.agendaInfo.hora_inicio, item.agendaInfo.count);
+                    return (
+                      <DraggableSirene
+                        key={item.id}
+                        dragId={`sirene::${item.id}::agendada`}
+                        dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
+                      >
+                        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-xs text-gray-600 ${badge.isVencido ? 'border-amber-200 bg-amber-50/50' : 'border-blue-100 bg-blue-50/50'}`}>
+                          <span className="flex-1 truncate">{tituloExibir}</span>
+                          <span className={`text-[9px] shrink-0 whitespace-nowrap ${badge.isVencido ? 'text-amber-600' : 'text-blue-500'}`}>
+                            {badge.isVencido ? '⚠ ' : '📅 '}{badge.text}
+                          </span>
+                        </div>
+                      </DraggableSirene>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Seção Pastelaria — colapsável */}
         {pastelariaItems.length > 0 && (
@@ -722,33 +738,43 @@ function ColunaAtividades({ items, agendadas = [], onDesativar }: ColunaAtividad
         ))}
 
         {/* Seção Agendadas — colapsável */}
-        {agendadas.length > 0 && (
-          <div className="border-t border-gray-100 pt-1.5 mt-0.5">
-            <button
-              type="button"
-              onClick={() => setAgendadasExpand(v => !v)}
-              className="w-full text-left text-[10px] text-blue-500 hover:text-blue-700 flex items-center justify-between py-0.5"
-            >
-              <span>📅 {agendadas.length} já agendado{agendadas.length > 1 ? 's' : ''}</span>
-              <span>{agendadasExpand ? '▲' : '▼'}</span>
-            </button>
-            {agendadasExpand && (
-              <div className="flex flex-col gap-1 mt-1.5">
-                {agendadas.map(item => {
-                  const badge = formatAgendaBadge(item.agendaInfo.data, item.agendaInfo.hora_inicio, item.agendaInfo.count);
-                  return (
-                    <DraggableAtividade key={item.id} id={item.id}>
-                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-blue-100 bg-blue-50/50 text-xs text-gray-600">
-                        <span className="flex-1 truncate">{item.nome}</span>
-                        <span className="text-[9px] text-blue-500 shrink-0 whitespace-nowrap">📅 {badge}</span>
-                      </div>
-                    </DraggableAtividade>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+        {agendadas.length > 0 && (() => {
+          const hojeStr = getHojeStr();
+          const numVencidos = agendadas.filter(i => i.agendaInfo.data < hojeStr).length;
+          const headerColor = numVencidos === agendadas.length ? 'text-amber-600 hover:text-amber-800' : 'text-blue-500 hover:text-blue-700';
+          const headerLabel = numVencidos === agendadas.length
+            ? `⚠ ${agendadas.length} vencido${agendadas.length > 1 ? 's' : ''} não concluído${agendadas.length > 1 ? 's' : ''}`
+            : `📅 ${agendadas.length} já agendado${agendadas.length > 1 ? 's' : ''}`;
+          return (
+            <div className="border-t border-gray-100 pt-1.5 mt-0.5">
+              <button
+                type="button"
+                onClick={() => setAgendadasExpand(v => !v)}
+                className={`w-full text-left text-[10px] ${headerColor} flex items-center justify-between py-0.5`}
+              >
+                <span>{headerLabel}</span>
+                <span>{agendadasExpand ? '▲' : '▼'}</span>
+              </button>
+              {agendadasExpand && (
+                <div className="flex flex-col gap-1 mt-1.5">
+                  {agendadas.map(item => {
+                    const badge = formatAgendaBadge(item.agendaInfo.data, item.agendaInfo.hora_inicio, item.agendaInfo.count);
+                    return (
+                      <DraggableAtividade key={item.id} id={item.id}>
+                        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-xs text-gray-600 ${badge.isVencido ? 'border-amber-200 bg-amber-50/50' : 'border-blue-100 bg-blue-50/50'}`}>
+                          <span className="flex-1 truncate">{item.nome}</span>
+                          <span className={`text-[9px] shrink-0 whitespace-nowrap ${badge.isVencido ? 'text-amber-600' : 'text-blue-500'}`}>
+                            {badge.isVencido ? '⚠ ' : '📅 '}{badge.text}
+                          </span>
+                        </div>
+                      </DraggableAtividade>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       <ConfirmModal

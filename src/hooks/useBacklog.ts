@@ -331,43 +331,58 @@ export function useBacklog(): UseBacklogResult {
         ((ativoData ?? []) as { acao_id: string }[]).map(r => r.acao_id)
       );
 
-      // Busca itens agendados hoje em diante ainda não concluídos — para suprimir/separar do backlog
+      // Busca TODOS os itens agendados não concluídos (passado + futuro) — nunca devem voltar ao backlog principal
       const hoje = new Date();
       const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
       const { data: agendados } = await supabase
         .from('gantt_planejamento')
         .select('acao_id, sirene_chamado_id, data, hora_inicio')
         .eq('profile_id', effectiveProfileId)
-        .gte('data', hojeStr)
         .is('data_conclusao_real', null)
         .order('data', { ascending: true });
 
       type AgendadoRow = { acao_id: string | null; sirene_chamado_id: number | null; data: string; hora_inicio: string | null };
       const agendadosRows = (agendados ?? []) as AgendadoRow[];
 
-      // Mapas: id → primeira ocorrência (data mais próxima) + contagem
-      const acoAgendaMap    = new Map<string, AgendaInfo>();
-      const chamadoAgendaMap = new Map<number, AgendaInfo>();
+      // Para cada item: preferir a próxima data futura (badge azul); se nenhuma, usar a última data passada (badge laranja)
+      const acoFuturoMap    = new Map<string, { data: string; hora_inicio: string | null }>();
+      const acoPastMap      = new Map<string, { data: string; hora_inicio: string | null }>();
       const acoCountMap     = new Map<string, number>();
-      const chamadoCountMap = new Map<number, number>();
+      const chamadoFuturoMap = new Map<number, { data: string; hora_inicio: string | null }>();
+      const chamadoPastMap   = new Map<number, { data: string; hora_inicio: string | null }>();
+      const chamadoCountMap  = new Map<number, number>();
 
       for (const r of agendadosRows) {
+        const isFuture = r.data >= hojeStr;
         if (r.acao_id) {
           acoCountMap.set(r.acao_id, (acoCountMap.get(r.acao_id) ?? 0) + 1);
-          if (!acoAgendaMap.has(r.acao_id)) {
-            acoAgendaMap.set(r.acao_id, { data: r.data, hora_inicio: r.hora_inicio, count: 0 });
+          if (isFuture) {
+            if (!acoFuturoMap.has(r.acao_id)) acoFuturoMap.set(r.acao_id, { data: r.data, hora_inicio: r.hora_inicio });
+          } else {
+            acoPastMap.set(r.acao_id, { data: r.data, hora_inicio: r.hora_inicio }); // sobrescreve → última data passada
           }
         }
         if (r.sirene_chamado_id != null) {
           chamadoCountMap.set(r.sirene_chamado_id, (chamadoCountMap.get(r.sirene_chamado_id) ?? 0) + 1);
-          if (!chamadoAgendaMap.has(r.sirene_chamado_id)) {
-            chamadoAgendaMap.set(r.sirene_chamado_id, { data: r.data, hora_inicio: r.hora_inicio, count: 0 });
+          if (isFuture) {
+            if (!chamadoFuturoMap.has(r.sirene_chamado_id)) chamadoFuturoMap.set(r.sirene_chamado_id, { data: r.data, hora_inicio: r.hora_inicio });
+          } else {
+            chamadoPastMap.set(r.sirene_chamado_id, { data: r.data, hora_inicio: r.hora_inicio });
           }
         }
       }
-      // Preencher count após contabilizar todos
-      for (const [id, info] of acoAgendaMap)     info.count = acoCountMap.get(id)    ?? 1;
-      for (const [id, info] of chamadoAgendaMap) info.count = chamadoCountMap.get(id) ?? 1;
+
+      // Mapas finais: data exibida = futura (se existir) ou última passada
+      const acoAgendaMap = new Map<string, AgendaInfo>();
+      for (const id of new Set([...acoFuturoMap.keys(), ...acoPastMap.keys()])) {
+        const display = acoFuturoMap.get(id) ?? acoPastMap.get(id)!;
+        acoAgendaMap.set(id, { data: display.data, hora_inicio: display.hora_inicio, count: acoCountMap.get(id) ?? 1 });
+      }
+      const chamadoAgendaMap = new Map<number, AgendaInfo>();
+      for (const id of new Set([...chamadoFuturoMap.keys(), ...chamadoPastMap.keys()])) {
+        const display = chamadoFuturoMap.get(id) ?? chamadoPastMap.get(id)!;
+        chamadoAgendaMap.set(id, { data: display.data, hora_inicio: display.hora_inicio, count: chamadoCountMap.get(id) ?? 1 });
+      }
 
       const scheduledAcoIds = new Set<string>(acoAgendaMap.keys());
       const scheduledChamadoIds = new Set<number>(chamadoAgendaMap.keys());
