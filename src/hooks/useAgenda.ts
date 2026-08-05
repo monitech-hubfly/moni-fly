@@ -244,12 +244,39 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
 
   // ── Concluir atividade ──────────────────────────────────────────────────────
   const concluir = useCallback(async (id: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+
     const { error } = await supabase
       .from('gantt_planejamento')
       .update({ data_conclusao_real: new Date().toISOString() })
       .eq('id', id);
     if (error) throw error;
-    // Atualiza local sem re-fetch
+
+    // Atividade Planejada: se não há mais sessões pendentes, remove do backlog_atividades_usuario
+    if (user) {
+      const { data: ganttRow } = await supabase
+        .from('gantt_planejamento')
+        .select('acao_id')
+        .eq('id', id)
+        .maybeSingle();
+      const acaoId = (ganttRow as { acao_id?: string | null } | null)?.acao_id ?? null;
+      if (acaoId) {
+        const { data: pendentes } = await supabase
+          .from('gantt_planejamento')
+          .select('id')
+          .eq('acao_id', acaoId)
+          .eq('profile_id', user.id)
+          .is('data_conclusao_real', null)
+          .limit(1);
+        if (!pendentes || pendentes.length === 0) {
+          await supabase.from('backlog_atividades_usuario')
+            .delete()
+            .eq('profile_id', user.id)
+            .eq('acao_id', acaoId);
+        }
+      }
+    }
+
     setAtividades(prev => prev.map(a =>
       a.id === id ? { ...a, concluido: true, cor: COR_CONCLUIDA } : a
     ));
