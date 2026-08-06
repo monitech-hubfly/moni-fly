@@ -92,20 +92,6 @@ const DEFERRED_ENRICHMENT_KEYS = [
   'calculadora_atraso_tipo',
 ] as const satisfies readonly (keyof KanbanCardBrief)[];
 
-function pickBootstrapPatchFields(card: KanbanCardBrief): Partial<KanbanCardBrief> {
-  const patch: Partial<KanbanCardBrief> = {};
-  if (card.titulo) patch.titulo = card.titulo;
-  if (card.subtitulo) patch.subtitulo = card.subtitulo;
-  if (card.profiles) patch.profiles = card.profiles;
-  if (card.fase_id) patch.fase_id = card.fase_id;
-  if (card.ordem_coluna != null) patch.ordem_coluna = card.ordem_coluna;
-  if (card.tagsCard != null) patch.tagsCard = card.tagsCard;
-  if (card.data_reuniao) patch.data_reuniao = card.data_reuniao;
-  if (card.data_followup) patch.data_followup = card.data_followup;
-  Object.assign(patch, pickDeferredEnrichmentFields(card));
-  return patch;
-}
-
 function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): KanbanCardBrief {
   return {
     id: String(c.id ?? ''),
@@ -381,6 +367,55 @@ export type KanbanBoardSnapshot = {
   isAdmin: boolean;
   /** Modo efetivo do fetch (útil para o client saber se precisa lazy-load). */
   snapshotMode: KanbanBoardSnapshotMode;
+};
+
+export type KanbanBoardShell = {
+  kanban: { id: string } | null;
+  fases: KanbanFase[];
+  role: string;
+  isAdmin: boolean;
+};
+
+/** Metadados leves do board (kanban + fases + auth) — fica fora do Suspense dos cards. */
+export async function fetchKanbanBoardShell(
+  supabase: SupabaseClient,
+  kanbanNomeDb: string,
+  userId: string | null,
+): Promise<KanbanBoardShell> {
+  let role = 'frank';
+  let isAdmin = false;
+
+  const profilePromise = userId
+    ? supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
+    : Promise.resolve({ data: null as { role?: string | null } | null });
+
+  const [profileRes, kanban] = await Promise.all([
+    profilePromise,
+    resolveKanbanAtivoCached(supabase, kanbanNomeDb),
+  ]);
+
+  if (userId) {
+    const profile = profileRes.data;
+    role = (profile?.role as string) ?? 'frank';
+    const accessRole = normalizeAccessRole(profile?.role);
+    isAdmin = accessRole === 'admin' || accessRole === 'team';
+  } else {
+    isAdmin = true;
+  }
+
+  if (!kanban) {
+    return { kanban: null, fases: [], role, isAdmin };
+  }
+
+  const kanbanIdStr = String(kanban.id);
+  const fases = await fetchKanbanFasesAtivasCached(supabase, kanbanIdStr);
+  return { kanban: { id: kanbanIdStr }, fases, role, isAdmin };
+}
+
+/** Opções estáveis para paint inicial — enrichments pesados ficam no client. */
+export const KANBAN_BOARD_DEFERRED_FETCH_OPTS: FetchKanbanBoardSnapshotOptions = {
+  deferBoardEnrichments: true,
+  skipCalculadoraSlaEnrich: true,
 };
 
 /** Funis 100% nativos: no path lean não carrega `v_processo_como_kanban_cards`. */

@@ -1,11 +1,10 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { autoCurarCardsFunilStepOneAusentes } from '@/lib/kanban/ensure-funil-stepone-card-from-rede';
-import { KanbanBoard } from './KanbanBoard';
+import { KanbanStepOneBoardCardsLoader } from './KanbanStepOneBoardCardsLoader';
 import { KanbanWrapper } from './KanbanWrapper';
-import { fetchKanbanBoardSnapshot } from './fetchKanbanBoardSnapshot';
-import { PainelPerformance } from './PainelPerformance';
-import type { KanbanCardBrief, KanbanFase } from './types';
+import { fetchKanbanBoardShell } from './fetchKanbanBoardSnapshot';
 
 export async function KanbanStepOneBoardLoader({
   userId,
@@ -15,16 +14,18 @@ export async function KanbanStepOneBoardLoader({
   activeTab: string;
 }) {
   const supabase = await createClient();
-  const { kanban, fases, cards, cardsConcluidos, role, isAdmin, snapshotMode } =
-    await fetchKanbanBoardSnapshot(supabase, 'Funil Step One', userId);
+  const shell = await fetchKanbanBoardShell(supabase, 'Funil Step One', userId);
 
   const isStaff =
-    role === 'admin' || role === 'team' || role === 'consultor' || role === 'supervisor';
+    shell.role === 'admin' ||
+    shell.role === 'team' ||
+    shell.role === 'consultor' ||
+    shell.role === 'supervisor';
   if (isStaff) {
     await autoCurarCardsFunilStepOneAusentes(userId);
   }
 
-  if (!kanban) {
+  if (!shell.kanban) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center bg-[var(--moni-surface-50)]">
         <div className="text-center">
@@ -45,43 +46,22 @@ export async function KanbanStepOneBoardLoader({
   return (
     <KanbanWrapper
       basePath="/funil-stepone"
-      isAdmin={isAdmin}
-      kanbanId={kanban.id}
+      isAdmin={shell.isAdmin}
+      kanbanId={shell.kanban.id}
       kanbanNome="Funil Step One"
-      fases={fases}
+      fases={shell.fases}
       enableNovoCardModal
     >
-      {activeTab === 'kanban' && (
-        <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
-          <KanbanBoard
-            fases={fases}
-            cards={cards}
-            cardsConcluidos={cardsConcluidos}
-            basePath="/funil-stepone"
-            userRole={role}
-            columnAccent="var(--moni-kanban-stepone)"
-            currentUserId={userId}
-            mostrarLinkNovoCard
-            podeCriarCards={isAdmin ? true : undefined}
-            kanbanNome="Funil Step One"
-            kanbanNomeDb="Funil Step One"
-            kanbanId={kanban.id}
-            snapshotLean={snapshotMode === 'lean'}
-          />
-        </main>
-      )}
-
-      {activeTab === 'painel' && (
-        <main className="mx-auto max-w-[1600px] px-6 py-8">
-          <PainelPerformance
-            kanbanNome="Funil Step One"
-            kanbanId={String(kanban.id)}
-            fases={(fases ?? []) as KanbanFase[]}
-            cards={cards as KanbanCardBrief[]}
-            origemCards="nativo"
-          />
-        </main>
-      )}
+      <Suspense fallback={null}>
+        <KanbanStepOneBoardCardsLoader
+          userId={userId}
+          activeTab={activeTab}
+          kanbanId={shell.kanban.id}
+          fases={shell.fases}
+          role={shell.role}
+          isAdmin={shell.isAdmin}
+        />
+      </Suspense>
     </KanbanWrapper>
   );
 }

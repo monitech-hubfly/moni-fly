@@ -2,9 +2,11 @@ import { Suspense } from 'react';
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { createClient } from '@/lib/supabase/server';
 import type { PainelKanbanTabsVariant } from '@/app/steps-viabilidade/PainelKanbanTabs';
-import { KanbanBoardStreamFallback } from './KanbanBoardStreamFallback';
-import { KanbanDatabaseBoardLoader } from './KanbanDatabaseBoardLoader';
+import { KanbanDatabaseBoardCardsLoader } from './KanbanDatabaseBoardCardsLoader';
+import { KanbanNotFound } from './KanbanNotFound';
 import { KanbanPainelTabsShell } from './KanbanPainelTabsShell';
+import { KanbanWrapper } from './KanbanWrapper';
+import { fetchKanbanBoardShell } from './fetchKanbanBoardSnapshot';
 import type { CamposPorFaseMap, KanbanNomeDisplay } from './types';
 
 export type KanbanDatabasePageConfig = {
@@ -43,20 +45,48 @@ export async function renderKanbanDatabasePage(
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
 
+  const shell = await fetchKanbanBoardShell(supabase, config.kanbanNomeDb, user.id);
+  if (!shell.kanban) {
+    return (
+      <div className="min-h-0 min-w-0 bg-[var(--moni-surface-50)]">
+        <KanbanNotFound kanbanNomeDb={config.kanbanNomeDb} />
+      </div>
+    );
+  }
+
+  const exibirNovoCard = config.novoCardApenasStaff ? shell.isAdmin : true;
+
   return (
     <div className="min-h-0 min-w-0 bg-[var(--moni-surface-50)]">
       <Suspense fallback={null}>
         <KanbanPainelTabsShell basePath={config.basePath} variant={config.tabsVariant} />
       </Suspense>
 
-      <Suspense fallback={<KanbanBoardStreamFallback columnAccent={config.columnAccent} />}>
-        <KanbanDatabaseBoardLoader
-          userId={user.id}
-          config={config}
-          activeTab={activeTab}
-          modalCardAberto={modalCardAberto}
-        />
-      </Suspense>
+      {/*
+        Wrapper + modais FORA do Suspense dos cards: `router.refresh()` só remonta o board,
+        sem fechar/reabrir pop-ups (?card= / ?novo=).
+      */}
+      <KanbanWrapper
+        basePath={config.basePath}
+        isAdmin={shell.isAdmin}
+        kanbanId={shell.kanban.id}
+        kanbanNome={config.kanbanNomeDisplay}
+        fases={shell.fases}
+        camposPorFase={config.camposPorFase}
+        enableNovoCardModal={exibirNovoCard}
+      >
+        <Suspense fallback={null}>
+          <KanbanDatabaseBoardCardsLoader
+            userId={user.id}
+            config={config}
+            activeTab={activeTab}
+            kanbanId={shell.kanban.id}
+            fases={shell.fases}
+            isAdmin={shell.isAdmin}
+            role={shell.role}
+          />
+        </Suspense>
+      </KanbanWrapper>
     </div>
   );
 }

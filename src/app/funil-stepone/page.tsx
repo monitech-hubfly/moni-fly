@@ -1,7 +1,6 @@
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import { KanbanBoardStreamFallback } from '@/components/kanban-shared/KanbanBoardStreamFallback';
 import { KanbanStepOneBoardLoader } from '@/components/kanban-shared/KanbanStepOneBoardLoader';
 import { KanbanTabs } from './KanbanTabs';
 
@@ -31,9 +30,7 @@ export default async function FunilStepOnePage({
         <KanbanTabs />
       </Suspense>
 
-      <Suspense fallback={<KanbanBoardStreamFallback columnAccent="var(--moni-kanban-stepone)" />}>
-        <KanbanStepOneBoardLoader userId={user.id} activeTab={activeTab} />
-      </Suspense>
+      <KanbanStepOneBoardLoader userId={user.id} activeTab={activeTab} />
     </div>
   );
 }

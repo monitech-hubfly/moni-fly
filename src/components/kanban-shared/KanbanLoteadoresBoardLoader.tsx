@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import { Suspense } from 'react';
+import { guardLoginRequired } from '@/lib/auth-guard';
 import { createClient } from '@/lib/supabase/server';
 import { KanbanTabs } from '@/app/funil-moni-inc/KanbanTabs';
 import {
@@ -7,100 +7,59 @@ import {
   KANBAN_NOME_FUNIL_LOTEADORES,
   resolverPrimeiraFaseContatoLoteadores,
 } from '@/lib/kanban/funil-loteadores';
-import { KanbanBoard } from './KanbanBoard';
+import { KanbanLoteadoresBoardCardsLoader } from './KanbanLoteadoresBoardCardsLoader';
+import { KanbanNotFound } from './KanbanNotFound';
 import { KanbanWrapper } from './KanbanWrapper';
-import { fetchKanbanBoardSnapshot } from './fetchKanbanBoardSnapshot';
-import { PainelPerformance } from './PainelPerformance';
-import type { KanbanCardBrief, KanbanFase } from './types';
+import { fetchKanbanBoardShell } from './fetchKanbanBoardSnapshot';
 
 const BASE_PATH = '/loteadores';
 
 export async function KanbanLoteadoresBoardLoader({
   userId,
   activeTab,
-  modalCardAberto,
 }: {
   userId: string;
   activeTab: 'kanban' | 'painel';
-  modalCardAberto: boolean;
 }) {
   const supabase = await createClient();
-  const { kanban, fases, cards, cardsConcluidos, role, isAdmin, snapshotMode } =
-    await fetchKanbanBoardSnapshot(supabase, KANBAN_NOME_FUNIL_LOTEADORES, userId, {
-      skipCalculadoraSlaEnrich: modalCardAberto,
-      deferBoardEnrichments: !modalCardAberto,
-    });
+  const shell = await fetchKanbanBoardShell(supabase, KANBAN_NOME_FUNIL_LOTEADORES, userId);
 
-  const isStaff = isAdmin || isStaffKanbanLoteadores(role);
-  const primeiraFaseContatoId = resolverPrimeiraFaseContatoLoteadores(fases ?? []);
-  const exibirNovoCard = isStaff && Boolean(primeiraFaseContatoId);
-
-  if (!kanban) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center bg-[var(--moni-surface-50)]">
-        <div className="text-center">
-          <h1 className="text-xl font-bold" style={{ color: 'var(--moni-text-primary)' }}>
-            Kanban não encontrado
-          </h1>
-          <p className="mt-2 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-            O kanban &ldquo;{KANBAN_NOME_FUNIL_LOTEADORES}&rdquo; ainda não foi configurado.
-          </p>
-          <Link href="/" className="mt-4 inline-block text-sm text-moni-primary hover:underline">
-            ← Voltar
-          </Link>
-        </div>
-      </div>
-    );
+  if (!shell.kanban) {
+    return <KanbanNotFound kanbanNomeDb={KANBAN_NOME_FUNIL_LOTEADORES} />;
   }
+
+  const isStaff = shell.isAdmin || isStaffKanbanLoteadores(shell.role);
+  const primeiraFaseContatoId = resolverPrimeiraFaseContatoLoteadores(shell.fases ?? []);
+  const exibirNovoCard = isStaff && Boolean(primeiraFaseContatoId);
 
   return (
     <KanbanWrapper
       basePath={BASE_PATH}
       isAdmin={isStaff}
-      kanbanId={kanban.id}
+      kanbanId={shell.kanban.id}
       kanbanNome="Funil Loteadores"
-      fases={fases ?? []}
+      fases={shell.fases ?? []}
     >
       <Suspense fallback={null}>
         <KanbanTabs
           basePath={BASE_PATH}
           tabsVariant="portfolio"
-          kanbanId={String(kanban.id)}
+          kanbanId={shell.kanban.id}
           isAdmin={isStaff}
           primeiraFaseContatoId={primeiraFaseContatoId}
         />
       </Suspense>
 
-      {activeTab === 'kanban' ? (
-        <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
-          <KanbanBoard
-            fases={fases ?? []}
-            cards={cards}
-            cardsConcluidos={cardsConcluidos}
-            basePath={BASE_PATH}
-            userRole={role}
-            columnAccent="var(--moni-kanban-stepone)"
-            currentUserId={userId}
-            mostrarLinkNovoCard={exibirNovoCard}
-            podeCriarCards={exibirNovoCard ? true : false}
-            kanbanNome="Funil Loteadores"
-            kanbanNomeDb={KANBAN_NOME_FUNIL_LOTEADORES}
-            kanbanId={kanban.id}
-            snapshotLean={snapshotMode === 'lean'}
-            deferEnrichments={!modalCardAberto}
-          />
-        </main>
-      ) : (
-        <main className="mx-auto max-w-[1600px] px-6 py-8">
-          <PainelPerformance
-            kanbanNome="Funil Loteadores"
-            kanbanId={kanban.id}
-            fases={(fases ?? []) as KanbanFase[]}
-            cards={cards as KanbanCardBrief[]}
-            origemCards={cards.some((c) => c.origem === 'legado') ? 'legado' : 'nativo'}
-          />
-        </main>
-      )}
+      <Suspense fallback={null}>
+        <KanbanLoteadoresBoardCardsLoader
+          userId={userId}
+          activeTab={activeTab}
+          kanbanId={shell.kanban.id}
+          fases={shell.fases ?? []}
+          role={shell.role}
+          exibirNovoCard={exibirNovoCard}
+        />
+      </Suspense>
     </KanbanWrapper>
   );
 }

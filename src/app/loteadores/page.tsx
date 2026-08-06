@@ -1,7 +1,5 @@
 import { guardLoginRequired } from '@/lib/auth-guard';
-import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import { KanbanBoardStreamFallback } from '@/components/kanban-shared/KanbanBoardStreamFallback';
 import { KanbanLoteadoresBoardLoader } from '@/components/kanban-shared/KanbanLoteadoresBoardLoader';
 
 export const dynamic = 'force-dynamic';
@@ -30,13 +28,7 @@ export default async function LoteadoresKanbanPage({
 
   return (
     <div className="min-h-0 min-w-0 bg-[var(--moni-surface-50)]">
-      <Suspense fallback={<KanbanBoardStreamFallback columnAccent="var(--moni-kanban-stepone)" />}>
-        <KanbanLoteadoresBoardLoader
-          userId={user.id}
-          activeTab={activeTab}
-          modalCardAberto={modalCardAberto}
-        />
-      </Suspense>
+      <KanbanLoteadoresBoardLoader userId={user.id} activeTab={activeTab} />
     </div>
   );
 }
