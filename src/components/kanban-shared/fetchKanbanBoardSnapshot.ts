@@ -238,7 +238,7 @@ const KANBANS_HIBRIDOS_COM_VIEW_LEGADO = new Set([
 ]);
 
 /** Funis com paint inicial mínimo — enrichments completos via client após mount. */
-const KANBANS_FAST_PAINT = new Set(['Funil Portfólio', 'Funil Operações']);
+const KANBANS_FAST_PAINT = new Set(['Funil Portfólio', 'Funil Operações', 'Funil Loteadores']);
 
 function isFastPaintKanban(kanbanNomeDb: string): boolean {
   return KANBANS_FAST_PAINT.has(kanbanNomeDb);
@@ -1765,7 +1765,7 @@ function mapNativeRowToEnrichmentBrief(
 
 /**
  * Enriquecimentos adiados — chamado pelo client após paint inicial.
- * Portfólio/Operações: snapshot completo (títulos, tags, fase, paralelas, SLA).
+ * Portfólio/Operações/Loteadores: snapshot completo (títulos, tags, fase, paralelas, SLA).
  * Demais funis: só paralelas + responsável + calculadora.
  */
 export async function fetchKanbanBoardEnrichmentPatches(

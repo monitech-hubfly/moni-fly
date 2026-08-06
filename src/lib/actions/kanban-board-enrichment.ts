@@ -12,7 +12,7 @@ export type FetchKanbanBoardDeferredEnrichmentResult =
 
 /**
  * Enriquecimentos pesados do board após paint inicial.
- * Portfólio/Operações: títulos, tags, fase reconciliada, paralelas, responsável e SLA.
+ * Portfólio/Operações/Loteadores: títulos, tags, fase reconciliada, paralelas, responsável e SLA.
  * Demais funis: paralelas, responsável e calculadora SLA.
  */
 export async function fetchKanbanBoardDeferredEnrichment(

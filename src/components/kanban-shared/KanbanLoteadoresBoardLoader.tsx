@@ -18,13 +18,18 @@ const BASE_PATH = '/loteadores';
 export async function KanbanLoteadoresBoardLoader({
   userId,
   activeTab,
+  modalCardAberto,
 }: {
   userId: string;
   activeTab: 'kanban' | 'painel';
+  modalCardAberto: boolean;
 }) {
   const supabase = await createClient();
   const { kanban, fases, cards, cardsConcluidos, role, isAdmin, snapshotMode } =
-    await fetchKanbanBoardSnapshot(supabase, KANBAN_NOME_FUNIL_LOTEADORES, userId);
+    await fetchKanbanBoardSnapshot(supabase, KANBAN_NOME_FUNIL_LOTEADORES, userId, {
+      skipCalculadoraSlaEnrich: modalCardAberto,
+      deferBoardEnrichments: !modalCardAberto,
+    });
 
   const isStaff = isAdmin || isStaffKanbanLoteadores(role);
   const primeiraFaseContatoId = resolverPrimeiraFaseContatoLoteadores(fases ?? []);
@@ -82,6 +87,7 @@ export async function KanbanLoteadoresBoardLoader({
             kanbanNomeDb={KANBAN_NOME_FUNIL_LOTEADORES}
             kanbanId={kanban.id}
             snapshotLean={snapshotMode === 'lean'}
+            deferEnrichments={!modalCardAberto}
           />
         </main>
       ) : (

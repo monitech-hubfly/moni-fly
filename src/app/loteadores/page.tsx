@@ -31,7 +31,11 @@ export default async function LoteadoresKanbanPage({
   return (
     <div className="min-h-0 min-w-0 bg-[var(--moni-surface-50)]">
       <Suspense fallback={<KanbanBoardStreamFallback columnAccent="var(--moni-kanban-stepone)" />}>
-        <KanbanLoteadoresBoardLoader userId={user.id} activeTab={activeTab} />
+        <KanbanLoteadoresBoardLoader
+          userId={user.id}
+          activeTab={activeTab}
+          modalCardAberto={modalCardAberto}
+        />
       </Suspense>
     </div>
   );
