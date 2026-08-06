@@ -227,15 +227,21 @@ export async function GET(request: Request) {
 
   const results: { email: string; synced?: number; removed?: number; error?: string }[] = [];
 
+  console.log(`[gcal-sync] iniciando — ${users.length} usuário(s) @${DOMAIN}`);
+
   for (const user of users) {
     if (!user.email) continue;
     try {
       const { synced, removed } = await syncUser(supabase, credentials, user.id, user.email);
       results.push({ email: user.email, synced, removed });
+      console.log(`[gcal-sync] ✓ ${user.email} — synced=${synced} removed=${removed}`);
     } catch (e) {
-      results.push({ email: user.email, error: e instanceof Error ? e.message : String(e) });
+      const msg = e instanceof Error ? e.message : String(e);
+      results.push({ email: user.email, error: msg });
+      console.error(`[gcal-sync] ✗ ${user.email} — ${msg}`);
     }
   }
 
+  console.log(`[gcal-sync] concluído — ${results.filter(r => !r.error).length}/${results.length} ok`);
   return NextResponse.json({ ok: true, users: results.length, results });
 }
