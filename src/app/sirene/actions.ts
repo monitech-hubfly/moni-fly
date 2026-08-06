@@ -360,7 +360,7 @@ export type TopicoPainelLinha = {
   data_fim: string | null;
   trava: boolean;
   pastel: boolean;
-  historico: Array<{ tipo: string; em: string; por?: string | null }>;
+  historico: Array<{ tipo: string; em: string; por?: string | null; detalhe?: string | null }>;
   status: string;
   resolucao_time: string | null;
   motivo_reprovacao: string | null;
@@ -398,7 +398,7 @@ function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLi
     const descRaw = String((r as { descricao?: string }).descricao ?? '').trim();
     const hist = (r as { historico?: unknown }).historico;
     const historico = Array.isArray(hist)
-      ? (hist as Array<{ tipo: string; em: string; por?: string | null }>)
+      ? (hist as Array<{ tipo: string; em: string; por?: string | null; detalhe?: string | null }>)
       : [];
     return {
       id: r.id as number,

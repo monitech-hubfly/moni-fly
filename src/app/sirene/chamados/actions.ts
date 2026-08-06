@@ -239,6 +239,21 @@ export async function atualizarStatusInteracaoSirene(
   return { ok: true };
 }
 
+/** Busca resolução (texto "Como resolveu") do pastelaria_card vinculado ao chamado. */
+export async function buscarResolucaoChamado(
+  sireneChamadoId: number,
+): Promise<{ ok: true; resolucao: string | null } | { ok: false; error: string }> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from('pastelaria_cards')
+    .select('resolucao')
+    .eq('sirene_chamado_id', sireneChamadoId)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  const r = (data as { resolucao?: string | null } | null)?.resolucao ?? null;
+  return { ok: true, resolucao: r && r.trim() ? r.trim() : null };
+}
+
 export type AtualizarInteracaoCompletaSireneInput = {
   titulo: string;
   tipo: 'atividade' | 'duvida' | 'proposicoes';

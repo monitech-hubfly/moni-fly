@@ -29,6 +29,7 @@ import {
 import { PrazoNegociacaoPanel } from '@/components/kanban-shared/PrazoNegociacaoPanel';
 import { AtribuicaoAceitePanel } from '@/components/sirene/AtribuicaoAceitePanel';
 import {
+  buscarResolucaoChamado,
   listarComentariosCardSirene,
   listarComentariosSireneChamado,
   publicarComentarioCardSirene,
@@ -218,6 +219,14 @@ export function SireneChamadoDetalheModal({
 
   const [novaAtivAberta, setNovaAtivAberta] = useState(false);
   const [mostrarConcluidas, setMostrarConcluidas] = useState(false);
+  const [resolucaoChamado, setResolucaoChamado] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (row.sirene_chamado_id == null) return;
+    void buscarResolucaoChamado(row.sirene_chamado_id).then((r) => {
+      if (r.ok) setResolucaoChamado(r.resolucao);
+    });
+  }, [row.sirene_chamado_id]);
 
   const topicosAbertos = useMemo(
     () => topicos.filter((t) => t.status !== 'concluido' && t.status !== 'aprovado'),
@@ -610,7 +619,12 @@ export function SireneChamadoDetalheModal({
                           ) : null}
                           {t.atribuicao_status !== 'pendente_aceite' &&
                           t.prazo_status &&
-                          (t.prazo_status !== 'aceito' || sessionEhAdmin) ? (
+                          (
+                            t.prazo_status !== 'aceito' ||
+                            sessionEhAdmin ||
+                            t.responsaveis_ids?.includes(currentUserId ?? '') ||
+                            t.responsavel_id === currentUserId
+                          ) ? (
                             <PrazoNegociacaoPanel
                               topicoId={String(t.id)}
                               row={{
@@ -628,6 +642,8 @@ export function SireneChamadoDetalheModal({
                               basePath="/sirene/chamados"
                               compact
                               onUpdated={onRecarregarTopicos}
+                              historico={t.historico}
+                              nomePorId={nomePorUserId}
                             />
                           ) : null}
                         </div>
@@ -672,6 +688,17 @@ export function SireneChamadoDetalheModal({
               </p>
             )}
           </section>
+
+          {resolucaoChamado ? (
+            <section>
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
+                Resolução
+              </p>
+              <div className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
+                <p className="whitespace-pre-wrap text-sm text-[color:var(--moni-text-primary)]">{resolucaoChamado}</p>
+              </div>
+            </section>
+          ) : null}
 
           {commentKey ? (
             <section>

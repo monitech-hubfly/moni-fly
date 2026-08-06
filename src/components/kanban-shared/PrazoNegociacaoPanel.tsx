@@ -18,6 +18,13 @@ import {
   type PrazoNegociacaoCampos,
 } from '@/lib/kanban/prazo-negociacao';
 
+type HistoricoEvento = {
+  tipo: string;
+  em: string;
+  por?: string | null;
+  detalhe?: string | null;
+};
+
 type Props = {
   topicoId: string;
   row: PrazoNegociacaoCampos & { responsaveis_ids?: string[] };
@@ -29,6 +36,16 @@ type Props = {
   onUpdated?: () => void;
   /** Quando true (atribuição já aceita), responsável e abridor não veem "Propor/Alterar prazo"; admin mantém acesso. */
   atribuicaoAceita?: boolean;
+  historico?: HistoricoEvento[];
+  nomePorId?: Map<string, string>;
+};
+
+const HIST_TIPO_LABEL: Record<string, string> = {
+  'Prazo proposto': 'Proposto',
+  'Prazo aceito': 'Aceito',
+  'Prazo recusado': 'Recusado',
+  'Prazo aceito automaticamente': 'Aceito automaticamente',
+  'Prazo admin override': 'Alterado (admin)',
 };
 
 export function PrazoNegociacaoPanel({
@@ -41,11 +58,14 @@ export function PrazoNegociacaoPanel({
   compact = false,
   onUpdated,
   atribuicaoAceita = false,
+  historico,
+  nomePorId,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [novaData, setNovaData] = useState(prazoIsoExibicao(row) ?? '');
   const [editandoPrazo, setEditandoPrazo] = useState(false);
+  const [historicoAberto, setHistoricoAberto] = useState(false);
 
   const uid = sessionUserId ?? '';
   const status = normalizarPrazoStatus(row.prazo_status);
@@ -68,7 +88,17 @@ export function PrazoNegociacaoPanel({
     });
   };
 
+  const historicoPrazo = (historico ?? []).filter((e) =>
+    e.tipo.startsWith('Prazo') || e.tipo === 'Prazo proposto' || e.tipo === 'Prazo aceito' || e.tipo === 'Prazo recusado'
+  );
+
+  // Mostrar botão propor quando:
+  // - status recusado e é responsável
+  // - não é atribuição aceita e é abridor/responsável/admin e não está pendente para responsável
+  // - atribuição aceita e é responsável e prazo está aceito ou pendente para o abridor (renegociação)
   const podeProporLivre = isAdmin || !expirada;
+  const mostrarProporRenegociacao =
+    atribuicaoAceita && ehResponsavel && (status === 'aceito' || status === 'pendente_aceite_abridor');
 
   return (
     <div className={`rounded border border-stone-200 bg-stone-50/80 p-2 ${text}`}>
@@ -85,7 +115,35 @@ export function PrazoNegociacaoPanel({
             <Pencil className="h-3.5 w-3.5" />
           </button>
         ) : null}
+        {historicoPrazo.length > 1 ? (
+          <button
+            type="button"
+            onClick={() => setHistoricoAberto((v) => !v)}
+            className="ml-auto text-[9px] text-stone-400 hover:text-stone-600 underline"
+          >
+            {historicoAberto ? 'Ocultar histórico' : `Histórico (${historicoPrazo.length})`}
+          </button>
+        ) : null}
       </p>
+
+      {historicoAberto && historicoPrazo.length > 0 ? (
+        <ol className="mt-1.5 space-y-0.5 border-l-2 border-stone-200 pl-2">
+          {historicoPrazo.map((evt, i) => {
+            const dataPrazo = evt.detalhe ? (formatIsoDateOnlyPtBr(evt.detalhe.slice(0, 10)) ?? evt.detalhe.slice(0, 10)) : null;
+            const dataEvento = evt.em ? new Date(evt.em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : null;
+            const autor = evt.por ? (nomePorId?.get(evt.por) ?? null) : null;
+            return (
+              <li key={i} className="text-[9px] text-stone-500">
+                <span className="font-medium text-stone-600">{HIST_TIPO_LABEL[evt.tipo] ?? evt.tipo}</span>
+                {dataPrazo ? <span className="ml-1">→ {dataPrazo}</span> : null}
+                {dataEvento ? <span className="ml-1 text-stone-400">em {dataEvento}</span> : null}
+                {autor ? <span className="ml-1 text-stone-400">por {autor}</span> : null}
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+
       {status && status !== 'aceito' ? (
         <p className="mt-0.5 text-amber-800">{rotuloPrazoStatusPt(status)}</p>
       ) : null}
@@ -154,12 +212,13 @@ export function PrazoNegociacaoPanel({
 
       {(
         (status === 'recusado' && ehResponsavel) ||
-        ((ehAbridor || ehResponsavel || isAdmin) && status !== 'pendente_aceite_responsavel' && !atribuicaoAceita)
+        ((ehAbridor || ehResponsavel || isAdmin) && status !== 'pendente_aceite_responsavel' && !atribuicaoAceita) ||
+        (mostrarProporRenegociacao && podeProporLivre)
       ) ? (
         <div className="mt-2 flex flex-wrap items-end gap-1">
           <label className="block min-w-0 flex-1">
             <span className="mb-0.5 block text-stone-600">
-              {status === 'recusado' ? 'Novo prazo (responsável)' : 'Alterar prazo'}
+              {status === 'recusado' ? 'Novo prazo (responsável)' : mostrarProporRenegociacao ? 'Propor novo prazo' : 'Alterar prazo'}
             </span>
             <input
               type="date"

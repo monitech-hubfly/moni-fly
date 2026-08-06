@@ -272,10 +272,14 @@ export async function proporPrazoSubInteracao(
     }
     novoStatus = 'pendente_aceite_abridor';
   } else if (status === 'pendente_aceite_responsavel' || status === 'aceito' || status == null) {
-    if (!ehAbridor && !isAdmin) {
+    if (ehAbridor || isAdmin) {
+      novoStatus = 'pendente_aceite_responsavel';
+    } else if (ehResponsavel) {
+      // Responsável pode renegociar prazo já aceito → abridor confirma
+      novoStatus = 'pendente_aceite_abridor';
+    } else {
       return { ok: false, error: 'Somente quem abriu a atividade pode alterar o prazo nesta etapa.' };
     }
-    novoStatus = 'pendente_aceite_responsavel';
   } else {
     return { ok: false, error: 'Estado de prazo não permite nova proposta.' };
   }
