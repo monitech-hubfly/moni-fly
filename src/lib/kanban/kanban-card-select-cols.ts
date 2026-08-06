@@ -59,6 +59,8 @@ export const KANBAN_CARD_SELECT_BOARD_FAST = `
       concluido,
       concluido_em,
       rede_franqueado_id,
+      rede_loteador_id,
+      condominio_id,
       nome_condominio,
       quadra,
       lote,

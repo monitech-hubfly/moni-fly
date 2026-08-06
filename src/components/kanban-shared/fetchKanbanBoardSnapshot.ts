@@ -194,6 +194,128 @@ function aplicarTagsKanbanCards(
   return cards.map((c) => ({ ...c, tagsCard: byCardId.get(c.id) ?? [] }));
 }
 
+/** Título formatado + header do franqueado no paint rápido (sem ancestrais/paralelas). */
+async function enrichFastPaintCardsParaExibicao(
+  supabase: SupabaseClient,
+  kanbanIdStr: string,
+  kanbanNomeDb: string,
+  cardsRaw: Record<string, unknown>[],
+  cards: KanbanCardBrief[],
+): Promise<KanbanCardBrief[]> {
+  if (cards.length === 0) return cards;
+
+  const isFunilLoteadores = isKanbanFunilLoteadoresRef(kanbanIdStr, kanbanNomeDb);
+  const franqueadoMaps = await resolveNativeFranqueadoMaps(supabase, cardsRaw, [], []);
+  const {
+    redeNomeDiretoMap,
+    franqueadoNomePorCardId,
+    nFranquiaPorCardId,
+    nFranquiaByRedeId,
+  } = franqueadoMaps;
+
+  const loteadorPorId = new Map<
+    string,
+    {
+      nome: string;
+      contato_nome: string | null;
+      interlocutor_nome: string | null;
+      condominio_nome: string | null;
+    }
+  >();
+  if (isFunilLoteadores) {
+    const redeLoteadorIds = [
+      ...new Set(
+        cardsRaw
+          .map((c) => String(c.rede_loteador_id ?? '').trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (redeLoteadorIds.length > 0) {
+      const { data: loteadoresRows } = await supabase
+        .from('rede_loteadores')
+        .select('id, nome, contato_nome, interlocutor_nome, condominio_nome')
+        .in('id', redeLoteadorIds);
+      for (const row of loteadoresRows ?? []) {
+        const id = String((row as { id?: string }).id ?? '').trim();
+        if (!id) continue;
+        loteadorPorId.set(id, {
+          nome: String((row as { nome?: string | null }).nome ?? '').trim(),
+          contato_nome: (row as { contato_nome?: string | null }).contato_nome ?? null,
+          interlocutor_nome: (row as { interlocutor_nome?: string | null }).interlocutor_nome ?? null,
+          condominio_nome: (row as { condominio_nome?: string | null }).condominio_nome ?? null,
+        });
+      }
+    }
+  }
+
+  const rawById = new Map(cardsRaw.map((r) => [String(r.id ?? ''), r]));
+
+  return cards.map((card) => {
+    const c = rawById.get(card.id);
+    if (!c) return card;
+
+    const redeId = String(c.rede_franqueado_id ?? '').trim();
+    const cardId = card.id;
+    const tituloRaw = String(c.titulo ?? card.titulo ?? '');
+    const parsedTitulo = parseCamposDoTituloCard(tituloRaw);
+    const nomeCondominio = coalesceTextoCampo(c.nome_condominio, parsedTitulo.nomeCondominio);
+    const quadra = coalesceTextoCampo(c.quadra, parsedTitulo.quadra);
+    const lote = coalesceTextoCampo(c.lote, parsedTitulo.lote);
+    const nFranquiaCard = redeId
+      ? nFranquiaByRedeId.get(redeId)
+      : nFranquiaPorCardId.get(cardId) ?? extrairNumeroFranquiaDoTitulo(tituloRaw);
+    const nomeFranqueadoCard = redeId
+      ? redeNomeDiretoMap.get(redeId)
+      : franqueadoNomePorCardId.get(cardId);
+    const tituloCalc = montarTituloCardSync({
+      nFranquia: nFranquiaCard,
+      nomeFranqueado: nomeFranqueadoCard,
+      nomeCondominio,
+      quadra,
+      lote,
+      tituloFallback: tituloRaw,
+    });
+    let tituloExibicao = escolherTituloExibicaoCard(
+      tituloRaw,
+      tituloCalc,
+      nFranquiaCard,
+      nomeFranqueadoCard,
+      { nomeCondominio, quadra, lote },
+    );
+    let subtituloCard: string | null = null;
+    let profilesLinha: KanbanCardBrief['profiles'] =
+      redeId && redeNomeDiretoMap.has(redeId)
+        ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
+        : franqueadoNomePorCardId.has(cardId)
+          ? { full_name: franqueadoNomePorCardId.get(cardId) ?? null }
+          : null;
+
+    if (isFunilLoteadores) {
+      const redeLoteadorId = String(c.rede_loteador_id ?? '').trim();
+      const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
+      const nomeLoteador = coalesceTextoCampo(rl?.nome);
+      if (nomeLoteador) {
+        tituloExibicao =
+          tituloExibicaoCardLoteadores(
+            { titulo: tituloRaw, nome_condominio: c.nome_condominio as string | null | undefined },
+            rl,
+          ) ?? tituloExibicao;
+        subtituloCard = subtituloCardLoteadores(rl?.interlocutor_nome);
+      } else {
+        tituloExibicao = tituloRaw;
+      }
+      profilesLinha = null;
+    }
+
+    return {
+      ...card,
+      titulo: tituloExibicao,
+      subtitulo: subtituloCard,
+      profiles: profilesLinha,
+    };
+  });
+}
+
 /** Processos já cobertos por linha nativa (evita duplicata legado+nativo no board híbrido). */
 async function buildProcessoIdsCobertosPorNativo(
   supabase: SupabaseClient,
@@ -765,13 +887,23 @@ export async function fetchKanbanBoardSnapshot(
     const cardsNativoRaw = ((cardsRes.data ?? []) as KanbanCardRow[]).map((c) =>
       mapNativoFastRow(c, kanbanIdStr),
     );
-    const tagsByCardId = await fetchKanbanTagsByCardIds(
-      supabase,
-      cardsNativoRaw.map((c) => c.id),
-    );
-    timer.mark('tags-fast');
-    const cardsNativo = aplicarTagsKanbanCards(cardsNativoRaw, tagsByCardId);
-    const faseIdsOrfas = cardsNativo.map((c) => c.fase_id);
+    const rawRows = (cardsRes.data ?? []) as Record<string, unknown>[];
+    const [tagsByCardId, cardsNativo] = await Promise.all([
+      fetchKanbanTagsByCardIds(
+        supabase,
+        cardsNativoRaw.map((c) => c.id),
+      ),
+      enrichFastPaintCardsParaExibicao(
+        supabase,
+        kanbanIdStr,
+        kanbanNomeDb,
+        rawRows,
+        cardsNativoRaw,
+      ),
+    ]);
+    const cardsComTags = aplicarTagsKanbanCards(cardsNativo, tagsByCardId);
+    timer.mark('tags+franqueado-fast');
+    const faseIdsOrfas = cardsComTags.map((c) => c.fase_id);
     const fasesComOrfas = await augmentKanbanFasesComFasesDosCards(
       supabase,
       kanbanIdStr,
@@ -779,12 +911,12 @@ export async function fetchKanbanBoardSnapshot(
       faseIdsOrfas,
     );
     timer.mark('fases-orfas');
-    timer.end(`${cardsNativo.length} cards`);
+    timer.end(`${cardsComTags.length} cards`);
 
     return {
       kanban: { id: kanbanIdStr },
       fases: fasesComOrfas,
-      cards: cardsNativo,
+      cards: cardsComTags,
       cardsConcluidos: [],
       role,
       isAdmin,
@@ -1800,7 +1932,8 @@ function mapNativeRowToEnrichmentBrief(
 
 /**
  * Enriquecimentos adiados — chamado pelo client após paint inicial.
- * Portfólio/Operações/Loteadores: snapshot completo (títulos, tags, fase, paralelas, SLA).
+ * Portfólio/Operações/Loteadores: paint inicial já traz título, franqueado e tags;
+ * bootstrap leve (paralelas, responsável, calculadora).
  * Demais funis: só paralelas + responsável + calculadora.
  */
 export async function fetchKanbanBoardEnrichmentPatches(
@@ -1811,24 +1944,6 @@ export async function fetchKanbanBoardEnrichmentPatches(
 ): Promise<Record<string, Partial<KanbanCardBrief>>> {
   const kid = String(kanbanId ?? '').trim();
   if (!kid) return {};
-
-  if (isFastPaintKanban(kanbanNomeDb)) {
-    const timer = createKanbanSnapshotTimer(kanbanNomeDb, 'bootstrap');
-    const snapshot = await fetchKanbanBoardSnapshot(supabase, kanbanNomeDb, userId, {
-      deferBoardEnrichments: false,
-      forceSkipLegadoView: true,
-      mode: 'lean',
-    });
-    timer.mark('snapshot-full');
-
-    const patches: Record<string, Partial<KanbanCardBrief>> = {};
-    for (const c of snapshot.cards) {
-      const patch = pickBootstrapPatchFields(c);
-      if (Object.keys(patch).length > 0) patches[c.id] = patch;
-    }
-    timer.end(`${Object.keys(patches).length} patches`);
-    return mergeTagsIntoEnrichmentPatches(supabase, patches, snapshot.cards.map((c) => c.id));
-  }
 
   let veTodosCards = false;
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
