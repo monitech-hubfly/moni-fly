@@ -1,4 +1,5 @@
 import { normalizeAccessRole, type AccessRole } from '@/lib/authz';
+import { isFunilPath } from '@/lib/funil-paths';
 import { PRE_BATALHA_PUBLIC_LEITURA_PATH } from '@/lib/pre-batalha-secoes';
 
 /**
@@ -40,6 +41,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
 
 export function isTeamAllowedPath(pathname: string): boolean {
   if (pathname === '/') return true;
+  if (isFunilPath(pathname)) return true;
   return TEAM_ALLOWED_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
@@ -72,6 +74,7 @@ export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
 /**
  * Fora da matriz Frank: bloqueia estes caminhos mesmo que coincidam com regra ampla; middleware redireciona a frank/franqueado para /portal-frank.
  */
+/** Rotas fora do escopo Frank (não inclui funis — ver `isFunilPath`). */
 export const FRANK_FORBIDDEN_PATH_PREFIXES: readonly string[] = [
   '/meus-processos',
   '/iniciar-processo',
@@ -80,16 +83,6 @@ export const FRANK_FORBIDDEN_PATH_PREFIXES: readonly string[] = [
   '/unidade-franquia',
   '/catalogo-produtos-moni',
   '/obra-ways',
-  '/funil-moni-capital',
-  '/funil-funding',
-  '/funil-produto',
-  '/funil-modelo-virtual',
-  '/funil-homologacoes',
-  '/funil-projeto-legal',
-  '/projetos-locais',
-  '/projetos-legais',
-  '/funil-projetos-locais',
-  '/funil-contratacoes',
 ] as const;
 
 /** Detalhe de uma linha da rede (`/rede-franqueados/:id`): a página restringe à própria franquia. */
@@ -100,6 +93,7 @@ export function isFrankRedeFranqueadoDetalhePath(pathname: string): boolean {
 }
 
 export function isFrankAllowedPath(pathname: string): boolean {
+  if (isFunilPath(pathname)) return true;
   if (FRANK_FORBIDDEN_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return false;
   }
@@ -115,8 +109,6 @@ export function isFrankAllowedPath(pathname: string): boolean {
  */
 export const ADMIN_ONLY_PATH_PREFIXES: readonly string[] = [
   '/admin',
-  '/painel-contabilidade',
-  '/funil-credito-obra',
   '/financeiro',
   '/juridico',
   '/processo-seletivo-candidatos',

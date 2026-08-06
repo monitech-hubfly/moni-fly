@@ -1,11 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import {
-  canAccessFunilContratacoes,
-  canAccessFunisInternosNegocio,
-  FUNIL_CONTRATACOES_PATH,
-  normalizeAccessRole,
-} from '@/lib/authz';
+import { normalizeAccessRole } from '@/lib/authz';
 import {
   BCA_PUBLIC_LEITURA_PATH,
   isAdminOnlyPath,
@@ -93,6 +88,7 @@ export async function updateSession(request: NextRequest) {
 
   const isAuthPage = isAuthFlowAccessPath(pathname);
   const protectedPrefixes = [
+    '/hub-funis',
     '/step-one',
     '/step-2',
     '/step-3',
@@ -201,39 +197,6 @@ export async function updateSession(request: NextRequest) {
   }
   const rawProfileRole = String(profileRow?.role ?? '').trim().toLowerCase();
   const accessRole = normalizeAccessRole(profileRow?.role);
-
-  if (
-    (pathname === FUNIL_CONTRATACOES_PATH || pathname.startsWith(`${FUNIL_CONTRATACOES_PATH}/`)) &&
-    !pathname.startsWith('/api')
-  ) {
-    if (!canAccessFunilContratacoes(profileRow?.role, profileRow?.cargo)) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-    return response;
-  }
-
-  const funisInternosNegocioPaths = [
-    '/funil-juridico',
-    '/funil-moni-capital',
-    '/funil-funding',
-    '/funil-motor01',
-    '/funil-produto',
-    '/funil-modelo-virtual',
-    '/funil-homologacoes',
-    '/funil-projeto-legal',
-    '/projetos-locais',
-    '/projetos-legais',
-    '/funil-projetos-locais',
-  ] as const;
-  if (
-    funisInternosNegocioPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`)) &&
-    !pathname.startsWith('/api')
-  ) {
-    if (!canAccessFunisInternosNegocio(profileRow?.role)) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-    return response;
-  }
 
   const sirenePath = pathname === '/sirene' || pathname.startsWith('/sirene/');
   if (sirenePath && !pathname.startsWith('/api')) {

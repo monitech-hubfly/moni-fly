@@ -283,39 +283,11 @@ export const KANBANS_VINCULO_MANUAL_LIVRE = [
 // Kanbans onde Frank podia abrir chamado jurídico manualmente (funil desativado — vazio)
 export const KANBANS_COM_CHAMADO_JURIDICO = [] as const;
 
-// Kanbans que Frank NÃO deve ver (filtros, esteiras paralelas, etc.)
-export const KANBANS_INTERNOS = [
-  KANBAN_IDS.JURIDICO,
-  KANBAN_IDS.MONI_CAPITAL,
-  KANBAN_IDS.FUNDING,
-  KANBAN_IDS.CONTABILIDADE,
-  KANBAN_IDS.CREDITO_OBRA,
-  KANBAN_IDS.CONTRATACOES,
-  KANBAN_IDS.HDM_PRODUTO,
-  KANBAN_IDS.HDM_MODELO_VIRTUAL,
-  KANBAN_IDS.HDM_HOMOLOGACOES,
-  KANBAN_IDS.PROJETO_LEGAL,
-  KANBAN_IDS.PROJETOS_LOCAIS,
-  KANBAN_IDS.PROJETOS_LEGAIS,
-  KANBAN_IDS.MOTOR01,
-] as const;
+// Kanbans desativados ou ocultos (apenas Funil Jurídico — rota redireciona ao hub).
+export const KANBANS_INTERNOS = [KANBAN_IDS.JURIDICO] as const;
 
 /** Nomes em `kanbans.nome` alinhados a `KANBANS_INTERNOS`. */
-export const KANBANS_INTERNOS_NOMES = [
-  'Funil Jurídico',
-  'Funil Divify',
-  'Funding',
-  'Funil Contabilidade',
-  'Funil Crédito Obra',
-  'Funil Contratações',
-  'Funil Produto',
-  'Funil Modelo Virtual',
-  'Funil Homologações',
-  'Funil Projeto Legal',
-  'Funil Projetos Locais',
-  'Funil Projetos Legais',
-  'Funil Motor 01',
-] as const;
+export const KANBANS_INTERNOS_NOMES = ['Funil Jurídico'] as const;
 
 export const MSG_CHAMADO_JURIDICO_JA_EXISTE =
   'Já existe um chamado jurídico aberto para este card';

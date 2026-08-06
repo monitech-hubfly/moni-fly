@@ -101,18 +101,19 @@ export function isFrankOrFranqueadoRole(role: string | null | undefined): boolea
   return normalizeAccessRole(role) === 'frank';
 }
 
-/** Funis Jurídico e Moní Capital: qualquer papel exceto frank/franqueado. */
+/** Funis internos de negócio: todos os papéis autenticados (RLS limita cards por usuário). */
 export function canAccessFunisInternosNegocio(role: string | null | undefined): boolean {
-  return !isFrankOrFranqueadoRole(role);
+  const access = normalizeAccessRole(role);
+  return access !== 'pending' && access !== 'blocked';
 }
 
-/** Funil Contratações (`/funil-contratacoes`): admin ou time com `profiles.cargo = adm`. */
+/** Funil Contratações: todos os papéis autenticados (RLS limita cards por usuário). */
 export function canAccessFunilContratacoes(
   role: string | null | undefined,
-  cargo: string | null | undefined,
+  _cargo?: string | null | undefined,
 ): boolean {
-  if (normalizeAccessRole(role) === 'admin') return true;
-  return String(cargo ?? '').trim().toLowerCase() === 'adm';
+  const access = normalizeAccessRole(role);
+  return access !== 'pending' && access !== 'blocked';
 }
 
 export const FUNIL_CONTRATACOES_PATH = '/funil-contratacoes' as const;

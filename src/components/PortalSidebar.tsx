@@ -148,7 +148,8 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const roleNorm = normalizeAccessRole(resolvedRole);
   const isFrank = roleNorm === 'frank';
   const isStaff = isAdmin || roleNorm === 'team';
-  const showHubFunisNav = isStaff || isFrank;
+  const showHubFunisNav =
+    roleNorm !== 'pending' && roleNorm !== 'blocked';
   const isSuperAdmin = user?.email?.toLowerCase() === 'danilo.n@moni.casa';
   const [inativasOpen, setInativasOpen] = useState(false);
 

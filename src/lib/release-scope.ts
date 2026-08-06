@@ -20,6 +20,7 @@ export function showDevOnlySidebarNav(): boolean {
  */
 export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/',
+  '/hub-funis',
   '/aceitar-convite',
   '/esqueci-senha',
   '/redefinir-senha',
