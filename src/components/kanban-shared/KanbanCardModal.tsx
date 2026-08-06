@@ -346,6 +346,7 @@ import { ResponsavelFaseSidebar } from './ResponsavelFaseSidebar';
 import { ResponsavelDaFaseSidebar } from './ResponsavelDaFaseSidebar';
 import {
   RESPONSAVEL_DA_FASE_CHECKLIST_LABEL,
+  CRIADOR_DO_CARD_LABEL,
   RESPONSAVEL_FASE_CHECKLIST_LABEL,
   buscarResponsavelDaFaseSalvoPorFases,
   buscarResponsavelDaFaseSalvoPorFasesSyncGroup,
@@ -8095,7 +8096,7 @@ export function KanbanCardModal({
               <div className="space-y-2">
                 {isAdmin && card.profiles ? (
                   <div className="mb-1 rounded border border-stone-100 bg-stone-50/80 p-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">{RESPONSAVEL_FASE_CHECKLIST_LABEL}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">{CRIADOR_DO_CARD_LABEL}</p>
                     <p className="mt-0.5 text-xs font-medium text-stone-800">
                       {card.profiles.full_name || 'Não informado'}
                     </p>

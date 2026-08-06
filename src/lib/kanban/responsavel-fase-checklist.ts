@@ -7,14 +7,18 @@ import {
   type TipoResponsavelDaFasePadrao,
 } from '@/lib/kanban/responsavel-da-fase-padrao-por-slug';
 
-/** Slug estável do campo «Criador do Card» em todo kanban. */
+/** Slug estável do campo «Responsável do card» (painel lateral direito). */
 export const CAMPO_SLUG_RESPONSAVEL_FASE = 'responsavel_fase';
 
-export const RESPONSAVEL_FASE_CHECKLIST_LABEL = 'Criador do Card';
+/** Painel lateral direito — responsável pelo card na fase atual. */
+export const RESPONSAVEL_FASE_CHECKLIST_LABEL = 'Responsável do card';
+
+/** Painel esquerdo (Dados do Franqueado) — profile de quem criou o card. */
+export const CRIADOR_DO_CARD_LABEL = 'Criador do Card';
 
 /** Labels anteriores — reconhecidas ao resolver itens legados. */
 export const RESPONSAVEL_FASE_CHECKLIST_LABELS_LEGADO = [
-  'Responsável do card',
+  'Criador do Card',
   'Responsável da fase',
 ] as const;
 
