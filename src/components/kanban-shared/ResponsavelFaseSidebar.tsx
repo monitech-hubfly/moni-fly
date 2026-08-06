@@ -32,7 +32,7 @@ function normalizarValorUsuario(valor: string | null | undefined): string {
   return v && isValorUsuarioUuid(v) ? v : '';
 }
 
-/** Campo «Responsável do card» no painel lateral do modal (acima de Tags). */
+/** Campo «Criador do Card» no painel lateral do modal (acima de Tags). */
 export function ResponsavelFaseSidebar({
   cardId,
   faseId,

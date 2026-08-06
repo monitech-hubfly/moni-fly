@@ -7,13 +7,22 @@ import {
   type TipoResponsavelDaFasePadrao,
 } from '@/lib/kanban/responsavel-da-fase-padrao-por-slug';
 
-/** Slug estável do campo «Responsável do card» em todo kanban. */
+/** Slug estável do campo «Criador do Card» em todo kanban. */
 export const CAMPO_SLUG_RESPONSAVEL_FASE = 'responsavel_fase';
 
-export const RESPONSAVEL_FASE_CHECKLIST_LABEL = 'Responsável do card';
+export const RESPONSAVEL_FASE_CHECKLIST_LABEL = 'Criador do Card';
 
-/** Label anterior (migration 380–382) — reconhecida ao resolver itens legados. */
-export const RESPONSAVEL_FASE_CHECKLIST_LABEL_LEGADO = 'Responsável da fase';
+/** Labels anteriores — reconhecidas ao resolver itens legados. */
+export const RESPONSAVEL_FASE_CHECKLIST_LABELS_LEGADO = [
+  'Responsável do card',
+  'Responsável da fase',
+] as const;
+
+/** Novo label + legado — lookups `.in('label', ...)`. */
+export const RESPONSAVEL_FASE_CHECKLIST_LABELS_TODOS = [
+  RESPONSAVEL_FASE_CHECKLIST_LABEL,
+  ...RESPONSAVEL_FASE_CHECKLIST_LABELS_LEGADO,
+] as const;
 
 /** Painel lateral: quem executa a fase (Moní ou Franqueado). */
 export const RESPONSAVEL_DA_FASE_CHECKLIST_LABEL = 'Responsável da fase';
@@ -624,7 +633,9 @@ function normalizarLabelResponsavelFase(label: string | null | undefined): boole
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{M}/gu, '');
-  return t === 'responsavel do card' || t === 'responsavel da fase';
+  return (
+    t === 'criador do card' || t === 'responsavel do card' || t === 'responsavel da fase'
+  );
 }
 
 function normalizarLabelResponsavelDaFase(label: string | null | undefined): boolean {
@@ -649,7 +660,7 @@ export function isChecklistItemResponsavelDaFaseSidebar(item: ChecklistItemRespo
   );
 }
 
-/** Item de checklist que representa o responsável do card (slug, label ou legado). */
+/** Item de checklist que representa o criador do card (slug, label ou legado). */
 export function isChecklistItemResponsavelFase(item: ChecklistItemResponsavelRow): boolean {
   if (isChecklistItemResponsavelDaFaseSidebar(item)) return false;
   const slug = String(item.campo_slug ?? '').trim();
@@ -661,8 +672,8 @@ export function isChecklistItemResponsavelFase(item: ChecklistItemResponsavelRow
   return (
     item.tipo === 'usuario' &&
     slug === CAMPO_SLUG_RESPONSAVEL_FASE &&
-    label.includes('respons') &&
-    (label.includes('card') || label.includes('fase'))
+    (label.includes('respons') || label.includes('criador')) &&
+    (label.includes('card') || label.includes('fase') || label.includes('criador'))
   );
 }
 
@@ -695,7 +706,7 @@ export async function buscarItemIdResponsavelFaseEdicao(
       .from('kanban_fase_checklist_itens')
       .select('id, campo_slug, label, tipo')
       .eq('fase_id', fid)
-      .in('label', [RESPONSAVEL_FASE_CHECKLIST_LABEL, RESPONSAVEL_FASE_CHECKLIST_LABEL_LEGADO]);
+      .in('label', [...RESPONSAVEL_FASE_CHECKLIST_LABELS_TODOS]);
     rows = (rowsLabel ?? []) as ChecklistItemResponsavelRow[];
   }
   if (rows.length === 0) {
@@ -1396,7 +1407,7 @@ function resolverValorResponsavelCardComHistorico(
     if (atual) return atual;
   }
 
-  // Responsável do card pode ter sido gravado em fase posterior — usa o mais avançado no funil.
+  // Criador do card pode ter sido gravado em fase posterior — usa o mais avançado no funil.
   let melhorOrdem = -1;
   let melhorValor: string | null = null;
   for (const [fid, itemId] of itemPorFase) {

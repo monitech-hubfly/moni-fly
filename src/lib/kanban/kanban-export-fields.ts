@@ -332,7 +332,7 @@ const ALL_KANBAN_EXPORT_FIELDS: KanbanExportFieldDef[] = [
     return tags.length > 0 ? tags.join('; ') : '—';
   }),
   field('kanban.status', 'Status', 'kanban', 4, (ctx) => statusCardExport(ctx.card)),
-  field('kanban.responsavel_fase', 'Responsável da fase', 'kanban', 5, (ctx) =>
+  field('kanban.responsavel_fase', 'Criador do Card', 'kanban', 5, (ctx) =>
     displayOrDash(ctx.card.responsavel_fase_nome),
   ),
   field('kanban.arquivado', 'Arquivado', 'kanban', 6, (ctx) => boolExport(ctx.card.arquivado)),
