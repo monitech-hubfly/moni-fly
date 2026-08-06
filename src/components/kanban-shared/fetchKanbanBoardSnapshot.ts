@@ -1380,9 +1380,16 @@ export async function fetchKanbanBoardSnapshot(
 
   const todosParaEnrichDatas = [...cardsNativo, ...cardsConcluidos, ...cardsArquivadosNativo];
   if (todosParaEnrichDatas.length > 0) {
-    const enrichedDatas = await enrichCardsDatasFromProcesso(supabase, todosParaEnrichDatas);
-    const enrichedFollowup = await enrichCardsFollowupFromAtividades(supabase, enrichedDatas);
-    const porId = new Map(enrichedFollowup.map((c) => [c.id, c]));
+    const [enrichedDatas, enrichedFollowup] = await Promise.all([
+      enrichCardsDatasFromProcesso(supabase, todosParaEnrichDatas),
+      enrichCardsFollowupFromAtividades(supabase, todosParaEnrichDatas),
+    ]);
+    const porId = new Map<string, KanbanCardBrief>();
+    for (const c of enrichedDatas) porId.set(c.id, c);
+    for (const c of enrichedFollowup) {
+      const base = porId.get(c.id);
+      porId.set(c.id, base ? { ...base, data_followup: base.data_followup ?? c.data_followup } : c);
+    }
     cardsNativo = cardsNativo.map((c) => porId.get(c.id) ?? c);
     cardsConcluidos = cardsConcluidos.map((c) => porId.get(c.id) ?? c);
     cardsArquivadosNativo = cardsArquivadosNativo.map((c) => porId.get(c.id) ?? c);

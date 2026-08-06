@@ -1,13 +1,10 @@
-import Link from 'next/link';
 import { Suspense } from 'react';
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { createClient } from '@/lib/supabase/server';
 import type { PainelKanbanTabsVariant } from '@/app/steps-viabilidade/PainelKanbanTabs';
-import { KanbanBoard } from './KanbanBoard';
-import { KanbanWrapper } from './KanbanWrapper';
+import { KanbanBoardStreamFallback } from './KanbanBoardStreamFallback';
+import { KanbanDatabaseBoardLoader } from './KanbanDatabaseBoardLoader';
 import { KanbanPainelTabsShell } from './KanbanPainelTabsShell';
-import { fetchKanbanBoardSnapshot } from './fetchKanbanBoardSnapshot';
-import { PainelPerformance } from './PainelPerformance';
 import type { CamposPorFaseMap, KanbanNomeDisplay } from './types';
 
 export type KanbanDatabasePageConfig = {
@@ -46,77 +43,20 @@ export async function renderKanbanDatabasePage(
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
 
-  const { kanban, fases, cards, cardsConcluidos, role, isAdmin, snapshotMode } =
-    await fetchKanbanBoardSnapshot(supabase, config.kanbanNomeDb, user.id, {
-      skipCalculadoraSlaEnrich: modalCardAberto,
-    });
-
-  const exibirNovoCard = config.novoCardApenasStaff ? isAdmin : true;
-
-  if (!kanban) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--moni-surface-50)]">
-        <div className="text-center">
-          <h1 className="text-xl font-bold" style={{ color: 'var(--moni-text-primary)' }}>
-            Kanban não encontrado
-          </h1>
-          <p className="mt-2 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-            O kanban &ldquo;{config.kanbanNomeDb}&rdquo; ainda não está cadastrado (migration 111 ou seed).
-          </p>
-          <Link href="/" className="mt-4 inline-block text-sm text-moni-primary hover:underline">
-            ← Voltar
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <KanbanWrapper
-      basePath={config.basePath}
-      isAdmin={isAdmin}
-      kanbanId={kanban.id}
-      kanbanNome={config.kanbanNomeDisplay}
-      fases={fases ?? []}
-      camposPorFase={config.camposPorFase}
-      enableNovoCardModal={exibirNovoCard}
-    >
-      {/* Sem min-h-screen: o shell já ocupa 100dvh; altura forçada gerava scroll fantasma abaixo do board. */}
-      <div className="min-h-0 min-w-0 bg-[var(--moni-surface-50)]">
-        <Suspense fallback={null}>
-          <KanbanPainelTabsShell basePath={config.basePath} variant={config.tabsVariant} />
-        </Suspense>
+    <div className="min-h-0 min-w-0 bg-[var(--moni-surface-50)]">
+      <Suspense fallback={null}>
+        <KanbanPainelTabsShell basePath={config.basePath} variant={config.tabsVariant} />
+      </Suspense>
 
-        {activeTab === 'kanban' ? (
-          <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
-            <KanbanBoard
-              fases={fases ?? []}
-              cards={cards}
-              cardsConcluidos={cardsConcluidos}
-              basePath={config.basePath}
-              userRole={role}
-              columnAccent={config.columnAccent}
-              currentUserId={user.id}
-              mostrarLinkNovoCard={exibirNovoCard}
-              podeCriarCards={exibirNovoCard ? true : false}
-              kanbanNome={config.kanbanNomeDisplay}
-              kanbanNomeDb={config.kanbanNomeDb}
-              kanbanId={kanban.id}
-              snapshotLean={snapshotMode === 'lean'}
-            />
-          </main>
-        ) : (
-          <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
-            <PainelPerformance
-              kanbanNome={config.kanbanNomeDisplay}
-              kanbanId={kanban.id}
-              fases={fases ?? []}
-              cards={cards}
-              origemCards={cards.some((c) => c.origem === 'legado') ? 'legado' : 'nativo'}
-            />
-          </main>
-        )}
-      </div>
-    </KanbanWrapper>
+      <Suspense fallback={<KanbanBoardStreamFallback columnAccent={config.columnAccent} />}>
+        <KanbanDatabaseBoardLoader
+          userId={user.id}
+          config={config}
+          activeTab={activeTab}
+          modalCardAberto={modalCardAberto}
+        />
+      </Suspense>
+    </div>
   );
 }
