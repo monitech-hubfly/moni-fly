@@ -1,3 +1,4 @@
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { HDM_RESPONSAVEIS_TODOS_EMAILS } from '@/lib/times-responsaveis';
 import { InteracoesLista, type InteracaoSireneRow } from './InteracoesLista';
@@ -16,10 +17,11 @@ export default async function SireneChamadosPage({
   const filtroTipoChamado =
     params.tipo === 'padrao' || params.tipo === 'hdm' ? (params.tipo as 'padrao' | 'hdm') : undefined;
 
+  const admin = createAdminClient();
   const supabaseUser = createClient();
 
   const [viewResult] = await Promise.all([
-    supabaseUser
+    admin
       .from('v_atividades_unificadas')
       .select(
         [
@@ -104,7 +106,7 @@ export default async function SireneChamadosPage({
       }
       const kaChunkResults = await Promise.all(
         slices.map((slice) =>
-          supabaseUser
+          admin
             .from('kanban_atividades')
             .select(
               'id, trava, origem, responsaveis_ids, times_ids, responsavel_nome_texto, sirene_chamado_id, categoria, time_abertura_nome, numero, criado_por',
@@ -172,7 +174,7 @@ export default async function SireneChamadosPage({
       }
     >();
     if (sireneIds.length > 0) {
-      const { data: scRows } = await supabaseUser
+      const { data: scRows } = await admin
         .from('sirene_chamados')
         .select(
           'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel, arquivado, te_trata, prioridade, processo_id, processo_titulo, processo_kanban_nome, card_id',
@@ -210,7 +212,7 @@ export default async function SireneChamadosPage({
       }
       if (sireneCardPairs.length > 0) {
         const uniqueCardIds = [...new Set(sireneCardPairs.map((p) => p.cardId))];
-        const { data: cardRows } = await supabaseUser
+        const { data: cardRows } = await admin
           .from('kanban_cards')
           .select('id, titulo, fase_id, kanban_id')
           .in('id', uniqueCardIds);
@@ -222,8 +224,8 @@ export default async function SireneChamadosPage({
         const faseIds = [...new Set([...cardMap.values()].map((c) => c.fase_id).filter((x): x is string => x != null))];
         const kanbanIds = [...new Set([...cardMap.values()].map((c) => c.kanban_id).filter((x): x is string => x != null))];
         const [faseRows, kanbanRows] = await Promise.all([
-          faseIds.length > 0 ? supabaseUser.from('kanban_fases').select('id, nome').in('id', faseIds) : { data: [] },
-          kanbanIds.length > 0 ? supabaseUser.from('kanbans').select('id, nome').in('id', kanbanIds) : { data: [] },
+          faseIds.length > 0 ? admin.from('kanban_fases').select('id, nome').in('id', faseIds) : { data: [] },
+          kanbanIds.length > 0 ? admin.from('kanbans').select('id, nome').in('id', kanbanIds) : { data: [] },
         ]);
         const faseNomeById = new Map<string, string>();
         for (const f of (faseRows as { data: unknown[] }).data ?? []) {
@@ -253,7 +255,7 @@ export default async function SireneChamadosPage({
     if (sireneIds.length > 0 || kaById.size > 0) {
       // tópicos linkados por chamado_id (criados via Sirene direta normal)
       const byChamadoQuery = sireneIds.length > 0
-        ? await supabaseUser
+        ? await admin
             .from('sirene_topicos')
             .select('chamado_id, interacao_id, responsavel_id, responsaveis_ids, status')
             .in('chamado_id', sireneIds)
@@ -263,7 +265,7 @@ export default async function SireneChamadosPage({
       // tópicos linkados por interacao_id (criados via Sirene sem chamado_id preenchido)
       const kaIds = [...kaById.keys()];
       const byInteracaoQuery = kaIds.length > 0
-        ? await supabaseUser
+        ? await admin
             .from('sirene_topicos')
             .select('chamado_id, interacao_id, responsavel_id, responsaveis_ids, status')
             .in('interacao_id', kaIds)
@@ -345,7 +347,7 @@ export default async function SireneChamadosPage({
       const ch = 200;
       for (let i = 0; i < cardIdsNativo.length; i += ch) {
         const sl = cardIdsNativo.slice(i, i + ch);
-        const { data: cards } = await supabaseUser.from('kanban_cards').select('id, franqueado_id').in('id', sl);
+        const { data: cards } = await admin.from('kanban_cards').select('id, franqueado_id').in('id', sl);
         for (const c of cards ?? []) {
           frankIdByCard.set(
             String((c as { id: string }).id),
@@ -448,7 +450,7 @@ export default async function SireneChamadosPage({
     }
 
     // Busca cards em aberto da Pastelaria e injeta na lista
-    const { data: pastelariaCards } = await supabaseUser
+    const { data: pastelariaCards } = await admin
       .from('pastelaria_cards')
       .select('id, nome, coluna, responsavel_id, responsavel_nome, created_at, area_id, sirene_chamado_id')
       .in('coluna', ['mapped', 'doing'])
@@ -516,7 +518,7 @@ export default async function SireneChamadosPage({
       const chunk = 300;
       for (let i = 0; i < cardIdsUniq.length; i += chunk) {
         const slice = cardIdsUniq.slice(i, i + chunk);
-        const { data: ccRows } = await supabaseUser.from('kanban_card_comentarios').select('card_id').in('card_id', slice).is('sirene_chamado_id', null);
+        const { data: ccRows } = await admin.from('kanban_card_comentarios').select('card_id').in('card_id', slice).is('sirene_chamado_id', null);
         for (const r of ccRows ?? []) {
           const cid = String((r as { card_id: string }).card_id);
           comentariosCountByCardId[cid] = (comentariosCountByCardId[cid] ?? 0) + 1;
@@ -531,7 +533,7 @@ export default async function SireneChamadosPage({
         .map((i) => i.sirene_chamado_id as number)
     )];
     if (sireneIdsParaContar.length > 0) {
-      const { data: scComentRows } = await supabaseUser
+      const { data: scComentRows } = await admin
         .from('kanban_card_comentarios')
         .select('sirene_chamado_id')
         .in('sirene_chamado_id', sireneIdsParaContar);
@@ -542,7 +544,7 @@ export default async function SireneChamadosPage({
       }
     }
 
-    const { data: timesRows } = await supabaseUser.from('kanban_times').select('id, nome').order('nome');
+    const { data: timesRows } = await admin.from('kanban_times').select('id, nome').order('nome');
     const times = (timesRows ?? []).map((t) => ({
       id: String((t as { id: string }).id),
       nome: String((t as { nome: string }).nome),
@@ -550,8 +552,8 @@ export default async function SireneChamadosPage({
 
     const emailsHdm = [...HDM_RESPONSAVEIS_TODOS_EMAILS];
     const [profsHdmRes, profsAllRes] = await Promise.all([
-      supabaseUser.from('profiles').select('id, full_name, email').in('email', emailsHdm),
-      supabaseUser
+      admin.from('profiles').select('id, full_name, email').in('email', emailsHdm),
+      admin
         .from('profiles')
         .select('id, full_name, email')
         .order('full_name', { ascending: true, nullsFirst: false })
