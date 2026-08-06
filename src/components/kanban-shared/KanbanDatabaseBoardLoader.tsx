@@ -24,6 +24,7 @@ export async function KanbanDatabaseBoardLoader({
   const { kanban, fases, cards, cardsConcluidos, role, isAdmin, snapshotMode } =
     await fetchKanbanBoardSnapshot(supabase, config.kanbanNomeDb, userId, {
       skipCalculadoraSlaEnrich: modalCardAberto,
+      deferBoardEnrichments: !modalCardAberto,
     });
 
   const exibirNovoCard = config.novoCardApenasStaff ? isAdmin : true;
@@ -72,6 +73,7 @@ export async function KanbanDatabaseBoardLoader({
             kanbanNomeDb={config.kanbanNomeDb}
             kanbanId={kanban.id}
             snapshotLean={snapshotMode === 'lean'}
+            deferEnrichments={!modalCardAberto}
           />
         </main>
       ) : (

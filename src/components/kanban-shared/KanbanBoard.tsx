@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { podeComFallbackStaff } from '@/lib/permissoes-types';
 import { fetchKanbanBoardStatusPool } from '@/lib/actions/kanban-board-snapshot';
+import { fetchKanbanBoardDeferredEnrichment } from '@/lib/actions/kanban-board-enrichment';
 import { ExportKanbanButton } from './ExportKanbanButton';
 import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
 import { KanbanColumn } from './KanbanColumn';
@@ -62,6 +63,8 @@ export type KanbanBoardProps = {
    * Default: detecta se `cards` já tem arquivados ou `cardsConcluidos` não está vazio.
    */
   snapshotLean?: boolean;
+  /** Após paint: busca paralelas, responsável e calculadora SLA no client. */
+  deferEnrichments?: boolean;
 };
 
 export function KanbanBoard({
@@ -80,6 +83,7 @@ export function KanbanBoard({
   kanbanNomeDb,
   kanbanId,
   snapshotLean,
+  deferEnrichments = false,
 }: KanbanBoardProps) {
   const hipotesesOrdemMin = useMemo(() => hipotesesOrdemMinima(fases), [fases]);
   const { pode } = usePermissoes();
@@ -104,6 +108,12 @@ export function KanbanBoard({
   const [statusPoolLoading, setStatusPoolLoading] = useState(false);
   const [statusPoolError, setStatusPoolError] = useState<string | null>(null);
   const lazyFetchGen = useRef(0);
+  const enrichmentFetchGen = useRef(0);
+
+  /** Patches de enrichments adiados (paralelas, avatar responsável, calculadora). */
+  const [enrichmentByCardId, setEnrichmentByCardId] = useState<
+    Record<string, Partial<KanbanCardBrief>>
+  >({});
 
   /** Assinatura estável: `cards`/`cardsConcluidos` mudam de referência a cada `router.refresh()`. */
   const cardsSnapshotSig = useMemo(
@@ -117,7 +127,25 @@ export function KanbanBoard({
     setLazyArquivados(null);
     setLazyConcluidos(null);
     setStatusPoolError(null);
+    setEnrichmentByCardId({});
   }, [cardsSnapshotSig]);
+
+  useEffect(() => {
+    if (!deferEnrichments || !nomeDbParaLazy || !kanbanId) return;
+
+    const gen = ++enrichmentFetchGen.current;
+    let cancelled = false;
+
+    void (async () => {
+      const res = await fetchKanbanBoardDeferredEnrichment(nomeDbParaLazy, kanbanId);
+      if (cancelled || gen !== enrichmentFetchGen.current) return;
+      if (res.ok) setEnrichmentByCardId(res.patches);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deferEnrichments, nomeDbParaLazy, kanbanId, cardsSnapshotSig]);
 
   useEffect(() => {
     if (!leanAtivo || !nomeDbParaLazy) return;
@@ -166,13 +194,31 @@ export function KanbanBoard({
     lazyConcluidos,
   ]);
 
-  const cardsEfetivos = useMemo(() => {
-    if (!lazyArquivados || lazyArquivados.length === 0) return cards;
-    const ids = new Set(cards.map((c) => c.id));
-    return [...cards, ...lazyArquivados.filter((c) => !ids.has(c.id))];
-  }, [cards, lazyArquivados]);
+  const mergeEnrichment = (c: KanbanCardBrief): KanbanCardBrief => {
+    const patch = enrichmentByCardId[c.id];
+    return patch ? { ...c, ...patch } : c;
+  };
 
-  const cardsConcluidosEfetivos = lazyConcluidos ?? cardsConcluidos;
+  const cardsComEnrichment = useMemo(
+    () => cards.map(mergeEnrichment),
+    [cards, enrichmentByCardId],
+  );
+
+  const cardsConcluidosComEnrichment = useMemo(
+    () => cardsConcluidos.map(mergeEnrichment),
+    [cardsConcluidos, enrichmentByCardId],
+  );
+
+  const cardsEfetivos = useMemo(() => {
+    if (!lazyArquivados || lazyArquivados.length === 0) return cardsComEnrichment;
+    const ids = new Set(cardsComEnrichment.map((c) => c.id));
+    return [
+      ...cardsComEnrichment,
+      ...lazyArquivados.filter((c) => !ids.has(c.id)).map(mergeEnrichment),
+    ];
+  }, [cardsComEnrichment, lazyArquivados, enrichmentByCardId]);
+
+  const cardsConcluidosEfetivos = lazyConcluidos ?? cardsConcluidosComEnrichment;
 
   const syncBoardScrollHints = () => {
     const el = boardScrollRef.current;

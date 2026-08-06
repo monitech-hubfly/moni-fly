@@ -1,6 +1,8 @@
+import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanFase } from '@/components/kanban-shared/types';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { tryCreateAdminClient } from '@/lib/supabase/admin';
 import { normalizarSlaTipo } from '@/lib/dias-uteis';
 import { isRemovedStepOneFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { ESTEIRA_COLUNAS } from '@/lib/kanban/pipeline-esteira-datas';
@@ -44,6 +46,41 @@ export async function fetchKanbanFasesAtivas(
   }
 
   return (fasesRows ?? []).map((row) => mapKanbanFaseRow(row as Record<string, unknown>));
+}
+
+/** Metadados de fases — muda raramente; cache 60s (sem cookies no fetch interno). */
+async function fetchKanbanFasesAtivasUncached(kanbanId: string): Promise<KanbanFase[]> {
+  const admin = tryCreateAdminClient();
+  if (!admin) {
+    console.warn('[fetchKanbanFasesAtivasCached] service role indisponível — cache desabilitado');
+    return [];
+  }
+  return fetchKanbanFasesAtivas(admin, kanbanId);
+}
+
+const kanbanFasesCacheById = new Map<string, Promise<KanbanFase[]>>();
+
+/** Fases ativas com `unstable_cache` (revalidate 60s). Fallback: query direta com o client do caller. */
+export async function fetchKanbanFasesAtivasCached(
+  supabase: SupabaseClient,
+  kanbanId: string,
+): Promise<KanbanFase[]> {
+  const kid = String(kanbanId ?? '').trim();
+  if (!kid) return [];
+
+  let cachedPromise = kanbanFasesCacheById.get(kid);
+  if (!cachedPromise) {
+    cachedPromise = unstable_cache(
+      () => fetchKanbanFasesAtivasUncached(kid),
+      ['kanban-fases-ativas', kid],
+      { revalidate: 60, tags: [`kanban-fases-${kid}`] },
+    )();
+    kanbanFasesCacheById.set(kid, cachedPromise);
+  }
+
+  const cached = await cachedPromise;
+  if (cached.length > 0) return cached;
+  return fetchKanbanFasesAtivas(supabase, kid);
 }
 
 /** Fases ativas de vários kanbans em uma única query (pipeline / painel). */
