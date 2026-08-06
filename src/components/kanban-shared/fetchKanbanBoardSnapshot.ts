@@ -99,7 +99,7 @@ function pickBootstrapPatchFields(card: KanbanCardBrief): Partial<KanbanCardBrie
   if (card.profiles) patch.profiles = card.profiles;
   if (card.fase_id) patch.fase_id = card.fase_id;
   if (card.ordem_coluna != null) patch.ordem_coluna = card.ordem_coluna;
-  if (card.tagsCard?.length) patch.tagsCard = card.tagsCard;
+  if (card.tagsCard != null) patch.tagsCard = card.tagsCard;
   if (card.data_reuniao) patch.data_reuniao = card.data_reuniao;
   if (card.data_followup) patch.data_followup = card.data_followup;
   Object.assign(patch, pickDeferredEnrichmentFields(card));
@@ -147,6 +147,51 @@ function pickDeferredEnrichmentFields(card: KanbanCardBrief): Partial<KanbanCard
     }
   }
   return out;
+}
+
+type KanbanCardTagBrief = { id: string; tag_id: string; nome: string; cor: string };
+
+async function fetchKanbanTagsByCardIds(
+  supabase: SupabaseClient,
+  cardIds: string[],
+): Promise<Map<string, KanbanCardTagBrief[]>> {
+  const byCardId = new Map<string, KanbanCardTagBrief[]>();
+  const uniq = [...new Set(cardIds.map((id) => id.trim()).filter(Boolean))];
+  if (uniq.length === 0) return byCardId;
+
+  const { data: rows } = await supabase
+    .from('kanban_card_tags')
+    .select('id, card_id, tag_id, kanban_tags(nome, cor)')
+    .in('card_id', uniq);
+
+  for (const r of rows ?? []) {
+    const cid = String((r as { card_id?: string | null }).card_id ?? '').trim();
+    if (!cid) continue;
+    const id = String((r as { id?: string | null }).id ?? '').trim();
+    const tag_id = String((r as { tag_id?: string | null }).tag_id ?? '').trim();
+    const nome = String(
+      ((r as { kanban_tags?: { nome?: string | null } | null }).kanban_tags as {
+        nome?: string | null;
+      } | null)?.nome ?? '',
+    );
+    const cor = String(
+      ((r as { kanban_tags?: { cor?: string | null } | null }).kanban_tags as {
+        cor?: string | null;
+      } | null)?.cor ?? '#cccccc',
+    );
+    if (!id || !tag_id) continue;
+    const arr = byCardId.get(cid) ?? [];
+    arr.push({ id, tag_id, nome, cor });
+    byCardId.set(cid, arr);
+  }
+  return byCardId;
+}
+
+function aplicarTagsKanbanCards(
+  cards: KanbanCardBrief[],
+  byCardId: Map<string, KanbanCardTagBrief[]>,
+): KanbanCardBrief[] {
+  return cards.map((c) => ({ ...c, tagsCard: byCardId.get(c.id) ?? [] }));
 }
 
 /** Processos já cobertos por linha nativa (evita duplicata legado+nativo no board híbrido). */
@@ -717,9 +762,15 @@ export async function fetchKanbanBoardSnapshot(
     ]);
     timer.mark('fases+cards-fast');
 
-    const cardsNativo = ((cardsRes.data ?? []) as KanbanCardRow[]).map((c) =>
+    const cardsNativoRaw = ((cardsRes.data ?? []) as KanbanCardRow[]).map((c) =>
       mapNativoFastRow(c, kanbanIdStr),
     );
+    const tagsByCardId = await fetchKanbanTagsByCardIds(
+      supabase,
+      cardsNativoRaw.map((c) => c.id),
+    );
+    timer.mark('tags-fast');
+    const cardsNativo = aplicarTagsKanbanCards(cardsNativoRaw, tagsByCardId);
     const faseIdsOrfas = cardsNativo.map((c) => c.fase_id);
     const fasesComOrfas = await augmentKanbanFasesComFasesDosCards(
       supabase,
@@ -1354,15 +1405,12 @@ export async function fetchKanbanBoardSnapshot(
     ]);
   }
 
-  let [fasesComOrfas, tagsRes] = await Promise.all([
-    augmentKanbanFasesComFasesDosCards(supabase, kanbanIdStr, fases, faseIdsOrfas),
-    allCardIds.length > 0
-      ? supabase
-          .from('kanban_card_tags')
-          .select('id, card_id, tag_id, kanban_tags(nome, cor)')
-          .in('card_id', allCardIds)
-      : Promise.resolve({ data: [] as { card_id: string; tag_id: string; kanban_tags: { nome: string | null; cor: string | null } | null }[] }),
-  ]);
+  let fasesComOrfas = await augmentKanbanFasesComFasesDosCards(
+    supabase,
+    kanbanIdStr,
+    fases,
+    faseIdsOrfas,
+  );
 
   if (kanbanIdStr === KANBAN_IDS.STEP_ONE) {
     const prepared = prepareStepOneBoardSnapshot({
@@ -1377,22 +1425,9 @@ export async function fetchKanbanBoardSnapshot(
 
   // Tags (nativo): agrega em lote e acopla ao card brief
   if (allCardIds.length > 0) {
-    const rows = tagsRes.data;
-    const byCardId = new Map<string, { id: string; tag_id: string; nome: string; cor: string }[]>();
-    (rows ?? []).forEach((r) => {
-      const cid = String((r as { card_id?: string | null }).card_id ?? '').trim();
-      if (!cid) return;
-      const id = String((r as { id?: string | null }).id ?? '').trim();
-      const tag_id = String((r as { tag_id?: string | null }).tag_id ?? '').trim();
-      const nome = String(((r as { kanban_tags?: { nome?: string | null } | null }).kanban_tags as { nome?: string | null } | null)?.nome ?? '');
-      const cor = String(((r as { kanban_tags?: { cor?: string | null } | null }).kanban_tags as { cor?: string | null } | null)?.cor ?? '#cccccc');
-      if (!id || !tag_id) return;
-      const arr = byCardId.get(cid) ?? [];
-      arr.push({ id, tag_id, nome, cor });
-      byCardId.set(cid, arr);
-    });
-    const cardsTagged = cards.map((c) => ({ ...c, tagsCard: byCardId.get(c.id) ?? [] }));
-    const cardsConcluidosTagged = cardsConcluidos.map((c) => ({ ...c, tagsCard: byCardId.get(c.id) ?? [] }));
+    const byCardId = await fetchKanbanTagsByCardIds(supabase, allCardIds);
+    const cardsTagged = aplicarTagsKanbanCards(cards, byCardId);
+    const cardsConcluidosTagged = aplicarTagsKanbanCards(cardsConcluidos, byCardId);
 
     if (deferEnrichments) {
       return {
@@ -1792,7 +1827,7 @@ export async function fetchKanbanBoardEnrichmentPatches(
       if (Object.keys(patch).length > 0) patches[c.id] = patch;
     }
     timer.end(`${Object.keys(patches).length} patches`);
-    return patches;
+    return mergeTagsIntoEnrichmentPatches(supabase, patches, snapshot.cards.map((c) => c.id));
   }
 
   let veTodosCards = false;
@@ -1829,6 +1864,19 @@ export async function fetchKanbanBoardEnrichmentPatches(
   for (const c of cards) {
     const patch = pickDeferredEnrichmentFields(c);
     if (Object.keys(patch).length > 0) patches[c.id] = patch;
+  }
+  return mergeTagsIntoEnrichmentPatches(supabase, patches, cards.map((c) => c.id));
+}
+
+async function mergeTagsIntoEnrichmentPatches(
+  supabase: SupabaseClient,
+  patches: Record<string, Partial<KanbanCardBrief>>,
+  cardIds: string[],
+): Promise<Record<string, Partial<KanbanCardBrief>>> {
+  const tagsByCardId = await fetchKanbanTagsByCardIds(supabase, cardIds);
+  for (const id of cardIds) {
+    const tags = tagsByCardId.get(id) ?? [];
+    patches[id] = { ...(patches[id] ?? {}), tagsCard: tags };
   }
   return patches;
 }
