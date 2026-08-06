@@ -371,7 +371,7 @@ export function ModalAgendamento({
   // Seções colapsáveis
   // 0=Data+Recorrência, 1=VínculoMeta, 2=Participantes, 3=Link, 4=Info, 5=Obs
   const [abertas, setAbertas] = useState([true, false, false, false, false, false]);
-  const [erros,   setErros]   = useState({ origem: false, data: false, titulo: false, meta: false, recorrencia: false });
+  const [erros,   setErros]   = useState({ data: false, titulo: false, meta: false, recorrencia: false });
 
   const preenchidoRef = useRef(preenchido);
   preenchidoRef.current = preenchido;
@@ -413,9 +413,16 @@ export function ModalAgendamento({
     return [...sirene, ...pastelaria];
   }, [backlog.sirene, backlog.pastelaria]);
 
-  const atividItems = useMemo<BacklogItem[]>(() =>
-    backlog.atividades
-      .filter(a => ativoIds.has(a.id))
+  const atividItems = useMemo<BacklogItem[]>(() => {
+    // Combina não-agendadas (do backlog principal) + já agendadas (collapsible), sem duplicar
+    const seen = new Set<string>();
+    const combined: { id: string; nome: string; prazo: string | null }[] = [];
+    for (const a of [...backlog.atividades.filter(a => ativoIds.has(a.id)), ...backlog.atividadesAgendadas]) {
+      if (seen.has(a.id)) continue;
+      seen.add(a.id);
+      combined.push(a);
+    }
+    return combined
       .sort((a, b) => prazoStatusOrder(a.prazo) - prazoStatusOrder(b.prazo))
       .map(a => ({
         id:         a.id,
@@ -426,8 +433,8 @@ export function ModalAgendamento({
         badgeText:  '#374151',
         objetivoId: null,
         acoId:      a.id,
-      })),
-  [backlog.atividades, ativoIds]);
+      }));
+  }, [backlog.atividades, backlog.atividadesAgendadas, ativoIds]);
 
   const kanbanItems = useMemo<BacklogItem[]>(() =>
     [...kanbanData.cards, ...kanbanData.sndCards].map(c => {
@@ -544,7 +551,7 @@ export function ModalAgendamento({
     setSelItem(null);
     setQuery('');
     setExternEmail('');
-    setErros({ origem: false, data: false, titulo: false, meta: false, recorrencia: false });
+    setErros({ data: false, titulo: false, meta: false, recorrencia: false });
     setAbertas([true, false, false, false, false, false]);
     setPartAbertas([true, false]);
     setMetaDefinida(modo === 'editar');
@@ -659,7 +666,6 @@ export function ModalAgendamento({
       ...prev, acao_id: null, card_id: null, objetivo_id: null,
       origem_tipo: aba === 'sirene' ? 'sirene' : aba === 'kanban' ? 'kanban' : 'atividades',
     }));
-    setErros(p => ({ ...p, origem: false }));
   };
 
   const handleSelItem = (item: BacklogItem) => {
@@ -681,7 +687,6 @@ export function ModalAgendamento({
         set('sirene_chamado_id', Number(item.chamadoId));
       }
     }
-    setErros(p => ({ ...p, origem: false }));
   };
 
   const handleHoraInicio = (v: string) => {
@@ -712,7 +717,6 @@ export function ModalAgendamento({
   }
 
   const handleSalvar = () => {
-    const semOrigem = !abaAtiva || (!selItem && !origemInfo);
     const tipoTermino = recCfg.tipoTermino ?? (recCfg.ate ? 'data' : 'nunca');
     const recorrenciaInvalida = form.recorrente && !recCfg.frequencia
       ? true
@@ -722,7 +726,6 @@ export function ModalAgendamento({
       ? true
       : false;
     const novosErros = {
-      origem: semOrigem,
       data: !(form.data && form.hora_inicio),
       titulo: !form.titulo?.trim(),
       meta: !metaDefinida,
@@ -896,10 +899,9 @@ export function ModalAgendamento({
           </div>
 
           {/* ── BLOCO UNIFICADO: Origem + Item ── */}
-          <div className={`border-b border-gray-100 px-4 pt-4 pb-4 ${erros.origem ? 'bg-red-50' : ''}`}>
+          <div className="border-b border-gray-100 px-4 pt-4 pb-4">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
               Origem e atividade
-              {erros.origem && <span className="text-red-500 ml-2 normal-case">• selecione um item</span>}
             </p>
 
             {/* 3 abas */}

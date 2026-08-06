@@ -229,7 +229,6 @@ function NovaAtividadeDrawer({ areaId, areaIds: areaIdsProp, onFechar, onSaved, 
   // Item 4: form simplificado — sem tempo/recorrencia na UI
   const handleSalvarAtividade = async () => {
     if (!nome.trim()) { setErro('Nome da atividade é obrigatório.'); return; }
-    if (!prazo) { setErro('Prazo é obrigatório.'); return; }
     setSalvando(true); setErro(null);
     const { error: e } = await supabase.from('acoes').insert({
       tarefa_id:    tarefaId,
