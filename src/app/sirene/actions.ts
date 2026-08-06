@@ -3283,6 +3283,7 @@ export async function getDashboardData(
         responsavel_nome: string | null;
         dias_aberto: number;
         origem: string;
+        kanban_atividade_id: string | null;
       }>;
     }
   | { ok: false; error: string }
@@ -3480,6 +3481,18 @@ export async function getDashboardData(
     ),
   ]);
 
+  // Busca kanban_atividades IDs para gerar links diretos no dashboard
+  const { data: kaRowsAll } = await queryClient
+    .from('kanban_atividades')
+    .select('id, sirene_chamado_id')
+    .in('sirene_chamado_id', list.map((c) => Number(c.id)));
+  const kaIdByChamadoId = new Map<number, string>(
+    (kaRowsAll ?? []).map((k) => [
+      Number((k as { sirene_chamado_id?: number | null }).sirene_chamado_id),
+      String((k as { id?: string }).id),
+    ]),
+  );
+
   return {
     ok: true,
     emAberto,
@@ -3538,7 +3551,6 @@ export async function getDashboardData(
       }
 
       return list
-        .filter((c) => c.status === 'nao_iniciado' || c.status === 'em_andamento')
         .map((c) => {
           const dataAbertura = c.data_abertura ? new Date(String(c.data_abertura)) : null;
           const diasAberto =
@@ -3556,14 +3568,10 @@ export async function getDashboardData(
             responsavel_nome: null,
             dias_aberto: diasAberto,
             origem: 'sirene',
+            kanban_atividade_id: kaIdByChamadoId.get(Number(c.id)) ?? null,
           };
         })
-        .sort((a, b) => {
-          const ord: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4, P5: 5, P6: 6 };
-          const diff = (ord[a.prioridade ?? 'P6'] ?? 6) - (ord[b.prioridade ?? 'P6'] ?? 6);
-          if (diff !== 0) return diff;
-          return b.dias_aberto - a.dias_aberto;
-        });
+        .sort((a, b) => a.numero - b.numero);
     })(),
   };
 }

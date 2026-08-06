@@ -79,6 +79,7 @@ type Props = {
     responsavel_nome: string | null;
     dias_aberto: number;
     origem: string;
+    kanban_atividade_id: string | null;
   }>;
   filtroTipo: DashboardFiltroTipo;
 };
@@ -410,6 +411,7 @@ function ChamadosDestaqueSection({
     responsavel_nome: string | null;
     dias_aberto: number;
     origem: string;
+    kanban_atividade_id: string | null;
   }>;
 }) {
   const [filtros, setFiltros] = useState({
@@ -417,7 +419,7 @@ function ChamadosDestaqueSection({
     responsavel: '',
     trava: '',
     status: '',
-    ordem: 'oldest' as 'oldest' | 'newest' | 'pri',
+    ordem: 'numero_asc' as 'numero_asc' | 'oldest' | 'newest' | 'pri',
   });
 
   const responsaveis = useMemo(
@@ -432,7 +434,8 @@ function ChamadosDestaqueSection({
     if (filtros.trava === 'sim') list = list.filter((c) => c.trava);
     if (filtros.trava === 'nao') list = list.filter((c) => !c.trava);
     if (filtros.status) list = list.filter((c) => c.status === filtros.status);
-    if (filtros.ordem === 'oldest') list.sort((a, b) => b.dias_aberto - a.dias_aberto);
+    if (filtros.ordem === 'numero_asc') list.sort((a, b) => a.numero - b.numero);
+    else if (filtros.ordem === 'oldest') list.sort((a, b) => b.dias_aberto - a.dias_aberto);
     else if (filtros.ordem === 'newest') list.sort((a, b) => a.dias_aberto - b.dias_aberto);
     else if (filtros.ordem === 'pri') {
       const ord: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4, P5: 5, P6: 6 };
@@ -451,6 +454,17 @@ function ChamadosDestaqueSection({
     P4: 'border-amber-200 bg-amber-50 text-amber-800',
     P5: 'border-green-200 bg-green-50 text-green-700',
     P6: 'border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]',
+  };
+
+  const statusLabel: Record<string, string> = {
+    nao_iniciado: 'Não iniciado',
+    em_andamento: 'Em andamento',
+    concluido: 'Concluído',
+  };
+  const statusClasses: Record<string, string> = {
+    nao_iniciado: 'border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]',
+    em_andamento: 'border-blue-200 bg-blue-50 text-blue-800',
+    concluido: 'border-green-200 bg-green-50 text-green-700',
   };
 
   function ageClass(dias: number) {
@@ -485,6 +499,7 @@ function ChamadosDestaqueSection({
         )}
         <span className="text-xs text-[color:var(--moni-text-tertiary)]">Ordenar por</span>
         <select className={selectClass} value={filtros.ordem} onChange={(e) => setFiltros((f) => ({ ...f, ordem: e.target.value as typeof f.ordem }))}>
+          <option value="numero_asc">Número (crescente)</option>
           <option value="oldest">Mais antigo</option>
           <option value="newest">Mais recente</option>
           <option value="pri">Prioridade</option>
@@ -500,6 +515,7 @@ function ChamadosDestaqueSection({
           <option value="">Todos</option>
           <option value="nao_iniciado">Não iniciado</option>
           <option value="em_andamento">Em andamento</option>
+          <option value="concluido">Concluído</option>
         </select>
         <span className="ml-auto text-xs text-[color:var(--moni-text-tertiary)]">{filtered.length} chamado{filtered.length !== 1 ? 's' : ''}</span>
       </div>
@@ -508,28 +524,44 @@ function ChamadosDestaqueSection({
         <p className="py-6 text-center text-sm text-[color:var(--moni-text-tertiary)]">Nenhum chamado com os filtros atuais.</p>
       ) : (
         <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]">
-          {filtered.map((c, i) => (
-            <div key={c.id} className={`flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm ${i < filtered.length - 1 ? 'border-b border-[color:var(--moni-border-default)]' : ''}`}>
-              {c.trava ? (
-                <span className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800">Trava</span>
-              ) : null}
-              <span className="shrink-0 rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[color:var(--moni-text-secondary)]">
-                #{String(c.numero).padStart(4, '0')}
-              </span>
-              <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--moni-text-primary)]">{c.titulo}</span>
-              {c.prioridade ? (
-                <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${priClasses[c.prioridade] ?? priClasses.baixa}`}>
-                  {priLabel[c.prioridade] ?? c.prioridade}
+          {filtered.map((c, i) => {
+            const href = c.kanban_atividade_id
+              ? `/sirene/chamados?interacao=${encodeURIComponent(c.kanban_atividade_id)}`
+              : null;
+            const rowClass = `flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm ${i < filtered.length - 1 ? 'border-b border-[color:var(--moni-border-default)]' : ''} ${href ? 'cursor-pointer hover:bg-[var(--moni-surface-50)]' : ''}`;
+            const inner = (
+              <>
+                {c.trava ? (
+                  <span className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800">Trava</span>
+                ) : null}
+                <span className="shrink-0 rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[color:var(--moni-text-secondary)]">
+                  #{String(c.numero).padStart(4, '0')}
                 </span>
-              ) : null}
-              {c.frank_nome ? (
-                <span className="shrink-0 text-[11px] text-[color:var(--moni-text-tertiary)]">{c.frank_nome}</span>
-              ) : null}
-              <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${ageClass(c.dias_aberto)}`}>
-                {c.dias_aberto === 0 ? '0d' : `${c.dias_aberto}d`}
-              </span>
-            </div>
-          ))}
+                <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--moni-text-primary)]">{c.titulo}</span>
+                {c.prioridade && c.status !== 'concluido' ? (
+                  <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${priClasses[c.prioridade] ?? priClasses.P6}`}>
+                    {priLabel[c.prioridade] ?? c.prioridade}
+                  </span>
+                ) : null}
+                {c.frank_nome ? (
+                  <span className="shrink-0 text-[11px] text-[color:var(--moni-text-tertiary)]">{c.frank_nome}</span>
+                ) : null}
+                <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${statusClasses[c.status] ?? statusClasses.nao_iniciado}`}>
+                  {statusLabel[c.status] ?? c.status}
+                </span>
+                {c.status !== 'concluido' ? (
+                  <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${ageClass(c.dias_aberto)}`}>
+                    {c.dias_aberto === 0 ? '0d' : `${c.dias_aberto}d`}
+                  </span>
+                ) : null}
+              </>
+            );
+            return href ? (
+              <Link key={c.id} href={href} className={rowClass}>{inner}</Link>
+            ) : (
+              <div key={c.id} className={rowClass}>{inner}</div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -864,7 +896,7 @@ export function DashboardSirene({
         </div>
       </DashboardSection>
 
-      <DashboardSection title="Chamados em destaque">
+      <DashboardSection title="Todos os chamados">
         <ChamadosDestaqueSection chamados={chamados_destaque} />
       </DashboardSection>
     </div>
