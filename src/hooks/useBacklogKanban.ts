@@ -10,6 +10,7 @@ import {
   CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO,
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { tituloExibicaoCardLoteadores } from '@/lib/kanban/loteadores-card-titulo';
+import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 
 const ADMIN_EMAIL  = 'danilo.n@moni.casa';
@@ -26,6 +27,7 @@ export type KanbanCardItem = {
   id: string;
   titulo: string | null;
   fase_nome: string | null;
+  fase_slug: string | null;
   kanban_nome: string | null;
   sla_dias: number | null;
   sla: SlaKanbanResult | null;
@@ -106,6 +108,15 @@ type CardRaw = {
   fase: FaseRelSla | FaseRelSla[] | null;
   kanban: { nome: string } | { nome: string }[] | null;
 };
+
+function faseDeCardRaw(raw: CardRaw): FaseRelSla | null {
+  return Array.isArray(raw.fase) ? raw.fase[0] ?? null : raw.fase ?? null;
+}
+
+function cardRawEmFaseConclusao(raw: CardRaw): boolean {
+  const fase = faseDeCardRaw(raw);
+  return isFaseConclusaoKanban({ slug: fase?.slug, nome: fase?.nome });
+}
 
 export function useBacklogKanban(refreshKey = 0) {
   const supabase   = useMemo(() => createClient(), []);
@@ -300,7 +311,7 @@ export function useBacklogKanban(refreshKey = 0) {
 
       // ── Montar mapa ──────────────────────────────────────────────────────────
       function toItem(raw: CardRaw): KanbanCardItem {
-        const fase   = Array.isArray(raw.fase)   ? raw.fase[0]   : raw.fase;
+        const fase   = faseDeCardRaw(raw);
         const kanban = Array.isArray(raw.kanban) ? raw.kanban[0] : raw.kanban;
         let tituloCard = raw.titulo;
         if (raw.kanban_id === KANBAN_IDS.LOTEADORES) {
@@ -315,6 +326,7 @@ export function useBacklogKanban(refreshKey = 0) {
         return {
           id: raw.id, titulo: tituloCard,
           fase_nome:         fase?.nome   ?? null,
+          fase_slug:         fase?.slug   ?? null,
           kanban_nome:       kanban?.nome ?? null,
           sla_dias:          fase?.sla_dias ?? null,
           sla:               computeSla(raw, fase ?? null),
@@ -351,7 +363,9 @@ export function useBacklogKanban(refreshKey = 0) {
       // ── Prioridades e sort ───────────────────────────────────────────────────
       const hojeIso    = new Date().toISOString().slice(0, 10);
       const todasCards = [...mapa.values()];
-      let sndFinal     = todasCards.filter(c => c.sla_dias === null);
+      let sndFinal     = todasCards.filter(
+        (c) => c.sla_dias === null && !isFaseConclusaoKanban({ slug: c.fase_slug, nome: c.fase_nome }),
+      );
       const comSla     = todasCards.filter(c => c.sla_dias !== null);
 
       comSla.forEach(c => { c.prioridade = calcPrioridade(c, hojeIso); });
@@ -413,8 +427,10 @@ export function useBacklogKanban(refreshKey = 0) {
             : Promise.resolve({ data: [] as Array<{ id: string; fase_id: string }>, error: null }),
         ]);
 
-        // SND final
-        sndFinal = ((sndCardsRes.data ?? []) as CardRaw[]).map(toItem);
+        // SND final — exclui fases de conclusão (sem SLA intencional)
+        sndFinal = ((sndCardsRes.data ?? []) as CardRaw[])
+          .filter((c) => !cardRawEmFaseConclusao(c))
+          .map(toItem);
 
         // Mapa item→fase para os orphan candidates
         const orphanFaseItemFaseMap = new Map<string, string>(
