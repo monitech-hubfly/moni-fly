@@ -174,7 +174,7 @@ const ALL_KANBAN_EXPORT_FIELDS: KanbanExportFieldDef[] = [
   // —— Franqueado ——
   field(
     'franqueado.responsavel_card',
-    'Responsável (card)',
+    'Criador do Card',
     'franqueado',
     1,
     (ctx) => displayOrDash(ctx.card.profiles?.full_name),
