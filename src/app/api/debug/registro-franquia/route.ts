@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { gerarRegistroFranquiaPdf } from '@/lib/registro-franquia-pdf';
 
 export async function GET(req: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const url = new URL(req.url);
   const nome = url.searchParams.get('nome') ?? 'Ingrid Hora';
   const numero = url.searchParams.get('numero') ?? 'FK0000';
