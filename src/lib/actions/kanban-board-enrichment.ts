@@ -11,8 +11,9 @@ export type FetchKanbanBoardDeferredEnrichmentResult =
   | { ok: false; error: string };
 
 /**
- * Enriquecimentos pesados do board (paralelas, responsável, calculadora SLA)
- * após o paint inicial — mesma lógica do snapshot completo, sem reprocessar títulos/ancestrais.
+ * Enriquecimentos pesados do board após paint inicial.
+ * Portfólio/Operações: títulos, tags, fase reconciliada, paralelas, responsável e SLA.
+ * Demais funis: paralelas, responsável e calculadora SLA.
  */
 export async function fetchKanbanBoardDeferredEnrichment(
   kanbanNomeDb: string,

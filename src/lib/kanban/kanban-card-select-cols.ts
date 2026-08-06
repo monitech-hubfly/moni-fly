@@ -46,6 +46,33 @@ export const KANBAN_CARD_SELECT_WITH_SLA = `${KANBAN_CARD_SELECT_BASE.trim()},
       sla_iniciado_em,
       entered_fase_at`;
 
+/** Paint inicial rápido (Portfólio / Operações): colunas mínimas para coluna, título bruto e DnD. */
+export const KANBAN_CARD_SELECT_BOARD_FAST = `
+      id,
+      titulo,
+      status,
+      created_at,
+      fase_id,
+      franqueado_id,
+      ordem_coluna,
+      arquivado,
+      concluido,
+      concluido_em,
+      rede_franqueado_id,
+      nome_condominio,
+      quadra,
+      lote,
+      projeto_id,
+      processo_step_one_id,
+      origem_card_id,
+      data_reuniao,
+      data_followup,
+      sla_iniciado_em,
+      entered_fase_at
+    `;
+
+export const KANBAN_CARD_SELECT_BOARD_FAST_WITH_SLA = `${KANBAN_CARD_SELECT_BOARD_FAST.trim()}`;
+
 export function isSupabaseMissingColumnError(message: string | undefined): boolean {
   if (!message) return false;
   const m = message.toLowerCase();
@@ -67,5 +94,19 @@ export async function runKanbanCardSelectWithSlaFallback<T>(run: (select: string
     return { ...withSla, slaColsAvailable: false };
   }
   const base = await run(KANBAN_CARD_SELECT_BASE);
+  return { ...base, slaColsAvailable: false };
+}
+
+export async function runKanbanCardSelectBoardFast<T>(run: (select: string) => Promise<{
+  data: T | null;
+  error: { message: string } | null;
+}>): Promise<{ data: T | null; error: { message: string } | null; slaColsAvailable: boolean }> {
+  const withSla = await run(KANBAN_CARD_SELECT_BOARD_FAST_WITH_SLA);
+  if (!withSla.error) return { ...withSla, slaColsAvailable: true };
+  if (!isSupabaseMissingColumnError(withSla.error?.message)) {
+    return { ...withSla, slaColsAvailable: false };
+  }
+  const trimmed = KANBAN_CARD_SELECT_BOARD_FAST.replace(/\s+sla_iniciado_em,\s+entered_fase_at\s*/i, '');
+  const base = await run(trimmed);
   return { ...base, slaColsAvailable: false };
 }

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAccessRole } from '@/lib/authz';
-import { KANBAN_ID_BY_NOME, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { tryCreateAdminClient } from '@/lib/supabase/admin';
 import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 import { prepareStepOneBoardSnapshot } from '@/lib/kanban/stepone-fase-slugs';
@@ -30,7 +30,10 @@ import {
 } from '@/lib/kanban/loteadores-card-titulo';
 import {
   runKanbanCardSelectWithSlaFallback,
+  runKanbanCardSelectBoardFast,
 } from '@/lib/kanban/kanban-card-select-cols';
+import { createKanbanSnapshotTimer } from '@/lib/kanban/kanban-snapshot-timing';
+import { resolveKanbanAtivoCached } from '@/lib/kanban/resolve-kanban-ativo-cached';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
@@ -50,6 +53,8 @@ export type FetchKanbanBoardSnapshotOptions = {
    * Reduz TTI do board (Portfolio e demais funis nativos).
    */
   deferBoardEnrichments?: boolean;
+  /** Força skip da view legado (enrichment client-side após paint). */
+  forceSkipLegadoView?: boolean;
 };
 
 /** Campos preenchidos só pelos enrichments adiados — merge no client. */
@@ -86,6 +91,52 @@ const DEFERRED_ENRICHMENT_KEYS = [
   'calculadora_atraso_dias',
   'calculadora_atraso_tipo',
 ] as const satisfies readonly (keyof KanbanCardBrief)[];
+
+function pickBootstrapPatchFields(card: KanbanCardBrief): Partial<KanbanCardBrief> {
+  const patch: Partial<KanbanCardBrief> = {};
+  if (card.titulo) patch.titulo = card.titulo;
+  if (card.subtitulo) patch.subtitulo = card.subtitulo;
+  if (card.profiles) patch.profiles = card.profiles;
+  if (card.fase_id) patch.fase_id = card.fase_id;
+  if (card.ordem_coluna != null) patch.ordem_coluna = card.ordem_coluna;
+  if (card.tagsCard?.length) patch.tagsCard = card.tagsCard;
+  if (card.data_reuniao) patch.data_reuniao = card.data_reuniao;
+  if (card.data_followup) patch.data_followup = card.data_followup;
+  Object.assign(patch, pickDeferredEnrichmentFields(card));
+  return patch;
+}
+
+function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): KanbanCardBrief {
+  return {
+    id: String(c.id ?? ''),
+    titulo: String(c.titulo ?? ''),
+    status: String(c.status ?? ''),
+    created_at: String(c.created_at ?? ''),
+    fase_id: String(c.fase_id ?? ''),
+    franqueado_id: String(c.franqueado_id ?? ''),
+    ordem_coluna: Number((c as { ordem_coluna?: number | null }).ordem_coluna ?? 0),
+    kanban_id: kanbanIdStr,
+    projeto_id: (c as { projeto_id?: string | null }).projeto_id ?? null,
+    arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
+    concluido: Boolean((c as { concluido?: boolean | null }).concluido),
+    concluido_em:
+      (c as { concluido_em?: string | null }).concluido_em != null
+        ? String((c as { concluido_em?: string | null }).concluido_em)
+        : null,
+    origem: 'nativo',
+    data_reuniao: dataIsoParaInput(c.data_reuniao),
+    data_followup: dataIsoParaInput(c.data_followup),
+    entered_fase_at:
+      (c as { entered_fase_at?: string | null }).entered_fase_at != null
+        ? String((c as { entered_fase_at?: string | null }).entered_fase_at)
+        : null,
+    sla_iniciado_em:
+      (c as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
+        ? String((c as { sla_iniciado_em?: string | null }).sla_iniciado_em)
+        : null,
+    profiles: null,
+  };
+}
 
 function pickDeferredEnrichmentFields(card: KanbanCardBrief): Partial<KanbanCardBrief> {
   const out: Partial<KanbanCardBrief> = {};
@@ -185,6 +236,13 @@ const KANBANS_HIBRIDOS_COM_VIEW_LEGADO = new Set([
   'Funil Cash Me',
   'Funil Crédito',
 ]);
+
+/** Funis com paint inicial mínimo — enrichments completos via client após mount. */
+const KANBANS_FAST_PAINT = new Set(['Funil Portfólio', 'Funil Operações']);
+
+function isFastPaintKanban(kanbanNomeDb: string): boolean {
+  return KANBANS_FAST_PAINT.has(kanbanNomeDb);
+}
 
 function resolveSnapshotMode(options?: FetchKanbanBoardSnapshotOptions): KanbanBoardSnapshotMode {
   if (options?.mode) return options.mode;
@@ -545,33 +603,6 @@ async function enrichCardsFollowupFromAtividades(
   });
 }
 
-/** Resolve kanban ativo pelo UUID canônico (PROD) ou fallback em `kanbans.nome`. */
-async function resolveKanbanAtivo(
-  supabase: SupabaseClient,
-  kanbanNomeDb: string,
-): Promise<{ id: string } | null> {
-  const canonicalId = KANBAN_ID_BY_NOME[kanbanNomeDb];
-  if (canonicalId) {
-    const { data } = await supabase
-      .from('kanbans')
-      .select('id')
-      .eq('id', canonicalId)
-      .eq('ativo', true)
-      .maybeSingle();
-    if (data?.id) return { id: String(data.id) };
-  }
-
-  const { data: kanbans } = await supabase
-    .from('kanbans')
-    .select('id')
-    .eq('nome', kanbanNomeDb)
-    .eq('ativo', true)
-    .limit(1);
-
-  const row = kanbans?.[0];
-  return row?.id ? { id: String(row.id) } : null;
-}
-
 /** Enriquecimento de bolinhas: service role evita RLS bloquear filhos de outros funis. */
 export function supabaseParaEnriquecerParalelas(userClient: SupabaseClient): SupabaseClient {
   const admin = tryCreateAdminClient();
@@ -619,7 +650,7 @@ export async function fetchKanbanBoardSnapshot(
 
   const [profileRes, kanban] = await Promise.all([
     profilePromise,
-    resolveKanbanAtivo(supabase, kanbanNomeDb),
+    resolveKanbanAtivoCached(supabase, kanbanNomeDb),
   ]);
 
   let veTodosCards = false;
@@ -652,8 +683,63 @@ export async function fetchKanbanBoardSnapshot(
   const hibridoComView = KANBANS_HIBRIDOS_COM_VIEW_LEGADO.has(kanbanNomeDb);
 
   const deferEnrichments = options?.deferBoardEnrichments === true;
+  const forceSkipLegadoView = options?.forceSkipLegadoView === true;
+  const useFastPaint = deferEnrichments && isFastPaintKanban(kanbanNomeDb) && wantAtivos;
   const skipCalculadora =
     options?.skipCalculadoraSlaEnrich === true || deferEnrichments;
+  const timer = createKanbanSnapshotTimer(kanbanNomeDb, useFastPaint ? 'fast' : snapshotMode);
+  timer.mark('auth+kanban');
+
+  if (useFastPaint) {
+    type KanbanCardRow = Record<string, unknown>;
+
+    const buildFastCardsQuery = async (select: string) => {
+      let q = supabase
+        .from('kanban_cards')
+        .select(select)
+        .eq('kanban_id', kanban.id)
+        .eq('status', 'ativo')
+        .order('ordem_coluna', { ascending: true })
+        .order('created_at', { ascending: false })
+        .or('concluido.eq.false,concluido.is.null')
+        .or('arquivado.eq.false,arquivado.is.null');
+      if (userId && !veTodosCards) q = q.eq('franqueado_id', userId);
+      const { data, error } = await q;
+      return {
+        data: (data ?? null) as KanbanCardRow[] | null,
+        error: error ? { message: error.message } : null,
+      };
+    };
+
+    const [fases, cardsRes] = await Promise.all([
+      fetchKanbanFasesAtivasCached(supabase, kanbanIdStr),
+      runKanbanCardSelectBoardFast<KanbanCardRow[]>((select) => buildFastCardsQuery(select)),
+    ]);
+    timer.mark('fases+cards-fast');
+
+    const cardsNativo = ((cardsRes.data ?? []) as KanbanCardRow[]).map((c) =>
+      mapNativoFastRow(c, kanbanIdStr),
+    );
+    const faseIdsOrfas = cardsNativo.map((c) => c.fase_id);
+    const fasesComOrfas = await augmentKanbanFasesComFasesDosCards(
+      supabase,
+      kanbanIdStr,
+      fases,
+      faseIdsOrfas,
+    );
+    timer.mark('fases-orfas');
+    timer.end(`${cardsNativo.length} cards`);
+
+    return {
+      kanban: { id: kanbanIdStr },
+      fases: fasesComOrfas,
+      cards: cardsNativo,
+      cardsConcluidos: [],
+      role,
+      isAdmin,
+      snapshotMode,
+    };
+  }
 
   const [fases, nativeCountResult] = await Promise.all([
     fetchKanbanFasesAtivasCached(supabase, kanbanIdStr),
@@ -663,6 +749,8 @@ export async function fetchKanbanBoardSnapshot(
       .eq('kanban_id', kanban.id),
   ]);
 
+  timer.mark('fases+count');
+
   /** Funis nativos: sempre tenta ler `kanban_cards` (count com RLS pode ser 0 mesmo com linhas). */
   const hasNativo = (nativeCountResult.count ?? 0) > 0 || sempreNativo;
 
@@ -670,12 +758,15 @@ export async function fetchKanbanBoardSnapshot(
    * Arquivados/concluídos: só nativos no filtro STATUS.
    * Nativos puros: skip view.
    * Híbridos Contabilidade/Crédito Obra: mantêm view no lean para lacunas (proteção).
+   * Fast paint / enrichment client: skip view legado em Operações já migrado.
    */
   const skipLegadoView =
+    forceSkipLegadoView ||
     snapshotMode === 'arquivados' ||
     snapshotMode === 'concluidos' ||
     sempreNativo ||
-    (hasNativo && !hibridoComView);
+    (hasNativo && !hibridoComView) ||
+    (deferEnrichments && isFastPaintKanban(kanbanNomeDb) && hasNativo);
 
   let rowsAll: ViewLegadoRow[] = [];
   if (!skipLegadoView) {
@@ -1673,8 +1764,9 @@ function mapNativeRowToEnrichmentBrief(
 }
 
 /**
- * Enriquecimentos adiados (paralelas + responsável + calculadora) — chamado pelo client após paint.
- * Evita reprocessar títulos, ancestrais e reconciliação do snapshot completo.
+ * Enriquecimentos adiados — chamado pelo client após paint inicial.
+ * Portfólio/Operações: snapshot completo (títulos, tags, fase, paralelas, SLA).
+ * Demais funis: só paralelas + responsável + calculadora.
  */
 export async function fetchKanbanBoardEnrichmentPatches(
   supabase: SupabaseClient,
@@ -1684,6 +1776,24 @@ export async function fetchKanbanBoardEnrichmentPatches(
 ): Promise<Record<string, Partial<KanbanCardBrief>>> {
   const kid = String(kanbanId ?? '').trim();
   if (!kid) return {};
+
+  if (isFastPaintKanban(kanbanNomeDb)) {
+    const timer = createKanbanSnapshotTimer(kanbanNomeDb, 'bootstrap');
+    const snapshot = await fetchKanbanBoardSnapshot(supabase, kanbanNomeDb, userId, {
+      deferBoardEnrichments: false,
+      forceSkipLegadoView: true,
+      mode: 'lean',
+    });
+    timer.mark('snapshot-full');
+
+    const patches: Record<string, Partial<KanbanCardBrief>> = {};
+    for (const c of snapshot.cards) {
+      const patch = pickBootstrapPatchFields(c);
+      if (Object.keys(patch).length > 0) patches[c.id] = patch;
+    }
+    timer.end(`${Object.keys(patches).length} patches`);
+    return patches;
+  }
 
   let veTodosCards = false;
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
