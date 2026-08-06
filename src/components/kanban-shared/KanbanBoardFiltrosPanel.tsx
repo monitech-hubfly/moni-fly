@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import type { KanbanFase } from './types';
 import { KANBAN_BOARD_FILTROS_DEFAULT, type KanbanBoardFiltros } from './kanbanBoardFiltros';
 
-type SecaoId = 'fase' | 'responsavel' | 'sla' | 'status';
+type SecaoId = 'fase' | 'responsavel' | 'sla' | 'status' | 'especial';
 
 const def = KANBAN_BOARD_FILTROS_DEFAULT;
 
@@ -14,15 +14,17 @@ function computeExpandedInicial(f: KanbanBoardFiltros): Record<SecaoId, boolean>
   const hasResp = f.responsavel !== def.responsavel;
   const hasSla = f.sla !== def.sla;
   const hasStatus = f.status !== def.status;
-  const algum = hasFase || hasResp || hasSla || hasStatus;
+  const hasEspecial = f.especial !== def.especial;
+  const algum = hasFase || hasResp || hasSla || hasStatus || hasEspecial;
   if (!algum) {
-    return { fase: false, responsavel: false, sla: false, status: false };
+    return { fase: false, responsavel: false, sla: false, status: false, especial: false };
   }
   return {
     fase: hasFase,
     responsavel: hasResp,
     sla: hasSla,
     status: hasStatus,
+    especial: hasEspecial,
   };
 }
 
@@ -57,6 +59,15 @@ function badgeStatus(f: KanbanBoardFiltros): string | null {
     concluidos: 'Concluídos',
   };
   return map[f.status] ?? f.status;
+}
+
+function badgeEspecial(f: KanbanBoardFiltros): string | null {
+  if (f.especial === def.especial) return null;
+  const map: Record<string, string> = {
+    somente: '⭐ Especial',
+    nao: 'Sem especial',
+  };
+  return map[f.especial] ?? f.especial;
 }
 
 const radioRow = 'flex flex-wrap gap-x-2 gap-y-1 text-xs';
@@ -148,6 +159,7 @@ export function KanbanBoardFiltrosPanel({
       responsavel: badgeResponsavel(draft, responsaveisOpcoes),
       sla: badgeSla(draft),
       status: badgeStatus(draft),
+      especial: badgeEspecial(draft),
     }),
     [draft, fases, responsaveisOpcoes],
   );
@@ -286,6 +298,34 @@ export function KanbanBoardFiltrosPanel({
                   name="board-filtro-status"
                   checked={draft.status === v}
                   onChange={() => setDraft((d) => ({ ...d, status: v }))}
+                  className={radioClass}
+                />
+                {lab}
+              </label>
+            ))}
+          </div>
+        </SecaoColapsavel>
+
+        <SecaoColapsavel
+          titulo="Especial"
+          expandido={expanded.especial}
+          onToggle={() => toggle('especial')}
+          badge={badges.especial}
+        >
+          <div className={radioRow} style={{ color: 'var(--moni-text-primary)' }}>
+            {(
+              [
+                ['todos', 'Todos'],
+                ['somente', '⭐ Somente especiais'],
+                ['nao', 'Sem especial'],
+              ] as const
+            ).map(([v, lab]) => (
+              <label key={v} className={radioLabel}>
+                <input
+                  type="radio"
+                  name="board-filtro-especial"
+                  checked={draft.especial === v}
+                  onChange={() => setDraft((d) => ({ ...d, especial: v }))}
                   className={radioClass}
                 />
                 {lab}

@@ -20,6 +20,7 @@ export type KanbanCardBuscaBoardContext = {
 
 export type KanbanBoardFiltrosStatus = 'ativos' | 'arquivados' | 'concluidos';
 export type KanbanBoardFiltrosSla = 'todos' | 'atrasados' | 'vence_hoje' | 'dentro_prazo';
+export type KanbanBoardFiltrosEspecial = 'todos' | 'somente' | 'nao';
 
 export type KanbanBoardFiltros = {
   /** `todas` ou id da fase */
@@ -27,6 +28,8 @@ export type KanbanBoardFiltros = {
   responsavel: 'todos' | 'eu' | string;
   sla: KanbanBoardFiltrosSla;
   status: KanbanBoardFiltrosStatus;
+  /** Tag padronizada «⭐Especial». */
+  especial: KanbanBoardFiltrosEspecial;
 };
 
 export const KANBAN_BOARD_FILTROS_DEFAULT: KanbanBoardFiltros = {
@@ -34,6 +37,7 @@ export const KANBAN_BOARD_FILTROS_DEFAULT: KanbanBoardFiltros = {
   responsavel: 'todos',
   sla: 'todos',
   status: 'ativos',
+  especial: 'todos',
 };
 
 export function countKanbanBoardFiltrosAtivos(f: KanbanBoardFiltros): number {
@@ -43,7 +47,13 @@ export function countKanbanBoardFiltrosAtivos(f: KanbanBoardFiltros): number {
   if (f.responsavel !== d.responsavel) n++;
   if (f.sla !== d.sla) n++;
   if (f.status !== d.status) n++;
+  if (f.especial !== d.especial) n++;
   return n;
+}
+
+/** Card com tag padronizada «⭐Especial». */
+export function cardTemTagEspecialKanban(card: KanbanCardBrief): boolean {
+  return (card.tagsCard ?? []).some((t) => isKanbanTagEspecialNome(t.nome));
 }
 
 function isCardArquivado(c: KanbanCardBrief): boolean {
@@ -323,6 +333,12 @@ export function cardPassaFiltrosBoard(
     if (f.sla === 'atrasados' && cat !== 'atrasado') return false;
     if (f.sla === 'vence_hoje' && cat !== 'vence_hoje') return false;
     if (f.sla === 'dentro_prazo' && (cat === 'atrasado' || cat === 'vence_hoje')) return false;
+  }
+
+  if (f.especial !== 'todos') {
+    const temEspecial = cardTemTagEspecialKanban(card);
+    if (f.especial === 'somente' && !temEspecial) return false;
+    if (f.especial === 'nao' && temEspecial) return false;
   }
 
   return true;
