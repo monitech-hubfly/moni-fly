@@ -18,7 +18,7 @@ export default async function SireneChamadosPage({
     params.tipo === 'padrao' || params.tipo === 'hdm' ? (params.tipo as 'padrao' | 'hdm') : undefined;
 
   const admin = createAdminClient();
-  const supabaseUser = createClient();
+  const supabaseUser = await createClient();
 
   const [viewResult] = await Promise.all([
     admin
