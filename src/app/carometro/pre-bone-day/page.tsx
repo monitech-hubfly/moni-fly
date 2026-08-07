@@ -939,6 +939,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
             <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={formMeta.tipo} onChange={e => setFormMeta(p => ({ ...p, tipo: e.target.value }))}>
               <option value="atingivel">Atingível</option>
               <option value="recorrente">Recorrente</option>
+              <option value="atingivel - projeto">Atingível - Projeto</option>
             </select>
             <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5"
               value={formMeta.metaUnidade} onChange={e => setFormMeta(p => ({ ...p, metaUnidade: e.target.value }))} />
