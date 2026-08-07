@@ -45,6 +45,7 @@ export function AtribuicaoAceitePanel({
   const [justificativa, setJustificativa] = useState('');
   const [redirecionando, setRedirecionando] = useState(false);
   const [novoRespId, setNovoRespId] = useState('');
+  const [justificativaRedir, setJustificativaRedir] = useState('');
   const [showConfirmarEncerrar, setShowConfirmarEncerrar] = useState(false);
 
   const text = compact ? 'text-[10px]' : 'text-xs';
@@ -146,11 +147,13 @@ export function AtribuicaoAceitePanel({
 
   if (atribuicaoStatus !== 'pendente_aceite') return null;
 
+  const opcoesRedir = (responsaveisOpcoes ?? []).filter(r => r.id !== sessionUserId);
+
   return (
     <div className={`rounded border border-amber-200 bg-amber-50/80 p-2 ${text}`}>
       <p className="font-medium text-amber-800">Aguardando aceite da atribuição</p>
 
-      {ehResponsavel && !recusando ? (
+      {ehResponsavel && !recusando && !redirecionando ? (
         <div className="mt-2 flex flex-wrap gap-1">
           <button
             type="button"
@@ -168,6 +171,16 @@ export function AtribuicaoAceitePanel({
           >
             Recusar
           </button>
+          {opcoesRedir.length > 0 ? (
+            <button
+              type="button"
+              disabled={pending}
+              className="rounded border border-stone-300 bg-white px-2 py-0.5 hover:bg-stone-100 disabled:opacity-50"
+              onClick={() => { setRedirecionando(true); setNovoRespId(''); setJustificativaRedir(''); setMsg(null); }}
+            >
+              Redirecionar
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -195,6 +208,47 @@ export function AtribuicaoAceitePanel({
               disabled={pending}
               className="rounded border border-stone-300 bg-white px-2 py-0.5 hover:bg-stone-100 disabled:opacity-50"
               onClick={() => { setRecusando(false); setJustificativa(''); setMsg(null); }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {ehResponsavel && redirecionando ? (
+        <div className="mt-2 space-y-1">
+          <select
+            value={novoRespId}
+            onChange={e => setNovoRespId(e.target.value)}
+            className="w-full rounded border border-stone-300 bg-white px-1.5 py-0.5"
+          >
+            <option value="">Selecione para quem redirecionar…</option>
+            {opcoesRedir.map(r => (
+              <option key={r.id} value={r.id}>{r.nome}</option>
+            ))}
+          </select>
+          <textarea
+            value={justificativaRedir}
+            onChange={(e) => setJustificativaRedir(e.target.value)}
+            placeholder="Justificativa (opcional)"
+            rows={2}
+            className="w-full resize-y px-1.5 py-0.5"
+            style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
+          />
+          <div className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              disabled={pending || !novoRespId}
+              className="rounded bg-stone-700 px-2 py-0.5 text-white hover:bg-stone-800 disabled:opacity-50"
+              onClick={() => run(() => redirecionarAtribuicaoTopico(topicoId, novoRespId, basePath, justificativaRedir || undefined))}
+            >
+              Confirmar redirecionamento
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              className="rounded border border-stone-300 bg-white px-2 py-0.5 hover:bg-stone-100 disabled:opacity-50"
+              onClick={() => { setRedirecionando(false); setNovoRespId(''); setJustificativaRedir(''); setMsg(null); }}
             >
               Cancelar
             </button>

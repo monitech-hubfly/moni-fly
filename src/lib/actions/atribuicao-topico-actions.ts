@@ -178,11 +178,15 @@ export async function recusarAtribuicaoTopico(
   return { ok: true };
 }
 
-/** Abridor do chamado redireciona atividade recusada a um novo responsável. */
+/** Redireciona atividade a um novo responsável.
+ * - Se `atribuicao_status = 'recusado'`: quem chama deve ser o abridor do chamado.
+ * - Se `atribuicao_status = 'pendente_aceite'`: quem chama deve ser o responsável atual (redireciona sem precisar recusar antes).
+ */
 export async function redirecionarAtribuicaoTopico(
   topicoId: string,
   novoResponsavelId: string,
   basePath?: string,
+  justificativa?: string,
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -198,9 +202,12 @@ export async function redirecionarAtribuicaoTopico(
 
   const row = await carregarTopicoAtribuicao(supabase, idNum);
   if (!row) return { ok: false, error: 'Atividade não encontrada.' };
-  if (row.atribuicao_status !== 'recusado') return { ok: false, error: 'Só é possível redirecionar atividades recusadas.' };
 
-  // Resolve sireneChamadoId e valida que quem chama é o abridor
+  if (row.atribuicao_status !== 'recusado' && row.atribuicao_status !== 'pendente_aceite') {
+    return { ok: false, error: 'Não é possível redirecionar esta atividade no estado atual.' };
+  }
+
+  // Resolve sireneChamadoId para validação de permissão
   let sireneChamadoId: number | null = row.chamado_id;
   if (sireneChamadoId == null && row.interacao_id) {
     const { data: ka } = await supabase
@@ -211,15 +218,23 @@ export async function redirecionarAtribuicaoTopico(
     sireneChamadoId = (ka as { sirene_chamado_id?: number | null } | null)?.sirene_chamado_id ?? null;
   }
 
-  if (sireneChamadoId != null) {
-    const { data: chamado } = await supabase
-      .from('sirene_chamados')
-      .select('aberto_por')
-      .eq('id', sireneChamadoId)
-      .maybeSingle();
-    const abertoPorId = (chamado as { aberto_por?: string | null } | null)?.aberto_por ?? null;
-    if (abertoPorId && user.id !== abertoPorId) {
-      return { ok: false, error: 'Somente quem abriu o chamado pode redirecionar esta atividade.' };
+  if (row.atribuicao_status === 'pendente_aceite') {
+    // Responsável atual pode redirecionar diretamente sem precisar recusar
+    if (user.id !== row.responsavel_id) {
+      return { ok: false, error: 'Somente o responsável atual pode redirecionar esta atividade.' };
+    }
+  } else {
+    // recusado → abridor do chamado redireciona
+    if (sireneChamadoId != null) {
+      const { data: chamado } = await supabase
+        .from('sirene_chamados')
+        .select('aberto_por')
+        .eq('id', sireneChamadoId)
+        .maybeSingle();
+      const abertoPorId = (chamado as { aberto_por?: string | null } | null)?.aberto_por ?? null;
+      if (abertoPorId && user.id !== abertoPorId) {
+        return { ok: false, error: 'Somente quem abriu o chamado pode redirecionar esta atividade.' };
+      }
     }
   }
 
@@ -235,7 +250,7 @@ export async function redirecionarAtribuicaoTopico(
         tipo: 'Atribuição redirecionada',
         em: new Date().toISOString(),
         por: user.id,
-        detalhe: novoResp,
+        detalhe: justificativa?.trim() ? `${novoResp} | ${justificativa.trim()}` : novoResp,
       }),
       updated_at: new Date().toISOString(),
     } as never)
