@@ -702,7 +702,7 @@ type SireneChamadoBacklogWrapperProps = {
   onClose: () => void;
 };
 
-function SireneChamadoBacklogWrapper({ chamadoId, onClose }: SireneChamadoBacklogWrapperProps) {
+export function SireneChamadoBacklogWrapper({ chamadoId, onClose }: SireneChamadoBacklogWrapperProps) {
   const supabase = useMemo(() => createClient(), []);
   const [row, setRow] = useState<InteracaoSireneRow | null>(null);
   const [topicos, setTopicos] = useState<TopicoPainelLinha[]>([]);
