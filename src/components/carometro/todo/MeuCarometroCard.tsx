@@ -189,35 +189,29 @@ export function MeuCarometroCard({
 
       <hr className="border-gray-100" />
 
-      {/* Resumo sempre visível para sirene/engajamento — não duplica com o popup do dia */}
-      {children && tipo !== 'indicadores' && (
-        <div className="text-xs text-gray-600 flex flex-col gap-1">
-          {children}
-        </div>
-      )}
-
       <button
         type="button"
         onClick={() => setExpandido(v => !v)}
         className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors select-none"
       >
         <span>{expandido ? '▲' : '▼'}</span>
-        <span>{tipo === 'indicadores' ? 'Ver por semana' : 'Ver por dia'}</span>
+        <span>{tipo === 'indicadores' ? 'Ver por semana' : 'Ver detalhes'}</span>
       </button>
 
       {expandido && (
         <div className="flex flex-col gap-3">
+          {/* Resumo da semana */}
+          {children && (
+            <div className="text-xs text-gray-600 flex flex-col gap-1">
+              {children}
+            </div>
+          )}
+          {/* Histórico por dia / semana */}
           {tipo !== 'indicadores' && diasDaSemana && diasDaSemana.length > 0 && (
             <DiariosCirculos dias={diasDaSemana} />
           )}
           {tipo === 'indicadores' && semanasIndicadores && semanasIndicadores.length > 0 && (
             <SemanaisCirculos semanas={semanasIndicadores} />
-          )}
-          {/* Para indicadores, children ficam dentro do expandido */}
-          {tipo === 'indicadores' && children && (
-            <div className="text-xs text-gray-600 flex flex-col gap-1 pt-1 border-t border-gray-50">
-              {children}
-            </div>
           )}
         </div>
       )}
