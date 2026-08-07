@@ -64,6 +64,12 @@ export function MeuCarometroBloco() {
                     <span className="font-medium">{sirene.relevantes ?? sirene.abertos}</span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-gray-500">Concluídos esta semana</span>
+                    <span className="font-medium" style={{ color: (sirene.concluidos ?? 0) > 0 ? '#15803d' : undefined }}>
+                      {sirene.concluidos ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-gray-500">Total abertos</span>
                     <span className="font-medium text-gray-400">{sirene.abertos}</span>
                   </div>

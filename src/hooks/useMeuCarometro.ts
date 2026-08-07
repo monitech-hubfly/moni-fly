@@ -23,6 +23,7 @@ export type SireneSnapshot = {
   atrasados:  number;
   abertos:    number;
   relevantes: number;
+  concluidos: number;
   semPrazo:   number;
   score:      number | null;
 };
@@ -172,38 +173,62 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         ((snapshots ?? []) as SnapRow[]).map(s => [s.data, s])
       );
 
-      // ── Sirene (fallback runtime) ────────────────────────────────────────────
-      // Busca tópicos onde o usuário é responsável principal OU está nos responsáveis secundários
-      const { data: topicos } = await supabase
-        .from('sirene_topicos')
-        .select('id, data_fim, prazo_proposto')
-        .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
-        .in('status', ['nao_iniciado', 'em_andamento'])
-        .eq('arquivado', false);
+      // ── Sirene ────────────────────────────────────────────────────────────────
+      // Início da semana (segunda) para filtro de concluídos
+      const dowSirene = hoje.getDay() || 7;
+      const semanaInicio = new Date(hoje);
+      semanaInicio.setDate(hoje.getDate() - (dowSirene - 1));
+      const semanaInicioStr = semanaInicio.toISOString().slice(0, 10);
 
-      const topicosArr = topicos ?? [];
-      const topicosSemPrazo  = topicosArr.filter(t => !t.data_fim && !t.prazo_proposto).length;
-      const topicosAtrasados = topicosArr.filter(t => {
-        const prazo = (t.data_fim || t.prazo_proposto) as string | null;
+      const [topicosAbertosRes, topicosConcluidosRes] = await Promise.all([
+        supabase
+          .from('sirene_topicos')
+          .select('id, data_fim, prazo_proposto')
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+          .in('status', ['nao_iniciado', 'em_andamento'])
+          .eq('arquivado', false),
+        supabase
+          .from('sirene_topicos')
+          .select('id, data_fim, prazo_proposto')
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+          .in('status', ['concluido', 'aprovado'])
+          .eq('arquivado', false)
+          .gte('updated_at', semanaInicioStr),
+      ]);
+
+      type TopicosRow = { id: unknown; data_fim: string | null; prazo_proposto: string | null };
+      const topicosAbertos = (topicosAbertosRes.data ?? []) as TopicosRow[];
+      // Concluídos esta semana com prazo <= hoje entram no numerador como "realizados"
+      const topicosConcluidos = ((topicosConcluidosRes.data ?? []) as TopicosRow[]).filter(t => {
+        const prazo = t.data_fim || t.prazo_proposto;
+        return prazo && prazo <= hojeStr;
+      });
+
+      const topicosSemPrazo = topicosAbertos.filter(t => !t.data_fim && !t.prazo_proposto).length;
+      // Bug fix: comparação de string — tópico com prazo = hoje NÃO é atrasado
+      const topicosAtrasados = topicosAbertos.filter(t => {
+        const prazo = t.data_fim || t.prazo_proposto;
         if (!prazo) return false;
-        return new Date(prazo) < hoje;
+        return prazo < hojeStr;
       }).length;
-      // Score: vencendo hoje + atrasados no denominador (prazo <= hoje)
-      // Tópicos com prazo futuro ou sem prazo não afetam o score
-      const topicosRelevantes = topicosArr.filter(t => {
-        const prazo = (t.data_fim || t.prazo_proposto) as string | null;
+
+      const topicosAbertosRelevantes = topicosAbertos.filter(t => {
+        const prazo = t.data_fim || t.prazo_proposto;
         if (!prazo) return false;
-        return new Date(prazo) <= hoje;
+        return prazo <= hojeStr;
       }).length;
-      const sireneScore =
-        topicosRelevantes === 0
-          ? null
-          : Math.max(0, Math.round(((topicosRelevantes - topicosAtrasados) / topicosRelevantes) * 100));
+
+      // relevantes = abertos vencendo hoje/atrasados + concluídos a tempo esta semana
+      const topicosRelevantes = topicosAbertosRelevantes + topicosConcluidos.length;
+      const sireneScore = topicosRelevantes === 0
+        ? null
+        : Math.max(0, Math.round(((topicosRelevantes - topicosAtrasados) / topicosRelevantes) * 100));
 
       const sireneRuntime: SireneSnapshot = {
         atrasados:  topicosAtrasados,
-        abertos:    topicosArr.length,
+        abertos:    topicosAbertos.length,
         relevantes: topicosRelevantes,
+        concluidos: topicosConcluidos.length,
         semPrazo:   topicosSemPrazo,
         score:      sireneScore,
       };
@@ -423,9 +448,11 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       setEngajamento(engajamentoRuntime);
       setIndicadores(indicadoresRuntime);
       setDiasSirene(buildDias('sirene', 'score', sireneScore, {
-        atrasados: topicosAtrasados,
-        abertos:   topicosArr.length,
-        semPrazo:  topicosSemPrazo,
+        atrasados:  topicosAtrasados,
+        relevantes: topicosRelevantes,
+        concluidos: topicosConcluidos.length,
+        abertos:    topicosAbertos.length,
+        semPrazo:   topicosSemPrazo,
       }));
       setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score, {
         atividades_relevantes: engajamentoRuntime.atividades.relevantes,

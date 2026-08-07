@@ -40,6 +40,7 @@ function DiariosCirculos({ dias }: { dias: DiaStatus[] }) {
     // Sirene
     atrasados:             'Atrasados',
     relevantes:            'Com prazo até hoje',
+    concluidos:            'Concluídos esta semana',
     abertos:               'Total abertos',
     semPrazo:              'Sem prazo',
     // Engajamento — atividades

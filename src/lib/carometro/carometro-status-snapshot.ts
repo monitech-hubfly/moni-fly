@@ -59,35 +59,58 @@ export async function gerarSnapshotCarometro(
   const hojeStr = hoje.toISOString().slice(0, 10);
 
   // ── Sirene ─────────────────────────────────────────────────────────────────
-  const { data: topicos } = await db
-    .from('sirene_topicos')
-    .select('id, data_fim, prazo_proposto')
-    .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
-    .in('status', ['nao_iniciado', 'em_andamento'])
-    .eq('arquivado', false);
+  // Início da semana para filtro de concluídos
+  const dowSnap = hoje.getDay() || 7;
+  const semanaInicioSnap = new Date(hoje);
+  semanaInicioSnap.setDate(hoje.getDate() - (dowSnap - 1));
+  const semanaInicioSnapStr = semanaInicioSnap.toISOString().slice(0, 10);
 
-  const topicosArr = topicos ?? [];
-  const semPrazo   = topicosArr.filter(t => !t.data_fim && !t.prazo_proposto).length;
-  const sireneAtrasados = topicosArr.filter(t => {
-    const prazo = (t.data_fim || t.prazo_proposto) as string | null;
+  const [topicosAbertosSnap, topicosConcluidosSnap] = await Promise.all([
+    db.from('sirene_topicos')
+      .select('id, data_fim, prazo_proposto')
+      .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
+      .in('status', ['nao_iniciado', 'em_andamento'])
+      .eq('arquivado', false),
+    db.from('sirene_topicos')
+      .select('id, data_fim, prazo_proposto')
+      .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
+      .in('status', ['concluido', 'aprovado'])
+      .eq('arquivado', false)
+      .gte('updated_at', semanaInicioSnapStr),
+  ]);
+
+  type TopicosSnapRow = { id: unknown; data_fim: string | null; prazo_proposto: string | null };
+  const topicosAbertos = (topicosAbertosSnap.data ?? []) as TopicosSnapRow[];
+  const topicosConcluidos = ((topicosConcluidosSnap.data ?? []) as TopicosSnapRow[]).filter(t => {
+    const prazo = t.data_fim || t.prazo_proposto;
+    return prazo && prazo <= hojeStr;
+  });
+
+  const semPrazo = topicosAbertos.filter(t => !t.data_fim && !t.prazo_proposto).length;
+  // Bug fix: comparação de string — prazo = hoje NÃO é atrasado
+  const sireneAtrasados = topicosAbertos.filter(t => {
+    const prazo = t.data_fim || t.prazo_proposto;
     if (!prazo) return false;
-    return new Date(prazo) < hoje;
+    return prazo < hojeStr;
   }).length;
-  // Relevantes = vencendo hoje + atrasados (prazo <= hoje)
-  // Tópicos com prazo futuro ou sem prazo não entram no denominador
-  const sireneRelevantes = topicosArr.filter(t => {
-    const prazo = (t.data_fim || t.prazo_proposto) as string | null;
+
+  const sireneAbertosRelevantes = topicosAbertos.filter(t => {
+    const prazo = t.data_fim || t.prazo_proposto;
     if (!prazo) return false;
-    return new Date(prazo) <= hoje;
+    return prazo <= hojeStr;
   }).length;
+
+  // relevantes = abertos vencendo hoje/atrasados + concluídos a tempo esta semana
+  const sireneRelevantes = sireneAbertosRelevantes + topicosConcluidos.length;
   const sireneScore = sireneRelevantes === 0
     ? null
     : Math.max(0, Math.round(((sireneRelevantes - sireneAtrasados) / sireneRelevantes) * 100));
 
   const sireneData = {
     atrasados:  sireneAtrasados,
-    abertos:    topicosArr.length,
+    abertos:    topicosAbertos.length,
     relevantes: sireneRelevantes,
+    concluidos: topicosConcluidos.length,
     semPrazo,
     score:      sireneScore,
   };
