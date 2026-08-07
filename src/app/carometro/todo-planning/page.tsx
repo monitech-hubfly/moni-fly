@@ -125,6 +125,7 @@ function TodoPlanningPageContent() {
           isSaving={modal.isSaving}
           erroSalvar={modal.erroSalvar}
           origemInfo={origemInfo}
+          editandoId={modal.editandoId}
         />
       )}
     </DndContext>
