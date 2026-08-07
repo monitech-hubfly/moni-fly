@@ -178,13 +178,13 @@ export async function atualizarStatusInteracaoSirene(
       return { ok: false, error: 'Conclua todas as sub-interações antes de concluir o chamado.' };
     }
 
-    const texto = opts?.infoConclusaoCriador?.trim();
-    if (!texto) {
-      return { ok: false, error: 'Informe as informações da conclusão do chamado.' };
-    }
-
+    const texto = opts?.infoConclusaoCriador?.trim() ?? '';
     const sireneCid = (row as { sirene_chamado_id?: number | null }).sirene_chamado_id;
     const suficiente = opts?.resolucaoSuficiente !== false;
+
+    if (!suficiente && !texto) {
+      return { ok: false, error: 'Informe o motivo para registrar a insatisfação.' };
+    }
 
     if (sireneCid != null && Number.isFinite(Number(sireneCid))) {
       const r = await concluirChamadoCriador(Number(sireneCid), suficiente, texto);
@@ -210,9 +210,8 @@ export async function atualizarStatusInteracaoSirene(
       const { error } = await admin
         .from('kanban_atividades')
         .update({
-          status: 'em_andamento',
-          concluida_em: null,
-          info_conclusao_criador: null,
+          status: 'concluida',
+          concluida_em: now,
           updated_at: now,
         })
         .eq('id', atividadeId);

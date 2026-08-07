@@ -1831,14 +1831,9 @@ export async function concluirChamadoCriador(
   const me = await getSireneUserContext(supabase);
   if (!me) return { ok: false, error: 'Faça login.' };
 
-  const textoTrim = texto?.trim();
-  if (!textoTrim) {
-    return {
-      ok: false,
-      error: suficiente
-        ? 'Informe as informações da conclusão.'
-        : 'Informe o motivo da insuficiência para reabrir.',
-    };
+  const textoTrim = texto?.trim() ?? '';
+  if (!suficiente && !textoTrim) {
+    return { ok: false, error: 'Informe o motivo da insuficiência.' };
   }
 
   const { data: chamado } = await supabase
@@ -1905,7 +1900,8 @@ export async function concluirChamadoCriador(
         resolucao_suficiente: false,
         motivo_insuficiente: textoTrim,
         info_conclusao_criador: null,
-        status: 'em_andamento',
+        status: 'concluido',
+        data_conclusao: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', chamadoId);
@@ -1914,8 +1910,8 @@ export async function concluirChamadoCriador(
     await admin
       .from('kanban_atividades')
       .update({
-        status: 'em_andamento',
-        concluida_em: null,
+        status: 'concluida',
+        concluida_em: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('sirene_chamado_id', chamadoId);
@@ -1928,13 +1924,13 @@ export async function concluirChamadoCriador(
         uid,
         chamadoId,
         'criador_reabriu',
-        `Criador indicou resolução insuficiente no chamado #${numero}. Chamado reaberto.`,
+        `Criador indicou resolução insuficiente no chamado #${numero}: ${textoTrim}`,
       );
     }
   }
 
   const adminSync = createAdminClient();
-  const statusSync = suficiente ? 'concluido' : 'em_andamento';
+  const statusSync = 'concluido';
   const syncPastel = await syncPastelariaColunaFromSireneStatus(adminSync, chamadoId, statusSync);
   if (!syncPastel.ok) console.error('[concluirChamadoCriador] sync pastelaria', syncPastel.error);
 

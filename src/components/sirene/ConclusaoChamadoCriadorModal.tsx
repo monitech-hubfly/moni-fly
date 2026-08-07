@@ -17,31 +17,31 @@ export function ConclusaoChamadoCriadorModal({
   pending = false,
   titulo = 'Concluir chamado',
 }: Props) {
-  const [texto, setTexto] = useState('');
-  const [naoSuficiente, setNaoSuficiente] = useState(false);
-  const [erroLocal, setErroLocal] = useState<string | null>(null);
+  const [etapa, setEtapa] = useState<'escolha' | 'nao_suficiente'>('escolha');
+  const [motivo, setMotivo] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
 
   if (!open) return null;
 
-  const handleConfirm = () => {
-    const t = texto.trim();
-    if (!t) {
-      setErroLocal(
-        naoSuficiente
-          ? 'Informe o motivo para indicar que a resolução não foi suficiente.'
-          : 'Informe as informações sobre a conclusão do chamado.',
-      );
-      return;
-    }
-    setErroLocal(null);
-    onConfirm({ suficiente: !naoSuficiente, texto: t });
+  const handleClose = () => {
+    setEtapa('escolha');
+    setMotivo('');
+    setErro(null);
+    onClose();
   };
 
-  const handleClose = () => {
-    setTexto('');
-    setNaoSuficiente(false);
-    setErroLocal(null);
-    onClose();
+  const handleSuficiente = () => {
+    onConfirm({ suficiente: true, texto: '' });
+  };
+
+  const handleConfirmarNaoSuficiente = () => {
+    const t = motivo.trim();
+    if (!t) {
+      setErro('Informe o motivo para registrar a insatisfação.');
+      return;
+    }
+    setErro(null);
+    onConfirm({ suficiente: false, texto: t });
   };
 
   return (
@@ -55,66 +55,77 @@ export function ConclusaoChamadoCriadorModal({
         <h3 id="conclusao-chamado-titulo" className="text-base font-semibold text-[color:var(--moni-text-primary)]">
           {titulo}
         </h3>
-        <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">
-          Somente quem abriu o chamado pode concluí-lo. Descreva o resultado ou o motivo da reabertura.
-        </p>
 
-        <label className="mt-4 block text-xs font-medium text-[color:var(--moni-text-secondary)]">
-          {naoSuficiente ? 'Motivo (resolução não suficiente)' : 'Informações da conclusão'}
-          <textarea
-            value={texto}
-            onChange={(e) => {
-              setTexto(e.target.value);
-              setErroLocal(null);
-            }}
-            rows={4}
-            className="mt-1 w-full resize-none rounded-lg border border-[color:var(--moni-border-default)] px-3 py-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--moni-navy-400)]"
-            placeholder={
-              naoSuficiente
-                ? 'Por que a resolução não foi suficiente? Você poderá abrir novas atividades.'
-                : 'Descreva o que foi resolvido e qualquer informação relevante.'
-            }
-            disabled={pending}
-            autoFocus
-          />
-        </label>
-
-        <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-[color:var(--moni-text-secondary)]">
-          <input
-            type="checkbox"
-            checked={naoSuficiente}
-            onChange={(e) => {
-              setNaoSuficiente(e.target.checked);
-              setErroLocal(null);
-            }}
-            disabled={pending}
-            className="mt-0.5 rounded border-[color:var(--moni-border-default)]"
-          />
-          <span>
-            Resolução <strong>não</strong> foi suficiente — manter em andamento e permitir novas atividades
-          </span>
-        </label>
-
-        {erroLocal ? <p className="mt-2 text-sm text-red-600">{erroLocal}</p> : null}
-
-        <div className="mt-5 flex gap-2">
-          <button
-            type="button"
-            disabled={pending}
-            onClick={handleConfirm}
-            className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
-          >
-            {pending ? 'Salvando…' : naoSuficiente ? 'Reabrir chamado' : 'Confirmar conclusão'}
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={handleClose}
-            className="rounded-lg border border-[color:var(--moni-border-default)] px-4 py-2 text-sm hover:bg-[var(--moni-surface-50)]"
-          >
-            Cancelar
-          </button>
-        </div>
+        {etapa === 'escolha' ? (
+          <>
+            <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">
+              A resolução de cada atividade já foi registrada pelo time. Como você avalia o resultado?
+            </p>
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={handleSuficiente}
+                className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {pending ? 'Salvando…' : 'Foi suficiente — concluir'}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setEtapa('nao_suficiente')}
+                className="w-full rounded-lg border border-[color:var(--moni-border-default)] px-4 py-2.5 text-sm text-[color:var(--moni-text-primary)] hover:bg-[var(--moni-surface-50)] disabled:opacity-50"
+              >
+                Não foi suficiente
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={handleClose}
+                className="w-full rounded-lg px-4 py-2 text-sm text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-secondary)]"
+              >
+                Cancelar
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">
+              Descreva o que ficou pendente. O chamado será concluído e o time interno poderá dar continuidade.
+            </p>
+            <label className="mt-4 block text-xs font-medium text-[color:var(--moni-text-secondary)]">
+              Motivo
+              <textarea
+                value={motivo}
+                onChange={(e) => { setMotivo(e.target.value); setErro(null); }}
+                rows={4}
+                className="mt-1 w-full resize-none rounded-lg border border-[color:var(--moni-border-default)] px-3 py-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--moni-navy-400)]"
+                placeholder="O que ficou pendente ou precisa ser retomado?"
+                disabled={pending}
+                autoFocus
+              />
+            </label>
+            {erro ? <p className="mt-2 text-sm text-red-600">{erro}</p> : null}
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={handleConfirmarNaoSuficiente}
+                className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {pending ? 'Salvando…' : 'Confirmar e concluir'}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => { setEtapa('escolha'); setErro(null); }}
+                className="rounded-lg border border-[color:var(--moni-border-default)] px-4 py-2 text-sm hover:bg-[var(--moni-surface-50)]"
+              >
+                Voltar
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
