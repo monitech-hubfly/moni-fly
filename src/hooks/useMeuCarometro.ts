@@ -20,10 +20,11 @@ export type SemanaStatusInd = {
 };
 
 export type SireneSnapshot = {
-  atrasados: number;
-  abertos: number;
-  semPrazo: number;
-  score: number | null;
+  atrasados:  number;
+  abertos:    number;
+  relevantes: number;
+  semPrazo:   number;
+  score:      number | null;
 };
 
 export type EngajamentoSnapshot = {
@@ -200,10 +201,11 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           : Math.max(0, Math.round(((topicosRelevantes - topicosAtrasados) / topicosRelevantes) * 100));
 
       const sireneRuntime: SireneSnapshot = {
-        atrasados: topicosAtrasados,
-        abertos:   topicosArr.length,
-        semPrazo:  topicosSemPrazo,
-        score:     sireneScore,
+        atrasados:  topicosAtrasados,
+        abertos:    topicosArr.length,
+        relevantes: topicosRelevantes,
+        semPrazo:   topicosSemPrazo,
+        score:      sireneScore,
       };
 
       // ── Engajamento ─────────────────────────────────────────────────────────────

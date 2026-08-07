@@ -49,12 +49,12 @@ export function MeuCarometroBloco() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Abertos</span>
-                    <span className="font-medium">{sirene.abertos}</span>
+                    <span className="text-gray-500">Com prazo até hoje</span>
+                    <span className="font-medium">{sirene.relevantes ?? sirene.abertos}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Sem prazo</span>
-                    <span className="font-medium text-gray-400">{sirene.semPrazo}</span>
+                    <span className="text-gray-500">Total abertos</span>
+                    <span className="font-medium text-gray-400">{sirene.abertos}</span>
                   </div>
                 </>
               )}

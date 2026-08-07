@@ -85,10 +85,11 @@ export async function gerarSnapshotCarometro(
     : Math.max(0, Math.round(((sireneRelevantes - sireneAtrasados) / sireneRelevantes) * 100));
 
   const sireneData = {
-    atrasados: sireneAtrasados,
-    abertos:   topicosArr.length,
+    atrasados:  sireneAtrasados,
+    abertos:    topicosArr.length,
+    relevantes: sireneRelevantes,
     semPrazo,
-    score:     sireneScore,
+    score:      sireneScore,
   };
 
   // ── Engajamento (remove gantt, usa backlog_atividades_usuario + kanban) ──────

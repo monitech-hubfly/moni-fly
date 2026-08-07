@@ -4,7 +4,7 @@ import { ReactNode, useState } from 'react';
 import type { DiaStatus, SemanaStatusInd } from '@/hooks/useMeuCarometro';
 
 function getCarinhaImg(score: number | null): string {
-  if (score === null) return '/carometro/carometro-emoji-branco.png';
+  if (score === null) return '/carometro/carometro-emoji-verde-escuro.png';
   if (score >= 75) return '/carometro/carometro-emoji-verde-escuro.png';
   if (score >= 60) return '/carometro/carometro-emoji-verde-claro.png';
   if (score >= 30) return '/carometro/carometro-emoji-amarelo.png';
@@ -12,7 +12,7 @@ function getCarinhaImg(score: number | null): string {
 }
 
 function scoreColor(score: number | null): string {
-  if (score === null) return 'text-gray-400';
+  if (score === null) return 'text-green-700';
   if (score >= 75) return 'text-green-700';
   if (score >= 60) return 'text-green-500';
   if (score >= 30) return 'text-yellow-600';
@@ -20,7 +20,7 @@ function scoreColor(score: number | null): string {
 }
 
 function dotColor(score: number | null): string {
-  if (score === null) return '#d1d5db';
+  if (score === null) return '#15803d';
   if (score >= 75) return '#15803d';
   if (score >= 60) return '#22c55e';
   if (score >= 30) return '#ca8a04';
@@ -37,13 +37,14 @@ function DiariosCirculos({ dias }: { dias: DiaStatus[] }) {
   const [aberto, setAberto] = useState<string | null>(null);
 
   const LABEL_MAP: Record<string, string> = {
-    atrasados: 'Atrasados',
-    abertos: 'Abertos',
-    semPrazo: 'Sem prazo',
+    atrasados:           'Atrasados',
+    relevantes:          'Com prazo até hoje',
+    abertos:             'Total abertos',
+    semPrazo:            'Sem prazo',
     atividadesAtrasadas: 'Ativ. atrasadas',
-    atividadesEmDia: 'Ativ. em dia',
-    cardsAtrasados: 'Cards atrasados',
-    cardsEmDia: 'Cards em dia',
+    atividadesEmDia:     'Ativ. em dia',
+    cardsAtrasados:      'Cards atrasados',
+    cardsEmDia:          'Cards em dia',
   };
 
   return (
@@ -172,10 +173,10 @@ export function MeuCarometroCard({
           alt="carinha"
           className="w-14 h-14 object-contain shrink-0"
           style={{ mixBlendMode: 'multiply' }}
-          title={score !== null ? `${score}%` : 'Sem dados'}
+          title={score !== null ? `${score}%` : '100%'}
         />
         <span className={`text-4xl font-bold tabular-nums leading-none ${scoreCls}`}>
-          {score !== null ? `${score}%` : '—'}
+          {score !== null ? `${score}%` : '100%'}
         </span>
       </div>
 
