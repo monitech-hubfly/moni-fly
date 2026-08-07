@@ -411,26 +411,6 @@ export async function publicarComentarioCardSirene(
     autorId: user.id,
   });
 
-  try {
-    const admin = createAdminClient();
-    const { data: ka } = await admin
-      .from('kanban_atividades')
-      .select('criado_por, id, titulo')
-      .eq('card_id', cid)
-      .eq('origem', 'sirene')
-      .maybeSingle();
-    if (ka?.criado_por && ka.criado_por !== user.id) {
-      const { notificarAlertasKanbanAtividade } = await import('@/lib/kanban/chamados-notificacoes');
-      await notificarAlertasKanbanAtividade({
-        userIds: [ka.criado_por],
-        tipo: 'kanban_atividade_atualizada',
-        mensagem: `Novo comentário em: ${String((ka as {titulo?: string}).titulo ?? 'Chamado')}`,
-        interacaoId: ka.id,
-        basePath: `/sirene/chamados?interacao=${encodeURIComponent(ka.id)}`,
-      });
-    }
-  } catch {}
-
   return { ok: true };
 }
 
@@ -514,25 +494,6 @@ export async function publicarComentarioSireneChamado(
     autorId: user.id,
     sireneChamadoId,
   });
-
-  try {
-    const admin = createAdminClient();
-    const { data: ka } = await admin
-      .from('kanban_atividades')
-      .select('criado_por, id, titulo')
-      .eq('sirene_chamado_id', sireneChamadoId)
-      .maybeSingle();
-    if (ka?.criado_por && ka.criado_por !== user.id) {
-      const { notificarAlertasKanbanAtividade } = await import('@/lib/kanban/chamados-notificacoes');
-      await notificarAlertasKanbanAtividade({
-        userIds: [ka.criado_por],
-        tipo: 'kanban_atividade_atualizada',
-        mensagem: `Novo comentário em: ${String((ka as {titulo?: string}).titulo ?? 'Chamado')}`,
-        interacaoId: ka.id,
-        basePath: `/sirene/chamados?interacao=${encodeURIComponent(ka.id)}`,
-      });
-    }
-  } catch {}
 
   return { ok: true };
 }

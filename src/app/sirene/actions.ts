@@ -1522,14 +1522,13 @@ export async function adicionarTopicoChamadoPainel(
   const incendioCh = String((chamadoFull as { incendio?: string | null }).incendio ?? '').trim();
   const contextoTitulo = temaCh || incendioCh || `Chamado #${numero}`;
 
-  const abertoPorId = String((chamadoFull as { aberto_por?: string | null }).aberto_por ?? '').trim();
   await notificarMencoesSirene({
     mencoesIds,
     plain: desc,
     referenciaPath: `/sirene/${chamadoId}`,
     contextoTitulo,
     autorId: me.userId,
-    extraDestinatarios: [...respIds, abertoPorId].filter(Boolean),
+    extraDestinatarios: respIds,
     sireneChamadoId: chamadoId,
   });
 
