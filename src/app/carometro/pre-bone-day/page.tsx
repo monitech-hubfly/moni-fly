@@ -1423,7 +1423,7 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
       </div>
       {isProjeto && (
         <p className="text-[10px] text-purple-600 bg-purple-50 rounded px-2 py-1">
-          Indicador "Percentual de Evolução até Entrega (%)" será criado automaticamente. Datas serão definidas por quem assumir.
+          Indicador &quot;Percentual de Evolução até Entrega (%)&quot; será criado automaticamente. Datas serão definidas por quem assumir.
         </p>
       )}
       <div className="flex gap-2 justify-end">
