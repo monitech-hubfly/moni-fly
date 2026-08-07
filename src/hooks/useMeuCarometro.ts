@@ -28,9 +28,9 @@ export type SireneSnapshot = {
 };
 
 export type EngajamentoSnapshot = {
-  atividadesAtrasadas: number;
-  atividadesEmDia: number;
-  cards: { atrasados: number; abertos: number; emDia: number };
+  atividades: { relevantes: number; atrasadas: number; score: number | null };
+  cards:      { comSLA: number; atrasados: number; score: number | null };
+  proximas:   { relevantes: number; atrasadas: number; score: number | null };
   score: number | null;
 };
 
@@ -208,16 +208,18 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         score:      sireneScore,
       };
 
-      // ── Engajamento ─────────────────────────────────────────────────────────────
+      // ── Engajamento (3 sub-scores independentes) ────────────────────────────────
+      const engOrKanban = `franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`;
+
       let engajamentoRuntime: EngajamentoSnapshot = {
-        atividadesAtrasadas: 0,
-        atividadesEmDia: 0,
-        cards: { atrasados: 0, abertos: 0, emDia: 0 },
+        atividades: { relevantes: 0, atrasadas: 0, score: null },
+        cards:      { comSLA: 0, atrasados: 0, score: null },
+        proximas:   { relevantes: 0, atrasadas: 0, score: null },
         score: null,
       };
 
       {
-        const [atividadesRes, kanbanRes] = await Promise.all([
+        const [atividadesRes, kanbanRes, proximasRes] = await Promise.all([
           supabase
             .from('backlog_atividades_usuario')
             .select('acao_id, acoes(id, prazo)')
@@ -225,47 +227,94 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           supabase
             .from('kanban_cards')
             .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
-            .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+            .or(engOrKanban)
             .eq('arquivado', false)
             .eq('concluido', false),
+          supabase
+            .from('kanban_cards')
+            .select('id, prazo_atividade')
+            .or(engOrKanban)
+            .eq('arquivado', false)
+            .eq('concluido', false)
+            .not('prazo_atividade', 'is', null),
         ]);
 
+        // Sub-score 1: Atividades Planejadas
         type AcaoRaw = { id: string; prazo: string | null };
         type BauRow  = { acao_id: string; acoes: AcaoRaw | AcaoRaw[] | null };
         const acoes: AcaoRaw[] = ((atividadesRes.data ?? []) as BauRow[])
           .map(r => (Array.isArray(r.acoes) ? r.acoes[0] : r.acoes))
           .filter((a): a is AcaoRaw => a != null);
 
-        const atividadesAtrasadas = acoes.filter(a => a.prazo && a.prazo < hojeStr).length;
-        const atividadesEmDia     = acoes.filter(a => a.prazo && a.prazo >= hojeStr).length;
+        // Atividades sem prazo → data do gantt_planejamento (mais recente)
+        const acoesIdsSemPrazo = acoes.filter(a => !a.prazo).map(a => a.id);
+        const ganttMap = new Map<string, string>();
+        if (acoesIdsSemPrazo.length > 0) {
+          const { data: ganttData } = await supabase
+            .from('gantt_planejamento')
+            .select('acao_id, data')
+            .in('acao_id', acoesIdsSemPrazo);
+          for (const g of (ganttData ?? []) as { acao_id: string; data: string }[]) {
+            const existing = ganttMap.get(g.acao_id);
+            if (!existing || g.data > existing) ganttMap.set(g.acao_id, g.data);
+          }
+        }
 
+        const atividadesComData = acoes.map(a => ({
+          id:   a.id,
+          data: a.prazo ?? ganttMap.get(a.id) ?? null,
+        }));
+        const atividadesRelevantes = atividadesComData.filter(a => a.data && a.data <= hojeStr).length;
+        const atividadesAtrasadas  = atividadesComData.filter(a => a.data && a.data < hojeStr).length;
+        const scoreAtividades = atividadesRelevantes === 0
+          ? null
+          : Math.max(0, Math.round(((atividadesRelevantes - atividadesAtrasadas) / atividadesRelevantes) * 100));
+
+        // Sub-score 2: Cards com SLA
         const kanbanArr = (kanbanRes.data ?? []) as Array<{
           id: string; created_at: string; entered_fase_at: string | null;
           sla_iniciado_em: string | null;
           fase: { sla_dias: number | null; sla_tipo: string | null; slug: string | null } | Array<{ sla_dias: number | null; sla_tipo: string | null; slug: string | null }> | null;
         }>;
-
-        const cardsAtrasados = kanbanArr.filter(c => {
+        const cardsComSLA = kanbanArr.filter(c => {
+          const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
+          return (fase?.sla_dias ?? null) !== null;
+        });
+        const cardsAtrasados = cardsComSLA.filter(c => {
           const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
           return calcularSlaKanbanCard({
-            created_at: c.created_at,
+            created_at:      c.created_at,
             entered_fase_at: c.entered_fase_at,
             sla_iniciado_em: c.sla_iniciado_em,
-            sla_dias: fase?.sla_dias ?? null,
-            sla_tipo: fase?.sla_tipo ?? null,
-            faseSlug: fase?.slug ?? null,
+            sla_dias:        fase?.sla_dias ?? null,
+            sla_tipo:        fase?.sla_tipo ?? null,
+            faseSlug:        fase?.slug     ?? null,
           }).status === 'atrasado';
         }).length;
+        const scoreCards = cardsComSLA.length === 0
+          ? null
+          : Math.max(0, Math.round(((cardsComSLA.length - cardsAtrasados) / cardsComSLA.length) * 100));
 
-        const cardsEmDia = kanbanArr.length - cardsAtrasados;
-        const totalScore = (atividadesAtrasadas + atividadesEmDia) + kanbanArr.length;
-        const emDiaTotal = atividadesEmDia + cardsEmDia;
+        // Sub-score 3: Próximas Atividades (kanban_cards.prazo_atividade)
+        type ProximaRow = { id: string; prazo_atividade: string | null };
+        const proximasArr = (proximasRes.data ?? []) as ProximaRow[];
+        const proxRelevantes = proximasArr.filter(c => c.prazo_atividade && c.prazo_atividade <= hojeStr).length;
+        const proxAtrasadas  = proximasArr.filter(c => c.prazo_atividade && c.prazo_atividade < hojeStr).length;
+        const scoreProximas = proxRelevantes === 0
+          ? null
+          : Math.max(0, Math.round(((proxRelevantes - proxAtrasadas) / proxRelevantes) * 100));
+
+        // Score combinado = média dos sub-scores não-null
+        const subScores = [scoreAtividades, scoreCards, scoreProximas].filter((s): s is number => s !== null);
+        const engScore  = subScores.length === 0
+          ? null
+          : Math.round(subScores.reduce((s, v) => s + v, 0) / subScores.length);
 
         engajamentoRuntime = {
-          atividadesAtrasadas,
-          atividadesEmDia,
-          cards: { atrasados: cardsAtrasados, abertos: kanbanArr.length, emDia: cardsEmDia },
-          score: totalScore === 0 ? null : Math.max(0, Math.round((emDiaTotal / totalScore) * 100)),
+          atividades: { relevantes: atividadesRelevantes, atrasadas: atividadesAtrasadas, score: scoreAtividades },
+          cards:      { comSLA: cardsComSLA.length, atrasados: cardsAtrasados, score: scoreCards },
+          proximas:   { relevantes: proxRelevantes, atrasadas: proxAtrasadas, score: scoreProximas },
+          score:      engScore,
         };
       }
 
@@ -379,10 +428,12 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         semPrazo:  topicosSemPrazo,
       }));
       setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score, {
-        atividadesAtrasadas: engajamentoRuntime.atividadesAtrasadas,
-        atividadesEmDia:     engajamentoRuntime.atividadesEmDia,
-        cardsAtrasados:      engajamentoRuntime.cards.atrasados,
-        cardsEmDia:          engajamentoRuntime.cards.emDia,
+        atividades_relevantes: engajamentoRuntime.atividades.relevantes,
+        atividades_atrasadas:  engajamentoRuntime.atividades.atrasadas,
+        cards_comSLA:          engajamentoRuntime.cards.comSLA,
+        cards_atrasados:       engajamentoRuntime.cards.atrasados,
+        proximas_relevantes:   engajamentoRuntime.proximas.relevantes,
+        proximas_atrasadas:    engajamentoRuntime.proximas.atrasadas,
       }));
       setSemanasIndicadores([
         {

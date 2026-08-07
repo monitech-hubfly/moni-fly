@@ -92,35 +92,54 @@ export async function gerarSnapshotCarometro(
     score:      sireneScore,
   };
 
-  // ── Engajamento (remove gantt, usa backlog_atividades_usuario + kanban) ──────
-  const cutoffDate = new Date(hoje);
-  cutoffDate.setDate(cutoffDate.getDate() - 14);
-  const cutoffStr = cutoffDate.toISOString().slice(0, 10);
-
+  // ── Engajamento (3 sub-scores independentes) ─────────────────────────────────
   const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}},franqueado_id.eq.${profileId}`;
 
-  const [atividadesEngRes, kanbanAbertosRes, kanbanConcluidosRes] = await Promise.all([
+  const [atividadesEngRes, kanbanAbertosRes, proximasEngRes] = await Promise.all([
     db.from('backlog_atividades_usuario')
       .select('acao_id, acoes(id, prazo)')
       .eq('profile_id', profileId),
     db.from('kanban_cards')
       .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
       .or(orKanban).eq('arquivado', false).eq('concluido', false),
-    db.from('kanban_cards').select('id')
-      .or(orKanban).eq('concluido', true).eq('arquivado', false)
-      .gte('concluido_em', cutoffStr),
+    db.from('kanban_cards')
+      .select('id, prazo_atividade')
+      .or(orKanban).eq('arquivado', false).eq('concluido', false)
+      .not('prazo_atividade', 'is', null),
   ]);
 
+  // Sub-score 1: Atividades Planejadas
   type AcaoEngRaw = { id: string; prazo: string | null };
   type BauEngRow  = { acao_id: string; acoes: AcaoEngRaw | AcaoEngRaw[] | null };
   const acoesEng: AcaoEngRaw[] = ((atividadesEngRes.data ?? []) as BauEngRow[])
     .map(r => (Array.isArray(r.acoes) ? r.acoes[0] : r.acoes))
     .filter((a): a is AcaoEngRaw => a != null);
 
-  const atividadesAtrasadas  = acoesEng.filter(a => a.prazo && a.prazo < hojeStr).length;
-  const atividadesEmDia      = acoesEng.filter(a => a.prazo && a.prazo >= hojeStr).length;
-  const cardsConcluidos      = kanbanConcluidosRes.data?.length ?? 0;
+  // Atividades sem prazo → buscar data do gantt_planejamento (data mais recente agendada)
+  const acoesIdsSemPrazo = acoesEng.filter(a => !a.prazo).map(a => a.id);
+  const ganttMap = new Map<string, string>();
+  if (acoesIdsSemPrazo.length > 0) {
+    const { data: ganttData } = await db
+      .from('gantt_planejamento')
+      .select('acao_id, data')
+      .in('acao_id', acoesIdsSemPrazo);
+    for (const g of (ganttData ?? []) as { acao_id: string; data: string }[]) {
+      const existing = ganttMap.get(g.acao_id);
+      if (!existing || g.data > existing) ganttMap.set(g.acao_id, g.data);
+    }
+  }
 
+  const atividadesComData = acoesEng.map(a => ({
+    id:   a.id,
+    data: a.prazo ?? ganttMap.get(a.id) ?? null,
+  }));
+  const atividadesRelevantes = atividadesComData.filter(a => a.data && a.data <= hojeStr).length;
+  const atividadesAtrasadas  = atividadesComData.filter(a => a.data && a.data < hojeStr).length;
+  const scoreAtividades = atividadesRelevantes === 0
+    ? null
+    : Math.max(0, Math.round(((atividadesRelevantes - atividadesAtrasadas) / atividadesRelevantes) * 100));
+
+  // Sub-score 2: Cards com SLA
   type FaseKanban = { sla_dias: number | null; sla_tipo: string | null; slug: string | null };
   type KanbanCardSla = {
     id: string; created_at: string; entered_fase_at: string | null;
@@ -128,7 +147,11 @@ export async function gerarSnapshotCarometro(
   };
 
   const kanbanArr = (kanbanAbertosRes.data ?? []) as KanbanCardSla[];
-  const cardsAtrasados = kanbanArr.filter(c => {
+  const cardsComSLA = kanbanArr.filter(c => {
+    const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
+    return (fase?.sla_dias ?? null) !== null;
+  });
+  const cardsAtrasados = cardsComSLA.filter(c => {
     const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
     return calcularSlaKanbanCard({
       created_at:      c.created_at,
@@ -139,17 +162,30 @@ export async function gerarSnapshotCarometro(
       faseSlug:        fase?.slug     ?? null,
     }).status === 'atrasado';
   }).length;
-  const cardsEmDia = kanbanArr.length - cardsAtrasados;
-  const cardsAbertos = kanbanArr.length;
+  const scoreCards = cardsComSLA.length === 0
+    ? null
+    : Math.max(0, Math.round(((cardsComSLA.length - cardsAtrasados) / cardsComSLA.length) * 100));
 
-  const totalEng  = (atividadesAtrasadas + atividadesEmDia) + cardsAbertos;
-  const emDiaEng  = atividadesEmDia + cardsEmDia;
-  const engScore  = totalEng === 0 ? null : Math.max(0, Math.round((emDiaEng / totalEng) * 100));
+  // Sub-score 3: Próximas Atividades (kanban_cards.prazo_atividade)
+  type ProximaEngRow = { id: string; prazo_atividade: string | null };
+  const proximasArr = (proximasEngRes.data ?? []) as ProximaEngRow[];
+  const proxRelevantes = proximasArr.filter(c => c.prazo_atividade && c.prazo_atividade <= hojeStr).length;
+  const proxAtrasadas  = proximasArr.filter(c => c.prazo_atividade && c.prazo_atividade < hojeStr).length;
+  const scoreProximas = proxRelevantes === 0
+    ? null
+    : Math.max(0, Math.round(((proxRelevantes - proxAtrasadas) / proxRelevantes) * 100));
+
+  // Score combinado = média dos sub-scores não-null (pesos iguais)
+  const engSubScores = [scoreAtividades, scoreCards, scoreProximas].filter((s): s is number => s !== null);
+  const engScore = engSubScores.length === 0
+    ? null
+    : Math.round(engSubScores.reduce((s, v) => s + v, 0) / engSubScores.length);
 
   const engajamentoData = {
-    atividades: { atrasadas: atividadesAtrasadas, emDia: atividadesEmDia },
-    cards: { concluidos: cardsConcluidos, atrasados: cardsAtrasados, abertos: cardsAbertos, emDia: cardsEmDia },
-    score: engScore,
+    atividades: { relevantes: atividadesRelevantes, atrasadas: atividadesAtrasadas, score: scoreAtividades },
+    cards:      { comSLA: cardsComSLA.length, atrasados: cardsAtrasados, score: scoreCards },
+    proximas:   { relevantes: proxRelevantes, atrasadas: proxAtrasadas, score: scoreProximas },
+    score:      engScore,
   };
 
   // ── Indicadores (2 níveis: por meta → por usuário) ────────────────────────

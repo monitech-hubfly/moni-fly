@@ -37,14 +37,20 @@ function DiariosCirculos({ dias }: { dias: DiaStatus[] }) {
   const [aberto, setAberto] = useState<string | null>(null);
 
   const LABEL_MAP: Record<string, string> = {
-    atrasados:           'Atrasados',
-    relevantes:          'Com prazo até hoje',
-    abertos:             'Total abertos',
-    semPrazo:            'Sem prazo',
-    atividadesAtrasadas: 'Ativ. atrasadas',
-    atividadesEmDia:     'Ativ. em dia',
-    cardsAtrasados:      'Cards atrasados',
-    cardsEmDia:          'Cards em dia',
+    // Sirene
+    atrasados:             'Atrasados',
+    relevantes:            'Com prazo até hoje',
+    abertos:               'Total abertos',
+    semPrazo:              'Sem prazo',
+    // Engajamento — atividades
+    atividades_relevantes: 'Ativ. com prazo até hoje',
+    atividades_atrasadas:  'Ativ. atrasadas',
+    // Engajamento — cards
+    cards_comSLA:          'Cards com SLA',
+    cards_atrasados:       'Cards atrasados',
+    // Engajamento — próximas atividades
+    proximas_relevantes:   'Próx. com prazo até hoje',
+    proximas_atrasadas:    'Próx. atrasadas',
   };
 
   return (
@@ -75,7 +81,7 @@ function DiariosCirculos({ dias }: { dias: DiaStatus[] }) {
               {dayLabel(dia.data)} — {dia.score !== null ? `${dia.score}%` : 'Sem dados'}
             </span>
             {dia.detalhe && Object.entries(dia.detalhe)
-              .filter(([k]) => k !== 'score')
+              .filter(([k]) => k !== 'score' && !k.endsWith('_score'))
               .map(([k, v]) => (
                 <div key={k} className="flex justify-between">
                   <span className="text-gray-500">{LABEL_MAP[k] ?? k.replace(/_/g, ' ')}</span>

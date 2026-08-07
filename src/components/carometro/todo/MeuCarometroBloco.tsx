@@ -4,6 +4,17 @@ import { useMeuCarometro } from '@/hooks/useMeuCarometro';
 import { MeuCarometroCard } from './MeuCarometroCard';
 import { SeletorUsuarioAdmin } from './SeletorUsuarioAdmin';
 
+function engScoreColor(score: number | null): string {
+  if (score === null) return '#15803d';
+  if (score >= 75) return '#15803d';
+  if (score >= 60) return '#22c55e';
+  if (score >= 30) return '#ca8a04';
+  return '#dc2626';
+}
+function engScoreLabel(score: number | null): string {
+  return score !== null ? `${score}%` : '100%';
+}
+
 export function MeuCarometroBloco() {
   const {
     sirene,
@@ -69,29 +80,64 @@ export function MeuCarometroBloco() {
             >
               {engajamento && (
                 <>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Ativ. atrasadas</span>
-                    <span className="font-medium" style={{ color: engajamento.atividadesAtrasadas > 0 ? '#dc2626' : undefined }}>
-                      {engajamento.atividadesAtrasadas}
-                    </span>
+                  {/* Atividades Planejadas */}
+                  <div className="flex flex-col gap-1 pb-2 border-b border-gray-100">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600 font-semibold text-[10px] uppercase tracking-wide">Atividades</span>
+                      <span className="font-bold text-[11px]" style={{ color: engScoreColor(engajamento.atividades.score) }}>
+                        {engScoreLabel(engajamento.atividades.score)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Com prazo até hoje</span>
+                      <span className="font-medium">{engajamento.atividades.relevantes}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Atrasadas</span>
+                      <span className="font-medium" style={{ color: engajamento.atividades.atrasadas > 0 ? '#dc2626' : undefined }}>
+                        {engajamento.atividades.atrasadas}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Ativ. em dia</span>
-                    <span className="font-medium" style={{ color: engajamento.atividadesEmDia > 0 ? '#16a34a' : undefined }}>
-                      {engajamento.atividadesEmDia}
-                    </span>
+
+                  {/* Cards com SLA */}
+                  <div className="flex flex-col gap-1 pb-2 border-b border-gray-100">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600 font-semibold text-[10px] uppercase tracking-wide">Cards / Kanban</span>
+                      <span className="font-bold text-[11px]" style={{ color: engScoreColor(engajamento.cards.score) }}>
+                        {engScoreLabel(engajamento.cards.score)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Com SLA abertos</span>
+                      <span className="font-medium">{engajamento.cards.comSLA}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Atrasados</span>
+                      <span className="font-medium" style={{ color: engajamento.cards.atrasados > 0 ? '#dc2626' : undefined }}>
+                        {engajamento.cards.atrasados}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Cards atrasados</span>
-                    <span className="font-medium" style={{ color: engajamento.cards.atrasados > 0 ? '#dc2626' : undefined }}>
-                      {engajamento.cards.atrasados}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Cards em dia</span>
-                    <span className="font-medium" style={{ color: engajamento.cards.emDia > 0 ? '#16a34a' : undefined }}>
-                      {engajamento.cards.emDia}
-                    </span>
+
+                  {/* Próximas Atividades */}
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600 font-semibold text-[10px] uppercase tracking-wide">Próximas Ativ.</span>
+                      <span className="font-bold text-[11px]" style={{ color: engScoreColor(engajamento.proximas.score) }}>
+                        {engScoreLabel(engajamento.proximas.score)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Com prazo até hoje</span>
+                      <span className="font-medium">{engajamento.proximas.relevantes}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Atrasadas</span>
+                      <span className="font-medium" style={{ color: engajamento.proximas.atrasadas > 0 ? '#dc2626' : undefined }}>
+                        {engajamento.proximas.atrasadas}
+                      </span>
+                    </div>
                   </div>
                 </>
               )}

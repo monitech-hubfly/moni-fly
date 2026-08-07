@@ -121,6 +121,7 @@ export function BacklogColunaCard({
               type="button"
               title="Abrir origem"
               onClick={(e) => { e.stopPropagation(); onClickExternal(); }}
+              onPointerDown={(e) => e.stopPropagation()}
               className="text-gray-300 hover:text-gray-500 transition-colors"
             >
               <ExternalLink className="h-3 w-3" />
