@@ -432,17 +432,8 @@ export function ModalAgendamento({
         };
       });
 
-    const pastelaria = backlog.pastelaria.map(p => ({
-      id:        p.id,
-      label:     p.nome,
-      sub:       p.coluna,
-      badge:     'pastelaria',
-      badgeBg:   '#ede9fe',
-      badgeText: '#5b21b6',
-    }));
-
-    return [...sirene, ...pastelaria];
-  }, [backlog.sirene, backlog.pastelaria]);
+    return [...sirene];
+  }, [backlog.sirene]);
 
   const atividItems = useMemo<BacklogItem[]>(() => {
     // Combina não-agendadas (do backlog principal) + já agendadas (collapsible), sem duplicar

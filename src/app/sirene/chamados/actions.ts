@@ -537,3 +537,78 @@ export async function publicarComentarioSireneChamado(
 
   return { ok: true };
 }
+
+/** Busca dados de um sirene_chamado para abrir o SireneChamadoDetalheModal no backlog. */
+export async function buscarDadosModalChamado(
+  chamadoId: number,
+): Promise<{ ok: true; row: import('./InteracoesLista').InteracaoSireneRow } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { data: chamado, error: chamadoErr } = await supabase
+    .from('sirene_chamados')
+    .select('id, numero, incendio, status, criado_em, aberto_por, frank_id, frank_nome, te_trata, trava, arquivado, prioridade')
+    .eq('id', chamadoId)
+    .maybeSingle();
+
+  if (chamadoErr || !chamado) return { ok: false, error: chamadoErr?.message ?? 'Chamado não encontrado.' };
+
+  const c = chamado as {
+    id: number; numero: number; incendio: string | null; status: string | null;
+    criado_em: string; aberto_por: string | null; frank_id: string | null;
+    frank_nome: string | null; te_trata: boolean | null; trava: boolean | null;
+    arquivado: boolean | null; prioridade: string | null;
+  };
+
+  // Tenta encontrar a kanban_atividade vinculada ao chamado
+  const { data: ka } = await supabase
+    .from('kanban_atividades')
+    .select('id, card_id, responsavel_id, responsavel_nome, responsaveis_ids, times_ids, responsavel_nome_texto, criado_por, origem')
+    .eq('sirene_chamado_id', chamadoId)
+    .limit(1)
+    .maybeSingle();
+
+  const kaRow = ka as {
+    id: string; card_id: string | null; responsavel_id: string | null; responsavel_nome: string | null;
+    responsaveis_ids: string[] | null; times_ids: string[] | null; responsavel_nome_texto: string | null;
+    criado_por: string | null; origem: string | null;
+  } | null;
+
+  const row: import('./InteracoesLista').InteracaoSireneRow = {
+    id:                     kaRow?.id ?? `chamado-${chamadoId}`,
+    card_id:                kaRow?.card_id ?? null,
+    card_titulo:            null,
+    fase_nome:              '',
+    kanban_nome:            '',
+    kanban_id:              null,
+    responsavel_id:         kaRow?.responsavel_id ?? null,
+    responsavel_nome:       kaRow?.responsavel_nome ?? null,
+    tipo:                   'sirene_chamado',
+    titulo:                 c.incendio ?? `Chamado #${c.numero}`,
+    descricao:              null,
+    atividade_status:       c.status ?? 'em_andamento',
+    data_vencimento:        null,
+    time_nome:              null,
+    times_nomes:            [],
+    franqueado_nome:        c.frank_nome ?? null,
+    criado_em:              c.criado_em,
+    sla_status:             null,
+    trava:                  Boolean(c.trava),
+    origem:                 kaRow?.origem ?? 'sirene',
+    responsaveis_ids:       Array.isArray(kaRow?.responsaveis_ids) ? (kaRow!.responsaveis_ids as string[]) : [],
+    times_ids:              Array.isArray(kaRow?.times_ids) ? (kaRow!.times_ids as string[]) : [],
+    responsavel_nome_texto: kaRow?.responsavel_nome_texto ?? null,
+    sirene_chamado_id:      chamadoId,
+    sirene_numero:          c.numero,
+    numero:                 c.numero,
+    frank_id:               c.frank_id ?? null,
+    te_trata:               Boolean(c.te_trata),
+    categoria:              'chamado',
+    sirene_arquivado:       Boolean(c.arquivado),
+    criado_por:             kaRow?.criado_por ?? c.aberto_por ?? null,
+    sirene_prioridade:      c.prioridade ?? null,
+  };
+
+  return { ok: true, row };
+}

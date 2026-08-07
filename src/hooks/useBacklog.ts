@@ -35,11 +35,11 @@ export type AtividadeItem = {
   criado_em: string | null;
 };
 
-export type PastelariaItem = {
-  id: string;
-  nome: string;
-  coluna: string;
-  semana_origem: string;
+export type ChamadoPendenteItem = {
+  id: number;
+  numero: number;
+  incendio: string;
+  criado_em: string;
 };
 
 export type AgendaInfo = {
@@ -53,7 +53,7 @@ export type SireneItemAgendada    = SireneItem    & { agendaInfo: AgendaInfo };
 
 export type UseBacklogResult = {
   sirene: SireneItem[];
-  pastelaria: PastelariaItem[];
+  chamadosPendentes: ChamadoPendenteItem[];
   atividades: AtividadeItem[];
   ativoIds: Set<string>;
   atividadesAgendadas: AtividadeItemAgendada[];
@@ -63,7 +63,6 @@ export type UseBacklogResult = {
   recarregar: () => void;
   ativar: (id: string) => Promise<void>;
   desativar: (id: string) => Promise<void>;
-  arquivarPastelaria: (id: string) => Promise<void>;
 };
 
 const ADMIN_EMAIL = 'danilo.n@moni.casa';
@@ -73,7 +72,7 @@ export function useBacklog(): UseBacklogResult {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sirene, setSirene] = useState<SireneItem[]>([]);
-  const [pastelaria, setPastelaria] = useState<PastelariaItem[]>([]);
+  const [chamadosPendentes, setChamadosPendentes] = useState<ChamadoPendenteItem[]>([]);
   const [atividades, setAtividades] = useState<AtividadeItem[]>([]);
   const [ativoIds, setAtivoIds] = useState<Set<string>>(new Set());
   const [atividadesAgendadas, setAtividadesAgendadas] = useState<AtividadeItemAgendada[]>([]);
@@ -129,9 +128,8 @@ export function useBacklog(): UseBacklogResult {
         allAreaIds       = [...new Set(apRows.map(r => r.area_id))];
       }
 
-      // Busca Sirene, Atividades (via tarefas/acoes), Pastelaria em paralelo
-      // Atividades Planejadas não depende mais de gantt_planejamento
-      const [sireneRes, tarefasRes, pastelariaRes] = await Promise.all([
+      // Busca Sirene e Atividades em paralelo
+      const [sireneRes, tarefasRes] = await Promise.all([
         supabase
           .from('sirene_topicos')
           .select(`
@@ -144,7 +142,7 @@ export function useBacklog(): UseBacklogResult {
             chamado_id,
             interacao_id,
             trava,
-            sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado)
+            sirene_chamados(numero, incendio, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado)
           `)
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['nao_iniciado', 'em_andamento'])
@@ -156,20 +154,11 @@ export function useBacklog(): UseBacklogResult {
               .select('id, acoes(id, nome, caneta_verde, prazo, criado_em)')
               .in('area_id', allAreaIds)
           : Promise.resolve({ data: [], error: null }),
-
-        allAreaPessoaIds.length > 0
-          ? supabase
-              .from('pastelaria_cards')
-              .select('id, nome, coluna, semana_origem')
-              .in('responsavel_id', allAreaPessoaIds)
-              .in('coluna', ['inbox', 'mapped', 'doing'])
-              .eq('reclassificado', false)
-          : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (sireneRes.error) throw sireneRes.error;
 
-      type ChamadoRaw = { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null; arquivado: boolean | null } | { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null; arquivado: boolean | null }[] | null;
+      type ChamadoRaw = { numero: string; incendio: string | null; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null; arquivado: boolean | null } | { numero: string; incendio: string | null; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null; arquivado: boolean | null }[] | null;
       type KanbanAtivRaw = {
         id: string;
         card_id: string | null;
@@ -242,7 +231,7 @@ export function useBacklog(): UseBacklogResult {
           id:             row.id,
           tipo:           row.tipo,
           descricao:      row.descricao,
-          chamado_titulo: null,
+          chamado_titulo: chamado?.incendio ?? null,
           data_fim:       row.data_fim,
           prazo_proposto: row.prazo_proposto,
           status:         row.status,
@@ -315,13 +304,36 @@ export function useBacklog(): UseBacklogResult {
           return a.nome.localeCompare(b.nome, 'pt-BR');
         });
 
-      type PastelariaRaw = { id: string; nome: string; coluna: string; semana_origem: string };
-      const pastelariaArr: PastelariaItem[] = ((pastelariaRes.data ?? []) as PastelariaRaw[]).map(row => ({
-        id:            row.id,
-        nome:          row.nome,
-        coluna:        row.coluna,
-        semana_origem: row.semana_origem,
-      }));
+      // Chamados abertos pelo usuário onde todos tópicos ativos estão concluídos/aprovados
+      const chamadosPendentesRes = await supabase
+        .from('sirene_chamados')
+        .select('id, numero, incendio, criado_em, sirene_topicos!chamado_id(status, arquivado)')
+        .eq('aberto_por', effectiveProfileId)
+        .in('status', ['em_andamento', 'aguardando_aprovacao_criador', 'nao_iniciado'])
+        .eq('arquivado', false)
+        .order('criado_em', { ascending: false })
+        .limit(30);
+
+      type ChamadoComTopicosRaw = {
+        id: number;
+        numero: number;
+        incendio: string | null;
+        criado_em: string;
+        sirene_topicos: { status: string; arquivado: boolean }[];
+      };
+
+      const pendentesArr: ChamadoPendenteItem[] = ((chamadosPendentesRes.data ?? []) as ChamadoComTopicosRaw[])
+        .filter(c => {
+          const tops = Array.isArray(c.sirene_topicos) ? c.sirene_topicos : [];
+          const ativos = tops.filter(t => !t.arquivado);
+          return ativos.length > 0 && ativos.every(t => t.status === 'concluido' || t.status === 'aprovado');
+        })
+        .map(c => ({
+          id:        Number(c.id),
+          numero:    Number(c.numero),
+          incendio:  c.incendio ?? `Chamado #${c.numero}`,
+          criado_em: c.criado_em,
+        }));
 
       const { data: ativoData } = await supabase
         .from('backlog_atividades_usuario')
@@ -402,7 +414,7 @@ export function useBacklog(): UseBacklogResult {
 
       if (callId !== callIdRef.current) return;
       setSirene(sireneVisivel);
-      setPastelaria(pastelariaArr);
+      setChamadosPendentes(pendentesArr);
       setAtividades(atividadesVisiveis);
       setAtivoIds(ativoSet);
       setAtividadesAgendadas(atividadesAgendadasArr);
@@ -435,11 +447,6 @@ export function useBacklog(): UseBacklogResult {
     setAtivoIds(prev => { const next = new Set(prev); next.delete(id); return next; });
   }, [supabase]);
 
-  const arquivarPastelaria = useCallback(async (id: string) => {
-    await supabase.from('pastelaria_cards').update({ reclassificado: true }).eq('id', id);
-    setPastelaria(prev => prev.filter(p => p.id !== id));
-  }, [supabase]);
-
   useEffect(() => { carregar(); }, [carregar]);
 
   // Recarrega quando outro hook sinaliza mudança no gantt (agendamento, exclusão, conclusão)
@@ -449,5 +456,5 @@ export function useBacklog(): UseBacklogResult {
     return () => window.removeEventListener('backlog-reload', handler);
   }, [carregar]);
 
-  return { sirene, pastelaria, atividades, ativoIds, atividadesAgendadas, sireneAgendadas, isLoading, error, recarregar: carregar, ativar, desativar, arquivarPastelaria };
+  return { sirene, chamadosPendentes, atividades, ativoIds, atividadesAgendadas, sireneAgendadas, isLoading, error, recarregar: carregar, ativar, desativar };
 }

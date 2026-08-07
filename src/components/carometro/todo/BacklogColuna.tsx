@@ -14,6 +14,8 @@ type BacklogColunaProps = {
   origemBadge?: string;
   href?: string;
   abertoPor?: string | null;
+  descricao?: string | null;
+  onClick?: () => void;
 };
 
 const BORDER_COLOR: Record<StatusPrazo, string> = {
@@ -76,6 +78,8 @@ export function BacklogColunaCard({
   origemBadge,
   href,
   abertoPor,
+  descricao,
+  onClick,
 }: BacklogColunaProps) {
   const borderColor = BORDER_COLOR[status];
   const prazoLabel  = formatarPrazo(prazo, status);
@@ -83,12 +87,18 @@ export function BacklogColunaCard({
 
   return (
     <div
-      className="rounded-md bg-white border border-gray-200 px-3 py-2 text-sm shadow-sm transition-all"
+      className={`rounded-md bg-white border border-gray-200 px-3 py-2 text-sm shadow-sm transition-all ${onClick ? 'cursor-pointer hover:bg-gray-50' : ''}`}
       style={{ borderLeft: `3px solid ${borderColor}` }}
+      onClick={onClick}
     >
-      {/* Linha 1: badge prioridade + título (máx 2 linhas) + dot status + link */}
+      {/* Linha 1: [origem badge][prioridade badge] título | por Aberto | prazo | dot | link */}
       <div className="flex items-start justify-between gap-1.5 min-w-0">
-        <div className="flex items-start gap-1.5 min-w-0 flex-1">
+        <div className="flex items-start gap-1.5 min-w-0 flex-1 flex-wrap">
+          {tipo === 'sirene' && origemBadge && (
+            <span className="shrink-0 text-[10px] font-medium px-1 py-0.5 rounded bg-gray-100 text-gray-500">
+              {origemBadge}
+            </span>
+          )}
           {tipo === 'sirene' && badgeClass && (
             <span className={`shrink-0 text-[10px] font-semibold px-1 py-0.5 rounded ${badgeClass}`}>
               {prioridade!.toUpperCase()}
@@ -100,8 +110,17 @@ export function BacklogColunaCard({
           >
             {titulo}
           </span>
+          {abertoPor && (
+            <span className="text-gray-400 text-xs font-normal">por {abertoPor}</span>
+          )}
+          {numeroChamado && (
+            <span className="text-gray-400 text-xs font-normal">#{numeroChamado}</span>
+          )}
+          <span className={`text-xs ${status === 'atrasado' ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+            {prazoLabel}
+          </span>
         </div>
-        <div className="flex items-center gap-1 shrink-0 mt-1">
+        <div className="flex items-center gap-1 shrink-0 mt-0.5">
           <span className={`h-2 w-2 rounded-full ${DOT_COR[status]}`} />
           {href && (
             <a
@@ -115,21 +134,24 @@ export function BacklogColunaCard({
           )}
         </div>
       </div>
-      {/* Linha 2: badge origem + #número + prazo */}
-      <div className={`mt-1 text-xs flex items-center gap-2 flex-wrap ${status === 'atrasado' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-        {origemBadge && (
-          <span className="shrink-0 text-[10px] font-medium px-1 py-0.5 rounded bg-gray-100 text-gray-500">
-            {origemBadge}
-          </span>
-        )}
-        {numeroChamado && (
-          <span className="text-gray-400 font-normal">#{numeroChamado}</span>
-        )}
-        {abertoPor && (
-          <span className="text-gray-400 font-normal">por {abertoPor}</span>
-        )}
-        <span>{prazoLabel}</span>
-      </div>
+      {/* Linha 2: descrição do tópico (sua atividade) */}
+      {descricao && (
+        <div className="mt-1 text-xs text-gray-500 leading-snug"
+          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {descricao}
+        </div>
+      )}
+      {/* Linha 2 fallback para não-sirene: badge origem + prazo */}
+      {tipo !== 'sirene' && (
+        <div className={`mt-1 text-xs flex items-center gap-2 flex-wrap ${status === 'atrasado' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+          {origemBadge && (
+            <span className="shrink-0 text-[10px] font-medium px-1 py-0.5 rounded bg-gray-100 text-gray-500">
+              {origemBadge}
+            </span>
+          )}
+          <span>{prazoLabel}</span>
+        </div>
+      )}
     </div>
   );
 }

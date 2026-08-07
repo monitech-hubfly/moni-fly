@@ -1,9 +1,19 @@
 'use client';
 
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import React, { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { useBacklog, SireneItem, AtividadeItem, PastelariaItem, AtividadeItemAgendada, SireneItemAgendada } from '@/hooks/useBacklog';
+import { useBacklog, SireneItem, AtividadeItem, ChamadoPendenteItem, AtividadeItemAgendada, SireneItemAgendada } from '@/hooks/useBacklog';
+import { SireneChamadoDetalheModal } from '@/app/sirene/chamados/SireneChamadoDetalheModal';
+import { SireneModalHoras } from '@/app/sirene/chamados/SireneModalHoras';
+import { ClassificacaoConclusaoModal } from '@/app/sirene/chamados/ClassificacaoConclusaoModal';
+import { buscarDadosModalChamado } from '@/app/sirene/chamados/actions';
+import { getTopicosChamado } from '@/app/sirene/actions';
+import { atualizarStatusSubInteracao, type SubInteracaoStatusDb } from '@/lib/actions/card-actions';
+import { atualizarStatusInteracaoSirene, type StatusInteracaoDb } from '@/app/sirene/chamados/actions';
+import { ATIVIDADE_FORM_DRAFT_VAZIO, type AtividadeFormDraft } from '@/components/kanban-shared/KanbanAtividadeFormFields';
+import type { InteracaoSireneRow } from '@/app/sirene/chamados/InteracoesLista';
+import type { TopicoPainelLinha } from '@/app/sirene/actions';
 import { BacklogColunaCard, StatusPrazo } from './BacklogColuna';
 import type { DadosAgendamento } from './ModalAgendamento';
 import { BacklogKanbanColuna } from './BacklogKanbanColuna';
@@ -46,11 +56,6 @@ function statusAtividade(item: AtividadeItem): StatusPrazo {
   const sexta = getSexta();
   if (prazoDate <= sexta) return 'esta_semana';
   return 'futuro';
-}
-
-function statusPastelaria(item: PastelariaItem): StatusPrazo {
-  if (item.coluna === 'doing') return 'esta_semana';
-  return 'sem_prazo';
 }
 
 function getHojeStr(): string {
@@ -495,13 +500,12 @@ function NovaAtividadeDrawer({ areaId, areaIds: areaIdsProp, onFechar, onSaved, 
 type ColunaSireneProps = {
   items: SireneItem[];
   agendadas?: SireneItemAgendada[];
-  pastelariaItems?: PastelariaItem[];
-  onArquivarPastelaria?: (id: string) => Promise<void>;
+  chamadosPendentes?: ChamadoPendenteItem[];
+  onAbrirChamado?: (chamadoId: number) => void;
 };
-function ColunaSirene({ items, agendadas = [], pastelariaItems = [], onArquivarPastelaria }: ColunaSireneProps) {
-  const [pastelariaAberta, setPastelariaAberta] = useState(false);
+function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirChamado }: ColunaSireneProps) {
+  const [pendentesAberta, setPendentesAberta] = useState(false);
   const [agendadasExpand, setAgendadasExpand] = useState(false);
-  const [confirmPastelaria, setConfirmPastelaria] = useState<{ id: string; nome: string } | null>(null);
 
   const comStatus = items
     .map(i => ({ item: i, status: statusSirene(i) }))
@@ -510,7 +514,7 @@ function ColunaSirene({ items, agendadas = [], pastelariaItems = [], onArquivarP
   return (
     <>
       <div className={`flex flex-col gap-1.5 ${comStatus.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
-        {comStatus.length === 0 && pastelariaItems.length === 0 && <EmptyState />}
+        {comStatus.length === 0 && chamadosPendentes.length === 0 && <EmptyState />}
         {comStatus.map(({ item, status }) => {
           const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
           return (
@@ -527,6 +531,7 @@ function ColunaSirene({ items, agendadas = [], pastelariaItems = [], onArquivarP
                 numeroChamado={item.chamado_numero}
                 status={status}
                 origemBadge="Sirene"
+                descricao={item.descricao}
                 href={
                   item.chamado_id
                     ? `/sirene/chamados?id=${item.chamado_id}`
@@ -537,6 +542,11 @@ function ColunaSirene({ items, agendadas = [], pastelariaItems = [], onArquivarP
                         : undefined
                 }
                 abertoPor={item.aberto_por_nome}
+                onClick={
+                  item.chamado_id && onAbrirChamado
+                    ? () => onAbrirChamado(Number(item.chamado_id))
+                    : undefined
+                }
               />
             </DraggableSirene>
           );
@@ -586,61 +596,35 @@ function ColunaSirene({ items, agendadas = [], pastelariaItems = [], onArquivarP
           );
         })()}
 
-        {/* Seção Pastelaria — colapsável */}
-        {pastelariaItems.length > 0 && (
+        {/* Seção Chamados Pendentes Conclusão — colapsável */}
+        {chamadosPendentes.length > 0 && (
           <div className="border-t border-gray-100 pt-1.5 mt-0.5">
             <button
               type="button"
-              onClick={() => setPastelariaAberta(v => !v)}
-              className="w-full text-left text-[10px] text-gray-400 hover:text-gray-600 flex items-center justify-between py-0.5"
+              onClick={() => setPendentesAberta(v => !v)}
+              className="w-full text-left text-[10px] text-amber-600 hover:text-amber-800 flex items-center justify-between py-0.5"
             >
-              <span>Pastelaria ({pastelariaItems.length})</span>
-              <span>{pastelariaAberta ? '▲' : '▼'}</span>
+              <span>⏳ Pendentes Conclusão ({chamadosPendentes.length})</span>
+              <span>{pendentesAberta ? '▲' : '▼'}</span>
             </button>
-            {pastelariaAberta && (
+            {pendentesAberta && (
               <div className="flex flex-col gap-1.5 mt-1.5">
-                {pastelariaItems.map(item => (
-                  <div key={item.id} className="flex items-center gap-1 group">
-                    <div className="flex-1 min-w-0">
-                      <BacklogColunaCard
-                        tipo="sirene"
-                        titulo={item.nome}
-                        prazo={null}
-                        status={statusPastelaria(item)}
-                        origemBadge="Pastelaria"
-                        href="/carometro/pastelaria"
-                      />
-                    </div>
-                    {onArquivarPastelaria && (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmPastelaria({ id: item.id, nome: item.nome })}
-                        title="Remover da Pastelaria"
-                        className="opacity-0 group-hover:opacity-100 shrink-0 text-gray-300 hover:text-red-400 text-xs px-1 py-1 transition-opacity"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
+                {chamadosPendentes.map(item => (
+                  <BacklogColunaCard
+                    key={item.id}
+                    tipo="sirene"
+                    titulo={item.incendio}
+                    prazo={item.criado_em.slice(0, 10)}
+                    status="esta_semana"
+                    origemBadge="Sirene"
+                    onClick={onAbrirChamado ? () => onAbrirChamado(item.id) : undefined}
+                  />
                 ))}
               </div>
             )}
           </div>
         )}
       </div>
-
-      <ConfirmModal
-        open={!!confirmPastelaria}
-        title="Remover da Pastelaria"
-        description={`Deseja remover "${confirmPastelaria?.nome ?? ''}" do backlog? O item será arquivado.`}
-        confirmLabel="Remover"
-        destructive
-        onConfirm={() => {
-          if (confirmPastelaria) void onArquivarPastelaria?.(confirmPastelaria.id);
-          setConfirmPastelaria(null);
-        }}
-        onClose={() => setConfirmPastelaria(null)}
-      />
     </>
   );
 }
@@ -668,8 +652,7 @@ function DraggableAtividade({ id, children }: { id: string; children: ReactNode 
 }
 
 type DragSireneData =
-  | { type: 'sirene';    id: string; titulo: string; chamado_id: string | null }
-  | { type: 'pastelaria'; id: string; titulo: string };
+  | { type: 'sirene'; id: string; titulo: string; chamado_id: string | null };
 
 function DraggableSirene({ dragId, dragData, children }: { dragId: string; dragData: DragSireneData; children: ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -689,6 +672,161 @@ function DraggableSirene({ dragId, dragData, children }: { dragId: string; dragD
     >
       {children}
     </div>
+  );
+}
+
+// ── Helpers para modal Sirene ─────────────────────────────────────────────────
+function statusDbParaSelect(s: string): StatusInteracaoDb {
+  const x = String(s ?? '').trim().toLowerCase();
+  if (x === 'concluida' || x === 'concluída') return 'concluida';
+  if (x === 'em_andamento') return 'em_andamento';
+  return 'pendente';
+}
+
+function badgeTipoHelper(tipo: string): { label: string; className: string } {
+  const t = String(tipo ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (t === 'duvida') return { label: 'Dúvida', className: 'border-blue-200 bg-blue-50 text-blue-800' };
+  if (t === 'reclamacao') return { label: 'Reclamação', className: 'border-red-200 bg-red-50 text-red-800' };
+  if (t === 'sugestao') return { label: 'Sugestão', className: 'border-green-200 bg-green-50 text-green-800' };
+  return { label: tipo || 'Chamado', className: 'border-gray-200 bg-gray-50 text-gray-700' };
+}
+
+// ── SireneChamadoBacklogWrapper ───────────────────────────────────────────────
+type SireneChamadoBacklogWrapperProps = {
+  chamadoId: number;
+  onClose: () => void;
+};
+
+function SireneChamadoBacklogWrapper({ chamadoId, onClose }: SireneChamadoBacklogWrapperProps) {
+  const supabase = useMemo(() => createClient(), []);
+  const [row, setRow] = useState<InteracaoSireneRow | null>(null);
+  const [topicos, setTopicos] = useState<TopicoPainelLinha[]>([]);
+  const [topicosLoading, setTopicosLoading] = useState(true);
+  const [novaAtivDraft, setNovaAtivDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [podeArquivar, setPodeArquivar] = useState(false);
+  const [sessionRole, setSessionRole] = useState('');
+  const [pending, setPending] = useState(false);
+  const [horasModal, setHorasModal] = useState<{ chamadoId: number; titulo: string } | null>(null);
+  const [classificacaoPendente, setClassificacaoPendente] = useState<{ topicoId: number } | null>(null);
+  const [subStatusPendente, setSubStatusPendente] = useState<{ topicoId: number; status: SubInteracaoStatusDb } | null>(null);
+  const skipHorasRef = useRef(false);
+
+  useEffect(() => {
+    void buscarDadosModalChamado(chamadoId).then(r => { if (r.ok) setRow(r.row); });
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setCurrentUserId(user.id);
+      const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      const role = String((prof as { role?: string | null } | null)?.role ?? '').toLowerCase();
+      setPodeArquivar(role === 'admin' || role === 'team');
+      setSessionRole(role);
+    })();
+  }, [chamadoId, supabase]);
+
+  const reloadTopicos = useCallback(async () => {
+    setTopicosLoading(true);
+    const res = await getTopicosChamado(chamadoId);
+    if (res.ok) setTopicos(res.topicos);
+    setTopicosLoading(false);
+  }, [chamadoId]);
+
+  useEffect(() => { void reloadTopicos(); }, [reloadTopicos]);
+
+  async function handleSubStatus(topicoId: number, status: SubInteracaoStatusDb) {
+    if (status === 'concluido' && !skipHorasRef.current && row?.sirene_chamado_id != null) {
+      setHorasModal({ chamadoId: row.sirene_chamado_id, titulo: row.titulo });
+      setSubStatusPendente({ topicoId, status });
+      return;
+    }
+    if (status === 'concluido') {
+      setClassificacaoPendente({ topicoId });
+      return;
+    }
+    setPending(true);
+    await atualizarStatusSubInteracao(String(topicoId), status, '/carometro/todo-planning', true);
+    setPending(false);
+    void reloadTopicos();
+    window.dispatchEvent(new CustomEvent('backlog-reload'));
+  }
+
+  async function concluirComClassificacao(classificacao: 'pontual' | 'recorrente') {
+    if (!classificacaoPendente) return;
+    setPending(true);
+    await atualizarStatusSubInteracao(
+      String(classificacaoPendente.topicoId), 'concluido', '/carometro/todo-planning', true, classificacao,
+    );
+    setPending(false);
+    setClassificacaoPendente(null);
+    void reloadTopicos();
+    window.dispatchEvent(new CustomEvent('backlog-reload'));
+  }
+
+  if (!row) return null;
+
+  return (
+    <>
+      <SireneChamadoDetalheModal
+        row={row}
+        onClose={onClose}
+        topicos={topicos}
+        topicosLoading={topicosLoading}
+        nomePorUserId={new Map()}
+        textoResponsavel={row.responsavel_nome ?? row.responsavel_nome_texto ?? ''}
+        parseTimesNomes={(raw) => Array.isArray(raw) ? raw.map(x => String(x)) : []}
+        statusSelect={statusDbParaSelect(row.atividade_status)}
+        temSubAberta={topicos.some(t => t.status !== 'concluido' && t.status !== 'aprovado')}
+        pending={pending}
+        onStatusChange={async (id, status) => {
+          setPending(true);
+          await atualizarStatusInteracaoSirene(id, status);
+          setPending(false);
+          window.dispatchEvent(new CustomEvent('backlog-reload'));
+        }}
+        onSubStatusChange={(topicoId, status) => void handleSubStatus(topicoId, status)}
+        podeArquivar={podeArquivar}
+        badgeTipo={badgeTipoHelper(row.tipo)}
+        times={[]}
+        responsaveis={[]}
+        novaAtivDraft={novaAtivDraft}
+        setNovaAtivDraft={setNovaAtivDraft}
+        onAdicionarAtividade={() => { /* não implementado no backlog */ }}
+        salvandoNovaAtividade={false}
+        currentUserId={currentUserId}
+        sessionEhAdmin={podeArquivar}
+        sessionRole={sessionRole}
+        onRecarregarTopicos={reloadTopicos}
+      />
+      {horasModal && (
+        <SireneModalHoras
+          chamadoId={horasModal.chamadoId}
+          titulo={horasModal.titulo}
+          onClose={() => { setHorasModal(null); setSubStatusPendente(null); }}
+          onSaved={() => {
+            setHorasModal(null);
+            if (subStatusPendente) {
+              skipHorasRef.current = true;
+              void handleSubStatus(subStatusPendente.topicoId, subStatusPendente.status).finally(() => {
+                skipHorasRef.current = false;
+              });
+              setSubStatusPendente(null);
+            }
+          }}
+        />
+      )}
+      {classificacaoPendente && (
+        <ClassificacaoConclusaoModal
+          nomeAtividade={
+            topicos.find(t => t.id === classificacaoPendente.topicoId)?.descricao ??
+            `Tópico #${classificacaoPendente.topicoId}`
+          }
+          onEscolher={concluirComClassificacao}
+          pending={pending}
+          chamadoId={chamadoId}
+        />
+      )}
+    </>
   );
 }
 
@@ -798,9 +936,10 @@ type BacklogBlocoProps = {
 };
 
 export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
-  const { sirene, pastelaria, atividades, ativoIds, atividadesAgendadas, sireneAgendadas, isLoading, error, recarregar, ativar, desativar, arquivarPastelaria } = useBacklog();
+  const { sirene, chamadosPendentes, atividades, ativoIds, atividadesAgendadas, sireneAgendadas, isLoading, error, recarregar, ativar, desativar } = useBacklog();
   const { areaId, areaIds } = useEffectiveUser();
   const [drawerAberto, setDrawerAberto] = useState(false);
+  const [chamadoModalId, setChamadoModalId] = useState<number | null>(null);
 
   // Apenas acoes que o usuário ativou
   const atividadesAtivas = atividades.filter(i => ativoIds.has(i.id));
@@ -830,10 +969,10 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-4">
-          {/* Coluna 1 — Sirene / Pastelaria */}
+          {/* Coluna 1 — Sirene */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-600">Sirene / Pastelaria</span>
+              <span className="text-sm font-medium text-gray-600">Sirene</span>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5">
                   <StatusDot cor="bg-red-500"   count={sireneAtrasados} />
@@ -841,11 +980,16 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
                   <StatusDot cor="bg-gray-400"  count={sireneFuturos} />
                 </div>
                 <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
-                  {sirene.length + pastelaria.length}
+                  {sirene.length + chamadosPendentes.length}
                 </span>
               </div>
             </div>
-            <ColunaSirene items={sirene} agendadas={sireneAgendadas} pastelariaItems={pastelaria} onArquivarPastelaria={arquivarPastelaria} />
+            <ColunaSirene
+              items={sirene}
+              agendadas={sireneAgendadas}
+              chamadosPendentes={chamadosPendentes}
+              onAbrirChamado={setChamadoModalId}
+            />
           </div>
 
           {/* Coluna 2 — Atividades Planejadas */}
@@ -893,6 +1037,12 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
           onSaved={recarregar}
           ativoIds={ativoIds}
           onAtivar={ativar}
+        />
+      )}
+      {chamadoModalId != null && (
+        <SireneChamadoBacklogWrapper
+          chamadoId={chamadoModalId}
+          onClose={() => { setChamadoModalId(null); void recarregar(); }}
         />
       )}
     </section>
