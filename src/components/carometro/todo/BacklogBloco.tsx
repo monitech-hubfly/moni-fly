@@ -531,15 +531,20 @@ function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirCh
                 numeroChamado={item.chamado_numero}
                 status={status}
                 origemBadge="Sirene"
-                descricao={item.descricao}
+                descricao={item.chamado_titulo ? item.descricao : null}
+                onClickExternal={
+                  item.chamado_id && onAbrirChamado
+                    ? () => onAbrirChamado(Number(item.chamado_id))
+                    : undefined
+                }
                 href={
-                  item.chamado_id
-                    ? `/sirene/chamados?id=${item.chamado_id}`
-                    : item.interacao_id
-                      ? `/sirene/chamados?interacao=${item.interacao_id}`
-                      : item.card_id
-                        ? hrefAbrirCardKanban(item.card_kanban_nome ?? '', item.card_id)
-                        : undefined
+                  !item.chamado_id
+                    ? (item.interacao_id
+                        ? `/sirene/chamados?interacao=${item.interacao_id}`
+                        : item.card_id
+                          ? hrefAbrirCardKanban(item.card_kanban_nome ?? '', item.card_id)
+                          : undefined)
+                    : undefined
                 }
                 abertoPor={item.aberto_por_nome}
                 onClick={
