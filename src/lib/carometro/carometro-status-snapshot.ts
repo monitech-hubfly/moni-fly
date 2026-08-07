@@ -73,9 +73,16 @@ export async function gerarSnapshotCarometro(
     if (!prazo) return false;
     return new Date(prazo) < hoje;
   }).length;
-  const sireneScore = topicosArr.length === 0
+  // Relevantes = vencendo hoje + atrasados (prazo <= hoje)
+  // Tópicos com prazo futuro ou sem prazo não entram no denominador
+  const sireneRelevantes = topicosArr.filter(t => {
+    const prazo = (t.data_fim || t.prazo_proposto) as string | null;
+    if (!prazo) return false;
+    return new Date(prazo) <= hoje;
+  }).length;
+  const sireneScore = sireneRelevantes === 0
     ? null
-    : Math.max(0, Math.round(((topicosArr.length - sireneAtrasados) / topicosArr.length) * 100));
+    : Math.max(0, Math.round(((sireneRelevantes - sireneAtrasados) / sireneRelevantes) * 100));
 
   const sireneData = {
     atrasados: sireneAtrasados,

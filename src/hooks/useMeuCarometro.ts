@@ -187,11 +187,17 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         if (!prazo) return false;
         return new Date(prazo) < hoje;
       }).length;
-      // Score: % de abertos que estão no prazo (abertos - atrasados) / abertos
+      // Score: vencendo hoje + atrasados no denominador (prazo <= hoje)
+      // Tópicos com prazo futuro ou sem prazo não afetam o score
+      const topicosRelevantes = topicosArr.filter(t => {
+        const prazo = (t.data_fim || t.prazo_proposto) as string | null;
+        if (!prazo) return false;
+        return new Date(prazo) <= hoje;
+      }).length;
       const sireneScore =
-        topicosArr.length === 0
+        topicosRelevantes === 0
           ? null
-          : Math.max(0, Math.round(((topicosArr.length - topicosAtrasados) / topicosArr.length) * 100));
+          : Math.max(0, Math.round(((topicosRelevantes - topicosAtrasados) / topicosRelevantes) * 100));
 
       const sireneRuntime: SireneSnapshot = {
         atrasados: topicosAtrasados,
