@@ -189,6 +189,13 @@ export function MeuCarometroCard({
 
       <hr className="border-gray-100" />
 
+      {/* Resumo sempre visível para sirene/engajamento — não duplica com o popup do dia */}
+      {children && tipo !== 'indicadores' && (
+        <div className="text-xs text-gray-600 flex flex-col gap-1">
+          {children}
+        </div>
+      )}
+
       <button
         type="button"
         onClick={() => setExpandido(v => !v)}
@@ -206,7 +213,8 @@ export function MeuCarometroCard({
           {tipo === 'indicadores' && semanasIndicadores && semanasIndicadores.length > 0 && (
             <SemanaisCirculos semanas={semanasIndicadores} />
           )}
-          {children && (
+          {/* Para indicadores, children ficam dentro do expandido */}
+          {tipo === 'indicadores' && children && (
             <div className="text-xs text-gray-600 flex flex-col gap-1 pt-1 border-t border-gray-50">
               {children}
             </div>
