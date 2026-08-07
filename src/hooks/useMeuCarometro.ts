@@ -234,7 +234,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       };
 
       // ── Engajamento (3 sub-scores independentes) ────────────────────────────────
-      const engOrKanban = `franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`;
+      // franqueado_id excluído: franqueado = cliente, não quem executa o trabalho
+      const engOrKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`;
 
       let engajamentoRuntime: EngajamentoSnapshot = {
         atividades: { relevantes: 0, atrasadas: 0, score: null },

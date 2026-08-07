@@ -938,13 +938,13 @@ function ColunaAtividades({ items, agendadas = [], onDesativar }: ColunaAtividad
 // ── BacklogBloco ──────────────────────────────────────────────────────────────
 type BacklogBlocoProps = {
   onAbrirModal?: (preenchido: Partial<DadosAgendamento>) => void;
+  onAbrirChamado?: (id: number) => void;
 };
 
-export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
+export function BacklogBloco({ onAbrirModal, onAbrirChamado }: BacklogBlocoProps = {}) {
   const { sirene, chamadosPendentes, atividades, ativoIds, atividadesAgendadas, sireneAgendadas, isLoading, error, recarregar, ativar, desativar } = useBacklog();
   const { areaId, areaIds } = useEffectiveUser();
   const [drawerAberto, setDrawerAberto] = useState(false);
-  const [chamadoModalId, setChamadoModalId] = useState<number | null>(null);
 
   // Apenas acoes que o usuário ativou
   const atividadesAtivas = atividades.filter(i => ativoIds.has(i.id));
@@ -993,7 +993,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
               items={sirene}
               agendadas={sireneAgendadas}
               chamadosPendentes={chamadosPendentes}
-              onAbrirChamado={setChamadoModalId}
+              onAbrirChamado={onAbrirChamado}
             />
           </div>
 
@@ -1042,12 +1042,6 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
           onSaved={recarregar}
           ativoIds={ativoIds}
           onAtivar={ativar}
-        />
-      )}
-      {chamadoModalId != null && (
-        <SireneChamadoBacklogWrapper
-          chamadoId={chamadoModalId}
-          onClose={() => { setChamadoModalId(null); void recarregar(); }}
         />
       )}
     </section>

@@ -116,7 +116,8 @@ export async function gerarSnapshotCarometro(
   };
 
   // ── Engajamento (3 sub-scores independentes) ─────────────────────────────────
-  const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}},franqueado_id.eq.${profileId}`;
+  // franqueado_id excluído: franqueado = cliente, não quem executa o trabalho
+  const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`;
 
   const [atividadesEngRes, kanbanAbertosRes, proximasEngRes] = await Promise.all([
     db.from('backlog_atividades_usuario')

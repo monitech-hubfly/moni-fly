@@ -5,7 +5,6 @@ import { useDroppable } from '@dnd-kit/core';
 import { useAgenda, AtividadeAgenda, DiaAgenda } from '@/hooks/useAgenda';
 import { createClient } from '@/lib/supabase/client';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
-import { SireneChamadoBacklogWrapper } from './BacklogBloco';
 import type { DadosAgendamento } from './ModalAgendamento';
 import type { RecorrenciaEscopo } from '@/hooks/useModalAgendamento';
 
@@ -395,11 +394,12 @@ function DialogEscopoRecorrencia({
 type AgendaBlocoProps = {
   onAbrirModal: (preenchido: Partial<DadosAgendamento>) => void;
   onAbrirParaEditar: (id: string, escopo?: RecorrenciaEscopo) => void;
+  onAbrirChamado?: (id: number) => void;
   refreshKey?: number;
 };
 
 // ── AgendaBloco ───────────────────────────────────────────────────────────────
-export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }: AgendaBlocoProps) {
+export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, onAbrirChamado, refreshKey = 0 }: AgendaBlocoProps) {
   const {
     atividades, diasDaSemana, semanaLabel, semanaOffset,
     isLoading, error, navegar, irParaHoje, concluir, desconcluir, atualizarHorario,
@@ -408,7 +408,6 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
   const supabase = useMemo(() => createClient(), []);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [pendingEditar, setPendingEditar] = useState<{ id: string } | null>(null);
-  const [chamadoModalId, setChamadoModalId] = useState<number | null>(null);
 
   const handleAbrirParaEditar = useCallback((id: string) => {
     const atv = atividades.find(a => a.id === id);
@@ -549,7 +548,7 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
           state={dialogState}
           onConcluir={() => { void handleConfirmarConcluir(); }}
           onFechar={() => setDialogState(null)}
-          onAbrirChamado={setChamadoModalId}
+          onAbrirChamado={onAbrirChamado}
         />
       )}
 
@@ -558,14 +557,6 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
         <DialogEscopoRecorrencia
           onSelecionarEscopo={handleEscopoSelecionado}
           onFechar={() => setPendingEditar(null)}
-        />
-      )}
-
-      {/* Modal inline do chamado Sirene (abre sem navegar) */}
-      {chamadoModalId != null && (
-        <SireneChamadoBacklogWrapper
-          chamadoId={chamadoModalId}
-          onClose={() => setChamadoModalId(null)}
         />
       )}
     </section>
