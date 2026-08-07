@@ -90,6 +90,8 @@ const DEFERRED_ENRICHMENT_KEYS = [
   'calculadora_sla_estourado',
   'calculadora_atraso_dias',
   'calculadora_atraso_tipo',
+  'proxima_atividade',
+  'prazo_atividade',
 ] as const satisfies readonly (keyof KanbanCardBrief)[];
 
 function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): KanbanCardBrief {
@@ -112,6 +114,11 @@ function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): Kanb
     origem: 'nativo',
     data_reuniao: dataIsoParaInput(c.data_reuniao),
     data_followup: dataIsoParaInput(c.data_followup),
+    proxima_atividade:
+      (c as { proxima_atividade?: string | null }).proxima_atividade ?? null,
+    prazo_atividade: dataIsoParaInput(
+      (c as { prazo_atividade?: string | null }).prazo_atividade,
+    ),
     entered_fase_at:
       (c as { entered_fase_at?: string | null }).entered_fase_at != null
         ? String((c as { entered_fase_at?: string | null }).entered_fase_at)
@@ -1962,6 +1969,8 @@ function mapNativeRowToEnrichmentBrief(
     credito_obra_ok: Boolean(row.credito_obra_ok),
     projetos_legais_ok: (row.projetos_legais_ok as boolean | null) ?? null,
     projetos_locais_ok: (row.projetos_locais_ok as boolean | null) ?? null,
+    proxima_atividade: (row.proxima_atividade as string | null) ?? null,
+    prazo_atividade: dataIsoParaInput(row.prazo_atividade),
   };
 }
 
@@ -1991,7 +2000,7 @@ export async function fetchKanbanBoardEnrichmentPatches(
   let q = supabase
     .from('kanban_cards')
     .select(
-      'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, projeto_id, arquivado, concluido, concluido_em, entered_fase_at, sla_iniciado_em, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, projetos_legais_ok, projetos_locais_ok',
+      'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, projeto_id, arquivado, concluido, concluido_em, entered_fase_at, sla_iniciado_em, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, projetos_legais_ok, projetos_locais_ok, proxima_atividade, prazo_atividade',
     )
     .eq('kanban_id', kid)
     .eq('status', 'ativo')

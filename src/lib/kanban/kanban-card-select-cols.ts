@@ -69,6 +69,8 @@ export const KANBAN_CARD_SELECT_BOARD_FAST = `
       origem_card_id,
       data_reuniao,
       data_followup,
+      proxima_atividade,
+      prazo_atividade,
       sla_iniciado_em,
       entered_fase_at
     `;
