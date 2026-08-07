@@ -95,7 +95,7 @@ export function MeuCarometroBloco() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Com prazo até hoje</span>
+                      <span className="text-gray-500">Agendadas até hoje</span>
                       <span className="font-medium">{engajamento.atividades.relevantes}</span>
                     </div>
                     <div className="flex justify-between">

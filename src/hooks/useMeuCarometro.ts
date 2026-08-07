@@ -245,11 +245,12 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       };
 
       {
-        const [atividadesRes, kanbanRes, proximasRes] = await Promise.all([
+        const [ganttRes, kanbanRes, proximasRes] = await Promise.all([
           supabase
-            .from('backlog_atividades_usuario')
-            .select('acao_id, acoes(id, prazo)')
-            .eq('profile_id', effectiveProfileId),
+            .from('gantt_planejamento')
+            .select('id, data, data_conclusao_real')
+            .eq('profile_id', effectiveProfileId)
+            .lte('data', hojeStr),
           supabase
             .from('kanban_cards')
             .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
@@ -265,33 +266,12 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .not('prazo_atividade', 'is', null),
         ]);
 
-        // Sub-score 1: Atividades Planejadas
-        type AcaoRaw = { id: string; prazo: string | null };
-        type BauRow  = { acao_id: string; acoes: AcaoRaw | AcaoRaw[] | null };
-        const acoes: AcaoRaw[] = ((atividadesRes.data ?? []) as BauRow[])
-          .map(r => (Array.isArray(r.acoes) ? r.acoes[0] : r.acoes))
-          .filter((a): a is AcaoRaw => a != null);
-
-        // Atividades sem prazo → data do gantt_planejamento (mais recente)
-        const acoesIdsSemPrazo = acoes.filter(a => !a.prazo).map(a => a.id);
-        const ganttMap = new Map<string, string>();
-        if (acoesIdsSemPrazo.length > 0) {
-          const { data: ganttData } = await supabase
-            .from('gantt_planejamento')
-            .select('acao_id, data')
-            .in('acao_id', acoesIdsSemPrazo);
-          for (const g of (ganttData ?? []) as { acao_id: string; data: string }[]) {
-            const existing = ganttMap.get(g.acao_id);
-            if (!existing || g.data > existing) ganttMap.set(g.acao_id, g.data);
-          }
-        }
-
-        const atividadesComData = acoes.map(a => ({
-          id:   a.id,
-          data: a.prazo ?? ganttMap.get(a.id) ?? null,
-        }));
-        const atividadesRelevantes = atividadesComData.filter(a => a.data && a.data <= hojeStr).length;
-        const atividadesAtrasadas  = atividadesComData.filter(a => a.data && a.data < hojeStr).length;
+        // Sub-score 1: Atividades da Agenda (gantt_planejamento)
+        type GanttRow = { id: string; data: string; data_conclusao_real: string | null };
+        const ganttArr = (ganttRes.data ?? []) as GanttRow[];
+        const atividadesRelevantes = ganttArr.length;
+        // Atrasada = agendada antes de hoje E ainda não concluída
+        const atividadesAtrasadas  = ganttArr.filter(g => g.data < hojeStr && !g.data_conclusao_real).length;
         const scoreAtividades = atividadesRelevantes === 0
           ? null
           : Math.max(0, Math.round(((atividadesRelevantes - atividadesAtrasadas) / atividadesRelevantes) * 100));
