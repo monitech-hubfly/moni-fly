@@ -37,6 +37,9 @@ export type AgendaMacroItem = {
 export type ObjetivoResponsavel = {
   objetivo_id: string;
   profile_id: string;
+  data_inicio: string | null;
+  data_fim: string | null;
+  dias_uteis: number | null;
 };
 
 function mesAtualStr(): string {
@@ -199,7 +202,7 @@ export function usePlanoBoneDay(
       if (objIds.length > 0) {
         const { data: orData } = await supabase
           .from('objetivo_responsaveis')
-          .select('objetivo_id, profile_id')
+          .select('objetivo_id, profile_id, data_inicio, data_fim, dias_uteis')
           .in('objetivo_id', objIds);
         setObjetivoResponsaveis((orData ?? []) as ObjetivoResponsavel[]);
       } else {

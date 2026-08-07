@@ -70,6 +70,7 @@ export type ModalAgendamentoProps = {
   isSaving?: boolean;
   erroSalvar?: string | null;
   origemInfo?: OrigemInfo;
+  editandoId?: string | null;
 };
 
 // ── Utilidades ────────────────────────────────────────────────────────────────
@@ -329,7 +330,7 @@ type BacklogItem = {
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
 export function ModalAgendamento({
-  aberto, onFechar, onSalvar, onExcluir, preenchido, modo, profileId, areaId, isSaving, erroSalvar, origemInfo,
+  aberto, onFechar, onSalvar, onExcluir, preenchido, modo, profileId, areaId, isSaving, erroSalvar, origemInfo, editandoId,
 }: ModalAgendamentoProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -364,6 +365,8 @@ export function ModalAgendamento({
   const [confirmarExcluir, setConfirmarExcluir] = useState(false);
   const [externEmail,      setExternEmail]      = useState('');
   const [gerandoMeet,      setGerandoMeet]      = useState(false);
+  const [rsvpStatus,       setRsvpStatus]       = useState<Map<string, string>>(new Map());
+  const [enviandoConvite,  setEnviandoConvite]  = useState(false);
   const [metaDefinida,     setMetaDefinida]     = useState(false);
   const [partAbertas,      setPartAbertas]      = useState([true, false]); // [internos, externos]
   const [buscaInternos,    setBuscaInternos]    = useState('');
@@ -375,6 +378,34 @@ export function ModalAgendamento({
 
   const preenchidoRef = useRef(preenchido);
   preenchidoRef.current = preenchido;
+
+  // ── RSVP: carrega status ao abrir em modo edição ──────────────────────────
+  useEffect(() => {
+    if (modo !== 'editar' || !editandoId) { setRsvpStatus(new Map()); return; }
+    void supabase
+      .from('gantt_rsvp_externos')
+      .select('email, status')
+      .eq('gantt_id', editandoId)
+      .then(({ data }) => {
+        const m = new Map<string, string>();
+        for (const r of (data ?? []) as { email: string; status: string }[]) m.set(r.email, r.status);
+        setRsvpStatus(m);
+      });
+  }, [editandoId, modo, supabase]);
+
+  const reenviarConvites = async () => {
+    if (!editandoId || form.participantes_externos.length === 0) return;
+    setEnviandoConvite(true);
+    try {
+      await fetch('/api/agenda/invite-externos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gantt_id: editandoId }),
+      });
+    } finally {
+      setEnviandoConvite(false);
+    }
+  };
 
   // ── Listas derivadas dos hooks (mesma ordenação e dados do backlog) ───────
   const sireneItems = useMemo<BacklogItem[]>(() => {
@@ -1241,14 +1272,32 @@ export function ModalAgendamento({
                     </button>
                   </div>
                   {form.participantes_externos.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {form.participantes_externos.map(email => (
-                        <span key={email} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
-                          {email}
-                          <button type="button" onClick={() => removeExterno(email)}
-                            className="text-gray-400 hover:text-red-500 leading-none">×</button>
-                        </span>
-                      ))}
+                    <div className="mt-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {form.participantes_externos.map(email => {
+                          const st = rsvpStatus.get(email);
+                          const badge = st === 'aceito' ? { icon: '✓', cls: 'text-green-600 bg-green-50 border-green-200' }
+                                      : st === 'recusado' ? { icon: '✗', cls: 'text-red-500 bg-red-50 border-red-200' }
+                                      : st === 'pendente' ? { icon: '?', cls: 'text-amber-600 bg-amber-50 border-amber-200' }
+                                      : null;
+                          return (
+                            <span key={email} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                              {badge && (
+                                <span className={`text-[10px] px-1 rounded font-semibold border ${badge.cls}`}>{badge.icon}</span>
+                              )}
+                              {email}
+                              <button type="button" onClick={() => removeExterno(email)}
+                                className="text-gray-400 hover:text-red-500 leading-none">×</button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                      {modo === 'editar' && editandoId && (
+                        <button type="button" onClick={reenviarConvites} disabled={enviandoConvite}
+                          className="mt-2 text-[11px] text-blue-600 hover:text-blue-800 disabled:opacity-50 transition-colors">
+                          {enviandoConvite ? 'Enviando…' : '📧 Reenviar convites'}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1259,10 +1308,22 @@ export function ModalAgendamento({
           {/* ── Link / Local da reunião ── */}
           <Secao titulo="Link / Local da reunião" aberta={abertas[3]} onToggle={() => toggleSecao(3)}>
             <div className="flex gap-1.5 mt-1">
-              <input type="url" className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                placeholder="https://meet.google.com/ ou endereço físico"
-                value={form.link_reuniao ?? ''}
-                onChange={e => set('link_reuniao', e.target.value || null)} />
+              <div className="flex-1 relative">
+                <input type="url" className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 pr-8"
+                  placeholder="https://meet.google.com/ ou endereço físico"
+                  value={form.link_reuniao ?? ''}
+                  onChange={e => set('link_reuniao', e.target.value || null)} />
+                {form.link_reuniao && (
+                  <a href={form.link_reuniao} target="_blank" rel="noopener noreferrer"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700"
+                    title="Abrir link">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
+                      <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
+                    </svg>
+                  </a>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={gerarMeet}

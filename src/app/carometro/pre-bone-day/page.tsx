@@ -25,17 +25,40 @@ function formatarDataCurta(iso: string | null): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+// ── Helper: % esperado de um projeto com base em dias úteis decorridos ──────
+function calcularEsperadoPct(dataInicio: string | null, dataFim: string | null, diasUteis: number | null): number | null {
+  if (!dataInicio || !dataFim || !diasUteis || diasUteis <= 0) return null;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const inicio = new Date(dataInicio + 'T00:00:00');
+  const fim    = new Date(dataFim    + 'T00:00:00');
+  if (hoje < inicio) return 0;
+  if (hoje > fim)    return 100;
+  let count = 0;
+  const d = new Date(inicio);
+  while (d <= hoje) { if (d.getDay() !== 0 && d.getDay() !== 6) count++; d.setDate(d.getDate() + 1); }
+  return Math.min(100, Math.round((count / diasUteis) * 100));
+}
+
 const TIPO_BADGE: Record<string, string> = {
-  atingivel:  'bg-blue-100 text-blue-700',
-  recorrente: 'bg-green-100 text-green-700',
+  atingivel:           'bg-blue-100 text-blue-700',
+  recorrente:          'bg-green-100 text-green-700',
+  'atingivel - projeto': 'bg-purple-100 text-purple-700',
+};
+
+const TIPO_LABEL: Record<string, string> = {
+  atingivel:           'Atingível',
+  recorrente:          'Recorrente',
+  'atingivel - projeto': 'Projeto',
 };
 
 function TipoBadge({ tipo }: { tipo: string | null }) {
   if (!tipo) return null;
-  const cls = TIPO_BADGE[tipo.toLowerCase()] ?? 'bg-gray-100 text-gray-600';
+  const key = tipo.toLowerCase();
+  const cls = TIPO_BADGE[key] ?? 'bg-gray-100 text-gray-600';
+  const label = TIPO_LABEL[key] ?? (tipo.charAt(0).toUpperCase() + tipo.slice(1).toLowerCase());
   return (
     <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${cls}`}>
-      {tipo.charAt(0).toUpperCase() + tipo.slice(1).toLowerCase()}
+      {label}
     </span>
   );
 }
@@ -634,14 +657,16 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   );
 }
 
-function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, onUpdate, onConcluir, onExcluir, objetivoResponsaveis, currentUserId, podeEditarMeta, onToggleResponsavel }: {
+function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, onUpdate, onConcluir, onExcluir, objetivoResponsaveis, currentUserId, currentUserEmail, podeEditarMeta, onToggleResponsavel, onAssumirProjeto }: {
   meta: MetaItem; indicadores: IndicadorBone[]; responsaveis: ResponsavelItem[];
   isAdmin: boolean; areaId: string; onUpdate: () => void;
   onConcluir: (id: string) => Promise<void>; onExcluir: (id: string) => Promise<void>;
   objetivoResponsaveis: ObjetivoResponsavel[];
   currentUserId: string | null;
+  currentUserEmail: string | null;
   podeEditarMeta: boolean;
   onToggleResponsavel: (objetivoId: string) => Promise<void>;
+  onAssumirProjeto: (objetivoId: string, dataInicio: string, dataFim: string) => Promise<void>;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [confirmExcl,   setConfirmExcl]   = useState(false);
@@ -649,6 +674,14 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
   const [salvando,      setSalvando]      = useState(false);
   const [editandoMeta,  setEditandoMeta]  = useState(false);
   const [salvandoMeta,  setSalvandoMeta]  = useState(false);
+  // Modal de assumir Projeto
+  const [modalAssumir,  setModalAssumir]  = useState(false);
+  const [formDatas,     setFormDatas]     = useState({ inicio: '', fim: '' });
+  const [diasPreview,   setDiasPreview]   = useState<number | null>(null);
+  const [calculando,    setCalculando]    = useState(false);
+  const [salvandoDatas, setSalvandoDatas] = useState(false);
+  const [editandoDatas, setEditandoDatas] = useState(false);
+  const [msgAdmin,      setMsgAdmin]      = useState(false);
   const [formMeta, setFormMeta] = useState({
     descricao: meta.descricao,
     tipo: meta.tipo ?? 'atingivel',
@@ -677,6 +710,45 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
     } finally { setSalvandoMeta(false); }
   };
 
+  // ── Projeto: calcular dias úteis ao mudar datas ──────────────────────────
+  const calcularDiasUteis = async (inicio: string, fim: string) => {
+    if (!inicio || !fim || fim < inicio) { setDiasPreview(null); return; }
+    setCalculando(true);
+    try {
+      const { data } = await supabase.rpc('calcular_dias_uteis', { data_inicio: inicio, data_fim: fim });
+      setDiasPreview(typeof data === 'number' ? data : null);
+    } finally { setCalculando(false); }
+  };
+
+  const handleFormDatasChange = (k: 'inicio' | 'fim', v: string) => {
+    const next = { ...formDatas, [k]: v };
+    setFormDatas(next);
+    void calcularDiasUteis(next.inicio, next.fim);
+  };
+
+  const handleConfirmarAssumir = async () => {
+    if (!formDatas.inicio || !formDatas.fim) return;
+    setSalvandoDatas(true);
+    try {
+      await onAssumirProjeto(meta.id, formDatas.inicio, formDatas.fim);
+      setModalAssumir(false);
+    } finally { setSalvandoDatas(false); }
+  };
+
+  // Admin: atualizar datas de um responsável já assumido
+  const handleSalvarDatasAdmin = async (profileId: string) => {
+    if (!formDatas.inicio || !formDatas.fim) return;
+    setSalvandoDatas(true);
+    try {
+      const dias = diasPreview ?? 0;
+      await supabase.from('objetivo_responsaveis').update({
+        data_inicio: formDatas.inicio, data_fim: formDatas.fim, dias_uteis: dias,
+      }).eq('objetivo_id', meta.id).eq('profile_id', profileId);
+      setEditandoDatas(false);
+      onUpdate();
+    } finally { setSalvandoDatas(false); }
+  };
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
       {/* Header */}
@@ -687,9 +759,18 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
           {meta.descricao}
         </span>
         {(() => {
+          const isProjeto = meta.tipo?.toLowerCase() === 'atingivel - projeto';
           const resps = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id);
           const ismine = resps.some(r => r.profile_id === currentUserId);
-          return resps.length > 0 || true ? (
+          const handleAssumir = () => {
+            if (isProjeto) {
+              if (ismine) { void onToggleResponsavel(meta.id); } // remove assumption
+              else { setFormDatas({ inicio: '', fim: '' }); setDiasPreview(null); setModalAssumir(true); }
+            } else {
+              void onToggleResponsavel(meta.id);
+            }
+          };
+          return (
             <div className="flex items-center gap-1 flex-shrink-0">
               {resps.map(r => {
                 const nome = responsaveis.find(p => p.profile_id === r.profile_id)?.nome ?? '?';
@@ -701,13 +782,13 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                   </span>
                 );
               })}
-              <button type="button" onClick={() => void onToggleResponsavel(meta.id)}
+              <button type="button" onClick={handleAssumir}
                 className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0 ${ismine ? 'bg-blue-100 text-blue-700 border-blue-300' : 'text-gray-400 border-gray-200 hover:border-blue-300 hover:text-blue-500'}`}
                 title={ismine ? 'Remover minha responsabilidade' : 'Assumir esta meta'}>
                 {ismine ? '✓ Assumida' : 'Assumir'}
               </button>
             </div>
-          ) : null;
+          );
         })()}
         <div className="flex items-center gap-1.5 text-xs text-gray-500 flex-shrink-0">
           {meta.responsavel_nome && <span>{meta.responsavel_nome}</span>}
@@ -747,6 +828,104 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
           <span className="flex-1">Excluir esta meta?</span>
           <button type="button" onClick={handleExcluir} disabled={salvando} className="font-medium hover:underline disabled:opacity-50">{salvando ? '…' : 'Confirmar'}</button>
           <button type="button" onClick={() => setConfirmExcl(false)} className="text-gray-400">Cancelar</button>
+        </div>
+      )}
+
+      {/* Modal: Assumir Projeto (date pickers) */}
+      {modalAssumir && (
+        <div className="px-3 py-2.5 bg-purple-50 border-b border-purple-100 flex flex-col gap-2">
+          <p className="text-[10px] font-semibold text-purple-700">Definir período de execução</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] text-gray-500">Data de início</label>
+              <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5"
+                value={formDatas.inicio} onChange={e => handleFormDatasChange('inicio', e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] text-gray-500">Data de entrega</label>
+              <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5"
+                value={formDatas.fim} onChange={e => handleFormDatasChange('fim', e.target.value)} />
+            </div>
+          </div>
+          {diasPreview !== null && (
+            <p className="text-[10px] text-purple-600">
+              {calculando ? 'Calculando…' : `${diasPreview} dias úteis · progresso linear de ${diasPreview > 0 ? Math.round(100 / diasPreview) : 0}%/dia`}
+            </p>
+          )}
+          <div className="flex gap-2 justify-end">
+            <button type="button" onClick={() => setModalAssumir(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+            <button type="button" onClick={handleConfirmarAssumir}
+              disabled={!formDatas.inicio || !formDatas.fim || formDatas.fim < formDatas.inicio || salvandoDatas}
+              className="text-xs px-3 py-1 bg-purple-600 text-white rounded disabled:opacity-50 hover:bg-purple-700">
+              {salvandoDatas ? 'Assumindo...' : 'Assumir'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Projeto: datas + progresso esperado */}
+      {meta.tipo?.toLowerCase() === 'atingivel - projeto' && (() => {
+        const resps = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id && r.data_inicio && r.data_fim);
+        if (resps.length === 0) return null;
+        return (
+          <div className="px-3 py-2 border-b border-gray-100 flex flex-col gap-1.5">
+            {resps.map(r => {
+              const nome = responsaveis.find(p => p.profile_id === r.profile_id)?.nome ?? '?';
+              const esperado = calcularEsperadoPct(r.data_inicio, r.data_fim, r.dias_uteis);
+              const isAdminUser = currentUserEmail === 'danilo.n@moni.casa';
+              return (
+                <div key={r.profile_id} className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] text-gray-500 font-medium">{nome}</span>
+                    {isAdminUser && editandoDatas && r.profile_id === currentUserId ? (
+                      <div className="flex items-center gap-1.5 flex-1">
+                        <input type="date" className="text-[10px] border border-gray-300 rounded px-1.5 py-0.5"
+                          value={formDatas.inicio} onChange={e => handleFormDatasChange('inicio', e.target.value)} />
+                        <span className="text-gray-400 text-[10px]">→</span>
+                        <input type="date" className="text-[10px] border border-gray-300 rounded px-1.5 py-0.5"
+                          value={formDatas.fim} onChange={e => handleFormDatasChange('fim', e.target.value)} />
+                        {diasPreview !== null && <span className="text-[10px] text-purple-600">{diasPreview}du</span>}
+                        <button type="button" onClick={() => void handleSalvarDatasAdmin(r.profile_id)} disabled={salvandoDatas}
+                          className="text-[10px] px-2 py-0.5 bg-purple-600 text-white rounded disabled:opacity-50">{salvandoDatas ? '…' : 'Salvar'}</button>
+                        <button type="button" onClick={() => setEditandoDatas(false)} className="text-[10px] text-gray-400">✕</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-[10px] text-gray-500">{r.data_inicio} → {r.data_fim}</span>
+                        <span className="text-[10px] text-gray-400">({r.dias_uteis} dias úteis)</span>
+                        {isAdminUser ? (
+                          <button type="button" onClick={() => {
+                            setFormDatas({ inicio: r.data_inicio ?? '', fim: r.data_fim ?? '' });
+                            void calcularDiasUteis(r.data_inicio ?? '', r.data_fim ?? '');
+                            setEditandoDatas(true);
+                          }} className="text-[10px] text-blue-400 hover:text-blue-600">✎</button>
+                        ) : (
+                          <span className="text-[10px] text-gray-300" title="Acione o admin para alterar datas">🔒</span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {esperado !== null && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-400 w-20 flex-shrink-0">Esperado hoje:</span>
+                      <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                        <div className="h-full rounded-full bg-purple-400 transition-all" style={{ width: `${esperado}%` }} />
+                      </div>
+                      <span className="text-[10px] text-purple-600 font-medium w-8 text-right">{esperado}%</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* Mensagem: acionar admin para datas */}
+      {msgAdmin && (
+        <div className="px-3 py-2 border-b border-amber-100 bg-amber-50 flex items-center gap-2">
+          <span className="text-[10px] text-amber-700 flex-1">Para alterar as datas, acione o admin (danilo.n@moni.casa).</span>
+          <button type="button" onClick={() => setMsgAdmin(false)} className="text-[10px] text-gray-400">✕</button>
         </div>
       )}
 
@@ -1158,6 +1337,18 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
 }
 
 // ── Formulário de nova meta ───────────────────────────────────────────────────
+// Faixas do indicador automático de Projeto: <30% vm, 30-59% am, 60-74% vc, >=75% ve
+const FAIXAS_PROJETO = {
+  escala_tipo: 'percentual',
+  escala_custom_id: null,
+  faixas: [
+    { cor: '#1e7a3a', limite: '75', comparacao: 'gte' },
+    { cor: '#52b36f', limite: '60', comparacao: 'gte' },
+    { cor: '#f2c94c', limite: '30', comparacao: 'gte' },
+    { cor: '#d24141', limite: '0',  comparacao: 'gte' },
+  ],
+};
+
 function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
   areaId: string; responsaveis: ResponsavelItem[]; onSalvo: () => void; mes: string;
 }) {
@@ -1166,6 +1357,7 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState({ descricao: '', tipo: 'atingivel', respId: '', metaUnidade: '' });
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
+  const isProjeto = form.tipo === 'atingivel - projeto';
 
   const handleSalvar = async () => {
     if (!form.descricao.trim()) return;
@@ -1173,11 +1365,27 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
     try {
       const { data: ins, error: e } = await supabase.from('objetivos')
         .insert({ area_id: areaId, descricao: form.descricao.trim(), tipo: form.tipo,
-          profile_id: form.respId || null, meta_unidade: form.metaUnidade || null, status: 'ativo', mes })
+          profile_id: form.respId || null,
+          meta_unidade: isProjeto ? null : (form.metaUnidade || null),
+          status: 'ativo', mes })
         .select('id').single();
       if (e) { console.error('[NovaMeta]', e); return; }
-      LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: String((ins as { id: unknown }).id),
+      const metaId = (ins as { id: string }).id;
+      LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId,
         operacao: 'INSERT', descricao: `Nova meta no Plano Boné Day: ${form.descricao}` });
+
+      // Projeto: criar indicador automático de % de evolução
+      if (isProjeto) {
+        await supabase.from('indicadores').insert({
+          area_id: areaId,
+          objetivo_id: metaId,
+          nome: 'Percentual de Evolução até Entrega (%)',
+          indicador_chave: true,
+          tipo: 'percentual',
+          semaforo_faixas: FAIXAS_PROJETO,
+        });
+      }
+
       setForm({ descricao: '', tipo: 'atingivel', respId: '', metaUnidade: '' });
       setAberto(false); onSalvo();
     } finally { setSalvando(false); }
@@ -1196,13 +1404,16 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
       <p className="text-xs font-medium text-gray-700">Nova meta</p>
       <input className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
         placeholder="Descrição *" value={form.descricao} onChange={e => set('descricao', e.target.value)} autoFocus />
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid gap-2 ${isProjeto ? 'grid-cols-2' : 'grid-cols-3'}`}>
         <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={form.tipo} onChange={e => set('tipo', e.target.value)}>
           <option value="atingivel">Atingível</option>
           <option value="recorrente">Recorrente</option>
+          <option value="atingivel - projeto">Atingível - Projeto</option>
         </select>
-        <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5"
-          value={form.metaUnidade} onChange={e => set('metaUnidade', e.target.value)} />
+        {!isProjeto && (
+          <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5"
+            value={form.metaUnidade} onChange={e => set('metaUnidade', e.target.value)} />
+        )}
         {responsaveis.length > 0 && (
           <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={form.respId} onChange={e => set('respId', e.target.value)}>
             <option value="">— Responsável —</option>
@@ -1210,6 +1421,11 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
           </select>
         )}
       </div>
+      {isProjeto && (
+        <p className="text-[10px] text-purple-600 bg-purple-50 rounded px-2 py-1">
+          Indicador "Percentual de Evolução até Entrega (%)" será criado automaticamente. Datas serão definidas por quem assumir.
+        </p>
+      )}
       <div className="flex gap-2 justify-end">
         <button type="button" onClick={() => setAberto(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
         <button type="button" onClick={handleSalvar} disabled={!form.descricao.trim() || salvando}
@@ -1416,6 +1632,18 @@ function PreBoneDayPageContent() {
     recarregar();
   }, [supabase, objetivoResponsaveis, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleAssumirProjeto = useCallback(async (objetivoId: string, dataInicio: string, dataFim: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: dias } = await supabase.rpc('calcular_dias_uteis', { data_inicio: dataInicio, data_fim: dataFim });
+    await supabase.from('objetivo_responsaveis').insert({
+      objetivo_id: objetivoId, profile_id: user.id,
+      data_inicio: dataInicio, data_fim: dataFim,
+      dias_uteis: typeof dias === 'number' ? dias : null,
+    });
+    recarregar();
+  }, [supabase, recarregar]);
+
   const mesLabel = monthOptions.find(o => o.value === mes)?.label ?? mes;
 
   return (
@@ -1523,8 +1751,10 @@ function PreBoneDayPageContent() {
                       onExcluir={handleExcluirMeta}
                       objetivoResponsaveis={objetivoResponsaveis}
                       currentUserId={currentUserId}
+                      currentUserEmail={currentUserEmail}
                       podeEditarMeta={currentUserEmail === 'danilo.n@moni.casa'}
                       onToggleResponsavel={handleToggleResponsavel}
+                      onAssumirProjeto={handleAssumirProjeto}
                     />
                   ))
                 )}

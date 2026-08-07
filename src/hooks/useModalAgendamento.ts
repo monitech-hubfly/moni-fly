@@ -18,6 +18,7 @@ export type UseModalAgendamentoResult = {
   isSaving: boolean;
   erroSalvar: string | null;
   escopo: RecorrenciaEscopo;
+  editandoId: string | null;
   abrirParaCriar: (preenchido?: Partial<DadosAgendamento>) => void;
   abrirParaEditar: (id: string, novoEscopo?: RecorrenciaEscopo) => void;
   fechar: () => void;
@@ -178,6 +179,15 @@ export function useModalAgendamento(
 
         // Participantes: inserir para cada registro criado
         const ids = ((inserted ?? []) as { id: string }[]).map(r => r.id);
+
+        // Convites externos: enviar apenas para o primeiro evento da série
+        if (dados.participantes_externos.length > 0 && ids[0]) {
+          void fetch('/api/agenda/invite-externos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gantt_id: ids[0] }),
+          }).catch(err => console.warn('[invite-externos]', err));
+        }
         if (dados.participantes.length > 0 && ids.length > 0) {
           const partRows = ids.flatMap(gantt_id =>
             dados.participantes.map(profile_id => ({ gantt_id, profile_id }))
@@ -296,5 +306,5 @@ export function useModalAgendamento(
     }
   }, [supabase, editandoId, escopo, grupoId, dataBase, fechar, onSalvo]);
 
-  return { aberto, preenchido, modo, isSaving, erroSalvar, escopo, abrirParaCriar, abrirParaEditar, fechar, salvar, excluir };
+  return { aberto, preenchido, modo, isSaving, erroSalvar, escopo, editandoId, abrirParaCriar, abrirParaEditar, fechar, salvar, excluir };
 }
