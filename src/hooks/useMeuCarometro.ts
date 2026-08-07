@@ -29,7 +29,7 @@ export type SireneSnapshot = {
 };
 
 export type EngajamentoSnapshot = {
-  atividades: { relevantes: number; atrasadas: number; score: number | null };
+  atividades: { agendadas: number; realizadas: number; atrasadas: number; score: number | null };
   cards:      { comSLA: number; atrasados: number; score: number | null };
   proximas:   { relevantes: number; atrasadas: number; score: number | null };
   score: number | null;
@@ -238,7 +238,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const engOrKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`;
 
       let engajamentoRuntime: EngajamentoSnapshot = {
-        atividades: { relevantes: 0, atrasadas: 0, score: null },
+        atividades: { agendadas: 0, realizadas: 0, atrasadas: 0, score: null },
         cards:      { comSLA: 0, atrasados: 0, score: null },
         proximas:   { relevantes: 0, atrasadas: 0, score: null },
         score: null,
@@ -250,6 +250,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .from('gantt_planejamento')
             .select('id, data, data_conclusao_real')
             .eq('profile_id', effectiveProfileId)
+            .gte('data', semanaInicioStr)
             .lte('data', hojeStr),
           supabase
             .from('kanban_cards')
@@ -266,15 +267,16 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .not('prazo_atividade', 'is', null),
         ]);
 
-        // Sub-score 1: Atividades da Agenda (gantt_planejamento)
+        // Sub-score 1: Atividades da Agenda — esta semana (gantt_planejamento)
         type GanttRow = { id: string; data: string; data_conclusao_real: string | null };
         const ganttArr = (ganttRes.data ?? []) as GanttRow[];
-        const atividadesRelevantes = ganttArr.length;
+        const atividadesAgendadas = ganttArr.length;
+        const atividadesRealizadas = ganttArr.filter(g => !!g.data_conclusao_real).length;
         // Atrasada = agendada antes de hoje E ainda não concluída
-        const atividadesAtrasadas  = ganttArr.filter(g => g.data < hojeStr && !g.data_conclusao_real).length;
-        const scoreAtividades = atividadesRelevantes === 0
+        const atividadesAtrasadas = ganttArr.filter(g => g.data < hojeStr && !g.data_conclusao_real).length;
+        const scoreAtividades = atividadesAgendadas === 0
           ? null
-          : Math.max(0, Math.round(((atividadesRelevantes - atividadesAtrasadas) / atividadesRelevantes) * 100));
+          : Math.max(0, Math.round(((atividadesAgendadas - atividadesAtrasadas) / atividadesAgendadas) * 100));
 
         // Sub-score 2: Cards com SLA
         const kanbanArr = (kanbanRes.data ?? []) as Array<{
@@ -317,7 +319,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           : Math.round(subScores.reduce((s, v) => s + v, 0) / subScores.length);
 
         engajamentoRuntime = {
-          atividades: { relevantes: atividadesRelevantes, atrasadas: atividadesAtrasadas, score: scoreAtividades },
+          atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
           cards:      { comSLA: cardsComSLA.length, atrasados: cardsAtrasados, score: scoreCards },
           proximas:   { relevantes: proxRelevantes, atrasadas: proxAtrasadas, score: scoreProximas },
           score:      engScore,
@@ -436,7 +438,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         semPrazo:   topicosSemPrazo,
       }));
       setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score, {
-        atividades_relevantes: engajamentoRuntime.atividades.relevantes,
+        atividades_agendadas:  engajamentoRuntime.atividades.agendadas,
+        atividades_realizadas: engajamentoRuntime.atividades.realizadas,
         atividades_atrasadas:  engajamentoRuntime.atividades.atrasadas,
         cards_comSLA:          engajamentoRuntime.cards.comSLA,
         cards_atrasados:       engajamentoRuntime.cards.atrasados,

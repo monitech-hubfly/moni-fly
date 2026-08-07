@@ -44,7 +44,8 @@ function DiariosCirculos({ dias }: { dias: DiaStatus[] }) {
     abertos:               'Total abertos',
     semPrazo:              'Sem prazo',
     // Engajamento — atividades
-    atividades_relevantes: 'Agendadas até hoje',
+    atividades_agendadas:  'Agendadas esta semana',
+    atividades_realizadas: 'Realizadas',
     atividades_atrasadas:  'Ativ. atrasadas',
     // Engajamento — cards
     cards_comSLA:          'Cards com SLA',

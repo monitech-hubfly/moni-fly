@@ -123,6 +123,7 @@ export async function gerarSnapshotCarometro(
     db.from('gantt_planejamento')
       .select('id, data, data_conclusao_real')
       .eq('profile_id', profileId)
+      .gte('data', semanaInicioSnapStr)
       .lte('data', hojeStr),
     db.from('kanban_cards')
       .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
@@ -133,15 +134,16 @@ export async function gerarSnapshotCarometro(
       .not('prazo_atividade', 'is', null),
   ]);
 
-  // Sub-score 1: Atividades da Agenda (gantt_planejamento)
+  // Sub-score 1: Atividades da Agenda — esta semana (gantt_planejamento)
   type GanttEngRow = { id: string; data: string; data_conclusao_real: string | null };
   const ganttArr = (ganttEngRes.data ?? []) as GanttEngRow[];
-  const atividadesRelevantes = ganttArr.length;
+  const atividadesAgendadas = ganttArr.length;
+  const atividadesRealizadas = ganttArr.filter(g => !!g.data_conclusao_real).length;
   // Atrasada = agendada antes de hoje E ainda não concluída
   const atividadesAtrasadas  = ganttArr.filter(g => g.data < hojeStr && !g.data_conclusao_real).length;
-  const scoreAtividades = atividadesRelevantes === 0
+  const scoreAtividades = atividadesAgendadas === 0
     ? null
-    : Math.max(0, Math.round(((atividadesRelevantes - atividadesAtrasadas) / atividadesRelevantes) * 100));
+    : Math.max(0, Math.round(((atividadesAgendadas - atividadesAtrasadas) / atividadesAgendadas) * 100));
 
   // Sub-score 2: Cards com SLA
   type FaseKanban = { sla_dias: number | null; sla_tipo: string | null; slug: string | null };
@@ -186,7 +188,7 @@ export async function gerarSnapshotCarometro(
     : Math.round(engSubScores.reduce((s, v) => s + v, 0) / engSubScores.length);
 
   const engajamentoData = {
-    atividades: { relevantes: atividadesRelevantes, atrasadas: atividadesAtrasadas, score: scoreAtividades },
+    atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
     cards:      { comSLA: cardsComSLA.length, atrasados: cardsAtrasados, score: scoreCards },
     proximas:   { relevantes: proxRelevantes, atrasadas: proxAtrasadas, score: scoreProximas },
     score:      engScore,

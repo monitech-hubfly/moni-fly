@@ -95,8 +95,14 @@ export function MeuCarometroBloco() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Agendadas até hoje</span>
-                      <span className="font-medium">{engajamento.atividades.relevantes}</span>
+                      <span className="text-gray-500">Agendadas esta semana</span>
+                      <span className="font-medium">{engajamento.atividades.agendadas}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Realizadas</span>
+                      <span className="font-medium" style={{ color: engajamento.atividades.realizadas > 0 ? '#15803d' : undefined }}>
+                        {engajamento.atividades.realizadas}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Atrasadas</span>
