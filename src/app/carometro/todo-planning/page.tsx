@@ -4,7 +4,7 @@ import { type ReactNode, useState } from 'react';
 import { DndContext, DragEndEvent } from '@dnd-kit/core';
 import type { OrigemInfo } from '@/components/carometro/todo/ModalAgendamento';
 import { MeuCarometroBloco } from '@/components/carometro/todo/MeuCarometroBloco';
-import { BacklogBloco, SireneChamadoBacklogWrapper } from '@/components/carometro/todo/BacklogBloco';
+import { BacklogBloco } from '@/components/carometro/todo/BacklogBloco';
 import { AgendaBloco } from '@/components/carometro/todo/AgendaBloco';
 import { ModalAgendamento } from '@/components/carometro/todo/ModalAgendamento';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
@@ -41,7 +41,6 @@ function TodoPlanningPageContent() {
   // Chave de refresh: incrementar força re-fetch da Agenda
   const [agendaRefreshKey, setAgendaRefreshKey] = useState(0);
   const [origemInfo, setOrigemInfo] = useState<OrigemInfo | undefined>(undefined);
-  const [chamadoModalId, setChamadoModalId] = useState<number | null>(null);
 
   const modal = useModalAgendamento(
     effectiveProfileId,
@@ -98,14 +97,13 @@ function TodoPlanningPageContent() {
         </SecaoColapsavel>
 
         <SecaoColapsavel titulo="Backlog">
-          <BacklogBloco onAbrirModal={modal.abrirParaCriar} onAbrirChamado={setChamadoModalId} />
+          <BacklogBloco onAbrirModal={modal.abrirParaCriar} />
         </SecaoColapsavel>
 
         <SecaoColapsavel titulo="Agenda">
           <AgendaBloco
             onAbrirModal={modal.abrirParaCriar}
             onAbrirParaEditar={modal.abrirParaEditar}
-            onAbrirChamado={setChamadoModalId}
             refreshKey={agendaRefreshKey}
           />
         </SecaoColapsavel>
@@ -128,13 +126,6 @@ function TodoPlanningPageContent() {
           erroSalvar={modal.erroSalvar}
           origemInfo={origemInfo}
           editandoId={modal.editandoId}
-        />
-      )}
-      {/* Modal chamado Sirene — renderizado no nível raiz para evitar stacking context */}
-      {chamadoModalId != null && (
-        <SireneChamadoBacklogWrapper
-          chamadoId={chamadoModalId}
-          onClose={() => setChamadoModalId(null)}
         />
       )}
     </DndContext>

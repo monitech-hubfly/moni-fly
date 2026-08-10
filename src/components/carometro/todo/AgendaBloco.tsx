@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useDroppable } from '@dnd-kit/core';
 import { useAgenda, AtividadeAgenda, DiaAgenda } from '@/hooks/useAgenda';
 import { createClient } from '@/lib/supabase/client';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
+import { SireneChamadoBacklogWrapper } from './BacklogBloco';
 import type { DadosAgendamento } from './ModalAgendamento';
 import type { RecorrenciaEscopo } from '@/hooks/useModalAgendamento';
 
@@ -277,16 +279,16 @@ function DialogConcluir({
   state,
   onConcluir,
   onFechar,
-  onAbrirChamado,
 }: {
   state: DialogState;
   onConcluir: () => void;
   onFechar: () => void;
-  onAbrirChamado?: (id: number) => void;
 }) {
   const ehSirene = state.tipo === 'sirene' || state.tipo === 'pastelaria';
   const label    = ehSirene ? 'chamado' : 'card';
-  const href     = !ehSirene ? state.href : null;
+  const href     = ehSirene && state.chamadoId
+    ? `/sirene/chamados?id=${state.chamadoId}`
+    : state.href;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -304,15 +306,6 @@ function DialogConcluir({
         <div className="flex flex-col gap-2">
           {state.loading ? (
             <div className="h-9 bg-gray-100 animate-pulse rounded-lg" />
-          ) : ehSirene && state.chamadoId && onAbrirChamado ? (
-            <button
-              type="button"
-              onClick={() => { onAbrirChamado(state.chamadoId!); onFechar(); }}
-              className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"
-            >
-              <span>↗</span>
-              Abrir {label}
-            </button>
           ) : href ? (
             <a
               href={href}
@@ -394,12 +387,11 @@ function DialogEscopoRecorrencia({
 type AgendaBlocoProps = {
   onAbrirModal: (preenchido: Partial<DadosAgendamento>) => void;
   onAbrirParaEditar: (id: string, escopo?: RecorrenciaEscopo) => void;
-  onAbrirChamado?: (id: number) => void;
   refreshKey?: number;
 };
 
 // ── AgendaBloco ───────────────────────────────────────────────────────────────
-export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, onAbrirChamado, refreshKey = 0 }: AgendaBlocoProps) {
+export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }: AgendaBlocoProps) {
   const {
     atividades, diasDaSemana, semanaLabel, semanaOffset,
     isLoading, error, navegar, irParaHoje, concluir, desconcluir, atualizarHorario,
@@ -408,6 +400,8 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, onAbrirChamado, r
   const supabase = useMemo(() => createClient(), []);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [pendingEditar, setPendingEditar] = useState<{ id: string } | null>(null);
+  const [chamadoModalId, setChamadoModalId] = useState<number | null>(null);
+  const [pendingConcluirId, setPendingConcluirId] = useState<string | null>(null);
 
   const handleAbrirParaEditar = useCallback((id: string) => {
     const atv = atividades.find(a => a.id === id);
@@ -433,12 +427,14 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, onAbrirChamado, r
       return;
     }
 
-    // Sirene / Pastelaria → dialog com link para chamado
+    // Sirene / Pastelaria → abre modal do chamado direto (sem popup)
     if (tipo === 'sirene' || tipo === 'pastelaria') {
-      setDialogState({
-        id: atv.id, tipo, chamadoId: atv.sirene_chamado_id,
-        cardId: null, href: null, loading: false,
-      });
+      if (atv.sirene_chamado_id) {
+        setChamadoModalId(atv.sirene_chamado_id);
+        setPendingConcluirId(atv.id);
+      } else {
+        await concluir(atv.id);
+      }
       return;
     }
 
@@ -548,7 +544,6 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, onAbrirChamado, r
           state={dialogState}
           onConcluir={() => { void handleConfirmarConcluir(); }}
           onFechar={() => setDialogState(null)}
-          onAbrirChamado={onAbrirChamado}
         />
       )}
 
@@ -558,6 +553,21 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, onAbrirChamado, r
           onSelecionarEscopo={handleEscopoSelecionado}
           onFechar={() => setPendingEditar(null)}
         />
+      )}
+
+      {/* Modal chamado Sirene — portal no body para evitar stacking context */}
+      {chamadoModalId != null && typeof document !== 'undefined' && createPortal(
+        <SireneChamadoBacklogWrapper
+          chamadoId={chamadoModalId}
+          onClose={() => {
+            if (pendingConcluirId) {
+              void concluir(pendingConcluirId);
+              setPendingConcluirId(null);
+            }
+            setChamadoModalId(null);
+          }}
+        />,
+        document.body,
       )}
     </section>
   );

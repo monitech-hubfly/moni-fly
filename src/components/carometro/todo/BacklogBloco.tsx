@@ -1,6 +1,8 @@
 'use client';
 
 import React, { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { ExternalLink } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useBacklog, SireneItem, AtividadeItem, ChamadoPendenteItem, AtividadeItemAgendada, SireneItemAgendada } from '@/hooks/useBacklog';
@@ -518,42 +520,44 @@ function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirCh
         {comStatus.map(({ item, status }) => {
           const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
           return (
-            <DraggableSirene
-              key={item.id}
-              dragId={`sirene::${item.id}`}
-              dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
-            >
-              <BacklogColunaCard
-                tipo="sirene"
-                titulo={tituloExibir}
-                prazo={item.data_fim ?? item.prazo_proposto}
-                prioridade={item.prioridade}
-                numeroChamado={item.chamado_numero}
-                status={status}
-                origemBadge="Sirene"
-                descricao={item.chamado_titulo ? item.descricao : null}
-                onClickExternal={
-                  item.chamado_id && onAbrirChamado
-                    ? () => onAbrirChamado(Number(item.chamado_id))
-                    : undefined
-                }
-                href={
-                  !item.chamado_id
-                    ? (item.interacao_id
-                        ? `/sirene/chamados?interacao=${item.interacao_id}`
-                        : item.card_id
-                          ? hrefAbrirCardKanban(item.card_kanban_nome ?? '', item.card_id)
-                          : undefined)
-                    : undefined
-                }
-                abertoPor={item.aberto_por_nome}
-                onClick={
-                  item.chamado_id && onAbrirChamado
-                    ? () => onAbrirChamado(Number(item.chamado_id))
-                    : undefined
-                }
-              />
-            </DraggableSirene>
+            <div key={item.id} className="relative">
+              <DraggableSirene
+                dragId={`sirene::${item.id}`}
+                dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
+              >
+                <BacklogColunaCard
+                  tipo="sirene"
+                  titulo={tituloExibir}
+                  prazo={item.data_fim ?? item.prazo_proposto}
+                  prioridade={item.prioridade}
+                  numeroChamado={item.chamado_numero}
+                  status={status}
+                  origemBadge="Sirene"
+                  descricao={item.chamado_titulo ? item.descricao : null}
+                  onClickExternal={undefined}
+                  href={
+                    !item.chamado_id
+                      ? (item.interacao_id
+                          ? `/sirene/chamados?interacao=${item.interacao_id}`
+                          : item.card_id
+                            ? hrefAbrirCardKanban(item.card_kanban_nome ?? '', item.card_id)
+                            : undefined)
+                      : undefined
+                  }
+                  abertoPor={item.aberto_por_nome}
+                />
+              </DraggableSirene>
+              {item.chamado_id && onAbrirChamado && (
+                <button
+                  type="button"
+                  title="Abrir chamado"
+                  className="absolute top-2 right-1 z-10 text-gray-300 hover:text-gray-500 transition-colors"
+                  onClick={() => onAbrirChamado(Number(item.chamado_id))}
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </button>
+              )}
+            </div>
           );
         })}
 
@@ -938,13 +942,13 @@ function ColunaAtividades({ items, agendadas = [], onDesativar }: ColunaAtividad
 // ── BacklogBloco ──────────────────────────────────────────────────────────────
 type BacklogBlocoProps = {
   onAbrirModal?: (preenchido: Partial<DadosAgendamento>) => void;
-  onAbrirChamado?: (id: number) => void;
 };
 
-export function BacklogBloco({ onAbrirModal, onAbrirChamado }: BacklogBlocoProps = {}) {
+export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
   const { sirene, chamadosPendentes, atividades, ativoIds, atividadesAgendadas, sireneAgendadas, isLoading, error, recarregar, ativar, desativar } = useBacklog();
   const { areaId, areaIds } = useEffectiveUser();
   const [drawerAberto, setDrawerAberto] = useState(false);
+  const [chamadoModalId, setChamadoModalId] = useState<number | null>(null);
 
   // Apenas acoes que o usuário ativou
   const atividadesAtivas = atividades.filter(i => ativoIds.has(i.id));
@@ -993,7 +997,7 @@ export function BacklogBloco({ onAbrirModal, onAbrirChamado }: BacklogBlocoProps
               items={sirene}
               agendadas={sireneAgendadas}
               chamadosPendentes={chamadosPendentes}
-              onAbrirChamado={onAbrirChamado}
+              onAbrirChamado={setChamadoModalId}
             />
           </div>
 
@@ -1043,6 +1047,13 @@ export function BacklogBloco({ onAbrirModal, onAbrirChamado }: BacklogBlocoProps
           ativoIds={ativoIds}
           onAtivar={ativar}
         />
+      )}
+      {chamadoModalId != null && typeof document !== 'undefined' && createPortal(
+        <SireneChamadoBacklogWrapper
+          chamadoId={chamadoModalId}
+          onClose={() => { setChamadoModalId(null); void recarregar(); }}
+        />,
+        document.body,
       )}
     </section>
   );
