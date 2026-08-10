@@ -38,21 +38,23 @@ function DiariosCirculos({ dias }: { dias: DiaStatus[] }) {
 
   const LABEL_MAP: Record<string, string> = {
     // Sirene
-    atrasados:             'Atrasados',
-    relevantes:            'Com prazo até hoje',
-    concluidos:            'Concluídos esta semana',
-    abertos:               'Total abertos',
-    semPrazo:              'Sem prazo',
+    concluidos:             'Concluídos',
+    atrasados:              'Atrasados',
+    venceHoje:              'Vence hoje',
+    futuras:                'Futuras (fora do %)',
+    abertos:                'Total abertos',
+    semPrazo:               'Sem prazo',
     // Engajamento — atividades
-    atividades_agendadas:  'Agendadas esta semana',
-    atividades_realizadas: 'Realizadas',
-    atividades_atrasadas:  'Ativ. atrasadas',
+    atividades_agendadas:   'Agendadas esta semana',
+    atividades_realizadas:  'Concluídos',
+    atividades_atrasadas:   'Ativ. atrasadas',
     // Engajamento — cards
-    cards_comSLA:          'Cards com SLA',
-    cards_atrasados:       'Cards atrasados',
+    cards_emDia:            'Cards SLA em dia',
+    cards_atrasados:        'Cards atrasados',
     // Engajamento — próximas atividades
-    proximas_relevantes:   'Próx. com prazo até hoje',
-    proximas_atrasadas:    'Próx. atrasadas',
+    proximas_concluidos:    'Próx. concluídas',
+    proximas_venceHoje:     'Próx. vence hoje',
+    proximas_atrasadas:     'Próx. atrasadas',
   };
 
   return (
@@ -181,10 +183,10 @@ export function MeuCarometroCard({
           alt="carinha"
           className="w-14 h-14 object-contain shrink-0"
           style={{ mixBlendMode: 'multiply' }}
-          title={score !== null ? `${score}%` : '100%'}
+          title={score !== null ? `${score}%` : 'Sem dados'}
         />
         <span className={`text-4xl font-bold tabular-nums leading-none ${scoreCls}`}>
-          {score !== null ? `${score}%` : '100%'}
+          {score !== null ? `${score}%` : '—'}
         </span>
       </div>
 

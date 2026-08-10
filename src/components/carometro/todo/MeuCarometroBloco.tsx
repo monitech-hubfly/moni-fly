@@ -12,7 +12,7 @@ function engScoreColor(score: number | null): string {
   return '#dc2626';
 }
 function engScoreLabel(score: number | null): string {
-  return score !== null ? `${score}%` : '100%';
+  return score !== null ? `${score}%` : '—';
 }
 
 export function MeuCarometroBloco() {
@@ -54,24 +54,24 @@ export function MeuCarometroBloco() {
               {sirene && (
                 <>
                   <div className="flex justify-between">
+                    <span className="text-gray-500">Concluídos</span>
+                    <span className="font-medium" style={{ color: (sirene.concluidos ?? 0) > 0 ? '#15803d' : undefined }}>
+                      {sirene.concluidos ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-gray-500">Atrasados</span>
                     <span className="font-medium" style={{ color: sirene.atrasados > 0 ? '#dc2626' : undefined }}>
                       {sirene.atrasados}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Com prazo até hoje</span>
-                    <span className="font-medium">{sirene.relevantes ?? sirene.abertos}</span>
+                    <span className="text-gray-500">Vence hoje</span>
+                    <span className="font-medium">{sirene.venceHoje ?? 0}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Concluídos esta semana</span>
-                    <span className="font-medium" style={{ color: (sirene.concluidos ?? 0) > 0 ? '#15803d' : undefined }}>
-                      {sirene.concluidos ?? 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Total abertos</span>
-                    <span className="font-medium text-gray-400">{sirene.abertos}</span>
+                    <span className="text-gray-500 text-[10px]">Futuras (fora do %)</span>
+                    <span className="font-medium text-gray-400">{sirene.futuras ?? 0}</span>
                   </div>
                 </>
               )}
@@ -86,10 +86,10 @@ export function MeuCarometroBloco() {
             >
               {engajamento && (
                 <>
-                  {/* Atividades Planejadas */}
+                  {/* Agenda */}
                   <div className="flex flex-col gap-1 pb-2 border-b border-gray-100">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600 font-semibold text-[10px] uppercase tracking-wide">Atividades</span>
+                      <span className="text-gray-600 font-semibold text-[10px] uppercase tracking-wide">Agenda</span>
                       <span className="font-bold text-[11px]" style={{ color: engScoreColor(engajamento.atividades.score) }}>
                         {engScoreLabel(engajamento.atividades.score)}
                       </span>
@@ -99,7 +99,7 @@ export function MeuCarometroBloco() {
                       <span className="font-medium">{engajamento.atividades.agendadas}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Realizadas</span>
+                      <span className="text-gray-500">Concluídos</span>
                       <span className="font-medium" style={{ color: engajamento.atividades.realizadas > 0 ? '#15803d' : undefined }}>
                         {engajamento.atividades.realizadas}
                       </span>
@@ -121,8 +121,10 @@ export function MeuCarometroBloco() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Com SLA abertos</span>
-                      <span className="font-medium">{engajamento.cards.comSLA}</span>
+                      <span className="text-gray-500">SLA em dia</span>
+                      <span className="font-medium" style={{ color: engajamento.cards.emDia > 0 ? '#15803d' : undefined }}>
+                        {engajamento.cards.emDia}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Atrasados</span>
@@ -141,8 +143,14 @@ export function MeuCarometroBloco() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Com prazo até hoje</span>
-                      <span className="font-medium">{engajamento.proximas.relevantes}</span>
+                      <span className="text-gray-500">Concluídos</span>
+                      <span className="font-medium" style={{ color: engajamento.proximas.concluidos > 0 ? '#15803d' : undefined }}>
+                        {engajamento.proximas.concluidos}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Vence hoje</span>
+                      <span className="font-medium">{engajamento.proximas.venceHoje}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Atrasadas</span>

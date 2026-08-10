@@ -87,29 +87,36 @@ export async function gerarSnapshotCarometro(
   });
 
   const semPrazo = topicosAbertos.filter(t => !t.data_fim && !t.prazo_proposto).length;
-  // Bug fix: comparação de string — prazo = hoje NÃO é atrasado
+  // Atrasado = prazo < hoje (prazo = hoje ainda não é atrasado)
   const sireneAtrasados = topicosAbertos.filter(t => {
     const prazo = t.data_fim || t.prazo_proposto;
     if (!prazo) return false;
     return prazo < hojeStr;
   }).length;
-
-  const sireneAbertosRelevantes = topicosAbertos.filter(t => {
+  // Vence hoje = open com prazo = hoje
+  const sireneVenceHoje = topicosAbertos.filter(t => {
     const prazo = t.data_fim || t.prazo_proposto;
-    if (!prazo) return false;
-    return prazo <= hojeStr;
+    return prazo === hojeStr;
+  }).length;
+  // Futuras = open com prazo > hoje (não entram no score)
+  const sireneFuturas = topicosAbertos.filter(t => {
+    const prazo = t.data_fim || t.prazo_proposto;
+    return prazo && prazo > hojeStr;
   }).length;
 
-  // relevantes = abertos vencendo hoje/atrasados + concluídos a tempo esta semana
-  const sireneRelevantes = sireneAbertosRelevantes + topicosConcluidos.length;
-  const sireneScore = sireneRelevantes === 0
-    ? null
-    : Math.max(0, Math.round(((sireneRelevantes - sireneAtrasados) / sireneRelevantes) * 100));
+  // Score: concluidos / (concluidos + atrasados + venceHoje). Futuras nunca entram.
+  // total = 0 → 100% (em dia, sem pendências)
+  const sireneTotal = topicosConcluidos.length + sireneAtrasados + sireneVenceHoje;
+  const sireneScore = sireneTotal === 0
+    ? 100
+    : Math.max(0, Math.round((topicosConcluidos.length / sireneTotal) * 100));
 
   const sireneData = {
     atrasados:  sireneAtrasados,
     abertos:    topicosAbertos.length,
-    relevantes: sireneRelevantes,
+    venceHoje:  sireneVenceHoje,
+    futuras:    sireneFuturas,
+    relevantes: sireneTotal,
     concluidos: topicosConcluidos.length,
     semPrazo,
     score:      sireneScore,
@@ -119,7 +126,7 @@ export async function gerarSnapshotCarometro(
   // franqueado_id excluído: franqueado = cliente, não quem executa o trabalho
   const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`;
 
-  const [ganttEngRes, kanbanAbertosRes, proximasEngRes] = await Promise.all([
+  const [ganttEngRes, kanbanAbertosRes, proximasEngRes, proximasConcluidosRes] = await Promise.all([
     db.from('gantt_planejamento')
       .select('id, data, data_conclusao_real')
       .eq('profile_id', profileId)
@@ -132,6 +139,12 @@ export async function gerarSnapshotCarometro(
       .select('id, prazo_atividade')
       .or(orKanban).eq('arquivado', false).eq('concluido', false)
       .not('prazo_atividade', 'is', null),
+    db.from('kanban_cards')
+      .select('id, prazo_atividade')
+      .or(orKanban).eq('arquivado', false).eq('concluido', true)
+      .not('prazo_atividade', 'is', null)
+      .lte('prazo_atividade', hojeStr)
+      .gte('updated_at', semanaInicioSnapStr),
   ]);
 
   // Sub-score 1: Atividades da Agenda — esta semana (gantt_planejamento)
@@ -168,18 +181,23 @@ export async function gerarSnapshotCarometro(
       faseSlug:        fase?.slug     ?? null,
     }).status === 'atrasado';
   }).length;
+  const cardsEmDia = cardsComSLA.length - cardsAtrasados;
   const scoreCards = cardsComSLA.length === 0
     ? null
-    : Math.max(0, Math.round(((cardsComSLA.length - cardsAtrasados) / cardsComSLA.length) * 100));
+    : Math.max(0, Math.round((cardsEmDia / cardsComSLA.length) * 100));
 
   // Sub-score 3: Próximas Atividades (kanban_cards.prazo_atividade)
+  // Score B: concluidos / (concluidos + atrasados). Vence hoje = contexto, não penaliza.
   type ProximaEngRow = { id: string; prazo_atividade: string | null };
-  const proximasArr = (proximasEngRes.data ?? []) as ProximaEngRow[];
-  const proxRelevantes = proximasArr.filter(c => c.prazo_atividade && c.prazo_atividade <= hojeStr).length;
-  const proxAtrasadas  = proximasArr.filter(c => c.prazo_atividade && c.prazo_atividade < hojeStr).length;
-  const scoreProximas = proxRelevantes === 0
-    ? null
-    : Math.max(0, Math.round(((proxRelevantes - proxAtrasadas) / proxRelevantes) * 100));
+  const proximasAbertosArr    = (proximasEngRes.data        ?? []) as ProximaEngRow[];
+  const proximasConcluidosArr = (proximasConcluidosRes.data ?? []) as ProximaEngRow[];
+  const proxVenceHoje  = proximasAbertosArr.filter(c => c.prazo_atividade === hojeStr).length;
+  const proxAtrasadas  = proximasAbertosArr.filter(c => c.prazo_atividade && c.prazo_atividade < hojeStr).length;
+  const proxConcluidos = proximasConcluidosArr.length;
+  const proxDenominador = proxConcluidos + proxAtrasadas;
+  const scoreProximas = proxDenominador === 0
+    ? 100
+    : Math.max(0, Math.round((proxConcluidos / proxDenominador) * 100));
 
   // Score combinado = média dos sub-scores não-null (pesos iguais)
   const engSubScores = [scoreAtividades, scoreCards, scoreProximas].filter((s): s is number => s !== null);
@@ -189,8 +207,8 @@ export async function gerarSnapshotCarometro(
 
   const engajamentoData = {
     atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
-    cards:      { comSLA: cardsComSLA.length, atrasados: cardsAtrasados, score: scoreCards },
-    proximas:   { relevantes: proxRelevantes, atrasadas: proxAtrasadas, score: scoreProximas },
+    cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, score: scoreCards },
+    proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas, score: scoreProximas },
     score:      engScore,
   };
 

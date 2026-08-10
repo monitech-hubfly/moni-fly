@@ -22,6 +22,8 @@ export type SemanaStatusInd = {
 export type SireneSnapshot = {
   atrasados:  number;
   abertos:    number;
+  venceHoje:  number;
+  futuras:    number;
   relevantes: number;
   concluidos: number;
   semPrazo:   number;
@@ -30,8 +32,8 @@ export type SireneSnapshot = {
 
 export type EngajamentoSnapshot = {
   atividades: { agendadas: number; realizadas: number; atrasadas: number; score: number | null };
-  cards:      { comSLA: number; atrasados: number; score: number | null };
-  proximas:   { relevantes: number; atrasadas: number; score: number | null };
+  cards:      { comSLA: number; emDia: number; atrasados: number; score: number | null };
+  proximas:   { concluidos: number; venceHoje: number; atrasadas: number; relevantes: number; score: number | null };
   score: number | null;
 };
 
@@ -205,29 +207,36 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       });
 
       const topicosSemPrazo = topicosAbertos.filter(t => !t.data_fim && !t.prazo_proposto).length;
-      // Bug fix: comparação de string — tópico com prazo = hoje NÃO é atrasado
+      // Atrasado = prazo < hoje (prazo = hoje ainda não é atrasado)
       const topicosAtrasados = topicosAbertos.filter(t => {
         const prazo = t.data_fim || t.prazo_proposto;
         if (!prazo) return false;
         return prazo < hojeStr;
       }).length;
-
-      const topicosAbertosRelevantes = topicosAbertos.filter(t => {
+      // Vence hoje = open com prazo = hoje
+      const topicosVenceHoje = topicosAbertos.filter(t => {
         const prazo = t.data_fim || t.prazo_proposto;
-        if (!prazo) return false;
-        return prazo <= hojeStr;
+        return prazo === hojeStr;
+      }).length;
+      // Futuras = open com prazo > hoje (não entram no score)
+      const topicosFuturas = topicosAbertos.filter(t => {
+        const prazo = t.data_fim || t.prazo_proposto;
+        return prazo && prazo > hojeStr;
       }).length;
 
-      // relevantes = abertos vencendo hoje/atrasados + concluídos a tempo esta semana
-      const topicosRelevantes = topicosAbertosRelevantes + topicosConcluidos.length;
-      const sireneScore = topicosRelevantes === 0
-        ? null
-        : Math.max(0, Math.round(((topicosRelevantes - topicosAtrasados) / topicosRelevantes) * 100));
+      // Score: concluidos / (concluidos + atrasados + venceHoje). Futuras nunca entram.
+      // total = 0 → 100% (em dia, sem pendências)
+      const sireneTotal = topicosConcluidos.length + topicosAtrasados + topicosVenceHoje;
+      const sireneScore = sireneTotal === 0
+        ? 100
+        : Math.max(0, Math.round((topicosConcluidos.length / sireneTotal) * 100));
 
       const sireneRuntime: SireneSnapshot = {
         atrasados:  topicosAtrasados,
         abertos:    topicosAbertos.length,
-        relevantes: topicosRelevantes,
+        venceHoje:  topicosVenceHoje,
+        futuras:    topicosFuturas,
+        relevantes: sireneTotal,
         concluidos: topicosConcluidos.length,
         semPrazo:   topicosSemPrazo,
         score:      sireneScore,
@@ -239,13 +248,13 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
       let engajamentoRuntime: EngajamentoSnapshot = {
         atividades: { agendadas: 0, realizadas: 0, atrasadas: 0, score: null },
-        cards:      { comSLA: 0, atrasados: 0, score: null },
-        proximas:   { relevantes: 0, atrasadas: 0, score: null },
+        cards:      { comSLA: 0, emDia: 0, atrasados: 0, score: null },
+        proximas:   { concluidos: 0, venceHoje: 0, atrasadas: 0, relevantes: 0, score: null },
         score: null,
       };
 
       {
-        const [ganttRes, kanbanRes, proximasRes] = await Promise.all([
+        const [ganttRes, kanbanRes, proximasAbertosRes, proximasConcluidosRes] = await Promise.all([
           supabase
             .from('gantt_planejamento')
             .select('id, data, data_conclusao_real')
@@ -265,6 +274,15 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .eq('arquivado', false)
             .eq('concluido', false)
             .not('prazo_atividade', 'is', null),
+          supabase
+            .from('kanban_cards')
+            .select('id, prazo_atividade')
+            .or(engOrKanban)
+            .eq('arquivado', false)
+            .eq('concluido', true)
+            .not('prazo_atividade', 'is', null)
+            .lte('prazo_atividade', hojeStr)
+            .gte('updated_at', semanaInicioStr),
         ]);
 
         // Sub-score 1: Atividades da Agenda — esta semana (gantt_planejamento)
@@ -299,18 +317,23 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             faseSlug:        fase?.slug     ?? null,
           }).status === 'atrasado';
         }).length;
+        const cardsEmDia = cardsComSLA.length - cardsAtrasados;
         const scoreCards = cardsComSLA.length === 0
           ? null
-          : Math.max(0, Math.round(((cardsComSLA.length - cardsAtrasados) / cardsComSLA.length) * 100));
+          : Math.max(0, Math.round((cardsEmDia / cardsComSLA.length) * 100));
 
         // Sub-score 3: Próximas Atividades (kanban_cards.prazo_atividade)
+        // Score B: concluidos / (concluidos + atrasados). Vence hoje = contexto, não penaliza.
         type ProximaRow = { id: string; prazo_atividade: string | null };
-        const proximasArr = (proximasRes.data ?? []) as ProximaRow[];
-        const proxRelevantes = proximasArr.filter(c => c.prazo_atividade && c.prazo_atividade <= hojeStr).length;
-        const proxAtrasadas  = proximasArr.filter(c => c.prazo_atividade && c.prazo_atividade < hojeStr).length;
-        const scoreProximas = proxRelevantes === 0
-          ? null
-          : Math.max(0, Math.round(((proxRelevantes - proxAtrasadas) / proxRelevantes) * 100));
+        const proximasAbertosArr  = (proximasAbertosRes.data  ?? []) as ProximaRow[];
+        const proximasConcluidosArr = (proximasConcluidosRes.data ?? []) as ProximaRow[];
+        const proxVenceHoje  = proximasAbertosArr.filter(c => c.prazo_atividade === hojeStr).length;
+        const proxAtrasadas  = proximasAbertosArr.filter(c => c.prazo_atividade && c.prazo_atividade < hojeStr).length;
+        const proxConcluidos = proximasConcluidosArr.length;
+        const proxDenominador = proxConcluidos + proxAtrasadas;
+        const scoreProximas = proxDenominador === 0
+          ? 100
+          : Math.max(0, Math.round((proxConcluidos / proxDenominador) * 100));
 
         // Score combinado = média dos sub-scores não-null
         const subScores = [scoreAtividades, scoreCards, scoreProximas].filter((s): s is number => s !== null);
@@ -320,8 +343,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
         engajamentoRuntime = {
           atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
-          cards:      { comSLA: cardsComSLA.length, atrasados: cardsAtrasados, score: scoreCards },
-          proximas:   { relevantes: proxRelevantes, atrasadas: proxAtrasadas, score: scoreProximas },
+          cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, score: scoreCards },
+          proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas, score: scoreProximas },
           score:      engScore,
         };
       }
@@ -431,9 +454,10 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       setEngajamento(engajamentoRuntime);
       setIndicadores(indicadoresRuntime);
       setDiasSirene(buildDias('sirene', 'score', sireneScore, {
-        atrasados:  topicosAtrasados,
-        relevantes: topicosRelevantes,
         concluidos: topicosConcluidos.length,
+        atrasados:  topicosAtrasados,
+        venceHoje:  topicosVenceHoje,
+        futuras:    topicosFuturas,
         abertos:    topicosAbertos.length,
         semPrazo:   topicosSemPrazo,
       }));
@@ -441,9 +465,10 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         atividades_agendadas:  engajamentoRuntime.atividades.agendadas,
         atividades_realizadas: engajamentoRuntime.atividades.realizadas,
         atividades_atrasadas:  engajamentoRuntime.atividades.atrasadas,
-        cards_comSLA:          engajamentoRuntime.cards.comSLA,
+        cards_emDia:           engajamentoRuntime.cards.emDia,
         cards_atrasados:       engajamentoRuntime.cards.atrasados,
-        proximas_relevantes:   engajamentoRuntime.proximas.relevantes,
+        proximas_concluidos:   engajamentoRuntime.proximas.concluidos,
+        proximas_venceHoje:    engajamentoRuntime.proximas.venceHoje,
         proximas_atrasadas:    engajamentoRuntime.proximas.atrasadas,
       }));
       setSemanasIndicadores([
