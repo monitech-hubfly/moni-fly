@@ -134,10 +134,7 @@ export async function updateSession(request: NextRequest) {
     if (isAnonymousAllowedPath(pathname)) {
       return response;
     }
-    if (pathname === '/') {
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
-    return redirectToPublicLeituraFallback(request);
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   // Try to read role from cache cookie first (avoids DB round-trip on every request)
