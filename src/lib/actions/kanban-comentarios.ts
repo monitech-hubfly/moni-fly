@@ -70,6 +70,43 @@ async function resolverNomesAutoresComentarios(
   return nomePorId;
 }
 
+export type FetchKanbanComentariosCountResult =
+  | { ok: true; counts: Record<string, number> }
+  | { ok: false; error: string };
+
+/** Contagem de comentários por card (batch, sem N+1) — badge no board. */
+export async function fetchKanbanComentariosCountPorCardIds(
+  cardIds: string[],
+): Promise<FetchKanbanComentariosCountResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const ids = [...new Set(cardIds.map((id) => String(id ?? '').trim()).filter(Boolean))];
+  if (ids.length === 0) return { ok: true, counts: {} };
+
+  const counts: Record<string, number> = {};
+  const chunkSize = 300;
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const slice = ids.slice(i, i + chunkSize);
+    const { data: rows, error } = await supabase
+      .from('kanban_card_comentarios')
+      .select('card_id')
+      .in('card_id', slice)
+      .is('sirene_chamado_id', null);
+    if (error) return { ok: false, error: error.message };
+    for (const row of rows ?? []) {
+      const cid = String((row as { card_id?: string | null }).card_id ?? '').trim();
+      if (!cid) continue;
+      counts[cid] = (counts[cid] ?? 0) + 1;
+    }
+  }
+
+  return { ok: true, counts };
+}
+
 /** Lista comentários do card com nomes de autor (service role contorna RLS de profiles). */
 export async function listarComentariosKanbanCard(
   cardId: string,

@@ -1871,6 +1871,17 @@ export function KanbanCardModal({
         })(),
 
         (async () => {
+          try {
+            const rows = await carregarComentariosCardModal(cardId);
+            if (!stillCurrent()) return;
+            setComentariosCard(rows);
+          } catch {
+            if (!stillCurrent()) return;
+            setComentariosCard([]);
+          }
+        })(),
+
+        (async () => {
                 let cacheKanbanTimes: KanbanTimeRow[] = [];
                 try {
                   const { data: kt } = await supabase.from('kanban_times').select('id, nome').order('nome');
@@ -1954,11 +1965,6 @@ export function KanbanCardModal({
                   setHistoricoCalculadora([]);
                   setVisitsCalculadora([]);
                   setVisitsCalculadoraCarregado(false);
-                }
-                try {
-                  setComentariosCard(await carregarComentariosCardModal(cardId));
-                } catch {
-                  setComentariosCard([]);
                 }
                 try {
                   const { data: tokRow } = await supabase

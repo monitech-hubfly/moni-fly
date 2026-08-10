@@ -5,6 +5,7 @@ import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { podeComFallbackStaff } from '@/lib/permissoes-types';
 import { fetchKanbanBoardStatusPool } from '@/lib/actions/kanban-board-snapshot';
 import { fetchKanbanBoardDeferredEnrichment } from '@/lib/actions/kanban-board-enrichment';
+import { fetchKanbanComentariosCountPorCardIds } from '@/lib/actions/kanban-comentarios';
 import { ExportKanbanButton } from './ExportKanbanButton';
 import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
 import { KanbanColumn } from './KanbanColumn';
@@ -109,11 +110,16 @@ export function KanbanBoard({
   const [statusPoolError, setStatusPoolError] = useState<string | null>(null);
   const lazyFetchGen = useRef(0);
   const enrichmentFetchGen = useRef(0);
+  const comentariosFetchGen = useRef(0);
 
   /** Patches de enrichments adiados (paralelas, avatar responsável, calculadora). */
   const [enrichmentByCardId, setEnrichmentByCardId] = useState<
     Record<string, Partial<KanbanCardBrief>>
   >({});
+  /** Balão 💬 no card fechado — batch após paint (opt-in em KanbanColumn). */
+  const [comentariosCountPorCard, setComentariosCountPorCard] = useState<Record<string, number>>(
+    {},
+  );
 
   /** Assinatura estável: `cards`/`cardsConcluidos` mudam de referência a cada `router.refresh()`. */
   const cardsSnapshotSig = useMemo(
@@ -128,6 +134,7 @@ export function KanbanBoard({
     setLazyConcluidos(null);
     setStatusPoolError(null);
     setEnrichmentByCardId({});
+    setComentariosCountPorCard({});
   }, [cardsSnapshotSig]);
 
   useEffect(() => {
@@ -146,6 +153,41 @@ export function KanbanBoard({
       cancelled = true;
     };
   }, [deferEnrichments, nomeDbParaLazy, kanbanId, cardsSnapshotSig]);
+
+  const cardIdsParaContagem = useMemo(() => {
+    const ids = new Set<string>();
+    const fontes = [
+      ...cards,
+      ...cardsConcluidos,
+      ...(lazyArquivados ?? []),
+      ...(lazyConcluidos ?? []),
+    ];
+    for (const c of fontes) {
+      const id = String(c.id ?? '').trim();
+      if (id) ids.add(id);
+    }
+    return [...ids];
+  }, [cardsSnapshotSig, lazyArquivados, lazyConcluidos]);
+
+  useEffect(() => {
+    if (cardIdsParaContagem.length === 0) {
+      setComentariosCountPorCard({});
+      return;
+    }
+
+    const gen = ++comentariosFetchGen.current;
+    let cancelled = false;
+
+    void (async () => {
+      const res = await fetchKanbanComentariosCountPorCardIds(cardIdsParaContagem);
+      if (cancelled || gen !== comentariosFetchGen.current) return;
+      if (res.ok) setComentariosCountPorCard(res.counts);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardIdsParaContagem]);
 
   useEffect(() => {
     if (!leanAtivo || !nomeDbParaLazy) return;
@@ -474,6 +516,7 @@ export function KanbanBoard({
                   isFaseConclusao={isFaseConclusao}
                   exibirAdicionarCard={isPrimeiraColuna && exibirBotaoNovoCard}
                   novoCardHref={novoCardHref}
+                  comentariosCountPorCard={comentariosCountPorCard}
                 />
               );
             })}
