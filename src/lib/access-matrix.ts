@@ -189,7 +189,9 @@ function isExternalTokenAccessPath(pathname: string): boolean {
     pathname.startsWith('/api/public/') ||
     pathname.startsWith('/api/candidato/') ||
     pathname === '/api/accept-invite' ||
-    pathname.startsWith('/api/webhooks/')
+    pathname.startsWith('/api/webhooks/') ||
+    pathname === '/rsvp' ||
+    pathname.startsWith('/rsvp/')
   );
 }
 
