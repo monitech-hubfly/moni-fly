@@ -36,14 +36,65 @@ function DroppableSlot({ dateStr, hora }: { dateStr: string; hora: number }) {
 }
 
 // ── Card de atividade agendada ────────────────────────────────────────────────
+// ── Layout de sobreposição (igual Google Calendar) ────────────────────────────
+function calcularLayoutSobreposicao(atividades: AtividadeAgenda[]): Map<string, { colIndex: number; totalCols: number }> {
+  const result = new Map<string, { colIndex: number; totalCols: number }>();
+
+  // Converter hora "HH:MM" para minutos
+  const toMin = (h: string) => {
+    const [hh, mm] = h.split(':').map(Number);
+    return (hh ?? 0) * 60 + (mm ?? 0);
+  };
+
+  const sorted = [...atividades].sort((a, b) => toMin(a.hora_inicio) - toMin(b.hora_inicio));
+
+  // Grupos de eventos que se sobrepõem
+  const grupos: AtividadeAgenda[][] = [];
+
+  for (const atv of sorted) {
+    const inicio = toMin(atv.hora_inicio);
+    const fim    = atv.hora_fim ? toMin(atv.hora_fim) : inicio + 60;
+
+    let adicionado = false;
+    for (const grupo of grupos) {
+      // Verifica se sobrepõe com qualquer evento do grupo
+      const sobrepoe = grupo.some(g => {
+        const gInicio = toMin(g.hora_inicio);
+        const gFim    = g.hora_fim ? toMin(g.hora_fim) : gInicio + 60;
+        return inicio < gFim && fim > gInicio;
+      });
+      if (sobrepoe) {
+        grupo.push(atv);
+        adicionado = true;
+        break;
+      }
+    }
+    if (!adicionado) grupos.push([atv]);
+  }
+
+  // Atribuir colIndex e totalCols dentro de cada grupo
+  for (const grupo of grupos) {
+    const totalCols = grupo.length;
+    grupo.forEach((atv, idx) => {
+      result.set(atv.id, { colIndex: idx, totalCols });
+    });
+  }
+
+  return result;
+}
+
 function AgendaCard({
   atv,
+  colIndex,
+  totalCols,
   onAbrirParaEditar,
   onConcluir,
   onDesconcluir,
   onAtualizarHorario,
 }: {
   atv: AtividadeAgenda;
+  colIndex: number;
+  totalCols: number;
   onAbrirParaEditar: (id: string) => void;
   onConcluir: (atv: AtividadeAgenda) => void;
   onDesconcluir: (id: string) => void;
@@ -105,13 +156,24 @@ function AgendaCard({
     document.addEventListener('mouseup', onUp);
   };
 
+  const colWidthPct  = 100 / totalCols;
+  const colLeftPct   = colIndex * colWidthPct;
+  const GAP = 2; // px entre colunas
+
   return (
     <div
       data-atividade="true"
       className="absolute rounded px-1.5 py-0.5 text-white text-xs overflow-hidden select-none group"
-      style={{ top: topPx, height: heightPx, left: 2, right: 2, backgroundColor: atv.cor, zIndex: 10,
-               opacity: atv.concluido ? 0.6 : isVencido ? 0.7 : 1,
-               borderTop: isVencido ? '3px solid rgba(239,159,39,0.9)' : undefined }}
+      style={{
+        top: topPx,
+        height: heightPx,
+        left:  `calc(${colLeftPct}% + ${GAP}px)`,
+        width: `calc(${colWidthPct}% - ${GAP * 2}px)`,
+        backgroundColor: atv.cor,
+        zIndex: 10,
+        opacity: atv.concluido ? 0.6 : isVencido ? 0.7 : 1,
+        borderTop: isVencido ? '3px solid rgba(239,159,39,0.9)' : undefined,
+      }}
       onClick={(e) => {
         if (resizingRef.current) return;
         if ((e.target as HTMLElement).closest('[data-action]')) return;
@@ -220,16 +282,24 @@ function ColunaDia({
       onClick={handleClick}
     >
       {horas.map(h => <DroppableSlot key={h} dateStr={dia.dateStr} hora={h} />)}
-      {atividades.map(atv => (
-        <AgendaCard
-          key={atv.id}
-          atv={atv}
-          onAbrirParaEditar={onAbrirParaEditar}
-          onConcluir={onConcluir}
-          onDesconcluir={onDesconcluir}
-          onAtualizarHorario={onAtualizarHorario}
-        />
-      ))}
+      {(() => {
+        const layout = calcularLayoutSobreposicao(atividades);
+        return atividades.map(atv => {
+          const { colIndex, totalCols } = layout.get(atv.id) ?? { colIndex: 0, totalCols: 1 };
+          return (
+            <AgendaCard
+              key={atv.id}
+              atv={atv}
+              colIndex={colIndex}
+              totalCols={totalCols}
+              onAbrirParaEditar={onAbrirParaEditar}
+              onConcluir={onConcluir}
+              onDesconcluir={onDesconcluir}
+              onAtualizarHorario={onAtualizarHorario}
+            />
+          );
+        });
+      })()}
     </div>
   );
 }
