@@ -220,6 +220,7 @@ export async function POST(request: Request) {
         `Recusar: ${naoUrl}\n`;
 
       const result = await sendEmailViaResend({
+        from:    'Moní Agenda <agenda@moni.casa>',
         to:      email,
         subject: `Convite: ${titulo} — ${dataHoraFmt}`,
         text, html,
