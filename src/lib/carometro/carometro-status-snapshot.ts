@@ -124,14 +124,16 @@ export async function gerarSnapshotCarometro(
 
   // ── Engajamento (3 sub-scores independentes) ─────────────────────────────────
   // franqueado_id excluído: franqueado = cliente, não quem executa o trabalho
-  const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`;
+  const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}},franqueado_id.eq.${profileId}`;
 
   const [ganttEngRes, kanbanAbertosRes, proximasEngRes, proximasConcluidosRes] = await Promise.all([
     db.from('gantt_planejamento')
       .select('id, data, data_conclusao_real')
       .eq('profile_id', profileId)
       .gte('data', semanaInicioSnapStr)
-      .lte('data', hojeStr),
+      .lte('data', hojeStr)
+      .is('sirene_chamado_id', null)
+      .is('card_id', null),
     db.from('kanban_cards')
       .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
       .or(orKanban).eq('arquivado', false).eq('concluido', false),
@@ -152,11 +154,11 @@ export async function gerarSnapshotCarometro(
   const ganttArr = (ganttEngRes.data ?? []) as GanttEngRow[];
   const atividadesAgendadas = ganttArr.length;
   const atividadesRealizadas = ganttArr.filter(g => !!g.data_conclusao_real).length;
-  // Atrasada = agendada antes de hoje E ainda não concluída
-  const atividadesAtrasadas  = ganttArr.filter(g => g.data < hojeStr && !g.data_conclusao_real).length;
+  // Não concluída = agendada sem data_conclusao_real (inclui hoje — afeta score imediatamente)
+  const atividadesAtrasadas  = ganttArr.filter(g => !g.data_conclusao_real).length;
   const scoreAtividades = atividadesAgendadas === 0
     ? null
-    : Math.max(0, Math.round(((atividadesAgendadas - atividadesAtrasadas) / atividadesAgendadas) * 100));
+    : Math.max(0, Math.round((atividadesRealizadas / atividadesAgendadas) * 100));
 
   // Sub-score 2: Cards com SLA
   type FaseKanban = { sla_dias: number | null; sla_tipo: string | null; slug: string | null };

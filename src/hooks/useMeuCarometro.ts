@@ -244,7 +244,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
       // ── Engajamento (3 sub-scores independentes) ────────────────────────────────
       // franqueado_id excluído: franqueado = cliente, não quem executa o trabalho
-      const engOrKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`;
+      const engOrKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}},franqueado_id.eq.${effectiveProfileId}`;
 
       let engajamentoRuntime: EngajamentoSnapshot = {
         atividades: { agendadas: 0, realizadas: 0, atrasadas: 0, score: null },
@@ -260,7 +260,9 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .select('id, data, data_conclusao_real')
             .eq('profile_id', effectiveProfileId)
             .gte('data', semanaInicioStr)
-            .lte('data', hojeStr),
+            .lte('data', hojeStr)
+            .is('sirene_chamado_id', null)
+            .is('card_id', null),
           supabase
             .from('kanban_cards')
             .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
@@ -290,11 +292,11 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         const ganttArr = (ganttRes.data ?? []) as GanttRow[];
         const atividadesAgendadas = ganttArr.length;
         const atividadesRealizadas = ganttArr.filter(g => !!g.data_conclusao_real).length;
-        // Atrasada = agendada antes de hoje E ainda não concluída
-        const atividadesAtrasadas = ganttArr.filter(g => g.data < hojeStr && !g.data_conclusao_real).length;
+        // Não concluída = agendada sem data_conclusao_real (inclui hoje — afeta score imediatamente)
+        const atividadesAtrasadas = ganttArr.filter(g => !g.data_conclusao_real).length;
         const scoreAtividades = atividadesAgendadas === 0
           ? null
-          : Math.max(0, Math.round(((atividadesAgendadas - atividadesAtrasadas) / atividadesAgendadas) * 100));
+          : Math.max(0, Math.round((atividadesRealizadas / atividadesAgendadas) * 100));
 
         // Sub-score 2: Cards com SLA
         const kanbanArr = (kanbanRes.data ?? []) as Array<{

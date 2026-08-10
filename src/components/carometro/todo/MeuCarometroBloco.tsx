@@ -105,7 +105,7 @@ export function MeuCarometroBloco() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Atrasadas</span>
+                      <span className="text-gray-500">Não concluídas</span>
                       <span className="font-medium" style={{ color: engajamento.atividades.atrasadas > 0 ? '#dc2626' : undefined }}>
                         {engajamento.atividades.atrasadas}
                       </span>
