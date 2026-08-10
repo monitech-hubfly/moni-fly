@@ -537,6 +537,7 @@ type DragState = {
   currentY: number;
   isDragging: boolean; // true após 8px de movimento
   durationMin: number;
+  offsetInCard: number; // pixels do topo do card até onde o usuário clicou
 };
 
 // ── AgendaBloco ───────────────────────────────────────────────────────────────
@@ -571,10 +572,21 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
     const [hi, mi] = atv.hora_inicio.split(':').map(Number);
     const [hf, mf] = (atv.hora_fim ?? `${String(hi + 1).padStart(2,'0')}:00`).split(':').map(Number);
     const durationMin = (hf * 60 + mf) - (hi * 60 + mi);
+
+    // Calcula onde dentro do card o usuário clicou (para manter posição relativa ao soltar)
+    let offsetInCard = 0;
+    const grade = gradeRef.current;
+    if (grade) {
+      const rect = grade.getBoundingClientRect();
+      const cardTopPx = (hi - HORA_INICIO) * ALTURA_HORA + (mi ?? 0);
+      const cardTopScreenY = rect.top - grade.scrollTop + cardTopPx;
+      offsetInCard = Math.max(0, Math.round(e.clientY - cardTopScreenY));
+    }
+
     const state: DragState = {
       atv, startX: e.clientX, startY: e.clientY,
       currentX: e.clientX, currentY: e.clientY,
-      isDragging: false, durationMin,
+      isDragging: false, durationMin, offsetInCard,
     };
     dragStateRef.current = state;
     setDragState(state);
@@ -613,7 +625,9 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
       const rect = grade.getBoundingClientRect();
       const scrollTop = grade.scrollTop;
       const relX = e.clientX - rect.left - LARGURA_HORAS;
-      const relY = e.clientY - rect.top + scrollTop;
+      // Desconta offsetInCard para que o ponto onde o usuário clicou no card
+      // fique alinhado com a hora calculada (não o topo do card)
+      const relY = e.clientY - rect.top + scrollTop - ds.offsetInCard;
 
       const colWidth = (rect.width - LARGURA_HORAS) / diasDaSemana.length;
       const colIdx = Math.max(0, Math.min(diasDaSemana.length - 1, Math.floor(relX / colWidth)));

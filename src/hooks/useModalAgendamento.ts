@@ -65,6 +65,17 @@ export function useModalAgendamento(
         .eq('gantt_id', id);
       const participantes = ((parts ?? []) as { profile_id: string }[]).map(p => p.profile_id);
 
+      // Se não há título explícito no gantt mas há acao_id, busca o nome da ação
+      let tituloFinal = (r.titulo as string | null) ?? null;
+      if (!tituloFinal && r.acao_id) {
+        const { data: acaoData } = await supabase
+          .from('acoes')
+          .select('tipo_atividade')
+          .eq('id', r.acao_id as string)
+          .maybeSingle();
+        tituloFinal = (acaoData as { tipo_atividade?: string } | null)?.tipo_atividade ?? null;
+      }
+
       setPreenchido({
         acao_id:           (r.acao_id as string | null)           ?? null,
         objetivo_id:       (r.objetivo_id as string | null)       ?? null,
@@ -84,7 +95,7 @@ export function useModalAgendamento(
         observacoes:       (r.comentario_conclusao as string | null) ?? null,
         link_reuniao:           (r.link_reuniao as string | null)           ?? null,
         local_reuniao:          (r.local_reuniao as string | null)          ?? null,
-        titulo:                 (r.titulo as string | null)                 ?? null,
+        titulo:                 tituloFinal,
         participantes,
         participantes_externos: (r.participantes_externos as string[] | null) ?? [],
         origem_tipo:            (r.origem_tipo as DadosAgendamento['origem_tipo']) ?? null,
