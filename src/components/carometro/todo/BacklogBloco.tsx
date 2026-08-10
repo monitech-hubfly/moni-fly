@@ -696,9 +696,10 @@ function badgeTipoHelper(tipo: string): { label: string; className: string } {
 type SireneChamadoBacklogWrapperProps = {
   chamadoId: number;
   onClose: () => void;
+  onConcluido?: () => void;
 };
 
-export function SireneChamadoBacklogWrapper({ chamadoId, onClose }: SireneChamadoBacklogWrapperProps) {
+export function SireneChamadoBacklogWrapper({ chamadoId, onClose, onConcluido }: SireneChamadoBacklogWrapperProps) {
   const supabase = useMemo(() => createClient(), []);
   const [row, setRow] = useState<InteracaoSireneRow | null>(null);
   const [topicos, setTopicos] = useState<TopicoPainelLinha[]>([]);
@@ -768,6 +769,7 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose }: SireneChamad
     setClassificacaoPendente(null);
     void reloadTopicos();
     window.dispatchEvent(new CustomEvent('backlog-reload'));
+    onConcluido?.();
   }
 
   if (!row) return (
@@ -798,6 +800,7 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose }: SireneChamad
           await atualizarStatusInteracaoSirene(id, status);
           setPending(false);
           window.dispatchEvent(new CustomEvent('backlog-reload'));
+          if (status === 'concluida') onConcluido?.();
         }}
         onSubStatusChange={(topicoId, status) => void handleSubStatus(topicoId, status)}
         podeArquivar={podeArquivar}

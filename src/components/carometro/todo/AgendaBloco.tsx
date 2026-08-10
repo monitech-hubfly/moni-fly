@@ -823,6 +823,10 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
         <SireneChamadoBacklogWrapper
           chamadoId={chamadoModalId}
           onClose={() => {
+            setChamadoModalId(null);
+            setPendingConcluirId(null);
+          }}
+          onConcluido={() => {
             if (pendingConcluirId) {
               void concluir(pendingConcluirId);
               setPendingConcluirId(null);
