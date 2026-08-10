@@ -185,7 +185,7 @@ export async function gerarSnapshotCarometro(
   }).length;
   const cardsEmDia = cardsComSLA.length - cardsAtrasados;
   const scoreCards = cardsComSLA.length === 0
-    ? null
+    ? 100
     : Math.max(0, Math.round((cardsEmDia / cardsComSLA.length) * 100));
 
   // Sub-score 3: Próximas Atividades (kanban_cards.prazo_atividade)
