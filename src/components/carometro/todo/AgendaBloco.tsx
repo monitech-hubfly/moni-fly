@@ -283,8 +283,8 @@ function AgendaCard({
           </button>
         )}
 
-        {/* Botão desfazer conclusão */}
-        {atv.concluido && (
+        {/* Botão desfazer conclusão — oculto para Sirene/Pastelaria (chamado já concluído) */}
+        {atv.concluido && (atv.origem_tipo !== 'sirene' && atv.origem_tipo !== 'pastelaria') && (
           <button
             data-action="desconcluir"
             type="button"
