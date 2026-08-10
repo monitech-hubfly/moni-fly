@@ -508,7 +508,7 @@ export async function buscarDadosModalChamado(
 
   const { data: chamado, error: chamadoErr } = await supabase
     .from('sirene_chamados')
-    .select('id, numero, incendio, status, criado_em, aberto_por, frank_id, frank_nome, te_trata, trava, arquivado, prioridade')
+    .select('id, numero, incendio, status, created_at, aberto_por, frank_id, frank_nome, te_trata, trava, arquivado, prioridade')
     .eq('id', chamadoId)
     .maybeSingle();
 
@@ -516,7 +516,7 @@ export async function buscarDadosModalChamado(
 
   const c = chamado as {
     id: number; numero: number; incendio: string | null; status: string | null;
-    criado_em: string; aberto_por: string | null; frank_id: string | null;
+    created_at: string; aberto_por: string | null; frank_id: string | null;
     frank_nome: string | null; te_trata: boolean | null; trava: boolean | null;
     arquivado: boolean | null; prioridade: string | null;
   };
@@ -552,7 +552,7 @@ export async function buscarDadosModalChamado(
     time_nome:              null,
     times_nomes:            [],
     franqueado_nome:        c.frank_nome ?? null,
-    criado_em:              c.criado_em,
+    criado_em:              c.created_at,
     sla_status:             null,
     trava:                  Boolean(c.trava),
     origem:                 kaRow?.origem ?? 'sirene',

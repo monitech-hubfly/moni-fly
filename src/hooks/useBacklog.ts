@@ -307,7 +307,7 @@ export function useBacklog(): UseBacklogResult {
       // Chamados abertos pelo usuário onde todos tópicos ativos estão concluídos/aprovados
       const chamadosPendentesRes = await supabase
         .from('sirene_chamados')
-        .select('id, numero, incendio, criado_em, sirene_topicos!chamado_id(status, arquivado)')
+        .select('id, numero, incendio, created_at, sirene_topicos!chamado_id(status, arquivado)')
         .eq('aberto_por', effectiveProfileId)
         .in('status', ['em_andamento', 'aguardando_aprovacao_criador', 'nao_iniciado'])
         .eq('arquivado', false)
@@ -318,7 +318,7 @@ export function useBacklog(): UseBacklogResult {
         id: number;
         numero: number;
         incendio: string | null;
-        criado_em: string;
+        created_at: string;
         sirene_topicos: { status: string; arquivado: boolean }[];
       };
 
@@ -332,7 +332,7 @@ export function useBacklog(): UseBacklogResult {
           id:        Number(c.id),
           numero:    Number(c.numero),
           incendio:  c.incendio ?? `Chamado #${c.numero}`,
-          criado_em: c.criado_em,
+          criado_em: c.created_at,
         }));
 
       const { data: ativoData } = await supabase
