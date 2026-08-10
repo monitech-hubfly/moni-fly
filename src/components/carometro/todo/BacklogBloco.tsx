@@ -714,7 +714,13 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose }: SireneChamad
   const skipHorasRef = useRef(false);
 
   useEffect(() => {
-    void buscarDadosModalChamado(chamadoId).then(r => { if (r.ok) setRow(r.row); });
+    void buscarDadosModalChamado(chamadoId).then(r => {
+      if (r.ok) {
+        setRow(r.row);
+      } else {
+        console.error('[BacklogWrapper] buscarDadosModalChamado falhou:', r.error);
+      }
+    }).catch(e => console.error('[BacklogWrapper] erro ao buscar chamado:', e));
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -764,7 +770,15 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose }: SireneChamad
     window.dispatchEvent(new CustomEvent('backlog-reload'));
   }
 
-  if (!row) return null;
+  if (!row) return (
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-xl p-6 shadow-xl flex flex-col items-center gap-3">
+        <div className="h-6 w-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-gray-600">Carregando chamado…</p>
+        <button type="button" onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
+      </div>
+    </div>
+  );
 
   return (
     <>
