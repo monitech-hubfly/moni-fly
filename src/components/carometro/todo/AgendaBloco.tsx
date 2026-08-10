@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDroppable } from '@dnd-kit/core';
 import { useAgenda, AtividadeAgenda, DiaAgenda } from '@/hooks/useAgenda';
@@ -91,6 +91,8 @@ function AgendaCard({
   onConcluir,
   onDesconcluir,
   onAtualizarHorario,
+  onAtualizarHorarioInicio,
+  onDragStart,
 }: {
   atv: AtividadeAgenda;
   colIndex: number;
@@ -99,6 +101,8 @@ function AgendaCard({
   onConcluir: (atv: AtividadeAgenda) => void;
   onDesconcluir: (id: string) => void;
   onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
+  onAtualizarHorarioInicio: (id: string, hora_inicio: string) => Promise<void>;
+  onDragStart: (atv: AtividadeAgenda, e: React.MouseEvent) => void;
 }) {
   const [h, m] = atv.hora_inicio.split(':').map(Number);
   const topPx  = (h - HORA_INICIO) * ALTURA_HORA + (m ?? 0);
@@ -109,33 +113,40 @@ function AgendaCard({
 
   const [visualHoraFim, setVisualHoraFim] = useState<string | null>(null);
   const visualHoraFimRef = useRef<string | null>(null);
+  const [visualHoraInicio, setVisualHoraInicio] = useState<string | null>(null);
+  const visualHoraInicioRef = useRef<string | null>(null);
   const resizingRef = useRef(false);
 
-  const horaFimEfetiva = visualHoraFim ?? atv.hora_fim;
+  const horaFimEfetiva    = visualHoraFim    ?? atv.hora_fim;
+  const horaInicioEfetiva = visualHoraInicio ?? atv.hora_inicio;
+  const [hEf, mEf] = horaInicioEfetiva.split(':').map(Number);
+  const topPxEfetivo = (hEf - HORA_INICIO) * ALTURA_HORA + (mEf ?? 0);
+
   let heightPx = 30;
   if (horaFimEfetiva) {
     const [hf, mf] = horaFimEfetiva.split(':').map(Number);
-    heightPx = Math.max(30, (hf * 60 + (mf ?? 0)) - (h * 60 + (m ?? 0)));
+    heightPx = Math.max(30, (hf * 60 + (mf ?? 0)) - (hEf * 60 + (mEf ?? 0)));
   }
 
+  // ── Resize inferior (hora_fim) ──
   const handleResizeStart = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     resizingRef.current = true;
 
     const startY       = e.clientY;
-    const horaFimBase  = horaFimEfetiva ?? `${String(Math.min(HORA_FIM, h + 1)).padStart(2, '0')}:00`;
+    const horaFimBase  = horaFimEfetiva ?? `${String(Math.min(HORA_FIM, hEf + 1)).padStart(2, '0')}:00`;
     const [hfb, mfb]   = horaFimBase.split(':').map(Number);
     const minutosBase  = hfb * 60 + mfb;
-    const minutosInicio = h * 60 + (m ?? 0);
+    const minutosInicio = hEf * 60 + (mEf ?? 0);
 
     const onMove = (me: MouseEvent) => {
-      const delta     = me.clientY - startY;
-      const rawMin    = minutosBase + Math.round(delta / ALTURA_HORA * 60 / 15) * 15;
-      const clamped   = Math.max(minutosInicio + 15, Math.min(HORA_FIM * 60, rawMin));
-      const nh        = Math.floor(clamped / 60);
-      const nm        = clamped % 60;
-      const newVal    = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+      const delta   = me.clientY - startY;
+      const rawMin  = minutosBase + Math.round(delta / ALTURA_HORA * 60 / 15) * 15;
+      const clamped = Math.max(minutosInicio + 15, Math.min(HORA_FIM * 60, rawMin));
+      const nh = Math.floor(clamped / 60);
+      const nm = clamped % 60;
+      const newVal = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
       setVisualHoraFim(newVal);
       visualHoraFimRef.current = newVal;
     };
@@ -156,6 +167,46 @@ function AgendaCard({
     document.addEventListener('mouseup', onUp);
   };
 
+  // ── Resize superior (hora_inicio) ──
+  const handleResizeTopStart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    resizingRef.current = true;
+
+    const startY         = e.clientY;
+    const [hib, mib]     = atv.hora_inicio.split(':').map(Number);
+    const minutosBase    = hib * 60 + mib;
+    const minutosFim     = horaFimEfetiva
+      ? (() => { const [hf, mf] = horaFimEfetiva.split(':').map(Number); return hf * 60 + mf; })()
+      : minutosBase + 60;
+
+    const onMove = (me: MouseEvent) => {
+      const delta   = me.clientY - startY;
+      const rawMin  = minutosBase + Math.round(delta / ALTURA_HORA * 60 / 15) * 15;
+      const clamped = Math.max(HORA_INICIO * 60, Math.min(minutosFim - 15, rawMin));
+      const nh = Math.floor(clamped / 60);
+      const nm = clamped % 60;
+      const newVal = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+      setVisualHoraInicio(newVal);
+      visualHoraInicioRef.current = newVal;
+    };
+
+    const onUp = async () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      resizingRef.current = false;
+      const finalHoraInicio = visualHoraInicioRef.current;
+      if (finalHoraInicio && finalHoraInicio !== atv.hora_inicio) {
+        await onAtualizarHorarioInicio(atv.id, finalHoraInicio);
+      }
+      setVisualHoraInicio(null);
+      visualHoraInicioRef.current = null;
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
   const colWidthPct  = 100 / totalCols;
   const colLeftPct   = colIndex * colWidthPct;
   const GAP = 2; // px entre colunas
@@ -165,7 +216,7 @@ function AgendaCard({
       data-atividade="true"
       className="absolute rounded px-1.5 py-0.5 text-white text-xs overflow-hidden select-none group"
       style={{
-        top: topPx,
+        top: topPxEfetivo,
         height: heightPx,
         left:  `calc(${colLeftPct}% + ${GAP}px)`,
         width: `calc(${colWidthPct}% - ${GAP * 2}px)`,
@@ -174,13 +225,26 @@ function AgendaCard({
         opacity: atv.concluido ? 0.6 : isVencido ? 0.7 : 1,
         borderTop: isVencido ? '3px solid rgba(239,159,39,0.9)' : undefined,
       }}
+      onMouseDown={(e) => {
+        if ((e.target as HTMLElement).closest('[data-action]')) return;
+        onDragStart(atv, e);
+      }}
       onClick={(e) => {
         if (resizingRef.current) return;
         if ((e.target as HTMLElement).closest('[data-action]')) return;
         e.stopPropagation();
-        onAbrirParaEditar(atv.id);
       }}
     >
+      {/* Handle de resize superior */}
+      {!atv.concluido && (
+        <div
+          data-action="resize-top"
+          className="absolute top-0 left-0 right-0 h-2 cursor-n-resize opacity-0 group-hover:opacity-100 flex items-center justify-center"
+          onMouseDown={handleResizeTopStart}
+        >
+          <div className="w-8 h-0.5 rounded-full bg-white/60" />
+        </div>
+      )}
       <div className="flex items-start justify-between gap-1 h-full">
         <div className="flex-1 min-w-0">
           <div className={`font-medium truncate leading-tight ${atv.concluido ? 'line-through opacity-70' : ''}`}>
@@ -188,7 +252,7 @@ function AgendaCard({
           </div>
           {heightPx >= 40 && (
             <div className="opacity-80 text-[10px]">
-              {atv.hora_inicio}{horaFimEfetiva ? ` – ${horaFimEfetiva}` : ''}
+              {horaInicioEfetiva}{horaFimEfetiva ? ` – ${horaFimEfetiva}` : ''}
               {atv.link_reuniao && (
                 <a
                   data-action="link"
@@ -249,7 +313,7 @@ function AgendaCard({
 
 // ── Coluna de um dia ──────────────────────────────────────────────────────────
 function ColunaDia({
-  dia, atividades, onAbrirModal, onAbrirParaEditar, onConcluir, onDesconcluir, onAtualizarHorario,
+  dia, atividades, onAbrirModal, onAbrirParaEditar, onConcluir, onDesconcluir, onAtualizarHorario, onAtualizarHorarioInicio, onDragStart,
 }: {
   dia: DiaAgenda;
   atividades: AtividadeAgenda[];
@@ -258,6 +322,8 @@ function ColunaDia({
   onConcluir: (atv: AtividadeAgenda) => void;
   onDesconcluir: (id: string) => void;
   onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
+  onAtualizarHorarioInicio: (id: string, hora_inicio: string) => Promise<void>;
+  onDragStart: (atv: AtividadeAgenda, e: React.MouseEvent) => void;
 }) {
   const horas = Array.from({ length: TOTAL_HORAS }, (_, i) => HORA_INICIO + i);
 
@@ -296,6 +362,8 @@ function ColunaDia({
               onConcluir={onConcluir}
               onDesconcluir={onDesconcluir}
               onAtualizarHorario={onAtualizarHorario}
+              onAtualizarHorarioInicio={onAtualizarHorarioInicio}
+              onDragStart={onDragStart}
             />
           );
         });
@@ -460,11 +528,22 @@ type AgendaBlocoProps = {
   refreshKey?: number;
 };
 
+// ── Tipo drag state ───────────────────────────────────────────────────────────
+type DragState = {
+  atv: AtividadeAgenda;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+  isDragging: boolean; // true após 8px de movimento
+  durationMin: number;
+};
+
 // ── AgendaBloco ───────────────────────────────────────────────────────────────
 export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }: AgendaBlocoProps) {
   const {
     atividades, diasDaSemana, semanaLabel, semanaOffset,
-    isLoading, error, navegar, irParaHoje, concluir, desconcluir, atualizarHorario,
+    isLoading, error, navegar, irParaHoje, concluir, desconcluir, atualizarHorario, atualizarHorarioInicio, moverEvento,
   } = useAgenda(refreshKey);
 
   const supabase = useMemo(() => createClient(), []);
@@ -472,6 +551,9 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
   const [pendingEditar, setPendingEditar] = useState<{ id: string } | null>(null);
   const [chamadoModalId, setChamadoModalId] = useState<number | null>(null);
   const [pendingConcluirId, setPendingConcluirId] = useState<string | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const dragStateRef = useRef<DragState | null>(null);
+  const gradeRef = useRef<HTMLDivElement | null>(null);
 
   const handleAbrirParaEditar = useCallback((id: string) => {
     const atv = atividades.find(a => a.id === id);
@@ -481,6 +563,83 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
       onAbrirParaEditar(id);
     }
   }, [atividades, onAbrirParaEditar]);
+
+  // ── Drag de eventos ───────────────────────────────────────────────────────
+  const handleDragStart = useCallback((atv: AtividadeAgenda, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const [hi, mi] = atv.hora_inicio.split(':').map(Number);
+    const [hf, mf] = (atv.hora_fim ?? `${String(hi + 1).padStart(2,'0')}:00`).split(':').map(Number);
+    const durationMin = (hf * 60 + mf) - (hi * 60 + mi);
+    const state: DragState = {
+      atv, startX: e.clientX, startY: e.clientY,
+      currentX: e.clientX, currentY: e.clientY,
+      isDragging: false, durationMin,
+    };
+    dragStateRef.current = state;
+    setDragState(state);
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const ds = dragStateRef.current;
+      if (!ds) return;
+      const dx = e.clientX - ds.startX;
+      const dy = e.clientY - ds.startY;
+      const updated: DragState = {
+        ...ds,
+        currentX: e.clientX, currentY: e.clientY,
+        isDragging: ds.isDragging || Math.hypot(dx, dy) > 8,
+      };
+      dragStateRef.current = updated;
+      setDragState({ ...updated });
+    };
+
+    const onUp = async (e: MouseEvent) => {
+      const ds = dragStateRef.current;
+      dragStateRef.current = null;
+      setDragState(null);
+      if (!ds) return;
+
+      if (!ds.isDragging) {
+        // Click simples → abrir editar
+        handleAbrirParaEditar(ds.atv.id);
+        return;
+      }
+
+      // Calcular nova data/hora a partir da posição do mouse
+      const grade = gradeRef.current;
+      if (!grade) return;
+      const rect = grade.getBoundingClientRect();
+      const scrollTop = grade.scrollTop;
+      const relX = e.clientX - rect.left - LARGURA_HORAS;
+      const relY = e.clientY - rect.top + scrollTop;
+
+      const colWidth = (rect.width - LARGURA_HORAS) / diasDaSemana.length;
+      const colIdx = Math.max(0, Math.min(diasDaSemana.length - 1, Math.floor(relX / colWidth)));
+      const novaData = diasDaSemana[colIdx]?.dateStr ?? ds.atv.data;
+
+      const minutosInicio = Math.max(
+        HORA_INICIO * 60,
+        Math.min((HORA_FIM - 1) * 60, Math.round(relY / ALTURA_HORA * 60 / 15) * 15 + HORA_INICIO * 60),
+      );
+      const minutosFim = Math.min(HORA_FIM * 60, minutosInicio + ds.durationMin);
+
+      const fmt = (m: number) => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
+      const novaHoraInicio = fmt(minutosInicio);
+      const novaHoraFim    = fmt(minutosFim);
+
+      if (novaData === ds.atv.data && novaHoraInicio === ds.atv.hora_inicio) return;
+      await moverEvento(ds.atv.id, novaData, novaHoraInicio, novaHoraFim);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+  }, [diasDaSemana, handleAbrirParaEditar, moverEvento]);
 
   const handleEscopoSelecionado = useCallback((escopo: RecorrenciaEscopo) => {
     if (!pendingEditar) return;
@@ -589,7 +748,7 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
       </div>
 
       {/* Grade */}
-      <div className="overflow-y-auto" style={{ height: 600 }}>
+      <div ref={gradeRef} className="overflow-y-auto" style={{ height: 600 }}>
         <div className="relative flex" style={{ minHeight: ALTURA_GRADE }}>
           <ColunaHoras />
           {diasDaSemana.map(dia => (
@@ -602,11 +761,31 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
               onConcluir={handleConcluir}
               onDesconcluir={desconcluir}
               onAtualizarHorario={atualizarHorario}
+              onAtualizarHorarioInicio={atualizarHorarioInicio}
+              onDragStart={handleDragStart}
             />
           ))}
           <LinhaAgora semanaOffset={semanaOffset} />
         </div>
       </div>
+
+      {/* Ghost de drag */}
+      {dragState?.isDragging && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed pointer-events-none rounded px-1.5 py-0.5 text-white text-xs font-medium shadow-lg opacity-80"
+          style={{
+            top: dragState.currentY - 16,
+            left: dragState.currentX - 40,
+            backgroundColor: dragState.atv.cor,
+            zIndex: 9999,
+            minWidth: 80,
+            transform: 'rotate(2deg)',
+          }}
+        >
+          {dragState.atv.titulo}
+        </div>,
+        document.body,
+      )}
 
       {/* Dialog de conclusão para Sirene/Kanban */}
       {dialogState && (

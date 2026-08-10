@@ -38,6 +38,8 @@ export type UseAgendaResult = {
   concluir: (id: string) => Promise<void>;
   desconcluir: (id: string) => Promise<void>;
   atualizarHorario: (id: string, hora_fim: string) => Promise<void>;
+  atualizarHorarioInicio: (id: string, hora_inicio: string) => Promise<void>;
+  moverEvento: (id: string, data: string, hora_inicio: string, hora_fim: string | null) => Promise<void>;
   excluir: (id: string) => Promise<void>;
 };
 
@@ -305,6 +307,29 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
     ));
   }, [supabase]);
 
+  const atualizarHorarioInicio = useCallback(async (id: string, hora_inicio: string) => {
+    const { error } = await supabase
+      .from('gantt_planejamento')
+      .update({ hora_inicio })
+      .eq('id', id);
+    if (error) throw error;
+    setAtividades(prev => prev.map(a =>
+      a.id === id ? { ...a, hora_inicio } : a
+    ));
+  }, [supabase]);
+
+  const moverEvento = useCallback(async (id: string, data: string, hora_inicio: string, hora_fim: string | null) => {
+    const payload: Record<string, unknown> = { data, hora_inicio, hora_fim };
+    const { error } = await supabase
+      .from('gantt_planejamento')
+      .update(payload)
+      .eq('id', id);
+    if (error) throw error;
+    setAtividades(prev => prev.map(a =>
+      a.id === id ? { ...a, data, hora_inicio, hora_fim } : a
+    ));
+  }, [supabase]);
+
   const excluir = useCallback(async (id: string) => {
     await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', id);
     const { error } = await supabase.from('gantt_planejamento').delete().eq('id', id);
@@ -313,5 +338,5 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
     window.dispatchEvent(new CustomEvent('backlog-reload'));
   }, [supabase]);
 
-  return { atividades, diasDaSemana, semanaLabel, semanaOffset, isLoading, error, navegar, irParaHoje, concluir, desconcluir, atualizarHorario, excluir };
+  return { atividades, diasDaSemana, semanaLabel, semanaOffset, isLoading, error, navegar, irParaHoje, concluir, desconcluir, atualizarHorario, atualizarHorarioInicio, moverEvento, excluir };
 }
