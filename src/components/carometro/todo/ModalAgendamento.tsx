@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useBacklog }        from '@/hooks/useBacklog';
 import { useBacklogKanban }  from '@/hooks/useBacklogKanban';
+import { AgendaComentarios } from './AgendaComentarios';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -1382,13 +1383,23 @@ export function ModalAgendamento({
             </div>
           </Secao>
 
-          {/* ── Observações ── */}
-          <Secao titulo="Observações" aberta={abertas[5]} onToggle={() => toggleSecao(5)}>
-            <textarea className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mt-1 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
-              rows={3} placeholder="Notas livres..."
-              value={form.observacoes ?? ''}
-              onChange={e => set('observacoes', e.target.value || null)} />
-          </Secao>
+          {/* ── Observações / Comentários ── */}
+          {modo === 'editar' && editandoId ? (
+            <Secao titulo="Comentários" aberta={abertas[5]} onToggle={() => toggleSecao(5)}>
+              <AgendaComentarios
+                ganttId={editandoId}
+                ganttTitulo={form.titulo ?? '(sem título)'}
+                profileId={profileId}
+              />
+            </Secao>
+          ) : (
+            <Secao titulo="Observações" aberta={abertas[5]} onToggle={() => toggleSecao(5)}>
+              <textarea className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mt-1 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
+                rows={3} placeholder="Notas livres..."
+                value={form.observacoes ?? ''}
+                onChange={e => set('observacoes', e.target.value || null)} />
+            </Secao>
+          )}
         </div>
 
         {/* Footer */}

@@ -23,6 +23,8 @@ type Props = {
   className?: string;
   placeholder?: string;
   disabled?: boolean;
+  /** Substitui a busca padrão de usuários (ex: filtrar apenas team+admin). */
+  buscarUsuarios?: (query: string) => Promise<{ id: string; nome: string }[]>;
 };
 
 function textoAntesDoCursor(el: HTMLElement): string {
@@ -51,6 +53,7 @@ export function MencaoContentEditable({
   className,
   placeholder,
   disabled,
+  buscarUsuarios,
 }: Props) {
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([]);
   const [posicaoAt, setPosicaoAt] = useState<number | null>(null);
@@ -90,14 +93,15 @@ export function MencaoContentEditable({
 
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        void buscarUsuariosParaMencao(query).then((res) => {
+        const fn = buscarUsuarios ?? buscarUsuariosParaMencao;
+        void fn(query).then((res) => {
           if (queryRef.current !== query) return;
           setSugestoes(res);
           setAnchor(atualizarAnchor(el));
         });
       }, 150);
     },
-    [fecharDropdown],
+    [fecharDropdown, buscarUsuarios],
   );
 
   const selecionarSugestao = useCallback(

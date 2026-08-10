@@ -11,7 +11,7 @@ export function categorizarAlerta(tipo: string): CategoriaAlerta {
     tipo === 'sla_atividade_atencao'
   ) return 'sirene';
   if (tipo === 'mencao_kanban_card' || tipo === 'mencao_card') return 'cards';
-  if (tipo === 'status_preenchimento_lembrete') return 'planejamento';
+  if (tipo === 'mencao_agenda_comentario' || tipo === 'status_preenchimento_lembrete') return 'planejamento';
   return 'gerais';
 }
 
@@ -25,6 +25,7 @@ export function priorizarAlerta(tipo: string): PrioridadeAlerta {
     tipo === 'mencao_sirene' ||
     tipo === 'mencao_kanban_card' ||
     tipo === 'mencao_card' ||
+    tipo === 'mencao_agenda_comentario' ||
     tipo === 'aprovacao_fase' ||
     tipo === 'acoplamento_novo_projeto'
   ) return 'critico';
