@@ -108,9 +108,7 @@ function AnexoUploadInline({
       onError('Selecione o tipo e um arquivo.');
       return;
     }
-    const file = fileRef.current.files[0];
-    const formData = new FormData();
-    formData.set('file', file);
+    const files = Array.from(fileRef.current.files);
     let origem: AnexoOrigem;
     let topicoId: number | undefined;
     if (opcao.tipo === 'criador') origem = 'criador';
@@ -121,14 +119,20 @@ function AnexoUploadInline({
     }
     setPending(true);
     onError('');
-    const result = await uploadAnexoChamado(chamadoId, origem, formData, topicoId);
-    setPending(false);
-    if (!result.ok) onError(result.error);
-    else {
-      onSuccess();
-      fileRef.current.value = '';
-      setOpcao(null);
+    for (const file of files) {
+      const formData = new FormData();
+      formData.set('file', file);
+      const result = await uploadAnexoChamado(chamadoId, origem, formData, topicoId);
+      if (!result.ok) {
+        onError(result.error);
+        setPending(false);
+        return;
+      }
     }
+    setPending(false);
+    onSuccess();
+    if (fileRef.current) fileRef.current.value = '';
+    setOpcao(null);
   };
 
   return (
@@ -163,6 +167,7 @@ function AnexoUploadInline({
       <input
         ref={fileRef}
         type="file"
+        multiple
         className="rounded border border-stone-600 bg-stone-800 text-sm text-stone-200 file:mr-2 file:rounded file:border-0 file:bg-stone-600 file:px-2 file:py-1 file:text-stone-200"
       />
       <button
