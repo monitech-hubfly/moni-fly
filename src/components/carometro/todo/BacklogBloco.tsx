@@ -1057,7 +1057,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
       {chamadoModalId != null && typeof document !== 'undefined' && createPortal(
         <SireneChamadoBacklogWrapper
           chamadoId={chamadoModalId}
-          onClose={() => { setChamadoModalId(null); void recarregar(); }}
+          onClose={() => setChamadoModalId(null)}
         />,
         document.body,
       )}
