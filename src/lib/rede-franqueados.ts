@@ -185,6 +185,29 @@ export type RedeFranqueadoRowDb = Record<RedeFranqueadoDbKey, string | null> & {
   anexo_cof_justificativa?: string | null;
   anexo_contrato_justificativa?: string | null;
   anexo_numero_franquia_justificativa?: string | null;
+  // ── Diagnóstico (migration 508) ──────────────────────────────────────────
+  /** 0=Não tem | 2=Moderado | 3=Tem | null=Não aferido */
+  diag_d?: number | null;
+  diag_c?: number | null;
+  diag_k?: number | null;
+  diag_d_desc?: string | null;
+  diag_c_desc?: string | null;
+  diag_k_desc?: string | null;
+  /** NPS 0–10 (≤6 detrator, ≤8 neutro, >8 promotor) */
+  diag_nps?: number | null;
+  /** CSAT 1.0–5.0 */
+  diag_csat?: number | null;
+  diag_contratos_12m?: number | null;
+  diag_ano_meta?: number | null;
+  diag_tend_eng?: '↑' | '→' | '↓' | null;
+  diag_tend_rel?: '↑' | '→' | '↓' | null;
+  diag_tend_ind?: '↑' | '→' | '↓' | null;
+  diag_proxima_acao?: string | null;
+  diag_adormecido?: boolean;
+  diag_ultimo_contato?: string | null;
+  diag_ultima_aval?: string | null;
+  diag_avaliado_por?: string | null;
+  diag_grupo_sec?: string | null;
 } & RedeFranqueadoDocsRow &
   RedeEmpresaDocsRow;
 

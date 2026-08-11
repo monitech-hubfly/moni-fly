@@ -14,6 +14,19 @@ import {
   ordenarRedePorNFranquia,
   REDE_FRANQUEADOS_TABLE_KEYS,
 } from '@/lib/rede-franqueados';
+import { calcEngajamento } from '@/lib/rede-diagnostico-engine';
+import {
+  DimCell,
+  NpsCell,
+  CsatCell,
+  ScoreCell,
+  IndCell,
+  GrupoCell,
+  PriorityBadge,
+  PerfilCell,
+  TendCell,
+  PmaCell,
+} from '@/components/diagnostico-rede/cells';
 import { RedeFranqueadoSensitiveBlur } from '@/components/RedeFranqueadoSensitiveBlur';
 import { atualizarRedeFranqueado, excluirRedeFranqueado } from '@/app/rede-franqueados/actions';
 import { UFS_BRASIL } from '@/lib/uf';
@@ -253,6 +266,8 @@ type Props = {
   /** Indica que há texto na busca (distinto de tabela vazia). */
   buscaAtiva?: boolean;
   buscaResetKey?: string;
+  /** Exibe labels internos no diagnóstico (ex.: "Alta Prontidão" em vez de "Alta Capacidade"). */
+  internalView?: boolean;
 };
 
 function toInputDate(val: string | null | undefined): string {
@@ -280,6 +295,7 @@ export function TabelaRedeFranqueadosEditavel({
   totalSemBusca,
   buscaAtiva = false,
   buscaResetKey = '',
+  internalView = false,
 }: Props) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -437,7 +453,7 @@ export function TabelaRedeFranqueadosEditavel({
       )}
 
       <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
-        <table className="w-full min-w-[1700px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[2400px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50/95">
               {headers.map((h, i) => {
@@ -448,6 +464,99 @@ export function TabelaRedeFranqueadosEditavel({
                   </th>
                 );
               })}
+
+              {/* ── Diagnóstico: Engajamento ── */}
+              <th
+                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
+                scope="col"
+                style={{ minWidth: 80 }}
+              >
+                Score
+              </th>
+              <th
+                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
+                scope="col"
+                style={{ minWidth: 60 }}
+              >
+                D
+              </th>
+              <th
+                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
+                scope="col"
+                style={{ minWidth: 60 }}
+              >
+                C
+              </th>
+              <th
+                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
+                scope="col"
+                style={{ minWidth: 60 }}
+              >
+                K
+              </th>
+
+              {/* ── Diagnóstico: Relação ── */}
+              <th
+                className={`${redeTh} border-t-[3px] border-t-rose-600 bg-rose-50/40`}
+                scope="col"
+                style={{ minWidth: 80 }}
+              >
+                NPS
+              </th>
+              <th
+                className={`${redeTh} border-t-[3px] border-t-rose-600 bg-rose-50/40`}
+                scope="col"
+                style={{ minWidth: 80 }}
+              >
+                CSAT
+              </th>
+
+              {/* ── Diagnóstico: Indicador ── */}
+              <th
+                className={`${redeTh} border-t-[3px] border-t-blue-700 bg-blue-50/40`}
+                scope="col"
+                style={{ minWidth: 110 }}
+              >
+                Contratos 12m
+              </th>
+
+              {/* ── Diagnóstico: Gestão ── */}
+              <th
+                className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
+                scope="col"
+                style={{ minWidth: 60 }}
+              >
+                Prio.
+              </th>
+              <th
+                className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
+                scope="col"
+                style={{ minWidth: 140 }}
+              >
+                Perfil
+              </th>
+              <th
+                className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
+                scope="col"
+                style={{ minWidth: 155 }}
+              >
+                Grupo
+              </th>
+              <th
+                className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
+                scope="col"
+                style={{ minWidth: 70 }}
+              >
+                Tendência
+              </th>
+              <th
+                className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
+                scope="col"
+                style={{ minWidth: 200 }}
+              >
+                Próxima ação
+              </th>
+
               {canEditRows ? (
                 <th
                   className="sticky right-0 z-20 w-14 min-w-[3.5rem] border-l border-stone-200 bg-stone-50 px-1 py-2 text-center shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]"
@@ -596,6 +705,50 @@ export function TabelaRedeFranqueadosEditavel({
                       </td>
                     );
                   })}
+
+                  {/* ── Diagnóstico: Engajamento ── */}
+                  <td className="px-3 py-2.5 align-top bg-green-50/20">
+                    <ScoreCell score={calcEngajamento(r)} internalView={internalView} />
+                  </td>
+                  <td className="px-3 py-2.5 align-top bg-green-50/20">
+                    <DimCell val={r.diag_d} desc={r.diag_d_desc} />
+                  </td>
+                  <td className="px-3 py-2.5 align-top bg-green-50/20">
+                    <DimCell val={r.diag_c} desc={r.diag_c_desc} />
+                  </td>
+                  <td className="px-3 py-2.5 align-top bg-green-50/20">
+                    <DimCell val={r.diag_k} desc={r.diag_k_desc} />
+                  </td>
+
+                  {/* ── Diagnóstico: Relação ── */}
+                  <td className="px-3 py-2.5 align-top bg-rose-50/20">
+                    <NpsCell nps={r.diag_nps} />
+                  </td>
+                  <td className="px-3 py-2.5 align-top bg-rose-50/20">
+                    <CsatCell csat={r.diag_csat} />
+                  </td>
+
+                  {/* ── Diagnóstico: Indicador ── */}
+                  <td className="px-3 py-2.5 align-top bg-blue-50/20">
+                    <IndCell row={r} />
+                  </td>
+
+                  {/* ── Diagnóstico: Gestão ── */}
+                  <td className="px-3 py-2.5 align-top">
+                    <PriorityBadge row={r} />
+                  </td>
+                  <td className="px-3 py-2.5 align-top">
+                    <PerfilCell row={r} internalView={internalView} />
+                  </td>
+                  <td className="px-3 py-2.5 align-top">
+                    <GrupoCell row={r} />
+                  </td>
+                  <td className="px-3 py-2.5 align-top">
+                    <TendCell row={r} />
+                  </td>
+                  <td className="px-3 py-2.5 align-top">
+                    <PmaCell text={r.diag_proxima_acao} />
+                  </td>
 
                   {canEditRows ? (
                     <td className="sticky right-0 z-10 w-14 min-w-[3.5rem] border-l border-stone-200 bg-white px-1 py-2 align-middle shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)] group-hover:bg-stone-50/90">
