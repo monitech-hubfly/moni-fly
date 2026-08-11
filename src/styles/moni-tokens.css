@@ -3841,6 +3841,10 @@
   z-index: 22;
 }
 
+.moni-tabela-scroll-main table tbody td.moni-rede-sticky-col {
+  z-index: 16;
+}
+
 .moni-rede-sticky-col-last {
   box-shadow: 4px 0 8px -4px rgba(12, 38, 51, 0.08);
 }
