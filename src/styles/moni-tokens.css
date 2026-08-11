@@ -3835,6 +3835,16 @@
   z-index: 14;
 }
 
+/* Colunas fixas à esquerda — fundo opaco no cabeçalho oculta conteúdo ao rolar horizontalmente */
+.moni-tabela-scroll-main table thead th.moni-rede-sticky-col {
+  background-color: var(--moni-surface-50);
+  z-index: 22;
+}
+
+.moni-rede-sticky-col-last {
+  box-shadow: 4px 0 8px -4px rgba(12, 38, 51, 0.08);
+}
+
 @media (max-width: 640px) {
   .moni-tabela-scroll-main table thead tr:only-child th,
   .moni-tabela-scroll-main table thead tr:first-child:not(:last-child) th {

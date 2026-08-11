@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from 
 import { createPortal } from 'react-dom';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import { useRouter } from 'next/navigation';
-import { Check, FileText, Loader2, Maximize2, Minimize2, Pencil, Plus, Stethoscope, Trash2, X } from 'lucide-react';
+import { Check, FileText, Loader2, Maximize2, Minimize2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import type { RedeFranqueadoDbKey, RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import {
@@ -29,7 +29,6 @@ import {
   PmaCell,
 } from '@/components/diagnostico-rede/cells';
 import { DiagnosticoHeaderTh } from '@/components/diagnostico-rede/DiagnosticoHeaderTh';
-import { DiagnosticoRedePainelEdit } from '@/components/diagnostico-rede/DiagnosticoRedePainelEdit';
 import {
   DiagnosticoInlineComputed,
   DiagnosticoInlineCsat,
@@ -266,8 +265,8 @@ function rowAsDiagSource(r: RedeFranqueadoRowDb, statusOverride?: string | null)
 }
 
 /** Primeiras colunas fixas ao rolar horizontalmente (até Status da Franquia). */
-const REDE_STICKY_COLUMN_COUNT = 4;
-const REDE_STICKY_COLUMN_WIDTHS_REM = [5.5, 7, 13, 10] as const;
+const REDE_STICKY_COLUMN_COUNT = 3;
+const REDE_STICKY_COLUMN_WIDTHS_REM = [5.5, 13, 10] as const;
 
 function stickyLeftRem(index: number): number {
   let left = 0;
@@ -366,7 +365,6 @@ export function TabelaRedeFranqueadosEditavel({
 }: Props) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [diagPanelId, setDiagPanelId] = useState<string | null>(null);
   const [expandedContentRows, setExpandedContentRows] = useState<Set<string>>(() => new Set());
   const [draft, setDraft] = useState<Partial<Record<RedeFranqueadoDbKey, string>>>({});
   const [diagDraft, setDiagDraft] = useState<RedeDiagnosticoDraft>(() => redeRowToDiagnosticoDraft({
@@ -434,12 +432,6 @@ export function TabelaRedeFranqueadosEditavel({
   const headers = useMemo(() => [...COLUNAS_REDE_FRANQUEADOS], []);
   const keys = useMemo(() => [...REDE_FRANQUEADOS_TABLE_KEYS], []);
 
-  const diagColSpan = keys.length + 14 + (canEditRows ? 1 : 0);
-
-  const toggleDiagPanel = (id: string) => {
-    setDiagPanelId((prev) => (prev === id ? null : id));
-  };
-
   const toggleContentExpand = (id: string) => {
     setExpandedContentRows((prev) => {
       const next = new Set(prev);
@@ -451,7 +443,6 @@ export function TabelaRedeFranqueadosEditavel({
 
   const beginEdit = (r: RedeFranqueadoRowDb) => {
     if (!canEditRows) return;
-    setDiagPanelId(null);
     setMsg(null);
     setEditingId(r.id);
     const d: Partial<Record<RedeFranqueadoDbKey, string>> = {};
@@ -688,7 +679,6 @@ export function TabelaRedeFranqueadosEditavel({
               const diagSource = isEditing
                 ? rowAsDiagSource(r, (draft.status_franquia as string | undefined) ?? r.status_franquia)
                 : rowAsDiagSource(r);
-              const diagOpen = diagPanelId === r.id;
               const rowInativa = isStatusNC(r);
               const rowAdormecida = isAdormecido(r);
               const rowMutedClass = rowInativa
@@ -976,19 +966,6 @@ export function TabelaRedeFranqueadosEditavel({
                               </span>
                             </button>
                           ) : null}
-                          <button
-                            type="button"
-                            title="Diagnóstico"
-                            onClick={() => toggleDiagPanel(r.id)}
-                            className={`rounded-md p-1.5 ${
-                              diagOpen
-                                ? 'bg-stone-800 text-white'
-                                : 'text-stone-600 hover:bg-stone-200/80 hover:text-stone-900'
-                            }`}
-                          >
-                            <Stethoscope className="h-4 w-4" />
-                            <span className="sr-only">Diagnóstico</span>
-                          </button>
                           <Link
                             href={`/rede-franqueados/${r.id}`}
                             title="Documentos"
@@ -1043,22 +1020,6 @@ export function TabelaRedeFranqueadosEditavel({
                     </td>
                   ) : null}
                 </tr>
-                {canEditRows && diagOpen ? (
-                  <tr className={`border-b border-stone-100 bg-stone-50/40 ${rowMutedClass}`}>
-                    <td colSpan={diagColSpan} className="px-3 py-3">
-                      <DiagnosticoRedePainelEdit
-                        row={diagSource}
-                        internalView={internalView}
-                        compact
-                        draft={isEditing ? diagDraft : undefined}
-                        onDraftChange={isEditing ? setDiagDraft : undefined}
-                        hideSave={isEditing}
-                        onCancel={() => setDiagPanelId(null)}
-                        onSaved={() => setDiagPanelId(null)}
-                      />
-                    </td>
-                  </tr>
-                ) : null}
                 </Fragment>
               );
             })}
