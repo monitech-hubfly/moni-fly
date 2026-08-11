@@ -111,6 +111,6 @@ export function buildPatchSubstituicao(
   }
   patch.n_franquia = (targetRow.n_franquia as string | null) ?? patch.n_franquia;
   patch.ordem = targetRow.ordem;
-  if (!patch.status_franquia) patch.status_franquia = 'Em Operação';
+  patch.status_franquia = 'Em Operação';
   return patch;
 }

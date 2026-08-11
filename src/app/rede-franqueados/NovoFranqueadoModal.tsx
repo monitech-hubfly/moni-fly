@@ -244,7 +244,9 @@ export function NovoFranqueadoModal() {
         n_franquia: form.n_franquia.trim() || undefined,
         modalidade: form.modalidade.trim() || undefined,
         nome_completo: nome,
-        status_franquia: form.status_franquia.trim() || undefined,
+        status_franquia: substituirTransferencia
+          ? 'Em Operação'
+          : form.status_franquia.trim() || undefined,
         classificacao_franqueado: form.classificacao_franqueado.trim() || undefined,
         data_ass_cof: form.data_ass_cof.trim() || undefined,
         data_ass_contrato: form.data_ass_contrato.trim() || undefined,
@@ -549,9 +551,10 @@ export function NovoFranqueadoModal() {
                 <label className="block text-xs font-medium text-stone-600">
                   Status da franquia
                   <select
-                    value={form.status_franquia}
+                    value={substituirTransferencia ? 'Em Operação' : form.status_franquia}
                     onChange={(e) => setForm((f) => ({ ...f, status_franquia: e.target.value }))}
                     className={selectClass}
+                    disabled={substituirTransferencia || submitting}
                   >
                     {REDE_OPCOES_STATUS_FRANQUIA.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -559,6 +562,11 @@ export function NovoFranqueadoModal() {
                       </option>
                     ))}
                   </select>
+                  {substituirTransferencia ? (
+                    <span className="mt-0.5 block text-[10px] text-stone-500">
+                      Após substituir em transferência, o status passa automaticamente para Em Operação.
+                    </span>
+                  ) : null}
                 </label>
                 <label className="block text-xs font-medium text-stone-600">
                   Classificação do franqueado
@@ -786,7 +794,10 @@ export function NovoFranqueadoModal() {
                       type="radio"
                       name="substituir-transferencia"
                       checked={substituirTransferencia}
-                      onChange={() => setSubstituirTransferencia(true)}
+                      onChange={() => {
+                        setSubstituirTransferencia(true);
+                        setForm((f) => ({ ...f, status_franquia: 'Em Operação' }));
+                      }}
                       disabled={submitting || emTransferencia.length === 0}
                     />
                     Sim — substituir em transferência
