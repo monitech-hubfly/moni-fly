@@ -98,6 +98,24 @@ export function CsatCell({ csat }: { csat: number | null | undefined }) {
   );
 }
 
+// ─── AdimplenciaCell ─────────────────────────────────────────────────────────
+
+export function AdimplenciaCell({ adimplente }: { adimplente: boolean | null | undefined }) {
+  if (adimplente === null || adimplente === undefined) return NA;
+  if (adimplente === true) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-[color:var(--moni-green-50,#eef4f0)] px-1.5 py-0.5 text-xs font-semibold text-[color:var(--moni-green-800,#2F4A3A)]">
+        OK
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-xs font-semibold text-red-700">
+      Inad.
+    </span>
+  );
+}
+
 // ─── ScoreCell ───────────────────────────────────────────────────────────────
 
 const SCORE_TEXT: Record<string, string> = {

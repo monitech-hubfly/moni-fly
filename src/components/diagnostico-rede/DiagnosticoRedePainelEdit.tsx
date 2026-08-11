@@ -32,6 +32,7 @@ import {
   PriorityBadge,
   ScoreCell,
   TendCell,
+  AdimplenciaCell,
 } from '@/components/diagnostico-rede/cells';
 import { redeAlertError, redeAlertSuccess, redeBtnGhost, redeBtnPrimary } from '@/app/rede-franqueados/rede-ui';
 
@@ -288,6 +289,17 @@ export function DiagnosticoRedePainelEdit({
                 className={fieldClass}
               />
             </Field>
+            <Field label="Adimplência" hint="OK = adimplente · Inad. = inadimplente">
+              <select
+                value={draft.diag_adimplente}
+                onChange={(e) => setField('diag_adimplente', e.target.value)}
+                className={fieldClass}
+              >
+                <option value="">— Não aferido</option>
+                <option value="true">OK — Adimplente</option>
+                <option value="false">Inad. — Inadimplente</option>
+              </select>
+            </Field>
           </div>
         </section>
 
@@ -408,6 +420,12 @@ export function DiagnosticoRedePainelEdit({
             <span className="text-[10px] text-stone-500">Indicador</span>
             <div className="mt-0.5">
               <IndCell row={previewRow} />
+            </div>
+          </div>
+          <div>
+            <span className="text-[10px] text-stone-500">Adimplência</span>
+            <div className="mt-0.5">
+              <AdimplenciaCell adimplente={previewRow.diag_adimplente ?? null} />
             </div>
           </div>
           <div>

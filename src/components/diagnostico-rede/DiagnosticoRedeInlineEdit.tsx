@@ -11,6 +11,7 @@ import {
   type RedeDiagnosticoSource,
 } from '@/lib/rede-diagnostico-form';
 import {
+  AdimplenciaCell,
   CsatCell,
   DimCell,
   GrupoCell,
@@ -36,6 +37,20 @@ const DIM_DESC_KEY: Record<'diag_d' | 'diag_c' | 'diag_k', 'diag_d_desc' | 'diag
   diag_c: 'diag_c_desc',
   diag_k: 'diag_k_desc',
 };
+
+const ADIMPL_OPTS = [
+  { value: '', label: '—' },
+  { value: 'true', label: 'OK' },
+  { value: 'false', label: 'Inad.' },
+];
+
+function parseAdimplDraft(raw: string): boolean | null {
+  const t = raw.trim();
+  if (!t) return null;
+  if (t === 'true') return true;
+  if (t === 'false') return false;
+  return null;
+}
 
 function parseDimDraftValue(raw: string): number | null {
   const t = raw.trim();
@@ -205,6 +220,34 @@ export function DiagnosticoInlineIndicador({
       {ind ? (
         <span className="text-[9px] font-semibold text-stone-500">{labels[ind] ?? ind}</span>
       ) : null}
+    </div>
+  );
+}
+
+export function DiagnosticoInlineAdimplencia({
+  draft,
+  setDraft,
+}: {
+  draft: RedeDiagnosticoDraft;
+  setDraft: SetDiagDraft;
+}) {
+  const preview = parseAdimplDraft(draft.diag_adimplente);
+
+  return (
+    <div className="flex min-w-[56px] flex-col gap-1">
+      <AdimplenciaCell adimplente={preview} />
+      <select
+        value={draft.diag_adimplente}
+        onChange={(e) => setField(setDraft, 'diag_adimplente', e.target.value)}
+        className={`${selectCls} min-w-[56px] text-center text-xs font-semibold`}
+        aria-label="Adimplência"
+      >
+        {ADIMPL_OPTS.map((o) => (
+          <option key={o.value || 'na'} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

@@ -8,6 +8,7 @@ export type DiagnosticoHeaderKey =
   | 'nps'
   | 'csat'
   | 'contratos12m'
+  | 'adimplencia'
   | 'prio'
   | 'perfil'
   | 'grupo'
@@ -55,6 +56,10 @@ export const REDE_DIAG_HEADER_TOOLTIPS: Record<DiagnosticoHeaderKey, Diagnostico
     title: 'Contratos 12m',
     subtitle: 'Meta: 4/ano',
     description: 'Contratos fechados nos últimos 12 meses, comparados à meta anual (padrão 4).',
+  },
+  adimplencia: {
+    title: 'Adimplência',
+    description: 'Situação financeira do franqueado: OK (adimplente), Inad. (inadimplente) ou — (não aferido).',
   },
   prio: {
     title: 'Prioridade',

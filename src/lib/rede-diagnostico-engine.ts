@@ -325,7 +325,7 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
     avgCsat,
     totalContratos,
     totalMeta,
-    inadimplentes: 0, // campo adimplente não é do diagnóstico
+    inadimplentes: rows.filter((r) => r.diag_adimplente === false).length,
     emTransferencia: rows.filter((r) => isStatusNC(r)).length,
     adormecidas: rows.filter((r) => isAdormecido(r)).length,
     p1Count: rows.filter((r) => calcPriority(r) === 'P1').length,

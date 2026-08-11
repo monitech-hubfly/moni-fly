@@ -21,6 +21,7 @@ import {
   CsatCell,
   ScoreCell,
   IndCell,
+  AdimplenciaCell,
   GrupoCell,
   PriorityBadge,
   PerfilCell,
@@ -35,6 +36,7 @@ import {
   DiagnosticoInlineDim,
   DiagnosticoInlineExtras,
   DiagnosticoInlineIndicador,
+  DiagnosticoInlineAdimplencia,
   DiagnosticoInlineNps,
   DiagnosticoInlineProximaAcao,
   DiagnosticoInlineScore,
@@ -254,6 +256,8 @@ function rowAsDiagSource(r: RedeFranqueadoRowDb, statusOverride?: string | null)
     diag_tend_ind: r.diag_tend_ind ?? null,
     diag_proxima_acao: r.diag_proxima_acao ?? null,
     diag_adormecido: r.diag_adormecido === true,
+    diag_adimplente:
+      r.diag_adimplente === true ? true : r.diag_adimplente === false ? false : null,
     diag_ultimo_contato: r.diag_ultimo_contato ?? null,
     diag_ultima_aval: r.diag_ultima_aval ?? null,
     diag_avaliado_por: r.diag_avaliado_por ?? null,
@@ -414,7 +418,7 @@ export function TabelaRedeFranqueadosEditavel({
   const headers = useMemo(() => [...COLUNAS_REDE_FRANQUEADOS], []);
   const keys = useMemo(() => [...REDE_FRANQUEADOS_TABLE_KEYS], []);
 
-  const diagColSpan = keys.length + 13 + (canEditRows ? 1 : 0);
+  const diagColSpan = keys.length + 14 + (canEditRows ? 1 : 0);
 
   const toggleDiagPanel = (id: string) => {
     setDiagPanelId((prev) => (prev === id ? null : id));
@@ -606,6 +610,13 @@ export function TabelaRedeFranqueadosEditavel({
                 style={{ minWidth: 110 }}
               >
                 Contratos 12m
+              </DiagnosticoHeaderTh>
+              <DiagnosticoHeaderTh
+                tooltipKey="adimplencia"
+                className={`${redeTh} border-t-[3px] border-t-blue-700 bg-blue-50/40`}
+                style={{ minWidth: 80 }}
+              >
+                Adimplência
               </DiagnosticoHeaderTh>
 
               {/* ── Diagnóstico: Gestão ── */}
@@ -866,6 +877,13 @@ export function TabelaRedeFranqueadosEditavel({
                       <DiagnosticoInlineIndicador draft={diagDraft} setDraft={setDiagDraft} row={diagSource} />
                     ) : (
                       <IndCell row={r} />
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 align-top bg-blue-50/20">
+                    {isEditing ? (
+                      <DiagnosticoInlineAdimplencia draft={diagDraft} setDraft={setDiagDraft} />
+                    ) : (
+                      <AdimplenciaCell adimplente={r.diag_adimplente ?? null} />
                     )}
                   </td>
 

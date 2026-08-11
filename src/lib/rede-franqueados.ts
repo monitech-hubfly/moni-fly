@@ -204,6 +204,8 @@ export type RedeFranqueadoRowDb = Record<RedeFranqueadoDbKey, string | null> & {
   diag_tend_ind?: '↑' | '→' | '↓' | null;
   diag_proxima_acao?: string | null;
   diag_adormecido?: boolean;
+  /** true=adimplente | false=inadimplente | null=não aferido */
+  diag_adimplente?: boolean | null;
   diag_ultimo_contato?: string | null;
   diag_ultima_aval?: string | null;
   diag_avaliado_por?: string | null;
@@ -319,6 +321,8 @@ export type RedeFranqueadoDetalheRow = {
   diag_tend_ind?: '↑' | '→' | '↓' | null;
   diag_proxima_acao?: string | null;
   diag_adormecido?: boolean;
+  /** true=adimplente | false=inadimplente | null=não aferido */
+  diag_adimplente?: boolean | null;
   diag_ultimo_contato?: string | null;
   diag_ultima_aval?: string | null;
   diag_avaliado_por?: string | null;
@@ -345,6 +349,8 @@ function pickRedeDiagnosticoFromRow(r: Record<string, unknown>) {
     diag_tend_ind: (r.diag_tend_ind as '↑' | '→' | '↓' | null) ?? null,
     diag_proxima_acao: (r.diag_proxima_acao as string | null) ?? null,
     diag_adormecido: r.diag_adormecido === true,
+    diag_adimplente:
+      r.diag_adimplente === true ? true : r.diag_adimplente === false ? false : null,
     diag_ultimo_contato: (r.diag_ultimo_contato as string | null) ?? null,
     diag_ultima_aval: (r.diag_ultima_aval as string | null) ?? null,
     diag_avaliado_por: (r.diag_avaliado_por as string | null) ?? null,

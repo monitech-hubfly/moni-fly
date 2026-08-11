@@ -97,6 +97,8 @@ export function RedeFranqueadoDetalheTabs({
               diag_tend_ind: row.diag_tend_ind ?? null,
               diag_proxima_acao: row.diag_proxima_acao ?? null,
               diag_adormecido: row.diag_adormecido === true,
+              diag_adimplente:
+                row.diag_adimplente === true ? true : row.diag_adimplente === false ? false : null,
               diag_ultimo_contato: row.diag_ultimo_contato ?? null,
               diag_ultima_aval: row.diag_ultima_aval ?? null,
               diag_avaliado_por: row.diag_avaliado_por ?? null,

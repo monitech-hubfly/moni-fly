@@ -22,6 +22,7 @@ export type RedeDiagnosticoSource = Pick<
   | 'diag_tend_ind'
   | 'diag_proxima_acao'
   | 'diag_adormecido'
+  | 'diag_adimplente'
   | 'diag_ultimo_contato'
   | 'diag_ultima_aval'
   | 'diag_avaliado_por'
@@ -44,6 +45,7 @@ export type RedeDiagnosticoDraft = {
   diag_tend_ind: string;
   diag_proxima_acao: string;
   diag_adormecido: boolean;
+  diag_adimplente: string;
   diag_ultimo_contato: string;
   diag_ultima_aval: string;
   diag_avaliado_por: string;
@@ -66,6 +68,7 @@ export type RedeDiagnosticoPatch = Partial<{
   diag_tend_ind: '↑' | '→' | '↓' | null;
   diag_proxima_acao: string | null;
   diag_adormecido: boolean;
+  diag_adimplente: boolean | null;
   diag_ultimo_contato: string | null;
   diag_ultima_aval: string | null;
   diag_avaliado_por: string | null;
@@ -107,6 +110,8 @@ export function redeRowToDiagnosticoDraft(row: RedeDiagnosticoSource): RedeDiagn
     diag_tend_ind: row.diag_tend_ind ?? '',
     diag_proxima_acao: row.diag_proxima_acao ?? '',
     diag_adormecido: row.diag_adormecido === true,
+    diag_adimplente:
+      row.diag_adimplente === true ? 'true' : row.diag_adimplente === false ? 'false' : '',
     diag_ultimo_contato: dateToInput(row.diag_ultimo_contato),
     diag_ultima_aval: dateToInput(row.diag_ultima_aval),
     diag_avaliado_por: row.diag_avaliado_por ?? '',
@@ -195,6 +200,12 @@ export function parseRedeDiagnosticoDraft(
   }
 
   patch.diag_adormecido = draft.diag_adormecido;
+
+  const adimplRaw = draft.diag_adimplente.trim();
+  if (!adimplRaw) patch.diag_adimplente = null;
+  else if (adimplRaw === 'true') patch.diag_adimplente = true;
+  else if (adimplRaw === 'false') patch.diag_adimplente = false;
+  else return { ok: false, error: 'Adimplência inválida.' };
 
   for (const key of ['diag_ultimo_contato', 'diag_ultima_aval'] as const) {
     const raw = draft[key].trim();

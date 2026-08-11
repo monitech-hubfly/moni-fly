@@ -22,7 +22,7 @@ function Card({
   value: string | number;
   sub?: string;
   color?: string;
-  mini?: { label: string; value: string | number }[];
+  mini?: { label: string; value: string | number; highlight?: boolean }[];
 }) {
   return (
     <div className="min-w-[130px] flex-1 rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm">
@@ -38,7 +38,13 @@ function Card({
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5">
           {mini.map((item) => (
             <span key={item.label} className="text-[9.5px] text-stone-500">
-              <span className="font-semibold">{item.value}</span> {item.label}
+              <span
+                className="font-semibold"
+                style={item.highlight ? { color: 'var(--moni-red-700, #b91c1c)' } : undefined}
+              >
+                {item.value}
+              </span>{' '}
+              {item.label}
             </span>
           ))}
         </div>
@@ -65,17 +71,16 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
         ? '#d97706'
         : '#dc2626';
 
+  const adimplenciaOk = m.inadimplentes === 0;
+  const adimplenciaLabel = adimplenciaOk ? 'OK' : `${m.inadimplentes} inad.`;
+  const adimplenciaColor = adimplenciaOk ? '#16a34a' : '#dc2626';
+
   return (
     <div className="flex flex-wrap gap-3 pb-4">
       <Card
         label="Rede Ativa"
         value={m.totalAtiva}
         sub={`de ${rows.length} total`}
-        mini={[
-          { label: 'adormecidas', value: m.adormecidas },
-          { label: 'em transf.', value: m.emTransferencia },
-          { label: 'alerta P1', value: m.p1Count },
-        ]}
       />
 
       <Card
@@ -101,6 +106,18 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
         value={`${m.totalContratos}/${m.totalMeta}`}
         sub={`${indPct} da meta agregada`}
         color={m.totalMeta > 0 ? indColor : undefined}
+      />
+
+      <Card
+        label="Alertas gerenciais"
+        value={adimplenciaLabel}
+        sub="Adimplência da rede"
+        color={adimplenciaColor}
+        mini={[
+          { label: 'em transf.', value: m.emTransferencia },
+          { label: 'adormecidas', value: m.adormecidas },
+          { label: 'P1', value: m.p1Count, highlight: m.p1Count > 0 },
+        ]}
       />
 
       <Card
