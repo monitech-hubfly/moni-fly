@@ -50,7 +50,8 @@ export function DimCell({
   desc?: string | null;
 }) {
   if (val === null || val === undefined) return NA;
-  const dotCls = val === 3 ? 'dot-3' : val === 2 ? 'dot-2' : 'dot-0';
+  // Escala 0–2: 2=Tem(verde), 1=Moderado(âmbar), 0=Não tem(vermelho)
+  const dotCls = val === 2 ? 'dot-3' : val === 1 ? 'dot-2' : 'dot-0';
   return (
     <div className="flex items-center gap-1 font-semibold">
       <Dot cls={dotCls} />

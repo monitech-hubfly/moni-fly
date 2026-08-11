@@ -26,10 +26,10 @@ const inputCls =
 const selectCls = `${inputCls} pr-6`;
 
 const DIM_OPTS = [
-  { value: '', label: '—' },
-  { value: '0', label: '0' },
-  { value: '2', label: '2' },
-  { value: '3', label: '3' },
+  { value: '', label: '— Não aferido' },
+  { value: '0', label: '0 · Não tem' },
+  { value: '1', label: '1 · Moderado' },
+  { value: '2', label: '2 · Tem' },
 ];
 
 const DIM_DESC_KEY: Record<'diag_d' | 'diag_c' | 'diag_k', 'diag_d_desc' | 'diag_c_desc' | 'diag_k_desc'> = {
@@ -54,7 +54,7 @@ function parseAdimplDraft(raw: string): boolean | null {
 
 function parseDimDraftValue(raw: string): number | null {
   const t = raw.trim();
-  if (!t || !['0', '2', '3'].includes(t)) return null;
+  if (!t || !['0', '1', '2'].includes(t)) return null;
   return Number(t);
 }
 

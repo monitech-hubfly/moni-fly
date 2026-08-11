@@ -11,7 +11,7 @@ import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 
 // ─── Tipos auxiliares ───────────────────────────────────────────────────────
 
-export type DiagDimValue = 0 | 2 | 3;
+export type DiagDimValue = 0 | 1 | 2;
 export type DiagTend = '↑' | '→' | '↓';
 
 export type DiagPriority = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'P7' | 'AD' | 'NC';
@@ -72,7 +72,7 @@ export function npsCategoria(nps: number | null | undefined): NpsCategoria | nul
 
 // ─── ENGAJAMENTO ─────────────────────────────────────────────────────────────
 
-/** Pesos: D×40% + C×35% + K×25%, normalizado de 0–3 para 0–100%. */
+/** Pesos: D×40% + C×35% + K×25%, normalizado de 0–2 para 0–100%. */
 export function calcEngajamento(
   row: Pick<RedeFranqueadoRowDb, 'status_franquia' | 'diag_adormecido' | 'diag_d' | 'diag_c' | 'diag_k'>,
 ): number | null {
@@ -81,7 +81,8 @@ export function calcEngajamento(
   if (diag_d === null || diag_d === undefined) return null;
   if (diag_c === null || diag_c === undefined) return null;
   if (diag_k === null || diag_k === undefined) return null;
-  const raw = (Number(diag_d) * 0.4 + Number(diag_c) * 0.35 + Number(diag_k) * 0.25) / 3;
+  // Escala 0–2: 0=Não tem, 1=Moderado, 2=Tem
+  const raw = (Number(diag_d) * 0.4 + Number(diag_c) * 0.35 + Number(diag_k) * 0.25) / 2;
   return Math.round(raw * 1000) / 10;
 }
 
