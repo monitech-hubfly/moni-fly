@@ -91,6 +91,9 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
         <div className="mt-8">
           <RedeFranqueadoDetalheTabs
             redeId={id}
+            row={row}
+            showDiagnostico={staff}
+            internalView
             cadastro={
               staff ? (
                 <RedeFranqueadoDetalheDocs

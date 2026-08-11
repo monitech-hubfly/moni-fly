@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import { useRouter } from 'next/navigation';
-import { Check, FileText, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Check, FileText, Loader2, Maximize2, Minimize2, Pencil, Plus, Stethoscope, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import type { RedeFranqueadoDbKey, RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import {
@@ -14,7 +14,7 @@ import {
   ordenarRedePorNFranquia,
   REDE_FRANQUEADOS_TABLE_KEYS,
 } from '@/lib/rede-franqueados';
-import { calcEngajamento } from '@/lib/rede-diagnostico-engine';
+import { calcEngajamento, isStatusNC } from '@/lib/rede-diagnostico-engine';
 import {
   DimCell,
   NpsCell,
@@ -27,8 +27,26 @@ import {
   TendCell,
   PmaCell,
 } from '@/components/diagnostico-rede/cells';
+import { DiagnosticoRedePainelEdit } from '@/components/diagnostico-rede/DiagnosticoRedePainelEdit';
+import {
+  DiagnosticoInlineComputed,
+  DiagnosticoInlineCsat,
+  DiagnosticoInlineDim,
+  DiagnosticoInlineExtras,
+  DiagnosticoInlineIndicador,
+  DiagnosticoInlineNps,
+  DiagnosticoInlineProximaAcao,
+  DiagnosticoInlineScore,
+  DiagnosticoInlineTendencias,
+} from '@/components/diagnostico-rede/DiagnosticoRedeInlineEdit';
+import {
+  parseRedeDiagnosticoDraft,
+  redeRowToDiagnosticoDraft,
+  type RedeDiagnosticoDraft,
+  type RedeDiagnosticoSource,
+} from '@/lib/rede-diagnostico-form';
 import { RedeFranqueadoSensitiveBlur } from '@/components/RedeFranqueadoSensitiveBlur';
-import { atualizarRedeFranqueado, excluirRedeFranqueado } from '@/app/rede-franqueados/actions';
+import { atualizarRedeFranqueado, excluirRedeFranqueado, atualizarRedeFranqueadoDiagnostico } from '@/app/rede-franqueados/actions';
 import { UFS_BRASIL } from '@/lib/uf';
 import {
   parseAreaAtuacao,
@@ -36,6 +54,7 @@ import {
   type AreaAtuacaoPar,
 } from '@/lib/rede-area-atuacao';
 import { RedeFranqueadoCellValue } from '@/components/RedeFranqueadoCellValue';
+import { redeRowConteudoExpansivel } from '@/components/RedeFranqueadoAreaAtuacaoCell';
 import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 import { redeAlertError, redeAlertSuccess, redeTh } from '@/app/rede-franqueados/rede-ui';
 import { REDE_OPCOES_STATUS_FRANQUIA } from '@/lib/rede-franqueado-form-options';
@@ -214,6 +233,33 @@ function CidadeCombobox({
 
 const PER_PAGE = 40;
 
+function rowAsDiagSource(r: RedeFranqueadoRowDb, statusOverride?: string | null): RedeDiagnosticoSource {
+  return {
+    id: r.id,
+    ordem: r.ordem,
+    status_franquia: statusOverride ?? r.status_franquia ?? null,
+    diag_d: r.diag_d ?? null,
+    diag_c: r.diag_c ?? null,
+    diag_k: r.diag_k ?? null,
+    diag_d_desc: r.diag_d_desc ?? null,
+    diag_c_desc: r.diag_c_desc ?? null,
+    diag_k_desc: r.diag_k_desc ?? null,
+    diag_nps: r.diag_nps ?? null,
+    diag_csat: r.diag_csat ?? null,
+    diag_contratos_12m: r.diag_contratos_12m ?? null,
+    diag_ano_meta: r.diag_ano_meta ?? null,
+    diag_tend_eng: r.diag_tend_eng ?? null,
+    diag_tend_rel: r.diag_tend_rel ?? null,
+    diag_tend_ind: r.diag_tend_ind ?? null,
+    diag_proxima_acao: r.diag_proxima_acao ?? null,
+    diag_adormecido: r.diag_adormecido === true,
+    diag_ultimo_contato: r.diag_ultimo_contato ?? null,
+    diag_ultima_aval: r.diag_ultima_aval ?? null,
+    diag_avaliado_por: r.diag_avaliado_por ?? null,
+    diag_grupo_sec: r.diag_grupo_sec ?? null,
+  };
+}
+
 /** Primeiras colunas fixas ao rolar horizontalmente (até Status da Franquia). */
 const REDE_STICKY_COLUMN_COUNT = 4;
 const REDE_STICKY_COLUMN_WIDTHS_REM = [5.5, 7, 13, 10] as const;
@@ -299,7 +345,14 @@ export function TabelaRedeFranqueadosEditavel({
 }: Props) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [diagPanelId, setDiagPanelId] = useState<string | null>(null);
+  const [expandedContentRows, setExpandedContentRows] = useState<Set<string>>(() => new Set());
   const [draft, setDraft] = useState<Partial<Record<RedeFranqueadoDbKey, string>>>({});
+  const [diagDraft, setDiagDraft] = useState<RedeDiagnosticoDraft>(() => redeRowToDiagnosticoDraft({
+    id: '',
+    ordem: 0,
+    status_franquia: null,
+  } as RedeDiagnosticoSource));
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
@@ -326,6 +379,7 @@ export function TabelaRedeFranqueadosEditavel({
     if (!canEditRows && editingId) {
       setEditingId(null);
       setDraft({});
+      setDiagDraft(redeRowToDiagnosticoDraft({ id: '', ordem: 0, status_franquia: null } as RedeDiagnosticoSource));
       setAreaAtuacaoItens([]);
     }
   }, [canEditRows, editingId]);
@@ -359,8 +413,24 @@ export function TabelaRedeFranqueadosEditavel({
   const headers = useMemo(() => [...COLUNAS_REDE_FRANQUEADOS], []);
   const keys = useMemo(() => [...REDE_FRANQUEADOS_TABLE_KEYS], []);
 
+  const diagColSpan = keys.length + 13 + (canEditRows ? 1 : 0);
+
+  const toggleDiagPanel = (id: string) => {
+    setDiagPanelId((prev) => (prev === id ? null : id));
+  };
+
+  const toggleContentExpand = (id: string) => {
+    setExpandedContentRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const beginEdit = (r: RedeFranqueadoRowDb) => {
     if (!canEditRows) return;
+    setDiagPanelId(null);
     setMsg(null);
     setEditingId(r.id);
     const d: Partial<Record<RedeFranqueadoDbKey, string>> = {};
@@ -375,6 +445,7 @@ export function TabelaRedeFranqueadosEditavel({
       d.area_atuacao = serializeAreaAtuacao(itensParaPares(itens));
     }
     setDraft(d);
+    setDiagDraft(redeRowToDiagnosticoDraft(rowAsDiagSource(r)));
     setAreaAtuacaoItens(itens);
     setEstadoAtuacao('');
     setCidadeAtuacao('');
@@ -383,6 +454,7 @@ export function TabelaRedeFranqueadosEditavel({
   const cancelEdit = () => {
     setEditingId(null);
     setDraft({});
+    setDiagDraft(redeRowToDiagnosticoDraft({ id: '', ordem: 0, status_franquia: null } as RedeDiagnosticoSource));
     setAreaAtuacaoItens([]);
     setEstadoAtuacao('');
     setCidadeAtuacao('');
@@ -398,19 +470,34 @@ export function TabelaRedeFranqueadosEditavel({
     const patch: Partial<Record<RedeFranqueadoDbKey, string | null>> = {};
     for (const k of keys) patch[k] = (draft[k] ?? '') as string;
 
-    const r = await atualizarRedeFranqueado(editingId, patch);
-    setSaving(false);
-    if (r.ok) {
-      setMsg({ tipo: 'ok', texto: r.mensagem });
-      setEditingId(null);
-      setDraft({});
-      setAreaAtuacaoItens([]);
-      setEstadoAtuacao('');
-      setCidadeAtuacao('');
-      router.refresh();
-    } else {
-      setMsg({ tipo: 'erro', texto: r.error });
+    const diagParsed = parseRedeDiagnosticoDraft(diagDraft);
+    if (!diagParsed.ok) {
+      setSaving(false);
+      setMsg({ tipo: 'erro', texto: diagParsed.error });
+      return;
     }
+
+    const r = await atualizarRedeFranqueado(editingId, patch);
+    if (!r.ok) {
+      setSaving(false);
+      setMsg({ tipo: 'erro', texto: r.error });
+      return;
+    }
+
+    const rd = await atualizarRedeFranqueadoDiagnostico(editingId, diagParsed.patch);
+    setSaving(false);
+    if (!rd.ok) {
+      setMsg({ tipo: 'erro', texto: rd.error });
+      return;
+    }
+    setMsg({ tipo: 'ok', texto: 'Linha e diagnóstico atualizados.' });
+    setEditingId(null);
+    setDraft({});
+    setDiagDraft(redeRowToDiagnosticoDraft({ id: '', ordem: 0, status_franquia: null } as RedeDiagnosticoSource));
+    setAreaAtuacaoItens([]);
+    setEstadoAtuacao('');
+    setCidadeAtuacao('');
+    router.refresh();
   };
 
   const excluir = async (id: string) => {
@@ -570,8 +657,22 @@ export function TabelaRedeFranqueadosEditavel({
           <tbody>
             {pageRows.map((r) => {
               const isEditing = editingId === r.id;
+              const diagSource = isEditing
+                ? rowAsDiagSource(r, (draft.status_franquia as string | undefined) ?? r.status_franquia)
+                : rowAsDiagSource(r);
+              const diagOpen = diagPanelId === r.id;
+              const rowInativa = isStatusNC(r);
+              const rowMutedClass = rowInativa
+                ? 'opacity-[0.52] hover:opacity-100 focus-within:opacity-100'
+                : '';
+              const rowContentExpanded = expandedContentRows.has(r.id);
+              const rowExpansivel = redeRowConteudoExpansivel(String(r.area_atuacao ?? ''));
+              const toggleRowContent = () => toggleContentExpand(r.id);
               return (
-                <tr key={r.id} className="group border-b border-stone-100 align-top transition-colors hover:bg-stone-50/70">
+                <Fragment key={r.id}>
+                <tr
+                  className={`group border-b border-stone-100 align-top transition-[opacity,colors] duration-200 hover:bg-stone-50/70 ${rowMutedClass}`}
+                >
                   {keys.map((k, colIndex) => {
                     const current = (r[k] ?? '') as string;
                     const value = (draft[k] ?? '') as string;
@@ -592,7 +693,13 @@ export function TabelaRedeFranqueadosEditavel({
                           maskCell ? (
                             <RedeFranqueadoSensitiveBlur />
                           ) : (
-                            <RedeFranqueadoCellValue field={k} text={shown} titleText={current} />
+                            <RedeFranqueadoCellValue
+                              field={k}
+                              text={shown}
+                              titleText={current}
+                              contentExpanded={rowContentExpanded}
+                              onToggleContentExpand={rowExpansivel ? toggleRowContent : undefined}
+                            />
                           )
                         ) : isAreaAtuacao ? (
                           <div className="min-w-[280px] space-y-2">
@@ -708,52 +815,137 @@ export function TabelaRedeFranqueadosEditavel({
 
                   {/* ── Diagnóstico: Engajamento ── */}
                   <td className="px-3 py-2.5 align-top bg-green-50/20">
-                    <ScoreCell score={calcEngajamento(r)} internalView={internalView} />
+                    {isEditing ? (
+                      <DiagnosticoInlineScore row={diagSource} draft={diagDraft} internalView={internalView} />
+                    ) : (
+                      <ScoreCell score={calcEngajamento(r)} internalView={internalView} />
+                    )}
                   </td>
                   <td className="px-3 py-2.5 align-top bg-green-50/20">
-                    <DimCell val={r.diag_d} desc={r.diag_d_desc} />
+                    {isEditing ? (
+                      <DiagnosticoInlineDim field="diag_d" draft={diagDraft} setDraft={setDiagDraft} />
+                    ) : (
+                      <DimCell val={r.diag_d} desc={r.diag_d_desc} />
+                    )}
                   </td>
                   <td className="px-3 py-2.5 align-top bg-green-50/20">
-                    <DimCell val={r.diag_c} desc={r.diag_c_desc} />
+                    {isEditing ? (
+                      <DiagnosticoInlineDim field="diag_c" draft={diagDraft} setDraft={setDiagDraft} />
+                    ) : (
+                      <DimCell val={r.diag_c} desc={r.diag_c_desc} />
+                    )}
                   </td>
                   <td className="px-3 py-2.5 align-top bg-green-50/20">
-                    <DimCell val={r.diag_k} desc={r.diag_k_desc} />
+                    {isEditing ? (
+                      <DiagnosticoInlineDim field="diag_k" draft={diagDraft} setDraft={setDiagDraft} />
+                    ) : (
+                      <DimCell val={r.diag_k} desc={r.diag_k_desc} />
+                    )}
                   </td>
 
                   {/* ── Diagnóstico: Relação ── */}
                   <td className="px-3 py-2.5 align-top bg-rose-50/20">
-                    <NpsCell nps={r.diag_nps} />
+                    {isEditing ? (
+                      <DiagnosticoInlineNps draft={diagDraft} setDraft={setDiagDraft} />
+                    ) : (
+                      <NpsCell nps={r.diag_nps} />
+                    )}
                   </td>
                   <td className="px-3 py-2.5 align-top bg-rose-50/20">
-                    <CsatCell csat={r.diag_csat} />
+                    {isEditing ? (
+                      <DiagnosticoInlineCsat draft={diagDraft} setDraft={setDiagDraft} />
+                    ) : (
+                      <CsatCell csat={r.diag_csat} />
+                    )}
                   </td>
 
                   {/* ── Diagnóstico: Indicador ── */}
                   <td className="px-3 py-2.5 align-top bg-blue-50/20">
-                    <IndCell row={r} />
+                    {isEditing ? (
+                      <DiagnosticoInlineIndicador draft={diagDraft} setDraft={setDiagDraft} row={diagSource} />
+                    ) : (
+                      <IndCell row={r} />
+                    )}
                   </td>
 
                   {/* ── Diagnóstico: Gestão ── */}
                   <td className="px-3 py-2.5 align-top">
-                    <PriorityBadge row={r} />
+                    {isEditing ? (
+                      <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="prio" />
+                    ) : (
+                      <PriorityBadge row={r} />
+                    )}
                   </td>
                   <td className="px-3 py-2.5 align-top">
-                    <PerfilCell row={r} internalView={internalView} />
+                    {isEditing ? (
+                      <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="perfil" internalView={internalView} />
+                    ) : (
+                      <PerfilCell row={r} internalView={internalView} />
+                    )}
                   </td>
                   <td className="px-3 py-2.5 align-top">
-                    <GrupoCell row={r} />
+                    {isEditing ? (
+                      <div>
+                        <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="grupo" />
+                        <DiagnosticoInlineExtras draft={diagDraft} setDraft={setDiagDraft} />
+                      </div>
+                    ) : (
+                      <GrupoCell row={r} />
+                    )}
                   </td>
                   <td className="px-3 py-2.5 align-top">
-                    <TendCell row={r} />
+                    {isEditing ? (
+                      <DiagnosticoInlineTendencias draft={diagDraft} setDraft={setDiagDraft} />
+                    ) : (
+                      <TendCell row={r} />
+                    )}
                   </td>
                   <td className="px-3 py-2.5 align-top">
-                    <PmaCell text={r.diag_proxima_acao} />
+                    {isEditing ? (
+                      <DiagnosticoInlineProximaAcao draft={diagDraft} setDraft={setDiagDraft} />
+                    ) : (
+                      <PmaCell text={r.diag_proxima_acao} />
+                    )}
                   </td>
 
                   {canEditRows ? (
                     <td className="sticky right-0 z-10 w-14 min-w-[3.5rem] border-l border-stone-200 bg-white px-1 py-2 align-middle shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)] group-hover:bg-stone-50/90">
                       {!isEditing ? (
                         <div className="flex flex-col items-center justify-center gap-1 sm:flex-row sm:opacity-0 sm:transition-opacity sm:duration-150 sm:group-hover:opacity-100">
+                          {rowExpansivel ? (
+                            <button
+                              type="button"
+                              title={rowContentExpanded ? 'Minimizar linha' : 'Expandir linha'}
+                              onClick={toggleRowContent}
+                              className={`rounded-md p-1.5 ${
+                                rowContentExpanded
+                                  ? 'bg-stone-800 text-white'
+                                  : 'text-stone-600 hover:bg-stone-200/80 hover:text-stone-900'
+                              }`}
+                            >
+                              {rowContentExpanded ? (
+                                <Minimize2 className="h-4 w-4" aria-hidden />
+                              ) : (
+                                <Maximize2 className="h-4 w-4" aria-hidden />
+                              )}
+                              <span className="sr-only">
+                                {rowContentExpanded ? 'Minimizar linha' : 'Expandir linha'}
+                              </span>
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            title="Diagnóstico"
+                            onClick={() => toggleDiagPanel(r.id)}
+                            className={`rounded-md p-1.5 ${
+                              diagOpen
+                                ? 'bg-stone-800 text-white'
+                                : 'text-stone-600 hover:bg-stone-200/80 hover:text-stone-900'
+                            }`}
+                          >
+                            <Stethoscope className="h-4 w-4" />
+                            <span className="sr-only">Diagnóstico</span>
+                          </button>
                           <Link
                             href={`/rede-franqueados/${r.id}`}
                             title="Documentos"
@@ -808,6 +1000,20 @@ export function TabelaRedeFranqueadosEditavel({
                     </td>
                   ) : null}
                 </tr>
+                {canEditRows && diagOpen ? (
+                  <tr className={`border-b border-stone-100 bg-stone-50/40 ${rowMutedClass}`}>
+                    <td colSpan={diagColSpan} className="px-3 py-3">
+                      <DiagnosticoRedePainelEdit
+                        row={r}
+                        internalView={internalView}
+                        compact
+                        onCancel={() => setDiagPanelId(null)}
+                        onSaved={() => setDiagPanelId(null)}
+                      />
+                    </td>
+                  </tr>
+                ) : null}
+                </Fragment>
               );
             })}
           </tbody>

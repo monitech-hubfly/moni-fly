@@ -294,6 +294,8 @@ export async function fetchRedeFranqueadosRows(
 
 export type RedeFranqueadoDetalheRow = {
   id: string;
+  ordem?: number;
+  status_franquia?: string | null;
   nome_completo: string | null;
   n_franquia: string | null;
   anexo_cof_path: string | null;
@@ -302,8 +304,53 @@ export type RedeFranqueadoDetalheRow = {
   anexo_cof_justificativa: string | null;
   anexo_contrato_justificativa: string | null;
   anexo_numero_franquia_justificativa: string | null;
+  diag_d?: number | null;
+  diag_c?: number | null;
+  diag_k?: number | null;
+  diag_d_desc?: string | null;
+  diag_c_desc?: string | null;
+  diag_k_desc?: string | null;
+  diag_nps?: number | null;
+  diag_csat?: number | null;
+  diag_contratos_12m?: number | null;
+  diag_ano_meta?: number | null;
+  diag_tend_eng?: '↑' | '→' | '↓' | null;
+  diag_tend_rel?: '↑' | '→' | '↓' | null;
+  diag_tend_ind?: '↑' | '→' | '↓' | null;
+  diag_proxima_acao?: string | null;
+  diag_adormecido?: boolean;
+  diag_ultimo_contato?: string | null;
+  diag_ultima_aval?: string | null;
+  diag_avaliado_por?: string | null;
+  diag_grupo_sec?: string | null;
 } & RedeFranqueadoDocsRow &
   RedeEmpresaDocsRow;
+
+function pickRedeDiagnosticoFromRow(r: Record<string, unknown>) {
+  return {
+    ordem: typeof r.ordem === 'number' ? r.ordem : Number(r.ordem ?? 0) || 0,
+    status_franquia: (r.status_franquia as string | null) ?? null,
+    diag_d: (r.diag_d as number | null | undefined) ?? null,
+    diag_c: (r.diag_c as number | null | undefined) ?? null,
+    diag_k: (r.diag_k as number | null | undefined) ?? null,
+    diag_d_desc: (r.diag_d_desc as string | null) ?? null,
+    diag_c_desc: (r.diag_c_desc as string | null) ?? null,
+    diag_k_desc: (r.diag_k_desc as string | null) ?? null,
+    diag_nps: (r.diag_nps as number | null | undefined) ?? null,
+    diag_csat: (r.diag_csat as number | null | undefined) ?? null,
+    diag_contratos_12m: (r.diag_contratos_12m as number | null | undefined) ?? null,
+    diag_ano_meta: (r.diag_ano_meta as number | null | undefined) ?? null,
+    diag_tend_eng: (r.diag_tend_eng as '↑' | '→' | '↓' | null) ?? null,
+    diag_tend_rel: (r.diag_tend_rel as '↑' | '→' | '↓' | null) ?? null,
+    diag_tend_ind: (r.diag_tend_ind as '↑' | '→' | '↓' | null) ?? null,
+    diag_proxima_acao: (r.diag_proxima_acao as string | null) ?? null,
+    diag_adormecido: r.diag_adormecido === true,
+    diag_ultimo_contato: (r.diag_ultimo_contato as string | null) ?? null,
+    diag_ultima_aval: (r.diag_ultima_aval as string | null) ?? null,
+    diag_avaliado_por: (r.diag_avaliado_por as string | null) ?? null,
+    diag_grupo_sec: (r.diag_grupo_sec as string | null) ?? null,
+  };
+}
 
 async function queryRedeFranqueadoDetalhe(
   client: SupabaseClient,
@@ -323,6 +370,7 @@ async function queryRedeFranqueadoDetalhe(
         anexo_cof_justificativa: (r.anexo_cof_justificativa as string | null) ?? null,
         anexo_contrato_justificativa: (r.anexo_contrato_justificativa as string | null) ?? null,
         anexo_numero_franquia_justificativa: (r.anexo_numero_franquia_justificativa as string | null) ?? null,
+        ...pickRedeDiagnosticoFromRow(r),
         ...pickRedeFranqueadoDocsFromRow(r),
         ...pickRedeEmpresaDocsFromRow(r),
       },

@@ -48,9 +48,18 @@ type Props = {
   field: RedeFranqueadoDbKey;
   text: string;
   titleText?: string;
+  /** Linha expandida na tabela (área de atuação + clamps). */
+  contentExpanded?: boolean;
+  onToggleContentExpand?: () => void;
 };
 
-export function RedeFranqueadoCellValue({ field, text, titleText }: Props) {
+export function RedeFranqueadoCellValue({
+  field,
+  text,
+  titleText,
+  contentExpanded = false,
+  onToggleContentExpand,
+}: Props) {
   if (field === 'status_franquia') {
     return <StatusBadge value={text} />;
   }
@@ -72,8 +81,10 @@ export function RedeFranqueadoCellValue({ field, text, titleText }: Props) {
     return (
       <div className="min-w-0 max-w-[min(14rem,100%)]">
         <span
-          className="block min-w-0 max-w-full overflow-hidden break-words font-medium leading-snug text-stone-900 line-clamp-2"
-          title={titleText ?? (text.trim() || undefined)}
+          className={`block min-w-0 max-w-full overflow-hidden break-words font-medium leading-snug text-stone-900 ${
+            contentExpanded ? '' : 'line-clamp-3'
+          }`}
+          title={!contentExpanded ? titleText ?? (text.trim() || undefined) : undefined}
         >
           {text.trim() || '—'}
         </span>
@@ -92,7 +103,14 @@ export function RedeFranqueadoCellValue({ field, text, titleText }: Props) {
     );
   }
   if (field === 'area_atuacao') {
-    return <RedeFranqueadoAreaAtuacaoCell text={text} titleText={titleText} />;
+    return (
+      <RedeFranqueadoAreaAtuacaoCell
+        text={text}
+        titleText={titleText}
+        expanded={contentExpanded}
+        onToggleExpand={onToggleContentExpand}
+      />
+    );
   }
-  return <RedeFranqueadoCellClamp text={text} titleText={titleText} />;
+  return <RedeFranqueadoCellClamp text={text} titleText={titleText} expanded={contentExpanded} />;
 }

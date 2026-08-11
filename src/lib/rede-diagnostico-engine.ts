@@ -32,11 +32,21 @@ export const GA_NOME: Record<DiagGrupo, string> = {
 
 // ─── Helpers de status ──────────────────────────────────────────────────────
 
-const STATUS_NC = new Set(['em-transferencia', 'em transferência', 'encerrada', 'encerrado']);
+function normStatusFranquia(status: string | null | undefined): string {
+  return String(status ?? '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/ç/g, 'c')
+    .toLowerCase()
+    .trim();
+}
 
 export function isStatusNC(row: Pick<RedeFranqueadoRowDb, 'status_franquia'>): boolean {
-  const s = String(row.status_franquia ?? '').toLowerCase().trim();
-  return STATUS_NC.has(s);
+  const n = normStatusFranquia(row.status_franquia);
+  if (!n) return false;
+  if (/encerrad/.test(n)) return true;
+  if (n.includes('transferencia')) return true;
+  return false;
 }
 
 export function isAdormecido(row: Pick<RedeFranqueadoRowDb, 'diag_adormecido'>): boolean {

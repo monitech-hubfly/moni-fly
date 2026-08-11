@@ -17,7 +17,10 @@ import {
   type DiagGrupo,
   type DiagPriority,
 } from '@/lib/rede-diagnostico-engine';
+import type { RedeDiagnosticoSource } from '@/lib/rede-diagnostico-form';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
+
+type DiagRow = RedeDiagnosticoSource | RedeFranqueadoRowDb;
 
 // ─── Dot ────────────────────────────────────────────────────────────────────
 
@@ -146,7 +149,7 @@ const IND_LABEL: Record<string, string> = {
   abaixo: 'Abaixo',
 };
 
-export function IndCell({ row }: { row: RedeFranqueadoRowDb }) {
+export function IndCell({ row }: { row: DiagRow }) {
   const ind = calcIndicador(row);
   if (ind === null) return NA;
   const contratos = Number(row.diag_contratos_12m ?? 0);
@@ -175,7 +178,7 @@ const GA_BADGE_STYLE: Record<DiagGrupo, string> = {
   GA7: 'bg-stone-100 text-stone-600',
 };
 
-export function GrupoCell({ row }: { row: RedeFranqueadoRowDb }) {
+export function GrupoCell({ row }: { row: DiagRow }) {
   const g = calcGrupo(row);
   if (!g) return NA;
   const sec = row.diag_grupo_sec as DiagGrupo | null | undefined;
@@ -213,7 +216,7 @@ const P_STYLE: Record<DiagPriority, string> = {
   NC: 'bg-stone-700',
 };
 
-export function PriorityBadge({ row }: { row: RedeFranqueadoRowDb }) {
+export function PriorityBadge({ row }: { row: DiagRow }) {
   const p = calcPriority(row);
   return (
     <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-bold text-white ${P_STYLE[p]}`}>
@@ -228,7 +231,7 @@ export function PerfilCell({
   row,
   internalView,
 }: {
-  row: RedeFranqueadoRowDb;
+  row: DiagRow;
   internalView: boolean;
 }) {
   const label = calcPerfil(row, internalView);
@@ -263,7 +266,7 @@ function TendArrow({
   );
 }
 
-export function TendCell({ row }: { row: RedeFranqueadoRowDb }) {
+export function TendCell({ row }: { row: DiagRow }) {
   return (
     <div className="flex gap-1.5">
       <TendArrow val={row.diag_tend_eng} label="Engaj." />

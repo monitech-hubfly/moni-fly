@@ -844,6 +844,31 @@ export async function atualizarRedeFranqueado(
   return { ok: true, mensagem: 'Linha atualizada.' };
 }
 
+export async function atualizarRedeFranqueadoDiagnostico(
+  id: string,
+  patch: import('@/lib/rede-diagnostico-form').RedeDiagnosticoPatch,
+): Promise<AtualizarRedeFranqueadoResult> {
+  const gate = await requireRedeStaffOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  if (!id) return { ok: false, error: 'ID inválido.' };
+  if (!patch || Object.keys(patch).length === 0) {
+    return { ok: false, error: 'Nada para atualizar.' };
+  }
+
+  const { error } = await supabase
+    .from('rede_franqueados')
+    .update({ ...patch, updated_at: new Date().toISOString() } as never)
+    .eq('id', id);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/rede-franqueados');
+  revalidatePath(`/rede-franqueados/${id}`);
+  revalidatePath('/comunidade');
+  return { ok: true, mensagem: 'Diagnóstico atualizado.' };
+}
+
 const REDE_INSERT_COLUMNS = [
   'ordem', 'n_franquia', 'modalidade', 'nome_completo', 'status_franquia', 'classificacao_franqueado',
   'data_ass_cof', 'data_ass_contrato', 'data_expiracao_franquia', 'regional', 'area_atuacao',
