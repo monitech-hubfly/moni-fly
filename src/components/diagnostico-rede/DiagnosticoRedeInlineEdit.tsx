@@ -22,10 +22,10 @@ const inputCls =
 const selectCls = `${inputCls} pr-6`;
 
 const DIM_OPTS = [
-  { value: '', label: '—' },
-  { value: '0', label: '0' },
-  { value: '2', label: '2' },
-  { value: '3', label: '3' },
+  { value: '', label: '— Não aferido' },
+  { value: '0', label: '0 · Não tem' },
+  { value: '2', label: '2 · Moderado' },
+  { value: '3', label: '3 · Tem' },
 ];
 
 const TEND_OPTS = [
