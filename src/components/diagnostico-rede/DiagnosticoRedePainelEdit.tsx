@@ -39,8 +39,8 @@ import { redeAlertError, redeAlertSuccess, redeBtnGhost, redeBtnPrimary } from '
 const DIM_OPTS = [
   { value: '', label: '— Não aferido' },
   { value: '0', label: '0 — Não tem' },
-  { value: '2', label: '2 — Moderado' },
-  { value: '3', label: '3 — Tem' },
+  { value: '1', label: '1 — Moderado' },
+  { value: '2', label: '2 — Tem' },
 ];
 
 const TEND_OPTS = [

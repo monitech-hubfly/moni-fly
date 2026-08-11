@@ -5,6 +5,7 @@ import { PipelineCardsView } from '@/components/pipeline/PipelineCardsView';
 import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoading';
 import { usePipelineDatasetLazy } from '@/components/pipeline/usePipelineDatasetLazy';
 import { DiagnosticoRedePainelEdit } from '@/components/diagnostico-rede/DiagnosticoRedePainelEdit';
+import { DiagnosticoPainelReadOnly } from '@/components/diagnostico-rede/DiagnosticoPainelReadOnly';
 import type { RedeDiagnosticoSource } from '@/lib/rede-diagnostico-form';
 import type { RedeFranqueadoDetalheRow } from '@/lib/rede-franqueados';
 
@@ -109,6 +110,38 @@ export function RedeFranqueadoDetalheTabs({
         ) : null}
         {activeTab === 'painel' ? (
           <div>
+            {/* Painel de diagnóstico read-only */}
+            {row ? (
+              <DiagnosticoPainelReadOnly
+                row={{
+                  id: row.id,
+                  ordem: row.ordem ?? 0,
+                  status_franquia: row.status_franquia ?? null,
+                  diag_d: row.diag_d ?? null,
+                  diag_c: row.diag_c ?? null,
+                  diag_k: row.diag_k ?? null,
+                  diag_d_desc: row.diag_d_desc ?? null,
+                  diag_c_desc: row.diag_c_desc ?? null,
+                  diag_k_desc: row.diag_k_desc ?? null,
+                  diag_nps: row.diag_nps ?? null,
+                  diag_csat: row.diag_csat ?? null,
+                  diag_contratos_12m: row.diag_contratos_12m ?? null,
+                  diag_ano_meta: row.diag_ano_meta ?? null,
+                  diag_tend_eng: row.diag_tend_eng ?? null,
+                  diag_tend_rel: row.diag_tend_rel ?? null,
+                  diag_tend_ind: row.diag_tend_ind ?? null,
+                  diag_proxima_acao: row.diag_proxima_acao ?? null,
+                  diag_adormecido: row.diag_adormecido === true,
+                  diag_adimplente:
+                    row.diag_adimplente === true ? true : row.diag_adimplente === false ? false : null,
+                  diag_ultimo_contato: row.diag_ultimo_contato ?? null,
+                  diag_ultima_aval: row.diag_ultima_aval ?? null,
+                  diag_avaliado_por: row.diag_avaliado_por ?? null,
+                  diag_grupo_sec: row.diag_grupo_sec ?? null,
+                }}
+                internalView={internalView}
+              />
+            ) : null}
             <p className="mb-6 text-sm leading-relaxed" style={{ color: 'var(--moni-text-secondary)' }}>
               Visão operacional da unidade: KPIs, saúde do pipeline, prioridades do dia e cards por funil com esteira
               Step One → Portfólio → Pré Obra e Obra.
