@@ -275,9 +275,23 @@ function stickyLeftRem(index: number): number {
   return left;
 }
 
+type RedeStickyRowTone = 'default' | 'inativa' | 'adormecida';
+
+function stickyBodyBackground(tone: RedeStickyRowTone): string {
+  switch (tone) {
+    case 'inativa':
+      return 'bg-[color:var(--moni-surface-50)] group-hover:bg-[color:var(--moni-surface-100)]';
+    case 'adormecida':
+      return 'bg-[color:var(--moni-surface-100)] group-hover:bg-[color:var(--moni-surface-200)]';
+    default:
+      return 'bg-[color:var(--moni-surface-0)] group-hover:bg-[color:var(--moni-surface-50)]';
+  }
+}
+
 function stickyCellProps(
   index: number,
   variant: 'head' | 'body',
+  rowTone: RedeStickyRowTone = 'default',
 ): { className: string; style?: React.CSSProperties } {
   if (index >= REDE_STICKY_COLUMN_COUNT) {
     return {
@@ -292,9 +306,11 @@ function stickyCellProps(
   return {
     className: [
       variant === 'head' ? redeTh : 'overflow-hidden px-3 py-2.5 align-top text-stone-700',
-      'sticky border-r',
-      isLastSticky ? 'border-stone-200 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]' : 'border-stone-100/90',
-      variant === 'head' ? 'bg-stone-50/95' : 'bg-inherit group-hover:bg-stone-50/90',
+      'sticky border-r moni-rede-sticky-col',
+      isLastSticky ? 'moni-rede-sticky-col-last border-stone-200' : 'border-stone-100/90',
+      variant === 'head'
+        ? 'bg-[color:var(--moni-surface-50)]'
+        : stickyBodyBackground(rowTone),
     ].join(' '),
     style: {
       left: `${stickyLeftRem(index)}rem`,
@@ -658,7 +674,7 @@ export function TabelaRedeFranqueadosEditavel({
 
               {canEditRows ? (
                 <th
-                  className="sticky right-0 z-20 w-14 min-w-[3.5rem] border-l border-stone-200 bg-stone-50 px-1 py-2 text-center shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]"
+                  className="sticky right-0 z-20 w-14 min-w-[3.5rem] border-l border-stone-200 bg-[color:var(--moni-surface-50)] px-1 py-2 text-center shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]"
                   scope="col"
                 >
                   <span className="sr-only">Operações</span>
@@ -680,6 +696,11 @@ export function TabelaRedeFranqueadosEditavel({
                 : rowAdormecida
                   ? 'bg-blue-50/40 opacity-70 hover:opacity-100 focus-within:opacity-100'
                   : '';
+              const stickyRowTone: RedeStickyRowTone = rowInativa
+                ? 'inativa'
+                : rowAdormecida
+                  ? 'adormecida'
+                  : 'default';
               const rowContentExpanded = expandedContentRows.has(r.id);
               const rowExpansivel = redeRowConteudoExpansivel(String(r.area_atuacao ?? ''));
               const toggleRowContent = () => toggleContentExpand(r.id);
@@ -695,7 +716,7 @@ export function TabelaRedeFranqueadosEditavel({
                       k === 'n_franquia' ? formatNFranquiaRedeExibicao(current, r.ordem) : current;
                     const isAreaAtuacao = k === 'area_atuacao';
                     const maskCell = maskSensitiveColumns && isRedeColunaDadoSensivel(k);
-                    const sticky = stickyCellProps(colIndex, 'body');
+                    const sticky = stickyCellProps(colIndex, 'body', stickyRowTone);
                     const areaEditando = isEditing && isAreaAtuacao;
                     const cellClassName = areaEditando
                       ? sticky.className
@@ -931,7 +952,7 @@ export function TabelaRedeFranqueadosEditavel({
                   </td>
 
                   {canEditRows ? (
-                    <td className="sticky right-0 z-10 w-14 min-w-[3.5rem] border-l border-stone-200 bg-inherit px-1 py-2 align-middle shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)] group-hover:bg-stone-50/90">
+                    <td className="sticky right-0 z-10 w-14 min-w-[3.5rem] border-l border-stone-200 bg-[color:var(--moni-surface-0)] px-1 py-2 align-middle shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)] group-hover:bg-[color:var(--moni-surface-50)]">
                       {!isEditing ? (
                         <div className="flex flex-col items-center justify-center gap-1 sm:flex-row sm:opacity-0 sm:transition-opacity sm:duration-150 sm:group-hover:opacity-100">
                           {rowExpansivel ? (

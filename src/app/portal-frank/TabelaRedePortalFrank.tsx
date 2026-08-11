@@ -20,9 +20,9 @@ const PER_PAGE = 40;
 /** Colunas visíveis ao franqueado, na mesma ordem lógica da tabela principal (`REDE_FRANQUEADOS_DB_KEYS`). */
 const FRANK_KEYS = [
   'n_franquia',
-  'modalidade',
   'nome_completo',
   'status_franquia',
+  'modalidade',
   'regional',
   'area_atuacao',
   'email_frank',

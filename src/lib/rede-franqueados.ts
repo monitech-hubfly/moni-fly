@@ -83,10 +83,10 @@ export function ordenarRedePorNFranquia<
 
 export const COLUNAS_REDE_FRANQUEADOS = [
   'N de Franquia',
-  'Modalidade',
   'Nome Completo do Franqueado',
   'Status da Franquia',
   'Classificação do Franqueado',
+  'Modalidade',
   'Data de Ass. COF',
   'Data de Ass. Contrato',
   'Data de Expiração da Franquia',
@@ -116,10 +116,10 @@ export type RedeFranqueadosData = {
 
 export const REDE_FRANQUEADOS_DB_KEYS = [
   'n_franquia',
-  'modalidade',
   'nome_completo',
   'status_franquia',
   'classificacao_franqueado',
+  'modalidade',
   'data_ass_cof',
   'data_ass_contrato',
   'data_expiracao_franquia',
@@ -234,10 +234,10 @@ function formatDate(val: string | null | undefined): string {
 function rowToArray(r: RowAny): string[] {
   return [
     r.n_franquia ?? r.unidade ?? '',
-    (r as unknown as { modalidade?: string | null }).modalidade ?? '',
     r.nome_completo ?? r.nome ?? '',
     r.status_franquia ?? '',
     r.classificacao_franqueado ?? '',
+    (r as unknown as { modalidade?: string | null }).modalidade ?? '',
     formatDate(r.data_ass_cof),
     formatDate(r.data_ass_contrato),
     formatDate(r.data_expiracao_franquia),
