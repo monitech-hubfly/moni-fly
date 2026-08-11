@@ -2,12 +2,46 @@
 
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, History } from 'lucide-react';
-import type { RedeSubstituicaoRow } from '@/lib/rede-franqueado-substituicao';
+import type { RedeSubstituicaoSnapshotVinculos } from '@/lib/rede-franqueado-anexos-colunas';
+import {
+  pickAnexosRedeFranqueadoFromRow,
+  REDE_FRANQUEADO_COLUNAS_ANEXO_PATH,
+  REDE_SUBSTITUICAO_SNAPSHOT_VINCULOS_KEY,
+} from '@/lib/rede-franqueado-anexos-colunas';
 import { formatNFranquiaRedeExibicao } from '@/lib/rede-franqueados';
+import type { RedeSubstituicaoRow } from '@/lib/rede-franqueado-substituicao';
 
 type Props = {
   substituicoes: RedeSubstituicaoRow[];
 };
+
+function contarDocsArquivados(snapshot: Record<string, unknown>): number {
+  const anexos = pickAnexosRedeFranqueadoFromRow(snapshot);
+  let n = REDE_FRANQUEADO_COLUNAS_ANEXO_PATH.filter((k) => anexos[k]).length;
+  const vinc = snapshot[REDE_SUBSTITUICAO_SNAPSHOT_VINCULOS_KEY] as RedeSubstituicaoSnapshotVinculos | undefined;
+  if (vinc?.franqueado_spe?.length) {
+    for (const spe of vinc.franqueado_spe) {
+      for (const k of [
+        'anexo_contrato_social_path',
+        'anexo_cnpj_path',
+        'anexo_inscricao_municipal_path',
+        'anexo_certidao_junta_path',
+        'anexo_conta_bancaria_path',
+        'anexo_inscricao_estadual_path',
+      ]) {
+        if (String(spe[k] ?? '').trim()) n += 1;
+      }
+    }
+  }
+  if (vinc?.franqueado_empresas?.length) {
+    for (const emp of vinc.franqueado_empresas) {
+      for (const k of Object.keys(emp)) {
+        if (k.endsWith('_path') && String(emp[k] ?? '').trim()) n += 1;
+      }
+    }
+  }
+  return n;
+}
 
 function formatData(iso: string): string {
   try {
@@ -49,6 +83,7 @@ export function RedeFranqueadoSubstituicoesHistorico({ substituicoes }: Props) {
             s.n_franquia_anterior ?? (snap.n_franquia as string | null),
             typeof snap.ordem === 'number' ? snap.ordem : null,
           );
+          const docsArquivados = contarDocsArquivados(snap);
           return (
             <li
               key={s.id}
@@ -92,6 +127,12 @@ export function RedeFranqueadoSubstituicoesHistorico({ substituicoes }: Props) {
                   {s.processo_step_one_id ? (
                     <p className="mt-2 text-[10px] text-[color:var(--moni-text-tertiary)]">
                       Processo Step One arquivado: {s.processo_step_one_id.slice(0, 8)}…
+                    </p>
+                  ) : null}
+                  {docsArquivados > 0 ? (
+                    <p className="mt-2 text-[10px] text-[color:var(--moni-text-tertiary)]">
+                      {docsArquivados} documento{docsArquivados === 1 ? '' : 's'} arquivado
+                      {docsArquivados === 1 ? '' : 's'} neste snapshot (paths preservados no histórico).
                     </p>
                   ) : null}
                 </div>

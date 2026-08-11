@@ -113,7 +113,6 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
           <RedeFranqueadoDetalheTabs
             redeId={id}
             row={row}
-            showDiagnostico={staff}
             internalView
             cadastro={
               staff ? (

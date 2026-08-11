@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RedeFranqueadoDbKey } from '@/lib/rede-franqueados';
+import {
+  patchLimparAnexosRedeFranqueado,
+  REDE_SUBSTITUICAO_SNAPSHOT_VINCULOS_KEY,
+  type RedeSubstituicaoSnapshotVinculos,
+} from '@/lib/rede-franqueado-anexos-colunas';
 import { isRedeStatusEmTransferencia } from '@/lib/rede-franqueado-form-options';
 
 export type RedeSubstituicaoRow = {
@@ -32,7 +37,20 @@ export async function arquivarHistoricoSubstituicao(
     return { ok: false, error: 'Só é possível substituir franqueados com status Em Transferência.' };
   }
 
-  const snapshot = { ...(row as Record<string, unknown>) };
+  const [{ data: spes }, { data: empresas }] = await Promise.all([
+    supabase.from('franqueado_spe').select('*').eq('rede_franqueado_id', redeId),
+    supabase.from('franqueado_empresas').select('*').eq('rede_franqueado_id', redeId),
+  ]);
+
+  const vinculos: RedeSubstituicaoSnapshotVinculos = {
+    franqueado_spe: (spes ?? []) as Record<string, unknown>[],
+    franqueado_empresas: (empresas ?? []) as Record<string, unknown>[],
+  };
+
+  const snapshot: Record<string, unknown> = {
+    ...(row as Record<string, unknown>),
+    [REDE_SUBSTITUICAO_SNAPSHOT_VINCULOS_KEY]: vinculos,
+  };
   const processoId = (row as { processo_id?: string | null }).processo_id ?? null;
   const nomeAnterior = String((row as { nome_completo?: string | null }).nome_completo ?? '').trim() || null;
   const nAnterior = String((row as { n_franquia?: string | null }).n_franquia ?? '').trim() || null;
@@ -66,6 +84,13 @@ export async function arquivarHistoricoSubstituicao(
     await supabase.from('rede_franqueados').update({ processo_id: null }).eq('id', redeId);
   }
 
+  if (vinculos.franqueado_spe.length) {
+    await supabase.from('franqueado_spe').delete().eq('rede_franqueado_id', redeId);
+  }
+  if (vinculos.franqueado_empresas.length) {
+    await supabase.from('franqueado_empresas').delete().eq('rede_franqueado_id', redeId);
+  }
+
   return { ok: true, substituicaoId };
 }
 
@@ -74,7 +99,10 @@ export function buildPatchSubstituicao(
   targetRow: Record<string, unknown>,
   input: Partial<Record<RedeFranqueadoDbKey, string | null>>,
 ): Record<string, unknown> {
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const patch: Record<string, unknown> = {
+    ...patchLimparAnexosRedeFranqueado(),
+    updated_at: new Date().toISOString(),
+  };
   for (const [k, v] of Object.entries(input)) {
     if (v == null) continue;
     const s = String(v).trim();

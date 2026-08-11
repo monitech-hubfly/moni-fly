@@ -33,10 +33,28 @@ const COLS = [
   'endereco_casa_frank', 'endereco_casa_frank_numero', 'endereco_casa_frank_complemento',
   'cep_casa_frank', 'estado_casa_frank', 'cidade_casa_frank', 'tamanho_camisa_frank', 'socios',
   'data_recebimento_kit_boas_vindas',
+  // Seção 1 — Documentos da Franquia
   'anexo_cof_path', 'anexo_contrato_path', 'anexo_numero_franquia_path',
+  'anexo_cof_justificativa', 'anexo_contrato_justificativa', 'anexo_numero_franquia_justificativa',
+  // Seção 0 — Documentos do Franqueado
   'anexo_cnh_path', 'anexo_rg_path', 'anexo_passaporte_path', 'anexo_comprovante_endereco_path',
-  'anexo_estado_civil_path', 'anexo_irpf_path',
+  'anexo_estado_civil_path', 'anexo_irpf_path', 'anexo_estado_civil_justificativa',
+  // Seção 2 — Documentos das Empresas (Incorporadora + Gestora na linha rede)
+  'anexo_emp_incorp_contrato_social_path', 'anexo_emp_incorp_contrato_social_justificativa',
+  'anexo_emp_incorp_cnpj_path', 'anexo_emp_incorp_cnpj_justificativa',
+  'anexo_emp_incorp_inscricao_municipal_path', 'anexo_emp_incorp_inscricao_municipal_justificativa',
+  'anexo_emp_incorp_certidao_junta_path', 'anexo_emp_incorp_certidao_junta_justificativa',
+  'anexo_emp_incorp_conta_bancaria_path', 'anexo_emp_incorp_conta_bancaria_justificativa',
+  'anexo_emp_incorp_inscricao_estadual_path',
+  'anexo_emp_gest_contrato_social_path', 'anexo_emp_gest_contrato_social_justificativa',
+  'anexo_emp_gest_cnpj_path', 'anexo_emp_gest_cnpj_justificativa',
+  'anexo_emp_gest_inscricao_municipal_path', 'anexo_emp_gest_inscricao_municipal_justificativa',
+  'anexo_emp_gest_certidao_junta_path', 'anexo_emp_gest_certidao_junta_justificativa',
+  'anexo_emp_gest_conta_bancaria_path', 'anexo_emp_gest_conta_bancaria_justificativa',
+  'anexo_emp_gest_inscricao_estadual_path',
 ];
+
+const COLS_ANEXO = COLS.filter((c) => c.startsWith('anexo_'));
 
 await client.connect();
 
@@ -62,7 +80,22 @@ try {
     console.warn('Aviso: Alexandre não está Em Transferência — continuando mesmo assim.');
   }
 
-  const snapshot = { ...alexandre };
+  const { rows: spesAlexandre } = await client.query(
+    `SELECT * FROM franqueado_spe WHERE rede_franqueado_id = $1`,
+    [alexandre.id],
+  );
+  const { rows: empresasAlexandre } = await client.query(
+    `SELECT * FROM franqueado_empresas WHERE rede_franqueado_id = $1`,
+    [alexandre.id],
+  );
+
+  const snapshot = {
+    ...alexandre,
+    _substituicao_vinculos: {
+      franqueado_spe: spesAlexandre,
+      franqueado_empresas: empresasAlexandre,
+    },
+  };
   const subRes = await client.query(
     `INSERT INTO rede_franqueado_substituicoes (rede_franqueado_id, snapshot, processo_step_one_id, nome_anterior, n_franquia_anterior)
      VALUES ($1, $2::jsonb, $3, $4, $5) RETURNING id`,
@@ -81,9 +114,19 @@ try {
     [subId, alexandre.id],
   );
 
+  if (spesAlexandre.length) {
+    await client.query(`DELETE FROM franqueado_spe WHERE rede_franqueado_id = $1`, [alexandre.id]);
+  }
+  if (empresasAlexandre.length) {
+    await client.query(`DELETE FROM franqueado_empresas WHERE rede_franqueado_id = $1`, [alexandre.id]);
+  }
+
   const sets = [];
   const vals = [];
   let i = 1;
+  for (const col of COLS_ANEXO) {
+    sets.push(`${col} = NULL`);
+  }
   for (const col of COLS) {
     const v = jonatas[col];
     if (v !== null && v !== undefined && String(v).trim() !== '') {
@@ -112,6 +155,15 @@ try {
 
   await client.query(
     `UPDATE kanban_cards SET rede_franqueado_id = $1 WHERE rede_franqueado_id = $2 AND rede_substituicao_id IS NULL`,
+    [alexandre.id, jonatas.id],
+  );
+
+  await client.query(
+    `UPDATE franqueado_spe SET rede_franqueado_id = $1 WHERE rede_franqueado_id = $2`,
+    [alexandre.id, jonatas.id],
+  );
+  await client.query(
+    `UPDATE franqueado_empresas SET rede_franqueado_id = $1 WHERE rede_franqueado_id = $2`,
     [alexandre.id, jonatas.id],
   );
 
