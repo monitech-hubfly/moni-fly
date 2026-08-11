@@ -126,13 +126,6 @@ const SCORE_TEXT: Record<string, string> = {
   red: 'text-red-600',
 };
 
-const SCORE_BADGE: Record<string, string> = {
-  green: 'bg-green-100 text-green-700',
-  lime: 'bg-lime-100 text-lime-700',
-  amber: 'bg-amber-100 text-amber-700',
-  red: 'bg-red-100 text-red-700',
-};
-
 export function ScoreCell({
   score,
   internalView,
@@ -146,7 +139,7 @@ export function ScoreCell({
   return (
     <div className="flex flex-col gap-0.5">
       <span className={`text-sm font-extrabold leading-none ${SCORE_TEXT[color]}`}>{score}%</span>
-      <span className={`inline-block rounded-full px-1.5 py-px text-[9px] font-semibold ${SCORE_BADGE[color]}`}>
+      <span className={`text-[9px] font-medium ${SCORE_TEXT[color]} opacity-80`}>
         {label}
       </span>
     </div>

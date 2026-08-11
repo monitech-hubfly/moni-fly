@@ -294,7 +294,7 @@ function stickyCellProps(
       variant === 'head' ? redeTh : 'overflow-hidden px-3 py-2.5 align-top text-stone-700',
       'sticky border-r',
       isLastSticky ? 'border-stone-200 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]' : 'border-stone-100/90',
-      variant === 'head' ? 'bg-stone-50/95' : 'bg-white group-hover:bg-stone-50/90',
+      variant === 'head' ? 'bg-stone-50/95' : 'bg-inherit group-hover:bg-stone-50/90',
     ].join(' '),
     style: {
       left: `${stickyLeftRem(index)}rem`,
@@ -675,9 +675,10 @@ export function TabelaRedeFranqueadosEditavel({
               const diagOpen = diagPanelId === r.id;
               const rowInativa = isStatusNC(r);
               const rowAdormecida = isAdormecido(r);
-              const rowMutedClass =
-                rowInativa || rowAdormecida
-                  ? 'opacity-[0.52] hover:opacity-100 focus-within:opacity-100'
+              const rowMutedClass = rowInativa
+                ? 'bg-stone-50 opacity-60 hover:opacity-100 focus-within:opacity-100'
+                : rowAdormecida
+                  ? 'bg-blue-50/40 opacity-70 hover:opacity-100 focus-within:opacity-100'
                   : '';
               const rowContentExpanded = expandedContentRows.has(r.id);
               const rowExpansivel = redeRowConteudoExpansivel(String(r.area_atuacao ?? ''));
@@ -930,7 +931,7 @@ export function TabelaRedeFranqueadosEditavel({
                   </td>
 
                   {canEditRows ? (
-                    <td className="sticky right-0 z-10 w-14 min-w-[3.5rem] border-l border-stone-200 bg-white px-1 py-2 align-middle shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)] group-hover:bg-stone-50/90">
+                    <td className="sticky right-0 z-10 w-14 min-w-[3.5rem] border-l border-stone-200 bg-inherit px-1 py-2 align-middle shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)] group-hover:bg-stone-50/90">
                       {!isEditing ? (
                         <div className="flex flex-col items-center justify-center gap-1 sm:flex-row sm:opacity-0 sm:transition-opacity sm:duration-150 sm:group-hover:opacity-100">
                           {rowExpansivel ? (
