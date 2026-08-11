@@ -547,7 +547,7 @@ export function TabelaRedeFranqueadosEditavel({
       <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
         <table className="w-full min-w-[2400px] border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-stone-200 bg-stone-50/95">
+            <tr className="border-b border-stone-200 bg-stone-50">
               {headers.map((h, i) => {
                 const sticky = stickyCellProps(i, 'head');
                 return (
@@ -560,28 +560,28 @@ export function TabelaRedeFranqueadosEditavel({
               {/* ── Diagnóstico: Engajamento ── */}
               <DiagnosticoHeaderTh
                 tooltipKey="score"
-                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
+                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50`}
                 style={{ minWidth: 80 }}
               >
                 Score
               </DiagnosticoHeaderTh>
               <DiagnosticoHeaderTh
                 tooltipKey="d"
-                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
+                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50`}
                 style={{ minWidth: 60 }}
               >
                 D
               </DiagnosticoHeaderTh>
               <DiagnosticoHeaderTh
                 tooltipKey="c"
-                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
+                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50`}
                 style={{ minWidth: 60 }}
               >
                 C
               </DiagnosticoHeaderTh>
               <DiagnosticoHeaderTh
                 tooltipKey="k"
-                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
+                className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50`}
                 style={{ minWidth: 60 }}
               >
                 K
@@ -590,14 +590,14 @@ export function TabelaRedeFranqueadosEditavel({
               {/* ── Diagnóstico: Relação ── */}
               <DiagnosticoHeaderTh
                 tooltipKey="nps"
-                className={`${redeTh} border-t-[3px] border-t-rose-600 bg-rose-50/40`}
+                className={`${redeTh} border-t-[3px] border-t-rose-600 bg-rose-50`}
                 style={{ minWidth: 80 }}
               >
                 NPS
               </DiagnosticoHeaderTh>
               <DiagnosticoHeaderTh
                 tooltipKey="csat"
-                className={`${redeTh} border-t-[3px] border-t-rose-600 bg-rose-50/40`}
+                className={`${redeTh} border-t-[3px] border-t-rose-600 bg-rose-50`}
                 style={{ minWidth: 80 }}
               >
                 CSAT
@@ -606,14 +606,14 @@ export function TabelaRedeFranqueadosEditavel({
               {/* ── Diagnóstico: Indicador ── */}
               <DiagnosticoHeaderTh
                 tooltipKey="contratos12m"
-                className={`${redeTh} border-t-[3px] border-t-blue-700 bg-blue-50/40`}
+                className={`${redeTh} border-t-[3px] border-t-blue-700 bg-blue-50`}
                 style={{ minWidth: 110 }}
               >
                 Contratos 12m
               </DiagnosticoHeaderTh>
               <DiagnosticoHeaderTh
                 tooltipKey="adimplencia"
-                className={`${redeTh} border-t-[3px] border-t-blue-700 bg-blue-50/40`}
+                className={`${redeTh} border-t-[3px] border-t-blue-700 bg-blue-50`}
                 style={{ minWidth: 80 }}
               >
                 Adimplência

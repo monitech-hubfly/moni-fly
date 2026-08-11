@@ -15,9 +15,8 @@ type Props = {
 };
 
 /**
- * Tabela larga: scroll horizontal no wrapper (sem max-height / scroll vertical interno).
- * A página (AppShell) rola verticalmente; o thead sticky só se aplica no eixo do wrap
- * (útil com cabeçalho de duas linhas via --moni-tabela-thead-row1-height).
+ * Tabela larga: scroll horizontal no wrapper externo (overflow-y: clip).
+ * A área `.moni-app-main-scroll` rola verticalmente; thead sticky fica no topo visível.
  */
 export function MoniTabelaScrollSync({ children, className = '' }: Props) {
   const mainRef = useRef<HTMLDivElement>(null);
