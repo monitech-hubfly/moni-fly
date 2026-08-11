@@ -188,7 +188,18 @@ export async function atualizarStatusInteracaoSirene(
 
     if (sireneCid != null && Number.isFinite(Number(sireneCid))) {
       const r = await concluirChamadoCriador(Number(sireneCid), suficiente, texto);
-      if (!r.ok) return r;
+      if (!r.ok) {
+        if (r.error === 'Este chamado já está concluído.') {
+          // Chamado já foi concluído por outro caminho — apenas atualiza a atividade
+          const now = new Date().toISOString();
+          await admin
+            .from('kanban_atividades')
+            .update({ status: 'concluida', concluida_em: now, updated_at: now })
+            .eq('sirene_chamado_id', sireneCid);
+        } else {
+          return r;
+        }
+      }
       revalidatePath('/sirene/chamados');
       revalidatePath('/');
       return { ok: true };

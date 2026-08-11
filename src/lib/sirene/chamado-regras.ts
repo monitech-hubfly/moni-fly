@@ -11,7 +11,8 @@ export function topicoStatusFechado(status: string | null | undefined): boolean 
 export function todosTopicosFechados(
   topicos: Array<{ status?: string | null }>,
 ): boolean {
-  return topicos.length > 0 && topicos.every((t) => topicoStatusFechado(t.status));
+  // Array vazio = sem sub-tópicos bloqueadores → verdadeiro por vacuidade
+  return topicos.every((t) => topicoStatusFechado(t.status));
 }
 
 /** Status dos tópicos: fluxo legado (`chamado_id`) ou card/Sirene (`interacao_id` via `kanban_atividades`). */

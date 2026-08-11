@@ -827,6 +827,7 @@ function InteracoesListaInner({
         resolucaoSuficiente: payload.suficiente,
       });
       if (!res.ok) {
+        setConclusaoInteracaoId(null); // fecha modal para o erro ficar visível
         setMsgErro(res.error);
         return;
       }
