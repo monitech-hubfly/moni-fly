@@ -16,6 +16,7 @@ import { compareChamadosPainelRank } from '@/lib/sirene-painel-chamados-rank';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
 import { notificarMencoesSirene, resolverMencoesSirene } from '@/lib/actions/sirene-mencoes';
+import { notificarAlertasKanbanAtividade } from '@/lib/kanban/chamados-notificacoes';
 import { criarPastelariaInboxParaChamadoSirene } from '@/lib/pastelaria/sirene-pastel-abertura';
 import {
   aggregatePorPrioridadeAbertosFromBreakdown,
@@ -1610,7 +1611,7 @@ export async function concluirTopico(
 
   const { data: topico, error: errT } = await supabase
     .from('sirene_topicos')
-    .select('id, chamado_id, time_responsavel, status')
+    .select('id, chamado_id, time_responsavel, status, interacao_id, nome')
     .eq('id', topicoId)
     .single();
   if (errT || !topico) return { ok: false, error: 'Tópico não encontrado.' };
@@ -1637,10 +1638,12 @@ export async function concluirTopico(
 
   const { data: chamadoRef } = await supabase
     .from('sirene_chamados')
-    .select('numero')
+    .select('numero, aberto_por')
     .eq('id', topico.chamado_id)
     .single();
-  const numero = (chamadoRef as { numero?: number } | null)?.numero ?? topico.chamado_id;
+  const numero = (chamadoRef as { numero?: number; aberto_por?: string | null } | null)?.numero ?? topico.chamado_id;
+  const abertoPorId = (chamadoRef as { aberto_por?: string | null } | null)?.aberto_por ?? null;
+
   const bombeiros = await getUserIdsToNotify(supabase, 'bombeiro');
   for (const uid of bombeiros) {
     await inserirNotificacao(
@@ -1651,8 +1654,36 @@ export async function concluirTopico(
       `Tópico do chamado #${numero} foi concluído pelo time.`,
     );
   }
+
+  // Problema 1: notificar abridor do chamado no Sininho
+  if (abertoPorId && abertoPorId !== me.userId) {
+    const nomeAtiv = String((topico as { nome?: string | null }).nome ?? '').trim() || 'atividade';
+    try {
+      await notificarAlertasKanbanAtividade({
+        userIds: [abertoPorId],
+        tipo: 'kanban_atividade_atualizada',
+        mensagem: `Atividade "${nomeAtiv}" do chamado #${numero} foi concluída.`,
+        sireneChamadoId: topico.chamado_id,
+        interacaoId: (topico as { interacao_id?: string | null }).interacao_id ?? null,
+        topicoId: topico.id,
+        excluirUserId: me.userId,
+      });
+    } catch {
+      // notificação não bloqueia o fluxo
+    }
+  }
+
+  // Problema 2: marcar como lidos os alertas do usuário logado referentes a este tópico
+  await supabase
+    .from('alertas')
+    .update({ lido: true })
+    .eq('user_id', me.userId)
+    .eq('lido', false)
+    .like('referencia_path', `%topico=${topicoId}%`);
+
   revalidatePath('/sirene');
   revalidatePath(`/sirene/${topico.chamado_id}`);
+  revalidatePath('/alertas');
   return { ok: true };
 }
 
