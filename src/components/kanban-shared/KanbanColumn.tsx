@@ -797,6 +797,8 @@ export function KanbanColumn({
                         basePath={basePath}
                         kanbanNome={typeof kanbanNome === 'string' ? kanbanNome : undefined}
                         proximaFase={proximaFaseFunil}
+                        cardArquivado={arquivado}
+                        cardResultado={resultado}
                       />
                     </div>
                   </div>

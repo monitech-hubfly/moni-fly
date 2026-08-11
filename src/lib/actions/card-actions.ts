@@ -41,6 +41,8 @@ import {
   faseNomeExibicaoVinculoCard,
   limparTagAcoplamentoPaiDoFilhoArquivado,
 } from '@/lib/kanban/acoplamento-tag-pai';
+import { resolveUsuarioNomeHistorico } from '@/lib/kanban/kanban-historico-actor';
+import { tipoKanbanHistoricoFromAcao } from '@/lib/kanban/kanban-historico-tipo';
 import { createClient } from '@/lib/supabase/server';
 import { usuarioConcluiuCasasUniversidade012 } from '@/lib/universidade/queries';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
@@ -2042,6 +2044,7 @@ export async function desarquivarCard(input: DesarquivarCardInput): Promise<Acti
       arquivado_em: null,
       arquivado_por: null,
       motivo_arquivamento: null,
+      resultado: null,
     } as never)
     .eq('id', cardId)
     .select('id');
@@ -2054,6 +2057,90 @@ export async function desarquivarCard(input: DesarquivarCardInput): Promise<Acti
         : 'Card não encontrado em kanban_cards.';
     return { ok: false, error: hint };
   }
+
+  const bp = input.basePath?.trim() || '/';
+  revalidatePath(bp);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export type ReativarPerdaCardInput = {
+  cardId: string;
+  basePath?: string;
+};
+
+export async function reativarPerdaCard(input: ReativarPerdaCardInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para reativar o card.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const [perm, { data: meProf2 }] = await Promise.all([
+    carregarPermissoesMap(supabase, user.id),
+    supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+  ]);
+  const roleNorm2 = String((meProf2 as { role?: string | null } | null)?.role ?? '').toLowerCase();
+  const papelPriv =
+    roleNorm2 === 'admin' ||
+    roleNorm2 === 'team' ||
+    roleNorm2 === 'supervisor' ||
+    roleNorm2 === 'consultor';
+  if (!papelPriv && !perm.get('arquivar_cards')) {
+    return { ok: false, error: 'Sem permissão para reativar cards.' };
+  }
+
+  const admin = createAdminClient();
+
+  const { data: cardRow, error: fetchErr } = await admin
+    .from('kanban_cards')
+    .select('id, arquivado, resultado, titulo')
+    .eq('id', cardId)
+    .maybeSingle();
+
+  if (fetchErr) return { ok: false, error: fetchErr.message };
+  if (!cardRow) return { ok: false, error: 'Card não encontrado.' };
+
+  const arquivado = Boolean((cardRow as { arquivado?: boolean | null }).arquivado);
+  const resultado = String((cardRow as { resultado?: string | null }).resultado ?? '').trim();
+  if (!arquivado || resultado !== 'perda') {
+    return { ok: false, error: 'Somente cards com perda registrada podem ser reativados.' };
+  }
+
+  const titulo = String((cardRow as { titulo?: string | null }).titulo ?? '').trim() || 'Card';
+
+  const { data: updated, error } = await admin
+    .from('kanban_cards')
+    .update({
+      arquivado: false,
+      arquivado_em: null,
+      arquivado_por: null,
+      motivo_arquivamento: null,
+      resultado: null,
+    } as never)
+    .eq('id', cardId)
+    .select('id');
+
+  if (error) return { ok: false, error: error.message };
+  if (!updated?.length) return { ok: false, error: 'Card não encontrado em kanban_cards.' };
+
+  const usuarioNome = await resolveUsuarioNomeHistorico(admin, user.id);
+  const { error: histErr } = await admin.from('kanban_historico').insert({
+    card_id: cardId,
+    usuario_id: user.id,
+    usuario_nome: usuarioNome,
+    acao: 'card_reativado',
+    tipo: tipoKanbanHistoricoFromAcao('card_reativado'),
+    detalhe: {
+      resultado_anterior: 'perda',
+      descricao: `Card reativado após perda — "${titulo}"`,
+    },
+  } as never);
+
+  if (histErr) return { ok: false, error: histErr.message };
 
   const bp = input.basePath?.trim() || '/';
   revalidatePath(bp);

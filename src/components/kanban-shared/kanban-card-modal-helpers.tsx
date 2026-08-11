@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Archive,
+  ArchiveRestore,
   CheckCircle2,
   FileEdit,
   History,
@@ -572,6 +573,8 @@ export function textoResumidoAcaoHistorico(acao: string, detalhe: Record<string,
       return 'Card criado';
     case 'card_arquivado':
       return 'Card arquivado';
+    case 'card_reativado':
+      return String(d.descricao ?? '').trim() || 'Card reativado após perda';
     case 'card_concluido':
       return 'Card finalizado';
     case 'interacao_criada':
@@ -659,6 +662,8 @@ export function iconeHistoricoAcao(acao: string): ReactNode {
       return <FileEdit className={className} aria-hidden />;
     case 'card_arquivado':
       return <Archive className={className} aria-hidden />;
+    case 'card_reativado':
+      return <ArchiveRestore className={className} aria-hidden />;
     case 'card_concluido':
       return <CheckCircle2 className={className} aria-hidden />;
     case 'comentario_criado':

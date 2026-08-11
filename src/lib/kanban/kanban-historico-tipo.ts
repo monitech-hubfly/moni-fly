@@ -30,6 +30,8 @@ export function tipoKanbanHistoricoFromAcao(acao: string | null | undefined): Ka
       return 'criacao';
     case 'card_arquivado':
       return 'arquivamento';
+    case 'card_reativado':
+      return 'arquivamento';
     case 'campo_alterado':
       return 'campo';
     case 'comentario_criado':

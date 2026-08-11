@@ -57,6 +57,8 @@ function badgeStatus(f: KanbanBoardFiltros): string | null {
   const map: Record<string, string> = {
     arquivados: 'Arquivados',
     concluidos: 'Concluídos',
+    perdas: 'Perdas',
+    ganhos: 'Ganhos',
   };
   return map[f.status] ?? f.status;
 }
@@ -138,6 +140,8 @@ type Props = {
   fases: KanbanFase[];
   responsaveisOpcoes: { id: string; nome: string }[];
   showFiltroEu: boolean;
+  /** Exibe opções Perdas/Ganhos no filtro STATUS (Kanban Funding). */
+  showPerdaGanhoFiltros?: boolean;
   onLimpar: () => void;
   onAplicar: () => void;
 };
@@ -148,6 +152,7 @@ export function KanbanBoardFiltrosPanel({
   fases,
   responsaveisOpcoes,
   showFiltroEu,
+  showPerdaGanhoFiltros = false,
   onLimpar,
   onAplicar,
 }: Props) {
@@ -289,6 +294,12 @@ export function KanbanBoardFiltrosPanel({
               [
                 ['ativos', 'Ativos'],
                 ['arquivados', 'Arquivados'],
+                ...(showPerdaGanhoFiltros
+                  ? ([
+                      ['perdas', 'Perdas'],
+                      ['ganhos', 'Ganhos'],
+                    ] as const)
+                  : []),
                 ['concluidos', 'Concluídos'],
               ] as const
             ).map(([v, lab]) => (

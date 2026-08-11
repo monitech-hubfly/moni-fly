@@ -3,13 +3,14 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Archive, ArrowRight, MoreHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
+import { Archive, ArrowRight, MoreHorizontal, RotateCcw, TrendingDown, TrendingUp } from 'lucide-react';
 import {
   arquivarCard,
   moverCardParaFase,
   registrarPerda,
   registrarGanho,
   buscarMotivosPerda,
+  reativarPerdaCard,
 } from '@/lib/actions/card-actions';
 import {
   MOTIVOS_ARQUIVAMENTO_CATEGORIAS,
@@ -30,13 +31,23 @@ type Props = {
   kanbanNome?: string;
   /** Próxima fase ativa do funil (por `ordem`). `null` quando o card já está na última fase. */
   proximaFase: ProximaFase | null;
+  cardArquivado?: boolean;
+  cardResultado?: 'perda' | 'ganho' | null;
 };
 
 type Vista = 'menu' | 'arquivar' | 'perda' | 'ganho';
 
 const LARGURA_MENU = 200;
 
-export function KanbanCardMenu({ cardId, origem = 'nativo', basePath, kanbanNome, proximaFase }: Props) {
+export function KanbanCardMenu({
+  cardId,
+  origem = 'nativo',
+  basePath,
+  kanbanNome,
+  proximaFase,
+  cardArquivado = false,
+  cardResultado = null,
+}: Props) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
   const [vista, setVista] = useState<Vista>('menu');
@@ -190,6 +201,19 @@ export function KanbanCardMenu({ cardId, origem = 'nativo', basePath, kanbanNome
     });
   }
 
+  function handleReativarPerda() {
+    setErro(null);
+    if (!window.confirm('Reativar este card? Ele voltará ao funil como ativo.')) return;
+    startTransition(async () => {
+      const res = await reativarPerdaCard({ cardId, basePath });
+      if (!res.ok) { setErro(res.error ?? 'Erro ao reativar o card.'); return; }
+      setAberto(false);
+      router.refresh();
+    });
+  }
+
+  const cardPerdaArquivada = cardArquivado && cardResultado === 'perda';
+
   const dropdown = aberto && pos ? (
     <div
       ref={menuRef}
@@ -201,50 +225,66 @@ export function KanbanCardMenu({ cardId, origem = 'nativo', basePath, kanbanNome
     >
       {vista === 'menu' && (
         <>
-          <button
-            type="button"
-            role="menuitem"
-            className="moni-kanban-card-menu-item"
-            disabled={!proximaFase || pending}
-            title={proximaFase ? `Avançar para "${proximaFase.nome}"` : 'Já está na última fase'}
-            onClick={handleAvancar}
-          >
-            <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
-            <span>Avançar fase</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="moni-kanban-card-menu-item moni-kanban-card-menu-item--danger"
-            disabled={pending}
-            onClick={() => { setErro(null); setVista('arquivar'); }}
-          >
-            <Archive className="h-4 w-4 shrink-0" aria-hidden />
-            <span>Arquivar</span>
-          </button>
-          {PERDA_GANHO_ENABLED && (
+          {cardPerdaArquivada ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="moni-kanban-card-menu-item"
+              style={{ color: 'var(--moni-status-ok-text)' }}
+              disabled={pending}
+              onClick={handleReativarPerda}
+            >
+              <RotateCcw className="h-4 w-4 shrink-0" aria-hidden />
+              <span>Reativar</span>
+            </button>
+          ) : (
             <>
+              <button
+                type="button"
+                role="menuitem"
+                className="moni-kanban-card-menu-item"
+                disabled={!proximaFase || pending}
+                title={proximaFase ? `Avançar para "${proximaFase.nome}"` : 'Já está na última fase'}
+                onClick={handleAvancar}
+              >
+                <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+                <span>Avançar fase</span>
+              </button>
               <button
                 type="button"
                 role="menuitem"
                 className="moni-kanban-card-menu-item moni-kanban-card-menu-item--danger"
                 disabled={pending}
-                onClick={() => { setErro(null); void abrirPerda(); }}
+                onClick={() => { setErro(null); setVista('arquivar'); }}
               >
-                <TrendingDown className="h-4 w-4 shrink-0" aria-hidden />
-                <span>Perda</span>
+                <Archive className="h-4 w-4 shrink-0" aria-hidden />
+                <span>Arquivar</span>
               </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="moni-kanban-card-menu-item"
-                style={{ color: 'var(--moni-status-ok-text)' }}
-                disabled={pending}
-                onClick={() => { setErro(null); setVista('ganho'); }}
-              >
-                <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
-                <span>Ganho</span>
-              </button>
+              {PERDA_GANHO_ENABLED && (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="moni-kanban-card-menu-item moni-kanban-card-menu-item--danger"
+                    disabled={pending}
+                    onClick={() => { setErro(null); void abrirPerda(); }}
+                  >
+                    <TrendingDown className="h-4 w-4 shrink-0" aria-hidden />
+                    <span>Perda</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="moni-kanban-card-menu-item"
+                    style={{ color: 'var(--moni-status-ok-text)' }}
+                    disabled={pending}
+                    onClick={() => { setErro(null); setVista('ganho'); }}
+                  >
+                    <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
+                    <span>Ganho</span>
+                  </button>
+                </>
+              )}
             </>
           )}
         </>

@@ -36,6 +36,17 @@ function cardEhArquivadoNativo(c: KanbanCardBrief): boolean {
   return c.origem !== 'legado' && Boolean(c.arquivado);
 }
 
+function statusPrecisaPoolArquivados(status: KanbanBoardFiltros['status']): boolean {
+  return status === 'arquivados' || status === 'perdas' || status === 'ganhos';
+}
+
+function labelStatusPoolLoading(status: KanbanBoardFiltros['status']): string {
+  if (status === 'concluidos') return 'concluídos';
+  if (status === 'perdas') return 'perdas';
+  if (status === 'ganhos') return 'ganhos';
+  return 'arquivados';
+}
+
 export type KanbanBoardProps = {
   fases: KanbanFase[];
   cards: KanbanCardBrief[];
@@ -100,6 +111,7 @@ export function KanbanBoard({
   const [scrollHintRight, setScrollHintRight] = useState(false);
 
   const nomeDbParaLazy = String(kanbanNomeDb ?? kanbanNome ?? '').trim();
+  const showPerdaGanhoFiltros = nomeDbParaLazy === 'Funding' || kanbanNome === 'Funding';
   const leanAtivo =
     snapshotLean ??
     (!cards.some(cardEhArquivadoNativo) && cardsConcluidos.length === 0);
@@ -224,11 +236,11 @@ export function KanbanBoard({
   useEffect(() => {
     if (!leanAtivo || !nomeDbParaLazy) return;
     const status = filtros.status;
-    if (status !== 'arquivados' && status !== 'concluidos') {
+    if (!statusPrecisaPoolArquivados(status) && status !== 'concluidos') {
       setStatusPoolLoading(false);
       return;
     }
-    if (status === 'arquivados' && lazyArquivados != null) {
+    if (statusPrecisaPoolArquivados(status) && lazyArquivados != null) {
       setStatusPoolLoading(false);
       return;
     }
@@ -243,14 +255,15 @@ export function KanbanBoard({
     setStatusPoolError(null);
 
     void (async () => {
-      const res = await fetchKanbanBoardStatusPool(nomeDbParaLazy, status);
+      const poolStatus = statusPrecisaPoolArquivados(status) ? 'arquivados' : 'concluidos';
+      const res = await fetchKanbanBoardStatusPool(nomeDbParaLazy, poolStatus);
       if (cancelled || gen !== lazyFetchGen.current) return;
       setStatusPoolLoading(false);
       if (!res.ok) {
         setStatusPoolError(res.error);
         return;
       }
-      if (status === 'arquivados') {
+      if (statusPrecisaPoolArquivados(status)) {
         setLazyArquivados(res.cards.filter(cardEhArquivadoNativo));
       } else {
         setLazyConcluidos(res.cardsConcluidos);
@@ -477,6 +490,7 @@ export function KanbanBoard({
               fases={fases}
               responsaveisOpcoes={responsaveisOpcoes}
               showFiltroEu={Boolean(currentUserId)}
+              showPerdaGanhoFiltros={showPerdaGanhoFiltros}
               onLimpar={() => setFiltrosDraft(KANBAN_BOARD_FILTROS_DEFAULT)}
               onAplicar={() => {
                 setFiltros({ ...filtrosDraft });
@@ -490,7 +504,7 @@ export function KanbanBoard({
             className="text-xs"
             style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
           >
-            Carregando {filtros.status === 'arquivados' ? 'arquivados' : 'concluídos'}…
+            Carregando {labelStatusPoolLoading(filtros.status)}…
           </span>
         ) : null}
         {statusPoolError ? (

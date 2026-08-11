@@ -18,7 +18,7 @@ export type KanbanCardBuscaBoardContext = {
   hipotesesOrdemMin?: number | null;
 };
 
-export type KanbanBoardFiltrosStatus = 'ativos' | 'arquivados' | 'concluidos';
+export type KanbanBoardFiltrosStatus = 'ativos' | 'arquivados' | 'concluidos' | 'perdas' | 'ganhos';
 export type KanbanBoardFiltrosSla = 'todos' | 'atrasados' | 'vence_hoje' | 'dentro_prazo';
 export type KanbanBoardFiltrosEspecial = 'todos' | 'somente' | 'nao';
 
@@ -60,6 +60,18 @@ function isCardArquivado(c: KanbanCardBrief): boolean {
   return c.origem !== 'legado' && Boolean(c.arquivado);
 }
 
+function isCardArquivadoGenerico(c: KanbanCardBrief): boolean {
+  return isCardArquivado(c) && c.resultado !== 'perda' && c.resultado !== 'ganho';
+}
+
+function isCardPerda(c: KanbanCardBrief): boolean {
+  return isCardArquivado(c) && c.resultado === 'perda';
+}
+
+function isCardGanho(c: KanbanCardBrief): boolean {
+  return isCardArquivado(c) && c.resultado === 'ganho';
+}
+
 function isCardConcluido(c: KanbanCardBrief): boolean {
   return c.origem !== 'legado' && Boolean(c.concluido);
 }
@@ -70,7 +82,9 @@ export function poolCardsPorStatus(
   cards: KanbanCardBrief[],
   cardsConcluidos: KanbanCardBrief[],
 ): KanbanCardBrief[] {
-  if (status === 'arquivados') return cards.filter((c) => isCardArquivado(c));
+  if (status === 'arquivados') return cards.filter((c) => isCardArquivadoGenerico(c));
+  if (status === 'perdas') return cards.filter((c) => isCardPerda(c));
+  if (status === 'ganhos') return cards.filter((c) => isCardGanho(c));
   if (status === 'concluidos') return cardsConcluidos;
   return cards.filter((c) => {
     if (c.origem === 'legado') return true;
@@ -196,7 +210,11 @@ export function textoVisivelCardKanbanFechado(
 
   if (card.funding_tipo) partes.push(card.funding_tipo);
 
-  if (arquivado) partes.push('ARQUIVADO');
+  if (arquivado) {
+    if (card.resultado === 'perda') partes.push('PERDA');
+    else if (card.resultado === 'ganho') partes.push('GANHO');
+    else partes.push('ARQUIVADO');
+  }
   if (concluido) partes.push('CONCLUÍDO');
 
   for (const t of card.tagsCard ?? []) {

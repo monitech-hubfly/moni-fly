@@ -40,6 +40,7 @@ import {
 import {
   arquivarCard,
   desarquivarCard,
+  reativarPerdaCard,
   arquivarInteracao,
   arquivarSubInteracao,
   atualizarStatusInteracao,
@@ -401,6 +402,7 @@ type Card = {
   concluido?: boolean;
   concluido_em?: string | null;
   arquivado?: boolean;
+  resultado?: 'perda' | 'ganho' | null;
   /** FK em `projeto_negocio` — esteiras paralelas do mesmo negócio. */
   projeto_id?: string | null;
   processo_step_one_id?: string | null;
@@ -1181,6 +1183,7 @@ export function KanbanCardModal({
         concluido?: boolean;
         concluido_em?: string | null;
         arquivado?: boolean;
+        resultado?: 'perda' | 'ganho' | null;
         nome_condominio?: string | null;
         condominio_id?: string | null;
         quadra?: string | null;
@@ -1313,7 +1316,7 @@ export function KanbanCardModal({
         const cardSelectConfirmacao =
           'opcao_assinada_em, contrato_assinado_em, contrato_condicoes_precedentes, obra_iniciada_em, obra_finalizada_em';
         const cardSelectCore =
-          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_reuniao_fase_id, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
+          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, resultado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_reuniao_fase_id, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
         const cardSelectPreObra =
           'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra';
         const cardSelectFunding =
@@ -1355,6 +1358,11 @@ export function KanbanCardModal({
           concluido: Boolean((cardData as { concluido?: boolean | null }).concluido),
           concluido_em: ccem != null && String(ccem).trim() !== '' ? String(ccem) : null,
           arquivado: Boolean((cardData as { arquivado?: boolean | null }).arquivado),
+          resultado: (() => {
+            const r = String((cardData as { resultado?: string | null }).resultado ?? '').trim();
+            if (r === 'perda' || r === 'ganho') return r;
+            return null;
+          })(),
           nome_condominio: (cardData as { nome_condominio?: string | null }).nome_condominio ?? null,
           condominio_id: (() => {
             const cid = (cardData as { condominio_id?: string | null }).condominio_id;
@@ -1470,6 +1478,7 @@ export function KanbanCardModal({
         concluido: loaded.concluido ?? false,
         concluido_em: loaded.concluido_em ?? null,
         arquivado: loaded.arquivado ?? false,
+        resultado: loaded.resultado ?? null,
         projeto_id: loaded.projeto_id ?? null,
         acoplamento_concluido: loaded.acoplamento_concluido,
         acoplamento_filho_fase_nome: loaded.acoplamento_filho_fase_nome ?? null,
@@ -3204,22 +3213,28 @@ export function KanbanCardModal({
       alert('Sem permissão para desarquivar cards.');
       return;
     }
-    if (!confirm('Desarquivar este card? Ele voltará a aparecer no kanban.')) return;
+    const ehReativacaoPerda = card.resultado === 'perda';
+    const msgConfirm = ehReativacaoPerda
+      ? 'Reativar este card? Ele voltará ao funil como ativo.'
+      : 'Desarquivar este card? Ele voltará a aparecer no kanban.';
+    if (!confirm(msgConfirm)) return;
     setLoading(true);
     try {
-      const r = await desarquivarCard({
-        cardId: card.id,
-        basePath,
-        origem: origem === 'legado' ? 'legado' : 'nativo',
-      });
+      const r = ehReativacaoPerda
+        ? await reativarPerdaCard({ cardId: card.id, basePath })
+        : await desarquivarCard({
+            cardId: card.id,
+            basePath,
+            origem: origem === 'legado' ? 'legado' : 'nativo',
+          });
       if (!r.ok) {
-        alert(r.error ?? 'Não foi possível desarquivar o card.');
+        alert(r.error ?? (ehReativacaoPerda ? 'Não foi possível reativar o card.' : 'Não foi possível desarquivar o card.'));
         return;
       }
       router.refresh();
       onClose();
     } catch {
-      alert('Erro ao desarquivar o card. Tente novamente.');
+      alert(ehReativacaoPerda ? 'Erro ao reativar o card. Tente novamente.' : 'Erro ao desarquivar o card. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -4980,6 +4995,7 @@ export function KanbanCardModal({
     !cardLegadoArquivado;
   const exibirBlocoDesarquivar =
     podeArquivarCardPerm && (cardNativoArquivado || cardLegadoArquivado);
+  const ehReativacaoPerdaModal = cardNativoArquivado && card?.resultado === 'perda';
   const roleNormUsuario = normalizeAccessRole(userRoleRaw);
   const usuarioFrank = portalFrank || isFrankOrFranqueadoRole(userRoleRaw);
 
@@ -7759,7 +7775,7 @@ export function KanbanCardModal({
             </PainelLateralSecao>
 
             {exibirBlocoDesarquivar ? (
-              <PainelLateralSecao titulo="Desarquivar">
+              <PainelLateralSecao titulo={ehReativacaoPerdaModal ? 'Reativar' : 'Desarquivar'}>
                 <button
                   type="button"
                   onClick={() => void handleConfirmarDesarquivar()}
@@ -7772,7 +7788,13 @@ export function KanbanCardModal({
                   }}
                 >
                   <ArchiveRestore className="h-4 w-4 shrink-0" aria-hidden />
-                  {loading ? 'Desarquivando…' : 'Desarquivar card'}
+                  {loading
+                    ? ehReativacaoPerdaModal
+                      ? 'Reativando…'
+                      : 'Desarquivando…'
+                    : ehReativacaoPerdaModal
+                      ? 'Reativar card'
+                      : 'Desarquivar card'}
                 </button>
               </PainelLateralSecao>
             ) : null}
