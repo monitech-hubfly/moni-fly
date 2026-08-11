@@ -90,8 +90,6 @@ const DEFERRED_ENRICHMENT_KEYS = [
   'calculadora_sla_estourado',
   'calculadora_atraso_dias',
   'calculadora_atraso_tipo',
-  'proxima_atividade',
-  'prazo_atividade',
 ] as const satisfies readonly (keyof KanbanCardBrief)[];
 
 function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): KanbanCardBrief {

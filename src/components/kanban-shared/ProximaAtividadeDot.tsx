@@ -9,12 +9,16 @@ import {
   buscarAtividadesAbertasCard,
   salvarProximaAtividade,
 } from '@/lib/actions/card-actions';
+import type { KanbanProximaAtividadeAberta } from './types';
 
 type Props = {
   cardId: string;
   proximaAtividade: string | null;
   prazoAtividade: string | null;
   basePath: string;
+  /** Batch do board — evita server action ao abrir o popover. */
+  atividadesCache?: KanbanProximaAtividadeAberta[];
+  atividadesBatchPronto?: boolean;
 };
 
 function varianteDot(prazo: string | null): 'gray' | 'green' | 'red' {
@@ -35,7 +39,7 @@ function labelPrazo(prazo: string | null): string {
   return `Futura · ${dataFormatada}`;
 }
 
-type AtividadeAberta = { id: string; descricao: string; prazo: string | null };
+type AtividadeAberta = KanbanProximaAtividadeAberta;
 
 function legadoAtividadeAberta(
   proximaAtividade: string | null,
@@ -46,7 +50,33 @@ function legadoAtividadeAberta(
   return [{ id: 'legado', descricao, prazo: prazoAtividade }];
 }
 
-export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, basePath }: Props) {
+function resolverListaInicial(
+  cache: KanbanProximaAtividadeAberta[] | undefined,
+  batchPronto: boolean,
+  proximaAtividade: string | null,
+  prazoAtividade: string | null,
+): { lista: AtividadeAberta[]; aguardandoFetch: boolean } {
+  const legado = legadoAtividadeAberta(proximaAtividade, prazoAtividade);
+  if (cache && cache.length > 0) {
+    return { lista: cache, aguardandoFetch: false };
+  }
+  if (batchPronto) {
+    return { lista: legado, aguardandoFetch: false };
+  }
+  if (legado.length > 0) {
+    return { lista: legado, aguardandoFetch: true };
+  }
+  return { lista: [], aguardandoFetch: true };
+}
+
+export function ProximaAtividadeDot({
+  cardId,
+  proximaAtividade,
+  prazoAtividade,
+  basePath,
+  atividadesCache,
+  atividadesBatchPronto = false,
+}: Props) {
   const [aberto, setAberto] = useState(false);
   const [atividadesAbertas, setAtividadesAbertas] = useState<AtividadeAberta[]>([]);
   const [carregandoLista, setCarregandoLista] = useState(false);
@@ -102,6 +132,19 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
     };
   }, [aberto]);
 
+  /** Quando o batch do board termina, atualiza a lista se o popover estiver aberto. */
+  useEffect(() => {
+    if (!aberto) return;
+    const { lista, aguardandoFetch } = resolverListaInicial(
+      atividadesCache,
+      atividadesBatchPronto,
+      proximaAtividade,
+      prazoAtividade,
+    );
+    setAtividadesAbertas(lista);
+    if (!aguardandoFetch) setCarregandoLista(false);
+  }, [aberto, atividadesCache, atividadesBatchPronto, proximaAtividade, prazoAtividade]);
+
   function abrirPopover(e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
@@ -116,21 +159,29 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
     setErro(null);
     setConfirmarSemProxima(false);
     setPendingItemId(null);
-    const legado = legadoAtividadeAberta(proximaAtividade, prazoAtividade);
-    setAtividadesAbertas(legado);
-    setCarregandoLista(true);
+
+    const { lista, aguardandoFetch } = resolverListaInicial(
+      atividadesCache,
+      atividadesBatchPronto,
+      proximaAtividade,
+      prazoAtividade,
+    );
+    setAtividadesAbertas(lista);
+    setCarregandoLista(aguardandoFetch);
     setAberto(true);
+
+    if (!aguardandoFetch) return;
+
     void buscarAtividadesAbertasCard(cardId)
       .then((abertas) => {
         if (abertas.length > 0) {
           setAtividadesAbertas(abertas);
-        } else if (legado.length > 0) {
-          setAtividadesAbertas(legado);
         } else {
-          setAtividadesAbertas([]);
+          setAtividadesAbertas(legadoAtividadeAberta(proximaAtividade, prazoAtividade));
         }
       })
       .catch(() => {
+        const legado = legadoAtividadeAberta(proximaAtividade, prazoAtividade);
         if (legado.length > 0) setAtividadesAbertas(legado);
       })
       .finally(() => setCarregandoLista(false));
@@ -176,7 +227,7 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
       });
       if (!res.ok) { setErro(res.error); return; }
       const novas = await buscarAtividadesAbertasCard(cardId);
-      setAtividadesAbertas(novas);
+      setAtividadesAbertas(novas.length > 0 ? novas : legadoAtividadeAberta(novaAtividade.trim(), novoPrazo || null));
       setNovaAtividade('');
       setNovoPrazo('');
     });
@@ -194,15 +245,14 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
         Próximas Atividades
       </p>
 
-      {/* Lista de atividades abertas */}
       {carregandoLista && atividadesAbertas.length === 0 ? (
         <p className="mb-3 text-[11px] text-stone-400">Carregando…</p>
       ) : atividadesAbertas.length > 0 ? (
         <ul className="mb-3 space-y-1.5">
           {atividadesAbertas.map(a => {
             const prazoLabel = labelPrazo(a.prazo);
-            const variante = varianteDot(a.prazo);
-            const prazoCorTexto = variante === 'red' ? 'text-red-600' : variante === 'green' ? 'text-green-600' : 'text-stone-400';
+            const varianteItem = varianteDot(a.prazo);
+            const prazoCorTexto = varianteItem === 'red' ? 'text-red-600' : varianteItem === 'green' ? 'text-green-600' : 'text-stone-400';
             return (
               <li key={a.id} className="flex items-start gap-2 rounded border border-stone-100 bg-stone-50 px-2 py-1.5">
                 <input
@@ -223,7 +273,6 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
         <p className="mb-3 text-[11px] text-amber-600">Nenhuma atividade em aberto.</p>
       )}
 
-      {/* Alerta sem próxima atividade */}
       {confirmarSemProxima && (
         <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-2">
           <p className="mb-2 text-[11px] text-amber-700">
@@ -249,7 +298,6 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
         </div>
       )}
 
-      {/* Adicionar nova */}
       {!confirmarSemProxima && (
         <div className="space-y-2">
           <div>

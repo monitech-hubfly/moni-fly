@@ -51,7 +51,7 @@ import { obterJustificativaSlaFase } from '@/lib/actions/kanban-sla-justificativ
 import { KanbanSlaJustificativaModal } from './KanbanSlaJustificativaModal';
 import { fundingTipoBadgeClass } from '@/lib/kanban/funding-card-fields';
 import { ProximaAtividadeDot } from './ProximaAtividadeDot';
-import type { KanbanCardBrief, KanbanFase } from './types';
+import type { KanbanCardBrief, KanbanFase, KanbanProximaAtividadeAberta } from './types';
 
 export type KanbanColumnProps = {
   fase: KanbanFase;
@@ -75,6 +75,9 @@ export type KanbanColumnProps = {
   fasesFunil?: KanbanFase[];
   /** Contagem de comentários por card_id — quando fornecido, exibe balão no card. */
   comentariosCountPorCard?: Record<string, number>;
+  /** Atividades abertas (batch do board) — popover instantâneo. */
+  proximasAtividadesPorCard?: Record<string, KanbanProximaAtividadeAberta[]>;
+  proximasAtividadesBatchPronto?: boolean;
   /** Contagem de anexos Sirene por card_id — quando fornecido, exibe badge no card. */
   anexosCountPorCard?: Record<string, number>;
   /** Fase de conclusão do funil (terminal / paralisados / última ativa). */
@@ -179,6 +182,8 @@ export function KanbanColumn({
   novoCardHref = '',
   comentariosCountPorCard,
   anexosCountPorCard,
+  proximasAtividadesPorCard,
+  proximasAtividadesBatchPronto = false,
 }: KanbanColumnProps) {
   const faseSlug = fase.slug?.trim() ?? '';
   const router = useRouter();
@@ -780,6 +785,8 @@ export function KanbanColumn({
                           proximaAtividade={card.proxima_atividade ?? null}
                           prazoAtividade={card.prazo_atividade ?? null}
                           basePath={basePath}
+                          atividadesCache={proximasAtividadesPorCard?.[card.id]}
+                          atividadesBatchPronto={proximasAtividadesBatchPronto}
                         />
                       ) : null}
                     </div>

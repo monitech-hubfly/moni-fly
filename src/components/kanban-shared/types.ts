@@ -161,5 +161,11 @@ export type KanbanCardBrief = {
   calculadora_atraso_tipo?: 'uteis' | 'corridos' | null;
 };
 
+export type KanbanProximaAtividadeAberta = {
+  id: string;
+  descricao: string;
+  prazo: string | null;
+};
+
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */
 export type CamposPorFaseMap = Record<string, ReactNode>;

@@ -6,6 +6,7 @@ import { podeComFallbackStaff } from '@/lib/permissoes-types';
 import { fetchKanbanBoardStatusPool } from '@/lib/actions/kanban-board-snapshot';
 import { fetchKanbanBoardDeferredEnrichment } from '@/lib/actions/kanban-board-enrichment';
 import { fetchKanbanComentariosCountPorCardIds } from '@/lib/actions/kanban-comentarios';
+import { fetchKanbanProximasAtividadesPorCardIds } from '@/lib/actions/kanban-proximas-atividades';
 import { ExportKanbanButton } from './ExportKanbanButton';
 import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
 import { KanbanColumn } from './KanbanColumn';
@@ -21,7 +22,7 @@ import {
 } from './kanbanBoardFiltros';
 import { hipotesesOrdemMinima } from '@/lib/kanban/kanban-paralelas-chips';
 import { sortKanbanCardsPorProximaAtividade } from '@/lib/kanban/kanban-proxima-atividade-ordem';
-import type { KanbanNomeDisplay, KanbanCardBrief, KanbanFase } from './types';
+import type { KanbanNomeDisplay, KanbanCardBrief, KanbanFase, KanbanProximaAtividadeAberta } from './types';
 import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
 
 const BOARD_ROW_STYLE: CSSProperties = {
@@ -111,6 +112,7 @@ export function KanbanBoard({
   const lazyFetchGen = useRef(0);
   const enrichmentFetchGen = useRef(0);
   const comentariosFetchGen = useRef(0);
+  const proximasAtividadesFetchGen = useRef(0);
 
   /** Patches de enrichments adiados (paralelas, avatar responsável, calculadora). */
   const [enrichmentByCardId, setEnrichmentByCardId] = useState<
@@ -120,6 +122,11 @@ export function KanbanBoard({
   const [comentariosCountPorCard, setComentariosCountPorCard] = useState<Record<string, number>>(
     {},
   );
+  /** Lista aberta no popover — batch após paint (evita server action por clique). */
+  const [proximasAtividadesPorCard, setProximasAtividadesPorCard] = useState<
+    Record<string, KanbanProximaAtividadeAberta[]>
+  >({});
+  const [proximasAtividadesBatchPronto, setProximasAtividadesBatchPronto] = useState(false);
 
   /** Assinatura estável: `cards`/`cardsConcluidos` mudam de referência a cada `router.refresh()`. */
   const cardsSnapshotSig = useMemo(
@@ -135,6 +142,8 @@ export function KanbanBoard({
     setStatusPoolError(null);
     setEnrichmentByCardId({});
     setComentariosCountPorCard({});
+    setProximasAtividadesPorCard({});
+    setProximasAtividadesBatchPronto(false);
   }, [cardsSnapshotSig]);
 
   useEffect(() => {
@@ -182,6 +191,29 @@ export function KanbanBoard({
       const res = await fetchKanbanComentariosCountPorCardIds(cardIdsParaContagem);
       if (cancelled || gen !== comentariosFetchGen.current) return;
       if (res.ok) setComentariosCountPorCard(res.counts);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardIdsParaContagem]);
+
+  useEffect(() => {
+    if (cardIdsParaContagem.length === 0) {
+      setProximasAtividadesPorCard({});
+      setProximasAtividadesBatchPronto(true);
+      return;
+    }
+
+    const gen = ++proximasAtividadesFetchGen.current;
+    let cancelled = false;
+    setProximasAtividadesBatchPronto(false);
+
+    void (async () => {
+      const res = await fetchKanbanProximasAtividadesPorCardIds(cardIdsParaContagem);
+      if (cancelled || gen !== proximasAtividadesFetchGen.current) return;
+      if (res.ok) setProximasAtividadesPorCard(res.byCardId);
+      setProximasAtividadesBatchPronto(true);
     })();
 
     return () => {
@@ -517,6 +549,8 @@ export function KanbanBoard({
                   exibirAdicionarCard={isPrimeiraColuna && exibirBotaoNovoCard}
                   novoCardHref={novoCardHref}
                   comentariosCountPorCard={comentariosCountPorCard}
+                  proximasAtividadesPorCard={proximasAtividadesPorCard}
+                  proximasAtividadesBatchPronto={proximasAtividadesBatchPronto}
                 />
               );
             })}
