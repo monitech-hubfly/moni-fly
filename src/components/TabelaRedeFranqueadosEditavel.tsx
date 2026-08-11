@@ -14,7 +14,7 @@ import {
   ordenarRedePorNFranquia,
   REDE_FRANQUEADOS_TABLE_KEYS,
 } from '@/lib/rede-franqueados';
-import { calcEngajamento, isAdormecido, isStatusNC } from '@/lib/rede-diagnostico-engine';
+import { calcEngajamento, isAdormecido } from '@/lib/rede-diagnostico-engine';
 import {
   DimCell,
   NpsCell,
@@ -59,7 +59,11 @@ import { RedeFranqueadoCellValue } from '@/components/RedeFranqueadoCellValue';
 import { redeRowConteudoExpansivel } from '@/components/RedeFranqueadoAreaAtuacaoCell';
 import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 import { redeAlertError, redeAlertSuccess, redeTh } from '@/app/rede-franqueados/rede-ui';
-import { REDE_OPCOES_STATUS_FRANQUIA } from '@/lib/rede-franqueado-form-options';
+import {
+  isRedeStatusEmTransferencia,
+  isRedeStatusOperacaoEncerrada,
+  REDE_OPCOES_STATUS_FRANQUIA,
+} from '@/lib/rede-franqueado-form-options';
 
 type AreaAtuacaoItem = { estado: string; cidade: string };
 type CidadeIBGE = { id: number; nome: string };
@@ -274,23 +278,19 @@ function stickyLeftRem(index: number): number {
   return left;
 }
 
-type RedeStickyRowTone = 'default' | 'inativa' | 'adormecida';
+type RedeRowTone = 'default' | 'encerrada' | 'transferencia' | 'adormecida';
 
-function stickyBodyBackground(tone: RedeStickyRowTone): string {
-  switch (tone) {
-    case 'inativa':
-      return 'bg-[color:var(--moni-surface-50)] group-hover:bg-[color:var(--moni-surface-100)]';
-    case 'adormecida':
-      return 'bg-[color:var(--moni-surface-100)] group-hover:bg-[color:var(--moni-surface-200)]';
-    default:
-      return 'bg-[color:var(--moni-surface-0)] group-hover:bg-[color:var(--moni-surface-50)]';
-  }
+function getRedeRowTone(row: Pick<RedeFranqueadoRowDb, 'status_franquia' | 'diag_adormecido'>): RedeRowTone {
+  if (isAdormecido(row)) return 'adormecida';
+  if (isRedeStatusEmTransferencia(row.status_franquia)) return 'transferencia';
+  if (isRedeStatusOperacaoEncerrada(row.status_franquia)) return 'encerrada';
+  return 'default';
 }
 
+/** Primeiras colunas fixas ao rolar horizontalmente (até Status da Franquia). */
 function stickyCellProps(
   index: number,
   variant: 'head' | 'body',
-  rowTone: RedeStickyRowTone = 'default',
 ): { className: string; style?: React.CSSProperties } {
   if (index >= REDE_STICKY_COLUMN_COUNT) {
     return {
@@ -309,7 +309,7 @@ function stickyCellProps(
       isLastSticky ? 'moni-rede-sticky-col-last border-stone-200' : 'border-stone-100/90',
       variant === 'head'
         ? 'bg-[color:var(--moni-surface-50)]'
-        : stickyBodyBackground(rowTone),
+        : '',
     ].join(' '),
     style: {
       left: `${stickyLeftRem(index)}rem`,
@@ -551,7 +551,7 @@ export function TabelaRedeFranqueadosEditavel({
         </div>
       )}
 
-      <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
+      <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-[color:var(--moni-surface-0)] shadow-sm">
         <table className="w-full min-w-[2400px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50">
@@ -679,31 +679,15 @@ export function TabelaRedeFranqueadosEditavel({
               const diagSource = isEditing
                 ? rowAsDiagSource(r, (draft.status_franquia as string | undefined) ?? r.status_franquia)
                 : rowAsDiagSource(r);
-              const rowInativa = isStatusNC(r);
-              const rowAdormecida = isAdormecido(r);
-              /** Opacidade só nas células roláveis — tr com opacity deixa colunas fixas translúcidas ao scroll horizontal. */
-              const nonStickyMutedClass = rowInativa
-                ? 'opacity-[0.52] group-hover:opacity-100 focus-within:opacity-100'
-                : rowAdormecida
-                  ? 'opacity-[0.52] group-hover:opacity-100 focus-within:opacity-100'
-                  : '';
-              const rowMutedClass = rowInativa
-                ? 'bg-stone-50'
-                : rowAdormecida
-                  ? 'bg-blue-50/40'
-                  : '';
-              const stickyRowTone: RedeStickyRowTone = rowInativa
-                ? 'inativa'
-                : rowAdormecida
-                  ? 'adormecida'
-                  : 'default';
+              const rowTone = getRedeRowTone(r);
+              const rowToneClass = `moni-rede-row-tone-${rowTone}`;
               const rowContentExpanded = expandedContentRows.has(r.id);
               const rowExpansivel = redeRowConteudoExpansivel(String(r.area_atuacao ?? ''));
               const toggleRowContent = () => toggleContentExpand(r.id);
               return (
                 <Fragment key={r.id}>
                 <tr
-                  className={`group border-b border-stone-100 align-top transition-[opacity,colors] duration-200 hover:bg-stone-50/70 ${rowMutedClass}`}
+                  className={`group border-b border-stone-100 align-top transition-colors duration-200 ${rowToneClass}`}
                 >
                   {keys.map((k, colIndex) => {
                     const current = (r[k] ?? '') as string;
@@ -712,18 +696,13 @@ export function TabelaRedeFranqueadosEditavel({
                       k === 'n_franquia' ? formatNFranquiaRedeExibicao(current, r.ordem) : current;
                     const isAreaAtuacao = k === 'area_atuacao';
                     const maskCell = maskSensitiveColumns && isRedeColunaDadoSensivel(k);
-                    const sticky = stickyCellProps(colIndex, 'body', stickyRowTone);
+                    const sticky = stickyCellProps(colIndex, 'body');
                     const areaEditando = isEditing && isAreaAtuacao;
-                    const cellClassName = [
-                      areaEditando
-                        ? sticky.className
-                            .replace('overflow-hidden', 'overflow-visible')
-                            .replace('max-w-[14rem]', 'max-w-none min-w-[18rem]')
-                        : sticky.className,
-                      colIndex >= REDE_STICKY_COLUMN_COUNT ? nonStickyMutedClass : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ');
+                    const cellClassName = areaEditando
+                      ? sticky.className
+                          .replace('overflow-hidden', 'overflow-visible')
+                          .replace('max-w-[14rem]', 'max-w-none min-w-[18rem]')
+                      : sticky.className;
                     return (
                       <td key={k} className={cellClassName} style={sticky.style}>
                         {!isEditing ? (
@@ -851,28 +830,28 @@ export function TabelaRedeFranqueadosEditavel({
                   })}
 
                   {/* ── Diagnóstico: Engajamento ── */}
-                  <td className={`px-3 py-2.5 align-top bg-green-50/20 ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineScore row={diagSource} draft={diagDraft} internalView={internalView} />
                     ) : (
                       <ScoreCell score={calcEngajamento(r)} internalView={internalView} />
                     )}
                   </td>
-                  <td className={`px-3 py-2.5 align-top bg-green-50/20 ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineDim field="diag_d" draft={diagDraft} setDraft={setDiagDraft} />
                     ) : (
                       <DimCell val={r.diag_d} desc={r.diag_d_desc} />
                     )}
                   </td>
-                  <td className={`px-3 py-2.5 align-top bg-green-50/20 ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineDim field="diag_c" draft={diagDraft} setDraft={setDiagDraft} />
                     ) : (
                       <DimCell val={r.diag_c} desc={r.diag_c_desc} />
                     )}
                   </td>
-                  <td className={`px-3 py-2.5 align-top bg-green-50/20 ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineDim field="diag_k" draft={diagDraft} setDraft={setDiagDraft} />
                     ) : (
@@ -881,14 +860,14 @@ export function TabelaRedeFranqueadosEditavel({
                   </td>
 
                   {/* ── Diagnóstico: Relação ── */}
-                  <td className={`px-3 py-2.5 align-top bg-rose-50/20 ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineNps draft={diagDraft} setDraft={setDiagDraft} />
                     ) : (
                       <NpsCell nps={r.diag_nps} />
                     )}
                   </td>
-                  <td className={`px-3 py-2.5 align-top bg-rose-50/20 ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineCsat draft={diagDraft} setDraft={setDiagDraft} />
                     ) : (
@@ -897,14 +876,14 @@ export function TabelaRedeFranqueadosEditavel({
                   </td>
 
                   {/* ── Diagnóstico: Indicador ── */}
-                  <td className={`px-3 py-2.5 align-top bg-blue-50/20 ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineIndicador draft={diagDraft} setDraft={setDiagDraft} row={diagSource} />
                     ) : (
                       <IndCell row={r} />
                     )}
                   </td>
-                  <td className={`px-3 py-2.5 align-top bg-blue-50/20 ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineAdimplencia draft={diagDraft} setDraft={setDiagDraft} />
                     ) : (
@@ -913,21 +892,21 @@ export function TabelaRedeFranqueadosEditavel({
                   </td>
 
                   {/* ── Diagnóstico: Gestão ── */}
-                  <td className={`px-3 py-2.5 align-top ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="prio" />
                     ) : (
                       <PriorityBadge row={r} />
                     )}
                   </td>
-                  <td className={`px-3 py-2.5 align-top ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="perfil" internalView={internalView} />
                     ) : (
                       <PerfilCell row={r} internalView={internalView} />
                     )}
                   </td>
-                  <td className={`px-3 py-2.5 align-top ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <div>
                         <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="grupo" />
@@ -937,14 +916,14 @@ export function TabelaRedeFranqueadosEditavel({
                       <GrupoCell row={r} />
                     )}
                   </td>
-                  <td className={`px-3 py-2.5 align-top ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineTendencias draft={diagDraft} setDraft={setDiagDraft} />
                     ) : (
                       <TendCell row={r} />
                     )}
                   </td>
-                  <td className={`px-3 py-2.5 align-top ${nonStickyMutedClass}`}>
+                  <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineProximaAcao draft={diagDraft} setDraft={setDiagDraft} />
                     ) : (
@@ -953,7 +932,7 @@ export function TabelaRedeFranqueadosEditavel({
                   </td>
 
                   {canEditRows ? (
-                    <td className="sticky right-0 z-10 w-14 min-w-[3.5rem] border-l border-stone-200 bg-[color:var(--moni-surface-0)] px-1 py-2 align-middle shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)] group-hover:bg-[color:var(--moni-surface-50)]">
+                    <td className="sticky right-0 z-10 w-14 min-w-[3.5rem] border-l border-stone-200 px-1 py-2 align-middle shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]">
                       {!isEditing ? (
                         <div className="flex flex-col items-center justify-center gap-1 sm:flex-row sm:opacity-0 sm:transition-opacity sm:duration-150 sm:group-hover:opacity-100">
                           {rowExpansivel ? (

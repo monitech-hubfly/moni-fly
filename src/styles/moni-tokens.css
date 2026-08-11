@@ -3849,6 +3849,43 @@
   box-shadow: 4px 0 8px -4px rgba(12, 38, 51, 0.08);
 }
 
+/* Rede de Franqueados — fundo homogêneo por linha (colunas fixas + roláveis) */
+.moni-rede-row-tone-default td {
+  background-color: var(--moni-surface-0);
+}
+
+.moni-rede-row-tone-default:hover td {
+  background-color: var(--moni-surface-50);
+}
+
+.moni-rede-row-tone-encerrada td {
+  background-color: var(--moni-surface-100);
+  color: var(--moni-text-secondary);
+}
+
+.moni-rede-row-tone-encerrada:hover td {
+  background-color: var(--moni-surface-200);
+  color: var(--moni-text-primary);
+}
+
+.moni-rede-row-tone-transferencia td {
+  background-color: var(--moni-kanban-credito-light);
+}
+
+.moni-rede-row-tone-transferencia:hover td {
+  background-color: var(--moni-gold-100);
+}
+
+.moni-rede-row-tone-adormecida td {
+  background-color: var(--moni-surface-100);
+  color: var(--moni-text-secondary);
+}
+
+.moni-rede-row-tone-adormecida:hover td {
+  background-color: var(--moni-surface-200);
+  color: var(--moni-text-primary);
+}
+
 @media (max-width: 640px) {
   .moni-tabela-scroll-main table thead tr:only-child th,
   .moni-tabela-scroll-main table thead tr:first-child:not(:last-child) th {

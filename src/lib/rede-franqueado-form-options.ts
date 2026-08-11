@@ -24,6 +24,17 @@ export function isRedeStatusEmTransferencia(status: string | null | undefined): 
   return n.includes('transferencia');
 }
 
+export function isRedeStatusOperacaoEncerrada(status: string | null | undefined): boolean {
+  if (!status?.trim()) return false;
+  const n = status
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/\s+/g, ' ');
+  return n.includes('encerrad');
+}
+
 export const REDE_OPCOES_CLASSIFICACAO_FRANQUEADO = [
   { value: 'Beta', label: 'Beta' },
   { value: 'Pagante', label: 'Pagante' },
