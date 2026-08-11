@@ -14,7 +14,7 @@ import {
   ordenarRedePorNFranquia,
   REDE_FRANQUEADOS_TABLE_KEYS,
 } from '@/lib/rede-franqueados';
-import { calcEngajamento, isStatusNC } from '@/lib/rede-diagnostico-engine';
+import { calcEngajamento, isAdormecido, isStatusNC } from '@/lib/rede-diagnostico-engine';
 import {
   DimCell,
   NpsCell,
@@ -674,9 +674,11 @@ export function TabelaRedeFranqueadosEditavel({
                 : rowAsDiagSource(r);
               const diagOpen = diagPanelId === r.id;
               const rowInativa = isStatusNC(r);
-              const rowMutedClass = rowInativa
-                ? 'opacity-[0.52] hover:opacity-100 focus-within:opacity-100'
-                : '';
+              const rowAdormecida = isAdormecido(r);
+              const rowMutedClass =
+                rowInativa || rowAdormecida
+                  ? 'opacity-[0.52] hover:opacity-100 focus-within:opacity-100'
+                  : '';
               const rowContentExpanded = expandedContentRows.has(r.id);
               const rowExpansivel = redeRowConteudoExpansivel(String(r.area_atuacao ?? ''));
               const toggleRowContent = () => toggleContentExpand(r.id);
