@@ -43,7 +43,7 @@ export function DimCell({
   val,
   desc,
 }: {
-  val: 0 | 2 | 3 | null | undefined;
+  val: number | null | undefined;
   desc?: string | null;
 }) {
   if (val === null || val === undefined) return NA;
