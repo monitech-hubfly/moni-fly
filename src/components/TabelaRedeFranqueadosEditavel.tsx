@@ -27,6 +27,7 @@ import {
   TendCell,
   PmaCell,
 } from '@/components/diagnostico-rede/cells';
+import { DiagnosticoHeaderTh } from '@/components/diagnostico-rede/DiagnosticoHeaderTh';
 import { DiagnosticoRedePainelEdit } from '@/components/diagnostico-rede/DiagnosticoRedePainelEdit';
 import {
   DiagnosticoInlineComputed,
@@ -553,96 +554,96 @@ export function TabelaRedeFranqueadosEditavel({
               })}
 
               {/* ── Diagnóstico: Engajamento ── */}
-              <th
+              <DiagnosticoHeaderTh
+                tooltipKey="score"
                 className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
-                scope="col"
                 style={{ minWidth: 80 }}
               >
                 Score
-              </th>
-              <th
+              </DiagnosticoHeaderTh>
+              <DiagnosticoHeaderTh
+                tooltipKey="d"
                 className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
-                scope="col"
                 style={{ minWidth: 60 }}
               >
                 D
-              </th>
-              <th
+              </DiagnosticoHeaderTh>
+              <DiagnosticoHeaderTh
+                tooltipKey="c"
                 className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
-                scope="col"
                 style={{ minWidth: 60 }}
               >
                 C
-              </th>
-              <th
+              </DiagnosticoHeaderTh>
+              <DiagnosticoHeaderTh
+                tooltipKey="k"
                 className={`${redeTh} border-t-[3px] border-t-green-700 bg-green-50/40`}
-                scope="col"
                 style={{ minWidth: 60 }}
               >
                 K
-              </th>
+              </DiagnosticoHeaderTh>
 
               {/* ── Diagnóstico: Relação ── */}
-              <th
+              <DiagnosticoHeaderTh
+                tooltipKey="nps"
                 className={`${redeTh} border-t-[3px] border-t-rose-600 bg-rose-50/40`}
-                scope="col"
                 style={{ minWidth: 80 }}
               >
                 NPS
-              </th>
-              <th
+              </DiagnosticoHeaderTh>
+              <DiagnosticoHeaderTh
+                tooltipKey="csat"
                 className={`${redeTh} border-t-[3px] border-t-rose-600 bg-rose-50/40`}
-                scope="col"
                 style={{ minWidth: 80 }}
               >
                 CSAT
-              </th>
+              </DiagnosticoHeaderTh>
 
               {/* ── Diagnóstico: Indicador ── */}
-              <th
+              <DiagnosticoHeaderTh
+                tooltipKey="contratos12m"
                 className={`${redeTh} border-t-[3px] border-t-blue-700 bg-blue-50/40`}
-                scope="col"
                 style={{ minWidth: 110 }}
               >
                 Contratos 12m
-              </th>
+              </DiagnosticoHeaderTh>
 
               {/* ── Diagnóstico: Gestão ── */}
-              <th
+              <DiagnosticoHeaderTh
+                tooltipKey="prio"
                 className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
-                scope="col"
                 style={{ minWidth: 60 }}
               >
                 Prio.
-              </th>
-              <th
+              </DiagnosticoHeaderTh>
+              <DiagnosticoHeaderTh
+                tooltipKey="perfil"
                 className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
-                scope="col"
                 style={{ minWidth: 140 }}
               >
                 Perfil
-              </th>
-              <th
+              </DiagnosticoHeaderTh>
+              <DiagnosticoHeaderTh
+                tooltipKey="grupo"
                 className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
-                scope="col"
                 style={{ minWidth: 155 }}
               >
                 Grupo
-              </th>
-              <th
+              </DiagnosticoHeaderTh>
+              <DiagnosticoHeaderTh
+                tooltipKey="tendencia"
                 className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
-                scope="col"
                 style={{ minWidth: 70 }}
               >
                 Tendência
-              </th>
-              <th
+              </DiagnosticoHeaderTh>
+              <DiagnosticoHeaderTh
+                tooltipKey="proximaAcao"
                 className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
-                scope="col"
                 style={{ minWidth: 200 }}
               >
                 Próxima ação
-              </th>
+              </DiagnosticoHeaderTh>
 
               {canEditRows ? (
                 <th

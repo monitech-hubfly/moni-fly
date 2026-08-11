@@ -3856,6 +3856,57 @@
   border-radius: var(--moni-radius-md);
 }
 
+/* ── Diagnóstico Rede — tooltips nos cabeçalhos da tabela ── */
+.moni-diagnostico-header-trigger {
+  display: inline-flex;
+  cursor: help;
+  border-bottom: var(--moni-border-width) dotted var(--moni-border-default);
+}
+
+.moni-diagnostico-header-tooltip {
+  pointer-events: none;
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-radius: var(--moni-radius-md);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-navy-800);
+  color: var(--moni-text-inverse);
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  box-shadow: var(--moni-shadow-card);
+}
+
+.moni-diagnostico-header-tooltip-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.moni-diagnostico-header-tooltip-sub {
+  display: block;
+  margin-top: 1px;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--moni-gold-400);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.moni-diagnostico-header-tooltip-desc {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--moni-navy-100);
+  line-height: 1.4;
+}
+
 /* ── Pipeline Esteira Table ── */
 .moni-pipeline-esteira-scroll {
   overflow-x: auto;
