@@ -96,7 +96,11 @@ export function MencaoContentEditable({
         const fn = buscarUsuarios ?? buscarUsuariosParaMencao;
         void fn(query).then((res) => {
           if (queryRef.current !== query) return;
-          setSugestoes(res);
+          const extras: Sugestao[] = [];
+          if ('todos'.startsWith(query.toLowerCase())) {
+            extras.push({ id: '__todos__', nome: 'todos' });
+          }
+          setSugestoes([...extras, ...res]);
           setAnchor(atualizarAnchor(el));
         });
       }, 150);
@@ -224,7 +228,7 @@ export function MencaoContentEditable({
                   : 'text-stone-700 hover:bg-stone-50'
               }`}
             >
-              {s.nome}
+              {s.id === '__todos__' ? '📢 todos — notificar todos da Moní' : s.nome}
             </button>
           </li>
         ))}

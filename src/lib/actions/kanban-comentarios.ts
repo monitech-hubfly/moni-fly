@@ -260,9 +260,24 @@ export async function publicarComentarioKanbanCard(input: {
   const plain = htmlComentarioParaTextoPlano(conteudo);
   if (!plain) return { ok: false, error: 'Digite o comentário.' };
 
-  const nomesMencionados = extrairNomesMencionados(plain);
+  // Detecta @todos — notifica todos admin/team @moni.casa
+  let idsTodos: string[] = [];
+  if (/@todos\b/i.test(plain)) {
+    const dbTodos = await dbParaMencoes(supabase);
+    const { data: profilesTodos } = await dbTodos
+      .from('profiles')
+      .select('id')
+      .in('role', ['admin', 'team'])
+      .ilike('email', '%@moni.casa');
+    idsTodos = (profilesTodos ?? []).map((r) => String(r.id));
+  }
+
+  // Resolve menções individuais (exclui "todos" da busca por nome)
+  const nomesMencionados = extrairNomesMencionados(plain).filter(
+    (n) => n.toLowerCase() !== 'todos',
+  );
   const perfis = await buscarPerfisPorNomesMencionados(supabase, nomesMencionados);
-  const mencoesIds = extrairIdsMencoes(plain, perfis);
+  const mencoesIds = [...new Set([...extrairIdsMencoes(plain, perfis), ...idsTodos])];
 
   const db = await dbParaMencoes(supabase);
   const { data: profAutor } = await db

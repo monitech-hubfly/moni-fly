@@ -38,7 +38,11 @@ export function MencaoTextarea({ value, onChange, placeholder, rows = 2, classNa
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       buscarUsuariosInternos(query).then((res) => {
-        setSugestoes(res);
+        const extras: Sugestao[] = [];
+        if ('todos'.startsWith(query.toLowerCase())) {
+          extras.push({ id: '__todos__', nome: 'todos', avatar_url: null });
+        }
+        setSugestoes([...extras, ...res]);
       });
     }, 200);
   }, []);
@@ -123,7 +127,7 @@ export function MencaoTextarea({ value, onChange, placeholder, rows = 2, classNa
                     : 'text-stone-300 hover:bg-stone-700'
                 }`}
               >
-                {s.nome}
+                {s.id === '__todos__' ? '📢 todos — notificar todos da Moní' : s.nome}
               </button>
             </li>
           ))}

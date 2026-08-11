@@ -58,9 +58,26 @@ export async function resolverMencoesSirene(
   const plain = textoPlanoDeEntrada(conteudo);
   if (!plain) return { plain: '', mencoesIds: [] };
 
-  const nomesMencionados = extrairNomesMencionados(plain);
+  // Detecta @todos — notifica todos admin/team @moni.casa
+  let idsTodos: string[] = [];
+  if (/@todos\b/i.test(plain)) {
+    const db = await dbParaMencoes(supabase);
+    const { data: profilesTodos } = await db
+      .from('profiles')
+      .select('id')
+      .in('role', ['admin', 'team'])
+      .ilike('email', '%@moni.casa');
+    idsTodos = (profilesTodos ?? []).map((r) => String(r.id));
+  }
+
+  // Resolve menções individuais (exclui "todos" da busca por nome)
+  const nomesMencionados = extrairNomesMencionados(plain).filter(
+    (n) => n.toLowerCase() !== 'todos',
+  );
   const perfis = await buscarPerfisPorNomesMencionados(supabase, nomesMencionados);
-  const mencoesIds = extrairIdsMencoes(plain, perfis);
+  const mencoesNormais = extrairIdsMencoes(plain, perfis);
+
+  const mencoesIds = [...new Set([...mencoesNormais, ...idsTodos])];
   return { plain, mencoesIds };
 }
 
