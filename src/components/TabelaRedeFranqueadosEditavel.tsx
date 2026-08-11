@@ -1005,9 +1005,12 @@ export function TabelaRedeFranqueadosEditavel({
                   <tr className={`border-b border-stone-100 bg-stone-50/40 ${rowMutedClass}`}>
                     <td colSpan={diagColSpan} className="px-3 py-3">
                       <DiagnosticoRedePainelEdit
-                        row={r}
+                        row={diagSource}
                         internalView={internalView}
                         compact
+                        draft={isEditing ? diagDraft : undefined}
+                        onDraftChange={isEditing ? setDiagDraft : undefined}
+                        hideSave={isEditing}
                         onCancel={() => setDiagPanelId(null)}
                         onSaved={() => setDiagPanelId(null)}
                       />

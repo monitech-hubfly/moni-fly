@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition, type ReactNode } from 'react';
+import { useMemo, useState, useTransition, useEffect, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import {
@@ -85,6 +85,11 @@ type Props = {
   onCancel?: () => void;
   onSaved?: () => void;
   compact?: boolean;
+  /** Quando a linha está em edição na tabela, compartilha o mesmo draft. */
+  draft?: RedeDiagnosticoDraft;
+  onDraftChange?: Dispatch<SetStateAction<RedeDiagnosticoDraft>>;
+  /** Oculta salvar do painel — o save da linha da tabela persiste o diagnóstico. */
+  hideSave?: boolean;
 };
 
 export function DiagnosticoRedePainelEdit({
@@ -93,11 +98,26 @@ export function DiagnosticoRedePainelEdit({
   onCancel,
   onSaved,
   compact = false,
+  draft: controlledDraft,
+  onDraftChange,
+  hideSave = false,
 }: Props) {
   const router = useRouter();
-  const [draft, setDraft] = useState<RedeDiagnosticoDraft>(() => redeRowToDiagnosticoDraft(row));
+  const [internalDraft, setInternalDraft] = useState<RedeDiagnosticoDraft>(() => redeRowToDiagnosticoDraft(row));
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const isControlled = controlledDraft !== undefined && onDraftChange !== undefined;
+  const draft = isControlled ? controlledDraft : internalDraft;
+  const setDraft: Dispatch<SetStateAction<RedeDiagnosticoDraft>> = isControlled
+    ? onDraftChange
+    : setInternalDraft;
+
+  useEffect(() => {
+    if (!isControlled) {
+      setInternalDraft(redeRowToDiagnosticoDraft(row));
+    }
+  }, [row.id, isControlled, row]);
 
   const previewRow = useMemo(() => redeDiagnosticoDraftToRowPreview(row, draft), [row, draft]);
 
@@ -143,10 +163,16 @@ export function DiagnosticoRedePainelEdit({
               Fechar
             </button>
           ) : null}
-          <button type="button" onClick={handleSave} disabled={pending} className={redeBtnPrimary}>
-            {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-            Salvar diagnóstico
-          </button>
+          {!hideSave ? (
+            <button type="button" onClick={handleSave} disabled={pending} className={redeBtnPrimary}>
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+              Salvar diagnóstico
+            </button>
+          ) : (
+            <span className="text-xs text-[color:var(--moni-text-tertiary)]">
+              Use o ✓ da linha para salvar cadastro e diagnóstico juntos.
+            </span>
+          )}
         </div>
       </div>
 

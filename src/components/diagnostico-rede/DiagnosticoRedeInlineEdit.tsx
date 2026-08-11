@@ -11,7 +11,10 @@ import {
   type RedeDiagnosticoSource,
 } from '@/lib/rede-diagnostico-form';
 import {
+  CsatCell,
+  DimCell,
   GrupoCell,
+  NpsCell,
   PerfilCell,
   PriorityBadge,
   ScoreCell,
@@ -22,11 +25,23 @@ const inputCls =
 const selectCls = `${inputCls} pr-6`;
 
 const DIM_OPTS = [
-  { value: '', label: '— Não aferido' },
-  { value: '0', label: '0 · Não tem' },
-  { value: '2', label: '2 · Moderado' },
-  { value: '3', label: '3 · Tem' },
+  { value: '', label: '—' },
+  { value: '0', label: '0' },
+  { value: '2', label: '2' },
+  { value: '3', label: '3' },
 ];
+
+const DIM_DESC_KEY: Record<'diag_d' | 'diag_c' | 'diag_k', 'diag_d_desc' | 'diag_c_desc' | 'diag_k_desc'> = {
+  diag_d: 'diag_d_desc',
+  diag_c: 'diag_c_desc',
+  diag_k: 'diag_k_desc',
+};
+
+function parseDimDraftValue(raw: string): number | null {
+  const t = raw.trim();
+  if (!t || !['0', '2', '3'].includes(t)) return null;
+  return Number(t);
+}
 
 const TEND_OPTS = [
   { value: '', label: '—' },
@@ -67,19 +82,25 @@ export function DiagnosticoInlineDim({
   draft: RedeDiagnosticoDraft;
   setDraft: SetDiagDraft;
 }) {
+  const val = parseDimDraftValue(draft[field]);
+  const desc = draft[DIM_DESC_KEY[field]] || null;
+
   return (
-    <select
-      value={draft[field]}
-      onChange={(e) => setField(setDraft, field, e.target.value)}
-      className={selectCls}
-      aria-label={field}
-    >
-      {DIM_OPTS.map((o) => (
-        <option key={o.value || 'na'} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    <div className="flex min-w-[52px] flex-col gap-1">
+      <DimCell val={val} desc={desc} />
+      <select
+        value={draft[field]}
+        onChange={(e) => setField(setDraft, field, e.target.value)}
+        className={`${selectCls} min-w-[52px] text-center font-semibold tabular-nums`}
+        aria-label={field}
+      >
+        {DIM_OPTS.map((o) => (
+          <option key={o.value || 'na'} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 
@@ -90,18 +111,24 @@ export function DiagnosticoInlineNps({
   draft: RedeDiagnosticoDraft;
   setDraft: SetDiagDraft;
 }) {
+  const raw = draft.diag_nps.trim();
+  const preview = raw !== '' && Number.isInteger(Number(raw)) ? Number(raw) : null;
+
   return (
-    <input
-      type="number"
-      min={0}
-      max={10}
-      step={1}
-      value={draft.diag_nps}
-      onChange={(e) => setField(setDraft, 'diag_nps', e.target.value)}
-      className={inputCls}
-      placeholder="—"
-      aria-label="NPS"
-    />
+    <div className="flex min-w-[72px] flex-col gap-1">
+      <NpsCell nps={preview} />
+      <input
+        type="number"
+        min={0}
+        max={10}
+        step={1}
+        value={draft.diag_nps}
+        onChange={(e) => setField(setDraft, 'diag_nps', e.target.value)}
+        className={`${inputCls} w-14 tabular-nums`}
+        placeholder="—"
+        aria-label="NPS"
+      />
+    </div>
   );
 }
 
@@ -112,18 +139,25 @@ export function DiagnosticoInlineCsat({
   draft: RedeDiagnosticoDraft;
   setDraft: SetDiagDraft;
 }) {
+  const raw = draft.diag_csat.trim().replace(',', '.');
+  const n = raw !== '' ? Number(raw) : NaN;
+  const preview = Number.isFinite(n) ? n : null;
+
   return (
-    <input
-      type="number"
-      min={1}
-      max={5}
-      step={0.1}
-      value={draft.diag_csat}
-      onChange={(e) => setField(setDraft, 'diag_csat', e.target.value)}
-      className={inputCls}
-      placeholder="—"
-      aria-label="CSAT"
-    />
+    <div className="flex min-w-[72px] flex-col gap-1">
+      <CsatCell csat={preview} />
+      <input
+        type="number"
+        min={1}
+        max={5}
+        step={0.1}
+        value={draft.diag_csat}
+        onChange={(e) => setField(setDraft, 'diag_csat', e.target.value)}
+        className={`${inputCls} w-14 tabular-nums`}
+        placeholder="—"
+        aria-label="CSAT"
+      />
+    </div>
   );
 }
 
