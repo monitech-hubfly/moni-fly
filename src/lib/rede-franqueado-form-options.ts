@@ -13,6 +13,17 @@ export function isRedeStatusEmProcesso(status: string | null | undefined): boole
   return n === 'em processo' || n === 'em processo.';
 }
 
+export function isRedeStatusEmTransferencia(status: string | null | undefined): boolean {
+  if (!status?.trim()) return false;
+  const n = status
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/\s+/g, ' ');
+  return n.includes('transferencia');
+}
+
 export const REDE_OPCOES_CLASSIFICACAO_FRANQUEADO = [
   { value: 'Beta', label: 'Beta' },
   { value: 'Pagante', label: 'Pagante' },

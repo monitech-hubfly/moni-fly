@@ -29,6 +29,12 @@ import {
 } from '@/lib/kanban/ensure-funil-stepone-card-from-rede';
 import { isRedeStatusEmProcesso } from '@/lib/rede-franqueado-form-options';
 import {
+  arquivarHistoricoSubstituicao,
+  buildPatchSubstituicao,
+  isRedeFranqueadoEmTransferencia,
+  type RedeSubstituicaoRow,
+} from '@/lib/rede-franqueado-substituicao';
+import {
   REDE_EMPRESA_ANEXO_JUSTIFICATIVA_COLUNA,
   REDE_EMPRESA_ANEXO_PATH_COLUNA,
 } from '@/lib/rede-documentos-empresas';
@@ -234,6 +240,7 @@ export async function criarLinhaRedeECard(
   input: Partial<Record<RedeFranqueadoDbKey, string | null>>,
   cardCidade?: string | null,
   cardEstado?: string | null,
+  opts?: { substituirTransferenciaId?: string | null },
 ): Promise<CriarLinhaRedeECardResult> {
   const gate = await requireRedeStaffOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
@@ -249,9 +256,9 @@ export async function criarLinhaRedeECard(
     clean[k] = s;
   }
 
-  // Auto-preenchimento do Nº da franquia (FKxxxx)
-  // Se o usuário não informou `n_franquia`, calculamos com base no último da tabela.
-  if (!clean.n_franquia) {
+  // Auto-preenchimento do Nº da franquia (FKxxxx) — ignorado quando substitui transferência
+  const substituirId = opts?.substituirTransferenciaId?.trim() || null;
+  if (!substituirId && !clean.n_franquia) {
     try {
       const admin = createAdminClient();
       const next = await getNextFKFromRedeFranqueados(admin as any);
@@ -261,12 +268,38 @@ export async function criarLinhaRedeECard(
     }
   }
 
-  const resolver = await resolverRedeParaCriacao(supabase, clean);
-  if (resolver.action === 'bloquear') return { ok: false, error: resolver.error };
-
   let redeId: string;
   let createdRedeThisCall = false;
   let retomouOrfao = false;
+  let substituiuTransferencia = false;
+
+  if (substituirId) {
+    const { data: targetRow, error: errTarget } = await supabase
+      .from('rede_franqueados')
+      .select('*')
+      .eq('id', substituirId)
+      .maybeSingle();
+    if (errTarget) return { ok: false, error: errTarget.message };
+    if (!targetRow) return { ok: false, error: 'Franqueado em transferência não encontrado.' };
+
+    const arq = await arquivarHistoricoSubstituicao(supabase, substituirId, userId);
+    if (!arq.ok) return { ok: false, error: arq.error };
+
+    const patch = buildPatchSubstituicao(
+      targetRow as Record<string, unknown>,
+      input ?? {},
+    );
+    const { error: errUpd } = await supabase.from('rede_franqueados').update(patch).eq('id', substituirId);
+    if (errUpd) return { ok: false, error: errUpd.message ?? 'Erro ao substituir linha em transferência.' };
+
+    redeId = substituirId;
+    substituiuTransferencia = true;
+    clean.n_franquia = patch.n_franquia;
+    clean.nome_completo = patch.nome_completo ?? clean.nome_completo;
+    clean.status_franquia = patch.status_franquia ?? 'Em Operação';
+  } else {
+  const resolver = await resolverRedeParaCriacao(supabase, clean);
+  if (resolver.action === 'bloquear') return { ok: false, error: resolver.error };
 
   if (resolver.action === 'retomar') {
     redeId = resolver.redeId;
@@ -295,6 +328,7 @@ export async function criarLinhaRedeECard(
     if (errRede || !rede?.id) return { ok: false, error: errRede?.message ?? 'Erro ao criar linha na rede.' };
     redeId = rede.id;
     createdRedeThisCall = true;
+  }
   }
 
   let processoId: string | null = null;
@@ -417,12 +451,15 @@ export async function criarLinhaRedeECard(
         : '';
 
   const prefixoRetomada = retomouOrfao ? ' Cadastro retomado (linha órfã reutilizada).' : '';
+  const prefixoSubst = substituiuTransferencia
+    ? ' Franqueado em transferência substituído; histórico anterior arquivado.'
+    : '';
 
   return {
     ok: true,
     redeId,
     processoId: processo.id,
-    mensagem: `Linha criada e card gerado no Step 1.${prefixoRetomada}${avisoFunil}`,
+    mensagem: `Linha criada e card gerado no Step 1.${prefixoRetomada}${prefixoSubst}${avisoFunil}`,
   };
 }
 
@@ -439,6 +476,71 @@ export async function getProximoNFranquia(): Promise<{ ok: true; valor: string }
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: msg };
   }
+}
+
+export type RedeEmTransferenciaItem = {
+  id: string;
+  n_franquia: string | null;
+  nome_completo: string | null;
+};
+
+export async function listarRedeFranqueadosEmTransferencia(): Promise<
+  { ok: true; items: RedeEmTransferenciaItem[] } | { ok: false; error: string }
+> {
+  const gate = await requireRedeStaffOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const { data, error } = await supabase
+    .from('rede_franqueados')
+    .select('id, n_franquia, nome_completo, status_franquia')
+    .order('n_franquia', { ascending: true });
+
+  if (error) return { ok: false, error: error.message };
+
+  const items = (data ?? [])
+    .filter((r) =>
+      isRedeFranqueadoEmTransferencia((r as { status_franquia?: string | null }).status_franquia),
+    )
+    .map((r) => ({
+      id: String((r as { id: string }).id),
+      n_franquia: (r as { n_franquia?: string | null }).n_franquia ?? null,
+      nome_completo: (r as { nome_completo?: string | null }).nome_completo ?? null,
+    }));
+
+  return { ok: true, items };
+}
+
+export async function fetchRedeFranqueadoSubstituicoes(
+  redeId: string,
+): Promise<{ ok: true; items: RedeSubstituicaoRow[] } | { ok: false; error: string }> {
+  const gate = await requireRedeStaffOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  if (!redeId?.trim()) return { ok: false, error: 'ID inválido.' };
+
+  const { data, error } = await supabase
+    .from('rede_franqueado_substituicoes')
+    .select('*')
+    .eq('rede_franqueado_id', redeId)
+    .order('substituido_em', { ascending: false });
+
+  if (error) return { ok: false, error: error.message };
+
+  return {
+    ok: true,
+    items: (data ?? []).map((r) => ({
+      id: String((r as { id: string }).id),
+      rede_franqueado_id: String((r as { rede_franqueado_id: string }).rede_franqueado_id),
+      snapshot: ((r as { snapshot?: Record<string, unknown> }).snapshot ?? {}) as Record<string, unknown>,
+      processo_step_one_id: (r as { processo_step_one_id?: string | null }).processo_step_one_id ?? null,
+      substituido_em: String((r as { substituido_em: string }).substituido_em),
+      substituido_por: (r as { substituido_por?: string | null }).substituido_por ?? null,
+      nome_anterior: (r as { nome_anterior?: string | null }).nome_anterior ?? null,
+      n_franquia_anterior: (r as { n_franquia_anterior?: string | null }).n_franquia_anterior ?? null,
+    })),
+  };
 }
 
 /**

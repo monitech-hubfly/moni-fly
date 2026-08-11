@@ -11,6 +11,8 @@ import { isFranquiaCasaMoniFk0000 } from '@/lib/franquia-casa-moni-fk0000';
 import { RedeFranqueadoDetalheDocs } from './RedeFranqueadoDetalheDocs';
 import { RedeFranqueadoDetalheDocsFranqueado } from './RedeFranqueadoDetalheDocsFranqueado';
 import { RedeFranqueadoDetalheTabs } from './RedeFranqueadoDetalheTabs';
+import { RedeFranqueadoSubstituicoesHistorico } from './RedeFranqueadoSubstituicoesHistorico';
+import type { RedeSubstituicaoRow } from '@/lib/rede-franqueado-substituicao';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,6 +78,25 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
   const empresaDocs = pickRedeEmpresaDocsFromRow(row as Record<string, unknown>);
   const franqueadoDocs = pickRedeFranqueadoDocsFromRow(row as Record<string, unknown>);
 
+  let substituicoes: RedeSubstituicaoRow[] = [];
+  if (staff) {
+    const { data: subs } = await supabase
+      .from('rede_franqueado_substituicoes')
+      .select('*')
+      .eq('rede_franqueado_id', id)
+      .order('substituido_em', { ascending: false });
+    substituicoes = (subs ?? []).map((s) => ({
+      id: String((s as { id: string }).id),
+      rede_franqueado_id: String((s as { rede_franqueado_id: string }).rede_franqueado_id),
+      snapshot: ((s as { snapshot?: Record<string, unknown> }).snapshot ?? {}) as Record<string, unknown>,
+      processo_step_one_id: (s as { processo_step_one_id?: string | null }).processo_step_one_id ?? null,
+      substituido_em: String((s as { substituido_em: string }).substituido_em),
+      substituido_por: (s as { substituido_por?: string | null }).substituido_por ?? null,
+      nome_anterior: (s as { nome_anterior?: string | null }).nome_anterior ?? null,
+      n_franquia_anterior: (s as { n_franquia_anterior?: string | null }).n_franquia_anterior ?? null,
+    }));
+  }
+
   const voltarHref = staff ? '/rede-franqueados' : '/portal-frank/rede';
   const voltarLabel = staff ? 'Voltar à rede' : 'Voltar à rede (portal)';
 
@@ -125,6 +146,9 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
             }
           />
         </div>
+        {staff && substituicoes.length > 0 ? (
+          <RedeFranqueadoSubstituicoesHistorico substituicoes={substituicoes} />
+        ) : null}
       </main>
     </div>
   );

@@ -7,8 +7,10 @@ import {
   criarLinhaRedeECard,
   extrairDadosFranqueadoDePdfUpload,
   getProximoNFranquia,
+  listarRedeFranqueadosEmTransferencia,
   salvarJustificativaRedeAnexo,
   uploadRedeFranqueadoAssinado,
+  type RedeEmTransferenciaItem,
 } from './actions';
 import type { RedeAnexoDocFranqueadoTipo } from '@/lib/rede-documentos-franqueado';
 import {
@@ -109,6 +111,10 @@ export function NovoFranqueadoModal() {
   const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [infoExtracao, setInfoExtracao] = useState<string | null>(null);
+  const [substituirTransferencia, setSubstituirTransferencia] = useState(false);
+  const [transferenciaAlvoId, setTransferenciaAlvoId] = useState('');
+  const [emTransferencia, setEmTransferencia] = useState<RedeEmTransferenciaItem[]>([]);
+  const [loadingTransferencia, setLoadingTransferencia] = useState(false);
   const extracaoSeq = useRef(0);
   const formRef = useRef(form);
   formRef.current = form;
@@ -133,6 +139,15 @@ export function NovoFranqueadoModal() {
   useEffect(() => {
     if (!open) return;
     void loadProximoFk();
+    void (async () => {
+      setLoadingTransferencia(true);
+      try {
+        const r = await listarRedeFranqueadosEmTransferencia();
+        if (r.ok) setEmTransferencia(r.items);
+      } finally {
+        setLoadingTransferencia(false);
+      }
+    })();
   }, [open, loadProximoFk]);
 
   const extrairDeAnexos = useCallback(
@@ -197,6 +212,16 @@ export function NovoFranqueadoModal() {
     setEstadoCivilJustificativa('');
     setError(null);
     setInfoExtracao(null);
+    setSubstituirTransferencia(false);
+    setTransferenciaAlvoId('');
+  }
+
+  function selecionarAlvoTransferencia(id: string) {
+    setTransferenciaAlvoId(id);
+    const alvo = emTransferencia.find((t) => t.id === id);
+    if (alvo?.n_franquia) {
+      setForm((f) => ({ ...f, n_franquia: alvo.n_franquia ?? f.n_franquia }));
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -206,6 +231,10 @@ export function NovoFranqueadoModal() {
     const nome = form.nome_completo.trim();
     if (!nome) {
       setError('Nome completo é obrigatório.');
+      return;
+    }
+    if (substituirTransferencia && !transferenciaAlvoId) {
+      setError('Selecione qual franqueado em transferência será substituído.');
       return;
     }
     submittingRef.current = true;
@@ -233,7 +262,13 @@ export function NovoFranqueadoModal() {
         estado_casa_frank: form.estado_casa_frank.trim() || undefined,
         cidade_casa_frank: form.cidade_casa_frank.trim() || undefined,
         socios: form.socios.trim() || undefined,
-      });
+      },
+      undefined,
+      undefined,
+      substituirTransferencia && transferenciaAlvoId
+        ? { substituirTransferenciaId: transferenciaAlvoId }
+        : undefined,
+    );
       if (!res.ok) {
         setError(res.error);
         return;
@@ -471,10 +506,16 @@ export function NovoFranqueadoModal() {
                     type="text"
                     value={form.n_franquia}
                     onChange={(e) => setForm((f) => ({ ...f, n_franquia: e.target.value }))}
-                    disabled={loadingFk}
+                    disabled={loadingFk || (substituirTransferencia && !!transferenciaAlvoId)}
+                    readOnly={substituirTransferencia && !!transferenciaAlvoId}
                     className={inputClass}
                     placeholder={loadingFk ? 'Carregando…' : 'FK0000'}
                   />
+                  {substituirTransferencia && transferenciaAlvoId ? (
+                    <span className="mt-0.5 block text-[10px] text-stone-500">
+                      Nº herdado do franqueado em transferência substituído.
+                    </span>
+                  ) : null}
                 </label>
                 <label className="block text-xs font-medium text-stone-600">
                   Modalidade
@@ -717,6 +758,67 @@ export function NovoFranqueadoModal() {
                 />
               </label>
 
+              <fieldset className="rounded-lg border border-stone-200 bg-stone-50/80 p-3">
+                <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-stone-600">
+                  Substituição em transferência
+                </legend>
+                <p className="mb-2 text-[11px] text-stone-500">
+                  O novo cadastro pode ocupar a vaga de um franqueado em transferência, mantendo o Nº de
+                  Franquia e arquivando o histórico do anterior.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-700">
+                    <input
+                      type="radio"
+                      name="substituir-transferencia"
+                      checked={!substituirTransferencia}
+                      onChange={() => {
+                        setSubstituirTransferencia(false);
+                        setTransferenciaAlvoId('');
+                        void loadProximoFk();
+                      }}
+                      disabled={submitting}
+                    />
+                    Não — novo Nº (sequencial)
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-700">
+                    <input
+                      type="radio"
+                      name="substituir-transferencia"
+                      checked={substituirTransferencia}
+                      onChange={() => setSubstituirTransferencia(true)}
+                      disabled={submitting || emTransferencia.length === 0}
+                    />
+                    Sim — substituir em transferência
+                  </label>
+                </div>
+                {substituirTransferencia ? (
+                  <label className="mt-2 block text-xs font-medium text-stone-600">
+                    Franqueado a substituir
+                    <select
+                      value={transferenciaAlvoId}
+                      onChange={(e) => selecionarAlvoTransferencia(e.target.value)}
+                      className={selectClass}
+                      required
+                      disabled={loadingTransferencia || submitting}
+                    >
+                      <option value="">— Selecione —</option>
+                      {emTransferencia.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {[t.n_franquia, t.nome_completo].filter(Boolean).join(' · ')}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                {loadingTransferencia ? (
+                  <p className="mt-1 text-[10px] text-stone-400">Carregando em transferência…</p>
+                ) : null}
+                {!loadingTransferencia && emTransferencia.length === 0 ? (
+                  <p className="mt-1 text-[10px] text-stone-400">Nenhum franqueado em transferência no momento.</p>
+                ) : null}
+              </fieldset>
+
               <div className="flex justify-end gap-2 border-t border-stone-100 pt-4">
                 <button
                   type="button"
@@ -732,7 +834,7 @@ export function NovoFranqueadoModal() {
                   className="inline-flex items-center gap-2 rounded-lg bg-[#0c2633] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#163d4d] disabled:opacity-60"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Criar
+                  {substituirTransferencia ? 'Substituir e criar card' : 'Criar'}
                 </button>
               </div>
             </form>
