@@ -5078,12 +5078,16 @@ export async function buscarAtividadesAbertasCard(
   cardId: string,
 ): Promise<{ id: string; descricao: string; prazo: string | null }[]> {
   const supabase = await createClient();
-  const { data } = await (supabase as any)
+  const { data, error } = await (supabase as any)
     .from('kanban_proximas_atividades')
     .select('id, descricao, prazo')
     .eq('card_id', cardId)
     .is('concluido_em', null)
     .order('prazo', { ascending: true, nullsFirst: false });
+  if (error) {
+    console.error('[buscarAtividadesAbertasCard]', error.message);
+    return [];
+  }
   return (data ?? []) as { id: string; descricao: string; prazo: string | null }[];
 }
 

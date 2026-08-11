@@ -35,9 +35,21 @@ function labelPrazo(prazo: string | null): string {
   return `Futura · ${dataFormatada}`;
 }
 
+type AtividadeAberta = { id: string; descricao: string; prazo: string | null };
+
+function legadoAtividadeAberta(
+  proximaAtividade: string | null,
+  prazoAtividade: string | null,
+): AtividadeAberta[] {
+  const descricao = String(proximaAtividade ?? '').trim();
+  if (!descricao) return [];
+  return [{ id: 'legado', descricao, prazo: prazoAtividade }];
+}
+
 export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, basePath }: Props) {
   const [aberto, setAberto] = useState(false);
-  const [atividadesAbertas, setAtividadesAbertas] = useState<{ id: string; descricao: string; prazo: string | null }[]>([]);
+  const [atividadesAbertas, setAtividadesAbertas] = useState<AtividadeAberta[]>([]);
+  const [carregandoLista, setCarregandoLista] = useState(false);
   const [novaAtividade, setNovaAtividade] = useState('');
   const [novoPrazo, setNovoPrazo] = useState('');
   const [confirmarSemProxima, setConfirmarSemProxima] = useState(false);
@@ -104,18 +116,24 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
     setErro(null);
     setConfirmarSemProxima(false);
     setPendingItemId(null);
+    const legado = legadoAtividadeAberta(proximaAtividade, prazoAtividade);
+    setAtividadesAbertas(legado);
+    setCarregandoLista(true);
     setAberto(true);
-    void buscarAtividadesAbertasCard(cardId).then((abertas) => {
-      if (abertas.length === 0 && proximaAtividade) {
-        setAtividadesAbertas([{
-          id: 'legado',
-          descricao: proximaAtividade,
-          prazo: prazoAtividade,
-        }]);
-      } else {
-        setAtividadesAbertas(abertas);
-      }
-    });
+    void buscarAtividadesAbertasCard(cardId)
+      .then((abertas) => {
+        if (abertas.length > 0) {
+          setAtividadesAbertas(abertas);
+        } else if (legado.length > 0) {
+          setAtividadesAbertas(legado);
+        } else {
+          setAtividadesAbertas([]);
+        }
+      })
+      .catch(() => {
+        if (legado.length > 0) setAtividadesAbertas(legado);
+      })
+      .finally(() => setCarregandoLista(false));
   }
 
   function concluirItem(itemId: string) {
@@ -177,7 +195,9 @@ export function ProximaAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
       </p>
 
       {/* Lista de atividades abertas */}
-      {atividadesAbertas.length > 0 ? (
+      {carregandoLista && atividadesAbertas.length === 0 ? (
+        <p className="mb-3 text-[11px] text-stone-400">Carregando…</p>
+      ) : atividadesAbertas.length > 0 ? (
         <ul className="mb-3 space-y-1.5">
           {atividadesAbertas.map(a => {
             const prazoLabel = labelPrazo(a.prazo);
