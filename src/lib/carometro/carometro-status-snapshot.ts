@@ -123,9 +123,10 @@ export async function gerarSnapshotCarometro(
   };
 
   // ── Engajamento (3 sub-scores independentes) ─────────────────────────────────
-  // franqueado_id excluído: no Hub de Funis, franqueado = gestor do negócio,
-  // não o responsável operacional do card. Usar apenas responsavel_id/responsaveis_ids.
-  const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`;
+  // franqueado_id incluído APENAS quando responsavel_id IS NULL:
+  // - Helenna: franqueado_id=Helenna, responsavel_id=null → é a responsável operacional ✓
+  // - Danilo:  franqueado_id=Danilo,  responsavel_id=Helenna → é o gestor, não conta ✓
+  const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}},and(franqueado_id.eq.${profileId},responsavel_id.is.null)`;
 
   const [ganttEngRes, kanbanAbertosRes, proximasEngRes, proximasConcluidosRes] = await Promise.all([
     db.from('gantt_planejamento')

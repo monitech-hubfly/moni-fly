@@ -243,9 +243,10 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       };
 
       // ── Engajamento (3 sub-scores independentes) ────────────────────────────────
-      // franqueado_id excluído: no Hub de Funis, franqueado = gestor do negócio (Danilo),
-      // não o responsável operacional do card (Helenna). Usar apenas responsavel_id/responsaveis_ids.
-      const engOrKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`;
+      // franqueado_id incluído APENAS quando responsavel_id IS NULL:
+      // - Helenna: franqueado_id=Helenna, responsavel_id=null → é a responsável operacional ✓
+      // - Danilo:  franqueado_id=Danilo,  responsavel_id=Helenna → é o gestor, não conta ✓
+      const engOrKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}},and(franqueado_id.eq.${effectiveProfileId},responsavel_id.is.null)`;
 
       let engajamentoRuntime: EngajamentoSnapshot = {
         atividades: { agendadas: 0, realizadas: 0, atrasadas: 0, score: null },
