@@ -6,6 +6,7 @@ import { isoWeek } from '@/utils/periodos';
 import { registrarLog } from '@/hooks/useAuditLog';
 import type { DadosAgendamento, RecorrenciaConfig } from '@/components/carometro/todo/ModalAgendamento';
 import { gerarOcorrencias } from '@/components/carometro/todo/ModalAgendamento';
+import { enviarConvitesInternos } from '@/lib/actions/agenda-participantes';
 
 type Modo = 'criar' | 'editar';
 
@@ -201,9 +202,15 @@ export function useModalAgendamento(
         }
         if (dados.participantes.length > 0 && ids.length > 0) {
           const partRows = ids.flatMap(gantt_id =>
-            dados.participantes.map(profile_id => ({ gantt_id, profile_id }))
+            dados.participantes.map(profile_id => ({ gantt_id, profile_id, status: 'pendente' }))
           );
           await supabase.from('gantt_agenda_participantes').insert(partRows);
+          // Enviar convite via sininho para o primeiro evento da série
+          if (ids[0]) {
+            void enviarConvitesInternos(ids[0], dados.participantes).catch(
+              e => console.warn('[enviarConvitesInternos]', e)
+            );
+          }
         }
 
         void (registrarLog as unknown as (a: Record<string, unknown>) => Promise<void>)({
@@ -241,9 +248,15 @@ export function useModalAgendamento(
             if (dados.participantes.length > 0) {
               await supabase.from('gantt_agenda_participantes').insert(
                 gIds.flatMap(gantt_id =>
-                  dados.participantes.map(profile_id => ({ gantt_id, profile_id }))
+                  dados.participantes.map(profile_id => ({ gantt_id, profile_id, status: 'pendente' }))
                 )
               );
+              // Reenviar convites para série atualizada (primeiro evento)
+              if (gIds[0]) {
+                void enviarConvitesInternos(gIds[0], dados.participantes).catch(
+                  e => console.warn('[enviarConvitesInternos]', e)
+                );
+              }
             }
           }
         } else {
@@ -254,10 +267,31 @@ export function useModalAgendamento(
             .eq('id', editandoId);
           if (error) throw error;
 
-          await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', editandoId);
-          if (dados.participantes.length > 0) {
+          // Smart merge: preservar status de participantes já existentes
+          const { data: currentParts } = await supabase
+            .from('gantt_agenda_participantes')
+            .select('profile_id')
+            .eq('gantt_id', editandoId);
+          const currentIds = new Set(((currentParts ?? []) as { profile_id: string }[]).map(p => p.profile_id));
+          const newIds = new Set(dados.participantes);
+
+          // Remover participantes que saíram
+          const toDelete = [...currentIds].filter(id => !newIds.has(id));
+          if (toDelete.length > 0) {
+            await supabase.from('gantt_agenda_participantes')
+              .delete()
+              .eq('gantt_id', editandoId)
+              .in('profile_id', toDelete);
+          }
+
+          // Adicionar novos participantes com status pendente
+          const toAdd = dados.participantes.filter(id => !currentIds.has(id));
+          if (toAdd.length > 0) {
             await supabase.from('gantt_agenda_participantes').insert(
-              dados.participantes.map(profile_id => ({ gantt_id: editandoId, profile_id }))
+              toAdd.map(profile_id => ({ gantt_id: editandoId, profile_id, status: 'pendente' }))
+            );
+            void enviarConvitesInternos(editandoId, toAdd).catch(
+              e => console.warn('[enviarConvitesInternos]', e)
             );
           }
 

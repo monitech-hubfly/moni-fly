@@ -17,6 +17,10 @@ export type AtividadeAgenda = {
   origem_tipo: string | null;
   concluido: boolean;
   recorrencia_grupo_id: string | null;
+  // Convite interno
+  isPendente: boolean;
+  isParticipante: boolean;
+  organizador_nome: string | null;
 };
 
 export type DiaAgenda = {
@@ -118,10 +122,14 @@ type GanttRow = {
   cor: string | null;
   objetivo_id: string | null;
   recorrencia_grupo_id: string | null;
+  profile_id: string | null;
   acoes: { tipo_atividade: string } | { tipo_atividade: string }[] | null;
 };
 
-function rowToAtividade(row: GanttRow): AtividadeAgenda {
+function rowToAtividade(
+  row: GanttRow,
+  opts?: { isPendente?: boolean; isParticipante?: boolean; organizador_nome?: string | null },
+): AtividadeAgenda {
   const acao = Array.isArray(row.acoes) ? row.acoes[0] : row.acoes;
   const titulo = acao?.tipo_atividade ?? row.titulo ?? '(sem título)';
   const concluido = !!row.data_conclusao_real;
@@ -142,10 +150,13 @@ function rowToAtividade(row: GanttRow): AtividadeAgenda {
     origem_tipo:          row.origem_tipo,
     concluido,
     recorrencia_grupo_id: row.recorrencia_grupo_id,
+    isPendente:           opts?.isPendente ?? false,
+    isParticipante:       opts?.isParticipante ?? false,
+    organizador_nome:     opts?.organizador_nome ?? null,
   };
 }
 
-const SELECT_FIELDS = 'id, titulo, hora_inicio, hora_fim, data, card_id, sirene_chamado_id, link_reuniao, origem_tipo, data_conclusao_real, cor, objetivo_id, recorrencia_grupo_id, acoes(tipo_atividade)';
+const SELECT_FIELDS = 'id, titulo, hora_inicio, hora_fim, data, card_id, sirene_chamado_id, link_reuniao, origem_tipo, data_conclusao_real, cor, objetivo_id, recorrencia_grupo_id, profile_id, acoes(tipo_atividade)';
 
 export function useAgenda(refreshKey = 0): UseAgendaResult {
   const supabase = useMemo(() => createClient(), []);
@@ -206,10 +217,10 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
         .gte('data', inicioStr)
         .lte('data', fimStr);
 
-      // Busca 2: eventos onde é participante
+      // Busca 2: eventos onde é participante (inclui status do convite)
       const q2 = supabase
         .from('gantt_agenda_participantes')
-        .select(`gantt_id, gantt_planejamento!inner(${SELECT_FIELDS})`)
+        .select(`gantt_id, status, gantt_planejamento!inner(${SELECT_FIELDS})`)
         .eq('profile_id', effectiveProfileId)
         .not('gantt_planejamento.hora_inicio', 'is', null)
         .not('gantt_planejamento.data', 'is', null)
@@ -222,14 +233,38 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
       if (callId !== callIdRef.current) return;
 
       const rows1 = (r1.data ?? []) as GanttRow[];
-      const rows2 = ((r2.data ?? []) as unknown as { gantt_planejamento: GanttRow }[])
-        .map(x => x.gantt_planejamento);
 
-      // Deduplicar por id
+      // Participante: excluir recusados; pendentes/proposta ficam muted
+      const rows2Meta = ((r2.data ?? []) as unknown as { gantt_id: string; status: string | null; gantt_planejamento: GanttRow }[])
+        .filter(x => (x.status ?? 'aceito') !== 'recusado');
+
+      // Buscar nomes dos organizadores
+      const orgIds = [...new Set(rows2Meta.map(x => x.gantt_planejamento.profile_id).filter((v): v is string => !!v))];
+      const orgNameMap = new Map<string, string>();
+      if (orgIds.length > 0) {
+        const { data: orgData } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', orgIds);
+        for (const p of (orgData ?? []) as { id: string; full_name: string | null }[]) {
+          orgNameMap.set(p.id, p.full_name ?? '');
+        }
+      }
+
+      // Deduplicar por id (owns rows1 têm prioridade)
       const seen = new Set(rows1.map(r => r.id));
-      const allRows = [...rows1, ...rows2.filter(r => !seen.has(r.id))];
+      const allAtv: AtividadeAgenda[] = [
+        ...rows1.map(r => rowToAtividade(r)),
+        ...rows2Meta
+          .filter(x => !seen.has(x.gantt_planejamento.id))
+          .map(x => rowToAtividade(x.gantt_planejamento, {
+            isPendente: (x.status ?? 'aceito') === 'pendente' || (x.status ?? 'aceito') === 'proposta_horario',
+            isParticipante: true,
+            organizador_nome: orgNameMap.get(x.gantt_planejamento.profile_id ?? '') ?? null,
+          })),
+      ];
 
-      setAtividades(allRows.map(rowToAtividade));
+      setAtividades(allAtv);
     } catch (e) {
       if (callId !== callIdRef.current) return;
       console.error('[useAgenda]', e);

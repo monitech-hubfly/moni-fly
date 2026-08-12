@@ -9,6 +9,7 @@ import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { SireneChamadoBacklogWrapper } from './BacklogBloco';
 import type { DadosAgendamento } from './ModalAgendamento';
 import type { RecorrenciaEscopo } from '@/hooks/useModalAgendamento';
+import { AgendaConviteModal } from './AgendaConviteModal';
 
 const HORA_INICIO   = 8;
 const HORA_FIM      = 20;
@@ -211,23 +212,28 @@ function AgendaCard({
   const colLeftPct   = colIndex * colWidthPct;
   const GAP = 2; // px entre colunas
 
+  const isPendente = atv.isPendente && atv.isParticipante;
+
   return (
     <div
       data-atividade="true"
-      className="absolute rounded px-1.5 py-0.5 text-white text-xs overflow-hidden select-none group"
+      className="absolute rounded px-1.5 py-0.5 text-xs overflow-hidden select-none group"
       style={{
         top: topPxEfetivo,
         height: heightPx,
         left:  `calc(${colLeftPct}% + ${GAP}px)`,
         width: `calc(${colWidthPct}% - ${GAP * 2}px)`,
-        backgroundColor: atv.cor,
+        backgroundColor: isPendente ? '#e5e7eb' : atv.cor,
+        color: isPendente ? '#374151' : 'white',
         zIndex: 10,
-        opacity: atv.concluido ? 0.6 : isVencido ? 0.7 : 1,
-        borderTop: isVencido ? '3px solid rgba(239,159,39,0.9)' : undefined,
+        opacity: isPendente ? 0.8 : atv.concluido ? 0.6 : isVencido ? 0.7 : 1,
+        border: isPendente ? '1.5px dashed #9ca3af' : undefined,
+        borderTop: !isPendente && isVencido ? '3px solid rgba(239,159,39,0.9)' : undefined,
+        cursor: isPendente ? 'pointer' : undefined,
       }}
       onMouseDown={(e) => {
         if ((e.target as HTMLElement).closest('[data-action]')) return;
-        onDragStart(atv, e);
+        if (!isPendente) onDragStart(atv, e);
       }}
       onClick={(e) => {
         if (resizingRef.current) return;
@@ -248,8 +254,13 @@ function AgendaCard({
       <div className="flex items-start justify-between gap-1 h-full">
         <div className="flex-1 min-w-0">
           <div className={`font-medium truncate leading-tight ${atv.concluido ? 'line-through opacity-70' : ''}`}>
-            {atv.titulo}
+            {isPendente && <span className="mr-0.5 opacity-70">📨</span>}{atv.titulo}
           </div>
+          {isPendente && atv.organizador_nome && heightPx >= 36 && (
+            <div className="text-[10px] text-gray-500 truncate leading-tight">
+              {atv.organizador_nome}
+            </div>
+          )}
           {heightPx >= 40 && (
             <div className="opacity-80 text-[10px]">
               {horaInicioEfetiva}{horaFimEfetiva ? ` – ${horaFimEfetiva}` : ''}
@@ -542,10 +553,20 @@ type DragState = {
 
 // ── AgendaBloco ───────────────────────────────────────────────────────────────
 export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }: AgendaBlocoProps) {
+  // agendaReloadKey deve ser declarado antes de useAgenda
+  const [agendaReloadKey, setAgendaReloadKey] = useState(0);
+
+  // Ouvir evento agenda-reload (disparado após responder convite interno)
+  useEffect(() => {
+    const handler = () => setAgendaReloadKey(k => k + 1);
+    window.addEventListener('agenda-reload', handler);
+    return () => window.removeEventListener('agenda-reload', handler);
+  }, []);
+
   const {
     atividades, diasDaSemana, semanaLabel, semanaOffset,
     isLoading, error, navegar, irParaHoje, concluir, desconcluir, atualizarHorario, atualizarHorarioInicio, moverEvento,
-  } = useAgenda(refreshKey);
+  } = useAgenda(refreshKey + agendaReloadKey);
 
   const supabase = useMemo(() => createClient(), []);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
@@ -555,9 +576,15 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
   const [dragState, setDragState] = useState<DragState | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const gradeRef = useRef<HTMLDivElement | null>(null);
+  const [conviteAtv, setConviteAtv] = useState<AtividadeAgenda | null>(null);
 
   const handleAbrirParaEditar = useCallback((id: string) => {
     const atv = atividades.find(a => a.id === id);
+    // Convite pendente → abre modal de convite em vez do editor
+    if (atv?.isPendente && atv.isParticipante) {
+      setConviteAtv(atv);
+      return;
+    }
     if (atv?.recorrencia_grupo_id) {
       setPendingEditar({ id });
     } else {
@@ -815,6 +842,19 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
         <DialogEscopoRecorrencia
           onSelecionarEscopo={handleEscopoSelecionado}
           onFechar={() => setPendingEditar(null)}
+        />
+      )}
+
+      {/* Modal de convite interno */}
+      {conviteAtv && (
+        <AgendaConviteModal
+          atv={conviteAtv}
+          onFechar={() => setConviteAtv(null)}
+          onRespondeu={() => {
+            setConviteAtv(null);
+            // força reload da agenda
+            window.dispatchEvent(new CustomEvent('agenda-reload'));
+          }}
         />
       )}
 

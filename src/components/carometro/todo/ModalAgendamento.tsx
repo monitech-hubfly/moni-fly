@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useBacklog }        from '@/hooks/useBacklog';
 import { useBacklogKanban }  from '@/hooks/useBacklogKanban';
 import { AgendaComentarios } from './AgendaComentarios';
+import { buscarStatusParticipantes, aceitarPropostaHorario, type ParticipanteStatus } from '@/lib/actions/agenda-participantes';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -368,6 +369,7 @@ export function ModalAgendamento({
   const [gerandoMeet,      setGerandoMeet]      = useState(false);
   const [rsvpStatus,       setRsvpStatus]       = useState<Map<string, string>>(new Map());
   const [enviandoConvite,  setEnviandoConvite]  = useState(false);
+  const [partStatus,       setPartStatus]       = useState<Map<string, ParticipanteStatus>>(new Map());
   const [metaDefinida,     setMetaDefinida]     = useState(false);
   const [partAbertas,      setPartAbertas]      = useState([true, false]); // [internos, externos]
   const [buscaInternos,    setBuscaInternos]    = useState('');
@@ -393,6 +395,23 @@ export function ModalAgendamento({
         setRsvpStatus(m);
       });
   }, [editandoId, modo, supabase]);
+
+  // ── Status de participantes internos ──────────────────────────────────────
+  const recarregarPartStatus = () => {
+    if (!editandoId) return;
+    void buscarStatusParticipantes(editandoId).then(res => {
+      if (res.ok) {
+        const m = new Map<string, ParticipanteStatus>();
+        for (const p of res.participantes) m.set(p.profile_id, p);
+        setPartStatus(m);
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (modo !== 'editar' || !editandoId) { setPartStatus(new Map()); return; }
+    recarregarPartStatus();
+  }, [editandoId, modo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reenviarConvites = async () => {
     if (!editandoId || form.participantes_externos.length === 0) return;
@@ -1197,31 +1216,73 @@ export function ModalAgendamento({
                         const ocupado = sel && ocupados.has(p.profile_id);
                         const slots   = sel ? (busySlots.get(p.profile_id) ?? []) : [];
                         const meta    = [p.area, p.email].filter(Boolean).join(' · ');
+                        const ps = partStatus.get(p.profile_id);
+                        const statusBadge = ps
+                          ? ps.status === 'aceito'            ? { icon: '✓', cls: 'text-green-700 bg-green-50 border-green-200' }
+                          : ps.status === 'recusado'          ? { icon: '✗', cls: 'text-red-500 bg-red-50 border-red-200' }
+                          : ps.status === 'proposta_horario'  ? { icon: '📅', cls: 'text-blue-600 bg-blue-50 border-blue-200' }
+                          : { icon: '⏳', cls: 'text-amber-600 bg-amber-50 border-amber-200' }
+                          : null;
                         return (
-                          <label key={p.profile_id}
-                            className={`flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${sel ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                            <input type="checkbox" className="w-3.5 h-3.5 rounded accent-blue-500 mt-0.5 shrink-0"
-                              checked={sel}
-                              onChange={() => toggleParticipante(p.profile_id)} />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className={`text-xs font-semibold leading-tight ${sel ? 'text-blue-800' : 'text-gray-700'}`}>
-                                  {p.nomeCompleto ?? p.nome}
-                                </span>
-                                {ocupado && <span className="text-[10px] text-orange-600 font-medium shrink-0">⚠ conflito</span>}
-                              </div>
-                              {meta && <p className="text-[10px] text-gray-400 leading-tight mt-0.5 truncate">{meta}</p>}
-                              {slots.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {slots.map((s, i) => (
-                                    <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
-                                      {s.hora_inicio.slice(0, 5)}{s.hora_fim ? `–${s.hora_fim.slice(0, 5)}` : ''}
-                                    </span>
-                                  ))}
+                          <div key={p.profile_id} className="flex flex-col gap-1">
+                            <label
+                              className={`flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${sel ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                              <input type="checkbox" className="w-3.5 h-3.5 rounded accent-blue-500 mt-0.5 shrink-0"
+                                checked={sel}
+                                onChange={() => toggleParticipante(p.profile_id)} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={`text-xs font-semibold leading-tight ${sel ? 'text-blue-800' : 'text-gray-700'}`}>
+                                    {p.nomeCompleto ?? p.nome}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {statusBadge && (
+                                      <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${statusBadge.cls}`}>
+                                        {statusBadge.icon}
+                                      </span>
+                                    )}
+                                    {ocupado && <span className="text-[10px] text-orange-600 font-medium">⚠ conflito</span>}
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          </label>
+                                {meta && <p className="text-[10px] text-gray-400 leading-tight mt-0.5 truncate">{meta}</p>}
+                                {slots.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {slots.map((s, i) => (
+                                      <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
+                                        {s.hora_inicio.slice(0, 5)}{s.hora_fim ? `–${s.hora_fim.slice(0, 5)}` : ''}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </label>
+                            {/* Proposta de novo horário */}
+                            {ps?.status === 'proposta_horario' && ps.proposta_data && (
+                              <div className="ml-3 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-[11px]">
+                                <p className="text-blue-700 font-medium">
+                                  📅 Proposta: {new Date(ps.proposta_data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                  {ps.proposta_hora_inicio ? ` ${ps.proposta_hora_inicio}` : ''}
+                                  {ps.proposta_hora_fim ? `–${ps.proposta_hora_fim}` : ''}
+                                </p>
+                                <button
+                                  type="button"
+                                  className="mt-1 text-[10px] px-2 py-0.5 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                                  onClick={async () => {
+                                    if (!editandoId) return;
+                                    const res = await aceitarPropostaHorario(editandoId, p.profile_id);
+                                    if (res.ok) {
+                                      recarregarPartStatus();
+                                      window.dispatchEvent(new CustomEvent('agenda-reload'));
+                                    } else {
+                                      alert(res.error ?? 'Erro ao aceitar proposta');
+                                    }
+                                  }}
+                                >
+                                  Aceitar proposta
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>

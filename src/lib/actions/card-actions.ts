@@ -1519,8 +1519,29 @@ export async function atualizarStatusSubInteracao(
     };
     const todosResp = await todosResponsaveisDoChamado(supabase, interacaoId);
     const cardId = String((interacaoRow as { card_id?: string }).card_id ?? '');
+
+    // Quando a atividade é concluída, notificar também o abridor do chamado
+    let userIdsNotif = todosResp;
+    if (status === 'concluido') {
+      const sireneCid = await resolverSireneChamadoId(supabase, {
+        chamadoId: chamadoIdRaw,
+        interacaoId,
+      });
+      if (sireneCid != null) {
+        const { data: chamadoRef } = await supabase
+          .from('sirene_chamados')
+          .select('aberto_por')
+          .eq('id', sireneCid)
+          .maybeSingle();
+        const abertoPorId = (chamadoRef as { aberto_por?: string | null } | null)?.aberto_por ?? null;
+        if (abertoPorId && abertoPorId !== user.id && !userIdsNotif.includes(abertoPorId)) {
+          userIdsNotif = [...userIdsNotif, abertoPorId];
+        }
+      }
+    }
+
     await notificarEventoChamado(interacaoId, {
-      userIds: todosResp,
+      userIds: userIdsNotif,
       tipo: 'kanban_atividade_atualizada',
       mensagem: `${quem} alterou status para "${labelStatus[status] ?? status}" — ${tituloChamado || 'Chamado'}`,
       excluirUserId: user.id,
