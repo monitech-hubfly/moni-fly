@@ -123,10 +123,9 @@ export async function gerarSnapshotCarometro(
   };
 
   // ── Engajamento (3 sub-scores independentes) ─────────────────────────────────
-  // franqueado_id incluído APENAS quando responsavel_id IS NULL:
-  // - Helenna: franqueado_id=Helenna, responsavel_id=null → é a responsável operacional ✓
-  // - Danilo:  franqueado_id=Danilo,  responsavel_id=Helenna → é o gestor, não conta ✓
-  const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}},and(franqueado_id.eq.${profileId},responsavel_id.is.null)`;
+  // Fonte de verdade: APENAS responsavel_id (campo "Responsável do Card" na UI).
+  // Cards sem responsavel_id ficam com Ingrid (padrão). franqueado_id nunca é usado.
+  const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`;
 
   const [ganttEngRes, kanbanAbertosRes, proximasEngRes, proximasConcluidosRes] = await Promise.all([
     db.from('gantt_planejamento')

@@ -243,10 +243,9 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       };
 
       // ── Engajamento (3 sub-scores independentes) ────────────────────────────────
-      // franqueado_id incluído APENAS quando responsavel_id IS NULL:
-      // - Helenna: franqueado_id=Helenna, responsavel_id=null → é a responsável operacional ✓
-      // - Danilo:  franqueado_id=Danilo,  responsavel_id=Helenna → é o gestor, não conta ✓
-      const engOrKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}},and(franqueado_id.eq.${effectiveProfileId},responsavel_id.is.null)`;
+      // Fonte de verdade: APENAS responsavel_id (campo "Responsável do Card" na UI).
+      // Cards sem responsavel_id ficam com Ingrid (padrão). franqueado_id nunca é usado.
+      const engOrKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`;
 
       let engajamentoRuntime: EngajamentoSnapshot = {
         atividades: { agendadas: 0, realizadas: 0, atrasadas: 0, score: null },
