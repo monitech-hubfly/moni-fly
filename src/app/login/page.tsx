@@ -207,8 +207,8 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      if (role === 'admin') {
-        router.push(next || '/dashboard-novos-negocios');
+      if (role === 'admin' || role === 'team') {
+        router.push(next || '/carometro/todo-planning');
       } else if (role === 'frank') {
         router.push('/portal-frank');
       } else {
@@ -291,7 +291,7 @@ export default function LoginPage() {
         router.push('/treinamento-bca/leitura');
       } else {
         const role = normalizeAccessRole(seeded.role);
-        if (role === 'admin') router.push('/dashboard-novos-negocios');
+        if (role === 'admin' || role === 'team') router.push('/carometro/todo-planning');
         else if (role === 'frank') router.push('/portal-frank');
         else router.push('/rede-franqueados');
       }
