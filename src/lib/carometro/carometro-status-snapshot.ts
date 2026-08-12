@@ -200,7 +200,7 @@ export async function gerarSnapshotCarometro(
   const proxConcluidos = proximasConcluidosArr.length;
   const proxDenominador = proxConcluidos + proxAtrasadas;
   const scoreProximas = proxDenominador === 0
-    ? 100
+    ? (kanbanArr.length === 0 ? 100 : 0)  // sem cards = 100%; tem cards mas sem próximas = 0%
     : Math.max(0, Math.round((proxConcluidos / proxDenominador) * 100));
 
   // Score combinado = média dos sub-scores não-null (pesos iguais)
