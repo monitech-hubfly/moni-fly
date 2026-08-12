@@ -553,29 +553,51 @@ function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirCh
           );
         })}
 
-        {/* Seção Agendadas — colapsável */}
-        {agendadas.length > 0 && (() => {
-          const hojeStr = getHojeStr();
-          const numVencidos = agendadas.filter(i => i.agendaInfo.data < hojeStr).length;
-          const headerColor = numVencidos > 0 ? 'text-red-600 hover:text-red-800' : 'text-blue-500 hover:text-blue-700';
-          const headerLabel = numVencidos === agendadas.length
-            ? `⚠ ${agendadas.length} vencido${agendadas.length > 1 ? 's' : ''} não concluído${agendadas.length > 1 ? 's' : ''}`
-            : numVencidos > 0
-            ? `📅 ${agendadas.length} agendado${agendadas.length > 1 ? 's' : ''} (⚠ ${numVencidos} vencido${numVencidos > 1 ? 's' : ''})`
-            : `📅 ${agendadas.length} já agendado${agendadas.length > 1 ? 's' : ''}`;
+        {/* Itens vencidos (agendados em data passada) — cards visíveis com fundo vermelho */}
+        {agendadas.filter(i => i.agendaInfo.data < getHojeStr()).map(item => {
+          const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
+          const badge = formatAgendaBadge(item.agendaInfo.data, item.agendaInfo.hora_inicio, item.agendaInfo.count);
+          const status = statusSirene(item);
+          return (
+            <DraggableSirene
+              key={`vencido-${item.id}`}
+              dragId={`sirene::${item.id}::agendada`}
+              dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
+            >
+              <BacklogColunaCard
+                tipo="sirene"
+                titulo={tituloExibir}
+                prazo={item.data_fim ?? item.prazo_proposto}
+                prioridade={item.prioridade}
+                numeroChamado={item.chamado_numero}
+                status={status}
+                origemBadge="Sirene"
+                descricao={item.chamado_titulo ? item.descricao : null}
+                abertoPor={item.aberto_por_nome}
+                onClickExternal={item.chamado_id && onAbrirChamado ? () => onAbrirChamado(Number(item.chamado_id)) : undefined}
+                overrideBg="bg-red-50"
+                agendaBadge={`⚠ Planejado: ${badge.text} — não realizado`}
+              />
+            </DraggableSirene>
+          );
+        })}
+
+        {/* Seção Agendadas futuras — colapsável */}
+        {agendadas.filter(i => i.agendaInfo.data >= getHojeStr()).length > 0 && (() => {
+          const futuras = agendadas.filter(i => i.agendaInfo.data >= getHojeStr());
           return (
             <div className="border-t border-gray-100 pt-1.5 mt-0.5">
               <button
                 type="button"
                 onClick={() => setAgendadasExpand(v => !v)}
-                className={`w-full text-left text-[10px] ${headerColor} flex items-center justify-between py-0.5`}
+                className="w-full text-left text-[10px] text-blue-500 hover:text-blue-700 flex items-center justify-between py-0.5"
               >
-                <span>{headerLabel}</span>
+                <span>{`📅 ${futuras.length} já agendado${futuras.length > 1 ? 's' : ''}`}</span>
                 <span>{agendadasExpand ? '▲' : '▼'}</span>
               </button>
               {agendadasExpand && (
                 <div className="flex flex-col gap-1 mt-1.5">
-                  {agendadas.map(item => {
+                  {futuras.map(item => {
                     const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
                     const badge = formatAgendaBadge(item.agendaInfo.data, item.agendaInfo.hora_inicio, item.agendaInfo.count);
                     return (
@@ -584,10 +606,10 @@ function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirCh
                         dragId={`sirene::${item.id}::agendada`}
                         dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
                       >
-                        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-xs text-gray-600 ${badge.isVencido ? 'border-red-200 bg-red-50/50' : 'border-blue-100 bg-blue-50/50'}`}>
+                        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-xs text-gray-600 border-blue-100 bg-blue-50/50">
                           <span className="flex-1 truncate">{tituloExibir}</span>
-                          <span className={`text-[9px] shrink-0 whitespace-nowrap ${badge.isVencido ? 'text-red-600' : 'text-blue-500'}`}>
-                            {badge.isVencido ? '⚠ ' : '📅 '}{badge.text}
+                          <span className="text-[9px] shrink-0 whitespace-nowrap text-blue-500">
+                            📅 {badge.text}
                           </span>
                         </div>
                       </DraggableSirene>
@@ -894,36 +916,51 @@ function ColunaAtividades({ items, agendadas = [], onDesativar }: ColunaAtividad
           </DraggableAtividade>
         ))}
 
-        {/* Seção Agendadas — colapsável */}
-        {agendadas.length > 0 && (() => {
-          const hojeStr = getHojeStr();
-          const numVencidos = agendadas.filter(i => i.agendaInfo.data < hojeStr).length;
-          const headerColor = numVencidos > 0 ? 'text-red-600 hover:text-red-800' : 'text-blue-500 hover:text-blue-700';
-          const headerLabel = numVencidos === agendadas.length
-            ? `⚠ ${agendadas.length} vencido${agendadas.length > 1 ? 's' : ''} não concluído${agendadas.length > 1 ? 's' : ''}`
-            : numVencidos > 0
-            ? `📅 ${agendadas.length} agendado${agendadas.length > 1 ? 's' : ''} (⚠ ${numVencidos} vencido${numVencidos > 1 ? 's' : ''})`
-            : `📅 ${agendadas.length} já agendado${agendadas.length > 1 ? 's' : ''}`;
+        {/* Itens vencidos (agendados em data passada) — cards visíveis com fundo vermelho */}
+        {agendadas.filter(i => i.agendaInfo.data < getHojeStr()).map(item => {
+          const badge = formatAgendaBadge(item.agendaInfo.data, item.agendaInfo.hora_inicio, item.agendaInfo.count);
+          const status = statusAtividade(item);
+          return (
+            <DraggableAtividade key={`vencido-${item.id}`} id={item.id}>
+              <div className="flex items-center gap-1 group">
+                <div className="flex-1 min-w-0">
+                  <BacklogColunaCard
+                    tipo="atividade"
+                    titulo={item.nome}
+                    prazo={item.prazo ?? null}
+                    status={status}
+                    overrideBg="bg-red-50"
+                    agendaBadge={`⚠ Planejado: ${badge.text} — não realizado`}
+                  />
+                </div>
+              </div>
+            </DraggableAtividade>
+          );
+        })}
+
+        {/* Seção Agendadas futuras — colapsável */}
+        {agendadas.filter(i => i.agendaInfo.data >= getHojeStr()).length > 0 && (() => {
+          const futuras = agendadas.filter(i => i.agendaInfo.data >= getHojeStr());
           return (
             <div className="border-t border-gray-100 pt-1.5 mt-0.5">
               <button
                 type="button"
                 onClick={() => setAgendadasExpand(v => !v)}
-                className={`w-full text-left text-[10px] ${headerColor} flex items-center justify-between py-0.5`}
+                className="w-full text-left text-[10px] text-blue-500 hover:text-blue-700 flex items-center justify-between py-0.5"
               >
-                <span>{headerLabel}</span>
+                <span>{`📅 ${futuras.length} já agendado${futuras.length > 1 ? 's' : ''}`}</span>
                 <span>{agendadasExpand ? '▲' : '▼'}</span>
               </button>
               {agendadasExpand && (
                 <div className="flex flex-col gap-1 mt-1.5">
-                  {agendadas.map(item => {
+                  {futuras.map(item => {
                     const badge = formatAgendaBadge(item.agendaInfo.data, item.agendaInfo.hora_inicio, item.agendaInfo.count);
                     return (
                       <DraggableAtividade key={item.id} id={item.id}>
-                        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-xs text-gray-600 ${badge.isVencido ? 'border-red-200 bg-red-50/50' : 'border-blue-100 bg-blue-50/50'}`}>
+                        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-xs text-gray-600 border-blue-100 bg-blue-50/50">
                           <span className="flex-1 truncate">{item.nome}</span>
-                          <span className={`text-[9px] shrink-0 whitespace-nowrap ${badge.isVencido ? 'text-red-600' : 'text-blue-500'}`}>
-                            {badge.isVencido ? '⚠ ' : '📅 '}{badge.text}
+                          <span className="text-[9px] shrink-0 whitespace-nowrap text-blue-500">
+                            📅 {badge.text}
                           </span>
                         </div>
                       </DraggableAtividade>

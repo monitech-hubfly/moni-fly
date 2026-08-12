@@ -17,6 +17,10 @@ type BacklogColunaProps = {
   abertoPor?: string | null;
   descricao?: string | null;
   onClick?: () => void;
+  /** Substitui bg-white no card (ex: 'bg-red-50') */
+  overrideBg?: string;
+  /** Badge extra exibido abaixo do título (ex: '⚠ Planejado: Ter 10:00') */
+  agendaBadge?: string;
 };
 
 const BORDER_COLOR: Record<StatusPrazo, string> = {
@@ -80,6 +84,8 @@ export function BacklogColunaCard({
   abertoPor,
   descricao,
   onClick,
+  overrideBg,
+  agendaBadge,
 }: BacklogColunaProps) {
   const borderColor = BORDER_COLOR[status];
   const prazoLabel  = formatarPrazo(prazo, status);
@@ -87,7 +93,7 @@ export function BacklogColunaCard({
 
   return (
     <div
-      className={`rounded-md bg-white border border-gray-200 px-3 py-2 text-sm shadow-sm transition-all ${onClick ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+      className={`rounded-md ${overrideBg ?? 'bg-white'} border border-gray-200 px-3 py-2 text-sm shadow-sm transition-all ${onClick ? 'cursor-pointer hover:bg-gray-50' : ''}`}
       style={{ borderLeft: `3px solid ${borderColor}` }}
       onClick={onClick}
     >
@@ -156,6 +162,11 @@ export function BacklogColunaCard({
         >
           {descricao}
         </p>
+      ) : null}
+
+      {/* Badge de agenda vencida */}
+      {agendaBadge ? (
+        <p className="mt-0.5 text-[9px] text-red-500 font-medium">{agendaBadge}</p>
       ) : null}
 
       {/* Fallback linha 2 para não-sirene: badge origem + prazo */}
