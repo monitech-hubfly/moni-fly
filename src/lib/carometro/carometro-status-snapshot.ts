@@ -134,7 +134,8 @@ export async function gerarSnapshotCarometro(
       .gte('data', semanaInicioSnapStr)
       .lte('data', hojeStr)
       .is('sirene_chamado_id', null)
-      .is('card_id', null),
+      .is('card_id', null)
+      .not('objetivo_id', 'is', null),   // exclui "Sem vínculo à meta"
     db.from('kanban_cards')
       .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
       .or(orKanban).eq('arquivado', false).eq('concluido', false),

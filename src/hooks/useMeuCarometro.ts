@@ -263,7 +263,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .gte('data', semanaInicioStr)
             .lte('data', hojeStr)
             .is('sirene_chamado_id', null)
-            .is('card_id', null),
+            .is('card_id', null)
+            .not('objetivo_id', 'is', null),   // exclui "Sem vínculo à meta"
           supabase
             .from('kanban_cards')
             .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
