@@ -208,7 +208,7 @@ export default function LoginPage() {
         return;
       }
       if (role === 'admin' || role === 'team') {
-        router.push(next || '/carometro/todo-planning');
+        router.push(searchParams.get('next') || '/carometro/todo-planning');
       } else if (role === 'frank') {
         router.push('/portal-frank');
       } else {
