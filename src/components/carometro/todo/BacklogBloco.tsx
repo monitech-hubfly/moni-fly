@@ -557,9 +557,11 @@ function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirCh
         {agendadas.length > 0 && (() => {
           const hojeStr = getHojeStr();
           const numVencidos = agendadas.filter(i => i.agendaInfo.data < hojeStr).length;
-          const headerColor = numVencidos === agendadas.length ? 'text-amber-600 hover:text-amber-800' : 'text-blue-500 hover:text-blue-700';
+          const headerColor = numVencidos > 0 ? 'text-red-600 hover:text-red-800' : 'text-blue-500 hover:text-blue-700';
           const headerLabel = numVencidos === agendadas.length
             ? `⚠ ${agendadas.length} vencido${agendadas.length > 1 ? 's' : ''} não concluído${agendadas.length > 1 ? 's' : ''}`
+            : numVencidos > 0
+            ? `📅 ${agendadas.length} agendado${agendadas.length > 1 ? 's' : ''} (⚠ ${numVencidos} vencido${numVencidos > 1 ? 's' : ''})`
             : `📅 ${agendadas.length} já agendado${agendadas.length > 1 ? 's' : ''}`;
           return (
             <div className="border-t border-gray-100 pt-1.5 mt-0.5">
@@ -582,9 +584,9 @@ function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirCh
                         dragId={`sirene::${item.id}::agendada`}
                         dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
                       >
-                        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-xs text-gray-600 ${badge.isVencido ? 'border-amber-200 bg-amber-50/50' : 'border-blue-100 bg-blue-50/50'}`}>
+                        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-xs text-gray-600 ${badge.isVencido ? 'border-red-200 bg-red-50/50' : 'border-blue-100 bg-blue-50/50'}`}>
                           <span className="flex-1 truncate">{tituloExibir}</span>
-                          <span className={`text-[9px] shrink-0 whitespace-nowrap ${badge.isVencido ? 'text-amber-600' : 'text-blue-500'}`}>
+                          <span className={`text-[9px] shrink-0 whitespace-nowrap ${badge.isVencido ? 'text-red-600' : 'text-blue-500'}`}>
                             {badge.isVencido ? '⚠ ' : '📅 '}{badge.text}
                           </span>
                         </div>
@@ -896,9 +898,11 @@ function ColunaAtividades({ items, agendadas = [], onDesativar }: ColunaAtividad
         {agendadas.length > 0 && (() => {
           const hojeStr = getHojeStr();
           const numVencidos = agendadas.filter(i => i.agendaInfo.data < hojeStr).length;
-          const headerColor = numVencidos === agendadas.length ? 'text-amber-600 hover:text-amber-800' : 'text-blue-500 hover:text-blue-700';
+          const headerColor = numVencidos > 0 ? 'text-red-600 hover:text-red-800' : 'text-blue-500 hover:text-blue-700';
           const headerLabel = numVencidos === agendadas.length
             ? `⚠ ${agendadas.length} vencido${agendadas.length > 1 ? 's' : ''} não concluído${agendadas.length > 1 ? 's' : ''}`
+            : numVencidos > 0
+            ? `📅 ${agendadas.length} agendado${agendadas.length > 1 ? 's' : ''} (⚠ ${numVencidos} vencido${numVencidos > 1 ? 's' : ''})`
             : `📅 ${agendadas.length} já agendado${agendadas.length > 1 ? 's' : ''}`;
           return (
             <div className="border-t border-gray-100 pt-1.5 mt-0.5">
@@ -916,9 +920,9 @@ function ColunaAtividades({ items, agendadas = [], onDesativar }: ColunaAtividad
                     const badge = formatAgendaBadge(item.agendaInfo.data, item.agendaInfo.hora_inicio, item.agendaInfo.count);
                     return (
                       <DraggableAtividade key={item.id} id={item.id}>
-                        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-xs text-gray-600 ${badge.isVencido ? 'border-amber-200 bg-amber-50/50' : 'border-blue-100 bg-blue-50/50'}`}>
+                        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-xs text-gray-600 ${badge.isVencido ? 'border-red-200 bg-red-50/50' : 'border-blue-100 bg-blue-50/50'}`}>
                           <span className="flex-1 truncate">{item.nome}</span>
-                          <span className={`text-[9px] shrink-0 whitespace-nowrap ${badge.isVencido ? 'text-amber-600' : 'text-blue-500'}`}>
+                          <span className={`text-[9px] shrink-0 whitespace-nowrap ${badge.isVencido ? 'text-red-600' : 'text-blue-500'}`}>
                             {badge.isVencido ? '⚠ ' : '📅 '}{badge.text}
                           </span>
                         </div>
