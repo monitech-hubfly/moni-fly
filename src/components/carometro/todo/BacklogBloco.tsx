@@ -515,7 +515,7 @@ function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirCh
   return (
     <>
       <div className={`flex flex-col gap-1.5 ${comStatus.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
-        {comStatus.length === 0 && chamadosPendentes.length === 0 && <EmptyState />}
+        {comStatus.length === 0 && chamadosPendentes.length === 0 && agendadas.length === 0 && <EmptyState />}
         {comStatus.map(({ item, status }) => {
           const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
           return (
@@ -1039,7 +1039,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
                   <StatusDot cor="bg-gray-400"  count={sireneFuturos} />
                 </div>
                 <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
-                  {sirene.length + chamadosPendentes.length}
+                  {sirene.length + chamadosPendentes.length + sireneAgendadas.length}
                 </span>
               </div>
             </div>
