@@ -6,6 +6,8 @@ export type PainelFaseDTO = {
   sla_tipo?: 'uteis' | 'corridos' | null;
   fase_conversao: boolean;
   slug?: string | null;
+  /** `kanban_fases.ativo` — false = desativada (orfã no board / histórico). */
+  ativo?: boolean;
 };
 
 export type PainelCardDTO = {

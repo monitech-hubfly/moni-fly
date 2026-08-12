@@ -408,6 +408,7 @@ export function montarChipsParalelas(
     };
     const emAcoplamento =
       slug === FASE_SLUGS.LOTEADORES_ACOPLAMENTO ||
+      slug === FASE_SLUGS.LOTEADORES_ACOPLAMENTO_GBOX ||
       input.temFilhoAcoplamento ||
       input.filhoAcoplamentoArquivado ||
       boolFlag(f.acoplamento_concluido);

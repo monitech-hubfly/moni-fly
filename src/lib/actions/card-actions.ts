@@ -20,6 +20,7 @@ import { NEGOCIO_PRAZO_OPCAO_FASE_SLUG } from '@/lib/kanban/dados-negocio-prazo'
 import { validarMotivoArquivamento } from '@/lib/kanban/motivos-arquivamento';
 import type { PortfolioConfirmacaoFaseTipo } from '@/lib/kanban/portfolio-confirmacao-fase';
 import type { OperacoesConfirmacaoFaseTipo } from '@/lib/kanban/operacoes-confirmacao-fase';
+import type { LoteadoresConfirmacaoFaseTipo } from '@/lib/kanban/loteadores-confirmacao-fase';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
@@ -2328,6 +2329,8 @@ export type CriarCardKanbanInput = {
   basePath?: string;
   /** Funil Loteadores: nome do parceiro/loteador (1ª parte do título). */
   nomeLoteador?: string;
+  /** Funil Loteadores: vincular cadastro existente em `rede_loteadores`. */
+  redeLoteadorId?: string;
   nomeCondominio?: string;
   quadra?: string;
   lote?: string;
@@ -2397,6 +2400,7 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   const nomeCondominio = (input.nomeCondominio ?? '').trim() || null;
   const quadra = (input.quadra ?? '').trim() || null;
   const lote = (input.lote ?? '').trim() || null;
+  const redeLoteadorId = (input.redeLoteadorId ?? '').trim() || null;
 
   let projetoId: string | null = null;
   if (kanbanId === KANBAN_IDS.PORTFOLIO) {
@@ -2411,13 +2415,40 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   }
 
   let tituloFinal = titulo;
+  let contatoNomeLoteador: string | null = null;
+  let nomeLoteadorResolved = (input.nomeLoteador ?? '').trim() || null;
+  let nomeCondominioFinal = nomeCondominio;
+
+  if (isKanbanFunilLoteadoresRef(kanbanId, kanbanNome) && redeLoteadorId) {
+    const { data: rl } = await supabase
+      .from('rede_loteadores')
+      .select('nome, contato_nome, interlocutor_nome, condominio_nome')
+      .eq('id', redeLoteadorId)
+      .maybeSingle();
+    const row = rl as {
+      nome?: string | null;
+      contato_nome?: string | null;
+      interlocutor_nome?: string | null;
+      condominio_nome?: string | null;
+    } | null;
+    nomeLoteadorResolved = String(row?.nome ?? '').trim() || nomeLoteadorResolved;
+    contatoNomeLoteador =
+      String(row?.interlocutor_nome ?? '').trim() ||
+      String(row?.contato_nome ?? '').trim() ||
+      null;
+    if (!nomeCondominioFinal) {
+      nomeCondominioFinal = String(row?.condominio_nome ?? '').trim() || null;
+    }
+  }
+
   if (isKanbanFunilLoteadoresRef(kanbanId, kanbanNome)) {
     // Ainda sem cadastro vinculado: título inicial com o que foi informado.
     // Após vincular/preencher o cadastro, o título é reconstruído (loteador · contato · condomínio).
     tituloFinal =
       montarTituloCardLoteadores({
-        nomeLoteador: (input.nomeLoteador ?? '').trim() || titulo,
-        nomeCondominio,
+        nomeLoteador: nomeLoteadorResolved || titulo,
+        contatoNome: contatoNomeLoteador,
+        nomeCondominio: nomeCondominioFinal,
         tituloFallback: titulo,
       }) ?? titulo;
   }
@@ -2428,10 +2459,13 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
     franqueado_id: user.id,
     titulo: tituloFinal,
     status: 'ativo',
-    nome_condominio: nomeCondominio,
+    nome_condominio: nomeCondominioFinal,
     quadra,
     lote,
     ...(projetoId ? { projeto_id: projetoId } : {}),
+    ...(redeLoteadorId && isKanbanFunilLoteadoresRef(kanbanId, kanbanNome)
+      ? { rede_loteador_id: redeLoteadorId }
+      : {}),
   };
   const redeId = (input.redeFranqueadoId ?? '').trim();
   if (redeId) insertPayload.rede_franqueado_id = redeId;
@@ -4947,6 +4981,64 @@ export async function registrarConfirmacaoFasePortfolio(input: {
     comite: { comite_aprovado: true, comite_aprovado_em: now },
     contrato: { contrato_assinado: true, contrato_assinado_em: now },
   } as const;
+
+  const { error: updErr } = await supabase
+    .from('kanban_cards')
+    .update(patchByTipo[tipo] as never)
+    .eq('id', cardId);
+
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export async function registrarConfirmacaoFaseLoteadores(input: {
+  cardId: string;
+  tipo: LoteadoresConfirmacaoFaseTipo;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar a confirmação.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  const tipo = input.tipo;
+  if (!cardId || !tipo) return { ok: false, error: 'Dados inválidos.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.LOTEADORES) {
+    return { ok: false, error: 'Confirmação aplicável apenas ao Funil Loteadores.' };
+  }
+
+  const now = new Date().toISOString();
+  const patchByTipo: Record<LoteadoresConfirmacaoFaseTipo, Record<string, boolean | string>> = {
+    opcao: {
+      loteadores_opcao_assinada: true,
+      loteadores_opcao_assinada_em: now,
+    },
+    cto_precedentes: {
+      loteadores_cto_precedentes_assinado: true,
+      loteadores_cto_precedentes_assinado_em: now,
+    },
+    cto_showroom: {
+      loteadores_cto_showroom_assinado: true,
+      loteadores_cto_showroom_assinado_em: now,
+    },
+    cto_parceria: {
+      loteadores_cto_parceria_assinado: true,
+      loteadores_cto_parceria_assinado_em: now,
+    },
+  };
 
   const { error: updErr } = await supabase
     .from('kanban_cards')

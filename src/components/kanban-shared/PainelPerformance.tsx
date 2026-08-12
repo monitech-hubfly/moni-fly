@@ -63,6 +63,7 @@ function mapFases(fases: KanbanFase[]) {
     sla_tipo: f.sla_tipo ?? 'uteis',
     fase_conversao: Boolean(f.fase_conversao),
     slug: f.slug ?? null,
+    ativo: f.ativo !== false,
   }));
 }
 

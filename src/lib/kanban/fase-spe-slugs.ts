@@ -6,6 +6,7 @@ export function isFaseAberturaSpeSlug(faseSlug: string | null | undefined): bool
   return (
     s === 'contabilidade_spe' ||
     s === 'capital_abertura_spe' ||
+    /** @deprecated Funil Loteadores — fase inativa (esteira v1). */
     s === 'abertura_spe_moni_inc' ||
     s.includes('abertura_spe')
   );

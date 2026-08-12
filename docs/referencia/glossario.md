@@ -6,7 +6,7 @@
 | **Bombeiro** | Papel Sirene que triagem/aprova tópicos |
 | **Bastão** | Spawn automático de card filho em outro funil |
 | **BCA** | Business Case Analysis — PDF de viabilidade |
-| **Motor 01** | Funil Loteadores / relação com loteadores |
+| **Motor 01** | Funil distinto (`/funil-motor01`, slugs `m1_*`). Não confundir com Funil Loteadores. |
 | **Cash Me** | Parceiro crédito obra (funil Crédito Obra) |
 | **HDM** | Chamado de alta demanda gerencial (Sirene) |
 | **RLS** | Row Level Security (Supabase) |

@@ -37,6 +37,38 @@ import {
   isLoteadoresContratoFaseSlug,
 } from '@/lib/kanban/loteadores-contrato';
 import {
+  isLoteadoresNdaCampoVisivel,
+  isLoteadoresNdaFaseSlug,
+} from '@/lib/kanban/loteadores-nda';
+import {
+  isLoteadoresOpcaoCampoVisivel,
+  isLoteadoresOpcaoFaseSlug,
+} from '@/lib/kanban/loteadores-opcao';
+import {
+  isLoteadoresAguardandoFichaCampoVisivel,
+  isLoteadoresAguardandoFichaFaseSlug,
+} from '@/lib/kanban/loteadores-aguardando-ficha';
+import {
+  isLoteadoresValidacaoCampoVisivel,
+  isLoteadoresValidacaoFaseSlug,
+} from '@/lib/kanban/loteadores-validacao';
+import {
+  isLoteadoresAcoplamentoGboxCampoVisivel,
+  isLoteadoresAcoplamentoGboxFaseSlug,
+} from '@/lib/kanban/loteadores-acoplamento-gbox';
+import {
+  isLoteadoresRevisoesPosComiteCampoVisivel,
+  isLoteadoresRevisoesPosComiteFaseSlug,
+} from '@/lib/kanban/loteadores-revisoes-pos-comite';
+import {
+  isLoteadoresCtoPrecedentesCampoVisivel,
+  isLoteadoresCtoPrecedentesFaseSlug,
+} from '@/lib/kanban/loteadores-cto-precedentes';
+import {
+  isLoteadoresPassagemWaysersCampoVisivel,
+  isLoteadoresPassagemWaysersFaseSlug,
+} from '@/lib/kanban/loteadores-passagem-waysers';
+import {
   isLoteadoresR2PlanoTeoricoCampoVisivel,
   isLoteadoresR2PlanoTeoricoFaseSlug,
 } from '@/lib/kanban/loteadores-r2-plano-teorico';
@@ -165,10 +197,34 @@ export function FaseChecklistSidebarResumo({
           if (isLoteadoresR1ConceitoFaseSlug(slug) && !isLoteadoresR1ConceitoCampoVisivel(item)) {
             continue;
           }
+          if (isLoteadoresNdaFaseSlug(slug) && !isLoteadoresNdaCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresOpcaoFaseSlug(slug) && !isLoteadoresOpcaoCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresAguardandoFichaFaseSlug(slug) && !isLoteadoresAguardandoFichaCampoVisivel(item)) {
+            continue;
+          }
           if (isLoteadoresExecucaoMaterialFaseSlug(slug) && !isLoteadoresExecucaoMaterialCampoVisivel(item)) {
             continue;
           }
+          if (isLoteadoresValidacaoFaseSlug(slug) && !isLoteadoresValidacaoCampoVisivel(item)) {
+            continue;
+          }
           if (isLoteadoresR2PlanoTeoricoFaseSlug(slug) && !isLoteadoresR2PlanoTeoricoCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresAcoplamentoGboxFaseSlug(slug) && !isLoteadoresAcoplamentoGboxCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresRevisoesPosComiteFaseSlug(slug) && !isLoteadoresRevisoesPosComiteCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresCtoPrecedentesFaseSlug(slug) && !isLoteadoresCtoPrecedentesCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresPassagemWaysersFaseSlug(slug) && !isLoteadoresPassagemWaysersCampoVisivel(item)) {
             continue;
           }
           if (isLoteadoresComiteFaseSlug(slug) && !isLoteadoresComiteCampoVisivel(item)) {

@@ -1,4 +1,4 @@
-/** Checklist da fase «R2 — Apresentar Plano Teórico» — Funil Loteadores. */
+/** Checklist da fase «R2 Apresentação» — Funil Loteadores. */
 
 export const LOTEADORES_R2_PLANO_TEORICO_FASE_SLUG = 'r2_plano_teorico_moni_inc' as const;
 

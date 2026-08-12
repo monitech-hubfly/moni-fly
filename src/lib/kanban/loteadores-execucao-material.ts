@@ -1,4 +1,4 @@
-/** Checklist da fase «Execução do Material» — Funil Loteadores. */
+/** Checklist da fase «Executar Material» — Funil Loteadores. */
 
 export const LOTEADORES_EXECUCAO_MATERIAL_FASE_SLUG = 'execucao_material_moni_inc' as const;
 

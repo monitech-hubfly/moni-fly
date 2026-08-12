@@ -1,4 +1,4 @@
-/** Checklist da fase «Revisões» — Funil Loteadores. */
+/** Checklist da fase «Revisões + Forma Pgto» — Funil Loteadores. */
 
 export const LOTEADORES_REVISOES_FASE_SLUG = 'revisoes_moni_inc' as const;
 

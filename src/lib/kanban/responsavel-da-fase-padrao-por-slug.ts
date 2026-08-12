@@ -77,21 +77,32 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   credito_obra_aprovado: 'moni',
   credito_obra_reprovado: 'moni',
 
-  // Funil Loteadores
+  // Funil Loteadores (esteira v1)
+  primeiro_contato_moni_inc: 'moni',
   r1_conceito_moni_inc: 'moni',
+  nda_moni_inc: 'moni',
+  opcao_moni_inc: 'moni',
+  aguardando_ficha_moni_inc: 'moni',
   viabilidade_moni_inc: 'moni',
   acoplamento_moni_inc: 'moni',
   execucao_material_moni_inc: 'moni',
+  validacao_moni_inc: 'moni',
   r2_plano_teorico_moni_inc: 'moni',
-  batalha_casas_moni_inc: 'moni',
-  comite_moni_inc: 'moni',
   revisoes_moni_inc: 'moni',
+  acoplamento_gbox_moni_inc: 'moni',
+  comite_moni_inc: 'moni',
+  revisoes_pos_comite_moni_inc: 'moni',
+  cto_precedentes_moni_inc: 'moni',
+  diligencia_moni_inc: 'moni',
+  cto_showroom_moni_inc: 'moni',
+  passagem_waysers_moni_inc: 'moni',
+  contrato_parceria_moni_inc: 'moni',
+  // Legado (fases desativadas / slug antigo)
+  batalha_casas_moni_inc: 'moni',
   r3_ajustes_finais_moni_inc: 'moni',
   fechar_contrato_moni_inc: 'moni',
   abertura_spe_moni_inc: 'moni',
-  diligencia_moni_inc: 'moni',
   moni_capital_moni_inc: 'moni',
-  contrato_parceria_moni_inc: 'moni',
 
   // Funil Operações
   planialtimetrico: 'franqueado',

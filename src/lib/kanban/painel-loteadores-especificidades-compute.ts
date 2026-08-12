@@ -1,5 +1,8 @@
+import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { fasesAtivasPainelLoteadores } from '@/lib/kanban/funil-loteadores';
 import { buildNativeFaseTimeline } from '@/lib/kanban/kanban-card-timeline';
 import { LOTEADORES_R1_CONCEITO_FASE_SLUG } from '@/lib/kanban/loteadores-r1-conceito';
+import { LOTEADORES_VIABILIDADE_SLUGS } from '@/lib/kanban/loteadores-fase-slugs';
 import {
   buildConversaoContext,
   cardConverteuPorRegras,
@@ -10,8 +13,9 @@ import type {
   PainelHistoricoMovimentoDTO,
 } from '@/lib/kanban/painel-performance-types';
 
-const CONTRATO_PARCERIA_SLUG = 'contrato_parceria_moni_inc' as const;
-const VIABILIDADE_SLUG = 'viabilidade_moni_inc' as const;
+/** Slugs estáveis (não mudaram na esteira v1 de 19 fases). */
+const CONTRATO_PARCERIA_SLUG = FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA;
+const R1_SLUG = LOTEADORES_R1_CONCEITO_FASE_SLUG;
 
 function campoDisponivel(cards: PainelCardDTO[], key: keyof PainelCardDTO): boolean {
   return cards.some((c) => c[key] !== undefined);
@@ -36,6 +40,11 @@ function buildHistoricoPorCard(
 
 function cardAtivo(c: PainelCardDTO): boolean {
   return !c.arquivado && !c.concluido;
+}
+
+/** Card ativo em fase da esteira canônica (exclui fases desativadas / deprecated). */
+function cardAtivoEmFasePainel(c: PainelCardDTO, faseIdsAtivas: Set<string>): boolean {
+  return cardAtivo(c) && faseIdsAtivas.has(c.fase_id);
 }
 
 function resolveLoteadorKey(c: PainelCardDTO): { key: string; label: string } | null {
@@ -156,12 +165,14 @@ export function computeLoteadoresEspecificidades(input: {
   loteadoresFieldsAvailable?: boolean;
 }): PainelLoteadoresEspecificidades | null {
   const historicoPorCard = buildHistoricoPorCard(input.historicoMovimentos);
-  const fasesOrd = [...input.fases].sort((a, b) => a.ordem - b.ordem);
-  const conversaoCtx = buildConversaoContext(input.fases);
+  /** Esteira v1: 19 fases ativas, ordem canônica; sem fases `ativo=false` / deprecated. */
+  const fasesOrd = fasesAtivasPainelLoteadores(input.fases);
+  const faseIdsAtivas = new Set(fasesOrd.map((f) => f.id));
+  const conversaoCtx = buildConversaoContext(fasesOrd);
 
-  const r1Ids = faseIdsPorSlugs(input.fases, [LOTEADORES_R1_CONCEITO_FASE_SLUG]);
-  const contratoIds = faseIdsPorSlugs(input.fases, [CONTRATO_PARCERIA_SLUG]);
-  const viabilidadeIds = new Set(faseIdsPorSlugs(input.fases, [VIABILIDADE_SLUG]));
+  const r1Ids = faseIdsPorSlugs(fasesOrd, [R1_SLUG]);
+  const contratoIds = faseIdsPorSlugs(fasesOrd, [CONTRATO_PARCERIA_SLUG]);
+  const viabilidadeIds = new Set(faseIdsPorSlugs(fasesOrd, LOTEADORES_VIABILIDADE_SLUGS));
 
   const loteadorIndisponivel =
     input.loteadoresFieldsAvailable === false ||
@@ -237,7 +248,7 @@ export function computeLoteadoresEspecificidades(input: {
 
       for (const c of input.cards) {
         if (!viabilidadeIds.has(c.fase_id)) continue;
-        if (!cardAtivo(c)) continue;
+        if (!cardAtivoEmFasePainel(c, faseIdsAtivas)) continue;
         const historico = historicoPorCard.get(c.id) ?? [];
         let entered = c.entered_fase_at?.trim() || null;
         if (!entered) {
@@ -274,7 +285,8 @@ export function computeLoteadoresEspecificidades(input: {
     const map = new Map<string, PainelLoteadoresLoteadorAtivosRow>();
     if (!loteadorIndisponivel) {
       for (const c of input.cards) {
-        if (!cardAtivo(c)) continue;
+        // Concentração de risco: só cards ativos em fases ativas da esteira (19).
+        if (!cardAtivoEmFasePainel(c, faseIdsAtivas)) continue;
         const lk = resolveLoteadorKey(c);
         if (!lk) continue;
         const cur = map.get(lk.key) ?? {
