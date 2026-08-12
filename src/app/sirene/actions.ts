@@ -373,6 +373,7 @@ export type TopicoPainelLinha = {
   atribuicao_status?: string | null;
   atribuicao_recusado_por?: string | null;
   atribuicao_justificativa?: string | null;
+  prazo_sla_original?: string | null;
 };
 
 type GetTopicosPainelResult =
@@ -380,7 +381,7 @@ type GetTopicosPainelResult =
   | { ok: false; error: string };
 
 const TOPICOS_PAINEL_SELECT =
-  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, responsavel_id, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa';
+  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, responsavel_id, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa, prazo_sla_original';
 
 function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLinha[] {
   return rows.map((r) => {
@@ -451,6 +452,10 @@ function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLi
       atribuicao_justificativa:
         (r as { atribuicao_justificativa?: unknown }).atribuicao_justificativa != null
           ? String((r as { atribuicao_justificativa?: unknown }).atribuicao_justificativa)
+          : null,
+      prazo_sla_original:
+        (r as { prazo_sla_original?: unknown }).prazo_sla_original != null
+          ? String((r as { prazo_sla_original?: unknown }).prazo_sla_original)
           : null,
     };
   });
