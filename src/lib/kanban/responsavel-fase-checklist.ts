@@ -94,7 +94,7 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>
   [KANBAN_IDS.HDM_MODELO_VIRTUAL]: 'elisabete.nucci@moni.casa',
   [KANBAN_IDS.HDM_HOMOLOGACOES]: 'karoline.galdino@moni.casa',
   [KANBAN_IDS.PROJETOS_LEGAIS]: 'larissa.lima@moni.casa',
-  [KANBAN_IDS.STEP_ONE]: 'renata.silva@moni.casa',
+  // Step One: responsável do card = franqueado da rede (não owner Moní fixo).
 };
 
 /** E-mail do responsável padrão por slug de fase (prioridade sobre o mapa por kanban). */
