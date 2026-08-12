@@ -53,6 +53,7 @@ type TopicoPrazoRow = {
   prazo_abridor_id: string | null;
   prazo_proposto_por: string | null;
   prazo_negociacao_expira_em: string | null;
+  prazo_sla_original: string | null;
   data_fim: string | null;
   historico: unknown;
 };
@@ -66,7 +67,7 @@ async function carregarTopico(
   const { data } = await supabase
     .from('sirene_topicos')
     .select(
-      'id, interacao_id, responsaveis_ids, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, data_fim, historico',
+      'id, interacao_id, responsaveis_ids, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, prazo_sla_original, data_fim, historico',
     )
     .eq('id', idNum)
     .maybeSingle();
@@ -88,14 +89,6 @@ async function carregarInteracaoCriador(
 async function usuarioEhAdmin(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<boolean> {
   const { data } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
   return isAdminRole((data as { role?: string } | null)?.role);
-}
-
-function podeEditarPrazoLivre(
-  row: TopicoPrazoRow,
-  isAdmin: boolean,
-): boolean {
-  if (isAdmin) return true;
-  return !negociacaoExpirada(row.prazo_negociacao_expira_em);
 }
 
 async function atualizarTopicoPrazo(
@@ -144,7 +137,10 @@ export async function aceitarPrazoSubInteracao(
   const prazo = dataCampoCalendarioIso(row.prazo_proposto);
   if (!prazo) return { ok: false, error: 'Prazo proposto inválido.' };
 
-  const aceite = payloadAceitarPrazoTopico(prazo);
+  const aceite = {
+    ...payloadAceitarPrazoTopico(prazo),
+    ...(row.prazo_sla_original == null ? { prazo_sla_original: prazo } : {}),
+  };
   const r = await atualizarTopicoPrazo(
     supabase,
     row.id,
@@ -176,7 +172,10 @@ export async function aceitarPrazoSubInteracaoAuto(
   const prazo = dataCampoCalendarioIso(row.prazo_proposto);
   if (!prazo) return { ok: false, error: 'Prazo proposto inválido.' };
 
-  const aceite = payloadAceitarPrazoTopico(prazo);
+  const aceite = {
+    ...payloadAceitarPrazoTopico(prazo),
+    ...(row.prazo_sla_original == null ? { prazo_sla_original: prazo } : {}),
+  };
   return atualizarTopicoPrazo(
     supabase,
     row.id,
@@ -224,6 +223,7 @@ export async function recusarPrazoSubInteracao(
 
 /**
  * Nova proposta de prazo:
+ * - se aceito: nova data entra direto, sem aprovação
  * - após recusa: responsável propõe → pendente_aceite_abridor
  * - abridor repropõe após recusa ou na janela de 24h
  */
@@ -245,13 +245,6 @@ export async function proporPrazoSubInteracao(
   if (!row) return { ok: false, error: 'Atividade não encontrada.' };
 
   const isAdmin = await usuarioEhAdmin(supabase, user.id);
-  if (!podeEditarPrazoLivre(row, isAdmin)) {
-    return {
-      ok: false,
-      error: 'A janela de 24h para alterar o prazo expirou. Solicite um administrador.',
-    };
-  }
-
   const status = normalizarPrazoStatus(row.prazo_status);
   const respIds = uniqUuids(row.responsaveis_ids);
   const abridorId = String(row.prazo_abridor_id ?? '').trim();
@@ -265,13 +258,30 @@ export async function proporPrazoSubInteracao(
   const ehResponsavel = respIds.includes(user.id);
   const ehAbridor = abridorEfetivo === user.id || row.prazo_proposto_por === user.id;
 
+  if (status === 'aceito') {
+    // Prazo já acordado — nova data entra direto, sem aprovação (apenas informativa)
+    if (!ehResponsavel && !ehAbridor && !isAdmin) {
+      return { ok: false, error: 'Somente responsáveis, quem abriu ou admins podem alterar o prazo.' };
+    }
+    return atualizarTopicoPrazo(supabase, row.id, {
+      prazo_proposto: prazo,
+      data_fim: prazo,
+      prazo_proposto_por: user.id,
+    }, row.historico, {
+      tipo: 'Prazo atualizado',
+      em: new Date().toISOString(),
+      por: user.id,
+      detalhe: prazo,
+    });
+  }
+
   let novoStatus: PrazoNegociacaoStatus;
   if (status === 'recusado' || status === 'pendente_aceite_abridor') {
     if (!ehResponsavel && !isAdmin) {
       return { ok: false, error: 'Somente o responsável pode propor um novo prazo após recusa.' };
     }
     novoStatus = 'pendente_aceite_abridor';
-  } else if (status === 'pendente_aceite_responsavel' || status === 'aceito' || status == null) {
+  } else if (status === 'pendente_aceite_responsavel' || status == null) {
     if (ehAbridor || isAdmin) {
       novoStatus = 'pendente_aceite_responsavel';
     } else if (ehResponsavel) {
@@ -337,7 +347,10 @@ export async function aceitarPrazoSubInteracaoComoAbridor(
   const prazo = dataCampoCalendarioIso(row.prazo_proposto);
   if (!prazo) return { ok: false, error: 'Prazo proposto inválido.' };
 
-  const aceite = payloadAceitarPrazoTopico(prazo);
+  const aceite = {
+    ...payloadAceitarPrazoTopico(prazo),
+    ...(row.prazo_sla_original == null ? { prazo_sla_original: prazo } : {}),
+  };
   const r = await atualizarTopicoPrazo(
     supabase,
     row.id,

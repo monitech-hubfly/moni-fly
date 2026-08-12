@@ -617,14 +617,7 @@ export function SireneChamadoDetalheModal({
                               onUpdated={onRecarregarTopicos}
                             />
                           ) : null}
-                          {t.atribuicao_status !== 'pendente_aceite' &&
-                          t.prazo_status &&
-                          (
-                            t.prazo_status !== 'aceito' ||
-                            sessionEhAdmin ||
-                            t.responsaveis_ids?.includes(currentUserId ?? '') ||
-                            t.responsavel_id === currentUserId
-                          ) ? (
+                          {t.atribuicao_status !== 'pendente_aceite' && t.prazo_status ? (
                             <PrazoNegociacaoPanel
                               topicoId={String(t.id)}
                               row={{
@@ -633,12 +626,13 @@ export function SireneChamadoDetalheModal({
                                 prazo_abridor_id: t.prazo_abridor_id ?? null,
                                 prazo_proposto_por: t.prazo_proposto_por ?? null,
                                 prazo_negociacao_expira_em: t.prazo_negociacao_expira_em ?? null,
+                                data_fim: t.data_fim ?? null,
+                                prazo_sla_original: t.prazo_sla_original ?? null,
                                 responsaveis_ids: t.responsaveis_ids,
                               }}
                               sessionUserId={currentUserId}
                               abridorId={row.criado_por ?? null}
                               isAdmin={sessionEhAdmin}
-                              atribuicaoAceita={t.atribuicao_status === 'aceito'}
                               basePath="/sirene/chamados"
                               compact
                               onUpdated={onRecarregarTopicos}

@@ -18,6 +18,7 @@ type TopicoSlaRow = {
   data_fim: string | null;
   prazo_proposto: string | null;
   prazo_status: string | null;
+  prazo_sla_original: string | null;
   status: string | null;
   responsavel_id: string | null;
   responsaveis_ids: string[] | null;
@@ -122,7 +123,7 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
   const { data: topicos, error: errTopicos } = await db
     .from('sirene_topicos')
     .select(
-      'id, interacao_id, chamado_id, nome, descricao, data_fim, prazo_proposto, prazo_status, status, responsavel_id, responsaveis_ids',
+      'id, interacao_id, chamado_id, nome, descricao, data_fim, prazo_proposto, prazo_status, prazo_sla_original, status, responsavel_id, responsaveis_ids',
     )
     .in('status', ['nao_iniciado', 'em_andamento'])
     .eq('arquivado', false)

@@ -2106,7 +2106,7 @@ export function KanbanCardModal({
                         actIds.length > 0
                           ? await supabase
                               .from('sirene_topicos')
-                              .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, arquivado, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
+                              .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, prazo_sla_original, status, trava, pastel, historico, arquivado, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
                               .eq('arquivado', false)
                               .in('interacao_id', actIds)
                               .order('ordem', { ascending: true })
@@ -2396,7 +2396,7 @@ export function KanbanCardModal({
     const supabase = createClient();
     const { data: topicosRows } = await supabase
       .from('sirene_topicos')
-      .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
+      .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, prazo_sla_original, status, trava, pastel, historico, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
       .eq('interacao_id', interacaoId)
       .order('ordem', { ascending: true });
     const topicos = topicosRows ?? [];
@@ -6305,13 +6305,13 @@ export function KanbanCardModal({
                                                   />
                                                 ) : null}
                                                 {sub.atribuicao_status !== 'pendente_aceite' &&
-                                                sub.prazo_status &&
-                                                (sub.prazo_status !== 'aceito' ||
-                                                  modalSessao.roleNorm === 'admin' ||
-                                                  modalSessao.cargoNorm === 'adm') ? (
+                                                sub.prazo_status ? (
                                                   <PrazoNegociacaoPanel
                                                     topicoId={sub.id}
-                                                    row={sub}
+                                                    row={{
+                                                      ...sub,
+                                                      prazo_sla_original: (sub as { prazo_sla_original?: string | null }).prazo_sla_original ?? null,
+                                                    }}
                                                     sessionUserId={modalSessao.userId}
                                                     abridorId={it.criado_por}
                                                     isAdmin={

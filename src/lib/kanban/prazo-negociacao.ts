@@ -14,6 +14,7 @@ export type PrazoNegociacaoCampos = {
   prazo_negociacao_expira_em?: string | null;
   data_fim?: string | null;
   data_vencimento?: string | null;
+  prazo_sla_original?: string | null;
 };
 
 const JANELA_MS = 24 * 60 * 60 * 1000;
@@ -45,12 +46,16 @@ export function normalizarPrazoStatus(
   return null;
 }
 
-/** Prazo oficial para SLA / contagem — só após aceite (`data_fim` ou `data_vencimento`). */
+/** Prazo oficial para SLA / contagem — referência imutável (prazo_sla_original) após primeiro aceite. */
 export function prazoIsoEfetivoSla(row: PrazoNegociacaoCampos): string | null {
   const status = normalizarPrazoStatus(row.prazo_status);
   if (status && status !== 'aceito') {
     return null;
   }
+  // Usa prazo_sla_original (imutável) se existir — referência fixa de atraso
+  const orig = String(row.prazo_sla_original ?? '').trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(orig)) return orig;
+
   const fim = String(row.data_fim ?? row.data_vencimento ?? '').trim().slice(0, 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(fim)) return fim;
   if (status === 'aceito') {
@@ -60,10 +65,11 @@ export function prazoIsoEfetivoSla(row: PrazoNegociacaoCampos): string | null {
   return null;
 }
 
-/** Data exibida na UI (proposta pendente ou efetiva). */
+/** Data exibida na UI (data mais recente: data_fim ou prazo_proposto). */
 export function prazoIsoExibicao(row: PrazoNegociacaoCampos): string | null {
-  const efetivo = prazoIsoEfetivoSla(row);
-  if (efetivo) return efetivo;
+  // Exibe sempre a data mais recente (data_fim ou prazo_proposto)
+  const fim = String(row.data_fim ?? row.data_vencimento ?? '').trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fim)) return fim;
   const prop = String(row.prazo_proposto ?? '').trim().slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(prop) ? prop : null;
 }
