@@ -1611,7 +1611,7 @@ export async function concluirTopico(
 
   const { data: topico, error: errT } = await supabase
     .from('sirene_topicos')
-    .select('id, chamado_id, time_responsavel, status, interacao_id, nome')
+    .select('id, chamado_id, time_responsavel, status, interacao_id, nome, descricao')
     .eq('id', topicoId)
     .single();
   if (errT || !topico) return { ok: false, error: 'Tópico não encontrado.' };
@@ -1636,12 +1636,24 @@ export async function concluirTopico(
 
   if (error) return { ok: false, error: error.message };
 
-  const { data: chamadoRef } = await supabase
-    .from('sirene_chamados')
-    .select('numero, aberto_por')
-    .eq('id', topico.chamado_id)
-    .single();
-  const numero = (chamadoRef as { numero?: number; aberto_por?: string | null } | null)?.numero ?? topico.chamado_id;
+  // Resolve sireneChamadoId: direto se chamado_id preenchido,
+  // senão via interacao_id → kanban_atividades.sirene_chamado_id
+  // (chamado_id é null para chamados criados via criarChamadoSireneComAtividade)
+  const interacaoIdRaw = String((topico as { interacao_id?: string | null }).interacao_id ?? '').trim() || null;
+  let sireneChamadoId: number | null = (topico as { chamado_id?: number | null }).chamado_id ?? null;
+  if (sireneChamadoId == null && interacaoIdRaw) {
+    const { data: ka } = await supabase
+      .from('kanban_atividades')
+      .select('sirene_chamado_id')
+      .eq('id', interacaoIdRaw)
+      .maybeSingle();
+    sireneChamadoId = (ka as { sirene_chamado_id?: number | null } | null)?.sirene_chamado_id ?? null;
+  }
+
+  const { data: chamadoRef } = sireneChamadoId != null
+    ? await supabase.from('sirene_chamados').select('numero, aberto_por').eq('id', sireneChamadoId).maybeSingle()
+    : { data: null };
+  const numero = (chamadoRef as { numero?: number; aberto_por?: string | null } | null)?.numero ?? sireneChamadoId ?? topicoId;
   const abertoPorId = (chamadoRef as { aberto_por?: string | null } | null)?.aberto_por ?? null;
 
   const bombeiros = await getUserIdsToNotify(supabase, 'bombeiro');
@@ -1649,7 +1661,7 @@ export async function concluirTopico(
     await inserirNotificacao(
       supabase,
       uid,
-      topico.chamado_id,
+      sireneChamadoId ?? topico.chamado_id,
       'topico_concluido',
       `Tópico do chamado #${numero} foi concluído pelo time.`,
     );
@@ -1657,14 +1669,14 @@ export async function concluirTopico(
 
   // Problema 1: notificar abridor do chamado no Sininho
   if (abertoPorId && abertoPorId !== me.userId) {
-    const nomeAtiv = String((topico as { nome?: string | null }).nome ?? '').trim() || 'atividade';
+    const nomeAtiv = String((topico as { nome?: string | null; descricao?: string | null }).nome ?? (topico as { descricao?: string | null }).descricao ?? '').trim() || 'atividade';
     try {
       await notificarAlertasKanbanAtividade({
         userIds: [abertoPorId],
         tipo: 'kanban_atividade_atualizada',
         mensagem: `Atividade "${nomeAtiv}" do chamado #${numero} foi concluída.`,
-        sireneChamadoId: topico.chamado_id,
-        interacaoId: (topico as { interacao_id?: string | null }).interacao_id ?? null,
+        sireneChamadoId,
+        interacaoId: interacaoIdRaw,
         topicoId: topico.id,
         excluirUserId: me.userId,
       });
@@ -1682,7 +1694,7 @@ export async function concluirTopico(
     .like('referencia_path', `%topico=${topicoId}%`);
 
   revalidatePath('/sirene');
-  revalidatePath(`/sirene/${topico.chamado_id}`);
+  revalidatePath(`/sirene/${sireneChamadoId ?? topico.chamado_id}`);
   revalidatePath('/alertas');
   return { ok: true };
 }
