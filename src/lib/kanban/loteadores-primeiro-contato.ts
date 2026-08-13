@@ -1,4 +1,4 @@
-/** Checklist da fase «Primeiro Contato» — Funil Loteadores. */
+/** Checklist da primeira fase do Funil Loteadores (display: Novo Loteador). */
 
 import { isLoteadoresChecklistCampoVisivel } from '@/lib/kanban/loteadores-checklist-visibilidade';
 
