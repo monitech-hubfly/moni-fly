@@ -1748,7 +1748,13 @@ export function KanbanCardModal({
                 juridico_ok: next.juridico_ok,
                 credito_obra_ok: next.credito_obra_ok,
               };
-              const enrichedList = await enrichCardsParalelasContext(supabase, next.kanban_id, [brief]);
+              const enrichedList = await enrichCardsParalelasContext(
+                supabase,
+                next.kanban_id,
+                [brief],
+                undefined,
+                String(kanbanNome),
+              );
               const enrichedRow = enrichedList[0];
               if (enrichedRow) {
                 next = {
@@ -5081,6 +5087,7 @@ export function KanbanCardModal({
       ? montarChipsParalelas(
           {
             kanbanId: card.kanban_id,
+            kanbanNome: String(kanbanNome),
             faseSlug: faseAtual.slug ?? '',
             faseNome: faseAtual.nome,
             faseOrdem: faseAtual.ordem,

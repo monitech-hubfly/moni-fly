@@ -3472,6 +3472,7 @@
 
 .moni-kanban-card-footer-start {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -3518,7 +3519,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-width: 0;
+  flex-shrink: 0;
   padding: 2px 6px;
   border-radius: var(--moni-radius-pill);
   background: var(--moni-surface-100);

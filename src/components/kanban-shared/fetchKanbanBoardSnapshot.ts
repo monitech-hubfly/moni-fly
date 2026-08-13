@@ -1570,8 +1570,8 @@ export async function fetchKanbanBoardSnapshot(
   if (!deferEnrichments && allCardIds.length > 0) {
     const supabaseEnrich = supabaseParaEnriquecerParalelas(supabase);
     [cards, cardsConcluidos] = await Promise.all([
-      enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cards, supabase),
-      enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cardsConcluidos, supabase),
+      enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cards, supabase, kanbanNomeDb),
+      enrichCardsParalelasContext(supabaseEnrich, kanbanIdStr, cardsConcluidos, supabase, kanbanNomeDb),
     ]);
   }
 
@@ -2011,7 +2011,7 @@ export async function fetchKanbanBoardEnrichmentPatches(
   const fases = await fetchKanbanFasesAtivasCached(supabase, kid);
 
   const supabaseEnrich = supabaseParaEnriquecerParalelas(supabase);
-  cards = await enrichCardsParalelasContext(supabaseEnrich, kid, cards, supabase);
+  cards = await enrichCardsParalelasContext(supabaseEnrich, kid, cards, supabase, kanbanNomeDb);
   cards = await enrichCardsComResponsavelFase(supabase, cards);
   cards = await enrichCardsComCalculadoraSlaEstourado(supabase, cards, kid, fases);
 

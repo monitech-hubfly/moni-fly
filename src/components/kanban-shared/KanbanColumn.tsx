@@ -597,6 +597,12 @@ export function KanbanColumn({
           const chipsParalelas = montarChipsParalelas(
             {
               kanbanId,
+              kanbanNome:
+                typeof kanbanNome === 'string' && kanbanNome.trim()
+                  ? kanbanNome
+                  : basePath === '/loteadores'
+                    ? 'Funil Loteadores'
+                    : null,
               faseSlug,
               faseNome: fase.nome,
               faseOrdem: fase.ordem,

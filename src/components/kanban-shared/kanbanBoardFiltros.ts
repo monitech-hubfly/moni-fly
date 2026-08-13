@@ -14,6 +14,7 @@ import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanCardBuscaBoardContext = {
   kanbanId: string;
+  kanbanNome?: string | null;
   fase?: KanbanFase | null;
   hipotesesOrdemMin?: number | null;
 };
@@ -275,6 +276,7 @@ export function textoVisivelCardKanbanFechado(
   const chipsParalelas = montarChipsParalelas(
     {
       kanbanId: context.kanbanId,
+      kanbanNome: context.kanbanNome,
       faseSlug,
       faseNome: fase?.nome,
       faseOrdem: fase?.ordem,

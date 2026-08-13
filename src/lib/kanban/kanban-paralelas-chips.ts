@@ -2,6 +2,8 @@ import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
+  isLoteadoresKanbanRef,
+  isPortfolioKanbanRef,
   type PortfolioParalelasFlags,
 } from '@/lib/kanban/portfolio-paralelas';
 import { nomeFunilParalela } from '@/lib/kanban/kanban-paralelas-cores';
@@ -43,6 +45,8 @@ export type CardParalelasFlags = {
 
 export type MontarChipsParalelasInput = {
   kanbanId: string;
+  /** Nome do kanban no board/modal — fallback quando o UUID do ambiente ≠ constante. */
+  kanbanNome?: string | null;
   faseSlug: string;
   /** Nome da fase atual (ex.: chip no Funil Acoplamento). */
   faseNome?: string | null;
@@ -391,19 +395,33 @@ export function stepOneExibeChipsVinculo(
   return false;
 }
 
+function ehKanbanOperacoesChips(kanbanId: string, kanbanNome?: string | null): boolean {
+  const kid = String(kanbanId ?? '').trim();
+  const nome = String(kanbanNome ?? '').trim();
+  return (
+    kid === KANBAN_IDS.OPERACOES ||
+    nome === 'Funil Operações' ||
+    nome === 'Funil Pré Obra e Obra'
+  );
+}
+
 /** Monta chips conforme kanban + fase; vazio = não renderizar linha. */
 export function montarChipsParalelas(
   input: MontarChipsParalelasInput,
   opts?: MontarChipsParalelasOptions,
 ): ParalelaChip[] {
   const kid = String(input.kanbanId ?? '').trim();
+  const nome = String(input.kanbanNome ?? '').trim() || null;
+  const ehLoteadores = isLoteadoresKanbanRef(kid, nome);
+  const ehPortfolio = isPortfolioKanbanRef(kid, nome);
+  const ehOperacoes = ehKanbanOperacoesChips(kid, nome);
   /** Cards legado do hybrid view ainda exibem bolinhas quando o enrich populou flags. */
   const origemLegadoSemChips =
     input.origem === 'legado' &&
-    kid !== KANBAN_IDS.OPERACOES &&
-    kid !== KANBAN_IDS.PORTFOLIO &&
+    !ehOperacoes &&
+    !ehPortfolio &&
     kid !== KANBAN_IDS.STEP_ONE &&
-    kid !== KANBAN_IDS.LOTEADORES;
+    !ehLoteadores;
   if (origemLegadoSemChips) return [];
   const slug = String(input.faseSlug ?? '').trim();
   const f = input.flags;
@@ -426,24 +444,25 @@ export function montarChipsParalelas(
     return chips;
   }
 
-  if (kid === KANBAN_IDS.LOTEADORES) {
+  if (ehLoteadores) {
     chips.push(...montarChipsEsteirasParalelasFixas(input, opts));
     pushChipPreObraObra(
       chips,
       input,
-      slug === FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC,
+      slug === FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC ||
+        slug === FASE_SLUGS.LOTEADORES_PASSAGEM_WAYSERS,
       opts,
     );
     return chips;
   }
 
-  if (kid === KANBAN_IDS.PORTFOLIO) {
+  if (ehPortfolio) {
     chips.push(...montarChipsEsteirasParalelasFixas(input, opts));
     pushChipPreObraObra(chips, input, slug === FASE_SLUGS.PASSAGEM_WAYSER, opts);
     return chips;
   }
 
-  if (kid === KANBAN_IDS.OPERACOES) {
+  if (ehOperacoes) {
     return montarChipsEsteirasParalelasFixas(input, opts);
   }
 
@@ -1099,6 +1118,7 @@ export async function enrichCardsParalelasContext(
   cards: KanbanCardBrief[],
   /** Cliente autenticado do usuário — RPC SECURITY DEFINER (não usar service role quebrada). */
   userClientForRpc?: SupabaseClient,
+  kanbanNome?: string | null,
 ): Promise<KanbanCardBrief[]> {
   if (cards.length === 0) return cards;
 
@@ -1141,7 +1161,7 @@ export async function enrichCardsParalelasContext(
     });
   }
 
-  if (kid === KANBAN_IDS.PORTFOLIO || kid === KANBAN_IDS.LOTEADORES) {
+  if (isPortfolioKanbanRef(kid, kanbanNome) || isLoteadoresKanbanRef(kid, kanbanNome)) {
     const cardIds = cards.map((c) => c.id).filter(Boolean);
     if (cardIds.length === 0) return cards;
 
@@ -1577,7 +1597,7 @@ export async function enrichCardsParalelasContext(
     });
   }
 
-  if (kid === KANBAN_IDS.OPERACOES) {
+  if (ehKanbanOperacoesChips(kid, kanbanNome)) {
     const cardIds = cards.map((c) => c.id).filter(Boolean);
     if (cardIds.length === 0) return cards;
 

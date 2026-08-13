@@ -380,13 +380,14 @@ export function KanbanBoard({
         c.id,
         textoVisivelCardKanbanFechado(c, {
           kanbanId,
+          kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : nomeDbParaLazy || null,
           fase,
           hipotesesOrdemMin: hipotesesOrdemMin,
         }),
       );
     }
     return map;
-  }, [poolStatus, faseMap, kanbanId, hipotesesOrdemMin]);
+  }, [poolStatus, faseMap, kanbanId, kanbanNome, nomeDbParaLazy, hipotesesOrdemMin]);
 
   const cardsFiltrados = useMemo(() => {
     const busca = buscaCard.trim();
