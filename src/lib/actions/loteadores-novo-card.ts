@@ -277,6 +277,26 @@ export async function criarCardLoteadoresComCadastro(
   await aplicarResponsavelFasePadraoAoCard(gate.supabase, cardId, faseId, kanbanId, gate.userId);
   await aplicarResponsavelDaFasePadraoSeVazio(gate.supabase, cardId, faseId, gate.userId);
 
+  let writeDb = gate.supabase;
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    writeDb = createAdminClient();
+  } catch {
+    writeDb = gate.supabase;
+  }
+  const { criarEVincularProcessoStepOneAoCard } = await import('@/lib/kanban/processo-step-one-card');
+  const processoRes = await criarEVincularProcessoStepOneAoCard(writeDb, {
+    cardId,
+    userId: gate.userId,
+    titulo,
+    nomeCondominio,
+    quadra,
+    lote,
+  });
+  if (!processoRes.ok) {
+    console.warn('[loteadores-novo-card] Falha ao vincular processo (dados do negócio):', processoRes.error);
+  }
+
   const bp = String(input.basePath ?? '/loteadores').trim() || '/loteadores';
   revalidatePath(bp);
   revalidatePath('/');

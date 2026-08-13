@@ -101,6 +101,7 @@ import {
   recusarAberturaCreditoObra,
 } from '@/lib/actions/credito-obra-abertura-automatica';
 import { garantirBastaoPassagemWayser } from '@/lib/actions/kanban-bastoes';
+import { ensureProcessoStepOneForKanbanCard } from '@/lib/actions/kanban-mapa-competidores';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import {
   aplicarDataEmissaoAlvaraNoPreObra,
@@ -1828,6 +1829,21 @@ export function KanbanCardModal({
 
           // Detalhes após sync — título/rede canônicos alimentam resolveProcessoNativo
           try {
+            let processoStepOneId =
+              String(loaded.processo_step_one_id ?? cardParaEstado.processo_step_one_id ?? '').trim() ||
+              null;
+            if (
+              origem === 'nativo' &&
+              !processoStepOneId &&
+              isLoteadoresKanbanRef(loaded.kanban_id, String(kanbanNome))
+            ) {
+              const ensured = await ensureProcessoStepOneForKanbanCard(loaded.id);
+              if (ensured.ok) {
+                processoStepOneId = ensured.processoId;
+                cardParaEstado = { ...cardParaEstado, processo_step_one_id: processoStepOneId };
+                if (stillCurrent()) setCard(cardParaEstado);
+              }
+            }
             let det = await fetchKanbanCardModalDetalhes(supabase, {
               origem,
               cardId: loaded.id,
@@ -1837,7 +1853,7 @@ export function KanbanCardModal({
                   ? cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId
                   : null,
               cardProjetoId: loaded.projeto_id ?? null,
-              cardProcessoStepOneId: loaded.processo_step_one_id ?? null,
+              cardProcessoStepOneId: processoStepOneId,
             });
             if (origem === 'nativo' && det.processo?.id) {
               const syncLinks = await reconciliarGboxPlanilhaMapaChecklist({
@@ -1852,7 +1868,7 @@ export function KanbanCardModal({
                   redeFranqueadoId:
                     cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId ?? null,
                   cardProjetoId: loaded.projeto_id ?? null,
-                  cardProcessoStepOneId: loaded.processo_step_one_id ?? null,
+                  cardProcessoStepOneId: processoStepOneId,
                 });
               }
             }
@@ -5139,7 +5155,8 @@ export function KanbanCardModal({
       },
       proc?.id,
     ) ||
-      (!proc && Boolean(card.rede_franqueado_id?.trim()) && modalSessao.ehAdminOuTeam));
+      (!proc && Boolean(card.rede_franqueado_id?.trim()) && modalSessao.ehAdminOuTeam) ||
+      (exibirDadosLoteadorPersistente && modalSessao.ehAdminOuTeam));
   const condominioIdSidebar = card.condominio_id ?? procCondominioExplicito?.condominio_id ?? null;
   const condominioIdChecklistLegal =
     card.condominio_id?.trim() || procCondominioExplicito?.condominio_id?.trim() || null;
@@ -8394,8 +8411,7 @@ export function KanbanCardModal({
                 />
               ) : (
               <div className="space-y-2">
-                {!proc ? (
-                  detalhesCarregando ? (
+                {!proc && detalhesCarregando ? (
                     <div className="space-y-2" aria-busy="true" aria-label="Carregando negócio">
                       <div
                         className="h-3 w-3/5 animate-pulse rounded"
@@ -8409,9 +8425,6 @@ export function KanbanCardModal({
                         Carregando dados de negócio…
                       </p>
                     </div>
-                  ) : (
-                  <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
-                  )
                 ) : podeEditarNegocio ? (
                   <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
@@ -8522,6 +8535,8 @@ export function KanbanCardModal({
                       </button>
                     </div>
                   </div>
+                ) : !proc ? (
+                  <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
                 ) : (
                   <>
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">

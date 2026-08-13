@@ -2485,26 +2485,28 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, user.id);
   await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
 
-  if (kanbanId === KANBAN_IDS.PORTFOLIO) {
-    let adminPortfolio: ReturnType<typeof createAdminClient> | null = null;
+  const precisaProcessoNegocio =
+    kanbanId === KANBAN_IDS.PORTFOLIO || isKanbanFunilLoteadoresRef(kanbanId, kanbanNome);
+  if (precisaProcessoNegocio) {
+    let adminProcesso: ReturnType<typeof createAdminClient> | null = null;
     try {
-      adminPortfolio = createAdminClient();
+      adminProcesso = createAdminClient();
     } catch {
-      adminPortfolio = null;
+      adminProcesso = null;
     }
-    const writeDbPortfolio = adminPortfolio ?? supabase;
+    const writeDbProcesso = adminProcesso ?? supabase;
     const { criarEVincularProcessoStepOneAoCard } = await import('@/lib/kanban/processo-step-one-card');
-    const processoRes = await criarEVincularProcessoStepOneAoCard(writeDbPortfolio, {
+    const processoRes = await criarEVincularProcessoStepOneAoCard(writeDbProcesso, {
       cardId,
       userId: user.id,
       titulo: tituloFinal,
-      nomeCondominio,
+      nomeCondominio: nomeCondominioFinal,
       quadra,
       lote,
       redeFranqueadoId: redeId || null,
     });
     if (!processoRes.ok) {
-      console.warn('[criarCard Portfolio] Falha ao vincular processo:', processoRes.error);
+      console.warn('[criarCard] Falha ao vincular processo (dados do negócio):', processoRes.error);
     }
   }
 
