@@ -142,7 +142,7 @@ export default async function AlertasPage({
   const missingInteracaoIds = [...new Set(
     [...topicoMap.values()]
       .map(t => t.interacao_id)
-      .filter((id): id is string => Boolean(id) && !atividadeEnrichMap.has(id))
+      .filter((id): id is string => id !== null && id !== '' && !atividadeEnrichMap.has(id))
   )];
   if (missingInteracaoIds.length > 0) {
     const { data: missingAtivs } = await supabase
