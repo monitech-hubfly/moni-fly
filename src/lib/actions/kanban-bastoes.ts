@@ -329,7 +329,7 @@ export async function criarCardFilho(
   const { data: cardPai, error: errPai } = await db
     .from('kanban_cards')
     .select(
-      'id, franqueado_id, titulo, nome_condominio, quadra, lote, condominio_id, rede_franqueado_id',
+      'id, franqueado_id, titulo, nome_condominio, quadra, lote, condominio_id, rede_franqueado_id, rede_loteador_id',
     )
     .eq('id', cardPaiId)
     .maybeSingle();
@@ -346,9 +346,15 @@ export async function criarCardFilho(
     lote?: string | null;
     condominio_id?: string | null;
     rede_franqueado_id?: string | null;
+    rede_loteador_id?: string | null;
   };
 
   const redeFranqueadoId = params.redeFranqueadoId ?? paiRow.rede_franqueado_id ?? null;
+  let redeLoteadorId = String(paiRow.rede_loteador_id ?? '').trim() || null;
+  if (!redeLoteadorId) {
+    const { resolverRedeLoteadorIdNaCadeia } = await import('@/lib/kanban/card-dados-laterais-pai');
+    redeLoteadorId = await resolverRedeLoteadorIdNaCadeia(db, cardPaiId);
+  }
   const nomeCondominio = paiRow.nome_condominio ?? null;
   const quadra = paiRow.quadra ?? null;
   const lote = paiRow.lote ?? null;
@@ -385,6 +391,7 @@ export async function criarCardFilho(
         lote,
         condominio_id: condominioId,
         franqueado_id: franqueadoId,
+        rede_loteador_id: redeLoteadorId,
         status: 'ativo',
         origem_card_id: cardPaiId,
         arquivado: false,
@@ -452,6 +459,7 @@ export async function criarCardFilho(
     lote,
     condominio_id: condominioId,
     franqueado_id: franqueadoId,
+    rede_loteador_id: redeLoteadorId,
     status: 'ativo',
   };
 

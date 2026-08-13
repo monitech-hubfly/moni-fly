@@ -12,6 +12,7 @@ import {
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
 import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
 import { criarRedeLoteador, atualizarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
+import { resolverRedeLoteadorIdNaCadeia } from '@/lib/kanban/card-dados-laterais-pai';
 
 export type RedeLoteadorChecklistModo = 'novo' | 'existente';
 
@@ -93,7 +94,11 @@ export async function carregarRedeLoteadorChecklistData(cardId: string): Promise
 
   if (!rows) return { ok: false, error: 'Erro ao carregar loteadores da rede.' };
 
-  const cardRedeLoteadorId = String((cardRow as { rede_loteador_id?: string | null } | null)?.rede_loteador_id ?? '').trim() || null;
+  let cardRedeLoteadorId =
+    String((cardRow as { rede_loteador_id?: string | null } | null)?.rede_loteador_id ?? '').trim() || null;
+  if (!cardRedeLoteadorId) {
+    cardRedeLoteadorId = await resolverRedeLoteadorIdNaCadeia(gate.supabase, cid);
+  }
 
   const opcoes: RedeLoteadorChecklistOpcao[] = rows
     .filter((r) => r.status !== 'inativo')

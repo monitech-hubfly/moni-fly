@@ -96,6 +96,10 @@ import {
   isPortfolioKanbanRef,
 } from '@/lib/kanban/portfolio-paralelas';
 import {
+  resolverFonteDadosLateraisCard,
+  type FonteDadosLaterais,
+} from '@/lib/kanban/card-dados-laterais-pai';
+import {
   autorizarAberturaCreditoObra,
   consultarAberturaCreditoObraPendente,
   recusarAberturaCreditoObra,
@@ -655,6 +659,7 @@ export function KanbanCardModal({
     () => new Map(),
   );
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
+  const [fonteDadosLaterais, setFonteDadosLaterais] = useState<FonteDadosLaterais | null>(null);
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>(() => ({
     calculadora: false,
     cronologia: false,
@@ -1139,6 +1144,7 @@ export function KanbanCardModal({
       setLoading(true);
       setDetalhesCarregando(true);
       setChamadosCarregando(true);
+      setFonteDadosLaterais(null);
     }
     try {
       const supabase = createClient();
@@ -1675,6 +1681,23 @@ export function KanbanCardModal({
       }
 
       if (!stillCurrent()) return;
+      try {
+        const fonte = await resolverFonteDadosLateraisCard(
+          supabase,
+          cardParaEstado.id,
+          cardParaEstado.kanban_id,
+          String(kanbanNome),
+        );
+        if (!stillCurrent()) return;
+        setFonteDadosLaterais(fonte);
+      } catch {
+        if (!stillCurrent()) return;
+        setFonteDadosLaterais(
+          isLoteadoresKanbanRef(cardParaEstado.kanban_id, String(kanbanNome))
+            ? { tipo: 'loteador', cardIdFonte: cardParaEstado.id }
+            : { tipo: 'franqueado', cardIdFonte: cardParaEstado.id },
+        );
+      }
       setCard(cardParaEstado);
       {
         const drShell = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
@@ -5006,7 +5029,13 @@ export function KanbanCardModal({
     sla_tipo: faseAtual?.sla_tipo,
   });
   const exibirDadosLoteadorPersistente =
-    !isLegado && isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome));
+    !isLegado &&
+    (fonteDadosLaterais?.tipo === 'loteador' ||
+      (!fonteDadosLaterais && isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))));
+  const cardIdDadosLoteador =
+    fonteDadosLaterais?.tipo === 'loteador' && fonteDadosLaterais.cardIdFonte
+      ? fonteDadosLaterais.cardIdFonte
+      : card.id;
   const exibirSecaoDocumentacaoCreditoObra =
     !isLegado &&
     (kanbanNome === 'Funil Crédito Obra' || kanbanNome === 'Funil Cash Me') &&
@@ -8160,7 +8189,7 @@ export function KanbanCardModal({
                   'loteador',
                   'Dados do Loteador',
                   <DadosLoteadorPersistentPanel
-                    cardId={card.id}
+                    cardId={cardIdDadosLoteador}
                     variant="sidebar"
                     onSalvo={() => {
                       void loadCard({ silencioso: true });
