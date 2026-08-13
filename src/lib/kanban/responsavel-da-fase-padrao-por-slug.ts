@@ -99,6 +99,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   cto_showroom_moni_inc: 'moni',
   passagem_waysers_moni_inc: 'moni',
   contrato_parceria_moni_inc: 'moni',
+  assinados_moni_inc: 'moni',
   // Legado (fases desativadas / slug antigo)
   batalha_casas_moni_inc: 'moni',
   r3_ajustes_finais_moni_inc: 'moni',

@@ -15,8 +15,8 @@ export type LoteadoresFaseCanon = {
 };
 
 /**
- * Esteira canônica v1 — 20 fases ativas (ordem 1–20).
- * Displays alinhados às migrations 513–517 + 521 (Novo Produto).
+ * Esteira canônica v1 — 21 fases ativas (ordem 1–21).
+ * Displays alinhados às migrations 513–517 + 521 (Novo Produto) + 525 (Assinados).
  */
 export const LOTEADORES_FASES_CANONICAS: readonly LoteadoresFaseCanon[] = [
   { ordem: 1, slug: FASE_SLUGS.LOTEADORES_PRIMEIRO_CONTATO, nome: 'Novo Loteador', slaDias: 1 },
@@ -39,6 +39,7 @@ export const LOTEADORES_FASES_CANONICAS: readonly LoteadoresFaseCanon[] = [
   { ordem: 18, slug: FASE_SLUGS.LOTEADORES_CTO_SHOWROOM, nome: 'Cto Showroom', slaDias: 3 },
   { ordem: 19, slug: FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC, nome: 'Passagem para Waysers', slaDias: 1 },
   { ordem: 20, slug: FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA, nome: 'Cto de Parceria', slaDias: 3 },
+  { ordem: 21, slug: FASE_SLUGS.LOTEADORES_ASSINADOS, nome: 'Assinados', slaDias: null },
 ] as const;
 
 /** Fases inativas no banco — mantidas no código para compat / histórico. */
@@ -80,7 +81,7 @@ export const LOTEADORES_FASES_DEPRECATED: readonly LoteadoresFaseCanon[] = [
   },
 ] as const;
 
-/** Slugs na ordem canônica das 20 fases ativas. */
+/** Slugs na ordem canônica das 21 fases ativas. */
 export const LOTEADORES_FASES_ORDEM_SLUGS: readonly string[] = LOTEADORES_FASES_CANONICAS.map(
   (f) => f.slug,
 );
@@ -126,7 +127,7 @@ export function ordenarFasesLoteadoresCanonicas<T extends { slug?: string | null
 /**
  * Fases elegíveis para KPIs / funil do Painel de Performance (Loteadores).
  * Exclui `ativo === false` e slugs deprecated (Batalha, R3, Moní Capital, SPE, fechar_contrato).
- * Ordena pela esteira canônica de 20 fases.
+ * Ordena pela esteira canônica de 21 fases.
  */
 export function fasesAtivasPainelLoteadores<
   T extends { slug?: string | null; ordem: number; ativo?: boolean },

@@ -11,6 +11,7 @@ const SLUGS_APROVADO_TERMINAL = new Set<string>([
 
 const SLUGS_FASE_CONCLUSAO_EXPLICITOS = new Set<string>([
   FASE_SLUGS.PASSAGEM_WAYSER,
+  FASE_SLUGS.LOTEADORES_ASSINADOS,
   FASE_SLUGS.OPERACOES_ENTREGUE,
   FASE_SLUGS.PL_PAGAMENTOS,
   FASE_SLUGS.PL_C_PROJETO_APROVADO,
@@ -39,7 +40,7 @@ export function isFaseConclusaoKanban(fase: {
   if (!nome) return false;
   if (/^paralisados?$/.test(nome)) return true;
   if (nome === 'aprovado') return true;
-  if (nome.includes('passagem') && nome.includes('wayser')) return true;
+  if (nome === 'assinados') return true;
   if (nome.includes('conclu')) return true;
   if (/\breprovado\b/.test(nome)) return true;
 

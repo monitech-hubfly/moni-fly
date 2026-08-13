@@ -97,7 +97,7 @@ export const FASE_SLUGS = {
   /** Fase do Funil Portfólio — dispara bastão para Funil Acoplamento. */
   ACOPLAMENTO: 'acoplamento',
 
-  // ─── Funil Loteadores (esteira v1 — 20 fases ativas) ───────────────────────
+  // ─── Funil Loteadores (esteira v1 — 21 fases ativas) ───────────────────────
   LOTEADORES_PRIMEIRO_CONTATO: 'primeiro_contato_moni_inc',
   LOTEADORES_R1_CONCEITO: 'r1_conceito_moni_inc',
   /** Alias pedido — NDA. */
@@ -139,6 +139,9 @@ export const FASE_SLUGS = {
   PASSAGEM_WAYSERS_MONI_INC: 'passagem_waysers_moni_inc',
   LOTEADORES_PASSAGEM_WAYSERS: 'passagem_waysers_moni_inc',
   LOTEADORES_CONTRATO_PARCERIA: 'contrato_parceria_moni_inc',
+  /** Fase terminal de conclusão. */
+  ASSINADOS_MONI_INC: 'assinados_moni_inc',
+  LOTEADORES_ASSINADOS: 'assinados_moni_inc',
 
   /** @deprecated Fase inativa (esteira v1) — Batalha de Casas. */
   LOTEADORES_BATALHA_CASAS: 'batalha_casas_moni_inc',

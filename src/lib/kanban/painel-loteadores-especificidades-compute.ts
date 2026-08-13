@@ -165,7 +165,7 @@ export function computeLoteadoresEspecificidades(input: {
   loteadoresFieldsAvailable?: boolean;
 }): PainelLoteadoresEspecificidades | null {
   const historicoPorCard = buildHistoricoPorCard(input.historicoMovimentos);
-  /** Esteira v1: 20 fases ativas, ordem canônica; sem fases `ativo=false` / deprecated. */
+  /** Esteira v1: 21 fases ativas, ordem canônica; sem fases `ativo=false` / deprecated. */
   const fasesOrd = fasesAtivasPainelLoteadores(input.fases);
   const faseIdsAtivas = new Set(fasesOrd.map((f) => f.id));
   const conversaoCtx = buildConversaoContext(fasesOrd);
