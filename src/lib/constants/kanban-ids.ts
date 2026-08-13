@@ -96,22 +96,58 @@ export const FASE_SLUGS = {
   APROVACAO_CONDOMINIO: 'aprovacao_condominio',
   /** Fase do Funil Portfólio — dispara bastão para Funil Acoplamento. */
   ACOPLAMENTO: 'acoplamento',
-  /** Funil Loteadores — fase Acoplamento (mesmas regras de esteira que Portfólio). */
-  LOTEADORES_ACOPLAMENTO: 'acoplamento_moni_inc',
-  /** Funil Loteadores — fase Dados do Loteador (legado; pode estar renomeada «Viabilidade»). */
-  LOTEADORES_DADOS_LOTEADOR: 'dados_loteador_moni_inc',
-  /** Funil Loteadores — fase Viabilidade (slug preferido; ver LOTEADORES_VIABILIDADE_SLUGS). */
+
+  // ─── Funil Loteadores (esteira v1 — 19 fases ativas) ───────────────────────
+  LOTEADORES_PRIMEIRO_CONTATO: 'primeiro_contato_moni_inc',
+  LOTEADORES_R1_CONCEITO: 'r1_conceito_moni_inc',
+  /** Alias pedido — NDA. */
+  NDA_MONI_INC: 'nda_moni_inc',
+  LOTEADORES_NDA: 'nda_moni_inc',
+  /** Alias pedido — Opção. */
+  OPCAO_MONI_INC: 'opcao_moni_inc',
+  LOTEADORES_OPCAO: 'opcao_moni_inc',
+  /** Alias pedido — Aguardando Ficha. */
+  AGUARDANDO_FICHA_MONI_INC: 'aguardando_ficha_moni_inc',
+  LOTEADORES_AGUARDANDO_FICHA: 'aguardando_ficha_moni_inc',
   LOTEADORES_VIABILIDADE: 'viabilidade_moni_inc',
-  /** Funil Loteadores — Execução do Material. */
+  /** Funil Loteadores — Dados do Loteador (legado; preferir VIABILIDADE). */
+  LOTEADORES_DADOS_LOTEADOR: 'dados_loteador_moni_inc',
+  LOTEADORES_ACOPLAMENTO: 'acoplamento_moni_inc',
   LOTEADORES_EXECUCAO_MATERIAL: 'execucao_material_moni_inc',
-  /** Funil Loteadores — Batalha de Casas (estrutura futura). */
-  LOTEADORES_BATALHA_CASAS: 'batalha_casas_moni_inc',
-  /** Funil Loteadores — Revisões. */
+  /** Alias pedido — Validação. */
+  VALIDACAO_MONI_INC: 'validacao_moni_inc',
+  LOTEADORES_VALIDACAO: 'validacao_moni_inc',
+  LOTEADORES_R2_PLANO_TEORICO: 'r2_plano_teorico_moni_inc',
   LOTEADORES_REVISOES: 'revisoes_moni_inc',
-  /** Funil Loteadores — gate de esteira Acoplamento antes do Comitê. */
+  /** Alias pedido — Acoplamento + Gbox. */
+  ACOPLAMENTO_GBOX_MONI_INC: 'acoplamento_gbox_moni_inc',
+  LOTEADORES_ACOPLAMENTO_GBOX: 'acoplamento_gbox_moni_inc',
   LOTEADORES_COMITE: 'comite_moni_inc',
-  /** Funil Loteadores — diligência antes de Moní Capital. */
+  /** Alias pedido — Revisões pós-Comitê. */
+  REVISOES_POS_COMITE_MONI_INC: 'revisoes_pos_comite_moni_inc',
+  LOTEADORES_REVISOES_POS_COMITE: 'revisoes_pos_comite_moni_inc',
+  /** Alias pedido — Cto c/ Precedentes. */
+  CTO_PRECEDENTES_MONI_INC: 'cto_precedentes_moni_inc',
+  LOTEADORES_CTO_PRECEDENTES: 'cto_precedentes_moni_inc',
   LOTEADORES_DILIGENCIA: 'diligencia_moni_inc',
+  /** Cto Showroom (ex-fechar_contrato_moni_inc). */
+  LOTEADORES_CTO_SHOWROOM: 'cto_showroom_moni_inc',
+  /** Alias pedido — Passagem para Waysers. */
+  PASSAGEM_WAYSERS_MONI_INC: 'passagem_waysers_moni_inc',
+  LOTEADORES_PASSAGEM_WAYSERS: 'passagem_waysers_moni_inc',
+  LOTEADORES_CONTRATO_PARCERIA: 'contrato_parceria_moni_inc',
+
+  /** @deprecated Fase inativa (esteira v1) — Batalha de Casas. */
+  LOTEADORES_BATALHA_CASAS: 'batalha_casas_moni_inc',
+  /** @deprecated Fase inativa (esteira v1) — R3 Ajustes Finais. */
+  LOTEADORES_R3_AJUSTES_FINAIS: 'r3_ajustes_finais_moni_inc',
+  /** @deprecated Fase inativa (esteira v1) — Moní Capital. */
+  LOTEADORES_MONI_CAPITAL: 'moni_capital_moni_inc',
+  /** @deprecated Fase inativa (esteira v1) — Abertura da SPE. */
+  LOTEADORES_ABERTURA_SPE: 'abertura_spe_moni_inc',
+  /** @deprecated Slug antigo de Cto Showroom. */
+  LOTEADORES_FECHAR_CONTRATO: 'fechar_contrato_moni_inc',
+
   /** Funil Acoplamento — primeira fase (entrada). */
   ACOPLAMENTO_NOVO: 'novo_acoplamento',
   /** Funil Acoplamento — gate Gbox/Acoplamento antes de avançar. */
@@ -272,7 +308,17 @@ export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
   contrato: [FASE_SLUGS.STEP_7],
 } as const;
 
-/** Set Up (Step One), Portfólio, Loteadores e Pré Obra e Obra — vínculo manual para qualquer funil destino. */
+/** Funil Loteadores — slugs que disparam popup «Assinou?» ao sair da fase (esteira v1 / migration 511). */
+export const LOTEADORES_FASES_CONFIRMACAO_SAIDA = {
+  opcao: [FASE_SLUGS.LOTEADORES_OPCAO],
+  cto_precedentes: [FASE_SLUGS.LOTEADORES_CTO_PRECEDENTES],
+  cto_showroom: [FASE_SLUGS.LOTEADORES_CTO_SHOWROOM],
+  cto_parceria: [FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA],
+} as const;
+
+/** Set Up (Step One), Portfólio, Loteadores e Pré Obra e Obra — vínculo manual para qualquer funil destino.
+ *  (IDs de kanban — não é lista de fases. Ordem canônica das fases Loteadores: `LOTEADORES_FASES_CANONICAS`.)
+ */
 export const KANBANS_VINCULO_MANUAL_LIVRE = [
   KANBAN_IDS.STEP_ONE,
   KANBAN_IDS.PORTFOLIO,

@@ -1,4 +1,4 @@
-/** Checklist da fase «R1 Executada — Conceito» — Funil Loteadores. */
+/** Checklist da fase «R1 Conceito» — Funil Loteadores. */
 
 export const LOTEADORES_R1_CONCEITO_FASE_SLUG = 'r1_conceito_moni_inc' as const;
 

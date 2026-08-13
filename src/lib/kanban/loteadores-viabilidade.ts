@@ -1,4 +1,4 @@
-/** Checklist da fase «Viabilidade» — Funil Loteadores. */
+/** Checklist da fase «Viabilidade / Premissas» — Funil Loteadores. */
 
 export const LOTEADORES_VIABILIDADE_FASE_SLUGS = [
   'viabilidade_moni_inc',

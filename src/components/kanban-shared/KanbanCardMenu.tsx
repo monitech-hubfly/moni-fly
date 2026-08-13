@@ -7,6 +7,7 @@ import { Archive, ArrowRight, MoreHorizontal, RotateCcw, TrendingDown, TrendingU
 import {
   arquivarCard,
   moverCardParaFase,
+  registrarConfirmacaoFaseLoteadores,
   registrarPerda,
   registrarGanho,
   buscarMotivosPerda,
@@ -19,6 +20,12 @@ import {
   formatMotivoArquivamento,
   isMotivoArquivamentoOutro,
 } from '@/lib/kanban/motivos-arquivamento';
+import {
+  deveConfirmarSaidaFaseLoteadores,
+  loteadoresAssinouTituloPorSlug,
+  loteadoresConfirmacaoTitulo,
+  type LoteadoresConfirmacaoFaseTipo,
+} from '@/lib/kanban/loteadores-confirmacao-fase';
 
 const PERDA_GANHO_ENABLED = true;
 
@@ -29,6 +36,9 @@ type Props = {
   origem?: 'legado' | 'nativo';
   basePath: string;
   kanbanNome?: string;
+  kanbanId?: string;
+  /** Slug da fase atual do card (para pop-up Assinou?). */
+  faseAtualSlug?: string | null;
   /** Próxima fase ativa do funil (por `ordem`). `null` quando o card já está na última fase. */
   proximaFase: ProximaFase | null;
   cardArquivado?: boolean;
@@ -44,6 +54,8 @@ export function KanbanCardMenu({
   origem = 'nativo',
   basePath,
   kanbanNome,
+  kanbanId,
+  faseAtualSlug = null,
   proximaFase,
   cardArquivado = false,
   cardResultado = null,
@@ -60,6 +72,10 @@ export function KanbanCardMenu({
   const [erro, setErro] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [assinouPendente, setAssinouPendente] = useState<{
+    tipo: LoteadoresConfirmacaoFaseTipo;
+    titulo: string;
+  } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -115,7 +131,7 @@ export function KanbanCardMenu({
     setAberto(true);
   }
 
-  function handleAvancar() {
+  function executarAvancar() {
     if (!proximaFase) return;
     setErro(null);
     startTransition(async () => {
@@ -129,8 +145,48 @@ export function KanbanCardMenu({
         window.alert(res.error ?? 'Não foi possível avançar o card de fase.');
         return;
       }
+      setAssinouPendente(null);
       setAberto(false);
       router.refresh();
+    });
+  }
+
+  function handleAvancar() {
+    if (!proximaFase) return;
+    const tipo = deveConfirmarSaidaFaseLoteadores({
+      kanbanId,
+      faseSlug: faseAtualSlug,
+      origemCard: origem,
+      direcao: 'avancar',
+    });
+    if (tipo) {
+      setAssinouPendente({
+        tipo,
+        titulo:
+          loteadoresAssinouTituloPorSlug(faseAtualSlug) ?? loteadoresConfirmacaoTitulo(tipo),
+      });
+      return;
+    }
+    executarAvancar();
+  }
+
+  function confirmarAssinou(confirmou: boolean) {
+    if (!confirmou) {
+      setAssinouPendente(null);
+      return;
+    }
+    if (!assinouPendente) return;
+    startTransition(async () => {
+      const reg = await registrarConfirmacaoFaseLoteadores({
+        cardId,
+        tipo: assinouPendente.tipo,
+        basePath,
+      });
+      if (!reg.ok) {
+        window.alert(reg.error ?? 'Não foi possível registrar a confirmação.');
+        return;
+      }
+      executarAvancar();
     });
   }
 
@@ -427,6 +483,60 @@ export function KanbanCardMenu({
         <MoreHorizontal className="h-4 w-4" aria-hidden />
       </button>
       {typeof document !== 'undefined' && dropdown ? createPortal(dropdown, document.body) : null}
+      {assinouPendente && typeof document !== 'undefined'
+        ? createPortal(
+            <div className="fixed inset-0 z-[230] flex items-center justify-center bg-black/50 p-4">
+              <div
+                className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+                role="dialog"
+                aria-modal="true"
+                style={{
+                  borderRadius: 'var(--moni-radius-lg)',
+                  border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3
+                  className="text-base font-semibold"
+                  style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
+                >
+                  {assinouPendente.titulo}
+                </h3>
+                <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+                  Confirme se o documento foi assinado para avançar de fase.
+                </p>
+                <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => confirmarAssinou(false)}
+                    className="min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium"
+                    style={{
+                      borderRadius: 'var(--moni-radius-md)',
+                      border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                      color: 'var(--moni-text-secondary)',
+                    }}
+                  >
+                    Não
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => confirmarAssinou(true)}
+                    className="min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium text-white"
+                    style={{
+                      borderRadius: 'var(--moni-radius-md)',
+                      background: 'var(--moni-navy-800)',
+                    }}
+                  >
+                    {pending ? 'Salvando…' : 'Sim'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

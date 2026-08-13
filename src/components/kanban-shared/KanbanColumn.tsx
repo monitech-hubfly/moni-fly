@@ -49,6 +49,13 @@ import {
 } from '@/lib/kanban/kanban-sla-justificativa';
 import { obterJustificativaSlaFase } from '@/lib/actions/kanban-sla-justificativa';
 import { KanbanSlaJustificativaModal } from './KanbanSlaJustificativaModal';
+import { registrarConfirmacaoFaseLoteadores } from '@/lib/actions/card-actions';
+import {
+  deveConfirmarSaidaFaseLoteadores,
+  loteadoresAssinouTituloPorSlug,
+  loteadoresConfirmacaoTitulo,
+  type LoteadoresConfirmacaoFaseTipo,
+} from '@/lib/kanban/loteadores-confirmacao-fase';
 import { fundingTipoBadgeClass } from '@/lib/kanban/funding-card-fields';
 import { ProximaAtividadeDot } from './ProximaAtividadeDot';
 import type { KanbanCardBrief, KanbanFase, KanbanProximaAtividadeAberta } from './types';
@@ -112,6 +119,13 @@ type SlaModalPendente = {
   faseDestinoNome: string;
   justificativaExistente: string | null;
   obrigatoria: boolean;
+};
+
+type AssinouModalPendente = {
+  payload: DragPayload;
+  beforeCardId: string | null;
+  tipo: LoteadoresConfirmacaoFaseTipo;
+  titulo: string;
 };
 
 function cardArquivadoVisual(card: KanbanCardBrief): boolean {
@@ -196,6 +210,8 @@ export function KanbanColumn({
   const [tagsRemovidas, setTagsRemovidas] = useState<Set<string>>(() => new Set());
   const [slaModalPendente, setSlaModalPendente] = useState<SlaModalPendente | null>(null);
   const [slaJustificativaDraft, setSlaJustificativaDraft] = useState('');
+  const [assinouModalPendente, setAssinouModalPendente] = useState<AssinouModalPendente | null>(null);
+  const [salvandoAssinou, setSalvandoAssinou] = useState(false);
 
   useEffect(() => {
     setTagsRemovidas(new Set());
@@ -361,6 +377,27 @@ export function KanbanColumn({
     const movimentoPosterior = fase.ordem > fromOrdem;
     const fromSlug = (payload.fromFaseSlug || '').trim();
 
+    // Funil Loteadores — pop-up «Assinou?» ao sair das fases de contrato/opção
+    if (payload.origem === 'nativo' && fromSlug !== (faseSlug || '').trim()) {
+      const tipoAssinou = deveConfirmarSaidaFaseLoteadores({
+        kanbanId: payload.kanbanId || kanbanId,
+        faseSlug: fromSlug,
+        origemCard: 'nativo',
+        direcao: 'avancar',
+      });
+      if (tipoAssinou) {
+        setAssinouModalPendente({
+          payload,
+          beforeCardId,
+          tipo: tipoAssinou,
+          titulo:
+            loteadoresAssinouTituloPorSlug(fromSlug) ??
+            loteadoresConfirmacaoTitulo(tipoAssinou),
+        });
+        return;
+      }
+    }
+
     if (origem === 'nativo' && movimentoPosterior && payload.created_at) {
       const slaOrigem = calcularSlaKanbanCard({
         created_at: payload.created_at,
@@ -416,6 +453,33 @@ export function KanbanColumn({
     setSlaModalPendente(null);
     setSlaJustificativaDraft('');
     executarMovimentoEntreFases(pendente.payload, pendente.beforeCardId, textoFinal);
+  };
+
+  const confirmarAssinouDrop = (confirmou: boolean) => {
+    if (!assinouModalPendente) return;
+    if (!confirmou) {
+      setAssinouModalPendente(null);
+      return;
+    }
+    const pendente = assinouModalPendente;
+    setSalvandoAssinou(true);
+    void (async () => {
+      try {
+        const res = await registrarConfirmacaoFaseLoteadores({
+          cardId: pendente.payload.cardId,
+          tipo: pendente.tipo,
+          basePath,
+        });
+        if (!res.ok) {
+          alert(res.error ?? 'Não foi possível registrar a confirmação.');
+          return;
+        }
+        setAssinouModalPendente(null);
+        executarMovimentoEntreFases(pendente.payload, pendente.beforeCardId);
+      } finally {
+        setSalvandoAssinou(false);
+      }
+    })();
   };
 
   const handleDrop = (e: DragEvent<HTMLDivElement>, beforeCardId: string | null) => {
@@ -796,6 +860,8 @@ export function KanbanColumn({
                         origem={card.origem === 'legado' ? 'legado' : 'nativo'}
                         basePath={basePath}
                         kanbanNome={typeof kanbanNome === 'string' ? kanbanNome : undefined}
+                        kanbanId={kanbanId}
+                        faseAtualSlug={faseSlug || null}
                         proximaFase={proximaFaseFunil}
                         cardArquivado={arquivado}
                         cardResultado={resultado}
@@ -839,6 +905,58 @@ export function KanbanColumn({
       }}
       onConfirm={confirmarJustificativaSlaDrop}
     />
+    {assinouModalPendente ? (
+      <div className="fixed inset-0 z-[225] flex items-center justify-center bg-black/50 p-4">
+        <div
+          className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="assinou-loteadores-titulo"
+          style={{
+            borderRadius: 'var(--moni-radius-lg)',
+            border: 'var(--moni-border-width) solid var(--moni-border-default)',
+          }}
+        >
+          <h3
+            id="assinou-loteadores-titulo"
+            className="text-base font-semibold"
+            style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
+          >
+            {assinouModalPendente.titulo}
+          </h3>
+          <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+            Confirme se o documento foi assinado para avançar de fase.
+          </p>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={salvandoAssinou || pending}
+              onClick={() => confirmarAssinouDrop(false)}
+              className="min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium"
+              style={{
+                borderRadius: 'var(--moni-radius-md)',
+                border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                color: 'var(--moni-text-secondary)',
+              }}
+            >
+              Não
+            </button>
+            <button
+              type="button"
+              disabled={salvandoAssinou || pending}
+              onClick={() => confirmarAssinouDrop(true)}
+              className="min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium text-white"
+              style={{
+                borderRadius: 'var(--moni-radius-md)',
+                background: 'var(--moni-navy-800)',
+              }}
+            >
+              {salvandoAssinou || pending ? 'Salvando…' : 'Sim'}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
     </>
   );
 }

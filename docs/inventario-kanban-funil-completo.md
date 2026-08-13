@@ -28,7 +28,7 @@
 | Funil Acoplamento | `/funil-acoplamento` | `15847602-…` | 6+ | Shared | Gate modelagem Gbox; fases Aprovado/Reprovado/Paralisados; tag no pai |
 | Funil Contabilidade | `/painel-contabilidade` | `26d1c83c-…` | 4 | **Híbrido** (legado + nativo) | Query param `kanbanCard`; bastão de volta `contabilidade_ok` |
 | Funil Cash Me | `/funil-credito-obra` | `6463af1d-…` | 25 | **Híbrido** | SLA pausado em documentação; tranches 2ª–6ª; bastões de volta |
-| Funil Loteadores | `/loteadores`, `/funil-moni-inc` | `3e7b6ec7-…` | 14+ | Custom | Link externo; SLA justificativa; bastão Acoplamento; **gate Comitê exige Acoplamento**; título por condomínio |
+| Funil Loteadores | `/loteadores`, `/funil-moni-inc` | `3e7b6ec7-…` | 19 | Custom | Esteira v1; NDA/Opção/Ficha; link externo; SLA justificativa; bastão Acoplamento (+ Gbox); **gate Comitê exige acoplamento_concluido**; pop-ups Assinou?; título por cadastro |
 | Funil Operações | `/operacoes` | `f6bba1de-…` | ~10 | Shared | Pré-obra `prev_*`; tranche vínculos; abertura automática Cash Me |
 | Funil Jurídico | `/funil-juridico` | `35fb5c8d-…` | 3+ | Shared | Spawn manual/automático; interno |
 | Funil Divify | `/funil-moni-capital` | `724aef36-…` | 9 | Shared | Conta Bancária + checklist 464; nomes/instruções 465; interno |

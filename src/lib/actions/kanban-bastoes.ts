@@ -952,7 +952,11 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     [FASE_SLUGS.ACOPLAMENTO]: [
       { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
     ],
+    /** Funil Loteadores — Acoplamento (ordem 7) e Acoplamento + Gbox (ordem 12). */
     [FASE_SLUGS.LOTEADORES_ACOPLAMENTO]: [
+      { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
+    ],
+    [FASE_SLUGS.LOTEADORES_ACOPLAMENTO_GBOX]: [
       { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
     ],
     [FASE_SLUGS.STEP_7]: [

@@ -1,4 +1,6 @@
 import { calcularDiasUteis, calcularStatusSLAPorTipo } from '@/lib/dias-uteis';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { fasesAtivasPainelLoteadores } from '@/lib/kanban/funil-loteadores';
 import { computePainelChamados } from '@/lib/kanban/painel-chamados-compute';
 import { computeConversionFunnelTree } from '@/lib/kanban/painel-funnel-tree-compute';
 import { computeGargaloScoreRanking } from '@/lib/kanban/painel-gargalo-score-compute';
@@ -28,6 +30,17 @@ import type {
   PainelPeriodKey,
   PainelRetrocessoDTO,
 } from '@/lib/kanban/painel-performance-types';
+
+/** Normaliza fases do painel: Loteadores = 19 ativas (ordem canônica, sem `ativo=false`). */
+function fasesOrdParaPainel(
+  kanbanId: string | null | undefined,
+  fases: PainelFaseDTO[],
+): PainelFaseDTO[] {
+  if (kanbanId === KANBAN_IDS.LOTEADORES) {
+    return fasesAtivasPainelLoteadores(fases);
+  }
+  return [...fases].sort((a, b) => a.ordem - b.ordem);
+}
 
 export function periodSinceMs(key: PainelPeriodKey): number | null {
   if (key === 'all') return null;
@@ -367,7 +380,8 @@ export type ComputePainelPerformanceInput = {
 /** Métricas principais do painel (operação, conversão, gargalos, chamados, insights). */
 export function computePainelPerformance(input: ComputePainelPerformanceInput): PainelPerformanceResult {
   const sinceMs = periodSinceMs(input.period);
-  const fasesOrd = [...input.fases].sort((a, b) => a.ordem - b.ordem);
+  const fasesOrd = fasesOrdParaPainel(input.kanbanId, input.fases);
+  const faseIdsAtivas = new Set(fasesOrd.map((f) => f.id));
   const faseById = new Map(fasesOrd.map((f) => [f.id, f]));
   const conversaoCtx = buildConversaoContext(fasesOrd);
   const convFases = fasesOrd.filter((f) => f.fase_conversao);
@@ -384,7 +398,10 @@ export function computePainelPerformance(input: ComputePainelPerformanceInput): 
   const cardsPeriodo = cardsAnalise.filter((c) =>
     cardInAnalysisPeriod(c, sinceMs, historicoAnalisePorCard),
   );
-  const cardsAtivos = input.cards.filter(cardAtivo);
+  /** Loteadores: KPIs de ativos ignoram cards órfãos em fases `ativo=false`. */
+  const cardsAtivos = input.cards.filter(
+    (c) => cardAtivo(c) && (input.kanbanId !== KANBAN_IDS.LOTEADORES || faseIdsAtivas.has(c.fase_id)),
+  );
   const cardsEntraram = cardsPeriodo.filter((c) => {
     if (sinceMs === null) return true;
     const cr = new Date(c.created_at).getTime();
@@ -764,7 +781,7 @@ export function computePainelPerformance(input: ComputePainelPerformanceInput): 
   );
 
   const gargaloScores = computeGargaloScoreRanking({
-    fases: input.fases,
+    fases: fasesOrd,
     cards: input.cards,
     historicoMovimentos: input.historicoMovimentos,
     chamadosAbertosPorFase,
@@ -780,7 +797,7 @@ export function computePainelPerformance(input: ComputePainelPerformanceInput): 
   const chamadosAnalise = computePainelChamados({
     chamados: input.chamados,
     cards: input.cards,
-    fases: input.fases,
+    fases: fasesOrd,
     profiles: input.profiles,
     gargaloRanking: gargaloScores,
   });
@@ -793,7 +810,7 @@ export function computePainelPerformance(input: ComputePainelPerformanceInput): 
   const funnelTree = computeConversionFunnelTree({
     mode: input.mode ?? 'nativo',
     period: input.period,
-    fases: input.fases,
+    fases: fasesOrd,
     cards: cardsAnalise,
     historicoMovimentos: historicoAnalise,
   });
@@ -801,7 +818,7 @@ export function computePainelPerformance(input: ComputePainelPerformanceInput): 
   const insights = computePainelInsights({
     period: input.period,
     mode: input.mode ?? 'nativo',
-    fases: input.fases,
+    fases: fasesOrd,
     cards: cardsAnalise,
     historicoMovimentos: historicoAnalise,
     operacaoPorFase: porFaseAtivos.map((f) => ({

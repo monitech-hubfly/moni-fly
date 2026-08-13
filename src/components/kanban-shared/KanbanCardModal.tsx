@@ -58,6 +58,7 @@ import {
   moverCardParaFase,
   registrarConfirmacaoFaseOperacoes,
   registrarConfirmacaoFasePortfolio,
+  registrarConfirmacaoFaseLoteadores,
   registrarContratoCondicoesPrecedentesPortfolio,
   verificarGateComiteLoteadores,
   listarTagsCard,
@@ -118,6 +119,11 @@ import {
   operacoesConfirmacaoPergunta,
   type OperacoesConfirmacaoFaseTipo,
 } from '@/lib/kanban/operacoes-confirmacao-fase';
+import {
+  deveConfirmarSaidaFaseLoteadores,
+  loteadoresConfirmacaoTitulo,
+  type LoteadoresConfirmacaoFaseTipo,
+} from '@/lib/kanban/loteadores-confirmacao-fase';
 import {
   deveExibirModalJustificativaSla,
   justificativaSlaObrigatoria,
@@ -859,8 +865,8 @@ export function KanbanCardModal({
   } | null>(null);
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
   const [modalConfirmacaoPortfolio, setModalConfirmacaoPortfolio] = useState<{
-    dominio: 'portfolio' | 'operacoes';
-    tipo: PortfolioConfirmacaoModalTipo | OperacoesConfirmacaoFaseTipo;
+    dominio: 'portfolio' | 'operacoes' | 'loteadores';
+    tipo: PortfolioConfirmacaoModalTipo | OperacoesConfirmacaoFaseTipo | LoteadoresConfirmacaoFaseTipo;
     destinoFase: KanbanFase;
     direcao: 'avancar' | 'retroceder';
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string };
@@ -2793,9 +2799,12 @@ export function KanbanCardModal({
     }
   }
 
-  function tipoConfirmacaoSaidaAtual():
+  function tipoConfirmacaoSaidaAtual(
+    direcao: 'avancar' | 'retroceder' = 'avancar',
+  ):
     | { dominio: 'portfolio'; tipo: PortfolioConfirmacaoFaseTipo }
     | { dominio: 'operacoes'; tipo: OperacoesConfirmacaoFaseTipo }
+    | { dominio: 'loteadores'; tipo: LoteadoresConfirmacaoFaseTipo }
     | null {
     if (!card || isLegado) return null;
     const portfolio = deveConfirmarSaidaFasePortfolio({
@@ -2810,12 +2819,29 @@ export function KanbanCardModal({
       origemCard: origem,
     });
     if (operacoes) return { dominio: 'operacoes', tipo: operacoes };
+    const loteadores = deveConfirmarSaidaFaseLoteadores({
+      kanbanId: card.kanban_id,
+      faseSlug: faseAtual?.slug,
+      origemCard: origem,
+      direcao,
+    });
+    if (loteadores) return { dominio: 'loteadores', tipo: loteadores };
     return null;
+  }
+
+  function tituloConfirmacaoSaida(modal: NonNullable<typeof modalConfirmacaoPortfolio>): string {
+    if (modal.dominio === 'loteadores') {
+      return loteadoresConfirmacaoTitulo(modal.tipo as LoteadoresConfirmacaoFaseTipo);
+    }
+    return 'Confirmação';
   }
 
   function perguntaConfirmacaoSaida(modal: NonNullable<typeof modalConfirmacaoPortfolio>): string {
     if (modal.dominio === 'operacoes') {
       return operacoesConfirmacaoPergunta(modal.tipo as OperacoesConfirmacaoFaseTipo);
+    }
+    if (modal.dominio === 'loteadores') {
+      return 'Confirme se o documento foi assinado para avançar de fase.';
     }
     return portfolioConfirmacaoModalPergunta(modal.tipo as PortfolioConfirmacaoModalTipo);
   }
@@ -2825,7 +2851,7 @@ export function KanbanCardModal({
     direcao: 'avancar' | 'retroceder',
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string },
   ) {
-    const confirmacaoSaida = tipoConfirmacaoSaidaAtual();
+    const confirmacaoSaida = tipoConfirmacaoSaidaAtual(direcao);
     if (confirmacaoSaida) {
       setModalJustificativaSla(null);
       setSlaJustificativaDraft('');
@@ -2863,6 +2889,13 @@ export function KanbanCardModal({
   async function concluirConfirmacaoPortfolio(confirmou: boolean) {
     const modal = modalConfirmacaoPortfolio;
     if (!modal || !card) return;
+
+    // Funil Loteadores (Prompt 9): «Não» cancela o avanço; «Sim» registra e avança.
+    if (modal.dominio === 'loteadores' && !confirmou) {
+      setModalConfirmacaoPortfolio(null);
+      return;
+    }
+
     setSalvandoConfirmacaoPortfolio(true);
     try {
       if (modal.dominio === 'portfolio' && modal.tipo === 'condicoes_precedentes') {
@@ -2886,11 +2919,17 @@ export function KanbanCardModal({
                 tipo: modal.tipo as OperacoesConfirmacaoFaseTipo,
                 basePath,
               })
-            : await registrarConfirmacaoFasePortfolio({
-                cardId: card.id,
-                tipo: modal.tipo as PortfolioConfirmacaoFaseTipo,
-                basePath,
-              });
+            : modal.dominio === 'loteadores'
+              ? await registrarConfirmacaoFaseLoteadores({
+                  cardId: card.id,
+                  tipo: modal.tipo as LoteadoresConfirmacaoFaseTipo,
+                  basePath,
+                })
+              : await registrarConfirmacaoFasePortfolio({
+                  cardId: card.id,
+                  tipo: modal.tipo as PortfolioConfirmacaoFaseTipo,
+                  basePath,
+                });
         if (!res.ok) {
           alert(res.error ?? 'Não foi possível registrar a confirmação.');
           return;
@@ -9097,11 +9136,17 @@ export function KanbanCardModal({
             className="text-base font-semibold"
             style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
           >
-            Confirmação
+            {tituloConfirmacaoSaida(modalConfirmacaoPortfolio)}
           </h3>
-          <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-            {perguntaConfirmacaoSaida(modalConfirmacaoPortfolio)}
-          </p>
+          {modalConfirmacaoPortfolio.dominio !== 'loteadores' ? (
+            <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+              {perguntaConfirmacaoSaida(modalConfirmacaoPortfolio)}
+            </p>
+          ) : (
+            <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+              {perguntaConfirmacaoSaida(modalConfirmacaoPortfolio)}
+            </p>
+          )}
           <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
             <button
               type="button"
@@ -9115,7 +9160,7 @@ export function KanbanCardModal({
                 background: 'var(--moni-surface-elevated, #fff)',
               }}
             >
-              Não — apenas avançar
+              {modalConfirmacaoPortfolio.dominio === 'loteadores' ? 'Não' : 'Não — apenas avançar'}
             </button>
             <button
               type="button"

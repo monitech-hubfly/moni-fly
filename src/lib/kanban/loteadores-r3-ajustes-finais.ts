@@ -1,4 +1,7 @@
-/** Checklist da fase «R3 — Ajustes Finais nas Propostas» — Funil Loteadores. */
+/**
+ * @deprecated Fase inativa na esteira v1 (cards movidos para Revisões + Forma Pgto).
+ * Checklist da fase «R3 — Ajustes Finais nas Propostas» — Funil Loteadores.
+ */
 
 export const LOTEADORES_R3_AJUSTES_FINAIS_FASE_SLUG = 'r3_ajustes_finais_moni_inc' as const;
 

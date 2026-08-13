@@ -102,6 +102,39 @@ import {
   isLoteadoresContratoFaseSlug,
 } from '@/lib/kanban/loteadores-contrato';
 import {
+  isLoteadoresNdaCampoVisivel,
+  isLoteadoresNdaFaseSlug,
+} from '@/lib/kanban/loteadores-nda';
+import {
+  isLoteadoresOpcaoCampoVisivel,
+  isLoteadoresOpcaoFaseSlug,
+} from '@/lib/kanban/loteadores-opcao';
+import {
+  isLoteadoresAguardandoFichaCampoVisivel,
+  isLoteadoresAguardandoFichaFaseSlug,
+} from '@/lib/kanban/loteadores-aguardando-ficha';
+import {
+  isLoteadoresValidacaoCampoVisivel,
+  isLoteadoresValidacaoFaseSlug,
+} from '@/lib/kanban/loteadores-validacao';
+import {
+  isLoteadoresAcoplamentoGboxCampoVisivel,
+  isLoteadoresAcoplamentoGboxFaseSlug,
+  LOTEADORES_ACOPLAMENTO_GBOX_NOTA,
+} from '@/lib/kanban/loteadores-acoplamento-gbox';
+import {
+  isLoteadoresRevisoesPosComiteCampoVisivel,
+  isLoteadoresRevisoesPosComiteFaseSlug,
+} from '@/lib/kanban/loteadores-revisoes-pos-comite';
+import {
+  isLoteadoresCtoPrecedentesCampoVisivel,
+  isLoteadoresCtoPrecedentesFaseSlug,
+} from '@/lib/kanban/loteadores-cto-precedentes';
+import {
+  isLoteadoresPassagemWaysersCampoVisivel,
+  isLoteadoresPassagemWaysersFaseSlug,
+} from '@/lib/kanban/loteadores-passagem-waysers';
+import {
   isLoteadoresR2PlanoTeoricoCampoVisivel,
   isLoteadoresR2PlanoTeoricoFaseSlug,
 } from '@/lib/kanban/loteadores-r2-plano-teorico';
@@ -783,6 +816,13 @@ export function FaseChecklistCard({
   }
 
   if (!itens || itens.length === 0) {
+    if (isLoteadoresAcoplamentoGboxFaseSlug(faseSlug)) {
+      return (
+        <p className="text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
+          {LOTEADORES_ACOPLAMENTO_GBOX_NOTA}
+        </p>
+      );
+    }
     if (ocultarVazio) return null;
     return (
       <p className="text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
@@ -797,8 +837,16 @@ export function FaseChecklistCard({
     .filter((it) => !isChecklistItemOcultoUi(it))
     .filter((it) => !isLoteadoresPrimeiroContatoFaseSlug(faseSlug) || isLoteadoresPrimeiroContatoCampoVisivel(it))
     .filter((it) => !isLoteadoresR1ConceitoFaseSlug(faseSlug) || isLoteadoresR1ConceitoCampoVisivel(it))
+    .filter((it) => !isLoteadoresNdaFaseSlug(faseSlug) || isLoteadoresNdaCampoVisivel(it))
+    .filter((it) => !isLoteadoresOpcaoFaseSlug(faseSlug) || isLoteadoresOpcaoCampoVisivel(it))
+    .filter((it) => !isLoteadoresAguardandoFichaFaseSlug(faseSlug) || isLoteadoresAguardandoFichaCampoVisivel(it))
     .filter((it) => !isLoteadoresExecucaoMaterialFaseSlug(faseSlug) || isLoteadoresExecucaoMaterialCampoVisivel(it))
+    .filter((it) => !isLoteadoresValidacaoFaseSlug(faseSlug) || isLoteadoresValidacaoCampoVisivel(it))
     .filter((it) => !isLoteadoresR2PlanoTeoricoFaseSlug(faseSlug) || isLoteadoresR2PlanoTeoricoCampoVisivel(it))
+    .filter((it) => !isLoteadoresAcoplamentoGboxFaseSlug(faseSlug) || isLoteadoresAcoplamentoGboxCampoVisivel(it))
+    .filter((it) => !isLoteadoresRevisoesPosComiteFaseSlug(faseSlug) || isLoteadoresRevisoesPosComiteCampoVisivel(it))
+    .filter((it) => !isLoteadoresCtoPrecedentesFaseSlug(faseSlug) || isLoteadoresCtoPrecedentesCampoVisivel(it))
+    .filter((it) => !isLoteadoresPassagemWaysersFaseSlug(faseSlug) || isLoteadoresPassagemWaysersCampoVisivel(it))
     .filter((it) => !(ocultarRedeLoteadorChecklist && isLoteadoresComiteFaseSlug(faseSlug)) || isLoteadoresComiteCampoVisivel(it))
     .filter((it) => !(ocultarRedeLoteadorChecklist && isLoteadoresRevisoesFaseSlug(faseSlug)) || isLoteadoresRevisoesCampoVisivel(it))
     .filter((it) => !(ocultarRedeLoteadorChecklist && isLoteadoresR3AjustesFinaisFaseSlug(faseSlug)) || isLoteadoresR3AjustesFinaisCampoVisivel(it))
@@ -808,6 +856,14 @@ export function FaseChecklistCard({
   const itensDadosCidade = multiPracaAtivo
     ? itensFiltrados.filter((it) => !CHECKLIST_ITENS_OCULTOS_MULTI_PRACA.has(it.label.trim()))
     : itensFiltrados;
+
+  if (itensFiltrados.length === 0 && isLoteadoresAcoplamentoGboxFaseSlug(faseSlug)) {
+    return (
+      <p className="text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
+        {LOTEADORES_ACOPLAMENTO_GBOX_NOTA}
+      </p>
+    );
+  }
 
   function resolverPracaSessao(chavePraca?: string): PracaCidade | null {
     if (multiPracaAtivo) {

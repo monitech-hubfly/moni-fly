@@ -50,7 +50,7 @@ export function deveValidarGateLoteadoresComite(
 }
 
 export function mensagemGateLoteadoresComite(): string {
-  return 'Não é possível avançar para o Comitê. Esteira pendente: Acoplamento.';
+  return 'Não é possível avançar para o Comitê. Esteira pendente: Acoplamento + Gbox.';
 }
 
 /** Card pai no Funil Portfólio / Loteadores / Operações (ou filho com origem nesses funis). */
@@ -154,6 +154,17 @@ export async function resolverCardPaiPortfolioParaAcoplamento(
   return null;
 }
 
+/**
+ * Bastão automático Acoplamento: ao **entrar** nestas fases do Funil Loteadores,
+ * spawna card filho em Funil Acoplamento (`modelagem_terreno`).
+ * Ambas mantidas (esteira v1): `acoplamento_moni_inc` e `acoplamento_gbox_moni_inc`.
+ * `criarCardFilho` é idempotente — se já houver filho ativo, não duplica.
+ */
+export const LOTEADORES_FASES_BASTAO_ACOPLAMENTO = [
+  FASE_SLUGS.LOTEADORES_ACOPLAMENTO,
+  FASE_SLUGS.LOTEADORES_ACOPLAMENTO_GBOX,
+] as const;
+
 /** Bastão automático: fase Acoplamento no Funil Portfólio ou Funil Loteadores. */
 export function deveDispararBastaoAcoplamentoAutomatico(
   novaFaseSlug: string,
@@ -162,7 +173,12 @@ export function deveDispararBastaoAcoplamentoAutomatico(
   const slug = String(novaFaseSlug ?? '').trim();
   const kid = String(kanbanPaiId ?? '').trim();
   if (slug === FASE_SLUGS.ACOPLAMENTO && kid === KANBAN_IDS.PORTFOLIO) return true;
-  if (slug === FASE_SLUGS.LOTEADORES_ACOPLAMENTO && kid === KANBAN_IDS.LOTEADORES) return true;
+  if (
+    kid === KANBAN_IDS.LOTEADORES &&
+    (LOTEADORES_FASES_BASTAO_ACOPLAMENTO as readonly string[]).includes(slug)
+  ) {
+    return true;
+  }
   return false;
 }
 
