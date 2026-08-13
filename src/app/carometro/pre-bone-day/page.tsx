@@ -1678,8 +1678,7 @@ function PreBoneDayPageContent() {
         }
       } else if (restantes.length === 0) {
         // Ninguém mais → reset todos os indicadores da meta para null
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase.from('indicadores') as any).update({ profile_id: null }).eq('objetivo_id', objetivoId);
+        await (supabase.from('indicadores') as any).update({ profile_id: null }).eq('objetivo_id', objetivoId); // eslint-disable-line
       }
     } else {
       // ASSUMINDO

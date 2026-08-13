@@ -936,8 +936,7 @@ export function MetasIndicadoresBloco() {
         }
       } else if (restantes.length === 0) {
         // Ninguém mais → reset indicadores
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase.from('indicadores') as any).update({ profile_id: null })
+        await (supabase.from('indicadores') as any).update({ profile_id: null }) // eslint-disable-line
           .eq('objetivo_id', objetivoId);
       }
     } else {
