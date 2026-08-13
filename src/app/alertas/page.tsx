@@ -111,11 +111,11 @@ export default async function AlertasPage({
 
   const [atividadesRes, topicosRes, cardsRes] = await Promise.all([
     interacaoIds.length > 0
-      ? supabase.from('kanban_atividades').select('id, sirene_chamado_id, descricao, data_vencimento').in('id', interacaoIds)
-      : Promise.resolve({ data: [] as { id: string; sirene_chamado_id: number | null; descricao: string | null; data_vencimento: string | null }[] }),
+      ? supabase.from('kanban_atividades').select('id, sirene_chamado_id, descricao, data_vencimento, titulo, card_id').in('id', interacaoIds)
+      : Promise.resolve({ data: [] as { id: string; sirene_chamado_id: number | null; descricao: string | null; data_vencimento: string | null; titulo: string | null; card_id: string | null }[] }),
     topicoIds.length > 0
-      ? supabase.from('sirene_topicos').select('id, descricao_detalhe, descricao').in('id', topicoIds)
-      : Promise.resolve({ data: [] as { id: number; descricao_detalhe: string | null; descricao: string | null }[] }),
+      ? supabase.from('sirene_topicos').select('id, descricao_detalhe, descricao, interacao_id').in('id', topicoIds)
+      : Promise.resolve({ data: [] as { id: number; descricao_detalhe: string | null; descricao: string | null; interacao_id: string | null }[] }),
     cardIds.length > 0
       ? supabase.from('kanban_cards').select('id, nome_condominio, quadra, lote, profiles(full_name)').in('id', cardIds)
       : Promise.resolve({ data: [] as { id: string; nome_condominio: string | null; quadra: string | null; lote: string | null; profiles: { full_name: string | null } | null }[] }),
@@ -126,16 +126,40 @@ export default async function AlertasPage({
     atividadeMap.set(a.id, a.sirene_chamado_id);
   }
 
-  type AtividadeEnrich = { id: string; descricao: string | null; data_vencimento: string | null };
+  type AtividadeEnrich = { id: string; descricao: string | null; data_vencimento: string | null; titulo: string | null; card_id: string | null };
   const atividadeEnrichMap = new Map<string, AtividadeEnrich>();
-  for (const av of (atividadesRes.data ?? []) as { id: string; descricao: string | null; data_vencimento: string | null }[]) {
-    atividadeEnrichMap.set(av.id, { id: av.id, descricao: av.descricao, data_vencimento: av.data_vencimento });
+  for (const av of (atividadesRes.data ?? []) as { id: string; descricao: string | null; data_vencimento: string | null; titulo: string | null; card_id: string | null }[]) {
+    atividadeEnrichMap.set(av.id, { id: av.id, descricao: av.descricao, data_vencimento: av.data_vencimento, titulo: av.titulo, card_id: av.card_id });
   }
 
-  type TopicoEnrich = { descricao_detalhe: string | null; descricao: string | null };
+  type TopicoEnrich = { descricao_detalhe: string | null; descricao: string | null; interacao_id: string | null };
   const topicoMap = new Map<number, TopicoEnrich>();
-  for (const t of (topicosRes.data ?? []) as { id: number; descricao_detalhe: string | null; descricao: string | null }[]) {
-    topicoMap.set(t.id, { descricao_detalhe: t.descricao_detalhe, descricao: t.descricao });
+  for (const t of (topicosRes.data ?? []) as { id: number; descricao_detalhe: string | null; descricao: string | null; interacao_id: string | null }[]) {
+    topicoMap.set(t.id, { descricao_detalhe: t.descricao_detalhe, descricao: t.descricao, interacao_id: t.interacao_id ?? null });
+  }
+
+  // Buscar atividades que só chegam via tópico (path tem ?topico= mas não ?interacao=)
+  const missingInteracaoIds = [...new Set(
+    [...topicoMap.values()]
+      .map(t => t.interacao_id)
+      .filter((id): id is string => Boolean(id) && !atividadeEnrichMap.has(id))
+  )];
+  if (missingInteracaoIds.length > 0) {
+    const { data: missingAtivs } = await supabase
+      .from('kanban_atividades')
+      .select('id, sirene_chamado_id, descricao, data_vencimento, titulo, card_id')
+      .in('id', missingInteracaoIds);
+    for (const ma of (missingAtivs ?? []) as { id: string; sirene_chamado_id: number | null; descricao: string | null; data_vencimento: string | null; titulo: string | null; card_id: string | null }[]) {
+      atividadeMap.set(ma.id, ma.sirene_chamado_id);
+      atividadeEnrichMap.set(ma.id, { id: ma.id, descricao: ma.descricao, data_vencimento: ma.data_vencimento, titulo: ma.titulo, card_id: ma.card_id });
+    }
+  }
+
+  // Card IDs de atividades puras (sem sirene_chamado_id) para exibir contexto do funil
+  const atividadeCardIdsSet = new Set<string>();
+  for (const enrich of atividadeEnrichMap.values()) {
+    const sid = atividadeMap.get(enrich.id);
+    if (sid == null && enrich.card_id) atividadeCardIdsSet.add(enrich.card_id);
   }
 
   const chamadoIdsSet = new Set<number>();
@@ -152,6 +176,23 @@ export default async function AlertasPage({
       .in('id', [...chamadoIdsSet]);
     for (const c of (chamados ?? []) as { id: number; numero: number | null; aberto_por_nome: string | null; card_kanban_nome: string | null; card_titulo: string | null; prioridade: string | null; card_id: string | null }[]) {
       chamadoMap.set(c.id, { numero: c.numero, aberto_por_nome: c.aberto_por_nome, card_kanban_nome: c.card_kanban_nome, card_titulo: c.card_titulo, prioridade: c.prioridade, card_id: c.card_id });
+    }
+  }
+
+  // Buscar funil/título do card para atividades puras (sem chamado Sirene)
+  type AtividadeCardEnrich = { id: string; titulo: string | null; kanban_nome: string | null };
+  const atividadeCardMap = new Map<string, AtividadeCardEnrich>();
+  if (atividadeCardIdsSet.size > 0) {
+    const { data: atividadeCards } = await supabase
+      .from('kanban_cards')
+      .select('id, titulo, kanbans(nome)')
+      .in('id', [...atividadeCardIdsSet]);
+    for (const ac of (atividadeCards ?? []) as unknown as { id: string; titulo: string | null; kanbans: { nome: string | null }[] | null }[]) {
+      atividadeCardMap.set(ac.id, {
+        id: ac.id,
+        titulo: ac.titulo,
+        kanban_nome: ac.kanbans?.[0]?.nome ?? null,
+      });
     }
   }
 
@@ -425,10 +466,14 @@ export default async function AlertasPage({
               const interacaoId = parseQsParam(basePath, 'interacao');
               const topicoIdStr = parseQsParam(basePath, 'topico');
               const topicoIdNum = topicoIdStr ? Number(topicoIdStr) : null;
-              const sireneChamadoId = interacaoId ? (atividadeMap.get(interacaoId) ?? null) : null;
+              const topicoData = topicoIdNum && Number.isFinite(topicoIdNum) ? topicoMap.get(topicoIdNum) : undefined;
+              const effectiveInteracaoId = interacaoId || (topicoData?.interacao_id ?? null);
+              const sireneChamadoId = effectiveInteracaoId ? (atividadeMap.get(effectiveInteracaoId) ?? null) : null;
               const chamadoEnrich = sireneChamadoId != null ? (chamadoMap.get(sireneChamadoId) ?? null) : null;
               const faseEnrich = chamadoEnrich?.card_id ? faseMap.get(chamadoEnrich.card_id) : null;
-              const topicoData = topicoIdNum && Number.isFinite(topicoIdNum) ? topicoMap.get(topicoIdNum) : undefined;
+              const atividadeEnrichData = effectiveInteracaoId ? atividadeEnrichMap.get(effectiveInteracaoId) : null;
+              const atividadeCardEnrich = (!chamadoEnrich && !cardId && atividadeEnrichData?.card_id)
+                ? atividadeCardMap.get(atividadeEnrichData.card_id) : null;
               const descricaoTexto = topicoData
                 ? (topicoData.descricao_detalhe?.trim() || topicoData.descricao?.trim() || '')
                 : null;
@@ -476,7 +521,7 @@ export default async function AlertasPage({
                   )}
 
                   {/* Linha 2.5: enriquecimento sirene */}
-                  {cat === 'sirene' && (chamadoEnrich || topicoData !== undefined) ? (
+                  {cat === 'sirene' && (chamadoEnrich || atividadeCardEnrich || topicoData !== undefined) ? (
                     <div className="mb-3 space-y-1">
                       {chamadoEnrich ? (
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-stone-500">
@@ -522,6 +567,15 @@ export default async function AlertasPage({
                             >
                               {chamadoEnrich.prioridade}
                             </span>
+                          )}
+                        </div>
+                      ) : atividadeCardEnrich ? (
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-stone-500">
+                          {atividadeCardEnrich.kanban_nome && (
+                            <span>{atividadeCardEnrich.kanban_nome}</span>
+                          )}
+                          {atividadeCardEnrich.titulo && (
+                            <span className="text-stone-400">Card: <span className="font-medium text-stone-500">{atividadeCardEnrich.titulo}</span></span>
                           )}
                         </div>
                       ) : null}
