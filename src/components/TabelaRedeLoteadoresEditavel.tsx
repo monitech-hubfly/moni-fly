@@ -335,36 +335,36 @@ export function TabelaRedeLoteadoresEditavel({
         Edição pela ficha completa. Role horizontalmente para ver todas as seções.
       </p>
 
-      <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
-        <table className="w-full min-w-[2200px] border-collapse text-left text-sm">
+      <MoniTabelaScrollSync className="rounded-xl border border-[color:var(--moni-border-default)] bg-[color:var(--moni-surface-50)] shadow-sm">
+        <table className="moni-tabela-loteadores w-full min-w-[2200px] border-collapse bg-[color:var(--moni-surface-50)] text-left text-sm">
           <thead>
-            <tr className="border-b border-stone-200 bg-stone-100/90">
+            <tr className="border-b border-[color:var(--moni-border-default)]">
               {SECOES.map((secao, idx) => (
                 <th
                   key={secao.id}
                   colSpan={secao.colunas.length}
                   scope="colgroup"
-                  className={`px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-700 ${
-                    idx > 0 ? 'border-l border-stone-300' : ''
+                  className={`px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-primary)] ${
+                    idx > 0 ? 'border-l border-[color:var(--moni-border-default)]' : ''
                   }`}
                 >
                   {secao.titulo}
                 </th>
               ))}
               <th
-                className="sticky right-0 z-20 w-28 min-w-[7rem] border-l border-stone-300 bg-stone-100 px-1 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-700"
+                className="sticky right-0 z-20 w-28 min-w-[7rem] border-l border-[color:var(--moni-border-default)] px-1 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-primary)]"
                 scope="colgroup"
               >
                 Ações
               </th>
             </tr>
-            <tr className="border-b border-stone-200 bg-stone-50/95">
+            <tr className="border-b border-[color:var(--moni-border-default)]">
               {SECOES.map((secao, idx) =>
                 secao.colunas.map((col, colIdx) => (
                   <th
                     key={col.key}
                     className={`${redeTh} whitespace-nowrap ${
-                      idx > 0 && colIdx === 0 ? 'border-l border-stone-200' : ''
+                      idx > 0 && colIdx === 0 ? 'border-l border-[color:var(--moni-border-default)]' : ''
                     }`}
                     style={col.minWidth ? { minWidth: col.minWidth } : undefined}
                     scope="col"
@@ -374,7 +374,7 @@ export function TabelaRedeLoteadoresEditavel({
                 )),
               )}
               <th
-                className="sticky right-0 z-20 w-28 min-w-[7rem] border-l border-stone-200 bg-stone-50 px-1 py-2 text-center"
+                className="sticky right-0 z-20 w-28 min-w-[7rem] border-l border-[color:var(--moni-border-default)] px-1 py-2 text-center"
                 scope="col"
               >
                 <span className="sr-only">Ações</span>
@@ -384,7 +384,7 @@ export function TabelaRedeLoteadoresEditavel({
           <tbody>
             {semLinhas ? (
               <tr>
-                <td colSpan={TOTAL_DATA_COLS + 1} className="px-3 py-10 text-center text-sm text-stone-500">
+                <td colSpan={TOTAL_DATA_COLS + 1} className="px-3 py-10 text-center text-sm text-[color:var(--moni-text-tertiary)]">
                   {buscaAtiva && totalGeral > 0
                     ? 'Nenhum loteador encontrado para esta pesquisa.'
                     : 'Nenhum loteador cadastrado ainda. Clique em “Novo Loteador” para adicionar o primeiro.'}
@@ -392,26 +392,26 @@ export function TabelaRedeLoteadoresEditavel({
               </tr>
             ) : (
               pageRows.map((r) => (
-                <tr key={r.id} className="group border-b border-stone-100 align-top hover:bg-stone-50/70">
+                <tr key={r.id} className="group border-b border-[color:var(--moni-border-default)] align-top">
                   {SECOES.map((secao, idx) =>
                     secao.colunas.map((col, colIdx) => (
                       <td
                         key={`${r.id}-${col.key}`}
-                        className={`px-3 py-2.5 text-stone-700 ${
-                          col.key === 'nome' ? 'font-medium text-stone-900' : ''
-                        } ${idx > 0 && colIdx === 0 ? 'border-l border-stone-100' : ''}`}
+                        className={`px-3 py-2.5 text-[color:var(--moni-text-secondary)] ${
+                          col.key === 'nome' ? 'font-medium text-[color:var(--moni-text-primary)]' : ''
+                        } ${idx > 0 && colIdx === 0 ? 'border-l border-[color:var(--moni-border-default)]' : ''}`}
                       >
                         {col.render(r)}
                       </td>
                     )),
                   )}
-                  <td className="sticky right-0 z-10 border-l border-stone-200 bg-white px-1 py-2 align-middle group-hover:bg-stone-50/90">
-                    <div className="flex items-center justify-center gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                  <td className="sticky right-0 z-10 border-l border-[color:var(--moni-border-default)] px-1 py-2 align-middle">
+                    <div className="flex items-center justify-center gap-1">
                       <button
                         type="button"
                         title="Abrir ficha completa"
                         onClick={() => setFicha({ mode: 'edit', row: r })}
-                        className="inline-flex rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80"
+                        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[var(--moni-radius-md)] p-1.5 text-[color:var(--moni-text-secondary)] hover:bg-[color:var(--moni-surface-100)]"
                       >
                         <ClipboardList className="h-4 w-4" />
                         <span className="sr-only">Ficha</span>
@@ -422,7 +422,7 @@ export function TabelaRedeLoteadoresEditavel({
                           title="Arquivar"
                           onClick={() => void arquivar(r.id)}
                           disabled={saving}
-                          className="rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80 disabled:opacity-50"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[var(--moni-radius-md)] p-1.5 text-[color:var(--moni-text-secondary)] hover:bg-[color:var(--moni-surface-100)] disabled:opacity-50"
                         >
                           <Archive className="h-4 w-4" />
                           <span className="sr-only">Arquivar</span>
