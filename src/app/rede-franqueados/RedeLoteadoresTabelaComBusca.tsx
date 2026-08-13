@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { TabelaRedeLoteadoresEditavel } from '@/components/TabelaRedeLoteadoresEditavel';
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
-import { ordenarRedeLoteadoresPorNome, redeLoteadorRowMatchesBusca, type RedeLoteadorRow } from '@/lib/rede-loteadores';
+import { ordenarRedeLoteadoresPorCodigo, redeLoteadorRowMatchesBusca, type RedeLoteadorRow } from '@/lib/rede-loteadores';
 
 type Props = {
   rows: RedeLoteadorRow[];
@@ -17,7 +17,7 @@ export function RedeLoteadoresTabelaComBusca({ rows, children, solicitarCriacao 
   const rowsFiltradas = useMemo(() => {
     const q = busca.trim();
     const base = q ? rows.filter((r) => redeLoteadorRowMatchesBusca(r, q)) : rows;
-    return ordenarRedeLoteadoresPorNome(base);
+    return ordenarRedeLoteadoresPorCodigo(base);
   }, [rows, busca]);
 
   return (

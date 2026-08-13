@@ -94,10 +94,42 @@ export function redeLoteadorRowMatchesBusca(row: RedeLoteadorRow, busca: string)
   return parts.some((p) => normalizarParaBuscaLoteador(String(p ?? '')).includes(q));
 }
 
+/** Número da coluna Código (`LT0001` / `LO0006` / `0003`). Sem código válido → null. */
+export function numeroCodigoLoteador(row: Pick<RedeLoteadorRow, 'codigo' | 'n_loteador' | 'ordem'>): number | null {
+  for (const raw of [row.codigo, row.n_loteador]) {
+    const s = String(raw ?? '').trim().toUpperCase();
+    if (!s) continue;
+    const m = s.match(/^(?:LO|LT)?(\d+)$/);
+    if (!m?.[1]) continue;
+    const n = Number.parseInt(m[1], 10);
+    if (Number.isFinite(n)) return n;
+  }
+  if (row.ordem != null && Number.isFinite(row.ordem) && row.ordem > 0) return row.ordem;
+  return null;
+}
+
+/** Ordem crescente pelo número do código (1, 2, 3…). Sem código vai para o fim. */
+export function ordenarRedeLoteadoresPorCodigo(rows: RedeLoteadorRow[]): RedeLoteadorRow[] {
+  return [...rows].sort((a, b) => {
+    const na = numeroCodigoLoteador(a);
+    const nb = numeroCodigoLoteador(b);
+    if (na == null && nb == null) {
+      return (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR', { sensitivity: 'base' });
+    }
+    if (na == null) return 1;
+    if (nb == null) return -1;
+    if (na !== nb) return na - nb;
+    return String(a.codigo ?? a.n_loteador ?? '').localeCompare(
+      String(b.codigo ?? b.n_loteador ?? ''),
+      'pt-BR',
+      { numeric: true, sensitivity: 'base' },
+    );
+  });
+}
+
+/** @deprecated Preferir `ordenarRedeLoteadoresPorCodigo`. */
 export function ordenarRedeLoteadoresPorNome(rows: RedeLoteadorRow[]): RedeLoteadorRow[] {
-  return [...rows].sort((a, b) =>
-    (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR', { sensitivity: 'base' }),
-  );
+  return ordenarRedeLoteadoresPorCodigo(rows);
 }
 
 function parseIntOrNull(v: unknown): number | null {
@@ -168,9 +200,9 @@ function mapRow(r: Record<string, unknown>): RedeLoteadorRow {
 export async function fetchRedeLoteadoresRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeLoteadorRow[] | null> {
-  const { data, error } = await supabase.from('rede_loteadores').select('*').order('nome', { ascending: true });
+  const { data, error } = await supabase.from('rede_loteadores').select('*');
   if (error) return null;
-  return ordenarRedeLoteadoresPorNome((data ?? []).map((r) => mapRow(r as Record<string, unknown>)));
+  return ordenarRedeLoteadoresPorCodigo((data ?? []).map((r) => mapRow(r as Record<string, unknown>)));
 }
 
 export async function fetchRedeLoteadorRowById(

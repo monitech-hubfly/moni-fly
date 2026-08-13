@@ -7,7 +7,7 @@ import { RedeLoteadorFichaModal } from '@/components/RedeLoteadorFichaModal';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import {
   REDE_LOTEADOR_STATUS_LABEL,
-  ordenarRedeLoteadoresPorNome,
+  ordenarRedeLoteadoresPorCodigo,
   type RedeLoteadorRow,
   type RedeLoteadorStatus,
 } from '@/lib/rede-loteadores';
@@ -298,7 +298,7 @@ export function TabelaRedeLoteadoresEditavel({
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [ficha, setFicha] = useState<FichaState>(null);
 
-  const rowsOrdenadas = useMemo(() => ordenarRedeLoteadoresPorNome(rows), [rows]);
+  const rowsOrdenadas = useMemo(() => ordenarRedeLoteadoresPorCodigo(rows), [rows]);
   const totalGeral = totalSemBusca ?? rows.length;
   const pageRows = useMemo(() => rowsOrdenadas.slice(start, start + PER_PAGE), [rowsOrdenadas, start]);
   const semLinhas = pageRows.length === 0;
