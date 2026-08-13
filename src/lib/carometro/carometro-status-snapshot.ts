@@ -198,9 +198,13 @@ export async function gerarSnapshotCarometro(
   const proxVenceHoje  = proximasAbertosArr.filter(c => c.prazo_atividade === hojeStr).length;
   const proxAtrasadas  = proximasAbertosArr.filter(c => c.prazo_atividade && c.prazo_atividade < hojeStr).length;
   const proxConcluidos = proximasConcluidosArr.length;
-  const proxDenominador = proxConcluidos + proxAtrasadas;
+  // Cards sem próxima atividade mapeada = penaliza (todo card ativo deveria ter uma)
+  const cardsSemProxima = kanbanArr.length - proximasAbertosArr.length;
+  // Denominador: concluídos + atrasadas + vence hoje + sem próxima mapeada.
+  // Cards com prazo futuro não entram na conta de hoje.
+  const proxDenominador = proxConcluidos + proxAtrasadas + proxVenceHoje + cardsSemProxima;
   const scoreProximas = proxDenominador === 0
-    ? (kanbanArr.length === 0 ? 100 : 0)  // sem cards = 100%; tem cards mas sem próximas = 0%
+    ? 100  // sem cards ou todos com próximas futuras = 100%
     : Math.max(0, Math.round((proxConcluidos / proxDenominador) * 100));
 
   // Score combinado = média dos sub-scores não-null (pesos iguais)
