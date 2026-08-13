@@ -3796,8 +3796,8 @@
   color: var(--moni-navy-600);
 }
 
-/* Tabelas largas — scroll X+Y no wrap (freeze panes: cabeçalho + colunas).
-   max-height vem de --moni-tabela-scroll-max-height (MoniTabelaScrollSync). */
+/* Tabelas largas — scroll X no wrap; Y interno após título/abas saírem da tela.
+   Só o thead gruda (freeze panes). max-height: --moni-tabela-scroll-max-height. */
 .moni-tabela-scroll-wrap {
   width: 100%;
   max-width: 100%;
