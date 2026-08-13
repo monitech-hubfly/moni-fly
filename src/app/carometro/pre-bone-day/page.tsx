@@ -657,10 +657,12 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   );
 }
 
-function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, onUpdate, onConcluir, onExcluir, objetivoResponsaveis, currentUserId, currentUserEmail, podeEditarMeta, onToggleResponsavel, onAssumirProjeto }: {
+function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, onUpdate, onConcluir, onConcluirIndividual, onExcluir, objetivoResponsaveis, currentUserId, currentUserEmail, podeEditarMeta, onToggleResponsavel, onAssumirProjeto }: {
   meta: MetaItem; indicadores: IndicadorBone[]; responsaveis: ResponsavelItem[];
   isAdmin: boolean; areaId: string; onUpdate: () => void;
-  onConcluir: (id: string) => Promise<void>; onExcluir: (id: string) => Promise<void>;
+  onConcluir: (id: string) => Promise<void>;
+  onConcluirIndividual: (id: string, reabrir?: boolean) => Promise<void>;
+  onExcluir: (id: string) => Promise<void>;
   objetivoResponsaveis: ObjetivoResponsavel[];
   currentUserId: string | null;
   currentUserEmail: string | null;
@@ -776,9 +778,9 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                 const nome = responsaveis.find(p => p.profile_id === r.profile_id)?.nome ?? '?';
                 return (
                   <span key={r.profile_id}
-                    className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold flex items-center justify-center flex-shrink-0"
-                    title={nome}>
-                    {nome.charAt(0).toUpperCase()}
+                    className={`w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center flex-shrink-0 ${r.concluido ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}
+                    title={`${nome}${r.concluido ? ' ✓ concluído' : ''}`}>
+                    {r.concluido ? '✓' : nome.charAt(0).toUpperCase()}
                   </span>
                 );
               })}
@@ -798,6 +800,27 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Botão individual: qualquer um que assumiu pode concluir sua parte */}
+          {(() => {
+            const resps = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id);
+            const minhaEntrada = resps.find(r => r.profile_id === currentUserId);
+            if (!minhaEntrada) return null;
+            return minhaEntrada.concluido ? (
+              <button type="button"
+                onClick={() => void onConcluirIndividual(meta.id, true)}
+                className="text-[10px] px-1.5 py-0.5 rounded border bg-green-100 text-green-700 border-green-300 flex-shrink-0"
+                title="Você concluiu sua parte — clique para reabrir">
+                ✓ Concluída
+              </button>
+            ) : (
+              <button type="button"
+                onClick={() => void onConcluirIndividual(meta.id, false)}
+                className="text-[10px] px-1.5 py-0.5 rounded border text-gray-400 border-gray-200 hover:border-green-300 hover:text-green-600 flex-shrink-0"
+                title="Marcar minha parte como concluída">
+                Concluir
+              </button>
+            );
+          })()}
           {podeEditarMeta && (
             <button type="button" onClick={() => setEditandoMeta(v => !v)} title="Editar meta"
               className={`text-sm transition-colors ${editandoMeta ? 'text-blue-600' : 'text-blue-400 hover:text-blue-600'}`}>✎</button>
@@ -805,7 +828,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
           {isAdmin && (
             <>
               {meta.status !== 'concluido' && meta.tipo?.toLowerCase() !== 'recorrente' && (
-                <button type="button" onClick={() => setConfirmConc(true)} title="Concluir"
+                <button type="button" onClick={() => setConfirmConc(true)} title="Encerrar meta globalmente"
                   className="text-[14px] text-green-500 hover:text-green-700 font-bold transition-colors">✓</button>
               )}
               <button type="button" onClick={() => setConfirmExcl(true)} title="Excluir"
@@ -872,7 +895,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
             {resps.map(r => {
               const nome = responsaveis.find(p => p.profile_id === r.profile_id)?.nome ?? '?';
               const esperado = calcularEsperadoPct(r.data_inicio, r.data_fim, r.dias_uteis);
-              const isAdminUser = currentUserEmail === 'danilo.n@moni.casa';
+              const isAdminUser = isAdmin;
               return (
                 <div key={r.profile_id} className="flex flex-col gap-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -924,7 +947,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
       {/* Mensagem: acionar admin para datas */}
       {msgAdmin && (
         <div className="px-3 py-2 border-b border-amber-100 bg-amber-50 flex items-center gap-2">
-          <span className="text-[10px] text-amber-700 flex-1">Para alterar as datas, acione o admin (danilo.n@moni.casa).</span>
+          <span className="text-[10px] text-amber-700 flex-1">Para alterar as datas, acione um administrador da área.</span>
           <button type="button" onClick={() => setMsgAdmin(false)} className="text-[10px] text-gray-400">✕</button>
         </div>
       )}
@@ -1551,11 +1574,25 @@ function PreBoneDayPageContent() {
     recarregar();
   }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Conclusão global (admin): encerra o objetivo para todos (move para Bloco 1)
   const handleConcluirMeta = useCallback(async (id: string) => {
     const { error: e } = await supabase.from('objetivos')
       .update({ status: 'concluido', concluido_em: new Date().toISOString() }).eq('id', id);
     if (e) { console.error('[ConcluirMeta]', e); return; }
-    LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id, operacao: 'UPDATE', descricao: 'Meta concluída' });
+    LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id, operacao: 'UPDATE', descricao: 'Meta encerrada globalmente' });
+    recarregar();
+  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Conclusão individual (per-user): marca/desmarca a própria participação
+  const handleConcluirMetaIndividual = useCallback(async (id: string, reabrir = false) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error: e } = await supabase.from('objetivo_responsaveis')
+      .update({ concluido: !reabrir, concluido_em: reabrir ? null : new Date().toISOString() })
+      .eq('objetivo_id', id).eq('profile_id', user.id);
+    if (e) { console.error('[ConcluirMetaIndividual]', e); return; }
+    LOG({ modulo: 'Planejamento', entidade: 'objetivo_responsaveis', entidade_id: id,
+      operacao: 'UPDATE', descricao: reabrir ? 'Meta reaberta (individual)' : 'Meta concluída (individual)' });
     recarregar();
   }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1624,14 +1661,41 @@ function PreBoneDayPageContent() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const jaExiste = objetivoResponsaveis.some(r => r.objetivo_id === objetivoId && r.profile_id === user.id);
+
     if (jaExiste) {
+      // SAINDO: remover responsabilidade
       await supabase.from('objetivo_responsaveis').delete()
         .eq('objetivo_id', objetivoId).eq('profile_id', user.id);
+
+      // Auto-assign: verificar quantos ficaram
+      const restantes = objetivoResponsaveis.filter(r => r.objetivo_id === objetivoId && r.profile_id !== user.id);
+      if (restantes.length === 1) {
+        // Ficou 1 → auto-assign indicadores null para ele
+        const unico = restantes[0].profile_id;
+        const indsObj = indicadores.filter(i => i.objetivo_id === objetivoId && !i.profile_id);
+        if (indsObj.length > 0) {
+          await supabase.from('indicadores').update({ profile_id: unico }).in('id', indsObj.map(i => i.id));
+        }
+      } else if (restantes.length === 0) {
+        // Ninguém mais → reset todos os indicadores da meta para null
+        await supabase.from('indicadores').update({ profile_id: null }).eq('objetivo_id', objetivoId);
+      }
     } else {
+      // ASSUMINDO
+      const totalAgora = objetivoResponsaveis.filter(r => r.objetivo_id === objetivoId).length + 1;
       await supabase.from('objetivo_responsaveis').insert({ objetivo_id: objetivoId, profile_id: user.id });
+
+      if (totalAgora === 1) {
+        // Primeiro (e único) responsável → auto-assign todos os indicadores sem dono
+        const indsObj = indicadores.filter(i => i.objetivo_id === objetivoId && !i.profile_id);
+        if (indsObj.length > 0) {
+          await supabase.from('indicadores').update({ profile_id: user.id }).in('id', indsObj.map(i => i.id));
+        }
+      }
+      // 2+ responsáveis → cada um escolhe seus indicadores manualmente
     }
     recarregar();
-  }, [supabase, objetivoResponsaveis, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, objetivoResponsaveis, indicadores, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAssumirProjeto = useCallback(async (objetivoId: string, dataInicio: string, dataFim: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1711,7 +1775,7 @@ function PreBoneDayPageContent() {
                   <div className="flex flex-col gap-2">
                     {metasNaoConcluidas.map(meta => (
                       <MetaNaoConcluida key={meta.id} meta={meta} responsaveis={responsaveis}
-                        podeRelançar={currentUserEmail === 'danilo.n@moni.casa'}
+                        podeRelançar={Boolean(isAdmin)}
                         onRelançar={handleRelançar}
                         onArquivar={handleArquivarMeta} />
                     ))}
@@ -1749,11 +1813,12 @@ function PreBoneDayPageContent() {
                       isAdmin={Boolean(isAdmin)} areaId={areaId ?? ''}
                       onUpdate={recarregar}
                       onConcluir={handleConcluirMeta}
+                      onConcluirIndividual={handleConcluirMetaIndividual}
                       onExcluir={handleExcluirMeta}
                       objetivoResponsaveis={objetivoResponsaveis}
                       currentUserId={currentUserId}
                       currentUserEmail={currentUserEmail}
-                      podeEditarMeta={currentUserEmail === 'danilo.n@moni.casa'}
+                      podeEditarMeta={Boolean(isAdmin)}
                       onToggleResponsavel={handleToggleResponsavel}
                       onAssumirProjeto={handleAssumirProjeto}
                     />

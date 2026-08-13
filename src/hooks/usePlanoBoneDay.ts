@@ -37,6 +37,8 @@ export type AgendaMacroItem = {
 export type ObjetivoResponsavel = {
   objetivo_id: string;
   profile_id: string;
+  concluido: boolean;
+  concluido_em: string | null;
   data_inicio: string | null;
   data_fim: string | null;
   dias_uteis: number | null;
@@ -202,9 +204,24 @@ export function usePlanoBoneDay(
       if (objIds.length > 0) {
         const { data: orData } = await supabase
           .from('objetivo_responsaveis')
-          .select('objetivo_id, profile_id, data_inicio, data_fim, dias_uteis')
+          .select('objetivo_id, profile_id, concluido, concluido_em, data_inicio, data_fim, dias_uteis')
           .in('objetivo_id', objIds);
-        setObjetivoResponsaveis((orData ?? []) as ObjetivoResponsavel[]);
+        type ORRow = {
+          objetivo_id: string; profile_id: string;
+          concluido: boolean | null; concluido_em: string | null;
+          data_inicio: string | null; data_fim: string | null; dias_uteis: number | null;
+        };
+        setObjetivoResponsaveis(
+          ((orData ?? []) as ORRow[]).map(r => ({
+            objetivo_id: r.objetivo_id,
+            profile_id:  r.profile_id,
+            concluido:   Boolean(r.concluido),
+            concluido_em: r.concluido_em ?? null,
+            data_inicio: r.data_inicio ?? null,
+            data_fim:    r.data_fim ?? null,
+            dias_uteis:  r.dias_uteis ?? null,
+          }))
+        );
       } else {
         setObjetivoResponsaveis([]);
       }

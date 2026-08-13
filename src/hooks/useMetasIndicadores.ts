@@ -58,6 +58,11 @@ export type ResponsavelItem = {
 export type ObjetivoResponsavel = {
   objetivo_id: string;
   profile_id: string;
+  concluido: boolean;
+  concluido_em: string | null;
+  data_inicio: string | null;
+  data_fim: string | null;
+  dias_uteis: number | null;
 };
 
 export type UseMetasIndicadoresResult = {
@@ -80,16 +85,16 @@ export function useMetasIndicadores(
   mes?: string | null,
 ): UseMetasIndicadoresResult {
   const supabase = useMemo(() => createClient(), []);
-  const [metas,           setMetas]           = useState<MetaItem[]>([]);
-  const [subMetas,        setSubMetas]        = useState<SubMetaItem[]>([]);
-  const [indicadores,     setIndicadores]     = useState<IndicadorItemMeta[]>([]);
-  const [responsaveis,    setResponsaveis]    = useState<ResponsavelItem[]>([]);
+  const [metas,                setMetas]                = useState<MetaItem[]>([]);
+  const [subMetas,             setSubMetas]             = useState<SubMetaItem[]>([]);
+  const [indicadores,          setIndicadores]          = useState<IndicadorItemMeta[]>([]);
+  const [responsaveis,         setResponsaveis]         = useState<ResponsavelItem[]>([]);
   const [objetivoResponsaveis, setObjetivoResponsaveis] = useState<ObjetivoResponsavel[]>([]);
-  const [semanaRelativa,  setSemanaRelativa]  = useState(0);
-  const [semanaAnterior,  setSemanaAnterior]  = useState(0);
-  const [anoRelativo,     setAnoRelativo]     = useState(0);
-  const [isLoading,       setIsLoading]       = useState(true);
-  const [error,           setError]           = useState<string | null>(null);
+  const [semanaRelativa,       setSemanaRelativa]       = useState(0);
+  const [semanaAnterior,       setSemanaAnterior]       = useState(0);
+  const [anoRelativo,          setAnoRelativo]          = useState(0);
+  const [isLoading,            setIsLoading]            = useState(true);
+  const [error,                setError]                = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     if (!areaId) { setIsLoading(false); return; }
@@ -210,7 +215,7 @@ export function useMetasIndicadores(
           : semana;
         semAnterior = semRel > 1 ? semRel - 1 : 52;
 
-        // Filtra por profile_id do usuário atual OU registros sem profile_id (legado)
+        // Filtra lançamentos do usuário efetivo OU sem profile_id (legado)
         let lancsQuery: any = supabase
           .from('indicador_lancamentos')
           .select('indicador_id, valor, semana')
@@ -233,7 +238,6 @@ export function useMetasIndicadores(
 
       setSemanaAnterior(semAnterior);
       setAnoRelativo(anoISO);
-
       setSemanaRelativa(semRel);
 
       const indicadoresArr: IndicadorItemMeta[] = indArr
@@ -263,13 +267,29 @@ export function useMetasIndicadores(
           return a.nome.localeCompare(b.nome, 'pt-BR');
         });
 
-      const metaIds2 = ((objRes.data ?? []) as { id: string }[]).map(o => o.id);
-      if (metaIds2.length > 0) {
+      // Buscar objetivo_responsaveis com concluido para TODOS os objetivos da área
+      const allObjIds = (objRes.data ?? []).map((o: { id: string }) => o.id);
+      if (allObjIds.length > 0) {
         const { data: orData } = await supabase
           .from('objetivo_responsaveis')
-          .select('objetivo_id, profile_id')
-          .in('objetivo_id', metaIds2);
-        setObjetivoResponsaveis((orData ?? []) as ObjetivoResponsavel[]);
+          .select('objetivo_id, profile_id, concluido, concluido_em, data_inicio, data_fim, dias_uteis')
+          .in('objetivo_id', allObjIds);
+        type ORRow = {
+          objetivo_id: string; profile_id: string;
+          concluido: boolean | null; concluido_em: string | null;
+          data_inicio: string | null; data_fim: string | null; dias_uteis: number | null;
+        };
+        setObjetivoResponsaveis(
+          ((orData ?? []) as ORRow[]).map(r => ({
+            objetivo_id: r.objetivo_id,
+            profile_id:  r.profile_id,
+            concluido:   Boolean(r.concluido),
+            concluido_em: r.concluido_em ?? null,
+            data_inicio: r.data_inicio ?? null,
+            data_fim:    r.data_fim ?? null,
+            dias_uteis:  r.dias_uteis ?? null,
+          }))
+        );
       } else {
         setObjetivoResponsaveis([]);
       }
@@ -287,5 +307,8 @@ export function useMetasIndicadores(
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  return { metas, subMetas, indicadores, responsaveis, objetivoResponsaveis, semanaRelativa, semanaAnterior, anoRelativo, isLoading, error, recarregar: carregar };
+  return {
+    metas, subMetas, indicadores, responsaveis, objetivoResponsaveis,
+    semanaRelativa, semanaAnterior, anoRelativo, isLoading, error, recarregar: carregar,
+  };
 }
