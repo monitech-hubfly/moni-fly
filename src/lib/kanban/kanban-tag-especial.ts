@@ -14,6 +14,10 @@ export function isKanbanTagInstGarantidorNome(nome: string | null | undefined): 
   return String(nome ?? '').trim() === OPERACOES_TAG_INST_GARANTIDOR_NOME;
 }
 
+export function isKanbanTagDependenciaNome(nome: string | null | undefined): boolean {
+  return String(nome ?? '').trim().toLowerCase().startsWith('dependencia:');
+}
+
 export type KanbanTagChipStyle = {
   className: string;
   style?: {
@@ -36,6 +40,9 @@ export function estiloChipTagKanban(nome: string, _cor?: string): KanbanTagChipS
   }
   if (isKanbanTagInstGarantidorNome(nome)) {
     return { className: 'moni-tag-atrasado' };
+  }
+  if (isKanbanTagDependenciaNome(nome)) {
+    return { className: 'moni-tag-dependencia' };
   }
   return { className: 'moni-tag-chip' };
 }

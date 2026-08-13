@@ -17,6 +17,6 @@ export default async function PortfolioKanbanPage({
     basePath: '/portfolio',
     pageTitle: 'Kanban Portfolio',
     tabsVariant: 'portfolio',
-    columnAccent: 'var(--moni-kanban-stepone)',
+    columnAccent: 'var(--moni-kanban-portfolio)',
   });
 }

@@ -186,6 +186,10 @@
   --moni-kanban-portfolio-light: var(--moni-green-50);
   --moni-kanban-portfolio-accent: var(--moni-green-400);
 
+  --moni-kanban-loteadores:       var(--moni-earth-600);
+  --moni-kanban-loteadores-light: var(--moni-earth-50);
+  --moni-kanban-loteadores-accent: var(--moni-gold-400);
+
   /* Contabilidade — Marrom Terra */
   --moni-kanban-contab:         var(--moni-earth-800);
   --moni-kanban-contab-light:   var(--moni-earth-50);
@@ -541,6 +545,21 @@
     align-items: center;
     justify-content: center;
   }
+}
+
+.moni-tag-dependencia {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: 8px;
+  line-height: 1.2;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-gold-50);
+  color: var(--moni-gold-800);
+  border: var(--moni-border-width) solid var(--moni-gold-400);
 }
 
 .moni-tag-especial {
@@ -2340,6 +2359,7 @@
 /* Identificadores de Kanban */
 .moni-kanban-id--stepone   { background: var(--moni-kanban-stepone-light);   color: var(--moni-kanban-stepone);   border-color: var(--moni-kanban-stepone-accent); }
 .moni-kanban-id--portfolio { background: var(--moni-kanban-portfolio-light); color: var(--moni-kanban-portfolio); border-color: var(--moni-kanban-portfolio-accent); }
+.moni-kanban-id--loteadores { background: var(--moni-kanban-loteadores-light); color: var(--moni-kanban-loteadores); border-color: var(--moni-kanban-loteadores-accent); }
 .moni-kanban-id--contab    { background: var(--moni-kanban-contab-light);    color: var(--moni-kanban-contab);    border-color: var(--moni-kanban-contab-accent); }
 .moni-kanban-id--credito   { background: var(--moni-kanban-credito-light);   color: var(--moni-kanban-credito);   border-color: var(--moni-kanban-credito-accent); }
 

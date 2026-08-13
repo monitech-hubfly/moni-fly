@@ -38,7 +38,7 @@ export async function KanbanLoteadoresBoardCardsLoader({
           cardsConcluidos={cardsConcluidos}
           basePath="/loteadores"
           userRole={role}
-          columnAccent="var(--moni-kanban-stepone)"
+          columnAccent="var(--moni-kanban-loteadores)"
           currentUserId={userId}
           mostrarLinkNovoCard={exibirNovoCard}
           podeCriarCards={exibirNovoCard ? true : false}

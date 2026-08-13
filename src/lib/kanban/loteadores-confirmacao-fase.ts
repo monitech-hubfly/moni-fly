@@ -5,6 +5,14 @@ export type LoteadoresConfirmacaoFaseTipo = keyof typeof LOTEADORES_FASES_CONFIR
 const SLUGS_POR_TIPO: Record<LoteadoresConfirmacaoFaseTipo, readonly string[]> =
   LOTEADORES_FASES_CONFIRMACAO_SAIDA;
 
+const PERGUNTA_POR_TIPO: Record<LoteadoresConfirmacaoFaseTipo, string> = {
+  opcao: 'Opção — Assinou?',
+  comite: 'O card foi aprovado em Comitê?',
+  cto_precedentes: 'Cto c/ Precedentes — Assinou?',
+  cto_showroom: 'Cto Showroom — Assinou?',
+  cto_parceria: 'Cto de Parceria — Assinou?',
+};
+
 /** Display dinâmico do título «{nome} — Assinou?» (Prompt 9). */
 export const LOTEADORES_ASSINOU_NOME_POR_SLUG: Readonly<Record<string, string>> = {
   [FASE_SLUGS.LOTEADORES_OPCAO]: 'Opção',
@@ -21,14 +29,11 @@ export function loteadoresAssinouTituloPorSlug(slug: string | null | undefined):
 }
 
 export function loteadoresConfirmacaoTitulo(tipo: LoteadoresConfirmacaoFaseTipo): string {
-  const slugs = SLUGS_POR_TIPO[tipo];
-  const slug = slugs[0] ?? '';
-  return loteadoresAssinouTituloPorSlug(slug) ?? 'Assinou?';
+  return PERGUNTA_POR_TIPO[tipo] ?? 'Confirmação';
 }
 
-/** @deprecated Preferir `loteadoresConfirmacaoTitulo` (Prompt 9). */
 export function loteadoresConfirmacaoPergunta(tipo: LoteadoresConfirmacaoFaseTipo): string {
-  return loteadoresConfirmacaoTitulo(tipo);
+  return PERGUNTA_POR_TIPO[tipo];
 }
 
 export function resolverLoteadoresConfirmacaoFaseTipo(
@@ -58,7 +63,7 @@ export function deveConfirmarSaidaFaseLoteadores(input: {
   return resolverLoteadoresConfirmacaoFaseTipo(input.faseSlug);
 }
 
-/** Helper DnD: sai desta fase (slug origem exige Assinou?). */
+/** Helper DnD: sai desta fase (slug origem exige confirmação). */
 export function loteadoresRequerAssinouAoSair(faseSlugOrigem: string | null | undefined): boolean {
-  return Boolean(loteadoresAssinouTituloPorSlug(faseSlugOrigem));
+  return resolverLoteadoresConfirmacaoFaseTipo(faseSlugOrigem) != null;
 }

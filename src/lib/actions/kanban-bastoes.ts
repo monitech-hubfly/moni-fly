@@ -921,6 +921,79 @@ export async function garantirBastaoPassagemWayser(cardId: string): Promise<bool
 }
 
 /**
+ * Garante card filho em Operações/planialtimetrico para cards Loteadores já em Passagem para Waysers.
+ * Idempotente — repara cards que entraram na fase antes do bastão disparar ou cujo filho sumiu.
+ */
+export async function garantirBastaoPassagemWaysersLoteadores(cardId: string): Promise<boolean> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return false;
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    console.error('[garantirBastaoPassagemWaysersLoteadores] admin client:', e);
+    return false;
+  }
+
+  const { data: cardRow, error: errCard } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, fase_id, arquivado, concluido')
+    .eq('id', cid)
+    .maybeSingle();
+
+  if (errCard || !cardRow?.id) return false;
+  if (String(cardRow.kanban_id ?? '') !== KANBAN_IDS.LOTEADORES) return false;
+  if (Boolean((cardRow as { arquivado?: boolean | null }).arquivado)) return false;
+  if (Boolean((cardRow as { concluido?: boolean | null }).concluido)) return false;
+
+  const { data: faseRow } = await db
+    .from('kanban_fases')
+    .select('slug')
+    .eq('id', String((cardRow as { fase_id?: string | null }).fase_id ?? ''))
+    .maybeSingle();
+
+  if (String((faseRow as { slug?: string | null } | null)?.slug ?? '') !== FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC) {
+    return false;
+  }
+
+  const existente = await buscarCardFilhoExistente(db, cid, KANBAN_IDS.OPERACOES);
+  if (existente?.id && !Boolean(existente.arquivado)) {
+    const { data: fasePlan } = await db
+      .from('kanban_fases')
+      .select('id')
+      .eq('kanban_id', KANBAN_IDS.OPERACOES)
+      .eq('slug', 'planialtimetrico')
+      .eq('ativo', true)
+      .limit(1)
+      .maybeSingle();
+    const syncHeal = await sincronizarCamposCalculadoraBastaoFilho(db, cid, String(existente.id), {
+      faseDestinoId: fasePlan?.id ? String(fasePlan.id) : undefined,
+      faseDestinoSlug: 'planialtimetrico',
+    });
+    if (!syncHeal.ok) {
+      console.error(
+        '[garantirBastaoPassagemWaysersLoteadores] sync calculadora filho existente:',
+        syncHeal.error,
+      );
+    }
+    return false;
+  }
+
+  await executarBastoes(cid, FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC);
+
+  const apos = await buscarCardFilhoExistente(db, cid, KANBAN_IDS.OPERACOES);
+  if (apos?.id && !Boolean(apos.arquivado)) {
+    revalidatePath('/loteadores');
+    revalidatePath('/funil-moni-inc');
+    revalidatePath('/operacoes');
+    revalidatePath('/');
+    return true;
+  }
+  return false;
+}
+
+/**
  * Após mover card para `novaFaseSlug`, cria cards filhos nas esteiras de destino (idempotente).
  */
 export async function executarBastoes(cardId: string, novaFaseSlug: string): Promise<void> {

@@ -1932,33 +1932,33 @@ function LoteadoresEspecificidadesSection({
           Especificidades — Loteadores
         </h2>
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Conversão por parceiro, ciclo R1 → Contrato e gargalos em Viabilidade
+          Conversão por parceiro, ciclo R1 → Assinados e gargalos em Viabilidade
         </p>
               </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {data.tempoR1AteContrato != null ? (
+        {data.tempoR1AteAssinados != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Tempo R1 até Contrato de Parceria
+              Tempo R1 até Assinados
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              r1_conceito_moni_inc → contrato_parceria_moni_inc (dias corridos via kanban_historico).
+              r1_conceito_moni_inc → assinados_moni_inc (dias corridos via kanban_historico).
             </p>
             <DualLargeStat
-              left={{ label: 'Mediana', value: formatDiasCorridos(data.tempoR1AteContrato.medianaDias), tone: 'neutro' }}
-              right={{ label: 'P90', value: formatDiasCorridos(data.tempoR1AteContrato.p90Dias), tone: 'neutro' }}
+              left={{ label: 'Mediana', value: formatDiasCorridos(data.tempoR1AteAssinados.medianaDias), tone: 'neutro' }}
+              right={{ label: 'P90', value: formatDiasCorridos(data.tempoR1AteAssinados.p90Dias), tone: 'neutro' }}
             />
             <p className="mt-2 text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
-              {formatInt(data.tempoR1AteContrato.amostras)} cards analisados
+              {formatInt(data.tempoR1AteAssinados.amostras)} cards analisados
             </p>
-            {data.tempoR1AteContrato.historicoParcial ? (
+            {data.tempoR1AteAssinados.historicoParcial ? (
               <DegradeNote>
                 Histórico de movimentação incompleto em parte dos cards — tempos são aproximados.
               </DegradeNote>
             ) : null}
-            {data.tempoR1AteContrato.amostras === 0 ? (
-              <DegradeNote>Sem pares R1 → Contrato registrados no recorte.</DegradeNote>
+            {data.tempoR1AteAssinados.amostras === 0 ? (
+              <DegradeNote>Sem pares R1 → Assinados registrados no recorte.</DegradeNote>
             ) : null}
               </div>
         ) : null}

@@ -104,7 +104,10 @@ import {
   consultarAberturaCreditoObraPendente,
   recusarAberturaCreditoObra,
 } from '@/lib/actions/credito-obra-abertura-automatica';
-import { garantirBastaoPassagemWayser } from '@/lib/actions/kanban-bastoes';
+import {
+  garantirBastaoPassagemWayser,
+  garantirBastaoPassagemWaysersLoteadores,
+} from '@/lib/actions/kanban-bastoes';
 import { ensureProcessoStepOneForKanbanCard } from '@/lib/actions/kanban-mapa-competidores';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import {
@@ -126,6 +129,7 @@ import {
 } from '@/lib/kanban/operacoes-confirmacao-fase';
 import {
   deveConfirmarSaidaFaseLoteadores,
+  loteadoresConfirmacaoPergunta,
   loteadoresConfirmacaoTitulo,
   type LoteadoresConfirmacaoFaseTipo,
 } from '@/lib/kanban/loteadores-confirmacao-fase';
@@ -2266,6 +2270,12 @@ export function KanbanCardModal({
                   ) {
                     void garantirBastaoPassagemWayser(loaded.id);
                   }
+                  if (
+                    loaded.kanban_id === KANBAN_IDS.LOTEADORES &&
+                    slugAbertura === FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC
+                  ) {
+                    void garantirBastaoPassagemWaysersLoteadores(loaded.id);
+                  }
                 }
         })(),
       ]);
@@ -2890,7 +2900,7 @@ export function KanbanCardModal({
       return operacoesConfirmacaoPergunta(modal.tipo as OperacoesConfirmacaoFaseTipo);
     }
     if (modal.dominio === 'loteadores') {
-      return 'Confirme se o documento foi assinado para avançar de fase.';
+      return loteadoresConfirmacaoPergunta(modal.tipo as LoteadoresConfirmacaoFaseTipo);
     }
     return portfolioConfirmacaoModalPergunta(modal.tipo as PortfolioConfirmacaoModalTipo);
   }

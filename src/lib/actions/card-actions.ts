@@ -72,6 +72,7 @@ import {
   executarBastaoDeVolta,
   executarBastoes,
   garantirBastaoPassagemWayser,
+  garantirBastaoPassagemWaysersLoteadores,
 } from '@/lib/actions/kanban-bastoes';
 import { registrarAvisoHomologacaoConcluida } from '@/lib/actions/fornecedores-rede';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
@@ -5026,6 +5027,10 @@ export async function registrarConfirmacaoFaseLoteadores(input: {
       loteadores_opcao_assinada: true,
       loteadores_opcao_assinada_em: now,
     },
+    comite: {
+      comite_aprovado: true,
+      comite_aprovado_em: now,
+    },
     cto_precedentes: {
       loteadores_cto_precedentes_assinado: true,
       loteadores_cto_precedentes_assinado_em: now,
@@ -6429,6 +6434,10 @@ export async function upsertFaseChecklistResposta(input: {
   const faseIdItem = String((itemRow as { fase_id?: string | null } | null)?.fase_id ?? '').trim();
   if (faseIdItem === FASE_IDS.PORTFOLIO_PASSAGEM_WAYSER) {
     void garantirBastaoPassagemWayser(input.card_id);
+  }
+  const campoSlugHeal = String((itemRow as { campo_slug?: string | null } | null)?.campo_slug ?? '').trim();
+  if (campoSlugHeal === 'briefing_completo_preparado') {
+    void garantirBastaoPassagemWaysersLoteadores(input.card_id);
   }
 
   const campoSlug = String((itemRow as { campo_slug?: string | null } | null)?.campo_slug ?? '').trim();

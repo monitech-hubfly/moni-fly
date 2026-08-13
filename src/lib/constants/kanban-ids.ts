@@ -314,9 +314,10 @@ export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
   contrato: [FASE_SLUGS.STEP_7],
 } as const;
 
-/** Funil Loteadores — slugs que disparam popup «Assinou?» ao sair da fase (esteira v1 / migration 511). */
+/** Funil Loteadores — slugs que disparam popup ao sair da fase (Assinou? / Comitê). */
 export const LOTEADORES_FASES_CONFIRMACAO_SAIDA = {
   opcao: [FASE_SLUGS.LOTEADORES_OPCAO],
+  comite: [FASE_SLUGS.LOTEADORES_COMITE],
   cto_precedentes: [FASE_SLUGS.LOTEADORES_CTO_PRECEDENTES],
   cto_showroom: [FASE_SLUGS.LOTEADORES_CTO_SHOWROOM],
   cto_parceria: [FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA],

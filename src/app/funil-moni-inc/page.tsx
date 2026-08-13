@@ -198,7 +198,7 @@ export default async function FunilMoniIncPage({
               cardsConcluidos={cardsConcluidos}
               basePath="/funil-moni-inc"
               userRole={role}
-              columnAccent="var(--moni-kanban-stepone)"
+              columnAccent="var(--moni-kanban-loteadores)"
               currentUserId={user.id}
               mostrarLinkNovoCard={exibirNovoCard}
               podeCriarCards={exibirNovoCard ? true : false}

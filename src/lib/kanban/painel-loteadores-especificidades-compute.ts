@@ -13,8 +13,8 @@ import type {
   PainelHistoricoMovimentoDTO,
 } from '@/lib/kanban/painel-performance-types';
 
-/** Slugs estáveis da esteira v1 (R1 / contrato / viabilidade). */
-const CONTRATO_PARCERIA_SLUG = FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA;
+/** Slugs estáveis da esteira v1 (R1 / conclusão Assinados / viabilidade). */
+const ASSINADOS_SLUG = FASE_SLUGS.LOTEADORES_ASSINADOS;
 const R1_SLUG = LOTEADORES_R1_CONCEITO_FASE_SLUG;
 
 function campoDisponivel(cards: PainelCardDTO[], key: keyof PainelCardDTO): boolean {
@@ -141,7 +141,7 @@ export type PainelLoteadoresEspecificidades = {
     linhas: PainelLoteadoresConversaoRow[];
     loteadorIndisponivel: boolean;
   } | null;
-  tempoR1AteContrato: {
+  tempoR1AteAssinados: {
     medianaDias: number | null;
     p90Dias: number | null;
     amostras: number;
@@ -171,7 +171,7 @@ export function computeLoteadoresEspecificidades(input: {
   const conversaoCtx = buildConversaoContext(fasesOrd);
 
   const r1Ids = faseIdsPorSlugs(fasesOrd, [R1_SLUG]);
-  const contratoIds = faseIdsPorSlugs(fasesOrd, [CONTRATO_PARCERIA_SLUG]);
+  const assinadosIds = faseIdsPorSlugs(fasesOrd, [ASSINADOS_SLUG]);
   const viabilidadeIds = new Set(faseIdsPorSlugs(fasesOrd, LOTEADORES_VIABILIDADE_SLUGS));
 
   const loteadorIndisponivel =
@@ -208,9 +208,9 @@ export function computeLoteadoresEspecificidades(input: {
     conversaoPorLoteador = null;
   }
 
-  let tempoR1AteContrato: PainelLoteadoresEspecificidades['tempoR1AteContrato'] = null;
+  let tempoR1AteAssinados: PainelLoteadoresEspecificidades['tempoR1AteAssinados'] = null;
   try {
-    if (r1Ids.length > 0 && contratoIds.length > 0) {
+    if (r1Ids.length > 0 && assinadosIds.length > 0) {
       const tempos: number[] = [];
       let historicoParcial = false;
       for (const c of input.cards) {
@@ -221,13 +221,13 @@ export function computeLoteadoresEspecificidades(input: {
         );
         if (!temMov) historicoParcial = true;
         for (const r1Id of r1Ids) {
-          for (const contratoId of contratoIds) {
-            const dias = diasEntreFases(c, r1Id, contratoId, fasesOrd, historico);
+          for (const assinadosId of assinadosIds) {
+            const dias = diasEntreFases(c, r1Id, assinadosId, fasesOrd, historico);
             if (dias != null) tempos.push(dias);
           }
         }
       }
-      tempoR1AteContrato = {
+      tempoR1AteAssinados = {
         medianaDias: median(tempos),
         p90Dias: percentile(tempos, 90),
         amostras: tempos.length,
@@ -235,7 +235,7 @@ export function computeLoteadoresEspecificidades(input: {
       };
     }
   } catch {
-    tempoR1AteContrato = null;
+    tempoR1AteAssinados = null;
   }
 
   let viabilidadeSemMovimentacao15Dias: PainelLoteadoresEspecificidades['viabilidadeSemMovimentacao15Dias'] =
@@ -308,7 +308,7 @@ export function computeLoteadoresEspecificidades(input: {
 
   const temAlgum =
     conversaoPorLoteador != null ||
-    tempoR1AteContrato != null ||
+    tempoR1AteAssinados != null ||
     viabilidadeSemMovimentacao15Dias != null ||
     loteadoresComMaisDe2Ativos != null;
 
@@ -316,7 +316,7 @@ export function computeLoteadoresEspecificidades(input: {
 
   return {
     conversaoPorLoteador,
-    tempoR1AteContrato,
+    tempoR1AteAssinados,
     viabilidadeSemMovimentacao15Dias,
     loteadoresComMaisDe2Ativos,
   };
