@@ -3873,14 +3873,34 @@
   background-color: var(--moni-surface-50);
 }
 
-.moni-rede-row-tone-encerrada td {
-  background-color: var(--moni-surface-100);
-  color: var(--moni-text-secondary);
+/* Encerrada / adormecida: mesmo fundo branco das demais; texto esmaecido (menos peso) */
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada > td,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida > td {
+  background-color: var(--moni-surface-0);
+  color: color-mix(in srgb, var(--moni-text-primary) 42%, transparent);
 }
 
-.moni-rede-row-tone-encerrada:hover td {
-  background-color: var(--moni-surface-200);
-  color: var(--moni-text-primary);
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada > td *,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida > td * {
+  color: color-mix(in srgb, var(--moni-text-primary) 42%, transparent);
+}
+
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada:hover > td,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida:hover > td {
+  background-color: var(--moni-surface-50);
+  color: color-mix(in srgb, var(--moni-text-primary) 68%, transparent);
+}
+
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada:hover > td *,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida:hover > td * {
+  color: color-mix(in srgb, var(--moni-text-primary) 68%, transparent);
+}
+
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada > td button,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada > td button *,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida > td button,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida > td button * {
+  color: var(--moni-text-secondary);
 }
 
 .moni-rede-row-tone-transferencia td {
@@ -3889,16 +3909,6 @@
 
 .moni-rede-row-tone-transferencia:hover td {
   background-color: var(--moni-gold-100);
-}
-
-.moni-rede-row-tone-adormecida td {
-  background-color: var(--moni-surface-100);
-  color: var(--moni-text-secondary);
-}
-
-.moni-rede-row-tone-adormecida:hover td {
-  background-color: var(--moni-surface-200);
-  color: var(--moni-text-primary);
 }
 
 @media (max-width: 640px) {
