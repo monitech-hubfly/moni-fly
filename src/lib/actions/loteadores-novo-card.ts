@@ -370,3 +370,124 @@ export async function criarCardLoteadoresComCadastro(
 
   return { ok: true, cardId, redeLoteadorId };
 }
+
+/**
+ * Cria cadastro + card sem sessão de staff (form público de captação).
+ * Owner do card = responsável padrão do funil (Helenna).
+ */
+export async function criarCardLoteadoresNovoCadastroAdmin(
+  parceiro: CriarCardLoteadoresParceiroInput,
+): Promise<CriarCardLoteadoresComCadastroResult> {
+  const errParceiro = validarParceiro(parceiro);
+  if (errParceiro) return { ok: false, error: errParceiro };
+
+  let admin;
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço indisponível.' };
+  }
+
+  const {
+    resolverResponsavelPadraoPorKanban,
+    aplicarResponsavelFasePadraoAoCard,
+    aplicarResponsavelDaFasePadraoSeVazio,
+  } = await import('@/lib/kanban/responsavel-fase-checklist');
+  const { resolverPrimeiraFaseContatoLoteadores } = await import('@/lib/kanban/funil-loteadores');
+
+  const ownerUserId = await resolverResponsavelPadraoPorKanban(admin, KANBAN_IDS.LOTEADORES);
+  if (!ownerUserId) {
+    return { ok: false, error: 'Responsável padrão do Funil Loteadores não encontrado.' };
+  }
+
+  const { data: fases, error: fasesErr } = await admin
+    .from('kanban_fases')
+    .select('id, nome, ordem, slug, ativo')
+    .eq('kanban_id', KANBAN_IDS.LOTEADORES)
+    .eq('ativo', true)
+    .order('ordem', { ascending: true });
+  if (fasesErr) return { ok: false, error: fasesErr.message };
+
+  const faseId = resolverPrimeiraFaseContatoLoteadores(
+    ((fases ?? []) as { id: string; nome: string; ordem: number; slug?: string | null; ativo?: boolean }[]).map(
+      (f) => ({
+        id: f.id,
+        nome: f.nome,
+        ordem: f.ordem,
+        sla_dias: null,
+        slug: f.slug,
+        ativo: f.ativo,
+      }),
+    ),
+  );
+  if (!faseId) return { ok: false, error: 'Fase inicial do Funil Loteadores não configurada.' };
+
+  const draft = draftFromParceiro(parceiro);
+  const patch = redeLoteadorFichaDraftToPatch(draft);
+  const now = new Date().toISOString();
+  const alocado = await alocarNLoteador(admin as never, parceiro.nLoteador);
+  const nLoteadorFinal = alocado.n_loteador;
+
+  const { data: inserted, error: insErr } = await admin
+    .from('rede_loteadores')
+    .insert({
+      ...patch,
+      n_loteador: alocado.n_loteador,
+      ordem: alocado.ordem,
+      codigo: alocado.n_loteador,
+      status: 'em_analise',
+      condominio_estado: patch.estado ?? null,
+      criado_por: ownerUserId,
+      ultima_atualizacao_por: ownerUserId,
+      updated_at: now,
+    } as never)
+    .select('id')
+    .single();
+  if (insErr) return { ok: false, error: insErr.message };
+  const redeLoteadorId = String((inserted as { id: string }).id);
+
+  const nomeCondominio = String(parceiro.condominioNome ?? '').trim() || null;
+  const titulo =
+    montarTituloCardLoteadoresSync({
+      nLoteador: nLoteadorFinal,
+      nomeCondominio,
+      tituloFallback: draft.nome,
+    }) ?? draft.nome;
+
+  const { data: cardRow, error: cardErr } = await admin
+    .from('kanban_cards')
+    .insert({
+      kanban_id: KANBAN_IDS.LOTEADORES,
+      fase_id: faseId,
+      franqueado_id: ownerUserId,
+      titulo,
+      status: 'ativo',
+      nome_condominio: nomeCondominio,
+      rede_loteador_id: redeLoteadorId,
+    } as never)
+    .select('id')
+    .single();
+  if (cardErr) return { ok: false, error: cardErr.message };
+
+  const cardId = String((cardRow as { id: string }).id);
+  await aplicarResponsavelFasePadraoAoCard(admin, cardId, faseId, KANBAN_IDS.LOTEADORES, ownerUserId);
+  await aplicarResponsavelDaFasePadraoSeVazio(admin, cardId, faseId, ownerUserId);
+
+  const { criarEVincularProcessoStepOneAoCard } = await import('@/lib/kanban/processo-step-one-card');
+  const processoRes = await criarEVincularProcessoStepOneAoCard(admin, {
+    cardId,
+    userId: ownerUserId,
+    titulo,
+    nomeCondominio,
+  });
+  if (!processoRes.ok) {
+    console.warn('[loteadores-intake] Falha ao vincular processo:', processoRes.error);
+  }
+
+  revalidatePath('/loteadores');
+  revalidatePath('/funil-moni-inc');
+  revalidatePath('/rede-franqueados');
+
+  return { ok: true, cardId, redeLoteadorId };
+}

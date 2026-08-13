@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { normalizeAccessRole } from '@/lib/authz';
+import { isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
+import type { CriarCardLoteadoresParceiroInput } from '@/lib/actions/loteadores-novo-card';
 import {
   calcularScoreLoteadorR1,
   classificarLoteadorR1,
@@ -62,13 +63,109 @@ export async function buscarLoteadorExternoTokenInfo(token: string): Promise<Lot
   };
 }
 
-function buildLoteadorExternoUrl(token: string): string {
+function buildLoteadorAppOrigin(): string {
   const base =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL.replace(/\/$/, '')}` : '') ||
     'https://rede.moni';
-  const origin = base.startsWith('http') ? base : `https://${base}`;
-  return `${origin}/loteador/${token}`;
+  return base.startsWith('http') ? base : `https://${base}`;
+}
+
+function buildLoteadorExternoUrl(token: string): string {
+  return `${buildLoteadorAppOrigin()}/loteador/${token}`;
+}
+
+function buildLoteadorIntakeUrl(token: string): string {
+  return `${buildLoteadorAppOrigin()}/loteador/cadastro/${token}`;
+}
+
+const INTAKE_PUBLICO_ID = 'default';
+
+export async function validarTokenIntakePublicoLoteador(
+  token: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const t = String(token ?? '').trim();
+  if (!t) return { ok: false, error: 'Link inválido.' };
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço indisponível.' };
+  }
+
+  const { data, error } = await admin
+    .from('kanban_loteador_intake_publico')
+    .select('id')
+    .eq('id', INTAKE_PUBLICO_ID)
+    .eq('token', t)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'Link inválido.' };
+  return { ok: true };
+}
+
+/** Link estável de captação — gerado uma vez, nunca rotaciona. */
+export async function obterLinkIntakePublicoLoteador(): Promise<
+  { ok: true; url: string; token: string } | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  if (!isRedeStaffRole((profile as { role?: string } | null)?.role)) {
+    return { ok: false, error: 'Sem permissão.' };
+  }
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço indisponível.' };
+  }
+
+  const { data: existing, error: selErr } = await admin
+    .from('kanban_loteador_intake_publico')
+    .select('token')
+    .eq('id', INTAKE_PUBLICO_ID)
+    .maybeSingle();
+  if (selErr) return { ok: false, error: selErr.message };
+
+  let token = String((existing as { token?: string } | null)?.token ?? '').trim();
+  if (!token) {
+    const { data: inserted, error: insErr } = await admin
+      .from('kanban_loteador_intake_publico')
+      .insert({ id: INTAKE_PUBLICO_ID })
+      .select('token')
+      .single();
+    if (insErr) return { ok: false, error: insErr.message };
+    token = String((inserted as { token: string }).token ?? '').trim();
+  }
+  if (!token) return { ok: false, error: 'Não foi possível obter o link.' };
+
+  return { ok: true, url: buildLoteadorIntakeUrl(token), token };
+}
+
+export async function submeterIntakePublicoLoteador(input: {
+  token: string;
+  parceiro: CriarCardLoteadoresParceiroInput;
+  /** Honeypot — se preenchido, ignora o envio. */
+  website?: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (String(input.website ?? '').trim()) {
+    return { ok: true };
+  }
+
+  const valid = await validarTokenIntakePublicoLoteador(input.token);
+  if (!valid.ok) return valid;
+
+  const { criarCardLoteadoresNovoCadastroAdmin } = await import('@/lib/actions/loteadores-novo-card');
+  const criado = await criarCardLoteadoresNovoCadastroAdmin(input.parceiro);
+  if (!criado.ok) return criado;
+  return { ok: true };
 }
 
 export async function obterOuGerarLinkExternoLoteador(cardId: string): Promise<

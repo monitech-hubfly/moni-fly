@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { X } from 'lucide-react';
+import { Check, Copy, ExternalLink, X } from 'lucide-react';
 import {
   buscarRedeLoteadoresParaNovoCard,
   carregarRedeLoteadorParaNovoCard,
@@ -11,6 +11,7 @@ import {
   type BuscarRedeLoteadoresOpcao,
   type CriarCardLoteadoresCadastroModo,
 } from '@/lib/actions/loteadores-novo-card';
+import { obterLinkIntakePublicoLoteador } from '@/lib/actions/loteador-externo-actions';
 import { montarTituloCardLoteadoresSync } from '@/lib/kanban/loteadores-card-titulo';
 
 export function NovoCardMonINCModal({
@@ -49,6 +50,8 @@ export function NovoCardMonINCModal({
 
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [linkIntake, setLinkIntake] = useState<string | null>(null);
+  const [linkCopiado, setLinkCopiado] = useState(false);
 
   const limparForm = useCallback(() => {
     setRedeLoteadorId('');
@@ -64,6 +67,29 @@ export function NovoCardMonINCModal({
     setLote('');
     setBusca('');
   }, []);
+
+  useEffect(() => {
+    if (!podeGerirCadastro) return;
+    let cancelled = false;
+    void obterLinkIntakePublicoLoteador().then((res) => {
+      if (cancelled || !res.ok) return;
+      setLinkIntake(res.url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [podeGerirCadastro]);
+
+  async function copiarLinkIntake() {
+    if (!linkIntake) return;
+    try {
+      await navigator.clipboard.writeText(linkIntake);
+      setLinkCopiado(true);
+      window.setTimeout(() => setLinkCopiado(false), 1600);
+    } catch {
+      setErro('Não foi possível copiar o link.');
+    }
+  }
 
   useEffect(() => {
     if (!podeGerirCadastro || modo !== 'novo') return;
@@ -271,6 +297,64 @@ export function NovoCardMonINCModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto p-6">
+          {linkIntake ? (
+            <div
+              className="space-y-2 p-3"
+              style={{
+                border: '0.5px solid var(--moni-border-default)',
+                borderRadius: 'var(--moni-radius-md)',
+                background: 'var(--moni-surface-50)',
+              }}
+            >
+              <p className="text-sm font-medium" style={labelStyle}>
+                Link de preenchimento externo
+              </p>
+              <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Sempre o mesmo. Cada envio cria um cadastro e um card novos na fase Novo Loteador.
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <p
+                  className="min-w-0 flex-1 truncate text-xs"
+                  style={{ color: 'var(--moni-text-secondary)' }}
+                  title={linkIntake}
+                >
+                  {linkIntake}
+                </p>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void copiarLinkIntake()}
+                    className="inline-flex min-h-[44px] items-center gap-1.5 px-3 text-xs font-medium"
+                    style={{
+                      border: '0.5px solid var(--moni-border-default)',
+                      borderRadius: 'var(--moni-radius-md)',
+                      color: 'var(--moni-text-secondary)',
+                      background: 'var(--moni-surface-0)',
+                    }}
+                  >
+                    {linkCopiado ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {linkCopiado ? 'Copiado' : 'Copiar'}
+                  </button>
+                  <a
+                    href={linkIntake}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-[44px] items-center gap-1.5 px-3 text-xs font-medium"
+                    style={{
+                      border: '0.5px solid var(--moni-border-default)',
+                      borderRadius: 'var(--moni-radius-md)',
+                      color: 'var(--moni-text-secondary)',
+                      background: 'var(--moni-surface-0)',
+                    }}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Abrir
+                  </a>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <fieldset>
             <legend className="text-sm font-medium" style={labelStyle}>
               Cadastro do loteador
