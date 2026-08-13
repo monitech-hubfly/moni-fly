@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { createClient } from '@/lib/supabase/server';
 import type { PainelKanbanTabsVariant } from '@/app/steps-viabilidade/PainelKanbanTabs';
+import { KanbanBoardSkeleton } from './KanbanBoardSkeleton';
 import { KanbanDatabaseBoardCardsLoader } from './KanbanDatabaseBoardCardsLoader';
 import { KanbanNotFound } from './KanbanNotFound';
 import { KanbanPainelTabsShell } from './KanbanPainelTabsShell';
@@ -75,7 +76,7 @@ export async function renderKanbanDatabasePage(
         camposPorFase={config.camposPorFase}
         enableNovoCardModal={exibirNovoCard}
       >
-        <Suspense fallback={null}>
+        <Suspense fallback={<KanbanBoardSkeleton />}>
           <KanbanDatabaseBoardCardsLoader
             userId={user.id}
             config={config}

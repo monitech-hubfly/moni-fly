@@ -5,7 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { NovoCardModal } from '@/app/funil-stepone/NovoCardModal';
 import { NovoCardFundingModal } from '@/app/funil-funding/NovoCardFundingModal';
+import { NovoCardMarketingModal } from '@/app/marketing/NovoCardMarketingModal';
+import { NovoCardMoniCareModal } from '@/app/manutencoes/NovoCardMoniCareModal';
 import { hrefAbrirCardNaRota } from '@/lib/kanban/kanban-card-href';
+import { isMarketingKanbanId } from '@/lib/kanban/funis-marketing';
+import { isMoniCareKanbanId } from '@/lib/kanban/funil-moni-care';
 import type { CamposPorFaseMap, KanbanFase, KanbanNomeDisplay } from './types';
 
 /** Modal pesado — carrega só quando há `?card=` (code-split + sem SSR). */
@@ -179,6 +183,20 @@ function KanbanModals({
       {enableNovoCardModal && urlState.novoAberto ? (
         kanbanNome === 'Funding' ? (
           <NovoCardFundingModal kanbanId={kanbanId} basePath={basePath} onClose={onCloseModals} />
+        ) : isMoniCareKanbanId(kanbanId) ? (
+          <NovoCardMoniCareModal
+            kanbanId={kanbanId}
+            kanbanNome={kanbanNome}
+            basePath={basePath}
+            onClose={onCloseModals}
+          />
+        ) : isMarketingKanbanId(kanbanId) ? (
+          <NovoCardMarketingModal
+            kanbanId={kanbanId}
+            kanbanNome={kanbanNome}
+            basePath={basePath}
+            onClose={onCloseModals}
+          />
         ) : (
           <NovoCardModal
             kanbanId={kanbanId}

@@ -49,6 +49,14 @@ export function rotaCardOrigem(kanbanNome: string, cardId: string | null | undef
     case 'Funil Cash Me':
     case 'Funil Crédito':
       return `/funil-credito-obra?card=${q}&origem=legado`;
+    case 'Funil Gravação de Vídeos Externos':
+      return `/marketing/gravacao-videos-externos?card=${q}`;
+    case 'Funil Programação de Conteúdo Semanal':
+      return `/marketing/programacao-conteudo-semanal?card=${q}`;
+    case 'Funil Série Inc. to Fly':
+      return `/marketing/serie-inc-to-fly?card=${q}`;
+    case 'Funil Moní Care':
+      return `/manutencoes/moni-care?card=${q}`;
     case 'Sirene':
       return '/sirene/chamados';
     case 'Externo':

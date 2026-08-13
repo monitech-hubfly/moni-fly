@@ -116,6 +116,8 @@ export async function updateSession(request: NextRequest) {
     '/funil-motor01',
     '/loteadores',
     '/funil-moni-inc',
+    '/marketing',
+    '/manutencoes',
     '/dashboard-novos-negocios',
     '/rede-franqueados',
     '/comunidade',

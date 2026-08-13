@@ -24,6 +24,13 @@ import { hipotesesOrdemMinima } from '@/lib/kanban/kanban-paralelas-chips';
 import { sortKanbanCardsPorProximaAtividade } from '@/lib/kanban/kanban-proxima-atividade-ordem';
 import type { KanbanNomeDisplay, KanbanCardBrief, KanbanFase, KanbanProximaAtividadeAberta } from './types';
 import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { isMarketingKanbanId, type MarketingFrente } from '@/lib/kanban/funis-marketing';
+import { fetchMarketingPerfilDestino } from '@/lib/actions/marketing-kanban';
+import {
+  MarketingKanbanExtras,
+  type MarketingStatusFiltro,
+} from './MarketingKanbanExtras';
 
 const BOARD_ROW_STYLE: CSSProperties = {
   display: 'flex',
@@ -104,6 +111,11 @@ export function KanbanBoard({
   const [filtrosDraft, setFiltrosDraft] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
   const [buscaCard, setBuscaCard] = useState('');
   const [filtrosOpen, setFiltrosOpen] = useState(false);
+  const isMarketing = isMarketingKanbanId(kanbanId);
+  const isProgramacao = kanbanId === KANBAN_IDS.MARKETING_PROGRAMACAO;
+  const [mktStatus, setMktStatus] = useState<MarketingStatusFiltro>('todos');
+  const [mktFrente, setMktFrente] = useState<'todas' | MarketingFrente>('todas');
+  const [perfilPorCard, setPerfilPorCard] = useState<Record<string, string>>({});
   const filtrosPopoverRef = useRef<HTMLDivElement>(null);
   const filtrosBtnRef = useRef<HTMLButtonElement>(null);
   const boardScrollRef = useRef<HTMLDivElement>(null);
@@ -157,6 +169,22 @@ export function KanbanBoard({
     setProximasAtividadesPorCard({});
     setProximasAtividadesBatchPronto(false);
   }, [cardsSnapshotSig]);
+
+  useEffect(() => {
+    if (!isProgramacao) return;
+    const ids = [...cards, ...cardsConcluidos].map((c) => c.id);
+    if (ids.length === 0) {
+      setPerfilPorCard({});
+      return;
+    }
+    let cancelled = false;
+    void fetchMarketingPerfilDestino(ids).then((map) => {
+      if (!cancelled) setPerfilPorCard(map);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isProgramacao, cardsSnapshotSig, cards, cardsConcluidos]);
 
   useEffect(() => {
     if (!deferEnrichments || !nomeDbParaLazy || !kanbanId) return;
@@ -391,6 +419,8 @@ export function KanbanBoard({
 
   const cardsFiltrados = useMemo(() => {
     const busca = buscaCard.trim();
+    const fasesOrd = fases.filter((f) => f.ativo !== false);
+    const ordemMin = fasesOrd.length > 0 ? Math.min(...fasesOrd.map((f) => f.ordem)) : 1;
     return poolStatus.filter((c) => {
       if (!cardPassaFiltrosBoard(c, filtros, faseMap, currentUserId)) return false;
       if (
@@ -400,9 +430,32 @@ export function KanbanBoard({
       ) {
         return false;
       }
+      if (isMarketing && mktStatus !== 'todos') {
+        const concluido = c.origem !== 'legado' && Boolean(c.concluido);
+        const ordem = faseMap.get(c.fase_id)?.ordem ?? ordemMin;
+        if (mktStatus === 'concluido' && !concluido) return false;
+        if (mktStatus === 'em_aberto' && (concluido || ordem > ordemMin)) return false;
+        if (mktStatus === 'em_andamento' && (concluido || ordem <= ordemMin)) return false;
+      }
+      if (isProgramacao && mktFrente !== 'todas') {
+        if ((perfilPorCard[c.id] ?? '') !== mktFrente) return false;
+      }
       return true;
     });
-  }, [poolStatus, filtros, faseMap, currentUserId, buscaCard, textoBuscaPorCardId]);
+  }, [
+    poolStatus,
+    filtros,
+    faseMap,
+    currentUserId,
+    buscaCard,
+    textoBuscaPorCardId,
+    isMarketing,
+    mktStatus,
+    isProgramacao,
+    mktFrente,
+    perfilPorCard,
+    fases,
+  ]);
 
   const clientFiltersActive =
     countKanbanBoardFiltrosAtivos(filtros) > 0 || buscaCard.trim().length > 0;
@@ -447,8 +500,22 @@ export function KanbanBoard({
     [fasesAtivas],
   );
 
+  const totalMarketing = cardsEfetivos.length + cardsConcluidosEfetivos.length;
+  const concluidosMarketing = cardsConcluidosEfetivos.length;
+
   return (
     <div className="min-w-0 space-y-3">
+      {isMarketing ? (
+        <MarketingKanbanExtras
+          kanbanId={kanbanId}
+          totalCards={totalMarketing}
+          cardsConcluidos={concluidosMarketing}
+          statusFiltro={mktStatus}
+          onStatusFiltro={setMktStatus}
+          frente={mktFrente}
+          onFrente={setMktFrente}
+        />
+      ) : null}
       <div className="moni-kanban-toolbar relative">
         <button
           ref={filtrosBtnRef}

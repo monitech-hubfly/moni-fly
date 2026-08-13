@@ -182,10 +182,6 @@ export function montarFasesNegocioPrazoOpcoes(fases: KanbanFase[]): FaseNegocioP
 
 /** Fases âncora dos prazos em Dados do Negócio — apenas as 14 colunas das três esteiras. */
 export async function fetchFasesNegocioPrazoOpcoes(supabase: SupabaseClient): Promise<FaseNegocioPrazoOpcao[]> {
-  const fases: KanbanFase[] = [];
-  for (const kanbanId of KANBANS_NEGOCIO_PRAZO_ESTEIRA) {
-    const list = await fetchKanbanFasesAtivas(supabase, kanbanId);
-    fases.push(...list);
-  }
+  const fases = await fetchKanbanFasesAtivasBatch(supabase, [...KANBANS_NEGOCIO_PRAZO_ESTEIRA]);
   return montarFasesNegocioPrazoOpcoes(fases);
 }

@@ -25,6 +25,12 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/funil-acoplamento', title: 'Funil Acoplamento' },
   { prefix: '/funil-moni-capital', title: 'Funil Divify' },
   { prefix: '/funil-funding', title: 'Funding' },
+  { prefix: '/marketing/gravacao-videos-externos', title: 'Gravação de Vídeos Externos' },
+  { prefix: '/marketing/programacao-conteudo-semanal', title: 'Programação de Conteúdo Semanal' },
+  { prefix: '/marketing/serie-inc-to-fly', title: 'Série Inc. to Fly' },
+  { prefix: '/marketing', title: 'Hub de Funis — Marketing' },
+  { prefix: '/manutencoes/moni-care', title: 'Funil Moní Care' },
+  { prefix: '/manutencoes', title: 'Hub de Funis — Manutenções' },
   { prefix: '/funil-contratacoes', title: 'Contratações' },
   { prefix: '/funil-produto', title: 'Funil Produto' },
   { prefix: '/funil-modelo-virtual', title: 'Funil Modelo Virtual' },
@@ -91,6 +97,18 @@ export function getStickyRouteTitle(pathname: string): string {
 /** Breadcrumb do cabeçalho fixo; último item é a página atual (sem link). */
 export function getStickyRouteBreadcrumbs(pathname: string, userRole?: string | null): StickyBreadcrumb[] {
   const path = normalizePathname(pathname);
+
+  if (path === '/manutencoes' || path.startsWith('/manutencoes/')) {
+    const crumbs: StickyBreadcrumb[] = [
+      { href: '/', label: 'Hub Fly' },
+      { href: '/hub-funis', label: 'Hub de Funis' },
+      { href: path === '/manutencoes' ? undefined : '/manutencoes', label: 'Manutenções' },
+    ];
+    if (path === '/manutencoes/moni-care' || path.startsWith('/manutencoes/moni-care/')) {
+      crumbs.push({ label: 'Funil Moní Care' });
+    }
+    return crumbs;
+  }
 
   if (isFrankRedeFranqueadoDetalhePath(path)) {
     const redeListHref = isFrankOrFranqueadoRole(userRole) ? '/portal-frank/rede' : '/rede-franqueados';

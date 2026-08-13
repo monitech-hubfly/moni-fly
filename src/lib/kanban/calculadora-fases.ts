@@ -36,7 +36,7 @@ export type CalculadoraFaseLinha = {
   /** Atraso na unidade do SLA da fase (d.u. ou d.c.). */
   atrasoDias: number | null;
   status: FaseTimelineStatus;
-  /** Moní ou Franqueado — quem executa a fase. */
+  /** Franqueado, Loteador ou Moní — quem executa a fase. */
   responsavelDaFase?: string | null;
   /** Quem arca com custos da fase (padrão por slug). */
   custo?: string | null;
@@ -2096,7 +2096,7 @@ export function inferirFimRealPorProximaFase(
   return out;
 }
 
-/** Preenche coluna «Responsável da fase» (Moní/Franqueado) — valor salvo ou padrão por slug. */
+/** Preenche coluna «Responsável da fase» (Franqueado/Loteador/Moní) — valor salvo ou padrão por slug. */
 export function enriquecerLinhasCalculadoraComResponsavelDaFase(
   linhas: CalculadoraFaseLinha[],
   faseSlugPorId: Map<string, string> = new Map(),

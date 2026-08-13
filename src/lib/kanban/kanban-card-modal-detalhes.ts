@@ -462,7 +462,18 @@ async function fetchProcessoById(supabase: SupabaseClient, id: string) {
 async function resolveProcessoNativo(
   supabase: SupabaseClient,
   cardId: string,
+  opts?: { cardProcessoStepOneId?: string | null; cardProjetoId?: string | null },
 ): Promise<ProcessoModalNegocioPreObra | null> {
+  const explicit = String(opts?.cardProcessoStepOneId ?? '').trim();
+  if (explicit) {
+    const byCol = await fetchProcessoById(supabase, explicit);
+    if (byCol) return byCol;
+  }
+  const projetoId = String(opts?.cardProjetoId ?? '').trim();
+  if (projetoId && projetoId !== explicit) {
+    const byProjeto = await fetchProcessoById(supabase, projetoId);
+    if (byProjeto) return byProjeto;
+  }
   const { resolverProcessoIdCanonicosSyncGroup } = await import('@/lib/kanban/card-sync-group');
   const processoId = await resolverProcessoIdCanonicosSyncGroup(supabase, cardId);
   if (!processoId) return null;
@@ -710,8 +721,8 @@ export async function fetchKanbanCardModalDetalhes(
     return { rede, processo, redeIdContrato, empresas };
   }
 
-  // Rede e processo são independentes no path nativo — paralelizar antes de empresas.
-  const [redeRow, processoRaw] = await Promise.all([
+  // Rede, processo e empresas (quando já há rede_franqueado_id) em paralelo.
+  const [redeRow, processoRaw, empresasEarly] = await Promise.all([
     redeFranqueadoId
       ? supabase
           .from('rede_franqueados')
@@ -720,7 +731,10 @@ export async function fetchKanbanCardModalDetalhes(
           .maybeSingle()
           .then((r) => mapRede((r.data as Record<string, unknown> | null) ?? null))
       : Promise.resolve(null as RedeFranqueadoModalRow | null),
-    resolveProcessoNativo(supabase, cardId),
+    resolveProcessoNativo(supabase, cardId, { cardProcessoStepOneId, cardProjetoId }),
+    redeFranqueadoId
+      ? fetchEmpresasForCard(supabase, redeFranqueadoId, cardId)
+      : Promise.resolve(null as CardEmpresasModalDetalhe | null),
   ]);
   const rede = redeRow;
   const processo = ocultarTipoNegociacaoHerdadoDoProcesso(processoRaw, {
@@ -728,6 +742,8 @@ export async function fetchKanbanCardModalDetalhes(
     redeProcessoId: rede?.processo_id,
   });
   const redeIdContrato = rede?.id ?? redeFranqueadoId;
-  const empresas = await fetchEmpresasForCard(supabase, redeIdContrato, cardId);
+  const empresas =
+    empresasEarly ??
+    (redeIdContrato ? await fetchEmpresasForCard(supabase, redeIdContrato, cardId) : null);
   return { rede, processo, redeIdContrato, empresas };
 }

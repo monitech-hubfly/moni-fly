@@ -4,6 +4,9 @@ export type FunilDef = {
   id: string;
   label: string;
   href: string;
+  tipo?: 'pontual' | 'recorrente' | 'temporada';
+  nFases?: number;
+  descricao?: string;
 };
 
 export type GrupoDef = {
@@ -57,6 +60,46 @@ export const HUB_FUNIS_GRUPOS: GrupoDef[] = [
     funis: [
       { id: KANBAN_IDS.CONTRATACOES, label: 'Contratações', href: '/funil-contratacoes' },
       { id: KANBAN_IDS.CONTABILIDADE, label: 'Contabilidade', href: '/painel-contabilidade' },
+    ],
+  },
+  {
+    titulo: 'Marketing',
+    cor: 'var(--moni-navy-800)',
+    funis: [
+      {
+        id: KANBAN_IDS.MARKETING_GRAVACAO,
+        label: 'Gravação de Vídeos Externos',
+        href: '/marketing/gravacao-videos-externos',
+        tipo: 'pontual',
+        nFases: 3,
+      },
+      {
+        id: KANBAN_IDS.MARKETING_PROGRAMACAO,
+        label: 'Programação de Conteúdo Semanal',
+        href: '/marketing/programacao-conteudo-semanal',
+        tipo: 'recorrente',
+        nFases: 3,
+      },
+      {
+        id: KANBAN_IDS.MARKETING_INC_TO_FLY,
+        label: 'Série Inc. to Fly',
+        href: '/marketing/serie-inc-to-fly',
+        tipo: 'temporada',
+        nFases: 8,
+      },
+    ],
+  },
+  {
+    titulo: 'Manutenções',
+    cor: 'var(--moni-green-800)',
+    funis: [
+      {
+        id: KANBAN_IDS.MONI_CARE,
+        label: 'Funil Moní Care',
+        href: '/manutencoes/moni-care',
+        nFases: 10,
+        descricao: 'Pós-entrega e revisões programadas — 5 anos de garantia',
+      },
     ],
   },
 ];

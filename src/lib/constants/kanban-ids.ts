@@ -18,6 +18,10 @@ export const KANBAN_IDS = {
   PROJETOS_LOCAIS: 'c2ab09bd-4bd6-491e-8734-281d7678a6ad',
   PROJETOS_LEGAIS: '23ad5ce1-59f8-4e74-acb8-69aa61228cd8',
   MOTOR01:         '202527ea-d284-4c49-94f5-e75b25d6910e',
+  MARKETING_GRAVACAO:    'e8a14c2b-7d53-4f91-a6c0-2b9e5d8f1a47',
+  MARKETING_PROGRAMACAO: 'f1b25d3c-8e64-4a02-b7d1-3c0f6e9a2b58',
+  MARKETING_INC_TO_FLY:  'a2c36e4d-9f75-4b13-c8e2-4d1a7f0b3c69',
+  MONI_CARE:             'b3d47f5e-0a86-4c24-89f3-5e2b8a1c4d70',
 } as const
 
 /** Nome canônico em `kanbans.nome` — Funil Crédito Obra. */
@@ -49,6 +53,10 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Projetos Locais': KANBAN_IDS.PROJETOS_LOCAIS,
   'Funil Projetos Legais': KANBAN_IDS.PROJETOS_LEGAIS,
   'Funil Motor 01': KANBAN_IDS.MOTOR01,
+  'Funil Gravação de Vídeos Externos': KANBAN_IDS.MARKETING_GRAVACAO,
+  'Funil Programação de Conteúdo Semanal': KANBAN_IDS.MARKETING_PROGRAMACAO,
+  'Funil Série Inc. to Fly': KANBAN_IDS.MARKETING_INC_TO_FLY,
+  'Funil Moní Care': KANBAN_IDS.MONI_CARE,
 };
 
 export const FASE_IDS = {
@@ -305,6 +313,32 @@ export const FASE_SLUGS = {
   HOM_APROVADO:     'hom_aprovado',
   /** @deprecated migration 462 */
   HOM_REPROVADO:    'hom_reprovado',
+
+  MKT_GRAV_PLANEJAMENTO: 'mkt_grav_planejamento',
+  MKT_GRAV_IN_LOCO: 'mkt_grav_in_loco',
+  MKT_GRAV_DECUPAGEM: 'mkt_grav_decupagem',
+  MKT_PROG_PLANEJAMENTO: 'mkt_prog_planejamento',
+  MKT_PROG_EDICAO: 'mkt_prog_edicao',
+  MKT_PROG_AGENDAMENTO: 'mkt_prog_agendamento',
+  MKT_INC_PLANEJAMENTO: 'mkt_inc_planejamento',
+  MKT_INC_GRAVACAO: 'mkt_inc_gravacao',
+  MKT_INC_DECUPAGEM: 'mkt_inc_decupagem',
+  MKT_INC_D1_STORYLINE: 'mkt_inc_d1_storyline',
+  MKT_INC_D2_ROTEIRO: 'mkt_inc_d2_roteiro',
+  MKT_INC_D21_EXTRA: 'mkt_inc_d21_extra',
+  MKT_INC_D3_EDICAO: 'mkt_inc_d3_edicao',
+  MKT_INC_D4_FINAL: 'mkt_inc_d4_final',
+
+  CARE_NOVO_ACIONAMENTO: 'care_novo_acionamento',
+  CARE_TRIAGEM: 'care_triagem',
+  CARE_AGENDAMENTO: 'care_agendamento',
+  CARE_VISITA_CONFIRMADA: 'care_visita_confirmada',
+  CARE_EM_ATENDIMENTO: 'care_em_atendimento',
+  CARE_ORCAMENTO: 'care_orcamento',
+  CARE_AGUARDANDO_APROVACAO: 'care_aguardando_aprovacao',
+  CARE_EM_EXECUCAO: 'care_em_execucao',
+  CARE_CONCLUIDO: 'care_concluido',
+  CARE_ARQUIVADO: 'care_arquivado',
 } as const
 
 /** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389). */

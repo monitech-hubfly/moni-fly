@@ -63,6 +63,8 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/_next',
   '/formulario-candidato',
   '/loteador',
+  '/marketing',
+  '/manutencoes',
 ] as const;
 
 /** Mesma regra do middleware: `/` só a home exata; demais por prefixo. */

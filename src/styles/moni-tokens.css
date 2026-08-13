@@ -200,6 +200,16 @@
   --moni-kanban-credito-light:  var(--moni-gold-50);
   --moni-kanban-credito-accent: var(--moni-gold-400);
 
+  /* Marketing — Navy (sem roxo hardcoded) */
+  --moni-kanban-marketing:        var(--moni-navy-800);
+  --moni-kanban-marketing-light:  var(--moni-navy-50);
+  --moni-kanban-marketing-accent: var(--moni-navy-400);
+
+  /* Moní Care — Verde (Manutenções / pós-entrega) */
+  --moni-kanban-moni-care:        var(--moni-green-800);
+  --moni-kanban-moni-care-light:  var(--moni-green-50);
+  --moni-kanban-moni-care-accent: var(--moni-green-400);
+
   /* Funding — badges tipo Investidor / Broker */
   --moni-funding-investidor-bg:   #E6F1FB;
   --moni-funding-investidor-text: #185FA5;
@@ -2362,6 +2372,8 @@
 .moni-kanban-id--loteadores { background: var(--moni-kanban-loteadores-light); color: var(--moni-kanban-loteadores); border-color: var(--moni-kanban-loteadores-accent); }
 .moni-kanban-id--contab    { background: var(--moni-kanban-contab-light);    color: var(--moni-kanban-contab);    border-color: var(--moni-kanban-contab-accent); }
 .moni-kanban-id--credito   { background: var(--moni-kanban-credito-light);   color: var(--moni-kanban-credito);   border-color: var(--moni-kanban-credito-accent); }
+.moni-kanban-id--marketing { background: var(--moni-kanban-marketing-light); color: var(--moni-kanban-marketing); border-color: var(--moni-kanban-marketing-accent); }
+.moni-kanban-id--moni-care { background: var(--moni-kanban-moni-care-light); color: var(--moni-kanban-moni-care); border-color: var(--moni-kanban-moni-care-accent); }
 
 /* Shell do board — isola colunas dentro do main (nunca sob o sidebar) */
 .moni-kanban-shell {

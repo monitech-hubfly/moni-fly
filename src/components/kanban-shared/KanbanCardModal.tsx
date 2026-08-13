@@ -1528,6 +1528,77 @@ export function KanbanCardModal({
         prazo_atividade: loaded.prazo_atividade ?? null,
       };
 
+      const prazosNegocioPromise = fetchFasesNegocioPrazoOpcoes(supabase);
+      const detalhesPainelPromise = (async () => {
+        try {
+          let processoStepOneId =
+            String(loaded.processo_step_one_id ?? cardParaEstado.processo_step_one_id ?? '').trim() ||
+            null;
+          if (
+            origem === 'nativo' &&
+            !processoStepOneId &&
+            isLoteadoresKanbanRef(loaded.kanban_id, String(kanbanNome))
+          ) {
+            const ensured = await ensureProcessoStepOneForKanbanCard(loaded.id);
+            if (ensured.ok) {
+              processoStepOneId = ensured.processoId;
+              cardParaEstado = { ...cardParaEstado, processo_step_one_id: processoStepOneId };
+              if (stillCurrent()) setCard(cardParaEstado);
+            }
+          }
+          let det = await fetchKanbanCardModalDetalhes(supabase, {
+            origem,
+            cardId: loaded.id,
+            cardTitulo: cardParaEstado.titulo,
+            redeFranqueadoId:
+              origem === 'nativo'
+                ? cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId
+                : null,
+            cardProjetoId: loaded.projeto_id ?? null,
+            cardProcessoStepOneId: processoStepOneId,
+          });
+          if (!stillCurrent()) return;
+          setModalDetalhes(det);
+          setPreObraDraft(preObraDraftFromProcesso(det.processo));
+          setDetalhesCarregando(false);
+
+          const opcoesNegocioPrazo = await prazosNegocioPromise;
+          if (!stillCurrent()) return;
+          setFasesNegocioPrazo(opcoesNegocioPrazo);
+          setNegocioDraft(negocioDraftFromProcesso(det.processo, opcoesNegocioPrazo));
+
+          if (origem === 'nativo' && det.processo?.id) {
+            const syncLinks = await reconciliarGboxPlanilhaMapaChecklist({
+              cardId: loaded.id,
+              processoId: det.processo.id,
+            });
+            if (syncLinks.ok && syncLinks.alterado) {
+              det = await fetchKanbanCardModalDetalhes(supabase, {
+                origem,
+                cardId: loaded.id,
+                cardTitulo: cardParaEstado.titulo,
+                redeFranqueadoId:
+                  origem === 'nativo'
+                    ? cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId
+                    : null,
+                cardProjetoId: loaded.projeto_id ?? null,
+                cardProcessoStepOneId: processoStepOneId ?? det.processo.id,
+              });
+              if (!stillCurrent()) return;
+              setModalDetalhes(det);
+              setPreObraDraft(preObraDraftFromProcesso(det.processo));
+              setNegocioDraft(negocioDraftFromProcesso(det.processo, opcoesNegocioPrazo));
+            }
+          }
+        } catch {
+          if (!stillCurrent()) return;
+          setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
+          setPreObraDraft(preObraDraftFromProcesso(null));
+          setNegocioDraft(negocioDraftVazio());
+          setDetalhesCarregando(false);
+        }
+      })();
+
       if (origem === 'legado') {
         try {
           const { data: procRow } = await supabase
@@ -1689,23 +1760,21 @@ export function KanbanCardModal({
       }
 
       if (!stillCurrent()) return;
-      try {
-        const fonte = await fontePromise;
-        if (!stillCurrent()) return;
-        setFonteDadosLaterais(
-          fonte ??
-            (isLoteadoresKanbanRef(cardParaEstado.kanban_id, String(kanbanNome))
-              ? { tipo: 'loteador', cardIdFonte: cardParaEstado.id }
-              : { tipo: 'franqueado', cardIdFonte: cardParaEstado.id }),
-        );
-      } catch {
-        if (!stillCurrent()) return;
-        setFonteDadosLaterais(
-          isLoteadoresKanbanRef(cardParaEstado.kanban_id, String(kanbanNome))
-            ? { tipo: 'loteador', cardIdFonte: cardParaEstado.id }
-            : { tipo: 'franqueado', cardIdFonte: cardParaEstado.id },
-        );
-      }
+      const fonteFallback: FonteDadosLaterais = isLoteadoresKanbanRef(
+        cardParaEstado.kanban_id,
+        String(kanbanNome),
+      )
+        ? { tipo: 'loteador', cardIdFonte: cardParaEstado.id }
+        : { tipo: 'franqueado', cardIdFonte: cardParaEstado.id };
+      void fontePromise
+        .then((fonte) => {
+          if (!stillCurrent()) return;
+          setFonteDadosLaterais(fonte ?? fonteFallback);
+        })
+        .catch(() => {
+          if (!stillCurrent()) return;
+          setFonteDadosLaterais(fonteFallback);
+        });
       setCard(cardParaEstado);
       {
         const drShell = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
@@ -1863,67 +1932,8 @@ export function KanbanCardModal({
           if (!stillCurrent()) return;
           cardParaEstado = next;
           setCard(next);
-
-          // Detalhes após sync — título/rede canônicos alimentam resolveProcessoNativo
-          try {
-            let processoStepOneId =
-              String(loaded.processo_step_one_id ?? cardParaEstado.processo_step_one_id ?? '').trim() ||
-              null;
-            if (
-              origem === 'nativo' &&
-              !processoStepOneId &&
-              isLoteadoresKanbanRef(loaded.kanban_id, String(kanbanNome))
-            ) {
-              const ensured = await ensureProcessoStepOneForKanbanCard(loaded.id);
-              if (ensured.ok) {
-                processoStepOneId = ensured.processoId;
-                cardParaEstado = { ...cardParaEstado, processo_step_one_id: processoStepOneId };
-                if (stillCurrent()) setCard(cardParaEstado);
-              }
-            }
-            let det = await fetchKanbanCardModalDetalhes(supabase, {
-              origem,
-              cardId: loaded.id,
-              cardTitulo: cardParaEstado.titulo,
-              redeFranqueadoId:
-                origem === 'nativo'
-                  ? cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId
-                  : null,
-              cardProjetoId: loaded.projeto_id ?? null,
-              cardProcessoStepOneId: processoStepOneId,
-            });
-            if (origem === 'nativo' && det.processo?.id) {
-              const syncLinks = await reconciliarGboxPlanilhaMapaChecklist({
-                cardId: loaded.id,
-                processoId: det.processo.id,
-              });
-              if (syncLinks.ok && syncLinks.alterado) {
-                det = await fetchKanbanCardModalDetalhes(supabase, {
-                  origem,
-                  cardId: loaded.id,
-                  cardTitulo: cardParaEstado.titulo,
-                  redeFranqueadoId:
-                    cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId ?? null,
-                  cardProjetoId: loaded.projeto_id ?? null,
-                  cardProcessoStepOneId: processoStepOneId,
-                });
-              }
-            }
-            if (!stillCurrent()) return;
-            setModalDetalhes(det);
-            const opcoesNegocioPrazo = await fetchFasesNegocioPrazoOpcoes(supabase);
-            setFasesNegocioPrazo(opcoesNegocioPrazo);
-            setPreObraDraft(preObraDraftFromProcesso(det.processo));
-            setNegocioDraft(negocioDraftFromProcesso(det.processo, opcoesNegocioPrazo));
-          } catch {
-            if (!stillCurrent()) return;
-            setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
-            setPreObraDraft(preObraDraftFromProcesso(null));
-            setNegocioDraft(negocioDraftVazio());
-          } finally {
-            if (stillCurrent()) setDetalhesCarregando(false);
-          }
         })(),
+        detalhesPainelPromise,
 
         (async () => {
           // Carregar tags

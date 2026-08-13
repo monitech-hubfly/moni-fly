@@ -108,7 +108,9 @@ function isHubFunisActive(pathname: string) {
     pathname.startsWith('/projetos-legais') ||
     pathname.startsWith('/funil-produto') ||
     pathname.startsWith('/funil-modelo-virtual') ||
-    pathname.startsWith('/funil-homologacoes')
+    pathname.startsWith('/funil-homologacoes') ||
+    pathname.startsWith('/marketing') ||
+    pathname.startsWith('/manutencoes')
   );
 }
 

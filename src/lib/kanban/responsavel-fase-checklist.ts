@@ -28,7 +28,7 @@ export const RESPONSAVEL_FASE_CHECKLIST_LABELS_TODOS = [
   ...RESPONSAVEL_FASE_CHECKLIST_LABELS_LEGADO,
 ] as const;
 
-/** Painel lateral: quem executa a fase (Moní ou Franqueado). */
+/** Painel lateral: quem executa a fase (Franqueado, Loteador ou Moní). */
 export const RESPONSAVEL_DA_FASE_CHECKLIST_LABEL = 'Responsável da fase';
 
 export const CAMPO_SLUG_RESPONSAVEL_DA_FASE = 'responsavel_da_fase';
@@ -38,10 +38,12 @@ export const CAMPO_SLUG_RESPONSAVEL_DA_FASE_TIPO = 'responsavel_da_fase_tipo';
 export const CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO = 'responsavel_da_fase_usuario';
 
 export const RESPONSAVEL_DA_FASE_TIPO_FRANQUEADO = 'Franqueado';
+export const RESPONSAVEL_DA_FASE_TIPO_LOTEADOR = 'Loteador';
 export const RESPONSAVEL_DA_FASE_TIPO_MONI = 'Moní';
 
 export const OPCOES_RESPONSAVEL_DA_FASE = [
   RESPONSAVEL_DA_FASE_TIPO_FRANQUEADO,
+  RESPONSAVEL_DA_FASE_TIPO_LOTEADOR,
   RESPONSAVEL_DA_FASE_TIPO_MONI,
 ] as const;
 
@@ -51,7 +53,7 @@ export function isValorResponsavelDaFaseLista(
   valor: string | null | undefined,
 ): valor is ValorResponsavelDaFaseLista {
   const v = String(valor ?? '').trim();
-  return v === RESPONSAVEL_DA_FASE_TIPO_FRANQUEADO || v === RESPONSAVEL_DA_FASE_TIPO_MONI;
+  return (OPCOES_RESPONSAVEL_DA_FASE as readonly string[]).includes(v);
 }
 
 export function labelResponsavelDaFasePorTipo(tipo: TipoResponsavelDaFasePadrao): ValorResponsavelDaFaseLista {
@@ -94,6 +96,10 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>
   [KANBAN_IDS.HDM_MODELO_VIRTUAL]: 'elisabete.nucci@moni.casa',
   [KANBAN_IDS.HDM_HOMOLOGACOES]: 'karoline.galdino@moni.casa',
   [KANBAN_IDS.PROJETOS_LEGAIS]: 'larissa.lima@moni.casa',
+  [KANBAN_IDS.MARKETING_GRAVACAO]: 'rafael.abreu@moni.casa',
+  [KANBAN_IDS.MARKETING_PROGRAMACAO]: 'rafael.abreu@moni.casa',
+  [KANBAN_IDS.MARKETING_INC_TO_FLY]: 'rafael.abreu@moni.casa',
+  [KANBAN_IDS.MONI_CARE]: 'larissa.lima@moni.casa',
   // Step One: responsável do card = franqueado da rede (não owner Moní fixo).
 };
 
@@ -785,7 +791,7 @@ export async function buscarItemIdResponsavelDaFaseEdicao(
   return escolherItemResponsavelDaFaseCanonico(rows);
 }
 
-/** Preenche «Responsável da fase» conforme slug (Moní / Franqueado) se ainda vazio. */
+/** Preenche «Responsável da fase» conforme slug (Moní / Franqueado / Loteador) se ainda vazio. */
 export async function aplicarResponsavelDaFasePadraoSeVazio(
   supabase: SupabaseClient,
   cardId: string,

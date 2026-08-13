@@ -26,7 +26,7 @@ function normalizarValorLista(valor: string | null | undefined): string {
   return isValorResponsavelDaFaseLista(v) ? v : '';
 }
 
-/** Campo «Responsável da fase» no painel lateral — lista Moní ou Franqueado. */
+/** Campo «Responsável da fase» no painel lateral — Franqueado, Loteador ou Moní. */
 export function ResponsavelDaFaseSidebar({ cardId, faseId, readOnly = false, onAlterado }: Props) {
   const [itemId, setItemId] = useState<string | null>(null);
   const [valor, setValor] = useState('');

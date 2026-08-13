@@ -19,7 +19,11 @@ export type KanbanNomeDisplay =
   | 'Funil Pré Obra e Obra'
   | 'Funil Contabilidade'
   | 'Funil Crédito Obra'
-  | 'Funil Motor 01';
+  | 'Funil Motor 01'
+  | 'Funil Gravação de Vídeos Externos'
+  | 'Funil Programação de Conteúdo Semanal'
+  | 'Funil Série Inc. to Fly'
+  | 'Funil Moní Care';
 
 export type KanbanFaseMaterialTipo = 'link' | 'documento' | 'video';
 

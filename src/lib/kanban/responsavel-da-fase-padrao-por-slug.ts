@@ -224,6 +224,18 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   projetos_legais_aguardando: 'franqueado',
   projetos_legais_alvara: 'franqueado',
   projetos_legais_concluido: 'franqueado',
+
+  // Funil Moní Care (Manutenções)
+  care_novo_acionamento: 'moni',
+  care_triagem: 'moni',
+  care_agendamento: 'moni',
+  care_visita_confirmada: 'moni',
+  care_em_atendimento: 'moni',
+  care_orcamento: 'moni',
+  care_aguardando_aprovacao: 'moni',
+  care_em_execucao: 'moni',
+  care_concluido: 'moni',
+  care_arquivado: 'moni',
 };
 
 export function tipoResponsavelDaFasePorSlug(
