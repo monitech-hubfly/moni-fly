@@ -267,7 +267,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .not('objetivo_id', 'is', null),   // exclui "Sem vínculo à meta"
           supabase
             .from('kanban_cards')
-            .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
+            .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
             .or(engOrKanban)
             .eq('arquivado', false)
             .eq('concluido', false),
