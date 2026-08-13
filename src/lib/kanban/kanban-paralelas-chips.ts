@@ -203,6 +203,96 @@ function chipOperacoesParalela(
   );
 }
 
+/**
+ * Funil Loteadores — 5 bolinhas:
+ * 1 Acoplamento (Fase 13 / Acoplamento + Gbox)
+ * 2 Pré Obra e Obra (Fase 19 / Passagem para Waysers)
+ * 3–5 placeholders até mapear as esteiras.
+ */
+function montarChipsLoteadoresParalelas(
+  input: MontarChipsParalelasInput,
+  opts?: MontarChipsParalelasOptions,
+): ParalelaChip[] {
+  const f = input.flags;
+  const chips: ParalelaChip[] = [];
+
+  const temFilhoAcoplamento = Boolean(input.temFilhoAcoplamento);
+  const filhoAcoplamentoArquivado =
+    Boolean(input.filhoAcoplamentoArquivado) && !temFilhoAcoplamento;
+  if (temFilhoAcoplamento || filhoAcoplamentoArquivado) {
+    pushChipAcoplamentoPortfolio(chips, f, {
+      ...opts,
+      temFilhoAtivo: temFilhoAcoplamento,
+      filhoArquivado: filhoAcoplamentoArquivado,
+    });
+  } else {
+    chips.push(
+      chipOperacoesParalela(
+        KANBAN_IDS.ACOPLAMENTO,
+        'Acoplamento',
+        { temFilho: false, filhoArquivado: false },
+        opts,
+      ),
+    );
+  }
+
+  chips.push(
+    chipOperacoesParalela(
+      KANBAN_IDS.OPERACOES,
+      'Pré Obra e Obra',
+      {
+        temFilho: Boolean(input.temFilhoOperacoes),
+        filhoArquivado: Boolean(input.filhoOperacoesArquivado) && !input.temFilhoOperacoes,
+        filhoFase: input.operacoesFilhoFaseRotulo,
+        filhoConcluido: input.operacoesFilhoConcluido,
+      },
+      opts,
+    ),
+  );
+
+  // TODO: esteira paralela a mapear
+  chips.push(
+    chipEsteira(
+      'loteadores-paralela-todo-3',
+      'Esteira a mapear',
+      null,
+      '—',
+      '—',
+      false,
+      opts,
+      false,
+    ),
+  );
+  // TODO: esteira paralela a mapear
+  chips.push(
+    chipEsteira(
+      'loteadores-paralela-todo-4',
+      'Esteira a mapear',
+      null,
+      '—',
+      '—',
+      false,
+      opts,
+      false,
+    ),
+  );
+  // TODO: esteira paralela a mapear
+  chips.push(
+    chipEsteira(
+      'loteadores-paralela-todo-5',
+      'Esteira a mapear',
+      null,
+      '—',
+      '—',
+      false,
+      opts,
+      false,
+    ),
+  );
+
+  return chips;
+}
+
 /** Sempre 5 bolinhas: Acoplamento, PL, PLocais, Crédito Obra, Divify. */
 function montarChipsEsteirasParalelasFixas(
   input: MontarChipsParalelasInput,
@@ -445,7 +535,7 @@ export function montarChipsParalelas(
   }
 
   if (ehLoteadores) {
-    chips.push(...montarChipsEsteirasParalelasFixas(input, opts));
+    chips.push(...montarChipsLoteadoresParalelas(input, opts));
     pushChipPreObraObra(
       chips,
       input,

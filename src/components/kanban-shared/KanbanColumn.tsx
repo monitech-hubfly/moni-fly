@@ -150,6 +150,17 @@ function separarCodigoTitulo(titulo: string): { codigo: string | null; tituloLim
   return { codigo: null, tituloLimpo: t };
 }
 
+/** Header: se não há nome no cadastro, usa o 1º segmento após LO/FK só quando há mais de um. */
+function fallbackNomeHeaderAposCodigo(codigo: string | null, tituloLimpo: string): string {
+  if (!codigo) return '';
+  const parts = tituloLimpo
+    .split(/\s*[-–—]\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return '';
+  return parts[0] ?? '';
+}
+
 function parseDragPayload(raw: string): DragPayload | null {
   if (!raw) return null;
   try {
@@ -575,8 +586,10 @@ export function KanbanColumn({
           const insertBeforeThis =
             dragOverCardId === card.id && dragInsertBefore && dndAtivo;
           // Header: FK · franqueado (profiles). Subtítulo = linha extra (ex.: interlocutor loteadores).
-          const franqueadoNome = card.profiles?.full_name?.trim() || '';
           const { codigo: codigoCard, tituloLimpo } = separarCodigoTitulo(card.titulo);
+          const franqueadoNome =
+            card.profiles?.full_name?.trim() ||
+            fallbackNomeHeaderAposCodigo(codigoCard, tituloLimpo);
           const subtituloCard = card.subtitulo?.trim() || '';
           const subtituloNorm = subtituloCard.toLowerCase();
           const mostrarSubtitulo =

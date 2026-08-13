@@ -66,7 +66,11 @@ export function montarTituloCardLoteadores(params: TituloLoteadorParams): string
   return fb || null;
 }
 
-/** Nome no header do card fechado (spec: nome_responsavel). */
+/**
+ * Nome no header do card fechado.
+ * `rede_loteadores` não tem `nome_responsavel` — equivalente:
+ * interlocutor_nome → contato_nome → nome.
+ */
 export function nomeResponsavelHeaderLoteador(rl: {
   interlocutor_nome?: string | null;
   contato_nome?: string | null;
