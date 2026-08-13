@@ -174,7 +174,7 @@ Fonte canônica: `src/lib/constants/kanban-ids.ts`
 
 **Cash Me (25)**: `co_novo_projeto` … `co_acompanhamento_6a` → `credito_obra_aprovado` / `credito_obra_reprovado`
 
-**Loteadores (14+)**: `primeiro_contato_moni_inc` … `contrato_parceria_moni_inc` (+ `viabilidade_moni_inc`, `execucao_material_moni_inc`, `diligencia_moni_inc` em versões recentes)
+**Loteadores (20)**: `primeiro_contato_moni_inc` … `aguardando_ficha_moni_inc` → `novo_produto_moni_inc` → `viabilidade_moni_inc` … `contrato_parceria_moni_inc`
 
 **Divify (9)**: `capital_recebimento` → `capital_abertura_spe` → `capital_abertura_conta` (Conta Bancária) → `capital_cadastro_plataforma` → `capital_materiais_projeto` → `capital_informacoes_obrigatorias` → `capital_formalizacao` → `capital_concluido` (Oferta publicada) / `capital_nao_elegivel` — migrations 464–465
 
@@ -217,7 +217,7 @@ FK#### - Nome Condomínio - Quadra - Lote
 
 ### 5.4 Chips paralelas (`kanban-paralelas-chips.ts`)
 
-Exibidos no Portfolio (a partir de `step_4`/`acoplamento`) e Step One (a partir de Hipóteses): Acoplamento, Créd. Terreno, Contab., Jurídico, Divify, Operações.
+Exibidos no Portfolio, Loteadores e Pré Obra e Obra: Acoplamento, Projeto Legal, Projetos Locais, Crédito Obra, Divify (sempre 5). Portfólio/Loteadores também mostram chip Pré Obra quando há filho ou fase de passagem. Step One: chip de vínculo Portfolio a partir de Hipóteses.
 
 > **Nota (commit `f0d97ea6`)**: no Funil Portfólio, os chips são **apenas informativos** — não bloqueiam mais o avanço para Comitê (`step_5`).
 

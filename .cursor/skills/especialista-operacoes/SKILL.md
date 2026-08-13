@@ -30,7 +30,7 @@ description: >-
 | Loteadores | `/loteadores` | `LOTEADORES` |
 | Moní Capital | `/funil-moni-capital` | `MONI_CAPITAL` |
 
-> Funil Loteadores ≠ Motor 01 (`/funil-motor01`). Esteira v1: 19 fases; migrations `511`/`512`.
+> Funil Loteadores ≠ Motor 01 (`/funil-motor01`). Esteira v1: 20 fases; migrations `511`/`512`/`521`.
 
 ## Inventário completo
 

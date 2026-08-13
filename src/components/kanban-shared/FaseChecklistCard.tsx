@@ -114,6 +114,10 @@ import {
   isLoteadoresAguardandoFichaFaseSlug,
 } from '@/lib/kanban/loteadores-aguardando-ficha';
 import {
+  isLoteadoresNovoProdutoCampoVisivel,
+  isLoteadoresNovoProdutoFaseSlug,
+} from '@/lib/kanban/loteadores-novo-produto';
+import {
   isLoteadoresValidacaoCampoVisivel,
   isLoteadoresValidacaoFaseSlug,
 } from '@/lib/kanban/loteadores-validacao';
@@ -846,6 +850,7 @@ export function FaseChecklistCard({
     .filter((it) => !isLoteadoresNdaFaseSlug(faseSlug) || isLoteadoresNdaCampoVisivel(it))
     .filter((it) => !isLoteadoresOpcaoFaseSlug(faseSlug) || isLoteadoresOpcaoCampoVisivel(it))
     .filter((it) => !isLoteadoresAguardandoFichaFaseSlug(faseSlug) || isLoteadoresAguardandoFichaCampoVisivel(it))
+    .filter((it) => !isLoteadoresNovoProdutoFaseSlug(faseSlug) || isLoteadoresNovoProdutoCampoVisivel(it))
     .filter((it) => !isLoteadoresViabilidadeFaseSlug(faseSlug) || isLoteadoresViabilidadeCampoVisivel(it))
     .filter((it) => !isLoteadoresAcoplamentoFaseSlug(faseSlug) || isLoteadoresAcoplamentoCampoVisivel(it))
     .filter((it) => !isLoteadoresExecucaoMaterialFaseSlug(faseSlug) || isLoteadoresExecucaoMaterialCampoVisivel(it))

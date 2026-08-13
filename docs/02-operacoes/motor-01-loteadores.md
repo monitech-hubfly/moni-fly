@@ -20,7 +20,7 @@ Qualificação de loteadores: primeiro contato → parceria, com NDA/opção/fic
 
 **Bastão Acoplamento:** ao entrar em `acoplamento_moni_inc` **ou** `acoplamento_gbox_moni_inc`.
 
-## Fases (ordem 1–19)
+## Fases (ordem 1–20)
 
 | # | Nome | Slug |
 |---|------|------|
@@ -29,20 +29,21 @@ Qualificação de loteadores: primeiro contato → parceria, com NDA/opção/fic
 | 3 | NDA | `nda_moni_inc` |
 | 4 | Opção | `opcao_moni_inc` |
 | 5 | Aguardando Ficha | `aguardando_ficha_moni_inc` |
-| 6 | Viabilidade / Premissas | `viabilidade_moni_inc` |
-| 7 | Acoplamento | `acoplamento_moni_inc` |
-| 8 | Executar Material | `execucao_material_moni_inc` |
-| 9 | Validação | `validacao_moni_inc` |
-| 10 | R2 Apresentação | `r2_plano_teorico_moni_inc` |
-| 11 | Revisões + Forma Pgto | `revisoes_moni_inc` |
-| 12 | Acoplamento + Gbox | `acoplamento_gbox_moni_inc` |
-| 13 | Comitê | `comite_moni_inc` |
-| 14 | Revisões (pós-Comitê) | `revisoes_pos_comite_moni_inc` |
-| 15 | Cto c/ Precedentes | `cto_precedentes_moni_inc` |
-| 16 | Diligência | `diligencia_moni_inc` |
-| 17 | Cto Showroom | `cto_showroom_moni_inc` |
-| 18 | Passagem para Waysers | `passagem_waysers_moni_inc` |
-| 19 | Cto de Parceria | `contrato_parceria_moni_inc` |
+| 6 | Novo Produto | `novo_produto_moni_inc` |
+| 7 | Viabilidade / Premissas | `viabilidade_moni_inc` |
+| 8 | Acoplamento | `acoplamento_moni_inc` |
+| 9 | Executar Material | `execucao_material_moni_inc` |
+| 10 | Validação | `validacao_moni_inc` |
+| 11 | R2 Apresentação | `r2_plano_teorico_moni_inc` |
+| 12 | Revisões + Forma Pgto | `revisoes_moni_inc` |
+| 13 | Acoplamento + Gbox | `acoplamento_gbox_moni_inc` |
+| 14 | Comitê | `comite_moni_inc` |
+| 15 | Revisões (pós-Comitê) | `revisoes_pos_comite_moni_inc` |
+| 16 | Cto c/ Precedentes | `cto_precedentes_moni_inc` |
+| 17 | Diligência | `diligencia_moni_inc` |
+| 18 | Cto Showroom | `cto_showroom_moni_inc` |
+| 19 | Passagem para Waysers | `passagem_waysers_moni_inc` |
+| 20 | Cto de Parceria | `contrato_parceria_moni_inc` |
 
 Fases legado desativadas (cards movidos na 511): Batalha de Casas, R3, Moní Capital, Abertura SPE.
 

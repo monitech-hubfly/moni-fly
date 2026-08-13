@@ -49,6 +49,10 @@ import {
   isLoteadoresAguardandoFichaFaseSlug,
 } from '@/lib/kanban/loteadores-aguardando-ficha';
 import {
+  isLoteadoresNovoProdutoCampoVisivel,
+  isLoteadoresNovoProdutoFaseSlug,
+} from '@/lib/kanban/loteadores-novo-produto';
+import {
   isLoteadoresViabilidadeCampoVisivel,
   isLoteadoresViabilidadeFaseSlug,
 } from '@/lib/kanban/loteadores-viabilidade';
@@ -220,6 +224,9 @@ export function FaseChecklistSidebarResumo({
             continue;
           }
           if (isLoteadoresAguardandoFichaFaseSlug(slug) && !isLoteadoresAguardandoFichaCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresNovoProdutoFaseSlug(slug) && !isLoteadoresNovoProdutoCampoVisivel(item)) {
             continue;
           }
           if (isLoteadoresViabilidadeFaseSlug(slug) && !isLoteadoresViabilidadeCampoVisivel(item)) {

@@ -15,5 +15,5 @@ export function isLoteadoresViabilidadeSlug(slug: string | null | undefined): bo
 /** Slug canônico preferido para código novo (fase pode ainda usar legado no banco). */
 export const LOTEADORES_VIABILIDADE_SLUG_PREFERIDO = 'viabilidade_moni_inc' as const;
 
-/** Ordem canônica das 19 fases ativas (esteira v1). */
+/** Ordem canônica das 20 fases ativas (esteira v1). */
 export const LOTEADORES_ESTEIRA_SLUGS_ORDEM = LOTEADORES_FASES_ORDEM_SLUGS;

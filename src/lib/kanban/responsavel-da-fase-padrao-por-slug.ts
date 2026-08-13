@@ -84,6 +84,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   nda_moni_inc: 'moni',
   opcao_moni_inc: 'moni',
   aguardando_ficha_moni_inc: 'moni',
+  novo_produto_moni_inc: 'moni',
   viabilidade_moni_inc: 'moni',
   acoplamento_moni_inc: 'moni',
   execucao_material_moni_inc: 'moni',

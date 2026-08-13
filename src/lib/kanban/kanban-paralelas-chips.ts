@@ -108,7 +108,7 @@ function boolFlag(v: boolean | null | undefined): boolean {
   return Boolean(v);
 }
 
-/** Ordem fixa das 5 bolinhas de esteiras paralelas (Portfólio e Pré Obra e Obra). */
+/** Ordem fixa das 5 bolinhas de esteiras paralelas (Portfólio, Loteadores e Pré Obra e Obra). */
 export const ESTEIRAS_PARALELAS_CHIPS_ORDEM: readonly string[] = [
   KANBAN_IDS.ACOPLAMENTO,
   KANBAN_IDS.PROJETO_LEGAL,
@@ -336,6 +336,32 @@ function pushChipAcoplamentoPortfolio(
   });
 }
 
+/** Chip Pré Obra e Obra (vínculo) — Portfólio e Loteadores. */
+function pushChipPreObraObra(
+  chips: ParalelaChip[],
+  input: MontarChipsParalelasInput,
+  emPassagem: boolean,
+  opts?: MontarChipsParalelasOptions,
+): void {
+  const temFilhoOperacoes = Boolean(input.temFilhoOperacoes);
+  const filhoOperacoesArquivado = Boolean(input.filhoOperacoesArquivado) && !temFilhoOperacoes;
+  if (!emPassagem && !temFilhoOperacoes && !filhoOperacoesArquivado) return;
+  const rotuloFase = filhoOperacoesArquivado
+    ? FASE_EXIBICAO_CARD_ARQUIVADO
+    : String(input.operacoesFilhoFaseRotulo ?? '').trim() || 'Planialtimétrico';
+  chips.push({
+    label: opts?.labelsCompletos
+      ? `Funil Pré Obra e Obra: ${rotuloFase}`
+      : `Pré Obra: ${rotuloFase}`,
+    concluido: temFilhoOperacoes && Boolean(input.operacoesFilhoConcluido),
+    icone: '🔗',
+    variant: 'vinculo',
+    kanbanId: KANBAN_IDS.OPERACOES,
+    funilNome: nomeFunilParalela(KANBAN_IDS.OPERACOES),
+    faseNome: rotuloFase,
+  });
+}
+
 function rotuloFasePortfolio(nome: string, slug: string): string {
   const s = String(slug ?? '').trim();
   const m = /^step_(\d+)$/i.exec(s);
@@ -401,59 +427,19 @@ export function montarChipsParalelas(
   }
 
   if (kid === KANBAN_IDS.LOTEADORES) {
-    const chipAcoplamentoOpts = {
-      ...opts,
-      temFilhoAtivo: input.temFilhoAcoplamento,
-      filhoArquivado: input.filhoAcoplamentoArquivado,
-    };
-    const temFilhoAcoplamento = Boolean(input.temFilhoAcoplamento);
-    const filhoAcoplamentoArquivado =
-      Boolean(input.filhoAcoplamentoArquivado) && !temFilhoAcoplamento;
-    const emAcoplamento =
-      slug === FASE_SLUGS.LOTEADORES_ACOPLAMENTO ||
-      slug === FASE_SLUGS.LOTEADORES_ACOPLAMENTO_GBOX ||
-      temFilhoAcoplamento ||
-      filhoAcoplamentoArquivado ||
-      boolFlag(f.acoplamento_concluido);
-    if (emAcoplamento) {
-      pushChipAcoplamentoPortfolio(chips, f, chipAcoplamentoOpts);
-    } else {
-      chips.push(
-        chipOperacoesParalela(
-          KANBAN_IDS.ACOPLAMENTO,
-          'Acoplamento',
-          { temFilho: false, filhoArquivado: false },
-          opts,
-        ),
-      );
-    }
-    // TODO: esteiras paralelas a definir
-    // TODO: chip Pré Obra — não implementar por ora
+    chips.push(...montarChipsEsteirasParalelasFixas(input, opts));
+    pushChipPreObraObra(
+      chips,
+      input,
+      slug === FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC,
+      opts,
+    );
     return chips;
   }
 
   if (kid === KANBAN_IDS.PORTFOLIO) {
     chips.push(...montarChipsEsteirasParalelasFixas(input, opts));
-
-    const emPassagemWayser = slug === FASE_SLUGS.PASSAGEM_WAYSER;
-    const temFilhoOperacoes = Boolean(input.temFilhoOperacoes);
-    const filhoOperacoesArquivado = Boolean(input.filhoOperacoesArquivado) && !temFilhoOperacoes;
-    if (emPassagemWayser || temFilhoOperacoes || filhoOperacoesArquivado) {
-      const rotuloFase = filhoOperacoesArquivado
-        ? FASE_EXIBICAO_CARD_ARQUIVADO
-        : String(input.operacoesFilhoFaseRotulo ?? '').trim() || 'Planialtimétrico';
-      chips.push({
-        label: opts?.labelsCompletos
-          ? `Funil Pré Obra e Obra: ${rotuloFase}`
-          : `Pré Obra: ${rotuloFase}`,
-        concluido: temFilhoOperacoes && Boolean(input.operacoesFilhoConcluido),
-        icone: '🔗',
-        variant: 'vinculo',
-        kanbanId: KANBAN_IDS.OPERACOES,
-        funilNome: nomeFunilParalela(KANBAN_IDS.OPERACOES),
-        faseNome: rotuloFase,
-      });
-    }
+    pushChipPreObraObra(chips, input, slug === FASE_SLUGS.PASSAGEM_WAYSER, opts);
     return chips;
   }
 
@@ -1155,7 +1141,7 @@ export async function enrichCardsParalelasContext(
     });
   }
 
-  if (kid === KANBAN_IDS.PORTFOLIO) {
+  if (kid === KANBAN_IDS.PORTFOLIO || kid === KANBAN_IDS.LOTEADORES) {
     const cardIds = cards.map((c) => c.id).filter(Boolean);
     if (cardIds.length === 0) return cards;
 

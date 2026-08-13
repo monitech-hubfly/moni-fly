@@ -97,7 +97,7 @@ export const FASE_SLUGS = {
   /** Fase do Funil Portfólio — dispara bastão para Funil Acoplamento. */
   ACOPLAMENTO: 'acoplamento',
 
-  // ─── Funil Loteadores (esteira v1 — 19 fases ativas) ───────────────────────
+  // ─── Funil Loteadores (esteira v1 — 20 fases ativas) ───────────────────────
   LOTEADORES_PRIMEIRO_CONTATO: 'primeiro_contato_moni_inc',
   LOTEADORES_R1_CONCEITO: 'r1_conceito_moni_inc',
   /** Alias pedido — NDA. */
@@ -109,6 +109,9 @@ export const FASE_SLUGS = {
   /** Alias pedido — Aguardando Ficha. */
   AGUARDANDO_FICHA_MONI_INC: 'aguardando_ficha_moni_inc',
   LOTEADORES_AGUARDANDO_FICHA: 'aguardando_ficha_moni_inc',
+  /** Alias pedido — Novo Produto (entre Aguardando Ficha e Viabilidade). */
+  NOVO_PRODUTO_MONI_INC: 'novo_produto_moni_inc',
+  LOTEADORES_NOVO_PRODUTO: 'novo_produto_moni_inc',
   LOTEADORES_VIABILIDADE: 'viabilidade_moni_inc',
   /** Funil Loteadores — Dados do Loteador (legado; preferir VIABILIDADE). */
   LOTEADORES_DADOS_LOTEADOR: 'dados_loteador_moni_inc',

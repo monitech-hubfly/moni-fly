@@ -13,7 +13,7 @@ import type {
   PainelHistoricoMovimentoDTO,
 } from '@/lib/kanban/painel-performance-types';
 
-/** Slugs estáveis (não mudaram na esteira v1 de 19 fases). */
+/** Slugs estáveis da esteira v1 (R1 / contrato / viabilidade). */
 const CONTRATO_PARCERIA_SLUG = FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA;
 const R1_SLUG = LOTEADORES_R1_CONCEITO_FASE_SLUG;
 
@@ -165,7 +165,7 @@ export function computeLoteadoresEspecificidades(input: {
   loteadoresFieldsAvailable?: boolean;
 }): PainelLoteadoresEspecificidades | null {
   const historicoPorCard = buildHistoricoPorCard(input.historicoMovimentos);
-  /** Esteira v1: 19 fases ativas, ordem canônica; sem fases `ativo=false` / deprecated. */
+  /** Esteira v1: 20 fases ativas, ordem canônica; sem fases `ativo=false` / deprecated. */
   const fasesOrd = fasesAtivasPainelLoteadores(input.fases);
   const faseIdsAtivas = new Set(fasesOrd.map((f) => f.id));
   const conversaoCtx = buildConversaoContext(fasesOrd);
