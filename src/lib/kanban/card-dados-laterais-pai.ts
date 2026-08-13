@@ -32,7 +32,7 @@ export type FonteDadosLaterais = {
   cardIdFonte: string;
 };
 
-type DadosLateraisDb = Pick<SupabaseClient, 'from'>;
+type DadosLateraisDb = Pick<SupabaseClient, 'from' | 'rpc'>;
 
 type CardOrigemRow = {
   id?: string | null;
@@ -102,72 +102,75 @@ export async function resolverFonteDadosLateraisCard(
     return { tipo: 'franqueado', cardIdFonte: cid || String(cardId ?? '') };
   }
 
-  const seen = new Set<string>();
-  let cur = cid;
-  let loteadorPorFk: string | null = null;
-
-  for (let depth = 0; depth < 32 && cur && !seen.has(cur); depth++) {
-    seen.add(cur);
-    const { data } = await db
-      .from('kanban_cards')
-      .select('id, kanban_id, origem_card_id, rede_loteador_id')
-      .eq('id', cur)
-      .maybeSingle();
-    const row = data as CardOrigemRow | null;
-    const rowId = String(row?.id ?? '').trim();
-    if (!rowId) break;
-
-    const tipo = tipoPorKanban(row?.kanban_id);
-    if (tipo === 'loteador') return { tipo: 'loteador', cardIdFonte: rowId };
-    if (tipo === 'franqueado') return { tipo: 'franqueado', cardIdFonte: rowId };
-
-    if (!loteadorPorFk && String(row?.rede_loteador_id ?? '').trim()) {
-      loteadorPorFk = rowId;
+  const { data: atual } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, origem_card_id, rede_loteador_id')
+    .eq('id', cid)
+    .maybeSingle();
+  const atualRow = atual as CardOrigemRow | null;
+  if (atualRow) {
+    const tipoAtual = tipoPorKanban(atualRow.kanban_id);
+    if (tipoAtual === 'loteador') return { tipo: 'loteador', cardIdFonte: cid };
+    if (tipoAtual === 'franqueado') return { tipo: 'franqueado', cardIdFonte: cid };
+    if (String(atualRow.rede_loteador_id ?? '').trim()) {
+      return { tipo: 'loteador', cardIdFonte: cid };
     }
-    cur = String(row?.origem_card_id ?? '').trim();
   }
 
+  const ancestralIds: string[] = [];
   try {
-    const { data: vinculos } = await db
-      .from('kanban_card_vinculos')
-      .select('card_origem_id, card_destino_id')
-      .or(`card_origem_id.eq.${cid},card_destino_id.eq.${cid}`);
-
-    const peerIds: string[] = [];
-    for (const row of vinculos ?? []) {
-      const orig = String((row as { card_origem_id?: string | null }).card_origem_id ?? '').trim();
-      const dest = String((row as { card_destino_id?: string | null }).card_destino_id ?? '').trim();
-      if (orig === cid && dest && dest !== cid) peerIds.push(dest);
-      else if (dest === cid && orig && orig !== cid) peerIds.push(orig);
-    }
-
-    if (peerIds.length > 0) {
-      const { data: peers } = await db
-        .from('kanban_cards')
-        .select('id, kanban_id, rede_loteador_id')
-        .in('id', peerIds);
-      for (const peer of peers ?? []) {
-        const p = peer as CardOrigemRow;
-        const pid = String(p.id ?? '').trim();
-        const tipo = tipoPorKanban(p.kanban_id);
-        if (tipo === 'loteador' && pid) return { tipo: 'loteador', cardIdFonte: pid };
-      }
-      for (const peer of peers ?? []) {
-        const p = peer as CardOrigemRow;
-        const pid = String(p.id ?? '').trim();
-        const tipo = tipoPorKanban(p.kanban_id);
-        if (tipo === 'franqueado' && pid) return { tipo: 'franqueado', cardIdFonte: pid };
-      }
-      for (const peer of peers ?? []) {
-        const p = peer as CardOrigemRow;
-        const pid = String(p.id ?? '').trim();
-        if (pid && String(p.rede_loteador_id ?? '').trim()) {
-          return { tipo: 'loteador', cardIdFonte: pid };
-        }
-      }
+    const { data: ancestrais } = await db.rpc('kanban_ancestrais_origem_batch', {
+      card_ids: [cid],
+    });
+    for (const row of (ancestrais ?? []) as { ancestral_id?: string | null }[]) {
+      const anc = String(row.ancestral_id ?? '').trim();
+      if (anc && anc !== cid) ancestralIds.push(anc);
     }
   } catch {
-    /* vínculo ausente ou RLS — segue fallback da cadeia */
+    /* RPC ausente — cai no walk curto */
+  }
+
+  if (ancestralIds.length === 0) {
+    let cur = String(atualRow?.origem_card_id ?? '').trim();
+    const seen = new Set<string>([cid]);
+    for (let depth = 0; depth < 8 && cur && !seen.has(cur); depth++) {
+      seen.add(cur);
+      ancestralIds.push(cur);
+      const { data } = await db
+        .from('kanban_cards')
+        .select('id, kanban_id, origem_card_id, rede_loteador_id')
+        .eq('id', cur)
+        .maybeSingle();
+      const row = data as CardOrigemRow | null;
+      const rowId = String(row?.id ?? '').trim();
+      if (!rowId) break;
+      const tipo = tipoPorKanban(row?.kanban_id);
+      if (tipo === 'loteador') return { tipo: 'loteador', cardIdFonte: rowId };
+      if (tipo === 'franqueado') return { tipo: 'franqueado', cardIdFonte: rowId };
+      if (String(row?.rede_loteador_id ?? '').trim()) return { tipo: 'loteador', cardIdFonte: rowId };
+      cur = String(row?.origem_card_id ?? '').trim();
+    }
+    return { tipo: 'franqueado', cardIdFonte: cid };
+  }
+
+  const { data: ancestraisCards } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, rede_loteador_id')
+    .in('id', ancestralIds);
+
+  let loteadorPorFk: string | null = null;
+  for (const peer of ancestraisCards ?? []) {
+    const p = peer as CardOrigemRow;
+    const pid = String(p.id ?? '').trim();
+    const tipo = tipoPorKanban(p.kanban_id);
+    if (tipo === 'loteador' && pid) return { tipo: 'loteador', cardIdFonte: pid };
+    if (!loteadorPorFk && pid && String(p.rede_loteador_id ?? '').trim()) loteadorPorFk = pid;
+  }
+  for (const peer of ancestraisCards ?? []) {
+    const p = peer as CardOrigemRow;
+    const pid = String(p.id ?? '').trim();
+    const tipo = tipoPorKanban(p.kanban_id);
+    if (tipo === 'franqueado' && pid) return { tipo: 'franqueado', cardIdFonte: pid };
   }
 
   if (loteadorPorFk) return { tipo: 'loteador', cardIdFonte: loteadorPorFk };

@@ -1148,6 +1148,10 @@ export function KanbanCardModal({
     }
     try {
       const supabase = createClient();
+      const fontePromise =
+        origem === 'legado'
+          ? Promise.resolve(null as FonteDadosLaterais | null)
+          : resolverFonteDadosLateraisCard(supabase, cardId, '', String(kanbanNome));
 
       try {
         const {
@@ -1682,14 +1686,14 @@ export function KanbanCardModal({
 
       if (!stillCurrent()) return;
       try {
-        const fonte = await resolverFonteDadosLateraisCard(
-          supabase,
-          cardParaEstado.id,
-          cardParaEstado.kanban_id,
-          String(kanbanNome),
-        );
+        const fonte = await fontePromise;
         if (!stillCurrent()) return;
-        setFonteDadosLaterais(fonte);
+        setFonteDadosLaterais(
+          fonte ??
+            (isLoteadoresKanbanRef(cardParaEstado.kanban_id, String(kanbanNome))
+              ? { tipo: 'loteador', cardIdFonte: cardParaEstado.id }
+              : { tipo: 'franqueado', cardIdFonte: cardParaEstado.id }),
+        );
       } catch {
         if (!stillCurrent()) return;
         setFonteDadosLaterais(

@@ -173,6 +173,52 @@ export async function fetchRedeLoteadoresRows(
   return ordenarRedeLoteadoresPorNome((data ?? []).map((r) => mapRow(r as Record<string, unknown>)));
 }
 
+export async function fetchRedeLoteadorRowById(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+): Promise<RedeLoteadorRow | null> {
+  const lid = String(id ?? '').trim();
+  if (!lid) return null;
+  const { data, error } = await supabase.from('rede_loteadores').select('*').eq('id', lid).maybeSingle();
+  if (error || !data) return null;
+  return mapRow(data as Record<string, unknown>);
+}
+
+export type RedeLoteadorOpcaoLeve = {
+  id: string;
+  nome: string;
+  cidade: string | null;
+  estado: string | null;
+  status: string;
+};
+
+export async function fetchRedeLoteadoresOpcoesLeves(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<RedeLoteadorOpcaoLeve[] | null> {
+  const { data, error } = await supabase
+    .from('rede_loteadores')
+    .select('id, nome, cidade, estado, status')
+    .neq('status', 'inativo')
+    .order('nome', { ascending: true });
+  if (error) return null;
+  return (data ?? []).map((r) => {
+    const row = r as {
+      id?: string;
+      nome?: string | null;
+      cidade?: string | null;
+      estado?: string | null;
+      status?: string | null;
+    };
+    return {
+      id: String(row.id ?? ''),
+      nome: String(row.nome ?? '').trim() || 'Sem nome',
+      cidade: (row.cidade as string | null) ?? null,
+      estado: (row.estado as string | null) ?? null,
+      status: String(row.status ?? 'em_analise'),
+    };
+  }).filter((o) => o.id);
+}
+
 export type RedeLoteadorPatch = {
   nome?: string;
   cnpj?: string | null;

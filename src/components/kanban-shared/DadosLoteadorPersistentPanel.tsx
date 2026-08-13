@@ -7,6 +7,7 @@ import { RedeLoteadorFichaForm } from '@/components/RedeLoteadorFichaForm';
 import {
   carregarRedeLoteadorChecklistData,
   carregarRedeLoteadorPorId,
+  listarOpcoesRedeLoteadoresChecklist,
   type RedeLoteadorChecklistModo,
 } from '@/lib/actions/kanban-rede-loteador-checklist';
 import {
@@ -57,16 +58,12 @@ export function DadosLoteadorPersistentPanel({
   const recarregar = useCallback(async () => {
     setLoading(true);
     setErro(null);
-    const [r, linkR] = await Promise.all([
-      carregarRedeLoteadorChecklistData(cardId),
-      obterOuGerarLinkExternoLoteador(cardId),
-    ]);
+    const r = await carregarRedeLoteadorChecklistData(cardId);
     setLoading(false);
     if (!r.ok) {
       setErro(r.error);
       return;
     }
-    if (linkR.ok) setLinkExterno(linkR.url);
 
     setModo(r.modoInicial);
     setVinculadoId(r.cardRedeLoteadorId);
@@ -77,12 +74,21 @@ export function DadosLoteadorPersistentPanel({
     if (r.loteador?.updated_at) setUltimaAtualizacao(r.loteador.updated_at);
 
     const ultimaPor = r.loteador?.ultima_atualizacao_por ?? null;
+    if (!ultimaPor) setResponsavelUltima(null);
+    void obterOuGerarLinkExternoLoteador(cardId).then((linkR) => {
+      if (linkR.ok) setLinkExterno(linkR.url);
+    });
     if (ultimaPor) {
-      const supabase = createClient();
-      const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', ultimaPor).maybeSingle();
-      setResponsavelUltima(String((prof as { full_name?: string | null } | null)?.full_name ?? '').trim() || null);
-    } else {
-      setResponsavelUltima(null);
+      void createClient()
+        .from('profiles')
+        .select('full_name')
+        .eq('id', ultimaPor)
+        .maybeSingle()
+        .then(({ data: prof }) => {
+          setResponsavelUltima(
+            String((prof as { full_name?: string | null } | null)?.full_name ?? '').trim() || null,
+          );
+        });
     }
   }, [cardId]);
 
@@ -99,6 +105,12 @@ export function DadosLoteadorPersistentPanel({
     });
   }, [opcoes, busca]);
 
+  const garantirOpcoes = useCallback(async () => {
+    if (opcoes.length > 1) return;
+    const r = await listarOpcoesRedeLoteadoresChecklist();
+    if (r.ok) setOpcoes(r.opcoes);
+  }, [opcoes.length]);
+
   const onModoChange = (next: RedeLoteadorChecklistModo) => {
     setModo(next);
     setMsg(null);
@@ -107,6 +119,9 @@ export function DadosLoteadorPersistentPanel({
       setDraft(emptyRedeLoteadorFichaDraft('em_analise'));
     } else if (vinculadoId) {
       setSelecionadoId(vinculadoId);
+      void garantirOpcoes();
+    } else {
+      void garantirOpcoes();
     }
   };
 

@@ -7,6 +7,7 @@ import { RedeLoteadorFichaForm } from '@/components/RedeLoteadorFichaForm';
 import {
   carregarRedeLoteadorChecklistData,
   carregarRedeLoteadorPorId,
+  listarOpcoesRedeLoteadoresChecklist,
   salvarRedeLoteadorChecklistFunil,
   type RedeLoteadorChecklistModo,
 } from '@/lib/actions/kanban-rede-loteador-checklist';
@@ -66,6 +67,12 @@ export function RedeLoteadorChecklist({ cardId, itemId, itemLabel, onSalvo }: Pr
     });
   }, [opcoes, busca]);
 
+  const garantirOpcoes = useCallback(async () => {
+    if (opcoes.length > 1) return;
+    const r = await listarOpcoesRedeLoteadoresChecklist();
+    if (r.ok) setOpcoes(r.opcoes);
+  }, [opcoes.length]);
+
   const onModoChange = (next: RedeLoteadorChecklistModo) => {
     setModo(next);
     setMsg(null);
@@ -74,6 +81,9 @@ export function RedeLoteadorChecklist({ cardId, itemId, itemLabel, onSalvo }: Pr
       setDraft(emptyRedeLoteadorFichaDraft('em_analise'));
     } else if (vinculadoId) {
       setSelecionadoId(vinculadoId);
+      void garantirOpcoes();
+    } else {
+      void garantirOpcoes();
     }
   };
 

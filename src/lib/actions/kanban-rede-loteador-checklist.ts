@@ -10,7 +10,10 @@ import {
   type RedeLoteadorFichaDraft,
 } from '@/lib/rede-loteador-ficha-draft';
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
-import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
+import {
+  fetchRedeLoteadorRowById,
+  fetchRedeLoteadoresOpcoesLeves,
+} from '@/lib/rede-loteadores';
 import { criarRedeLoteador, atualizarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
 import { resolverRedeLoteadorIdNaCadeia } from '@/lib/kanban/card-dados-laterais-pai';
 
@@ -87,12 +90,11 @@ export async function carregarRedeLoteadorChecklistData(cardId: string): Promise
   const cid = cardId.trim();
   if (!cid) return { ok: false, error: 'Card inválido.' };
 
-  const [{ data: cardRow }, rows] = await Promise.all([
-    gate.supabase.from('kanban_cards').select('rede_loteador_id').eq('id', cid).maybeSingle(),
-    fetchRedeLoteadoresRows(gate.supabase),
-  ]);
-
-  if (!rows) return { ok: false, error: 'Erro ao carregar loteadores da rede.' };
+  const { data: cardRow } = await gate.supabase
+    .from('kanban_cards')
+    .select('rede_loteador_id')
+    .eq('id', cid)
+    .maybeSingle();
 
   let cardRedeLoteadorId =
     String((cardRow as { rede_loteador_id?: string | null } | null)?.rede_loteador_id ?? '').trim() || null;
@@ -100,20 +102,21 @@ export async function carregarRedeLoteadorChecklistData(cardId: string): Promise
     cardRedeLoteadorId = await resolverRedeLoteadorIdNaCadeia(gate.supabase, cid);
   }
 
-  const opcoes: RedeLoteadorChecklistOpcao[] = rows
-    .filter((r) => r.status !== 'inativo')
-    .map((r) => ({
-      id: r.id,
-      nome: r.nome,
-      cidade: r.cidade,
-      estado: r.estado,
-      status: r.status,
-    }));
+  const loteador = cardRedeLoteadorId
+    ? await fetchRedeLoteadorRowById(gate.supabase, cardRedeLoteadorId)
+    : null;
 
-  let loteador: RedeLoteadorRow | null = null;
-  if (cardRedeLoteadorId) {
-    loteador = rows.find((r) => r.id === cardRedeLoteadorId) ?? null;
-  }
+  const opcoes: RedeLoteadorChecklistOpcao[] = loteador
+    ? [
+        {
+          id: loteador.id,
+          nome: loteador.nome,
+          cidade: loteador.cidade,
+          estado: loteador.estado,
+          status: loteador.status,
+        },
+      ]
+    : [];
 
   const modoInicial: RedeLoteadorChecklistModo = loteador ? 'existente' : 'novo';
   const draftInicial = loteador
@@ -192,11 +195,19 @@ export async function carregarRedeLoteadorPorId(id: string): Promise<
   const lid = id.trim();
   if (!lid) return { ok: false, error: 'ID inválido.' };
 
-  const rows = await fetchRedeLoteadoresRows(gate.supabase);
-  if (!rows) return { ok: false, error: 'Erro ao carregar loteador.' };
-
-  const loteador = rows.find((r) => r.id === lid) ?? null;
+  const loteador = await fetchRedeLoteadorRowById(gate.supabase, lid);
   if (!loteador) return { ok: false, error: 'Loteador não encontrado.' };
 
   return { ok: true, loteador };
+}
+
+export async function listarOpcoesRedeLoteadoresChecklist(): Promise<
+  { ok: true; opcoes: RedeLoteadorChecklistOpcao[] } | { ok: false; error: string }
+> {
+  const gate = await requireStaff();
+  if (!gate.ok) return gate;
+
+  const opcoes = await fetchRedeLoteadoresOpcoesLeves(gate.supabase);
+  if (!opcoes) return { ok: false, error: 'Erro ao carregar loteadores da rede.' };
+  return { ok: true, opcoes };
 }
