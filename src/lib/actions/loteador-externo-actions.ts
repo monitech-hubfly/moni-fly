@@ -18,7 +18,7 @@ import {
   type RedeLoteadorFichaDraft,
 } from '@/lib/rede-loteador-ficha-draft';
 import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
-import { getNextCodigoLoteador } from '@/lib/next-codigo-loteador';
+import { formatLOValue, getNextLOFromRedeLoteadores, parseLOValue } from '@/lib/next-lo-loteador';
 import { criarRedeLoteador, atualizarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
 import type { RedeLoteadorChecklistModo } from '@/lib/actions/kanban-rede-loteador-checklist';
 import { sincronizarTituloCardLoteadores } from '@/lib/kanban/loteadores-card-titulo';
@@ -176,12 +176,19 @@ export async function salvarFichaLoteadorExterna(input: {
   let redeLoteadorId = info.rede_loteador_id ?? '';
 
   if (!redeLoteadorId) {
-    const codigo = await getNextCodigoLoteador(admin as never);
+    const informado = String((patch as { n_loteador?: string | null }).n_loteador ?? '').trim();
+    const parsedIn = parseLOValue(informado);
+    const n_loteador = parsedIn
+      ? formatLOValue(parsedIn.num, parsedIn.width)
+      : await getNextLOFromRedeLoteadores(admin as never);
+    const ordem = parseLOValue(n_loteador)?.num ?? 0;
     const { data: inserted, error } = await admin
       .from('rede_loteadores')
       .insert({
         ...patch,
-        codigo,
+        n_loteador,
+        ordem,
+        codigo: n_loteador,
         status: patch.status ?? 'em_analise',
         condominio_estado: patch.estado ?? null,
         updated_at: now,

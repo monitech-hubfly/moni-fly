@@ -7,6 +7,8 @@ export type RedeLoteadorStatus = 'ativo' | 'inativo' | 'em_analise';
 export type RedeLoteadorRow = {
   id: string;
   codigo: string | null;
+  n_loteador: string | null;
+  ordem: number | null;
   nome: string;
   cnpj: string | null;
   cidade: string | null;
@@ -71,6 +73,7 @@ export function redeLoteadorRowMatchesBusca(row: RedeLoteadorRow, busca: string)
   if (!q) return true;
   const parts = [
     row.codigo,
+    row.n_loteador,
     row.nome,
     row.cnpj,
     row.cidade,
@@ -117,6 +120,8 @@ function mapRow(r: Record<string, unknown>): RedeLoteadorRow {
   return {
     id: String(r.id),
     codigo: (r.codigo as string | null) ?? null,
+    n_loteador: (r.n_loteador as string | null) ?? null,
+    ordem: parseIntOrNull(r.ordem),
     nome: String(r.nome ?? '').trim(),
     cnpj: (r.cnpj as string | null) ?? null,
     cidade: (r.cidade as string | null) ?? null,

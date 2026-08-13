@@ -406,15 +406,29 @@ export function montarChipsParalelas(
       temFilhoAtivo: input.temFilhoAcoplamento,
       filhoArquivado: input.filhoAcoplamentoArquivado,
     };
+    const temFilhoAcoplamento = Boolean(input.temFilhoAcoplamento);
+    const filhoAcoplamentoArquivado =
+      Boolean(input.filhoAcoplamentoArquivado) && !temFilhoAcoplamento;
     const emAcoplamento =
       slug === FASE_SLUGS.LOTEADORES_ACOPLAMENTO ||
       slug === FASE_SLUGS.LOTEADORES_ACOPLAMENTO_GBOX ||
-      input.temFilhoAcoplamento ||
-      input.filhoAcoplamentoArquivado ||
+      temFilhoAcoplamento ||
+      filhoAcoplamentoArquivado ||
       boolFlag(f.acoplamento_concluido);
     if (emAcoplamento) {
       pushChipAcoplamentoPortfolio(chips, f, chipAcoplamentoOpts);
+    } else {
+      chips.push(
+        chipOperacoesParalela(
+          KANBAN_IDS.ACOPLAMENTO,
+          'Acoplamento',
+          { temFilho: false, filhoArquivado: false },
+          opts,
+        ),
+      );
     }
+    // TODO: esteiras paralelas a definir
+    // TODO: chip Pré Obra — não implementar por ora
     return chips;
   }
 

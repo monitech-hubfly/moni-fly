@@ -25,6 +25,7 @@ import {
 } from '@/lib/kanban/card-sync-group';
 import {
   isKanbanFunilLoteadoresRef,
+  nomeResponsavelHeaderLoteador,
   subtituloCardLoteadores,
   tituloExibicaoCardLoteadores,
 } from '@/lib/kanban/loteadores-card-titulo';
@@ -207,6 +208,8 @@ async function enrichFastPaintCardsParaExibicao(
   const loteadorPorId = new Map<
     string,
     {
+      n_loteador: string | null;
+      codigo: string | null;
       nome: string;
       contato_nome: string | null;
       interlocutor_nome: string | null;
@@ -224,12 +227,14 @@ async function enrichFastPaintCardsParaExibicao(
     if (redeLoteadorIds.length > 0) {
       const { data: loteadoresRows } = await supabase
         .from('rede_loteadores')
-        .select('id, nome, contato_nome, interlocutor_nome, condominio_nome')
+        .select('id, n_loteador, codigo, nome, contato_nome, interlocutor_nome, condominio_nome')
         .in('id', redeLoteadorIds);
       for (const row of loteadoresRows ?? []) {
         const id = String((row as { id?: string }).id ?? '').trim();
         if (!id) continue;
         loteadorPorId.set(id, {
+          n_loteador: (row as { n_loteador?: string | null }).n_loteador ?? null,
+          codigo: (row as { codigo?: string | null }).codigo ?? null,
           nome: String((row as { nome?: string | null }).nome ?? '').trim(),
           contato_nome: (row as { contato_nome?: string | null }).contato_nome ?? null,
           interlocutor_nome: (row as { interlocutor_nome?: string | null }).interlocutor_nome ?? null,
@@ -284,18 +289,14 @@ async function enrichFastPaintCardsParaExibicao(
     if (isFunilLoteadores) {
       const redeLoteadorId = String(c.rede_loteador_id ?? '').trim();
       const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
-      const nomeLoteador = coalesceTextoCampo(rl?.nome);
-      if (nomeLoteador) {
-        tituloExibicao =
-          tituloExibicaoCardLoteadores(
-            { titulo: tituloRaw, nome_condominio: c.nome_condominio as string | null | undefined },
-            rl,
-          ) ?? tituloExibicao;
-        subtituloCard = subtituloCardLoteadores(rl?.interlocutor_nome);
-      } else {
-        tituloExibicao = tituloRaw;
-      }
-      profilesLinha = null;
+      const nomeHeader = nomeResponsavelHeaderLoteador(rl);
+      tituloExibicao =
+        tituloExibicaoCardLoteadores(
+          { titulo: tituloRaw, nome_condominio: c.nome_condominio as string | null | undefined },
+          rl,
+        ) ?? tituloExibicao;
+      subtituloCard = subtituloCardLoteadores(rl?.nome, nomeHeader);
+      profilesLinha = nomeHeader ? { full_name: nomeHeader } : null;
     }
 
     return {
@@ -1252,6 +1253,8 @@ export async function fetchKanbanBoardSnapshot(
   const loteadorPorId = new Map<
     string,
     {
+      n_loteador: string | null;
+      codigo: string | null;
       nome: string;
       contato_nome: string | null;
       interlocutor_nome: string | null;
@@ -1269,12 +1272,14 @@ export async function fetchKanbanBoardSnapshot(
     if (redeLoteadorIds.length > 0) {
       const { data: loteadoresRows } = await supabase
         .from('rede_loteadores')
-        .select('id, nome, contato_nome, interlocutor_nome, condominio_nome')
+        .select('id, n_loteador, codigo, nome, contato_nome, interlocutor_nome, condominio_nome')
         .in('id', redeLoteadorIds);
       for (const row of loteadoresRows ?? []) {
         const id = String((row as { id?: string }).id ?? '').trim();
         if (!id) continue;
         loteadorPorId.set(id, {
+          n_loteador: (row as { n_loteador?: string | null }).n_loteador ?? null,
+          codigo: (row as { codigo?: string | null }).codigo ?? null,
           nome: String((row as { nome?: string | null }).nome ?? '').trim(),
           contato_nome: (row as { contato_nome?: string | null }).contato_nome ?? null,
           interlocutor_nome: (row as { interlocutor_nome?: string | null }).interlocutor_nome ?? null,
@@ -1392,32 +1397,25 @@ export async function fetchKanbanBoardSnapshot(
         (cMerged as { rede_loteador_id?: string | null }).rede_loteador_id ?? '',
       ).trim();
       const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
-      const nomeLoteador = coalesceTextoCampo(rl?.nome);
-      if (nomeLoteador) {
-        // Card com cadastro vinculado: condomínio do card > cadastro compartilhado do loteador.
-        const condominioIdCard = String(
-          (cMerged as { condominio_id?: string | null }).condominio_id ?? '',
-        ).trim();
-        tituloExibicao =
-          tituloExibicaoCardLoteadores(
-            {
-              titulo: tituloRaw,
-              nome_condominio: (cMerged as { nome_condominio?: string | null }).nome_condominio,
-            },
-            rl,
-            {
-              condominioNomeTabela: condominioIdCard
-                ? condominioNomePorId.get(condominioIdCard) ?? null
-                : null,
-            },
-          ) ?? tituloExibicao;
-        subtituloCard = subtituloCardLoteadores(rl?.interlocutor_nome);
-      } else {
-        // Sem cadastro vinculado: mantém o título/subtítulo atuais do card.
-        tituloExibicao = tituloRaw;
-        subtituloCard = null;
-      }
-      profilesLinha = null;
+      const nomeHeader = nomeResponsavelHeaderLoteador(rl);
+      const condominioIdCard = String(
+        (cMerged as { condominio_id?: string | null }).condominio_id ?? '',
+      ).trim();
+      tituloExibicao =
+        tituloExibicaoCardLoteadores(
+          {
+            titulo: tituloRaw,
+            nome_condominio: (cMerged as { nome_condominio?: string | null }).nome_condominio,
+          },
+          rl,
+          {
+            condominioNomeTabela: condominioIdCard
+              ? condominioNomePorId.get(condominioIdCard) ?? null
+              : null,
+          },
+        ) ?? tituloExibicao;
+      subtituloCard = subtituloCardLoteadores(rl?.nome, nomeHeader);
+      profilesLinha = nomeHeader ? { full_name: nomeHeader } : null;
     }
 
     return {

@@ -154,7 +154,7 @@ function labelDataCardKanbanBusca(dataIso: string): string {
 
 function separarCodigoTituloCardBusca(titulo: string): { codigo: string | null; tituloLimpo: string } {
   const t = String(titulo ?? '').trim();
-  const m = t.match(/^(FK\d+)\s*[-–—]\s*(.+)$/i);
+  const m = t.match(/^(FK\d+|LO\d+)\s*[-–—]\s*(.+)$/i);
   if (m?.[1] && m?.[2]) {
     return { codigo: m[1].toUpperCase(), tituloLimpo: m[2].trim() };
   }

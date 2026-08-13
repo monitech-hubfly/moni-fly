@@ -49,6 +49,22 @@ import {
   isLoteadoresAguardandoFichaFaseSlug,
 } from '@/lib/kanban/loteadores-aguardando-ficha';
 import {
+  isLoteadoresViabilidadeCampoVisivel,
+  isLoteadoresViabilidadeFaseSlug,
+} from '@/lib/kanban/loteadores-viabilidade';
+import {
+  isLoteadoresAcoplamentoCampoVisivel,
+  isLoteadoresAcoplamentoFaseSlug,
+} from '@/lib/kanban/loteadores-acoplamento';
+import {
+  isLoteadoresDiligenciaCampoVisivel,
+  isLoteadoresDiligenciaFaseSlug,
+} from '@/lib/kanban/loteadores-diligencia';
+import {
+  isLoteadoresContratoParceriaCampoVisivel,
+  isLoteadoresContratoParceriaFaseSlug,
+} from '@/lib/kanban/loteadores-contrato-parceria';
+import {
   isLoteadoresValidacaoCampoVisivel,
   isLoteadoresValidacaoFaseSlug,
 } from '@/lib/kanban/loteadores-validacao';
@@ -206,6 +222,12 @@ export function FaseChecklistSidebarResumo({
           if (isLoteadoresAguardandoFichaFaseSlug(slug) && !isLoteadoresAguardandoFichaCampoVisivel(item)) {
             continue;
           }
+          if (isLoteadoresViabilidadeFaseSlug(slug) && !isLoteadoresViabilidadeCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresAcoplamentoFaseSlug(slug) && !isLoteadoresAcoplamentoCampoVisivel(item)) {
+            continue;
+          }
           if (isLoteadoresExecucaoMaterialFaseSlug(slug) && !isLoteadoresExecucaoMaterialCampoVisivel(item)) {
             continue;
           }
@@ -237,6 +259,12 @@ export function FaseChecklistSidebarResumo({
             continue;
           }
           if (isLoteadoresContratoFaseSlug(slug) && !isLoteadoresContratoCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresDiligenciaFaseSlug(slug) && !isLoteadoresDiligenciaCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresContratoParceriaFaseSlug(slug) && !isLoteadoresContratoParceriaCampoVisivel(item)) {
             continue;
           }
           const list = itensPorFase.get(item.fase_id) ?? [];

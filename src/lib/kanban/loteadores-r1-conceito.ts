@@ -1,27 +1,17 @@
 /** Checklist da fase «R1 Conceito» — Funil Loteadores. */
 
+import { isLoteadoresChecklistCampoVisivel } from '@/lib/kanban/loteadores-checklist-visibilidade';
+
 export const LOTEADORES_R1_CONCEITO_FASE_SLUG = 'r1_conceito_moni_inc' as const;
 
 export const LOTEADORES_R1_CONCEITO_CAMPOS = {
-  interesse: 'interesse_loteador',
-  preco: 'preco_atratividade',
-  produto: 'produto_atratividade',
-  showroom: 'showroom_interesse',
-  showroomQual: 'showroom_descricao',
-  linhasReceita: 'linhas_receita',
-  casaQueVende: 'casa_que_vende',
-  comentarios: 'comentarios',
+  dataReuniao: 'r1_data_reuniao',
+  loteShowroom: 'r1_lote_showroom',
+  materialEnviado: 'r1_material_enviado',
+  proximosPassos: 'r1_proximos_passos',
 } as const;
 
 export const LOTEADORES_R1_CONCEITO_CAMPOS_VISIVEIS = Object.values(LOTEADORES_R1_CONCEITO_CAMPOS);
-
-/** Slugs legados removidos da UI (migration 341). */
-export const LOTEADORES_R1_CONCEITO_CAMPOS_REMOVIDOS = [
-  'restricoes',
-  'oportunidades',
-  'score_loteador',
-  'classificacao_loteador',
-] as const;
 
 export function isLoteadoresR1ConceitoFaseSlug(slug: string | null | undefined): boolean {
   return String(slug ?? '').trim() === LOTEADORES_R1_CONCEITO_FASE_SLUG;
@@ -31,27 +21,7 @@ export function isLoteadoresR1ConceitoCampoVisivel(item: {
   campo_slug?: string | null;
   label?: string | null;
 }): boolean {
-  const slug = String(item.campo_slug ?? '').trim();
-  if (slug) {
-    return (LOTEADORES_R1_CONCEITO_CAMPOS_VISIVEIS as readonly string[]).includes(slug);
-  }
-  const label = String(item.label ?? '').trim();
-  return (
-    label === 'Interesse do loteador' ||
-    label === 'Preço' ||
-    label === 'Preço — atratividade' ||
-    label === 'Produto' ||
-    label === 'Produto — atratividade' ||
-    label === 'Previsão de showroom' ||
-    label === 'Showroom — interesse' ||
-    label === 'Se sim, qual?' ||
-    label === 'Showroom — descrição' ||
-    label === 'Linhas de receita para o loteador' ||
-    label === 'Linhas de receita' ||
-    label === 'Como é a casa que vende lá?' ||
-    label === 'Casa que vende' ||
-    label === 'Comentários'
-  );
+  return isLoteadoresChecklistCampoVisivel(item, LOTEADORES_R1_CONCEITO_CAMPOS_VISIVEIS);
 }
 
 export function formatInteresseLoteadorR1(score: number, classificacao: string): string {

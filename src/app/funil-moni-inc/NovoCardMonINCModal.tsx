@@ -7,9 +7,11 @@ import {
   buscarRedeLoteadoresParaNovoCard,
   carregarRedeLoteadorParaNovoCard,
   criarCardLoteadoresComCadastro,
+  getProximoNLoteador,
   type BuscarRedeLoteadoresOpcao,
   type CriarCardLoteadoresCadastroModo,
 } from '@/lib/actions/loteadores-novo-card';
+import { montarTituloCardLoteadoresSync } from '@/lib/kanban/loteadores-card-titulo';
 
 export function NovoCardMonINCModal({
   faseId,
@@ -35,6 +37,7 @@ export function NovoCardMonINCModal({
   const [carregandoBusca, setCarregandoBusca] = useState(false);
 
   const [nomeLoteador, setNomeLoteador] = useState('');
+  const [nLoteador, setNLoteador] = useState('');
   const [cnpj, setCnpj] = useState('');
   const [nomeResponsavel, setNomeResponsavel] = useState('');
   const [cargoFuncao, setCargoFuncao] = useState('');
@@ -50,6 +53,7 @@ export function NovoCardMonINCModal({
   const limparForm = useCallback(() => {
     setRedeLoteadorId('');
     setNomeLoteador('');
+    setNLoteador('');
     setCnpj('');
     setNomeResponsavel('');
     setCargoFuncao('');
@@ -60,6 +64,20 @@ export function NovoCardMonINCModal({
     setLote('');
     setBusca('');
   }, []);
+
+  useEffect(() => {
+    if (!podeGerirCadastro || modo !== 'novo') return;
+    if (nLoteador.trim()) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await getProximoNLoteador();
+      if (cancelled) return;
+      if (res.ok) setNLoteador(res.valor);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [podeGerirCadastro, modo, nLoteador]);
 
   useEffect(() => {
     if (!podeGerirCadastro || modo !== 'existente') return;
@@ -97,6 +115,7 @@ export function NovoCardMonINCModal({
       }
       const d = res.draft;
       setNomeLoteador(d.nome);
+      setNLoteador(String(res.row.n_loteador ?? res.row.codigo ?? '').trim());
       setCnpj(d.cnpj);
       setNomeResponsavel(d.interlocutor_nome || d.contato_nome);
       setCargoFuncao(d.interlocutor_cargo);
@@ -109,10 +128,14 @@ export function NovoCardMonINCModal({
   }
 
   const tituloPreview = useMemo(() => {
-    return [nomeLoteador.trim(), nomeResponsavel.trim(), nomeCondominio.trim()]
-      .filter(Boolean)
-      .join(' - ');
-  }, [nomeLoteador, nomeResponsavel, nomeCondominio]);
+    return (
+      montarTituloCardLoteadoresSync({
+        nLoteador: nLoteador.trim(),
+        nomeCondominio: nomeCondominio.trim(),
+        tituloFallback: nomeLoteador.trim(),
+      }) ?? ''
+    );
+  }, [nLoteador, nomeCondominio, nomeLoteador]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -140,6 +163,7 @@ export function NovoCardMonINCModal({
         redeLoteadorId: modo === 'existente' ? redeLoteadorId : undefined,
         parceiro: {
           nomeLoteador: nomeLoteador.trim(),
+          nLoteador: nLoteador.trim() || undefined,
           nomeResponsavel: nomeResponsavel.trim(),
           cargoFuncao: cargoFuncao.trim(),
           telefone: telefone.trim(),
@@ -335,7 +359,7 @@ export function NovoCardMonINCModal({
                   </option>
                   {opcoes.map((o) => (
                     <option key={o.id} value={o.id}>
-                      {o.codigo ? `${o.codigo} — ` : ''}
+                      {o.n_loteador || o.codigo ? `${o.n_loteador || o.codigo} — ` : ''}
                       {o.nome}
                       {o.cnpj ? ` · ${o.cnpj}` : ''}
                       {o.condominio_nome ? ` (${o.condominio_nome})` : ''}
@@ -348,6 +372,26 @@ export function NovoCardMonINCModal({
               </div>
             </div>
           ) : null}
+
+          <div>
+            <label htmlFor="n-loteador" className={labelCls} style={labelStyle}>
+              N do Loteador
+            </label>
+            <input
+              id="n-loteador"
+              type="text"
+              value={nLoteador}
+              onChange={(e) => setNLoteador(e.target.value.toUpperCase())}
+              disabled={loading || modo === 'existente'}
+              className={inputCls}
+              style={inputStyle}
+              placeholder="LO0000"
+              autoComplete="off"
+            />
+            <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Gerado automaticamente (LOxxxx). Editável só em cadastro novo.
+            </p>
+          </div>
 
           <div>
             <label htmlFor="nome-loteador" className={labelCls} style={labelStyle}>

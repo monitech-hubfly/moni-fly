@@ -1,6 +1,6 @@
 'use client';
 
-import { type CSSProperties, useEffect, useRef, useState } from 'react';
+import { Fragment, type CSSProperties, useEffect, useRef, useState } from 'react';
 import { Download, Upload, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -120,8 +120,20 @@ import {
 import {
   isLoteadoresAcoplamentoGboxCampoVisivel,
   isLoteadoresAcoplamentoGboxFaseSlug,
-  LOTEADORES_ACOPLAMENTO_GBOX_NOTA,
 } from '@/lib/kanban/loteadores-acoplamento-gbox';
+import {
+  isLoteadoresViabilidadeCampoVisivel,
+  isLoteadoresViabilidadeFaseSlug,
+} from '@/lib/kanban/loteadores-viabilidade';
+import {
+  isLoteadoresDiligenciaCampoVisivel,
+  isLoteadoresDiligenciaFaseSlug,
+} from '@/lib/kanban/loteadores-diligencia';
+import {
+  isLoteadoresContratoParceriaCampoVisivel,
+  isLoteadoresContratoParceriaFaseSlug,
+} from '@/lib/kanban/loteadores-contrato-parceria';
+import { grupoChecklistItem } from '@/lib/kanban/loteadores-checklist-visibilidade';
 import {
   isLoteadoresRevisoesPosComiteCampoVisivel,
   isLoteadoresRevisoesPosComiteFaseSlug,
@@ -140,6 +152,7 @@ import {
 } from '@/lib/kanban/loteadores-r2-plano-teorico';
 import {
   isChecklistItemReadonly,
+  isLoteadoresAcoplamentoCampoVisivel,
   isLoteadoresAcoplamentoFaseSlug,
 } from '@/lib/kanban/loteadores-acoplamento';
 import { carregarFontesSyncAcoplamentoLoteador } from '@/lib/kanban/loteadores-acoplamento-sync';
@@ -816,13 +829,6 @@ export function FaseChecklistCard({
   }
 
   if (!itens || itens.length === 0) {
-    if (isLoteadoresAcoplamentoGboxFaseSlug(faseSlug)) {
-      return (
-        <p className="text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-          {LOTEADORES_ACOPLAMENTO_GBOX_NOTA}
-        </p>
-      );
-    }
     if (ocultarVazio) return null;
     return (
       <p className="text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
@@ -840,6 +846,8 @@ export function FaseChecklistCard({
     .filter((it) => !isLoteadoresNdaFaseSlug(faseSlug) || isLoteadoresNdaCampoVisivel(it))
     .filter((it) => !isLoteadoresOpcaoFaseSlug(faseSlug) || isLoteadoresOpcaoCampoVisivel(it))
     .filter((it) => !isLoteadoresAguardandoFichaFaseSlug(faseSlug) || isLoteadoresAguardandoFichaCampoVisivel(it))
+    .filter((it) => !isLoteadoresViabilidadeFaseSlug(faseSlug) || isLoteadoresViabilidadeCampoVisivel(it))
+    .filter((it) => !isLoteadoresAcoplamentoFaseSlug(faseSlug) || isLoteadoresAcoplamentoCampoVisivel(it))
     .filter((it) => !isLoteadoresExecucaoMaterialFaseSlug(faseSlug) || isLoteadoresExecucaoMaterialCampoVisivel(it))
     .filter((it) => !isLoteadoresValidacaoFaseSlug(faseSlug) || isLoteadoresValidacaoCampoVisivel(it))
     .filter((it) => !isLoteadoresR2PlanoTeoricoFaseSlug(faseSlug) || isLoteadoresR2PlanoTeoricoCampoVisivel(it))
@@ -847,6 +855,8 @@ export function FaseChecklistCard({
     .filter((it) => !isLoteadoresRevisoesPosComiteFaseSlug(faseSlug) || isLoteadoresRevisoesPosComiteCampoVisivel(it))
     .filter((it) => !isLoteadoresCtoPrecedentesFaseSlug(faseSlug) || isLoteadoresCtoPrecedentesCampoVisivel(it))
     .filter((it) => !isLoteadoresPassagemWaysersFaseSlug(faseSlug) || isLoteadoresPassagemWaysersCampoVisivel(it))
+    .filter((it) => !isLoteadoresDiligenciaFaseSlug(faseSlug) || isLoteadoresDiligenciaCampoVisivel(it))
+    .filter((it) => !isLoteadoresContratoParceriaFaseSlug(faseSlug) || isLoteadoresContratoParceriaCampoVisivel(it))
     .filter((it) => !(ocultarRedeLoteadorChecklist && isLoteadoresComiteFaseSlug(faseSlug)) || isLoteadoresComiteCampoVisivel(it))
     .filter((it) => !(ocultarRedeLoteadorChecklist && isLoteadoresRevisoesFaseSlug(faseSlug)) || isLoteadoresRevisoesCampoVisivel(it))
     .filter((it) => !(ocultarRedeLoteadorChecklist && isLoteadoresR3AjustesFinaisFaseSlug(faseSlug)) || isLoteadoresR3AjustesFinaisCampoVisivel(it))
@@ -857,10 +867,11 @@ export function FaseChecklistCard({
     ? itensFiltrados.filter((it) => !CHECKLIST_ITENS_OCULTOS_MULTI_PRACA.has(it.label.trim()))
     : itensFiltrados;
 
-  if (itensFiltrados.length === 0 && isLoteadoresAcoplamentoGboxFaseSlug(faseSlug)) {
+  if (itensFiltrados.length === 0) {
+    if (ocultarVazio) return null;
     return (
-      <p className="text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-        {LOTEADORES_ACOPLAMENTO_GBOX_NOTA}
+      <p className="text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+        Nenhum item configurado para esta fase.
       </p>
     );
   }
@@ -879,9 +890,8 @@ export function FaseChecklistCard({
   function renderItemField(item: FaseChecklistItem, chavePraca?: string) {
     const chave = chavePraca ?? abaPracaAtiva;
     const praca = resolverPracaSessao(chave);
-    const itemKey = multiPracaAtivo ? `${item.id}-${chave}` : item.id;
     return (
-      <div key={itemKey} className="kanban-fase-checklist-item">
+      <div className="kanban-fase-checklist-item">
         <ItemField
           item={item}
         faseSlug={faseSlug}
@@ -946,6 +956,39 @@ export function FaseChecklistCard({
     );
   }
 
+  function renderItensComGrupos(lista: FaseChecklistItem[], chavePraca?: string) {
+    return lista.map((item, idx) => {
+      const grupo = grupoChecklistItem(item);
+      const prev = idx > 0 ? grupoChecklistItem(lista[idx - 1]!) : '';
+      const showHeader = Boolean(grupo) && grupo !== prev;
+      const itemKey = chavePraca ? `${item.id}-${chavePraca}` : item.id;
+      return (
+        <Fragment key={itemKey}>
+          {showHeader ? (
+            <div
+              className="kanban-fase-checklist-grupo"
+              style={{
+                marginTop: idx === 0 ? 0 : 16,
+                marginBottom: 8,
+                paddingBottom: 4,
+                borderBottom: '0.5px solid var(--moni-border-default)',
+                fontFamily: 'var(--moni-font-sans)',
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: 'var(--moni-text-tertiary)',
+              }}
+            >
+              {grupo}
+            </div>
+          ) : null}
+          {renderItemField(item, chavePraca)}
+        </Fragment>
+      );
+    });
+  }
+
   const pracaLegadoChecklist: PracaCidade | null =
     !multiPracaAtivo &&
     isDadosCidadeFaseSlug(faseSlug) &&
@@ -973,7 +1016,7 @@ export function FaseChecklistCard({
               abaAtiva={abaPracaAtiva}
               onAbaChange={setAbaPracaAtiva}
             >
-              {itensDadosCidade.map((item) => renderItemField(item, abaPracaAtiva))}
+              {renderItensComGrupos(itensDadosCidade, abaPracaAtiva)}
             </DadosCidadePracaTabs>
           )}
         </>
@@ -982,7 +1025,7 @@ export function FaseChecklistCard({
           {pracaLegadoChecklist ? (
             <PracaAtivaChip label={labelPracaCidade(pracaLegadoChecklist)} />
           ) : null}
-          {itensFiltrados.map((item) => renderItemField(item))}
+          {renderItensComGrupos(itensFiltrados)}
         </>
       )}
       {isLotesDisponiveisFaseSlug(faseSlug) &&
@@ -1916,19 +1959,34 @@ function ItemField({
       ? String(item.config_json?.step ?? (item.config_json?.decimal ? 'any' : '1'))
       : undefined;
 
+  const prefixo = String(item.config_json?.prefixo ?? '').trim();
+  const sufixo = String(item.config_json?.sufixo ?? '').trim();
+
   return (
     <div>
       {labelEl}
-      <input
-        type={inputType}
-        className={inputClassUse}
-        placeholder={item.placeholder ?? ''}
-        value={estado.valor}
-        step={numeroStep}
-        readOnly={readonly}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={(e) => onBlur(e.target.value)}
-      />
+      <div className="flex items-center gap-2">
+        {prefixo ? (
+          <span className="text-xs" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+            {prefixo}
+          </span>
+        ) : null}
+        <input
+          type={inputType}
+          className={inputClassUse}
+          placeholder={item.placeholder ?? ''}
+          value={estado.valor}
+          step={numeroStep}
+          readOnly={readonly}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={(e) => onBlur(e.target.value)}
+        />
+        {sufixo ? (
+          <span className="text-xs" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+            {sufixo}
+          </span>
+        ) : null}
+      </div>
       {hintEspelhado}
       {erroEl}
     </div>

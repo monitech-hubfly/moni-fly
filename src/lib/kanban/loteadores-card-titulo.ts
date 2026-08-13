@@ -1,17 +1,61 @@
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
+import { formatLOValue, parseLOValue } from '@/lib/next-lo-loteador';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type LoteadoresTituloDb = Pick<SupabaseClient, 'from'>;
 type TituloLoteadorParams = {
+  nLoteador?: string | null;
   nomeLoteador?: string | null;
   contatoNome?: string | null;
   nomeCondominio?: string | null;
   tituloFallback?: string | null;
 };
 
-/** Título do card: Nome do Loteador — Contato — Condomínio (dados do cadastro). */
+/** Extrai LO#### do início do título (`LO0005 - …`). */
+export function separarCodigoTituloLoteadores(titulo: string): {
+  codigo: string | null;
+  tituloLimpo: string;
+} {
+  const t = String(titulo ?? '').trim();
+  const m = t.match(/^(LO\d+)\s*[-–—]\s*(.+)$/i);
+  if (m?.[1] && m?.[2]) {
+    return { codigo: m[1].toUpperCase(), tituloLimpo: m[2].trim() };
+  }
+  return { codigo: null, tituloLimpo: t };
+}
+
+function normalizarNLoteador(value: string | null | undefined): string | null {
+  const parsed = parseLOValue(value);
+  if (!parsed) return null;
+  return formatLOValue(parsed.num, parsed.width);
+}
+
+/**
+ * Título persistido/exibido no Funil Loteadores: `LO0005 - Nome do condomínio`.
+ * Sem Q:/L: (quadra e lote não entram no título).
+ */
+export function montarTituloCardLoteadoresSync(params: {
+  nLoteador?: string | null;
+  nomeCondominio?: string | null;
+  tituloFallback?: string | null;
+}): string | null {
+  const codigo = normalizarNLoteador(params.nLoteador);
+  const condo = String(params.nomeCondominio ?? '').trim();
+  const partes = [codigo ?? '', condo].filter(Boolean);
+  if (partes.length > 0) return partes.join(' - ');
+  const fb = String(params.tituloFallback ?? '').trim();
+  return fb || null;
+}
+
+/** @deprecated Preferir `montarTituloCardLoteadoresSync` (LO + condomínio). */
 export function montarTituloCardLoteadores(params: TituloLoteadorParams): string | null {
+  const sync = montarTituloCardLoteadoresSync({
+    nLoteador: params.nLoteador,
+    nomeCondominio: params.nomeCondominio,
+    tituloFallback: params.tituloFallback,
+  });
+  if (sync) return sync;
   const partes = [
     String(params.nomeLoteador ?? '').trim(),
     String(params.contatoNome ?? '').trim(),
@@ -22,10 +66,25 @@ export function montarTituloCardLoteadores(params: TituloLoteadorParams): string
   return fb || null;
 }
 
-/** Subtítulo do card no board: interlocutor da negociação. */
-export function subtituloCardLoteadores(interlocutorNome?: string | null): string | null {
-  const s = String(interlocutorNome ?? '').trim();
-  return s || null;
+/** Nome no header do card fechado (spec: nome_responsavel). */
+export function nomeResponsavelHeaderLoteador(rl: {
+  interlocutor_nome?: string | null;
+  contato_nome?: string | null;
+  nome?: string | null;
+} | null | undefined): string | null {
+  return coalesceTexto(rl?.interlocutor_nome, rl?.contato_nome, rl?.nome);
+}
+
+/** Subtítulo: só se for distinto do nome no header e do responsável da fase. */
+export function subtituloCardLoteadores(
+  nomeEmpresa?: string | null,
+  nomeHeader?: string | null,
+): string | null {
+  const empresa = String(nomeEmpresa ?? '').trim();
+  const header = String(nomeHeader ?? '').trim();
+  if (!empresa) return null;
+  if (header && empresa.toLowerCase() === header.toLowerCase()) return null;
+  return empresa;
 }
 
 export function isKanbanFunilLoteadoresRef(
@@ -54,6 +113,8 @@ type TituloLoteadorOverrides = {
 };
 
 type RedeLoteadorTituloRow = {
+  n_loteador?: string | null;
+  codigo?: string | null;
   nome?: string | null;
   contato_nome?: string | null;
   interlocutor_nome?: string | null;
@@ -84,7 +145,8 @@ function extrairCondominioDoTituloLoteador(
   const loteador = String(nomeLoteador ?? '').trim();
   const contato = String(contatoNome ?? '').trim();
   let idx = 0;
-  if (loteador && parts[0]?.toLowerCase() === loteador.toLowerCase()) idx = 1;
+  if (parts[0] && /^LO\d+$/i.test(parts[0])) idx = 1;
+  if (loteador && parts[idx]?.toLowerCase() === loteador.toLowerCase()) idx += 1;
   if (contato && parts[idx]?.toLowerCase() === contato.toLowerCase()) idx += 1;
   if (idx >= parts.length) return null;
   return parts.slice(idx).join(' - ') || null;
@@ -119,15 +181,18 @@ export function resolverNomeCondominioCardLoteadores(input: {
   return coalesceTexto(input.nomeCondominioCadastro);
 }
 
-/** Título de exibição/persistência — card e título manual têm prioridade sobre o cadastro compartilhado. */
+/** Título de exibição/persistência: `LO#### - condomínio`. */
 export function tituloExibicaoCardLoteadores(
   card: { titulo?: string | null; nome_condominio?: string | null },
   rl: RedeLoteadorTituloRow | null | undefined,
   options?: { nomeCondominioExtra?: string | null; condominioNomeTabela?: string | null },
 ): string | null {
-  const nomeLoteador = coalesceTexto(rl?.nome);
-  if (!nomeLoteador) return coalesceTexto(card.titulo);
+  const nLoteador =
+    normalizarNLoteador(rl?.n_loteador) ||
+    normalizarNLoteador(rl?.codigo) ||
+    separarCodigoTituloLoteadores(String(card.titulo ?? '')).codigo;
 
+  const nomeLoteador = coalesceTexto(rl?.nome);
   const nomeCondominio = resolverNomeCondominioCardLoteadores({
     nomeCondominioCard: card.nome_condominio,
     condominioNomeTabela: options?.condominioNomeTabela,
@@ -138,9 +203,8 @@ export function tituloExibicaoCardLoteadores(
     override: options?.nomeCondominioExtra,
   });
 
-  return montarTituloCardLoteadores({
-    nomeLoteador,
-    contatoNome: rl?.contato_nome,
+  return montarTituloCardLoteadoresSync({
+    nLoteador,
     nomeCondominio,
     tituloFallback: card.titulo,
   });
@@ -173,7 +237,7 @@ export async function sincronizarTituloCardLoteadores(
 
   const { data: rl, error: rlErr } = await db
     .from('rede_loteadores')
-    .select('nome, contato_nome, interlocutor_nome, condominio_nome')
+    .select('n_loteador, codigo, nome, contato_nome, interlocutor_nome, condominio_nome')
     .eq('id', redeLoteadorId)
     .maybeSingle();
   if (rlErr) return { ok: false, error: rlErr.message };

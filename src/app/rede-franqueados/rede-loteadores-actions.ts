@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeAccessRole } from '@/lib/authz';
-import { getNextCodigoLoteador } from '@/lib/next-codigo-loteador';
+import { formatLOValue, getNextLOFromRedeLoteadores, parseLOValue } from '@/lib/next-lo-loteador';
 import type { RedeLoteadorPatch, RedeLoteadorStatus } from '@/lib/rede-loteadores';
 
 type Ok = { ok: true; mensagem: string; id?: string };
@@ -93,11 +93,23 @@ export async function criarRedeLoteador(patch: RedeLoteadorPatch): Promise<Ok | 
     return { ok: false, error: 'Status inválido.' };
   }
 
-  const codigo = await getNextCodigoLoteador(gate.supabase);
+  const informado = String((patch as { n_loteador?: string | null }).n_loteador ?? '').trim();
+  const parsedIn = parseLOValue(informado);
+  const n_loteador = parsedIn
+    ? formatLOValue(parsedIn.num, parsedIn.width)
+    : await getNextLOFromRedeLoteadores(gate.supabase as never);
+  const ordem = parseLOValue(n_loteador)?.num ?? 0;
 
   const { data, error } = await gate.supabase
     .from('rede_loteadores')
-    .insert({ ...row, codigo, criado_por: gate.userId, updated_at: new Date().toISOString() } as never)
+    .insert({
+      ...row,
+      n_loteador,
+      ordem,
+      codigo: n_loteador,
+      criado_por: gate.userId,
+      updated_at: new Date().toISOString(),
+    } as never)
     .select('id')
     .single();
 

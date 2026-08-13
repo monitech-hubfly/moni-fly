@@ -1,22 +1,25 @@
-/** Checklist da fase «Viabilidade / Premissas» — Funil Loteadores. */
+/** Checklist da fase «Viabilidade / Premissas» — Funil Loteadores. Spec v2: sem campos. */
+
+import { isLoteadoresChecklistCampoVisivel } from '@/lib/kanban/loteadores-checklist-visibilidade';
 
 export const LOTEADORES_VIABILIDADE_FASE_SLUGS = [
   'viabilidade_moni_inc',
   'dados_loteador_moni_inc',
 ] as const;
 
-export const LOTEADORES_VIABILIDADE_CAMPOS = {
-  mapaCompetidores: 'mapa_competidores',
-  loteShowroomQuadra: 'lote_showroom_quadra',
-  loteShowroom: 'lote_showroom',
-  plantaCadastral: 'planta_cadastral_lote',
-  fotosLote: 'fotos_lote',
-  videosLote: 'videos_lote',
-  casasSimulacao: 'casas_simulacao',
-  manualObra: 'manual_obra',
-  gadgets: 'gadgets',
-} as const;
+/** Spec v2: nenhum campo de checklist. */
+export const LOTEADORES_VIABILIDADE_CAMPOS = {} as const;
 
-export const LOTEADORES_VIABILIDADE_CAMPOS_VISIVEIS = Object.values(
-  LOTEADORES_VIABILIDADE_CAMPOS,
-);
+export const LOTEADORES_VIABILIDADE_CAMPOS_VISIVEIS: readonly string[] = [];
+
+export function isLoteadoresViabilidadeFaseSlug(slug: string | null | undefined): boolean {
+  const s = String(slug ?? '').trim();
+  return (LOTEADORES_VIABILIDADE_FASE_SLUGS as readonly string[]).includes(s);
+}
+
+export function isLoteadoresViabilidadeCampoVisivel(item: {
+  campo_slug?: string | null;
+  label?: string | null;
+}): boolean {
+  return isLoteadoresChecklistCampoVisivel(item, LOTEADORES_VIABILIDADE_CAMPOS_VISIVEIS);
+}

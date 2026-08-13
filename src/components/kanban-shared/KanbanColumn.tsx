@@ -143,7 +143,7 @@ function cardConcluidoVisual(card: KanbanCardBrief): boolean {
  */
 function separarCodigoTitulo(titulo: string): { codigo: string | null; tituloLimpo: string } {
   const t = String(titulo ?? '').trim();
-  const m = t.match(/^(FK\d+)\s*[-–—]\s*(.+)$/i);
+  const m = t.match(/^(FK\d+|LO\d+)\s*[-–—]\s*(.+)$/i);
   if (m && m[1] && m[2]) {
     return { codigo: m[1].toUpperCase(), tituloLimpo: m[2].trim() };
   }

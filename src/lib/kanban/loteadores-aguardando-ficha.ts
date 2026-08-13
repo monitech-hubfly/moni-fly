@@ -1,16 +1,13 @@
 /**
  * Checklist / gate da fase «Aguardando Ficha» — Funil Loteadores.
- * Reusa a ficha do form externo `/loteador/[token]` (`rede_loteadores` + painel persistente).
  */
 
+import { isLoteadoresChecklistCampoVisivel } from '@/lib/kanban/loteadores-checklist-visibilidade';
 import type { RedeLoteadorFichaDraft } from '@/lib/rede-loteador-ficha-draft';
 
 export const LOTEADORES_AGUARDANDO_FICHA_FASE_SLUG = 'aguardando_ficha_moni_inc' as const;
 
-/**
- * Spec → chave do draft da ficha (mesmo mapeamento de `REDE_LOTEADOR_CAMPO_COMPAT`).
- * Obrigatórios mínimos para avançar de fase.
- */
+/** Campos mínimos para avançar (instrução 4). */
 export const LOTEADORES_AGUARDANDO_FICHA_CAMPOS_MINIMOS = {
   nome_condominio: 'condominio_nome',
   cidade: 'condominio_cidade',
@@ -23,25 +20,35 @@ export const LOTEADORES_AGUARDANDO_FICHA_CAMPOS_MINIMOS = {
 export type LoteadoresAguardandoFichaCampoMinimo =
   keyof typeof LOTEADORES_AGUARDANDO_FICHA_CAMPOS_MINIMOS;
 
-/** Labels para UI / checklist espelhado (opcional no banco). */
 export const LOTEADORES_AGUARDANDO_FICHA_CAMPOS = {
+  nomeResponsavel: 'ficha_nome_responsavel',
+  cargoFuncao: 'ficha_cargo_funcao',
+  telefone: 'ficha_telefone',
+  email: 'ficha_email',
   nomeCondominio: 'nome_condominio',
   cidade: 'cidade',
+  dataLancamentoTvo: 'data_lancamento_tvo',
   qtdLotes: 'qtd_lotes',
   precoLotes: 'preco_lotes',
   metragemLotes: 'metragem_lotes',
+  precoCasas: 'preco_casas',
+  metragemTipologiaCasas: 'metragem_tipologia_casas',
   plantaCadastral: 'planta_cadastral',
+  manualObras: 'manual_obras',
+  linksCasasConcorrentes: 'links_casas_concorrentes',
+  anexoCasasConcorrentes: 'anexo_casas_concorrentes',
+  lotesDisponiveis: 'lotes_disponiveis',
+  lotesVendidosQuitados: 'lotes_vendidos_quitados',
+  carteiraCurta: 'carteira_curta',
+  carteiraLonga: 'carteira_longa',
+  tabelaPrecos: 'tabela_precos',
+  observacoesLivres: 'observacoes_livres',
+  anexoExtra: 'anexo_extra',
 } as const;
 
 export const LOTEADORES_AGUARDANDO_FICHA_CAMPOS_VISIVEIS = Object.values(
   LOTEADORES_AGUARDANDO_FICHA_CAMPOS,
 );
-
-export const LOTEADORES_AGUARDANDO_FICHA_CAMPOS_LEGADOS = [
-  'ficha_recebida',
-  'ficha_pendencias',
-  'rede_loteador',
-] as const;
 
 export function isLoteadoresAguardandoFichaFaseSlug(slug: string | null | undefined): boolean {
   return String(slug ?? '').trim() === LOTEADORES_AGUARDANDO_FICHA_FASE_SLUG;
@@ -51,14 +58,7 @@ export function isLoteadoresAguardandoFichaCampoVisivel(item: {
   campo_slug?: string | null;
   label?: string | null;
 }): boolean {
-  const slug = String(item.campo_slug ?? '').trim();
-  if (slug) {
-    return (
-      (LOTEADORES_AGUARDANDO_FICHA_CAMPOS_VISIVEIS as readonly string[]).includes(slug) ||
-      (LOTEADORES_AGUARDANDO_FICHA_CAMPOS_LEGADOS as readonly string[]).includes(slug)
-    );
-  }
-  return false;
+  return isLoteadoresChecklistCampoVisivel(item, LOTEADORES_AGUARDANDO_FICHA_CAMPOS_VISIVEIS);
 }
 
 export function listarPendenciasFichaMinimaLoteador(

@@ -23,7 +23,7 @@ import type { OperacoesConfirmacaoFaseTipo } from '@/lib/kanban/operacoes-confir
 import type { LoteadoresConfirmacaoFaseTipo } from '@/lib/kanban/loteadores-confirmacao-fase';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
-import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
+import { montarTituloCardLoteadoresSync, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
 import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import { calcularDataEmissaoAlvara } from '@/lib/pre-obra/emissao-alvara-data';
@@ -2418,39 +2418,34 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   }
 
   let tituloFinal = titulo;
-  let contatoNomeLoteador: string | null = null;
-  let nomeLoteadorResolved = (input.nomeLoteador ?? '').trim() || null;
+  let nLoteadorResolved: string | null = null;
   let nomeCondominioFinal = nomeCondominio;
 
   if (isKanbanFunilLoteadoresRef(kanbanId, kanbanNome) && redeLoteadorId) {
     const { data: rl } = await supabase
       .from('rede_loteadores')
-      .select('nome, contato_nome, interlocutor_nome, condominio_nome')
+      .select('n_loteador, codigo, nome, contato_nome, interlocutor_nome, condominio_nome')
       .eq('id', redeLoteadorId)
       .maybeSingle();
     const row = rl as {
+      n_loteador?: string | null;
+      codigo?: string | null;
       nome?: string | null;
       contato_nome?: string | null;
       interlocutor_nome?: string | null;
       condominio_nome?: string | null;
     } | null;
-    nomeLoteadorResolved = String(row?.nome ?? '').trim() || nomeLoteadorResolved;
-    contatoNomeLoteador =
-      String(row?.interlocutor_nome ?? '').trim() ||
-      String(row?.contato_nome ?? '').trim() ||
-      null;
+    nLoteadorResolved =
+      String(row?.n_loteador ?? '').trim() || String(row?.codigo ?? '').trim() || null;
     if (!nomeCondominioFinal) {
       nomeCondominioFinal = String(row?.condominio_nome ?? '').trim() || null;
     }
   }
 
   if (isKanbanFunilLoteadoresRef(kanbanId, kanbanNome)) {
-    // Ainda sem cadastro vinculado: título inicial com o que foi informado.
-    // Após vincular/preencher o cadastro, o título é reconstruído (loteador · contato · condomínio).
     tituloFinal =
-      montarTituloCardLoteadores({
-        nomeLoteador: nomeLoteadorResolved || titulo,
-        contatoNome: contatoNomeLoteador,
+      montarTituloCardLoteadoresSync({
+        nLoteador: nLoteadorResolved,
         nomeCondominio: nomeCondominioFinal,
         tituloFallback: titulo,
       }) ?? titulo;

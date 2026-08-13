@@ -12,7 +12,7 @@ import {
 import type { FranqueadoEmpresaStatus } from '@/lib/franqueado-empresas';
 import { criarCadastroMoniCapital, verificarDuplicataMoniCapital } from '@/lib/moni-capital-cadastros-actions';
 import type { RedeLoteadorStatus } from '@/lib/rede-loteadores';
-import { getNextCodigoLoteador } from '@/lib/next-codigo-loteador';
+import { formatLOValue, getNextLOFromRedeLoteadores, parseLOValue } from '@/lib/next-lo-loteador';
 import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
 
 type Ok = { ok: true; mensagem: string };
@@ -137,9 +137,14 @@ export async function importarRedeLoteadoresCSV(csvText: string): Promise<CsvRes
     data.criado_por = gate.userId;
     data.updated_at = new Date().toISOString();
     if (!data.status) data.status = 'ativo';
-    if (!String(data.codigo ?? '').trim()) {
-      data.codigo = await getNextCodigoLoteador(gate.supabase);
-    }
+    const informado = String(data.n_loteador ?? data.codigo ?? '').trim();
+    const parsedIn = parseLOValue(informado);
+    const n_loteador = parsedIn
+      ? formatLOValue(parsedIn.num, parsedIn.width)
+      : await getNextLOFromRedeLoteadores(gate.supabase as never);
+    data.n_loteador = n_loteador;
+    data.ordem = parseLOValue(n_loteador)?.num ?? 0;
+    if (!String(data.codigo ?? '').trim()) data.codigo = n_loteador;
 
     const { error } = await gate.supabase.from('rede_loteadores').insert(data as never);
     if (error) return { ok: false, error: error.message };

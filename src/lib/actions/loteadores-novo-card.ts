@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 import { isRedeStaffRole } from '@/lib/authz';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
-import { montarTituloCardLoteadores } from '@/lib/kanban/loteadores-card-titulo';
-import { getNextCodigoLoteador } from '@/lib/next-codigo-loteador';
+import { montarTituloCardLoteadoresSync } from '@/lib/kanban/loteadores-card-titulo';
+import { formatLOValue, getNextLOFromRedeLoteadores, parseLOValue } from '@/lib/next-lo-loteador';
 import {
   emptyRedeLoteadorFichaDraft,
   redeLoteadorFichaDraftToPatch,
@@ -22,6 +22,8 @@ export type CriarCardLoteadoresCadastroModo = 'novo' | 'existente';
 export type CriarCardLoteadoresParceiroInput = {
   /** Nome da empresa / loteador. */
   nomeLoteador: string;
+  /** N do Loteador (LOxxxx). Vazio → gera o próximo. */
+  nLoteador?: string;
   /** Spec: nome_responsavel → interlocutor_nome */
   nomeResponsavel: string;
   /** Spec: cargo_funcao → interlocutor_cargo */
@@ -52,10 +54,42 @@ export type BuscarRedeLoteadoresOpcao = {
   id: string;
   nome: string;
   codigo: string | null;
+  n_loteador: string | null;
   cnpj: string | null;
   interlocutor_nome: string | null;
   condominio_nome: string | null;
 };
+
+async function alocarNLoteador(
+  supabase: Parameters<typeof getNextLOFromRedeLoteadores>[0],
+  informado?: string | null,
+): Promise<{ n_loteador: string; ordem: number }> {
+  const raw = String(informado ?? '').trim().toUpperCase();
+  const parsedIn = parseLOValue(raw);
+  const n_loteador = parsedIn
+    ? formatLOValue(parsedIn.num, parsedIn.width)
+    : await getNextLOFromRedeLoteadores(supabase);
+  const parsed = parseLOValue(n_loteador);
+  return { n_loteador, ordem: parsed?.num ?? 0 };
+}
+
+/**
+ * Endpoint para o frontend pré-preencher o próximo LOxxxx.
+ * (Formulário de novo card do Funil Loteadores.)
+ */
+export async function getProximoNLoteador(): Promise<
+  { ok: true; valor: string } | { ok: false; error: string }
+> {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const admin = createAdminClient();
+    const valor = await getNextLOFromRedeLoteadores(admin as never);
+    return { ok: true, valor };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+}
 
 async function requireStaffLoteadores() {
   const supabase = await createClient();
@@ -111,7 +145,7 @@ export async function buscarRedeLoteadoresParaNovoCard(
   const q = String(busca ?? '').trim();
   let query = gate.supabase
     .from('rede_loteadores')
-    .select('id, nome, codigo, cnpj, interlocutor_nome, condominio_nome')
+    .select('id, nome, codigo, n_loteador, cnpj, interlocutor_nome, condominio_nome')
     .order('nome', { ascending: true })
     .limit(40);
 
@@ -119,7 +153,7 @@ export async function buscarRedeLoteadoresParaNovoCard(
     // Filtra no app para evitar problemas de escape no `.or()` do PostgREST
     const { data, error } = await gate.supabase
       .from('rede_loteadores')
-      .select('id, nome, codigo, cnpj, interlocutor_nome, condominio_nome')
+      .select('id, nome, codigo, n_loteador, cnpj, interlocutor_nome, condominio_nome')
       .order('nome', { ascending: true })
       .limit(300);
     if (error) return { ok: false, error: error.message };
@@ -129,13 +163,16 @@ export async function buscarRedeLoteadoresParaNovoCard(
         id: String((r as { id: string }).id),
         nome: String((r as { nome?: string | null }).nome ?? '').trim() || 'Sem nome',
         codigo: (r as { codigo?: string | null }).codigo ?? null,
+        n_loteador: (r as { n_loteador?: string | null }).n_loteador ?? null,
         cnpj: (r as { cnpj?: string | null }).cnpj ?? null,
         interlocutor_nome: (r as { interlocutor_nome?: string | null }).interlocutor_nome ?? null,
         condominio_nome: (r as { condominio_nome?: string | null }).condominio_nome ?? null,
       }))
       .filter((o) =>
         normalizarParaBuscaLoteador(
-          [o.codigo, o.nome, o.cnpj, o.interlocutor_nome, o.condominio_nome].filter(Boolean).join(' '),
+          [o.n_loteador, o.codigo, o.nome, o.cnpj, o.interlocutor_nome, o.condominio_nome]
+            .filter(Boolean)
+            .join(' '),
         ).includes(nq),
       )
       .slice(0, 40);
@@ -151,6 +188,7 @@ export async function buscarRedeLoteadoresParaNovoCard(
       id: String((r as { id: string }).id),
       nome: String((r as { nome?: string | null }).nome ?? '').trim() || 'Sem nome',
       codigo: (r as { codigo?: string | null }).codigo ?? null,
+      n_loteador: (r as { n_loteador?: string | null }).n_loteador ?? null,
       cnpj: (r as { cnpj?: string | null }).cnpj ?? null,
       interlocutor_nome: (r as { interlocutor_nome?: string | null }).interlocutor_nome ?? null,
       condominio_nome: (r as { condominio_nome?: string | null }).condominio_nome ?? null,
@@ -193,9 +231,34 @@ export async function criarCardLoteadoresComCadastro(
   const patch = redeLoteadorFichaDraftToPatch(draft);
   const now = new Date().toISOString();
   let redeLoteadorId = String(input.redeLoteadorId ?? '').trim();
+  let nLoteadorFinal = String(input.parceiro.nLoteador ?? '').trim();
 
   if (input.modo === 'existente') {
     if (!redeLoteadorId) return { ok: false, error: 'Selecione um cadastro existente.' };
+    const { data: existente, error: errExist } = await gate.supabase
+      .from('rede_loteadores')
+      .select('n_loteador, codigo')
+      .eq('id', redeLoteadorId)
+      .maybeSingle();
+    if (errExist) return { ok: false, error: errExist.message };
+    nLoteadorFinal =
+      String((existente as { n_loteador?: string | null } | null)?.n_loteador ?? '').trim() ||
+      String((existente as { codigo?: string | null } | null)?.codigo ?? '').trim() ||
+      nLoteadorFinal;
+    if (!parseLOValue(nLoteadorFinal)) {
+      const alocado = await alocarNLoteador(gate.supabase as never, nLoteadorFinal);
+      nLoteadorFinal = alocado.n_loteador;
+      const { error: updLo } = await gate.supabase
+        .from('rede_loteadores')
+        .update({
+          n_loteador: alocado.n_loteador,
+          ordem: alocado.ordem,
+          ultima_atualizacao_por: gate.userId,
+          updated_at: now,
+        } as never)
+        .eq('id', redeLoteadorId);
+      if (updLo) return { ok: false, error: updLo.message };
+    }
     const { error: updErr } = await gate.supabase
       .from('rede_loteadores')
       .update({
@@ -207,12 +270,15 @@ export async function criarCardLoteadoresComCadastro(
       .eq('id', redeLoteadorId);
     if (updErr) return { ok: false, error: updErr.message };
   } else {
-    const codigo = await getNextCodigoLoteador(gate.supabase as never);
+    const alocado = await alocarNLoteador(gate.supabase as never, nLoteadorFinal);
+    nLoteadorFinal = alocado.n_loteador;
     const { data: inserted, error: insErr } = await gate.supabase
       .from('rede_loteadores')
       .insert({
         ...patch,
-        codigo,
+        n_loteador: alocado.n_loteador,
+        ordem: alocado.ordem,
+        codigo: alocado.n_loteador,
         status: 'em_analise',
         condominio_estado: patch.estado ?? null,
         criado_por: gate.userId,
@@ -247,9 +313,8 @@ export async function criarCardLoteadoresComCadastro(
   const quadra = String(input.quadra ?? '').trim() || null;
   const lote = String(input.lote ?? '').trim() || null;
   const titulo =
-    montarTituloCardLoteadores({
-      nomeLoteador: draft.nome,
-      contatoNome: draft.interlocutor_nome,
+    montarTituloCardLoteadoresSync({
+      nLoteador: nLoteadorFinal,
       nomeCondominio,
       tituloFallback: draft.nome,
     }) ?? draft.nome;
