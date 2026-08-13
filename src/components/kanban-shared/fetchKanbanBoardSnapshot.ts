@@ -30,6 +30,10 @@ import {
   tituloExibicaoCardLoteadores,
 } from '@/lib/kanban/loteadores-card-titulo';
 import {
+  isKanbanFilhoDadosLaterais,
+  resolverRedeLoteadorIdsPorCards,
+} from '@/lib/kanban/card-dados-laterais-pai';
+import {
   runKanbanCardSelectWithSlaFallback,
   runKanbanCardSelectBoardFast,
 } from '@/lib/kanban/kanban-card-select-cols';
@@ -187,6 +191,48 @@ function aplicarTagsKanbanCards(
 }
 
 /** Título formatado + header do franqueado no paint rápido (sem ancestrais/paralelas). */
+type LoteadorHeaderRow = {
+  n_loteador: string | null;
+  codigo: string | null;
+  nome: string;
+  contato_nome: string | null;
+  interlocutor_nome: string | null;
+  condominio_nome: string | null;
+};
+
+function precisaHeaderLoteadorNoBoard(kanbanIdStr: string, kanbanNomeDb: string): boolean {
+  return (
+    isKanbanFunilLoteadoresRef(kanbanIdStr, kanbanNomeDb) ||
+    isKanbanFilhoDadosLaterais(kanbanIdStr, kanbanNomeDb)
+  );
+}
+
+async function carregarLoteadorHeaderPorIds(
+  supabase: SupabaseClient,
+  ids: string[],
+): Promise<Map<string, LoteadorHeaderRow>> {
+  const loteadorPorId = new Map<string, LoteadorHeaderRow>();
+  const uniq = [...new Set(ids.map((id) => String(id ?? '').trim()).filter(Boolean))];
+  if (uniq.length === 0) return loteadorPorId;
+  const { data: loteadoresRows } = await supabase
+    .from('rede_loteadores')
+    .select('id, n_loteador, codigo, nome, contato_nome, interlocutor_nome, condominio_nome')
+    .in('id', uniq);
+  for (const row of loteadoresRows ?? []) {
+    const id = String((row as { id?: string }).id ?? '').trim();
+    if (!id) continue;
+    loteadorPorId.set(id, {
+      n_loteador: (row as { n_loteador?: string | null }).n_loteador ?? null,
+      codigo: (row as { codigo?: string | null }).codigo ?? null,
+      nome: String((row as { nome?: string | null }).nome ?? '').trim(),
+      contato_nome: (row as { contato_nome?: string | null }).contato_nome ?? null,
+      interlocutor_nome: (row as { interlocutor_nome?: string | null }).interlocutor_nome ?? null,
+      condominio_nome: (row as { condominio_nome?: string | null }).condominio_nome ?? null,
+    });
+  }
+  return loteadorPorId;
+}
+
 async function enrichFastPaintCardsParaExibicao(
   supabase: SupabaseClient,
   kanbanIdStr: string,
@@ -197,6 +243,7 @@ async function enrichFastPaintCardsParaExibicao(
   if (cards.length === 0) return cards;
 
   const isFunilLoteadores = isKanbanFunilLoteadoresRef(kanbanIdStr, kanbanNomeDb);
+  const headerLoteador = precisaHeaderLoteadorNoBoard(kanbanIdStr, kanbanNomeDb);
   const franqueadoMaps = await resolveNativeFranqueadoMaps(supabase, cardsRaw, [], []);
   const {
     redeNomeDiretoMap,
@@ -205,44 +252,12 @@ async function enrichFastPaintCardsParaExibicao(
     nFranquiaByRedeId,
   } = franqueadoMaps;
 
-  const loteadorPorId = new Map<
-    string,
-    {
-      n_loteador: string | null;
-      codigo: string | null;
-      nome: string;
-      contato_nome: string | null;
-      interlocutor_nome: string | null;
-      condominio_nome: string | null;
-    }
-  >();
-  if (isFunilLoteadores) {
-    const redeLoteadorIds = [
-      ...new Set(
-        cardsRaw
-          .map((c) => String(c.rede_loteador_id ?? '').trim())
-          .filter(Boolean),
-      ),
-    ];
-    if (redeLoteadorIds.length > 0) {
-      const { data: loteadoresRows } = await supabase
-        .from('rede_loteadores')
-        .select('id, n_loteador, codigo, nome, contato_nome, interlocutor_nome, condominio_nome')
-        .in('id', redeLoteadorIds);
-      for (const row of loteadoresRows ?? []) {
-        const id = String((row as { id?: string }).id ?? '').trim();
-        if (!id) continue;
-        loteadorPorId.set(id, {
-          n_loteador: (row as { n_loteador?: string | null }).n_loteador ?? null,
-          codigo: (row as { codigo?: string | null }).codigo ?? null,
-          nome: String((row as { nome?: string | null }).nome ?? '').trim(),
-          contato_nome: (row as { contato_nome?: string | null }).contato_nome ?? null,
-          interlocutor_nome: (row as { interlocutor_nome?: string | null }).interlocutor_nome ?? null,
-          condominio_nome: (row as { condominio_nome?: string | null }).condominio_nome ?? null,
-        });
-      }
-    }
-  }
+  const loteadorIdPorCard = headerLoteador
+    ? await resolverRedeLoteadorIdsPorCards(supabase, cardsRaw)
+    : new Map<string, string>();
+  const loteadorPorId = headerLoteador
+    ? await carregarLoteadorHeaderPorIds(supabase, [...loteadorIdPorCard.values()])
+    : new Map<string, LoteadorHeaderRow>();
 
   const rawById = new Map(cardsRaw.map((r) => [String(r.id ?? ''), r]));
 
@@ -286,9 +301,9 @@ async function enrichFastPaintCardsParaExibicao(
           ? { full_name: franqueadoNomePorCardId.get(cardId) ?? null }
           : null;
 
-    if (isFunilLoteadores) {
-      const redeLoteadorId = String(c.rede_loteador_id ?? '').trim();
-      const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
+    const redeLoteadorId = loteadorIdPorCard.get(cardId) ?? String(c.rede_loteador_id ?? '').trim();
+    const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
+    if (isFunilLoteadores || rl) {
       const nomeHeader = nomeResponsavelHeaderLoteador(rl);
       tituloExibicao =
         tituloExibicaoCardLoteadores(
@@ -1253,44 +1268,13 @@ export async function fetchKanbanBoardSnapshot(
     nFranquiaByRedeId,
   } = franqueadoMaps;
 
-  const loteadorPorId = new Map<
-    string,
-    {
-      n_loteador: string | null;
-      codigo: string | null;
-      nome: string;
-      contato_nome: string | null;
-      interlocutor_nome: string | null;
-      condominio_nome: string | null;
-    }
-  >();
-  if (isFunilLoteadores) {
-    const redeLoteadorIds = [
-      ...new Set(
-        cardsNativosRaw
-          .map((c) => String((c as { rede_loteador_id?: string | null }).rede_loteador_id ?? '').trim())
-          .filter(Boolean),
-      ),
-    ];
-    if (redeLoteadorIds.length > 0) {
-      const { data: loteadoresRows } = await supabase
-        .from('rede_loteadores')
-        .select('id, n_loteador, codigo, nome, contato_nome, interlocutor_nome, condominio_nome')
-        .in('id', redeLoteadorIds);
-      for (const row of loteadoresRows ?? []) {
-        const id = String((row as { id?: string }).id ?? '').trim();
-        if (!id) continue;
-        loteadorPorId.set(id, {
-          n_loteador: (row as { n_loteador?: string | null }).n_loteador ?? null,
-          codigo: (row as { codigo?: string | null }).codigo ?? null,
-          nome: String((row as { nome?: string | null }).nome ?? '').trim(),
-          contato_nome: (row as { contato_nome?: string | null }).contato_nome ?? null,
-          interlocutor_nome: (row as { interlocutor_nome?: string | null }).interlocutor_nome ?? null,
-          condominio_nome: (row as { condominio_nome?: string | null }).condominio_nome ?? null,
-        });
-      }
-    }
-  }
+  const headerLoteador = precisaHeaderLoteadorNoBoard(kanbanIdStr, kanbanNomeDb);
+  const loteadorIdPorCard = headerLoteador
+    ? await resolverRedeLoteadorIdsPorCards(supabase, cardsNativosRaw)
+    : new Map<string, string>();
+  const loteadorPorId = headerLoteador
+    ? await carregarLoteadorHeaderPorIds(supabase, [...loteadorIdPorCard.values()])
+    : new Map<string, LoteadorHeaderRow>();
 
   const condominioNomePorId = new Map<string, string>();
   if (isFunilLoteadores) {
@@ -1395,11 +1379,11 @@ export async function fetchKanbanBoardSnapshot(
           ? { full_name: franqueadoNomePorCardId.get(cardId) ?? null }
           : null;
 
-    if (isFunilLoteadores) {
-      const redeLoteadorId = String(
-        (cMerged as { rede_loteador_id?: string | null }).rede_loteador_id ?? '',
-      ).trim();
-      const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
+    const redeLoteadorId =
+      loteadorIdPorCard.get(cardId) ??
+      String((cMerged as { rede_loteador_id?: string | null }).rede_loteador_id ?? '').trim();
+    const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
+    if (isFunilLoteadores || rl) {
       const nomeHeader = nomeResponsavelHeaderLoteador(rl);
       const condominioIdCard = String(
         (cMerged as { condominio_id?: string | null }).condominio_id ?? '',
