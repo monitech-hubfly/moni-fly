@@ -295,7 +295,10 @@ async function enrichFastPaintCardsParaExibicao(
           { titulo: tituloRaw, nome_condominio: c.nome_condominio as string | null | undefined },
           rl,
         ) ?? tituloExibicao;
-      subtituloCard = subtituloCardLoteadores(rl?.nome, nomeHeader);
+      subtituloCard = subtituloCardLoteadores(rl?.nome, nomeHeader, {
+        titulo: tituloExibicao,
+        nomeCondominio: c.nome_condominio as string | null | undefined,
+      });
       profilesLinha = nomeHeader ? { full_name: nomeHeader } : null;
     }
 
@@ -1414,7 +1417,10 @@ export async function fetchKanbanBoardSnapshot(
               : null,
           },
         ) ?? tituloExibicao;
-      subtituloCard = subtituloCardLoteadores(rl?.nome, nomeHeader);
+      subtituloCard = subtituloCardLoteadores(rl?.nome, nomeHeader, {
+        titulo: tituloExibicao,
+        nomeCondominio: (cMerged as { nome_condominio?: string | null }).nome_condominio,
+      });
       profilesLinha = nomeHeader ? { full_name: nomeHeader } : null;
     }
 

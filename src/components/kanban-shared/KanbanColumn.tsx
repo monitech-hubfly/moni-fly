@@ -576,12 +576,15 @@ export function KanbanColumn({
             dragOverCardId === card.id && dragInsertBefore && dndAtivo;
           // Header: FK · franqueado (profiles). Subtítulo = linha extra (ex.: interlocutor loteadores).
           const franqueadoNome = card.profiles?.full_name?.trim() || '';
+          const { codigo: codigoCard, tituloLimpo } = separarCodigoTitulo(card.titulo);
           const subtituloCard = card.subtitulo?.trim() || '';
+          const subtituloNorm = subtituloCard.toLowerCase();
           const mostrarSubtitulo =
             Boolean(subtituloCard) &&
-            subtituloCard !== franqueadoNome &&
-            subtituloCard !== responsavelNome;
-          const { codigo: codigoCard, tituloLimpo } = separarCodigoTitulo(card.titulo);
+            subtituloNorm !== franqueadoNome.toLowerCase() &&
+            subtituloNorm !== responsavelNome.toLowerCase() &&
+            subtituloNorm !== tituloLimpo.toLowerCase() &&
+            subtituloNorm !== String(card.titulo ?? '').trim().toLowerCase();
           const slaChip =
             !arquivado && !concluido && !aguardandoDoc
               ? tagSlaKanbanParaExibicao(sla)

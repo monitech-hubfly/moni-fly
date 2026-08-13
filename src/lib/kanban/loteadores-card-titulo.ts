@@ -75,15 +75,37 @@ export function nomeResponsavelHeaderLoteador(rl: {
   return coalesceTexto(rl?.interlocutor_nome, rl?.contato_nome, rl?.nome);
 }
 
-/** Subtítulo: só se for distinto do nome no header e do responsável da fase. */
+function normalizarTextoCardVisivel(value: string | null | undefined): string {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function tituloLimpoParaComparacao(titulo: string | null | undefined): string {
+  const t = String(titulo ?? '').trim();
+  const m = t.match(/^(?:LO|FK)\d+\s*[-–—]\s*(.+)$/i);
+  return String(m?.[1] ?? t).trim();
+}
+
+/** Subtítulo: só se for distinto do header, do título em negrito e do condomínio. */
 export function subtituloCardLoteadores(
   nomeEmpresa?: string | null,
   nomeHeader?: string | null,
+  extras?: { titulo?: string | null; nomeCondominio?: string | null },
 ): string | null {
   const empresa = String(nomeEmpresa ?? '').trim();
-  const header = String(nomeHeader ?? '').trim();
   if (!empresa) return null;
-  if (header && empresa.toLowerCase() === header.toLowerCase()) return null;
+  const e = normalizarTextoCardVisivel(empresa);
+  const candidatos = [
+    nomeHeader,
+    extras?.nomeCondominio,
+    extras?.titulo,
+    tituloLimpoParaComparacao(extras?.titulo),
+  ];
+  for (const c of candidatos) {
+    if (e && normalizarTextoCardVisivel(c) === e) return null;
+  }
   return empresa;
 }
 
