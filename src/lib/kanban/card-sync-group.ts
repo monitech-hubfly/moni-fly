@@ -211,39 +211,82 @@ export function processoExplicitamenteVinculadoAoCard(
  * Usado no grupo de sync — evita agrupar cards distintos via rede/FK0000 heurístico.
  */
 export async function resolverProcessoIdExplicitoDoCard(db: SyncDb, cardId: string): Promise<string | null> {
-  const cid = String(cardId ?? '').trim();
-  if (!cid) return null;
+  const map = await resolverProcessoIdsExplicitoDeCards(db, [cardId]);
+  return map.get(String(cardId ?? '').trim()) ?? null;
+}
 
-  const { data: card } = await db
+/**
+ * Resolve processos explícitos de vários cards em 2 queries (em vez de 2–3 por card).
+ * Mesma regra de `resolverProcessoIdExplicitoDoCard` (FK órfã não cai em projeto/rede).
+ */
+export async function resolverProcessoIdsExplicitoDeCards(
+  db: SyncDb,
+  cardIds: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const unique = [
+    ...new Set(cardIds.map((id) => String(id ?? '').trim()).filter(Boolean)),
+  ];
+  if (unique.length === 0) return out;
+
+  const { data: cards } = await db
     .from('kanban_cards')
-    .select('projeto_id, processo_step_one_id')
-    .eq('id', cid)
-    .maybeSingle();
-  const row = card as {
-    projeto_id?: string | null;
-    processo_step_one_id?: string | null;
-  } | null;
+    .select('id, projeto_id, processo_step_one_id')
+    .in('id', unique);
 
-  const processoStepOneId = String(row?.processo_step_one_id ?? '').trim();
-  if (processoStepOneId) {
-    const { data: byCol } = await db
-      .from('processo_step_one')
-      .select('id')
-      .eq('id', processoStepOneId)
-      .maybeSingle();
-    if (byCol?.id) return String(byCol.id);
-    // FK órfã: não inferir processo por projeto/rede (evita espelhar cards distintos).
-    return null;
+  type Cand = {
+    cardId: string;
+    step: string;
+    projeto: string;
+  };
+  const cands: Cand[] = [];
+  const candidateProcIds = new Set<string>();
+
+  for (const row of cards ?? []) {
+    const cardId = String((row as { id?: string }).id ?? '').trim();
+    if (!cardId) continue;
+    const step = String((row as { processo_step_one_id?: string | null }).processo_step_one_id ?? '').trim();
+    const projeto = String((row as { projeto_id?: string | null }).projeto_id ?? '').trim();
+    cands.push({ cardId, step, projeto });
+    if (step) candidateProcIds.add(step);
+    else if (projeto) candidateProcIds.add(projeto);
+    else candidateProcIds.add(cardId);
   }
 
-  const projetoId = String(row?.projeto_id ?? '').trim();
-  if (projetoId) {
-    const { data: byProjeto } = await db.from('processo_step_one').select('id').eq('id', projetoId).maybeSingle();
-    if (byProjeto?.id) return String(byProjeto.id);
+  // Cards sem linha em kanban_cards ainda podem ser shadow = processo_step_one.id
+  for (const id of unique) {
+    if (!cands.some((c) => c.cardId === id)) {
+      cands.push({ cardId: id, step: '', projeto: '' });
+      candidateProcIds.add(id);
+    }
   }
 
-  const { data: proc } = await db.from('processo_step_one').select('id').eq('id', cid).maybeSingle();
-  return proc?.id ? String(proc.id) : null;
+  if (candidateProcIds.size === 0) return out;
+
+  const { data: procs } = await db
+    .from('processo_step_one')
+    .select('id')
+    .in('id', [...candidateProcIds]);
+  const valid = new Set(
+    (procs ?? [])
+      .map((p) => String((p as { id?: string }).id ?? '').trim())
+      .filter(Boolean),
+  );
+
+  for (const c of cands) {
+    if (c.step) {
+      if (valid.has(c.step)) out.set(c.cardId, c.step);
+      // FK órfã: não inferir por projeto/shadow
+      continue;
+    }
+    if (c.projeto && valid.has(c.projeto)) {
+      out.set(c.cardId, c.projeto);
+      continue;
+    }
+    if (valid.has(c.cardId)) out.set(c.cardId, c.cardId);
+  }
+
+  return out;
 }
 
 /**
@@ -463,7 +506,7 @@ function coalesceCampoSync(
   return a || null;
 }
 
-/** BFS em `kanban_card_vinculos` (bidirecional). */
+/** BFS em `kanban_card_vinculos` (bidirecional) — 2 queries por onda, não 1 por card. */
 async function expandirVinculos(db: SyncDb, ids: Set<string>): Promise<void> {
   let frontier = [...ids];
   const seenEdges = new Set<string>();
@@ -472,24 +515,28 @@ async function expandirVinculos(db: SyncDb, ids: Set<string>): Promise<void> {
     const batch = frontier;
     frontier = [];
 
-    for (const cid of batch) {
-      const { data: vinculos } = await db
+    const [{ data: asOrigem }, { data: asDestino }] = await Promise.all([
+      db
         .from('kanban_card_vinculos')
         .select('card_origem_id, card_destino_id')
-        .or(`card_origem_id.eq.${cid},card_destino_id.eq.${cid}`);
+        .in('card_origem_id', batch),
+      db
+        .from('kanban_card_vinculos')
+        .select('card_origem_id, card_destino_id')
+        .in('card_destino_id', batch),
+    ]);
 
-      for (const v of vinculos ?? []) {
-        const a = String((v as { card_origem_id?: string }).card_origem_id ?? '').trim();
-        const b = String((v as { card_destino_id?: string }).card_destino_id ?? '').trim();
-        const edgeKey = a < b ? `${a}|${b}` : `${b}|${a}`;
-        if (seenEdges.has(edgeKey)) continue;
-        seenEdges.add(edgeKey);
+    for (const v of [...(asOrigem ?? []), ...(asDestino ?? [])]) {
+      const a = String((v as { card_origem_id?: string }).card_origem_id ?? '').trim();
+      const b = String((v as { card_destino_id?: string }).card_destino_id ?? '').trim();
+      const edgeKey = a < b ? `${a}|${b}` : `${b}|${a}`;
+      if (seenEdges.has(edgeKey)) continue;
+      seenEdges.add(edgeKey);
 
-        for (const nid of [a, b]) {
-          if (!nid || ids.has(nid)) continue;
-          ids.add(nid);
-          frontier.push(nid);
-        }
+      for (const nid of [a, b]) {
+        if (!nid || ids.has(nid)) continue;
+        ids.add(nid);
+        frontier.push(nid);
       }
     }
   }
@@ -532,26 +579,26 @@ async function expandirOrigemCardId(db: SyncDb, ids: Set<string>): Promise<void>
 
 /** Inclui shadow cards e cards nativos ligados ao mesmo `processo_step_one`. */
 async function expandirProcessoShadow(db: SyncDb, ids: Set<string>): Promise<void> {
-  const processoIds = new Set<string>();
-  for (const cid of [...ids]) {
-    const pid = await resolverProcessoIdExplicitoDoCard(db, cid);
-    if (pid) processoIds.add(pid);
-  }
+  const resolved = await resolverProcessoIdsExplicitoDeCards(db, [...ids]);
+  const processoIds = new Set<string>([...resolved.values()]);
+  if (processoIds.size === 0) return;
 
-  for (const pid of processoIds) {
-    ids.add(pid);
+  for (const pid of processoIds) ids.add(pid);
 
-    const { data: porProcesso } = await db
+  const pidList = [...processoIds];
+  const [{ data: byStep }, { data: byProjeto }, { data: byId }] = await Promise.all([
+    db.from('kanban_cards').select('id').in('processo_step_one_id', pidList),
+    db
       .from('kanban_cards')
       .select('id')
-      .or(
-        `id.eq.${pid},processo_step_one_id.eq.${pid},and(projeto_id.eq.${pid},processo_step_one_id.is.null)`,
-      );
+      .in('projeto_id', pidList)
+      .is('processo_step_one_id', null),
+    db.from('kanban_cards').select('id').in('id', pidList),
+  ]);
 
-    for (const row of porProcesso ?? []) {
-      const id = String((row as { id?: string }).id ?? '').trim();
-      if (id) ids.add(id);
-    }
+  for (const row of [...(byStep ?? []), ...(byProjeto ?? []), ...(byId ?? [])]) {
+    const id = String((row as { id?: string }).id ?? '').trim();
+    if (id) ids.add(id);
   }
 }
 
@@ -849,16 +896,13 @@ export async function propagarCamposKanbanCards(
     }
 
     if (Object.keys(processoPatch).length > 0) {
-      const processoIds = new Set<string>();
-      for (const cid of cardIds) {
-        const pid = await resolverProcessoIdDoCard(db, cid);
-        if (pid) processoIds.add(pid);
-      }
-      for (const pid of processoIds) {
+      const resolvedMap = await resolverProcessoIdsExplicitoDeCards(db, cardIds);
+      const processoIds = [...new Set(resolvedMap.values())];
+      if (processoIds.length > 0) {
         const { error: pErr } = await db
           .from('processo_step_one')
           .update({ ...processoPatch, updated_at: new Date().toISOString() } as never)
-          .eq('id', pid);
+          .in('id', processoIds);
         if (pErr) return { ok: false, error: pErr.message };
       }
     }
@@ -884,20 +928,18 @@ export async function propagarCamposProcesso(
 
   const processoIds = new Set<string>([pid]);
   const kanbanCardIds = await listarKanbanCardIdsSyncGroup(db, origem);
-  for (const cid of kanbanCardIds) {
-    const resolved = await resolverProcessoIdDoCard(db, cid);
-    if (resolved) processoIds.add(resolved);
-  }
+  const resolvedMap = await resolverProcessoIdsExplicitoDeCards(db, kanbanCardIds);
+  for (const resolved of resolvedMap.values()) processoIds.add(resolved);
 
-  for (const procId of processoIds) {
-    const { data: updated, error: errProc } = await db
-      .from('processo_step_one')
-      .update({ ...procPatch, updated_at: new Date().toISOString() } as never)
-      .eq('id', procId)
-      .select('id')
-      .maybeSingle();
-    if (errProc) return { ok: false, error: errProc.message };
-    if (!updated?.id) return { ok: false, error: 'Processo não encontrado ao salvar dados.' };
+  const procIdList = [...processoIds];
+  const { data: updatedRows, error: errProc } = await db
+    .from('processo_step_one')
+    .update({ ...procPatch, updated_at: new Date().toISOString() } as never)
+    .in('id', procIdList)
+    .select('id');
+  if (errProc) return { ok: false, error: errProc.message };
+  if ((updatedRows ?? []).length === 0) {
+    return { ok: false, error: 'Processo não encontrado ao salvar dados.' };
   }
 
   const kanbanMirror: KanbanCardCamposSync = {};
@@ -1063,20 +1105,16 @@ export async function sincronizarGrupoSyncFromPrimario(
       if (Object.keys(procPatch).length > 0) {
         const processoIds = new Set<string>();
         const kanbanCardIds = await listarKanbanCardIdsSyncGroup(db, cid);
-        for (const kid of kanbanCardIds) {
-          const resolved = await resolverProcessoIdDoCard(db, kid);
-          if (resolved) processoIds.add(resolved);
-        }
+        const resolvedMap = await resolverProcessoIdsExplicitoDeCards(db, kanbanCardIds);
+        for (const resolved of resolvedMap.values()) processoIds.add(resolved);
         if (processoIds.size === 0) processoIds.add(processoId);
 
-        for (const procId of processoIds) {
-          const { error: updErr } = await db
-            .from('processo_step_one')
-            .update({ ...procPatch, updated_at: new Date().toISOString() } as never)
-            .eq('id', procId);
-          if (updErr) return { ok: false, error: updErr.message };
-          processosAtualizados++;
-        }
+        const { error: updErr } = await db
+          .from('processo_step_one')
+          .update({ ...procPatch, updated_at: new Date().toISOString() } as never)
+          .in('id', [...processoIds]);
+        if (updErr) return { ok: false, error: updErr.message };
+        processosAtualizados = processoIds.size;
       }
     }
   }
@@ -1178,13 +1216,10 @@ export async function reconciliarFranqueadoNoSyncGroup(
   }
 
   if (atualizados > 0) {
-    const processoIds = new Set<string>();
-    for (const cid of cardIds) {
-      const pid = await resolverProcessoIdDoCard(db, cid);
-      if (pid) processoIds.add(pid);
-    }
+    const resolvedMap = await resolverProcessoIdsExplicitoDeCards(db, cardIds);
+    const processoIds = [...new Set(resolvedMap.values())];
     const nFq = await nFranquiaDeRede(db, redeCanonica);
-    for (const pid of processoIds) {
+    if (processoIds.length > 0) {
       const procPatch: Record<string, string | null> = {
         origem_rede_franqueados_id: redeCanonica,
       };
@@ -1192,7 +1227,7 @@ export async function reconciliarFranqueadoNoSyncGroup(
       const { error: pErr } = await db
         .from('processo_step_one')
         .update({ ...procPatch, updated_at: new Date().toISOString() } as never)
-        .eq('id', pid)
+        .in('id', processoIds)
         .is('origem_rede_franqueados_id', null);
       if (pErr) return { ok: false, error: pErr.message };
     }

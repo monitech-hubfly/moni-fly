@@ -89,6 +89,7 @@ import {
   PROCESSO_CAMPOS_SYNC,
   reconciliarFranqueadoNoSyncGroup,
   resolverProcessoIdExplicitoDoCard,
+  resolverProcessoIdsExplicitoDeCards,
   resolverTituloCardKanban,
   type KanbanCardCamposSync,
   type ProcessoCamposSync,
@@ -2988,21 +2989,16 @@ export async function salvarDadosNegocioKanban(input: {
 
   if (payloadNegocio.negociacao_linhas !== undefined) {
     const kanbanCardIds = await listarKanbanCardIdsSyncGroup(admin, cardId);
-    const processoIds = new Set<string>([dedicado.processoId]);
-    for (const kid of kanbanCardIds) {
-      const resolved = await resolverProcessoIdExplicitoDoCard(admin, kid);
-      if (resolved) processoIds.add(resolved);
-    }
-    for (const procId of processoIds) {
-      const { error: negErr } = await admin
-        .from('processo_step_one')
-        .update({
-          negociacao_linhas: payloadNegocio.negociacao_linhas,
-          updated_at: new Date().toISOString(),
-        } as never)
-        .eq('id', procId);
-      if (negErr) return { ok: false, error: negErr.message };
-    }
+    const resolvedMap = await resolverProcessoIdsExplicitoDeCards(admin, kanbanCardIds);
+    const processoIds = new Set<string>([dedicado.processoId, ...resolvedMap.values()]);
+    const { error: negErr } = await admin
+      .from('processo_step_one')
+      .update({
+        negociacao_linhas: payloadNegocio.negociacao_linhas,
+        updated_at: new Date().toISOString(),
+      } as never)
+      .in('id', [...processoIds]);
+    if (negErr) return { ok: false, error: negErr.message };
   }
 
   const linkPlanilhaMapa =
@@ -3010,21 +3006,26 @@ export async function salvarDadosNegocioKanban(input: {
       ? payloadNegocio.link_gbox
       : payloadNegocio.link_mapa_competidores;
   if (linkPlanilhaMapa !== undefined) {
-    const { sincronizarGboxPainelParaPlanilhaMapaChecklist } = await import(
-      '@/lib/kanban/gbox-planilha-mapa-sync'
-    );
-    const sync = await sincronizarGboxPainelParaPlanilhaMapaChecklist({
-      cardId,
-      linkGbox: linkPlanilhaMapa ?? null,
-      usuarioId: user.id,
-    });
-    if (!sync.ok) {
-      console.warn('[negocio] sync Gbox → checklist planilha/mapa:', sync.error);
-    }
+    // Não bloqueia o save do painel — sync de checklist Gbox em background.
+    void import('@/lib/kanban/gbox-planilha-mapa-sync')
+      .then(({ sincronizarGboxPainelParaPlanilhaMapaChecklist }) =>
+        sincronizarGboxPainelParaPlanilhaMapaChecklist({
+          cardId,
+          linkGbox: linkPlanilhaMapa ?? null,
+          usuarioId: user.id,
+        }),
+      )
+      .then((sync) => {
+        if (sync && !sync.ok) {
+          console.warn('[negocio] sync Gbox → checklist planilha/mapa:', sync.error);
+        }
+      })
+      .catch((err) => {
+        console.warn('[negocio] sync Gbox → checklist planilha/mapa:', err);
+      });
   }
 
   revalidatePath(input.basePath?.trim() || '/');
-  revalidatePath('/');
   return { ok: true, processoId: dedicado.processoId };
 }
 
@@ -3781,13 +3782,9 @@ async function resolverProcessosDoSyncGroup(
   admin: ReturnType<typeof createAdminClient>,
   cardId: string,
 ): Promise<Set<string>> {
-  const processoIds = new Set<string>();
   const kanbanCardIds = await listarKanbanCardIdsSyncGroup(admin, cardId);
-  for (const cid of kanbanCardIds) {
-    const pid = await resolverProcessoIdExplicitoDoCard(admin, cid);
-    if (pid) processoIds.add(pid);
-  }
-  return processoIds;
+  const resolvedMap = await resolverProcessoIdsExplicitoDeCards(admin, kanbanCardIds);
+  return new Set(resolvedMap.values());
 }
 
 /**

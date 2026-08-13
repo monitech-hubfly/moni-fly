@@ -3741,7 +3741,56 @@ export function KanbanCardModal({
       });
       if (!upd.ok) throw new Error(upd.error);
 
-      await loadCard();
+      const processoIdDepois = upd.processoId?.trim() || modalDetalhes.processo?.id || '';
+      const parsedNeg = negociacaoLinhasToDb(draft.negociacao_linhas);
+      setModalDetalhes((prev) => {
+        if (!prev.processo) return prev;
+        return {
+          ...prev,
+          processo: {
+            ...prev.processo,
+            id: processoIdDepois || prev.processo.id,
+            tipo_aquisicao_terreno: draft.tipo_aquisicao_terreno || null,
+            valor_terreno: draft.valor_terreno || null,
+            vgv_pretendido: draft.vgv_pretendido || null,
+            produto_modelo_casa: draft.produto_modelo_casa || null,
+            link_pasta_drive: draft.link_pasta_drive || null,
+            link_bca: draft.link_bca?.trim() || null,
+            link_gbox: draft.link_gbox?.trim() || null,
+            link_mapa_competidores: draft.link_mapa_competidores?.trim() || null,
+            link_acoplamento: draft.link_acoplamento?.trim() || null,
+            link_apresentacao_comite: draft.link_apresentacao_comite?.trim() || null,
+            link_opcao_permuta: draft.link_opcao_permuta?.trim() || null,
+            link_contrato_permuta: draft.link_contrato_permuta?.trim() || null,
+            link_seguro_garantia: draft.link_seguro_garantia?.trim() || null,
+            link_moni_capital_seguro_garantia: draft.link_moni_capital_seguro_garantia?.trim() || null,
+            comentario_moni_capital_seguro_garantia:
+              draft.comentario_moni_capital_seguro_garantia?.trim() || null,
+            link_moni_capital_gastos_aporte_inicial:
+              draft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
+            comentario_moni_capital_gastos_aporte_inicial:
+              draft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
+            prazo_opcao_dias: prazoOpcaoDb.prazo_opcao_dias as number | null,
+            prazo_opcao_sla_tipo: prazoOpcaoDb.prazo_opcao_sla_tipo as 'uteis' | 'corridos' | null,
+            prazo_opcao_modo: prazoOpcaoDb.prazo_opcao_modo as 'fase' | 'data' | null,
+            prazo_opcao_fase_id: prazoOpcaoDb.prazo_opcao_fase_id as string | null,
+            prazo_opcao_data: prazoOpcaoDb.prazo_opcao_data as string | null,
+            prazo_instrumento_garantidor_dias:
+              prazoInstrumentoDb.prazo_instrumento_garantidor_dias as number | null,
+            prazo_instrumento_garantidor_sla_tipo:
+              prazoInstrumentoDb.prazo_instrumento_garantidor_sla_tipo as 'uteis' | 'corridos' | null,
+            prazo_instrumento_garantidor_modo:
+              prazoInstrumentoDb.prazo_instrumento_garantidor_modo as 'fase' | 'data' | null,
+            prazo_instrumento_garantidor_fase_id:
+              prazoInstrumentoDb.prazo_instrumento_garantidor_fase_id as string | null,
+            prazo_instrumento_garantidor_data:
+              prazoInstrumentoDb.prazo_instrumento_garantidor_data as string | null,
+            negociacao_linhas: parseNegociacaoLinhasFromDb(parsedNeg ?? []),
+          },
+        };
+      });
+      // Refresh leve em background — não trava o botão "Salvando…"
+      void loadCard({ silencioso: true });
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Erro ao salvar dados do negócio.');
     } finally {
