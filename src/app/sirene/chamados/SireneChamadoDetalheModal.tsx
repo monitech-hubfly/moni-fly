@@ -600,6 +600,11 @@ export function SireneChamadoDetalheModal({
                               </span>
                             </div>
                           ) : null}
+                          {t.criado_por && nomePorUserId.get(t.criado_por) ? (
+                            <span className="text-xs text-[color:var(--moni-text-tertiary)]">
+                              Aberto por: {nomePorUserId.get(t.criado_por)}
+                            </span>
+                          ) : null}
                           {(t.atribuicao_status === 'pendente_aceite' || t.atribuicao_status === 'recusado') ? (
                             <AtribuicaoAceitePanel
                               topicoId={String(t.id)}

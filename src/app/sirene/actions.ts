@@ -374,6 +374,7 @@ export type TopicoPainelLinha = {
   atribuicao_recusado_por?: string | null;
   atribuicao_justificativa?: string | null;
   prazo_sla_original?: string | null;
+  criado_por?: string | null;
 };
 
 type GetTopicosPainelResult =
@@ -381,7 +382,7 @@ type GetTopicosPainelResult =
   | { ok: false; error: string };
 
 const TOPICOS_PAINEL_SELECT =
-  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, responsavel_id, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa, prazo_sla_original';
+  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, responsavel_id, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa, prazo_sla_original, criado_por';
 
 function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLinha[] {
   return rows.map((r) => {
@@ -456,6 +457,10 @@ function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLi
       prazo_sla_original:
         (r as { prazo_sla_original?: unknown }).prazo_sla_original != null
           ? String((r as { prazo_sla_original?: unknown }).prazo_sla_original)
+          : null,
+      criado_por:
+        (r as { criado_por?: unknown }).criado_por != null
+          ? String((r as { criado_por?: unknown }).criado_por)
           : null,
     };
   });
@@ -607,6 +612,7 @@ export async function salvarResolucaoComTopicos(
       data_fim: dataFim || null,
       status: 'nao_iniciado',
       tipo: 'atividade',
+      criado_por: me.userId,
     });
     if (insErr) return { ok: false, error: insErr.message };
   }
@@ -1520,6 +1526,7 @@ export async function adicionarTopicoChamadoPainel(
     data_fim: dataFim,
     tipo,
     tema: payload.tema?.trim() || null,
+    criado_por: me.userId,
   });
   if (insErr) return { ok: false, error: insErr.message };
 
@@ -1527,6 +1534,18 @@ export async function adicionarTopicoChamadoPainel(
   const temaCh = String((chamadoFull as { tema?: string | null }).tema ?? '').trim();
   const incendioCh = String((chamadoFull as { incendio?: string | null }).incendio ?? '').trim();
   const contextoTitulo = temaCh || incendioCh || `Chamado #${numero}`;
+
+  const abertoPorChamado = (chamadoFull as { aberto_por?: string | null }).aberto_por ?? null;
+  if (abertoPorChamado && abertoPorChamado !== me.userId) {
+    const admin = createAdminClient();
+    await admin.from('alertas').insert({
+      user_id: abertoPorChamado,
+      tipo: 'kanban_atividade_criada',
+      mensagem: `${me.userName} adicionou uma nova atividade ao seu chamado #${numero}: "${desc.slice(0, 60)}"`,
+      referencia_path: `/sirene/${chamadoId}`,
+      lido: false,
+    });
+  }
 
   await notificarMencoesSirene({
     mencoesIds,

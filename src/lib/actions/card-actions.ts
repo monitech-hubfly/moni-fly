@@ -642,6 +642,7 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
     historico: [] as TopicoHistoricoEvento[],
     atribuicao_status: respIds.length > 0 ? 'pendente_aceite' : 'aceito',
     ...(prazoInicial ? payloadInicialNegociacaoPrazo(prazoInicial, user.id) : { data_fim: null }),
+    criado_por: user.id,
   };
 
   const { data: topicoInserted, error: subErr } = await supabase.from('sirene_topicos').insert(topicoRow as never).select('id').single();
@@ -803,6 +804,7 @@ export async function criarChamadoSireneComAtividade(
     historico: [],
     atribuicao_status: respIds.length > 0 ? 'pendente_aceite' : 'aceito',
     ...(prazoInicialSirene ? payloadInicialNegociacaoPrazo(prazoInicialSirene, user.id) : { data_fim: null }),
+    criado_por: user.id,
   } as never);
 
   if (subErr) {
@@ -1253,6 +1255,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     historico: [] as TopicoHistoricoEvento[],
     atribuicao_status: respIds.length > 0 ? 'pendente_aceite' : 'aceito',
     ...(prazoNovaSub ? payloadInicialNegociacaoPrazo(prazoNovaSub, user.id) : { data_fim: null }),
+    criado_por: user.id,
   };
 
   const { data: topicoInserted, error } = await supabase.from('sirene_topicos').insert(row as never).select('id').single();
