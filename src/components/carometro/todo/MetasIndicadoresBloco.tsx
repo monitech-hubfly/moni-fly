@@ -887,7 +887,6 @@ export function MetasIndicadoresBloco() {
   const [localSubMetas,     setLocalSubMetas]      = useState<SubMetaItem[]>([]);
   const [currentUserId,     setCurrentUserId]      = useState<string | null>(null);
   const [filtroMinhas,      setFiltroMinhas]       = useState(true);
-  const [disponiveisAberta, setDisponiveisAberta]  = useState(false);
   const [semDonoAberta,     setSemDonoAberta]      = useState(true);
   const [allBlockers,       setAllBlockers]        = useState<BlockerRow[]>([]);
 
@@ -1083,21 +1082,17 @@ export function MetasIndicadoresBloco() {
     metas.filter(m => !objetivoResponsaveis.some(r => r.objetivo_id === m.id)),
     [metas, objetivoResponsaveis]);
 
-  // Metas que outros assumiram mas o usuário não (disponíveis para assumir)
-  const metasDisponiveis = useMemo(() =>
-    metas.filter(m =>
-      objetivoResponsaveis.some(r => r.objetivo_id === m.id) &&
-      !objetivoResponsaveis.some(r => r.objetivo_id === m.id && r.profile_id === uid)
-    ),
-    [metas, objetivoResponsaveis, uid]);
-
   const metasExibidas   = filtroMinhas ? metasMinhas : metas;
   const metasAtingiveis = useMemo(() => metasExibidas.filter(m => m.tipo?.toLowerCase() !== 'recorrente'), [metasExibidas]);
   const metasRecorrentes = useMemo(() => metasExibidas.filter(m => m.tipo?.toLowerCase() === 'recorrente'), [metasExibidas]);
 
+  const metasExibidasCount = metasExibidas.length;
+  const indExibidosIds = new Set(metasExibidas.map(m => m.id));
+  const indicadoresExibidosCount = indicadores.filter(i => i.objetivo_id && indExibidosIds.has(i.objetivo_id)).length;
+
   const totalLabel = [
-    metas.length       > 0 ? `${metas.length} metas`            : '',
-    indicadores.length > 0 ? `${indicadores.length} indicadores` : '',
+    metasExibidasCount       > 0 ? `${metasExibidasCount} metas`            : '',
+    indicadoresExibidosCount > 0 ? `${indicadoresExibidosCount} indicadores` : '',
   ].filter(Boolean).join(' · ');
 
   const renderMetaCard = (meta: MetaItem) => {
@@ -1236,22 +1231,6 @@ export function MetasIndicadoresBloco() {
                 </>
               )}
 
-              {/* ── 3. DISPONÍVEIS NA ÁREA (outros assumiram, eu não) ── */}
-              {metasDisponiveis.length > 0 && (
-                <SecaoToggle
-                  label="Disponíveis na área"
-                  count={metasDisponiveis.length}
-                  aberta={disponiveisAberta}
-                  onToggle={() => setDisponiveisAberta(v => !v)}
-                >
-                  <p className="text-[10px] text-gray-400 mb-2">
-                    Metas que colegas já assumiram. Você pode assumir também se quiser participar.
-                  </p>
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                    {metasDisponiveis.map(renderMetaCard)}
-                  </div>
-                </SecaoToggle>
-              )}
             </>
           )}
         </div>
