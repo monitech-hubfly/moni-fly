@@ -25,29 +25,39 @@ function formatarDataCurta(iso: string | null): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// ── Helper: % esperado de um projeto com base em dias úteis decorridos ──────
-function calcularEsperadoPct(dataInicio: string | null, dataFim: string | null, diasUteis: number | null): number | null {
-  if (!dataInicio || !dataFim || !diasUteis || diasUteis <= 0) return null;
-  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  const inicio = new Date(dataInicio + 'T00:00:00');
-  const fim    = new Date(dataFim    + 'T00:00:00');
-  if (hoje < inicio) return 0;
-  if (hoje > fim)    return 100;
+// ── Conta dias úteis (seg-sex) entre duas datas, inclusive ──────────────────
+function contarDiasUteisRange(inicio: Date, fim: Date): number {
   let count = 0;
   const d = new Date(inicio);
-  while (d <= hoje) { if (d.getDay() !== 0 && d.getDay() !== 6) count++; d.setDate(d.getDate() + 1); }
-  return Math.min(100, Math.round((count / diasUteis) * 100));
+  while (d <= fim) { if (d.getDay() !== 0 && d.getDay() !== 6) count++; d.setDate(d.getDate() + 1); }
+  return count;
+}
+
+// ── Helper: % esperado de um projeto com base em dias úteis decorridos ──────
+function calcularEsperadoPct(dataInicio: string | null, dataFim: string | null, diasUteis: number | null): number | null {
+  if (!dataInicio || !dataFim) return null;
+  const inicio = new Date(dataInicio + 'T00:00:00');
+  const fim    = new Date(dataFim    + 'T00:00:00');
+  // Fallback: calcula dias úteis localmente se não veio do banco
+  const du = (diasUteis && diasUteis > 0) ? diasUteis : contarDiasUteisRange(inicio, fim);
+  if (du <= 0) return null;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  if (hoje < inicio) return 0;
+  if (hoje > fim)    return 100;
+  return Math.min(100, Math.round((contarDiasUteisRange(inicio, hoje) / du) * 100));
 }
 
 // ── Helper: semanas do projeto com % esperado no fim de cada semana ──────────
 function calcularSemanasTimeline(
   dataInicio: string,
   dataFim: string,
-  diasUteis: number,
+  rawDias: number | null,
 ): Array<{ semana: number; esperadoPct: number; isCurrent: boolean; isFuture: boolean }> {
-  if (!dataInicio || !dataFim || !diasUteis || diasUteis <= 0) return [];
+  if (!dataInicio || !dataFim) return [];
   const inicio = new Date(dataInicio + 'T00:00:00');
   const fim    = new Date(dataFim    + 'T00:00:00');
+  const diasUteis = (rawDias && rawDias > 0) ? rawDias : contarDiasUteisRange(inicio, fim);
+  if (diasUteis <= 0) return [];
   const hoje   = new Date(); hoje.setHours(0, 0, 0, 0);
   const sAtual = isoWeek(hoje);
   const result: Array<{ semana: number; esperadoPct: number; isCurrent: boolean; isFuture: boolean }> = [];
@@ -112,7 +122,7 @@ function MiniProjetoBar({ esperadoPct }: { esperadoPct: number }) {
 
 // ── Timeline semanal do Projeto (dentro da seção de datas na meta) ────────────
 function ProjetoTimeline({ dataInicio, dataFim, diasUteis }: {
-  dataInicio: string; dataFim: string; diasUteis: number;
+  dataInicio: string; dataFim: string; diasUteis: number | null;
 }) {
   const semanas = calcularSemanasTimeline(dataInicio, dataFim, diasUteis);
   if (semanas.length === 0) return null;
@@ -1077,7 +1087,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                       <span className="text-[10px] text-purple-600 font-medium w-8 text-right">{esperado}%</span>
                     </div>
                   )}
-                  {r.data_inicio && r.data_fim && r.dias_uteis && (
+                  {r.data_inicio && r.data_fim && (
                     <ProjetoTimeline
                       dataInicio={r.data_inicio}
                       dataFim={r.data_fim}
