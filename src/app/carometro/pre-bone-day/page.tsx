@@ -197,9 +197,10 @@ const TIPOS_SEMAFORO = [
 ];
 
 // Indicadores — responsável editável por admin; todos podem assumir.
-function LinhaIndicador({ ind, responsaveis, isAdmin, currentUserId, onUpdate }: {
+function LinhaIndicador({ ind, responsaveis, isAdmin, currentUserId, onUpdate, esperadoPct }: {
   ind: IndicadorBone; responsaveis: ResponsavelItem[];
   isAdmin: boolean; currentUserId: string | null; onUpdate: () => void;
+  esperadoPct?: number | null;
 }) {
   const supabase  = useMemo(() => createClient(), []);
   const [salvandoResp, setSalvandoResp] = useState(false);
@@ -241,7 +242,16 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, currentUserId, onUpdate }:
           {ind.tipo && <span className="text-[9px] text-gray-400 bg-gray-100 px-1 rounded">{ind.tipo}</span>}
         </div>
       </td>
-      <td className="px-3 py-2"><SemaforoBadges semaforo_faixas={ind.semaforo_faixas} /></td>
+      <td className="px-3 py-2">
+        {(ind.semaforo_faixas as { is_projeto_relativo?: boolean } | null)?.is_projeto_relativo
+          ? <span className="text-[10px] text-purple-600">
+              {esperadoPct !== null && esperadoPct !== undefined
+                ? `Esperado hoje: ${esperadoPct}%`
+                : 'Relativo ao esperado'}
+            </span>
+          : <SemaforoBadges semaforo_faixas={ind.semaforo_faixas} />
+        }
+      </td>
       <td className="px-3 py-2">
         {isAdmin ? (
           <select className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 max-w-[130px] disabled:opacity-50"
@@ -746,6 +756,16 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
       await supabase.from('objetivo_responsaveis').update({
         data_inicio: formDatas.inicio, data_fim: formDatas.fim, dias_uteis: dias,
       }).eq('objetivo_id', meta.id).eq('profile_id', profileId);
+      // Sincroniza datas no semaforo_faixas do indicador relativo
+      const ind = indicadores.find(i => i.objetivo_id === meta.id && i.profile_id === profileId);
+      if (ind) {
+        const sf = ind.semaforo_faixas as { is_projeto_relativo?: boolean } | null;
+        if (sf?.is_projeto_relativo) {
+          await supabase.from('indicadores').update({
+            semaforo_faixas: { ...sf, data_inicio: formDatas.inicio, data_fim: formDatas.fim, dias_uteis: dias },
+          }).eq('id', ind.id);
+        }
+      }
       setEditandoDatas(false);
       onUpdate();
     } finally { setSalvandoDatas(false); }
@@ -1000,10 +1020,19 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
               </tr>
             </thead>
             <tbody>
-              {indicadores.map(ind => (
-                <LinhaIndicador key={ind.id} ind={ind} responsaveis={responsaveis}
-                  isAdmin={isAdmin} currentUserId={currentUserId} onUpdate={onUpdate} />
-              ))}
+              {indicadores.map(ind => {
+                const isProjeto = meta.tipo?.toLowerCase() === 'atingivel - projeto';
+                let esperadoPct: number | null = null;
+                if (isProjeto && ind.profile_id) {
+                  const or = objetivoResponsaveis.find(r => r.objetivo_id === meta.id && r.profile_id === ind.profile_id);
+                  if (or) esperadoPct = calcularEsperadoPct(or.data_inicio, or.data_fim, or.dias_uteis);
+                }
+                return (
+                  <LinhaIndicador key={ind.id} ind={ind} responsaveis={responsaveis}
+                    isAdmin={isAdmin} currentUserId={currentUserId} onUpdate={onUpdate}
+                    esperadoPct={isProjeto ? esperadoPct : undefined} />
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1397,18 +1426,7 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
       const metaId = (ins as { id: string }).id;
       LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId,
         operacao: 'INSERT', descricao: `Nova meta no Plano Boné Day: ${form.descricao}` });
-
-      // Projeto: criar indicador automático de % de evolução
-      if (isProjeto) {
-        await supabase.from('indicadores').insert({
-          area_id: areaId,
-          objetivo_id: metaId,
-          nome: 'Percentual de Evolução até Entrega (%)',
-          indicador_chave: true,
-          tipo: 'percentual',
-          semaforo_faixas: FAIXAS_PROJETO,
-        });
-      }
+      // Indicador criado automaticamente quando executor assumir e definir as datas
 
       setForm({ descricao: '', tipo: 'atingivel', respId: '', metaUnidade: '' });
       setAberto(false); onSalvo();
@@ -1699,15 +1717,32 @@ function PreBoneDayPageContent() {
 
   const handleAssumirProjeto = useCallback(async (objetivoId: string, dataInicio: string, dataFim: string) => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user || !areaId) return;
     const { data: dias } = await supabase.rpc('calcular_dias_uteis', { data_inicio: dataInicio, data_fim: dataFim });
+    const diasUteis = typeof dias === 'number' ? dias : null;
     await supabase.from('objetivo_responsaveis').insert({
       objetivo_id: objetivoId, profile_id: user.id,
-      data_inicio: dataInicio, data_fim: dataFim,
-      dias_uteis: typeof dias === 'number' ? dias : null,
+      data_inicio: dataInicio, data_fim: dataFim, dias_uteis: diasUteis,
+    });
+    // Criar indicador automático com semáforo relativo ao esperado
+    await supabase.from('indicadores').insert({
+      area_id: areaId,
+      objetivo_id: objetivoId,
+      nome: 'Percentual de Evolução até Entrega (%)',
+      indicador_chave: true,
+      tipo: 'percentual',
+      profile_id: user.id,
+      semaforo_faixas: {
+        is_projeto_relativo: true,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        dias_uteis: diasUteis,
+        escala_tipo: 'percentual',
+        faixas: FAIXAS_PROJETO.faixas,
+      },
     });
     recarregar();
-  }, [supabase, recarregar]);
+  }, [supabase, areaId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const mesLabel = monthOptions.find(o => o.value === mes)?.label ?? mes;
 

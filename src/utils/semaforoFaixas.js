@@ -162,8 +162,41 @@ function statusSemaforoPorPctLegacy(pct, regra) {
  * @param {object} ind — linha indicadores
  * @param {string|null} valor — valor lançado (texto)
  */
+/** Calcula % esperado de um projeto com base em dias úteis decorridos (apenas FDS excluídos) */
+function calcularEsperadoPctProjeto(dataInicio, dataFim, diasUteis) {
+  if (!dataInicio || !dataFim || !diasUteis || diasUteis <= 0) return null
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+  const inicio = new Date(dataInicio + 'T00:00:00')
+  const fim    = new Date(dataFim    + 'T00:00:00')
+  if (hoje < inicio) return 0
+  if (hoje > fim)    return 100
+  let count = 0
+  const d = new Date(inicio)
+  while (d <= hoje) {
+    if (d.getDay() !== 0 && d.getDay() !== 6) count++
+    d.setDate(d.getDate() + 1)
+  }
+  return Math.min(100, Math.round((count / diasUteis) * 100))
+}
+
 export function statusSemaforoPorValor(ind, valor) {
   if (valor == null || String(valor).trim() === '') return null
+
+  // Indicador de Projeto: semáforo relativo ao esperado da semana
+  const rawSf = ind?.semaforo_faixas
+  if (rawSf && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo) {
+    const n = Number(String(valor).replace(',', '.'))
+    if (!Number.isFinite(n)) return null
+    const esperado = calcularEsperadoPctProjeto(rawSf.data_inicio, rawSf.data_fim, rawSf.dias_uteis)
+    if (esperado === null) return null
+    if (esperado <= 0) return 've' // projeto não iniciado ou concluído
+    const ratio = Math.min(100, (n / esperado) * 100)
+    if (ratio >= 75) return 've'
+    if (ratio >= 60) return 'vc'
+    if (ratio >= 30) return 'am'
+    return 'vm'
+  }
+
   const { escala_tipo, escala_custom_id, faixas } = normalizarSemaforo(ind)
 
   if (!faixas || faixas.length < 4) {
