@@ -1,7 +1,14 @@
+import type { Metadata } from 'next';
 import { validarTokenIntakePublicoLoteador } from '@/lib/actions/loteador-externo-actions';
 import { FormularioIntakeLoteadorForm } from './FormularioIntakeLoteadorForm';
 
 type Props = { params: { token: string } };
+
+export const metadata: Metadata = {
+  title: 'Cadastro de loteador | Casa Moní',
+  description: 'Formulário público para cadastro de novos loteadores na Casa Moní.',
+  robots: { index: false, follow: false },
+};
 
 export default async function LoteadorIntakePublicoPage({ params }: Props) {
   const { token } = params;

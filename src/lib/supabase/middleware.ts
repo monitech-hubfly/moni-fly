@@ -8,6 +8,7 @@ import {
   isAuthFlowAccessPath,
   isBcaPublicLeituraAccessPath,
   isCalculadoraPublicLeituraPath,
+  isExternalTokenAccessPath,
   isFrankAllowedPath,
   isTeamAllowedPath,
 } from '@/lib/access-matrix';
@@ -207,10 +208,10 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (accessRole === 'pending') {
-    if (!isBcaPublicLeituraAccessPath(pathname)) {
-      return redirectToPublicLeituraFallback(request);
+    if (isExternalTokenAccessPath(pathname) || isBcaPublicLeituraAccessPath(pathname)) {
+      return response;
     }
-    return response;
+    return redirectToPublicLeituraFallback(request);
   }
 
   if (accessRole === 'blocked') {
@@ -219,6 +220,11 @@ export async function updateSession(request: NextRequest) {
       url.searchParams.set('status', 'blocked');
       return NextResponse.redirect(url);
     }
+    return response;
+  }
+
+  // Formulários externos por token: sem shell/matriz de papel (mesmo se houver sessão).
+  if (isExternalTokenAccessPath(pathname)) {
     return response;
   }
 

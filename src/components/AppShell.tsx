@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { AdminProvider } from '@/context/AdminContext';
 import { normalizeAccessRole } from '@/lib/authz';
-import { isCalculadoraPublicLeituraPath, isPublicGuiaLeituraPagePath } from '@/lib/access-matrix';
+import { isCalculadoraPublicLeituraPath, isExternalTokenAccessPath, isPublicGuiaLeituraPagePath } from '@/lib/access-matrix';
 import { PortalSidebar } from './PortalSidebar';
 import { AppStickyHeader } from './AppStickyHeader';
 
@@ -53,14 +53,16 @@ export function AppShell({ user, userRole, children }: AppShellProps) {
   const hideGlobalHeader = pathname.startsWith('/sirene');
   const pendingOnly = Boolean(user) && normalizeAccessRole(userRole) === 'pending';
   const publicStandalone =
-    isPublicGuiaLeituraPagePath(pathname) || isCalculadoraPublicLeituraPath(pathname);
+    isPublicGuiaLeituraPagePath(pathname) ||
+    isCalculadoraPublicLeituraPath(pathname) ||
+    isExternalTokenAccessPath(pathname);
 
   if (!user || pendingOnly || publicStandalone) {
     return (
       <div
         className={
           publicStandalone
-            ? 'flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden'
+            ? 'min-h-[100dvh] bg-[var(--moni-surface-50)]'
             : undefined
         }
       >

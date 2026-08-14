@@ -183,7 +183,7 @@ export function isPortalFrankAuthAccessPath(pathname: string): boolean {
 }
 
 /** Links externos com token (candidato, formulários) — fora do escopo BCA, mas sem sessão. */
-function isExternalTokenAccessPath(pathname: string): boolean {
+export function isExternalTokenAccessPath(pathname: string): boolean {
   return (
     pathname.startsWith('/formulario-candidato/') ||
     pathname.startsWith('/loteador/') ||
