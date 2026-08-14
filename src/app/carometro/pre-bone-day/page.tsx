@@ -39,6 +39,128 @@ function calcularEsperadoPct(dataInicio: string | null, dataFim: string | null, 
   return Math.min(100, Math.round((count / diasUteis) * 100));
 }
 
+// ── Helper: semanas do projeto com % esperado no fim de cada semana ──────────
+function calcularSemanasTimeline(
+  dataInicio: string,
+  dataFim: string,
+  diasUteis: number,
+): Array<{ semana: number; esperadoPct: number; isCurrent: boolean; isFuture: boolean }> {
+  if (!dataInicio || !dataFim || !diasUteis || diasUteis <= 0) return [];
+  const inicio = new Date(dataInicio + 'T00:00:00');
+  const fim    = new Date(dataFim    + 'T00:00:00');
+  const hoje   = new Date(); hoje.setHours(0, 0, 0, 0);
+  const sAtual = isoWeek(hoje);
+  const result: Array<{ semana: number; esperadoPct: number; isCurrent: boolean; isFuture: boolean }> = [];
+  const seen   = new Set<number>();
+
+  // Começa na segunda-feira da semana de início
+  const d = new Date(inicio);
+  const dow = d.getDay();
+  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+
+  while (d <= fim) {
+    const s = isoWeek(d);
+    if (!seen.has(s)) {
+      seen.add(s);
+      const sexta = new Date(d); sexta.setDate(d.getDate() + 4);
+      const ref   = sexta > fim ? new Date(fim) : new Date(sexta);
+      let count   = 0;
+      const dd    = new Date(inicio);
+      while (dd <= ref) {
+        if (dd.getDay() !== 0 && dd.getDay() !== 6) count++;
+        dd.setDate(dd.getDate() + 1);
+      }
+      result.push({
+        semana: s,
+        esperadoPct: Math.min(100, Math.round((count / diasUteis) * 100)),
+        isCurrent: s === sAtual,
+        isFuture:  s > sAtual,
+      });
+    }
+    d.setDate(d.getDate() + 7);
+  }
+  return result;
+}
+
+// ── Mini barra de cores para a semana atual do Projeto (coluna Semáforo) ─────
+function MiniProjetoBar({ esperadoPct }: { esperadoPct: number }) {
+  const e = Math.max(0, Math.min(100, esperadoPct));
+  if (e <= 0) return <span className="text-[9px] text-purple-400">Projeto · aguarda início</span>;
+  const ve = Math.round(e * 0.75);
+  const vc = Math.round(e * 0.60);
+  const am = Math.round(e * 0.30);
+  const tip = `Meta desta semana: ${e}%\n≥${ve}% → verde escuro\n≥${vc}% → verde claro\n≥${am}% → amarelo\n<${am}% → vermelho`;
+  return (
+    <div className="flex flex-col gap-0.5" title={tip}>
+      <span className="text-[9px] text-purple-600 font-medium">meta: {e}%</span>
+      <div className="flex rounded-sm overflow-hidden h-2 w-full">
+        <div style={{ width: `${am}%`,      backgroundColor: '#d24141' }} />
+        <div style={{ width: `${vc - am}%`, backgroundColor: '#f2c94c' }} />
+        <div style={{ width: `${ve - vc}%`, backgroundColor: '#52b36f' }} />
+        <div style={{ width: `${e  - ve}%`, backgroundColor: '#1e7a3a' }} />
+        {e < 100 && <div style={{ width: `${100 - e}%`, backgroundColor: '#e5e7eb' }} />}
+      </div>
+      <div className="flex text-[8px] gap-1.5">
+        <span style={{ color: '#d24141' }}>•&lt;{am}%</span>
+        <span style={{ color: '#f2c94c' }}>•&lt;{vc}%</span>
+        <span style={{ color: '#52b36f' }}>•&lt;{ve}%</span>
+        <span style={{ color: '#1e7a3a' }}>•≥{ve}%</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Timeline semanal do Projeto (dentro da seção de datas na meta) ────────────
+function ProjetoTimeline({ dataInicio, dataFim, diasUteis }: {
+  dataInicio: string; dataFim: string; diasUteis: number;
+}) {
+  const semanas = calcularSemanasTimeline(dataInicio, dataFim, diasUteis);
+  if (semanas.length === 0) return null;
+  return (
+    <div className="flex items-center gap-1 overflow-x-auto py-0.5 flex-wrap">
+      {semanas.map((s, i) => {
+        const e  = s.esperadoPct;
+        const ve = Math.round(e * 0.75);
+        const vc = Math.round(e * 0.60);
+        const am = Math.round(e * 0.30);
+        const tip = `S${s.semana} · meta ${e}%\n≥${ve}% verde escuro  ≥${vc}% verde claro  ≥${am}% amarelo  <${am}% vermelho`;
+        return (
+          <div key={s.semana} className="flex items-center gap-1 flex-shrink-0">
+            {i > 0 && <span className="text-gray-300 text-[9px]">→</span>}
+            {s.isCurrent ? (
+              <div className="flex flex-col gap-0.5 min-w-[72px]" title={tip}>
+                <span className="text-[9px] font-semibold text-purple-700">S{s.semana} · {e}%</span>
+                <div className="flex rounded-sm overflow-hidden h-1.5 w-full">
+                  <div style={{ width: `${am}%`,      backgroundColor: '#d24141' }} />
+                  <div style={{ width: `${vc - am}%`, backgroundColor: '#f2c94c' }} />
+                  <div style={{ width: `${ve - vc}%`, backgroundColor: '#52b36f' }} />
+                  <div style={{ width: `${e  - ve}%`, backgroundColor: '#1e7a3a' }} />
+                  {e < 100 && <div style={{ width: `${100 - e}%`, backgroundColor: '#e5e7eb' }} />}
+                </div>
+                <div className="flex text-[8px] gap-1 flex-wrap">
+                  <span style={{ color: '#d24141' }}>•&lt;{am}%</span>
+                  <span style={{ color: '#f2c94c' }}>•&lt;{vc}%</span>
+                  <span style={{ color: '#1e7a3a' }}>•≥{ve}%</span>
+                </div>
+              </div>
+            ) : (
+              <span
+                className={`text-[9px] px-1.5 py-0.5 rounded cursor-default ${
+                  s.isFuture
+                    ? 'text-gray-400 bg-gray-50 border border-gray-200'
+                    : 'text-gray-500 bg-gray-100'
+                }`}
+                title={tip}>
+                S{s.semana} · {e}%
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const TIPO_BADGE: Record<string, string> = {
   atingivel:           'bg-blue-100 text-blue-700',
   recorrente:          'bg-green-100 text-green-700',
@@ -244,11 +366,9 @@ function LinhaIndicador({ ind, responsaveis, isAdmin, currentUserId, onUpdate, e
       </td>
       <td className="px-3 py-2">
         {(ind.semaforo_faixas as { is_projeto_relativo?: boolean } | null)?.is_projeto_relativo
-          ? <span className="text-[10px] text-purple-600">
-              {esperadoPct !== null && esperadoPct !== undefined
-                ? `Esperado hoje: ${esperadoPct}%`
-                : 'Relativo ao esperado'}
-            </span>
+          ? (esperadoPct !== null && esperadoPct !== undefined
+            ? <MiniProjetoBar esperadoPct={esperadoPct} />
+            : <span className="text-[9px] text-purple-400">Projeto</span>)
           : <SemaforoBadges semaforo_faixas={ind.semaforo_faixas} />
         }
       </td>
@@ -956,6 +1076,13 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                       </div>
                       <span className="text-[10px] text-purple-600 font-medium w-8 text-right">{esperado}%</span>
                     </div>
+                  )}
+                  {r.data_inicio && r.data_fim && r.dias_uteis && (
+                    <ProjetoTimeline
+                      dataInicio={r.data_inicio}
+                      dataFim={r.data_fim}
+                      diasUteis={r.dias_uteis}
+                    />
                   )}
                 </div>
               );
