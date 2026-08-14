@@ -1822,18 +1822,26 @@ function PreBoneDayPageContent() {
       await supabase.from('objetivo_responsaveis').delete()
         .eq('objetivo_id', objetivoId).eq('profile_id', user.id);
 
-      // Auto-assign: verificar quantos ficaram
-      const restantes = objetivoResponsaveis.filter(r => r.objetivo_id === objetivoId && r.profile_id !== user.id);
-      if (restantes.length === 1) {
-        // Ficou 1 → auto-assign indicadores null para ele
-        const unico = restantes[0].profile_id;
-        const indsObj = indicadores.filter(i => i.objetivo_id === objetivoId && !i.profile_id);
-        if (indsObj.length > 0) {
-          await supabase.from('indicadores').update({ profile_id: unico }).in('id', indsObj.map(i => i.id));
+      // Se for meta Projeto: apagar o indicador criado automaticamente ao assumir
+      const indsProjeto = indicadores.filter(i =>
+        i.objetivo_id === objetivoId &&
+        i.profile_id === user.id &&
+        (i.semaforo_faixas as { is_projeto_relativo?: boolean } | null)?.is_projeto_relativo
+      );
+      if (indsProjeto.length > 0) {
+        await supabase.from('indicadores').delete().in('id', indsProjeto.map(i => i.id));
+      } else {
+        // Comportamento existente para metas não-Projeto
+        const restantes = objetivoResponsaveis.filter(r => r.objetivo_id === objetivoId && r.profile_id !== user.id);
+        if (restantes.length === 1) {
+          const unico = restantes[0].profile_id;
+          const indsObj = indicadores.filter(i => i.objetivo_id === objetivoId && !i.profile_id);
+          if (indsObj.length > 0) {
+            await supabase.from('indicadores').update({ profile_id: unico }).in('id', indsObj.map(i => i.id));
+          }
+        } else if (restantes.length === 0) {
+          await (supabase.from('indicadores') as any).update({ profile_id: null }).eq('objetivo_id', objetivoId); // eslint-disable-line
         }
-      } else if (restantes.length === 0) {
-        // Ninguém mais → reset todos os indicadores da meta para null
-        await (supabase.from('indicadores') as any).update({ profile_id: null }).eq('objetivo_id', objetivoId); // eslint-disable-line
       }
     } else {
       // ASSUMINDO
