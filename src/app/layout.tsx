@@ -8,7 +8,7 @@ import { normalizeAccessRole } from '@/lib/authz';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Viabilidade Moní | Casa Moní',
+  title: 'HUB-FLY | Moní',
   description:
     'Ferramenta de viabilidade e análise de praça para franqueados Casa Moní. Da praça à hipótese em PDF.',
 };
