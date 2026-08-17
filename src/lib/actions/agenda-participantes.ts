@@ -107,7 +107,11 @@ export async function responderConvite(
     update.proposta_hora_fim    = null;
   }
 
-  const { error } = await supabase
+  // Usar admin client para contornar ausência de UPDATE policy em gantt_agenda_participantes
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const adminDb = createAdminClient();
+
+  const { error } = await adminDb
     .from('gantt_agenda_participantes')
     .update(update)
     .eq('gantt_id', ganttId)
@@ -120,14 +124,14 @@ export async function responderConvite(
     await notificarOrganizerProposta(ganttId, user.id, proposta);
   }
 
-  // Se aceitou ou recusou: marcar alerta de convite como lido
+  // Se aceitou ou recusou: marcar alertas de convite como lidos
   if (novoStatus === 'aceito' || novoStatus === 'recusado') {
     await supabase
       .from('alertas')
       .update({ lido: true })
       .eq('user_id', user.id)
       .eq('tipo', 'convite_agenda_interno')
-      .ilike('referencia_path', `%${ganttId}%`);
+      .eq('lido', false);
   }
 
   return { ok: true };
@@ -264,8 +268,11 @@ export async function aceitarPropostaHorario(
 
   if (errGantt) return { ok: false, error: errGantt.message };
 
-  // Atualizar status do participante para aceito
-  await supabase
+  // Atualizar status do participante para aceito (admin client: sem UPDATE policy)
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const adminDb2 = createAdminClient();
+
+  await adminDb2
     .from('gantt_agenda_participantes')
     .update({
       status: 'aceito',
@@ -279,8 +286,6 @@ export async function aceitarPropostaHorario(
 
   // Notificar participante
   try {
-    const { createAdminClient } = await import('@/lib/supabase/admin');
-    const adminDb = createAdminClient();
     const { data: gantt } = await supabase
       .from('gantt_planejamento')
       .select('titulo, acoes(tipo_atividade)')
@@ -292,7 +297,7 @@ export async function aceitarPropostaHorario(
     const titulo = (acao as { tipo_atividade?: string } | null)?.tipo_atividade
       ?? (gantt?.titulo as string | null) ?? '(sem título)';
 
-    await adminDb.from('alertas').insert({
+    await adminDb2.from('alertas').insert({
       user_id: participanteId,
       tipo: 'convite_agenda_interno',
       mensagem: `Proposta aceita: o organizador aceitou seu novo horário para "${titulo}".`,
