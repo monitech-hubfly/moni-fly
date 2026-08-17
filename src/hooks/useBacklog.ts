@@ -142,7 +142,7 @@ export function useBacklog(): UseBacklogResult {
             chamado_id,
             interacao_id,
             trava,
-            sirene_chamados(numero, incendio, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado)
+            sirene_chamados(numero, incendio, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado, status)
           `)
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['nao_iniciado', 'em_andamento'])
@@ -158,7 +158,7 @@ export function useBacklog(): UseBacklogResult {
 
       if (sireneRes.error) throw sireneRes.error;
 
-      type ChamadoRaw = { numero: string; incendio: string | null; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null; arquivado: boolean | null } | { numero: string; incendio: string | null; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null; arquivado: boolean | null }[] | null;
+      type ChamadoRaw = { numero: string; incendio: string | null; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null; arquivado: boolean | null; status: string | null } | { numero: string; incendio: string | null; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; aberto_por_nome: string | null; arquivado: boolean | null; status: string | null }[] | null;
       type KanbanAtivRaw = {
         id: string;
         card_id: string | null;
@@ -187,7 +187,7 @@ export function useBacklog(): UseBacklogResult {
       const kanbanAtivRes = interacaoIds.length > 0
         ? await supabase
             .from('kanban_atividades')
-            .select('id, card_id, sirene_chamado_id, sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado)')
+            .select('id, card_id, sirene_chamado_id, sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado, status)')
             .in('id', interacaoIds)
         : { data: [] as KanbanAtivRaw[], error: null };
 
@@ -257,7 +257,7 @@ export function useBacklog(): UseBacklogResult {
         const chamadoD = Array.isArray(row.sirene_chamados)
           ? row.sirene_chamados[0] ?? null
           : row.sirene_chamados;
-        if (chamadoD?.arquivado === true) return false;
+        if (chamadoD?.arquivado === true || chamadoD?.status === 'concluida') return false;
         // Verifica também chamado via interacao_id (chamado_id=null nesse caso)
         if (!chamadoD && row.interacao_id) {
           const interacaoRaw = kanbanAtivMap.get(row.interacao_id);
@@ -266,7 +266,8 @@ export function useBacklog(): UseBacklogResult {
                 ? interacaoRaw.sirene_chamados[0] ?? null
                 : interacaoRaw.sirene_chamados)
             : null;
-          if ((chamadoVI as { arquivado?: boolean | null } | null)?.arquivado === true) return false;
+          const vi = chamadoVI as { arquivado?: boolean | null; status?: string | null } | null;
+          if (vi?.arquivado === true || vi?.status === 'concluida') return false;
         }
         return true;
       });
