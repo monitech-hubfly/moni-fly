@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 const NOMES_AREAS_ALVO = ['Produto', 'Projetos - Modelo Virtual']
 
 const CASAS_OCULTAS = new Set(['mia'])
-const CASAS_EXTRA = ['Alê', 'Rita']
+const CASAS_EXTRA = ['ALÊ', 'RITA']
 const NOME_TODAS_CASAS = 'todas casas'
 const GBOX_STATUS_OPCOES = ['Revisado', 'Em Revisão', 'N/ Revisado']
 const GBOX_STATUS_PADRAO = 'N/ Revisado'
@@ -98,15 +98,22 @@ function agruparCasasPorNome(todasCasas) {
 }
 
 /**
- * Oculta MIA, inclui Alê/Rita e coloca TODAS CASAS por último.
+ * Oculta MIA, inclui ALÊ/RITA e coloca TODAS CASAS por último.
  */
 function montarCasasTabela(casasAgrupadas) {
   const filtradas = (casasAgrupadas || []).filter(
     cg => !CASAS_OCULTAS.has(normalizarNomeCasa(cg.nome))
   )
-  const nomesExistentes = new Set(filtradas.map(cg => normalizarNomeCasa(cg.nome)))
-  const semTodas = filtradas.filter(cg => normalizarNomeCasa(cg.nome) !== NOME_TODAS_CASAS)
-  const colunaTodas = filtradas.filter(cg => normalizarNomeCasa(cg.nome) === NOME_TODAS_CASAS)
+  const nomesExtrasNorm = new Set(CASAS_EXTRA.map(n => normalizarNomeCasa(n)))
+  const comExtrasRenomeadas = filtradas.map(cg => {
+    const n = normalizarNomeCasa(cg.nome)
+    if (!nomesExtrasNorm.has(n)) return cg
+    const nomeCanonico = CASAS_EXTRA.find(x => normalizarNomeCasa(x) === n) || cg.nome
+    return { ...cg, nome: nomeCanonico }
+  })
+  const nomesExistentes = new Set(comExtrasRenomeadas.map(cg => normalizarNomeCasa(cg.nome)))
+  const semTodas = comExtrasRenomeadas.filter(cg => normalizarNomeCasa(cg.nome) !== NOME_TODAS_CASAS)
+  const colunaTodas = comExtrasRenomeadas.filter(cg => normalizarNomeCasa(cg.nome) === NOME_TODAS_CASAS)
   const extras = CASAS_EXTRA.filter(nome => !nomesExistentes.has(normalizarNomeCasa(nome))).map(nome => ({
     nome,
     ids: []
@@ -128,11 +135,12 @@ function lerGboxStorage() {
 function gboxCellFromStorage(map, casaNome) {
   const entry = map?.[casaNome]
   if (!entry || typeof entry !== 'object') {
-    return { status: GBOX_STATUS_PADRAO, data: '' }
+    return { status: GBOX_STATUS_PADRAO, data: '', link: '' }
   }
   const status = GBOX_STATUS_OPCOES.includes(entry.status) ? entry.status : GBOX_STATUS_PADRAO
   const data = typeof entry.data === 'string' ? entry.data : ''
-  return { status, data }
+  const link = typeof entry.link === 'string' ? entry.link : ''
+  return { status, data, link }
 }
 
 export default function Page() {
@@ -187,7 +195,8 @@ export default function Page() {
         ...prev,
         [casaNome]: {
           status: patch.status ?? atual.status,
-          data: patch.data ?? atual.data
+          data: patch.data ?? atual.data,
+          link: patch.link ?? atual.link
         }
       }
       try {
@@ -801,7 +810,7 @@ export default function Page() {
                           GBox
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                          Status e data da última revisão
+                          Status, data e link da última revisão
                         </div>
                       </td>
                       {casasVisiveis.map(casaGroup => {
@@ -844,6 +853,22 @@ export default function Page() {
                                 value={cell.data}
                                 onChange={e => atualizarGbox(casaGroup.nome, { data: e.target.value })}
                                 aria-label={`Data última revisão GBox ${casaGroup.nome}`}
+                                style={{
+                                  fontSize: 10,
+                                  padding: '2px 4px',
+                                  borderRadius: 4,
+                                  border: '1px solid var(--color-border-secondary)',
+                                  background: 'var(--color-background-primary)',
+                                  maxWidth: '100%',
+                                  width: '100%'
+                                }}
+                              />
+                              <input
+                                type="url"
+                                value={cell.link}
+                                onChange={e => atualizarGbox(casaGroup.nome, { link: e.target.value })}
+                                placeholder="Link"
+                                aria-label={`Link GBox ${casaGroup.nome}`}
                                 style={{
                                   fontSize: 10,
                                   padding: '2px 4px',
