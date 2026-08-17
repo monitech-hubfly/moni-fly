@@ -13,7 +13,7 @@ type KanbanTabsProps = {
   tabsVariant?: PainelKanbanTabsVariant;
   kanbanId: string;
   isAdmin: boolean;
-  /** `kanban_fases.id` da primeira fase (Novo Loteador). */
+  /** `kanban_fases.id` da primeira fase (Entrar em contato). */
   primeiraFaseContatoId: string | null;
 };
 

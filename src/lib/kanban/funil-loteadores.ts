@@ -19,7 +19,7 @@ export type LoteadoresFaseCanon = {
  * Displays alinhados às migrations 513–517 + 521 (Novo Produto) + 525 (Assinados).
  */
 export const LOTEADORES_FASES_CANONICAS: readonly LoteadoresFaseCanon[] = [
-  { ordem: 1, slug: FASE_SLUGS.LOTEADORES_PRIMEIRO_CONTATO, nome: 'Novo Loteador', slaDias: 1 },
+  { ordem: 1, slug: FASE_SLUGS.LOTEADORES_PRIMEIRO_CONTATO, nome: 'Entrar em contato', slaDias: 1 },
   { ordem: 2, slug: FASE_SLUGS.LOTEADORES_R1_CONCEITO, nome: 'R1 Conceito', slaDias: 5 },
   { ordem: 3, slug: FASE_SLUGS.NDA_MONI_INC, nome: 'NDA', slaDias: 3 },
   { ordem: 4, slug: FASE_SLUGS.OPCAO_MONI_INC, nome: 'Opção', slaDias: 3 },
@@ -91,7 +91,7 @@ export const LOTEADORES_FASE_NOME_POR_SLUG: Readonly<Record<string, string>> = {
     [...LOTEADORES_FASES_CANONICAS, ...LOTEADORES_FASES_DEPRECATED].map((f) => [f.slug, f.nome]),
   ),
   /** DEV/legado: primeira fase ainda usa este slug. */
-  loteador_cadastro: 'Novo Loteador',
+  loteador_cadastro: 'Entrar em contato',
 };
 
 export function isLoteadoresFaseDeprecated(slug: string | null | undefined): boolean {
@@ -149,7 +149,7 @@ export function resolverPrimeiraFaseContatoLoteadores(fases: KanbanFase[]): stri
   ]);
   const bySlug = fases.find((f) => slugsIniciais.has((f.slug ?? '').trim()));
   if (bySlug) return bySlug.id;
-  const nomesIniciais = new Set(['novo loteador', 'primeiro contato']);
+  const nomesIniciais = new Set(['entrar em contato', 'novo loteador', 'primeiro contato']);
   const byNome = fases.find((f) => nomesIniciais.has(f.nome.trim().toLowerCase()));
   if (byNome) return byNome.id;
   const byOrdem = fases.find((f) => f.ordem === 1);

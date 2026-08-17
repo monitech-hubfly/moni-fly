@@ -310,7 +310,7 @@ export function NovoCardMonINCModal({
                 Link de preenchimento externo
               </p>
               <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Sempre o mesmo. Cada envio cria um cadastro e um card novos na fase Novo Loteador.
+                Sempre o mesmo. Cada envio cria um cadastro e um card novos na fase Entrar em contato.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <p
