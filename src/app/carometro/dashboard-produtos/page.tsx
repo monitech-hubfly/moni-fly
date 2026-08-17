@@ -6,6 +6,13 @@ import { createClient } from '@/lib/supabase/client'
 
 const NOMES_AREAS_ALVO = ['Produto', 'Projetos - Modelo Virtual']
 
+const CASAS_OCULTAS = new Set(['mia'])
+const CASAS_EXTRA = ['Alê', 'Rita']
+const NOME_TODAS_CASAS = 'todas casas'
+const GBOX_STATUS_OPCOES = ['Revisado', 'Em Revisão', 'N/ Revisado']
+const GBOX_STATUS_PADRAO = 'N/ Revisado'
+const GBOX_STORAGE_KEY = 'dashboard_produtos_gbox'
+
 const PALETA_CASAS = [
   { bg: '#E6F1FB', border: '#B5D4F4' },
   { bg: '#F3EEFE', border: '#AFA9EC' },
@@ -62,6 +69,12 @@ function statusCronogramaConcluido(status) {
   )
 }
 
+function normalizarNomeCasa(nome) {
+  return String(nome ?? '')
+    .trim()
+    .toLowerCase()
+}
+
 /**
  * Agrupa casas pelo nome exibido (normalizado), guardando todos os ids.
  */
@@ -69,9 +82,7 @@ function agruparCasasPorNome(todasCasas) {
   const casasAgrupadas = []
   const nomesSeen = {}
   for (const casa of todasCasas || []) {
-    const nomeNorm = String(casa.nome ?? '')
-      .trim()
-      .toLowerCase()
+    const nomeNorm = normalizarNomeCasa(casa.nome)
     if (!nomeNorm) continue
     if (nomesSeen[nomeNorm] !== undefined) {
       casasAgrupadas[nomesSeen[nomeNorm]].ids.push(casa.id)
@@ -84,6 +95,44 @@ function agruparCasasPorNome(todasCasas) {
     }
   }
   return casasAgrupadas
+}
+
+/**
+ * Oculta MIA, inclui Alê/Rita e coloca TODAS CASAS por último.
+ */
+function montarCasasTabela(casasAgrupadas) {
+  const filtradas = (casasAgrupadas || []).filter(
+    cg => !CASAS_OCULTAS.has(normalizarNomeCasa(cg.nome))
+  )
+  const nomesExistentes = new Set(filtradas.map(cg => normalizarNomeCasa(cg.nome)))
+  const semTodas = filtradas.filter(cg => normalizarNomeCasa(cg.nome) !== NOME_TODAS_CASAS)
+  const colunaTodas = filtradas.filter(cg => normalizarNomeCasa(cg.nome) === NOME_TODAS_CASAS)
+  const extras = CASAS_EXTRA.filter(nome => !nomesExistentes.has(normalizarNomeCasa(nome))).map(nome => ({
+    nome,
+    ids: []
+  }))
+  return [...semTodas, ...extras, ...colunaTodas]
+}
+
+function lerGboxStorage() {
+  try {
+    const raw = localStorage.getItem(GBOX_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function gboxCellFromStorage(map, casaNome) {
+  const entry = map?.[casaNome]
+  if (!entry || typeof entry !== 'object') {
+    return { status: GBOX_STATUS_PADRAO, data: '' }
+  }
+  const status = GBOX_STATUS_OPCOES.includes(entry.status) ? entry.status : GBOX_STATUS_PADRAO
+  const data = typeof entry.data === 'string' ? entry.data : ''
+  return { status, data }
 }
 
 export default function Page() {
@@ -101,6 +150,12 @@ export default function Page() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  /** { [casaNome]: { status, data } } — persistido em localStorage */
+  const [gboxPorCasa, setGboxPorCasa] = useState({})
+
+  useEffect(() => {
+    setGboxPorCasa(lerGboxStorage())
+  }, [])
 
   const areaIdsFiltrados = useMemo(() => {
     if (filtroArea === 'ambos') return areasAlvo.map(a => a.id).filter(Boolean)
@@ -117,13 +172,32 @@ export default function Page() {
   }, [areasAlvo, areaIdsFiltrados])
 
   const casasAgrupadas = useMemo(() => {
-    return agruparCasasPorNome(casas || [])
+    return montarCasasTabela(agruparCasasPorNome(casas || []))
   }, [casas])
 
   const casasVisiveis = useMemo(() => {
     if (!casaFiltro) return casasAgrupadas
     return casasAgrupadas.filter(cg => cg.nome === casaFiltro)
   }, [casasAgrupadas, casaFiltro])
+
+  const atualizarGbox = useCallback((casaNome, patch) => {
+    setGboxPorCasa(prev => {
+      const atual = gboxCellFromStorage(prev, casaNome)
+      const next = {
+        ...prev,
+        [casaNome]: {
+          status: patch.status ?? atual.status,
+          data: patch.data ?? atual.data
+        }
+      }
+      try {
+        localStorage.setItem(GBOX_STORAGE_KEY, JSON.stringify(next))
+      } catch {
+        /* ignore quota / private mode */
+      }
+      return next
+    })
+  }, [])
 
   const tarefasVisiveis = useMemo(
     () => tarefas.filter(t => areaIdsFiltrados.includes(t.area_id)),
@@ -589,10 +663,6 @@ export default function Page() {
 
       {loading ? (
         <p>Carregando…</p>
-      ) : casasAgrupadas.length === 0 ? (
-        <p className="empty-state">
-          Nenhuma casa cadastrada para as áreas Produto e Projetos - Modelo Virtual (ou ajuste o filtro de casa).
-        </p>
       ) : (
         <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--color-border-tertiary)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: 400 }}>
@@ -718,6 +788,78 @@ export default function Page() {
                       )
                     })}
                   </tr>
+
+                  {area.nome === 'Produto' && (
+                    <tr
+                      style={{
+                        background: '#F7FAF8',
+                        borderBottom: '0.5px solid var(--color-border-tertiary)'
+                      }}
+                    >
+                      <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                          GBox
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                          Status e data da última revisão
+                        </div>
+                      </td>
+                      {casasVisiveis.map(casaGroup => {
+                        const cell = gboxCellFromStorage(gboxPorCasa, casaGroup.nome)
+                        return (
+                          <td
+                            key={`gbox-${casaGroup.nome}`}
+                            style={{ textAlign: 'center', padding: '6px 4px', verticalAlign: 'middle' }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: 4
+                              }}
+                            >
+                              <select
+                                value={cell.status}
+                                onChange={e => atualizarGbox(casaGroup.nome, { status: e.target.value })}
+                                aria-label={`Status GBox ${casaGroup.nome}`}
+                                style={{
+                                  fontSize: 10,
+                                  padding: '2px 4px',
+                                  borderRadius: 4,
+                                  border: '1px solid var(--color-border-secondary)',
+                                  background: 'var(--color-background-primary)',
+                                  maxWidth: '100%',
+                                  width: '100%'
+                                }}
+                              >
+                                {GBOX_STATUS_OPCOES.map(op => (
+                                  <option key={op} value={op}>
+                                    {op}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="date"
+                                value={cell.data}
+                                onChange={e => atualizarGbox(casaGroup.nome, { data: e.target.value })}
+                                aria-label={`Data última revisão GBox ${casaGroup.nome}`}
+                                style={{
+                                  fontSize: 10,
+                                  padding: '2px 4px',
+                                  borderRadius: 4,
+                                  border: '1px solid var(--color-border-secondary)',
+                                  background: 'var(--color-background-primary)',
+                                  maxWidth: '100%',
+                                  width: '100%'
+                                }}
+                              />
+                            </div>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )}
 
                   {area.nome === 'Projetos - Modelo Virtual'
                     ? tarefasComGantt
