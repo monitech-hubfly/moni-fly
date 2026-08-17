@@ -137,9 +137,15 @@ function ProjetoTimeline({ dataInicio, dataFim, diasUteis }: {
         return (
           <div key={s.semana} className="flex items-center gap-1 flex-shrink-0">
             {i > 0 && <span className="text-gray-300 text-[9px]">→</span>}
-            {s.isCurrent ? (
-              <div className="flex flex-col gap-0.5 min-w-[72px]" title={tip}>
-                <span className="text-[9px] font-semibold text-purple-700">S{s.semana} · {e}%</span>
+            {s.isFuture ? (
+              <span className="text-[9px] px-1.5 py-0.5 rounded cursor-default text-gray-400 bg-gray-50 border border-gray-200" title={tip}>
+                S{s.semana} · {e}%
+              </span>
+            ) : (
+              <div className={`flex flex-col gap-0.5 min-w-[72px] ${!s.isCurrent ? 'opacity-60' : ''}`} title={tip}>
+                <span className={`text-[9px] font-semibold ${s.isCurrent ? 'text-purple-700' : 'text-gray-500'}`}>
+                  S{s.semana} · {e}%
+                </span>
                 <div className="flex rounded-sm overflow-hidden h-1.5 w-full">
                   <div style={{ width: `${am}%`,      backgroundColor: '#d24141' }} />
                   <div style={{ width: `${vc - am}%`, backgroundColor: '#f2c94c' }} />
@@ -153,16 +159,6 @@ function ProjetoTimeline({ dataInicio, dataFim, diasUteis }: {
                   <span style={{ color: '#1e7a3a' }}>•≥{ve}%</span>
                 </div>
               </div>
-            ) : (
-              <span
-                className={`text-[9px] px-1.5 py-0.5 rounded cursor-default ${
-                  s.isFuture
-                    ? 'text-gray-400 bg-gray-50 border border-gray-200'
-                    : 'text-gray-500 bg-gray-100'
-                }`}
-                title={tip}>
-                S{s.semana} · {e}%
-              </span>
             )}
           </div>
         );
@@ -1044,7 +1040,6 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
           <div className="px-3 py-2 border-b border-gray-100 flex flex-col gap-1.5">
             {resps.map(r => {
               const nome = responsaveis.find(p => p.profile_id === r.profile_id)?.nome ?? '?';
-              const esperado = calcularEsperadoPct(r.data_inicio, r.data_fim, r.dias_uteis);
               const isAdminUser = isAdmin;
               return (
                 <div key={r.profile_id} className="flex flex-col gap-1">
@@ -1078,15 +1073,6 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                       </>
                     )}
                   </div>
-                  {esperado !== null && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-gray-400 w-20 flex-shrink-0">Esperado hoje:</span>
-                      <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                        <div className="h-full rounded-full bg-purple-400 transition-all" style={{ width: `${esperado}%` }} />
-                      </div>
-                      <span className="text-[10px] text-purple-600 font-medium w-8 text-right">{esperado}%</span>
-                    </div>
-                  )}
                   {r.data_inicio && r.data_fim && (
                     <ProjetoTimeline
                       dataInicio={r.data_inicio}
