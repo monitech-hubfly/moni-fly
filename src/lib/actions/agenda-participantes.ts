@@ -60,10 +60,8 @@ export async function enviarConvitesInternos(
     const alertas = participanteIds.map(profileId => ({
       user_id: profileId,
       tipo: 'convite_agenda_interno',
-      titulo: `Convite: ${titulo}`,
-      mensagem: `${organizadorNome} convidou você para "${titulo}"${dataFormatada ? ` em ${dataFormatada}` : ''}${horaInicio ? ` às ${horaInicio}` : ''}.`,
-      referencia_path: `/carometro/todo-planning?convite=${ganttId}`,
-      lido: false,
+      mensagem: `Convite: ${organizadorNome} convidou você para "${titulo}"${dataFormatada ? ` em ${dataFormatada}` : ''}${horaInicio ? ` às ${horaInicio}` : ''}.`,
+      referencia_path: `/carometro/todo-planning`,
     }));
 
     const { error } = await adminDb.from('alertas').insert(alertas);
@@ -178,10 +176,8 @@ async function notificarOrganizerProposta(
     await adminDb.from('alertas').insert({
       user_id: organizadorId,
       tipo: 'proposta_horario_agenda',
-      titulo: `Proposta de horário: ${titulo}`,
-      mensagem: `${proponenteNome} propôs novo horário para "${titulo}": ${dataFormatada} ${proposta.hora_inicio}–${proposta.hora_fim}.`,
-      referencia_path: `/carometro/todo-planning?convite_org=${ganttId}`,
-      lido: false,
+      mensagem: `Proposta: ${proponenteNome} sugeriu novo horário para "${titulo}": ${dataFormatada} ${proposta.hora_inicio}–${proposta.hora_fim}.`,
+      referencia_path: `/carometro/todo-planning`,
     });
   } catch (e) {
     console.error('[notificarOrganizerProposta]', e);
@@ -299,10 +295,8 @@ export async function aceitarPropostaHorario(
     await adminDb.from('alertas').insert({
       user_id: participanteId,
       tipo: 'convite_agenda_interno',
-      titulo: `Proposta aceita: ${titulo}`,
-      mensagem: `O organizador aceitou sua proposta de horário para "${titulo}".`,
+      mensagem: `Proposta aceita: o organizador aceitou seu novo horário para "${titulo}".`,
       referencia_path: `/carometro/todo-planning`,
-      lido: false,
     });
   } catch { /* silencioso */ }
 

@@ -239,10 +239,13 @@ function AgendaCard({
         if (resizingRef.current) return;
         if ((e.target as HTMLElement).closest('[data-action]')) return;
         e.stopPropagation();
+        // Para eventos pendentes, o drag nunca é iniciado (dragState null),
+        // então o click precisa ser tratado aqui diretamente.
+        if (isPendente) onAbrirParaEditar(atv.id);
       }}
     >
       {/* Handle de resize superior */}
-      {!atv.concluido && (
+      {!atv.concluido && !isPendente && (
         <div
           data-action="resize-top"
           className="absolute top-0 left-0 right-0 h-2 cursor-n-resize opacity-0 group-hover:opacity-100 flex items-center justify-center"
@@ -254,11 +257,16 @@ function AgendaCard({
       <div className="flex items-start justify-between gap-1 h-full">
         <div className="flex-1 min-w-0">
           <div className={`font-medium truncate leading-tight ${atv.concluido ? 'line-through opacity-70' : ''}`}>
-            {isPendente && <span className="mr-0.5 opacity-70">📨</span>}{atv.titulo}
+            {isPendente && <span className="mr-0.5">📨</span>}{atv.titulo}
           </div>
-          {isPendente && atv.organizador_nome && heightPx >= 36 && (
+          {isPendente && heightPx >= 36 && (
             <div className="text-[10px] text-gray-500 truncate leading-tight">
-              {atv.organizador_nome}
+              {atv.organizador_nome ? `Por ${atv.organizador_nome}` : ''}
+            </div>
+          )}
+          {isPendente && heightPx >= 48 && (
+            <div className="text-[9px] text-blue-600 font-semibold mt-0.5">
+              Toque para responder
             </div>
           )}
           {heightPx >= 40 && (
@@ -281,8 +289,8 @@ function AgendaCard({
           )}
         </div>
 
-        {/* Botão concluir — visível no hover */}
-        {!atv.concluido && (
+        {/* Botão concluir — visível no hover (não para convites pendentes) */}
+        {!atv.concluido && !isPendente && (
           <button
             data-action="concluir"
             type="button"
@@ -309,7 +317,7 @@ function AgendaCard({
       </div>
 
       {/* Handle de resize — aparece no hover, na borda inferior */}
-      {!atv.concluido && (
+      {!atv.concluido && !isPendente && (
         <div
           data-action="resize"
           className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize opacity-0 group-hover:opacity-100 flex items-center justify-center"
