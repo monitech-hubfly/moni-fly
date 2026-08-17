@@ -117,11 +117,13 @@ async function syncUser(
   const token = await getAccessToken(credentials, userEmail);
 
   const now    = new Date();
+  // Usar início do dia (00:00 BRT) como timeMin para não deletar eventos passados do dia atual
+  const todayStart = new Date(now.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) + 'T00:00:00-03:00');
   const future = new Date();
   future.setDate(future.getDate() + DAYS_AHEAD);
 
   const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
-  url.searchParams.set('timeMin',      now.toISOString());
+  url.searchParams.set('timeMin',      todayStart.toISOString());
   url.searchParams.set('timeMax',      future.toISOString());
   url.searchParams.set('singleEvents', 'true');
   url.searchParams.set('orderBy',      'startTime');
