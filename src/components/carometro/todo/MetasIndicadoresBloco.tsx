@@ -67,16 +67,23 @@ function corParaTexto(hex: string): string {
   return '#ffffff';
 }
 
+// Ordem posicional das cores do semáforo (melhor → pior)
+const FAROL_POSICIONAL = ['ve', 'vc', 'am', 'vm'] as const;
+
 function FaixasLegenda({ faixas }: { faixas: FaixaItem[] }) {
   if (!faixas.length) return null;
   return (
     <div className="flex items-center gap-1 flex-wrap">
-      {faixas.map((f, i) => (
-        <span key={i} className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-          style={{ backgroundColor: FAROL_HEX[f.cor] ?? '#9ca3af', color: FAROL_TEXT[f.cor] ?? '#ffffff' }}>
-          {COMP[f.comparacao] ?? f.comparacao}{f.limite}
-        </span>
-      ))}
+      {faixas.map((f, i) => {
+        // Usa f.cor se bater exatamente em FAROL_HEX; caso contrário usa posição
+        const corKey = (f.cor && FAROL_HEX[f.cor]) ? f.cor : (FAROL_POSICIONAL[i] ?? 'vm');
+        return (
+          <span key={i} className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+            style={{ backgroundColor: FAROL_HEX[corKey], color: FAROL_TEXT[corKey] }}>
+            {COMP[f.comparacao] ?? f.comparacao}{f.limite}
+          </span>
+        );
+      })}
     </div>
   );
 }

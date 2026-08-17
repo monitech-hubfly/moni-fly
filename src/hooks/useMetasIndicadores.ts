@@ -104,8 +104,6 @@ export function useMetasIndicadores(
       const hoje    = new Date();
       const semana  = isoWeek(hoje);
       const anoISO  = isoWeekYear(hoje);
-      const hojeStr = hoje.toISOString().slice(0, 10);
-
       let objQuery = supabase
         .from('objetivos')
         .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, objetivo_pai_id, profile_id')
@@ -197,24 +195,11 @@ export function useMetasIndicadores(
 
       const lancMap         = new Map<string, string>();
       const lancMapAnterior = new Map<string, string>();
-      let semRel      = semana;
-      let semAnterior = semana > 1 ? semana - 1 : 52;
+      // Sempre usa a semana ISO atual e a anterior (ignora tabela periodos,
+      // que pode ter períodos longos com data_inicio no passado).
+      const semRel      = semana;
+      const semAnterior = semana > 1 ? semana - 1 : 52;
       if (indIds.length > 0) {
-        const { data: periodo } = await supabase
-          .from('periodos')
-          .select('id, data_inicio, data_fim')
-          .lte('data_inicio', hojeStr)
-          .gte('data_fim', hojeStr)
-          .eq('ano', anoISO)
-          .order('data_fim', { ascending: true })
-          .limit(1)
-          .maybeSingle();
-
-        semRel      = periodo
-          ? isoWeek(new Date((periodo as { data_inicio: string }).data_inicio))
-          : semana;
-        semAnterior = semRel > 1 ? semRel - 1 : 52;
-
         // Filtra lançamentos do usuário efetivo OU sem profile_id (legado)
         let lancsQuery: any = supabase
           .from('indicador_lancamentos')
