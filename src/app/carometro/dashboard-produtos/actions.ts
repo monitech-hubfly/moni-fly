@@ -56,14 +56,17 @@ export async function salvarGbox(
 
   if (!notificar) return;
 
-  const dataFormatada = novaData
-    ? new Date(novaData + 'T12:00:00').toLocaleDateString('pt-BR')
-    : null;
+  // Busca nome do usuário para incluir na notificação
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('full_name')
+    .eq('id', userId)
+    .maybeSingle();
+  const userName = (profile as { full_name?: string } | null)?.full_name?.trim() || 'Usuário';
 
   const partes = [`Casa ${casaNome}`];
   if (novoStatus && novoStatus !== 'N/ Revisado') partes.push(novoStatus);
-  if (dataFormatada) partes.push(dataFormatada);
-  if (novoLink) partes.push('Link disponível');
+  partes.push(`por ${userName}`);
   const mensagem = `GBox atualizado — ${partes.join(' · ')}`;
 
   try {

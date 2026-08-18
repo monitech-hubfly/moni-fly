@@ -907,7 +907,7 @@ export default function Page() {
                               <input
                                 type="date"
                                 value={dataExibida}
-                                onChange={e => pedirConfirmacaoDataGbox(casaGroup.nome, e.target.value)}
+                                onChange={e => atualizarGbox(casaGroup.nome, { data: e.target.value }, false)}
                                 aria-label={`Data última revisão GBox ${casaGroup.nome}`}
                                 style={{
                                   fontSize: 10,
