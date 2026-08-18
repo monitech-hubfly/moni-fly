@@ -10,7 +10,8 @@ export type AlertaKanbanAtividadeTipo =
   | 'kanban_atividade_redirecionada'
   | 'sla_atividade_atencao'
   | 'sla_atividade_atrasado'
-  | 'atribuicao_recusada';
+  | 'atribuicao_recusada'
+  | 'gbox_atualizado';
 
 export { montarPathAlertaAtividade };
 

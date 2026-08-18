@@ -17,6 +17,7 @@ function rotuloTipo(tipo: string): string {
   if (tipo === 'sla_atividade_atrasado') return 'Atividade atrasada';
   if (tipo === 'sla_atividade_atencao') return 'Atividade em atenção';
   if (tipo === 'status_preenchimento_lembrete') return 'Lembrete de entrega';
+  if (tipo === 'gbox_atualizado') return 'GBox atualizado';
   return tipo;
 }
 
@@ -461,7 +462,8 @@ export default async function AlertasPage({
                 : null;
               const hrefInteracao = !cardId && basePath?.includes('interacao=') ? basePath : null;
               const hrefSlaAtividade = tipo === 'sla_atividade_atrasado' || tipo === 'sla_atividade_atencao' ? basePath || null : null;
-              const hrefAlerta = hrefSlaAtividade || hrefSirene || hrefCard || hrefInteracao;
+              const hrefGbox = tipo === 'gbox_atualizado' && basePath ? basePath : null;
+              const hrefAlerta = hrefSlaAtividade || hrefSirene || hrefCard || hrefInteracao || hrefGbox;
 
               const interacaoId = parseQsParam(basePath, 'interacao');
               const topicoIdStr = parseQsParam(basePath, 'topico');
@@ -630,6 +632,8 @@ export default async function AlertasPage({
                       >
                         {tipo === 'mencao_sirene' || hrefInteracao || hrefSlaAtividade
                           ? 'Abrir chamado →'
+                          : tipo === 'gbox_atualizado'
+                          ? 'Abrir Dashboard →'
                           : 'Abrir card →'}
                       </Link>
                     ) : <span />}

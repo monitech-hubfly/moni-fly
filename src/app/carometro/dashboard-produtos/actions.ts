@@ -69,7 +69,7 @@ export async function salvarGbox(
   try {
     await notificarAlertasKanbanAtividade({
       userIds: GBOX_NOTIFICAR_IDS,
-      tipo: 'kanban_atividade_atualizada',
+      tipo: 'gbox_atualizado',
       mensagem,
       basePath: '/carometro/dashboard-produtos',
       excluirUserId: userId,
