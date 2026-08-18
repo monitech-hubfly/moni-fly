@@ -26,6 +26,10 @@
     {
       "path": "/api/cron/google-calendar-sync",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/kanban-indicadores",
+      "schedule": "0 12 * * 1"
     }
   ]
 }
