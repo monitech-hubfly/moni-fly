@@ -38,7 +38,7 @@ function isDiaUtil(d: Date): boolean {
 }
 
 /** Horas úteis entre duas datas (exclui fins de semana e feriados nacionais). */
-export function horasUteis(inicio: Date, fim: Date): number {
+function horasUteis(inicio: Date, fim: Date): number {
   if (fim <= inicio) return 0;
   let horas = 0;
   const cur = new Date(inicio);
