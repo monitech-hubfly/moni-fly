@@ -1,9 +1,9 @@
 /**
- * Fase «Novo Produto» — Funil Loteadores (após Viabilidade / Premissas).
+ * Fase «Novo Produto» — Funil Loteadores (antes de Viabilidade / Premissas).
  * SLA 20 d.u. Responsável padrão: Helenna Luz (`moni`).
  *
  * Entrada: carteira existente avaliada como incompatível com as necessidades do loteador.
- * Saída: novo produto definido e validado → avança para Acoplamento.
+ * Saída: novo produto definido e validado → avança para Viabilidade / Premissas.
  */
 
 import { isLoteadoresChecklistCampoVisivel } from '@/lib/kanban/loteadores-checklist-visibilidade';

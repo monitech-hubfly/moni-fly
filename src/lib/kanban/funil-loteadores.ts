@@ -16,7 +16,7 @@ export type LoteadoresFaseCanon = {
 
 /**
  * Esteira canônica v1 — 21 fases ativas (ordem 1–21).
- * Displays alinhados às migrations 513–517 + 521 (Novo Produto) + 525 (Assinados).
+ * Displays alinhados às migrations 513–517 + 521/533 (Novo Produto antes de Viabilidade) + 525 (Assinados).
  */
 export const LOTEADORES_FASES_CANONICAS: readonly LoteadoresFaseCanon[] = [
   { ordem: 1, slug: FASE_SLUGS.LOTEADORES_PRIMEIRO_CONTATO, nome: 'Entrar em contato', slaDias: 1 },
@@ -24,8 +24,8 @@ export const LOTEADORES_FASES_CANONICAS: readonly LoteadoresFaseCanon[] = [
   { ordem: 3, slug: FASE_SLUGS.NDA_MONI_INC, nome: 'NDA', slaDias: 3 },
   { ordem: 4, slug: FASE_SLUGS.OPCAO_MONI_INC, nome: 'Opção', slaDias: 3 },
   { ordem: 5, slug: FASE_SLUGS.AGUARDANDO_FICHA_MONI_INC, nome: 'Aguardando Ficha', slaDias: 3 },
-  { ordem: 6, slug: FASE_SLUGS.LOTEADORES_VIABILIDADE, nome: 'Viabilidade / Premissas', slaDias: 1 },
-  { ordem: 7, slug: FASE_SLUGS.LOTEADORES_NOVO_PRODUTO, nome: 'Novo Produto', slaDias: 20 },
+  { ordem: 6, slug: FASE_SLUGS.LOTEADORES_NOVO_PRODUTO, nome: 'Novo Produto', slaDias: 20 },
+  { ordem: 7, slug: FASE_SLUGS.LOTEADORES_VIABILIDADE, nome: 'Viabilidade / Premissas', slaDias: 1 },
   { ordem: 8, slug: FASE_SLUGS.LOTEADORES_ACOPLAMENTO, nome: 'Acoplamento', slaDias: 1 },
   { ordem: 9, slug: FASE_SLUGS.LOTEADORES_EXECUCAO_MATERIAL, nome: 'Executar Material', slaDias: 1 },
   { ordem: 10, slug: FASE_SLUGS.VALIDACAO_MONI_INC, nome: 'Validação', slaDias: 1 },

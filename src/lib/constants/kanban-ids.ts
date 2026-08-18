@@ -117,7 +117,7 @@ export const FASE_SLUGS = {
   /** Alias pedido — Aguardando Ficha. */
   AGUARDANDO_FICHA_MONI_INC: 'aguardando_ficha_moni_inc',
   LOTEADORES_AGUARDANDO_FICHA: 'aguardando_ficha_moni_inc',
-  /** Alias pedido — Novo Produto (após Viabilidade / Premissas). */
+  /** Alias pedido — Novo Produto (antes de Viabilidade / Premissas). */
   NOVO_PRODUTO_MONI_INC: 'novo_produto_moni_inc',
   LOTEADORES_NOVO_PRODUTO: 'novo_produto_moni_inc',
   LOTEADORES_VIABILIDADE: 'viabilidade_moni_inc',
