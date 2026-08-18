@@ -94,6 +94,7 @@ function AgendaCard({
   onAtualizarHorario,
   onAtualizarHorarioInicio,
   onDragStart,
+  isBeingDragged,
 }: {
   atv: AtividadeAgenda;
   colIndex: number;
@@ -104,6 +105,7 @@ function AgendaCard({
   onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
   onAtualizarHorarioInicio: (id: string, hora_inicio: string) => Promise<void>;
   onDragStart: (atv: AtividadeAgenda, e: React.MouseEvent) => void;
+  isBeingDragged?: boolean;
 }) {
   const [h, m] = atv.hora_inicio.split(':').map(Number);
   const topPx  = (h - HORA_INICIO) * ALTURA_HORA + (m ?? 0);
@@ -226,7 +228,7 @@ function AgendaCard({
         backgroundColor: isPendente ? '#e5e7eb' : atv.cor,
         color: isPendente ? '#374151' : 'white',
         zIndex: 10,
-        opacity: isPendente ? 0.8 : atv.concluido ? 0.6 : isVencido ? 0.7 : 1,
+        opacity: isBeingDragged ? 0 : isPendente ? 0.8 : atv.concluido ? 0.6 : isVencido ? 0.7 : 1,
         border: isPendente ? '1.5px dashed #9ca3af' : undefined,
         borderTop: !isPendente && isVencido ? '3px solid rgba(239,159,39,0.9)' : undefined,
         cursor: isPendente ? 'pointer' : undefined,
@@ -332,7 +334,7 @@ function AgendaCard({
 
 // ── Coluna de um dia ──────────────────────────────────────────────────────────
 function ColunaDia({
-  dia, atividades, onAbrirModal, onAbrirParaEditar, onConcluir, onDesconcluir, onAtualizarHorario, onAtualizarHorarioInicio, onDragStart,
+  dia, atividades, onAbrirModal, onAbrirParaEditar, onConcluir, onDesconcluir, onAtualizarHorario, onAtualizarHorarioInicio, onDragStart, draggingId,
 }: {
   dia: DiaAgenda;
   atividades: AtividadeAgenda[];
@@ -343,6 +345,7 @@ function ColunaDia({
   onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
   onAtualizarHorarioInicio: (id: string, hora_inicio: string) => Promise<void>;
   onDragStart: (atv: AtividadeAgenda, e: React.MouseEvent) => void;
+  draggingId?: string | null;
 }) {
   const horas = Array.from({ length: TOTAL_HORAS }, (_, i) => HORA_INICIO + i);
 
@@ -383,6 +386,7 @@ function ColunaDia({
               onAtualizarHorario={onAtualizarHorario}
               onAtualizarHorarioInicio={onAtualizarHorarioInicio}
               onDragStart={onDragStart}
+              isBeingDragged={draggingId === atv.id}
             />
           );
         });
@@ -557,6 +561,7 @@ type DragState = {
   isDragging: boolean; // true após 8px de movimento
   durationMin: number;
   offsetInCard: number; // pixels do topo do card até onde o usuário clicou
+  colWidthPx: number;  // largura da coluna (para o ghost ter tamanho correto)
 };
 
 // ── AgendaBloco ───────────────────────────────────────────────────────────────
@@ -610,18 +615,20 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
 
     // Calcula onde dentro do card o usuário clicou (para manter posição relativa ao soltar)
     let offsetInCard = 0;
+    let colWidthPx = 120;
     const grade = gradeRef.current;
     if (grade) {
       const rect = grade.getBoundingClientRect();
       const cardTopPx = (hi - HORA_INICIO) * ALTURA_HORA + (mi ?? 0);
       const cardTopScreenY = rect.top - grade.scrollTop + cardTopPx;
       offsetInCard = Math.max(0, Math.round(e.clientY - cardTopScreenY));
+      colWidthPx = (rect.width - LARGURA_HORAS) / diasDaSemana.length;
     }
 
     const state: DragState = {
       atv, startX: e.clientX, startY: e.clientY,
       currentX: e.clientX, currentY: e.clientY,
-      isDragging: false, durationMin, offsetInCard,
+      isDragging: false, durationMin, offsetInCard, colWidthPx,
     };
     dragStateRef.current = state;
     setDragState(state);
@@ -812,26 +819,30 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
               onAtualizarHorario={atualizarHorario}
               onAtualizarHorarioInicio={atualizarHorarioInicio}
               onDragStart={handleDragStart}
+              draggingId={dragState?.isDragging ? dragState.atv.id : null}
             />
           ))}
           <LinhaAgora semanaOffset={semanaOffset} />
         </div>
       </div>
 
-      {/* Ghost de drag */}
+      {/* Ghost de drag — mesmo tamanho do card original */}
       {dragState?.isDragging && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed pointer-events-none rounded px-1.5 py-0.5 text-white text-xs font-medium shadow-lg opacity-80"
+          className="fixed pointer-events-none rounded px-1.5 py-0.5 text-white text-xs overflow-hidden shadow-xl"
           style={{
-            top: dragState.currentY - 16,
-            left: dragState.currentX - 40,
+            top:  dragState.currentY - dragState.offsetInCard,
+            left: dragState.currentX - dragState.colWidthPx / 2,
             backgroundColor: dragState.atv.cor,
+            width:  dragState.colWidthPx - 4,
+            height: Math.max(30, dragState.durationMin * ALTURA_HORA / 60),
             zIndex: 9999,
-            minWidth: 80,
-            transform: 'rotate(2deg)',
+            opacity: 0.85,
+            transform: 'rotate(1deg) scale(1.02)',
           }}
         >
-          {dragState.atv.titulo}
+          <div className="font-medium truncate leading-tight">{dragState.atv.titulo}</div>
+          <div className="opacity-80 text-[10px]">{dragState.atv.hora_inicio}{dragState.atv.hora_fim ? ` – ${dragState.atv.hora_fim}` : ''}</div>
         </div>,
         document.body,
       )}

@@ -87,7 +87,7 @@ export async function pushParaGCal(ganttId: string): Promise<void> {
     const adminDb = createAdminClient();
 
     const { data: gantt } = await (adminDb.from('gantt_planejamento') as any)
-      .select('id, titulo, data, hora_inicio, hora_fim, link_reuniao, local_reuniao, origem, gcal_hubfly_push_id, gcal_hubfly_organizer_email, profile_id, participantes_externos')
+      .select('id, titulo, data, hora_inicio, hora_fim, link_reuniao, local_reuniao, origem, gcal_hubfly_push_id, gcal_hubfly_organizer_email, profile_id, participantes_externos, acoes(tipo_atividade)')
       .eq('id', ganttId)
       .maybeSingle();
 
@@ -134,7 +134,9 @@ export async function pushParaGCal(ganttId: string): Promise<void> {
     }
 
     const body: Record<string, unknown> = {
-      summary: gantt.titulo ?? '(sem título)',
+      summary: (Array.isArray(gantt.acoes) ? gantt.acoes[0] : gantt.acoes)?.tipo_atividade
+        ?? (gantt.titulo as string | null)
+        ?? '(sem título)',
       start: { dateTime: `${data}T${horaInicio}:00`, timeZone: 'America/Sao_Paulo' },
       end:   { dateTime: `${data}T${horaFim}:00`,   timeZone: 'America/Sao_Paulo' },
       attendees: allAttendees,
