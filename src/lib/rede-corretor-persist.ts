@@ -25,6 +25,7 @@ export const REDE_CORRETOR_STATUS_VALUES: RedeCorretorStatus[] = [
   'inativo',
   'em_analise',
   'pendente',
+  'aprovado',
 ]
 
 export function validarCamposCorretor(patch: RedeCorretorPatch): string | null {

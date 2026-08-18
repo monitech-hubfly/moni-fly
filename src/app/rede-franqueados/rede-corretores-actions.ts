@@ -88,5 +88,5 @@ export async function arquivarRedeCorretor(id: string): Promise<Ok | Err> {
 }
 
 export async function aprovarRedeCorretor(id: string): Promise<Ok | Err> {
-  return atualizarRedeCorretor(id, { status: 'ativo' })
+  return atualizarRedeCorretor(id, { status: 'aprovado' })
 }

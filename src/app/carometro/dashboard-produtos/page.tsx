@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { salvarGbox, carregarGbox } from './actions'
 
 const NOMES_AREAS_ALVO = ['Produto', 'Projetos - Modelo Virtual']
@@ -162,6 +163,8 @@ export default function Page() {
   /** { [casaNome]: { status, data, link } } — persistido no Supabase + localStorage como cache */
   const [gboxPorCasa, setGboxPorCasa] = useState({})
   const [userId, setUserId] = useState(null)
+  /** Confirmação antes de salvar data do GBox (+ notificação) */
+  const [gboxDataPendente, setGboxDataPendente] = useState(null)
 
   useEffect(() => {
     // Carrega localStorage imediatamente (evita flash vazio)
@@ -231,6 +234,31 @@ export default function Page() {
     if (!userId) return
     salvarGbox(casaNome, { link }, userId, true).catch(() => {})
   }, [userId])
+
+  const pedirConfirmacaoDataGbox = useCallback((casaNome, novaData) => {
+    const atual = gboxCellFromStorage(gboxPorCasa, casaNome)
+    if (novaData === atual.data) return
+    setGboxDataPendente({ casaNome, data: novaData })
+  }, [gboxPorCasa])
+
+  const confirmarDataGbox = useCallback(() => {
+    if (!gboxDataPendente) return
+    atualizarGbox(gboxDataPendente.casaNome, { data: gboxDataPendente.data }, true)
+    setGboxDataPendente(null)
+  }, [gboxDataPendente, atualizarGbox])
+
+  const cancelarDataGbox = useCallback(() => {
+    setGboxDataPendente(null)
+  }, [])
+
+  const dataGboxPendenteFormatada = useMemo(() => {
+    if (!gboxDataPendente?.data) return ''
+    try {
+      return new Date(gboxDataPendente.data + 'T12:00:00').toLocaleDateString('pt-BR')
+    } catch {
+      return gboxDataPendente.data
+    }
+  }, [gboxDataPendente])
 
   const tarefasVisiveis = useMemo(
     () => tarefas.filter(t => areaIdsFiltrados.includes(t.area_id)),
@@ -839,6 +867,10 @@ export default function Page() {
                       </td>
                       {casasVisiveis.map(casaGroup => {
                         const cell = gboxCellFromStorage(gboxPorCasa, casaGroup.nome)
+                        const dataExibida =
+                          gboxDataPendente?.casaNome === casaGroup.nome
+                            ? gboxDataPendente.data
+                            : cell.data
                         return (
                           <td
                             key={`gbox-${casaGroup.nome}`}
@@ -874,8 +906,8 @@ export default function Page() {
                               </select>
                               <input
                                 type="date"
-                                value={cell.data}
-                                onChange={e => atualizarGbox(casaGroup.nome, { data: e.target.value }, true)}
+                                value={dataExibida}
+                                onChange={e => pedirConfirmacaoDataGbox(casaGroup.nome, e.target.value)}
                                 aria-label={`Data última revisão GBox ${casaGroup.nome}`}
                                 style={{
                                   fontSize: 10,
@@ -978,6 +1010,20 @@ export default function Page() {
           </table>
         </div>
       )}
+
+      <ConfirmModal
+        open={Boolean(gboxDataPendente)}
+        title="Confirmar alteração da data"
+        description={
+          gboxDataPendente
+            ? `Deseja salvar a data ${dataGboxPendenteFormatada || 'selecionada'} no GBox da casa ${gboxDataPendente.casaNome}? Uma notificação será enviada aos envolvidos.`
+            : undefined
+        }
+        confirmLabel="Confirmar e notificar"
+        cancelLabel="Cancelar"
+        onConfirm={confirmarDataGbox}
+        onClose={cancelarDataGbox}
+      />
     </>
   )
 }

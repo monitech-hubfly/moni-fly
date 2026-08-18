@@ -3,7 +3,7 @@
 import type { createClient } from '@/lib/supabase/server'
 import type { PixTipo } from '@/lib/br-docs'
 
-export type RedeCorretorStatus = 'ativo' | 'inativo' | 'em_analise' | 'pendente'
+export type RedeCorretorStatus = 'ativo' | 'inativo' | 'em_analise' | 'pendente' | 'aprovado'
 
 export type RedeCorretorTipoRegistro =
   | 'estagiario'
@@ -42,6 +42,8 @@ export type RedeCorretorRow = {
   conta_pix_chave: string | null
   status: RedeCorretorStatus
   observacoes: string | null
+  link_simulador?: string | null
+  email_enviado_em?: string | null
   criado_por?: string | null
   ultima_atualizacao_por?: string | null
   created_at?: string | null
@@ -77,6 +79,7 @@ export const REDE_CORRETOR_STATUS_LABEL: Record<RedeCorretorStatus, string> = {
   inativo: 'Inativo',
   em_analise: 'Em análise',
   pendente: 'Pendente',
+  aprovado: 'Aprovado',
 }
 
 export const REDE_CORRETOR_TIPO_REGISTRO_LABEL: Record<RedeCorretorTipoRegistro, string> = {
