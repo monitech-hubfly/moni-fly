@@ -1152,7 +1152,7 @@ function InteracoesListaInner({
                               {(() => { const ck = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null); if (!ck) return null; return (<button type="button" onClick={() => toggleComentarios(row)} className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]" aria-expanded={Boolean(commentsOpenByRow[row.id])} aria-label={`Comentários do chamado (${cnt})`}><MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden /><span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span></button>); })()}
                               {idsResp.length > 0 ? (<div className="flex -space-x-1">{idsResp.slice(0, 4).map((uid) => (<span key={uid} title={nomePorUserId.get(uid) ?? uid} className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[9px] font-semibold text-[color:var(--moni-text-primary)]">{iniciaisNome(nomePorUserId.get(uid) ?? '?')}</span>))}</div>) : null}
                               <SlaAtividadeBadge prazoIso={row.data_vencimento} status={sel === 'concluida' ? 'concluida' : sel} showOkText={false} />
-                              {sel === 'em_andamento' ? (<span className="min-w-[8rem] rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-2 py-1 text-center text-xs text-[color:var(--moni-text-secondary)]">Em andamento</span>) : (<SelectMoni value={sel} disabled={pending} onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)} className="min-w-[8rem] text-xs" aria-label="Status do chamado"><option value="pendente">A fazer</option><option value="concluida">Concluída</option></SelectMoni>)}
+                              <SelectMoni value={sel} disabled={pending} onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)} className="min-w-[8rem] text-xs" aria-label="Status do chamado"><option value="pendente">A fazer</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option></SelectMoni>
                             </div>
                           </div>
                           {detalheExpandido[row.id] ? (<div className="mt-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2 text-[11px] text-[color:var(--moni-text-secondary)]"><div className="flex flex-wrap gap-x-4 gap-y-1">{row.criado_em ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Aberto em</span> {new Date(row.criado_em).toLocaleDateString('pt-BR')}</span>) : null}{row.card_titulo ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Card</span> {row.card_titulo.trim()}</span>) : null}{row.kanban_nome ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Funil</span> {row.kanban_nome}</span>) : null}{row.franqueado_nome ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Franqueado</span> {row.franqueado_nome.trim()}</span>) : null}</div>{row.descricao ? (<p className="mt-1.5 leading-relaxed text-[color:var(--moni-text-secondary)]">{row.descricao}</p>) : null}</div>) : null}
@@ -1755,10 +1755,7 @@ function InteracoesListaInner({
                                 status={sel === 'concluida' ? 'concluida' : sel}
                                 showOkText={false}
                               />
-                              {sel === 'em_andamento' ? (
-                                <span className="min-w-[8rem] rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-2 py-1 text-center text-xs text-[color:var(--moni-text-secondary)]">Em andamento</span>
-                              ) : (
-                                <SelectMoni
+                              <SelectMoni
                                   value={sel}
                                   disabled={pending}
                                   onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)}
@@ -1766,9 +1763,9 @@ function InteracoesListaInner({
                                   aria-label="Status do chamado"
                                 >
                                   <option value="pendente">A fazer</option>
+                                  <option value="em_andamento">Em andamento</option>
                                   <option value="concluida">Concluída</option>
                                 </SelectMoni>
-                              )}
                             </div>
                           </div>
 

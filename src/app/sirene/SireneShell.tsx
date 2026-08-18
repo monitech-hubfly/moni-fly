@@ -10,6 +10,7 @@ const TABS_BASE = [
   { href: '/sirene/relatorio', label: 'Relatório' },
   { href: '/sirene/proximas-atividades', label: 'Próximas Atividades' },
   { href: '/sirene/pericias', label: 'Perícias (Caneta Verde)' },
+  { href: '/sirene/graficos', label: 'Gráficos' },
 ] as const;
 
 type Props = {
@@ -42,6 +43,8 @@ export function SireneShell({ userName, isBombeiro, children }: Props) {
           ? '/sirene/proximas-atividades'
           : pathname?.startsWith('/sirene/pericias')
           ? '/sirene/pericias'
+          : pathname?.startsWith('/sirene/graficos')
+          ? '/sirene/graficos'
           : pathname?.startsWith('/sirene/monitor')
             ? '/sirene/monitor'
             : pathname?.startsWith('/sirene/kanban')
