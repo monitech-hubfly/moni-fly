@@ -49,6 +49,38 @@ function isoWeekToDates(week: number, year: number): { label: string; range: str
   return { label: `S${week}`, range: `${fmt(weekStart)}-${fmt(weekEnd)}` };
 }
 
+// ── Helpers para indicadores is_projeto_relativo ──────────────────────────────
+function ultimoDiaSemanaISO(semana: number, ano: number): Date {
+  const jan4  = new Date(ano, 0, 4);
+  const dow   = (jan4.getDay() + 6) % 7;
+  const start = new Date(jan4);
+  start.setDate(jan4.getDate() - dow + (semana - 1) * 7);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6); // domingo
+  return end;
+}
+
+function calcEsperadoPct(
+  dataInicio: string | null | undefined,
+  dataFim: string | null | undefined,
+  diasUteis: number | null | undefined,
+  refDate: Date,
+): number | null {
+  if (!dataInicio || !dataFim || !diasUteis || diasUteis <= 0) return null;
+  const ref   = new Date(refDate); ref.setHours(0, 0, 0, 0);
+  const inicio = new Date(dataInicio + 'T00:00:00');
+  const fim    = new Date(dataFim    + 'T00:00:00');
+  if (ref < inicio) return 0;
+  if (ref > fim)    return 100;
+  let count = 0;
+  const d = new Date(inicio);
+  while (d <= ref) {
+    if (d.getDay() !== 0 && d.getDay() !== 6) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return Math.min(100, Math.round((count / diasUteis) * 100));
+}
+
 // ── Faixas legend ─────────────────────────────────────────────────────────────
 type FaixaItem = { cor: string; limite: string; comparacao: string };
 
@@ -84,6 +116,25 @@ function FaixasLegenda({ faixas }: { faixas: FaixaItem[] }) {
           </span>
         );
       })}
+    </div>
+  );
+}
+
+// ── Faixas legend para is_projeto_relativo (limiares fixos sobre razão) ───────
+function FaixasLegendaProjeto() {
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {([
+        { cor: 've' as const, label: '≥75%' },
+        { cor: 'vc' as const, label: '≥60%' },
+        { cor: 'am' as const, label: '≥30%' },
+        { cor: 'vm' as const, label: '<30%' },
+      ]).map(({ cor, label }) => (
+        <span key={cor} className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+          style={{ backgroundColor: FAROL_HEX[cor], color: FAROL_TEXT[cor] }}>
+          {label}
+        </span>
+      ))}
     </div>
   );
 }
@@ -379,8 +430,19 @@ function IndicadorLinha({
   useEffect(() => { setValorEditAtual(ind.valorAtual ?? '');       }, [ind.valorAtual]);
   useEffect(() => { setValorEditAnterior(ind.valorAnterior ?? ''); }, [ind.valorAnterior]);
 
-  const faixas = (ind.semaforo_faixas as { faixas?: FaixaItem[] } | null)?.faixas ?? [];
-  const isEq   = faixas.length > 0 && faixas.every(f => f.comparacao === 'eq');
+  type RawSf = { is_projeto_relativo?: boolean; data_inicio?: string; data_fim?: string; dias_uteis?: number; faixas?: FaixaItem[] };
+  const rawSf            = ind.semaforo_faixas as RawSf | null;
+  const faixas           = rawSf?.faixas ?? [];
+  const isEq             = faixas.length > 0 && faixas.every(f => f.comparacao === 'eq');
+  const isProjetoRelativo = Boolean(rawSf?.is_projeto_relativo);
+
+  // % esperado por semana (apenas para is_projeto_relativo)
+  const esperadoAtual    = isProjetoRelativo
+    ? calcEsperadoPct(rawSf?.data_inicio, rawSf?.data_fim, rawSf?.dias_uteis, new Date())
+    : null;
+  const esperadoAnterior = isProjetoRelativo && anoRelativo > 0
+    ? calcEsperadoPct(rawSf?.data_inicio, rawSf?.data_fim, rawSf?.dias_uteis, ultimoDiaSemanaISO(semanaAnterior, anoRelativo))
+    : null;
 
   const infoAtual    = anoRelativo > 0 ? isoWeekToDates(semanaAtual,    anoRelativo) : { label: `S${semanaAtual}`,    range: '' };
   const infoAnterior = anoRelativo > 0 ? isoWeekToDates(semanaAnterior, anoRelativo) : { label: `S${semanaAnterior}`, range: '' };
@@ -420,11 +482,12 @@ function IndicadorLinha({
   };
 
   const CelulaLancamento = ({
-    isAtual, info, hex, valor, setValor, salvando, onLancarFn,
+    isAtual, info, hex, valor, setValor, salvando, onLancarFn, esperadoPct,
   }: {
     isAtual: boolean; info: { label: string; range: string };
     hex: string; valor: string; setValor: (v: string) => void;
     salvando: boolean; onLancarFn: (val?: string) => Promise<void>;
+    esperadoPct?: number | null;
   }) => {
     const temValor = !!valor.trim();
     const bg       = temValor ? hex : VAZIO_HEX;
@@ -432,11 +495,14 @@ function IndicadorLinha({
     const baseInput = 'w-full text-xs font-semibold rounded px-1.5 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors disabled:opacity-60';
     return (
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1 mb-1">
+        <div className="flex items-center gap-1 mb-0.5">
           <span className="text-[9px] font-semibold text-gray-600">{info.label}</span>
           {isAtual && <span className="text-[8px] text-yellow-500 font-bold">★</span>}
           {info.range && <span className="text-[8px] text-gray-400">{info.range}</span>}
         </div>
+        {esperadoPct !== null && esperadoPct !== undefined && (
+          <div className="text-[8px] text-gray-400 font-medium mb-0.5">esp: {esperadoPct}%</div>
+        )}
         {isEq ? (
           <select disabled={!podeEditar || salvando} value={valor}
             onChange={e => { setValor(e.target.value); void onLancarFn(e.target.value); }}
@@ -465,7 +531,7 @@ function IndicadorLinha({
       <div className="flex items-center gap-1.5 flex-wrap min-w-0">
         {ind.indicador_chave && <span className="text-[11px] leading-none flex-shrink-0">🔑</span>}
         <span className="text-xs text-gray-700 leading-snug flex-1 min-w-0">{ind.nome}</span>
-        {faixas.length > 0 && <FaixasLegenda faixas={faixas} />}
+        {isProjetoRelativo ? <FaixasLegendaProjeto /> : faixas.length > 0 && <FaixasLegenda faixas={faixas} />}
         {/* Responsável / botão assumir */}
         {isMeu ? (
           <span className="text-[10px] px-1.5 py-0.5 rounded border bg-blue-100 text-blue-700 border-blue-300 whitespace-nowrap flex-shrink-0">
@@ -490,12 +556,14 @@ function IndicadorLinha({
             isAtual={false} info={infoAnterior} hex={hexAnterior}
             valor={valorEditAnterior} setValor={setValorEditAnterior}
             salvando={salvandoAnterior} onLancarFn={handleLancarAnterior}
+            esperadoPct={esperadoAnterior}
           />
           <div className="w-px bg-gray-200 self-stretch flex-shrink-0" />
           <CelulaLancamento
             isAtual info={infoAtual} hex={hexAtual}
             valor={valorEditAtual} setValor={setValorEditAtual}
             salvando={salvandoAtual} onLancarFn={handleLancarAtual}
+            esperadoPct={esperadoAtual}
           />
         </div>
       )}
