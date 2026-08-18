@@ -120,12 +120,12 @@ export async function pushParaGCal(ganttId: string): Promise<void> {
     const allAttendees = [...new Set([organizerEmail, ...internalEmails, ...externalEmails])]
       .map(email => ({ email }));
 
-    // Montar horários
+    // Montar horários (slice(0,5) garante "HH:MM" — Supabase retorna "HH:MM:SS")
     const data: string = gantt.data; // YYYY-MM-DD
-    const horaInicio: string = gantt.hora_inicio ?? '00:00';
+    const horaInicio: string = (gantt.hora_inicio ?? '00:00').slice(0, 5);
     let horaFim: string;
     if (gantt.hora_fim) {
-      horaFim = gantt.hora_fim;
+      horaFim = (gantt.hora_fim as string).slice(0, 5);
     } else {
       // hora_inicio + 1h
       const [h, m] = horaInicio.split(':').map(Number);
