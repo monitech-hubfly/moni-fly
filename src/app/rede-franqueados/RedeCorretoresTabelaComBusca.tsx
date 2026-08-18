@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Pencil } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Pencil, Check } from 'lucide-react'
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca'
 import { redeTh } from '@/app/rede-franqueados/rede-ui'
+import { aprovarRedeCorretor } from '@/app/rede-franqueados/rede-corretores-actions'
 import { RedeCorretorFichaModal } from '@/components/RedeCorretorFichaModal'
 import { labelBanco } from '@/lib/bancos-br'
 import {
@@ -23,6 +25,8 @@ type Props = {
 export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao = 0 }: Props) {
   const [busca, setBusca] = useState('')
   const [modalRow, setModalRow] = useState<RedeCorretorRow | null | undefined>(undefined)
+  const [aprovandoId, setAprovandoId] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     if (solicitarCriacao > 0) setModalRow(null)
@@ -33,6 +37,13 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
     const base = q ? rows.filter((r) => redeCorretorRowMatchesBusca(r, q)) : rows
     return ordenarRedeCorretoresPorCodigo(base)
   }, [rows, busca])
+
+  async function aprovar(id: string) {
+    setAprovandoId(id)
+    await aprovarRedeCorretor(id)
+    setAprovandoId(null)
+    router.refresh()
+  }
 
   return (
     <div className="space-y-4">
@@ -53,6 +64,7 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
               <th className={redeTh}>Nome / Razão social</th>
               <th className={redeTh}>CPF/CNPJ</th>
               <th className={redeTh}>CRECI</th>
+              <th className={redeTh}>Atuação</th>
               <th className={redeTh}>Tipo</th>
               <th className={redeTh}>Contato</th>
               <th className={redeTh}>Banco</th>
@@ -63,7 +75,7 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
           <tbody>
             {rowsFiltradas.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-sm text-stone-500">
+                <td colSpan={10} className="px-3 py-8 text-center text-sm text-stone-500">
                   {busca.trim()
                     ? 'Nenhum corretor encontrado para essa busca.'
                     : 'Nenhum corretor cadastrado ainda. Clique em “Novo Corretor” para adicionar o primeiro.'}
@@ -81,6 +93,17 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-stone-700">
                     {[row.creci_numero, row.creci_uf].filter(Boolean).join(' / ') || '—'}
+                  </td>
+                  <td className="max-w-[10rem] px-3 py-2.5 text-stone-700">
+                    {(row.atuacao_ufs ?? []).length > 0
+                      ? (row.atuacao_ufs ?? []).join(', ')
+                      : '—'}
+                    {(row.atuacao_cidades ?? []).length > 0 ? (
+                      <div className="mt-0.5 text-[10px] text-stone-500">
+                        {(row.atuacao_cidades ?? []).length} cidade
+                        {(row.atuacao_cidades ?? []).length === 1 ? '' : 's'}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2.5 text-stone-700">
                     {row.creci_tipo_registro
@@ -100,14 +123,27 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
                     {REDE_CORRETOR_STATUS_LABEL[row.status] ?? row.status}
                   </td>
                   <td className="px-2 py-2.5">
-                    <button
-                      type="button"
-                      title="Editar ficha"
-                      onClick={() => setModalRow(row)}
-                      className="rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-0.5">
+                      {row.status === 'pendente' ? (
+                        <button
+                          type="button"
+                          title="Aprovar cadastro"
+                          disabled={aprovandoId === row.id}
+                          onClick={() => void aprovar(row.id)}
+                          className="rounded-md p-1.5 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        title="Editar ficha"
+                        onClick={() => setModalRow(row)}
+                        className="rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

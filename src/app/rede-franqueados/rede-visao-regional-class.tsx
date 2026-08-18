@@ -126,7 +126,7 @@ export function RedeVisaoRegionalClassificacao({
             {operacao}
           </p>
           <p className="mt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-            {pct(operacao, total)} da rede
+            {pct(operacao, total)} dos franqueados
           </p>
           <p className="mt-2 text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
             Em operação
@@ -142,7 +142,7 @@ export function RedeVisaoRegionalClassificacao({
             {operacao}
           </p>
           <p className="mt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-            {pct(operacao, total)} da rede
+            {pct(operacao, total)} dos franqueados
           </p>
           <p className="mt-2 text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
             Em operação
@@ -155,7 +155,7 @@ export function RedeVisaoRegionalClassificacao({
             {transferencia}
           </p>
           <p className="mt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-            {pct(transferencia, total)} da rede
+            {pct(transferencia, total)} dos franqueados
           </p>
           <p className="mt-2 text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
             Em Transferência
@@ -171,7 +171,7 @@ export function RedeVisaoRegionalClassificacao({
             {transferencia}
           </p>
           <p className="mt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-            {pct(transferencia, total)} da rede
+            {pct(transferencia, total)} dos franqueados
           </p>
           <p className="mt-2 text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
             Em Transferência
@@ -189,7 +189,7 @@ export function RedeVisaoRegionalClassificacao({
             Franquias por regional
           </p>
           <p className="mb-3 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-            Distribuição da rede filtrada.
+            Distribuição dos franqueados filtrados.
           </p>
           <div className="list-none space-y-2">
             {regionalArr.slice(0, 8).map(([regional, count]) => (

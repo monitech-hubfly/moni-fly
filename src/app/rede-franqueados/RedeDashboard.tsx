@@ -398,7 +398,7 @@ export function RedeDashboard({
           className="m-0 flex h-8 shrink-0 items-center text-sm font-semibold leading-none"
           style={{ color: 'var(--moni-text-primary)' }}
         >
-          Visão geral
+          Visão geral — Rede de Franqueados
         </h3>
         {!visaoFranqueado ? (
           <div className="flex flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
@@ -484,7 +484,7 @@ export function RedeDashboard({
                 {total}
               </p>
               <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Rede ativa
+                Rede de Franqueados
               </p>
             </KpiShell>
             <KpiShell
@@ -500,7 +500,7 @@ export function RedeDashboard({
                 {transferencia}
               </p>
               <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                {pct(transferencia, totalGeral)} da rede
+                {pct(transferencia, totalGeral)} dos franqueados
               </p>
             </KpiShell>
             <KpiShell
@@ -514,7 +514,7 @@ export function RedeDashboard({
                 {encerradas}
               </p>
               <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                {pct(encerradas, totalGeral)} da rede
+                {pct(encerradas, totalGeral)} dos franqueados
               </p>
             </KpiShell>
             <KpiShell

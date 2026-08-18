@@ -121,6 +121,7 @@ export async function updateSession(request: NextRequest) {
     '/manutencoes',
     '/dashboard-novos-negocios',
     '/rede-franqueados',
+    '/corretores',
     '/comunidade',
     '/repositorio',
     '/perfil',

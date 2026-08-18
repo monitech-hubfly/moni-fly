@@ -26,13 +26,13 @@ export function RedeCorretorFichaModal({ row = null, onClose }: Props) {
   const router = useRouter()
   const criar = !row
   const [draft, setDraft] = useState<RedeCorretorFichaDraft>(() =>
-    row ? redeCorretorRowToFichaDraft(row) : emptyRedeCorretorFichaDraft('em_analise'),
+    row ? redeCorretorRowToFichaDraft(row) : emptyRedeCorretorFichaDraft('ativo'),
   )
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
   useEffect(() => {
-    setDraft(row ? redeCorretorRowToFichaDraft(row) : emptyRedeCorretorFichaDraft('em_analise'))
+    setDraft(row ? redeCorretorRowToFichaDraft(row) : emptyRedeCorretorFichaDraft('ativo'))
   }, [row])
 
   useEffect(() => {

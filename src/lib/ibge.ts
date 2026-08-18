@@ -1,3 +1,32 @@
+const IBGE_BASE = 'https://servicodados.ibge.gov.br/api/v1/localidades'
+
+export type CidadeIbgeLite = { id: number; nome: string; uf: string }
+
+/**
+ * Busca municípios de uma ou mais UFs (API Localidades IBGE).
+ */
+export async function fetchMunicipiosPorUfs(
+  ufs: string[],
+  signal?: AbortSignal,
+): Promise<CidadeIbgeLite[]> {
+  const unicos = [...new Set(ufs.map((u) => u.trim().toUpperCase()).filter((u) => u.length === 2))]
+  if (unicos.length === 0) return []
+
+  const resultados = await Promise.all(
+    unicos.map(async (uf) => {
+      const res = await fetch(`${IBGE_BASE}/estados/${uf}/municipios`, { signal })
+      if (!res.ok) return [] as CidadeIbgeLite[]
+      const lista = (await res.json()) as { id: number; nome: string }[]
+      if (!Array.isArray(lista)) return []
+      return lista.map((m) => ({ id: m.id, nome: m.nome, uf }))
+    }),
+  )
+
+  return resultados
+    .flat()
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }))
+}
+
 /**
  * Dados do município retornados pela API de Localidades do IBGE.
  * https://servicodados.ibge.gov.br/api/docs/localidades
@@ -12,8 +41,6 @@ export type MunicipioIbge = {
   regiao: { id: number; nome: string; sigla: string };
   uf: { id: number; nome: string; sigla: string };
 };
-
-const IBGE_BASE = 'https://servicodados.ibge.gov.br/api/v1/localidades';
 
 function normalizar(texto: string): string {
   return texto

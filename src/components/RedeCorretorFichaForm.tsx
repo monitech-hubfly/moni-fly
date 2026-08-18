@@ -23,6 +23,7 @@ import {
   type RedeCorretorTipoRegistro,
 } from '@/lib/rede-corretores'
 import { UFS_BRASIL } from '@/lib/uf'
+import { CorretorAreaAtuacaoFields } from '@/components/CorretorAreaAtuacaoFields'
 
 const inputCls = 'w-full min-w-0 rounded-md border border-stone-300 px-3 py-2 text-sm'
 const labelCls = 'mb-1 block text-xs font-medium text-stone-600'
@@ -182,6 +183,12 @@ export function RedeCorretorFichaForm({ draft, onChange, showStatus = true }: Pr
           </Field>
         </div>
       </fieldset>
+
+      <CorretorAreaAtuacaoFields
+        ufs={draft.atuacao_ufs}
+        cidades={draft.atuacao_cidades}
+        onChange={onChange}
+      />
 
       <fieldset className="space-y-3">
         <legend className={legendCls}>Contato</legend>

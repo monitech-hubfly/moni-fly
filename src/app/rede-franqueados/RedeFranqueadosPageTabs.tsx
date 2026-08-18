@@ -301,6 +301,7 @@ export function RedeFranqueadosPageTabs({
                 <NovoRegistroToolbarButton
                   label="Novo Corretor"
                   onClick={() => setCorretorCreateTick((n) => n + 1)}
+                  href="/corretores/novo"
                 />
               </RedeCorretoresTabelaComBusca>
             )}

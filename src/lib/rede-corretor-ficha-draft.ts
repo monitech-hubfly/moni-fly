@@ -5,6 +5,7 @@ import {
   maskTelefoneCelular,
 } from '@/lib/br-docs'
 import type {
+  RedeCorretorCidadeAtuacao,
   RedeCorretorContaTipo,
   RedeCorretorPatch,
   RedeCorretorRow,
@@ -21,6 +22,8 @@ export type RedeCorretorFichaDraft = {
   creci_validade: string
   email: string
   telefone: string
+  atuacao_ufs: string[]
+  atuacao_cidades: RedeCorretorCidadeAtuacao[]
   conta_banco_codigo: string
   conta_agencia: string
   conta_numero: string
@@ -32,8 +35,23 @@ export type RedeCorretorFichaDraft = {
   observacoes: string
 }
 
+function normalizeCidades(raw: unknown): RedeCorretorCidadeAtuacao[] {
+  if (!Array.isArray(raw)) return []
+  const out: RedeCorretorCidadeAtuacao[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const ibge_id = Number(o.ibge_id ?? o.id)
+    const nome = String(o.nome ?? '').trim()
+    const uf = String(o.uf ?? '').trim().toUpperCase()
+    if (!Number.isFinite(ibge_id) || !nome || uf.length !== 2) continue
+    out.push({ ibge_id, nome, uf })
+  }
+  return out
+}
+
 export function emptyRedeCorretorFichaDraft(
-  status: RedeCorretorStatus = 'em_analise',
+  status: RedeCorretorStatus = 'ativo',
 ): RedeCorretorFichaDraft {
   return {
     nome: '',
@@ -44,6 +62,8 @@ export function emptyRedeCorretorFichaDraft(
     creci_validade: '',
     email: '',
     telefone: '',
+    atuacao_ufs: [],
+    atuacao_cidades: [],
     conta_banco_codigo: '',
     conta_agencia: '',
     conta_numero: '',
@@ -57,6 +77,9 @@ export function emptyRedeCorretorFichaDraft(
 }
 
 export function redeCorretorRowToFichaDraft(row: RedeCorretorRow): RedeCorretorFichaDraft {
+  const ufs = Array.isArray(row.atuacao_ufs)
+    ? row.atuacao_ufs.map((u) => String(u).trim().toUpperCase()).filter(Boolean)
+    : []
   return {
     nome: row.nome ?? '',
     cpf_cnpj: row.cpf_cnpj ? maskCpfCnpj(row.cpf_cnpj) : '',
@@ -66,6 +89,8 @@ export function redeCorretorRowToFichaDraft(row: RedeCorretorRow): RedeCorretorF
     creci_validade: row.creci_validade ? String(row.creci_validade).slice(0, 10) : '',
     email: row.email ?? '',
     telefone: row.telefone ? maskTelefoneCelular(row.telefone) : '',
+    atuacao_ufs: ufs,
+    atuacao_cidades: normalizeCidades(row.atuacao_cidades),
     conta_banco_codigo: row.conta_banco_codigo ?? '',
     conta_agencia: row.conta_agencia ?? '',
     conta_numero: row.conta_numero ?? '',
@@ -95,6 +120,8 @@ export function redeCorretorFichaDraftToPatch(draft: RedeCorretorFichaDraft): Re
     creci_validade: emptyToNull(draft.creci_validade),
     email: emptyToNull(draft.email),
     telefone: emptyToNull(draft.telefone),
+    atuacao_ufs: draft.atuacao_ufs,
+    atuacao_cidades: draft.atuacao_cidades,
     conta_banco_codigo: emptyToNull(draft.conta_banco_codigo),
     conta_agencia: emptyToNull(draft.conta_agencia),
     conta_numero: emptyToNull(draft.conta_numero),

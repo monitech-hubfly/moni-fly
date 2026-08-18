@@ -3,7 +3,7 @@
 import type { createClient } from '@/lib/supabase/server'
 import type { PixTipo } from '@/lib/br-docs'
 
-export type RedeCorretorStatus = 'ativo' | 'inativo' | 'em_analise'
+export type RedeCorretorStatus = 'ativo' | 'inativo' | 'em_analise' | 'pendente'
 
 export type RedeCorretorTipoRegistro =
   | 'estagiario'
@@ -11,6 +11,12 @@ export type RedeCorretorTipoRegistro =
   | 'corretor_titular'
 
 export type RedeCorretorContaTipo = 'corrente' | 'poupanca'
+
+export type RedeCorretorCidadeAtuacao = {
+  ibge_id: number
+  nome: string
+  uf: string
+}
 
 export type RedeCorretorRow = {
   id: string
@@ -24,6 +30,8 @@ export type RedeCorretorRow = {
   creci_validade: string | null
   email: string | null
   telefone: string | null
+  atuacao_ufs: string[] | null
+  atuacao_cidades: RedeCorretorCidadeAtuacao[] | null
   conta_banco_codigo: string | null
   conta_banco_nome: string | null
   conta_agencia: string | null
@@ -49,6 +57,8 @@ export type RedeCorretorPatch = Partial<{
   creci_validade: string | null
   email: string | null
   telefone: string | null
+  atuacao_ufs: string[] | null
+  atuacao_cidades: RedeCorretorCidadeAtuacao[] | null
   conta_banco_codigo: string | null
   conta_banco_nome: string | null
   conta_agencia: string | null
@@ -66,6 +76,7 @@ export const REDE_CORRETOR_STATUS_LABEL: Record<RedeCorretorStatus, string> = {
   ativo: 'Ativo',
   inativo: 'Inativo',
   em_analise: 'Em análise',
+  pendente: 'Pendente',
 }
 
 export const REDE_CORRETOR_TIPO_REGISTRO_LABEL: Record<RedeCorretorTipoRegistro, string> = {
@@ -103,6 +114,8 @@ export function redeCorretorRowMatchesBusca(row: RedeCorretorRow, busca: string)
     row.conta_titular,
     row.status,
     REDE_CORRETOR_STATUS_LABEL[row.status],
+    ...(row.atuacao_ufs ?? []),
+    ...(row.atuacao_cidades ?? []).map((c) => `${c.nome} ${c.uf}`),
   ]
   return parts.some((p) => normalizarParaBuscaCorretor(String(p ?? '')).includes(q))
 }
@@ -121,7 +134,7 @@ export function ordenarRedeCorretoresPorCodigo(rows: RedeCorretorRow[]): RedeCor
 }
 
 const SELECT_COLS =
-  'id, n_corretor, ordem, nome, cpf_cnpj, creci_numero, creci_uf, creci_tipo_registro, creci_validade, email, telefone, conta_banco_codigo, conta_banco_nome, conta_agencia, conta_numero, conta_tipo, conta_titular, conta_pix_tipo, conta_pix_chave, status, observacoes, criado_por, ultima_atualizacao_por, created_at, updated_at'
+  'id, n_corretor, ordem, nome, cpf_cnpj, creci_numero, creci_uf, creci_tipo_registro, creci_validade, email, telefone, atuacao_ufs, atuacao_cidades, conta_banco_codigo, conta_banco_nome, conta_agencia, conta_numero, conta_tipo, conta_titular, conta_pix_tipo, conta_pix_chave, status, observacoes, criado_por, ultima_atualizacao_por, created_at, updated_at'
 
 export async function fetchRedeCorretoresRows(
   supabase: Awaited<ReturnType<typeof createClient>>,

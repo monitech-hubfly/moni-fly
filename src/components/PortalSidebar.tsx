@@ -27,7 +27,6 @@ function getInicialNome(fullName: string | null | undefined): string {
 type NavItem = { href: string; label: string };
 const REDE_FRANQUEADOS_SUBITENS: NavItem[] = [
   { href: '/rede-franqueados', label: 'Rede Casa Moní' },
-  { href: '/rede-franqueados?tab=corretores', label: 'Cadastro de Corretor' },
   { href: '/comunidade', label: 'Comunidade' },
   { href: '/rede', label: 'Rede de Contatos' },
 ];
@@ -81,6 +80,7 @@ function filterRedeFranqueadosSubitensParaProd(items: NavItem[], showDevNav: boo
 function isRedeFranqueadosActive(pathname: string) {
   if (
     pathname.startsWith('/rede-franqueados') ||
+    pathname.startsWith('/corretores') ||
     pathname.startsWith('/comunidade') ||
     pathname.startsWith('/portal-frank/rede')
   ) {
@@ -341,11 +341,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
               );
             }
             if (href === '/rede-franqueados') {
-              const tab = searchParams.get('tab');
-              return (
-                Boolean(pathname?.startsWith('/rede-franqueados')) &&
-                tab !== 'corretores'
-              );
+              return Boolean(pathname?.startsWith('/rede-franqueados'));
             }
             return pathname?.startsWith(href) ?? false;
           },

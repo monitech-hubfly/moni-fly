@@ -10,6 +10,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/hub-funis',
   '/dashboard',
   '/rede-franqueados',
+  '/corretores',
   '/comunidade',
   '/treinamento-bca',
   '/pre-batalha',
@@ -187,6 +188,7 @@ export function isExternalTokenAccessPath(pathname: string): boolean {
   return (
     pathname.startsWith('/formulario-candidato/') ||
     pathname.startsWith('/loteador/') ||
+    pathname.startsWith('/cadastro/corretor') ||
     pathname.startsWith('/public/forms/') ||
     pathname.startsWith('/api/public/') ||
     pathname.startsWith('/api/candidato/') ||
