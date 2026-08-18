@@ -87,12 +87,13 @@ export async function pushParaGCal(ganttId: string): Promise<void> {
     const adminDb = createAdminClient();
 
     const { data: gantt } = await (adminDb.from('gantt_planejamento') as any)
-      .select('id, titulo, data, hora_inicio, hora_fim, link_reuniao, local_reuniao, origem, gcal_hubfly_push_id, gcal_hubfly_organizer_email, profile_id, participantes_externos, acoes(tipo_atividade)')
+      .select('id, titulo, data, hora_inicio, hora_fim, link_reuniao, local_reuniao, origem, recorrente, gcal_hubfly_push_id, gcal_hubfly_organizer_email, profile_id, participantes_externos, acoes(tipo_atividade)')
       .eq('id', ganttId)
       .maybeSingle();
 
     if (!gantt) return;
     if (gantt.origem === 'google_calendar') return;
+    if (gantt.recorrente === true) return; // não empurrar ocorrências de séries recorrentes
 
     // Buscar email do organizador
     const { data: { user: organizer } } = await adminDb.auth.admin.getUserById(gantt.profile_id);
