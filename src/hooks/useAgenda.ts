@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { deletarDoGCal } from '@/lib/actions/agenda-gcal';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
 
 export type AtividadeAgenda = {
@@ -366,6 +367,7 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
   }, [supabase]);
 
   const excluir = useCallback(async (id: string) => {
+    void deletarDoGCal(id).catch(e => console.warn('[gcal-delete]', e));
     await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', id);
     const { error } = await supabase.from('gantt_planejamento').delete().eq('id', id);
     if (error) throw error;

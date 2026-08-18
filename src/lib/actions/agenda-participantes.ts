@@ -119,13 +119,11 @@ export async function responderConvite(
 
   if (error) return { ok: false, error: error.message };
 
-  // Se proposta de horário: notificar organizador
+  // Notificar organizador e marcar alerta como lido
   if (novoStatus === 'proposta_horario' && proposta) {
     await notificarOrganizerProposta(ganttId, user.id, proposta);
-  }
-
-  // Se aceitou ou recusou: marcar alertas de convite como lidos
-  if (novoStatus === 'aceito' || novoStatus === 'recusado') {
+  } else if (novoStatus === 'aceito' || novoStatus === 'recusado') {
+    await notificarOrganizerResposta(ganttId, user.id, novoStatus);
     await supabase
       .from('alertas')
       .update({ lido: true })
@@ -185,6 +183,52 @@ async function notificarOrganizerProposta(
     });
   } catch (e) {
     console.error('[notificarOrganizerProposta]', e);
+  }
+}
+
+// ── Notificar organizador sobre aceite ou recusa ───────────────────────────
+async function notificarOrganizerResposta(
+  ganttId: string,
+  respondeuId: string,
+  status: 'aceito' | 'recusado',
+): Promise<void> {
+  const supabase = await createClient();
+  try {
+    const { data: gantt } = await supabase
+      .from('gantt_planejamento')
+      .select('profile_id, titulo, acoes(tipo_atividade)')
+      .eq('id', ganttId)
+      .maybeSingle();
+
+    const organizadorId = (gantt?.profile_id as string | null);
+    if (!organizadorId || organizadorId === respondeuId) return;
+
+    const acao = gantt?.acoes
+      ? (Array.isArray(gantt.acoes) ? gantt.acoes[0] : gantt.acoes)
+      : null;
+    const titulo = (acao as { tipo_atividade?: string } | null)?.tipo_atividade
+      ?? (gantt?.titulo as string | null) ?? '(sem título)';
+
+    const { data: profData } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', respondeuId)
+      .maybeSingle();
+    const nome = (profData as { full_name?: string | null } | null)?.full_name ?? 'Um participante';
+
+    const emoji  = status === 'aceito' ? '✓' : '✕';
+    const rotulo = status === 'aceito' ? 'confirmou presença' : 'recusou o convite';
+
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const adminDb = createAdminClient();
+    await adminDb.from('alertas').insert({
+      user_id:        organizadorId,
+      tipo:           'resposta_convite_agenda',
+      mensagem:       `${emoji} ${nome} ${rotulo} em "${titulo}".`,
+      referencia_path: `/carometro/todo-planning`,
+    });
+  } catch (e) {
+    console.error('[notificarOrganizerResposta]', e);
   }
 }
 

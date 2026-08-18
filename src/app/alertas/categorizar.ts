@@ -15,6 +15,7 @@ export function categorizarAlerta(tipo: string): CategoriaAlerta {
     tipo === 'mencao_agenda_comentario' ||
     tipo === 'convite_agenda_interno' ||
     tipo === 'proposta_horario_agenda' ||
+    tipo === 'resposta_convite_agenda' ||
     tipo === 'status_preenchimento_lembrete'
   ) return 'planejamento';
   return 'gerais';
@@ -35,7 +36,7 @@ export function priorizarAlerta(tipo: string): PrioridadeAlerta {
     tipo === 'aprovacao_fase' ||
     tipo === 'acoplamento_novo_projeto'
   ) return 'critico';
-  if (tipo === 'proposta_horario_agenda') return 'importante';
+  if (tipo === 'proposta_horario_agenda' || tipo === 'resposta_convite_agenda') return 'importante';
   if (
     tipo === 'sla_atividade_atencao' ||
     tipo === 'kanban_atividade_atualizada' ||

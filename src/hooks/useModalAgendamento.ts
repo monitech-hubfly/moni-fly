@@ -7,6 +7,7 @@ import { registrarLog } from '@/hooks/useAuditLog';
 import type { DadosAgendamento, RecorrenciaConfig } from '@/components/carometro/todo/ModalAgendamento';
 import { gerarOcorrencias } from '@/components/carometro/todo/ModalAgendamento';
 import { enviarConvitesInternos } from '@/lib/actions/agenda-participantes';
+import { pushParaGCal } from '@/lib/actions/agenda-gcal';
 
 type Modo = 'criar' | 'editar';
 
@@ -220,6 +221,11 @@ export function useModalAgendamento(
           descricao: `Nova atividade agendada para ${dados.data ?? ''}${datas.length > 1 ? ` (${datas.length} ocorrências)` : ''}`,
         });
 
+        // Push para Google Calendar (best-effort)
+        for (const ganttId of ids) {
+          void pushParaGCal(ganttId).catch(e => console.warn('[gcal-push]', e));
+        }
+
       } else if (editandoId) {
         if ((escopo === 'all' || escopo === 'following') && grupoId) {
           // Atualizar série inteira ou este e seguintes — não altera data de cada ocorrência
@@ -258,6 +264,10 @@ export function useModalAgendamento(
                 );
               }
             }
+          }
+          // Push para Google Calendar (best-effort) — série
+          for (const ganttId of gIds) {
+            void pushParaGCal(ganttId).catch(e => console.warn('[gcal-push]', e));
           }
         } else {
           // Apenas este evento
@@ -301,6 +311,9 @@ export function useModalAgendamento(
             operacao: 'UPDATE',
             descricao: `Atividade atualizada: ${dados.data ?? ''}`,
           });
+
+          // Push para Google Calendar (best-effort)
+          void pushParaGCal(editandoId).catch(e => console.warn('[gcal-push]', e));
         }
       }
 

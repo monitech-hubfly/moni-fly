@@ -142,8 +142,20 @@ async function syncUser(
   const events   = gcalData.items ?? [];
   const eventIds: string[] = [];
 
+  // Buscar IDs de eventos criados pelo HubFly para evitar loop
+  const { data: hubflyPushRows } = await (supabase.from('gantt_planejamento') as any)
+    .select('gcal_hubfly_push_id')
+    .eq('profile_id', userId)
+    .not('gcal_hubfly_push_id', 'is', null);
+
+  const hubflyPushIds = new Set<string>(
+    ((hubflyPushRows ?? []) as { gcal_hubfly_push_id: string }[])
+      .map(r => r.gcal_hubfly_push_id)
+  );
+
   for (const ev of events) {
     if (!ev.id || !ev.start) continue;
+    if (hubflyPushIds.has(ev.id)) continue; // skip eventos originados no HubFly
     eventIds.push(ev.id);
 
     const isAllDay   = !ev.start.dateTime;
