@@ -28,15 +28,14 @@ export async function GET(_request: Request) {
 
   const results: { id: string; ok: boolean }[] = [];
 
-  for (const id of ids) {
-    try {
-      await pushParaGCal(id);
-      results.push({ id, ok: true });
-    } catch {
-      results.push({ id, ok: false });
+  // Processar em lotes de 5 em paralelo
+  const BATCH = 5;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const batch = ids.slice(i, i + BATCH);
+    const settled = await Promise.allSettled(batch.map(id => pushParaGCal(id)));
+    for (let j = 0; j < batch.length; j++) {
+      results.push({ id: batch[j]!, ok: settled[j]!.status === 'fulfilled' });
     }
-    // Pequena pausa para não estourar rate limit do GCal
-    await new Promise(r => setTimeout(r, 300));
   }
 
   const ok = results.filter(r => r.ok).length;
