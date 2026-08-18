@@ -27,7 +27,6 @@ import {
   Paperclip,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { filterKanbanAtividadeIds } from '@/lib/pastelaria/synthetic-id';
 import { calcularDiasUteis, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import {
   formatMotivoArquivamento,
@@ -279,6 +278,10 @@ import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, augmentKanbanFasesComFasesDosCards, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal, loadHistoricoCalculadoraEsteira, buildVisitsCalculadoraEsteiraSyncGroup } from '@/lib/kanban/kanban-card-historico';
 import {
+  carregarChamadosDoCardModal,
+  fetchKanbanTimesCached,
+} from '@/lib/kanban/carregar-chamados-card-modal';
+import {
   listarComentariosKanbanCard,
   publicarComentarioKanbanCard,
 } from '@/lib/actions/kanban-comentarios';
@@ -309,7 +312,6 @@ import {
 import {
   derivarChamadoKanbanComSubs,
   statusEfetivoChamadoKanban,
-  normalizarStatusInteracaoKanban,
   interacaoPassaFiltroListaSituacao,
   formatDataHoraHistorico,
   iconeHistoricoAcao,
@@ -1155,9 +1157,33 @@ export function KanbanCardModal({
       setDetalhesCarregando(true);
       setChamadosCarregando(true);
       setFonteDadosLaterais(null);
+      setInteracoes([]);
+      setSubInteracoesPorPai({});
+      setErroCarregarChamados(null);
     }
     try {
       const supabase = createClient();
+      const chamadosPromise = carregarChamadosDoCardModal({
+        supabase,
+        cardId,
+        stillCurrent,
+        onTimes: (times) => {
+          if (stillCurrent()) setKanbanTimes(times);
+        },
+        onInteracoes: (rows) => {
+          if (!stillCurrent()) return;
+          setErroCarregarChamados(null);
+          setInteracoes(rows);
+        },
+        onSubs: (porPai) => {
+          if (stillCurrent()) setSubInteracoesPorPai(porPai);
+        },
+      }).then((result) => {
+        if (!stillCurrent()) return result;
+        if (result.error) setErroCarregarChamados(result.error);
+        setChamadosCarregando(false);
+        return result;
+      });
       const fontePromise =
         origem === 'legado'
           ? Promise.resolve(null as FonteDadosLaterais | null)
@@ -1966,15 +1992,12 @@ export function KanbanCardModal({
         })(),
 
         (async () => {
-                let cacheKanbanTimes: KanbanTimeRow[] = [];
                 try {
-                  const { data: kt } = await supabase.from('kanban_times').select('id, nome').order('nome');
-                  cacheKanbanTimes = (kt ?? []).map((r) => ({ id: String(r.id), nome: String(r.nome) }));
-                  setKanbanTimes(cacheKanbanTimes);
+                  const cacheKanbanTimes = await fetchKanbanTimesCached(supabase);
+                  if (stillCurrent()) setKanbanTimes(cacheKanbanTimes);
                 } catch {
-                  setKanbanTimes([]);
+                  if (stillCurrent()) setKanbanTimes([]);
                 }
-                const nomePorTimeId = new Map(cacheKanbanTimes.map((t) => [t.id, t.nome]));
 
                 try {
                   const emailsMoni = [...MONI_TODOS_EMAILS];
@@ -2064,204 +2087,6 @@ export function KanbanCardModal({
                 } catch {
                   // sem token — mantém campo vazio
                 }
-          try {
-                    const interacoesSelect =
-                      'id, titulo, descricao, categoria, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por, arquivado, sirene_chamado_id, numero';
-                    let interacoesData: Record<string, unknown>[] | null = null;
-                    let interacoesError: { message: string } | null = null;
-                    {
-                      const first = await supabase
-                      .from('kanban_atividades')
-                        .select(interacoesSelect)
-                      .eq('card_id', cardId)
-                      .order('ordem', { ascending: true });
-                      interacoesData = (first.data ?? null) as Record<string, unknown>[] | null;
-                      interacoesError = first.error;
-                      if (interacoesError && /ordem/i.test(interacoesError.message)) {
-                        const fallback = await supabase
-                          .from('kanban_atividades')
-                          .select(interacoesSelect)
-                          .eq('card_id', cardId)
-                          .order('created_at', { ascending: true });
-                        interacoesData = (fallback.data ?? null) as Record<string, unknown>[] | null;
-                        interacoesError = fallback.error;
-                      }
-                    }
-
-                    if (interacoesError) {
-                      console.error('[KanbanCardModal] falha ao carregar kanban_atividades', interacoesError);
-                      setErroCarregarChamados(interacoesError.message);
-                      setInteracoes([]);
-                      setSubInteracoesPorPai({});
-                    } else if (!interacoesData?.length) {
-                      setErroCarregarChamados(null);
-                      setInteracoes([]);
-                      setSubInteracoesPorPai({});
-                    } else {
-                      setErroCarregarChamados(null);
-                      const rawRespArrays = interacoesData.map((a) => (a as { responsaveis_ids?: unknown }).responsaveis_ids);
-                      const respFromArrays = rawRespArrays.flatMap((arr) =>
-                        Array.isArray(arr) ? arr.map((x) => String(x)) : [],
-                      );
-                      const responsavelIds = [
-                        ...new Set([
-                          ...interacoesData.map((a) => a.responsavel_id).filter(Boolean),
-                          ...respFromArrays,
-                        ]),
-                      ] as string[];
-                      let responsaveisMap = new Map<string, { full_name: string | null }>();
-                      if (responsavelIds.length > 0) {
-                        const { data: responsaveisData } = await supabase
-                          .from('profiles')
-                          .select('id, full_name')
-                          .in('id', responsavelIds);
-                        responsaveisMap = new Map(responsaveisData?.map((r) => [r.id, { full_name: r.full_name }]) || []);
-                      }
-                      const mapeadas: InteracaoModal[] = interacoesData
-                        .map((a) => {
-                        const rawIds = (a as { times_ids?: unknown }).times_ids;
-                        const ids = Array.isArray(rawIds) ? rawIds.map((x) => String(x)) : [];
-                        const rawR = (a as { responsaveis_ids?: unknown }).responsaveis_ids;
-                        let respIds = Array.isArray(rawR) ? rawR.map((x) => String(x)) : [];
-                        const rid = a.responsavel_id ? String(a.responsavel_id) : null;
-                        if (respIds.length === 0 && rid) respIds = [rid];
-                        const tipoRaw = (a as { tipo?: string }).tipo;
-                        const tipo: 'atividade' | 'duvida' | 'proposicoes' = tipoRaw === 'duvida' ? 'duvida' : tipoRaw === 'proposicoes' ? 'proposicoes' : 'atividade';
-                        const times_resolvidos = ids.map((id) => ({ id, nome: nomePorTimeId.get(id) ?? id.slice(0, 8) }));
-                        const responsaveis_resolvidos = respIds.map((id) => ({
-                          id,
-                          nome: responsaveisMap.get(id)?.full_name?.trim() || id.slice(0, 8),
-                        }));
-                        const primeiroResp = respIds[0] ?? rid;
-                        const cp = (a as { criado_por?: string | null }).criado_por;
-                        const rnt = (a as { responsavel_nome_texto?: string | null }).responsavel_nome_texto;
-                        const responsavel_nome_texto =
-                          rnt != null && String(rnt).trim() !== '' ? String(rnt).trim() : null;
-                        return {
-                          id: String(a.id),
-                          titulo: String(a.titulo ?? ''),
-                          descricao: (a.descricao as string | null) ?? null,
-                          categoria: ((a as { categoria?: string }).categoria === 'melhoria' ? 'melhoria' : 'chamado') as
-                            | 'chamado'
-                            | 'melhoria',
-                          tipo,
-                          times_ids: ids,
-                          responsaveis_ids: respIds,
-                          trava: Boolean((a as { trava?: boolean }).trava),
-                          status: normalizarStatusInteracaoKanban(a.status),
-                          prioridade: (a.prioridade as InteracaoModal['prioridade']) ?? 'normal',
-                          data_vencimento: (a.data_vencimento as string | null) ?? null,
-                          responsavel_id: rid,
-                          responsavel_nome_texto,
-                          time: (a.time as string | null) ?? null,
-                          created_at: String(a.created_at),
-                          concluida_em: (a.concluida_em as string | null) ?? null,
-                          criado_por: cp != null && String(cp).trim() !== '' ? String(cp) : null,
-                          profiles: primeiroResp ? responsaveisMap.get(primeiroResp) ?? null : null,
-                          times_resolvidos,
-                          responsaveis_resolvidos,
-                          arquivado: Boolean((a as { arquivado?: boolean | null }).arquivado),
-                          numero: (() => {
-                            const n = Number((a as { numero?: number | null }).numero);
-                            return Number.isFinite(n) ? n : null;
-                          })(),
-                          sirene_chamado_id: (() => {
-                            const sid = (a as { sirene_chamado_id?: number | string | null }).sirene_chamado_id;
-                            if (sid == null || sid === '') return null;
-                            const n = Number(sid);
-                            return Number.isFinite(n) ? n : null;
-                          })(),
-                        };
-                      })
-                        .filter((a) => !a.arquivado);
-                      setInteracoes(mapeadas);
-
-                      const actIds = filterKanbanAtividadeIds(mapeadas.map((m) => m.id));
-                      const { data: topicosRows } =
-                        actIds.length > 0
-                          ? await supabase
-                              .from('sirene_topicos')
-                              .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, prazo_sla_original, status, trava, pastel, historico, arquivado, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
-                              .eq('arquivado', false)
-                              .in('interacao_id', actIds)
-                              .order('ordem', { ascending: true })
-                          : { data: [] as never[] };
-
-                      const topicos = topicosRows ?? [];
-                      const tRespIds = [
-                        ...new Set(
-                          topicos.flatMap((t) => {
-                            const arr = (t as { responsaveis_ids?: unknown }).responsaveis_ids;
-                            return Array.isArray(arr) ? arr.map((x) => String(x)) : [];
-                          }),
-                        ),
-                      ] as string[];
-                      const tTimeIds = [
-                        ...new Set(
-                          topicos.flatMap((t) => {
-                            const arr = (t as { times_ids?: unknown }).times_ids;
-                            return Array.isArray(arr) ? arr.map((x) => String(x)) : [];
-                          }),
-                        ),
-                      ] as string[];
-                      let profTop = new Map<string, { full_name: string | null }>();
-                      if (tRespIds.length > 0) {
-                        const { data: pr } = await supabase.from('profiles').select('id, full_name').in('id', tRespIds);
-                        profTop = new Map((pr ?? []).map((r) => [String((r as { id: string }).id), { full_name: (r as { full_name?: string | null }).full_name ?? null }]));
-                      }
-                      const timeTopMap = new Map(cacheKanbanTimes.map((t) => [t.id, t.nome]));
-                      const porPai: Record<string, SubInteracaoModal[]> = {};
-                      for (const t of topicos) {
-                        const iid = String((t as { interacao_id: string }).interacao_id);
-                        const rawTi = (t as { times_ids?: unknown }).times_ids;
-                        const ti = Array.isArray(rawTi) ? rawTi.map((x) => String(x)) : [];
-                        const rawRi = (t as { responsaveis_ids?: unknown }).responsaveis_ids;
-                        let ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
-                        const st = String((t as { status?: string }).status ?? 'nao_iniciado') as SubInteracaoStatusDb;
-                        const tipoRaw = String((t as { tipo?: string }).tipo ?? 'atividade').toLowerCase();
-                        const tipoSub: SubInteracaoTipoDb =
-                          tipoRaw === 'duvida' || tipoRaw === 'chamado' || tipoRaw === 'proposicoes' ? (tipoRaw as SubInteracaoTipoDb) : 'atividade';
-                        const row: SubInteracaoModal = {
-                          id: String((t as { id: number }).id),
-                          interacao_id: iid,
-                          tipo: tipoSub,
-                          nome: String((t as { nome?: string }).nome ?? (t as { descricao?: string }).descricao ?? ''),
-                          descricao: String((t as { descricao?: string }).descricao ?? ''),
-                          descricao_detalhe: (t as { descricao_detalhe?: string | null }).descricao_detalhe ?? null,
-                          times_ids: ti,
-                          responsaveis_ids: ri,
-                          times_resolvidos: ti.map((id) => ({ id, nome: timeTopMap.get(id) ?? id.slice(0, 8) })),
-                          responsaveis_resolvidos: ri.map((id) => ({
-                            id,
-                            nome: profTop.get(id)?.full_name?.trim() || id.slice(0, 8),
-                          })),
-                          data_fim: (t as { data_fim?: string | null }).data_fim != null ? String((t as { data_fim: string }).data_fim).slice(0, 10) : null,
-                          ...camposPrazoNegociacaoDeTopicoRow(t as Record<string, unknown>),
-                          status: ['nao_iniciado', 'em_andamento', 'concluido', 'aprovado'].includes(st) ? st : 'nao_iniciado',
-                          trava: Boolean((t as { trava?: boolean }).trava),
-                          pastel: Boolean((t as { pastel?: boolean }).pastel),
-                          historico: Array.isArray((t as { historico?: unknown }).historico)
-                            ? ((t as { historico: Array<{ tipo: string; em: string }> }).historico ?? [])
-                            : [],
-                          atribuicao_status: (t as { atribuicao_status?: string | null }).atribuicao_status ?? null,
-                          atribuicao_recusado_por: (t as { atribuicao_recusado_por?: string | null }).atribuicao_recusado_por ?? null,
-                          atribuicao_justificativa: (t as { atribuicao_justificativa?: string | null }).atribuicao_justificativa ?? null,
-                        };
-                        if (!porPai[iid]) porPai[iid] = [];
-                        porPai[iid]!.push(row);
-                      }
-                      setSubInteracoesPorPai(porPai);
-                    }
-          } catch (e) {
-            console.error('[KanbanCardModal] exceção ao carregar chamados', e);
-            if (stillCurrent()) {
-              setErroCarregarChamados('Erro inesperado ao carregar chamados.');
-              setInteracoes([]);
-              setSubInteracoesPorPai({});
-            }
-          } finally {
-            if (stillCurrent()) setChamadosCarregando(false);
-          }
                 if (origem !== 'legado') {
                   const faseCarregada = fasesParaHistorico.find((f) => f.id === loaded.fase_id);
                   const slugAbertura = faseCarregada?.slug?.trim() ?? '';
@@ -2294,6 +2119,7 @@ export function KanbanCardModal({
                   }
                 }
         })(),
+        chamadosPromise,
       ]);
 
       if (!stillCurrent()) return;
