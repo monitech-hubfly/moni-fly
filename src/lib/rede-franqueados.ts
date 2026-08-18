@@ -81,6 +81,23 @@ export function ordenarRedePorNFranquia<
   return [...rows].sort(compareRedePorNFranquia);
 }
 
+/** Linha sem Nº de franquia e sem nome — não entra na tabela nem nos totais da rede. */
+export function isRedeFranqueadoLinhaEmBranco(row: {
+  n_franquia?: string | number | null;
+  nome_completo?: string | null;
+  nome?: string | null;
+}): boolean {
+  const n = String(row.n_franquia ?? '').trim();
+  const nome = String(row.nome_completo ?? row.nome ?? '').trim();
+  return !n && !nome;
+}
+
+export function filtrarLinhasEmBrancoRedeFranqueados<
+  T extends { n_franquia?: string | number | null; nome_completo?: string | null; nome?: string | null },
+>(rows: T[]): T[] {
+  return rows.filter((r) => !isRedeFranqueadoLinhaEmBranco(r));
+}
+
 export const COLUNAS_REDE_FRANQUEADOS = [
   'N de Franquia',
   'Nome Completo do Franqueado',
@@ -269,7 +286,9 @@ export async function fetchRedeFranqueados(
   const { data, error } = await supabase.from('rede_franqueados').select('*');
 
   if (error) return null;
-  const list = ordenarRedePorNFranquia(data || []);
+  const list = ordenarRedePorNFranquia(
+    filtrarLinhasEmBrancoRedeFranqueados((data || []) as RowAny[]),
+  );
   const rows = list.map((r) => rowToArray(r as RowAny));
   const activeCount = list.filter((r) => {
     const s = String((r as { status_franquia?: string | null })?.status_franquia ?? '').toLowerCase();
@@ -291,7 +310,9 @@ export async function fetchRedeFranqueadosRows(
 ): Promise<RedeFranqueadoRowDb[] | null> {
   const { data, error } = await supabase.from('rede_franqueados').select('*');
   if (error) return null;
-  return ordenarRedePorNFranquia((data ?? []) as RedeFranqueadoRowDb[]);
+  return ordenarRedePorNFranquia(
+    filtrarLinhasEmBrancoRedeFranqueados((data ?? []) as RedeFranqueadoRowDb[]),
+  );
 }
 
 export type RedeFranqueadoDetalheRow = {
@@ -498,7 +519,9 @@ export async function fetchRedeFranqueadosRowsPortalFrank(
 ): Promise<RedeFranqueadoRowPortalFrank[] | null> {
   const { data, error } = await supabase.from('rede_franqueados').select(REDE_PORTAL_FRANK_SELECT);
   if (error) return null;
-  return ordenarRedePorNFranquia((data ?? []) as unknown as RedeFranqueadoRowPortalFrank[]);
+  return ordenarRedePorNFranquia(
+    filtrarLinhasEmBrancoRedeFranqueados((data ?? []) as unknown as RedeFranqueadoRowPortalFrank[]),
+  );
 }
 
 const REDE_BUSCA_DATE_KEYS = new Set<RedeFranqueadoDbKey>([

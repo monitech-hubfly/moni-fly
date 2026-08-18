@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { SlidersHorizontal, X } from 'lucide-react';
 import {
   ordenarRedePorNFranquia,
+  filtrarLinhasEmBrancoRedeFranqueados,
   redeFranqueadoRowMatchesBusca,
   type RedeFranqueadoRowDb,
 } from '@/lib/rede-franqueados';
@@ -269,12 +270,14 @@ export function RedeFranqueadosTabelaComBusca({
     setFiltros(FILTROS_INICIAIS);
   }
 
+  const rowsComCadastro = useMemo(() => filtrarLinhasEmBrancoRedeFranqueados(rows), [rows]);
+
   // Opções dinâmicas derivadas dos dados
   const { modalidades, ufs, statusOptions } = useMemo(() => {
     const modSet = new Set<string>();
     const ufSet = new Set<string>();
     const statusSet = new Set<string>();
-    rows.forEach((r) => {
+    rowsComCadastro.forEach((r) => {
       const mod = String((r as unknown as { modalidade?: string | null }).modalidade ?? '').trim();
       if (mod) modSet.add(mod);
       const uf = String(r.estado_casa_frank ?? (r as unknown as { estado?: string | null }).estado ?? '').trim();
@@ -287,21 +290,23 @@ export function RedeFranqueadosTabelaComBusca({
       ufs: [TODOS_OPT, ...[...ufSet].sort().map((u) => ({ value: u, label: u }))],
       statusOptions: statusSet,
     };
-  }, [rows]);
+  }, [rowsComCadastro]);
 
   const rowsFiltradas = useMemo(() => {
     const q = busca.trim();
-    let base = q ? rows.filter((r) => redeFranqueadoRowMatchesBusca(r, q)) : rows;
+    let base = q
+      ? rowsComCadastro.filter((r) => redeFranqueadoRowMatchesBusca(r, q))
+      : rowsComCadastro;
     base = aplicarFiltros(base, filtros);
     return ordenarRedePorNFranquia(base);
-  }, [rows, busca, filtros]);
+  }, [rowsComCadastro, busca, filtros]);
 
   const nAtivos = filtrosAtivos(filtros) + (busca.trim() ? 1 : 0);
   const buscaAtiva = nAtivos > 0;
 
   return (
     <div className="space-y-4">
-      <DiagnosticoRedeSumario rows={rows} />
+      <DiagnosticoRedeSumario rows={rowsComCadastro} />
 
       {/* Toolbar */}
       <RedeTabelaToolbarBusca
@@ -354,10 +359,10 @@ export function RedeFranqueadosTabelaComBusca({
             className="flex items-center gap-1 text-xs text-stone-400 hover:text-stone-700"
           >
             <X className="h-3.5 w-3.5" />
-            Limpar ({rowsFiltradas.length}/{rows.length})
+            Limpar ({rowsFiltradas.length}/{rowsComCadastro.length})
           </button>
         ) : (
-          <span className="text-xs text-stone-400">{rows.length} franqueados</span>
+          <span className="text-xs text-stone-400">{rowsComCadastro.length} franqueados</span>
         )}
 
         {children}
@@ -515,7 +520,7 @@ export function RedeFranqueadosTabelaComBusca({
         rows={rowsFiltradas}
         canEditRows={canEditRows}
         maskSensitiveColumns={maskSensitiveColumns}
-        totalSemBusca={rows.length}
+        totalSemBusca={rowsComCadastro.length}
         buscaAtiva={buscaAtiva}
         buscaResetKey={JSON.stringify(filtros) + busca}
         internalView={internalView}
