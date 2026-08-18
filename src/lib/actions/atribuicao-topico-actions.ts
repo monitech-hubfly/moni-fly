@@ -64,6 +64,7 @@ export async function aceitarAtribuicaoTopico(
     .from('sirene_topicos')
     .update({
       atribuicao_status: 'aceito',
+      atribuicao_aceito_em: new Date().toISOString(),
       ...(row.status === 'nao_iniciado' ? { status: 'em_andamento' } : {}),
       historico: appendHistoricoEvento(row.historico, {
         tipo: 'Atribuição aceita',

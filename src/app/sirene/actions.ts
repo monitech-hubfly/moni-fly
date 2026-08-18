@@ -1522,6 +1522,7 @@ export async function adicionarTopicoChamadoPainel(
     responsavel_id: respIds.length > 0 ? respIds[0]! : null,
     responsaveis_ids: respIds,
     atribuicao_status: respIds.length > 0 ? 'pendente_aceite' : 'aceito',
+    atribuicao_aceito_em: respIds.length > 0 ? null : new Date().toISOString(),
     status: 'nao_iniciado',
     data_fim: dataFim,
     tipo,

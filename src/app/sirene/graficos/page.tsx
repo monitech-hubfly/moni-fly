@@ -3,8 +3,13 @@ import { GraficosConteudo } from './GraficosConteudo';
 
 export const dynamic = 'force-dynamic';
 
-export default async function SireneGraficosPage() {
-  const result = await buscarDadosGraficos();
+export default async function SireneGraficosPage({
+  searchParams,
+}: {
+  searchParams?: { mes?: string };
+}) {
+  const mes = searchParams?.mes;
+  const result = await buscarDadosGraficos(mes);
 
   if (!result.ok) {
     return (
@@ -14,5 +19,12 @@ export default async function SireneGraficosPage() {
     );
   }
 
-  return <GraficosConteudo data={result.data} />;
+  const mesInicial = mes ?? result.data.mesesDisponiveis.at(-1) ?? new Date().toISOString().slice(0, 7);
+
+  return (
+    <GraficosConteudo
+      initialData={result.data}
+      initialMes={mesInicial}
+    />
+  );
 }

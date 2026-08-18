@@ -1481,6 +1481,7 @@ export async function atualizarStatusSubInteracao(
     const atribuicaoStatus = (antes as { atribuicao_status?: string | null }).atribuicao_status;
     if (atribuicaoStatus === 'pendente_aceite') {
       updatePayload.atribuicao_status = 'aceito';
+      updatePayload.atribuicao_aceito_em = new Date().toISOString();
     }
   }
   const { error } = await supabase
