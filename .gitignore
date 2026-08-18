@@ -28,3 +28,6 @@ migration_*_temp.sql
 tsc_*.txt
 /migration_[0-9]*.sql
 scripts/deploy-para-main.ps1
+.vercel
+
+*.temp
