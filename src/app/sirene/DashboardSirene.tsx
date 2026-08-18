@@ -80,6 +80,7 @@ type Props = {
     dias_aberto: number;
     origem: string;
     kanban_atividade_id: string | null;
+    arquivado: boolean;
   }>;
   filtroTipo: DashboardFiltroTipo;
 };
@@ -412,6 +413,7 @@ function ChamadosDestaqueSection({
     dias_aberto: number;
     origem: string;
     kanban_atividade_id: string | null;
+    arquivado: boolean;
   }>;
 }) {
   const [filtros, setFiltros] = useState({
@@ -421,14 +423,18 @@ function ChamadosDestaqueSection({
     status: '',
     ordem: 'numero_asc' as 'numero_asc' | 'oldest' | 'newest' | 'pri',
   });
+  const [mostrarArquivados, setMostrarArquivados] = useState(false);
 
   const responsaveis = useMemo(
     () => [...new Set(chamados.map((c) => c.responsavel_nome).filter(Boolean))],
     [chamados],
   );
 
+  const totalArquivados = useMemo(() => chamados.filter((c) => c.arquivado).length, [chamados]);
+
   const filtered = useMemo(() => {
     let list = [...chamados];
+    if (!mostrarArquivados) list = list.filter((c) => !c.arquivado);
     if (filtros.prioridade) list = list.filter((c) => c.prioridade === filtros.prioridade);
     if (filtros.responsavel) list = list.filter((c) => c.responsavel_nome === filtros.responsavel);
     if (filtros.trava === 'sim') list = list.filter((c) => c.trava);
@@ -442,7 +448,7 @@ function ChamadosDestaqueSection({
       list.sort((a, b) => (ord[a.prioridade ?? 'P6'] ?? 6) - (ord[b.prioridade ?? 'P6'] ?? 6));
     }
     return list;
-  }, [chamados, filtros]);
+  }, [chamados, filtros, mostrarArquivados]);
 
   const priLabel: Record<string, string> = {
     P1: 'P1', P2: 'P2', P3: 'P3', P4: 'P4', P5: 'P5', P6: 'P6',
@@ -517,6 +523,17 @@ function ChamadosDestaqueSection({
           <option value="em_andamento">Em andamento</option>
           <option value="concluido">Concluído</option>
         </select>
+        {totalArquivados > 0 && (
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-[color:var(--moni-text-tertiary)]">
+            <input
+              type="checkbox"
+              checked={mostrarArquivados}
+              onChange={(e) => setMostrarArquivados(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-[color:var(--moni-border-default)]"
+            />
+            Mostrar arquivados ({totalArquivados})
+          </label>
+        )}
         <span className="ml-auto text-xs text-[color:var(--moni-text-tertiary)]">{filtered.length} chamado{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 
@@ -533,6 +550,9 @@ function ChamadosDestaqueSection({
               <>
                 {c.trava ? (
                   <span className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800">Trava</span>
+                ) : null}
+                {c.arquivado ? (
+                  <span className="shrink-0 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Arquivado</span>
                 ) : null}
                 <span className="shrink-0 rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[color:var(--moni-text-secondary)]">
                   #{String(c.numero).padStart(4, '0')}
