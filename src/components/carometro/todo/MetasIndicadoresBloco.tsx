@@ -70,43 +70,6 @@ function corParaTexto(hex: string): string {
 // Ordem posicional das cores do semáforo (melhor → pior)
 const FAROL_POSICIONAL = ['ve', 'vc', 'am', 'vm'] as const;
 
-// ── Helper: % esperado do projeto na semana atual (client-side, seg-sex) ──────
-function calcularEsperadoPctProjeto(dataInicio: string | null, dataFim: string | null, diasUteis: number | null): number | null {
-  if (!dataInicio || !dataFim) return null;
-  const inicio = new Date(dataInicio + 'T00:00:00');
-  const fim    = new Date(dataFim    + 'T00:00:00');
-  let du = diasUteis && diasUteis > 0 ? diasUteis : 0;
-  if (!du) {
-    const d = new Date(inicio);
-    while (d <= fim) { if (d.getDay() !== 0 && d.getDay() !== 6) du++; d.setDate(d.getDate() + 1); }
-  }
-  if (du <= 0) return null;
-  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  if (hoje < inicio) return 0;
-  if (hoje > fim)    return 100;
-  let count = 0;
-  const d = new Date(inicio);
-  while (d <= hoje) { if (d.getDay() !== 0 && d.getDay() !== 6) count++; d.setDate(d.getDate() + 1); }
-  return Math.min(100, Math.round((count / du) * 100));
-}
-
-// ── Legenda de faixas para indicador Projeto (thresholds relativos ao esperado) ─
-function ProjetoFaixasLegenda({ esperadoPct }: { esperadoPct: number }) {
-  const e = Math.max(1, Math.min(100, esperadoPct));
-  const ve = Math.round(e * 0.75);
-  const vc = Math.round(e * 0.60);
-  const am = Math.round(e * 0.30);
-  return (
-    <div className="flex items-center gap-1 flex-wrap">
-      <span className="text-[9px] text-purple-600 font-medium whitespace-nowrap">Meta: {e}%</span>
-      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: '#1e7a3a', color: '#fff' }}>≥{ve}%</span>
-      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: '#52b36f', color: '#fff' }}>≥{vc}%</span>
-      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: '#f2c94c', color: '#1f2937' }}>≥{am}%</span>
-      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: '#d24141', color: '#fff' }}>&lt;{am}%</span>
-    </div>
-  );
-}
-
 function FaixasLegenda({ faixas }: { faixas: FaixaItem[] }) {
   if (!faixas.length) return null;
   return (
@@ -416,12 +379,7 @@ function IndicadorLinha({
   useEffect(() => { setValorEditAtual(ind.valorAtual ?? '');       }, [ind.valorAtual]);
   useEffect(() => { setValorEditAnterior(ind.valorAnterior ?? ''); }, [ind.valorAnterior]);
 
-  const sfRaw = ind.semaforo_faixas as { is_projeto_relativo?: boolean; data_inicio?: string | null; data_fim?: string | null; dias_uteis?: number | null; faixas?: FaixaItem[] } | null;
-  const isProjetoRelativo = !!sfRaw?.is_projeto_relativo;
-  const esperadoPctProjeto = isProjetoRelativo
-    ? calcularEsperadoPctProjeto(sfRaw?.data_inicio ?? null, sfRaw?.data_fim ?? null, sfRaw?.dias_uteis ?? null)
-    : null;
-  const faixas = sfRaw?.faixas ?? [];
+  const faixas = (ind.semaforo_faixas as { faixas?: FaixaItem[] } | null)?.faixas ?? [];
   const isEq   = faixas.length > 0 && faixas.every(f => f.comparacao === 'eq');
 
   const infoAtual    = anoRelativo > 0 ? isoWeekToDates(semanaAtual,    anoRelativo) : { label: `S${semanaAtual}`,    range: '' };
@@ -507,12 +465,7 @@ function IndicadorLinha({
       <div className="flex items-center gap-1.5 flex-wrap min-w-0">
         {ind.indicador_chave && <span className="text-[11px] leading-none flex-shrink-0">🔑</span>}
         <span className="text-xs text-gray-700 leading-snug flex-1 min-w-0">{ind.nome}</span>
-        {isProjetoRelativo
-          ? (esperadoPctProjeto !== null && esperadoPctProjeto > 0
-            ? <ProjetoFaixasLegenda esperadoPct={esperadoPctProjeto} />
-            : <span className="text-[9px] text-purple-400 whitespace-nowrap">Projeto · aguarda início</span>)
-          : faixas.length > 0 && <FaixasLegenda faixas={faixas} />
-        }
+        {faixas.length > 0 && <FaixasLegenda faixas={faixas} />}
         {/* Responsável / botão assumir */}
         {isMeu ? (
           <span className="text-[10px] px-1.5 py-0.5 rounded border bg-blue-100 text-blue-700 border-blue-300 whitespace-nowrap flex-shrink-0">
