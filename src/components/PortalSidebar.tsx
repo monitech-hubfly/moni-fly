@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Building2, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { AlertasBellLink } from '@/components/AlertasBellLink';
@@ -27,6 +27,7 @@ function getInicialNome(fullName: string | null | undefined): string {
 type NavItem = { href: string; label: string };
 const REDE_FRANQUEADOS_SUBITENS: NavItem[] = [
   { href: '/rede-franqueados', label: 'Rede Casa Moní' },
+  { href: '/rede-franqueados?tab=corretores', label: 'Cadastro de Corretor' },
   { href: '/comunidade', label: 'Comunidade' },
   { href: '/rede', label: 'Rede de Contatos' },
 ];
@@ -141,6 +142,7 @@ function isStepsActive(pathname: string) {
 }
 export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [resolvedRole, setResolvedRole] = useState(userRole);
   const [resolvedCargo, setResolvedCargo] = useState<string | null>(null);
   const isAdmin = isAdminRole(resolvedRole);
@@ -328,6 +330,21 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
               return (
                 pathname === '/rede' ||
                 (Boolean(pathname?.startsWith('/rede/')) && !pathname.startsWith('/rede-franqueados'))
+              );
+            }
+            if (href.includes('?')) {
+              const [path, qs] = href.split('?');
+              const wantTab = new URLSearchParams(qs).get('tab');
+              return (
+                (pathname === path || Boolean(pathname?.startsWith(`${path}/`))) &&
+                searchParams.get('tab') === wantTab
+              );
+            }
+            if (href === '/rede-franqueados') {
+              const tab = searchParams.get('tab');
+              return (
+                Boolean(pathname?.startsWith('/rede-franqueados')) &&
+                tab !== 'corretores'
               );
             }
             return pathname?.startsWith(href) ?? false;

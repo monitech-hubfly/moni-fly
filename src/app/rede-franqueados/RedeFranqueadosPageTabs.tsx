@@ -4,9 +4,11 @@ import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
+import type { RedeCorretorRow } from '@/lib/rede-corretores';
 import { RedeDashboard } from './RedeDashboard';
 import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
 import { RedeLoteadoresTabelaComBusca } from './RedeLoteadoresTabelaComBusca';
+import { RedeCorretoresTabelaComBusca } from './RedeCorretoresTabelaComBusca';
 import { CadastrosEmpresasTabelaComBusca } from './CadastrosEmpresasTabelaComBusca';
 import { CadastrosMoniCapitalTabelaComBusca } from './CadastrosMoniCapitalTabelaComBusca';
 import { CondominiosTabelaComBusca } from './CondominiosTabelaComBusca';
@@ -42,13 +44,14 @@ import {
 } from '@/lib/rede-tabelas-csv-export';
 import { NovoCadastroMoniCapitalModal } from './NovoCadastroMoniCapitalModal';
 
-type TabId = 'visao' | 'pipeline' | 'analises' | 'franqueados' | 'loteadores' | 'empresas' | 'moni-capital' | 'condominios';
+type TabId = 'visao' | 'pipeline' | 'analises' | 'franqueados' | 'loteadores' | 'corretores' | 'empresas' | 'moni-capital' | 'condominios';
 
 const BASE_PATH = '/rede-franqueados';
 
 /** Alias legado → id real da aba. */
 const TAB_ALIASES: Record<string, TabId> = {
   cadastro: 'empresas',
+  corretor: 'corretores',
 };
 
 const TAB_VISAO: { id: TabId; label: string } = { id: 'visao', label: 'Visão geral' };
@@ -56,6 +59,7 @@ const TAB_PIPELINE: { id: TabId; label: string } = { id: 'pipeline', label: 'Pip
 const TAB_ANALISES: { id: TabId; label: string } = { id: 'analises', label: 'Análises' };
 const TAB_FRANQ: { id: TabId; label: string } = { id: 'franqueados', label: 'Rede de Franqueados' };
 const TAB_LOTE: { id: TabId; label: string } = { id: 'loteadores', label: 'Rede de Loteadores' };
+const TAB_CORR: { id: TabId; label: string } = { id: 'corretores', label: 'Cadastro de Corretor' };
 const TAB_EMP: { id: TabId; label: string } = { id: 'empresas', label: 'Cadastros de Empresas' };
 const TAB_MC: { id: TabId; label: string } = { id: 'moni-capital', label: 'Cadastros Moní Capital' };
 const TAB_COND: { id: TabId; label: string } = { id: 'condominios', label: 'Condomínios' };
@@ -63,6 +67,7 @@ const TAB_COND: { id: TabId; label: string } = { id: 'condominios', label: 'Cond
 type Props = {
   rows: RedeFranqueadoRowDb[];
   loteadoresRows: RedeLoteadorRow[] | null;
+  corretoresRows: RedeCorretorRow[] | null;
   showStaffTabs: boolean;
   empresasRows: FranqueadoEmpresaRow[] | null;
   spesRows?: FranqueadoSpeRow[];
@@ -81,6 +86,7 @@ type Props = {
 export function RedeFranqueadosPageTabs({
   rows,
   loteadoresRows,
+  corretoresRows,
   showStaffTabs,
   empresasRows,
   spesRows = [],
@@ -103,7 +109,7 @@ export function RedeFranqueadosPageTabs({
     ...(showPipelineTab ? [TAB_PIPELINE] : []),
     ...(showAnalisesTab ? [TAB_ANALISES] : []),
     TAB_FRANQ,
-    ...(showStaffTabs ? [TAB_LOTE, TAB_EMP, TAB_MC] : []),
+    ...(showStaffTabs ? [TAB_LOTE, TAB_CORR, TAB_EMP, TAB_MC] : []),
     ...(showCondominiosTab ? [TAB_COND] : []),
   ];
 
@@ -111,6 +117,7 @@ export function RedeFranqueadosPageTabs({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loteadorCreateTick, setLoteadorCreateTick] = useState(0);
+  const [corretorCreateTick, setCorretorCreateTick] = useState(0);
   const [condominioCreateTick, setCondominioCreateTick] = useState(0);
 
   const linhasEmpresasExport = useMemo(() => {
@@ -275,6 +282,27 @@ export function RedeFranqueadosPageTabs({
                   gerarCsv={() => csvRedeLoteadores(loteadoresRows)}
                 />
               </RedeLoteadoresTabelaComBusca>
+            )}
+          </section>
+        ) : null}
+
+        {resolvedTab === 'corretores' && showStaffTabs ? (
+          <section className="space-y-4">
+            {corretoresRows === null ? (
+              <p className="text-sm text-red-600">
+                Erro ao carregar corretores. Confira se a migration 534 (rede_corretores) foi aplicada no
+                Supabase.
+              </p>
+            ) : (
+              <RedeCorretoresTabelaComBusca
+                rows={corretoresRows}
+                solicitarCriacao={corretorCreateTick}
+              >
+                <NovoRegistroToolbarButton
+                  label="Novo Corretor"
+                  onClick={() => setCorretorCreateTick((n) => n + 1)}
+                />
+              </RedeCorretoresTabelaComBusca>
             )}
           </section>
         ) : null}

@@ -14,7 +14,7 @@ import { fetchMoniCapitalCadastrosRows } from '@/lib/moni-capital-cadastros';
 import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
 
 import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
-
+import { fetchRedeCorretoresRows } from '@/lib/rede-corretores';
 import { fetchCondominiosRows } from '@/lib/condominios';
 
 import { normalizarStatusEmProcessoRede } from './actions';
@@ -77,9 +77,10 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const [rows, loteadoresRows, empresasResult, spesResult, moniCapitalResult, condominiosRows] = await Promise.all([
+  const [rows, loteadoresRows, corretoresRows, empresasResult, spesResult, moniCapitalResult, condominiosRows] = await Promise.all([
     fetchRedeFranqueadosRows(supabase),
     showStaffTabs ? fetchRedeLoteadoresRows(supabase) : Promise.resolve(null),
+    showStaffTabs ? fetchRedeCorretoresRows(supabase) : Promise.resolve(null),
     showStaffTabs ? fetchFranqueadoEmpresasRows(supabase) : Promise.resolve(null),
     showStaffTabs ? fetchFranqueadoSpeRows(supabase) : Promise.resolve(null),
     showStaffTabs ? fetchMoniCapitalCadastrosRows(supabase) : Promise.resolve(null),
@@ -123,6 +124,8 @@ export default async function RedeFranqueadosPage() {
             rows={rows}
 
             loteadoresRows={loteadoresRows}
+
+            corretoresRows={corretoresRows}
 
             showStaffTabs={showStaffTabs}
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { usePathname } from 'next/navigation';
 import { AdminProvider } from '@/context/AdminContext';
 import { normalizeAccessRole } from '@/lib/authz';
@@ -76,7 +77,9 @@ export function AppShell({ user, userRole, children }: AppShellProps) {
       {/* Shell isolado: sidebar | main — inline + classes; impossível empilhar sob o menu. */}
       <div className="moni-app-shell bg-stone-50" style={SHELL_STYLE} data-moni-shell="app">
         <aside className="moni-app-sidebar" style={SIDEBAR_STYLE} data-moni-shell="sidebar">
-          <PortalSidebar user={user} userRole={userRole} />
+          <Suspense fallback={null}>
+            <PortalSidebar user={user} userRole={userRole} />
+          </Suspense>
         </aside>
         <div className="moni-app-main" style={MAIN_STYLE} data-moni-shell="main">
           {!hideGlobalHeader && <AppStickyHeader user={user} userRole={userRole} />}
