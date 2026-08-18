@@ -28,7 +28,7 @@ export type KanbanModalInteracoesFiltros = {
 };
 
 export const KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT: KanbanModalInteracoesFiltros = {
-  lista: 'abertas',
+  lista: 'todas',
   situacao: 'qualquer',
   time: 'todos',
   timeListaSomenteHdm: false,
@@ -56,17 +56,12 @@ type SecaoFiltroId = 'lista' | 'situacao' | 'time' | 'responsavel' | 'ordenar';
 const def = KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT;
 
 function computeExpandedInicial(f: KanbanModalInteracoesFiltros): Record<SecaoFiltroId, boolean> {
-  const hasLista = f.lista !== def.lista;
   const hasSit = (f.lista === 'abertas' || f.lista === 'todas') && f.situacao !== def.situacao;
   const hasTime = f.time !== def.time || f.timeListaSomenteHdm !== def.timeListaSomenteHdm;
   const hasResp = f.responsavel !== def.responsavel;
   const hasOrd = f.ordenacao !== def.ordenacao;
-  const algum = hasLista || hasSit || hasTime || hasResp || hasOrd;
-  if (!algum) {
-    return { lista: false, situacao: false, time: false, responsavel: false, ordenar: false };
-  }
   return {
-    lista: hasLista,
+    lista: true,
     situacao: hasSit,
     time: hasTime,
     responsavel: hasResp,
@@ -266,8 +261,8 @@ export function KanbanInteracoesFiltrosPanel({
           <div className={radioRow} style={{ color: 'var(--moni-text-primary)' }}>
             {(
               [
-                ['abertas', 'Em aberto'],
                 ['todas', 'Todos'],
+                ['abertas', 'Em aberto'],
                 ['concluidas', 'Concluídos'],
               ] as const
             ).map(([v, lab]) => (

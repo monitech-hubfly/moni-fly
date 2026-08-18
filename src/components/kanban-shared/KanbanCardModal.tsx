@@ -308,6 +308,9 @@ import {
 } from './KanbanInteracoesFiltrosPanel';
 import {
   derivarChamadoKanbanComSubs,
+  statusEfetivoChamadoKanban,
+  normalizarStatusInteracaoKanban,
+  interacaoPassaFiltroListaSituacao,
   formatDataHoraHistorico,
   iconeHistoricoAcao,
   rotuloUsuarioHistorico,
@@ -1026,13 +1029,16 @@ export function KanbanCardModal({
     if (filtros.lista === 'abertas' && filtros.situacao === 'concluida') {
       setFiltros((f) => ({ ...f, situacao: 'qualquer' }));
     }
-  }, [filtros.lista, filtros.situacao]);
+    if (filtrosDraft.lista === 'abertas' && filtrosDraft.situacao === 'concluida') {
+      setFiltrosDraft((f) => ({ ...f, situacao: 'qualquer' }));
+    }
+  }, [filtros.lista, filtros.situacao, filtrosDraft.lista, filtrosDraft.situacao]);
 
   useEffect(() => {
     if (!filtrosOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setFiltrosDraft({ ...filtros });
+        setFiltros({ ...filtrosDraft });
         setFiltrosOpen(false);
       }
     };
@@ -1040,7 +1046,7 @@ export function KanbanCardModal({
       const t = e.target as Node;
       if (filtrosPopoverRef.current?.contains(t)) return;
       if (filtrosBtnRef.current?.contains(t)) return;
-      setFiltrosDraft({ ...filtros });
+      setFiltros({ ...filtrosDraft });
       setFiltrosOpen(false);
     };
     window.addEventListener('keydown', onKey);
@@ -1049,7 +1055,7 @@ export function KanbanCardModal({
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('mousedown', onDown);
     };
-  }, [filtrosOpen, filtros]);
+  }, [filtrosOpen, filtrosDraft]);
 
   useEffect(() => {
     let fileInputAtivado = false;
@@ -2142,7 +2148,7 @@ export function KanbanCardModal({
                           times_ids: ids,
                           responsaveis_ids: respIds,
                           trava: Boolean((a as { trava?: boolean }).trava),
-                          status: a.status as InteracaoModal['status'],
+                          status: normalizarStatusInteracaoKanban(a.status),
                           prioridade: (a.prioridade as InteracaoModal['prioridade']) ?? 'normal',
                           data_vencimento: (a.data_vencimento as string | null) ?? null,
                           responsavel_id: rid,
@@ -2316,7 +2322,14 @@ export function KanbanCardModal({
     if (topicoId) {
       setSubAtividadeExpandida((s) => ({ ...s, [topicoId]: true }));
     }
-  }, [deepLinkInteracaoId, deepLinkTopicoId, interacoes.length]);
+    const it = interacoes.find((i) => i.id === interacaoId);
+    if (!it) return;
+    const st = statusEfetivoChamadoKanban(it, subInteracoesPorPai[it.id] ?? []);
+    if (st === 'concluida' || st === 'cancelada') {
+      setFiltros((f) => (f.lista === 'todas' ? f : { ...f, lista: 'todas' }));
+      setFiltrosDraft((f) => (f.lista === 'todas' ? f : { ...f, lista: 'todas' }));
+    }
+  }, [deepLinkInteracaoId, deepLinkTopicoId, interacoes, subInteracoesPorPai]);
 
   useEffect(() => {
     const topicoId = String(deepLinkTopicoId ?? '').trim();
@@ -4039,61 +4052,56 @@ export function KanbanCardModal({
     return modalDetalhes.rede?.id?.trim() ?? null;
   }, [card?.franqueado_id, card?.rede_franqueado_id, modalDetalhes.rede?.id]);
 
+  const filtrosAtivos = filtrosOpen ? filtrosDraft : filtros;
+
   const interacoesFiltradas = useMemo(() => {
-    const situacaoEfetiva =
-      filtros.lista === 'concluidas' ? ('qualquer' as const) : filtros.situacao;
     const prazoOrdKey = (a: InteracaoModal) =>
       prazoEfetivoParaChamado(a, subInteracoesPorPai[a.id] ?? []) ?? '9999-12-31';
     const criadoTs = (a: InteracaoModal) => {
       const t = new Date(a.created_at).getTime();
       return Number.isFinite(t) ? t : 0;
     };
+    const statusDe = (it: InteracaoModal) =>
+      statusEfetivoChamadoKanban(it, subInteracoesPorPai[it.id] ?? []);
     const rankInput = (it: InteracaoModal) => {
       const subs = subInteracoesPorPai[it.id] ?? [];
       return {
         frank_id: cardFrankParaRank,
         trava: travaEfetivaParaChamado(it, subs),
         data_vencimento: prazoEfetivoParaChamado(it, subs),
-        atividade_status: it.status,
+        atividade_status: statusDe(it),
         criado_em: it.created_at,
       };
     };
-    const buscaNorm = filtros.busca.trim().toLowerCase();
+    const buscaNorm = filtrosAtivos.busca.trim().toLowerCase();
     const filtered = interacoes.filter((it) => {
       const subs = subInteracoesPorPai[it.id] ?? [];
-      const concl = it.status === 'concluida';
-      if (filtros.lista === 'abertas') {
-        if (concl) return false;
-        if (situacaoEfetiva !== 'qualquer' && it.status !== situacaoEfetiva) return false;
-      } else if (filtros.lista === 'concluidas') {
-        if (!concl) return false;
-      } else if (situacaoEfetiva !== 'qualquer' && it.status !== situacaoEfetiva) {
-        return false;
-      }
-      if (!interacaoPassaFiltroTimeComSubs(it, subs, filtros.time, catalogFiltroTime)) return false;
-      if (!interacaoPassaFiltroResponsavelComSubs(it, subs, filtros.responsavel)) return false;
+      const statusEfetivo = statusDe(it);
+      if (!interacaoPassaFiltroListaSituacao(statusEfetivo, filtrosAtivos.lista, filtrosAtivos.situacao)) return false;
+      if (!interacaoPassaFiltroTimeComSubs(it, subs, filtrosAtivos.time, catalogFiltroTime)) return false;
+      if (!interacaoPassaFiltroResponsavelComSubs(it, subs, filtrosAtivos.responsavel)) return false;
       if (buscaNorm) {
-        const blob = `${it.titulo} ${it.descricao ?? ''} ${subs.map((s) => `${s.nome} ${s.descricao_detalhe ?? ''}`).join(' ')}`.toLowerCase();
+        const blob = `${it.titulo} ${it.descricao ?? ''} ${it.numero ?? ''} ${subs.map((s) => `${s.nome} ${s.descricao_detalhe ?? ''}`).join(' ')}`.toLowerCase();
         if (!blob.includes(buscaNorm)) return false;
       }
       return true;
     });
     return [...filtered].sort((a, b) => {
-      if (filtros.lista === 'todas') {
-        const ac = a.status === 'concluida';
-        const bc = b.status === 'concluida';
+      if (filtrosAtivos.lista === 'todas') {
+        const ac = statusDe(a) === 'concluida' || statusDe(a) === 'cancelada';
+        const bc = statusDe(b) === 'concluida' || statusDe(b) === 'cancelada';
         if (ac !== bc) return ac ? 1 : -1;
       }
-      if (filtros.ordenacao === 'prioridade_sirene') {
+      if (filtrosAtivos.ordenacao === 'prioridade_sirene') {
         return compareChamadosPainelRank(rankInput(a), rankInput(b));
       }
-      if (filtros.ordenacao === 'prazo_asc') return prazoOrdKey(a).localeCompare(prazoOrdKey(b));
-      if (filtros.ordenacao === 'prazo_desc') return prazoOrdKey(b).localeCompare(prazoOrdKey(a));
-      if (filtros.ordenacao === 'criado_asc') return criadoTs(a) - criadoTs(b);
-      if (filtros.ordenacao === 'criado_desc') return criadoTs(b) - criadoTs(a);
+      if (filtrosAtivos.ordenacao === 'prazo_asc') return prazoOrdKey(a).localeCompare(prazoOrdKey(b));
+      if (filtrosAtivos.ordenacao === 'prazo_desc') return prazoOrdKey(b).localeCompare(prazoOrdKey(a));
+      if (filtrosAtivos.ordenacao === 'criado_asc') return criadoTs(a) - criadoTs(b);
+      if (filtrosAtivos.ordenacao === 'criado_desc') return criadoTs(b) - criadoTs(a);
       return compareChamadosPainelRank(rankInput(a), rankInput(b));
     });
-  }, [interacoes, filtros, catalogFiltroTime, subInteracoesPorPai, cardFrankParaRank]);
+  }, [interacoes, filtrosAtivos, catalogFiltroTime, subInteracoesPorPai, cardFrankParaRank]);
 
   const sireneChamadoIdPastel = useMemo(() => {
     for (const it of interacoes) {
@@ -4103,7 +4111,10 @@ export function KanbanCardModal({
     return null;
   }, [interacoes]);
 
-  const chamadosAbertosCount = useMemo(() => countChamadosAbertosNoCard(interacoes), [interacoes]);
+  const chamadosAbertosCount = useMemo(
+    () => countChamadosAbertosNoCard(interacoes, subInteracoesPorPai),
+    [interacoes, subInteracoesPorPai],
+  );
   const sireneChamadoIds = useMemo(
     () => [...new Set(interacoes.map((i) => (i as { sirene_chamado_id?: number | null }).sirene_chamado_id).filter((id): id is number => id != null))],
     [interacoes],
@@ -5897,7 +5908,7 @@ export function KanbanCardModal({
                   type="button"
                   onClick={() => {
                     if (filtrosOpen) {
-                      setFiltrosDraft({ ...filtros });
+                      setFiltros({ ...filtrosDraft });
                       setFiltrosOpen(false);
                     } else {
                       setFiltrosDraft({ ...filtros });
@@ -5911,19 +5922,23 @@ export function KanbanCardModal({
                     color: 'var(--moni-text-primary)',
                   }}
                 >
-                  Filtros ({countKanbanModalInteracoesFiltrosAtivos(filtros)})
+                  Filtros ({countKanbanModalInteracoesFiltrosAtivos(filtrosAtivos)})
                 </button>
                 {filtrosOpen ? (
                   <div
                     ref={filtrosPopoverRef}
-                    className="absolute left-0 top-full z-[60] mt-1 w-[min(100vw-2rem,12rem)]"
+                    className="absolute left-0 top-full z-[60] mt-1 w-[min(100vw-2rem,22rem)]"
                   >
                     <KanbanInteracoesFiltrosPanel
                       draft={filtrosDraft}
                       setDraft={setFiltrosDraft}
                       kanbanTimes={timesFiltroOpcoesModal}
                       responsaveisOpcoes={responsaveisFiltroOpcoesModal}
-                      onLimpar={() => setFiltrosDraft(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT)}
+                      onLimpar={() => {
+                        const next = { ...KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT };
+                        setFiltrosDraft(next);
+                        setFiltros(next);
+                      }}
                       onAplicar={() => {
                         setFiltros({ ...filtrosDraft });
                         setFiltrosOpen(false);
@@ -5940,7 +5955,7 @@ export function KanbanCardModal({
                     const subs = subInteracoesPorPai[it.id] ?? [];
                     const subsVisiveis = filtrarSubAtividadesPorConclusao(
                       subs,
-                      filtros.mostrarAtividadesConcluidas,
+                      filtrosAtivos.mostrarAtividadesConcluidas,
                     );
                     const subsDetalheAberto = subExpandida[it.id] === true;
                     const deriv = derivarChamadoKanbanComSubs(it.status, subs);
@@ -6099,7 +6114,7 @@ export function KanbanCardModal({
                             {!subsDetalheAberto && subsVisiveis.length > 0 ? (
                               <p className="mt-1 text-[10px] text-stone-500">
                                 {subsVisiveis.length} atividade{subsVisiveis.length === 1 ? '' : 's'}
-                                {!filtros.mostrarAtividadesConcluidas && subs.length > subsVisiveis.length
+                                {!filtrosAtivos.mostrarAtividadesConcluidas && subs.length > subsVisiveis.length
                                   ? ` (${subs.length - subsVisiveis.length} concluída${subs.length - subsVisiveis.length === 1 ? '' : 's'} oculta${subs.length - subsVisiveis.length === 1 ? '' : 's'})`
                                   : ''}{' '}
                                 — clique na seta para expandir
@@ -6257,7 +6272,7 @@ export function KanbanCardModal({
                                 <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5">
                                   <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
                                     Atividades ({subsVisiveis.length}
-                                    {!filtros.mostrarAtividadesConcluidas && subs.length > subsVisiveis.length
+                                    {!filtrosAtivos.mostrarAtividadesConcluidas && subs.length > subsVisiveis.length
                                       ? ` de ${subs.length}`
                                       : ''}
                                     )
@@ -6544,7 +6559,7 @@ export function KanbanCardModal({
                                   </ul>
                                 ) : (
                                   <p className="mb-2 text-[11px] text-stone-500">
-                                    {!filtros.mostrarAtividadesConcluidas && subs.length > 0
+                                    {!filtrosAtivos.mostrarAtividadesConcluidas && subs.length > 0
                                       ? 'Só há atividades concluídas. Ative "Mostrar atividades concluídas" nos filtros.'
                                       : 'Nenhum sub-chamado.'}
                                   </p>
@@ -6620,11 +6635,33 @@ export function KanbanCardModal({
                   })}
                 </div>
               ) : (
-                <p className="mb-2 text-sm text-stone-500">
-                  {interacoes.length === 0
-                    ? 'Nenhum chamado vinculado a este card no banco.'
-                    : 'Nenhum chamado corresponde aos filtros atuais — limpe os filtros para ver todos.'}
-                </p>
+                <div className="mb-2 space-y-2">
+                  <p className="text-sm text-stone-500">
+                    {interacoes.length === 0
+                      ? 'Nenhum chamado vinculado a este card no banco.'
+                      : filtrosAtivos.lista === 'abertas' &&
+                          interacoes.every((it) => {
+                            const st = statusEfetivoChamadoKanban(it, subInteracoesPorPai[it.id] ?? []);
+                            return st === 'concluida' || st === 'cancelada';
+                          })
+                        ? `Há ${interacoes.length} chamado${interacoes.length === 1 ? '' : 's'} concluído${interacoes.length === 1 ? '' : 's'} ou cancelado${interacoes.length === 1 ? '' : 's'} neste card. Altere Lista para Todos ou Concluídos.`
+                        : 'Nenhum chamado corresponde aos filtros atuais.'}
+                  </p>
+                  {interacoes.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = { ...KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT };
+                        setFiltrosDraft(next);
+                        setFiltros(next);
+                      }}
+                      className="text-xs font-medium underline-offset-2 hover:underline"
+                      style={{ color: 'var(--moni-navy-800)' }}
+                    >
+                      Limpar filtros e ver todos
+                    </button>
+                  ) : null}
+                </div>
               )}
 
               {sireneChamadoIdPastel != null ? (

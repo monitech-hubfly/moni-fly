@@ -197,16 +197,30 @@ function startLocal(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
+/** Normaliza status vindo do banco (Sirene `concluido`, acentos, etc.) para o enum do modal. */
+export function normalizarStatusInteracaoKanban(raw: unknown): InteracaoModal['status'] {
+  const s = String(raw ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (s === 'concluida' || s === 'concluido') return 'concluida';
+  if (s === 'cancelada' || s === 'cancelado') return 'cancelada';
+  if (s === 'em_andamento') return 'em_andamento';
+  return 'pendente';
+}
+
 /**
  * Com sub-interações, o status exibido segue regras só visuais (não persiste).
- * `alertaSubAtrasada`: sub com `data_fim` &lt; hoje e não concluída — badge laranja ao lado do status.
+ * `alertaSubAtrasada`: sub com `data_fim` &lt; hoje e não concluída — badge de atraso ao lado do status.
  */
 export function derivarChamadoKanbanComSubs(
   statusManual: InteracaoModal['status'],
   subs: SubInteracaoModal[],
 ): { usarDerivado: boolean; status: InteracaoModal['status']; alertaSubAtrasada: boolean } {
+  const statusNorm = normalizarStatusInteracaoKanban(statusManual);
   if (subs.length === 0) {
-    return { usarDerivado: false, status: statusManual, alertaSubAtrasada: false };
+    return { usarDerivado: false, status: statusNorm, alertaSubAtrasada: false };
   }
   const hoje = startLocal(new Date());
   const prazoSubPassou = (s: SubInteracaoModal) => {
@@ -225,9 +239,18 @@ export function derivarChamadoKanbanComSubs(
     return { usarDerivado: true, status: 'em_andamento', alertaSubAtrasada };
   }
   if (alertaSubAtrasada) {
-    return { usarDerivado: false, status: statusManual, alertaSubAtrasada: true };
+    return { usarDerivado: false, status: statusNorm, alertaSubAtrasada: true };
   }
-  return { usarDerivado: false, status: statusManual, alertaSubAtrasada: false };
+  return { usarDerivado: false, status: statusNorm, alertaSubAtrasada: false };
+}
+
+/** Status exibido/filtrado: derivado das subs quando elas existem, senão o do pai. */
+export function statusEfetivoChamadoKanban(
+  it: Pick<InteracaoModal, 'status'>,
+  subs: SubInteracaoModal[],
+): InteracaoModal['status'] {
+  const deriv = derivarChamadoKanbanComSubs(it.status, subs);
+  return deriv.usarDerivado ? deriv.status : normalizarStatusInteracaoKanban(it.status);
 }
 
 export function tagsTimesParaLinha(it: InteracaoModal, catalog: KanbanTimeRow[]): { id: string; nome: string }[] {
@@ -448,14 +471,39 @@ export function isInteracaoDemonstracao(id: unknown): boolean {
   return false;
 }
 
-/** Chamado persistido em aberto (exclui demo e status finais). */
-export function interacaoChamadoEmAberto(it: InteracaoModal): boolean {
+/** Chamado persistido em aberto (exclui demo e status finais, usa status efetivo das subs). */
+export function interacaoChamadoEmAberto(
+  it: InteracaoModal,
+  subs: SubInteracaoModal[] = [],
+): boolean {
   if (isInteracaoDemonstracao(it.id)) return false;
-  return it.status !== 'concluida' && it.status !== 'cancelada';
+  const st = statusEfetivoChamadoKanban(it, subs);
+  return st !== 'concluida' && st !== 'cancelada';
 }
 
-export function countChamadosAbertosNoCard(interacoes: InteracaoModal[]): number {
-  return interacoes.filter(interacaoChamadoEmAberto).length;
+export function countChamadosAbertosNoCard(
+  interacoes: InteracaoModal[],
+  subsPorPai: Record<string, SubInteracaoModal[]> = {},
+): number {
+  return interacoes.filter((it) => interacaoChamadoEmAberto(it, subsPorPai[it.id] ?? [])).length;
+}
+
+export function interacaoPassaFiltroListaSituacao(
+  statusEfetivo: InteracaoModal['status'],
+  lista: 'abertas' | 'concluidas' | 'todas',
+  situacao: 'qualquer' | InteracaoModal['status'],
+): boolean {
+  const situacaoEfetiva = lista === 'concluidas' ? 'qualquer' : situacao;
+  const ehConcluida = statusEfetivo === 'concluida';
+  const ehAberto = statusEfetivo !== 'concluida' && statusEfetivo !== 'cancelada';
+  if (lista === 'abertas') {
+    if (!ehAberto) return false;
+    if (situacaoEfetiva !== 'qualquer' && statusEfetivo !== situacaoEfetiva) return false;
+    return true;
+  }
+  if (lista === 'concluidas') return ehConcluida;
+  if (situacaoEfetiva !== 'qualquer' && statusEfetivo !== situacaoEfetiva) return false;
+  return true;
 }
 
 /**
