@@ -3976,6 +3976,16 @@ export function KanbanCardModal({
     () => timesFiltroOpcoesComCatalogoMoni(kanbanTimes),
     [kanbanTimes],
   );
+  const catalogFiltroTime = useMemo(() => {
+    const seen = new Set<string>();
+    const out: typeof kanbanTimes = [];
+    for (const t of [...timesFiltroOpcoesModal, ...kanbanTimes]) {
+      if (!t.id || seen.has(t.id)) continue;
+      seen.add(t.id);
+      out.push(t);
+    }
+    return out;
+  }, [timesFiltroOpcoesModal, kanbanTimes]);
   const responsaveisFiltroOpcoesModal = useMemo(
     () => responsaveisFiltroOpcoesComCatalogoMoni(responsaveisOpcoes),
     [responsaveisOpcoes],
@@ -4060,7 +4070,7 @@ export function KanbanCardModal({
       } else if (situacaoEfetiva !== 'qualquer' && it.status !== situacaoEfetiva) {
         return false;
       }
-      if (!interacaoPassaFiltroTimeComSubs(it, subs, filtros.time, kanbanTimes)) return false;
+      if (!interacaoPassaFiltroTimeComSubs(it, subs, filtros.time, catalogFiltroTime)) return false;
       if (!interacaoPassaFiltroResponsavelComSubs(it, subs, filtros.responsavel)) return false;
       if (buscaNorm) {
         const blob = `${it.titulo} ${it.descricao ?? ''} ${subs.map((s) => `${s.nome} ${s.descricao_detalhe ?? ''}`).join(' ')}`.toLowerCase();
@@ -4083,7 +4093,7 @@ export function KanbanCardModal({
       if (filtros.ordenacao === 'criado_desc') return criadoTs(b) - criadoTs(a);
       return compareChamadosPainelRank(rankInput(a), rankInput(b));
     });
-  }, [interacoes, filtros, kanbanTimes, subInteracoesPorPai, cardFrankParaRank]);
+  }, [interacoes, filtros, catalogFiltroTime, subInteracoesPorPai, cardFrankParaRank]);
 
   const sireneChamadoIdPastel = useMemo(() => {
     for (const it of interacoes) {

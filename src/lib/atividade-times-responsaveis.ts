@@ -1,5 +1,7 @@
 /** Normaliza listas de times / responsáveis das atividades do card (checklist). */
 
+import { nomesTimesCoincidem } from '@/lib/times-responsaveis';
+
 export function normalizeNomeList(input: (string | null | undefined)[] | null | undefined): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
@@ -65,7 +67,7 @@ export function itemMatchesTimeFilter(
 ): boolean {
   if (filtro === 'todos') return true;
   const list = mergeArraysWithLegacy(timesNomes ?? [], timeNomeLegacy);
-  return list.some((t) => t === filtro);
+  return list.some((t) => nomesTimesCoincidem(t, filtro));
 }
 
 export function itemMatchesResponsavelFilter(

@@ -447,7 +447,7 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
           ) : (
             <div className="flex flex-col gap-3">
               {atividades.map((ativ, i) => {
-                const respFiltrados = responsaveisFiltradosPorTimesIds(ativ.timesIds, kanbanTimes, responsaveisOpcoes);
+                const respFiltrados = responsaveisFiltradosPorTimesIds(ativ.timesIds, timesChips, responsaveisOpcoes);
                 return (
                   <div key={i} className="rounded-md border border-stone-200 bg-white/80 p-2" style={{ borderColor: 'var(--moni-border-default)' }}>
                     <div className="mb-2 flex items-center justify-between gap-2">

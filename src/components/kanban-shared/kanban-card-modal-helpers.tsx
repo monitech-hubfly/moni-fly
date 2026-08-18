@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react';
 import { parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import { prazoIsoEfetivoSla, type PrazoNegociacaoCampos } from '@/lib/kanban/prazo-negociacao';
-import { MONI_RESP_FILTRO_PREFIX, MONI_TIME_FILTRO_PREFIX } from '@/lib/times-responsaveis';
+import {
+  MONI_RESP_FILTRO_PREFIX,
+  MONI_TIME_FILTRO_PREFIX,
+  nomesTimesCoincidem,
+} from '@/lib/times-responsaveis';
 import {
   ArrowLeft,
   ArrowRight,
@@ -267,25 +271,39 @@ export function travaEfetivaParaChamado(it: InteracaoModal, _subs?: SubInteracao
   return Boolean(it.trava);
 }
 
+function nomesAlvoFiltroTime(filtroId: string, catalog: KanbanTimeRow[]): string[] {
+  if (!filtroId || filtroId === 'todos') return [];
+  if (filtroId.startsWith(MONI_TIME_FILTRO_PREFIX)) {
+    const nome = filtroId.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
+    return nome ? [nome] : [];
+  }
+  const sel = catalog.find((t) => t.id === filtroId);
+  return sel?.nome?.trim() ? [sel.nome.trim()] : [];
+}
+
+function nomePassaFiltroTime(nome: string, alvos: string[]): boolean {
+  const n = String(nome ?? '').trim();
+  if (!n || alvos.length === 0) return false;
+  return alvos.some((alvo) => nomesTimesCoincidem(n, alvo) || nomeTimeParaSlugLegado(alvo) === n.toLowerCase());
+}
+
 function subPassaFiltroTime(
   sub: SubInteracaoModal,
   filtroId: string,
   catalog: KanbanTimeRow[],
 ): boolean {
   if (filtroId === 'todos') return true;
-  if (filtroId.startsWith(MONI_TIME_FILTRO_PREFIX)) {
-    const nome = filtroId.slice(MONI_TIME_FILTRO_PREFIX.length).trim().toLowerCase();
-    if (!nome) return false;
-    for (const t of sub.times_resolvidos ?? []) {
-      if (t.nome.trim().toLowerCase() === nome) return true;
-    }
-    for (const id of sub.times_ids ?? []) {
-      const hit = catalog.find((x) => x.id === id);
-      if (hit && hit.nome.trim().toLowerCase() === nome) return true;
-    }
-    return false;
+  if ((sub.times_ids ?? []).includes(filtroId)) return true;
+  const alvos = nomesAlvoFiltroTime(filtroId, catalog);
+  if (alvos.length === 0) return false;
+  for (const t of sub.times_resolvidos ?? []) {
+    if (nomePassaFiltroTime(t.nome, alvos)) return true;
   }
-  return (sub.times_ids ?? []).includes(filtroId);
+  for (const id of sub.times_ids ?? []) {
+    const hit = catalog.find((x) => x.id === id);
+    if (hit && nomePassaFiltroTime(hit.nome, alvos)) return true;
+  }
+  return false;
 }
 
 function subPassaFiltroResponsavel(sub: SubInteracaoModal, filtroId: string): boolean {
@@ -301,10 +319,8 @@ export function interacaoPassaFiltroTimeComSubs(
   catalog: KanbanTimeRow[],
 ): boolean {
   if (filtroId === 'todos') return true;
-  if (subs.length > 0) {
-    return subs.some((s) => subPassaFiltroTime(s, filtroId, catalog));
-  }
-  return interacaoPassaFiltroTime(it, filtroId, catalog);
+  if (interacaoPassaFiltroTime(it, filtroId, catalog)) return true;
+  return subs.some((s) => subPassaFiltroTime(s, filtroId, catalog));
 }
 
 export function interacaoPassaFiltroResponsavelComSubs(
@@ -325,24 +341,17 @@ export function interacaoPassaFiltroTime(
   catalog: KanbanTimeRow[],
 ): boolean {
   if (filtroId === 'todos') return true;
-  if (filtroId.startsWith(MONI_TIME_FILTRO_PREFIX)) {
-    const nome = filtroId.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
-    if (!nome) return false;
-    const n = nome.toLowerCase();
-    for (const t of tagsTimesParaLinha(it, catalog)) {
-      if (t.nome.trim().toLowerCase() === n) return true;
-    }
-    if (it.time) {
-      const slug = nomeTimeParaSlugLegado(nome);
-      if (it.time.toLowerCase() === slug) return true;
-    }
-    return false;
-  }
   if ((it.times_ids ?? []).includes(filtroId)) return true;
-  const sel = catalog.find((t) => t.id === filtroId);
-  if (sel && it.time) {
-    const slug = nomeTimeParaSlugLegado(sel.nome);
-    if (it.time.toLowerCase() === slug) return true;
+  const alvos = nomesAlvoFiltroTime(filtroId, catalog);
+  if (alvos.length === 0) return false;
+  for (const t of tagsTimesParaLinha(it, catalog)) {
+    if (nomePassaFiltroTime(t.nome, alvos)) return true;
+  }
+  if (it.time && nomePassaFiltroTime(it.time.replace(/_/g, ' '), alvos)) return true;
+  if (it.time) {
+    for (const alvo of alvos) {
+      if (it.time.toLowerCase() === nomeTimeParaSlugLegado(alvo)) return true;
+    }
   }
   return false;
 }

@@ -13,6 +13,7 @@ import {
   MONI_TIME_FILTRO_PREFIX,
   filtrarOpcoesTimeIdNomePorHdm,
   inferirHdmResponsavelPorNomesTimes,
+  nomesTimesCoincidem,
   responsaveisDoTimeMoni,
   responsaveisFiltroOpcoesComCatalogoMoni,
   timesFiltroOpcoesComCatalogoMoni,
@@ -271,25 +272,62 @@ function SelectMoni(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 
 const BOMBEIRO_SENTINEL = '__bombeiro__';
 
-function rowMatchTime(row: InteracaoSireneRow, timeFiltro: string, timesById: Map<string, string>): boolean {
+function nomesTimesDoChamado(
+  row: InteracaoSireneRow,
+  timesById: Map<string, string>,
+  topicos?: TopicoChamadoLinha[],
+): string[] {
+  const nomes: string[] = [];
+  const tn = (row.time_nome ?? '').trim();
+  if (tn) nomes.push(tn);
+  for (const x of parseTimesNomes(row.times_nomes)) {
+    const s = x.trim();
+    if (s) nomes.push(s);
+  }
+  for (const id of row.times_ids ?? []) {
+    const n = timesById.get(id)?.trim();
+    if (n) nomes.push(n);
+  }
+  for (const t of topicos ?? []) {
+    const tr = String(t.time_responsavel ?? '').trim();
+    if (tr) nomes.push(tr);
+    for (const id of t.times_ids ?? []) {
+      const n = timesById.get(id)?.trim();
+      if (n) nomes.push(n);
+    }
+  }
+  return nomes;
+}
+
+function idsTimesDoChamado(row: InteracaoSireneRow, topicos?: TopicoChamadoLinha[]): string[] {
+  const ids = [...(row.times_ids ?? [])];
+  for (const t of topicos ?? []) {
+    ids.push(...(t.times_ids ?? []));
+  }
+  return ids;
+}
+
+function rowMatchTime(
+  row: InteracaoSireneRow,
+  timeFiltro: string,
+  timesById: Map<string, string>,
+  topicos?: TopicoChamadoLinha[],
+): boolean {
   if (timeFiltro === 'todos') return true;
+  const nomes = nomesTimesDoChamado(row, timesById, topicos);
+  const ids = idsTimesDoChamado(row, topicos);
   if (timeFiltro === BOMBEIRO_SENTINEL) {
-    const tn = (row.time_nome ?? '').toLowerCase();
-    const nomes = [tn, ...parseTimesNomes(row.times_nomes).map((x) => x.toLowerCase())];
-    return nomes.some((n) => n.includes('bombeiro'));
+    return nomes.some((n) => n.toLowerCase().includes('bombeiro'));
   }
+  if (ids.includes(timeFiltro)) return true;
+  let alvo = '';
   if (timeFiltro.startsWith(MONI_TIME_FILTRO_PREFIX)) {
-    const nome = timeFiltro.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
-    if (!nome) return false;
-    const n = nome.toLowerCase();
-    if ((row.time_nome ?? '').trim().toLowerCase() === n) return true;
-    return parseTimesNomes(row.times_nomes).some((x) => x.trim().toLowerCase() === n);
+    alvo = timeFiltro.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
+  } else {
+    alvo = (timesById.get(timeFiltro) ?? '').trim();
   }
-  const nomeTime = timesById.get(timeFiltro);
-  if (!nomeTime) return false;
-  const n = nomeTime.toLowerCase();
-  if ((row.time_nome ?? '').toLowerCase() === n) return true;
-  return parseTimesNomes(row.times_nomes).some((x) => x.toLowerCase() === n);
+  if (!alvo) return false;
+  return nomes.some((n) => nomesTimesCoincidem(n, alvo));
 }
 
 function rowMatchResponsavel(
@@ -674,7 +712,7 @@ function InteracoesListaInner({
 
       if (applied.kanbanF !== 'todos' && row.kanban_nome !== applied.kanbanF) return false;
 
-      if (!rowMatchTime(row, applied.timeF, timesById)) return false;
+      if (!rowMatchTime(row, applied.timeF, timesById, topicosPorAlvo[topicosAlvoKey(row)])) return false;
 
       if (applied.travaF === 'com' && !row.trava) return false;
       if (applied.travaF === 'sem' && row.trava) return false;
@@ -696,6 +734,7 @@ function InteracoesListaInner({
     nomePorUserId,
     podeArquivar,
     mostrarArquivados,
+    topicosPorAlvo,
   ]);
 
   const filtradas = useMemo(

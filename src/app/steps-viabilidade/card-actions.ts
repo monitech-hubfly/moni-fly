@@ -1333,6 +1333,46 @@ async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promis
       };
     });
 
+  const idsPainel = tarefas.map((t) => t.id).filter(Boolean);
+  if (idsPainel.length > 0) {
+    const timesById = new Map<string, string>();
+    const { data: ktRows } = await supabase.from('kanban_times').select('id, nome');
+    for (const r of ktRows ?? []) {
+      const id = String((r as { id?: string }).id ?? '');
+      const nome = String((r as { nome?: string }).nome ?? '').trim();
+      if (id && nome) timesById.set(id, nome);
+    }
+    const extraTimes = new Map<string, string[]>();
+    const chunk = 200;
+    for (let i = 0; i < idsPainel.length; i += chunk) {
+      const sl = idsPainel.slice(i, i + chunk);
+      const { data: tops } = await supabase
+        .from('sirene_topicos')
+        .select('interacao_id, times_ids, time_responsavel')
+        .in('interacao_id', sl)
+        .eq('arquivado', false);
+      for (const t of tops ?? []) {
+        const iid = String((t as { interacao_id?: string }).interacao_id ?? '');
+        if (!iid) continue;
+        const acc = extraTimes.get(iid) ?? [];
+        const tr = String((t as { time_responsavel?: string | null }).time_responsavel ?? '').trim();
+        if (tr) acc.push(tr);
+        const rawTi = (t as { times_ids?: unknown }).times_ids;
+        const ti = Array.isArray(rawTi) ? rawTi.map((x) => String(x)) : [];
+        for (const id of ti) {
+          const nome = timesById.get(id);
+          if (nome) acc.push(nome);
+        }
+        extraTimes.set(iid, acc);
+      }
+    }
+    for (const t of tarefas) {
+      const extra = extraTimes.get(t.id);
+      if (!extra?.length) continue;
+      t.times_nomes = mergeArraysWithLegacy([...(t.times_nomes ?? []), ...extra], t.time_nome);
+    }
+  }
+
   return { ok: true, tarefas };
 }
 

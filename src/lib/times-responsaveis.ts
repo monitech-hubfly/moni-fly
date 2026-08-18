@@ -302,9 +302,15 @@ export const MONI_RESP_FILTRO_PREFIX = '__moniresp__:';
 export function timesFiltroOpcoesComCatalogoMoni(
   kanbanTimes: readonly { id: string; nome: string }[],
 ): { id: string; nome: string }[] {
-  const byNome = new Map(kanbanTimes.map((t) => [t.nome.trim(), t]));
+  const byNorm = new Map<string, { id: string; nome: string }>();
+  for (const t of kanbanTimes) {
+    const canon = normalizarNomeTimeMoni(t.nome);
+    const key = canon || t.nome.trim();
+    if (!key || byNorm.has(key)) continue;
+    byNorm.set(key, t);
+  }
   return [...TIMES_MONI].map((nome) => {
-    const hit = byNome.get(nome);
+    const hit = byNorm.get(nome) ?? byNorm.get(normalizarNomeTimeMoni(nome));
     return { id: hit?.id ?? `${MONI_TIME_FILTRO_PREFIX}${nome}`, nome };
   });
 }
@@ -330,8 +336,10 @@ export function responsaveisFiltroOpcoesComCatalogoMoni(
     const key = n.toLowerCase();
     if (seen.has(key)) continue;
     const em = resolverEmailMoniPorNomeOuApelido(n);
+    const nNorm = normMoniNome(n);
     const hit =
       profiles.find((p) => p.nome.trim() === n) ??
+      profiles.find((p) => normMoniNome(p.nome) === nNorm) ??
       (em ? profiles.find((p) => (p.email ?? '').trim().toLowerCase() === em) : undefined);
     if (!hit) continue;
     seen.add(key);
@@ -431,8 +439,19 @@ export function normalizarNomeTimeMoni(nome: string): string {
   return t;
 }
 
+export function nomesTimesCoincidem(a: string, b: string): boolean {
+  const na = String(a ?? '').trim();
+  const nb = String(b ?? '').trim();
+  if (!na || !nb) return false;
+  const ca = normalizarNomeTimeMoni(na);
+  const cb = normalizarNomeTimeMoni(nb);
+  if (ca && cb && ca === cb) return true;
+  return normMoniNome(na) === normMoniNome(nb);
+}
+
 export function responsaveisDoTimeMoni(time: string): string[] {
-  const list = RESPONSAVEIS_POR_TIME[time];
+  const canon = normalizarNomeTimeMoni(time);
+  const list = RESPONSAVEIS_POR_TIME[canon] ?? RESPONSAVEIS_POR_TIME[String(time ?? '').trim()];
   return Array.isArray(list) ? [...list] : [];
 }
 
