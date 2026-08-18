@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { salvarGbox, carregarGbox } from './actions'
 
 const NOMES_AREAS_ALVO = ['Produto', 'Projetos - Modelo Virtual']
 
@@ -158,11 +159,24 @@ export default function Page() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  /** { [casaNome]: { status, data } } — persistido em localStorage */
+  /** { [casaNome]: { status, data, link } } — persistido no Supabase + localStorage como cache */
   const [gboxPorCasa, setGboxPorCasa] = useState({})
+  const [userId, setUserId] = useState(null)
 
   useEffect(() => {
+    // Carrega localStorage imediatamente (evita flash vazio)
     setGboxPorCasa(lerGboxStorage())
+    // Busca userId
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserId(user.id)
+    })
+    // Sobrescreve com dados do Supabase (fonte de verdade compartilhada)
+    carregarGbox().then(fromDb => {
+      if (Object.keys(fromDb).length > 0) {
+        setGboxPorCasa(fromDb)
+        try { localStorage.setItem(GBOX_STORAGE_KEY, JSON.stringify(fromDb)) } catch {}
+      }
+    }).catch(() => {})
   }, [])
 
   const areaIdsFiltrados = useMemo(() => {
@@ -188,7 +202,7 @@ export default function Page() {
     return casasAgrupadas.filter(cg => cg.nome === casaFiltro)
   }, [casasAgrupadas, casaFiltro])
 
-  const atualizarGbox = useCallback((casaNome, patch) => {
+  const atualizarGbox = useCallback((casaNome, patch, notificar = false) => {
     setGboxPorCasa(prev => {
       const atual = gboxCellFromStorage(prev, casaNome)
       const next = {
@@ -204,9 +218,19 @@ export default function Page() {
       } catch {
         /* ignore quota / private mode */
       }
+      // Persiste status e data imediatamente no Supabase com notificação
+      if (userId && (patch.status !== undefined || patch.data !== undefined)) {
+        salvarGbox(casaNome, patch, userId, notificar).catch(() => {})
+      }
       return next
     })
-  }, [])
+  }, [userId])
+
+  // Chamado no onBlur do link — salva no Supabase e notifica
+  const salvarGboxLink = useCallback((casaNome, link) => {
+    if (!userId) return
+    salvarGbox(casaNome, { link }, userId, true).catch(() => {})
+  }, [userId])
 
   const tarefasVisiveis = useMemo(
     () => tarefas.filter(t => areaIdsFiltrados.includes(t.area_id)),
@@ -830,7 +854,7 @@ export default function Page() {
                             >
                               <select
                                 value={cell.status}
-                                onChange={e => atualizarGbox(casaGroup.nome, { status: e.target.value })}
+                                onChange={e => atualizarGbox(casaGroup.nome, { status: e.target.value }, true)}
                                 aria-label={`Status GBox ${casaGroup.nome}`}
                                 style={{
                                   fontSize: 10,
@@ -851,7 +875,7 @@ export default function Page() {
                               <input
                                 type="date"
                                 value={cell.data}
-                                onChange={e => atualizarGbox(casaGroup.nome, { data: e.target.value })}
+                                onChange={e => atualizarGbox(casaGroup.nome, { data: e.target.value }, true)}
                                 aria-label={`Data última revisão GBox ${casaGroup.nome}`}
                                 style={{
                                   fontSize: 10,
@@ -866,7 +890,8 @@ export default function Page() {
                               <input
                                 type="url"
                                 value={cell.link}
-                                onChange={e => atualizarGbox(casaGroup.nome, { link: e.target.value })}
+                                onChange={e => atualizarGbox(casaGroup.nome, { link: e.target.value }, false)}
+                                onBlur={e => salvarGboxLink(casaGroup.nome, e.target.value)}
                                 placeholder="Link"
                                 aria-label={`Link GBox ${casaGroup.nome}`}
                                 style={{
