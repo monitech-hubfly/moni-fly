@@ -425,8 +425,12 @@ export function CadastrosEmpresasTabela({
                 ));
               }
 
+              // Colapsado: 1 linha por franqueado (evita faixas em branco das SPEs extras).
+              // Expandido: 1 linha por SPE.
               const speViewRows: (FranqueadoSpeRow | null)[] =
-                linha.spes.length > 0 ? linha.spes : [null];
+                speColunasExpandidas && linha.spes.length > 0
+                  ? linha.spes
+                  : [linha.spes[0] ?? null];
 
               return speViewRows.flatMap((spe, speIdx) => {
                 const row = (
