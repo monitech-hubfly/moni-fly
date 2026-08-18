@@ -156,6 +156,7 @@ async function syncUser(
   for (const ev of events) {
     if (!ev.id || !ev.start) continue;
     if (hubflyPushIds.has(ev.id)) continue; // skip eventos originados no HubFly
+    if (ev.summary?.startsWith('[HUB-FLY]')) continue; // skip eventos sem gcal_hubfly_push_id salvo
     eventIds.push(ev.id);
 
     const isAllDay   = !ev.start.dateTime;
