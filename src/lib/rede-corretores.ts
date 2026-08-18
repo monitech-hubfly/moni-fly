@@ -88,6 +88,11 @@ export const REDE_CORRETOR_TIPO_REGISTRO_LABEL: Record<RedeCorretorTipoRegistro,
   corretor_titular: 'Corretor Titular',
 }
 
+export const REDE_CORRETOR_CONTA_TIPO_LABEL: Record<RedeCorretorContaTipo, string> = {
+  corrente: 'Corrente',
+  poupanca: 'Poupança',
+}
+
 export const REDE_CORRETOR_PIX_TIPO_LABEL: Record<PixTipo, string> = {
   cpf_cnpj: 'CPF/CNPJ',
   email: 'E-mail',
@@ -115,6 +120,10 @@ export function redeCorretorRowMatchesBusca(row: RedeCorretorRow, busca: string)
     row.email,
     row.telefone,
     row.conta_titular,
+    row.conta_agencia,
+    row.conta_numero,
+    row.conta_pix_chave,
+    row.observacoes,
     row.status,
     REDE_CORRETOR_STATUS_LABEL[row.status],
     ...(row.atuacao_ufs ?? []),
@@ -136,20 +145,21 @@ export function ordenarRedeCorretoresPorCodigo(rows: RedeCorretorRow[]): RedeCor
   })
 }
 
-const SELECT_COLS =
+const SELECT_COLS_BASE =
   'id, n_corretor, ordem, nome, cpf_cnpj, creci_numero, creci_uf, creci_tipo_registro, creci_validade, email, telefone, atuacao_ufs, atuacao_cidades, conta_banco_codigo, conta_banco_nome, conta_agencia, conta_numero, conta_tipo, conta_titular, conta_pix_tipo, conta_pix_chave, status, observacoes, criado_por, ultima_atualizacao_por, created_at, updated_at'
+
+const SELECT_COLS = `${SELECT_COLS_BASE}, link_simulador, email_enviado_em`
 
 export async function fetchRedeCorretoresRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeCorretorRow[] | null> {
-  const { data, error } = await supabase
-    .from('rede_corretores')
-    .select(SELECT_COLS)
-    .order('ordem', { ascending: true })
+  const first = await supabase.from('rede_corretores').select(SELECT_COLS).order('ordem', { ascending: true })
+  if (!first.error) return (first.data ?? []) as RedeCorretorRow[]
 
-  if (error) {
-    console.error('[rede_corretores] fetch:', error.message)
+  const fallback = await supabase.from('rede_corretores').select(SELECT_COLS_BASE).order('ordem', { ascending: true })
+  if (fallback.error) {
+    console.error('[rede_corretores] fetch:', first.error.message, fallback.error.message)
     return null
   }
-  return (data ?? []) as RedeCorretorRow[]
+  return (fallback.data ?? []) as RedeCorretorRow[]
 }
