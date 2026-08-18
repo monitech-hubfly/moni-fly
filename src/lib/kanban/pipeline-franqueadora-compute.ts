@@ -24,7 +24,11 @@ import {
   slaCategoriaPipeline,
   labelFranqueadoPipeline,
 } from '@/lib/kanban/pipeline-cards-utils';
-import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
+import {
+  cardVinculadoAoCadastroRedeFranqueados,
+  cardsVinculadosAoCadastroRedeFranqueados,
+  excluirFranquiaDosGraficosVisaoGeral,
+} from '@/lib/rede-visibilidade-franqueado';
 import { indiceEsteiraTresEtapas } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 import { computeFunilMesCompact } from '@/lib/kanban/pipeline-funil-mes-compute';
 import { isCardBlocoPrincipalUnidade } from '@/lib/kanban/pipeline-unidade-visualizacao';
@@ -35,7 +39,7 @@ const META_CONTRATOS_MES = 1;
 const SIRENE_SILENCIO_DIAS = 30;
 
 export function cardsElegiveisFranqueadora(cards: PipelineCardDisplay[]): PipelineCardDisplay[] {
-  return cards.filter((c) => !excluirFranquiaDosGraficosVisaoGeral(c.n_franquia));
+  return cards.filter(cardVinculadoAoCadastroRedeFranqueados);
 }
 
 /** Card do fluxo principal (Step One / Portfólio / Pré Obra e Obra) com tag «⭐Especial». */
@@ -407,7 +411,7 @@ export function computePipelineAnalises(
   cardsRaw: PipelineCardDisplay[],
   enrichment: PipelineFranqueadoraEnrichment | null | undefined,
 ): PipelineAnalisesData {
-  const cards = cardsElegiveisFranqueadora(cardsRaw);
+  const cards = cardsVinculadosAoCadastroRedeFranqueados(cardsRaw, franqueados);
   const chamados = enrichment?.chamados ?? [];
   const limiteSilencio = Date.now() - SIRENE_SILENCIO_DIAS * 86400000;
 

@@ -29,7 +29,11 @@ import {
   conversionPct,
   formatFunilMesPct,
 } from '@/lib/kanban/pipeline-funil-mes-compute';
-import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
+import {
+  cardVinculadoAoCadastroRedeFranqueados,
+  cardsVinculadosAoCadastroRedeFranqueados,
+  filtrarLinhasParaGraficosVisaoGeral,
+} from '@/lib/rede-visibilidade-franqueado';
 
 const ESTEIRA_KANBAN_IDS = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES] as const;
 
@@ -176,7 +180,7 @@ type CardProvisionadoCtx = {
 function cardsElegiveis(cards: PipelineCardRow[]): PipelineCardRow[] {
   return cards.filter(
     (c) =>
-      !excluirFranquiaDosGraficosVisaoGeral(c.n_franquia) &&
+      cardVinculadoAoCadastroRedeFranqueados(c) &&
       !c.arquivado &&
       !c.concluido &&
       (ESTEIRA_KANBAN_IDS as readonly string[]).includes(c.kanban_id),
@@ -266,8 +270,11 @@ function buildColuna(
   horizonteDias: number,
   hoje: Date,
 ): PipelineFunilProvisionadoColuna {
+  const cadastroIds = new Set(franqueados.map((f) => f.rede_franqueado_id));
   let total = 0;
   for (const ctx of contextos) {
+    const rid = String(ctx.card.rede_franqueado_id ?? '').trim();
+    if (!rid || !cadastroIds.has(rid)) continue;
     if (cardContaEtapaProvisionada(ctx, key, horizonteDias, hoje)) total += 1;
   }
   const porUnidade = contarPorRede(contextos, key, franqueados, horizonteDias, hoje);
@@ -307,8 +314,8 @@ export function computeFunilProvisionadoRede(
   horizonteDias: PipelineFunilProvisionadoHorizonte = 30,
 ): PipelineFunilProvisionadoRede {
   const hoje = startOfDay(new Date());
-  const elegiveis = cardsElegiveis(cards);
-  const franqueadosElegiveis = franqueados.filter((f) => !excluirFranquiaDosGraficosVisaoGeral(f.n_franquia));
+  const franqueadosElegiveis = filtrarLinhasParaGraficosVisaoGeral(franqueados);
+  const elegiveis = cardsVinculadosAoCadastroRedeFranqueados(cardsElegiveis(cards), franqueadosElegiveis);
   const contextos = montarContextos(elegiveis, historico);
 
   const colunas = ETAPAS_PROVISIONADO.map((e) =>

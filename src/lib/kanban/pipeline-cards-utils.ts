@@ -1,5 +1,5 @@
 import { compareRedePorNFranquia } from '@/lib/rede-franqueados';
-import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
+import { cardVinculadoAoCadastroRedeFranqueados } from '@/lib/rede-visibilidade-franqueado';
 import { slaKanbanCardFromPipelineRow } from '@/lib/kanban/pipeline-card-readonly';
 import {
   normalizeBuscaKanbanTexto,
@@ -143,9 +143,9 @@ export function filtrarPipelineCards(
   });
 }
 
-/** KPIs consolidados — FK0000 (Casa Moní) não entra nos totais (regra da Visão geral). */
+/** KPIs consolidados — só cadastro Rede de Franqueados (FK0000 e cards sem vínculo ficam de fora). */
 export function calcularKpisPipelineFranqueadora(cards: PipelineCardDisplay[]): PipelineCardsKpis {
-  const elegiveis = cards.filter((c) => !excluirFranquiaDosGraficosVisaoGeral(c.n_franquia));
+  const elegiveis = cards.filter(cardVinculadoAoCadastroRedeFranqueados);
 
   const elegiveisSla = elegiveis.filter(cardElegivelMetricasSlaPipeline);
 

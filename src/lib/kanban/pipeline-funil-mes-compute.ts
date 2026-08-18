@@ -18,6 +18,10 @@ import type {
   PipelineFranqueadoUnidade,
 } from '@/lib/kanban/pipeline-cards-types';
 import { fkFranqueadoPipeline } from '@/lib/kanban/pipeline-cards-utils';
+import {
+  cardsVinculadosAoCadastroRedeFranqueados,
+  filtrarLinhasParaGraficosVisaoGeral,
+} from '@/lib/rede-visibilidade-franqueado';
 
 const UNIDADE_BAR_COLORS = [
   'var(--moni-navy-800)',
@@ -176,8 +180,15 @@ function buildColuna(
   cards: PipelineCardRow[],
   franqueados: PipelineFranqueadoUnidade[],
 ): PipelineFunilMesColuna {
+  const cadastroIds = new Set(franqueados.map((f) => f.rede_franqueado_id));
   const totalIndisponivel = etapaFunilMesIndisponivel(cards, key);
-  const matched = totalIndisponivel ? [] : cards.filter((c) => cardContaEtapa(c, key));
+  const matched = totalIndisponivel
+    ? []
+    : cards.filter((c) => {
+        if (!cardContaEtapa(c, key)) return false;
+        const rid = String(c.rede_franqueado_id ?? '').trim();
+        return Boolean(rid && cadastroIds.has(rid));
+      });
   const total = matched.length;
   const porUnidade = totalIndisponivel ? [] : contarPorRede(cards, key, franqueados);
   const idsComQtd = new Set(porUnidade.map((r) => r.redeId));
@@ -266,8 +277,11 @@ export function computeFunilMesRede(
   franqueados: PipelineFranqueadoUnidade[],
   periodo: PipelineFunilPeriodo = 'mes',
 ): PipelineFunilMesRede {
-  const elegiveis = cardsElegiveisFunilMes(cards);
-  const franqueadosElegiveis = franqueados;
+  const franqueadosElegiveis = filtrarLinhasParaGraficosVisaoGeral(franqueados);
+  const elegiveis = cardsVinculadosAoCadastroRedeFranqueados(
+    cardsElegiveisFunilMes(cards),
+    franqueadosElegiveis,
+  );
 
   const colunas = ETAPAS.map((e) => buildColuna(e.key, e.label, elegiveis, franqueadosElegiveis));
 

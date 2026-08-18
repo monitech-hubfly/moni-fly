@@ -30,6 +30,10 @@ import {
   calcularKpisPipelineUnidadeExtended,
   montarOQueFazerHoje,
 } from '@/lib/kanban/pipeline-unidade-compute';
+import {
+  cardsVinculadosAoCadastroRedeFranqueados,
+  filtrarLinhasParaGraficosVisaoGeral,
+} from '@/lib/rede-visibilidade-franqueado';
 import { PipelineCardMiniDrawer } from '@/components/pipeline/PipelineCardMiniDrawer';
 import { PipelineEsteiraTable } from '@/components/pipeline/PipelineEsteiraTable';
 import { PipelineFranqueadoraUnidadeBloco } from '@/components/pipeline/PipelineFranqueadoraUnidadeBloco';
@@ -320,12 +324,12 @@ export function PipelineCardsView({
 
   const funilRedeCards = useMemo(() => {
     if (viewMode !== 'franqueadora') return [];
-    return cardsFiltrados;
-  }, [viewMode, cardsFiltrados]);
+    return cardsVinculadosAoCadastroRedeFranqueados(cardsFiltrados, scoped.franqueados);
+  }, [viewMode, cardsFiltrados, scoped.franqueados]);
 
   const funilRedeFranqueados = useMemo(() => {
     if (viewMode !== 'franqueadora') return [];
-    return scoped.franqueados;
+    return filtrarLinhasParaGraficosVisaoGeral(scoped.franqueados);
   }, [viewMode, scoped.franqueados]);
 
   const funilMesUnidade = useMemo(
