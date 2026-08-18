@@ -133,10 +133,14 @@ export async function pushParaGCal(ganttId: string): Promise<void> {
       horaFim = `${String(Math.floor(totalMin / 60) % 24).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
     }
 
+    const titulo = (Array.isArray(gantt.acoes) ? gantt.acoes[0] : gantt.acoes)?.tipo_atividade
+      ?? (gantt.titulo as string | null)
+      ?? '(sem título)';
+
     const body: Record<string, unknown> = {
-      summary: (Array.isArray(gantt.acoes) ? gantt.acoes[0] : gantt.acoes)?.tipo_atividade
-        ?? (gantt.titulo as string | null)
-        ?? '(sem título)',
+      summary: `[HUB-FLY] ${titulo}`,
+      description: '📅 Evento criado via HUB-FLY (moni-fly.vercel.app)',
+      colorId: '7', // Peacock (teal) — identifica eventos do HUB-FLY
       start: { dateTime: `${data}T${horaInicio}:00`, timeZone: 'America/Sao_Paulo' },
       end:   { dateTime: `${data}T${horaFim}:00`,   timeZone: 'America/Sao_Paulo' },
       attendees: allAttendees,
