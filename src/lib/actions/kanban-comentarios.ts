@@ -145,35 +145,47 @@ async function dbParaMencoes(supabase: Awaited<ReturnType<typeof createClient>>)
   }
 }
 
-/** Autocomplete @ — qualquer usuário com perfil na ferramenta (service role para contornar RLS de leitura). */
-export async function buscarUsuariosParaMencao(
-  query: string,
-): Promise<{ id: string; nome: string }[]> {
+const LIMITE_LISTA_MENCAO = 1000;
+
+function mapPerfisMencao(
+  data: { id?: unknown; full_name?: string | null }[] | null,
+): { id: string; nome: string }[] {
+  return (data ?? [])
+    .map((p) => ({
+      id: String(p.id ?? ''),
+      nome: String(p.full_name ?? '').trim(),
+    }))
+    .filter((p) => p.id && p.nome.length > 0);
+}
+
+/** Lista completa para cache do autocomplete @ (uma ida ao servidor). */
+export async function listarUsuariosParaMencao(): Promise<{ id: string; nome: string }[]> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const q = query.trim();
   const db = await dbParaMencoes(supabase);
+  const { data } = await db
+    .from('profiles')
+    .select('id, full_name')
+    .not('full_name', 'is', null)
+    .neq('full_name', '')
+    .order('full_name', { ascending: true })
+    .limit(LIMITE_LISTA_MENCAO);
 
-  let request = db.from('profiles').select('id, full_name').order('full_name', { ascending: true }).limit(10);
+  return mapPerfisMencao(data);
+}
 
-  if (q.length >= 1) {
-    request = request.ilike('full_name', `%${q}%`);
-  } else {
-    request = request.not('full_name', 'is', null).neq('full_name', '');
-  }
-
-  const { data } = await request;
-
-  return (data ?? [])
-    .map((p) => ({
-      id: String(p.id),
-      nome: String((p as { full_name?: string | null }).full_name ?? '').trim(),
-    }))
-    .filter((p) => p.nome.length > 0);
+/** Autocomplete @ — qualquer usuário com perfil na ferramenta (service role para contornar RLS de leitura). */
+export async function buscarUsuariosParaMencao(
+  query: string,
+): Promise<{ id: string; nome: string }[]> {
+  const lista = await listarUsuariosParaMencao();
+  const q = query.trim().toLowerCase();
+  if (!q) return lista;
+  return lista.filter((p) => p.nome.toLowerCase().includes(q)).slice(0, 12);
 }
 
 async function buscarPerfisPorNomesMencionados(

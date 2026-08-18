@@ -253,7 +253,7 @@ export async function buscarTeamAdminsParaMencao(
     .select('id, full_name')
     .in('role', ['team', 'admin'])
     .order('full_name')
-    .limit(10);
+    .limit(q.length >= 1 ? 12 : 1000);
 
   if (q.length >= 1) {
     req = req.ilike('full_name', `%${q}%`);

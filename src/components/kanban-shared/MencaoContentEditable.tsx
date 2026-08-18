@@ -11,7 +11,11 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { buscarUsuariosParaMencao } from '@/lib/actions/kanban-comentarios';
+import { filtrarSugestoesMencao } from '@/lib/kanban/mencao-comentario';
+import {
+  obterUsuariosMencaoPadrao,
+  peekUsuariosMencaoPadrao,
+} from '@/lib/mencoes/usuarios-mencao-cache';
 
 type Sugestao = { id: string; nome: string };
 
@@ -60,8 +64,10 @@ export function MencaoContentEditable({
   const [indiceSelecionado, setIndiceSelecionado] = useState(0);
   const [anchor, setAnchor] = useState<AnchorRect | null>(null);
   const [portalReady, setPortalReady] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [carregandoLista, setCarregandoLista] = useState(false);
   const queryRef = useRef('');
+  const customCacheRef = useRef<Sugestao[] | null>(null);
+  const customInflightRef = useRef<Promise<Sugestao[]> | null>(null);
 
   useEffect(() => {
     setPortalReady(true);
@@ -71,8 +77,31 @@ export function MencaoContentEditable({
     setSugestoes([]);
     setPosicaoAt(null);
     setAnchor(null);
+    setCarregandoLista(false);
     queryRef.current = '';
   }, []);
+
+  const garantirLista = useCallback((): Promise<Sugestao[]> => {
+    if (buscarUsuarios) {
+      if (customCacheRef.current) return Promise.resolve(customCacheRef.current);
+      if (!customInflightRef.current) {
+        customInflightRef.current = buscarUsuarios('')
+          .then((list) => {
+            customCacheRef.current = list;
+            return list;
+          })
+          .finally(() => {
+            customInflightRef.current = null;
+          });
+      }
+      return customInflightRef.current;
+    }
+    return obterUsuariosMencaoPadrao();
+  }, [buscarUsuarios]);
+
+  useEffect(() => {
+    void garantirLista();
+  }, [garantirLista]);
 
   const detectarMencao = useCallback(
     (el: HTMLElement) => {
@@ -91,21 +120,28 @@ export function MencaoContentEditable({
       setAnchor(atualizarAnchor(el));
       queryRef.current = query;
 
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        const fn = buscarUsuarios ?? buscarUsuariosParaMencao;
-        void fn(query).then((res) => {
+      const cached = buscarUsuarios ? customCacheRef.current : peekUsuariosMencaoPadrao();
+      if (cached) {
+        setCarregandoLista(false);
+        setSugestoes(filtrarSugestoesMencao(cached, query));
+        return;
+      }
+
+      setSugestoes(filtrarSugestoesMencao([], query));
+      setCarregandoLista(true);
+      void garantirLista()
+        .then((lista) => {
           if (queryRef.current !== query) return;
-          const extras: Sugestao[] = [];
-          if ('todos'.startsWith(query.toLowerCase())) {
-            extras.push({ id: '__todos__', nome: 'todos' });
-          }
-          setSugestoes([...extras, ...res]);
+          setCarregandoLista(false);
+          setSugestoes(filtrarSugestoesMencao(lista, query));
           setAnchor(atualizarAnchor(el));
+        })
+        .catch(() => {
+          if (queryRef.current !== query) return;
+          setCarregandoLista(false);
         });
-      }, 150);
     },
-    [fecharDropdown, buscarUsuarios],
+    [buscarUsuarios, fecharDropdown, garantirLista],
   );
 
   const selecionarSugestao = useCallback(
@@ -186,7 +222,7 @@ export function MencaoContentEditable({
   };
 
   useEffect(() => {
-    if (!sugestoes.length) return;
+    if (posicaoAt === null) return;
     const el = editorRef.current;
     if (!el) return;
 
@@ -198,40 +234,40 @@ export function MencaoContentEditable({
       window.removeEventListener('scroll', sync, true);
       window.removeEventListener('resize', sync);
     };
-  }, [editorRef, sugestoes.length]);
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+  }, [editorRef, posicaoAt]);
 
   const dropdown =
-    portalReady && sugestoes.length > 0 && anchor ? (
+    portalReady && posicaoAt !== null && anchor ? (
       <ul
         role="listbox"
         aria-label="Mencionar usuário"
         className="fixed z-[9999] max-h-52 overflow-y-auto rounded-lg border border-stone-300 bg-white py-1 shadow-xl"
         style={{ top: anchor.top, left: anchor.left, width: anchor.width }}
       >
-        {sugestoes.map((s, i) => (
-          <li key={s.id} role="option" aria-selected={i === indiceSelecionado}>
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                selecionarSugestao(s);
-              }}
-              className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                i === indiceSelecionado
-                  ? 'bg-stone-100 text-stone-900'
-                  : 'text-stone-700 hover:bg-stone-50'
-              }`}
-            >
-              {s.id === '__todos__' ? '📢 todos — notificar todos da Moní' : s.nome}
-            </button>
-          </li>
-        ))}
+        {carregandoLista && sugestoes.length === 0 ? (
+          <li className="px-3 py-2 text-sm text-stone-400">Carregando pessoas…</li>
+        ) : sugestoes.length === 0 ? (
+          <li className="px-3 py-2 text-sm text-stone-400">Nenhuma pessoa encontrada</li>
+        ) : (
+          sugestoes.map((s, i) => (
+            <li key={s.id} role="option" aria-selected={i === indiceSelecionado}>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selecionarSugestao(s);
+                }}
+                className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                  i === indiceSelecionado
+                    ? 'bg-stone-100 text-stone-900'
+                    : 'text-stone-700 hover:bg-stone-50'
+                }`}
+              >
+                {s.id === '__todos__' ? '📢 todos — notificar todos da Moní' : s.nome}
+              </button>
+            </li>
+          ))
+        )}
       </ul>
     ) : null;
 
@@ -244,6 +280,9 @@ export function MencaoContentEditable({
         onInput={handleInput}
         onKeyUp={handleKeyUp}
         onKeyDown={handleKeyDown}
+        onFocus={() => {
+          void garantirLista();
+        }}
         onBlur={() => {
           window.setTimeout(fecharDropdown, 150);
         }}

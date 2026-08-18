@@ -13,6 +13,29 @@ export function htmlComentarioParaTextoPlano(html: string): string {
 
 export type PerfilMencao = { id: string; nome: string };
 
+function normalizarNomeMencao(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+}
+
+/** Filtra a lista já carregada para o dropdown de @ (sem ida ao servidor). */
+export function filtrarSugestoesMencao(
+  lista: PerfilMencao[],
+  query: string,
+  limit = 12,
+): PerfilMencao[] {
+  const q = normalizarNomeMencao(query);
+  const extras: PerfilMencao[] = [];
+  if ('todos'.startsWith(q)) extras.push({ id: '__todos__', nome: 'todos' });
+  const pessoas = !q
+    ? lista
+    : lista.filter((u) => normalizarNomeMencao(u.nome).includes(q));
+  return [...extras, ...pessoas.slice(0, limit)];
+}
+
 // Limita a 4 palavras — evita que o regex greedy consuma frases inteiras após o @Nome
 const MENCAO_REGEX = /@(\p{L}+(?:\s+\p{L}+){0,3})/gu;
 
