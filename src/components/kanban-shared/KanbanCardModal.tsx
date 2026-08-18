@@ -167,6 +167,7 @@ import {
 import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoField';
 import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociacaoLinhasField';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
+import { KanbanCardModalSimulacoesImob } from './KanbanCardModalSimulacoesImob';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
   NEGOCIO_PRAZO_OPCAO_FASE_SLUG,
@@ -674,6 +675,7 @@ export function KanbanCardModal({
     cronologia: false,
     franqueado: false,
     loteador: false,
+    simulacoesImob: false,
     moniCapital: false,
     condominio: false,
     novoNegocio: false,
@@ -8141,6 +8143,16 @@ export function KanbanCardModal({
                       void loadCard({ silencioso: true });
                       router.refresh();
                     }}
+                  />,
+                )
+              : null}
+            {exibirDadosLoteadorPersistente
+              ? secaoHead(
+                  'simulacoesImob',
+                  'Simulações IMOB',
+                  <KanbanCardModalSimulacoesImob
+                    cardId={card.id}
+                    podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
                   />,
                 )
               : ehFunilFunding && !isLegado
