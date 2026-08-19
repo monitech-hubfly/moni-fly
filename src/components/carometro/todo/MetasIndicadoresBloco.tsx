@@ -603,7 +603,7 @@ function MetaCard({
   onEditarSubMeta, onExcluirSubMeta, onAddSubMeta,
   onConcluirMeta, onReabrirMeta,
   onLancarIndicador, onAssumirIndicador,
-  onToggleResponsavel, onAssumirProjeto, projetoOr,
+  onToggleResponsavel, onAssumirProjeto, projetoOr, onToast,
 }: {
   meta: MetaItem; subMetas: SubMetaItem[]; indicadores: IndicadorItemMeta[];
   responsaveis: ResponsavelItem[];
