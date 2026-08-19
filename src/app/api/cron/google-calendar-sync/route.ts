@@ -125,9 +125,10 @@ async function syncUser(
   const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
   url.searchParams.set('timeMin',      todayStart.toISOString());
   url.searchParams.set('timeMax',      future.toISOString());
-  url.searchParams.set('singleEvents', 'true');
-  url.searchParams.set('orderBy',      'startTime');
-  url.searchParams.set('maxResults',   '250');
+  url.searchParams.set('singleEvents',  'true');
+  url.searchParams.set('orderBy',       'startTime');
+  url.searchParams.set('maxResults',    '250');
+  url.searchParams.set('showDeleted',   'false'); // nunca retornar eventos cancelados
 
   const gcalRes = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}` },
@@ -191,12 +192,14 @@ async function syncUser(
 
   // Remover eventos deletados no Google
   let removed = 0;
+  // Usar data BRT (não UTC) para não perder eventos de hoje após 21h BRT (= 00h UTC)
+  const todayBRT = now.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
   const { data: existingRows } = await supabase
     .from('gantt_planejamento')
     .select('id, google_calendar_event_id')
     .eq('profile_id', userId)
     .eq('origem', 'google_calendar')
-    .gte('data', now.toISOString().slice(0, 10));
+    .gte('data', todayBRT);
 
   const toDelete = ((existingRows ?? []) as { id: string; google_calendar_event_id: string }[])
     .filter(r => !eventIds.includes(r.google_calendar_event_id))

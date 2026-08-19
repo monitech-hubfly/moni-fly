@@ -1127,25 +1127,19 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
       {/* Tabela de indicadores */}
       {indicadores.length > 0 && (
         <div className="overflow-x-auto">
-          {/* Indicadores de metas recorrentes (KANBAN/SLA) são somente-leitura */}
-          {meta.tipo?.toLowerCase() === 'recorrente' && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 border-b border-purple-100">
-              <span className="text-[10px] text-purple-600 font-medium">🤖 Calculado automaticamente — somente visualização</span>
-            </div>
-          )}
           <table className="w-full text-xs table-fixed">
             <colgroup>
               <col style={{ width: '45%' }} />
               <col style={{ width: '30%' }} />
               <col style={{ width: '25%' }} />
-              {isAdmin && meta.tipo?.toLowerCase() !== 'recorrente' && <col style={{ width: '60px' }} />}
+              {isAdmin && <col style={{ width: '60px' }} />}
             </colgroup>
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-[10px] uppercase tracking-wide">
                 <th className="px-3 py-1.5 text-left">Indicador</th>
                 <th className="px-3 py-1.5 text-left">Semáforo</th>
                 <th className="px-3 py-1.5 text-left">Responsável</th>
-                {isAdmin && meta.tipo?.toLowerCase() !== 'recorrente' && <th className="px-2 py-1.5" />}
+                {isAdmin && <th className="px-2 py-1.5" />}
               </tr>
             </thead>
             <tbody>
@@ -1159,7 +1153,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                 }
                 return (
                   <LinhaIndicador key={ind.id} ind={ind} responsaveis={responsaveis}
-                    isAdmin={isAdmin && !isRecorrente} currentUserId={currentUserId} onUpdate={onUpdate}
+                    isAdmin={isAdmin} currentUserId={currentUserId} onUpdate={onUpdate}
                     esperadoPct={isProjeto ? esperadoPct : undefined} />
                 );
               })}
@@ -1168,8 +1162,8 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
         </div>
       )}
 
-      {/* + Adicionar indicador (bloqueado para metas recorrentes/KANBAN) */}
-      {isAdmin && meta.tipo?.toLowerCase() !== 'recorrente' && (
+      {/* + Adicionar indicador */}
+      {isAdmin && (
         <div className="px-3 py-2 border-t border-gray-100">
           <FormNovoIndicadorMeta metaId={meta.id} areaId={areaId}
             responsaveis={responsaveis} onSalvo={onUpdate} />

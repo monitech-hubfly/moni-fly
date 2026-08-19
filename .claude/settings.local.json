@@ -93,6 +93,7 @@
       "PowerShell(Select-String *)",
       "PowerShell(Measure-Object *)",
       "PowerShell(Where-Object *)",
+      "PowerShell(ForEach-Object *)",
       "PowerShell(git merge --abort)",
       "PowerShell(git fetch *)",
       "PowerShell(git ls-tree *)",

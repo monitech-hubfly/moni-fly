@@ -166,8 +166,8 @@ export async function pushParaGCal(ganttId: string): Promise<void> {
     let gcalEventId: string;
 
     if (gantt.gcal_hubfly_push_id) {
-      // PATCH — update
-      const res = await fetch(
+      // PATCH — update (se 404/410, evento foi deletado do GCal → recria via POST)
+      const patchRes = await fetch(
         `https://www.googleapis.com/calendar/v3/calendars/primary/events/${gantt.gcal_hubfly_push_id}`,
         {
           method: 'PATCH',
@@ -175,13 +175,24 @@ export async function pushParaGCal(ganttId: string): Promise<void> {
           body: JSON.stringify(body),
         }
       );
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`GCal PATCH ${res.status}: ${txt.slice(0, 200)}`);
+      if (patchRes.ok) {
+        const updated = await patchRes.json() as { id: string };
+        gcalEventId = updated.id;
+      } else if (patchRes.status === 404 || patchRes.status === 410) {
+        // Evento deletado do GCal — limpar id e recriar
+        await (adminDb.from('gantt_planejamento') as any)
+          .update({ gcal_hubfly_push_id: null })
+          .eq('id', ganttId);
+        // fallthrough para POST abaixo
+        gantt.gcal_hubfly_push_id = null;
+        gcalEventId = ''; // será sobrescrito no POST
+      } else {
+        const txt = await patchRes.text();
+        throw new Error(`GCal PATCH ${patchRes.status}: ${txt.slice(0, 200)}`);
       }
-      const updated = await res.json() as { id: string };
-      gcalEventId = updated.id;
-    } else {
+    }
+
+    if (!gantt.gcal_hubfly_push_id) {
       // POST — create
       const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
       if (link && link.includes('meet.google.com')) {
