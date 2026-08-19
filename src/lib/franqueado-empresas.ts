@@ -3,6 +3,7 @@
 import type { createClient } from '@/lib/supabase/server';
 import {
   formatNFranquiaRedeExibicao,
+  isRedeFranqueadoLinhaEmBranco,
   ordenarRedePorNFranquia,
   type RedeFranqueadoRowDb,
 } from '@/lib/rede-franqueados';
@@ -106,7 +107,9 @@ export function buildCadastrosEmpresasLinhas(
     porRede.set(e.rede_franqueado_id, cur);
   }
 
-  return ordenarRedePorNFranquia(redeRows).map((r) => {
+  return ordenarRedePorNFranquia(redeRows)
+    .filter((r) => !isRedeFranqueadoLinhaEmBranco(r))
+    .map((r) => {
     const emp = porRede.get(r.id);
     return {
       redeId: r.id,

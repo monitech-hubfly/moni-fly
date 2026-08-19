@@ -11,8 +11,8 @@ import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync'
 import { labelBanco } from '@/lib/bancos-br'
 import {
   ordenarRedeCorretoresPorCodigo,
-  redeCorretorRowMatchesBusca,
   filtrarLinhasEmBrancoRedeCorretores,
+  redeCorretorRowMatchesBusca,
   REDE_CORRETOR_CONTA_TIPO_LABEL,
   REDE_CORRETOR_PIX_TIPO_LABEL,
   REDE_CORRETOR_STATUS_LABEL,

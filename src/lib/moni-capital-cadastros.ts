@@ -1,7 +1,7 @@
 /** Cadastros Moní Capital (`moni_capital_cadastros`). */
 
 import type { createClient } from '@/lib/supabase/server';
-import { isLinhaCadastroSemIdentidade } from '@/lib/cadastro-linha-em-branco';
+import { isCadastroValorVazio } from '@/lib/cadastro-linha-em-branco';
 
 export type MoniCapitalCadastroRow = {
   id: string;
@@ -54,20 +54,6 @@ function mapRow(r: Record<string, unknown>): MoniCapitalCadastroRow {
   };
 }
 
-export function isMoniCapitalLinhaEmBranco(row: {
-  broker_nome?: string | null;
-  investidor_nome?: string | null;
-}): boolean {
-  return isLinhaCadastroSemIdentidade(row.broker_nome, row.investidor_nome);
-}
-
-export function filtrarLinhasEmBrancoMoniCapital<T extends {
-  broker_nome?: string | null;
-  investidor_nome?: string | null;
-}>(rows: T[]): T[] {
-  return rows.filter((r) => !isMoniCapitalLinhaEmBranco(r));
-}
-
 export async function fetchMoniCapitalCadastrosRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<MoniCapitalCadastroRow[] | null> {
@@ -81,6 +67,17 @@ export async function fetchMoniCapitalCadastrosRows(
 
 export function ordenarMoniCapitalCadastros(rows: MoniCapitalCadastroRow[]): MoniCapitalCadastroRow[] {
   return [...rows].sort((a, b) => a.ordem - b.ordem || a.n_cadastro.localeCompare(b.n_cadastro, 'pt-BR'));
+}
+
+export function isMoniCapitalLinhaEmBranco(row: {
+  broker_nome?: string | null;
+  investidor_nome?: string | null;
+}): boolean {
+  return isCadastroValorVazio(row.broker_nome) && isCadastroValorVazio(row.investidor_nome);
+}
+
+export function filtrarLinhasEmBrancoMoniCapital(rows: MoniCapitalCadastroRow[]): MoniCapitalCadastroRow[] {
+  return rows.filter((r) => !isMoniCapitalLinhaEmBranco(r));
 }
 
 function normBusca(s: string): string {

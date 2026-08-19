@@ -4,11 +4,11 @@
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { isCadastroValorVazio } from '@/lib/cadastro-linha-em-branco';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { pickRedeEmpresaDocsFromRow, type RedeEmpresaDocsRow } from '@/lib/rede-documentos-empresas';
 import { pickRedeFranqueadoDocsFromRow, type RedeFranqueadoDocsRow } from '@/lib/rede-documentos-franqueado';
 import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
-import { isLinhaCadastroSemIdentidade } from '@/lib/cadastro-linha-em-branco';
 import { normalizarParaBusca } from '@/lib/painel-tarefas-filtros';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -82,13 +82,13 @@ export function ordenarRedePorNFranquia<
   return [...rows].sort(compareRedePorNFranquia);
 }
 
-/** Linha sem Nº de franquia e sem nome (vazio ou só traço) — não entra na tabela nem nos totais. */
+/** Linha sem nome (só Nº/tracinhos) — não entra na tabela nem nos totais da rede. */
 export function isRedeFranqueadoLinhaEmBranco(row: {
   n_franquia?: string | number | null;
   nome_completo?: string | null;
   nome?: string | null;
 }): boolean {
-  return isLinhaCadastroSemIdentidade(row.n_franquia, row.nome_completo ?? row.nome);
+  return isCadastroValorVazio(row.nome_completo ?? row.nome);
 }
 
 export function filtrarLinhasEmBrancoRedeFranqueados<

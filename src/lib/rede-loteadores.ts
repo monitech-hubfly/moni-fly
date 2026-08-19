@@ -1,7 +1,7 @@
 /** Cadastro de loteadores (`rede_loteadores`). */
 
 import type { createClient } from '@/lib/supabase/server';
-import { isLinhaCadastroSemIdentidade } from '@/lib/cadastro-linha-em-branco';
+import { isCadastroValorVazio } from '@/lib/cadastro-linha-em-branco';
 
 export type RedeLoteadorStatus = 'ativo' | 'inativo' | 'em_analise';
 
@@ -60,6 +60,14 @@ export const REDE_LOTEADOR_STATUS_LABEL: Record<RedeLoteadorStatus, string> = {
   inativo: 'Inativo',
   em_analise: 'Em análise',
 };
+
+export function isRedeLoteadorLinhaEmBranco(row: { nome?: string | null }): boolean {
+  return isCadastroValorVazio(row.nome);
+}
+
+export function filtrarLinhasEmBrancoRedeLoteadores<T extends { nome?: string | null }>(rows: T[]): T[] {
+  return rows.filter((r) => !isRedeLoteadorLinhaEmBranco(r));
+}
 
 export function normalizarParaBuscaLoteador(s: string): string {
   return s
@@ -198,29 +206,13 @@ function mapRow(r: Record<string, unknown>): RedeLoteadorRow {
   };
 }
 
-export function isRedeLoteadorLinhaEmBranco(row: {
-  codigo?: string | null;
-  n_loteador?: string | null;
-  nome?: string | null;
-}): boolean {
-  return isLinhaCadastroSemIdentidade(row.codigo, row.n_loteador, row.nome);
-}
-
-export function filtrarLinhasEmBrancoRedeLoteadores<T extends {
-  codigo?: string | null;
-  n_loteador?: string | null;
-  nome?: string | null;
-}>(rows: T[]): T[] {
-  return rows.filter((r) => !isRedeLoteadorLinhaEmBranco(r));
-}
-
 export async function fetchRedeLoteadoresRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeLoteadorRow[] | null> {
   const { data, error } = await supabase.from('rede_loteadores').select('*');
   if (error) return null;
-  return ordenarRedeLoteadoresPorCodigo(
-    filtrarLinhasEmBrancoRedeLoteadores((data ?? []).map((r) => mapRow(r as Record<string, unknown>))),
+  return filtrarLinhasEmBrancoRedeLoteadores(
+    ordenarRedeLoteadoresPorCodigo((data ?? []).map((r) => mapRow(r as Record<string, unknown>))),
   );
 }
 
@@ -269,8 +261,7 @@ export async function fetchRedeLoteadoresOpcoesLeves(
         status: String(row.status ?? 'em_analise'),
       };
     })
-    .filter((o) => o.id && !isLinhaCadastroSemIdentidade(o.nome))
-    .map((o) => ({ ...o, nome: o.nome || 'Sem nome' }));
+    .filter((o) => o.id && !isRedeLoteadorLinhaEmBranco(o));
 }
 
 export type RedeLoteadorPatch = {

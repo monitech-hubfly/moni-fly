@@ -3,12 +3,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { TabelaRedeLoteadoresEditavel } from '@/components/TabelaRedeLoteadoresEditavel';
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
-import {
-  filtrarLinhasEmBrancoRedeLoteadores,
-  ordenarRedeLoteadoresPorCodigo,
-  redeLoteadorRowMatchesBusca,
-  type RedeLoteadorRow,
-} from '@/lib/rede-loteadores';
+import { ordenarRedeLoteadoresPorCodigo, filtrarLinhasEmBrancoRedeLoteadores, redeLoteadorRowMatchesBusca, type RedeLoteadorRow } from '@/lib/rede-loteadores';
 
 type Props = {
   rows: RedeLoteadorRow[];

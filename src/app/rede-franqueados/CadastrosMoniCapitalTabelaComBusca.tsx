@@ -20,7 +20,7 @@ export function CadastrosMoniCapitalTabelaComBusca({ rows, loadError, children }
   const [busca, setBusca] = useState('');
 
   const todasLinhas = useMemo(
-    () => ordenarMoniCapitalCadastros(filtrarLinhasEmBrancoMoniCapital(rows)),
+    () => filtrarLinhasEmBrancoMoniCapital(ordenarMoniCapitalCadastros(rows)),
     [rows],
   );
 

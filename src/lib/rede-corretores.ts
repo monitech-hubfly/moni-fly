@@ -2,7 +2,7 @@
 
 import type { createClient } from '@/lib/supabase/server'
 import type { PixTipo } from '@/lib/br-docs'
-import { isLinhaCadastroSemIdentidade } from '@/lib/cadastro-linha-em-branco'
+import { isCadastroValorVazio } from '@/lib/cadastro-linha-em-branco'
 
 export type RedeCorretorStatus = 'ativo' | 'inativo' | 'em_analise' | 'pendente' | 'aprovado'
 
@@ -101,6 +101,14 @@ export const REDE_CORRETOR_PIX_TIPO_LABEL: Record<PixTipo, string> = {
   aleatoria: 'Chave aleatória',
 }
 
+export function isRedeCorretorLinhaEmBranco(row: { nome?: string | null }): boolean {
+  return isCadastroValorVazio(row.nome)
+}
+
+export function filtrarLinhasEmBrancoRedeCorretores<T extends { nome?: string | null }>(rows: T[]): T[] {
+  return rows.filter((r) => !isRedeCorretorLinhaEmBranco(r))
+}
+
 export function normalizarParaBuscaCorretor(s: string): string {
   return s
     .normalize('NFD')
@@ -144,20 +152,6 @@ export function ordenarRedeCorretoresPorCodigo(rows: RedeCorretorRow[]): RedeCor
     if (!bOk) return -1
     return na - nb
   })
-}
-
-export function isRedeCorretorLinhaEmBranco(row: {
-  n_corretor?: string | null;
-  nome?: string | null;
-}): boolean {
-  return isLinhaCadastroSemIdentidade(row.n_corretor, row.nome);
-}
-
-export function filtrarLinhasEmBrancoRedeCorretores<T extends {
-  n_corretor?: string | null;
-  nome?: string | null;
-}>(rows: T[]): T[] {
-  return rows.filter((r) => !isRedeCorretorLinhaEmBranco(r));
 }
 
 const SELECT_COLS_BASE =
