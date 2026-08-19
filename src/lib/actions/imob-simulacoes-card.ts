@@ -6,9 +6,9 @@ import { isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   draftToImobPatch,
+  mapImobCardEmpreendimentoRow,
   rowToImobDraft,
   type ImobCardEmpreendimentoDraft,
-  type ImobCardEmpreendimentoRow,
 } from '@/lib/kanban/imob-simulacoes-card';
 
 async function requireUser() {
@@ -35,60 +35,26 @@ async function assertCardLoteadores(
   return { ok: true };
 }
 
-function mapRow(raw: Record<string, unknown>): ImobCardEmpreendimentoRow {
-  const n = (k: string) => {
-    const v = raw[k];
-    if (v == null || v === '') return null;
-    const num = Number(v);
-    return Number.isFinite(num) ? num : null;
-  };
-  return {
-    id: String(raw.id),
-    card_id: String(raw.card_id),
-    ordem: Number(raw.ordem ?? 0),
-    nome: raw.nome != null ? String(raw.nome) : null,
-    valor_avista: n('valor_avista'),
-    balao_parcial_8: n('balao_parcial_8'),
-    balao_parcial_18: n('balao_parcial_18'),
-    balao_parcial_24: n('balao_parcial_24'),
-    balao_quitado_8: n('balao_quitado_8'),
-    balao_quitado_18: n('balao_quitado_18'),
-    balao_quitado_24: n('balao_quitado_24'),
-    balao_lote_8: n('balao_lote_8'),
-    balao_lote_18: n('balao_lote_18'),
-    balao_lote_24: n('balao_lote_24'),
-    fin_parcial_valor: n('fin_parcial_valor'),
-    fin_parcial_p1: n('fin_parcial_p1'),
-    fin_parcial_ultima: n('fin_parcial_ultima'),
-    fin_parcial_total: n('fin_parcial_total'),
-    fin_quitado_valor: n('fin_quitado_valor'),
-    fin_quitado_p1: n('fin_quitado_p1'),
-    fin_quitado_ultima: n('fin_quitado_ultima'),
-    fin_quitado_total: n('fin_quitado_total'),
-    fin_lote_valor: n('fin_lote_valor'),
-    fin_lote_p1: n('fin_lote_p1'),
-    fin_lote_ultima: n('fin_lote_ultima'),
-    fin_lote_total: n('fin_lote_total'),
-  };
-}
-
 export async function listarImobSimulacoesCard(
   cardId: string,
 ): Promise<{ ok: true; itens: ImobCardEmpreendimentoDraft[] } | { ok: false; error: string }> {
   const auth = await requireUser();
   if (!auth.ok) return auth;
-  const check = await assertCardLoteadores(auth.supabase, cardId);
-  if (!check.ok) return check;
-
   const { data, error } = await auth.supabase
     .from('imob_card_empreendimentos')
     .select('*')
     .eq('card_id', cardId)
-    .order('ordem', { ascending: true })
-    .order('created_at', { ascending: true });
-  if (error) return { ok: false, error: error.message };
-  const itens = (data ?? []).map((r) => rowToImobDraft(mapRow(r as Record<string, unknown>)));
-  return { ok: true, itens };
+    .order('ordem', { ascending: true });
+  if (error) {
+    if (/imob_card_empreendimentos|schema cache|does not exist/i.test(error.message)) {
+      return { ok: true, itens: [] };
+    }
+    return { ok: false, error: error.message };
+  }
+  return {
+    ok: true,
+    itens: (data ?? []).map((r) => rowToImobDraft(mapImobCardEmpreendimentoRow(r as Record<string, unknown>))),
+  };
 }
 
 export async function criarImobSimulacaoEmpreendimento(
@@ -116,7 +82,7 @@ export async function criarImobSimulacaoEmpreendimento(
     .single();
   if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível criar o empreendimento.' };
   revalidatePath('/loteadores');
-  return { ok: true, item: rowToImobDraft(mapRow(data as Record<string, unknown>)) };
+  return { ok: true, item: rowToImobDraft(mapImobCardEmpreendimentoRow(data as Record<string, unknown>)) };
 }
 
 export async function salvarImobSimulacaoEmpreendimento(

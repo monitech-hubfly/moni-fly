@@ -6,9 +6,10 @@ import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import {
   criarImobSimulacaoEmpreendimento,
   excluirImobSimulacaoEmpreendimento,
-  listarImobSimulacoesCard,
   salvarImobSimulacaoEmpreendimento,
 } from '@/lib/actions/imob-simulacoes-card';
+import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
+import { createClient } from '@/lib/supabase/client';
 import {
   IMOB_PRAZOS_BALAO,
   IMOB_SITUACOES,
@@ -23,6 +24,8 @@ import {
 type Props = {
   cardId: string;
   podeEditar: boolean;
+  prefetch?: { cardId: string; itens: ImobCardEmpreendimentoDraft[]; error: string | null } | null;
+  esperarPrefetch?: boolean;
 };
 
 const inputCls =
@@ -252,10 +255,16 @@ function EmpreendimentoBloco({
   );
 }
 
-export function KanbanCardModalSimulacoesImob({ cardId, podeEditar }: Props) {
-  const [itens, setItens] = useState<ImobCardEmpreendimentoDraft[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
+export function KanbanCardModalSimulacoesImob({
+  cardId,
+  podeEditar,
+  prefetch = null,
+  esperarPrefetch = false,
+}: Props) {
+  const prefetchOk = prefetch?.cardId === cardId ? prefetch : null;
+  const [itens, setItens] = useState<ImobCardEmpreendimentoDraft[]>(() => prefetchOk?.itens ?? []);
+  const [loading, setLoading] = useState(!prefetchOk);
+  const [erro, setErro] = useState<string | null>(prefetchOk?.error ?? null);
   const [msg, setMsg] = useState<string | null>(null);
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
@@ -263,7 +272,7 @@ export function KanbanCardModalSimulacoesImob({ cardId, podeEditar }: Props) {
   const recarregar = useCallback(async () => {
     setLoading(true);
     setErro(null);
-    const r = await listarImobSimulacoesCard(cardId);
+    const r = await carregarImobSimulacoesCard(createClient(), cardId);
     setLoading(false);
     if (!r.ok) {
       setErro(r.error);
@@ -273,8 +282,15 @@ export function KanbanCardModalSimulacoesImob({ cardId, podeEditar }: Props) {
   }, [cardId]);
 
   useEffect(() => {
+    if (prefetch?.cardId === cardId) {
+      setItens(prefetch.itens);
+      setErro(prefetch.error);
+      setLoading(false);
+      return;
+    }
+    if (esperarPrefetch) return;
     void recarregar();
-  }, [recarregar]);
+  }, [cardId, prefetch, esperarPrefetch, recarregar]);
 
   async function handleSalvar(item: ImobCardEmpreendimentoDraft) {
     setSalvandoId(item.id);

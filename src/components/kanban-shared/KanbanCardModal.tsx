@@ -282,6 +282,8 @@ import {
   carregarChamadosDoCardModal,
   fetchKanbanTimesCached,
 } from '@/lib/kanban/carregar-chamados-card-modal';
+import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
+import type { ImobCardEmpreendimentoDraft } from '@/lib/kanban/imob-simulacoes-card';
 import {
   listarComentariosKanbanCard,
   publicarComentarioKanbanCard,
@@ -689,6 +691,11 @@ export function KanbanCardModal({
     chamados: false,
     historico: false,
   }));
+  const [imobSimulacoesPrefetch, setImobSimulacoesPrefetch] = useState<{
+    cardId: string;
+    itens: ImobCardEmpreendimentoDraft[];
+    error: string | null;
+  } | null>(null);
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [historicoCalculadora, setHistoricoCalculadora] = useState<HistoricoItem[]>([]);
@@ -1186,6 +1193,18 @@ export function KanbanCardModal({
         setChamadosCarregando(false);
         return result;
       });
+      if (isLoteadoresKanbanRef(undefined, String(kanbanNome))) {
+        void carregarImobSimulacoesCard(supabase, cardId).then((r) => {
+          if (!stillCurrent()) return;
+          setImobSimulacoesPrefetch({
+            cardId,
+            itens: r.ok ? r.itens : [],
+            error: r.ok ? null : r.error,
+          });
+        });
+      } else if (stillCurrent()) {
+        setImobSimulacoesPrefetch(null);
+      }
       const fontePromise =
         origem === 'legado'
           ? Promise.resolve(null as FonteDadosLaterais | null)
@@ -5479,7 +5498,7 @@ export function KanbanCardModal({
     );
   }
 
-  const secaoHead = (id: SecaoEsquerdaId, label: string, body: ReactNode) => (
+  const secaoHead = (id: SecaoEsquerdaId, label: string, body: ReactNode, persistBody = false) => (
     <div
       className="mb-2 overflow-hidden rounded-lg bg-white text-xs"
       style={{
@@ -5499,8 +5518,14 @@ export function KanbanCardModal({
         )}
         <span className="text-xs font-semibold text-stone-800">{label}</span>
       </button>
-      {secaoAberta[id] ? (
-        <div className="border-t px-2 pb-2 pt-1.5 text-xs text-stone-600" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+      {secaoAberta[id] || persistBody ? (
+        <div
+          className="border-t px-2 pb-2 pt-1.5 text-xs text-stone-600"
+          style={{
+            borderColor: 'var(--moni-border-subtle)',
+            display: secaoAberta[id] ? undefined : 'none',
+          }}
+        >
           {body}
         </div>
       ) : null}
@@ -8153,7 +8178,12 @@ export function KanbanCardModal({
                   <KanbanCardModalSimulacoesImob
                     cardId={card.id}
                     podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                    prefetch={
+                      imobSimulacoesPrefetch?.cardId === card.id ? imobSimulacoesPrefetch : null
+                    }
+                    esperarPrefetch={imobSimulacoesPrefetch?.cardId !== card.id}
                   />,
+                  true,
                 )
               : ehFunilFunding && !isLegado
                 ? secaoHead(

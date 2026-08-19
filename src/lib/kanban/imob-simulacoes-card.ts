@@ -161,3 +161,40 @@ export function formatImobMoedaExibicao(raw: string): string {
   if (n == null) return '—';
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
+
+export function mapImobCardEmpreendimentoRow(raw: Record<string, unknown>): ImobCardEmpreendimentoRow {
+  const n = (k: string) => {
+    const v = raw[k];
+    if (v == null || v === '') return null;
+    const num = Number(v);
+    return Number.isFinite(num) ? num : null;
+  };
+  return {
+    id: String(raw.id),
+    card_id: String(raw.card_id),
+    ordem: Number(raw.ordem ?? 0),
+    nome: raw.nome != null ? String(raw.nome) : null,
+    valor_avista: n('valor_avista'),
+    balao_parcial_8: n('balao_parcial_8'),
+    balao_parcial_18: n('balao_parcial_18'),
+    balao_parcial_24: n('balao_parcial_24'),
+    balao_quitado_8: n('balao_quitado_8'),
+    balao_quitado_18: n('balao_quitado_18'),
+    balao_quitado_24: n('balao_quitado_24'),
+    balao_lote_8: n('balao_lote_8'),
+    balao_lote_18: n('balao_lote_18'),
+    balao_lote_24: n('balao_lote_24'),
+    fin_parcial_valor: n('fin_parcial_valor'),
+    fin_parcial_p1: n('fin_parcial_p1'),
+    fin_parcial_ultima: n('fin_parcial_ultima'),
+    fin_parcial_total: n('fin_parcial_total'),
+    fin_quitado_valor: n('fin_quitado_valor'),
+    fin_quitado_p1: n('fin_quitado_p1'),
+    fin_quitado_ultima: n('fin_quitado_ultima'),
+    fin_quitado_total: n('fin_quitado_total'),
+    fin_lote_valor: n('fin_lote_valor'),
+    fin_lote_p1: n('fin_lote_p1'),
+    fin_lote_ultima: n('fin_lote_ultima'),
+    fin_lote_total: n('fin_lote_total'),
+  };
+}
