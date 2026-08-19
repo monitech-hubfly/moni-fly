@@ -76,7 +76,12 @@ export async function arquivarHistoricoSubstituicao(
 
   await supabase
     .from('kanban_cards')
-    .update({ rede_substituicao_id: substituicaoId })
+    .update({
+      rede_substituicao_id: substituicaoId,
+      arquivado: true,
+      arquivado_em: new Date().toISOString(),
+      motivo_arquivamento: 'Franquia transferida',
+    })
     .eq('rede_franqueado_id', redeId)
     .is('rede_substituicao_id', null);
 

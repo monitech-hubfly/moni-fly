@@ -110,7 +110,13 @@ try {
   const subId = subRes.rows[0].id;
 
   await client.query(
-    `UPDATE kanban_cards SET rede_substituicao_id = $1 WHERE rede_franqueado_id = $2 AND rede_substituicao_id IS NULL`,
+    `UPDATE kanban_cards
+     SET rede_substituicao_id = $1,
+         arquivado = true,
+         arquivado_em = now(),
+         motivo_arquivamento = 'Franquia transferida'
+     WHERE rede_franqueado_id = $2
+       AND rede_substituicao_id IS NULL`,
     [subId, alexandre.id],
   );
 
