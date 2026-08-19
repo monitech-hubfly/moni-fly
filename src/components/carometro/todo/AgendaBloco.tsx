@@ -712,11 +712,20 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
       return;
     }
 
-    // Sirene / Pastelaria → abre modal do chamado direto (sem popup)
+    // Sirene / Pastelaria → se chamado já concluído, marca direto; senão abre modal
     if (tipo === 'sirene' || tipo === 'pastelaria') {
       if (atv.sirene_chamado_id) {
-        setChamadoModalId(atv.sirene_chamado_id);
-        setPendingConcluirId(atv.id);
+        const { data: chamado } = await supabase
+          .from('sirene_chamados')
+          .select('status')
+          .eq('id', atv.sirene_chamado_id)
+          .maybeSingle();
+        if ((chamado as { status?: string } | null)?.status === 'concluida') {
+          await concluir(atv.id);
+        } else {
+          setChamadoModalId(atv.sirene_chamado_id);
+          setPendingConcluirId(atv.id);
+        }
       } else {
         await concluir(atv.id);
       }
