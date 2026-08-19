@@ -894,11 +894,53 @@ function MetaCard({
   );
 }
 
+// ── IndicadorLinhaSimples (versão sem células de lançamento — para MetaCardSemDono) ──
+function IndicadorLinhaSimples({ ind, responsaveis, onAssumirIndicador }: {
+  ind: IndicadorItemMeta;
+  responsaveis: ResponsavelItem[];
+  onAssumirIndicador: (indId: string) => Promise<void>;
+}) {
+  const [assumindo, setAssumindo] = useState(false);
+
+  type RawSf = { is_projeto_relativo?: boolean; faixas?: FaixaItem[] };
+  const rawSf = ind.semaforo_faixas as RawSf | null;
+  const faixas = rawSf?.faixas ?? [];
+  const isProjetoRelativo = Boolean(rawSf?.is_projeto_relativo);
+
+  const semDono  = !ind.profile_id;
+  const donoNome = ind.profile_id ? (responsaveis.find(r => r.profile_id === ind.profile_id)?.nome ?? 'outro') : null;
+
+  const handleAssumir = async () => {
+    setAssumindo(true);
+    try { await onAssumirIndicador(ind.id); }
+    finally { setAssumindo(false); }
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap px-2 py-1.5 rounded bg-gray-50 border border-gray-100">
+      {ind.indicador_chave && <span className="text-[11px] leading-none flex-shrink-0">🔑</span>}
+      <span className="text-xs text-gray-700 leading-snug flex-1 min-w-0">{ind.nome}</span>
+      {isProjetoRelativo ? <FaixasLegendaProjeto /> : faixas.length > 0 && <FaixasLegenda faixas={faixas} />}
+      {semDono ? (
+        <button type="button" onClick={handleAssumir} disabled={assumindo}
+          className="text-[10px] px-1.5 py-0.5 rounded border text-gray-400 border-gray-200 hover:border-blue-300 hover:text-blue-500 transition-colors whitespace-nowrap flex-shrink-0 disabled:opacity-50">
+          {assumindo ? '…' : 'Assumir'}
+        </button>
+      ) : (
+        <span className="text-[10px] text-gray-400 whitespace-nowrap flex-shrink-0">{donoNome}</span>
+      )}
+    </div>
+  );
+}
+
 // ── MetaCardSemDono (card simplificado para metas sem responsável) ─────────────
-function MetaCardSemDono({ meta, onToggleResponsavel, onAssumirProjeto }: {
+function MetaCardSemDono({ meta, indicadores, responsaveis, onToggleResponsavel, onAssumirProjeto, onAssumirIndicador }: {
   meta: MetaItem;
+  indicadores: IndicadorItemMeta[];
+  responsaveis: ResponsavelItem[];
   onToggleResponsavel: (metaId: string) => Promise<void>;
   onAssumirProjeto: (metaId: string, dataInicio: string, dataFim: string) => Promise<void>;
+  onAssumirIndicador: (indId: string) => Promise<void>;
 }) {
   const [assumindo,    setAssumindo]    = useState(false);
   const [modalProjeto, setModalProjeto] = useState(false);
@@ -912,26 +954,43 @@ function MetaCardSemDono({ meta, onToggleResponsavel, onAssumirProjeto }: {
   };
 
   return (
-    <div className="bg-white border border-orange-200 rounded-lg shadow-sm px-3 py-2.5 flex items-center gap-2">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <TipoBadge tipo={meta.tipo} />
-          <span className="text-sm font-medium text-gray-800 leading-snug">
-            {meta.is_chave && <span className="mr-1">🔑</span>}
-            {meta.descricao}
-          </span>
-          {!meta.tipo?.toLowerCase().includes('recorrente') && meta.meta_unidade && (
-            <span className="text-xs text-gray-400 ml-1">· {meta.meta_unidade}</span>
-          )}
-          {meta.criado_em && (
-            <span className="text-[10px] text-gray-300">· aberta {formatarDataCurta(meta.criado_em)}</span>
-          )}
+    <div className="bg-white border border-orange-200 rounded-lg shadow-sm overflow-hidden">
+      {/* Cabeçalho da meta */}
+      <div className="px-3 py-2.5 flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <TipoBadge tipo={meta.tipo} />
+            <span className="text-sm font-medium text-gray-800 leading-snug">
+              {meta.is_chave && <span className="mr-1">🔑</span>}
+              {meta.descricao}
+            </span>
+            {!meta.tipo?.toLowerCase().includes('recorrente') && meta.meta_unidade && (
+              <span className="text-xs text-gray-400 ml-1">· {meta.meta_unidade}</span>
+            )}
+            {meta.criado_em && (
+              <span className="text-[10px] text-gray-300">· aberta {formatarDataCurta(meta.criado_em)}</span>
+            )}
+          </div>
         </div>
+        <button type="button" onClick={handleAssumir} disabled={assumindo}
+          className="text-[10px] px-2 py-1 rounded border text-gray-500 border-gray-300 hover:border-blue-400 hover:text-blue-600 transition-colors whitespace-nowrap flex-shrink-0 disabled:opacity-50">
+          {assumindo ? '…' : 'Assumir'}
+        </button>
       </div>
-      <button type="button" onClick={handleAssumir} disabled={assumindo}
-        className="text-[10px] px-2 py-1 rounded border text-gray-500 border-gray-300 hover:border-blue-400 hover:text-blue-600 transition-colors whitespace-nowrap flex-shrink-0 disabled:opacity-50">
-        {assumindo ? '…' : 'Assumir'}
-      </button>
+
+      {/* Indicadores da meta */}
+      {indicadores.length > 0 && (
+        <div className="px-3 pb-2.5 flex flex-col gap-1 border-t border-orange-100 pt-2">
+          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Indicadores</p>
+          {indicadores.map(ind => (
+            <IndicadorLinhaSimples key={ind.id} ind={ind}
+              responsaveis={responsaveis}
+              onAssumirIndicador={onAssumirIndicador}
+            />
+          ))}
+        </div>
+      )}
+
       {modalProjeto && (
         <ModalAssumirProjeto meta={meta}
           onConfirmar={async (id, ini, fim) => { await onAssumirProjeto(id, ini, fim); setModalProjeto(false); }}
@@ -1279,8 +1338,11 @@ export function MetasIndicadoresBloco() {
                     <div className="flex flex-col gap-2">
                       {metasSemResponsavel.map(meta => (
                         <MetaCardSemDono key={meta.id} meta={meta}
+                          indicadores={indicadores.filter(i => i.objetivo_id === meta.id)}
+                          responsaveis={responsaveis}
                           onToggleResponsavel={handleToggleResponsavel}
                           onAssumirProjeto={handleAssumirProjeto}
+                          onAssumirIndicador={handleAssumirIndicador}
                         />
                       ))}
                     </div>
