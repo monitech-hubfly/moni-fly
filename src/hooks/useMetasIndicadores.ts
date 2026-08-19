@@ -10,6 +10,38 @@ const FAROL_COR: Record<string, string> = {
 };
 const FAROL_SCORE: Record<string, number> = { ve: 100, vc: 75, am: 50, vm: 0 };
 
+/** Conta dias úteis de dataInicio até refDate (inclusive) */
+function calcEsperadoPctHook(
+  dataInicio: string | null | undefined,
+  dataFim: string | null | undefined,
+  diasUteis: number | null | undefined,
+  refDate: Date,
+): number | null {
+  if (!dataInicio || !dataFim || !diasUteis || diasUteis <= 0) return null;
+  const ref   = new Date(refDate); ref.setHours(0, 0, 0, 0);
+  const inicio = new Date(dataInicio + 'T00:00:00');
+  const fim    = new Date(dataFim    + 'T00:00:00');
+  if (ref < inicio) return 0;
+  if (ref > fim)    return 100;
+  let count = 0;
+  const d = new Date(inicio);
+  while (d <= ref) {
+    if (d.getDay() !== 0 && d.getDay() !== 6) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return Math.min(100, Math.round((count / diasUteis) * 100));
+}
+
+function farolProjetoRelativo(valor: string, esperado: number | null): string | null {
+  if (esperado === null || esperado <= 0) return null;
+  const ratio = (parseFloat(valor) / esperado) * 100;
+  if (isNaN(ratio)) return null;
+  if (ratio >= 75) return 've';
+  if (ratio >= 60) return 'vc';
+  if (ratio >= 30) return 'am';
+  return 'vm';
+}
+
 export type MetaItem = {
   id: string;
   descricao: string;
@@ -200,13 +232,16 @@ export function useMetasIndicadores(
       const semRel      = semana;
       const semAnterior = semana > 1 ? semana - 1 : 52;
       if (indIds.length > 0) {
-        // indicador_lancamentos não tem profile_id — um valor por indicador/semana
-        const { data: lancs } = await supabase
+        // Filtra lançamentos do usuário efetivo OU sem profile_id (legado)
+        let lancsQuery: any = supabase
           .from('indicador_lancamentos')
           .select('indicador_id, valor, semana')
           .in('indicador_id', indIds)
-          .in('semana', [semAnterior, semRel])
-          .or(`semana_ano.eq.${anoISO},semana_ano.is.null`);
+          .in('semana', [semAnterior, semRel]);
+        if (effectiveProfileId) {
+          lancsQuery = lancsQuery.or(`profile_id.eq.${effectiveProfileId},profile_id.is.null`);
+        }
+        const { data: lancs } = await lancsQuery;
 
         for (const l of (lancs ?? []) as { indicador_id: string; valor: unknown; semana: number }[]) {
           const val = String(l.valor ?? '');
@@ -222,13 +257,54 @@ export function useMetasIndicadores(
       setAnoRelativo(anoISO);
       setSemanaRelativa(semRel);
 
+      // Buscar objetivo_responsaveis com concluido para TODOS os objetivos da área
+      // (precisa estar antes do mapeamento de indicadores para calcular corHex de is_projeto_relativo)
+      const allObjIds = (objRes.data ?? []).map((o: { id: string }) => o.id);
+      type ORRow = {
+        objetivo_id: string; profile_id: string;
+        concluido: boolean | null; concluido_em: string | null;
+        data_inicio: string | null; data_fim: string | null; dias_uteis: number | null;
+      };
+      let orRows: ORRow[] = [];
+      if (allObjIds.length > 0) {
+        const { data: orData } = await supabase
+          .from('objetivo_responsaveis')
+          .select('objetivo_id, profile_id, concluido, concluido_em, data_inicio, data_fim, dias_uteis')
+          .in('objetivo_id', allObjIds);
+        orRows = (orData ?? []) as ORRow[];
+      }
+
+      // Índice: objetivo_id → datas do usuário efetivo (para is_projeto_relativo)
+      const orByObjForUser = new Map<string, { data_inicio: string | null; data_fim: string | null; dias_uteis: number | null }>();
+      for (const r of orRows) {
+        if (effectiveProfileId && r.profile_id === effectiveProfileId) {
+          orByObjForUser.set(r.objetivo_id, { data_inicio: r.data_inicio, data_fim: r.data_fim, dias_uteis: r.dias_uteis });
+        }
+      }
+
       const indicadoresArr: IndicadorItemMeta[] = indArr
         .map(ind => {
           const valorAtual    = lancMap.get(ind.id) ?? null;
           const valorAnterior = lancMapAnterior.get(ind.id) ?? null;
-          const farol = valorAtual != null
-            ? (statusSemaforoPorValor(ind, valorAtual) as string | null)
-            : null;
+
+          type RawSf = { is_projeto_relativo?: boolean; data_inicio?: string; data_fim?: string; dias_uteis?: number };
+          const rawSf = ind.semaforo_faixas as RawSf | null;
+          const isProjetoRelativo = Boolean(rawSf?.is_projeto_relativo);
+
+          let farol: string | null = null;
+          if (valorAtual != null) {
+            if (isProjetoRelativo) {
+              const orRow = ind.objetivo_id ? orByObjForUser.get(ind.objetivo_id) : null;
+              const prjInicio = rawSf?.data_inicio ?? orRow?.data_inicio ?? null;
+              const prjFim    = rawSf?.data_fim    ?? orRow?.data_fim    ?? null;
+              const prjUteis  = rawSf?.dias_uteis  ?? orRow?.dias_uteis  ?? null;
+              const esperado  = calcEsperadoPctHook(prjInicio, prjFim, prjUteis, hoje);
+              farol = farolProjetoRelativo(valorAtual, esperado);
+            } else {
+              farol = statusSemaforoPorValor(ind, valorAtual) as string | null;
+            }
+          }
+
           return {
             id:              ind.id,
             nome:            ind.nome,
@@ -249,32 +325,17 @@ export function useMetasIndicadores(
           return a.nome.localeCompare(b.nome, 'pt-BR');
         });
 
-      // Buscar objetivo_responsaveis com concluido para TODOS os objetivos da área
-      const allObjIds = (objRes.data ?? []).map((o: { id: string }) => o.id);
-      if (allObjIds.length > 0) {
-        const { data: orData } = await supabase
-          .from('objetivo_responsaveis')
-          .select('objetivo_id, profile_id, concluido, concluido_em, data_inicio, data_fim, dias_uteis')
-          .in('objetivo_id', allObjIds);
-        type ORRow = {
-          objetivo_id: string; profile_id: string;
-          concluido: boolean | null; concluido_em: string | null;
-          data_inicio: string | null; data_fim: string | null; dias_uteis: number | null;
-        };
-        setObjetivoResponsaveis(
-          ((orData ?? []) as ORRow[]).map(r => ({
-            objetivo_id: r.objetivo_id,
-            profile_id:  r.profile_id,
-            concluido:   Boolean(r.concluido),
-            concluido_em: r.concluido_em ?? null,
-            data_inicio: r.data_inicio ?? null,
-            data_fim:    r.data_fim ?? null,
-            dias_uteis:  r.dias_uteis ?? null,
-          }))
-        );
-      } else {
-        setObjetivoResponsaveis([]);
-      }
+      setObjetivoResponsaveis(
+        orRows.map(r => ({
+          objetivo_id: r.objetivo_id,
+          profile_id:  r.profile_id,
+          concluido:   Boolean(r.concluido),
+          concluido_em: r.concluido_em ?? null,
+          data_inicio: r.data_inicio ?? null,
+          data_fim:    r.data_fim ?? null,
+          dias_uteis:  r.dias_uteis ?? null,
+        }))
+      );
 
       setMetas(metasArr);
       setSubMetas(subMetasArr);

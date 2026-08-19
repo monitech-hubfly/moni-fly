@@ -139,6 +139,16 @@ function FaixasLegendaProjeto() {
   );
 }
 
+// ── Toast de confirmação ──────────────────────────────────────────────────────
+function Toast({ message }: { message: string }) {
+  return (
+    <div className="fixed bottom-5 right-5 z-[9999] flex items-center gap-2 bg-gray-900 text-white text-xs font-medium px-4 py-2.5 rounded-xl shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+      <span className="text-green-400 text-sm">✓</span>
+      {message}
+    </div>
+  );
+}
+
 // ── Seção colapsável ──────────────────────────────────────────────────────────
 function SecaoToggle({ label, count, aberta, onToggle, children, cor }: {
   label: string; count: number; aberta: boolean; onToggle: () => void; children: ReactNode; cor?: string;
@@ -409,7 +419,7 @@ function SubMetaEditavel({ sub, onSalvo, onExcluir }: {
 function IndicadorLinha({
   ind, effectiveProfileId, currentUserId, responsaveis,
   semanaAtual, semanaAnterior, anoRelativo,
-  onLancar, onAssumirIndicador, projetoOr,
+  onLancar, onAssumirIndicador, projetoOr, onToast,
 }: {
   ind: IndicadorItemMeta;
   effectiveProfileId: string | null;
@@ -421,6 +431,7 @@ function IndicadorLinha({
   onLancar: (indId: string, valor: string, semana: number) => Promise<void>;
   onAssumirIndicador: (indId: string) => Promise<void>;
   projetoOr?: { data_inicio: string | null; data_fim: string | null; dias_uteis: number | null } | null;
+  onToast?: (msg: string) => void;
 }) {
   const [valorEditAtual,    setValorEditAtual]    = useState(ind.valorAtual    ?? '');
   const [valorEditAnterior, setValorEditAnterior] = useState(ind.valorAnterior ?? '');
@@ -473,6 +484,7 @@ function IndicadorLinha({
     setSalvandoAtual(true);
     await onLancar(ind.id, v, semanaAtual);
     setSalvandoAtual(false);
+    onToast?.('Valor salvo com sucesso');
   };
   const handleLancarAnterior = async (val?: string) => {
     const v = (val !== undefined ? val : valorEditAnterior).trim();
@@ -480,6 +492,7 @@ function IndicadorLinha({
     setSalvandoAnterior(true);
     await onLancar(ind.id, v, semanaAnterior);
     setSalvandoAnterior(false);
+    onToast?.('Valor salvo com sucesso');
   };
   const handleAssumir = async () => {
     setAssumindo(true);
@@ -615,6 +628,7 @@ function MetaCard({
   onToggleResponsavel: (metaId: string) => Promise<void>;
   onAssumirProjeto: (metaId: string, dataInicio: string, dataFim: string) => Promise<void>;
   projetoOr?: { data_inicio: string | null; data_fim: string | null; dias_uteis: number | null } | null;
+  onToast?: (msg: string) => void;
 }) {
   const [secaoFilhas,        setSecaoFilhas]        = useState(false);
   const [adicionandoFilha,   setAdicionandoFilha]   = useState(false);
@@ -795,6 +809,7 @@ function MetaCard({
                     onLancar={onLancarIndicador}
                     onAssumirIndicador={onAssumirIndicador}
                     projetoOr={projetoOr}
+                    onToast={onToast}
                   />
                 ))}
               </div>
@@ -813,6 +828,7 @@ function MetaCard({
                   onLancar={onLancarIndicador}
                   onAssumirIndicador={onAssumirIndicador}
                   projetoOr={projetoOr}
+                  onToast={onToast}
                 />
               ))}
             </div>
@@ -1032,6 +1048,12 @@ export function MetasIndicadoresBloco() {
   const [filtroMinhas,      setFiltroMinhas]       = useState(true);
   const [semDonoAberta,     setSemDonoAberta]      = useState(true);
   const [allBlockers,       setAllBlockers]        = useState<BlockerRow[]>([]);
+  const [toastMsg,          setToastMsg]           = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 2500);
+  };
 
   useEffect(() => {
     void (async () => {
@@ -1186,6 +1208,13 @@ export function MetasIndicadoresBloco() {
     const profileId = effectiveProfileId ?? currentUserId;
     const table: any = supabase.from('indicador_lancamentos');
     const payload = { indicador_id: indId, semana, valor, profile_id: profileId };
+
+    // Verifica se já existe lançamento (para logar corretamente como INSERT vs UPDATE)
+    const { data: existing } = await (supabase.from('indicador_lancamentos') as any)
+      .select('id, valor')
+      .eq('indicador_id', indId).eq('semana', semana).eq('profile_id', profileId)
+      .maybeSingle();
+
     const { error: upsertErr } = await table.upsert(payload, { onConflict: 'indicador_id,semana,profile_id' });
     if (upsertErr) {
       await (supabase.from('indicador_lancamentos') as any).delete()
@@ -1193,8 +1222,15 @@ export function MetasIndicadoresBloco() {
       const { error: insErr } = await (supabase.from('indicador_lancamentos') as any).insert(payload);
       if (insErr) { console.error('[LancarIndicador]', insErr); return; }
     }
+
+    const operacao = existing ? 'UPDATE' : 'INSERT';
+    const descricao = existing
+      ? `Valor alterado de "${existing.valor}" para "${valor}" — semana ${semana}`
+      : `Valor lançado: "${valor}" — semana ${semana}`;
+    log({ modulo: 'Planejamento', entidade: 'indicador_lancamentos', entidade_id: indId, operacao, descricao });
+
     recarregar();
-  }, [supabase, effectiveProfileId, currentUserId, recarregar]);
+  }, [supabase, effectiveProfileId, currentUserId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Blockers ────────────────────────────────────────────────────────────────
   const handleAdicionarBlocker = useCallback(async (metaId: string, descricao: string) => {
@@ -1276,6 +1312,7 @@ export function MetasIndicadoresBloco() {
         onToggleResponsavel={handleToggleResponsavel}
         onAssumirProjeto={handleAssumirProjeto}
         projetoOr={euAssumiRow ? { data_inicio: euAssumiRow.data_inicio, data_fim: euAssumiRow.data_fim, dias_uteis: euAssumiRow.dias_uteis } : null}
+        onToast={showToast}
       />
     );
   };
@@ -1284,6 +1321,7 @@ export function MetasIndicadoresBloco() {
   void ([] as ObjetivoResponsavel[]);
 
   return (
+    <>
     <section className="rounded-xl border border-gray-200 bg-gray-50 shadow-sm overflow-hidden">
       <button type="button"
         className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 transition-colors"
@@ -1383,5 +1421,7 @@ export function MetasIndicadoresBloco() {
         </div>
       )}
     </section>
+    {toastMsg && <Toast message={toastMsg} />}
+    </>
   );
 }
