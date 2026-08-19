@@ -2,6 +2,7 @@
 
 import type { createClient } from '@/lib/supabase/server'
 import type { PixTipo } from '@/lib/br-docs'
+import { isLinhaCadastroSemIdentidade } from '@/lib/cadastro-linha-em-branco'
 
 export type RedeCorretorStatus = 'ativo' | 'inativo' | 'em_analise' | 'pendente' | 'aprovado'
 
@@ -145,6 +146,20 @@ export function ordenarRedeCorretoresPorCodigo(rows: RedeCorretorRow[]): RedeCor
   })
 }
 
+export function isRedeCorretorLinhaEmBranco(row: {
+  n_corretor?: string | null;
+  nome?: string | null;
+}): boolean {
+  return isLinhaCadastroSemIdentidade(row.n_corretor, row.nome);
+}
+
+export function filtrarLinhasEmBrancoRedeCorretores<T extends {
+  n_corretor?: string | null;
+  nome?: string | null;
+}>(rows: T[]): T[] {
+  return rows.filter((r) => !isRedeCorretorLinhaEmBranco(r));
+}
+
 const SELECT_COLS_BASE =
   'id, n_corretor, ordem, nome, cpf_cnpj, creci_numero, creci_uf, creci_tipo_registro, creci_validade, email, telefone, atuacao_ufs, atuacao_cidades, conta_banco_codigo, conta_banco_nome, conta_agencia, conta_numero, conta_tipo, conta_titular, conta_pix_tipo, conta_pix_chave, status, observacoes, criado_por, ultima_atualizacao_por, created_at, updated_at'
 
@@ -154,12 +169,12 @@ export async function fetchRedeCorretoresRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeCorretorRow[] | null> {
   const first = await supabase.from('rede_corretores').select(SELECT_COLS).order('ordem', { ascending: true })
-  if (!first.error) return (first.data ?? []) as RedeCorretorRow[]
+  if (!first.error) return filtrarLinhasEmBrancoRedeCorretores((first.data ?? []) as RedeCorretorRow[])
 
   const fallback = await supabase.from('rede_corretores').select(SELECT_COLS_BASE).order('ordem', { ascending: true })
   if (fallback.error) {
     console.error('[rede_corretores] fetch:', first.error.message, fallback.error.message)
     return null
   }
-  return (fallback.data ?? []) as RedeCorretorRow[]
+  return filtrarLinhasEmBrancoRedeCorretores((fallback.data ?? []) as RedeCorretorRow[])
 }

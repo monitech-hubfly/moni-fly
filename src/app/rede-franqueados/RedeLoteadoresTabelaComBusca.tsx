@@ -3,7 +3,12 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { TabelaRedeLoteadoresEditavel } from '@/components/TabelaRedeLoteadoresEditavel';
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
-import { ordenarRedeLoteadoresPorCodigo, redeLoteadorRowMatchesBusca, type RedeLoteadorRow } from '@/lib/rede-loteadores';
+import {
+  filtrarLinhasEmBrancoRedeLoteadores,
+  ordenarRedeLoteadoresPorCodigo,
+  redeLoteadorRowMatchesBusca,
+  type RedeLoteadorRow,
+} from '@/lib/rede-loteadores';
 
 type Props = {
   rows: RedeLoteadorRow[];
@@ -14,11 +19,13 @@ type Props = {
 export function RedeLoteadoresTabelaComBusca({ rows, children, solicitarCriacao = 0 }: Props) {
   const [busca, setBusca] = useState('');
 
+  const rowsComCadastro = useMemo(() => filtrarLinhasEmBrancoRedeLoteadores(rows), [rows]);
+
   const rowsFiltradas = useMemo(() => {
     const q = busca.trim();
-    const base = q ? rows.filter((r) => redeLoteadorRowMatchesBusca(r, q)) : rows;
+    const base = q ? rowsComCadastro.filter((r) => redeLoteadorRowMatchesBusca(r, q)) : rowsComCadastro;
     return ordenarRedeLoteadoresPorCodigo(base);
-  }, [rows, busca]);
+  }, [rowsComCadastro, busca]);
 
   return (
     <div className="space-y-4">
@@ -32,7 +39,7 @@ export function RedeLoteadoresTabelaComBusca({ rows, children, solicitarCriacao 
       </RedeTabelaToolbarBusca>
       <TabelaRedeLoteadoresEditavel
         rows={rowsFiltradas}
-        totalSemBusca={rows.length}
+        totalSemBusca={rowsComCadastro.length}
         buscaAtiva={busca.trim().length > 0}
         buscaResetKey={busca}
         solicitarCriacao={solicitarCriacao}

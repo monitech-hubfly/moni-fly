@@ -1,6 +1,7 @@
 /** Cadastro de loteadores (`rede_loteadores`). */
 
 import type { createClient } from '@/lib/supabase/server';
+import { isLinhaCadastroSemIdentidade } from '@/lib/cadastro-linha-em-branco';
 
 export type RedeLoteadorStatus = 'ativo' | 'inativo' | 'em_analise';
 
@@ -197,12 +198,30 @@ function mapRow(r: Record<string, unknown>): RedeLoteadorRow {
   };
 }
 
+export function isRedeLoteadorLinhaEmBranco(row: {
+  codigo?: string | null;
+  n_loteador?: string | null;
+  nome?: string | null;
+}): boolean {
+  return isLinhaCadastroSemIdentidade(row.codigo, row.n_loteador, row.nome);
+}
+
+export function filtrarLinhasEmBrancoRedeLoteadores<T extends {
+  codigo?: string | null;
+  n_loteador?: string | null;
+  nome?: string | null;
+}>(rows: T[]): T[] {
+  return rows.filter((r) => !isRedeLoteadorLinhaEmBranco(r));
+}
+
 export async function fetchRedeLoteadoresRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeLoteadorRow[] | null> {
   const { data, error } = await supabase.from('rede_loteadores').select('*');
   if (error) return null;
-  return ordenarRedeLoteadoresPorCodigo((data ?? []).map((r) => mapRow(r as Record<string, unknown>)));
+  return ordenarRedeLoteadoresPorCodigo(
+    filtrarLinhasEmBrancoRedeLoteadores((data ?? []).map((r) => mapRow(r as Record<string, unknown>))),
+  );
 }
 
 export async function fetchRedeLoteadorRowById(
@@ -233,22 +252,25 @@ export async function fetchRedeLoteadoresOpcoesLeves(
     .neq('status', 'inativo')
     .order('nome', { ascending: true });
   if (error) return null;
-  return (data ?? []).map((r) => {
-    const row = r as {
-      id?: string;
-      nome?: string | null;
-      cidade?: string | null;
-      estado?: string | null;
-      status?: string | null;
-    };
-    return {
-      id: String(row.id ?? ''),
-      nome: String(row.nome ?? '').trim() || 'Sem nome',
-      cidade: (row.cidade as string | null) ?? null,
-      estado: (row.estado as string | null) ?? null,
-      status: String(row.status ?? 'em_analise'),
-    };
-  }).filter((o) => o.id);
+  return (data ?? [])
+    .map((r) => {
+      const row = r as {
+        id?: string;
+        nome?: string | null;
+        cidade?: string | null;
+        estado?: string | null;
+        status?: string | null;
+      };
+      return {
+        id: String(row.id ?? ''),
+        nome: String(row.nome ?? '').trim(),
+        cidade: (row.cidade as string | null) ?? null,
+        estado: (row.estado as string | null) ?? null,
+        status: String(row.status ?? 'em_analise'),
+      };
+    })
+    .filter((o) => o.id && !isLinhaCadastroSemIdentidade(o.nome))
+    .map((o) => ({ ...o, nome: o.nome || 'Sem nome' }));
 }
 
 export type RedeLoteadorPatch = {

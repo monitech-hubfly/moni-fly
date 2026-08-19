@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import {
+  filtrarLinhasEmBrancoMoniCapital,
   moniCapitalCadastroMatchesBusca,
   ordenarMoniCapitalCadastros,
   type MoniCapitalCadastroRow,
@@ -18,7 +19,10 @@ type Props = {
 export function CadastrosMoniCapitalTabelaComBusca({ rows, loadError, children }: Props) {
   const [busca, setBusca] = useState('');
 
-  const todasLinhas = useMemo(() => ordenarMoniCapitalCadastros(rows), [rows]);
+  const todasLinhas = useMemo(
+    () => ordenarMoniCapitalCadastros(filtrarLinhasEmBrancoMoniCapital(rows)),
+    [rows],
+  );
 
   const linhasFiltradas = useMemo(() => {
     const q = busca.trim();

@@ -1,6 +1,7 @@
 /** Cadastro de condomínios (`condominios`). */
 
 import type { createClient } from '@/lib/supabase/server';
+import { isLinhaCadastroSemIdentidade } from '@/lib/cadastro-linha-em-branco';
 
 export type CondominioRow = {
   id: string;
@@ -163,12 +164,22 @@ export async function condominioNomeJaExiste(
   return false;
 }
 
+export function isCondominioLinhaEmBranco(row: { nome?: string | null }): boolean {
+  return isLinhaCadastroSemIdentidade(row.nome);
+}
+
+export function filtrarLinhasEmBrancoCondominios<T extends { nome?: string | null }>(rows: T[]): T[] {
+  return rows.filter((r) => !isCondominioLinhaEmBranco(r));
+}
+
 export async function fetchCondominiosRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<CondominioRow[] | null> {
   const { data, error } = await supabase.from('condominios').select('*').order('nome', { ascending: true });
   if (error) return null;
-  return ordenarCondominiosPorNome((data ?? []).map((r) => mapRow(r as Record<string, unknown>)));
+  return ordenarCondominiosPorNome(
+    filtrarLinhasEmBrancoCondominios((data ?? []).map((r) => mapRow(r as Record<string, unknown>))),
+  );
 }
 
 export async function fetchCondominioRowById(

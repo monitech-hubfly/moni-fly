@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { pickRedeEmpresaDocsFromRow, type RedeEmpresaDocsRow } from '@/lib/rede-documentos-empresas';
 import { pickRedeFranqueadoDocsFromRow, type RedeFranqueadoDocsRow } from '@/lib/rede-documentos-franqueado';
 import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
+import { isLinhaCadastroSemIdentidade } from '@/lib/cadastro-linha-em-branco';
 import { normalizarParaBusca } from '@/lib/painel-tarefas-filtros';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -81,15 +82,13 @@ export function ordenarRedePorNFranquia<
   return [...rows].sort(compareRedePorNFranquia);
 }
 
-/** Linha sem Nº de franquia e sem nome — não entra na tabela nem nos totais da rede. */
+/** Linha sem Nº de franquia e sem nome (vazio ou só traço) — não entra na tabela nem nos totais. */
 export function isRedeFranqueadoLinhaEmBranco(row: {
   n_franquia?: string | number | null;
   nome_completo?: string | null;
   nome?: string | null;
 }): boolean {
-  const n = String(row.n_franquia ?? '').trim();
-  const nome = String(row.nome_completo ?? row.nome ?? '').trim();
-  return !n && !nome;
+  return isLinhaCadastroSemIdentidade(row.n_franquia, row.nome_completo ?? row.nome);
 }
 
 export function filtrarLinhasEmBrancoRedeFranqueados<

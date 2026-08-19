@@ -11,7 +11,7 @@ import {
   speMatchesBusca,
   type FranqueadoSpeRow,
 } from '@/lib/franqueado-spe';
-import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
+import { filtrarLinhasEmBrancoRedeFranqueados, type RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
 import { CadastrosEmpresasTabela } from './CadastrosEmpresasTabela';
 
@@ -34,14 +34,16 @@ export function CadastrosEmpresasTabelaComBusca({
 }: Props) {
   const [busca, setBusca] = useState('');
 
+  const redeComCadastro = useMemo(() => filtrarLinhasEmBrancoRedeFranqueados(redeRows), [redeRows]);
+
   const baseLinhas = useMemo(
-    () => buildCadastrosEmpresasLinhas(redeRows, empresasRows),
-    [redeRows, empresasRows],
+    () => buildCadastrosEmpresasLinhas(redeComCadastro, empresasRows),
+    [redeComCadastro, empresasRows],
   );
 
   const todasLinhas = useMemo(
-    () => buildCadastrosEmpresasLinhasComSpe(redeRows, baseLinhas, spesRows),
-    [redeRows, baseLinhas, spesRows],
+    () => buildCadastrosEmpresasLinhasComSpe(redeComCadastro, baseLinhas, spesRows),
+    [redeComCadastro, baseLinhas, spesRows],
   );
 
   const linhasFiltradas = useMemo(() => {

@@ -5,6 +5,7 @@ import { TabelaCondominiosEditavel } from '@/components/TabelaCondominiosEditave
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
 import {
   condominioRowMatchesBusca,
+  filtrarLinhasEmBrancoCondominios,
   ordenarCondominiosPorNome,
   type CondominioRow,
 } from '@/lib/condominios';
@@ -24,11 +25,13 @@ export function CondominiosTabelaComBusca({
 }: Props) {
   const [busca, setBusca] = useState('');
 
+  const rowsComCadastro = useMemo(() => filtrarLinhasEmBrancoCondominios(rows), [rows]);
+
   const rowsFiltradas = useMemo(() => {
     const q = busca.trim();
-    const base = q ? rows.filter((r) => condominioRowMatchesBusca(r, q)) : rows;
+    const base = q ? rowsComCadastro.filter((r) => condominioRowMatchesBusca(r, q)) : rowsComCadastro;
     return ordenarCondominiosPorNome(base);
-  }, [rows, busca]);
+  }, [rowsComCadastro, busca]);
 
   return (
     <div className="space-y-4">
@@ -43,7 +46,7 @@ export function CondominiosTabelaComBusca({
       <TabelaCondominiosEditavel
         rows={rowsFiltradas}
         canEdit={canEdit}
-        totalSemBusca={rows.length}
+        totalSemBusca={rowsComCadastro.length}
         buscaAtiva={busca.trim().length > 0}
         buscaResetKey={busca}
         solicitarCriacao={solicitarCriacao}

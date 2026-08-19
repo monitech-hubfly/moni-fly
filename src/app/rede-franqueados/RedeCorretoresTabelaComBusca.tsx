@@ -12,6 +12,7 @@ import { labelBanco } from '@/lib/bancos-br'
 import {
   ordenarRedeCorretoresPorCodigo,
   redeCorretorRowMatchesBusca,
+  filtrarLinhasEmBrancoRedeCorretores,
   REDE_CORRETOR_CONTA_TIPO_LABEL,
   REDE_CORRETOR_PIX_TIPO_LABEL,
   REDE_CORRETOR_STATUS_LABEL,
@@ -58,11 +59,13 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
     if (solicitarCriacao > 0) setModalRow(null)
   }, [solicitarCriacao])
 
+  const rowsComCadastro = useMemo(() => filtrarLinhasEmBrancoRedeCorretores(rows), [rows])
+
   const rowsFiltradas = useMemo(() => {
     const q = busca.trim()
-    const base = q ? rows.filter((r) => redeCorretorRowMatchesBusca(r, q)) : rows
+    const base = q ? rowsComCadastro.filter((r) => redeCorretorRowMatchesBusca(r, q)) : rowsComCadastro
     return ordenarRedeCorretoresPorCodigo(base)
-  }, [rows, busca])
+  }, [rowsComCadastro, busca])
 
   async function aprovar(id: string) {
     setAprovandoId(id)

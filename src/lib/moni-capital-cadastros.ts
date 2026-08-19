@@ -1,6 +1,7 @@
 /** Cadastros Moní Capital (`moni_capital_cadastros`). */
 
 import type { createClient } from '@/lib/supabase/server';
+import { isLinhaCadastroSemIdentidade } from '@/lib/cadastro-linha-em-branco';
 
 export type MoniCapitalCadastroRow = {
   id: string;
@@ -53,6 +54,20 @@ function mapRow(r: Record<string, unknown>): MoniCapitalCadastroRow {
   };
 }
 
+export function isMoniCapitalLinhaEmBranco(row: {
+  broker_nome?: string | null;
+  investidor_nome?: string | null;
+}): boolean {
+  return isLinhaCadastroSemIdentidade(row.broker_nome, row.investidor_nome);
+}
+
+export function filtrarLinhasEmBrancoMoniCapital<T extends {
+  broker_nome?: string | null;
+  investidor_nome?: string | null;
+}>(rows: T[]): T[] {
+  return rows.filter((r) => !isMoniCapitalLinhaEmBranco(r));
+}
+
 export async function fetchMoniCapitalCadastrosRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<MoniCapitalCadastroRow[] | null> {
@@ -61,7 +76,7 @@ export async function fetchMoniCapitalCadastrosRows(
     .select('*')
     .order('ordem', { ascending: true });
   if (error) return null;
-  return (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
+  return filtrarLinhasEmBrancoMoniCapital((data ?? []).map((r) => mapRow(r as Record<string, unknown>)));
 }
 
 export function ordenarMoniCapitalCadastros(rows: MoniCapitalCadastroRow[]): MoniCapitalCadastroRow[] {
