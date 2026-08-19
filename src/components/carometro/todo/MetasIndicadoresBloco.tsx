@@ -409,7 +409,7 @@ function SubMetaEditavel({ sub, onSalvo, onExcluir }: {
 function IndicadorLinha({
   ind, effectiveProfileId, currentUserId, responsaveis,
   semanaAtual, semanaAnterior, anoRelativo,
-  onLancar, onAssumirIndicador,
+  onLancar, onAssumirIndicador, projetoOr,
 }: {
   ind: IndicadorItemMeta;
   effectiveProfileId: string | null;
@@ -420,6 +420,7 @@ function IndicadorLinha({
   anoRelativo: number;
   onLancar: (indId: string, valor: string, semana: number) => Promise<void>;
   onAssumirIndicador: (indId: string) => Promise<void>;
+  projetoOr?: { data_inicio: string | null; data_fim: string | null; dias_uteis: number | null } | null;
 }) {
   const [valorEditAtual,    setValorEditAtual]    = useState(ind.valorAtual    ?? '');
   const [valorEditAnterior, setValorEditAnterior] = useState(ind.valorAnterior ?? '');
@@ -436,12 +437,17 @@ function IndicadorLinha({
   const isEq             = faixas.length > 0 && faixas.every(f => f.comparacao === 'eq');
   const isProjetoRelativo = Boolean(rawSf?.is_projeto_relativo);
 
+  // Datas do projeto: prioriza semaforo_faixas, cai para objetivo_responsaveis do usuário
+  const prjInicio = rawSf?.data_inicio ?? projetoOr?.data_inicio ?? null;
+  const prjFim    = rawSf?.data_fim    ?? projetoOr?.data_fim    ?? null;
+  const prjUteis  = rawSf?.dias_uteis  ?? projetoOr?.dias_uteis  ?? null;
+
   // % esperado por semana (apenas para is_projeto_relativo)
   const esperadoAtual    = isProjetoRelativo
-    ? calcEsperadoPct(rawSf?.data_inicio, rawSf?.data_fim, rawSf?.dias_uteis, new Date())
+    ? calcEsperadoPct(prjInicio, prjFim, prjUteis, new Date())
     : null;
   const esperadoAnterior = isProjetoRelativo && anoRelativo > 0
-    ? calcEsperadoPct(rawSf?.data_inicio, rawSf?.data_fim, rawSf?.dias_uteis, ultimoDiaSemanaISO(semanaAnterior, anoRelativo))
+    ? calcEsperadoPct(prjInicio, prjFim, prjUteis, ultimoDiaSemanaISO(semanaAnterior, anoRelativo))
     : null;
 
   const infoAtual    = anoRelativo > 0 ? isoWeekToDates(semanaAtual,    anoRelativo) : { label: `S${semanaAtual}`,    range: '' };
@@ -584,7 +590,7 @@ function MetaCard({
   onEditarSubMeta, onExcluirSubMeta, onAddSubMeta,
   onConcluirMeta, onReabrirMeta,
   onLancarIndicador, onAssumirIndicador,
-  onToggleResponsavel, onAssumirProjeto,
+  onToggleResponsavel, onAssumirProjeto, projetoOr,
 }: {
   meta: MetaItem; subMetas: SubMetaItem[]; indicadores: IndicadorItemMeta[];
   responsaveis: ResponsavelItem[];
@@ -608,6 +614,7 @@ function MetaCard({
   onAssumirIndicador: (indId: string) => Promise<void>;
   onToggleResponsavel: (metaId: string) => Promise<void>;
   onAssumirProjeto: (metaId: string, dataInicio: string, dataFim: string) => Promise<void>;
+  projetoOr?: { data_inicio: string | null; data_fim: string | null; dias_uteis: number | null } | null;
 }) {
   const [secaoFilhas,        setSecaoFilhas]        = useState(false);
   const [adicionandoFilha,   setAdicionandoFilha]   = useState(false);
@@ -787,6 +794,7 @@ function MetaCard({
                     semanaAtual={semanaAtual} semanaAnterior={semanaAnterior} anoRelativo={anoRelativo}
                     onLancar={onLancarIndicador}
                     onAssumirIndicador={onAssumirIndicador}
+                    projetoOr={projetoOr}
                   />
                 ))}
               </div>
@@ -804,6 +812,7 @@ function MetaCard({
                   semanaAtual={semanaAtual} semanaAnterior={semanaAnterior} anoRelativo={anoRelativo}
                   onLancar={onLancarIndicador}
                   onAssumirIndicador={onAssumirIndicador}
+                  projetoOr={projetoOr}
                 />
               ))}
             </div>
@@ -1207,6 +1216,7 @@ export function MetasIndicadoresBloco() {
         onAssumirIndicador={handleAssumirIndicador}
         onToggleResponsavel={handleToggleResponsavel}
         onAssumirProjeto={handleAssumirProjeto}
+        projetoOr={euAssumiRow ? { data_inicio: euAssumiRow.data_inicio, data_fim: euAssumiRow.data_fim, dias_uteis: euAssumiRow.dias_uteis } : null}
       />
     );
   };
