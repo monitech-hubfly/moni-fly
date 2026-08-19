@@ -99,6 +99,17 @@ function corParaTexto(hex: string): string {
   return '#ffffff';
 }
 
+/** Calcula hex do semáforo para indicadores is_projeto_relativo a partir do valor real e do % esperado. */
+function resolveHexProjeto(valor: string | null | undefined, espPct: number | null): string {
+  if (!valor || espPct === null || espPct <= 0) return '#d1d5db';
+  const ratio = (parseFloat(valor) / espPct) * 100;
+  if (isNaN(ratio)) return '#d1d5db';
+  if (ratio >= 75) return FAROL_HEX['ve']!;
+  if (ratio >= 60) return FAROL_HEX['vc']!;
+  if (ratio >= 30) return FAROL_HEX['am']!;
+  return FAROL_HEX['vm']!;
+}
+
 // Ordem posicional das cores do semáforo (melhor → pior)
 const FAROL_POSICIONAL = ['ve', 'vc', 'am', 'vm'] as const;
 
@@ -471,11 +482,18 @@ function IndicadorLinha({
   // Pode preencher: é o responsável do indicador
   const podeEditar  = isMeu;
 
-  const hexAtual    = ind.corHex;
-  const semaforoAnt = ind.valorAnterior != null
+  // Para is_projeto_relativo: calcula hex localmente (hook pode não ter o OR row do usuário).
+  // Para indicadores normais: usa corHex pré-computado pelo hook.
+  const hexAtual = isProjetoRelativo
+    ? resolveHexProjeto(ind.valorAtual, esperadoAtual)
+    : ind.corHex;
+
+  const semaforoAnt = (!isProjetoRelativo && ind.valorAnterior != null)
     ? (statusSemaforoPorValor(ind, ind.valorAnterior) as string | null)
     : null;
-  const hexAnterior = semaforoAnt ? (FAROL_HEX[semaforoAnt] ?? '#e5e7eb') : '#e5e7eb';
+  const hexAnterior = isProjetoRelativo
+    ? resolveHexProjeto(ind.valorAnterior, esperadoAnterior)
+    : (semaforoAnt ? (FAROL_HEX[semaforoAnt] ?? '#e5e7eb') : '#e5e7eb');
   const VAZIO_HEX   = '#e5e7eb';
 
   const handleLancarAtual = async (val?: string) => {
@@ -1296,6 +1314,16 @@ export function MetasIndicadoresBloco() {
     const concluiuCount  = meusResps.filter(r => r.concluido).length;
     const totalResponsaveis = meusResps.length;
 
+    // Tenta usar as datas do próprio usuário; se não tiver (assumiu sem datas ou não assumiu),
+    // cai para qualquer OR row da meta que tenha datas — para que is_projeto_relativo funcione.
+    const orRowComDatas =
+      (euAssumiRow?.data_inicio ? euAssumiRow : null) ??
+      meusResps.find(r => !!r.data_inicio) ??
+      objetivoResponsaveis.find(r => r.objetivo_id === meta.id && !!r.data_inicio);
+    const projetoOrFinal = orRowComDatas
+      ? { data_inicio: orRowComDatas.data_inicio, data_fim: orRowComDatas.data_fim, dias_uteis: orRowComDatas.dias_uteis }
+      : null;
+
     return (
       <MetaCard
         key={meta.id}
@@ -1325,7 +1353,7 @@ export function MetasIndicadoresBloco() {
         onAssumirIndicador={handleAssumirIndicador}
         onToggleResponsavel={handleToggleResponsavel}
         onAssumirProjeto={handleAssumirProjeto}
-        projetoOr={euAssumiRow ? { data_inicio: euAssumiRow.data_inicio, data_fim: euAssumiRow.data_fim, dias_uteis: euAssumiRow.dias_uteis } : null}
+        projetoOr={projetoOrFinal}
         onToast={showToast}
       />
     );
