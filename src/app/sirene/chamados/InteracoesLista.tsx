@@ -751,8 +751,13 @@ function InteracoesListaInner({
     const concluido: InteracaoSireneRow[] = [];
     for (const row of linhas) {
       if (!passaFiltrosLista(row, false)) continue;
-      if (subGrupoFluxo(row) === 'concluido') { concluido.push(row); continue; }
       const isAbri = row.criado_por === currentUserId;
+      const s = norm(row.atividade_status);
+      const ativConcluida = s === 'concluida' || s === 'concluída' || s === 'cancelada';
+      // Criador que concluiu seus tópicos mas não fechou o chamado fica em "Abertos por mim"
+      if (subGrupoFluxo(row) === 'concluido' && !(isAbri && !ativConcluida)) {
+        concluido.push(row); continue;
+      }
       if (isAbri) { (row.trava ? abriTrava : abriSemTrava).push(row); }
       else { (row.trava ? pra_mimTrava : pra_mimSemTrava).push(row); }
     }
