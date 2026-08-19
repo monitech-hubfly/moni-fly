@@ -712,15 +712,18 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
       return;
     }
 
-    // Sirene / Pastelaria → se chamado já concluído, marca direto; senão abre modal
+    // Sirene / Pastelaria → se todas atividades do chamado estão concluídas, marca direto
     if (tipo === 'sirene' || tipo === 'pastelaria') {
       if (atv.sirene_chamado_id) {
-        const { data: chamado } = await supabase
-          .from('sirene_chamados')
-          .select('status')
-          .eq('id', atv.sirene_chamado_id)
-          .maybeSingle();
-        if ((chamado as { status?: string } | null)?.status === 'concluida') {
+        // Verificar se há tópicos ainda pendentes neste chamado
+        const { count } = await supabase
+          .from('sirene_topicos')
+          .select('id', { count: 'exact', head: true })
+          .eq('chamado_id', atv.sirene_chamado_id)
+          .neq('status', 'concluido')
+          .or('arquivado.is.null,arquivado.eq.false');
+        if (count === 0) {
+          // Todas atividades concluídas → marcar agenda direto
           await concluir(atv.id);
         } else {
           setChamadoModalId(atv.sirene_chamado_id);
