@@ -1,16 +1,38 @@
 /**
- * Aplica substituição Jonatas (FK0040) → Alexandre (FK0024) no DEV.
- * Uso: node --env-file=.env.local scripts/aplicar_substituicao_jonatas_alexandre.mjs
+ * Aplica substituição Jonatas (FK0040) → Alexandre (FK0024).
+ * Uso:
+ *   node --env-file=.env.local scripts/aplicar_substituicao_jonatas_alexandre.mjs
+ *   node --env-file=.env.local scripts/aplicar_substituicao_jonatas_alexandre.mjs --prod --confirm-prod
  */
-import pg from 'pg';
+import { connectDevPg, parsePostgresUrl } from './pg-dev-client.mjs';
 
-const raw = (process.env.DEV_DB_URL || '').trim().replace(/^["']|["']$/g, '');
-if (!raw) {
-  console.error('Defina DEV_DB_URL no .env.local');
+const args = process.argv.slice(2);
+const wantProd = args.includes('--prod');
+const confirmProd = args.includes('--confirm-prod');
+if (wantProd && !confirmProd) {
+  console.error('PROD bloqueado: passe --prod --confirm-prod.');
   process.exit(1);
 }
 
-const client = new pg.Client({ connectionString: raw, ssl: { rejectUnauthorized: false } });
+const envKey = wantProd ? 'PROD_DB_URL' : 'DEV_DB_URL';
+const raw = (process.env[envKey] || '').trim().replace(/^["']|["']$/g, '');
+if (!raw) {
+  console.error(`Defina ${envKey} no .env.local`);
+  process.exit(1);
+}
+
+const cfg = parsePostgresUrl(raw);
+if (!wantProd && !String(cfg.host).includes('bgaadvfucnrkpimaszjv')) {
+  console.error(`Abortado: DEV_DB_URL não aponta para DEV (${cfg.host}).`);
+  process.exit(1);
+}
+if (wantProd && !String(cfg.host).includes('aydryzoxqnwnbybvgiug')) {
+  console.error(`Abortado: PROD_DB_URL não aponta para PROD (${cfg.host}).`);
+  process.exit(1);
+}
+
+console.log(`Ambiente: ${wantProd ? 'PROD' : 'DEV'} (${cfg.host})`);
+const client = await connectDevPg(envKey);
 
 function normFk(v) {
   const m = String(v ?? '').match(/(\d+)/);
@@ -54,10 +76,6 @@ const COLS = [
   'anexo_emp_gest_inscricao_estadual_path',
 ];
 
-const COLS_ANEXO = COLS.filter((c) => c.startsWith('anexo_'));
-
-await client.connect();
-
 try {
   await client.query('BEGIN');
 
@@ -65,12 +83,8 @@ try {
     `SELECT * FROM rede_franqueados WHERE n_franquia ILIKE '%0040%' OR n_franquia ILIKE '%0024%' OR nome_completo ILIKE '%Jonatas%' OR nome_completo ILIKE '%Alexandre%Thielo%'`,
   );
 
-  const jonatas = todos.find(
-    (r) => normFk(r.n_franquia) === 'FK0040' || String(r.nome_completo ?? '').includes('Jonatas'),
-  );
-  const alexandre = todos.find(
-    (r) => normFk(r.n_franquia) === 'FK0024' || String(r.nome_completo ?? '').includes('Alexandre'),
-  );
+  const jonatas = todos.find((r) => normFk(r.n_franquia) === 'FK0040');
+  const alexandre = todos.find((r) => normFk(r.n_franquia) === 'FK0024');
 
   if (!jonatas) throw new Error('Linha Jonatas (FK0040) não encontrada.');
   if (!alexandre) throw new Error('Linha Alexandre (FK0024) não encontrada.');
@@ -109,14 +123,15 @@ try {
   );
   const subId = subRes.rows[0].id;
 
-  await client.query(
+  const cardsAlex = await client.query(
     `UPDATE kanban_cards
      SET rede_substituicao_id = $1,
          arquivado = true,
          arquivado_em = now(),
          motivo_arquivamento = 'Franquia transferida'
      WHERE rede_franqueado_id = $2
-       AND rede_substituicao_id IS NULL`,
+       AND rede_substituicao_id IS NULL
+     RETURNING id`,
     [subId, alexandre.id],
   );
 
@@ -130,14 +145,14 @@ try {
   const sets = [];
   const vals = [];
   let i = 1;
-  for (const col of COLS_ANEXO) {
-    sets.push(`${col} = NULL`);
-  }
   for (const col of COLS) {
+    if (col === 'status_franquia') continue;
     const v = jonatas[col];
     if (v !== null && v !== undefined && String(v).trim() !== '') {
       sets.push(`${col} = $${i++}`);
       vals.push(v);
+    } else if (col.startsWith('anexo_')) {
+      sets.push(`${col} = NULL`);
     }
   }
   sets.push(`status_franquia = $${i++}`);
@@ -158,9 +173,13 @@ try {
       [alexandre.id, jonatas.processo_id],
     );
   }
-
   await client.query(
-    `UPDATE kanban_cards SET rede_franqueado_id = $1 WHERE rede_franqueado_id = $2 AND rede_substituicao_id IS NULL`,
+    `UPDATE processo_step_one SET origem_rede_franqueados_id = $1 WHERE origem_rede_franqueados_id = $2`,
+    [alexandre.id, jonatas.id],
+  );
+
+  const cardsJonatas = await client.query(
+    `UPDATE kanban_cards SET rede_franqueado_id = $1 WHERE rede_franqueado_id = $2 AND rede_substituicao_id IS NULL RETURNING id`,
     [alexandre.id, jonatas.id],
   );
 
@@ -178,9 +197,12 @@ try {
   await client.query(`NOTIFY pgrst, 'reload schema'`);
   await client.query('COMMIT');
 
-  console.log('OK: Jonatas removido; Alexandre atualizado com dados de Jonatas.');
-  console.log(`  Alexandre id: ${alexandre.id} (${alexandre.n_franquia})`);
+  console.log('OK: Jonatas removido; FK0024 atualizado com dados de Jonatas.');
+  console.log(`  Ambiente: ${wantProd ? 'PROD' : 'DEV'}`);
+  console.log(`  FK0024 id: ${alexandre.id}`);
   console.log(`  Histórico substituicao: ${subId}`);
+  console.log(`  Cards Alexandre arquivados: ${cardsAlex.rowCount}`);
+  console.log(`  Cards Jonatas remapeados: ${cardsJonatas.rowCount}`);
   console.log(`  Jonatas removido id: ${jonatas.id}`);
 } catch (e) {
   await client.query('ROLLBACK');
