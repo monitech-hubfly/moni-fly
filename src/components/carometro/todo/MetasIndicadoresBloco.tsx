@@ -500,6 +500,9 @@ function IndicadorLinha({
     setAssumindo(false);
   };
 
+  // Detecta se é indicador percentual (aceita 0–100 inteiro)
+  const isPct = isProjetoRelativo || ind.nome.includes('%');
+
   const CelulaLancamento = ({
     isAtual, info, hex, valor, setValor, salvando, onLancarFn, esperadoPct,
   }: {
@@ -531,8 +534,14 @@ function IndicadorLinha({
             {faixas.map(f => <option key={f.limite} value={f.limite}>{f.limite}</option>)}
           </select>
         ) : (
-          <input disabled={!podeEditar || salvando}
-            value={salvando ? '…' : valor} placeholder="—"
+          <input
+            type="number"
+            min={0}
+            max={isPct ? 100 : undefined}
+            step={1}
+            disabled={!podeEditar || salvando}
+            value={valor}
+            placeholder={salvando ? '…' : '—'}
             onChange={e => setValor(e.target.value)}
             onBlur={() => void onLancarFn()}
             onKeyDown={e => { if (e.key === 'Enter') void onLancarFn(); }}
@@ -1206,14 +1215,19 @@ export function MetasIndicadoresBloco() {
   const handleLancarIndicador = useCallback(async (indId: string, valor: string, semana: number) => {
     if (!semana) return;
     const profileId = effectiveProfileId ?? currentUserId;
+    if (!profileId) { console.warn('[LancarIndicador] sem profileId'); return; }
+
     const table: any = supabase.from('indicador_lancamentos');
     const payload = { indicador_id: indId, semana, valor, profile_id: profileId };
 
-    // Verifica se já existe lançamento (para logar corretamente como INSERT vs UPDATE)
-    const { data: existing } = await (supabase.from('indicador_lancamentos') as any)
-      .select('id, valor')
-      .eq('indicador_id', indId).eq('semana', semana).eq('profile_id', profileId)
-      .maybeSingle();
+    // Verifica se já existe (para log) — sem lançar exceção
+    let existingValor: string | null = null;
+    try {
+      const { data: ex } = await (supabase.from('indicador_lancamentos') as any)
+        .select('valor').eq('indicador_id', indId).eq('semana', semana).eq('profile_id', profileId)
+        .limit(1).maybeSingle();
+      existingValor = ex?.valor ?? null;
+    } catch { /* ignora */ }
 
     const { error: upsertErr } = await table.upsert(payload, { onConflict: 'indicador_id,semana,profile_id' });
     if (upsertErr) {
@@ -1223,9 +1237,9 @@ export function MetasIndicadoresBloco() {
       if (insErr) { console.error('[LancarIndicador]', insErr); return; }
     }
 
-    const operacao = existing ? 'UPDATE' : 'INSERT';
-    const descricao = existing
-      ? `Valor alterado de "${existing.valor}" para "${valor}" — semana ${semana}`
+    const operacao = existingValor !== null ? 'UPDATE' : 'INSERT';
+    const descricao = existingValor !== null
+      ? `Valor alterado de "${existingValor}" para "${valor}" — semana ${semana}`
       : `Valor lançado: "${valor}" — semana ${semana}`;
     log({ modulo: 'Planejamento', entidade: 'indicador_lancamentos', entidade_id: indId, operacao, descricao });
 

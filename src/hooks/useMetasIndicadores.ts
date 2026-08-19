@@ -136,6 +136,10 @@ export function useMetasIndicadores(
       const hoje    = new Date();
       const semana  = isoWeek(hoje);
       const anoISO  = isoWeekYear(hoje);
+
+      // Busca o usuário autenticado para usar como fallback quando effectiveProfileId é null
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const lookupProfileId = effectiveProfileId ?? authUser?.id ?? null;
       let objQuery = supabase
         .from('objetivos')
         .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, objetivo_pai_id, profile_id')
@@ -277,7 +281,7 @@ export function useMetasIndicadores(
       // Índice: objetivo_id → datas do usuário efetivo (para is_projeto_relativo)
       const orByObjForUser = new Map<string, { data_inicio: string | null; data_fim: string | null; dias_uteis: number | null }>();
       for (const r of orRows) {
-        if (effectiveProfileId && r.profile_id === effectiveProfileId) {
+        if (lookupProfileId && r.profile_id === lookupProfileId) {
           orByObjForUser.set(r.objetivo_id, { data_inicio: r.data_inicio, data_fim: r.data_fim, dias_uteis: r.dias_uteis });
         }
       }
