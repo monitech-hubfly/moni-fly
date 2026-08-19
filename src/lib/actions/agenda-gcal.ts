@@ -163,7 +163,7 @@ export async function pushParaGCal(ganttId: string): Promise<void> {
     const credentials = getCredentials();
     const token = await getAccessToken(credentials, organizerEmail);
 
-    let gcalEventId: string;
+    let gcalEventId: string = '';
 
     if (gantt.gcal_hubfly_push_id) {
       // PATCH — update (se 404/410, evento foi deletado do GCal → recria via POST)
