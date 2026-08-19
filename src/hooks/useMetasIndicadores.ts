@@ -239,20 +239,23 @@ export function useMetasIndicadores(
         // Filtra lançamentos do usuário efetivo OU sem profile_id (legado)
         let lancsQuery: any = supabase
           .from('indicador_lancamentos')
-          .select('indicador_id, valor, semana')
+          .select('indicador_id, valor, semana, profile_id')
           .in('indicador_id', indIds)
           .in('semana', [semAnterior, semRel]);
-        if (effectiveProfileId) {
-          lancsQuery = lancsQuery.or(`profile_id.eq.${effectiveProfileId},profile_id.is.null`);
+        // Usa lookupProfileId (já inclui fallback authUser) para o filtro
+        if (lookupProfileId) {
+          lancsQuery = lancsQuery.or(`profile_id.eq.${lookupProfileId},profile_id.is.null`);
         }
         const { data: lancs } = await lancsQuery;
 
-        for (const l of (lancs ?? []) as { indicador_id: string; valor: unknown; semana: number }[]) {
+        // Prioriza a linha com profile_id do usuário sobre linhas legadas (profile_id null)
+        for (const l of (lancs ?? []) as { indicador_id: string; valor: unknown; semana: number; profile_id: string | null }[]) {
           const val = String(l.valor ?? '');
-          if (l.semana === semRel && !lancMap.has(l.indicador_id)) {
-            lancMap.set(l.indicador_id, val);
-          } else if (l.semana === semAnterior && !lancMapAnterior.has(l.indicador_id)) {
-            lancMapAnterior.set(l.indicador_id, val);
+          const isOwn = l.profile_id === lookupProfileId;
+          if (l.semana === semRel) {
+            if (isOwn || !lancMap.has(l.indicador_id)) lancMap.set(l.indicador_id, val);
+          } else if (l.semana === semAnterior) {
+            if (isOwn || !lancMapAnterior.has(l.indicador_id)) lancMapAnterior.set(l.indicador_id, val);
           }
         }
       }

@@ -439,7 +439,7 @@ function IndicadorLinha({
   semanaAtual: number;
   semanaAnterior: number;
   anoRelativo: number;
-  onLancar: (indId: string, valor: string, semana: number) => Promise<void>;
+  onLancar: (indId: string, valor: string, semana: number) => Promise<boolean>;
   onAssumirIndicador: (indId: string) => Promise<void>;
   projetoOr?: { data_inicio: string | null; data_fim: string | null; dias_uteis: number | null } | null;
   onToast?: (msg: string) => void;
@@ -500,17 +500,19 @@ function IndicadorLinha({
     const v = (val !== undefined ? val : valorEditAtual).trim();
     if (!v) return;
     setSalvandoAtual(true);
-    await onLancar(ind.id, v, semanaAtual);
+    const ok = await onLancar(ind.id, v, semanaAtual);
     setSalvandoAtual(false);
-    onToast?.('Valor salvo com sucesso');
+    if (ok) onToast?.('Valor salvo com sucesso');
+    else     onToast?.('Erro ao salvar — tente novamente');
   };
   const handleLancarAnterior = async (val?: string) => {
     const v = (val !== undefined ? val : valorEditAnterior).trim();
     if (!v) return;
     setSalvandoAnterior(true);
-    await onLancar(ind.id, v, semanaAnterior);
+    const ok = await onLancar(ind.id, v, semanaAnterior);
     setSalvandoAnterior(false);
-    onToast?.('Valor salvo com sucesso');
+    if (ok) onToast?.('Valor salvo com sucesso');
+    else     onToast?.('Erro ao salvar — tente novamente');
   };
   const handleAssumir = async () => {
     setAssumindo(true);
@@ -650,7 +652,7 @@ function MetaCard({
   onAddSubMeta: (metaPaiId: string, desc: string, tipo: string, respId: string | null) => Promise<void>;
   onConcluirMeta: (metaId: string) => Promise<void>;
   onReabrirMeta: (metaId: string) => Promise<void>;
-  onLancarIndicador: (indId: string, valor: string, semana: number) => Promise<void>;
+  onLancarIndicador: (indId: string, valor: string, semana: number) => Promise<boolean>;
   onAssumirIndicador: (indId: string) => Promise<void>;
   onToggleResponsavel: (metaId: string) => Promise<void>;
   onAssumirProjeto: (metaId: string, dataInicio: string, dataFim: string) => Promise<void>;
@@ -1230,38 +1232,52 @@ export function MetasIndicadoresBloco() {
   }, [supabase, areaId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Lançar indicador ────────────────────────────────────────────────────────
-  const handleLancarIndicador = useCallback(async (indId: string, valor: string, semana: number) => {
-    if (!semana) return;
+  const handleLancarIndicador = useCallback(async (indId: string, valor: string, semana: number): Promise<boolean> => {
+    if (!semana) return false;
     const profileId = effectiveProfileId ?? currentUserId;
-    if (!profileId) { console.warn('[LancarIndicador] sem profileId'); return; }
+    if (!profileId) { console.warn('[LancarIndicador] sem profileId'); return false; }
 
-    const table: any = supabase.from('indicador_lancamentos');
-    const payload = { indicador_id: indId, semana, valor, profile_id: profileId };
-
-    // Verifica se já existe (para log) — sem lançar exceção
-    let existingValor: string | null = null;
     try {
-      const { data: ex } = await (supabase.from('indicador_lancamentos') as any)
-        .select('valor').eq('indicador_id', indId).eq('semana', semana).eq('profile_id', profileId)
-        .limit(1).maybeSingle();
-      existingValor = ex?.valor ?? null;
-    } catch { /* ignora */ }
+      // Busca linha existente para saber se é UPDATE ou INSERT
+      const { data: existing } = await (supabase.from('indicador_lancamentos') as any)
+        .select('id, valor')
+        .eq('indicador_id', indId)
+        .eq('semana', semana)
+        .eq('profile_id', profileId)
+        .limit(1)
+        .maybeSingle();
 
-    const { error: upsertErr } = await table.upsert(payload, { onConflict: 'indicador_id,semana,profile_id' });
-    if (upsertErr) {
-      await (supabase.from('indicador_lancamentos') as any).delete()
-        .eq('indicador_id', indId).eq('semana', semana).eq('profile_id', profileId);
-      const { error: insErr } = await (supabase.from('indicador_lancamentos') as any).insert(payload);
-      if (insErr) { console.error('[LancarIndicador]', insErr); return; }
+      let saveErr: unknown = null;
+      if (existing?.id) {
+        // UPDATE: linha já existe para este usuário nesta semana
+        const { error } = await (supabase.from('indicador_lancamentos') as any)
+          .update({ valor })
+          .eq('id', existing.id);
+        saveErr = error;
+      } else {
+        // INSERT: primeira vez nesta semana para este usuário
+        const { error } = await (supabase.from('indicador_lancamentos') as any)
+          .insert({ indicador_id: indId, semana, valor, profile_id: profileId });
+        saveErr = error;
+      }
+
+      if (saveErr) {
+        console.error('[LancarIndicador]', saveErr);
+        return false;
+      }
+
+      const operacao = existing?.id ? 'UPDATE' : 'INSERT';
+      const descricao = existing?.id
+        ? `Valor alterado de "${existing.valor}" para "${valor}" — semana ${semana}`
+        : `Valor lançado: "${valor}" — semana ${semana}`;
+      log({ modulo: 'Planejamento', entidade: 'indicador_lancamentos', entidade_id: indId, operacao, descricao });
+
+      recarregar();
+      return true;
+    } catch (e) {
+      console.error('[LancarIndicador] exception', e);
+      return false;
     }
-
-    const operacao = existingValor !== null ? 'UPDATE' : 'INSERT';
-    const descricao = existingValor !== null
-      ? `Valor alterado de "${existingValor}" para "${valor}" — semana ${semana}`
-      : `Valor lançado: "${valor}" — semana ${semana}`;
-    log({ modulo: 'Planejamento', entidade: 'indicador_lancamentos', entidade_id: indId, operacao, descricao });
-
-    recarregar();
   }, [supabase, effectiveProfileId, currentUserId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Blockers ────────────────────────────────────────────────────────────────
