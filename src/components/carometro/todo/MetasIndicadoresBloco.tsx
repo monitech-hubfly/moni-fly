@@ -607,21 +607,24 @@ function IndicadorLinha({
       </div>
 
       {/* Linha 2: células das duas semanas — só se tem responsável */}
+      {/* Nota: CelulaLancamento é chamada como FUNÇÃO (não como componente JSX) para evitar
+          que o React desmonte/remonte o input a cada keystroke (o que dispararia onBlur → save
+          com valor parcial e causaria os React errors #418/#422). */}
       {!semDono && (
         <div className="flex items-stretch gap-2">
-          <CelulaLancamento
-            isAtual={false} info={infoAnterior} hex={hexAnterior}
-            valor={valorEditAnterior} setValor={setValorEditAnterior}
-            salvando={salvandoAnterior} onLancarFn={handleLancarAnterior}
-            esperadoPct={esperadoAnterior}
-          />
+          {CelulaLancamento({
+            isAtual: false, info: infoAnterior, hex: hexAnterior,
+            valor: valorEditAnterior, setValor: setValorEditAnterior,
+            salvando: salvandoAnterior, onLancarFn: handleLancarAnterior,
+            esperadoPct: esperadoAnterior,
+          })}
           <div className="w-px bg-gray-200 self-stretch flex-shrink-0" />
-          <CelulaLancamento
-            isAtual info={infoAtual} hex={hexAtual}
-            valor={valorEditAtual} setValor={setValorEditAtual}
-            salvando={salvandoAtual} onLancarFn={handleLancarAtual}
-            esperadoPct={esperadoAtual}
-          />
+          {CelulaLancamento({
+            isAtual: true, info: infoAtual, hex: hexAtual,
+            valor: valorEditAtual, setValor: setValorEditAtual,
+            salvando: salvandoAtual, onLancarFn: handleLancarAtual,
+            esperadoPct: esperadoAtual,
+          })}
         </div>
       )}
     </div>
@@ -1057,11 +1060,7 @@ function MetaCardSemDono({ meta, indicadores, responsaveis, onToggleResponsavel,
 // ── MetasIndicadoresBloco ─────────────────────────────────────────────────────
 const LS_MES_KEY = 'bone_day_ultimo_mes';
 
-function mesInicial(): string {
-  if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem(LS_MES_KEY);
-    if (saved && /^\d{4}-\d{2}$/.test(saved)) return saved;
-  }
+function mesAtual(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
@@ -1070,7 +1069,12 @@ export function MetasIndicadoresBloco() {
   const supabase = useMemo(() => createClient(), []);
   const { effectiveProfileId, areaId } = useEffectiveUser();
 
-  const [mes, setMesState] = useState(mesInicial);
+  // Hydration fix: inicializa com mes atual (igual no servidor), depois sincroniza do localStorage
+  const [mes, setMesState] = useState(mesAtual);
+  useEffect(() => {
+    const saved = localStorage.getItem(LS_MES_KEY);
+    if (saved && /^\d{4}-\d{2}$/.test(saved)) setMesState(saved);
+  }, []);
   const setMes = (m: string) => { localStorage.setItem(LS_MES_KEY, m); setMesState(m); };
   const mesOptions = useMemo(() => getMonthOptions(), []);
 
