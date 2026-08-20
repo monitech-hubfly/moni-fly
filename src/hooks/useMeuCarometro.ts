@@ -101,12 +101,12 @@ function scoreDeValorESemaforo(valor: unknown, semaforo_faixas: unknown): number
  * do campo dias_uteis salvo no banco, que pode estar vazio).
  * Retorna 0 se projeto não iniciado, 100 se já passou do prazo.
  */
-function calcularEsperadoPct(dataInicio: string, dataFim: string): number {
+function calcularEsperadoPct(dataInicio: string, dataFim: string, refDate?: Date): number {
   if (!dataInicio || !dataFim) return 0;
-  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const ref  = new Date(refDate ?? new Date()); ref.setHours(0, 0, 0, 0);
   const inicio = new Date(dataInicio + 'T00:00:00');
   const fim    = new Date(dataFim    + 'T00:00:00');
-  if (hoje < inicio) return 0;
+  if (ref < inicio) return 0;
 
   // Total dias úteis do projeto (data_inicio → data_fim)
   let total = 0;
@@ -117,12 +117,12 @@ function calcularEsperadoPct(dataInicio: string, dataFim: string): number {
   }
   if (total === 0) return 0;
 
-  if (hoje >= fim) return 100;
+  if (ref >= fim) return 100;
 
-  // Dias úteis decorridos (data_inicio → hoje)
+  // Dias úteis decorridos (data_inicio → ref)
   let count = 0;
   const d2 = new Date(inicio);
-  while (d2 <= hoje) {
+  while (d2 <= ref) {
     if (d2.getDay() !== 0 && d2.getDay() !== 6) count++;
     d2.setDate(d2.getDate() + 1);
   }
@@ -404,6 +404,14 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       //   Recorrente (is_projeto_relativo=false/null):
       //     - sem lançamento → 0% (penalidade)
       //     - com lançamento → score via semáforo existente
+      // Sexta-feira da semana anterior (referência correta para calcular esp de S-1)
+      const hojeRef = new Date(); hojeRef.setHours(0, 0, 0, 0);
+      const dowRef  = hojeRef.getDay() || 7; // 1=Seg ... 7=Dom
+      const segundaEstaSeamna = new Date(hojeRef);
+      segundaEstaSeamna.setDate(hojeRef.getDate() - (dowRef - 1));
+      const sextaAnterior = new Date(segundaEstaSeamna);
+      sextaAnterior.setDate(segundaEstaSeamna.getDate() - 3); // Seg - 3 = Sex da semana anterior
+
       const semAnteriorInd = semana > 1 ? semana - 1 : 52;
       let indicadoresAnterior: IndicadoresSnapshot = { porIndicador: [], media: null };
       let indicadoresAtual: IndicadoresSnapshot    = { porIndicador: [], media: null };
@@ -419,13 +427,22 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           .filter(Boolean);
 
         if (objIds.length > 0) {
+          // Busca nomes dos objetivos para distinguir indicadores homônimos
+          const { data: objetivosData } = await supabase
+            .from('objetivos')
+            .select('id, descricao')
+            .in('id', objIds);
+          const objNomeMap = new Map<string, string>(
+            ((objetivosData ?? []) as { id: string; descricao: string }[]).map(o => [o.id, o.descricao])
+          );
+
           const { data: indsData } = await supabase
             .from('indicadores')
-            .select('id, nome, semaforo_faixas')
+            .select('id, nome, semaforo_faixas, objetivo_id')
             .in('objetivo_id', objIds)
             .eq('ativo', true);
 
-          type IndRow = { id: string; nome: string; semaforo_faixas: unknown };
+          type IndRow = { id: string; nome: string; semaforo_faixas: unknown; objetivo_id: string | null };
           const indsTyped = ((indsData ?? []) as IndRow[]);
           const indIds = indsTyped.map(i => i.id);
 
@@ -449,22 +466,26 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
             type SfRaw = { is_projeto_relativo?: boolean; data_inicio?: string; data_fim?: string; dias_uteis?: number };
 
-            function calcIndicadores(lancMap: Map<string, unknown>): IndicadoresSnapshot {
+            function calcIndicadores(lancMap: Map<string, unknown>, refDate: Date): IndicadoresSnapshot {
               const porIndicador: IndicadorItem[] = [];
               for (const ind of indsTyped) {
+                // Prefixar com nome do objetivo quando há indicadores homônimos
+                const objNome = ind.objetivo_id ? (objNomeMap.get(ind.objetivo_id) ?? '') : '';
+                const nomeDisplay = objNome ? `${objNome} — ${ind.nome}` : (ind.nome || ind.id);
                 const rawSf = ind.semaforo_faixas as SfRaw | null;
                 const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
 
                 if (isProjeto) {
-                  // Calcula % esperado dinamicamente (sem depender de dias_uteis salvo)
+                  // Calcula % esperado com data de referência correta para a semana
                   const esp = calcularEsperadoPct(
                     rawSf!.data_inicio ?? '',
                     rawSf!.data_fim    ?? '',
+                    refDate,
                   );
 
                   if (esp <= 0) {
                     // Nada esperado nesta semana — aparece na lista com percentual null
-                    porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: 0, percentual: null });
+                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
                     continue;
                   }
 
@@ -472,11 +493,11 @@ export function useMeuCarometro(): UseMeuCarometroResult {
                   const valStr = valor != null ? String(valor).trim() : '';
 
                   if (valStr === '' || valStr === '-') {
-                    porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: esp, percentual: 0 });
+                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: 0 });
                   } else {
                     const n = Number(valStr.replace(',', '.'));
                     if (!Number.isFinite(n)) {
-                      porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: esp, percentual: null });
+                      porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: null });
                       continue;
                     }
                     const ratio = Math.min(100, (n / esp) * 100);
@@ -484,18 +505,18 @@ export function useMeuCarometro(): UseMeuCarometroResult {
                     if (ratio >= 75) score = 100;
                     else if (ratio >= 60) score = 75;
                     else if (ratio >= 30) score = 50;
-                    porIndicador.push({ nome: ind.nome || ind.id, valor: n, meta: esp, percentual: score });
+                    porIndicador.push({ nome: nomeDisplay, valor: n, meta: esp, percentual: score });
                   }
                 } else {
                   const valor  = lancMap.get(ind.id);
                   const valStr = valor != null ? String(valor).trim() : '';
 
                   if (valStr === '' || valStr === '-') {
-                    porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: 0, percentual: 0 });
+                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: 0 });
                   } else {
                     const score = scoreDeValorESemaforo(valor, ind.semaforo_faixas);
                     const n     = Number(valStr.replace(',', '.'));
-                    porIndicador.push({ nome: ind.nome || ind.id, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
+                    porIndicador.push({ nome: nomeDisplay, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
                   }
                 }
               }
@@ -509,8 +530,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
               return { porIndicador, media };
             }
 
-            indicadoresAnterior = calcIndicadores(lancMapAnterior);
-            indicadoresAtual    = calcIndicadores(lancMapAtual);
+            indicadoresAnterior = calcIndicadores(lancMapAnterior, sextaAnterior);
+            indicadoresAtual    = calcIndicadores(lancMapAtual, hojeRef);
           }
         }
       }

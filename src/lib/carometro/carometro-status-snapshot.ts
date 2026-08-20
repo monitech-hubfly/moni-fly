@@ -40,12 +40,12 @@ function scoreDeValorESemaforoHex(valor: unknown, semaforo_faixas: unknown): num
  * Calcula % esperado de um indicador Atingível/Projeto com base em dias úteis.
  * Calcula o total de dias úteis dinamicamente (não depende de dias_uteis salvo).
  */
-function calcularEsperadoPctDinamico(dataInicio: string, dataFim: string): number {
+function calcularEsperadoPctDinamico(dataInicio: string, dataFim: string, refDate: Date): number {
   if (!dataInicio || !dataFim) return 0;
-  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const ref  = new Date(refDate); ref.setHours(0, 0, 0, 0);
   const inicio = new Date(dataInicio + 'T00:00:00');
   const fim    = new Date(dataFim    + 'T00:00:00');
-  if (hoje < inicio) return 0;
+  if (ref < inicio) return 0;
 
   let total = 0;
   const dt = new Date(inicio);
@@ -54,11 +54,11 @@ function calcularEsperadoPctDinamico(dataInicio: string, dataFim: string): numbe
     dt.setDate(dt.getDate() + 1);
   }
   if (total === 0) return 0;
-  if (hoje >= fim) return 100;
+  if (ref >= fim) return 100;
 
   let count = 0;
   const d2 = new Date(inicio);
-  while (d2 <= hoje) {
+  while (d2 <= ref) {
     if (d2.getDay() !== 0 && d2.getDay() !== 6) count++;
     d2.setDate(d2.getDate() + 1);
   }
@@ -254,13 +254,21 @@ export async function gerarSnapshotCarometro(
       .map(o => o.objetivo_id).filter(Boolean);
 
     if (objIds.length > 0) {
+      const { data: objetivosData } = await db
+        .from('objetivos')
+        .select('id, descricao')
+        .in('id', objIds);
+      const objNomeMap = new Map<string, string>(
+        ((objetivosData ?? []) as { id: string; descricao: string }[]).map(o => [o.id, o.descricao])
+      );
+
       const { data: indsData } = await db
         .from('indicadores')
-        .select('id, nome, semaforo_faixas')
+        .select('id, nome, semaforo_faixas, objetivo_id')
         .in('objetivo_id', objIds)
         .eq('ativo', true);
 
-      type IndRow = { id: string; nome: string; semaforo_faixas: unknown };
+      type IndRow = { id: string; nome: string; semaforo_faixas: unknown; objetivo_id: string | null };
       const indsTyped = (indsData ?? []) as IndRow[];
       const indIds = indsTyped.map(i => i.id);
 
@@ -280,38 +288,40 @@ export async function gerarSnapshotCarometro(
         const porIndicador: IndItem[] = [];
 
         for (const ind of indsTyped) {
+          const objNome    = ind.objetivo_id ? (objNomeMap.get(ind.objetivo_id) ?? '') : '';
+          const nomeDisplay = objNome ? `${objNome} — ${ind.nome}` : (ind.nome || ind.id);
           const rawSf = ind.semaforo_faixas as SfRaw | null;
           const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
 
           if (isProjeto) {
-            const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '');
+            const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', hoje);
             if (esp <= 0) {
-              porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: 0, percentual: null });
+              porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
               continue;
             }
             const valor  = lancMap.get(ind.id);
             const valStr = valor != null ? String(valor).trim() : '';
             if (valStr === '' || valStr === '-') {
-              porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: esp, percentual: 0 });
+              porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: 0 });
             } else {
               const n = Number(valStr.replace(',', '.'));
-              if (!Number.isFinite(n)) { porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: esp, percentual: null }); continue; }
+              if (!Number.isFinite(n)) { porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: null }); continue; }
               const ratio = Math.min(100, (n / esp) * 100);
               let score = 0;
               if (ratio >= 75) score = 100;
               else if (ratio >= 60) score = 75;
               else if (ratio >= 30) score = 50;
-              porIndicador.push({ nome: ind.nome || ind.id, valor: n, meta: esp, percentual: score });
+              porIndicador.push({ nome: nomeDisplay, valor: n, meta: esp, percentual: score });
             }
           } else {
             const valor  = lancMap.get(ind.id);
             const valStr = valor != null ? String(valor).trim() : '';
             if (valStr === '' || valStr === '-') {
-              porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: 0, percentual: 0 });
+              porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: 0 });
             } else {
               const score = scoreDeValorESemaforoHex(valor, ind.semaforo_faixas);
               const n     = Number(valStr.replace(',', '.'));
-              porIndicador.push({ nome: ind.nome || ind.id, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
+              porIndicador.push({ nome: nomeDisplay, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
             }
           }
         }
