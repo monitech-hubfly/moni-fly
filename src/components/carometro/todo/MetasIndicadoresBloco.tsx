@@ -1247,33 +1247,32 @@ export function MetasIndicadoresBloco() {
     if (!profileId) { console.warn('[LancarIndicador] sem profileId'); return false; }
 
     try {
-      // Busca linha existente para saber se é UPDATE ou INSERT
-      // Bug 1 fix: captura error do maybeSingle (antes era silenciado via destructuring parcial)
-      const { data: existing, error: selectErr } = await (supabase.from('indicador_lancamentos') as any)
-        .select('id, valor')
+      // Bug 1 fix (v2): busca linha própria OU legada (profile_id null) para evitar falha de
+      // INSERT por unique constraint quando já existe registro antigo sem profile_id na semana.
+      const { data: rows, error: selectErr } = await (supabase.from('indicador_lancamentos') as any)
+        .select('id, valor, profile_id')
         .eq('indicador_id', indId)
         .eq('semana', semana)
-        .eq('profile_id', profileId)
-        .limit(1)
-        .maybeSingle();
+        .or(`profile_id.eq.${profileId},profile_id.is.null`);
 
       if (selectErr) {
-        // Loga para diagnóstico mas não aborta — pode ser falha de RLS no SELECT
-        // enquanto INSERT ainda pode funcionar (se policies forem assimétricas).
         console.error('[LancarIndicador] erro ao buscar lançamento existente:', selectErr);
       }
+      // Prioriza linha própria do usuário; cai para linha legada (profile_id null)
+      const existingRows = (rows ?? []) as { id: string; valor: string; profile_id: string | null }[];
+      const existing = existingRows.find(r => r.profile_id === profileId) ?? existingRows[0] ?? null;
 
       let saveErr: unknown = null;
       if (existing?.id) {
-        // UPDATE: linha já existe para este usuário nesta semana
+        // UPDATE: linha já existe (própria ou legada) — migra profile_id para o usuário atual
         const { error } = await (supabase.from('indicador_lancamentos') as any)
-          .update({ valor })
+          .update({ valor, profile_id: profileId })
           .eq('id', existing.id);
         saveErr = error;
       } else {
-        // INSERT: primeira vez nesta semana para este usuário
+        // INSERT: primeira vez nesta semana para este usuário (inclui semana_ano)
         const { error } = await (supabase.from('indicador_lancamentos') as any)
-          .insert({ indicador_id: indId, semana, valor, profile_id: profileId });
+          .insert({ indicador_id: indId, semana, semana_ano: new Date().getFullYear(), valor, profile_id: profileId });
         saveErr = error;
       }
 
