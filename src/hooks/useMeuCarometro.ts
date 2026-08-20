@@ -163,6 +163,9 @@ export function useMeuCarometro(): UseMeuCarometroResult {
   const simAreaId    = simulacao?.areaId ?? null;
   const simNome      = simulacao?.nomeUsuario ?? null;
 
+  // Ref para evitar que o useEffect do Realtime recrie o canal a cada render
+  const carregarRef = useRef<() => Promise<void>>(async () => {});
+
   const carregar = useCallback(async () => {
     const callId = ++callIdRef.current;
     setIsLoading(true);
@@ -619,20 +622,24 @@ export function useMeuCarometro(): UseMeuCarometroResult {
     }
   }, [supabase, simProfileId, simAreaId, simNome]);
 
+  // Mantém ref sempre atualizado — sem isso o Realtime useEffect ficaria com closure stale
+  useEffect(() => { carregarRef.current = carregar; }, [carregar]);
+
   useEffect(() => { carregar(); }, [carregar]);
 
-  // Subscription realtime: re-executa quando lançamentos são adicionados/alterados
+  // Subscription realtime: canal criado UMA vez; usa ref para não recriar o canal e evitar
+  // "Lock broken by another request with the 'steal' option"
   useEffect(() => {
     const channel = supabase
       .channel('indicadores-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'indicador_lancamentos' },
-        () => { carregar(); },
+        () => { carregarRef.current(); },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [supabase, carregar]);
+  }, [supabase]); // intencionalmente sem `carregar` nas deps
 
   return {
     sirene,
