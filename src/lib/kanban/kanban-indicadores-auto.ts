@@ -46,7 +46,7 @@ export const KANBAN_INDICADORES_CONFIG: KanbanIndicadorConfig[] = [
   },
   {
     label: 'Projetos Executivos Locais Realizados',
-    indicadorId: '1a10ab21-eba4-48b1-9029-1b1093607ba2',
+    indicadorId: 'b18dadfd-31b9-44f7-a7cb-270f5312e6a6',
     kanbanId: KANBAN_IDS.PROJETOS_LOCAIS,
     faseAlvoId: FASE_IDS.PROJETOS_LOCAIS_CONCLUIDO,
   },
