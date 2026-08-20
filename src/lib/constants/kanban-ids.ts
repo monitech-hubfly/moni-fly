@@ -90,6 +90,8 @@ export const FASE_IDS = {
   OPERACOES_ENTREGUE:        '5b85ac83-a546-4c1d-9bf0-e5e40cf3d937',
   // Loteadores
   LOTEADORES_JURIDICO:       'b505fee6-67aa-4925-b464-b80ceaa04567',
+  // Projetos Locais
+  PROJETOS_LOCAIS_CONCLUIDO: '4d3b70c2-d281-415c-b87c-daf54241729e',
 } as const
 
 export const FASE_SLUGS = {
@@ -262,7 +264,7 @@ export const FASE_SLUGS = {
   FUNDING_MODELO:                 'funding_modelo',
   FUNDING_DOCS:                   'funding_docs',
   FUNDING_CONTRATO:               'funding_contrato',
-  PROJETOS_LOCAIS_CONCLUIDO: '4d3b70c2-d281-415c-b87c-daf54241729e',
+  PROJETOS_LOCAIS_CONCLUIDO: 'projetos_locais_concluido',
   PROJETOS_LEGAIS_CONCLUIDO: 'projetos_legais_concluido',
   OPERACOES_ENTREGUE:        'operacoes_entregue',
   // Gates
