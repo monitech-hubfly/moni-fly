@@ -1,48 +1,68 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isoWeek, isoWeekYear } from '@/utils/periodos';
+import { isoWeek } from '@/utils/periodos';
 import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
 
-// ── Semáforo (replicado de useMeuCarometro) ──────────────────────────────────
-const NOME_SCORE: Record<string, number> = { ve: 100, vc: 75, am: 50, vm: 0 };
+// ── Semáforo — cores hex (sincronizado com useMeuCarometro) ──────────────────
+const COR_PARA_SCORE: Record<string, number> = {
+  '#1e7a3a': 100,
+  '#52b36f': 67,
+  '#f2c94c': 50,
+  '#d24141': 0,
+};
 
 type SemaforoFaixa = { cor: string; limite: string | number; comparacao?: string };
 
-/** Retorna 0–100. missing = 0 (rigoroso). Suporta faixas eq (texto) e numéricas. */
-function scoreDeValorESemaforoNomeado(semaforo_faixas: unknown, valor: string): number {
+/** Retorna 0–100 usando cores hex. Sem lançamento/inválido = 50 (neutro). */
+function scoreDeValorESemaforoHex(valor: unknown, semaforo_faixas: unknown): number {
+  if (valor == null || valor === '') return 50;
   const faixas = (semaforo_faixas as { faixas?: SemaforoFaixa[] } | null)?.faixas;
   if (!faixas?.length) return 50;
 
-  // Tenta eq textual primeiro
-  const valorNorm = valor.toLowerCase().trim();
+  const n = Number(String(valor).replace(',', '.'));
+  if (!Number.isFinite(n)) return 50;
+
   for (const f of faixas) {
-    if ((f.comparacao === 'eq' || !f.comparacao) &&
-        String(f.limite ?? '').toLowerCase().trim() === valorNorm) {
-      const cor = String(f.cor ?? '').toLowerCase();
-      return NOME_SCORE[cor] ?? 50;
-    }
+    const limite = Number(String(f.limite ?? '').replace(',', '.'));
+    if (!Number.isFinite(limite)) continue;
+    const op = f.comparacao ?? 'gte';
+    let match = false;
+    if (op === 'gte') match = n >= limite;
+    else if (op === 'gt')  match = n > limite;
+    else if (op === 'lte') match = n <= limite;
+    else if (op === 'lt')  match = n < limite;
+    else if (op === 'eq')  match = n === limite;
+    if (match) return COR_PARA_SCORE[f.cor?.toLowerCase()] ?? 50;
   }
-
-  // Tenta numérico
-  const n = Number(valor.replace(',', '.'));
-  if (Number.isFinite(n)) {
-    for (const f of faixas) {
-      const limite = Number(String(f.limite ?? '').replace(',', '.'));
-      if (!Number.isFinite(limite)) continue;
-      const op = f.comparacao ?? 'gte';
-      let match = false;
-      if (op === 'gte') match = n >= limite;
-      else if (op === 'gt')  match = n > limite;
-      else if (op === 'lte') match = n <= limite;
-      else if (op === 'lt')  match = n < limite;
-      else if (op === 'eq')  match = n === limite;
-      if (match) {
-        const cor = String(f.cor ?? '').toLowerCase();
-        return NOME_SCORE[cor] ?? 50;
-      }
-    }
-  }
-
   return 50;
+}
+
+/**
+ * Calcula % esperado de um indicador Atingível/Projeto com base em dias úteis.
+ * Calcula o total de dias úteis dinamicamente (não depende de dias_uteis salvo).
+ */
+function calcularEsperadoPctDinamico(dataInicio: string, dataFim: string): number {
+  if (!dataInicio || !dataFim) return 0;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const inicio = new Date(dataInicio + 'T00:00:00');
+  const fim    = new Date(dataFim    + 'T00:00:00');
+  if (hoje < inicio) return 0;
+
+  let total = 0;
+  const dt = new Date(inicio);
+  while (dt <= fim) {
+    if (dt.getDay() !== 0 && dt.getDay() !== 6) total++;
+    dt.setDate(dt.getDate() + 1);
+  }
+  if (total === 0) return 0;
+  if (hoje >= fim) return 100;
+
+  let count = 0;
+  const d2 = new Date(inicio);
+  while (d2 <= hoje) {
+    if (d2.getDay() !== 0 && d2.getDay() !== 6) count++;
+    d2.setDate(d2.getDate() + 1);
+  }
+  return Math.min(100, Math.round((count / total) * 100));
 }
 
 // ── Snapshot principal ───────────────────────────────────────────────────────
@@ -55,7 +75,6 @@ export async function gerarSnapshotCarometro(
 ) {
   const hoje    = data;
   const semana  = isoWeek(hoje);
-  const anoISO  = isoWeekYear(hoje);
   const hojeStr = hoje.toISOString().slice(0, 10);
 
   // ── Sirene ─────────────────────────────────────────────────────────────────
@@ -220,100 +239,90 @@ export async function gerarSnapshotCarometro(
     score:      engScore,
   };
 
-  // ── Indicadores (2 níveis: por meta → por usuário) ────────────────────────
-  let indicadoresData: Record<string, unknown> = { porMeta: [], media: null };
+  // ── Indicadores (sincronizado com useMeuCarometro) ───────────────────────
+  // Usa objetivo_responsaveis para encontrar indicadores do usuário.
+  // Lógica diferenciada: Atingível/Projeto (is_projeto_relativo) vs Recorrente.
+  let indicadoresData: Record<string, unknown> = { porIndicador: [], media: null };
 
-  type MetaRow = { id: string; descricao: string; tipo: string | null; meta_unidade: string | null; status: string };
-  type IndRow  = { id: string; nome: string; semaforo_faixas: unknown; objetivo_id: string | null };
+  {
+    const { data: objRespData } = await db
+      .from('objetivo_responsaveis')
+      .select('objetivo_id')
+      .eq('profile_id', profileId);
 
-  const { data: metasData } = await db
-    .from('objetivos')
-    .select('id, descricao, tipo, meta_unidade, status')
-    .eq('area_id', areaId)
-    .eq('profile_id', profileId)
-    .eq('status', 'ativo')
-    .is('objetivo_pai_id', null);
+    const objIds = ((objRespData ?? []) as { objetivo_id: string }[])
+      .map(o => o.objetivo_id).filter(Boolean);
 
-  const metas     = (metasData ?? []) as MetaRow[];
-  const metaIds   = metas.map(m => m.id);
+    if (objIds.length > 0) {
+      const { data: indsData } = await db
+        .from('indicadores')
+        .select('id, nome, semaforo_faixas')
+        .in('objetivo_id', objIds)
+        .eq('ativo', true);
 
-  if (metaIds.length > 0) {
-    const { data: indsData } = await db
-      .from('indicadores')
-      .select('id, nome, semaforo_faixas, objetivo_id')
-      .in('objetivo_id', metaIds);
+      type IndRow = { id: string; nome: string; semaforo_faixas: unknown };
+      const indsTyped = (indsData ?? []) as IndRow[];
+      const indIds = indsTyped.map(i => i.id);
 
-    const inds   = (indsData ?? []) as IndRow[];
-    const indIds = inds.map(i => i.id);
+      if (indIds.length > 0) {
+        const { data: lancsData } = await db
+          .from('indicador_lancamentos')
+          .select('indicador_id, valor')
+          .in('indicador_id', indIds)
+          .eq('semana', semana);
 
-    if (indIds.length > 0) {
-      const { data: periodoData } = await db
-        .from('periodos')
-        .select('data_inicio')
-        .lte('data_inicio', hojeStr)
-        .gte('data_fim', hojeStr)
-        .eq('ano', anoISO)
-        .order('data_fim', { ascending: true })
-        .limit(1)
-        .maybeSingle();
+        const lancMap = new Map<string, unknown>(
+          ((lancsData ?? []) as { indicador_id: string; valor: unknown }[]).map(l => [l.indicador_id, l.valor])
+        );
 
-      const semRel = periodoData
-        ? isoWeek(new Date((periodoData as { data_inicio: string }).data_inicio))
-        : semana;
-      const semAnt = semRel > 1 ? semRel - 1 : 52;
+        type SfRaw = { is_projeto_relativo?: boolean; data_inicio?: string; data_fim?: string };
+        type IndItem = { nome: string; valor: number; meta: number; percentual: number | null };
+        const porIndicador: IndItem[] = [];
 
-      const { data: lancsData } = await db
-        .from('indicador_lancamentos')
-        .select('indicador_id, valor, semana')
-        .in('indicador_id', indIds)
-        .in('semana', [semAnt, semRel]);
+        for (const ind of indsTyped) {
+          const rawSf = ind.semaforo_faixas as SfRaw | null;
+          const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
 
-      // Prefere semana atual; fallback para semana anterior
-      const lancMap = new Map<string, string>();
-      for (const l of (lancsData ?? []) as { indicador_id: string; valor: unknown; semana: number }[]) {
-        const val = String(l.valor ?? '');
-        if (l.semana === semRel) {
-          lancMap.set(l.indicador_id, val);
-        } else if (l.semana === semAnt && !lancMap.has(l.indicador_id)) {
-          lancMap.set(l.indicador_id, val);
+          if (isProjeto) {
+            const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '');
+            if (esp <= 0) {
+              porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: 0, percentual: null });
+              continue;
+            }
+            const valor  = lancMap.get(ind.id);
+            const valStr = valor != null ? String(valor).trim() : '';
+            if (valStr === '' || valStr === '-') {
+              porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: esp, percentual: 0 });
+            } else {
+              const n = Number(valStr.replace(',', '.'));
+              if (!Number.isFinite(n)) { porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: esp, percentual: null }); continue; }
+              const ratio = Math.min(100, (n / esp) * 100);
+              let score = 0;
+              if (ratio >= 75) score = 100;
+              else if (ratio >= 60) score = 75;
+              else if (ratio >= 30) score = 50;
+              porIndicador.push({ nome: ind.nome || ind.id, valor: n, meta: esp, percentual: score });
+            }
+          } else {
+            const valor  = lancMap.get(ind.id);
+            const valStr = valor != null ? String(valor).trim() : '';
+            if (valStr === '' || valStr === '-') {
+              porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: 0, percentual: 0 });
+            } else {
+              const score = scoreDeValorESemaforoHex(valor, ind.semaforo_faixas);
+              const n     = Number(valStr.replace(',', '.'));
+              porIndicador.push({ nome: ind.nome || ind.id, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
+            }
+          }
         }
+
+        const scores = porIndicador.filter(i => i.percentual !== null).map(i => i.percentual as number);
+        const media  = scores.length > 0
+          ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length)
+          : null;
+
+        indicadoresData = { porIndicador, media };
       }
-
-      const porMeta = metas
-        .map(meta => {
-          const metaInds = inds.filter(i => i.objetivo_id === meta.id);
-          if (metaInds.length === 0) return null; // sem indicadores → exclui da média
-
-          const scores = metaInds.map(ind => {
-            const valor = lancMap.get(ind.id);
-            if (!valor) return 0; // missing = vm = 0 (rigoroso)
-            return scoreDeValorESemaforoNomeado(ind.semaforo_faixas, valor);
-          });
-
-          const mediaMeta = scores.reduce((s, v) => s + v, 0) / scores.length;
-
-          const isRecorrente = meta.tipo?.toLowerCase() === 'recorrente';
-          const isAtrasada   = !isRecorrente &&
-            !!meta.meta_unidade && meta.meta_unidade < hojeStr &&
-            meta.status !== 'concluido';
-
-          const scoreFinal = isAtrasada ? mediaMeta * 0.70 : mediaMeta;
-
-          return {
-            id:         meta.id,
-            descricao:  meta.descricao,
-            score:      Math.round(scoreFinal * 10) / 10,
-            indicadores: scores.length,
-            penalidade:  isAtrasada,
-          };
-        })
-        .filter(Boolean) as Array<{ id: string; descricao: string; score: number; indicadores: number; penalidade: boolean }>;
-
-      const media = porMeta.length > 0
-        ? Math.round(porMeta.reduce((s, m) => s + m.score, 0) / porMeta.length * 10) / 10
-        : null;
-
-      indicadoresData = { porMeta, media };
     }
   }
 
