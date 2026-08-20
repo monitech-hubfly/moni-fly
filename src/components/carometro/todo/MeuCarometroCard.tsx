@@ -139,9 +139,18 @@ function SemanaisCirculos({ semanas }: { semanas: SemanaStatusInd[] }) {
             {sem.indicadores.map(ind => (
               <div key={ind.nome} className="flex justify-between gap-2">
                 <span className="text-gray-500 truncate flex-1">{ind.nome}</span>
-                <span className="font-semibold tabular-nums" style={{ color: dotColor(ind.percentual) }}>
-                  {ind.percentual}%
-                </span>
+                {ind.percentual !== null ? (
+                  <span className="font-semibold tabular-nums" style={{ color: dotColor(ind.percentual) }}>
+                    {ind.percentual}%
+                  </span>
+                ) : (
+                  <span
+                    className="text-gray-400 cursor-help select-none"
+                    title="Nada esperado para essa semana"
+                  >
+                    —
+                  </span>
+                )}
               </div>
             ))}
           </div>

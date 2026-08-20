@@ -16,7 +16,7 @@ export type SemanaStatusInd = {
   label: string;
   semana: number;
   score: number | null;
-  indicadores: Array<{ nome: string; valor: string | null; percentual: number }>;
+  indicadores: Array<{ nome: string; valor: string | null; percentual: number | null }>;
 };
 
 export type SireneSnapshot = {
@@ -41,7 +41,7 @@ export type IndicadorItem = {
   nome: string;
   valor: number;
   meta: number;
-  percentual: number;
+  percentual: number | null; // null = "Nada esperado para essa semana" (Projeto com esp=0)
 };
 
 export type IndicadoresSnapshot = {
@@ -59,6 +59,7 @@ export type UseMeuCarometroResult = {
   semanaAtual: number;
   isLoading: boolean;
   error: string | null;
+  refetch: () => void;
 };
 
 // Mapeamento cor semáforo → score 0-100
@@ -96,23 +97,36 @@ function scoreDeValorESemaforo(valor: unknown, semaforo_faixas: unknown): number
 
 /**
  * Calcula % esperado de um indicador Atingível/Projeto com base em dias úteis decorridos.
- * Exclui apenas fins de semana (sábado e domingo).
+ * Exclui apenas fins de semana. Calcula o total de dias úteis dinamicamente (não depende
+ * do campo dias_uteis salvo no banco, que pode estar vazio).
  * Retorna 0 se projeto não iniciado, 100 se já passou do prazo.
  */
-function calcularEsperadoPct(dataInicio: string, dataFim: string, diasUteis: number): number {
-  if (!dataInicio || !dataFim || !diasUteis || diasUteis <= 0) return 0;
+function calcularEsperadoPct(dataInicio: string, dataFim: string): number {
+  if (!dataInicio || !dataFim) return 0;
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const inicio = new Date(dataInicio + 'T00:00:00');
   const fim    = new Date(dataFim    + 'T00:00:00');
   if (hoje < inicio) return 0;
-  if (hoje > fim)    return 100;
-  let count = 0;
-  const d = new Date(inicio);
-  while (d <= hoje) {
-    if (d.getDay() !== 0 && d.getDay() !== 6) count++;
-    d.setDate(d.getDate() + 1);
+
+  // Total dias úteis do projeto (data_inicio → data_fim)
+  let total = 0;
+  const dt = new Date(inicio);
+  while (dt <= fim) {
+    if (dt.getDay() !== 0 && dt.getDay() !== 6) total++;
+    dt.setDate(dt.getDate() + 1);
   }
-  return Math.min(100, Math.round((count / diasUteis) * 100));
+  if (total === 0) return 0;
+
+  if (hoje >= fim) return 100;
+
+  // Dias úteis decorridos (data_inicio → hoje)
+  let count = 0;
+  const d2 = new Date(inicio);
+  while (d2 <= hoje) {
+    if (d2.getDay() !== 0 && d2.getDay() !== 6) count++;
+    d2.setDate(d2.getDate() + 1);
+  }
+  return Math.min(100, Math.round((count / total) * 100));
 }
 
 function getDiasSemanAtual(): string[] {
@@ -442,12 +456,17 @@ export function useMeuCarometro(): UseMeuCarometroResult {
                 const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
 
                 if (isProjeto) {
+                  // Calcula % esperado dinamicamente (sem depender de dias_uteis salvo)
                   const esp = calcularEsperadoPct(
                     rawSf!.data_inicio ?? '',
                     rawSf!.data_fim    ?? '',
-                    rawSf!.dias_uteis  ?? 0,
                   );
-                  if (esp <= 0) continue;
+
+                  if (esp <= 0) {
+                    // Nada esperado nesta semana — aparece na lista com percentual null
+                    porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: 0, percentual: null });
+                    continue;
+                  }
 
                   const valor  = lancMap.get(ind.id);
                   const valStr = valor != null ? String(valor).trim() : '';
@@ -456,7 +475,10 @@ export function useMeuCarometro(): UseMeuCarometroResult {
                     porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: esp, percentual: 0 });
                   } else {
                     const n = Number(valStr.replace(',', '.'));
-                    if (!Number.isFinite(n)) continue;
+                    if (!Number.isFinite(n)) {
+                      porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: esp, percentual: null });
+                      continue;
+                    }
                     const ratio = Math.min(100, (n / esp) * 100);
                     let score = 0;
                     if (ratio >= 75) score = 100;
@@ -477,7 +499,10 @@ export function useMeuCarometro(): UseMeuCarometroResult {
                   }
                 }
               }
-              const scores = porIndicador.map(i => i.percentual);
+              // Média exclui os nulls (itens sem expectativa nesta semana)
+              const scores = porIndicador
+                .map(i => i.percentual)
+                .filter((p): p is number => p !== null);
               const media  = scores.length > 0
                 ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length)
                 : null;
@@ -575,6 +600,19 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
   useEffect(() => { carregar(); }, [carregar]);
 
+  // Subscription realtime: re-executa quando lançamentos são adicionados/alterados
+  useEffect(() => {
+    const channel = supabase
+      .channel('indicadores-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'indicador_lancamentos' },
+        () => { carregar(); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [supabase, carregar]);
+
   return {
     sirene,
     engajamento,
@@ -585,5 +623,6 @@ export function useMeuCarometro(): UseMeuCarometroResult {
     semanaAtual,
     isLoading,
     error,
+    refetch: carregar,
   };
 }
