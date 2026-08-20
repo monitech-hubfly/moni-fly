@@ -312,7 +312,7 @@ export function labelStatusImovel(id: string | null | undefined): string {
 
 export function opcoesProdutoModeloComValorAtual(valorAtual: string): string[] {
   const v = valorAtual.trim();
-  const base = [...IMOB_PRODUTOS_MODELO];
+  const base: string[] = [...IMOB_PRODUTOS_MODELO];
   if (v && !base.some((x) => x === v)) base.unshift(v);
   return base;
 }
