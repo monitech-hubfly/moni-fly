@@ -482,17 +482,19 @@ function IndicadorLinha({
   // Pode preencher: é o responsável do indicador
   const podeEditar  = isMeu;
 
-  // Para is_projeto_relativo: calcula hex localmente (hook pode não ter o OR row do usuário).
-  // Para indicadores normais: usa corHex pré-computado pelo hook.
+  // Bug 2 fix: usa valorEdit (estado local) para calcular cor imediatamente ao digitar,
+  // sem esperar o recarregar() do hook que só atualiza após o save confirmado pelo servidor.
   const hexAtual = isProjetoRelativo
-    ? resolveHexProjeto(ind.valorAtual, esperadoAtual)
-    : ind.corHex;
+    ? resolveHexProjeto(valorEditAtual.trim() || null, esperadoAtual)
+    : valorEditAtual.trim()
+      ? (FAROL_HEX[statusSemaforoPorValor(ind, valorEditAtual) as string] ?? '#d1d5db')
+      : ind.corHex;
 
-  const semaforoAnt = (!isProjetoRelativo && ind.valorAnterior != null)
-    ? (statusSemaforoPorValor(ind, ind.valorAnterior) as string | null)
+  const semaforoAnt = !isProjetoRelativo && valorEditAnterior.trim()
+    ? (statusSemaforoPorValor(ind, valorEditAnterior) as string | null)
     : null;
   const hexAnterior = isProjetoRelativo
-    ? resolveHexProjeto(ind.valorAnterior, esperadoAnterior)
+    ? resolveHexProjeto(valorEditAnterior.trim() || null, esperadoAnterior)
     : (semaforoAnt ? (FAROL_HEX[semaforoAnt] ?? '#e5e7eb') : '#e5e7eb');
   const VAZIO_HEX   = '#e5e7eb';
 
@@ -1239,13 +1241,20 @@ export function MetasIndicadoresBloco() {
 
     try {
       // Busca linha existente para saber se é UPDATE ou INSERT
-      const { data: existing } = await (supabase.from('indicador_lancamentos') as any)
+      // Bug 1 fix: captura error do maybeSingle (antes era silenciado via destructuring parcial)
+      const { data: existing, error: selectErr } = await (supabase.from('indicador_lancamentos') as any)
         .select('id, valor')
         .eq('indicador_id', indId)
         .eq('semana', semana)
         .eq('profile_id', profileId)
         .limit(1)
         .maybeSingle();
+
+      if (selectErr) {
+        // Loga para diagnóstico mas não aborta — pode ser falha de RLS no SELECT
+        // enquanto INSERT ainda pode funcionar (se policies forem assimétricas).
+        console.error('[LancarIndicador] erro ao buscar lançamento existente:', selectErr);
+      }
 
       let saveErr: unknown = null;
       if (existing?.id) {
