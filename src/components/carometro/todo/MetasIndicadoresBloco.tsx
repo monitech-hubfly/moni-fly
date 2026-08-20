@@ -66,19 +66,26 @@ function calcEsperadoPct(
   diasUteis: number | null | undefined,
   refDate: Date,
 ): number | null {
-  if (!dataInicio || !dataFim || !diasUteis || diasUteis <= 0) return null;
-  const ref   = new Date(refDate); ref.setHours(0, 0, 0, 0);
+  if (!dataInicio || !dataFim) return null;
+  const ref    = new Date(refDate); ref.setHours(0, 0, 0, 0);
   const inicio = new Date(dataInicio + 'T00:00:00');
   const fim    = new Date(dataFim    + 'T00:00:00');
   if (ref < inicio) return 0;
   if (ref > fim)    return 100;
+  // Bug 3 fix: se dias_uteis não foi salvo no banco (null), calcula do range de datas
+  let total = (diasUteis && diasUteis > 0) ? diasUteis : 0;
+  if (!total) {
+    const d = new Date(inicio);
+    while (d <= fim) { if (d.getDay() !== 0 && d.getDay() !== 6) total++; d.setDate(d.getDate() + 1); }
+  }
+  if (total <= 0) return null;
   let count = 0;
   const d = new Date(inicio);
   while (d <= ref) {
     if (d.getDay() !== 0 && d.getDay() !== 6) count++;
     d.setDate(d.getDate() + 1);
   }
-  return Math.min(100, Math.round((count / diasUteis) * 100));
+  return Math.min(100, Math.round((count / total) * 100));
 }
 
 // ── Faixas legend ─────────────────────────────────────────────────────────────
