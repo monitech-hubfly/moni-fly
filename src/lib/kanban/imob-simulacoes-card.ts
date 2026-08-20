@@ -29,6 +29,7 @@ export const IMOB_PRODUTOS_MODELO = [
 export type ImobSituacaoId = (typeof IMOB_SITUACOES)[number]['id'];
 export type ImobPrazoBalao = (typeof IMOB_PRAZOS_BALAO)[number];
 export type ImobStatusImovelId = (typeof IMOB_STATUS_IMOVEL)[number]['id'];
+export type ImobBlocoTipo = 'empreendimento' | 'showroom';
 
 export type ImobCardModeloRow = {
   card_id: string;
@@ -47,6 +48,7 @@ export type ImobCardEmpreendimentoRow = {
   id: string;
   card_id: string;
   ordem: number;
+  tipo: ImobBlocoTipo;
   nome: string | null;
   produto_modelo: string | null;
   titulo_oferta: string | null;
@@ -87,6 +89,7 @@ export type ImobCardEmpreendimentoRow = {
 export type ImobCardEmpreendimentoDraft = {
   id: string;
   ordem: number;
+  tipo: ImobBlocoTipo;
   nome: string;
   produto_modelo: string;
   titulo_oferta: string;
@@ -226,10 +229,15 @@ export function mapImobCardModeloRow(raw: Record<string, unknown>): ImobCardMode
   };
 }
 
+export function normalizeImobBlocoTipo(raw: unknown): ImobBlocoTipo {
+  return String(raw ?? '').trim() === 'showroom' ? 'showroom' : 'empreendimento';
+}
+
 export function rowToImobDraft(row: ImobCardEmpreendimentoRow): ImobCardEmpreendimentoDraft {
   return {
     id: row.id,
     ordem: row.ordem,
+    tipo: normalizeImobBlocoTipo(row.tipo),
     nome: String(row.nome ?? '').trim(),
     produto_modelo: String(row.produto_modelo ?? '').trim(),
     titulo_oferta: String(row.titulo_oferta ?? '').trim(),
@@ -270,6 +278,7 @@ export function rowToImobDraft(row: ImobCardEmpreendimentoRow): ImobCardEmpreend
 
 export function draftToImobPatch(draft: ImobCardEmpreendimentoDraft): Record<string, unknown> {
   const patch: Record<string, unknown> = {
+    tipo: normalizeImobBlocoTipo(draft.tipo),
     nome: draft.nome.trim() || null,
     produto_modelo: draft.produto_modelo.trim() || null,
     titulo_oferta: draft.titulo_oferta.trim() || null,
@@ -329,6 +338,7 @@ export function mapImobCardEmpreendimentoRow(raw: Record<string, unknown>): Imob
     id: String(raw.id),
     card_id: String(raw.card_id),
     ordem: Number(raw.ordem ?? 0),
+    tipo: normalizeImobBlocoTipo(raw.tipo),
     nome: t('nome'),
     produto_modelo: t('produto_modelo'),
     titulo_oferta: t('titulo_oferta'),

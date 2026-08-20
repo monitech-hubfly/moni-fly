@@ -8,8 +8,10 @@ import {
   draftToImobPatch,
   mapImobCardEmpreendimentoRow,
   mapImobCardModeloRow,
+  normalizeImobBlocoTipo,
   rowToImobDraft,
   rowToImobModeloDraft,
+  type ImobBlocoTipo,
   type ImobCardEmpreendimentoDraft,
   type ImobCardModeloDraft,
 } from '@/lib/kanban/imob-simulacoes-card';
@@ -103,6 +105,7 @@ export async function salvarImobCardModelo(
 
 export async function criarImobSimulacaoEmpreendimento(
   cardId: string,
+  tipo: ImobBlocoTipo = 'empreendimento',
 ): Promise<{ ok: true; item: ImobCardEmpreendimentoDraft } | { ok: false; error: string }> {
   const auth = await requireUser();
   if (!auth.ok) return auth;
@@ -110,10 +113,13 @@ export async function criarImobSimulacaoEmpreendimento(
   const check = await assertCardExiste(auth.supabase, cardId);
   if (!check.ok) return check;
 
+  const tipoNorm = normalizeImobBlocoTipo(tipo);
+
   const { data: maxRow } = await auth.supabase
     .from('imob_card_empreendimentos')
     .select('ordem')
     .eq('card_id', cardId)
+    .eq('tipo', tipoNorm)
     .order('ordem', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -130,12 +136,16 @@ export async function criarImobSimulacaoEmpreendimento(
     .insert({
       card_id: cardId,
       ordem,
+      tipo: tipoNorm,
       nome: '',
       produto_modelo: seedProduto,
     })
     .select('*')
     .single();
-  if (error || !data) return { ok: false, error: error?.message ?? 'Não foi possível criar o empreendimento.' };
+  if (error || !data) {
+    const label = tipoNorm === 'showroom' ? 'showroom' : 'empreendimento';
+    return { ok: false, error: error?.message ?? `Não foi possível criar o ${label}.` };
+  }
   revalidatePath('/');
   return { ok: true, item: rowToImobDraft(mapImobCardEmpreendimentoRow(data as Record<string, unknown>)) };
 }

@@ -240,6 +240,7 @@ function EmpreendimentoBloco({
   item,
   index,
   total,
+  kind,
   podeEditar,
   salvandoId,
   uploadingOferta,
@@ -251,6 +252,7 @@ function EmpreendimentoBloco({
   item: ImobCardEmpreendimentoDraft;
   index: number;
   total: number;
+  kind: 'empreendimento' | 'showroom';
   podeEditar: boolean;
   salvandoId: string | null;
   uploadingOferta: boolean;
@@ -261,6 +263,14 @@ function EmpreendimentoBloco({
 }) {
   const setMoney = (key: ImobMoneyKey, value: string) => onChange(key, value);
   const produtoOpcoes = opcoesProdutoModeloComValorAtual(item.produto_modelo);
+  const isShowroom = kind === 'showroom';
+  const tituloFinal = isShowroom
+    ? total > 1
+      ? `Showroom ${index + 1} de ${total}`
+      : 'Showroom'
+    : total > 1
+      ? `Empreendimento ${index + 1} de ${total}`
+      : `Empreendimento ${index + 1}`;
 
   return (
     <div
@@ -272,8 +282,7 @@ function EmpreendimentoBloco({
     >
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
-          Empreendimento {index + 1}
-          {total > 1 ? ` de ${total}` : ''}
+          {tituloFinal}
         </p>
         {podeEditar && total > 0 ? (
           <button
@@ -281,7 +290,7 @@ function EmpreendimentoBloco({
             onClick={onExcluir}
             className="inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 text-[11px] sm:min-h-0"
             style={{ color: 'var(--moni-text-secondary)' }}
-            aria-label="Remover empreendimento"
+            aria-label={isShowroom ? 'Remover showroom' : 'Remover empreendimento'}
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden />
             Remover
@@ -397,11 +406,11 @@ function EmpreendimentoBloco({
         </p>
         <div className="space-y-2">
           <CampoTexto
-            label="Nome do empreendimento"
+            label={isShowroom ? 'Nome do showroom' : 'Nome do empreendimento'}
             value={item.nome}
             podeEditar={podeEditar}
             onChange={(v) => onChange('nome', v)}
-            placeholder="Ex.: Residencial Verde"
+            placeholder={isShowroom ? 'Ex.: Showroom Centro' : 'Ex.: Residencial Verde'}
           />
           <CampoMoeda
             label="Valor do imóvel à vista (R$)"
@@ -496,7 +505,7 @@ function EmpreendimentoBloco({
             color: 'var(--moni-text-inverse, #fff)',
           }}
         >
-          {salvandoId === item.id ? 'Salvando…' : 'Salvar empreendimento'}
+          {salvandoId === item.id ? 'Salvando…' : isShowroom ? 'Salvar showroom' : 'Salvar empreendimento'}
         </button>
       ) : null}
     </div>
@@ -509,10 +518,11 @@ function aplicarLegadoProduto(
 ): ImobCardEmpreendimentoDraft[] {
   const leg = legado.trim();
   if (!leg || itens.length === 0) return itens;
-  return itens.map((it, idx) => {
-    if (idx !== 0 || it.produto_modelo.trim()) return it;
-    return { ...it, produto_modelo: leg };
-  });
+  const idxShowroom = itens.findIndex((it) => it.tipo === 'showroom' && !it.produto_modelo.trim());
+  const idx =
+    idxShowroom >= 0 ? idxShowroom : itens.findIndex((it) => !String(it.produto_modelo ?? '').trim());
+  if (idx < 0) return itens;
+  return itens.map((it, i) => (i === idx ? { ...it, produto_modelo: leg } : it));
 }
 
 export function KanbanCardModalSimulacoesImob({
@@ -534,9 +544,12 @@ export function KanbanCardModalSimulacoesImob({
   const [msg, setMsg] = useState<string | null>(null);
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [salvandoModelo, setSalvandoModelo] = useState(false);
-  const [criando, setCriando] = useState(false);
+  const [criandoTipo, setCriandoTipo] = useState<'empreendimento' | 'showroom' | null>(null);
   const [uploadingPrincipal, setUploadingPrincipal] = useState(false);
   const [uploadingOfertaId, setUploadingOfertaId] = useState<string | null>(null);
+
+  const showrooms = itens.filter((it) => it.tipo === 'showroom');
+  const empreendimentos = itens.filter((it) => it.tipo !== 'showroom');
 
   const recarregar = useCallback(async () => {
     setLoading(true);
@@ -606,15 +619,15 @@ export function KanbanCardModalSimulacoesImob({
       setErro(r.error);
       return;
     }
-    setMsg('Empreendimento salvo.');
+    setMsg(item.tipo === 'showroom' ? 'Showroom salvo.' : 'Empreendimento salvo.');
   }
 
-  async function handleCriar() {
-    setCriando(true);
+  async function handleCriar(tipo: 'empreendimento' | 'showroom') {
+    setCriandoTipo(tipo);
     setErro(null);
     setMsg(null);
-    const r = await criarImobSimulacaoEmpreendimento(cardId);
-    setCriando(false);
+    const r = await criarImobSimulacaoEmpreendimento(cardId, tipo);
+    setCriandoTipo(null);
     if (!r.ok) {
       setErro(r.error);
       return;
@@ -622,8 +635,9 @@ export function KanbanCardModalSimulacoesImob({
     setItens((prev) => aplicarLegadoProduto([...prev, r.item], legadoProdutoModeloCasa));
   }
 
-  async function handleExcluir(id: string) {
-    if (!window.confirm('Remover este empreendimento da simulação?')) return;
+  async function handleExcluir(id: string, tipo: 'empreendimento' | 'showroom') {
+    const label = tipo === 'showroom' ? 'showroom' : 'empreendimento';
+    if (!window.confirm(`Remover este ${label} da simulação?`)) return;
     setErro(null);
     setMsg(null);
     const r = await excluirImobSimulacaoEmpreendimento(cardId, id);
@@ -702,14 +716,6 @@ export function KanbanCardModalSimulacoesImob({
             </div>
           )}
         </label>
-        <AnexoImagem
-          label="Imagem Principal"
-          path={modelo.imagem_principal_path}
-          nome={modelo.imagem_principal_nome}
-          podeEditar={podeEditar}
-          uploading={uploadingPrincipal}
-          onUpload={(f) => void handleUploadPrincipal(f)}
-        />
         {podeEditar ? (
           <button
             type="button"
@@ -721,15 +727,10 @@ export function KanbanCardModalSimulacoesImob({
               color: 'var(--moni-text-inverse, #fff)',
             }}
           >
-            {salvandoModelo ? 'Salvando…' : 'Salvar dados do imóvel'}
+            {salvandoModelo ? 'Salvando…' : 'Salvar status do imóvel'}
           </button>
         ) : null}
       </div>
-
-      <p className="text-[10px] leading-snug" style={{ color: 'var(--moni-text-tertiary)' }}>
-        Por empreendimento: oferta e parâmetros do simulador. Valor quitado, sinal e parcela mensal do
-        cliente são preenchidos na simulação, não neste card.
-      </p>
 
       {erro ? (
         <div
@@ -758,24 +759,84 @@ export function KanbanCardModalSimulacoesImob({
         </div>
       ) : null}
 
-      {itens.length === 0 ? (
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Showroom
+        </p>
+        <AnexoImagem
+          label="Imagem Principal"
+          path={modelo.imagem_principal_path}
+          nome={modelo.imagem_principal_nome}
+          podeEditar={podeEditar}
+          uploading={uploadingPrincipal}
+          onUpload={(f) => void handleUploadPrincipal(f)}
+        />
+        {showrooms.length === 0 ? (
+          <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
+            Nenhum showroom neste card.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {showrooms.map((item, idx) => (
+              <EmpreendimentoBloco
+                key={item.id}
+                item={item}
+                index={idx}
+                total={showrooms.length}
+                kind="showroom"
+                podeEditar={podeEditar}
+                salvandoId={salvandoId}
+                uploadingOferta={uploadingOfertaId === item.id}
+                onChange={(key, value) => patchDraft(setItens, item.id, key, value)}
+                onSalvar={() => void handleSalvar(item)}
+                onExcluir={() => void handleExcluir(item.id, 'showroom')}
+                onUploadOferta={(f) => void handleUploadOferta(item.id, f)}
+              />
+            ))}
+          </div>
+        )}
+        {podeEditar ? (
+          <button
+            type="button"
+            onClick={() => void handleCriar('showroom')}
+            disabled={criandoTipo != null}
+            className="inline-flex min-h-[44px] w-full items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium sm:min-h-0"
+            style={{
+              border: '0.5px solid var(--moni-border-default)',
+              background: 'var(--moni-surface-0)',
+              color: 'var(--moni-text-secondary)',
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            {criandoTipo === 'showroom' ? 'Adicionando…' : 'Adicionar showroom'}
+          </button>
+        ) : null}
+      </div>
+
+      <p className="text-[10px] leading-snug" style={{ color: 'var(--moni-text-tertiary)' }}>
+        Por empreendimento: oferta e parâmetros do simulador. Valor quitado, sinal e parcela mensal do
+        cliente são preenchidos na simulação, não neste card.
+      </p>
+
+      {empreendimentos.length === 0 ? (
         <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
           Nenhum empreendimento neste card.
         </p>
       ) : (
         <div className="space-y-3">
-          {itens.map((item, idx) => (
+          {empreendimentos.map((item, idx) => (
             <EmpreendimentoBloco
               key={item.id}
               item={item}
               index={idx}
-              total={itens.length}
+              total={empreendimentos.length}
+              kind="empreendimento"
               podeEditar={podeEditar}
               salvandoId={salvandoId}
               uploadingOferta={uploadingOfertaId === item.id}
               onChange={(key, value) => patchDraft(setItens, item.id, key, value)}
               onSalvar={() => void handleSalvar(item)}
-              onExcluir={() => void handleExcluir(item.id)}
+              onExcluir={() => void handleExcluir(item.id, 'empreendimento')}
               onUploadOferta={(f) => void handleUploadOferta(item.id, f)}
             />
           ))}
@@ -785,8 +846,8 @@ export function KanbanCardModalSimulacoesImob({
       {podeEditar ? (
         <button
           type="button"
-          onClick={() => void handleCriar()}
-          disabled={criando}
+          onClick={() => void handleCriar('empreendimento')}
+          disabled={criandoTipo != null}
           className="inline-flex min-h-[44px] w-full items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium sm:min-h-0"
           style={{
             border: '0.5px solid var(--moni-border-default)',
@@ -795,7 +856,7 @@ export function KanbanCardModalSimulacoesImob({
           }}
         >
           <Plus className="h-3.5 w-3.5" aria-hidden />
-          {criando ? 'Adicionando…' : 'Adicionar empreendimento'}
+          {criandoTipo === 'empreendimento' ? 'Adicionando…' : 'Adicionar empreendimento'}
         </button>
       ) : null}
     </div>
