@@ -117,7 +117,7 @@ export const FASE_SLUGS = {
   /** Alias pedido — Aguardando Ficha. */
   AGUARDANDO_FICHA_MONI_INC: 'aguardando_ficha_moni_inc',
   LOTEADORES_AGUARDANDO_FICHA: 'aguardando_ficha_moni_inc',
-  /** Alias pedido — Novo Produto (antes de Viabilidade / Premissas). */
+  /** Alias pedido — Novo Produto (após Viabilidade / Premissas). */
   NOVO_PRODUTO_MONI_INC: 'novo_produto_moni_inc',
   LOTEADORES_NOVO_PRODUTO: 'novo_produto_moni_inc',
   LOTEADORES_VIABILIDADE: 'viabilidade_moni_inc',
@@ -262,7 +262,7 @@ export const FASE_SLUGS = {
   FUNDING_MODELO:                 'funding_modelo',
   FUNDING_DOCS:                   'funding_docs',
   FUNDING_CONTRATO:               'funding_contrato',
-  PROJETOS_LOCAIS_CONCLUIDO: 'projetos_locais_concluido',
+  PROJETOS_LOCAIS_CONCLUIDO: '4d3b70c2-d281-415c-b87c-daf54241729e',
   PROJETOS_LEGAIS_CONCLUIDO: 'projetos_legais_concluido',
   OPERACOES_ENTREGUE:        'operacoes_entregue',
   // Gates

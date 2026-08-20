@@ -44,13 +44,12 @@ export const KANBAN_INDICADORES_CONFIG: KanbanIndicadorConfig[] = [
     kanbanId: KANBAN_IDS.ACOPLAMENTO,
     faseAlvoId: FASE_IDS.ACOPLAMENTO_APROVADO,
   },
-  // Próximos funis — comentados até as migrations serem rodadas:
-  // {
-  //   label: 'Portfólio — ...',
-  //   indicadorId: 'UUID_DO_INDICADOR',
-  //   kanbanId: KANBAN_IDS.PORTFOLIO,
-  //   faseAlvoId: FASE_IDS.PORTFOLIO_APROVADO,
-  // },
+  {
+    label: 'Projetos Executivos Locais Realizados',
+    indicadorId: '1a10ab21-eba4-48b1-9029-1b1093607ba2',
+    kanbanId: KANBAN_IDS.PROJETOS_LOCAIS,
+    faseAlvoId: FASE_IDS.PROJETOS_LOCAIS_CONCLUIDO,
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
