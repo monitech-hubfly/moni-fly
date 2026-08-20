@@ -267,7 +267,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .not('objetivo_id', 'is', null),   // exclui "Sem vínculo à meta"
           supabase
             .from('kanban_cards')
-            .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases(sla_dias, sla_tipo, slug)')
+            .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
             .or(engOrKanban)
             .eq('arquivado', false)
             .eq('concluido', false),
@@ -334,9 +334,13 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         const proxVenceHoje  = proximasAbertosArr.filter(c => c.prazo_atividade === hojeStr).length;
         const proxAtrasadas  = proximasAbertosArr.filter(c => c.prazo_atividade && c.prazo_atividade < hojeStr).length;
         const proxConcluidos = proximasConcluidosArr.length;
-        const proxDenominador = proxConcluidos + proxAtrasadas;
+        // Cards sem próxima atividade mapeada = penaliza (todo card ativo deveria ter uma)
+        const cardsSemProxima = kanbanArr.length - proximasAbertosArr.length;
+        // Denominador: concluídos + atrasadas + vence hoje + sem próxima mapeada.
+        // Cards com prazo futuro não entram na conta de hoje.
+        const proxDenominador = proxConcluidos + proxAtrasadas + proxVenceHoje + cardsSemProxima;
         const scoreProximas = proxDenominador === 0
-          ? 100
+          ? 100  // sem cards ou todos com próximas futuras = 100%
           : Math.max(0, Math.round((proxConcluidos / proxDenominador) * 100));
 
         // Score combinado = média dos sub-scores não-null
@@ -366,14 +370,23 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         const indIds = indsTyped.map(i => i.id);
 
         if (indIds.length > 0) {
-          // Usa semana ISO atual diretamente — igual a useMetasIndicadores.
-          // Periodos longos com data_inicio no passado gerariam semanaRelativa errada
-          // (ex: periodo Jun/22→Ago/21 → semana 26, mas lancamentos salvos na semana 34).
-          const { data: lancamentos } = await supabase
+          // Busca lançamentos da semana atual; se vazio, usa semana anterior.
+          // Permite que preenchimento retroativo (S-1) também apareça no Carômetro.
+          const semanaAnterior = semana - 1;
+          const { data: lancamentosAtual } = await supabase
             .from('indicador_lancamentos')
             .select('indicador_id, valor')
             .in('indicador_id', indIds)
             .eq('semana', semana);
+
+          const lancamentos = (lancamentosAtual ?? []).length > 0
+            ? lancamentosAtual
+            : (await supabase
+                .from('indicador_lancamentos')
+                .select('indicador_id, valor')
+                .in('indicador_id', indIds)
+                .eq('semana', semanaAnterior)
+              ).data;
 
           const lancMap = new Map<string, unknown>(
             ((lancamentos ?? []) as { indicador_id: string; valor: unknown }[]).map(l => [
