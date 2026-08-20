@@ -115,7 +115,7 @@ export async function criarImobSimulacaoEmpreendimento(
 
   const tipoNorm = normalizeImobBlocoTipo(tipo);
 
-  const { data: maxRow } = await auth.supabase
+  const { data: maxRowTyped, error: maxErrTyped } = await auth.supabase
     .from('imob_card_empreendimentos')
     .select('ordem')
     .eq('card_id', cardId)
@@ -123,7 +123,18 @@ export async function criarImobSimulacaoEmpreendimento(
     .order('ordem', { ascending: false })
     .limit(1)
     .maybeSingle();
-  const ordem = Number((maxRow as { ordem?: number } | null)?.ordem ?? -1) + 1;
+  let maxRow = maxRowTyped as { ordem?: number } | null;
+  if (maxErrTyped && /tipo|schema cache|does not exist/i.test(maxErrTyped.message)) {
+    const retry = await auth.supabase
+      .from('imob_card_empreendimentos')
+      .select('ordem')
+      .eq('card_id', cardId)
+      .order('ordem', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    maxRow = retry.data as { ordem?: number } | null;
+  }
+  const ordem = Number(maxRow?.ordem ?? -1) + 1;
 
   const { count } = await auth.supabase
     .from('imob_card_empreendimentos')

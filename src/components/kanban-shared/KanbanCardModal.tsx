@@ -1166,6 +1166,12 @@ export function KanbanCardModal({
     const silencioso = Boolean(opts?.silencioso && card);
     const gen = ++loadCardGenRef.current;
     const stillCurrent = () => loadCardGenRef.current === gen;
+    const cardIdNorm = String(cardId ?? '').trim();
+    if (!cardIdNorm) {
+      alert('Card não encontrado');
+      onClose();
+      return;
+    }
     if (!silencioso) {
       setLoading(true);
       setDetalhesCarregando(true);
@@ -1174,12 +1180,13 @@ export function KanbanCardModal({
       setInteracoes([]);
       setSubInteracoesPorPai({});
       setErroCarregarChamados(null);
+      setImobSimulacoesPrefetch(null);
     }
     try {
       const supabase = createClient();
       const chamadosPromise = carregarChamadosDoCardModal({
         supabase,
-        cardId,
+        cardId: cardIdNorm,
         stillCurrent,
         onTimes: (times) => {
           if (stillCurrent()) setKanbanTimes(times);
@@ -1198,19 +1205,10 @@ export function KanbanCardModal({
         setChamadosCarregando(false);
         return result;
       });
-      void carregarImobSimulacoesCard(supabase, cardId).then((r) => {
-        if (!stillCurrent()) return;
-        setImobSimulacoesPrefetch({
-          cardId,
-          itens: r.ok ? r.itens : [],
-          modelo: r.ok ? r.modelo : emptyImobCardModeloDraft(),
-          error: r.ok ? null : r.error,
-        });
-      });
       const fontePromise =
         origem === 'legado'
           ? Promise.resolve(null as FonteDadosLaterais | null)
-          : resolverFonteDadosLateraisCard(supabase, cardId, '', String(kanbanNome));
+          : resolverFonteDadosLateraisCard(supabase, cardIdNorm, '', String(kanbanNome));
 
       try {
         const {
@@ -1306,7 +1304,7 @@ export function KanbanCardModal({
           .select(
             'id, titulo, status, criado_em, fase_id, responsavel_id, kanban_id, etapa_slug, origem, data_reuniao, data_followup',
           )
-          .eq('id', cardId)
+          .eq('id', cardIdNorm)
           .maybeSingle();
 
         if (vErr || !vRow) {
@@ -1399,24 +1397,37 @@ export function KanbanCardModal({
           'funding_tipo, funding_localizacao, funding_descritivo';
         const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}`;
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at`;
-        let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).maybeSingle();
-        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
+        let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardIdNorm).maybeSingle();
+        const selectFalhouColuna = (msg: string) =>
+          /does not exist|schema cache|could not find/i.test(msg);
+        if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
           const cardSelectSemFunding = `${cardSelectCore}, ${cardSelectPreObra}, sla_iniciado_em, entered_fase_at`;
-          cardRes = await supabase.from('kanban_cards').select(cardSelectSemFunding).eq('id', cardId).maybeSingle();
+          cardRes = await supabase.from('kanban_cards').select(cardSelectSemFunding).eq('id', cardIdNorm).maybeSingle();
         }
-        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(`${cardSelectBase}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).maybeSingle();
+        if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
+          cardRes = await supabase.from('kanban_cards').select(`${cardSelectBase}, sla_iniciado_em, entered_fase_at`).eq('id', cardIdNorm).maybeSingle();
         }
-        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(`${cardSelectCore}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).maybeSingle();
+        if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
+          cardRes = await supabase.from('kanban_cards').select(`${cardSelectCore}, sla_iniciado_em, entered_fase_at`).eq('id', cardIdNorm).maybeSingle();
         }
-        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(cardSelectCore).eq('id', cardId).maybeSingle();
+        if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
+          cardRes = await supabase.from('kanban_cards').select(cardSelectCore).eq('id', cardIdNorm).maybeSingle();
+        }
+        if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
+          cardRes = await supabase
+            .from('kanban_cards')
+            .select(
+              'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, resultado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_reuniao_fase_id, data_followup, hora_reuniao, projeto_id, processo_step_one_id',
+            )
+            .eq('id', cardIdNorm)
+            .maybeSingle();
         }
         const { data: cardData, error: cardError } = cardRes;
 
         if (cardError || !cardData) {
-          alert('Card não encontrado');
+          const detalhe = cardError?.message ? ` (${cardError.message})` : '';
+          console.error('[KanbanCardModal] falha ao carregar card', cardIdNorm, cardError);
+          alert(`Card não encontrado${detalhe}`);
           onClose();
           return;
         }
@@ -1831,6 +1842,26 @@ export function KanbanCardModal({
           setFonteDadosLaterais(fonteFallback);
         });
       setCard(cardParaEstado);
+      void carregarImobSimulacoesCard(supabase, cardIdNorm)
+        .then((r) => {
+          if (!stillCurrent()) return;
+          setImobSimulacoesPrefetch({
+            cardId: cardIdNorm,
+            itens: r.ok ? r.itens : [],
+            modelo: r.ok ? r.modelo : emptyImobCardModeloDraft(),
+            error: r.ok ? null : r.error,
+          });
+        })
+        .catch((err) => {
+          console.error('[KanbanCardModal] prefetch IMOB', err);
+          if (!stillCurrent()) return;
+          setImobSimulacoesPrefetch({
+            cardId: cardIdNorm,
+            itens: [],
+            modelo: emptyImobCardModeloDraft(),
+            error: err instanceof Error ? err.message : 'Falha ao carregar Modelo e Simulações IMOB.',
+          });
+        });
       {
         const drShell = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
         const drValida = drShell && dataIsoInputValida(drShell) ? drShell : '';
@@ -2005,7 +2036,7 @@ export function KanbanCardModal({
 
         (async () => {
           try {
-            const rows = await carregarComentariosCardModal(cardId);
+            const rows = await carregarComentariosCardModal(cardIdNorm);
             if (!stillCurrent()) return;
             setComentariosCard(rows);
           } catch {
@@ -2053,14 +2084,14 @@ export function KanbanCardModal({
                 }
                 try {
                   if (origem === 'legado') {
-                    await garantirShadowCardLegadoParaHistorico(cardId);
+                    await garantirShadowCardLegadoParaHistorico(cardIdNorm);
                   }
                   setVisitsCalculadoraCarregado(false);
                   const histOrigem = origem === 'legado' ? 'legado' : 'nativo';
                   const procStepOneId = loaded.processo_step_one_id ?? null;
                   const hist = await loadHistoricoCardModal(
                     supabase,
-                    cardId,
+                    cardIdNorm,
                     histOrigem,
                     fasesParaHistorico,
                     loaded.kanban_id,
@@ -2070,7 +2101,7 @@ export function KanbanCardModal({
                   if (origem !== 'legado') {
                     const histCalc = await loadHistoricoCalculadoraEsteira(
                       supabase,
-                      cardId,
+                      cardIdNorm,
                       'nativo',
                       fasesEsteiraCalculadora,
                       procStepOneId,
@@ -2078,7 +2109,7 @@ export function KanbanCardModal({
                     setHistoricoCalculadora(histCalc);
                     const visitsCalc = await buildVisitsCalculadoraEsteiraSyncGroup(
                       supabase,
-                      cardId,
+                      cardIdNorm,
                       'nativo',
                       fasesEsteiraCalculadora,
                       procStepOneId,
@@ -2100,7 +2131,7 @@ export function KanbanCardModal({
                   const { data: tokRow } = await supabase
                     .from('kanban_card_form_tokens')
                     .select('email_candidato')
-                    .eq('card_id', cardId)
+                    .eq('card_id', cardIdNorm)
                     .not('email_candidato', 'is', null)
                     .order('created_at', { ascending: false })
                     .limit(1)

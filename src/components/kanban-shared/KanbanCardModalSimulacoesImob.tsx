@@ -548,8 +548,8 @@ export function KanbanCardModalSimulacoesImob({
   const [uploadingPrincipal, setUploadingPrincipal] = useState(false);
   const [uploadingOfertaId, setUploadingOfertaId] = useState<string | null>(null);
 
-  const showrooms = itens.filter((it) => it.tipo === 'showroom');
-  const empreendimentos = itens.filter((it) => it.tipo !== 'showroom');
+  const showrooms = itens.filter((it) => (it.tipo ?? 'empreendimento') === 'showroom');
+  const empreendimentos = itens.filter((it) => (it.tipo ?? 'empreendimento') !== 'showroom');
 
   const recarregar = useCallback(async () => {
     setLoading(true);
