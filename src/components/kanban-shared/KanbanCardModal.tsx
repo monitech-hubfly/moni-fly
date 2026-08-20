@@ -283,7 +283,11 @@ import {
   fetchKanbanTimesCached,
 } from '@/lib/kanban/carregar-chamados-card-modal';
 import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
-import type { ImobCardEmpreendimentoDraft } from '@/lib/kanban/imob-simulacoes-card';
+import {
+  emptyImobCardModeloDraft,
+  type ImobCardEmpreendimentoDraft,
+  type ImobCardModeloDraft,
+} from '@/lib/kanban/imob-simulacoes-card';
 import {
   listarComentariosKanbanCard,
   publicarComentarioKanbanCard,
@@ -694,6 +698,7 @@ export function KanbanCardModal({
   const [imobSimulacoesPrefetch, setImobSimulacoesPrefetch] = useState<{
     cardId: string;
     itens: ImobCardEmpreendimentoDraft[];
+    modelo: ImobCardModeloDraft;
     error: string | null;
   } | null>(null);
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
@@ -1193,18 +1198,15 @@ export function KanbanCardModal({
         setChamadosCarregando(false);
         return result;
       });
-      if (isLoteadoresKanbanRef(undefined, String(kanbanNome))) {
-        void carregarImobSimulacoesCard(supabase, cardId).then((r) => {
-          if (!stillCurrent()) return;
-          setImobSimulacoesPrefetch({
-            cardId,
-            itens: r.ok ? r.itens : [],
-            error: r.ok ? null : r.error,
-          });
+      void carregarImobSimulacoesCard(supabase, cardId).then((r) => {
+        if (!stillCurrent()) return;
+        setImobSimulacoesPrefetch({
+          cardId,
+          itens: r.ok ? r.itens : [],
+          modelo: r.ok ? r.modelo : emptyImobCardModeloDraft(),
+          error: r.ok ? null : r.error,
         });
-      } else if (stillCurrent()) {
-        setImobSimulacoesPrefetch(null);
-      }
+      });
       const fontePromise =
         origem === 'legado'
           ? Promise.resolve(null as FonteDadosLaterais | null)
@@ -8171,34 +8173,37 @@ export function KanbanCardModal({
                   />,
                 )
               : null}
-            {exibirDadosLoteadorPersistente
+            {secaoHead(
+              'simulacoesImob',
+              'Modelo e Simulações IMOB',
+              <KanbanCardModalSimulacoesImob
+                cardId={card.id}
+                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                prefetch={
+                  imobSimulacoesPrefetch?.cardId === card.id ? imobSimulacoesPrefetch : null
+                }
+                esperarPrefetch={imobSimulacoesPrefetch?.cardId !== card.id}
+                legadoProdutoModeloCasa={
+                  negocioDraft.produto_modelo_casa || proc?.produto_modelo_casa || ''
+                }
+              />,
+              true,
+            )}
+            {ehFunilFunding && !isLegado
               ? secaoHead(
-                  'simulacoesImob',
-                  'Simulações IMOB',
-                  <KanbanCardModalSimulacoesImob
+                  'moniCapital',
+                  'Dados do Investidor/Broker',
+                  <DadosMoniCapitalPersistentPanel
                     cardId={card.id}
                     podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                    prefetch={
-                      imobSimulacoesPrefetch?.cardId === card.id ? imobSimulacoesPrefetch : null
-                    }
-                    esperarPrefetch={imobSimulacoesPrefetch?.cardId !== card.id}
+                    onSalvo={() => {
+                      void loadCard({ silencioso: true });
+                      router.refresh();
+                    }}
                   />,
-                  true,
                 )
-              : ehFunilFunding && !isLegado
+              : !exibirDadosLoteadorPersistente
                 ? secaoHead(
-                    'moniCapital',
-                    'Dados do Investidor/Broker',
-                    <DadosMoniCapitalPersistentPanel
-                      cardId={card.id}
-                      podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                      onSalvo={() => {
-                        void loadCard({ silencioso: true });
-                        router.refresh();
-                      }}
-                    />,
-                  )
-                : secaoHead(
               'franqueado',
               'Dados do Franqueado',
               <div className="space-y-2">
@@ -8393,7 +8398,8 @@ export function KanbanCardModal({
                   </div>
                 </div>
               </div>,
-            )}
+            )
+              : null}
             {exibirSecaoCondominioSidebar &&
               secaoHead(
                 'condominio',
@@ -8484,15 +8490,6 @@ export function KanbanCardModal({
                           onChange={(vgv_pretendido) => setNegocioDraft((d) => ({ ...d, vgv_pretendido }))}
                         />
                       </label>
-                      <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">Produto / Modelo</span>
-                        <input
-                          type="text"
-                          value={negocioDraft.produto_modelo_casa}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, produto_modelo_casa: e.target.value }))}
-                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                        />
-                      </label>
                     </div>
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">Link pasta no Drive</span>
@@ -8575,10 +8572,6 @@ export function KanbanCardModal({
                       <div>
                         <div className="text-[11px] font-medium text-stone-500">VGV pretendido</div>
                         <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.vgv_pretendido)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-medium text-stone-500">Produto / Modelo</div>
-                        <div className="text-xs text-stone-800">{displayOrDash(proc.produto_modelo_casa)}</div>
                       </div>
                       <div className="min-w-0">
                         <div className="text-[11px] font-medium text-stone-500">Link pasta no Drive</div>

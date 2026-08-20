@@ -37,6 +37,12 @@ const nextConfig = {
       { source: '/painel-credito/:path*', destination: '/funil-credito-obra/:path*', permanent: true },
     ];
   },
+  async rewrites() {
+    return [
+      { source: '/corretor',          destination: '/corretor.html' },
+      { source: '/cadastro/corretor', destination: '/cadastro/corretor.html' },
+    ];
+  },
 };
 
 module.exports = nextConfig;

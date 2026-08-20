@@ -9,14 +9,57 @@ export const IMOB_SITUACOES = [
 
 export const IMOB_PRAZOS_BALAO = [8, 18, 24] as const;
 
+export const IMOB_STATUS_IMOVEL = [
+  { id: 'em_breve', label: 'Em breve' },
+  { id: 'lancamento', label: 'Lançamento' },
+  { id: 'em_construcao', label: 'Em construção' },
+  { id: 'pronto_pra_morar', label: 'Pronto pra morar' },
+] as const;
+
+export const IMOB_PRODUTOS_MODELO = [
+  'Moní Gal™',
+  'Moní Cissa™',
+  'Moní Eva™',
+  'Moní Ivy™',
+  'Moní Liz™',
+  'Moní Mia™',
+  'Moní Sol™',
+] as const;
+
 export type ImobSituacaoId = (typeof IMOB_SITUACOES)[number]['id'];
 export type ImobPrazoBalao = (typeof IMOB_PRAZOS_BALAO)[number];
+export type ImobStatusImovelId = (typeof IMOB_STATUS_IMOVEL)[number]['id'];
+
+export type ImobCardModeloRow = {
+  card_id: string;
+  status_imovel: string | null;
+  imagem_principal_path: string | null;
+  imagem_principal_nome: string | null;
+};
+
+export type ImobCardModeloDraft = {
+  status_imovel: string;
+  imagem_principal_path: string;
+  imagem_principal_nome: string;
+};
 
 export type ImobCardEmpreendimentoRow = {
   id: string;
   card_id: string;
   ordem: number;
   nome: string | null;
+  produto_modelo: string | null;
+  titulo_oferta: string | null;
+  ano_lancamento: number | null;
+  quartos: number | null;
+  banheiros: number | null;
+  vagas: number | null;
+  area_vendas_m2: number | null;
+  link_modelo: string | null;
+  descricao: string | null;
+  link_imagens_planta: string | null;
+  imagem_oferta_path: string | null;
+  imagem_oferta_nome: string | null;
   valor_avista: number | null;
   balao_parcial_8: number | null;
   balao_parcial_18: number | null;
@@ -45,6 +88,18 @@ export type ImobCardEmpreendimentoDraft = {
   id: string;
   ordem: number;
   nome: string;
+  produto_modelo: string;
+  titulo_oferta: string;
+  ano_lancamento: string;
+  quartos: string;
+  banheiros: string;
+  vagas: string;
+  area_vendas_m2: string;
+  link_modelo: string;
+  descricao: string;
+  link_imagens_planta: string;
+  imagem_oferta_path: string;
+  imagem_oferta_nome: string;
   valor_avista: string;
   balao_parcial_8: string;
   balao_parcial_18: string;
@@ -96,6 +151,8 @@ const MONEY_KEYS = [
 
 export type ImobMoneyKey = (typeof MONEY_KEYS)[number];
 
+const NUM_KEYS = ['quartos', 'banheiros', 'vagas', 'area_vendas_m2'] as const;
+
 function numToCampo(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(Number(n))) return '';
   return moedaCampoValorInicial(String(n));
@@ -107,11 +164,85 @@ function campoToNum(raw: string): number | null {
   return Math.round(n * 100) / 100;
 }
 
+function numToPlain(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(Number(n))) return '';
+  const v = Number(n);
+  return Number.isInteger(v) ? String(v) : String(v);
+}
+
+function plainToNum(raw: string): number | null {
+  const s = String(raw ?? '').trim().replace(',', '.');
+  if (!s) return null;
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n * 100) / 100;
+}
+
+function anoToCampo(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(Number(n))) return '';
+  return String(Math.trunc(Number(n)));
+}
+
+function campoToAno(raw: string): number | null {
+  const s = String(raw ?? '').trim();
+  if (!/^\d{4}$/.test(s)) return null;
+  const n = Number(s);
+  if (n < 1900 || n > 2100) return null;
+  return n;
+}
+
+export function emptyImobCardModeloDraft(): ImobCardModeloDraft {
+  return {
+    status_imovel: '',
+    imagem_principal_path: '',
+    imagem_principal_nome: '',
+  };
+}
+
+export function rowToImobModeloDraft(row: ImobCardModeloRow | null | undefined): ImobCardModeloDraft {
+  if (!row) return emptyImobCardModeloDraft();
+  return {
+    status_imovel: String(row.status_imovel ?? '').trim(),
+    imagem_principal_path: String(row.imagem_principal_path ?? '').trim(),
+    imagem_principal_nome: String(row.imagem_principal_nome ?? '').trim(),
+  };
+}
+
+export function draftToImobModeloPatch(draft: ImobCardModeloDraft): Record<string, unknown> {
+  return {
+    status_imovel: draft.status_imovel.trim() || null,
+    imagem_principal_path: draft.imagem_principal_path.trim() || null,
+    imagem_principal_nome: draft.imagem_principal_nome.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export function mapImobCardModeloRow(raw: Record<string, unknown>): ImobCardModeloRow {
+  return {
+    card_id: String(raw.card_id),
+    status_imovel: raw.status_imovel != null ? String(raw.status_imovel) : null,
+    imagem_principal_path: raw.imagem_principal_path != null ? String(raw.imagem_principal_path) : null,
+    imagem_principal_nome: raw.imagem_principal_nome != null ? String(raw.imagem_principal_nome) : null,
+  };
+}
+
 export function rowToImobDraft(row: ImobCardEmpreendimentoRow): ImobCardEmpreendimentoDraft {
   return {
     id: row.id,
     ordem: row.ordem,
     nome: String(row.nome ?? '').trim(),
+    produto_modelo: String(row.produto_modelo ?? '').trim(),
+    titulo_oferta: String(row.titulo_oferta ?? '').trim(),
+    ano_lancamento: anoToCampo(row.ano_lancamento),
+    quartos: numToPlain(row.quartos),
+    banheiros: numToPlain(row.banheiros),
+    vagas: numToPlain(row.vagas),
+    area_vendas_m2: numToPlain(row.area_vendas_m2),
+    link_modelo: String(row.link_modelo ?? '').trim(),
+    descricao: String(row.descricao ?? '').trim(),
+    link_imagens_planta: String(row.link_imagens_planta ?? '').trim(),
+    imagem_oferta_path: String(row.imagem_oferta_path ?? '').trim(),
+    imagem_oferta_nome: String(row.imagem_oferta_nome ?? '').trim(),
     valor_avista: numToCampo(row.valor_avista),
     balao_parcial_8: numToCampo(row.balao_parcial_8),
     balao_parcial_18: numToCampo(row.balao_parcial_18),
@@ -140,8 +271,19 @@ export function rowToImobDraft(row: ImobCardEmpreendimentoRow): ImobCardEmpreend
 export function draftToImobPatch(draft: ImobCardEmpreendimentoDraft): Record<string, unknown> {
   const patch: Record<string, unknown> = {
     nome: draft.nome.trim() || null,
+    produto_modelo: draft.produto_modelo.trim() || null,
+    titulo_oferta: draft.titulo_oferta.trim() || null,
+    ano_lancamento: campoToAno(draft.ano_lancamento),
+    link_modelo: draft.link_modelo.trim() || null,
+    descricao: draft.descricao.trim() || null,
+    link_imagens_planta: draft.link_imagens_planta.trim() || null,
+    imagem_oferta_path: draft.imagem_oferta_path.trim() || null,
+    imagem_oferta_nome: draft.imagem_oferta_nome.trim() || null,
     updated_at: new Date().toISOString(),
   };
+  for (const k of NUM_KEYS) {
+    patch[k] = plainToNum(draft[k]);
+  }
   for (const k of MONEY_KEYS) {
     patch[k] = campoToNum(draft[k]);
   }
@@ -162,6 +304,19 @@ export function formatImobMoedaExibicao(raw: string): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+export function labelStatusImovel(id: string | null | undefined): string {
+  const s = String(id ?? '').trim();
+  const hit = IMOB_STATUS_IMOVEL.find((x) => x.id === s || x.label.toLowerCase() === s.toLowerCase());
+  return hit?.label ?? (s || '—');
+}
+
+export function opcoesProdutoModeloComValorAtual(valorAtual: string): string[] {
+  const v = valorAtual.trim();
+  const base = [...IMOB_PRODUTOS_MODELO];
+  if (v && !base.some((x) => x === v)) base.unshift(v);
+  return base;
+}
+
 export function mapImobCardEmpreendimentoRow(raw: Record<string, unknown>): ImobCardEmpreendimentoRow {
   const n = (k: string) => {
     const v = raw[k];
@@ -169,11 +324,24 @@ export function mapImobCardEmpreendimentoRow(raw: Record<string, unknown>): Imob
     const num = Number(v);
     return Number.isFinite(num) ? num : null;
   };
+  const t = (k: string) => (raw[k] != null ? String(raw[k]) : null);
   return {
     id: String(raw.id),
     card_id: String(raw.card_id),
     ordem: Number(raw.ordem ?? 0),
-    nome: raw.nome != null ? String(raw.nome) : null,
+    nome: t('nome'),
+    produto_modelo: t('produto_modelo'),
+    titulo_oferta: t('titulo_oferta'),
+    ano_lancamento: n('ano_lancamento') != null ? Math.trunc(n('ano_lancamento')!) : null,
+    quartos: n('quartos'),
+    banheiros: n('banheiros'),
+    vagas: n('vagas'),
+    area_vendas_m2: n('area_vendas_m2'),
+    link_modelo: t('link_modelo'),
+    descricao: t('descricao'),
+    link_imagens_planta: t('link_imagens_planta'),
+    imagem_oferta_path: t('imagem_oferta_path'),
+    imagem_oferta_nome: t('imagem_oferta_nome'),
     valor_avista: n('valor_avista'),
     balao_parcial_8: n('balao_parcial_8'),
     balao_parcial_18: n('balao_parcial_18'),

@@ -9,7 +9,7 @@ import { displayOrDash, fmtMoedaKanban } from '@/lib/kanban/kanban-card-modal-de
 import { KanbanCardModalCondominio } from '@/components/kanban-shared/KanbanCardModalCondominio';
 import { KanbanCardModalEmpresas } from '@/components/kanban-shared/KanbanCardModalEmpresas';
 
-type SecaoId = 'franqueado' | 'condominio' | 'negocio' | 'empresas';
+type SecaoId = 'franqueado' | 'condominio' | 'modeloImob' | 'negocio' | 'empresas';
 
 type Props = {
   card: PipelineCardDisplay;
@@ -165,7 +165,6 @@ function SecaoNegocio({
       <CampoReadonly label="Tipo de negociação" valor={displayOrDash(proc.tipo_aquisicao_terreno)} />
       <CampoReadonly label="Valor do terreno" valor={fmtMoedaKanban(proc.valor_terreno)} />
       <CampoReadonly label="VGV pretendido" valor={fmtMoedaKanban(proc.vgv_pretendido)} />
-      <CampoReadonly label="Produto / modelo" valor={displayOrDash(proc.produto_modelo_casa)} />
       <CampoReadonly label="Condomínio (texto)" valor={displayOrDash(proc.nome_condominio)} />
       <CampoReadonly label="Quadra / lote" valor={displayOrDash(proc.quadra_lote ?? [proc.quadra, proc.lote].filter(Boolean).join(' / '))} />
       <CampoReadonly label="Previsão aprov. condomínio" valor={fmtDataBr(proc.previsao_aprovacao_condominio)} />
@@ -226,6 +225,29 @@ export function PipelineCardDrawerDadosSecoes({ card, detalhes, loading }: Props
           somenteLeitura
           onSalvo={() => {}}
         />
+      </DrawerCollapsible>
+
+      <DrawerCollapsible
+        id="modeloImob"
+        label="Modelo e Simulações IMOB"
+        aberto={Boolean(abertas.modeloImob)}
+        onToggle={toggle}
+      >
+        {loading ? (
+          <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Carregando…
+          </p>
+        ) : (
+          <dl className="grid grid-cols-1 gap-y-2">
+            <CampoReadonly
+              label="Produto / Modelo"
+              valor={displayOrDash(proc?.produto_modelo_casa)}
+            />
+            <p className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Detalhes de oferta e simulações ficam no modal do card (seção Modelo e Simulações IMOB).
+            </p>
+          </dl>
+        )}
       </DrawerCollapsible>
 
       <DrawerCollapsible
