@@ -16,6 +16,7 @@ import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
 import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
 import { fetchRedeCorretoresRows } from '@/lib/rede-corretores';
 import { fetchCondominiosRows } from '@/lib/condominios';
+import { fetchImobEmpreendimentosRows } from '@/lib/imob-empreendimentos';
 
 import { normalizarStatusEmProcessoRede } from './actions';
 
@@ -77,7 +78,7 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const [rows, loteadoresRows, corretoresRows, empresasResult, spesResult, moniCapitalResult, condominiosRows] = await Promise.all([
+  const [rows, loteadoresRows, corretoresRows, empresasResult, spesResult, moniCapitalResult, condominiosRows, imobEmpreendimentosRows] = await Promise.all([
     fetchRedeFranqueadosRows(supabase),
     showStaffTabs ? fetchRedeLoteadoresRows(supabase) : Promise.resolve(null),
     showStaffTabs ? fetchRedeCorretoresRows(supabase) : Promise.resolve(null),
@@ -85,6 +86,7 @@ export default async function RedeFranqueadosPage() {
     showStaffTabs ? fetchFranqueadoSpeRows(supabase) : Promise.resolve(null),
     showStaffTabs ? fetchMoniCapitalCadastrosRows(supabase) : Promise.resolve(null),
     showCondominiosTab ? fetchCondominiosRows(supabase) : Promise.resolve(null),
+    showStaffTabs ? fetchImobEmpreendimentosRows(supabase) : Promise.resolve(null),
   ]);
 
   const empresasLoadError = showStaffTabs && empresasResult === null;
@@ -141,6 +143,8 @@ export default async function RedeFranqueadosPage() {
             moniCapitalLoadError={moniCapitalLoadError}
 
             condominiosRows={condominiosRows}
+
+            imobEmpreendimentosRows={imobEmpreendimentosRows}
 
             showCondominiosTab={showCondominiosTab}
 

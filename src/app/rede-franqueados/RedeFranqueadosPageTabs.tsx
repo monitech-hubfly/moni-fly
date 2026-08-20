@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
@@ -12,10 +12,12 @@ import { RedeCorretoresTabelaComBusca } from './RedeCorretoresTabelaComBusca';
 import { CadastrosEmpresasTabelaComBusca } from './CadastrosEmpresasTabelaComBusca';
 import { CadastrosMoniCapitalTabelaComBusca } from './CadastrosMoniCapitalTabelaComBusca';
 import { CondominiosTabelaComBusca } from './CondominiosTabelaComBusca';
+import { ImobEmpreendimentosTabelaComBusca } from './ImobEmpreendimentosTabelaComBusca';
 import { buildCadastrosEmpresasLinhas, type FranqueadoEmpresaRow } from '@/lib/franqueado-empresas';
 import { buildCadastrosEmpresasLinhasComSpe, type FranqueadoSpeRow } from '@/lib/franqueado-spe';
 import type { CondominioRow } from '@/lib/condominios';
 import type { MoniCapitalCadastroRow } from '@/lib/moni-capital-cadastros';
+import type { ImobEmpreendimentoRow } from '@/lib/imob-empreendimentos';
 import { PipelineCardsView } from '@/components/pipeline/PipelineCardsView';
 import { PipelineAnalisesView } from '@/components/pipeline/PipelineAnalisesView';
 import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoading';
@@ -44,7 +46,17 @@ import {
 } from '@/lib/rede-tabelas-csv-export';
 import { NovoCadastroMoniCapitalModal } from './NovoCadastroMoniCapitalModal';
 
-type TabId = 'visao' | 'pipeline' | 'analises' | 'franqueados' | 'loteadores' | 'corretores' | 'empresas' | 'moni-capital' | 'condominios';
+type TabId =
+  | 'visao'
+  | 'pipeline'
+  | 'analises'
+  | 'franqueados'
+  | 'loteadores'
+  | 'corretores'
+  | 'empresas'
+  | 'moni-capital'
+  | 'condominios'
+  | 'imob-empreendimentos';
 
 const BASE_PATH = '/rede-franqueados';
 
@@ -63,6 +75,7 @@ const TAB_CORR: { id: TabId; label: string } = { id: 'corretores', label: 'Cadas
 const TAB_EMP: { id: TabId; label: string } = { id: 'empresas', label: 'Cadastros de Empresas' };
 const TAB_MC: { id: TabId; label: string } = { id: 'moni-capital', label: 'Cadastros Moní Capital' };
 const TAB_COND: { id: TabId; label: string } = { id: 'condominios', label: 'Condomínios' };
+const TAB_IMOB: { id: TabId; label: string } = { id: 'imob-empreendimentos', label: 'Cadastro de Empreendimentos' };
 
 type Props = {
   rows: RedeFranqueadoRowDb[];
@@ -76,6 +89,7 @@ type Props = {
   moniCapitalRows: MoniCapitalCadastroRow[] | null;
   moniCapitalLoadError: boolean;
   condominiosRows: CondominioRow[] | null;
+  imobEmpreendimentosRows: ImobEmpreendimentoRow[] | null;
   showCondominiosTab: boolean;
   canManageCondominios: boolean;
   canManageFranqueados: boolean;
@@ -95,6 +109,7 @@ export function RedeFranqueadosPageTabs({
   moniCapitalRows,
   moniCapitalLoadError,
   condominiosRows,
+  imobEmpreendimentosRows,
   showCondominiosTab,
   canManageCondominios,
   canManageFranqueados,
@@ -109,7 +124,7 @@ export function RedeFranqueadosPageTabs({
     ...(showPipelineTab ? [TAB_PIPELINE] : []),
     ...(showAnalisesTab ? [TAB_ANALISES] : []),
     TAB_FRANQ,
-    ...(showStaffTabs ? [TAB_LOTE, TAB_CORR, TAB_EMP, TAB_MC] : []),
+    ...(showStaffTabs ? [TAB_LOTE, TAB_CORR, TAB_EMP, TAB_MC, TAB_IMOB] : []),
     ...(showCondominiosTab ? [TAB_COND] : []),
   ];
 
@@ -119,6 +134,7 @@ export function RedeFranqueadosPageTabs({
   const [loteadorCreateTick, setLoteadorCreateTick] = useState(0);
   const [corretorCreateTick, setCorretorCreateTick] = useState(0);
   const [condominioCreateTick, setCondominioCreateTick] = useState(0);
+  const [imobEmpCreateTick, setImobEmpCreateTick] = useState(0);
 
   const linhasEmpresasExport = useMemo(() => {
     const base = buildCadastrosEmpresasLinhas(rows, empresasRows ?? []);
@@ -354,6 +370,29 @@ export function RedeFranqueadosPageTabs({
                 gerarCsv={() => csvMoniCapitalCadastros(moniCapitalRows ?? [])}
               />
             </CadastrosMoniCapitalTabelaComBusca>
+          </section>
+        ) : null}
+
+        {resolvedTab === 'imob-empreendimentos' && showStaffTabs ? (
+          <section className="space-y-4">
+            {imobEmpreendimentosRows === null ? (
+              <p className="text-sm text-red-600">
+                Erro ao carregar empreendimentos. Confira se as migrations 537 e 540 foram aplicadas no
+                Supabase.
+              </p>
+            ) : (
+              <ImobEmpreendimentosTabelaComBusca
+                rows={imobEmpreendimentosRows}
+                condominiosRows={condominiosRows ?? []}
+                corretoresRows={corretoresRows ?? []}
+                solicitarCriacao={imobEmpCreateTick}
+              >
+                <NovoRegistroToolbarButton
+                  label="Novo Empreendimento"
+                  onClick={() => setImobEmpCreateTick((n) => n + 1)}
+                />
+              </ImobEmpreendimentosTabelaComBusca>
+            )}
           </section>
         ) : null}
 
