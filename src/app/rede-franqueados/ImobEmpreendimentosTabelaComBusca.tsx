@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil, Plus, Check, X, ChevronDown, ChevronRight, Link2 } from 'lucide-react';
+import { Pencil, X, ChevronDown, ChevronRight, Link2, Check, Printer } from 'lucide-react';
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
 import { redeTh } from '@/app/rede-franqueados/rede-ui';
 import {
@@ -16,6 +16,8 @@ import {
   atualizarImobEmpreendimento,
   vincularCorretorEmpreendimento,
   desvincularCorretorEmpreendimento,
+  fetchFlyerData,
+  type FlyerData,
 } from '@/app/rede-franqueados/imob-empreendimentos-actions';
 import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 import type { CondominioRow } from '@/lib/condominios';
@@ -61,7 +63,6 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
   const [imagemUrl, setImagemUrl] = useState(row?.imagem_url ?? '');
   const [ativo, setAtivo] = useState(row?.ativo ?? true);
 
-  // Corretores vinculados (ids)
   const [vinculados, setVinculados] = useState<Set<string>>(
     new Set(row?.corretor_ids ?? []),
   );
@@ -90,7 +91,7 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
   }
 
   async function toggleCorretor(corretorId: string) {
-    if (!row) return; // só para edição
+    if (!row) return;
     setVinculandoId(corretorId);
     const isVinculado = vinculados.has(corretorId);
     const res = isVinculado
@@ -123,7 +124,6 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
         </div>
 
         <form onSubmit={(e) => void salvar(e)} className="px-6 py-5 space-y-4">
-          {/* Nome */}
           <div>
             <label className="block text-xs font-medium text-stone-700 mb-1">
               Nome do empreendimento <span className="text-red-500">*</span>
@@ -138,7 +138,6 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
             />
           </div>
 
-          {/* Condomínio */}
           <div>
             <label className="block text-xs font-medium text-stone-700 mb-1">Condomínio</label>
             <select
@@ -157,7 +156,6 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
             </select>
           </div>
 
-          {/* Specs */}
           <div>
             <label className="block text-xs font-medium text-stone-700 mb-1">
               Especificações (texto livre para o flyer)
@@ -171,7 +169,6 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
             />
           </div>
 
-          {/* Imagem URL */}
           <div>
             <label className="block text-xs font-medium text-stone-700 mb-1">
               URL da imagem principal
@@ -185,7 +182,6 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
             />
           </div>
 
-          {/* Ativo */}
           <div className="flex items-center gap-2">
             <input
               id="ativo-check"
@@ -221,7 +217,6 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
           </div>
         </form>
 
-        {/* Corretores vinculados — apenas em edição */}
         {!isNovo && corretoresRows.length > 0 ? (
           <div className="border-t border-stone-100 px-6 py-5">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-stone-500">
@@ -257,6 +252,187 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
   );
 }
 
+// ─── Modal Gerar Flyer ────────────────────────────────────────────────────────
+
+type FlyerModalProps = {
+  empId: string;
+  empNome: string;
+  onClose: () => void;
+};
+
+function buildFlyerUrl(data: FlyerData, corretorId: string): string {
+  const p = new URLSearchParams();
+
+  p.set('emp_id', data.emp.id);
+  p.set('emp_nome', data.emp.nome);
+  if (data.emp.specs) p.set('emp_specs', data.emp.specs);
+  if (data.pipeline) p.set('pipeline', data.pipeline);
+
+  const heroImg = data.showroom?.imagem_url ?? data.emp.imagem_url;
+  if (heroImg) p.set('hero_img', heroImg);
+  if (data.showroom?.produto_modelo) p.set('showroom_modelo', data.showroom.produto_modelo);
+
+  if (data.cond?.nome) p.set('cond_nome', data.cond.nome);
+  if (data.cond?.cidade) p.set('cond_cidade', data.cond.cidade);
+  if (data.cond?.estado) p.set('cond_estado', data.cond.estado);
+
+  p.set('num_cards', String(Math.max(data.units.length, 1)));
+
+  data.units.forEach((u, i) => {
+    const n = i + 1;
+    if (u.nome) p.set(`c${n}_nome`, u.nome);
+    if (u.area) p.set(`c${n}_area`, u.area);
+    if (u.imagem_url) p.set(`c${n}_img`, u.imagem_url);
+    if (u.valor_avista) p.set(`c${n}_avista`, u.valor_avista);
+    if (u.balao_p8) p.set(`c${n}_p8`, u.balao_p8);
+    if (u.balao_p24) p.set(`c${n}_p24`, u.balao_p24);
+    if (u.fin_parcial) p.set(`c${n}_fin`, u.fin_parcial);
+  });
+
+  const corretor = data.corretores.find((c) => c.id === corretorId) ?? null;
+  if (corretor) {
+    p.set('corretor_id', corretor.id);
+    if (corretor.nome) p.set('corretor_nome', corretor.nome);
+    if (corretor.creci) p.set('corretor_creci', corretor.creci);
+    if (corretor.telefone) p.set('corretor_tel', corretor.telefone);
+  }
+
+  return '/flyermoniv6.html?' + p.toString();
+}
+
+function FlyerModal({ empId, empNome, onClose }: FlyerModalProps) {
+  const [data, setData] = useState<FlyerData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  const [corretorId, setCorretorId] = useState('');
+
+  useEffect(() => {
+    fetchFlyerData(empId)
+      .then((res) => {
+        if ('error' in res) {
+          setErro(res.error);
+        } else {
+          setData(res);
+          // Pré-seleciona se só há um corretor
+          if (res.corretores.length === 1) setCorretorId(res.corretores[0].id);
+        }
+      })
+      .catch(() => setErro('Erro ao carregar dados do flyer.'))
+      .finally(() => setLoading(false));
+  }, [empId]);
+
+  const flyerUrl = data ? buildFlyerUrl(data, corretorId) : '';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 py-10">
+      <div className="w-full max-w-md rounded-xl bg-white shadow-xl ring-1 ring-stone-200 mx-4">
+        <div className="flex items-center justify-between border-b border-stone-100 px-6 py-4">
+          <h2 className="text-base font-semibold text-stone-900 flex items-center gap-2">
+            <Printer className="h-4 w-4 text-stone-500" />
+            Gerar Flyer — {empNome}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {loading ? (
+            <p className="text-sm text-stone-500">Carregando dados do empreendimento…</p>
+          ) : erro ? (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>
+          ) : data ? (
+            <>
+              {/* Resumo */}
+              <div className="rounded-md bg-stone-50 px-4 py-3 text-sm space-y-1">
+                {data.pipeline ? (
+                  <p className="text-stone-600">
+                    Pipeline:{' '}
+                    <span className="font-medium text-stone-800">{data.pipeline}</span>
+                  </p>
+                ) : null}
+                {data.cond ? (
+                  <p className="text-stone-600">
+                    Condomínio:{' '}
+                    <span className="font-medium text-stone-800">
+                      {data.cond.nome}
+                      {data.cond.cidade ? ` · ${data.cond.cidade}` : ''}
+                      {data.cond.estado ? `/${data.cond.estado}` : ''}
+                    </span>
+                  </p>
+                ) : null}
+                <p className="text-stone-600">
+                  Tipologias (verso):{' '}
+                  <span className="font-medium text-stone-800">
+                    {data.units.length === 0 ? 'nenhuma cadastrada' : `${data.units.length} card${data.units.length !== 1 ? 's' : ''}`}
+                  </span>
+                </p>
+              </div>
+
+              {data.units.length === 0 ? (
+                <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  Nenhuma unidade cadastrada em Modelos e Simulações IMOB. O verso do flyer ficará em branco.
+                </p>
+              ) : null}
+
+              {/* Seletor de corretor */}
+              {data.corretores.length > 0 ? (
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1">
+                    Corretor
+                  </label>
+                  <select
+                    value={corretorId}
+                    onChange={(e) => setCorretorId(e.target.value)}
+                    className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-[var(--moni-navy-800)] focus:outline-none"
+                  >
+                    <option value="">— Sem corretor (flyer genérico) —</option>
+                    {data.corretores.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nome ?? '(sem nome)'}
+                        {c.creci ? ` · CRECI ${c.creci}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <p className="text-sm text-stone-500">
+                  Nenhum corretor vinculado a este empreendimento.
+                </p>
+              )}
+            </>
+          ) : null}
+        </div>
+
+        <div className="flex justify-end gap-2 px-6 pb-5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-100"
+          >
+            Cancelar
+          </button>
+          {!loading && !erro && data ? (
+            <a
+              href={flyerUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md bg-[var(--moni-navy-800,#0c2633)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            >
+              <Printer className="h-4 w-4" />
+              Abrir Flyer
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function ImobEmpreendimentosTabelaComBusca({
@@ -268,6 +444,7 @@ export function ImobEmpreendimentosTabelaComBusca({
 }: Props) {
   const [busca, setBusca] = useState('');
   const [modalRow, setModalRow] = useState<ImobEmpreendimentoRow | null | undefined>(undefined);
+  const [flyerEmpId, setFlyerEmpId] = useState<string | null>(null);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -291,6 +468,8 @@ export function ImobEmpreendimentosTabelaComBusca({
       return next;
     });
   }
+
+  const flyerRow = flyerEmpId ? rows.find((r) => r.id === flyerEmpId) : undefined;
 
   return (
     <div className="space-y-4">
@@ -328,7 +507,6 @@ export function ImobEmpreendimentosTabelaComBusca({
                 key={key}
                 className="rounded-lg border border-stone-200 bg-white shadow-sm overflow-hidden"
               >
-                {/* Header do grupo */}
                 <button
                   type="button"
                   onClick={() => toggleGrupo(key)}
@@ -359,7 +537,7 @@ export function ImobEmpreendimentosTabelaComBusca({
                           <th className={redeTh}>Unidades IMOB</th>
                           <th className={redeTh}>Status</th>
                           <th className={redeTh}>Link simulador</th>
-                          <th className={`${redeTh} w-10`}>
+                          <th className={`${redeTh} w-20 text-right`}>
                             <span className="sr-only">Ações</span>
                           </th>
                         </tr>
@@ -443,7 +621,15 @@ export function ImobEmpreendimentosTabelaComBusca({
                                   '—'
                                 )}
                               </td>
-                              <td className={`${td} text-right`}>
+                              <td className={`${td} text-right whitespace-nowrap`}>
+                                <button
+                                  type="button"
+                                  title="Gerar Flyer"
+                                  onClick={() => setFlyerEmpId(row.id)}
+                                  className="rounded-md p-1.5 text-stone-500 hover:bg-amber-100/80 hover:text-amber-700 mr-0.5"
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </button>
                                 <button
                                   type="button"
                                   title="Editar empreendimento"
@@ -466,12 +652,22 @@ export function ImobEmpreendimentosTabelaComBusca({
         </div>
       )}
 
+      {/* Modal edição/criação */}
       {modalRow !== undefined ? (
         <EmpreendimentoModal
           row={modalRow}
           condominiosRows={condominiosRows}
           corretoresRows={corretoresRows}
           onClose={() => setModalRow(undefined)}
+        />
+      ) : null}
+
+      {/* Modal flyer */}
+      {flyerEmpId && flyerRow ? (
+        <FlyerModal
+          empId={flyerEmpId}
+          empNome={flyerRow.nome}
+          onClose={() => setFlyerEmpId(null)}
         />
       ) : null}
     </div>
