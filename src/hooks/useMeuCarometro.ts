@@ -378,23 +378,23 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         };
       }
 
-      // ── Indicadores ─────────────────────────────────────────────────────────────
-      // Filtra pelos indicadores das metas onde o usuário é responsável
-      // (objetivo_responsaveis.profile_id). Não usa area_id para não puxar
-      // indicadores de outros usuários da mesma área.
+      // ── Indicadores (S-1 ao vivo + S-atual ao vivo) ─────────────────────────
+      // Computa as duas semanas ao vivo a partir de indicador_lancamentos.
+      // A semana anterior (S-1) é usada como score principal do card.
       //
       // Lógica diferenciada por tipo:
       //   Atingível/Projeto (is_projeto_relativo=true):
-      //     - esp=0% (nada esperado nesta semana) → SKIP
-      //     - esp>0% sem lançamento               → 0%
-      //     - esp>0% com lançamento               → ratio=actual/esp; ≥75%→100, ≥60%→75, ≥30%→50, <30%→0
+      //     - esp=0% → SKIP
+      //     - esp>0% sem lançamento → 0%
+      //     - esp>0% com lançamento → ratio=actual/esp; ≥75%→100, ≥60%→75, ≥30%→50, <30%→0
       //   Recorrente (is_projeto_relativo=false/null):
-      //     - sem lançamento                      → 0% (penalidade: usuário não reportou)
-      //     - com lançamento                      → score via semáforo existente
-      let indicadoresRuntime: IndicadoresSnapshot = { porIndicador: [], media: null };
+      //     - sem lançamento → 0% (penalidade)
+      //     - com lançamento → score via semáforo existente
+      const semAnteriorInd = semana > 1 ? semana - 1 : 52;
+      let indicadoresAnterior: IndicadoresSnapshot = { porIndicador: [], media: null };
+      let indicadoresAtual: IndicadoresSnapshot    = { porIndicador: [], media: null };
 
       {
-        // 1. Objetivos onde este usuário é responsável
         const { data: objRespData } = await supabase
           .from('objetivo_responsaveis')
           .select('objetivo_id')
@@ -405,7 +405,6 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           .filter(Boolean);
 
         if (objIds.length > 0) {
-          // 2. Indicadores dessas metas (ativos)
           const { data: indsData } = await supabase
             .from('indicadores')
             .select('id, nome, semaforo_faixas')
@@ -417,72 +416,76 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           const indIds = indsTyped.map(i => i.id);
 
           if (indIds.length > 0) {
-            // 3. Lançamentos da semana atual (sem fallback S-1 — ausência = 0% é intencional)
+            // Busca lançamentos das duas semanas em uma única query
             const { data: lancamentosData } = await supabase
               .from('indicador_lancamentos')
-              .select('indicador_id, valor')
+              .select('indicador_id, valor, semana')
               .in('indicador_id', indIds)
-              .eq('semana', semana);
+              .in('semana', [semAnteriorInd, semana]);
 
-            const lancMap = new Map<string, unknown>(
-              ((lancamentosData ?? []) as { indicador_id: string; valor: unknown }[]).map(l => [
-                l.indicador_id,
-                l.valor,
-              ])
+            type LancRow = { indicador_id: string; valor: unknown; semana: number };
+            const lancRows = (lancamentosData ?? []) as LancRow[];
+
+            const lancMapAnterior = new Map<string, unknown>(
+              lancRows.filter(l => l.semana === semAnteriorInd).map(l => [l.indicador_id, l.valor])
+            );
+            const lancMapAtual = new Map<string, unknown>(
+              lancRows.filter(l => l.semana === semana).map(l => [l.indicador_id, l.valor])
             );
 
             type SfRaw = { is_projeto_relativo?: boolean; data_inicio?: string; data_fim?: string; dias_uteis?: number };
-            const porIndicador: IndicadorItem[] = [];
 
-            for (const ind of indsTyped) {
-              const rawSf = ind.semaforo_faixas as SfRaw | null;
-              const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
+            function calcIndicadores(lancMap: Map<string, unknown>): IndicadoresSnapshot {
+              const porIndicador: IndicadorItem[] = [];
+              for (const ind of indsTyped) {
+                const rawSf = ind.semaforo_faixas as SfRaw | null;
+                const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
 
-              if (isProjeto) {
-                // Atingível/Projeto: score relativo ao % esperado da semana
-                const esp = calcularEsperadoPct(
-                  rawSf!.data_inicio ?? '',
-                  rawSf!.data_fim    ?? '',
-                  rawSf!.dias_uteis  ?? 0,
-                );
-                if (esp <= 0) continue; // Nada esperado esta semana → SKIP
+                if (isProjeto) {
+                  const esp = calcularEsperadoPct(
+                    rawSf!.data_inicio ?? '',
+                    rawSf!.data_fim    ?? '',
+                    rawSf!.dias_uteis  ?? 0,
+                  );
+                  if (esp <= 0) continue;
 
-                const valor  = lancMap.get(ind.id);
-                const valStr = valor != null ? String(valor).trim() : '';
+                  const valor  = lancMap.get(ind.id);
+                  const valStr = valor != null ? String(valor).trim() : '';
 
-                if (valStr === '' || valStr === '-') {
-                  porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: esp, percentual: 0 });
+                  if (valStr === '' || valStr === '-') {
+                    porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: esp, percentual: 0 });
+                  } else {
+                    const n = Number(valStr.replace(',', '.'));
+                    if (!Number.isFinite(n)) continue;
+                    const ratio = Math.min(100, (n / esp) * 100);
+                    let score = 0;
+                    if (ratio >= 75) score = 100;
+                    else if (ratio >= 60) score = 75;
+                    else if (ratio >= 30) score = 50;
+                    porIndicador.push({ nome: ind.nome || ind.id, valor: n, meta: esp, percentual: score });
+                  }
                 } else {
-                  const n = Number(valStr.replace(',', '.'));
-                  if (!Number.isFinite(n)) continue;
-                  const ratio = Math.min(100, (n / esp) * 100);
-                  let score = 0;
-                  if (ratio >= 75) score = 100;
-                  else if (ratio >= 60) score = 75;
-                  else if (ratio >= 30) score = 50;
-                  porIndicador.push({ nome: ind.nome || ind.id, valor: n, meta: esp, percentual: score });
-                }
-              } else {
-                // Recorrente: ausência de lançamento = 0% (penalidade)
-                const valor  = lancMap.get(ind.id);
-                const valStr = valor != null ? String(valor).trim() : '';
+                  const valor  = lancMap.get(ind.id);
+                  const valStr = valor != null ? String(valor).trim() : '';
 
-                if (valStr === '' || valStr === '-') {
-                  porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: 0, percentual: 0 });
-                } else {
-                  const score = scoreDeValorESemaforo(valor, ind.semaforo_faixas);
-                  const n     = Number(valStr.replace(',', '.'));
-                  porIndicador.push({ nome: ind.nome || ind.id, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
+                  if (valStr === '' || valStr === '-') {
+                    porIndicador.push({ nome: ind.nome || ind.id, valor: 0, meta: 0, percentual: 0 });
+                  } else {
+                    const score = scoreDeValorESemaforo(valor, ind.semaforo_faixas);
+                    const n     = Number(valStr.replace(',', '.'));
+                    porIndicador.push({ nome: ind.nome || ind.id, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
+                  }
                 }
               }
+              const scores = porIndicador.map(i => i.percentual);
+              const media  = scores.length > 0
+                ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length)
+                : null;
+              return { porIndicador, media };
             }
 
-            const scores = porIndicador.map(i => i.percentual);
-            const media  = scores.length > 0
-              ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length)
-              : null;
-
-            indicadoresRuntime = { porIndicador, media };
+            indicadoresAnterior = calcIndicadores(lancMapAnterior);
+            indicadoresAtual    = calcIndicadores(lancMapAtual);
           }
         }
       }
@@ -518,16 +521,10 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           return { data, score: null };
         });
 
-      // Weekly indicadores: S-1 and S-atual
-      const semAnteriorInd = semana > 1 ? semana - 1 : 52;
-      const snapPrevWeek = [...snapshotMap.values()].find(s => isoWeek(new Date(s.data + 'T12:00:00')) === semAnteriorInd);
-      type IndSnapData = { porMeta?: Array<{ descricao: string; score: number }>; media?: number | null };
-      const indSnapPrev = snapPrevWeek?.indicadores as IndSnapData | null;
-
       if (callId !== callIdRef.current) return;
       setSirene(sireneRuntime);
       setEngajamento(engajamentoRuntime);
-      setIndicadores(indicadoresRuntime);
+      setIndicadores(indicadoresAnterior); // card principal exibe resultado da semana anterior
       setDiasSirene(buildDias('sirene', 'score', sireneScore, {
         concluidos: topicosConcluidos.length,
         atrasados:  topicosAtrasados,
@@ -550,18 +547,18 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         {
           label:       `S${String(semAnteriorInd).padStart(2, '0')}`,
           semana:      semAnteriorInd,
-          score:       indSnapPrev?.media ?? null,
-          indicadores: (indSnapPrev?.porMeta ?? []).map(m => ({
-            nome:       m.descricao,
-            valor:      null,
-            percentual: m.score,
+          score:       indicadoresAnterior.media,
+          indicadores: indicadoresAnterior.porIndicador.map(i => ({
+            nome:       i.nome,
+            valor:      String(i.valor),
+            percentual: i.percentual,
           })),
         },
         {
           label:       `S${String(semana).padStart(2, '0')}`,
           semana:      semana,
-          score:       indicadoresRuntime.media,
-          indicadores: indicadoresRuntime.porIndicador.map(i => ({
+          score:       indicadoresAtual.media,
+          indicadores: indicadoresAtual.porIndicador.map(i => ({
             nome:       i.nome,
             valor:      String(i.valor),
             percentual: i.percentual,

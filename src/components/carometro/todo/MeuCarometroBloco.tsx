@@ -169,18 +169,7 @@ export function MeuCarometroBloco() {
               score={indicadores?.media ?? null}
               semanasIndicadores={semanasIndicadores}
               tipo="indicadores"
-            >
-              {indicadores && indicadores.porIndicador.length > 0 ? (
-                indicadores.porIndicador.map(ind => (
-                  <div key={ind.nome} className="flex justify-between gap-2">
-                    <span className="text-gray-500 truncate flex-1">{ind.nome}</span>
-                    <span className="font-medium whitespace-nowrap tabular-nums">{ind.percentual}%</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-400 text-center py-1">Sem lançamentos esta semana</p>
-              )}
-            </MeuCarometroCard>
+            />
           </div>
 
           <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-gray-500">
