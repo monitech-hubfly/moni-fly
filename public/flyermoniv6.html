@@ -106,15 +106,37 @@
   }
   .qr-leg { font-size: 7px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
 
-  .f-destaques {
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    margin: 13px 26px 0;
-    border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+  .f-info {
+    margin: 14px 26px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
   }
-  .f-dest { padding: 11px 10px; border-right: 1px solid var(--border); min-width: 0; }
-  .f-dest:last-child { border-right: none; }
-  .f-dest .d-lbl { font-size: 7px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
-  .f-dest .d-val { font-size: 11px; color: var(--white); line-height: 1.4; word-break: break-word; }
+  .f-info-status {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--white);
+    letter-spacing: 0.2px;
+    line-height: 1.3;
+  }
+  .f-info-cond {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--white);
+    line-height: 1.15;
+    word-break: break-word;
+  }
+  .f-info-local {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--white);
+    line-height: 1.3;
+    margin-top: 2px;
+  }
 
   .f-footer {
     padding: 12px 32px 24px;
@@ -393,20 +415,10 @@
     </div>
   </div>
 
-  <div class="f-destaques">
-    <div class="f-dest">
-      <!-- produto_modelo (Produto / Modelo) do Showroom — fallback: 1ª tipologia -->
-      <div class="d-lbl">Casa</div>
-      <div class="d-val" id="d-casa"><!-- Produto / Modelo --></div>
-    </div>
-    <div class="f-dest">
-      <div class="d-lbl">Condomínio</div>
-      <div class="d-val" id="d-cond"><!-- Nome do Condomínio --></div>
-    </div>
-    <div class="f-dest">
-      <div class="d-lbl">Localização</div>
-      <div class="d-val" id="d-local"><!-- Cidade — Estado --></div>
-    </div>
+  <div class="f-info">
+    <div class="f-info-status" id="f-info-status"><!-- Status | Pronto em AAAA --></div>
+    <div class="f-info-cond" id="f-info-cond"><!-- Condomínio --></div>
+    <div class="f-info-local" id="f-info-local"><!-- Cidade - Estado --></div>
   </div>
 
   <div class="f-footer somente-ig" id="f-footer">
@@ -531,7 +543,8 @@
    * FRENTE
    *   hero_img        URL pública da imagem principal do Showroom
    *                   (imob_card_modelo.imagem_principal_path → URL Supabase Storage)
-   *   showroom_modelo produto_modelo (Produto / Modelo) do Showroom
+   *   status_imovel   label do status (ex: "Em breve")
+   *   ano_lancamento  ano para "Pronto em AAAA"
    *   cond_nome       nome do condomínio
    *   cond_cidade     cidade
    *   cond_estado     estado (sigla)
@@ -572,7 +585,8 @@
 
     // FRENTE
     const heroImg       = get("hero_img");
-    const showroomMod   = get("showroom_modelo");
+    const statusImovel  = get("status_imovel");
+    const anoLancamento = get("ano_lancamento");
     const condNome      = get("cond_nome");
     const condCidade    = get("cond_cidade");
     const condEstado    = get("cond_estado");
@@ -618,12 +632,14 @@
       if (ph)  ph.style.display = "none";
     }
 
-    // Destaques (Casa | Condomínio | Localização)
-    // Casa = Produto / Modelo do Showroom; fallback 1ª tipologia (c1_nome)
-    setText("d-casa",  showroomMod || get("c1_nome"));
-    setText("d-cond",  condNome);
+    // Info tipográfica (Status | Pronto em · Condomínio · Cidade - Estado)
+    var statusParts = [];
+    if (statusImovel) statusParts.push(statusImovel);
+    if (anoLancamento) statusParts.push("Pronto em " + anoLancamento);
+    if (statusParts.length) setText("f-info-status", statusParts.join(" | "));
+    setText("f-info-cond", condNome);
     if (condCidade || condEstado) {
-      setText("d-local", [condCidade, condEstado].filter(Boolean).join(" — "));
+      setText("f-info-local", [condCidade, condEstado].filter(Boolean).join(" - "));
     }
 
     // QR frente

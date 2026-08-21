@@ -273,9 +273,9 @@ function buildFlyerUrl(data: FlyerData, corretorId: string): string {
 
   const heroImg = data.showroom?.imagem_url ?? data.emp.imagem_url;
   if (heroImg) p.set('hero_img', heroImg);
-  const casaModelo = data.casa_produto_modelo || data.showroom?.produto_modelo || null;
-  if (casaModelo) p.set('showroom_modelo', casaModelo);
   if (data.preco_a_partir_de) p.set('p_valor', data.preco_a_partir_de);
+  if (data.status_imovel) p.set('status_imovel', data.status_imovel);
+  if (data.ano_lancamento != null) p.set('ano_lancamento', String(data.ano_lancamento));
 
   if (data.cond?.nome) p.set('cond_nome', data.cond.nome);
   if (data.cond?.cidade) p.set('cond_cidade', data.cond.cidade);
