@@ -600,11 +600,11 @@
         var cEntrada  = get("c" + i + "_entrada") || "—";
         var cParcela  = get("c" + i + "_parcela") || "—";
 
-        // Specs: "4 quartos · 5 banheiros · 500 m²"
+        // Specs: "3S · 4B · 280m²" (S=quartos/suítes, B=banheiros)
         var specsParts = [];
-        if (cQuartos)   specsParts.push(cQuartos + " quarto" + (cQuartos === "1" ? "" : "s"));
-        if (cBanheiros) specsParts.push(cBanheiros + " banheiro" + (cBanheiros === "1" ? "" : "s"));
-        if (cArea)      specsParts.push(cArea + " m²");
+        if (cQuartos)   specsParts.push(cQuartos + "S");
+        if (cBanheiros) specsParts.push(cBanheiros + "B");
+        if (cArea)      specsParts.push(String(cArea).replace(/\s*m²?/i, "") + "m²");
         var specsLine = specsParts.join(" · ");
 
         var imgMarkup = cImg
