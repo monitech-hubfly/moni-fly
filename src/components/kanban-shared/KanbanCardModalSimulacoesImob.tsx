@@ -400,13 +400,6 @@ function EmpreendimentoBloco({
           Dados gerais da simulação
         </p>
         <div className="space-y-2">
-          <CampoTexto
-            label={isShowroom ? 'Nome do showroom' : 'Nome do empreendimento'}
-            value={item.nome}
-            podeEditar={podeEditar}
-            onChange={(v) => onChange('nome', v)}
-            placeholder={isShowroom ? 'Ex.: Showroom Centro' : 'Ex.: Residencial Verde'}
-          />
           <CampoMoeda
             label="Valor do imóvel à vista (R$)"
             value={item.valor_avista}
