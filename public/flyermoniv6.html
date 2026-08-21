@@ -229,7 +229,39 @@
   .sr-val.hi { color: var(--gold-lt); font-size: 11.5px; }
   .pv.hi { font-size: 12px; color: var(--gold-lt); }
 
-  /* ── Condições de pagamento ── */
+  /* ── Preço Showroom (sob tipologias) ── */
+  .tipologias-showroom {
+    margin: 8px 26px 0;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .tipologias-showroom .ts-lbl {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .tipologias-showroom .ts-val {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gold-lt);
+  }
+  .tipologias-asterisco {
+    margin: 5px 26px 0;
+    font-size: 6.5px;
+    line-height: 1.35;
+    color: var(--gray);
+    font-style: italic;
+    flex-shrink: 0;
+  }
+
+  /* ── Bloco Diferenciais + jornada ── */
   .pag-grid {
     display: grid; grid-template-columns: 1fr 1fr;
     gap: 7px; padding: 0 26px; flex-shrink: 0;
@@ -237,23 +269,6 @@
   .pag-box {
     border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px;
   }
-  .pag-row {
-    display: flex; justify-content: space-between; align-items: baseline;
-    padding: 4px 0; border-bottom: 1px solid rgba(201,169,110,.12); font-size: 10px;
-  }
-  .pag-row:last-child { border-bottom: none; }
-  .pl { color: var(--gray); font-size: 9.5px; }
-  .pv { font-weight: 600; color: var(--white); }
-  .showroom-row {
-    margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border);
-    display: flex; justify-content: space-between;
-    font-size: 9px; font-weight: 700; color: var(--gold);
-  }
-  .asterisco {
-    margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(201,169,110,.15);
-    font-size: 7.5px; color: var(--gray); line-height: 1.4; font-style: italic;
-  }
-
   .pag-sim {
     border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px;
     display: flex; flex-direction: column; justify-content: space-between;
@@ -286,15 +301,13 @@
   .j-txt { font-size: 9px; color: var(--gray); line-height: 1.4; }
   .j-txt strong { color: var(--white); font-size: 10px; display: block; margin-bottom: 1px; }
 
-  /* ── Diferenciais (só Moni.care) ── */
-  .difs-single {
-    padding: 0 26px; flex-shrink: 0;
-    margin-bottom: 12px;
+  /* ── Diferenciais Moní ── */
+  .difs-list {
+    display: flex; flex-direction: column; gap: 8px;
+    height: 100%;
   }
   .dif {
-    border: 1px solid var(--border); border-radius: 4px;
-    padding: 8px 11px;
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: flex-start; gap: 8px;
   }
   .dif .dt { font-size: 10px; font-weight: 600; color: var(--white); }
   .dif .dd { font-size: 8.5px; color: var(--gray); margin-top: 1px; }
@@ -430,19 +443,29 @@
   <!--
     Cards C1–C4 vêm de imob_card_empreendimentos (não-showroom), ordenados por `ordem`.
     Cada card usa: produto_modelo, area_vendas_m2, imagem_oferta_path,
-    valor_avista, balao_parcial_8, balao_parcial_24, fin_parcial_valor
+    valor_avista, entrada, parcelas_mensais
   -->
   <div id="casas-grid" class="casas-grid"><!-- gerado pelo JS --></div>
+  <div class="tipologias-showroom">
+    <span class="ts-lbl">Preço Showroom</span>
+    <span class="ts-val">A combinar ✦</span>
+  </div>
+  <p class="tipologias-asterisco">
+    * Valores já pagos no terreno podem ser abatidos da simulação, que variam também de acordo com a forma de pagamento, variações dos preços do lote e implantações. Consulte seu corretor.
+  </p>
 
-  <!-- ── 2. Condições de pagamento ── -->
-  <div class="sec-tit">Condições de pagamento</div>
+  <!-- ── 2. Diferenciais Moní (+ jornada) ── -->
+  <div class="sec-tit">Diferenciais Moní</div>
   <div class="pag-grid">
     <div class="pag-box">
-      <div class="pag-row"><span class="pl">À vista*</span><span class="pv hi" id="pag-avista">—</span></div>
-      <div class="pag-row"><span class="pl">Entrada*</span><span class="pv" id="pag-entrada">—</span></div>
-      <div class="pag-row"><span class="pl">Parcelas mensais*</span><span class="pv" id="pag-parcelas">—</span></div>
-      <div class="showroom-row"><span>Preço Showroom</span><span>A combinar ✦</span></div>
-      <div class="asterisco" id="pag-asterisco">* Valores já pagos no terreno podem ser abatidos da simulação. Consulte seu corretor.</div>
+      <div class="difs-list">
+        <div class="dif">
+          <div>
+            <div class="dt">Moni.care</div>
+            <div class="dd">Garantia e suporte pós-entrega</div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="pag-sim">
       <div class="jornada-title">Sua jornada</div>
@@ -464,18 +487,7 @@
     </div>
   </div>
 
-  <!-- ── 3. Diferenciais Moní (apenas Moni.care) ── -->
-  <div class="sec-tit">Diferenciais Moní</div>
-  <div class="difs-single">
-    <div class="dif">
-      <div>
-        <div class="dt">Moni.care</div>
-        <div class="dd">Garantia e suporte pós-entrega</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── 4. Corretor (oculto no flyer do cadastro de empreendimentos) ── -->
+  <!-- ── 3. Corretor (oculto no flyer do cadastro de empreendimentos) ── -->
   <div class="v-footer" id="v-footer">
     <div class="corretor" id="bloco-corretor">
       <div class="c-lbl">Seu corretor</div>
@@ -668,11 +680,6 @@
       }
     }
 
-    // Condições gerais (caixa resumo) — usa pag_* ou herda do C1
-    setText("pag-avista", get("pag_avista") || get("c1_avista"));
-    setText("pag-entrada", get("pag_entrada") || get("c1_entrada"));
-    setText("pag-parcelas", get("pag_parcelas") || get("c1_parcelas"));
-
     // QR verso
     var qrCustom = document.getElementById("qr-custom");
     var qrSim    = document.getElementById("qr-sim");
@@ -682,10 +689,8 @@
     // ── Corretor (só página do corretor; oculto no cadastro de empreendimentos) ──
     var mostrarCorretor = !origemCadastro && Boolean(corretorNome || corretorCreci || corretorTel);
     var vFooter = document.getElementById("v-footer");
-    var asterisco = document.getElementById("pag-asterisco");
     if (!mostrarCorretor) {
       if (vFooter) vFooter.classList.add("sem-corretor");
-      if (asterisco) asterisco.style.display = "none";
     } else {
       setText("c-nome",  corretorNome);
       if (corretorCreci) setText("c-creci", "CRECI " + corretorCreci);
