@@ -81,12 +81,6 @@
     background: linear-gradient(to top, rgba(8,28,31,.97) 0%, rgba(13,43,46,.45) 38%, transparent 62%);
     pointer-events: none;
   }
-  .f-tag {
-    position: absolute; top: 12px; left: 12px;
-    background: var(--gold); color: var(--teal);
-    font-size: 8px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
-    padding: 4px 10px; border-radius: 2px;
-  }
 
   /* Info overlay inside hero — bottom left */
   .f-info-block {
@@ -349,7 +343,6 @@
       <span>Render / Foto principal</span>
     </div>
     <div class="f-overlay"></div>
-    <div class="f-tag" id="f-tag">Loteadores</div>
 
     <!-- Info overlay: showroom_modelo + emp_specs + cond_nome + localização -->
     <div class="f-info-block">
@@ -518,7 +511,6 @@
     var condNome      = get("cond_nome");
     var condCidade    = get("cond_cidade");
     var condEstado    = get("cond_estado");
-    var pipeline      = get("pipeline") || "Loteadores";
     var pValor        = get("p_valor");
     var pParcela      = get("p_parcela");
 
