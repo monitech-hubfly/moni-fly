@@ -88,37 +88,57 @@
   /* Espaçador flexível empurra conteúdo para baixo */
   .f-spacer { flex: 1; }
 
-  /* Linha inferior: info (esq) + QR (dir) */
-  .f-info-row {
+  /* Card de informações (base) — layout do mock */
+  .f-card {
     position: relative; z-index: 2;
-    display: flex; justify-content: space-between; align-items: flex-end;
-    padding: 0 30px 8px;
+    margin: 0 22px 18px;
+    padding: 14px 16px 12px;
+    border: 0.5px solid rgba(201,169,110,.45);
+    border-radius: 8px;
+    background: rgba(8, 28, 31, 0.72);
+    box-shadow:
+      0 18px 48px rgba(0, 0, 0, 0.55),
+      0 4px 14px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(2px);
   }
+  .f-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .f-card-info { flex: 1; min-width: 0; }
   .fib-status {
     font-size: 7.5px; font-weight: 600; letter-spacing: 2px; color: var(--gold);
-    text-transform: uppercase; margin-bottom: 5px;
+    text-transform: uppercase; margin-bottom: 7px;
   }
   .fib-mod {
     font-family: 'Cormorant Garamond', serif;
-    font-size: 26px; font-weight: 700; color: var(--white); line-height: 1;
-    text-shadow: 0 2px 16px rgba(0,0,0,.6);
+    font-size: 28px; font-weight: 700; color: var(--white); line-height: 1;
+    display: inline-block;
+    position: relative;
+    padding-bottom: 3px;
+    text-shadow: 0 2px 14px rgba(0,0,0,.55);
   }
-  .fib-div {
-    width: 28px; height: 2px; background: var(--gold); opacity: .85; margin: 7px 0 6px;
+  .fib-mod::after {
+    content: "";
+    display: block;
+    width: 42%;
+    max-width: 52px;
+    height: 1px;
+    background: rgba(245,242,236,.7);
+    margin-top: 4px;
   }
   .fib-cond {
     font-family: 'Cormorant Garamond', serif;
-    font-size: 18px; font-weight: 700; color: var(--white); line-height: 1.2;
-    text-shadow: 0 1px 8px rgba(0,0,0,.45);
+    font-size: 13px; font-weight: 600; color: var(--gold-lt);
+    line-height: 1.25; margin-top: 8px;
   }
   .fib-loc {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 12px; font-weight: 500; color: var(--white);
+    font-size: 10px; font-weight: 500; color: rgba(201,169,110,.85);
     line-height: 1.3; margin-top: 3px;
-    text-shadow: 0 1px 6px rgba(0,0,0,.4);
   }
 
-  /* QR */
   .f-qr-block {
     display: flex; flex-direction: column; align-items: center; gap: 4px;
     flex-shrink: 0;
@@ -130,32 +150,29 @@
   }
   .qr-leg { font-size: 7px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
 
-  /* "A partir de" */
-  .f-below-img {
-    position: relative; z-index: 2;
-    margin: 0 30px;
-    padding: 10px 0 0;
-    border-top: 1px solid rgba(201,169,110,.25);
-    display: flex; justify-content: space-between; align-items: center;
+  .f-card-sep {
+    height: 0.5px;
+    background: rgba(201,169,110,.35);
+    margin: 12px 0 10px;
+  }
+  .f-card-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
   }
   .p-label { font-size: 7.5px; letter-spacing: 2.5px; color: var(--gold); text-transform: uppercase; margin-bottom: 4px; }
   .p-valor {
     font-family: 'Cormorant Garamond', serif;
-    font-size: 32px; font-weight: 700; color: var(--white); line-height: 1;
+    font-size: 30px; font-weight: 700; color: var(--white); line-height: 1;
   }
-  .p-parcela { font-size: 8.5px; color: rgba(245,242,236,.5); margin-top: 3px; }
+  .p-parcela { font-size: 8.5px; color: rgba(245,242,236,.55); margin-top: 4px; }
 
-  /* Footer */
-  .f-footer {
-    position: relative; z-index: 2;
-    padding: 10px 32px 22px;
-    display: flex; justify-content: flex-end; align-items: center;
-  }
   .ig-badge {
     display: inline-flex; align-items: center; gap: 5px;
-    border: 1px solid rgba(201,169,110,.4); border-radius: 20px;
+    border: 0.5px solid rgba(201,169,110,.55); border-radius: 20px;
     padding: 4px 11px; font-size: 9px; color: var(--gold-lt); letter-spacing: .3px;
-    background: rgba(8,28,31,.4);
+    flex-shrink: 0;
   }
 
   /* ══════════════════════════
@@ -368,37 +385,34 @@
   <!-- Espaçador -->
   <div class="f-spacer"></div>
 
-  <!-- Info (esq) + QR (dir) -->
-  <div class="f-info-row">
-    <div class="f-info-block">
-      <div class="fib-mod"    id="fib-mod"></div>
-      <div class="fib-div"></div>
-      <div class="fib-status" id="fib-status"></div>
-      <div class="fib-cond"   id="fib-cond"></div>
-      <div class="fib-loc"    id="fib-loc"></div>
+  <!-- Card de informações (status · modelo · condomínio · preço · QR) -->
+  <div class="f-card">
+    <div class="f-card-top">
+      <div class="f-card-info">
+        <div class="fib-status" id="fib-status"></div>
+        <div class="fib-mod" id="fib-mod"></div>
+        <div class="fib-cond" id="fib-cond"></div>
+        <div class="fib-loc" id="fib-loc"></div>
+      </div>
+      <div class="f-qr-block">
+        <img id="qr-hero" class="qr-box" src="" alt="QR Code">
+        <div class="qr-leg">Simule agora</div>
+      </div>
     </div>
-    <div class="f-qr-block">
-      <img id="qr-hero" class="qr-box" src="" alt="QR Code">
-      <div class="qr-leg">Simule agora</div>
-    </div>
-  </div>
-
-  <!-- "A partir de" -->
-  <div class="f-below-img">
-    <div>
-      <div class="p-label">A partir de</div>
-      <div class="p-valor" id="p-valor">—</div>
-      <div class="p-parcela" id="p-parcela"></div>
-    </div>
-  </div>
-
-  <div class="f-footer">
-    <div class="ig-badge">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/>
-        <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
-      </svg>
-      @casa.moni
+    <div class="f-card-sep"></div>
+    <div class="f-card-bottom">
+      <div>
+        <div class="p-label">A partir de</div>
+        <div class="p-valor" id="p-valor">—</div>
+        <div class="p-parcela" id="p-parcela"></div>
+      </div>
+      <div class="ig-badge">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/>
+          <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
+        </svg>
+        @casa.moni
+      </div>
     </div>
   </div>
 
@@ -577,15 +591,20 @@
       if (ph)  ph.style.display = "none";
     }
 
-    // Info: modelo · Status | Pronto em · Condomínio · Cidade - Estado
-    if (showroomMod) setText("fib-mod", showroomMod);
+    // Info card: Status | Pronto em · Modelo · Condomínio · Cidade - Estado
     var statusParts = [];
     if (statusImovel) statusParts.push(statusImovel);
     if (anoLancamento) statusParts.push("Pronto em " + anoLancamento);
     if (statusParts.length) setText("fib-status", statusParts.join(" | "));
+    if (showroomMod) setText("fib-mod", showroomMod);
     if (condNome) setText("fib-cond", condNome);
     if (condCidade || condEstado) {
-      setText("fib-loc", [condCidade, condEstado].filter(Boolean).join(" - "));
+      setText("fib-loc", [condCidade, condEstado].filter(Boolean).join(" — "));
+    }
+    if (!pParcela && get("c1_parcelas")) {
+      setText("p-parcela", "ou parcelas a partir de " + get("c1_parcelas") + "/mês");
+    } else if (pParcela) {
+      setText("p-parcela", pParcela);
     }
 
     // QR frente

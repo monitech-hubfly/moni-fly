@@ -276,6 +276,8 @@ function buildFlyerUrl(data: FlyerData, corretorId: string): string {
   if (data.preco_a_partir_de) p.set('p_valor', data.preco_a_partir_de);
   if (data.status_imovel) p.set('status_imovel', data.status_imovel);
   if (data.ano_lancamento != null) p.set('ano_lancamento', String(data.ano_lancamento));
+  const modeloCasa = data.casa_produto_modelo || data.showroom?.produto_modelo || null;
+  if (modeloCasa) p.set('showroom_modelo', modeloCasa);
 
   if (data.cond?.nome) p.set('cond_nome', data.cond.nome);
   if (data.cond?.cidade) p.set('cond_cidade', data.cond.cidade);
@@ -294,6 +296,9 @@ function buildFlyerUrl(data: FlyerData, corretorId: string): string {
     if (u.entrada) p.set(`c${n}_entrada`, u.entrada);
     if (u.parcelas) p.set(`c${n}_parcelas`, u.parcelas);
   });
+
+  const parcelaBase = data.units.find((u) => u.parcelas)?.parcelas ?? null;
+  if (parcelaBase) p.set('p_parcela', `ou parcelas a partir de ${parcelaBase}/mês`);
 
   // Mantém corretor_id só para o QR/formulário (não exibe dados no flyer)
   const corretor = data.corretores.find((c) => c.id === corretorId) ?? null;
