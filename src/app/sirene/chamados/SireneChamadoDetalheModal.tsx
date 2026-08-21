@@ -466,12 +466,26 @@ export function SireneChamadoDetalheModal({
               ) : null}
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--moni-text-tertiary)]">
-                <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px]">{row.kanban_nome}</span>
-                {ccid && hrefCard ? (
-                  <Link href={hrefCard} className="text-[color:var(--moni-navy-600)] underline-offset-2 hover:underline">
-                    Card: {row.card_titulo?.trim() || '—'}
-                  </Link>
-                ) : null}
+                {(() => {
+                  const funil = (row as { kanban_nome_direto?: string | null }).kanban_nome_direto ?? (row.kanban_nome !== 'Sirene' ? row.kanban_nome : null);
+                  const cardTitulo = (row as { card_titulo_direto?: string | null }).card_titulo_direto ?? (row.card_titulo !== '(chamado direto)' ? row.card_titulo : null);
+                  const faseNome = (row as { fase_nome_direto?: string | null }).fase_nome_direto ?? null;
+                  return (
+                    <>
+                      {funil ? <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px]">{funil}</span> : null}
+                      {faseNome ? <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px]">{faseNome}</span> : null}
+                      {cardTitulo ? (
+                        ccid && hrefCard ? (
+                          <Link href={hrefCard} className="text-[color:var(--moni-navy-600)] underline-offset-2 hover:underline">
+                            {cardTitulo}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-[color:var(--moni-text-secondary)]">{cardTitulo}</span>
+                        )
+                      ) : null}
+                    </>
+                  );
+                })()}
                 {parseTimesNomes(row.times_nomes).map((tn) => (
                   <span key={tn} className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px]">
                     {tn}
