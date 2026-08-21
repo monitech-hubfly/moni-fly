@@ -21,6 +21,7 @@ export const IMOB_PRODUTOS_MODELO = [
   'Moní Cissa™',
   'Moní Eva™',
   'Moní Ivy™',
+  'Moní Lena™',
   'Moní Liz™',
   'Moní Mia™',
   'Moní Sol™',
