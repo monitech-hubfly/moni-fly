@@ -37,12 +37,14 @@ export type ImobCardModeloRow = {
   status_imovel: string | null;
   imagem_principal_path: string | null;
   imagem_principal_nome: string | null;
+  preco_a_partir_de: number | null;
 };
 
 export type ImobCardModeloDraft = {
   status_imovel: string;
   imagem_principal_path: string;
   imagem_principal_nome: string;
+  preco_a_partir_de: string;
 };
 
 export type ImobCardEmpreendimentoRow = {
@@ -206,6 +208,7 @@ export function emptyImobCardModeloDraft(): ImobCardModeloDraft {
     status_imovel: '',
     imagem_principal_path: '',
     imagem_principal_nome: '',
+    preco_a_partir_de: '',
   };
 }
 
@@ -215,6 +218,7 @@ export function rowToImobModeloDraft(row: ImobCardModeloRow | null | undefined):
     status_imovel: String(row.status_imovel ?? '').trim(),
     imagem_principal_path: String(row.imagem_principal_path ?? '').trim(),
     imagem_principal_nome: String(row.imagem_principal_nome ?? '').trim(),
+    preco_a_partir_de: numToCampo(row.preco_a_partir_de),
   };
 }
 
@@ -223,16 +227,24 @@ export function draftToImobModeloPatch(draft: ImobCardModeloDraft): Record<strin
     status_imovel: draft.status_imovel.trim() || null,
     imagem_principal_path: draft.imagem_principal_path.trim() || null,
     imagem_principal_nome: draft.imagem_principal_nome.trim() || null,
+    preco_a_partir_de: campoToNum(draft.preco_a_partir_de),
     updated_at: new Date().toISOString(),
   };
 }
 
 export function mapImobCardModeloRow(raw: Record<string, unknown>): ImobCardModeloRow {
+  const n = (k: string) => {
+    const v = raw[k];
+    if (v == null || v === '') return null;
+    const num = Number(v);
+    return Number.isFinite(num) ? num : null;
+  };
   return {
     card_id: String(raw.card_id),
     status_imovel: raw.status_imovel != null ? String(raw.status_imovel) : null,
     imagem_principal_path: raw.imagem_principal_path != null ? String(raw.imagem_principal_path) : null,
     imagem_principal_nome: raw.imagem_principal_nome != null ? String(raw.imagem_principal_nome) : null,
+    preco_a_partir_de: n('preco_a_partir_de'),
   };
 }
 

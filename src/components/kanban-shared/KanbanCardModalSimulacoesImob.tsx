@@ -203,7 +203,7 @@ function AnexoImagem({
             <input
               ref={inputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -224,6 +224,9 @@ function AnexoImagem({
             >
               {uploading ? 'Enviando…' : path ? 'Trocar imagem' : 'Anexar imagem'}
             </button>
+            <p className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+              JPG, PNG ou WebP · até 8 MB
+            </p>
           </>
         ) : null}
       </div>
@@ -517,6 +520,10 @@ export function KanbanCardModalSimulacoesImob({
   }
 
   async function handleUploadPrincipal(file: File) {
+    if (file.size > 8 * 1024 * 1024) {
+      setErro('Imagem muito grande. Use arquivo de até 8 MB.');
+      return;
+    }
     setUploadingPrincipal(true);
     setErro(null);
     const fd = new FormData();
@@ -576,6 +583,10 @@ export function KanbanCardModalSimulacoesImob({
   }
 
   async function handleUploadOferta(empId: string, file: File) {
+    if (file.size > 8 * 1024 * 1024) {
+      setErro('Imagem muito grande. Use arquivo de até 8 MB.');
+      return;
+    }
     setUploadingOfertaId(empId);
     setErro(null);
     const fd = new FormData();
@@ -654,7 +665,7 @@ export function KanbanCardModalSimulacoesImob({
               color: 'var(--moni-text-inverse, #fff)',
             }}
           >
-            {salvandoModelo ? 'Salvando…' : 'Salvar status do imóvel'}
+            {salvandoModelo ? 'Salvando…' : 'Salvar dados do imóvel'}
           </button>
         ) : null}
       </div>
@@ -698,6 +709,26 @@ export function KanbanCardModalSimulacoesImob({
           uploading={uploadingPrincipal}
           onUpload={(f) => void handleUploadPrincipal(f)}
         />
+        <CampoMoeda
+          label="A partir de"
+          value={modelo.preco_a_partir_de}
+          podeEditar={podeEditar}
+          onChange={(v) => setModelo((m) => ({ ...m, preco_a_partir_de: v }))}
+        />
+        {podeEditar ? (
+          <button
+            type="button"
+            onClick={() => void handleSalvarModelo()}
+            disabled={salvandoModelo}
+            className="min-h-[44px] w-full rounded-md px-3 py-1.5 text-xs font-medium sm:min-h-0"
+            style={{
+              background: 'var(--moni-navy-800)',
+              color: 'var(--moni-text-inverse, #fff)',
+            }}
+          >
+            {salvandoModelo ? 'Salvando…' : 'Salvar “A partir de”'}
+          </button>
+        ) : null}
         {showrooms.length === 0 ? (
           <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
             Nenhum showroom neste card.

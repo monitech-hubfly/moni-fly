@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
 import {
   draftToImobModeloPatch,
@@ -17,6 +18,22 @@ import {
 } from '@/lib/kanban/imob-simulacoes-card';
 
 const BUCKET = 'processo-docs';
+const MAX_IMAGEM_BYTES = 8 * 1024 * 1024;
+
+function arquivoDoFormData(formData: FormData): { ok: true; blob: Blob; nome: string } | { ok: false; error: string } {
+  const file = formData.get('file');
+  if (!file || typeof file === 'string') return { ok: false, error: 'Selecione uma imagem.' };
+  const blob = file as Blob;
+  if (!blob.size) return { ok: false, error: 'Selecione uma imagem.' };
+  if (blob.size > MAX_IMAGEM_BYTES) {
+    return { ok: false, error: 'Imagem muito grande. Use arquivo de até 8 MB.' };
+  }
+  const nome =
+    typeof File !== 'undefined' && file instanceof File && file.name.trim()
+      ? file.name.trim()
+      : 'imagem.jpg';
+  return { ok: true, blob, nome };
+}
 
 async function requireUser() {
   const supabase = await createClient();
@@ -96,6 +113,12 @@ export async function salvarImobCardModelo(
   if (error) {
     if (/imob_card_modelo|schema cache|does not exist/i.test(error.message)) {
       return { ok: false, error: 'Tabela de modelo ainda não existe neste ambiente. Aplique a migration 541.' };
+    }
+    if (/preco_a_partir_de/i.test(error.message)) {
+      return {
+        ok: false,
+        error: 'Coluna “A partir de” ainda não existe neste ambiente. Aplique a migration 544.',
+      };
     }
     return { ok: false, error: error.message };
   }
@@ -213,14 +236,20 @@ export async function uploadImobImagemPrincipal(
   const check = await assertCardExiste(auth.supabase, cardId);
   if (!check.ok) return check;
 
-  const file = formData.get('file');
-  if (!file || !(file instanceof File) || file.size === 0) return { ok: false, error: 'Selecione uma imagem.' };
+  const arquivo = arquivoDoFormData(formData);
+  if (!arquivo.ok) return arquivo;
 
-  const safeName = file.name.replace(/[^\w.\-()+ ]/g, '_').slice(0, 180);
+  const safeName = arquivo.nome.replace(/[^\w.\-()+ ]/g, '_').slice(0, 180);
   const path = `${cardId}/imob/principal/${Date.now()}_${safeName}`;
-  const buf = Buffer.from(await file.arrayBuffer());
-  const { error: upErr } = await auth.supabase.storage.from(BUCKET).upload(path, buf, {
-    contentType: file.type || 'application/octet-stream',
+  const buf = Buffer.from(await arquivo.blob.arrayBuffer());
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Falha ao iniciar upload.' };
+  }
+  const { error: upErr } = await admin.storage.from(BUCKET).upload(path, buf, {
+    contentType: arquivo.blob.type || 'application/octet-stream',
     upsert: true,
   });
   if (upErr) return { ok: false, error: upErr.message };
@@ -228,11 +257,16 @@ export async function uploadImobImagemPrincipal(
   const { data: atual } = await auth.supabase.from('imob_card_modelo').select('*').eq('card_id', cardId).maybeSingle();
   const base = atual
     ? rowToImobModeloDraft(mapImobCardModeloRow(atual as Record<string, unknown>))
-    : { status_imovel: '', imagem_principal_path: '', imagem_principal_nome: '' };
+    : {
+        status_imovel: '',
+        imagem_principal_path: '',
+        imagem_principal_nome: '',
+        preco_a_partir_de: '',
+      };
   const draft: ImobCardModeloDraft = {
     ...base,
     imagem_principal_path: path,
-    imagem_principal_nome: file.name.slice(0, 180),
+    imagem_principal_nome: arquivo.nome.slice(0, 180),
   };
   const saved = await salvarImobCardModelo(cardId, draft);
   if (!saved.ok) return saved;
@@ -252,20 +286,26 @@ export async function uploadImobImagemOferta(
   const check = await assertCardExiste(auth.supabase, cardId);
   if (!check.ok) return check;
 
-  const file = formData.get('file');
-  if (!file || !(file instanceof File) || file.size === 0) return { ok: false, error: 'Selecione uma imagem.' };
+  const arquivo = arquivoDoFormData(formData);
+  if (!arquivo.ok) return arquivo;
 
-  const safeName = file.name.replace(/[^\w.\-()+ ]/g, '_').slice(0, 180);
+  const safeName = arquivo.nome.replace(/[^\w.\-()+ ]/g, '_').slice(0, 180);
   const path = `${cardId}/imob/oferta/${empreendimentoId}/${Date.now()}_${safeName}`;
-  const buf = Buffer.from(await file.arrayBuffer());
-  const { error: upErr } = await auth.supabase.storage.from(BUCKET).upload(path, buf, {
-    contentType: file.type || 'application/octet-stream',
+  const buf = Buffer.from(await arquivo.blob.arrayBuffer());
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Falha ao iniciar upload.' };
+  }
+  const { error: upErr } = await admin.storage.from(BUCKET).upload(path, buf, {
+    contentType: arquivo.blob.type || 'application/octet-stream',
     upsert: true,
   });
   if (upErr) return { ok: false, error: upErr.message };
 
-  const nome = file.name.slice(0, 180);
-  const { error } = await auth.supabase
+  const nome = arquivo.nome.slice(0, 180);
+  const { error } = await admin
     .from('imob_card_empreendimentos')
     .update({
       imagem_oferta_path: path,
@@ -286,7 +326,23 @@ export async function urlAssinadaImobAnexo(
   if (!auth.ok) return auth;
   const p = String(storagePath ?? '').trim();
   if (!p) return { ok: false, error: 'Caminho inválido.' };
-  const { data, error } = await auth.supabase.storage.from(BUCKET).createSignedUrl(p, 3600);
-  if (error || !data?.signedUrl) return { ok: false, error: error?.message ?? 'Erro ao gerar URL.' };
-  return { ok: true, url: data.signedUrl };
+
+  const viaUser = await auth.supabase.storage.from(BUCKET).createSignedUrl(p, 3600);
+  if (!viaUser.error && viaUser.data?.signedUrl) {
+    return { ok: true, url: viaUser.data.signedUrl };
+  }
+
+  try {
+    const admin = createAdminClient();
+    const viaAdmin = await admin.storage.from(BUCKET).createSignedUrl(p, 3600);
+    if (viaAdmin.error || !viaAdmin.data?.signedUrl) {
+      return { ok: false, error: viaAdmin.error?.message ?? viaUser.error?.message ?? 'Erro ao gerar URL.' };
+    }
+    return { ok: true, url: viaAdmin.data.signedUrl };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : viaUser.error?.message ?? 'Erro ao gerar URL.',
+    };
+  }
 }

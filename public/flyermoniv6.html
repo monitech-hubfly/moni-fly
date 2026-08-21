@@ -107,18 +107,18 @@
   .qr-leg { font-size: 7px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
 
   .f-destaques {
-    display: grid; grid-template-columns: repeat(2, 1fr);
+    display: grid; grid-template-columns: repeat(3, 1fr);
     margin: 13px 26px 0;
     border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
   }
-  .f-dest { padding: 11px 12px; border-right: 1px solid var(--border); }
+  .f-dest { padding: 11px 10px; border-right: 1px solid var(--border); min-width: 0; }
   .f-dest:last-child { border-right: none; }
   .f-dest .d-lbl { font-size: 7px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
-  .f-dest .d-val { font-size: 11px; color: var(--white); line-height: 1.4; }
+  .f-dest .d-val { font-size: 11px; color: var(--white); line-height: 1.4; word-break: break-word; }
 
   .f-footer {
     padding: 12px 32px 24px;
-    display: flex; justify-content: space-between; align-items: center;
+    display: flex; justify-content: flex-end; align-items: center;
   }
   .f-footer .end-lbl { font-size: 7px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); }
   .f-footer .end-val { font-size: 12px; font-weight: 500; color: var(--white); margin-top: 2px; }
@@ -382,7 +382,7 @@
 
   <div class="f-destaques">
     <div class="f-dest">
-      <!-- produto_modelo do Showroom (imob_card_empreendimentos onde showroom=true) -->
+      <!-- produto_modelo (Produto / Modelo) do Showroom — fallback: 1ª tipologia -->
       <div class="d-lbl">Casa</div>
       <div class="d-val" id="d-casa"><!-- Produto / Modelo --></div>
     </div>
@@ -390,14 +390,13 @@
       <div class="d-lbl">Condomínio</div>
       <div class="d-val" id="d-cond"><!-- Nome do Condomínio --></div>
     </div>
+    <div class="f-dest">
+      <div class="d-lbl">Localização</div>
+      <div class="d-val" id="d-local"><!-- Cidade — Estado --></div>
+    </div>
   </div>
 
-  <div class="f-footer" id="f-footer">
-    <div id="f-local-block">
-      <div class="end-lbl">Localização</div>
-      <div class="end-val" id="f-end-val"><!-- Cidade — Estado --></div>
-      <div class="end-ref" id="f-end-ref"><!-- Nome do Condomínio --></div>
-    </div>
+  <div class="f-footer somente-ig" id="f-footer">
     <div class="ig-badge">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/>
@@ -520,7 +519,7 @@
    * FRENTE
    *   hero_img        URL pública da imagem principal do Showroom
    *                   (imob_card_modelo.imagem_principal_path → URL Supabase Storage)
-   *   showroom_modelo produto_modelo do registro Showroom
+   *   showroom_modelo produto_modelo (Produto / Modelo) do Showroom
    *   cond_nome       nome do condomínio
    *   cond_cidade     cidade
    *   cond_estado     estado (sigla)
@@ -607,15 +606,13 @@
       if (ph)  ph.style.display = "none";
     }
 
-    // Destaques (Casa + Condomínio)
-    setText("d-casa",  showroomMod);
+    // Destaques (Casa | Condomínio | Localização)
+    // Casa = Produto / Modelo do Showroom; fallback 1ª tipologia (c1_nome)
+    setText("d-casa",  showroomMod || get("c1_nome"));
     setText("d-cond",  condNome);
-
-    // Localização (única — footer)
     if (condCidade || condEstado) {
-      setText("f-end-val", [condCidade, condEstado].filter(Boolean).join(" — "));
+      setText("d-local", [condCidade, condEstado].filter(Boolean).join(" — "));
     }
-    setText("f-end-ref", condNome);
 
     // QR frente
     var qrHero = document.getElementById("qr-hero");

@@ -219,6 +219,9 @@ export type FlyerData = {
   cond: { nome: string; cidade: string | null; estado: string | null } | null;
   pipeline: string | null;
   showroom: { produto_modelo: string | null; imagem_url: string | null } | null;
+  /** Produto / Modelo para o quadro Casa (Showroom → 1ª tipologia). */
+  casa_produto_modelo: string | null;
+  preco_a_partir_de: string | null;
   units: FlyerUnitData[];
   corretores: FlyerCorretorData[];
 };
@@ -277,17 +280,31 @@ export async function fetchFlyerData(
     else if (kid === KANBAN_PORTFOLIO) pipeline = 'Portfólio';
   }
 
-  // 4. Imagem principal do Showroom (imob_card_modelo)
+  // 4. Imagem principal + "A partir de" do Showroom (imob_card_modelo)
   let modeloImgUrl: string | null = null;
+  let precoAPartirDe: string | null = null;
   if (e.card_id) {
-    const { data: modelo } = await supabase
+    let modelo: {
+      imagem_principal_path?: string | null;
+      preco_a_partir_de?: number | null;
+    } | null = null;
+    const full = await supabase
       .from('imob_card_modelo')
-      .select('imagem_principal_path')
+      .select('imagem_principal_path, preco_a_partir_de')
       .eq('card_id', e.card_id)
-      .single();
-    modeloImgUrl = storageUrl(
-      (modelo as { imagem_principal_path?: string } | null)?.imagem_principal_path,
-    );
+      .maybeSingle();
+    if (!full.error) {
+      modelo = full.data as typeof modelo;
+    } else {
+      const fallback = await supabase
+        .from('imob_card_modelo')
+        .select('imagem_principal_path')
+        .eq('card_id', e.card_id)
+        .maybeSingle();
+      modelo = fallback.data as typeof modelo;
+    }
+    modeloImgUrl = storageUrl(modelo?.imagem_principal_path);
+    precoAPartirDe = brl(modelo?.preco_a_partir_de);
   }
 
   // 5. Unidades IMOB (showroom + empreendimentos ordenados)
@@ -334,6 +351,12 @@ export async function fetchFlyerData(
     }
   }
 
+  // Casa (Produto / Modelo): Showroom primeiro; senão 1ª tipologia
+  const casaProdutoModelo =
+    String(showroom?.produto_modelo ?? '').trim() ||
+    String(units[0]?.nome ?? '').trim() ||
+    null;
+
   // 6. Corretores vinculados
   const { data: corrLinks } = await supabase
     .from('imob_corretor_empreendimentos')
@@ -367,6 +390,8 @@ export async function fetchFlyerData(
     cond,
     pipeline,
     showroom,
+    casa_produto_modelo: casaProdutoModelo,
+    preco_a_partir_de: precoAPartirDe,
     units,
     corretores,
   };
