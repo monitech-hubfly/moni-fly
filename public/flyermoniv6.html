@@ -613,8 +613,6 @@
         var cAvista   = get("c" + i + "_avista")  || "—";
         var cEntrada  = get("c" + i + "_entrada") || "—";
         var cParcela  = get("c" + i + "_parcela") || "—";
-        var cBalao    = get("c" + i + "_balao")   || get("c" + i + "_p8") || "—";
-        var cFin      = get("c" + i + "_fin")     || "—";
 
         // Specs: "4 quartos · 5 banheiros · 500 m²"
         var specsParts = [];
@@ -646,8 +644,6 @@
               '<div class="sim-row"><span class="sr-cen">À vista</span><span class="sr-val hi">' + cAvista + '</span></div>' +
               '<div class="sim-row"><span class="sr-cen">Entrada</span><span class="sr-val">' + cEntrada + '</span></div>' +
               '<div class="sim-row"><span class="sr-cen">Parcelas</span><span class="sr-val">' + cParcela + '</span></div>' +
-              '<div class="sim-row"><span class="sr-cen">Balão</span><span class="sr-val">' + cBalao + '</span></div>' +
-              '<div class="sim-row"><span class="sr-cen">Financiamento</span><span class="sr-val">' + cFin + '</span></div>' +
             '</div>' +
           '</div>'
         );
