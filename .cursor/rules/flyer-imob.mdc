@@ -4,13 +4,24 @@ globs: public/flyermoniv6.html,public/moni-symbol-flyer.png,src/app/rede-franque
 alwaysApply: false
 ---
 
-# Flyer IMOB — padrão único
+# Flyer IMOB — padrão único (A5)
 
-## Regra
+## Formato (inegociável)
+
+Este flyer é **A5 retrato** em ambas as faces (frente e verso iguais):
+
+| Contexto | Dimensão |
+|----------|----------|
+| Tela / CSS | `559 × 794 px` (min = max, `overflow: hidden`) |
+| Impressão | `148 × 210 mm` (A5), sem margens, frente e verso |
+
+Não alterar para A4, landscape ou tamanhos diferentes entre faces. Todo layout (tipografia, imagens, QR) deve caber nessa folha.
+
+## Template
 
 `public/flyermoniv6.html` é o **único template** de flyer A5 (frente + verso) da Casa Moní.
 
-Vale para **qualquer empreendimento** cadastrado em IMOB — não criar HTML/layout por condomínio, nem hardcodar nome, preço, imagem ou tipologias de um caso específico (ex.: Lago Azul II).
+Vale para **qualquer empreendimento** cadastrado em IMOB — não criar HTML/layout por condomínio, nem hardcodar nome, preço, imagem ou tipologias de um caso específico.
 
 ## Como funciona
 
@@ -25,10 +36,9 @@ Vale para **qualquer empreendimento** cadastrado em IMOB — não criar HTML/lay
 | Frente | Símbolo Moní + `emp_nome` no topo; status/pronto em; condomínio; cidade—UF; a partir de; QR Simule agora |
 | Verso | Tipologias dinâmicas (`c1`…`cN`); specs `quartos · banheiros · m²`; À vista / Entrada / Parcelas Mensais; Preço Showroom; Diferenciais; rodapé Moní |
 
-Tamanho de folha: **559×794px** (print A5 148×210mm) nas duas faces.
-
 ## Ao editar
 
-1. Alterar só o template genérico e o preenchimento via params
-2. Testar mentalmente com 1–4 tipologias e nomes/preços diferentes
-3. Não introduzir exceções por `emp_id` / nome de condomínio
+1. Manter formato **A5** nas duas faces
+2. Alterar só o template genérico e o preenchimento via params
+3. Testar mentalmente com 1–4 tipologias e nomes/preços diferentes
+4. Não introduzir exceções por `emp_id` / nome de condomínio
