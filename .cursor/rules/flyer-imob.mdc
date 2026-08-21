@@ -1,0 +1,34 @@
+---
+description: Padrão único do flyer A5 IMOB (frente/verso) para qualquer empreendimento
+globs: public/flyermoniv6.html,public/moni-symbol-flyer.png,src/app/rede-franqueados/**/*Flyer*,src/app/rede-franqueados/imob-empreendimentos-actions.ts,src/app/rede-franqueados/ImobEmpreendimentosTabelaComBusca.tsx
+alwaysApply: false
+---
+
+# Flyer IMOB — padrão único
+
+## Regra
+
+`public/flyermoniv6.html` é o **único template** de flyer A5 (frente + verso) da Casa Moní.
+
+Vale para **qualquer empreendimento** cadastrado em IMOB — não criar HTML/layout por condomínio, nem hardcodar nome, preço, imagem ou tipologias de um caso específico (ex.: Lago Azul II).
+
+## Como funciona
+
+- Dados vêm da URL (`emp_nome`, `cond_*`, `hero_img`, `p_valor`, `cN_*`, etc.)
+- Montagem: `fetchFlyerData` + `buildFlyerUrl` em `ImobEmpreendimentosTabelaComBusca.tsx` / `imob-empreendimentos-actions.ts`
+- Entrada de produto: botão **Gerar Flyer** na tabela de empreendimentos IMOB (um botão por linha = qualquer emp)
+
+## Layout (não especializar)
+
+| Face | Conteúdo |
+|------|----------|
+| Frente | Símbolo Moní + `emp_nome` no topo; status/pronto em; condomínio; cidade—UF; a partir de; QR Simule agora |
+| Verso | Tipologias dinâmicas (`c1`…`cN`); specs `quartos · banheiros · m²`; À vista / Entrada / Parcelas Mensais; Preço Showroom; Diferenciais; rodapé Moní |
+
+Tamanho de folha: **559×794px** (print A5 148×210mm) nas duas faces.
+
+## Ao editar
+
+1. Alterar só o template genérico e o preenchimento via params
+2. Testar mentalmente com 1–4 tipologias e nomes/preços diferentes
+3. Não introduzir exceções por `emp_id` / nome de condomínio

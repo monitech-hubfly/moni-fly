@@ -26,6 +26,13 @@ src/lib/access-matrix.ts
 supabase/migrations/026_rede_franqueados.sql
 ```
 
+## Flyer IMOB (padrão único)
+
+- Template: `public/flyermoniv6.html` — **mesmo layout para qualquer empreendimento**
+- Geração: botão Gerar Flyer na tabela IMOB → `fetchFlyerData` + `buildFlyerUrl`
+- Nunca hardcodar dados de um condomínio; tudo via params da URL
+- Regra: `.cursor/rules/flyer-imob.mdc`
+
 ## Regras críticas
 
 | Regra | Detalhe |
