@@ -15,19 +15,14 @@ import {
 import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
 import { createClient } from '@/lib/supabase/client';
 import {
-  IMOB_PRAZOS_BALAO,
-  IMOB_SITUACOES,
   IMOB_STATUS_IMOVEL,
-  balaoKey,
   emptyImobCardModeloDraft,
-  finKey,
   formatImobMoedaExibicao,
   labelStatusImovel,
   opcoesProdutoModeloComValorAtual,
   type ImobCardEmpreendimentoDraft,
   type ImobCardModeloDraft,
   type ImobMoneyKey,
-  type ImobSituacaoId,
 } from '@/lib/kanban/imob-simulacoes-card';
 
 type Prefetch = {
@@ -418,79 +413,18 @@ function EmpreendimentoBloco({
             podeEditar={podeEditar}
             onChange={(v) => setMoney('valor_avista', v)}
           />
-        </div>
-      </div>
-
-      <div>
-        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Parcelas adicionais / chave
-        </p>
-        <p className="mb-2 text-[10px] leading-snug" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Por situação × prazo (8, 18 e 24 meses).
-        </p>
-        <div className="space-y-3">
-          {IMOB_SITUACOES.map((sit) => (
-            <div key={sit.id}>
-              <p className="mb-1 text-[11px] font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
-                {sit.label}
-              </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {IMOB_PRAZOS_BALAO.map((prazo) => (
-                  <CampoMoeda
-                    key={`${sit.id}-${prazo}`}
-                    label={`${prazo} meses`}
-                    value={item[balaoKey(sit.id as ImobSituacaoId, prazo)]}
-                    podeEditar={podeEditar}
-                    onChange={(v) => setMoney(balaoKey(sit.id as ImobSituacaoId, prazo), v)}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Financiamento bancário
-        </p>
-        <p className="mb-2 text-[10px] leading-snug" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Somente prazo 24 meses, por situação.
-        </p>
-        <div className="space-y-3">
-          {IMOB_SITUACOES.map((sit) => (
-            <div key={`fin-${sit.id}`}>
-              <p className="mb-1 text-[11px] font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
-                {sit.label}
-              </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <CampoMoeda
-                  label="Valor a financiar (R$)"
-                  value={item[finKey(sit.id as ImobSituacaoId, 'valor')]}
-                  podeEditar={podeEditar}
-                  onChange={(v) => setMoney(finKey(sit.id as ImobSituacaoId, 'valor'), v)}
-                />
-                <CampoMoeda
-                  label="1ª parcela (R$/mês)"
-                  value={item[finKey(sit.id as ImobSituacaoId, 'p1')]}
-                  podeEditar={podeEditar}
-                  onChange={(v) => setMoney(finKey(sit.id as ImobSituacaoId, 'p1'), v)}
-                />
-                <CampoMoeda
-                  label="Última parcela (R$/mês)"
-                  value={item[finKey(sit.id as ImobSituacaoId, 'ultima')]}
-                  podeEditar={podeEditar}
-                  onChange={(v) => setMoney(finKey(sit.id as ImobSituacaoId, 'ultima'), v)}
-                />
-                <CampoMoeda
-                  label="Total geral (R$)"
-                  value={item[finKey(sit.id as ImobSituacaoId, 'total')]}
-                  podeEditar={podeEditar}
-                  onChange={(v) => setMoney(finKey(sit.id as ImobSituacaoId, 'total'), v)}
-                />
-              </div>
-            </div>
-          ))}
+          <CampoMoeda
+            label="Entrada (R$)"
+            value={item.entrada}
+            podeEditar={podeEditar}
+            onChange={(v) => setMoney('entrada', v)}
+          />
+          <CampoMoeda
+            label="Parcelas mensais (R$)"
+            value={item.parcelas_mensais}
+            podeEditar={podeEditar}
+            onChange={(v) => setMoney('parcelas_mensais', v)}
+          />
         </div>
       </div>
 

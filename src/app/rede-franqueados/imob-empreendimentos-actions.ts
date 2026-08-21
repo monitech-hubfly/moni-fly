@@ -298,7 +298,7 @@ export async function fetchFlyerData(
     const { data: cardEmps } = await supabase
       .from('imob_card_empreendimentos')
       .select(
-        'tipo, produto_modelo, nome, area_vendas_m2, imagem_oferta_path, valor_avista, fin_parcial_p1',
+        'tipo, produto_modelo, nome, area_vendas_m2, imagem_oferta_path, valor_avista, entrada, parcelas_mensais',
       )
       .eq('card_id', e.card_id)
       .order('ordem', { ascending: true });
@@ -310,7 +310,8 @@ export async function fetchFlyerData(
       area_vendas_m2: number | null;
       imagem_oferta_path: string | null;
       valor_avista: number | null;
-      fin_parcial_p1: number | null;
+      entrada: number | null;
+      parcelas_mensais: number | null;
     }>) {
       const imgUrl = storageUrl(item.imagem_oferta_path);
 
@@ -326,8 +327,8 @@ export async function fetchFlyerData(
           area: item.area_vendas_m2 != null ? String(item.area_vendas_m2) : null,
           imagem_url: imgUrl,
           valor_avista: brl(item.valor_avista),
-          entrada: null,
-          parcelas: brl(item.fin_parcial_p1),
+          entrada: brl(item.entrada),
+          parcelas: brl(item.parcelas_mensais),
         });
       }
     }

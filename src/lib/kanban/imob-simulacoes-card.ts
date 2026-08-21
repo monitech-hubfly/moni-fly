@@ -64,6 +64,8 @@ export type ImobCardEmpreendimentoRow = {
   imagem_oferta_path: string | null;
   imagem_oferta_nome: string | null;
   valor_avista: number | null;
+  entrada: number | null;
+  parcelas_mensais: number | null;
   balao_parcial_8: number | null;
   balao_parcial_18: number | null;
   balao_parcial_24: number | null;
@@ -105,6 +107,8 @@ export type ImobCardEmpreendimentoDraft = {
   imagem_oferta_path: string;
   imagem_oferta_nome: string;
   valor_avista: string;
+  entrada: string;
+  parcelas_mensais: string;
   balao_parcial_8: string;
   balao_parcial_18: string;
   balao_parcial_24: string;
@@ -130,6 +134,8 @@ export type ImobCardEmpreendimentoDraft = {
 
 const MONEY_KEYS = [
   'valor_avista',
+  'entrada',
+  'parcelas_mensais',
   'balao_parcial_8',
   'balao_parcial_18',
   'balao_parcial_24',
@@ -253,6 +259,8 @@ export function rowToImobDraft(row: ImobCardEmpreendimentoRow): ImobCardEmpreend
     imagem_oferta_path: String(row.imagem_oferta_path ?? '').trim(),
     imagem_oferta_nome: String(row.imagem_oferta_nome ?? '').trim(),
     valor_avista: numToCampo(row.valor_avista),
+    entrada: numToCampo(row.entrada),
+    parcelas_mensais: numToCampo(row.parcelas_mensais),
     balao_parcial_8: numToCampo(row.balao_parcial_8),
     balao_parcial_18: numToCampo(row.balao_parcial_18),
     balao_parcial_24: numToCampo(row.balao_parcial_24),
@@ -294,7 +302,8 @@ export function draftToImobPatch(draft: ImobCardEmpreendimentoDraft): Record<str
   for (const k of NUM_KEYS) {
     patch[k] = plainToNum(draft[k]);
   }
-  for (const k of MONEY_KEYS) {
+  // Só persiste os campos de simulação ativos na UI (legado balão/fin permanece no banco).
+  for (const k of ['valor_avista', 'entrada', 'parcelas_mensais'] as const) {
     patch[k] = campoToNum(draft[k]);
   }
   return patch;
@@ -354,6 +363,8 @@ export function mapImobCardEmpreendimentoRow(raw: Record<string, unknown>): Imob
     imagem_oferta_path: t('imagem_oferta_path'),
     imagem_oferta_nome: t('imagem_oferta_nome'),
     valor_avista: n('valor_avista'),
+    entrada: n('entrada'),
+    parcelas_mensais: n('parcelas_mensais'),
     balao_parcial_8: n('balao_parcial_8'),
     balao_parcial_18: n('balao_parcial_18'),
     balao_parcial_24: n('balao_parcial_24'),
