@@ -290,25 +290,26 @@ export async function fetchFlyerData(
   let precoAPartirDe: string | null = null;
   let statusImovel: string | null = null;
   if (e.card_id) {
-    let modelo: {
+    type ModeloFlyerRow = {
       imagem_principal_path?: string | null;
       preco_a_partir_de?: number | null;
       status_imovel?: string | null;
-    } | null = null;
+    };
+    let modelo: ModeloFlyerRow | null = null;
     const full = await supabase
       .from('imob_card_modelo')
       .select('imagem_principal_path, preco_a_partir_de, status_imovel')
       .eq('card_id', e.card_id)
       .maybeSingle();
     if (!full.error) {
-      modelo = full.data as typeof modelo;
+      modelo = (full.data as ModeloFlyerRow | null) ?? null;
     } else {
       const fallback = await supabase
         .from('imob_card_modelo')
         .select('imagem_principal_path')
         .eq('card_id', e.card_id)
         .maybeSingle();
-      modelo = fallback.data as typeof modelo;
+      modelo = (fallback.data as ModeloFlyerRow | null) ?? null;
     }
     modeloImgUrl = storageUrl(modelo?.imagem_principal_path);
     precoAPartirDe = brl(modelo?.preco_a_partir_de);
