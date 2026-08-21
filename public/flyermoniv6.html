@@ -31,9 +31,18 @@
   }
 
   .page {
-    width: 559px; height: 794px;
-    background: var(--teal); color: var(--white);
-    position: relative; overflow: hidden; flex-shrink: 0;
+    width: 559px;
+    height: 794px;
+    min-width: 559px;
+    max-width: 559px;
+    min-height: 794px;
+    max-height: 794px;
+    background: var(--teal);
+    color: var(--white);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-sizing: border-box;
   }
   .page::before {
     content: '';
@@ -47,7 +56,14 @@
   /* ══════════════════════════
      FRENTE
   ══════════════════════════ */
-  .frente { display: flex; flex-direction: column; }
+  .frente,
+  .verso {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+  }
 
   /* Imagem full-bleed: cobre toda a página */
   .f-bg-img {
@@ -186,8 +202,6 @@
      VERSO
   ══════════════════════════ */
   .verso {
-    display: flex; flex-direction: column;
-    height: 100%;
     padding-bottom: 18px;
   }
 
@@ -656,7 +670,6 @@
             '<div class="casa-img">' +
               imgMarkup +
               '<div class="casa-img-overlay"></div>' +
-              '<div class="casa-cod">C' + i + '</div>' +
               (specsLine ? '<div class="card-specs">' + specsLine + '</div>' : '') +
               '<div class="casa-nome-over"><span class="cn">' + (cNome || '') + '</span></div>' +
             '</div>' +
