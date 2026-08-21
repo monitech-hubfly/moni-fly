@@ -567,7 +567,6 @@
     const condEstado    = get("cond_estado");
     const pipeline      = get("pipeline") || "Loteadores";
     const pValor        = get("p_valor");
-    const pParcela      = get("p_parcela");
 
     // VERSO
     const numCards = Math.min(Math.max(parseInt(get("num_cards") || "4", 10), 1), 4);
@@ -598,8 +597,7 @@
     setText("emp-nome", empNome);
     setText("f-tag", pipeline);
 
-    if (pValor)   setText("p-valor", pValor);
-    if (pParcela) setText("p-parcela", pParcela);
+    if (pValor) setText("p-valor", pValor);
 
     // Imagem principal (Showroom → imob_card_modelo)
     if (heroImg) {
