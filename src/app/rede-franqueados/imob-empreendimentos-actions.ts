@@ -209,6 +209,8 @@ export type FlyerCorretorData = {
 export type FlyerUnitData = {
   nome: string | null;
   area: string | null;
+  quartos: string | null;
+  banheiros: string | null;
   imagem_url: string | null;
   valor_avista: string | null;
   entrada: string | null;
@@ -327,7 +329,7 @@ export async function fetchFlyerData(
     const { data: cardEmps } = await supabase
       .from('imob_card_empreendimentos')
       .select(
-        'tipo, produto_modelo, nome, area_vendas_m2, ano_lancamento, imagem_oferta_path, valor_avista, entrada, parcelas_mensais',
+        'tipo, produto_modelo, nome, area_vendas_m2, ano_lancamento, quartos, banheiros, imagem_oferta_path, valor_avista, entrada, parcelas_mensais',
       )
       .eq('card_id', e.card_id)
       .order('ordem', { ascending: true });
@@ -338,6 +340,8 @@ export async function fetchFlyerData(
       nome: string | null;
       area_vendas_m2: number | null;
       ano_lancamento: number | null;
+      quartos: number | null;
+      banheiros: number | null;
       imagem_oferta_path: string | null;
       valor_avista: number | null;
       entrada: number | null;
@@ -360,6 +364,8 @@ export async function fetchFlyerData(
         units.push({
           nome: item.produto_modelo ?? item.nome ?? null,
           area: item.area_vendas_m2 != null ? String(item.area_vendas_m2) : null,
+          quartos: item.quartos != null ? String(item.quartos) : null,
+          banheiros: item.banheiros != null ? String(item.banheiros) : null,
           imagem_url: imgUrl,
           valor_avista: brl(item.valor_avista),
           entrada: brl(item.entrada),

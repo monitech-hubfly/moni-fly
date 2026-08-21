@@ -287,6 +287,8 @@ function buildFlyerUrl(data: FlyerData, corretorId: string): string {
     const n = i + 1;
     if (u.nome) p.set(`c${n}_nome`, u.nome);
     if (u.area) p.set(`c${n}_area`, u.area);
+    if (u.quartos) p.set(`c${n}_quartos`, u.quartos);
+    if (u.banheiros) p.set(`c${n}_banheiros`, u.banheiros);
     if (u.imagem_url) p.set(`c${n}_img`, u.imagem_url);
     if (u.valor_avista) p.set(`c${n}_avista`, u.valor_avista);
     if (u.entrada) p.set(`c${n}_entrada`, u.entrada);

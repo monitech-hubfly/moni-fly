@@ -202,7 +202,7 @@
   }
 
   .casa-img {
-    position: relative; height: 90px; flex-shrink: 0;
+    position: relative; height: 100px; flex-shrink: 0;
     background: var(--teal-lt); overflow: hidden;
   }
   .casa-img-actual {
@@ -218,7 +218,7 @@
   }
   .casa-img-overlay {
     position: absolute; inset: 0;
-    background: linear-gradient(to bottom, transparent 35%, rgba(13,43,46,.88) 100%);
+    background: linear-gradient(to bottom, transparent 30%, rgba(13,43,46,.9) 100%);
     pointer-events: none;
   }
   .casa-cod {
@@ -227,13 +227,21 @@
     font-size: 7px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
     padding: 2px 6px; border-radius: 2px;
   }
-  .casa-nome-over { position: absolute; bottom: 5px; left: 7px; right: 5px; }
+  .casa-nome-over {
+    position: absolute; bottom: 6px; left: 7px; right: 5px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
   .casa-nome-over .cn {
     font-family: 'Cormorant Garamond', serif;
-    font-size: 14px; font-weight: 700; color: var(--white); line-height: 1;
+    font-size: 13px; font-weight: 700; color: var(--white); line-height: 1.1;
     text-shadow: 0 1px 4px rgba(0,0,0,.6);
   }
-  .casa-nome-over .ca { font-size: 8px; color: var(--gold-lt); display: block; margin-top: 1px; }
+  .casa-nome-over .ca {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 8.5px; font-weight: 500; color: rgba(245,242,236,.88);
+    line-height: 1.2;
+    text-shadow: 0 1px 3px rgba(0,0,0,.5);
+  }
 
   .casa-sims {
     padding: 6px 7px 7px;
@@ -557,6 +565,8 @@
    *   cN_img          URL pública da imagem da oferta  (imagem_oferta_path)
    *   cN_nome         produto_modelo
    *   cN_area         area_vendas_m2
+   *   cN_quartos      quartos (exibido como suítes)
+   *   cN_banheiros    banheiros
    *   cN_avista       valor_avista  (ex: "R$ 380.000")
    *   cN_entrada      entrada
    *   cN_parcelas     parcelas mensais
@@ -658,6 +668,8 @@
         var cImg   = get("c" + i + "_img");
         var cNome  = get("c" + i + "_nome");
         var cArea  = get("c" + i + "_area");
+        var cQuartos = get("c" + i + "_quartos");
+        var cBanheiros = get("c" + i + "_banheiros");
         var cAvista= get("c" + i + "_avista") || "—";
         var cEntrada = get("c" + i + "_entrada") || "—";
         var cParcelas = get("c" + i + "_parcelas") || "—";
@@ -673,7 +685,17 @@
               '<span>Foto ' + cod + '</span>' +
             '</div>';
 
-        var areaText = cArea ? cArea + " m²" : "";
+        var specsParts = [];
+        if (cQuartos) {
+          var nQ = Number(cQuartos);
+          specsParts.push(nQ === 1 ? "1 suíte" : cQuartos + " suítes");
+        }
+        if (cBanheiros) {
+          var nB = Number(cBanheiros);
+          specsParts.push(nB === 1 ? "1 banheiro" : cBanheiros + " banheiros");
+        }
+        if (cArea) specsParts.push(cArea + " m²");
+        var specsText = specsParts.join(" | ");
 
         grid.insertAdjacentHTML("beforeend",
           '<div class="casa-card">' +
@@ -682,8 +704,8 @@
               '<div class="casa-img-overlay"></div>' +
               '<div class="casa-cod">' + cod + '</div>' +
               '<div class="casa-nome-over">' +
-                '<span class="cn">' + cNome + '</span>' +
-                '<span class="ca">' + areaText + '</span>' +
+                (cNome ? '<span class="cn">' + cNome + '</span>' : '') +
+                (specsText ? '<span class="ca">' + specsText + '</span>' : '') +
               '</div>' +
             '</div>' +
             '<div class="casa-sims">' +
