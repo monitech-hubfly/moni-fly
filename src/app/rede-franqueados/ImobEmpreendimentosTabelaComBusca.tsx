@@ -271,7 +271,7 @@ function buildFlyerUrl(data: FlyerData, corretorId: string): string {
   p.set('emp_nome', data.emp.nome);
   if (data.pipeline) p.set('pipeline', data.pipeline);
 
-  const heroImg = data.showroom?.imagem_url ?? data.emp.imagem_url;
+  const heroImg = data.hero_imagem_url ?? data.showroom?.imagem_url ?? data.emp.imagem_url;
   if (heroImg) p.set('hero_img', heroImg);
   if (data.preco_a_partir_de) p.set('p_valor', data.preco_a_partir_de);
   if (data.status_imovel) p.set('status_imovel', data.status_imovel);
