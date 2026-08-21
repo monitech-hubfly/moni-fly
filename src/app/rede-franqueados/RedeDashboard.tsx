@@ -3,9 +3,21 @@
 import { useMemo, useState } from 'react';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import { parseAreaAtuacao } from '@/lib/rede-area-atuacao';
+import {
+  isRedeClassificacaoBeta,
+  isRedeClassificacaoPagante,
+} from '@/lib/rede-classificacao-chart';
+import { pendenciasDocsEmpresasRede } from '@/lib/rede-documentos-empresas';
+import { pendenciasDocsFranquiaRede } from '@/lib/rede-documentos-franquia';
+import { pendenciasDocsFranqueadoRede } from '@/lib/rede-documentos-franqueado';
+import { filtrarLinhasParaGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 import { MapBrazilCidadesAtuacao } from './MapBrazilCidadesAtuacao';
+import { RedeCidadeBarRow } from './rede-cidade-bar-row';
+import { RedeCrescimentoMensalChart } from './rede-crescimento-mensal-chart';
+import { RedeFiltroUfSelect } from './rede-filtro-uf-select';
+import { RedeVisaoRegionalClassificacao } from './rede-visao-regional-class';
 
-type FiltroStatus = 'todos' | 'encerrados' | 'em_operacao';
+type FiltroStatus = 'todos' | 'encerrados' | 'em_operacao' | 'em_transferencia';
 
 function norm(s: string | null | undefined) {
   return (s ?? '').toString().trim();
@@ -24,12 +36,18 @@ function isOperacaoEncerrada(status: string) {
   return /encerrad/.test(normStatus(status));
 }
 
+/** Considera "Em Transferência" (valor do formulário); puxa da coluna status_franquia da tabela. */
+function isEmTransferencia(status: string) {
+  const n = normStatus(status);
+  return n.includes('transferencia');
+}
+
 /** Considera "Em Operação" (valor do formulário); puxa da coluna status_franquia da tabela. */
 function isEmOperacao(status: string) {
   const raw = norm(status);
   if (!raw) return false;
   const n = normStatus(raw);
-  if (/encerrad/.test(n)) return false;
+  if (/encerrad/.test(n) || n.includes('transferencia')) return false;
   // Aceita "Em Operação" / "em operação" / "em operacao" (com ou sem acento)
   if (n === 'em operacao' || n.startsWith('em operacao ')) return true;
   const low = raw.toLowerCase();
@@ -44,13 +62,6 @@ function monthKey(dateStr: string): string | null {
   return `${y}-${m}`;
 }
 
-function monthLabel(key: string): string {
-  const [y, m] = key.split('-');
-  const month = Number(m);
-  const names = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  return `${names[Math.max(1, Math.min(12, month)) - 1]}/${String(y).slice(-2)}`;
-}
-
 function pct(n: number, total: number): string {
   if (!total) return '0%';
   return `${((n / total) * 100).toFixed(1).replace('.', ',')}%`;
@@ -61,50 +72,200 @@ function barWidth(n: number, max: number): string {
   return `${Math.round((n / max) * 100)}%`;
 }
 
+type FiltroAno = 'tudo' | '2025' | '2026';
+
+const chartCardStyle: React.CSSProperties = {
+  borderColor: 'var(--moni-rede-chart-border)',
+  backgroundColor: 'var(--moni-surface-0)',
+};
+
+function FilterPill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-8 shrink-0 items-center justify-center rounded-full px-4 text-xs font-medium transition hover:opacity-90"
+      style={
+        active
+          ? {
+              backgroundColor: 'var(--moni-green-800)',
+              color: 'var(--moni-text-inverse)',
+              border: '1px solid transparent',
+            }
+          : {
+              backgroundColor: 'transparent',
+              color: 'var(--moni-text-tertiary)',
+              border: '1px solid var(--moni-border-default)',
+            }
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function dedupeRowsById(list: RedeFranqueadoRowDb[]): RedeFranqueadoRowDb[] {
+  const seen = new Set<string>();
+  const out: RedeFranqueadoRowDb[] = [];
+  for (const r of list) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push(r);
+  }
+  return out;
+}
+
 function missingFields(row: RedeFranqueadoRowDb): string[] {
   const missing: string[] = [];
   if (!norm(row.regional)) missing.push('Regional');
   if (!norm(row.area_atuacao)) missing.push('Área de Atuação');
   if (!norm(row.data_ass_contrato)) missing.push('Data Contrato');
+  for (const doc of pendenciasDocsFranqueadoRede(row)) {
+    missing.push(`Doc. franqueado: ${doc}`);
+  }
+  for (const doc of pendenciasDocsFranquiaRede(row)) {
+    missing.push(`Doc. franquia: ${doc}`);
+  }
+  for (const doc of pendenciasDocsEmpresasRede(row)) {
+    missing.push(`Doc. empresa: ${doc}`);
+  }
   return missing;
 }
 
-export function RedeDashboard({ rows }: { rows: RedeFranqueadoRowDb[] }) {
+/** Portal Frank: sem data de contrato na query — só pendências visíveis na rede “pública”. */
+function missingFieldsFrank(row: RedeFranqueadoRowDb): string[] {
+  const missing: string[] = [];
+  if (!norm(row.regional)) missing.push('Regional');
+  if (!norm(row.area_atuacao)) missing.push('Área de Atuação');
+  return missing;
+}
+
+const redeKpiCardStyle: React.CSSProperties = {
+  borderColor: 'var(--moni-rede-chart-border)',
+  backgroundColor: 'var(--moni-rede-chart-surface)',
+  color: 'var(--moni-text-primary)',
+};
+
+function KpiShell({
+  modoAggregado,
+  onOpen,
+  children,
+}: {
+  modoAggregado: boolean;
+  onOpen: () => void;
+  children: React.ReactNode;
+}) {
+  const cls =
+    'h-full rounded-xl border p-4 text-left transition hover:bg-[var(--moni-surface-100)]';
+  if (modoAggregado) {
+    return (
+      <div className={cls} style={redeKpiCardStyle}>
+        {children}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`${cls} focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2`}
+      style={redeKpiCardStyle}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function RedeDashboard({
+  rows,
+  modoAggregado = false,
+  visaoFranqueado = false,
+}: {
+  rows: RedeFranqueadoRowDb[];
+  /** Sem modal de lista ao clicar (portal Frank): só totais agregados. */
+  modoAggregado?: boolean;
+  /**
+   * Portal do franqueado: sem barra de filtro; gráficos só com unidades em operação;
+   * oculta KPIs de encerradas / incompletos e o bloco de classificação.
+   */
+  visaoFranqueado?: boolean;
+}) {
   const [filtro, setFiltro] = useState<FiltroStatus>('todos');
   const [listaModal, setListaModal] = useState<{ titulo: string; rows: RedeFranqueadoRowDb[] } | null>(null);
   const [filtroEstadoCidadeAtuacao, setFiltroEstadoCidadeAtuacao] = useState<string>('');
+  const [filtroAno, setFiltroAno] = useState<FiltroAno>('tudo');
+
+  /** FK0000 (Casa Moní) não entra em KPIs, filtros nem gráficos da aba Visão geral. */
+  const rowsVisaoGeral = useMemo(() => filtrarLinhasParaGraficosVisaoGeral(rows), [rows]);
 
   const filteredRows = useMemo(() => {
-    if (filtro === 'todos') return rows;
-    if (filtro === 'encerrados') return rows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia)));
-    return rows.filter((r) => isEmOperacao(norm(r.status_franquia)));
-  }, [rows, filtro]);
+    if (visaoFranqueado) {
+      return rowsVisaoGeral.filter((r) => isEmOperacao(norm(r.status_franquia)));
+    }
+    if (filtro === 'todos') return rowsVisaoGeral;
+    if (filtro === 'encerrados') {
+      return rowsVisaoGeral.filter((r) => isOperacaoEncerrada(norm(r.status_franquia)));
+    }
+    if (filtro === 'em_transferencia') {
+      return rowsVisaoGeral.filter((r) => isEmTransferencia(norm(r.status_franquia)));
+    }
+    return rowsVisaoGeral.filter((r) => isEmOperacao(norm(r.status_franquia)));
+  }, [rowsVisaoGeral, filtro, visaoFranqueado]);
+
+  const linhasGraficos = filteredRows;
 
   const total = filteredRows.length;
+  const totalGraficos = linhasGraficos.length;
 
   const operacao = filteredRows.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
+  const operacaoGraficos = linhasGraficos.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
+  const transferencia = filteredRows.filter((r) => isEmTransferencia(norm(r.status_franquia))).length;
+  const transferenciaGraficos = linhasGraficos.filter((r) => isEmTransferencia(norm(r.status_franquia))).length;
   const encerradas = filteredRows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))).length;
 
   const incompletos = filteredRows
-    .map((r) => ({ r, missing: missingFields(r) }))
+    .map((r) => ({ r, missing: modoAggregado ? missingFieldsFrank(r) : missingFields(r) }))
     .filter((x) => x.missing.length > 0);
 
-  const pagantes = filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado))).length;
-  const beta = filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado))).length;
+  const pagantes = linhasGraficos.filter((r) => isRedeClassificacaoPagante(r.classificacao_franqueado)).length;
+  const beta = linhasGraficos.filter((r) => isRedeClassificacaoBeta(r.classificacao_franqueado)).length;
+  const maxClassificacao = Math.max(pagantes, beta, 1);
 
   const statusByClass = {
     pagante: {
-      emOperacao: filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado)) && isEmOperacao(norm(r.status_franquia))).length,
-      encerrada: filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado)) && isOperacaoEncerrada(norm(r.status_franquia))).length,
+      emOperacao: linhasGraficos.filter(
+        (r) => isRedeClassificacaoPagante(r.classificacao_franqueado) && isEmOperacao(norm(r.status_franquia)),
+      ).length,
+      transferencia: linhasGraficos.filter(
+        (r) => isRedeClassificacaoPagante(r.classificacao_franqueado) && isEmTransferencia(norm(r.status_franquia)),
+      ).length,
+      encerrada: linhasGraficos.filter(
+        (r) => isRedeClassificacaoPagante(r.classificacao_franqueado) && isOperacaoEncerrada(norm(r.status_franquia)),
+      ).length,
     },
     beta: {
-      emOperacao: filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado)) && isEmOperacao(norm(r.status_franquia))).length,
-      encerrada: filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado)) && isOperacaoEncerrada(norm(r.status_franquia))).length,
+      emOperacao: linhasGraficos.filter(
+        (r) => isRedeClassificacaoBeta(r.classificacao_franqueado) && isEmOperacao(norm(r.status_franquia)),
+      ).length,
+      transferencia: linhasGraficos.filter(
+        (r) => isRedeClassificacaoBeta(r.classificacao_franqueado) && isEmTransferencia(norm(r.status_franquia)),
+      ).length,
+      encerrada: linhasGraficos.filter(
+        (r) => isRedeClassificacaoBeta(r.classificacao_franqueado) && isOperacaoEncerrada(norm(r.status_franquia)),
+      ).length,
     },
   };
 
   const porRegional = new Map<string, number>();
-  for (const r of filteredRows) {
+  for (const r of linhasGraficos) {
     const k = norm(r.regional) || 'Sem regional';
     porRegional.set(k, (porRegional.get(k) ?? 0) + 1);
   }
@@ -112,7 +273,7 @@ export function RedeDashboard({ rows }: { rows: RedeFranqueadoRowDb[] }) {
   const maxRegional = regionalArr[0]?.[1] ?? 0;
 
   const porEstado = new Map<string, number>();
-  for (const r of filteredRows) {
+  for (const r of linhasGraficos) {
     const k = norm(r.estado_casa_frank) || 'Sem estado';
     porEstado.set(k, (porEstado.get(k) ?? 0) + 1);
   }
@@ -121,7 +282,7 @@ export function RedeDashboard({ rows }: { rows: RedeFranqueadoRowDb[] }) {
 
   const porEstadoAtuacao = new Map<string, number>();
   const porCidadeAtuacao = new Map<string, number>();
-  for (const r of filteredRows) {
+  for (const r of linhasGraficos) {
     const areas = parseAreaAtuacao(r.area_atuacao);
     for (const { uf, cidade } of areas) {
       if (uf) porEstadoAtuacao.set(uf, (porEstadoAtuacao.get(uf) ?? 0) + 1);
@@ -141,7 +302,7 @@ export function RedeDashboard({ rows }: { rows: RedeFranqueadoRowDb[] }) {
 
   const porMes = new Map<string, number>();
   const rowsPorMes = new Map<string, RedeFranqueadoRowDb[]>();
-  for (const r of filteredRows) {
+  for (const r of linhasGraficos) {
     const d = norm(r.data_ass_contrato);
     if (!d) continue;
     const k = monthKey(d);
@@ -152,17 +313,16 @@ export function RedeDashboard({ rows }: { rows: RedeFranqueadoRowDb[] }) {
     rowsPorMes.set(k, list);
   }
   const mesArr = [...porMes.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  const maxMes = Math.max(0, ...mesArr.map(([, v]) => v));
 
   const rowsPorRegional = new Map<string, RedeFranqueadoRowDb[]>();
-  for (const r of filteredRows) {
+  for (const r of linhasGraficos) {
     const k = norm(r.regional) || 'Sem regional';
     const list = rowsPorRegional.get(k) ?? [];
     list.push(r);
     rowsPorRegional.set(k, list);
   }
   const rowsPorEstado = new Map<string, RedeFranqueadoRowDb[]>();
-  for (const r of filteredRows) {
+  for (const r of linhasGraficos) {
     const k = norm(r.estado_casa_frank) || 'Sem estado';
     const list = rowsPorEstado.get(k) ?? [];
     list.push(r);
@@ -170,7 +330,7 @@ export function RedeDashboard({ rows }: { rows: RedeFranqueadoRowDb[] }) {
   }
   const rowsPorEstadoAtuacao = new Map<string, RedeFranqueadoRowDb[]>();
   const rowsPorCidadeAtuacao = new Map<string, RedeFranqueadoRowDb[]>();
-  for (const r of filteredRows) {
+  for (const r of linhasGraficos) {
     const areas = parseAreaAtuacao(r.area_atuacao);
     for (const { uf, cidade } of areas) {
       if (uf) {
@@ -186,253 +346,335 @@ export function RedeDashboard({ rows }: { rows: RedeFranqueadoRowDb[] }) {
       }
     }
   }
-  const rowsEmOperacao = useMemo(() => filteredRows.filter((r) => isEmOperacao(norm(r.status_franquia))), [filteredRows]);
-  const rowsEncerradas = useMemo(() => filteredRows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))), [filteredRows]);
-  const rowsPagante = useMemo(() => filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado))), [filteredRows]);
-  const rowsBeta = useMemo(() => filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado))), [filteredRows]);
+  const rowsEmOperacao = useMemo(
+    () => linhasGraficos.filter((r) => isEmOperacao(norm(r.status_franquia))),
+    [linhasGraficos],
+  );
+  const rowsEmTransferencia = useMemo(
+    () => linhasGraficos.filter((r) => isEmTransferencia(norm(r.status_franquia))),
+    [linhasGraficos],
+  );
+  const rowsEncerradas = useMemo(
+    () => linhasGraficos.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))),
+    [linhasGraficos],
+  );
+  const rowsPagante = useMemo(
+    () => linhasGraficos.filter((r) => isRedeClassificacaoPagante(r.classificacao_franqueado)),
+    [linhasGraficos],
+  );
+  const rowsBeta = useMemo(
+    () => linhasGraficos.filter((r) => isRedeClassificacaoBeta(r.classificacao_franqueado)),
+    [linhasGraficos],
+  );
 
-  const totalGeral = rows.length;
-  const operacaoGeral = rows.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
-  const encerradasGeral = rows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))).length;
+  const mesStatsExibicao = useMemo(() => {
+    const filtrado = filtroAno === 'tudo' ? mesArr : mesArr.filter(([k]) => k.startsWith(filtroAno));
+    return filtrado.map(([key, total]) => {
+      const list = rowsPorMes.get(key) ?? [];
+      const pagante = list.filter((r) => isRedeClassificacaoPagante(r.classificacao_franqueado)).length;
+      const beta = list.filter((r) => isRedeClassificacaoBeta(r.classificacao_franqueado)).length;
+      return {
+        key,
+        total,
+        pagante,
+        beta,
+        outros: Math.max(0, total - pagante - beta),
+        rows: list,
+      };
+    });
+  }, [mesArr, filtroAno, rowsPorMes]);
+
+  const totalGeral = rowsVisaoGeral.length;
+  const operacaoGeral = rowsVisaoGeral.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
+  const transferenciaGeral = rowsVisaoGeral.filter((r) => isEmTransferencia(norm(r.status_franquia))).length;
+  const encerradasGeral = rowsVisaoGeral.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))).length;
+
+  const emOperacaoRedeFrank = visaoFranqueado ? operacaoGeral : operacao;
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-stone-600">Filtro:</span>
-        <button
-          type="button"
-          onClick={() => setFiltro('todos')}
-          className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
-            filtro === 'todos' ? 'border-moni-primary bg-moni-primary text-white' : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
-          }`}
+      <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h3
+          className="m-0 flex h-8 shrink-0 items-center text-sm font-semibold leading-none"
+          style={{ color: 'var(--moni-text-primary)' }}
         >
-          Todos ({totalGeral})
-        </button>
-        <button
-          type="button"
-          onClick={() => setFiltro('em_operacao')}
-          className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
-            filtro === 'em_operacao' ? 'border-green-600 bg-green-600 text-white' : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
-          }`}
-        >
-          Em operação ({operacaoGeral})
-        </button>
-        <button
-          type="button"
-          onClick={() => setFiltro('encerrados')}
-          className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
-            filtro === 'encerrados' ? 'border-red-600 bg-red-600 text-white' : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
-          }`}
-        >
-          Encerradas ({encerradasGeral})
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <button
-          type="button"
-          onClick={() => setListaModal({ titulo: `Total de franquias (${total})`, rows: filteredRows })}
-          className="rounded-xl border border-green-200 bg-green-50 p-4 text-left text-stone-900 transition hover:bg-green-100/80 focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2"
-        >
-          <p className="text-xs text-stone-600">Total de franquias</p>
-          <p className="mt-1 text-3xl font-bold">{total}</p>
-          <p className="mt-1 text-xs text-stone-500">Clique para ver a lista</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => setListaModal({ titulo: `Em operação (${operacao})`, rows: rowsEmOperacao })}
-          className="rounded-xl border border-green-200 bg-green-50 p-4 text-left text-stone-900 transition hover:bg-green-100/80 focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2"
-        >
-          <p className="text-xs text-stone-600">Em operação</p>
-          <p className="mt-1 text-3xl font-bold text-green-700">{operacao}</p>
-          <p className="mt-1 text-xs text-stone-600">{pct(operacao, total)} da rede</p>
-          <p className="mt-1 text-xs text-stone-500">Clique para ver a lista</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => setListaModal({ titulo: `Encerradas (${encerradas})`, rows: rowsEncerradas })}
-          className="rounded-xl border border-green-200 bg-green-50 p-4 text-left text-stone-900 transition hover:bg-green-100/80 focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2"
-        >
-          <p className="text-xs text-stone-600">Encerradas</p>
-          <p className="mt-1 text-3xl font-bold text-red-600">{encerradas}</p>
-          <p className="mt-1 text-xs text-stone-500">Clique para ver a lista</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => setListaModal({ titulo: `Cadastros incompletos (${incompletos.length})`, rows: incompletos.map((x) => x.r) })}
-          className="rounded-xl border border-green-200 bg-green-50 p-4 text-left text-stone-900 transition hover:bg-green-100/80 focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2"
-        >
-          <p className="text-xs text-stone-600">Cadastros incompletos</p>
-          <p className="mt-1 text-3xl font-bold text-yellow-700">{incompletos.length}</p>
-          <p className="mt-1 text-xs text-stone-600">
-            {incompletos.slice(0, 5).map(({ r }) => norm(r.n_franquia)).filter(Boolean).join(', ') || '—'}
-          </p>
-          <p className="mt-1 text-xs text-stone-500">Clique para ver a lista</p>
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-stone-900">
-          <p className="text-sm font-semibold text-stone-900">Classificação dos franqueados</p>
-          <p className="mt-1 text-xs text-stone-500">Clique na barra para ver a lista.</p>
-          <div className="mt-3 flex items-center gap-4">
-            <div className="flex-1">
-              <button
-                type="button"
-                onClick={() => setListaModal({ titulo: `Pagante (${pagantes})`, rows: rowsPagante })}
-                className="w-full cursor-pointer text-left hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2 rounded"
-              >
-                <div className="flex items-center justify-between text-xs text-stone-600">
-                  <span>Pagante</span><span>{pct(pagantes, total)} — {pagantes}</span>
-                </div>
-                <div className="mt-1 h-2 rounded bg-green-200">
-                  <div className="h-2 rounded bg-green-600" style={{ width: barWidth(pagantes, total) }} />
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setListaModal({ titulo: `Beta (${beta})`, rows: rowsBeta })}
-                className="mt-3 w-full cursor-pointer text-left hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2 rounded"
-              >
-                <div className="flex items-center justify-between text-xs text-stone-600">
-                  <span>Beta</span><span>{pct(beta, total)} — {beta}</span>
-                </div>
-                <div className="mt-1 h-2 rounded bg-green-200">
-                  <div className="h-2 rounded bg-yellow-700" style={{ width: barWidth(beta, total) }} />
-                </div>
-              </button>
-            </div>
-            <div className="text-right text-xs text-stone-600">
-              <p>Pagante: <span className="text-stone-900">{pagantes}</span></p>
-              <p>Beta: <span className="text-stone-900">{beta}</span></p>
-              <p className="mt-2">Encerradas pagantes: <span className="text-stone-900">{statusByClass.pagante.encerrada}</span></p>
-              <p>Encerradas beta: <span className="text-stone-900">{statusByClass.beta.encerrada}</span></p>
-            </div>
+          Visão geral — Rede de Franqueados
+        </h3>
+        {!visaoFranqueado ? (
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
+            <FilterPill active={filtro === 'todos'} onClick={() => setFiltro('todos')}>
+              Todos ({totalGeral})
+            </FilterPill>
+            <FilterPill active={filtro === 'em_operacao'} onClick={() => setFiltro('em_operacao')}>
+              Em operação ({operacaoGeral})
+            </FilterPill>
+            <FilterPill active={filtro === 'em_transferencia'} onClick={() => setFiltro('em_transferencia')}>
+              Em Transferência ({transferenciaGeral})
+            </FilterPill>
+            <FilterPill active={filtro === 'encerrados'} onClick={() => setFiltro('encerrados')}>
+              Encerradas ({encerradasGeral})
+            </FilterPill>
           </div>
-        </div>
-        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-stone-900">
-          <p className="text-sm font-semibold text-stone-900">Franquias por regional</p>
-          <p className="mt-1 text-xs text-stone-500">Clique na linha para ver a lista.</p>
-          <div className="mt-3 space-y-2">
-            {regionalArr.slice(0, 8).map(([k, v]) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setListaModal({ titulo: `Regional: ${k} (${v})`, rows: rowsPorRegional.get(k) ?? [] })}
-                className="flex w-full items-center gap-3 rounded py-1 text-left hover:bg-green-100/50 focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2"
-              >
-                <div className="w-32 text-xs text-stone-600">{k}</div>
-                <div className="flex-1">
-                  <div className="h-2 rounded bg-green-200">
-                    <div className="h-2 rounded bg-green-600" style={{ width: barWidth(v, maxRegional) }} />
+        ) : null}
+      </div>
+
+      {visaoFranqueado ? (
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+          <div className="w-full shrink-0 lg:w-44 lg:min-w-[11rem] lg:max-w-[14rem]">
+            <KpiShell
+              modoAggregado={modoAggregado}
+              onOpen={() =>
+                setListaModal({
+                  titulo: `Em operação (${emOperacaoRedeFrank})`,
+                  rows: rowsVisaoGeral.filter((r) => isEmOperacao(norm(r.status_franquia))),
+                })
+              }
+            >
+              <p className="text-base font-semibold leading-tight" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Em operação
+              </p>
+              <p className="mt-2 text-5xl font-bold leading-none tracking-tight" style={{ color: 'var(--moni-rede-kpi-em-operacao)' }}>
+                {emOperacaoRedeFrank}
+              </p>
+            </KpiShell>
+          </div>
+          <div className="min-w-0 flex-1 rounded-xl border p-4" style={redeKpiCardStyle}>
+            <p className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+              Franquias por regional
+            </p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Somente unidades em operação (totais agregados).
+            </p>
+            <div className="mt-3 space-y-2">
+              {regionalArr.slice(0, 8).map(([k, v]) => (
+                <div key={k} className="flex w-full items-center gap-3 rounded py-1 text-left">
+                  <div className="w-32 shrink-0 text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
+                    {k}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="h-2 rounded" style={{ backgroundColor: 'var(--moni-rede-chart-track)' }}>
+                      <div
+                        className="h-2 rounded"
+                        style={{
+                          width: barWidth(v, maxRegional),
+                          backgroundColor: 'var(--moni-rede-chart-fill)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="w-8 shrink-0 text-right text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
+                    {v}
                   </div>
                 </div>
-                <div className="w-8 text-right text-xs text-stone-600">{v}</div>
-              </button>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-stone-900">
-          <p className="text-sm font-semibold text-stone-900">Franquias por cidade de atuação</p>
-          <p className="mt-1 text-xs text-stone-600">Área de atuação (UF - Cidade). Clique na linha para ver a lista.</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <label className="text-xs text-stone-600">Filtro por estado:</label>
-            <select
-              value={filtroEstadoCidadeAtuacao}
-              onChange={(e) => setFiltroEstadoCidadeAtuacao(e.target.value)}
-              className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm text-stone-700"
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            <KpiShell
+              modoAggregado={modoAggregado}
+              onOpen={() => setListaModal({ titulo: `Total de franquias (${total})`, rows: filteredRows })}
             >
-              <option value="">Todos</option>
-              {estadoAtuacaoArr.map(([uf]) => (
-                <option key={uf} value={uf}>{uf}</option>
-              ))}
-            </select>
+              <p className="mb-1.5 text-[11px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Total de franquias
+              </p>
+              <p className="mb-1 text-3xl font-medium leading-none" style={{ color: 'var(--moni-text-primary)' }}>
+                {total}
+              </p>
+              <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Rede de Franqueados
+              </p>
+            </KpiShell>
+            <KpiShell
+              modoAggregado={modoAggregado}
+              onOpen={() =>
+                setListaModal({ titulo: `Em Transferência (${transferencia})`, rows: rowsEmTransferencia })
+              }
+            >
+              <p className="mb-1.5 text-[11px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Em Transferência
+              </p>
+              <p className="mb-1 text-3xl font-medium leading-none" style={{ color: 'var(--moni-rede-kpi-em-transferencia)' }}>
+                {transferencia}
+              </p>
+              <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                {pct(transferencia, totalGeral)} dos franqueados
+              </p>
+            </KpiShell>
+            <KpiShell
+              modoAggregado={modoAggregado}
+              onOpen={() => setListaModal({ titulo: `Encerradas (${encerradas})`, rows: rowsEncerradas })}
+            >
+              <p className="mb-1.5 text-[11px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Encerradas
+              </p>
+              <p className="mb-1 text-3xl font-medium leading-none" style={{ color: 'var(--moni-status-overdue-text)' }}>
+                {encerradas}
+              </p>
+              <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                {pct(encerradas, totalGeral)} dos franqueados
+              </p>
+            </KpiShell>
+            <KpiShell
+              modoAggregado={modoAggregado}
+              onOpen={() =>
+                setListaModal({ titulo: `Cadastros incompletos (${incompletos.length})`, rows: incompletos.map((x) => x.r) })
+              }
+            >
+              <p className="mb-1.5 text-[11px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Cadastros incompletos
+              </p>
+              <p className="mb-1 text-3xl font-medium leading-none" style={{ color: 'var(--moni-gold-600)' }}>
+                {incompletos.length}
+              </p>
+              <p className="line-clamp-2 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                {incompletos
+                  .map(({ r }) => norm(r.n_franquia))
+                  .filter(Boolean)
+                  .join(', ') || '—'}
+              </p>
+            </KpiShell>
           </div>
-          <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+
+          <RedeVisaoRegionalClassificacao
+            regionalArr={regionalArr}
+            maxRegional={maxRegional}
+            operacao={operacaoGraficos}
+            transferencia={transferenciaGraficos}
+            total={totalGraficos}
+            modoAggregado={modoAggregado}
+            rowsPorRegional={rowsPorRegional}
+            rowsEmOperacao={rowsEmOperacao}
+            rowsEmTransferencia={rowsEmTransferencia}
+            pagantes={pagantes}
+            beta={beta}
+            maxClassificacao={maxClassificacao}
+            totalClass={totalGraficos}
+            rowsPagante={rowsPagante}
+            rowsBeta={rowsBeta}
+            statusByClass={statusByClass}
+            onOpenLista={(titulo, listaRows) => setListaModal({ titulo, rows: listaRows })}
+          />
+        </>
+      )}
+
+      <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
+        <div className="rounded-xl border p-4" style={chartCardStyle}>
+          <p className="text-[13px] font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+            Franquias por cidade de atuação
+          </p>
+          <p className="mb-2 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Área de atuação (UF – Cidade).
+          </p>
+          <RedeFiltroUfSelect
+            id="rede-filtro-uf-cidade"
+            value={filtroEstadoCidadeAtuacao}
+            ufs={estadoAtuacaoArr.map(([uf]) => uf)}
+            onChange={setFiltroEstadoCidadeAtuacao}
+          />
+          <div className="list-none mt-3 max-h-64 space-y-2 overflow-y-auto">
             {cidadeAtuacaoArr.length === 0 ? (
-              <p className="text-xs text-stone-500">
+              <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
                 {filtroEstadoCidadeAtuacao ? `Nenhuma cidade no estado ${filtroEstadoCidadeAtuacao}.` : 'Nenhum dado de área de atuação.'}
               </p>
             ) : (
-              cidadeAtuacaoArr.slice(0, 20).map(([k, v]) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setListaModal({ titulo: `Cidade de atuação: ${k} (${v})`, rows: rowsPorCidadeAtuacao.get(k) ?? [] })}
-                  className="flex w-full items-center gap-3 rounded py-1 text-left hover:bg-green-100/50 focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2"
-                >
-                  <div className="min-w-0 flex-1 truncate text-left text-xs text-stone-600" title={k}>{k}</div>
-                  <div className="h-4 w-40 shrink-0 rounded bg-green-200">
-                    <div className="h-4 rounded bg-yellow-700" style={{ width: barWidth(v, maxCidadeAtuacao) }} />
-                  </div>
-                  <div className="w-8 shrink-0 text-right text-xs font-medium text-stone-600">{v}</div>
-                </button>
+              cidadeAtuacaoArr.slice(0, 20).map(([label, count]) => (
+                <RedeCidadeBarRow
+                  key={label}
+                  label={label}
+                  count={count}
+                  maxCount={maxCidadeAtuacao}
+                  onClick={
+                    modoAggregado
+                      ? undefined
+                      : () =>
+                          setListaModal({
+                            titulo: `Cidade de atuação: ${label} (${count})`,
+                            rows: dedupeRowsById(rowsPorCidadeAtuacao.get(label) ?? []),
+                          })
+                  }
+                />
               ))
             )}
           </div>
         </div>
-        <MapBrazilCidadesAtuacao rows={filteredRows} filtroEstado={filtroEstadoCidadeAtuacao} />
+        <MapBrazilCidadesAtuacao
+          rows={linhasGraficos}
+          filtroEstado={filtroEstadoCidadeAtuacao}
+          onUfClick={
+            modoAggregado
+              ? undefined
+              : (uf, list) =>
+                  setListaModal({
+                    titulo: `${uf} — área de atuação (${list.length})`,
+                    rows: dedupeRowsById(list),
+                  })
+          }
+        />
       </div>
 
-      <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-stone-900">
-        <p className="text-sm font-semibold text-stone-900">Crescimento mensal — novas franquias assinadas</p>
-        <p className="mt-1 text-xs text-stone-600">Contratos assinados por mês (Data de Ass. Contrato). Clique na barra para ver a lista.</p>
-        <div className="mt-4 flex items-end gap-2 overflow-x-auto pb-2">
-          {mesArr.length === 0 ? (
-            <p className="text-sm text-stone-600">Sem datas de contrato suficientes.</p>
-          ) : (
-            mesArr.map(([k, v]) => {
-              const list = rowsPorMes.get(k) ?? [];
-              const h = Math.max(8, Math.round((v / (maxMes || 1)) * 120));
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setListaModal({ titulo: `${monthLabel(k)} — ${v} franquia(s)`, rows: list })}
-                  className="flex w-12 shrink-0 flex-col items-center gap-1 rounded transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-moni-primary"
-                >
-                  <span className="text-xs font-medium text-stone-700">{v}</span>
-                  <div className="w-full rounded bg-green-200">
-                    <div className="w-full rounded bg-green-600" style={{ height: `${h}px` }} />
-                  </div>
-                  <div className="text-[10px] text-stone-600">{monthLabel(k)}</div>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
+      {!modoAggregado ? (
+        <RedeCrescimentoMensalChart
+          months={mesStatsExibicao}
+          filtroAno={filtroAno}
+          onFiltroAno={setFiltroAno}
+          onOpenLista={(titulo, listaRows) => setListaModal({ titulo, rows: listaRows })}
+        />
+      ) : null}
 
-      {listaModal && (
+      {!modoAggregado && listaModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           role="dialog"
           aria-modal="true"
           onClick={() => setListaModal(null)}
         >
-          <div className="max-h-[80vh] w-full max-w-lg overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3">
-              <h3 className="font-semibold text-stone-900">{listaModal.titulo}</h3>
+          <div
+            className="max-h-[80vh] w-full max-w-lg overflow-hidden rounded-xl border bg-[var(--moni-surface-0)] shadow-xl"
+            style={{ borderColor: 'var(--moni-border-default)', boxShadow: 'var(--moni-shadow-lg)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between border-b px-4 py-3"
+              style={{ borderColor: 'var(--moni-border-subtle)' }}
+            >
+              <h3 className="font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+                {listaModal.titulo}
+              </h3>
               <button
                 type="button"
                 onClick={() => setListaModal(null)}
-                className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-50"
+                className="rounded-lg border px-3 py-1.5 text-sm hover:bg-[var(--moni-surface-100)]"
+                style={{
+                  borderColor: 'var(--moni-border-default)',
+                  color: 'var(--moni-text-secondary)',
+                }}
               >
                 Fechar
               </button>
             </div>
             <div className="max-h-[60vh] overflow-y-auto p-4">
               {listaModal.rows.length === 0 ? (
-                <p className="text-sm text-stone-500">Nenhum franqueado nesta seleção.</p>
+                <p className="text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
+                  Nenhum franqueado nesta seleção.
+                </p>
               ) : (
                 <ul className="space-y-2">
                   {listaModal.rows.map((row) => (
-                    <li key={row.id} className="flex items-center justify-between rounded-lg border border-stone-100 bg-stone-50/50 px-3 py-2 text-sm">
-                      <span className="font-medium text-stone-800">{norm(row.n_franquia) || '—'}</span>
-                      <span className="text-stone-600">{norm(row.nome_completo) || '—'}</span>
+                    <li
+                      key={row.id}
+                      className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm"
+                      style={{
+                        borderColor: 'var(--moni-border-subtle)',
+                        backgroundColor: 'var(--moni-surface-50)',
+                      }}
+                    >
+                      <span className="font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                        {norm(row.n_franquia) || '—'}
+                      </span>
+                      <span style={{ color: 'var(--moni-text-secondary)' }}>{norm(row.nome_completo) || '—'}</span>
                     </li>
                   ))}
                 </ul>

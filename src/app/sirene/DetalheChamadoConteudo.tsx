@@ -1,9 +1,15 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Trash2 } from 'lucide-react';
+import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentEditable';
 import { ModalRedirecionarHDM } from './ModalRedirecionarHDM';
 import type { Chamado } from '@/types/sirene';
 import type { SireneUserContext } from '@/lib/sirene';
+import { ConclusaoChamadoCriadorModal } from '@/components/sirene/ConclusaoChamadoCriadorModal';
+import { todosTopicosFechados } from '@/lib/sirene/chamado-regras';
 import {
   definirPrioridade,
   fecharChamado,
@@ -21,9 +27,13 @@ import {
   listMensagensChamado,
   getParticipantesChamado,
   enviarMensagemChamado,
+  editarChamado,
+  deletarChamado,
   type TopicoInput,
   type AnexoOrigem,
 } from './actions';
+import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
+import { formatarStatus } from '@/lib/sirene';
 
 type Props = {
   chamado: Chamado;
@@ -33,6 +43,11 @@ type Props = {
   mostrarControlesBombeiro: boolean;
   mostrarRedirecionarHDM: boolean;
   isCriador?: boolean;
+  isFrank?: boolean;
+  podeEditarResumoChamado?: boolean;
+  isBombeiroReal?: boolean;
+  isHdmTeam?: boolean;
+  podeExcluirChamado?: boolean;
 };
 
 type TopicoSalvo = {
@@ -40,6 +55,9 @@ type TopicoSalvo = {
   ordem: number;
   descricao: string;
   time_responsavel: string;
+  tipo?: string;
+  times_ids?: string[];
+  responsaveis_ids?: string[];
   status: string;
   resolucao_time: string | null;
   motivo_reprovacao: string | null;
@@ -90,9 +108,7 @@ function AnexoUploadInline({
       onError('Selecione o tipo e um arquivo.');
       return;
     }
-    const file = fileRef.current.files[0];
-    const formData = new FormData();
-    formData.set('file', file);
+    const files = Array.from(fileRef.current.files);
     let origem: AnexoOrigem;
     let topicoId: number | undefined;
     if (opcao.tipo === 'criador') origem = 'criador';
@@ -103,14 +119,20 @@ function AnexoUploadInline({
     }
     setPending(true);
     onError('');
-    const result = await uploadAnexoChamado(chamadoId, origem, formData, topicoId);
-    setPending(false);
-    if (!result.ok) onError(result.error);
-    else {
-      onSuccess();
-      fileRef.current.value = '';
-      setOpcao(null);
+    for (const file of files) {
+      const formData = new FormData();
+      formData.set('file', file);
+      const result = await uploadAnexoChamado(chamadoId, origem, formData, topicoId);
+      if (!result.ok) {
+        onError(result.error);
+        setPending(false);
+        return;
+      }
     }
+    setPending(false);
+    onSuccess();
+    if (fileRef.current) fileRef.current.value = '';
+    setOpcao(null);
   };
 
   return (
@@ -145,6 +167,7 @@ function AnexoUploadInline({
       <input
         ref={fileRef}
         type="file"
+        multiple
         className="rounded border border-stone-600 bg-stone-800 text-sm text-stone-200 file:mr-2 file:rounded file:border-0 file:bg-stone-600 file:px-2 file:py-1 file:text-stone-200"
       />
       <button
@@ -167,13 +190,24 @@ export function DetalheChamadoConteudo({
   mostrarControlesBombeiro,
   mostrarRedirecionarHDM,
   isCriador = false,
+  isFrank = false,
+  podeEditarResumoChamado = false,
+  isBombeiroReal = false,
+  isHdmTeam = false,
+  podeExcluirChamado = false,
 }: Props) {
+  const router = useRouter();
+  const [resumo, setResumo] = useState({ incendio: chamado.incendio, tema: chamado.tema });
+  const [editandoResumo, setEditandoResumo] = useState(false);
+  const [draftIncendio, setDraftIncendio] = useState('');
+  const [draftTema, setDraftTema] = useState('');
+  const [salvandoResumo, setSalvandoResumo] = useState(false);
   const [modalRedirecionar, setModalRedirecionar] = useState(false);
   const [topicosList, setTopicosList] = useState<TopicoSalvo[]>([]);
   const [resolucaoPorTopico, setResolucaoPorTopico] = useState<Record<number, string>>({});
   const [reprovarTopicoId, setReprovarTopicoId] = useState<number | null>(null);
   const [motivoReprovar, setMotivoReprovar] = useState('');
-  const [motivoInsuficiente, setMotivoInsuficiente] = useState('');
+  const [modalConclusaoAberto, setModalConclusaoAberto] = useState(false);
   const [anexosList, setAnexosList] = useState<Array<{
     id: number;
     topico_id: number | null;
@@ -199,6 +233,7 @@ export function DetalheChamadoConteudo({
     created_at: string;
   }>>([]);
   const [novoComentario, setNovoComentario] = useState('');
+  const comentarioEditorRef = useRef<HTMLDivElement>(null);
   const [participantes, setParticipantes] = useState<Array<{ id: string; nome: string }>>([]);
   const [comentarioPending, setComentarioPending] = useState(false);
 
@@ -214,13 +249,22 @@ export function DetalheChamadoConteudo({
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [dialogExcluirAberto, setDialogExcluirAberto] = useState(false);
+  const [excluindoChamado, setExcluindoChamado] = useState(false);
+  const [topicosListCarregado, setTopicosListCarregado] = useState(false);
+  const topicosInitRef = useRef<number | null>(null);
 
-  useEffect(() => {
+  const carregarTopicosChamado = useCallback(async () => {
     if (!chamado.id) return;
-    getTopicosChamado(chamado.id).then((r) => {
-      if (r.ok) setTopicosList(r.topicos);
-    });
+    const r = await getTopicosChamado(chamado.id);
+    if (r.ok) {
+      setTopicosList(r.topicos);
+      setTopicosListCarregado(true);
+    }
   }, [chamado.id]);
+  useEffect(() => {
+    void carregarTopicosChamado();
+  }, [carregarTopicosChamado]);
 
   const carregarAnexos = useCallback(() => {
     if (!chamado.id) return;
@@ -232,55 +276,68 @@ export function DetalheChamadoConteudo({
     carregarAnexos();
   }, [carregarAnexos]);
 
-  const carregarPericia = useCallback(() => {
-    getPericiaDoChamado(chamado.id).then((r) => r.ok && setPericiaChamado(r.pericia));
-  }, [chamado.id]);
   const carregarMensagens = useCallback(() => {
     listMensagensChamado(chamado.id).then((r) => r.ok && setMensagensList(r.mensagens));
   }, [chamado.id]);
-  const carregarParticipantes = useCallback(() => {
-    getParticipantesChamado(chamado.id).then((r) => r.ok && setParticipantes(r.participantes));
-  }, [chamado.id]);
   useEffect(() => {
-    carregarPericia();
-    carregarMensagens();
-    carregarParticipantes();
-  }, [carregarPericia, carregarMensagens, carregarParticipantes]);
+    if (!chamado.id) return;
+    void Promise.all([
+      getPericiaDoChamado(chamado.id),
+      listMensagensChamado(chamado.id),
+      getParticipantesChamado(chamado.id),
+    ]).then(([per, msgs, part]) => {
+      if (per.ok) setPericiaChamado(per.pericia);
+      if (msgs.ok) setMensagensList(msgs.mensagens);
+      if (part.ok) setParticipantes(part.participantes);
+    });
+  }, [chamado.id]);
 
   const handleEnviarComentario = () => {
-    if (!novoComentario.trim()) return;
+    const html = (comentarioEditorRef.current?.innerHTML ?? novoComentario).trim();
+    if (!html) return;
     setComentarioPending(true);
-    enviarMensagemChamado(chamado.id, novoComentario).then((r) => {
+    enviarMensagemChamado(chamado.id, html).then((r) => {
       setComentarioPending(false);
       if (r.ok) {
         setNovoComentario('');
+        if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
         carregarMensagens();
       } else setErro(r.error);
     });
   };
 
   useEffect(() => {
+    setResumo({ incendio: chamado.incendio, tema: chamado.tema });
+  }, [chamado.id, chamado.incendio, chamado.tema]);
+
+  useEffect(() => {
     if (!mostrarControlesBombeiro || !chamado.id) return;
     getTimesParaTopicos().then((r) => {
       if (r.ok) setTimes(r.times);
     });
-    getTopicosChamado(chamado.id).then((r) => {
-      if (r.ok && r.topicos.length > 0)
-        setTopicos(
-          r.topicos.map((t) => ({
-            descricao: t.descricao,
-            time_responsavel: t.time_responsavel,
-            data_inicio: t.data_inicio ?? '',
-            data_fim: t.data_fim ?? '',
-            trava: t.trava,
-          })),
-        );
-      else setTopicos([{ descricao: '', time_responsavel: '', data_inicio: '', data_fim: '', trava: false }]);
-    });
   }, [mostrarControlesBombeiro, chamado.id]);
 
+  useEffect(() => {
+    if (!mostrarControlesBombeiro || !chamado.id) return;
+    if (!topicosListCarregado) return;
+    if (topicosInitRef.current === chamado.id) return;
+    topicosInitRef.current = chamado.id;
+    if (topicosList.length > 0) {
+      setTopicos(
+        topicosList.map((t) => ({
+          descricao: t.descricao,
+          time_responsavel: t.time_responsavel,
+          data_inicio: t.data_inicio ?? '',
+          data_fim: t.data_fim ?? '',
+        })),
+      );
+    } else {
+      setTopicos([{ descricao: '', time_responsavel: '', data_inicio: '', data_fim: '' }]);
+    }
+  }, [mostrarControlesBombeiro, chamado.id, topicosListCarregado, topicosList]);
+
   const adicionarTopico = () => {
-    setTopicos((prev) => [...prev, { descricao: '', time_responsavel: times[0] ?? '', data_inicio: '', data_fim: '', trava: false }]);
+    setTopicos((prev) => [...prev, { descricao: '', time_responsavel: times[0] ?? '', data_inicio: '', data_fim: '' }]);
   };
 
   const atualizarTopico = (idx: number, campo: keyof TopicoInput, valor: string | boolean) => {
@@ -336,28 +393,25 @@ export function DetalheChamadoConteudo({
       if (!result.ok && 'error' in result) {
         setErro(result.error);
       } else {
-        setMensagem('Fechamento enviado ao criador. Aguardando aprovação.');
+        setMensagem('Parecer, tema e mapeamento salvos.');
         window.location.reload();
       }
     });
   };
 
-  const handleConcluirChamadoCriador = (suficiente: boolean) => {
+  const handleConfirmarConclusaoCriador = (payload: { suficiente: boolean; texto: string }) => {
     setMensagem(null);
     setErro(null);
-    if (!suficiente && !motivoInsuficiente.trim()) {
-      setErro('Informe o motivo da insuficiência para reabrir o chamado.');
-      return;
-    }
     startTransition(async () => {
-      const result = await concluirChamadoCriador(
-        chamado.id,
-        suficiente,
-        suficiente ? undefined : motivoInsuficiente.trim(),
-      );
+      const result = await concluirChamadoCriador(chamado.id, payload.suficiente, payload.texto);
       if (!result.ok && 'error' in result) setErro(result.error);
       else {
-        setMensagem(suficiente ? 'Chamado concluído.' : 'Chamado reaberto. O processo com Bombeiro e times segue.');
+        setModalConclusaoAberto(false);
+        setMensagem(
+          payload.suficiente
+            ? 'Chamado concluído.'
+            : 'Chamado reaberto. Você pode abrir novas atividades.',
+        );
         window.location.reload();
       }
     });
@@ -366,6 +420,13 @@ export function DetalheChamadoConteudo({
   const podeConcluirTopico = (timeResponsavel: string) =>
     userContext.papel === 'bombeiro' || userContext.time === timeResponsavel;
   const isBombeiro = userContext.papel === 'bombeiro';
+
+  const mostrarBlocoAvaliacaoCriador =
+    isCriador &&
+    chamado.status !== 'concluido' &&
+    (chamado.status === 'em_andamento' ||
+      chamado.status === 'aguardando_aprovacao_criador') &&
+    todosTopicosFechados(topicosList);
 
   const handleConcluirTopico = (topicoId: number) => {
     const texto = resolucaoPorTopico[topicoId] ?? '';
@@ -376,7 +437,7 @@ export function DetalheChamadoConteudo({
       if (!result.ok && 'error' in result) setErro(result.error);
       else {
         setMensagem('Tópico concluído.');
-        getTopicosChamado(chamado.id).then((r) => r.ok && setTopicosList(r.topicos));
+        void carregarTopicosChamado();
       }
     });
   };
@@ -389,7 +450,7 @@ export function DetalheChamadoConteudo({
       if (!result.ok && 'error' in result) setErro(result.error);
       else {
         setMensagem('Tópico aprovado.');
-        getTopicosChamado(chamado.id).then((r) => r.ok && setTopicosList(r.topicos));
+        void carregarTopicosChamado();
       }
     });
   };
@@ -404,7 +465,33 @@ export function DetalheChamadoConteudo({
         setMensagem('Tópico reprovado.');
         setReprovarTopicoId(null);
         setMotivoReprovar('');
-        getTopicosChamado(chamado.id).then((r) => r.ok && setTopicosList(r.topicos));
+        void carregarTopicosChamado();
+      }
+    });
+  };
+
+  const abrirEdicaoResumo = () => {
+    setDraftIncendio(resumo.incendio);
+    setDraftTema(resumo.tema ?? '');
+    setEditandoResumo(true);
+    setErro(null);
+  };
+  const cancelarEdicaoResumo = () => {
+    setEditandoResumo(false);
+  };
+  const salvarEdicaoResumo = () => {
+    setSalvandoResumo(true);
+    setErro(null);
+    void editarChamado(chamado.id, draftIncendio, draftTema.trim() || null).then((r) => {
+      setSalvandoResumo(false);
+      if (!r.ok) setErro(r.error);
+      else {
+        setResumo({
+          incendio: draftIncendio.trim(),
+          tema: draftTema.trim() || null,
+        });
+        setFechamentoTema(draftTema.trim());
+        setEditandoResumo(false);
       }
     });
   };
@@ -418,6 +505,126 @@ export function DetalheChamadoConteudo({
 
   return (
     <>
+      <div className="rounded-xl border border-stone-700 bg-stone-800/80 p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            {editandoResumo ? (
+              <div className="space-y-2">
+                <p className="text-xs text-stone-500">Chamado #{chamado.numero}</p>
+                <div>
+                  <label className="mb-0.5 block text-[10px] font-medium text-stone-500">Resumo (incêndio)</label>
+                  <input
+                    value={draftIncendio}
+                    onChange={(e) => setDraftIncendio(e.target.value)}
+                    className="w-full rounded-md border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                  />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[10px] font-medium text-stone-500">Tema (título)</label>
+                  <input
+                    value={draftTema}
+                    onChange={(e) => setDraftTema(e.target.value)}
+                    placeholder="Opcional"
+                    className="w-full rounded-md border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={salvarEdicaoResumo}
+                    disabled={salvandoResumo}
+                    className="rounded-md bg-stone-600 px-3 py-1.5 text-xs text-stone-200 disabled:opacity-50"
+                  >
+                    {salvandoResumo ? 'Salvando…' : 'Salvar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelarEdicaoResumo}
+                    disabled={salvandoResumo}
+                    className="rounded-md border border-stone-600 px-3 py-1.5 text-xs text-stone-300"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-start gap-2">
+                  <h1 className="min-w-0 break-words text-xl font-bold text-white">
+                    #{chamado.numero} — {resumo.incendio}
+                  </h1>
+                  {podeEditarResumoChamado && (
+                    <button
+                      type="button"
+                      onClick={abrirEdicaoResumo}
+                      className="shrink-0 text-xs text-stone-400 underline decoration-stone-500 hover:text-stone-200"
+                    >
+                      Editar
+                    </button>
+                  )}
+                </div>
+                {chamado.card_id &&
+                (chamado.card_titulo || chamado.card_kanban_nome) &&
+                chamado.card_kanban_nome ? (
+                  <p className="mt-1">
+                    <Link
+                      href={hrefAbrirCardKanban(chamado.card_kanban_nome, chamado.card_id)}
+                      className="text-xs text-stone-400 underline decoration-stone-600 hover:text-stone-200"
+                    >
+                      Card: {chamado.card_titulo ?? '—'} — {chamado.card_kanban_nome}
+                    </Link>
+                  </p>
+                ) : null}
+                {resumo.tema ? (
+                  <p className="mt-1 text-sm text-stone-300">
+                    <span className="text-stone-500">Tema: </span>
+                    {resumo.tema}
+                  </p>
+                ) : null}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="rounded bg-stone-600 px-2 py-0.5 text-sm text-stone-200">
+                    {formatarStatus(chamado.status)}
+                  </span>
+                  <span className="text-sm text-stone-400">{chamado.prioridade}</span>
+                  {chamado.tipo === 'hdm' && chamado.hdm_responsavel && (
+                    <span className="rounded bg-[#1e3a5f] px-2 py-0.5 text-sm font-medium text-white">
+                      HDM — {chamado.hdm_responsavel}
+                    </span>
+                  )}
+                  {chamado.trava && (
+                    <span className="rounded bg-amber-500/20 px-2 py-0.5 text-sm text-amber-400">Trava</span>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+          {podeExcluirChamado ? (
+            <div className="shrink-0 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setDialogExcluirAberto(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-800/60 bg-red-950/40 px-2.5 py-1.5 text-xs font-medium text-red-200 hover:bg-red-950/70"
+                title="Excluir chamado"
+              >
+                <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+                Excluir
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {chamado.tipo === 'hdm' && isBombeiroReal && !isHdmTeam && (
+        <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          Este chamado está sendo atendido por <strong>{chamado.hdm_responsavel}</strong>.
+        </div>
+      )}
+      {chamado.tipo === 'hdm' && isHdmTeam && (
+        <div className="mt-4 rounded-lg border border-[#1e3a5f]/50 bg-[#1e3a5f]/20 px-4 py-3 text-sm text-blue-200">
+          Você está atuando como responsável HDM neste chamado.
+        </div>
+      )}
+
       <div className="mt-8 space-y-6">
         {mostrarRedirecionarHDM && (
           <section className="rounded-xl border border-stone-700 bg-stone-800/80 p-4">
@@ -490,7 +697,7 @@ export function DetalheChamadoConteudo({
                       <button
                         type="button"
                         onClick={() => handleConcluirTopico(t.id)}
-                        disabled={isPending}
+                        disabled={isPending || !(resolucaoPorTopico[t.id] ?? '').trim()}
                         className="mt-2 rounded-md bg-emerald-500 px-3 py-1.5 text-xs font-medium text-stone-900 hover:bg-emerald-400 disabled:opacity-60"
                       >
                         {isPending ? 'Salvando…' : 'Concluir tópico'}
@@ -704,17 +911,7 @@ export function DetalheChamadoConteudo({
                           disabled={isPending}
                         />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <label className="flex items-center gap-1.5 text-xs text-stone-400">
-                          <input
-                            type="checkbox"
-                            checked={t.trava ?? false}
-                            onChange={(e) => atualizarTopico(idx, 'trava', e.target.checked)}
-                            className="rounded border-stone-500"
-                            disabled={isPending}
-                          />
-                          Trava
-                        </label>
+                      <div className="flex items-center justify-end">
                         <button
                           type="button"
                           onClick={() => removerTopico(idx)}
@@ -740,63 +937,30 @@ export function DetalheChamadoConteudo({
           </section>
         )}
 
-        {chamado.status === 'aguardando_aprovacao_criador' && isCriador && (
+        {mostrarBlocoAvaliacaoCriador && (
           <section className="rounded-xl border-2 border-amber-500/50 bg-amber-500/10 p-4">
-            <h2 className="text-sm font-semibold text-amber-200">
-              Sua avaliação — O Bombeiro enviou o fechamento
-            </h2>
+            <h2 className="text-sm font-semibold text-amber-200">Concluir chamado (criador)</h2>
             <p className="mt-1 text-sm text-stone-300">
-              Revise as resoluções dos tópicos acima, o parecer, tema e mapeamento abaixo. A resolução
-              foi suficiente?
+              Todas as atividades estão encerradas. Você pode concluir o chamado ou indicar que a
+              resolução não foi suficiente e abrir novas atividades.
             </p>
-            {chamado.parecer_final && (
-              <div className="mt-3 rounded bg-stone-800/80 p-2 text-sm text-stone-200">
-                <strong>Parecer do Bombeiro:</strong> {chamado.parecer_final}
-              </div>
-            )}
-            {chamado.tema && (
-              <p className="mt-1 text-sm text-stone-300">
-                <strong>Tema:</strong> {chamado.tema}
-              </p>
-            )}
-            {chamado.mapeamento_pericia && (
-              <p className="mt-1 text-sm text-stone-300">
-                <strong>Mapeamento de perícia:</strong> {chamado.mapeamento_pericia}
-              </p>
-            )}
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => handleConcluirChamadoCriador(true)}
-                disabled={isPending}
-                className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-stone-900 hover:bg-emerald-400 disabled:opacity-60"
-              >
-                {isPending ? 'Salvando…' : 'Sim, aprovar e concluir chamado'}
-              </button>
-              <div className="flex flex-wrap items-end gap-2">
-                <div>
-                  <label className="block text-xs text-stone-400">Não foi suficiente — informe o motivo:</label>
-                  <textarea
-                    value={motivoInsuficiente}
-                    onChange={(e) => setMotivoInsuficiente(e.target.value)}
-                    placeholder="Por que a resolução não foi suficiente?"
-                    rows={2}
-                    className="mt-1 w-80 rounded-md border border-stone-600 bg-stone-800 px-2 py-1.5 text-sm text-stone-100"
-                    disabled={isPending}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleConcluirChamadoCriador(false)}
-                  disabled={isPending || !motivoInsuficiente.trim()}
-                  className="rounded-md border border-red-500/50 bg-red-500/20 px-4 py-2 text-sm font-medium text-red-200 hover:bg-red-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isPending ? 'Enviando…' : 'Não, reabrir chamado'}
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setModalConclusaoAberto(true)}
+              disabled={isPending}
+              className="mt-4 rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-stone-900 hover:bg-emerald-400 disabled:opacity-60"
+            >
+              Concluir ou reabrir chamado…
+            </button>
           </section>
         )}
+
+        <ConclusaoChamadoCriadorModal
+          open={modalConclusaoAberto}
+          onClose={() => setModalConclusaoAberto(false)}
+          onConfirm={handleConfirmarConclusaoCriador}
+          pending={isPending}
+        />
 
         <section className="rounded-xl border border-stone-700 bg-stone-800/80 p-4">
           <h2 className="text-sm font-semibold text-stone-200">
@@ -804,15 +968,9 @@ export function DetalheChamadoConteudo({
           </h2>
           {podePreencherTemaMapeamento ? (
             <>
-              {topicosList.length > 0 && topicosList.every((t) => t.status === 'aprovado') && (
-                <div className="mt-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                  Todos os tópicos foram aprovados. Preencha o parecer, tema e mapeamento abaixo e
-                  clique em &quot;Salvar fechamento&quot; para enviar ao criador do chamado.
-                </div>
-              )}
               <p className="mt-2 text-sm text-stone-300">
-                Preenchimento exclusivo do Bombeiro. Use estes campos quando o chamado já passou por
-                todos os times e você for registrar o parecer final.
+                Preenchimento exclusivo do Bombeiro (opcional para o criador concluir o chamado).
+                Registre parecer, tema e mapeamento quando fizer sentido.
               </p>
 
               <div className="mt-4 space-y-3 text-sm">
@@ -864,7 +1022,7 @@ export function DetalheChamadoConteudo({
                   disabled={isPending}
                   className="mt-1 rounded-md bg-emerald-500 px-4 py-2 text-xs font-semibold text-stone-900 hover:bg-emerald-400 disabled:opacity-60"
                 >
-                  {isPending ? 'Salvando…' : 'Salvar fechamento'}
+                  {isPending ? 'Salvando…' : 'Salvar parecer e mapeamento'}
                 </button>
               </div>
             </>
@@ -880,9 +1038,9 @@ export function DetalheChamadoConteudo({
               <strong>Parecer salvo:</strong> {chamado.parecer_final}
             </div>
           )}
-          {chamado.tema && (
+          {resumo.tema && (
             <p className="mt-1 text-sm text-stone-300">
-              <strong>Tema salvo:</strong> {chamado.tema}
+              <strong>Tema salvo:</strong> {resumo.tema}
             </p>
           )}
           {chamado.mapeamento_pericia && (
@@ -955,29 +1113,34 @@ export function DetalheChamadoConteudo({
               ))
             )}
           </ul>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <textarea
-              value={novoComentario}
-              onChange={(e) => setNovoComentario(e.target.value)}
-              placeholder="Escreva um comentário… Use @nome para mencionar."
-              rows={2}
-              className="min-w-[200px] flex-1 rounded-md border border-stone-600 bg-stone-800 px-2 py-1.5 text-sm text-stone-100"
-              disabled={comentarioPending}
-            />
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="overflow-visible rounded-md border border-stone-600 bg-stone-800">
+              <MencaoContentEditable
+                editorRef={comentarioEditorRef}
+                onInput={(html) => setNovoComentario(html)}
+                className="min-h-[64px] w-full px-2 py-1.5 text-sm text-stone-100 focus:outline-none empty:before:text-stone-500 empty:before:content-[attr(data-placeholder)]"
+                placeholder={
+                  isFrank
+                    ? 'Escreva um comentário…'
+                    : 'Escreva um comentário… Use @ para mencionar alguém'
+                }
+                disabled={comentarioPending}
+              />
+            </div>
             <button
               type="button"
               onClick={handleEnviarComentario}
               disabled={comentarioPending || !novoComentario.trim()}
-              className="rounded-md bg-stone-600 px-4 py-2 text-sm font-medium text-stone-200 hover:bg-stone-500 disabled:opacity-50"
+              className="self-start rounded-md bg-stone-600 px-4 py-2 text-sm font-medium text-stone-200 hover:bg-stone-500 disabled:opacity-50"
             >
               {comentarioPending ? 'Enviando…' : 'Enviar'}
             </button>
           </div>
-          {participantes.length > 0 && (
+          {participantes.length > 0 && !isFrank ? (
             <p className="mt-1 text-xs text-stone-500">
-              Pode mencionar: {participantes.map((p) => p.nome).join(', ')}
+              Pode mencionar qualquer usuário com @ — sugestões vêm de todos os perfis da ferramenta.
             </p>
-          )}
+          ) : null}
         </section>
 
         {(mensagem || erro) && (
@@ -987,6 +1150,62 @@ export function DetalheChamadoConteudo({
           </div>
         )}
       </div>
+
+      {dialogExcluirAberto ? (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="titulo-excluir-chamado"
+            className="w-full max-w-md rounded-xl border border-stone-600 bg-stone-900 p-6 shadow-xl"
+          >
+            <h3 id="titulo-excluir-chamado" className="text-base font-semibold text-white">
+              Excluir chamado
+            </h3>
+            <p className="mt-3 text-sm text-stone-300">
+              Tem certeza que deseja excluir este chamado? Todas as subinterações e comentários serão removidos.
+              Esta ação não pode ser desfeita.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={excluindoChamado}
+                onClick={() => setDialogExcluirAberto(false)}
+                className="rounded-lg border border-stone-600 px-4 py-2 text-sm font-medium text-stone-200 hover:bg-stone-800 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={excluindoChamado}
+                onClick={() => {
+                  setExcluindoChamado(true);
+                  setErro(null);
+                  void deletarChamado({ modo: 'sirene', sireneChamadoId: chamado.id })
+                    .then((r) => {
+                      setExcluindoChamado(false);
+                      if (!r.ok) {
+                        console.error('[sirene] deletarChamado: falhou', r.error);
+                        setErro(r.error);
+                        return;
+                      }
+                      setDialogExcluirAberto(false);
+                      router.push('/sirene/chamados');
+                    })
+                    .catch((e) => {
+                      setExcluindoChamado(false);
+                      console.error('[sirene] deletarChamado: erro inesperado', e);
+                      setErro(String(e));
+                    });
+                }}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {excluindoChamado ? 'Excluindo…' : 'Excluir definitivamente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {modalRedirecionar && (
         <ModalRedirecionarHDM

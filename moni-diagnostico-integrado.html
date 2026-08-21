@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hub Fly — Rede de Franqueados</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#f5f3f0;display:flex;height:100vh;overflow:hidden;font-size:13px;color:#374151}
+
+/* ── SIDEBAR ── */
+.sidebar{width:192px;background:#0c2633;display:flex;flex-direction:column;height:100vh;flex-shrink:0}
+.sb-logo{padding:15px 16px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08)}
+.sb-logo-txt{color:#fff;font-size:17px;font-weight:700}
+.sb-bell{position:relative;cursor:pointer}
+.sb-bell svg{color:#94a3b8;width:18px;height:18px;display:block}
+.sb-badge{position:absolute;top:-4px;right:-4px;background:#f59e0b;color:#fff;font-size:9px;font-weight:700;border-radius:9px;padding:1px 4px}
+.sb-nav{padding:8px;flex:1;overflow-y:auto}
+.sb-item{display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:7px;cursor:pointer;color:#94a3b8;font-size:12.5px;font-weight:500;margin-bottom:1px}
+.sb-item.active{color:#fff;font-weight:600}
+.sb-item svg{width:15px;height:15px;flex-shrink:0;opacity:.55}
+.sb-item.active svg{opacity:1}
+.sb-sub{margin-left:8px;border-left:1px solid rgba(255,255,255,.1);padding-left:8px;margin-bottom:6px}
+.sb-sub-a{display:block;padding:4px 8px;border-radius:5px;cursor:pointer;color:#64748b;font-size:12px}
+.sb-sub-a.active{background:rgba(245,208,0,.12);color:#fcd34d}
+.sb-foot{padding:10px 8px;border-top:1px solid rgba(255,255,255,.08)}
+.sb-avatar{width:26px;height:26px;border-radius:50%;background:#2d5a3d;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+
+/* ── MAIN COLUMN ── */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.topbar{padding:9px 22px;display:flex;align-items:center;gap:5px;font-size:11.5px;color:#a8a29e;border-bottom:0.5px solid #e8e2da;flex-shrink:0;background:#f5f3f0}
+.topbar-cur{color:#0c2633;font-weight:500}
+
+/* scrollable page body */
+.page-body{flex:1;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
+.page-header{padding:22px 24px 0;flex-shrink:0}
+.page-title{font-size:25px;font-weight:600;color:#0c2633;letter-spacing:-.3px}
+
+/* ── TABS ── */
+.tabs-bar{flex-shrink:0;border-bottom:0.5px solid #e8e2da;background:#f5f3f0;padding:0 24px;position:sticky;top:0;z-index:30}
+.tabs-nav{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;white-space:nowrap}
+.tab-btn{position:relative;padding:11px 14px;font-size:12.5px;font-weight:500;color:#78716c;cursor:pointer;border:none;background:none;flex-shrink:0}
+.tab-btn.active{color:#0c2633;font-weight:600}
+.tab-btn.active::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2.5px;background:#2F4A3A;border-radius:1px 1px 0 0}
+
+/* ── CONTENT AREA ── */
+.content{padding:0 24px 40px;flex:1}
+
+/* ── SUMMARY ── */
+.sum-grid{display:grid;grid-template-columns:1fr 1fr 1fr 0.45fr 1fr;gap:8px;margin:14px 0 10px}
+.sum-card{background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:12px 14px;min-width:0}
+.sum-tag{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.sum-desc{font-size:10.5px;color:#9CA3AF;line-height:1.4;border-bottom:1px solid #F3F4F6;padding-bottom:7px;margin-bottom:6px}
+.sum-metric{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.sum-big{font-size:18px;font-weight:800;line-height:1}
+.sum-net{text-align:center;padding:4px 0}
+.sum-net-n{font-size:30px;font-weight:900;color:#0C2633;line-height:1}
+.sum-net-lnk{font-size:11px;color:#0369a1;cursor:pointer;text-decoration:underline;display:block;margin-top:2px}
+.al-row{display:flex;align-items:center;gap:5px;padding:2.5px 0;font-size:11.5px}
+.al-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* badge */
+.badge{display:inline-flex;align-items:center;border-radius:99px;padding:2px 7px;font-size:10px;font-weight:600;white-space:nowrap}
+.bg-green{background:#dcfce7;color:#15803d}.bg-lime{background:#ecfccb;color:#4d7c0f}
+.bg-amber{background:#fef3c7;color:#b45309}.bg-red{background:#fee2e2;color:#991b1b}
+.bg-blue{background:#dbeafe;color:#1d4ed8}.bg-gray{background:#F3F4F6;color:#6B7280}
+
+/* ── TOOLBAR ── */
+.toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:7px}
+.srch{position:relative;flex:0 0 210px}
+.srch input{width:100%;border:1.5px solid #E5E7EB;border-radius:7px;padding:5px 10px 5px 27px;font-size:12px;background:#fff;font-family:inherit;color:#374151}
+.srch input:focus{outline:none;border-color:#0C2633}
+.srch-ic{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:#9CA3AF;pointer-events:none}
+.chips{display:flex;gap:3px;flex-wrap:wrap}
+.chip{padding:2px 8px;border-radius:99px;border:1.5px solid #E5E7EB;background:#fff;cursor:pointer;font-size:11px;font-weight:600;color:#6B7280;line-height:1.5}
+.chip.p1.on{background:#7f1d1d;border-color:#7f1d1d;color:#fff} .chip.p1{color:#7f1d1d}
+.chip.p2.on{background:#dc2626;border-color:#dc2626;color:#fff} .chip.p2{color:#dc2626}
+.chip.p3.on{background:#c2410c;border-color:#c2410c;color:#fff} .chip.p3{color:#c2410c}
+.chip.p4.on{background:#b45309;border-color:#b45309;color:#fff} .chip.p4{color:#b45309}
+.chip.p5.on{background:#4d7c0f;border-color:#4d7c0f;color:#fff} .chip.p5{color:#4d7c0f}
+.chip.p6.on{background:#0369a1;border-color:#0369a1;color:#fff} .chip.p6{color:#0369a1}
+.chip.p7.on{background:#6d28d9;border-color:#6d28d9;color:#fff} .chip.p7{color:#6d28d9}
+.chip.pad.on{background:#6B7280;border-color:#6B7280;color:#fff}
+.chip.all.on{background:#0C2633;border-color:#0C2633;color:#fff}
+.ml-auto{margin-left:auto;display:flex;gap:5px}
+.btn{padding:5px 10px;border-radius:7px;border:1.5px solid #E5E7EB;background:#fff;cursor:pointer;font-size:11.5px;font-weight:600;color:#374151;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.btn-p{background:#0C2633;color:#fff;border-color:#0C2633}
+
+/* ── LEGEND ── */
+.legend{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:10.5px;color:#6B7280;margin-bottom:7px}
+.ld{width:8px;height:8px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:2px}
+
+/* ── TABLE CONTAINER ── */
+.tbl-wrap{border-radius:10px;border:1px solid #E5E7EB;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.05);overflow:auto;width:100%}
+
+/* ── TABLE ── */
+table{border-collapse:collapse;width:max-content;min-width:100%}
+
+/* sticky column freeze — widths must match exactly */
+:root{
+  --w0:88px; --w1:112px; --w2:200px; --w3:152px;
+  --l0:0px;
+  --l1:88px;
+  --l2:200px;
+  --l3:400px;
+}
+
+/* vertical sticky: entire thead */
+thead{position:sticky;top:0;z-index:40}
+
+/* horizontal freeze helper classes */
+.fc{position:sticky;z-index:6;background:#fff}
+.fc0{left:var(--l0);width:var(--w0);min-width:var(--w0);max-width:var(--w0)}
+.fc1{left:var(--l1);width:var(--w1);min-width:var(--w1);max-width:var(--w1)}
+.fc2{left:var(--l2);width:var(--w2);min-width:var(--w2);max-width:var(--w2)}
+.fc3{left:var(--l3);width:var(--w3);min-width:var(--w3);max-width:var(--w3);border-right:1px solid #D1D5DB;box-shadow:4px 0 8px -4px rgba(0,0,0,.1)}
+
+/* head cells */
+th{background:#F8FAFC;color:#6B7280;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;padding:7px 8px;white-space:nowrap;text-align:left;border-bottom:1px solid #E5E7EB;vertical-align:bottom}
+th.fc{background:#F8FAFC;z-index:42}
+/* column group colors */
+th.g-eng{background:#EFF6FF;color:#1d4ed8;border-top:2.5px solid #3b82f6}
+th.g-rel{background:#FFF1F2;color:#be123c;border-top:2.5px solid #f43f5e}
+th.g-ind{background:#F0FDF4;color:#15803d;border-top:2.5px solid #22c55e}
+th.g-gest{background:#FAFAF9;border-top:2.5px solid #6B7280}
+.th-sub{display:block;font-size:8.5px;font-weight:400;color:#C4C9D1;text-transform:none;letter-spacing:0;margin-top:1px}
+th.g-eng .th-sub{color:#93c5fd}
+th.g-rel .th-sub{color:#fda4af}
+th.g-ind .th-sub{color:#86efac}
+
+/* body cells */
+td{padding:8px 8px;border-bottom:1px solid #F3F4F6;vertical-align:middle;white-space:nowrap;font-size:12px;color:#374151}
+tr:hover td{background:#FAFBFC}
+td.fc{z-index:4}
+tr:hover td.fc{background:#FAFBFC}
+td.g-eng{background:rgba(239,246,255,.2)}
+td.g-rel{background:rgba(255,241,242,.2)}
+td.g-ind{background:rgba(240,253,244,.2)}
+td.g-gest{background:rgba(250,250,249,.4)}
+tr:hover td.g-eng{background:rgba(219,234,254,.25)}
+tr:hover td.g-rel{background:rgba(253,164,175,.15)}
+tr:hover td.g-ind{background:rgba(187,247,208,.2)}
+tr:hover td.g-gest{background:rgba(243,244,246,.5)}
+
+/* left border between groups */
+th.g-eng-first,td.g-eng-first{border-left:2px solid #bfdbfe}
+th.g-rel-first,td.g-rel-first{border-left:2px solid #fecdd3}
+th.g-ind-first,td.g-ind-first{border-left:2px solid #bbf7d0}
+th.g-gest-first,td.g-gest-first{border-left:1.5px solid #D1D5DB}
+
+/* dimmed rows */
+tr.row-nc td{opacity:.45}
+tr.row-ad td{opacity:.65}
+
+/* ops column */
+.th-ops{width:50px;min-width:50px;text-align:center;background:#F8FAFC}
+td.ops-td{text-align:center;padding:4px 2px}
+.ops-btn{border:none;background:none;cursor:pointer;border-radius:5px;padding:3px 5px;color:#94a3b8;font-size:12px;line-height:1}
+.ops-btn:hover{background:#F3F4F6;color:#374151}
+
+/* ── DIAGNOSTIC CELL PARTS ── */
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;vertical-align:middle;flex-shrink:0}
+.dot-3{background:#16a34a}.dot-2{background:#d97706}.dot-0{background:#dc2626}.dot-na{background:#D1D5DB}
+.val-r{display:flex;align-items:center;gap:4px;font-weight:600}
+.val-sub{font-size:9.5px;color:#9CA3AF;font-weight:400}
+.score-w{display:flex;flex-direction:column;gap:2px}
+.score-n{font-size:14px;font-weight:800;line-height:1}
+
+.pbadge{display:inline-block;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap}
+.pbadge-P1{background:#7f1d1d}.pbadge-P2{background:#dc2626}.pbadge-P3{background:#ea580c}
+.pbadge-P4{background:#d97706}.pbadge-P5{background:#65a30d}.pbadge-P6{background:#0284c7}
+.pbadge-P7{background:#7c3aed}.pbadge-AD{background:#6B7280}.pbadge-NC{background:#374151}
+
+.gbadge{display:inline-block;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;white-space:nowrap}
+.gbadge-GA1{background:#fee2e2;color:#991b1b}.gbadge-GA2{background:#fef3c7;color:#92400e}
+.gbadge-GA3{background:#fce7f3;color:#9d174d}.gbadge-GA4{background:#e0f2fe;color:#075985}
+.gbadge-GA5{background:#dcfce7;color:#15803d}.gbadge-GA6{background:#ede9fe;color:#5b21b6}
+.gbadge-GA7{background:#F3F4F6;color:#6B7280}
+
+.grupo-w{display:flex;flex-direction:column;gap:2px;min-width:130px}
+.grupo-lbl{font-size:9.5px;color:#374151;margin-top:1px}
+.grupo-sec{display:flex;align-items:center;gap:3px;padding-top:2px;border-top:1px solid #F3F4F6;margin-top:1px}
+.grupo-sec-lbl{font-size:9px;color:#9CA3AF}
+
+.pma{max-width:200px;white-space:normal;font-size:11px;line-height:1.35;color:#374151}
+
+.tend-w{display:flex;gap:5px}
+.tend-c{display:flex;flex-direction:column;align-items:center}
+.tend-a{font-size:13px;font-weight:800;line-height:1.1}
+.tend-l{font-size:7.5px;color:#9CA3AF;font-weight:500}
+.t-up{color:#16a34a}.t-mid{color:#D1D5DB}.t-dn{color:#dc2626}
+
+.stat-b{display:inline-flex;align-items:center;border-radius:5px;padding:2px 7px;font-size:10.5px;font-weight:500;white-space:nowrap}
+.sb-op{background:#dcfce7;color:#15803d}.sb-tr{background:#fef3c7;color:#b45309}.sb-en{background:#fee2e2;color:#991b1b}
+
+/* pagination */
+.pag{display:flex;align-items:center;justify-content:space-between;padding-top:10px;font-size:12px;color:#6B7280}
+.pag-btns{display:flex;gap:4px}
+</style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <span class="sb-logo-txt">Moní</span>
+    <div class="sb-bell">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span class="sb-badge">47</span>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Rede Casa Moní
+    </div>
+    <div class="sb-sub">
+      <span class="sb-sub-a active">Rede de Franqueados</span>
+    </div>
+    <div class="sb-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M8 2v20M2 12h20"/></svg>
+      Carômetro
+    </div>
+    <div class="sb-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Hub de Funis
+    </div>
+    <div class="sb-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.35 2 2 0 0 1 3.77 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.1a16 16 0 0 0 5.99 5.99l1.16-1.17a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 15.22z"/></svg>
+      Sirene
+    </div>
+    <div class="sb-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      Universidade
+    </div>
+  </nav>
+  <div class="sb-foot">
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 8px">
+      <div class="sb-avatar">IH</div>
+      <div>
+        <div style="font-size:11.5px;font-weight:500;color:#e2e8f0">Ingrid Hora</div>
+        <div style="font-size:10px;color:#64748b">Admin</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ── MAIN ── -->
+<div class="main">
+  <div class="topbar">
+    <span>← Hub Fly</span>
+    <span style="color:#d6d3d1">/</span>
+    <span class="topbar-cur">Rede de Franqueados</span>
+  </div>
+
+  <div class="page-body">
+    <div class="page-header">
+      <h1 class="page-title">Rede de Franqueados</h1>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs-bar">
+      <nav class="tabs-nav">
+        <button class="tab-btn" onclick="setTab('visao',this)">Visão geral</button>
+        <button class="tab-btn" onclick="setTab('pipeline',this)">Pipeline da rede</button>
+        <button class="tab-btn" onclick="setTab('analises',this)">Análises</button>
+        <button class="tab-btn active" onclick="setTab('franqueados',this)">Rede de Franqueados</button>
+        <button class="tab-btn" onclick="setTab('loteadores',this)">Rede de Loteadores</button>
+        <button class="tab-btn" onclick="setTab('empresas',this)">Cadastros de Empresas</button>
+        <button class="tab-btn" onclick="setTab('moni-capital',this)">Cadastros Moní Capital</button>
+        <button class="tab-btn" onclick="setTab('condominios',this)">Condomínios</button>
+      </nav>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- ── ABA FRANQUEADOS ── -->
+      <div id="tab-franqueados">
+
+        <!-- SUMMARY CARDS -->
+        <div class="sum-grid" id="sumGrid"></div>
+
+        <!-- TOOLBAR -->
+        <div class="toolbar">
+          <div class="srch">
+            <span class="srch-ic">🔍</span>
+            <input placeholder="Pesquisar em qualquer coluna…" oninput="doSearch(this.value)">
+          </div>
+          <div class="chips" id="chips">
+            <button class="chip all on" onclick="filterP('all')">Todos</button>
+            <button class="chip p1" onclick="filterP('P1')">P1</button>
+            <button class="chip p2" onclick="filterP('P2')">P2</button>
+            <button class="chip p3" onclick="filterP('P3')">P3</button>
+            <button class="chip p4" onclick="filterP('P4')">P4</button>
+            <button class="chip p5" onclick="filterP('P5')">P5</button>
+            <button class="chip p6" onclick="filterP('P6')">P6</button>
+            <button class="chip p7" onclick="filterP('P7')">P7</button>
+            <button class="chip pad" onclick="filterP('AD')">AD</button>
+          </div>
+          <div class="ml-auto">
+            <button class="btn" onclick="toggleView()">👁 <span id="viewLbl">Visão Interna</span></button>
+            <button class="btn">📥 Importar</button>
+            <button class="btn">📤 Exportar</button>
+            <button class="btn btn-p">+ Novo franqueado</button>
+          </div>
+        </div>
+
+        <!-- LEGEND -->
+        <div class="legend">
+          <strong style="color:#374151;font-size:10.5px">Diagnóstico:</strong>
+          <span><span class="ld" style="background:#16a34a"></span>3 Tem</span>
+          <span><span class="ld" style="background:#d97706"></span>2 Moderado</span>
+          <span><span class="ld" style="background:#dc2626"></span>0 Não tem</span>
+          <span><span class="ld" style="background:#D1D5DB"></span>— Não aferido</span>
+          <span style="color:#E5E7EB">|</span>
+          <span><strong id="lineCount">10</strong> franqueadas</span>
+        </div>
+
+        <!-- TABLE -->
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <!-- frozen cols (no top-border = cadastral style) -->
+                <th class="fc fc0">N° Franquia</th>
+                <th class="fc fc1">Modalidade</th>
+                <th class="fc fc2">Nome Completo</th>
+                <th class="fc fc3">Status da Franquia</th>
+                <!-- cadastral cont -->
+                <th>Classificação</th>
+                <th>Data Ass.<br>Contrato</th>
+                <th>Expiração<br>Franquia</th>
+                <th>Regional</th>
+                <th>Área de<br>Atuação</th>
+                <!-- ENGAJAMENTO -->
+                <th class="g-eng g-eng-first">Dinheiro<span class="th-sub">Consegue?</span></th>
+                <th class="g-eng">Comportamento<span class="th-sub">Faz?</span></th>
+                <th class="g-eng">Conhecimento<span class="th-sub">Sabe?</span></th>
+                <th class="g-eng">Score<span class="th-sub">%</span></th>
+                <!-- RELAÇÃO -->
+                <th class="g-rel g-rel-first">NPS<span class="th-sub">Recomenda?</span></th>
+                <th class="g-rel">CSAT<span class="th-sub">Satisfação</span></th>
+                <!-- INDICADOR -->
+                <th class="g-ind g-ind-first">Contratos 12m<span class="th-sub">Meta: 4/ano</span></th>
+                <!-- GESTÃO -->
+                <th class="g-gest g-gest-first">Perfil</th>
+                <th class="g-gest">Prior.</th>
+                <th class="g-gest">Grupo principal</th>
+                <th class="g-gest">Próxima melhor ação</th>
+                <th class="g-gest">Tendência</th>
+                <!-- ops -->
+                <th class="th-ops"></th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- PAGINATION -->
+        <div class="pag">
+          <span id="pagInfo">Mostrando 1–10 de 10 franqueados</span>
+          <div class="pag-btns">
+            <button class="btn" disabled>Anterior</button>
+            <button class="btn btn-p" style="min-width:34px">1</button>
+            <button class="btn" disabled>Próxima</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Other tabs -->
+      <div id="tab-visao"        style="display:none"><p style="color:#9CA3AF;padding:40px 0;text-align:center">Visão geral</p></div>
+      <div id="tab-pipeline"     style="display:none"><p style="color:#9CA3AF;padding:40px 0;text-align:center">Pipeline da rede</p></div>
+      <div id="tab-analises"     style="display:none"><p style="color:#9CA3AF;padding:40px 0;text-align:center">Análises</p></div>
+      <div id="tab-loteadores"   style="display:none"><p style="color:#9CA3AF;padding:40px 0;text-align:center">Rede de Loteadores</p></div>
+      <div id="tab-empresas"     style="display:none"><p style="color:#9CA3AF;padding:40px 0;text-align:center">Cadastros de Empresas</p></div>
+      <div id="tab-moni-capital" style="display:none"><p style="color:#9CA3AF;padding:40px 0;text-align:center">Cadastros Moní Capital</p></div>
+      <div id="tab-condominios"  style="display:none"><p style="color:#9CA3AF;padding:40px 0;text-align:center">Condomínios</p></div>
+
+    </div><!-- /content -->
+  </div><!-- /page-body -->
+</div><!-- /main -->
+
+<script>
+const DATA=[
+  {id:'FK0001',mod:'Plena',nome:'Rafael Moreira',status:'em-operacao',classif:'Pagante',contrato:'15/03/2022',expira:'15/03/2027',reg:'Sul',area:'Florianópolis – SC',adorm:false,adimplente:true,D:3,C:3,K:3,nps:9,csat:4.5,contratos12m:4,anoMeta:4,Ddesc:'Disponível',Cdesc:'Ativo',Kdesc:'Suficiente',proximaAcao:'Definir meta de novos projetos para Q4 e elevar pipeline.',lastEval:'10/08/26',evalBy:'Ingrid',tE:'→',tR:'↑',tI:'→',grupoSec:null},
+  {id:'FK0002',mod:'Plena',nome:'Beatriz Santos',status:'em-operacao',classif:'Pagante',contrato:'22/06/2021',expira:'22/06/2026',reg:'Sudeste',area:'São Paulo – SP',adorm:false,adimplente:true,D:2,C:0,K:2,nps:5,csat:2.1,contratos12m:0,anoMeta:4,Ddesc:'Parcial',Cdesc:'Sem exec.',Kdesc:'Intermediário',proximaAcao:'Agendar reunião de escuta executiva até 15/08.',lastEval:'08/08/26',evalBy:'Ingrid',tE:'↓',tR:'↓',tI:'↓',grupoSec:'GA3'},
+  {id:'FK0003',mod:'Associada',nome:'Carlos Mendes',status:'em-operacao',classif:'Beta',contrato:'10/09/2022',expira:'10/09/2027',reg:'Centro-Oeste',area:'Goiânia – GO',adorm:false,adimplente:false,D:0,C:2,K:3,nps:8,csat:4.0,contratos12m:1,anoMeta:4,Ddesc:'Sem capital',Cdesc:'Moderado',Kdesc:'Suficiente',proximaAcao:'Diagnóstico financeiro e mapear opções de funding.',lastEval:'02/08/26',evalBy:'Ingrid',tE:'→',tR:'↑',tI:'↓',grupoSec:null},
+  {id:'FK0004',mod:'Plena',nome:'Fernanda Lima',status:'em-operacao',classif:'Pagante',contrato:'05/01/2023',expira:'05/01/2028',reg:'Sul',area:'Porto Alegre – RS',adorm:false,adimplente:true,D:3,C:0,K:3,nps:7,csat:3.8,contratos12m:0,anoMeta:4,Ddesc:'Disponível',Cdesc:'Sem exec.',Kdesc:'Suficiente',proximaAcao:'Reunião de retomada: 3 entregáveis para 30 dias.',lastEval:'07/08/26',evalBy:'Ingrid',tE:'↓',tR:'→',tI:'→',grupoSec:null},
+  {id:'FK0005',mod:'Plena',nome:'Eduardo Costa',status:'em-operacao',classif:'Pagante',contrato:'14/04/2022',expira:'14/04/2027',reg:'Nordeste',area:'Recife – PE',adorm:false,adimplente:true,D:3,C:3,K:2,nps:4,csat:2.8,contratos12m:3,anoMeta:4,Ddesc:'Disponível',Cdesc:'Ativo',Kdesc:'Intermediário',proximaAcao:'Identificar causa da insatisfação jurídica e designar responsável.',lastEval:'06/08/26',evalBy:'Ingrid',tE:'→',tR:'↓',tI:'→',grupoSec:null},
+  {id:'FK0006',mod:'Associada',nome:'Mariana Oliveira',status:'em-operacao',classif:'Pagante',contrato:'20/08/2022',expira:'20/08/2027',reg:'Sudeste',area:'Belo Horizonte – MG',adorm:false,adimplente:true,D:3,C:3,K:0,nps:9,csat:4.3,contratos12m:2,anoMeta:4,Ddesc:'Disponível',Cdesc:'Ativo',Kdesc:'Insuficiente',proximaAcao:'Mapear gap de conhecimento e iniciar trilha de viabilidade.',lastEval:'07/08/26',evalBy:'Ingrid',tE:'↑',tR:'↑',tI:'↓',grupoSec:'GA5'},
+  {id:'FK0007',mod:'Plena',nome:'João Almeida',status:'em-operacao',classif:'Pagante',contrato:'03/11/2021',expira:'03/11/2026',reg:'Norte',area:'Belém – PA',adorm:false,adimplente:true,D:3,C:2,K:3,nps:9,csat:4.2,contratos12m:2,anoMeta:4,Ddesc:'Disponível',Cdesc:'Moderado',Kdesc:'Suficiente',proximaAcao:'Revisar funil: onde as oportunidades quebram nos últimos 90 dias.',lastEval:'02/08/26',evalBy:'Ingrid',tE:'→',tR:'→',tI:'↓',grupoSec:null},
+  {id:'FK0008',mod:'Plena',nome:'Ana Ferreira',status:'em-operacao',classif:'Pagante',contrato:'19/02/2020',expira:'19/02/2025',reg:'Sudeste',area:'Rio de Janeiro – RJ',adorm:true,adimplente:null,D:null,C:null,K:null,nps:null,csat:null,contratos12m:null,anoMeta:4,Ddesc:null,Cdesc:null,Kdesc:null,proximaAcao:'Definir estratégia: manutenção passiva ou reativação.',lastEval:'—',evalBy:'—',tE:null,tR:null,tI:null,grupoSec:null},
+  {id:'FK0009',mod:'Associada',nome:'Roberto Souza',status:'em-transferencia',classif:'Pagante',contrato:'30/07/2022',expira:'30/07/2027',reg:'Centro-Oeste',area:'Brasília – DF',adorm:false,adimplente:true,D:null,C:null,K:null,nps:null,csat:null,contratos12m:null,anoMeta:4,Ddesc:null,Cdesc:null,Kdesc:null,proximaAcao:'Aguardar conclusão da transferência.',lastEval:'—',evalBy:'—',tE:null,tR:null,tI:null,grupoSec:null},
+  {id:'FK0010',mod:'Plena',nome:'Patrícia Nunes',status:'em-operacao',classif:'Beta',contrato:'11/05/2023',expira:'11/05/2028',reg:'Sul',area:'Curitiba – PR',adorm:false,adimplente:true,D:2,C:2,K:2,nps:7,csat:3.5,contratos12m:1,anoMeta:4,Ddesc:'Parcial',Cdesc:'Moderado',Kdesc:'Intermediário',proximaAcao:'Intervir na dimensão com maior potencial de ganho rápido.',lastEval:'07/08/26',evalBy:'Ingrid',tE:'↑',tR:'→',tI:'↓',grupoSec:null},
+];
+
+let internalView=true,activeFilter='all',searchQ='';
+const isNC=f=>f.status==='em-transferencia'||f.status==='encerrada';
+const isExcl=f=>isNC(f)||f.adorm;
+function npsClass(n){if(n===null)return null;return n<=6?'detrator':n<=8?'neutro':'promotor';}
+function calcEng(f){if(isExcl(f)||f.D===null||f.C===null||f.K===null)return null;return Math.round((f.D*.40+f.C*.35+f.K*.25)/3*1000)/10;}
+function engColor(e){return e>=85?'green':e>=70?'lime':e>=50?'amber':'red';}
+function engHex(e){return{green:'#16a34a',lime:'#65a30d',amber:'#d97706',red:'#dc2626'}[engColor(e)]||'#D1D5DB';}
+function engLabel(e,iv){if(e>=85)return iv?'Alta Prontidão':'Alta Capacidade';if(e>=70)return iv?'Prontidão c/ Atenção':'Em Desenvolvimento';if(e>=50)return iv?'Prontidão Parcial':'Em Evolução';return iv?'Baixa Prontidão':'Em Estruturação';}
+function calcRel(f){const nc=npsClass(f.nps),cs=f.csat;if(nc===null&&cs===null)return 'nao-aferida';if(nc==='detrator'||(cs!==null&&cs<3))return 'critica';if(nc==='promotor'&&(cs===null||cs>=4))return 'saudavel';return 'atencao';}
+function calcInd(f){if(isExcl(f)||f.contratos12m===null)return null;const p=f.contratos12m/4*100;return p>=100?'ritmo':p>=75?'proximo':p>=50?'regular':'abaixo';}
+function getPriority(f){if(isNC(f))return 'NC';if(f.adorm)return 'AD';const rel=calcRel(f);if(f.C===0&&rel==='critica')return 'P1';if(f.D===0)return 'P2';if(f.C===0)return 'P3';if(rel==='critica')return 'P4';if(f.K===0)return 'P5';const eng=calcEng(f),ind=calcInd(f);if(eng>=85&&rel==='saudavel'&&ind==='ritmo')return 'P7';return 'P6';}
+function getGrupo(f){if(f.adorm)return 'GA7';if(isNC(f))return null;if(f.D===0)return 'GA1';if(f.C===0)return 'GA2';const rel=calcRel(f);if(rel==='critica')return 'GA3';if(f.K===0)return 'GA4';if(calcInd(f)!=='ritmo')return 'GA5';return 'GA6';}
+const GA_NAME={GA1:'Estruturação Financeira',GA2:'Ativação e Execução',GA3:'Recuperação da Relação',GA4:'Desenvolvimento e Capacitação',GA5:'Conversão e Resultado',GA6:'Aceleração',GA7:'Gestão de Adormecidos'};
+function getPerfil(f,iv){const p=getPriority(f),eng=calcEng(f),ind=calcInd(f);const I={NC:'Não Contabilizado',AD:'Adormecido',P1:'Risco de Desengajamento',P2:'Restrição Financeira',P2m:'Baixa Viabilidade',P3:'Baixa Ativação',P4:'Risco Relacional',P4p:'Performance c/ Risco',P5:'Gap de Capacitação',P6:'Em Desenvolvimento',P6h:'Potencial Não Convertido',P7:'Alta Performance'};const E={NC:'—',AD:'Adormecido',P1:'Reconexão e Retomada',P2:'Estruturação Financeira',P2m:'Reestruturação',P3:'Retomada de Execução',P4:'Fortalecimento da Jornada',P4p:'Sustentação de Performance',P5:'Desenvolvimento Técnico',P6:'Em Evolução',P6h:'Desenvolvimento de Performance',P7:'Nível de Aceleração'};let k=p;if(p==='P2'&&(f.C===0||f.K===0))k='P2m';if(p==='P4'&&ind==='ritmo')k='P4p';if(p==='P6'&&eng>=70)k='P6h';return(iv?I:E)[k]||(iv?I:E)[p]||p;}
+
+function dimCell(val,desc){if(val===null)return '<span style="color:#D1D5DB">—</span>';const cls=val===3?'dot-3':val===2?'dot-2':'dot-0';return `<div class="val-r"><span class="dot ${cls}"></span>${val}${desc?` <span class="val-sub">${desc}</span>`:''}</div>`;}
+function npsCell(nps){if(nps===null)return '<span style="color:#D1D5DB">—</span>';const cls=npsClass(nps);const dc=cls==='promotor'?'dot-3':cls==='neutro'?'dot-2':'dot-0';const lb={promotor:'Promotor',neutro:'Neutro',detrator:'Detrator'}[cls];return `<div class="val-r"><span class="dot ${dc}"></span>${nps} <span class="val-sub">${lb}</span></div>`;}
+function csatCell(v){if(v===null)return '<span style="color:#D1D5DB">—</span>';const dc=v>=4?'dot-3':v>=3?'dot-2':'dot-0';const lb=v>=4.5?'Ótimo':v>=4?'Bom':v>=3?'Atenção':'Crítico';return `<div class="val-r"><span class="dot ${dc}"></span>${v.toFixed(1).replace('.',',')} <span class="val-sub">${lb}</span></div>`;}
+function scoreCell(eng,iv){if(eng===null)return '<span style="color:#D1D5DB">—</span>';const h=engHex(eng),l=engLabel(eng,iv),c=engColor(eng);return `<div class="score-w"><span class="score-n" style="color:${h}">${eng}%</span><span class="badge bg-${c}" style="font-size:9px;padding:1px 5px">${l}</span></div>`;}
+function indCell(f){const ind=calcInd(f);if(ind===null)return '<span style="color:#D1D5DB">—</span>';const bg=ind==='ritmo'?'bg-green':ind==='proximo'?'bg-amber':ind==='regular'?'bg-blue':'bg-red';const lb=ind==='ritmo'?'No ritmo':ind==='proximo'?'Próximo':ind==='regular'?'Regular':'Abaixo';return `<div class="val-r" style="gap:5px"><span style="font-weight:700">${f.contratos12m}/4</span><span class="badge ${bg}" style="font-size:9px">${lb}</span></div>`;}
+function grupoCell(f){const g=getGrupo(f);if(!g)return '—';const sec=f.grupoSec;return `<div class="grupo-w"><div><span class="gbadge gbadge-${g}" style="font-size:9.5px">${g}</span><div class="grupo-lbl">${GA_NAME[g]||''}</div></div>${sec?`<div class="grupo-sec"><span class="gbadge gbadge-${sec}" style="font-size:8.5px;padding:1px 4px">${sec}</span><span class="grupo-sec-lbl">${GA_NAME[sec]||''}</span></div>`:''}</div>`;}
+function tendCell(tE,tR,tI){const a=t=>({c:!t?'t-mid':t==='↑'?'t-up':t==='↓'?'t-dn':'t-mid',s:t||'—'});const[e,r,i]=[a(tE),a(tR),a(tI)];return `<div class="tend-w"><div class="tend-c"><span class="tend-a ${e.c}">${e.s}</span><span class="tend-l">Engaj.</span></div><div class="tend-c"><span class="tend-a ${r.c}">${r.s}</span><span class="tend-l">Rel.</span></div><div class="tend-c"><span class="tend-a ${i.c}">${i.s}</span><span class="tend-l">Ind.</span></div></div>`;}
+function statBadge(s){const m={'em-operacao':'<span class="stat-b sb-op">Em operação</span>','em-transferencia':'<span class="stat-b sb-tr">Em Transferência</span>','encerrada':'<span class="stat-b sb-en">Encerrada</span>'};return m[s]||s;}
+
+function renderRow(f){
+  const p=getPriority(f),eng=calcEng(f);
+  const rc=isNC(f)?'row-nc':f.adorm?'row-ad':'';
+  return `<tr class="${rc}">
+    <td class="fc fc0" style="font-weight:700;color:#0C2633">${f.id}</td>
+    <td class="fc fc1" style="font-size:11px;color:#6B7280">${f.mod}</td>
+    <td class="fc fc2" style="font-weight:500;color:#111827;overflow:hidden;text-overflow:ellipsis">${f.nome}</td>
+    <td class="fc fc3">${statBadge(f.status)}</td>
+    <td style="font-size:11.5px">${f.classif}</td>
+    <td style="font-size:11px;color:#6B7280">${f.contrato}</td>
+    <td style="font-size:11px;color:#6B7280">${f.expira}</td>
+    <td style="font-size:11.5px">${f.reg}</td>
+    <td style="font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis">${f.area}</td>
+    <td class="g-eng g-eng-first">${dimCell(f.D,f.Ddesc)}</td>
+    <td class="g-eng">${dimCell(f.C,f.Cdesc)}</td>
+    <td class="g-eng">${dimCell(f.K,f.Kdesc)}</td>
+    <td class="g-eng">${scoreCell(eng,internalView)}</td>
+    <td class="g-rel g-rel-first">${npsCell(f.nps)}</td>
+    <td class="g-rel">${csatCell(f.csat)}</td>
+    <td class="g-ind g-ind-first">${indCell(f)}</td>
+    <td class="g-gest g-gest-first" style="font-size:11px;max-width:140px;white-space:normal;line-height:1.3">${getPerfil(f,internalView)}</td>
+    <td class="g-gest"><span class="pbadge pbadge-${p}">${p}</span></td>
+    <td class="g-gest">${grupoCell(f)}</td>
+    <td class="g-gest"><div class="pma">${f.proximaAcao||'—'}</div></td>
+    <td class="g-gest">${tendCell(f.tE,f.tR,f.tI)}</td>
+    <td class="ops-td"><button class="ops-btn" title="Documentos">📄</button><button class="ops-btn" title="Editar">✏️</button></td>
+  </tr>`;}
+
+function renderSummary(){
+  const active=DATA.filter(f=>!isNC(f)&&!f.adorm);
+  const engs=active.map(calcEng).filter(e=>e!==null);
+  const avgEng=engs.length?Math.round(engs.reduce((a,b)=>a+b,0)/engs.length):null;
+  const npsV=active.filter(f=>f.nps!==null);const avgNps=npsV.length?(npsV.reduce((a,f)=>a+f.nps,0)/npsV.length).toFixed(1):'—';
+  const csatV=active.filter(f=>f.csat!==null);const avgCsat=csatV.length?(csatV.reduce((a,f)=>a+f.csat,0)/csatV.length).toFixed(1).replace('.',','):'—';
+  const relC={saudavel:0,atencao:0,critica:0};active.forEach(f=>{const r=calcRel(f);if(r in relC)relC[r]++;});
+  const relStatus=relC.critica>relC.saudavel?'Crítica':relC.atencao>=relC.saudavel?'Atenção':'Saudável';
+  const relColor=relStatus==='Saudável'?'#16a34a':relStatus==='Atenção'?'#d97706':'#dc2626';
+  const eh=avgEng?engHex(avgEng):'#D1D5DB',ec=avgEng?engColor(avgEng):'gray',el=avgEng?engLabel(avgEng,true):'—';
+  const ctV=active.filter(f=>f.contratos12m!==null);
+  const totCt=ctV.reduce((a,f)=>a+f.contratos12m,0),totM=ctV.length*4;
+  const ip=totM?Math.round(totCt/totM*100):0;
+  const inadimp=DATA.filter(f=>f.adimplente===false).length;
+  document.getElementById('sumGrid').innerHTML=`
+    <div class="sum-card" style="border-top:3px solid #3b82f6">
+      <div class="sum-tag" style="color:#1d4ed8">ENGAJAMENTO</div>
+      <div class="sum-desc">Prontidão para novos negócios (D×40% + C×35% + K×25%).</div>
+      <div class="sum-metric"><span class="sum-big" style="color:${eh}">${avgEng!==null?avgEng+'%':'—'}</span><span class="badge bg-${ec}" style="font-size:10px">${el}</span></div>
+    </div>
+    <div class="sum-card" style="border-top:3px solid #f43f5e">
+      <div class="sum-tag" style="color:#be123c">SAÚDE DA RELAÇÃO</div>
+      <div class="sum-desc">Experiência do franqueado com a Moní.</div>
+      <div class="sum-metric"><span class="sum-big" style="color:${relColor}">${relStatus}</span><span style="font-size:11px;color:#9CA3AF">NPS ${avgNps} &nbsp;|&nbsp; CSAT ${avgCsat}</span></div>
+    </div>
+    <div class="sum-card" style="border-top:3px solid #22c55e">
+      <div class="sum-tag" style="color:#15803d">INDICADOR</div>
+      <div class="sum-desc">Contratos fechados (meta: 4/ano por unidade).</div>
+      <div class="sum-metric"><span class="sum-big" style="color:${ip>=100?'#16a34a':ip>=75?'#d97706':'#dc2626'}">${totCt} / ${totM}</span><span style="font-size:11px;color:#9CA3AF">contratos</span></div>
+    </div>
+    <div class="sum-card" style="text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center">
+      <div class="sum-tag" style="color:#374151">REDE ATIVA</div>
+      <div class="sum-net-n">${active.length}</div>
+      <span class="sum-net-lnk" onclick="filterP('all')">Ver todas</span>
+    </div>
+    <div class="sum-card">
+      <div class="sum-tag" style="color:#374151;margin-bottom:6px">ALERTAS GERENCIAIS</div>
+      <div class="al-row"><span class="al-dot" style="background:${inadimp>0?'#dc2626':'#16a34a'}"></span><span style="flex:1">Adimplência</span><strong style="color:${inadimp>0?'#dc2626':'#15803d'}">${inadimp>0?inadimp+' inad.':'OK'}</strong></div>
+      <div class="al-row"><span class="al-dot" style="background:#d97706"></span><span style="flex:1">Em transferência</span><strong>${DATA.filter(f=>f.status==='em-transferencia').length}</strong></div>
+      <div class="al-row"><span class="al-dot" style="background:#9CA3AF"></span><span style="flex:1">Adormecidas</span><strong>${DATA.filter(f=>f.adorm).length}</strong></div>
+      <div class="al-row"><span class="al-dot" style="background:#7f1d1d"></span><span style="flex:1">Prioridade crítica (P1)</span><strong style="color:#7f1d1d">${DATA.filter(f=>getPriority(f)==='P1').length}</strong></div>
+    </div>`;
+}
+
+function renderTable(){
+  const q=searchQ.toLowerCase();
+  const rows=DATA.filter(f=>{
+    if(activeFilter!=='all'&&getPriority(f)!==activeFilter)return false;
+    if(q&&!(f.nome.toLowerCase().includes(q)||f.id.toLowerCase().includes(q)||f.area.toLowerCase().includes(q)||f.reg.toLowerCase().includes(q)))return false;
+    return true;
+  });
+  document.getElementById('lineCount').textContent=rows.length;
+  document.getElementById('pagInfo').textContent=`Mostrando 1–${rows.length} de ${rows.length} franqueados`;
+  document.getElementById('tbody').innerHTML=rows.map(renderRow).join('');
+}
+
+function setTab(id,btn){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  ['franqueados','visao','pipeline','analises','loteadores','empresas','moni-capital','condominios'].forEach(p=>{
+    const el=document.getElementById('tab-'+p);if(el)el.style.display=p===id?'':'none';
+  });
+}
+function toggleView(){internalView=!internalView;document.getElementById('viewLbl').textContent=internalView?'Visão Interna':'Visão Frank';renderTable();}
+function filterP(p){
+  activeFilter=p;
+  document.querySelectorAll('.chip').forEach(b=>{
+    const t=b.textContent.trim();
+    b.classList.toggle('on',t===p||(p==='all'&&t==='Todos'));
+  });
+  renderTable();
+}
+function doSearch(v){searchQ=v;renderTable();}
+
+renderSummary();
+renderTable();
+</script>
+</body>
+</html>

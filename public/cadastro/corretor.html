@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastro de Corretor — Moní Casa</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+  :root {
+    --teal:   #0d2b2e;
+    --teal-lt:#12363a;
+    --gold:   #c9a96e;
+    --gold-lt:#e2cfa0;
+    --white:  #f5f2ec;
+    --gray:   rgba(245,242,236,.5);
+    --border: rgba(201,169,110,.35);
+    --red:    rgba(220,80,80,.8);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--teal);
+    color: var(--white);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 60px;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 500px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .card-header {
+    background: var(--teal-lt);
+    padding: 28px 32px 24px;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .gold-rule { width: 32px; height: 1px; background: var(--gold); opacity: .7; }
+  .card-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px; font-weight: 700;
+    letter-spacing: 2px; text-align: center;
+    color: var(--white); line-height: 1.2;
+  }
+  .card-sub {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold); text-align: center;
+  }
+  .card-desc {
+    font-size: 12px; color: var(--gray);
+    text-align: center; line-height: 1.6; margin-top: 2px;
+  }
+
+  /* Body */
+  .card-body { padding: 28px 32px 24px; }
+
+  .sec-lbl {
+    font-size: 8px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 14px; margin-top: 24px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sec-lbl:first-child { margin-top: 0; }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .form-row.single { grid-template-columns: 1fr; }
+
+  .form-group { margin-bottom: 14px; }
+
+  label {
+    display: block;
+    font-size: 8px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 6px;
+  }
+  label .opt { opacity: .5; font-weight: 400; }
+
+  input, select, textarea {
+    width: 100%;
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 11px 13px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px; color: var(--white);
+    outline: none;
+    transition: border-color .2s;
+    appearance: none;
+  }
+  select option { background: var(--teal-lt); color: var(--white); }
+  textarea { resize: vertical; min-height: 72px; }
+  input::placeholder,
+  textarea::placeholder { color: rgba(245,242,236,.28); }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--gold);
+    background: rgba(201,169,110,.06);
+  }
+  input.error { border-color: var(--red); }
+
+  .field-error {
+    font-size: 10px; color: var(--red);
+    margin-top: 4px; display: none;
+  }
+
+  /* Botão */
+  button[type="submit"] {
+    width: 100%;
+    background: var(--gold);
+    color: var(--teal);
+    border: none; border-radius: 5px;
+    padding: 14px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer;
+    transition: background .2s, transform .1s;
+    margin-top: 6px;
+  }
+  button[type="submit"]:hover { background: var(--gold-lt); }
+  button[type="submit"]:active { transform: scale(.98); }
+  button[type="submit"]:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+  .aviso {
+    font-size: 10px; color: var(--gray);
+    text-align: center; line-height: 1.5;
+    margin-top: 14px;
+  }
+
+  /* Tela de sucesso */
+  .success {
+    display: none;
+    flex-direction: column; align-items: center;
+    gap: 14px; padding: 40px 32px;
+    text-align: center;
+  }
+  .success .check {
+    width: 60px; height: 60px; border-radius: 50%;
+    border: 2px solid var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+  }
+  .success h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 24px; font-weight: 700; color: var(--white);
+  }
+  .success p { font-size: 13px; color: var(--gray); line-height: 1.6; }
+  .success .status-badge {
+    background: rgba(201,169,110,.12);
+    border: 1px solid var(--gold);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold);
+  }
+
+  /* Footer */
+  .card-footer {
+    border-top: 1px solid var(--border);
+    padding: 14px 32px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .card-footer .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px; font-weight: 700; letter-spacing: 5px; color: var(--white);
+  }
+  .card-footer .ig {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 10px; color: var(--gold-lt);
+  }
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+
+  <!-- Header -->
+  <div class="card-header">
+    <svg width="90" height="29" viewBox="0 0 140 44" fill="none">
+      <text x="0" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">M</text>
+      <g transform="translate(34,0)">
+        <text x="0" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">O</text>
+        <path d="M16 26 Q19 31 22 26" stroke="#c9a96e" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      </g>
+      <text x="68" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">NÍ</text>
+    </svg>
+    <div class="gold-rule"></div>
+    <div class="card-title">Cadastro de<br>Corretor</div>
+    <div class="card-sub">Rede Casa Moní</div>
+    <div class="card-desc">Preencha seus dados para se cadastrar como corretor parceiro.<br>Nossa equipe avaliará o cadastro e entrará em contato.</div>
+  </div>
+
+  <!-- Formulário -->
+  <div class="card-body" id="form-area">
+    <form id="form-corretor" novalidate>
+
+      <!-- Dados pessoais -->
+      <div class="sec-lbl">Dados pessoais</div>
+
+      <div class="form-row single form-group">
+        <div>
+          <label for="nome">Nome completo</label>
+          <input type="text" id="nome" placeholder="Seu nome completo" required autocomplete="name">
+        </div>
+      </div>
+
+      <div class="form-row form-group">
+        <div>
+          <label for="email">E-mail</label>
+          <input type="email" id="email" placeholder="seu@email.com" required autocomplete="email">
+        </div>
+        <div>
+          <label for="telefone">WhatsApp</label>
+          <input type="tel" id="telefone" placeholder="(00) 90000-0000" required autocomplete="tel">
+        </div>
+      </div>
+
+      <div class="form-row form-group">
+        <div>
+          <label for="cpf_cnpj">CPF / CNPJ <span class="opt">(opcional)</span></label>
+          <input type="text" id="cpf_cnpj" placeholder="000.000.000-00">
+        </div>
+        <div>
+          <label for="creci_tipo">Tipo de registro CRECI</label>
+          <select id="creci_tipo">
+            <option value="">Selecione</option>
+            <option value="F">Pessoa Física</option>
+            <option value="J">Pessoa Jurídica</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- CRECI -->
+      <div class="sec-lbl">CRECI</div>
+
+      <div class="form-row form-group">
+        <div>
+          <label for="creci_numero">Número do CRECI</label>
+          <input type="text" id="creci_numero" placeholder="000000">
+        </div>
+        <div>
+          <label for="creci_validade">Validade do CRECI</label>
+          <input type="date" id="creci_validade" placeholder="dd/mm/aaaa">
+        </div>
+      </div>
+
+      <div class="form-row form-group">
+        <div>
+          <label for="creci_uf">UF do CRECI</label>
+          <select id="creci_uf">
+            <option value="">Estado</option>
+            <option>AC</option><option>AL</option><option>AM</option><option>AP</option>
+            <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+            <option>GO</option><option>MA</option><option>MG</option><option>MS</option>
+            <option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+            <option>PI</option><option>PR</option><option>RJ</option><option>RN</option>
+            <option>RO</option><option>RR</option><option>RS</option><option>SC</option>
+            <option>SE</option><option selected>SP</option><option>TO</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Atuação -->
+      <div class="sec-lbl">Área de atuação</div>
+
+      <div class="form-row form-group">
+        <div>
+          <label for="cidade">Cidade principal <span class="opt">(opcional)</span></label>
+          <input type="text" id="cidade" placeholder="Ex: São Paulo">
+        </div>
+        <div>
+          <label for="uf_atuacao">UF <span class="opt">(opcional)</span></label>
+          <select id="uf_atuacao">
+            <option value="">Estado</option>
+            <option>AC</option><option>AL</option><option>AM</option><option>AP</option>
+            <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+            <option>GO</option><option>MA</option><option>MG</option><option>MS</option>
+            <option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+            <option>PI</option><option>PR</option><option>RJ</option><option>RN</option>
+            <option>RO</option><option>RR</option><option>RS</option><option>SC</option>
+            <option>SE</option><option>SP</option><option>TO</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row single form-group">
+        <div>
+          <label for="observacoes">Mensagem / Observações <span class="opt">(opcional)</span></label>
+          <textarea id="observacoes" placeholder="Conte um pouco sobre sua atuação no mercado imobiliário..."></textarea>
+        </div>
+      </div>
+
+      <button type="submit" id="btn-enviar">Enviar cadastro →</button>
+    </form>
+
+    <p class="aviso">Seus dados são usados apenas para análise do cadastro e não serão compartilhados com terceiros.</p>
+  </div>
+
+  <!-- Tela de sucesso -->
+  <div class="success" id="success-area">
+    <div class="check">✓</div>
+    <h2>Cadastro recebido!</h2>
+    <span class="status-badge">Em análise</span>
+    <p>Recebemos seu cadastro e nossa equipe irá analisá-lo.<br>
+    Assim que for aprovado você receberá um <strong>e-mail</strong> com seu link exclusivo de acesso e seu QR code personalizado.</p>
+    <p style="font-size:11px;color:var(--gray)">Fique atento à sua caixa de entrada — incluindo a pasta de spam.</p>
+  </div>
+
+  <!-- Footer -->
+  <div class="card-footer">
+    <span class="logo">MONÍ</span>
+    <span class="ig">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/>
+        <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
+      </svg>
+      @casa.moni
+    </span>
+  </div>
+
+</div><!-- /card -->
+
+<script>
+  // ── Configuração ──────────────────────────────────────────
+  const SUPA_URL = "https://aydryzoxqnwnbybvgiug.supabase.co";
+  const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5ZHJ5em94cW53bmJ5YnZnaXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MDI5NjksImV4cCI6MjA4ODA3ODk2OX0.0LGLN4oCvRFOGrMeizBBtLzgb07Olddpj_vYwOIINwo";
+  // ─────────────────────────────────────────────────────────
+
+  // Máscara simples para telefone
+  document.getElementById("telefone").addEventListener("input", function() {
+    let v = this.value.replace(/\D/g, "").slice(0, 11);
+    if (v.length > 6) v = "(" + v.slice(0,2) + ") " + v.slice(2,7) + "-" + v.slice(7);
+    else if (v.length > 2) v = "(" + v.slice(0,2) + ") " + v.slice(2);
+    else if (v.length > 0) v = "(" + v;
+    this.value = v;
+  });
+
+  document.getElementById("form-corretor").addEventListener("submit", async function(e) {
+    e.preventDefault();
+
+    const nome     = document.getElementById("nome").value.trim();
+    const email    = document.getElementById("email").value.trim();
+    const telefone = document.getElementById("telefone").value.trim();
+
+    if (!nome || !email || !telefone) {
+      if (!nome)     document.getElementById("nome").classList.add("error");
+      if (!email)    document.getElementById("email").classList.add("error");
+      if (!telefone) document.getElementById("telefone").classList.add("error");
+      return;
+    }
+
+    const btn = document.getElementById("btn-enviar");
+    btn.textContent = "Enviando...";
+    btn.disabled = true;
+
+    const cidade = document.getElementById("cidade").value.trim();
+    const ufAtua = document.getElementById("uf_atuacao").value;
+
+    const payload = {
+      nome,
+      email,
+      telefone,
+      cpf_cnpj:             document.getElementById("cpf_cnpj").value.trim()   || null,
+      creci_numero:         document.getElementById("creci_numero").value.trim()   || null,
+      creci_uf:             document.getElementById("creci_uf").value              || null,
+      creci_tipo_registro:  document.getElementById("creci_tipo").value            || null,
+      creci_validade:       document.getElementById("creci_validade").value        || null,
+      observacoes:          document.getElementById("observacoes").value.trim()  || null,
+      atuacao_ufs:          ufAtua ? [ufAtua] : [],
+      atuacao_cidades:      cidade && ufAtua
+                              ? [{ cidade, uf: ufAtua }]
+                              : (cidade ? [{ cidade }] : []),
+      status: "em_analise"
+    };
+
+    try {
+      const r = await fetch(`${SUPA_URL}/rest/v1/rede_corretores`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPA_KEY,
+          "Authorization": `Bearer ${SUPA_KEY}`,
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!r.ok) {
+        const err = await r.text();
+        console.error("Supabase error:", err);
+        btn.textContent = "Erro — tente novamente";
+        btn.disabled = false;
+        return;
+      }
+
+      document.getElementById("form-area").style.display = "none";
+      document.getElementById("success-area").style.display = "flex";
+
+    } catch (err) {
+      console.error(err);
+      btn.textContent = "Erro — tente novamente";
+      btn.disabled = false;
+    }
+  });
+
+  // Remove classe de erro ao digitar
+  ["nome","email","telefone"].forEach(id => {
+    document.getElementById(id).addEventListener("input", function() {
+      this.classList.remove("error");
+    });
+  });
+</script>
+
+</body>
+</html>

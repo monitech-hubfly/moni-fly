@@ -69,7 +69,7 @@ export default async function PainelDocumentosPage() {
           <ul className="mt-6 space-y-2">
             {entries.map((e) => {
               const stepPath = e.step === 3 ? '/step-3' : '/step-7';
-              const stepLabel = e.step === 3 ? 'Step 3: Opções' : 'Step 7: Contrato do Terreno';
+              const stepLabel = e.step === 3 ? 'Opção' : 'Contrato';
               const href = `${stepPath}?processoId=${e.processo_id}`;
               const label = `${e.cidade ?? '—'}${e.estado ? `, ${e.estado}` : ''} · ${stepLabel}`;
               return (

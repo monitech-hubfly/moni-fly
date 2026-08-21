@@ -1,0 +1,175 @@
+import type { ReactNode } from 'react';
+
+/** Nomes de kanban suportados pelo modal compartilhado (exibição / futuros temas). */
+export type KanbanNomeDisplay =
+  | 'Funil Step One'
+  | 'Funil Loteadores'
+  | 'Funil Portfólio'
+  | 'Funil Acoplamento'
+  | 'Funil Jurídico'
+  | 'Funil Divify'
+  | 'Funding'
+  | 'Funil Contratações'
+  | 'Funil Produto'
+  | 'Funil Modelo Virtual'
+  | 'Funil Homologações'
+  | 'Funil Projeto Legal'
+  | 'Funil Projetos Locais'
+  | 'Funil Projetos Legais'
+  | 'Funil Pré Obra e Obra'
+  | 'Funil Contabilidade'
+  | 'Funil Crédito Obra'
+  | 'Funil Motor 01'
+  | 'Funil Gravação de Vídeos Externos'
+  | 'Funil Programação de Conteúdo Semanal'
+  | 'Funil Série Inc. to Fly'
+  | 'Funil Moní Care';
+
+export type KanbanFaseMaterialTipo = 'link' | 'documento' | 'video';
+
+export type KanbanFaseMaterial = {
+  titulo: string;
+  url: string;
+  tipo: KanbanFaseMaterialTipo;
+};
+
+export type KanbanFase = {
+  id: string;
+  nome: string;
+  ordem: number;
+  sla_dias: number | null;
+  /** Dias úteis (default) ou corridos — migration 400. */
+  sla_tipo?: 'uteis' | 'corridos' | null;
+  /** Preenchido nas fases seedadas (migration 112); Funil Step One pode ser null. */
+  slug?: string | null;
+  /** Texto orientativo da fase (migration 129). */
+  instrucoes?: string | null;
+  /** Links / referências (migration 129). */
+  materiais?: KanbanFaseMaterial[] | null;
+  /** Marcada pelo admin como fase de conversão (migration 387). */
+  fase_conversao?: boolean;
+  /** false = fase desativada (ex.: removida por migration). Default true. */
+  ativo?: boolean;
+};
+
+export type KanbanCardBrief = {
+  id: string;
+  titulo: string;
+  status: string;
+  created_at: string;
+  fase_id: string;
+  franqueado_id: string;
+  kanban_id?: string;
+  projeto_id?: string | null;
+  tagsCard?: { id: string; tag_id: string; nome: string; cor: string }[];
+  /** Cards nativos arquivados (`kanban_cards.arquivado`). Legado: ausente / false. */
+  arquivado?: boolean;
+  motivo_arquivamento?: string | null;
+  /** Resultado do arquivamento: 'perda', 'ganho' ou null (arquivado simples). Migration 473. */
+  resultado?: 'perda' | 'ganho' | null;
+  /** Nativo: finalizado pelo usuário (`kanban_cards.concluido`). Legado: ausente / false. */
+  concluido?: boolean;
+  concluido_em?: string | null;
+  /** `legado` quando o card veio de `processo_step_one` via view de compatibilidade. */
+  origem?: 'legado' | 'nativo';
+  /** Linha secundária no card do board (ex.: interlocutor no Funil Loteadores). */
+  subtitulo?: string | null;
+  profiles?: {
+    full_name: string | null;
+  } | null;
+  /** ISO date `YYYY-MM-DD` ou null (nativo e legado). */
+  data_reuniao?: string | null;
+  data_followup?: string | null;
+  /** Retorno de bastões paralelos (migration 208). */
+  acoplamento_concluido?: boolean;
+  /** Fase atual do filho no Funil Acoplamento (tag no card pai). */
+  acoplamento_filho_fase_nome?: string | null;
+  acoplamento_filho_fase_slug?: string | null;
+  credito_terreno_ok?: boolean;
+  contabilidade_ok?: boolean;
+  capital_ok?: boolean;
+  juridico_ok?: boolean;
+  credito_obra_ok?: boolean;
+  projetos_legais_ok?: boolean | null;
+  projetos_locais_ok?: boolean | null;
+  /** Operações: existe card filho no Funil Projeto Legal (`origem_card_id`). */
+  tem_filho_projeto_legal?: boolean;
+  /** Operações: filho Projeto Legal arquivado (sem filho ativo). */
+  filho_projeto_legal_arquivado?: boolean;
+  /** Operações: filho Projeto Legal concluído. */
+  projeto_legal_filho_concluido?: boolean;
+  /** Operações: fase atual do filho Projeto Legal. */
+  projeto_legal_filho_fase?: string | null;
+  /** Operações: existe card filho no Funil Crédito Obra. */
+  tem_filho_credito_obra?: boolean;
+  /** Operações: filho Crédito Obra arquivado (sem filho ativo). */
+  filho_credito_obra_arquivado?: boolean;
+  /** Operações: fase atual do filho Crédito Obra. */
+  credito_obra_filho_fase?: string | null;
+  /** Operações: existe card filho no Funil Projetos Locais. */
+  tem_filho_projetos_locais?: boolean;
+  /** Operações: filho Projetos Locais arquivado (sem filho ativo). */
+  filho_projetos_locais_arquivado?: boolean;
+  /** Operações: fase atual do filho Projetos Locais. */
+  projetos_locais_filho_fase?: string | null;
+  /** Operações: filho Projetos Locais na fase concluída. */
+  projetos_locais_filho_concluido?: boolean;
+  /** Portfólio / Operações: existe card filho no Funil Divify (`origem_card_id`). */
+  tem_filho_divify?: boolean;
+  /** Portfólio / Operações: filho Divify arquivado (sem filho ativo). */
+  filho_divify_arquivado?: boolean;
+  /** Portfólio / Operações: filho Divify concluído. */
+  divify_filho_concluido?: boolean;
+  /** Portfólio / Operações: fase atual do filho Divify. */
+  divify_filho_fase?: string | null;
+  /** Step One: fase atual do card Portfolio com mesmo `projeto_id`. */
+  portfolio_vinculo_rotulo?: string | null;
+  /** Portfolio: existe card filho no Funil Jurídico (`origem_card_id`). */
+  tem_filho_juridico?: boolean;
+  /** Portfolio: existe card filho no Funil Acoplamento (`origem_card_id`). */
+  tem_filho_acoplamento?: boolean;
+  /** Portfolio: filho Acoplamento arquivado (sem filho ativo). */
+  filho_acoplamento_arquivado?: boolean;
+  /** Portfolio: existe card filho no Funil Pré Obra e Obra. */
+  tem_filho_operacoes?: boolean;
+  /** Portfolio: filho Pré Obra e Obra arquivado (sem filho ativo). */
+  filho_operacoes_arquivado?: boolean;
+  /** Portfolio: rótulo da fase do filho em Pré Obra e Obra. */
+  operacoes_filho_fase_rotulo?: string | null;
+  /** Portfolio: filho Pré Obra e Obra concluído. */
+  operacoes_filho_concluido?: boolean;
+  /** Portfolio: fase atual do filho Jurídico. */
+  juridico_filho_fase_nome?: string | null;
+  /** Ordem na coluna (menor = mais acima). Nativo: `kanban_cards.ordem_coluna`; legado: `processo_step_one.ordem_coluna_painel`. */
+  ordem_coluna?: number | null;
+  /** Funil Crédito Obra — fase co_documentacao_alvara */
+  alvara_url?: string | null;
+  docs_terreno_url?: string | null;
+  /** Entrada na fase atual — base do SLA por fase (migration 213). */
+  entered_fase_at?: string | null;
+  /** Início do SLA (após documentação completa ou outras regras de fase). */
+  sla_iniciado_em?: string | null;
+  /** Responsável preenchido no checklist da fase atual (`responsavel_fase`). */
+  responsavel_fase_id?: string | null;
+  responsavel_fase_nome?: string | null;
+  /** Funil Funding */
+  funding_tipo?: 'Investidor' | 'Broker' | null;
+  funding_localizacao?: string | null;
+  funding_descritivo?: string | null;
+  proxima_atividade?: string | null;
+  prazo_atividade?: string | null;
+  /** SLA estourado na fase atual segundo a Calculadora (borda lateral vermelha no board). */
+  calculadora_sla_estourado?: boolean;
+  /** Atraso na fase atual da Calculadora — exibido no chip quando `calculadora_sla_estourado`. */
+  calculadora_atraso_dias?: number | null;
+  calculadora_atraso_tipo?: 'uteis' | 'corridos' | null;
+};
+
+export type KanbanProximaAtividadeAberta = {
+  id: string;
+  descricao: string;
+  prazo: string | null;
+};
+
+/** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */
+export type CamposPorFaseMap = Record<string, ReactNode>;

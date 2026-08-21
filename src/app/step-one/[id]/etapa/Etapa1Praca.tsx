@@ -1,23 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
 import { saveEtapa1Praca, type AnexoEtapa1 } from './actions';
 import { createClient } from '@/lib/supabase/client';
 import { ProspeccaoCidadePDFContent } from './ProspeccaoCidadePDFContent';
-
-const MapaPraca = dynamic(() => import('./MapaPraca').then((m) => m.MapaPraca), { ssr: false });
+import { DadosCidadeIbgeSecao } from '@/components/step-one/DadosCidadeIbgeSecao';
+import { MapaInterativoSecao } from '@/components/step-one/MapaInterativoSecao';
 
 const BUCKET = 'processo-docs';
 const ACCEPT_IMAGES = 'image/jpeg,image/png,image/webp';
-
-type DadosCidade = {
-  populacao: string | null;
-  pibPerCapita: string | null;
-  rendaMedia: string | null;
-  areaTerritorial: string | null;
-  densidade: string | null;
-};
 
 export function Etapa1Praca(props: {
   processoId: string;
@@ -30,47 +21,12 @@ export function Etapa1Praca(props: {
   const { processoId, cidade, estado, initialObservacoes, initialAnexos, pdfUrlEtapa1 } = props;
   const [observacoes, setObservacoes] = useState(initialObservacoes);
   const [anexos, setAnexos] = useState<AnexoEtapa1[]>(initialAnexos);
-  const [dadosCidade, setDadosCidade] = useState<DadosCidade | null>(null);
-  const [loadingDados, setLoadingDados] = useState(true);
-  const [errorDados, setErrorDados] = useState('');
   const [savingObs, setSavingObs] = useState(false);
   const [savedObs, setSavedObs] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [gerandoPdf, setGerandoPdf] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!cidade.trim()) {
-      setLoadingDados(false);
-      return;
-    }
-    setLoadingDados(true);
-    setErrorDados('');
-    const params = new URLSearchParams({ cidade: cidade.trim() });
-    if (estado?.trim()) params.set('estado', estado.trim());
-    fetch(`/api/etapa1/dados-cidade?${params.toString()}`)
-      .then((res) => res.json())
-      .then((data: DadosCidade & { error?: string }) => {
-        if (data.error) {
-          setErrorDados(data.error);
-          setDadosCidade(null);
-        } else {
-          setDadosCidade({
-            populacao: data.populacao ?? null,
-            pibPerCapita: data.pibPerCapita ?? null,
-            rendaMedia: data.rendaMedia ?? null,
-            areaTerritorial: data.areaTerritorial ?? null,
-            densidade: data.densidade ?? null,
-          });
-        }
-      })
-      .catch(() => {
-        setErrorDados('Erro ao carregar dados da cidade.');
-        setDadosCidade(null);
-      })
-      .finally(() => setLoadingDados(false));
-  }, [cidade, estado]);
 
   const handleSalvarObservacoes = async () => {
     setSavingObs(true);
@@ -166,65 +122,8 @@ export function Etapa1Praca(props: {
         </strong>
       </p>
 
-      {/* Seção 1 — Dados da cidade */}
-      <section className="rounded-xl border border-stone-200 bg-stone-50/80 p-4">
-        <h2 className="text-lg font-semibold text-stone-800">Seção 1 — Dados da cidade</h2>
-        {errorDados && <p className="mt-3 text-sm text-red-600">{errorDados}</p>}
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
-            <p className="text-xs font-medium uppercase text-stone-500">População</p>
-            <p className="mt-1 text-xl font-semibold text-stone-800">
-              {loadingDados
-                ? 'Carregando...'
-                : dadosCidade?.populacao?.trim() || 'Dado não disponível'}
-            </p>
-          </div>
-          <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
-            <p className="text-xs font-medium uppercase text-stone-500">PIB per capita</p>
-            <p className="mt-1 text-xl font-semibold text-stone-800">
-              {loadingDados
-                ? 'Carregando...'
-                : dadosCidade?.pibPerCapita?.trim() || 'Dado não disponível'}
-            </p>
-          </div>
-          <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
-            <p className="text-xs font-medium uppercase text-stone-500">Renda média domiciliar</p>
-            <p className="mt-1 text-xl font-semibold text-stone-800">
-              {loadingDados
-                ? 'Carregando...'
-                : dadosCidade?.rendaMedia?.trim() || 'Dado não disponível'}
-            </p>
-          </div>
-          <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
-            <p className="text-xs font-medium uppercase text-stone-500">Área territorial</p>
-            <p className="mt-1 text-xl font-semibold text-stone-800">
-              {loadingDados
-                ? 'Carregando...'
-                : dadosCidade?.areaTerritorial?.trim() || 'Dado não disponível'}
-            </p>
-          </div>
-          <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
-            <p className="text-xs font-medium uppercase text-stone-500">Densidade demográfica</p>
-            <p className="mt-1 text-xl font-semibold text-stone-800">
-              {loadingDados
-                ? 'Carregando...'
-                : dadosCidade?.densidade?.trim() || 'Dado não disponível'}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Seção 2 — Mapa interativo */}
-      <section className="rounded-xl border border-stone-200 bg-white p-4">
-        <h2 className="text-lg font-semibold text-stone-800">Seção 2 — Mapa interativo</h2>
-        <p className="mt-1 text-sm text-stone-500">
-          OpenStreetMap + Leaflet + Overpass: escolas, hospitais, UBS, shoppings, supermercados,
-          parques, praças, bancos, farmácias.
-        </p>
-        <div className="mt-4">
-          <MapaPraca cidade={cidade} estado={estado} />
-        </div>
-      </section>
+      <DadosCidadeIbgeSecao cidade={cidade} estado={estado} />
+      <MapaInterativoSecao cidade={cidade} estado={estado} />
 
       {/* Seção 3 — Observações e anexos */}
       <section className="rounded-xl border border-stone-200 bg-stone-50/80 p-4">

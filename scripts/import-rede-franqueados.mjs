@@ -38,10 +38,11 @@ function loadEnvLocal() {
 loadEnvLocal();
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const serviceKey =
+  process.env.SUPABASE_DEV_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !serviceKey) {
   console.error(
-    'Defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env.local (ou no ambiente).',
+    'Defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_DEV_SERVICE_ROLE_KEY ou SUPABASE_SERVICE_ROLE_KEY no .env.local (ou no ambiente).',
   );
   console.error(
     'Service role: Supabase Dashboard → Project Settings → API → service_role (secret).',

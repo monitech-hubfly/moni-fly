@@ -17,14 +17,14 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9-]/g, '');
 }
 
-/**
- * Slug do condomínio como a ZAP usa: "Loteamento X" vira "lot-x".
- */
 function condominioSlug(nome: string): string {
   const t = nome.trim();
   if (!t) return '';
-  const match = t.match(/^loteamento\s+(.+)$/i);
-  if (match) return 'lot-' + slugify(match[1]);
+  if (/loteamento/i.test(t)) {
+    const match = t.match(/loteamento\s+(.+)$/i);
+    const suffix = match?.[1]?.trim() || t.replace(/\bloteamento\b/gi, '').trim();
+    return suffix ? `lot-${slugify(suffix)}` : slugify(t);
+  }
   return slugify(t);
 }
 
@@ -87,29 +87,34 @@ function buildOndeParam(cidade: string, estado: string, condominio?: string): st
   return encodeURIComponent(ondeRaw);
 }
 
-/**
- * Monta a URL de busca ZAP igual à que retorna resultados na ZAP (Sobrados + Casa + Casa de condomínio):
- * - path: /venda/sobrados/{uf}+{cidade}++{condominio}
- * - onde: parâmetro que o Actor do Apify usa para extrair location filters (obrigatório para não dar 0 resultados)
- * - tipos + preço mínimo: R$ 4.000.000
- */
 const ZAP_TIPOS = 'sobrado_residencial%2Ccondominio_residencial%2Ccasa_residencial';
 
+/**
+ * Monta a URL de busca ZAP (Sobrados + Casa + Casa de condomínio).
+ * `condominio` entra verbatim no parâmetro `onde`; só o segmento do path usa slug (`genesis-ii`, `lot-artesano`).
+ */
 export function buildZapSearchUrl(cidade: string, estado: string, condominio?: string): string {
   const uf = estado.replace(/\s/g, '').slice(0, 2).toLowerCase();
   const citySlug = slugify(cidade || '');
   if (!citySlug || !uf) {
     return '';
   }
-  const condSlug = condominio ? condominioSlug(condominio) : '';
+  const condNome = condominio?.trim() || '';
+  const condSlug = condNome ? condominioSlug(condNome) : '';
   const pathSegment = condSlug ? `${uf}+${citySlug}++${condSlug}` : `${uf}+${citySlug}`;
-  const onde = buildOndeParam(cidade.trim(), estado, condominio?.trim());
-  const base = `https://www.zapimoveis.com.br/venda/sobrados/${pathSegment}/?transacao=venda&onde=${onde}&tipos=${ZAP_TIPOS}&precoMinimo=4000000`;
+  const onde = buildOndeParam(cidade.trim(), estado, condNome || undefined);
+  const base = `https://www.zapimoveis.com.br/venda/casas/${pathSegment}/?transacao=venda&onde=${onde}&tipos=${ZAP_TIPOS}&precoMinimo=4000000`;
   return base;
 }
 
 export type ZapListingItem = {
   url?: string;
+  /** Actor fatihtahta/zap-imoveis-scraper e variantes */
+  listingUrl?: string;
+  link?: string;
+  href?: string;
+  pageUrl?: string;
+  canonicalUrl?: string;
   title?: string;
   price?: string;
   location?: string;
@@ -145,7 +150,7 @@ export async function runZapScraper(
   estado: string,
   condominio?: string,
   limit = 300,
-  timeoutMs = 120_000,
+  timeoutMs = 240_000,
 ): Promise<RunZapResult> {
   const token = process.env.VITE_APIFY_TOKEN || process.env.APIFY_API_TOKEN;
   const tokenPresent = !!token;
@@ -184,7 +189,7 @@ export async function runZapScraper(
 export async function runZapScraperWithUrl(
   startUrl: string,
   limit = 300,
-  timeoutMs = 120_000,
+  timeoutMs = 240_000,
 ): Promise<RunZapResult> {
   const token = process.env.VITE_APIFY_TOKEN || process.env.APIFY_API_TOKEN;
   const baseDebug: ZapRunDebug = {
@@ -203,6 +208,8 @@ export async function runZapScraperWithUrl(
   const actorId = (process.env.APIFY_ACTOR_ZAP_ID || DEFAULT_ACTOR_ID).replace(/\//g, '~');
   const runPayload = {
     startUrls: [{ url: startUrl }],
+    // maxItems removido do runPayload — sem limite explícito,
+    // o actor retorna até o padrão dele (~300)
     proxyConfiguration: {
       useApifyProxy: true,
       apifyProxyGroups: ['RESIDENTIAL'],
@@ -254,7 +261,6 @@ export async function runZapScraperWithUrl(
       runStatus = statusData.data.status;
       if (runStatus === 'SUCCEEDED') {
         const defaultDatasetId = statusData.data.defaultDatasetId;
-        console.log('[APIFY-ZAP] defaultDatasetId:', defaultDatasetId ?? '(ausente)');
         if (!defaultDatasetId) {
           return {
             ok: false,
@@ -267,12 +273,6 @@ export async function runZapScraperWithUrl(
         );
         const datasetText = await datasetRes.text();
         if (!datasetRes.ok) {
-          console.log(
-            '[APIFY-ZAP] dataset/items status:',
-            datasetRes.status,
-            '| body:',
-            datasetText.slice(0, 200),
-          );
           return {
             ok: false,
             error: `Falha ao obter itens do dataset: ${datasetRes.status}. Resposta: ${datasetText.slice(0, 200)}`,
@@ -290,8 +290,6 @@ export async function runZapScraperWithUrl(
           };
         }
         const itemList = Array.isArray(items) ? items : [];
-        console.log('[APIFY-ZAP] quantidade de itens retornados pelo dataset:', itemList.length);
-        console.log('[APIFY-ZAP] primeiro item completo:', itemList[0] ?? '(nenhum)');
         return {
           ok: true,
           items: itemList,
@@ -471,6 +469,21 @@ export function mapZapItemToCasa(
 
   const dataLevantamento = item.createdAt ?? null;
 
+  const listingNestedUrl =
+    item.listing &&
+    typeof item.listing === 'object' &&
+    typeof (item.listing as Record<string, unknown>).url === 'string'
+      ? (item.listing as Record<string, unknown>).url
+      : null;
+  const link =
+    item.url ||
+    item.listingUrl ||
+    item.link ||
+    item.pageUrl ||
+    item.canonicalUrl ||
+    (typeof listingNestedUrl === 'string' ? listingNestedUrl : null) ||
+    null;
+
   return {
     cidade: cidadeNorm,
     estado: estadoNorm,
@@ -485,7 +498,7 @@ export function mapZapItemToCasa(
     preco: priceNum,
     area_casa_m2: areaNum,
     preco_m2: precoM2,
-    link: item.url || null,
+    link,
     foto_url: fotoUrl || null,
     data_publicacao: dataLevantamento,
   };

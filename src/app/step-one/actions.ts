@@ -37,7 +37,7 @@ export type DadosNovoStep1 = {
   numeroFranquia?: string | null;
   modalidade?: string | null;
   nomeCompletoFranqueado?: string | null;
-  /** "Em Operação" | "Operação Encerrada" */
+  /** "Em Operação" | "Em Transferência" | "Operação Encerrada" */
   statusFranquia?: string | null;
   /** "Beta" | "Pagante" */
   classificacaoFranqueado?: string | null;

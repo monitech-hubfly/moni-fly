@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu Espaço — Moní Casa</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+  :root {
+    --teal:   #0d2b2e;
+    --teal-lt:#12363a;
+    --gold:   #c9a96e;
+    --gold-lt:#e2cfa0;
+    --white:  #f5f2ec;
+    --gray:   rgba(245,242,236,.5);
+    --border: rgba(201,169,110,.35);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--teal);
+    color: var(--white);
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  /* ── Header ─────────────────────────────────── */
+  .top-bar {
+    background: var(--teal-lt);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; font-weight: 700;
+    letter-spacing: 6px; color: var(--white);
+  }
+  .top-ig {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 10px; color: var(--gold-lt);
+  }
+
+  /* ── Perfil do Corretor ─────────────────────── */
+  .perfil-wrap {
+    max-width: 680px;
+    margin: 32px auto 0;
+    padding: 0 20px;
+  }
+
+  .perfil-card {
+    background: var(--teal-lt);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+  }
+  .perfil-avatar {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    border: 2px solid var(--gold);
+    background: rgba(201,169,110,.15);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px; font-weight: 700;
+    color: var(--gold); flex-shrink: 0;
+  }
+  .perfil-info { flex: 1; }
+  .perfil-lbl {
+    font-size: 8px; font-weight: 700;
+    letter-spacing: 2.5px; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 5px;
+  }
+  .perfil-nome {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px; font-weight: 700;
+    letter-spacing: 1px; color: var(--white);
+    line-height: 1.1;
+  }
+  .perfil-meta {
+    margin-top: 6px;
+    display: flex; flex-wrap: wrap; gap: 14px;
+  }
+  .perfil-meta span {
+    font-size: 11px; color: var(--gray);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .perfil-meta svg { opacity: .7; }
+
+  .badge-aprovado {
+    background: rgba(201,169,110,.15);
+    border: 1px solid var(--gold);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--gold); flex-shrink: 0;
+  }
+
+  /* ── Seção de empreendimentos ───────────────── */
+  .sec-wrap {
+    max-width: 680px;
+    margin: 32px auto 0;
+    padding: 0 20px;
+  }
+  .sec-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .sec-titulo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px; font-weight: 700;
+    letter-spacing: 1px; color: var(--white);
+  }
+  .sec-sub {
+    font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--gold); margin-left: 10px;
+  }
+
+  .emp-grid {
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  .emp-card {
+    background: var(--teal-lt);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    transition: border-color .2s;
+  }
+  .emp-card:hover { border-color: var(--gold); }
+
+  .emp-card-info { flex: 1; min-width: 0; }
+  .emp-card-nome {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--white); line-height: 1.1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .emp-card-slug {
+    font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--gold-lt); margin-top: 4px; opacity: .8;
+  }
+
+  .emp-card-qr {
+    flex-shrink: 0;
+    background: var(--white);
+    border-radius: 6px;
+    width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .emp-card-qr img { width: 100%; height: 100%; object-fit: contain; }
+  .emp-card-qr-ph {
+    font-size: 7px; color: var(--teal);
+    text-align: center; line-height: 1.3;
+    letter-spacing: .5px;
+  }
+
+  .emp-card-actions {
+    display: flex; flex-direction: column; gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .btn-flyer {
+    background: var(--gold);
+    color: var(--teal);
+    border: none; border-radius: 5px;
+    padding: 10px 18px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer;
+    transition: background .2s, transform .1s;
+    white-space: nowrap;
+    text-decoration: none;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-flyer:hover { background: var(--gold-lt); }
+  .btn-flyer:active { transform: scale(.97); }
+
+  .btn-link {
+    background: transparent;
+    color: var(--gold);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 9px 18px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-link:hover { border-color: var(--gold); background: rgba(201,169,110,.07); }
+  .btn-link.copied { color: var(--gold-lt); border-color: var(--gold-lt); }
+
+  /* ── Estados ─────────────────────────────────── */
+  .estado {
+    text-align: center; padding: 80px 20px;
+    display: none;
+  }
+  .estado.ativo { display: block; }
+  .estado-icon {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    margin: 0 auto 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .estado h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; font-weight: 700;
+    color: var(--white); margin-bottom: 10px;
+  }
+  .estado p { font-size: 13px; color: var(--gray); line-height: 1.6; }
+
+  /* ── Loading spinner ─────────────────────────── */
+  .spinner {
+    width: 30px; height: 30px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 80px auto;
+    display: none;
+  }
+  .spinner.ativo { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Link próprio do corretor ────────────────── */
+  .meu-link-wrap {
+    max-width: 680px;
+    margin: 28px auto 0;
+    padding: 0 20px;
+  }
+  .meu-link-card {
+    background: rgba(201,169,110,.07);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .meu-link-info { flex: 1; min-width: 0; }
+  .meu-link-lbl {
+    font-size: 8px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 5px;
+  }
+  .meu-link-url {
+    font-size: 11px; color: var(--gray);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-family: 'Inter', monospace;
+  }
+  .btn-copy-page {
+    background: transparent;
+    color: var(--gold);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 14px;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color .2s;
+  }
+  .btn-copy-page:hover { border-color: var(--gold); }
+
+  /* ── Footer ─────────────────────────────────── */
+  .foot {
+    max-width: 680px;
+    margin: 40px auto 0;
+    padding: 0 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+  }
+  .foot-logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 14px; font-weight: 700;
+    letter-spacing: 5px; color: var(--white);
+  }
+  .foot-note { font-size: 9px; color: var(--gray); }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="top-bar">
+  <span class="logo">MONÍ</span>
+  <span class="top-ig">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/>
+      <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
+    </svg>
+    @casa.moni
+  </span>
+</div>
+
+<!-- Spinner carregamento -->
+<div class="spinner ativo" id="spinner"></div>
+
+<!-- Estado: sem corretor_id na URL -->
+<div class="estado" id="estado-sem-id">
+  <div class="estado-icon">⚠️</div>
+  <h2>Link inválido</h2>
+  <p>Este link não contém um identificador de corretor.<br>
+  Use o link exclusivo enviado ao seu e-mail.</p>
+</div>
+
+<!-- Estado: corretor não encontrado -->
+<div class="estado" id="estado-nao-encontrado">
+  <div class="estado-icon">🔍</div>
+  <h2>Corretor não encontrado</h2>
+  <p>Não foi possível localizar este cadastro.<br>
+  Entre em contato com a equipe Moní.</p>
+</div>
+
+<!-- Estado: corretor pendente/inativo -->
+<div class="estado" id="estado-pendente">
+  <div class="estado-icon">⏳</div>
+  <h2>Cadastro em análise</h2>
+  <p>Seu cadastro ainda está sendo analisado.<br>
+  Você receberá um e-mail quando for aprovado.</p>
+</div>
+
+<!-- Estado: sem empreendimentos -->
+<div class="estado" id="estado-sem-emp">
+  <div class="estado-icon">🏠</div>
+  <h2>Nenhum empreendimento vinculado</h2>
+  <p>Você ainda não tem empreendimentos liberados.<br>
+  Entre em contato com a equipe Moní.</p>
+</div>
+
+<!-- Conteúdo principal (oculto até carregar) -->
+<div id="conteudo" style="display:none">
+
+  <!-- Perfil do corretor -->
+  <div class="perfil-wrap">
+    <div class="perfil-card">
+      <div class="perfil-avatar" id="avatar-inicial">?</div>
+      <div class="perfil-info">
+        <div class="perfil-lbl">Meu espaço</div>
+        <div class="perfil-nome" id="perfil-nome">—</div>
+        <div class="perfil-meta">
+          <span id="perfil-creci">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </span>
+          <span id="perfil-tel">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.01 1.18 2 2 0 012 .01h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92v2z"/>
+            </svg>
+          </span>
+        </div>
+      </div>
+      <span class="badge-aprovado">Aprovado</span>
+    </div>
+  </div>
+
+  <!-- Link pessoal do corretor -->
+  <div class="meu-link-wrap" id="meu-link-section">
+    <div class="meu-link-card">
+      <div class="meu-link-info">
+        <div class="meu-link-lbl">Meu link exclusivo</div>
+        <div class="meu-link-url" id="meu-link-url">—</div>
+      </div>
+      <button class="btn-copy-page" onclick="copiarMeuLink()">Copiar</button>
+    </div>
+  </div>
+
+  <!-- Empreendimentos -->
+  <div class="sec-wrap">
+    <div class="sec-header">
+      <div>
+        <span class="sec-titulo">Meus empreendimentos</span>
+        <span class="sec-sub" id="emp-count"></span>
+      </div>
+    </div>
+    <div class="emp-grid" id="emp-grid"></div>
+  </div>
+
+  <!-- Footer -->
+  <div class="foot">
+    <span class="foot-logo">MONÍ</span>
+    <span class="foot-note">More than living · moni.casa</span>
+  </div>
+
+</div><!-- /conteudo -->
+
+<script>
+  // ── Configuração ──────────────────────────────────────────
+  const SUPA_URL  = "https://aydryzoxqnwnbybvgiug.supabase.co";
+  const SUPA_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5ZHJ5em94cW53bmJ5YnZnaXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MDI5NjksImV4cCI6MjA4ODA3ODk2OX0.0LGLN4oCvRFOGrMeizBBtLzgb07Olddpj_vYwOIINwo";
+  const BASE_DOMAIN = "https://moni.casa"; // ← domínio de produção
+  const FLYER_PATH  = "/flyer";            // ← path do flyer dinâmico
+  const FORM_PATH   = "/formulario";       // ← path do formulário de lead
+  // ─────────────────────────────────────────────────────────
+
+  const supaHeaders = {
+    "apikey": SUPA_KEY,
+    "Authorization": "Bearer " + SUPA_KEY,
+    "Content-Type": "application/json"
+  };
+
+  async function supa(endpoint) {
+    const r = await fetch(SUPA_URL + "/rest/v1/" + endpoint, { headers: supaHeaders });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  }
+
+  function qrUrl(link, size) {
+    return "https://api.qrserver.com/v1/create-qr-code/"
+      + "?data=" + encodeURIComponent(link)
+      + "&size=" + size + "x" + size
+      + "&color=0d2b2e&bgcolor=f5f2ec&margin=2&format=svg";
+  }
+
+  function mostrar(id) {
+    document.getElementById("spinner").classList.remove("ativo");
+    document.getElementById(id).classList.add("ativo");
+  }
+
+  function inicial(nome) {
+    return nome ? nome.trim().charAt(0).toUpperCase() : "?";
+  }
+
+  function copiarTexto(txt, btn, label) {
+    navigator.clipboard.writeText(txt).then(() => {
+      btn.textContent = "✓ Copiado!";
+      btn.classList.add("copied");
+      setTimeout(() => {
+        btn.textContent = label;
+        btn.classList.remove("copied");
+      }, 2500);
+    });
+  }
+
+  function copiarMeuLink() {
+    const url = document.getElementById("meu-link-url").textContent;
+    const btn = document.querySelector(".btn-copy-page");
+    copiarTexto(url, btn, "Copiar");
+  }
+
+  function buildFlyerUrl(corretor, emp) {
+    const params = new URLSearchParams({
+      corretor_id:    corretor.id,
+      emp_id:         emp.id,
+      corretor_nome:  corretor.nome  || "",
+      corretor_creci: [corretor.creci_numero, corretor.creci_uf].filter(Boolean).join("-"),
+      corretor_tel:   corretor.telefone || "",
+      emp_nome:       emp.nome       || "",
+      emp_specs:      emp.specs      || "",
+      emp_img:        emp.imagem_url || "",
+      domain:         BASE_DOMAIN,
+    });
+    return BASE_DOMAIN + FLYER_PATH + "?" + params.toString();
+  }
+
+  function buildFormUrl(corretorId, empId) {
+    return BASE_DOMAIN + FORM_PATH + "?corretor_id=" + corretorId + "&emp_id=" + empId;
+  }
+
+  function renderEmp(corretor, emp) {
+    const formUrl  = buildFormUrl(corretor.id, emp.id);
+    const flyerUrl = buildFlyerUrl(corretor, emp);
+
+    const card = document.createElement("div");
+    card.className = "emp-card";
+    card.innerHTML = `
+      <div class="emp-card-info">
+        <div class="emp-card-nome">${emp.nome}</div>
+        <div class="emp-card-slug">moni.casa · ${emp.slug}</div>
+      </div>
+      <div class="emp-card-qr" title="QR Code do formulário">
+        <img src="${qrUrl(formUrl, 200)}" alt="QR ${emp.nome}" width="56" height="56">
+      </div>
+      <div class="emp-card-actions">
+        <a class="btn-flyer" href="${flyerUrl}" target="_blank">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Flyer Digital
+        </a>
+        <button class="btn-link" onclick="copiarLink(this, '${formUrl}')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+          </svg>
+          Link QR do Cliente
+        </button>
+      </div>`;
+    return card;
+  }
+
+  function copiarLink(btn, url) {
+    copiarTexto(url, btn, "Copiar link");
+  }
+
+  async function init() {
+    const p = new URLSearchParams(window.location.search);
+    const corretorId = p.get("corretor_id");
+
+    if (!corretorId) { mostrar("estado-sem-id"); return; }
+
+    // Exibir link pessoal desta página
+    document.getElementById("meu-link-url").textContent =
+      BASE_DOMAIN + "/corretor?corretor_id=" + corretorId;
+
+    try {
+      // 1. Busca corretor
+      const corretores = await supa(
+        "rede_corretores?id=eq." + corretorId
+        + "&select=id,nome,telefone,creci_numero,creci_uf,status"
+      );
+
+      if (!corretores.length) { mostrar("estado-nao-encontrado"); return; }
+
+      const corretor = corretores[0];
+
+      if (corretor.status !== "aprovado") { mostrar("estado-pendente"); return; }
+
+      // 2. Preenche perfil
+      document.getElementById("perfil-nome").textContent   = corretor.nome || "Corretor";
+      document.getElementById("avatar-inicial").textContent = inicial(corretor.nome);
+      const creci = [corretor.creci_numero, corretor.creci_uf].filter(Boolean).join("-");
+      document.getElementById("perfil-creci").innerHTML    = `
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+        CRECI ${creci || "—"}`;
+      document.getElementById("perfil-tel").innerHTML = `
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.01 1.18 2 2 0 012 .01h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92v2z"/>
+        </svg>
+        ${corretor.telefone || "—"}`;
+
+      // 3. Busca empreendimentos vinculados
+      const vinculos = await supa(
+        "imob_corretor_empreendimentos?corretor_id=eq." + corretorId
+        + "&select=imob_empreendimentos(id,nome,slug,specs,ativo,imagem_url)"
+      );
+
+      const emps = vinculos
+        .map(v => v.imob_empreendimentos)
+        .filter(e => e && e.ativo);
+
+      if (!emps.length) {
+        document.getElementById("conteudo").style.display = "block";
+        document.getElementById("spinner").classList.remove("ativo");
+        document.getElementById("estado-sem-emp").classList.add("ativo");
+        // Ainda mostra o perfil mesmo sem empreendimentos
+        return;
+      }
+
+      document.getElementById("emp-count").textContent =
+        emps.length + (emps.length === 1 ? " empreendimento" : " empreendimentos");
+
+      const grid = document.getElementById("emp-grid");
+      emps.forEach(emp => grid.appendChild(renderEmp(corretor, emp)));
+
+      // 4. Exibe conteúdo
+      document.getElementById("spinner").classList.remove("ativo");
+      document.getElementById("conteudo").style.display = "block";
+
+    } catch (err) {
+      console.error(err);
+      mostrar("estado-nao-encontrado");
+    }
+  }
+
+  init();
+</script>
+
+</body>
+</html>

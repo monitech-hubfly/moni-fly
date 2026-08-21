@@ -1,0 +1,102 @@
+================================================================================
+PLANEJAMENTO (GANTT) — ESPECIFICAÇÃO: BLOCO «ATIVIDADES» vs BLOCO «INDICADORES»
+================================================================================
+Documento para validação antes de alterar o código. Área de referência: Comercial
+(imagem 1). Problema relatado: Controladoria e outras áreas (imagem 2) com
+seções intercaladas (ATIVIDADES / INDICADORES / ATIVIDADES / …).
+
+--------------------------------------------------------------------------------
+1. OBJETIVO
+--------------------------------------------------------------------------------
+Na mesma página, manter DUAS «tabelas» lógicas com a MESMA grade de colunas:
+  • Coluna «Atividade» | «Responsável» | semanas (12–25, etc.) | «Ações»
+
+Regra de ouro:
+  • TUDO que for planejamento de comportamentos/atividades fica no BLOCO 1
+    (faixa / rótulo em verde: ATIVIDADES).
+  • TUDO que for indicadores da meta fica no BLOCO 2 (faixa azul: INDICADORES
+    DA META), SEMPRE ABAIXO do bloco 1, sem alternar com atividades no meio
+    da página.
+
+Ou seja: primeiro fecha o «relatório» de atividades de todas as metas; depois,
+num segundo bloco único, vêm todos os indicadores (ainda assim podendo estar
+agrupados por meta por dentro do bloco 2).
+
+--------------------------------------------------------------------------------
+2. COMPORTAMENTO ATUAL (RESUMO DO PROBLEMA)
+--------------------------------------------------------------------------------
+Hoje o código tende a montar, POR META, nesta ordem:
+  Meta A → [Atividades de A] → [Indicadores de A] → Meta B → [Atividades de B]
+  → [Indicadores de B] → …
+
+Quando há várias metas, ou metas «só com indicador» no meio da lista, a tela
+parece «misturada»: cabeçalhos «INDICADORES DA META» aparecem entre blocos de
+atividades de metas diferentes, e outro «ATIVIDADES» pode surgir mais abaixo.
+
+--------------------------------------------------------------------------------
+3. COMPORTAMENTO DESEJADO (REFERÊNCIA IMAGEM 1 — COMERCIAL)
+--------------------------------------------------------------------------------
+Estrutura vertical fixa em DOIS blocos (um embaixo do outro):
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ [Cabeçalho global da página: Atividade | Responsável | semanas | Ações] │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │ BLOCO 1 — ATIVIDADES (fundo / rótulo em verde, como na referência)       │
+  │   • Opcional: repetir mini-cabeçalho de colunas só neste bloco, se       │
+  │     quiserem igualdade visual com o bloco 2.                            │
+  │   • Para cada meta (na ordem já usada hoje: metas da área):             │
+  │       – Linha do título da meta (ex.: prazo S…)                         │
+  │       – Rótulo «Atividades» (se a meta tiver linhas de plano)           │
+  │       – Comportamentos e atividades (linhas com barras amarelo/verde/   │
+  │         vermelho, ações ✎ ✕)                                            │
+  │   • Nenhuma linha de INDICADOR entra aqui.                              │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │ [Divisor visual — margem / borda / espaço, como já planejado]           │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │ BLOCO 2 — INDICADORES DA META (faixa azul + segunda grade)              │
+  │   • Rótulo «Indicadores da meta» (faixa azul)                           │
+  │   • Repetir cabeçalho de colunas (mesma grade: semanas alinhadas)       │
+  │   • Para cada meta (mesma ordem do bloco 1, ou ordem de metas):         │
+  │       – Uma sub-seção com os indicadores daquela meta (linhas com       │
+  │         inputs «–» / semáforo, etc.)                                     │
+  │   • Nenhuma linha de ATIVIDADE entra aqui.                              │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+Observação: com UMA meta só (ex.: Comercial), o resultado coincide com a
+imagem 1: um bloco verde de atividades e, em seguida, um bloco azul de
+indicadores. Com VÁRIAS metas, a diferença em relação ao problema atual é que
+NÃO se intercala «atividades da meta B» depois de «indicadores da meta A»;
+primeiro terminam as atividades de A, B, C… e só então vêm os indicadores de
+A, B, C… (cada um no seu grupo dentro do bloco azul).
+
+--------------------------------------------------------------------------------
+4. ORDEM DAS METAS (PARA VALIDAÇÃO)
+--------------------------------------------------------------------------------
+Pergunta em aberto para fecharmos na implementação:
+  (a) Bloco 2 segue a mesma ordem de metas que o bloco 1 (recomendado: sim).
+  (b) Metas que não têm indicador: não aparecem no bloco 2 (só no bloco 1).
+  (c) Metas que só têm indicador (sem atividades no plano): aparecem só no
+      bloco 2 (e o bloco 1 pode ficar vazio para essa meta ou só com título).
+
+--------------------------------------------------------------------------------
+5. CRITÉRIO DE ACEITE (TESTE RÁPIDO)
+--------------------------------------------------------------------------------
+  [ ] Área «Controladoria»: não existe sequência «Indicadores → Atividades»
+      no meio da página; só «Atividades (todas as metas)» e depois
+      «Indicadores (todas as metas)».
+  [ ] Colunas de semana permanecem alinhadas entre os dois blocos (mesma
+      largura / scroll horizontal único, como hoje).
+  [ ] Comercial continua com o mesmo aspecto de «duas tabelas» quando houver
+      atividades + indicadores.
+
+--------------------------------------------------------------------------------
+6. NOTAS TÉCNICAS (PARA O DEV — NÃO É NECESSÁRIO PARA VALIDAÇÃO DO NEGÓCIO)
+--------------------------------------------------------------------------------
+Implementação provável: duas passagens na montagem das linhas do «shell» do
+Gantt — (1) empilhar apenas linhas de `linhas` que são meta/comportamento/ação;
+(2) empilhar blocos de indicadores por `objetivo_id` na ordem acordada.
+Manter chaves React estáveis e testar área com 1 meta e com 3+ metas.
+
+================================================================================
+FIM — Validar itens 3 e 4; após OK, aplicar alterações no Gantt.jsx / CSS.
+================================================================================

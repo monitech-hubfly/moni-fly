@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { isAppFullyPublic } from '@/lib/public-rede-novos';
 import { FormularioInicioProcesso } from '@/app/iniciar-processo/FormularioInicioProcesso';
 
 export default async function NovoProcessoNoPainelPage() {
@@ -10,13 +9,11 @@ export default async function NovoProcessoNoPainelPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && !isAppFullyPublic()) {
+  if (!user) {
     redirect(`/login?next=${encodeURIComponent('/painel-novos-negocios/novo')}`);
   }
 
-  const { data: profile } = user
-    ? await supabase.from('profiles').select('full_name').eq('id', user.id).single()
-    : { data: null as { full_name: string | null } | null };
+  const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-stone-50 to-white">

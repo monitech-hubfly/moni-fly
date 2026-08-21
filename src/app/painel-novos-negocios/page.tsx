@@ -1,70 +1,61 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
+import { redirect } from 'next/navigation';
 import { type ProcessoCard } from '@/app/steps-viabilidade/StepsKanbanColumn';
 import { PAINEL_COLUMNS, type PainelColumnKey } from '@/app/steps-viabilidade/painelColumns';
 import { PainelNovosNegociosClient } from '@/app/steps-viabilidade/PainelNovosNegociosClient';
+import { PainelCardQueryModalWrapper } from '@/app/steps-viabilidade/PainelCardQueryModalWrapper';
+import { PainelKanbanTabs } from '@/app/steps-viabilidade/PainelKanbanTabs';
 import { buildChecklistAtrasoByCardId } from '@/lib/painel-checklist-atraso';
 import { sortProcessosPorOrdemColuna } from '@/lib/painel-coluna-ordem';
-import { createAdminClient } from '@/lib/supabase/admin';
-
 export default async function PainelNovosNegociosPage({
   searchParams,
 }: {
-  searchParams?: { card?: string | string[]; abrir?: string | string[] };
+  searchParams?: { card?: string | string[]; abrir?: string | string[]; tab?: string | string[] };
 }) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const publicMode = isPublicRedeNovosNegociosEnabled();
+  if (!user) redirect('/login');
 
-  let db = supabase;
-  if (!user && (publicMode || isAppFullyPublic())) {
-    try {
-      db = createAdminClient();
-    } catch {
-      /* RLS com cliente anónimo: lista pode vir vazia */
-    }
-  }
+  const processoSelect =
+    'id, cidade, estado, status, etapa_atual, created_at, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel';
 
-  const { data: rows } = await db
-    .from('processo_step_one')
-    .select(
-      'id, cidade, estado, status, etapa_atual, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel',
-    )
-  ;
+  const [processoRes] = await Promise.all([supabase.from('processo_step_one').select(processoSelect)]);
 
-  const rowsTodos = rows ?? [];
+  const rowsTodos = processoRes.data ?? [];
 
   const processIds = rowsTodos.map((r) => r.user_id).filter(Boolean) as string[];
-  let profiles: { id: string; full_name: string | null }[] = [];
-  if (processIds.length > 0) {
-    const { data: prof } = await db
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', [...new Set(processIds)]);
-    profiles = prof ?? [];
-  }
-  const profileByUserId = Object.fromEntries(profiles.map((p) => [p.id, p.full_name ?? null]));
-
   const baseProcessoIds = Array.from(
     new Set(rowsTodos.map((r) => (r.historico_base_id as string | null | undefined) ?? r.id)),
   );
+
+  const [profRes, checklistRes] = await Promise.all([
+    processIds.length > 0
+      ? supabase.from('profiles').select('id, full_name').in('id', [...new Set(processIds)])
+      : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
+    baseProcessoIds.length > 0
+      ? supabase
+          .from('processo_card_checklist')
+          .select('processo_id, etapa_painel, prazo, status, concluido')
+          .in('processo_id', baseProcessoIds)
+      : Promise.resolve({ data: [] as { processo_id: string; etapa_painel: string | null; prazo: string | null; status: string | null; concluido: boolean | null }[] }),
+  ]);
+
+  const profiles = profRes.data ?? [];
+  const profileByUserId = Object.fromEntries(profiles.map((p) => [p.id, p.full_name ?? null]));
+
   let checklistAtrasoByCardId = new Map<string, { hasAtrasado: boolean; hasAtencao: boolean }>();
   if (baseProcessoIds.length > 0) {
-    const { data: checklistRows } = await db
-      .from('processo_card_checklist')
-      .select('processo_id, etapa_painel, prazo, status, concluido')
-      .in('processo_id', baseProcessoIds);
-
     checklistAtrasoByCardId = buildChecklistAtrasoByCardId(
       rowsTodos.map((r) => ({
         id: r.id,
         historico_base_id: (r as { historico_base_id?: string | null }).historico_base_id ?? null,
         etapa_painel: (r as { etapa_painel?: string | null }).etapa_painel ?? null,
       })),
-      checklistRows ?? [],
+      checklistRes.data ?? [],
       { defaultEtapaPainel: 'step_1' },
     );
   }
@@ -77,7 +68,7 @@ export default async function PainelNovosNegociosPage({
   }
   const baseIds = [...new Set(Array.from(baseIdByProcessoId.values()).filter(Boolean))];
   if (baseIds.length > 0) {
-    const { data: comiteRows } = await db
+    const { data: comiteRows } = await supabase
       .from('processo_card_comite')
       .select('processo_id, comite_resultado')
       .eq('comite_resultado', 'aprovado')
@@ -113,6 +104,7 @@ export default async function PainelNovosNegociosPage({
       cancelado_em: (r as any).cancelado_em ?? null,
       removido_em: (r as any).removido_em ?? null,
       etapa_atual: r.etapa_atual ?? 1,
+      created_at: (r as { created_at?: string | null }).created_at ?? null,
       updated_at: r.updated_at ?? null,
       franqueado_nome: (r as { nome_franqueado?: string | null }).nome_franqueado ?? profileByUserId[r.user_id] ?? null,
       numero_franquia: (r as { numero_franquia?: string | null }).numero_franquia ?? null,
@@ -152,35 +144,98 @@ export default async function PainelNovosNegociosPage({
     (Array.isArray(cardParam) ? cardParam[0] : cardParam) ??
     (Array.isArray(abrirParam) ? abrirParam[0] : abrirParam);
 
-  return (
-    <div className="min-h-screen bg-stone-100">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4">
-          <div className="flex items-center gap-2">
-            <Link href="/" className="text-moni-primary hover:underline">
-              ← Início
-            </Link>
-            <span className="text-stone-400">/</span>
-            <span className="font-medium text-stone-700">Painel Novos Negócios</span>
-          </div>
-        </div>
-      </header>
+  const tabParam = searchParams?.tab;
+  const activeTab =
+    (Array.isArray(tabParam) ? tabParam[0] : tabParam) === 'painel' ? 'painel' : 'kanban';
 
-      <main className="mx-auto max-w-7xl overflow-x-auto px-4 py-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="text-xl font-bold text-moni-dark">Painel Novos Negócios</h1>
-            <p className="mt-1 text-sm text-stone-600">
-              Fases com processos/cards dentro. Independente dos macro-itens do menu — apenas um board por etapa.
-            </p>
-          </div>
-        </div>
-        <PainelNovosNegociosClient
-          byEtapa={byEtapa}
-          initialOpenProcessId={initialOpenProcessId}
-          kanbanReadOnly={false}
-        />
-      </main>
+  return (
+    <div className="min-h-screen bg-stone-50">
+      <div
+        className="border-b border-amber-200 bg-amber-50 px-6 py-3 text-center text-sm text-amber-950"
+        role="status"
+      >
+        Esta visão está sendo descontinuada. Use{' '}
+        <Link href="/portfolio" className="font-semibold underline hover:text-amber-900">
+          /portfolio
+        </Link>{' '}
+        e{' '}
+        <Link href="/operacoes" className="font-semibold underline hover:text-amber-900">
+          /operacoes
+        </Link>
+        .
+      </div>
+      <Suspense fallback={null}>
+        <PainelKanbanTabs basePath="/painel-novos-negocios" variant="portfolio" />
+      </Suspense>
+
+      {activeTab === 'kanban' ? (
+        <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
+          <Suspense fallback={null}>
+            <PainelCardQueryModalWrapper basePath="/painel-novos-negocios" board="novos-negocios">
+              <PainelNovosNegociosClient
+                byEtapa={byEtapa}
+                initialOpenProcessId={initialOpenProcessId}
+                kanbanReadOnly={false}
+              />
+            </PainelCardQueryModalWrapper>
+          </Suspense>
+        </main>
+      ) : (
+        <main className="mx-auto max-w-[1600px] space-y-6 px-6 py-8">
+          <p className="text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+            O painel de performance é padronizado por funil. Abra o funil desejado na aba{' '}
+            <strong style={{ color: 'var(--moni-text-primary)' }}>Painel</strong>.
+          </p>
+          <ul className="grid gap-4 sm:grid-cols-2">
+            <li
+              className="rounded-xl px-5 py-4"
+              style={{
+                border: '0.5px solid var(--moni-border-default)',
+                borderRadius: 'var(--moni-radius-lg)',
+                background: 'var(--moni-surface-0)',
+                boxShadow: 'var(--moni-shadow-card)',
+              }}
+            >
+              <p className="font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+                Funil Portfólio
+              </p>
+              <Link
+                href="/portfolio?tab=painel"
+                className="mt-2 inline-block text-sm font-medium hover:underline"
+                style={{ color: 'var(--moni-navy-800)' }}
+              >
+                Abrir painel →
+              </Link>
+            </li>
+            <li
+              className="rounded-xl px-5 py-4"
+              style={{
+                border: '0.5px solid var(--moni-border-default)',
+                borderRadius: 'var(--moni-radius-lg)',
+                background: 'var(--moni-surface-0)',
+                boxShadow: 'var(--moni-shadow-card)',
+              }}
+            >
+              <p className="font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+                Funil Operações
+              </p>
+              <Link
+                href="/operacoes?tab=painel"
+                className="mt-2 inline-block text-sm font-medium hover:underline"
+                style={{ color: 'var(--moni-navy-800)' }}
+              >
+                Abrir painel →
+              </Link>
+            </li>
+          </ul>
+          <p className="text-sm text-stone-600">
+            Central de chamados:{' '}
+            <Link href="/sirene/chamados" className="font-medium text-moni-primary hover:underline">
+              Ver no Sirene →
+            </Link>
+          </p>
+        </main>
+      )}
     </div>
   );
 }

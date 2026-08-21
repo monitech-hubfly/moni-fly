@@ -47,8 +47,8 @@ export function parseCSV(text: string, delimiter: ',' | ';' | '\t' = ','): strin
   return rows;
 }
 
-function normalizeFK(val: string | null): string | null {
-  if (!val) return val;
+export function normalizeNFranquiaCsv(val: string | null | undefined): string | null {
+  if (val === null || val === undefined) return null;
   const v = String(val).trim();
   if (!v) return null;
   const m = v.match(/fk\s*0*(\d+)/i);
@@ -145,7 +145,7 @@ export function mapCSVRowToRede(headers: string[], row: string[]): RedeFranquead
     } else if (key.startsWith('data_') && val) {
       out[key] = toISODate(val);
     } else if (key === 'n_franquia') {
-      out.n_franquia = normalizeFK(val);
+      out.n_franquia = normalizeNFranquiaCsv(val);
     } else {
       out[key] = val;
     }

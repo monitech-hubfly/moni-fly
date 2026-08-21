@@ -14,6 +14,8 @@ import {
 import { precisaMotivoReprovacaoComiteNoCancelamento } from '@/lib/painel/dashboard-etapas';
 import { allocNextOrdemColunaPainel } from '@/lib/painel-coluna-ordem';
 import { getPainelDbForPublicEdit } from '@/lib/painel-public-edit';
+import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
+import { calcularDataEmissaoAlvara } from '@/lib/pre-obra/emissao-alvara-data';
 
 const STEP2_NOVO_NEGOCIO_ESTUDOS_DOCS_TITULOS = [
   'BCA',
@@ -272,17 +274,26 @@ export async function updateDadosPreObra(
     return s.length > 0 ? s : null;
   };
 
+  const previsaoPref = normalize(payload.previsao_aprovacao_prefeitura);
+  const envioCreditoObra =
+    previsaoPref != null ? calcularDataEnvioCreditoObra(previsaoPref) : normalize(payload.previsao_liberacao_credito_obra);
+  const previsaoAlvara =
+    previsaoPref != null ? calcularDataEmissaoAlvara(previsaoPref) : normalize(payload.previsao_emissao_alvara);
+  const dataPref = normalize(payload.data_aprovacao_prefeitura);
+  const dataAlvara =
+    dataPref != null ? calcularDataEmissaoAlvara(dataPref) : normalize(payload.data_emissao_alvara);
+
   const { error } = await supabase
     .from('processo_step_one')
     .update({
       previsao_aprovacao_condominio: normalize(payload.previsao_aprovacao_condominio),
-      previsao_aprovacao_prefeitura: normalize(payload.previsao_aprovacao_prefeitura),
-      previsao_emissao_alvara: normalize(payload.previsao_emissao_alvara),
+      previsao_aprovacao_prefeitura: previsaoPref,
+      previsao_emissao_alvara: previsaoAlvara,
       data_aprovacao_condominio: normalize(payload.data_aprovacao_condominio),
-      data_aprovacao_prefeitura: normalize(payload.data_aprovacao_prefeitura),
-      data_emissao_alvara: normalize(payload.data_emissao_alvara),
+      data_aprovacao_prefeitura: dataPref,
+      data_emissao_alvara: dataAlvara,
       data_aprovacao_credito: normalize(payload.data_aprovacao_credito),
-      previsao_liberacao_credito_obra: normalize(payload.previsao_liberacao_credito_obra),
+      previsao_liberacao_credito_obra: envioCreditoObra,
       previsao_inicio_obra: normalize(payload.previsao_inicio_obra),
       updated_at: new Date().toISOString(),
     })
@@ -547,10 +558,16 @@ export async function atualizarEtapaPainel(
         if (!ct.ok) return ct;
       }
 
+      const idxPassagem = PAINEL_COLUMNS.findIndex((c) => c.key === 'passagem_wayser');
       const idxFrom = PAINEL_COLUMNS.findIndex((c) => c.key === (beforeProc?.etapa_painel as PainelColumnKey));
       const idxTo = PAINEL_COLUMNS.findIndex((c) => c.key === etapaKey);
-      const avancouDeStep7 = beforeProc?.etapa_painel === 'step_7' && idxTo > idxFrom;
-      if (avancouDeStep7) {
+      const primeiraEntradaEmWayserOuAlem =
+        idxPassagem >= 0 &&
+        idxFrom >= 0 &&
+        idxTo >= 0 &&
+        idxFrom < idxPassagem &&
+        idxTo >= idxPassagem;
+      if (primeiraEntradaEmWayserOuAlem) {
         const ct = await createChildIfMissing('contabilidade_spe', 'origem_contabilidade_processo_id');
         if (!ct.ok) return ct;
       }
@@ -560,7 +577,7 @@ export async function atualizarEtapaPainel(
 
   revalidatePath('/painel-novos-negocios');
   revalidatePath('/painel-contabilidade');
-  revalidatePath('/painel-credito');
+  revalidatePath('/funil-credito-obra');
   revalidatePath('/dashboard-novos-negocios');
   return { ok: true };
 }
@@ -657,7 +674,7 @@ export async function reordenarCardNaColunaPainel(
 
   revalidatePath('/painel-novos-negocios');
   revalidatePath('/painel-contabilidade');
-  revalidatePath('/painel-credito');
+  revalidatePath('/funil-credito-obra');
   revalidatePath('/dashboard-novos-negocios');
   return { ok: true };
 }
@@ -715,7 +732,7 @@ export async function atualizarFaseCreditoDashboard(
     .eq('id', processoId);
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath('/painel-credito');
+  revalidatePath('/funil-credito-obra');
   revalidatePath('/dashboard-novos-negocios');
   return { ok: true };
 }
@@ -853,7 +870,7 @@ export async function cancelarProcessoPainel(
   );
   revalidatePath('/painel-novos-negocios');
   revalidatePath('/painel-contabilidade');
-  revalidatePath('/painel-credito');
+  revalidatePath('/funil-credito-obra');
   revalidatePath('/dashboard-novos-negocios');
   return { ok: true, mensagem: 'Card cancelado.' };
 }

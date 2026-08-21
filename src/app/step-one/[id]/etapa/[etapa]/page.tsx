@@ -12,18 +12,28 @@ import { Etapa11PDF, type ResumoProcesso } from '../Etapa11PDF';
 import { FinalizarEstudoButton } from '../FinalizarEstudoButton';
 import { IrParaStep3Button } from '../IrParaStep3Button';
 import { CancelarProcessoButtonEtapa } from '../CancelarProcessoButtonEtapa';
-import { getBcaInputs } from '../actions';
+import { getBcaInputs, getCustosConstrucaoEscolhaChecklist } from '../actions';
+import { isBatalhaCasasFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { fetchListingsCasasPorProcesso } from '@/lib/zap-save-casas';
 
 interface PageProps {
   params: Promise<{ id: string; etapa: string }>;
+  searchParams: Promise<{ modo?: string; fase?: string }>;
 }
 
-export default async function EtapaPage({ params }: PageProps) {
+export default async function EtapaPage({ params, searchParams }: PageProps) {
   const { id, etapa } = await params;
+  const sp = await searchParams;
   const etapaNum = parseInt(etapa, 10);
   if ([8, 9].includes(etapaNum)) redirect(`/step-one/${id}/etapa/7`);
   const etapaInfo = ETAPAS.find((e) => e.id === etapaNum);
   if (!etapaInfo || etapaNum < 1 || etapaNum > 11) notFound();
+
+  const modoPreBatalha =
+    etapaNum === 5 &&
+    (sp.modo === 'pre-batalha' || isPreBatalhaFaseSlug(sp.fase));
+
+  const modoBatalhaCasas = etapaNum === 6 && isBatalhaCasasFaseSlug(sp.fase);
 
   const supabase = await createClient();
   const {
@@ -205,15 +215,11 @@ export default async function EtapaPage({ params }: PageProps) {
     loteEscolhidoIdEtapa4 = le?.listing_lote_id ?? null;
   }
   let pdfScoreBatalhaUrl: string | null = null;
+  let custosConstrucaoChecklist: Record<number, number | null> = {};
   if (etapaNum === 5 || etapaNum === 6) {
-    const { data } = await supabase
-      .from('listings_casas')
-      .select(
-        'id, cidade, foto_url, status, condominio, localizacao_condominio, quartos, banheiros, vagas, piscina, marcenaria, preco, area_casa_m2, preco_m2, estado, compatibilidade_moni, data_publicacao, data_despublicado, link, manual',
-      )
-      .eq('processo_id', id)
-      .order('created_at', { ascending: false });
-    casas = (data ?? []) as CasaRow[];
+    const { data: casasRows, error: errCasas } = await fetchListingsCasasPorProcesso(supabase, id);
+    if (errCasas) throw new Error(errCasas);
+    casas = (casasRows ?? []) as CasaRow[];
     const { data: escolhidas } = await supabase
       .from('casas_escolhidas_etapa5')
       .select('id, catalogo_casa_id')
@@ -232,6 +238,7 @@ export default async function EtapaPage({ params }: PageProps) {
       .eq('processo_id', id);
     batalhasEtapa5 = (batalhas5 ?? []) as typeof batalhasEtapa5;
     if (etapaNum === 6) {
+      custosConstrucaoChecklist = await getCustosConstrucaoEscolhaChecklist(id);
       const { data: ep6 } = await supabase
         .from('etapa_progresso')
         .select('dados_json')
@@ -439,13 +446,25 @@ export default async function EtapaPage({ params }: PageProps) {
             />
           ) : etapaNum === 5 ? (
             <>
-              <h1 className="text-xl font-bold text-moni-dark">
-                Etapa {etapaDisplayNum} — {etapaInfo.nome}
-              </h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-xl font-bold text-moni-dark">
+                  Etapa {etapaDisplayNum} —{' '}
+                  {modoPreBatalha ? 'Pré Batalha' : etapaInfo.nome}
+                </h1>
+              </div>
               <p className="mt-2 text-stone-600">{etapaInfo.descricao}</p>
+              {modoPreBatalha ? (
+                <p className="mt-2 text-sm text-amber-900/90">
+                  Os modelos Moní são ranqueados automaticamente por compatibilidade com a listagem
+                  (alta → baixa). Aplique Atributos do Lote, Preço (checklist de reforma) e Produto
+                  (7 sub-itens). Nota final = soma dos três eixos; desempate: Lote &gt; Preço &gt;
+                  Produto.
+                </p>
+              ) : null}
               <div className="mt-6 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
                 <Etapa4Casas
-                  listagemOnly
+                  listagemOnly={!modoPreBatalha}
+                  modoPreBatalha={modoPreBatalha}
                   processoId={id}
                   casas={casas}
                   cidadeInicial={processo?.cidade ?? ''}
@@ -464,9 +483,18 @@ export default async function EtapaPage({ params }: PageProps) {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h1 className="text-xl font-bold text-moni-dark">
-                    Etapa {etapaDisplayNum} — {etapaInfo.nome}
+                    Etapa {etapaDisplayNum} —{' '}
+                    {modoBatalhaCasas ? 'Batalha de Casas' : etapaInfo.nome}
                   </h1>
                   <p className="mt-2 text-stone-600">{etapaInfo.descricao}</p>
+                  {modoBatalhaCasas ? (
+                    <p className="mt-2 text-sm text-amber-900/90">
+                      Selecione até 3 modelos do catálogo e aplique os 3 eixos (Atributos do Lote,
+                      Preço com checklist de reforma, Produto com 7 sub-itens). Nota final = soma
+                      dos eixos; desempate: Lote &gt; Preço &gt; Produto. Gere o PDF e compare com
+                      o Giro da faixa.
+                    </p>
+                  ) : null}
                 </div>
                 <div
                   id="etapa6-resultado-batalha"
@@ -487,6 +515,7 @@ export default async function EtapaPage({ params }: PageProps) {
                   catalogo={catalogoEtapa5}
                   batalhasIniciais={batalhasEtapa5}
                   pdfScoreBatalhaUrl={pdfScoreBatalhaUrl}
+                  custosConstrucaoChecklist={custosConstrucaoChecklist}
                 />
               </div>
             </>

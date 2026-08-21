@@ -4,7 +4,6 @@ import type { PainelColumnKey } from '@/app/steps-viabilidade/painelColumns';
 export const ETAPAS_OPERACAO_DASHBOARD: ReadonlySet<PainelColumnKey> = new Set([
   'passagem_wayser',
   'planialtimetrico',
-  'sondagem',
   'projeto_legal',
   'aprovacao_condominio',
   'aprovacao_prefeitura',
@@ -12,7 +11,6 @@ export const ETAPAS_OPERACAO_DASHBOARD: ReadonlySet<PainelColumnKey> = new Set([
   'processos_cartorarios',
   'aguardando_credito',
   'em_obra',
-  'moni_care',
   'credito_terreno',
   'credito_obra',
 ]);
@@ -44,11 +42,12 @@ export const ETAPAS_KANBAN_NN: ReadonlySet<PainelColumnKey> = new Set([
   'step_4',
   'acoplamento',
   'step_5',
+  'cto_condicoes_precedentes',
   'step_6',
   'step_7',
+  'captacao_moni_capital',
   'passagem_wayser',
   'planialtimetrico',
-  'sondagem',
   'projeto_legal',
   'aprovacao_condominio',
   'aprovacao_prefeitura',
@@ -56,7 +55,6 @@ export const ETAPAS_KANBAN_NN: ReadonlySet<PainelColumnKey> = new Set([
   'processos_cartorarios',
   'aguardando_credito',
   'em_obra',
-  'moni_care',
 ]);
 
 export function isEtapaKanbanNovosNegocios(etapa: PainelColumnKey | string): boolean {

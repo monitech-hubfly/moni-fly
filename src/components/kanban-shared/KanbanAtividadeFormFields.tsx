@@ -1,0 +1,272 @@
+'use client';
+
+import { Trash2 } from 'lucide-react';
+import { SearchableSelect } from '@/components/SearchableSelect';
+import type { SubInteracaoStatusDb } from '@/lib/actions/card-actions';
+import { nomesTimesIncluemBombeiro } from '@/lib/kanban/chamados-validacao';
+import type { KanbanTimeRow } from './kanban-card-modal-helpers';
+import { AnexosAtividadeDraft } from './AnexosAtividadeDraft';
+import { AnexosSubchamado, type AnexosSubchamadoProps } from './AnexosSubchamado';
+
+export type AtividadeFormDraft = {
+  nome: string;
+  descricaoDetalhe: string;
+  data: string;
+  timesIds: string[];
+  responsaveisIds: string[];
+  status: SubInteracaoStatusDb;
+  pastel: boolean;
+  /** Anexos selecionados antes de salvar a atividade. */
+  pendingAnexos?: File[];
+};
+
+export const ATIVIDADE_FORM_DRAFT_VAZIO: AtividadeFormDraft = {
+  nome: '',
+  descricaoDetalhe: '',
+  data: '',
+  timesIds: [],
+  responsaveisIds: [],
+  status: 'nao_iniciado',
+  pastel: false,
+  pendingAnexos: [],
+};
+
+type Props = {
+  draft: AtividadeFormDraft;
+  setDraft: React.Dispatch<React.SetStateAction<AtividadeFormDraft>>;
+  kanbanTimes: KanbanTimeRow[];
+  responsaveisOpcoes: { id: string; nome: string }[];
+  sessionUserId: string | null;
+  compact?: boolean;
+  showPastel?: boolean;
+  idPrefix?: string;
+  /** Exibe ícone de excluir (limpar formulário ou excluir atividade existente). */
+  onDelete?: () => void;
+  deleteTitle?: string;
+  /** Anexos de atividade já salva. */
+  anexosSubchamado?: Omit<AnexosSubchamadoProps, 'subchamadoId'> & { subchamadoId: string };
+  /** Permite anexos em rascunho antes de salvar. */
+  showAnexosDraft?: boolean;
+  /** Limita a N responsáveis; quando 1, usa radio buttons (single-select). */
+  maxResponsaveis?: number;
+};
+
+const listBoxClass =
+  'flex max-h-32 flex-col gap-0.5 overflow-y-auto rounded border border-stone-200 bg-white p-2';
+
+export function KanbanAtividadeFormFields({
+  draft,
+  setDraft,
+  kanbanTimes,
+  responsaveisOpcoes,
+  sessionUserId,
+  compact = false,
+  showPastel = true,
+  idPrefix = 'ativ',
+  onDelete,
+  deleteTitle = 'Excluir atividade',
+  anexosSubchamado,
+  showAnexosDraft = true,
+  maxResponsaveis = 0,
+}: Props) {
+  const timesNomes = draft.timesIds
+    .map((id) => kanbanTimes.find((t) => t.id === id)?.nome?.trim())
+    .filter((n): n is string => Boolean(n));
+  const bombeiro = nomesTimesIncluemBombeiro(timesNomes);
+  const podePastel =
+    showPastel &&
+    !bombeiro &&
+    draft.responsaveisIds.length > 0 &&
+    sessionUserId != null &&
+    draft.responsaveisIds.includes(sessionUserId);
+
+  const py = compact ? 'py-1' : 'py-1.5';
+  const text = compact ? 'text-[11px]' : 'text-xs';
+  const controlClass = `w-full px-2 ${py}`;
+  const pendingAnexos = draft.pendingAnexos ?? [];
+
+  return (
+    <div className={`flex flex-col gap-2 ${text}`}>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1 space-y-2">
+          <input
+            type="text"
+            value={draft.nome}
+            onChange={(e) => setDraft((d) => ({ ...d, nome: e.target.value }))}
+            placeholder="Nome da atividade"
+            className={`w-full px-2 ${py}`}
+            style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
+          />
+          <textarea
+            value={draft.descricaoDetalhe}
+            onChange={(e) => setDraft((d) => ({ ...d, descricaoDetalhe: e.target.value }))}
+            placeholder="Descrição (opcional)"
+            rows={2}
+            className={`w-full resize-y px-2 ${py}`}
+            style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
+          />
+        </div>
+        {onDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="mt-0.5 shrink-0 rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-600"
+            title={deleteTitle}
+            aria-label={deleteTitle}
+          >
+            <Trash2 className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} aria-hidden />
+          </button>
+        ) : null}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="flex min-w-0 flex-col">
+          <div className="mb-1 space-y-0.5">
+            <span className="block font-medium text-stone-600">Prazo limite</span>
+            <p className="text-[10px] leading-snug text-stone-500">
+              O responsável precisa aceitar este prazo para contar no SLA.
+            </p>
+          </div>
+          <input
+            type="date"
+            value={draft.data}
+            onChange={(e) => setDraft((d) => ({ ...d, data: e.target.value }))}
+            className={`mt-auto ${controlClass}`}
+            style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
+          />
+        </div>
+        <div className="flex min-w-0 flex-col">
+          <span className="mb-1 block font-medium text-stone-600">Status</span>
+          <SearchableSelect
+            value={draft.status}
+            onChange={(v) => setDraft((d) => ({ ...d, status: v as SubInteracaoStatusDb }))}
+            size={compact ? 'xs' : 'sm'}
+            emptyOption={null}
+            triggerClassName={controlClass}
+            options={[
+              { value: 'nao_iniciado', label: 'Não Iniciado' },
+              { value: 'em_andamento', label: 'Em andamento' },
+              { value: 'concluido', label: 'Concluído' },
+            ]}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+        <div>
+          <span className="mb-1 block font-medium text-stone-600">Times</span>
+          <div className={listBoxClass}>
+            {kanbanTimes.map((t) => {
+              const on = draft.timesIds.includes(t.id);
+              return (
+                <label
+                  key={t.id}
+                  className="flex cursor-pointer items-center gap-1.5 text-stone-700"
+                >
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 shrink-0 rounded border-stone-300"
+                    checked={on}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setDraft((d) => ({
+                        ...d,
+                        timesIds: checked
+                          ? [...d.timesIds, t.id]
+                          : d.timesIds.filter((id) => id !== t.id),
+                        responsaveisIds:
+                          !checked && d.timesIds.length === 1 && d.timesIds[0] === t.id
+                            ? []
+                            : d.responsaveisIds,
+                      }));
+                    }}
+                  />
+                  {t.nome}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <span className="mb-1 block font-medium text-stone-600">
+            {maxResponsaveis === 1 ? 'Responsável' : 'Responsáveis'}
+          </span>
+          {draft.timesIds.length === 0 ? (
+            <p className="rounded border border-stone-200 bg-stone-50 p-2 text-stone-500">
+              Selecione ao menos um time.
+            </p>
+          ) : responsaveisOpcoes.length === 0 ? (
+            <p className="rounded border border-stone-200 bg-stone-50 p-2 text-stone-500">
+              Nenhum responsável encontrado para os times selecionados.
+            </p>
+          ) : (
+            <div className={listBoxClass}>
+              {responsaveisOpcoes.map((p) => {
+                const on = draft.responsaveisIds.includes(p.id);
+                const isSingle = maxResponsaveis === 1;
+                return (
+                  <label
+                    key={p.id}
+                    className="flex cursor-pointer items-center gap-1.5 text-stone-700"
+                  >
+                    <input
+                      type={isSingle ? 'radio' : 'checkbox'}
+                      name={isSingle ? `${idPrefix}-responsavel` : undefined}
+                      className="h-3.5 w-3.5 shrink-0 rounded border-stone-300"
+                      checked={on}
+                      onChange={isSingle
+                        ? () => setDraft((d) => ({ ...d, responsaveisIds: [p.id] }))
+                        : (e) => {
+                            const checked = e.target.checked;
+                            setDraft((d) => ({
+                              ...d,
+                              responsaveisIds: checked
+                                ? [...d.responsaveisIds, p.id]
+                                : d.responsaveisIds.filter((id) => id !== p.id),
+                            }));
+                          }}
+                    />
+                    {p.nome}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {(showAnexosDraft || anexosSubchamado) && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 pt-2">
+          {showAnexosDraft ? (
+            <AnexosAtividadeDraft
+              files={pendingAnexos}
+              onChange={(files) => setDraft((d) => ({ ...d, pendingAnexos: files }))}
+              compact={compact}
+            />
+          ) : null}
+          {anexosSubchamado ? (
+            <AnexosSubchamado
+              subchamadoId={anexosSubchamado.subchamadoId}
+              uploader_nome={anexosSubchamado.uploader_nome}
+              basePath={anexosSubchamado.basePath}
+              sessionUserId={anexosSubchamado.sessionUserId}
+              sessionEhAdminOuTeam={anexosSubchamado.sessionEhAdminOuTeam}
+            />
+          ) : null}
+        </div>
+      )}
+
+      {podePastel ? (
+        <label className="flex cursor-pointer items-center gap-2 text-stone-700">
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5"
+            checked={draft.pastel}
+            onChange={(e) => setDraft((d) => ({ ...d, pastel: e.target.checked }))}
+          />
+          Pastel
+        </label>
+      ) : null}
+    </div>
+  );
+}

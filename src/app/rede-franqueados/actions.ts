@@ -1,16 +1,62 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@/lib/supabase/server';
+import { canAccessRedeFranqueadosCadastrosCompletos, normalizeAccessRole } from '@/lib/authz';
 import { revalidatePath } from 'next/cache';
-import { parseAndMapRedeCSV, type RedeFranqueadoRow } from '@/lib/import-rede-csv';
+import { normalizeNFranquiaCsv, parseAndMapRedeCSV, type RedeFranqueadoRow } from '@/lib/import-rede-csv';
+import {
+  agruparDuplicatasRede,
+  type GrupoDuplicataRede,
+  type RedeLinhaParaDuplicata,
+} from '@/lib/rede-franqueados-duplicatas';
 import { REDE_FRANQUEADOS_DB_KEYS, type RedeFranqueadoDbKey } from '@/lib/rede-franqueados';
 import { fixRedeCsvSociosHeadersTextFromSheets, normalizeRedeCsvHeadersFromSheets } from '@/lib/fix-rede-csv-socios-headers';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { ensureRedeAnexoNumeroFranquiaColumn, isRedeAnexoNumeroFranquiaSchemaError } from '@/lib/rede-ensure-anexo-column';
+import { extractText } from '@/lib/document-diff';
+import { extrairDadosFranqueadoDeTexto, type RedeCampoFranqueado } from '@/lib/rede-extrair-dados-franqueado';
 import { getNextFKFromRedeFranqueados } from '@/lib/next-fk-franquia';
 import { gerarRegistroFranquiaPdf } from '@/lib/registro-franquia-pdf';
 import { getRegistroFranquiaRecipients, sendRegistroFranquiaEmail } from '@/lib/email';
 import { allocNextOrdemColunaPainel } from '@/lib/painel-coluna-ordem';
 import { getPainelDbForPublicEdit } from '@/lib/painel-public-edit';
+import {
+  contarRedeSemCardFunilStepOne,
+  ensureFunilStepOneCardFromRede,
+  garantirCardsFunilStepOneParaTodaRede,
+  tituloFunilFromRedeRow,
+} from '@/lib/kanban/ensure-funil-stepone-card-from-rede';
+import { isRedeStatusEmProcesso } from '@/lib/rede-franqueado-form-options';
+import {
+  arquivarHistoricoSubstituicao,
+  buildPatchSubstituicao,
+  isRedeFranqueadoEmTransferencia,
+  type RedeSubstituicaoRow,
+} from '@/lib/rede-franqueado-substituicao';
+import {
+  REDE_EMPRESA_ANEXO_JUSTIFICATIVA_COLUNA,
+  REDE_EMPRESA_ANEXO_PATH_COLUNA,
+} from '@/lib/rede-documentos-empresas';
+import {
+  REDE_FRANQUEADO_ANEXO_JUSTIFICATIVA_COLUNA,
+  REDE_FRANQUEADO_ANEXO_PATH_COLUNA,
+} from '@/lib/rede-documentos-franqueado';
+
+async function requireRedeStaffOrPublicLink(): Promise<
+  | { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
+  | { ok: false; error: string }
+> {
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, userId } = auth;
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+  const access = normalizeAccessRole((profile?.role as string) ?? 'frank');
+  if (access !== 'admin' && access !== 'team') {
+    return { ok: false, error: 'Apenas administradores ou time interno podem realizar esta ação.' };
+  }
+  return { ok: true, supabase, userId };
+}
 
 async function requireRedeAdminOrPublicLink(): Promise<
   | { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
@@ -18,16 +64,47 @@ async function requireRedeAdminOrPublicLink(): Promise<
 > {
   const auth = await getPainelDbForPublicEdit();
   if (!auth.ok) return { ok: false, error: auth.error };
-  const { supabase, userId, isServiceRole } = auth;
-  if (isServiceRole) return { ok: true, supabase, userId };
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+  const { supabase, userId } = auth;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, departamento, time, email')
+    .eq('id', userId)
+    .single();
   const role = (profile?.role as string) ?? 'frank';
-  if (role !== 'admin') return { ok: false, error: 'Apenas administradores.' };
+  const departamento = (profile as { departamento?: string | null } | null)?.departamento ?? null;
+  const time = (profile as { time?: string | null } | null)?.time ?? null;
+  const email =
+    (profile as { email?: string | null } | null)?.email ??
+    (await supabase.auth.getUser()).data.user?.email ??
+    null;
+  if (!canAccessRedeFranqueadosCadastrosCompletos(role, departamento, time, email)) {
+    return {
+      ok: false,
+      error: 'Apenas administradores ou times Administrativo / Controladoria podem realizar esta ação.',
+    };
+  }
   return { ok: true, supabase, userId };
 }
 
 export type CriarCardsDesdeRedeResult =
-  | { ok: true; criados: number; mensagem: string }
+  | {
+      ok: true;
+      criados: number;
+      funilCriados: number;
+      funilReparados: number;
+      mensagem: string;
+    }
+  | { ok: false; error: string };
+
+export type GarantirCardsFunilStepOneDesdeRedeResult =
+  | {
+      ok: true;
+      criados: number;
+      reparados: number;
+      jaExistiam: number;
+      ignorados: number;
+      mensagem: string;
+    }
   | { ok: false; error: string };
 
 export type CriarLinhaRedeECardResult =
@@ -36,12 +113,136 @@ export type CriarLinhaRedeECardResult =
 
 const MAX_POR_VEZ = 100;
 
+function normalizarCpfRede(val: string | null | undefined): string | null {
+  const digits = String(val ?? '').replace(/\D/g, '');
+  return digits.length >= 11 ? digits : null;
+}
+
+type ResolverRedeCriacaoResult =
+  | { action: 'criar' }
+  | { action: 'retomar'; redeId: string }
+  | { action: 'bloquear'; error: string };
+
+async function resolverRedeParaCriacao(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clean: Record<string, unknown>,
+): Promise<ResolverRedeCriacaoResult> {
+  const nf = clean.n_franquia != null ? normalizeNFranquiaCsv(String(clean.n_franquia)) : null;
+  const cpf = clean.cpf_frank != null ? normalizarCpfRede(String(clean.cpf_frank)) : null;
+
+  if (nf) {
+    const { data: porFk, error } = await supabase
+      .from('rede_franqueados')
+      .select('id, n_franquia, processo_id, created_at')
+      .ilike('n_franquia', nf);
+    if (error) return { action: 'bloquear', error: error.message };
+
+    const linhasFk = (porFk ?? []).filter(
+      (r) => normalizeNFranquiaCsv((r as { n_franquia?: string | null }).n_franquia)?.toLowerCase() === nf.toLowerCase(),
+    );
+    if (linhasFk.length > 0) {
+      const comProcesso = linhasFk.filter((r) => (r as { processo_id?: string | null }).processo_id);
+      if (comProcesso.length > 0) {
+        return {
+          action: 'bloquear',
+          error: `Já existe franqueado com o número ${nf}. Verifique a Rede de Franqueados.`,
+        };
+      }
+      const sorted = [...linhasFk].sort((a, b) => {
+        const ta = (a as { created_at?: string | null }).created_at
+          ? new Date((a as { created_at: string }).created_at).getTime()
+          : 0;
+        const tb = (b as { created_at?: string | null }).created_at
+          ? new Date((b as { created_at: string }).created_at).getTime()
+          : 0;
+        return ta - tb;
+      });
+      return { action: 'retomar', redeId: String((sorted[0] as { id: string }).id) };
+    }
+  }
+
+  if (cpf) {
+    const cpfFmt = String(clean.cpf_frank).trim();
+    const cpfMascarado =
+      cpf.length === 11
+        ? `${cpf.slice(0, 3)}.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-${cpf.slice(9)}`
+        : null;
+    const variantes = [...new Set([cpfFmt, cpf, cpfMascarado].filter(Boolean))];
+    const { data: porCpf, error } = await supabase
+      .from('rede_franqueados')
+      .select('id, cpf_frank, processo_id, created_at, n_franquia')
+      .in('cpf_frank', variantes);
+    if (error) return { action: 'bloquear', error: error.message };
+
+    const linhasCpf = (porCpf ?? []).filter(
+      (r) => normalizarCpfRede((r as { cpf_frank?: string | null }).cpf_frank) === cpf,
+    );
+    if (linhasCpf.length > 0) {
+      const comProcesso = linhasCpf.filter((r) => (r as { processo_id?: string | null }).processo_id);
+      if (comProcesso.length > 0) {
+        const rotulo =
+          nf ??
+          normalizeNFranquiaCsv((comProcesso[0] as { n_franquia?: string | null }).n_franquia) ??
+          'este CPF';
+        return {
+          action: 'bloquear',
+          error: `Já existe franqueado cadastrado com este CPF (${rotulo}).`,
+        };
+      }
+      const sorted = [...linhasCpf].sort((a, b) => {
+        const ta = (a as { created_at?: string | null }).created_at
+          ? new Date((a as { created_at: string }).created_at).getTime()
+          : 0;
+        const tb = (b as { created_at?: string | null }).created_at
+          ? new Date((b as { created_at: string }).created_at).getTime()
+          : 0;
+        return ta - tb;
+      });
+      return { action: 'retomar', redeId: String((sorted[0] as { id: string }).id) };
+    }
+  }
+
+  return { action: 'criar' };
+}
+
+async function limparProcessoOrfaoDeRede(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  redeId: string,
+): Promise<void> {
+  const { data: processos } = await supabase
+    .from('processo_step_one')
+    .select('id')
+    .eq('origem_rede_franqueados_id', redeId);
+  for (const row of processos ?? []) {
+    const processoId = String((row as { id: string }).id);
+    await supabase.from('etapa_progresso').delete().eq('processo_id', processoId);
+    await supabase.from('processo_step_one').delete().eq('id', processoId);
+  }
+}
+
+async function reverterCriacaoParcialRede(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  opts: { redeId: string; processoId: string | null; removeRede: boolean },
+): Promise<void> {
+  if (opts.processoId) {
+    await supabase.from('etapa_progresso').delete().eq('processo_id', opts.processoId);
+    await supabase.from('processo_step_one').delete().eq('id', opts.processoId);
+  }
+  if (opts.removeRede) {
+    await supabase.from('processo_step_one').update({ origem_rede_franqueados_id: null }).eq('origem_rede_franqueados_id', opts.redeId);
+    await supabase.from('kanban_cards').update({ rede_franqueado_id: null }).eq('rede_franqueado_id', opts.redeId);
+    await supabase.from('profiles').update({ rede_franqueado_id: null }).eq('rede_franqueado_id', opts.redeId);
+    await supabase.from('rede_franqueados').delete().eq('id', opts.redeId);
+  }
+}
+
 export async function criarLinhaRedeECard(
   input: Partial<Record<RedeFranqueadoDbKey, string | null>>,
   cardCidade?: string | null,
   cardEstado?: string | null,
+  opts?: { substituirTransferenciaId?: string | null },
 ): Promise<CriarLinhaRedeECardResult> {
-  const gate = await requireRedeAdminOrPublicLink();
+  const gate = await requireRedeStaffOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
   const { supabase, userId } = gate;
 
@@ -55,9 +256,9 @@ export async function criarLinhaRedeECard(
     clean[k] = s;
   }
 
-  // Auto-preenchimento do Nº da franquia (FKxxxx)
-  // Se o usuário não informou `n_franquia`, calculamos com base no último da tabela.
-  if (!clean.n_franquia) {
+  // Auto-preenchimento do Nº da franquia (FKxxxx) — ignorado quando substitui transferência
+  const substituirId = opts?.substituirTransferenciaId?.trim() || null;
+  if (!substituirId && !clean.n_franquia) {
     try {
       const admin = createAdminClient();
       const next = await getNextFKFromRedeFranqueados(admin as any);
@@ -67,21 +268,70 @@ export async function criarLinhaRedeECard(
     }
   }
 
-  // Próxima ordem
-  const { data: last } = await supabase
-    .from('rede_franqueados')
-    .select('ordem')
-    .order('ordem', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const proximaOrdem = ((last as { ordem?: number } | null)?.ordem ?? 0) + 1;
+  let redeId: string;
+  let createdRedeThisCall = false;
+  let retomouOrfao = false;
+  let substituiuTransferencia = false;
 
-  const { data: rede, error: errRede } = await supabase
-    .from('rede_franqueados')
-    .insert({ ordem: proximaOrdem, ...clean })
-    .select('id')
-    .single();
-  if (errRede || !rede?.id) return { ok: false, error: errRede?.message ?? 'Erro ao criar linha na rede.' };
+  if (substituirId) {
+    const { data: targetRow, error: errTarget } = await supabase
+      .from('rede_franqueados')
+      .select('*')
+      .eq('id', substituirId)
+      .maybeSingle();
+    if (errTarget) return { ok: false, error: errTarget.message };
+    if (!targetRow) return { ok: false, error: 'Franqueado em transferência não encontrado.' };
+
+    const arq = await arquivarHistoricoSubstituicao(supabase, substituirId, userId);
+    if (!arq.ok) return { ok: false, error: arq.error };
+
+    const patch = buildPatchSubstituicao(
+      targetRow as Record<string, unknown>,
+      input ?? {},
+    );
+    const { error: errUpd } = await supabase.from('rede_franqueados').update(patch).eq('id', substituirId);
+    if (errUpd) return { ok: false, error: errUpd.message ?? 'Erro ao substituir linha em transferência.' };
+
+    redeId = substituirId;
+    substituiuTransferencia = true;
+    clean.n_franquia = patch.n_franquia;
+    clean.nome_completo = patch.nome_completo ?? clean.nome_completo;
+    clean.status_franquia = patch.status_franquia ?? 'Em Operação';
+  } else {
+  const resolver = await resolverRedeParaCriacao(supabase, clean);
+  if (resolver.action === 'bloquear') return { ok: false, error: resolver.error };
+
+  if (resolver.action === 'retomar') {
+    redeId = resolver.redeId;
+    retomouOrfao = true;
+    await limparProcessoOrfaoDeRede(supabase, redeId);
+    const { error: errUpd } = await supabase
+      .from('rede_franqueados')
+      .update({ ...clean, updated_at: new Date().toISOString() })
+      .eq('id', redeId);
+    if (errUpd) return { ok: false, error: errUpd.message ?? 'Erro ao atualizar linha órfã na rede.' };
+  } else {
+    // Próxima ordem
+    const { data: last } = await supabase
+      .from('rede_franqueados')
+      .select('ordem')
+      .order('ordem', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const proximaOrdem = ((last as { ordem?: number } | null)?.ordem ?? 0) + 1;
+
+    const { data: rede, error: errRede } = await supabase
+      .from('rede_franqueados')
+      .insert({ ordem: proximaOrdem, ...clean })
+      .select('id')
+      .single();
+    if (errRede || !rede?.id) return { ok: false, error: errRede?.message ?? 'Erro ao criar linha na rede.' };
+    redeId = rede.id;
+    createdRedeThisCall = true;
+  }
+  }
+
+  let processoId: string | null = null;
 
   try {
     const recipients = getRegistroFranquiaRecipients(
@@ -116,7 +366,7 @@ export async function criarLinhaRedeECard(
     status: 'em_andamento',
     etapa_atual: 1,
     etapa_painel: 'step_1',
-    origem_rede_franqueados_id: rede.id,
+    origem_rede_franqueados_id: redeId,
   };
 
   // Copiar campos relevantes para o processo
@@ -127,7 +377,6 @@ export async function criarLinhaRedeECard(
   if (clean.classificacao_franqueado) payload.classificacao_franqueado = clean.classificacao_franqueado;
   if (clean.area_atuacao) payload.area_atuacao_franquia = clean.area_atuacao;
   if (clean.email_frank) payload.email_franqueado = clean.email_frank;
-  if (clean.responsavel_comercial) payload.responsavel_comercial = clean.responsavel_comercial;
   if (clean.telefone_frank) payload.telefone_frank = clean.telefone_frank;
   if (clean.cpf_frank) payload.cpf_frank = clean.cpf_frank;
   if (clean.data_nasc_frank) payload.data_nasc_frank = clean.data_nasc_frank;
@@ -148,7 +397,11 @@ export async function criarLinhaRedeECard(
     .insert(payload)
     .select('id')
     .single();
-  if (errProc || !processo?.id) return { ok: false, error: errProc?.message ?? 'Erro ao criar card.' };
+  if (errProc || !processo?.id) {
+    await reverterCriacaoParcialRede(supabase, { redeId, processoId: null, removeRede: createdRedeThisCall });
+    return { ok: false, error: errProc?.message ?? 'Erro ao criar card.' };
+  }
+  processoId = processo.id;
 
   const etapas = Array.from({ length: 11 }, (_, i) => ({
     user_id: userId,
@@ -158,17 +411,56 @@ export async function criarLinhaRedeECard(
     tentativas: 0,
   }));
   const { error: errEtapas } = await supabase.from('etapa_progresso').insert(etapas);
-  if (errEtapas) return { ok: false, error: `Erro ao criar etapas: ${errEtapas.message}` };
+  if (errEtapas) {
+    await reverterCriacaoParcialRede(supabase, { redeId, processoId, removeRede: createdRedeThisCall });
+    return { ok: false, error: `Erro ao criar etapas: ${errEtapas.message}` };
+  }
 
   const { error: errLink } = await supabase
     .from('rede_franqueados')
     .update({ processo_id: processo.id })
-    .eq('id', rede.id);
-  if (errLink) return { ok: false, error: `Erro ao vincular processo à rede: ${errLink.message}` };
+    .eq('id', redeId);
+  if (errLink) {
+    await reverterCriacaoParcialRede(supabase, { redeId, processoId, removeRede: createdRedeThisCall });
+    return { ok: false, error: `Erro ao vincular processo à rede: ${errLink.message}` };
+  }
+
+  const tituloFunil = tituloFunilFromRedeRow({
+    nome_completo: clean.nome_completo != null ? String(clean.nome_completo) : null,
+    n_franquia: clean.n_franquia != null ? String(clean.n_franquia) : null,
+  });
+  const funilRes = await ensureFunilStepOneCardFromRede(supabase, {
+    redeFranqueadoId: redeId,
+    franqueadoUserId: userId,
+    titulo: tituloFunil,
+    processoStepOneId: processo.id,
+  });
+  if (!funilRes.ok) {
+    console.error('[criarLinhaRedeECard] Funil Step One nativo:', funilRes.error);
+  }
 
   revalidatePath('/rede-franqueados');
   revalidatePath('/painel-novos-negocios');
-  return { ok: true, redeId: rede.id, processoId: processo.id, mensagem: 'Linha criada e card gerado no Step 1.' };
+  revalidatePath('/funil-stepone');
+
+  const avisoFunil =
+    funilRes.ok && funilRes.created
+      ? ''
+      : !funilRes.ok
+        ? ' Atenção: card do Funil Step One não foi criado — use "Garantir cards no Funil" na Rede.'
+        : '';
+
+  const prefixoRetomada = retomouOrfao ? ' Cadastro retomado (linha órfã reutilizada).' : '';
+  const prefixoSubst = substituiuTransferencia
+    ? ' Franqueado em transferência substituído; histórico anterior arquivado.'
+    : '';
+
+  return {
+    ok: true,
+    redeId,
+    processoId: processo.id,
+    mensagem: `Linha criada e card gerado no Step 1.${prefixoRetomada}${prefixoSubst}${avisoFunil}`,
+  };
 }
 
 /**
@@ -186,33 +478,92 @@ export async function getProximoNFranquia(): Promise<{ ok: true; valor: string }
   }
 }
 
+export type RedeEmTransferenciaItem = {
+  id: string;
+  n_franquia: string | null;
+  nome_completo: string | null;
+};
+
+export async function listarRedeFranqueadosEmTransferencia(): Promise<
+  { ok: true; items: RedeEmTransferenciaItem[] } | { ok: false; error: string }
+> {
+  const gate = await requireRedeStaffOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const { data, error } = await supabase
+    .from('rede_franqueados')
+    .select('id, n_franquia, nome_completo, status_franquia')
+    .order('n_franquia', { ascending: true });
+
+  if (error) return { ok: false, error: error.message };
+
+  const items = (data ?? [])
+    .filter((r) =>
+      isRedeFranqueadoEmTransferencia((r as { status_franquia?: string | null }).status_franquia),
+    )
+    .map((r) => ({
+      id: String((r as { id: string }).id),
+      n_franquia: (r as { n_franquia?: string | null }).n_franquia ?? null,
+      nome_completo: (r as { nome_completo?: string | null }).nome_completo ?? null,
+    }));
+
+  return { ok: true, items };
+}
+
+export async function fetchRedeFranqueadoSubstituicoes(
+  redeId: string,
+): Promise<{ ok: true; items: RedeSubstituicaoRow[] } | { ok: false; error: string }> {
+  const gate = await requireRedeStaffOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  if (!redeId?.trim()) return { ok: false, error: 'ID inválido.' };
+
+  const { data, error } = await supabase
+    .from('rede_franqueado_substituicoes')
+    .select('*')
+    .eq('rede_franqueado_id', redeId)
+    .order('substituido_em', { ascending: false });
+
+  if (error) return { ok: false, error: error.message };
+
+  return {
+    ok: true,
+    items: (data ?? []).map((r) => ({
+      id: String((r as { id: string }).id),
+      rede_franqueado_id: String((r as { rede_franqueado_id: string }).rede_franqueado_id),
+      snapshot: ((r as { snapshot?: Record<string, unknown> }).snapshot ?? {}) as Record<string, unknown>,
+      processo_step_one_id: (r as { processo_step_one_id?: string | null }).processo_step_one_id ?? null,
+      substituido_em: String((r as { substituido_em: string }).substituido_em),
+      substituido_por: (r as { substituido_por?: string | null }).substituido_por ?? null,
+      nome_anterior: (r as { nome_anterior?: string | null }).nome_anterior ?? null,
+      n_franquia_anterior: (r as { n_franquia_anterior?: string | null }).n_franquia_anterior ?? null,
+    })),
+  };
+}
+
 /**
  * Cria um card (processo Step 1) no Painel para cada linha da Rede de Franqueados
  * que ainda não tem processo_id. Apenas admin.
  */
 export async function criarCardsDesdeRedeFranqueados(): Promise<CriarCardsDesdeRedeResult> {
-  const gate = await requireRedeAdminOrPublicLink();
+  const gate = await requireRedeStaffOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
   const { supabase, userId } = gate;
 
   const { data: rows, error: errSelect } = await supabase
     .from('rede_franqueados')
     .select(
-      'id, n_franquia, modalidade, nome_completo, status_franquia, classificacao_franqueado, area_atuacao, email_frank, responsavel_comercial, tamanho_camisa_frank, socios, cidade_casa_frank, estado_casa_frank, telefone_frank, cpf_frank, data_nasc_frank, data_ass_cof, data_ass_contrato, data_expiracao_franquia, endereco_casa_frank, endereco_casa_frank_numero, endereco_casa_frank_complemento, cep_casa_frank',
+      'id, n_franquia, modalidade, nome_completo, status_franquia, classificacao_franqueado, area_atuacao, email_frank, tamanho_camisa_frank, socios, cidade_casa_frank, estado_casa_frank, telefone_frank, cpf_frank, data_nasc_frank, data_ass_cof, data_ass_contrato, data_expiracao_franquia, endereco_casa_frank, endereco_casa_frank_numero, endereco_casa_frank_complemento, cep_casa_frank',
     )
     .is('processo_id', null)
     .limit(MAX_POR_VEZ);
 
   if (errSelect) return { ok: false, error: errSelect.message ?? 'Erro ao ler a tabela.' };
-  if (!rows?.length) {
-    return {
-      ok: true,
-      criados: 0,
-      mensagem: 'Nenhuma linha sem card. Todas as linhas da Rede já possuem um card no Painel.',
-    };
-  }
 
   let criados = 0;
+  if (rows?.length) {
   for (const row of rows) {
     const cidade = String(row.cidade_casa_frank ?? '').trim() || 'A definir';
     const estado = (row.estado_casa_frank && String(row.estado_casa_frank).trim()) || null;
@@ -240,8 +591,6 @@ export async function criarCardsDesdeRedeFranqueados(): Promise<CriarCardsDesdeR
       payload.area_atuacao_franquia = String(row.area_atuacao).trim();
     if (row.email_frank != null && String(row.email_frank).trim() !== '')
       payload.email_franqueado = String(row.email_frank).trim();
-    if (row.responsavel_comercial != null && String(row.responsavel_comercial).trim() !== '')
-      payload.responsavel_comercial = String(row.responsavel_comercial).trim();
     if (row.telefone_frank != null && String(row.telefone_frank).trim() !== '')
       payload.telefone_frank = String(row.telefone_frank).trim();
     if (row.cpf_frank != null && String(row.cpf_frank).trim() !== '')
@@ -300,21 +649,102 @@ export async function criarCardsDesdeRedeFranqueados(): Promise<CriarCardsDesdeR
     }
     criados += 1;
   }
+  }
+
+  const funilRes = await garantirCardsFunilStepOneParaTodaRede(userId);
+  if (!funilRes.ok) return funilRes;
 
   revalidatePath('/rede-franqueados');
   revalidatePath('/painel-novos-negocios');
+  revalidatePath('/funil-stepone');
+
+  const partes: string[] = [];
+  if (criados > 0) {
+    partes.push(criados === 1 ? '1 card criado no Painel' : `${criados} cards criados no Painel`);
+  }
+  if (funilRes.criados > 0) {
+    partes.push(
+      funilRes.criados === 1
+        ? '1 card criado no Funil Step One'
+        : `${funilRes.criados} cards criados no Funil Step One`,
+    );
+  }
+  if (funilRes.reparados > 0) {
+    partes.push(`${funilRes.reparados} card(s) reparado(s) no Funil Step One`);
+  }
+  if (partes.length === 0) {
+    partes.push('Todos os franqueados já possuem cards no Painel e no Funil Step One.');
+  }
+
   return {
     ok: true,
     criados,
-    mensagem: criados === 1 ? '1 card criado no Painel.' : `${criados} cards criados no Painel.`,
+    funilCriados: funilRes.criados,
+    funilReparados: funilRes.reparados,
+    mensagem: partes.join('. ') + '.',
   };
+}
+
+/**
+ * Garante card no Funil Step One para cada linha da Rede de Franqueados (backfill idempotente).
+ */
+export async function garantirCardsFunilStepOneDesdeRede(): Promise<GarantirCardsFunilStepOneDesdeRedeResult> {
+  const gate = await requireRedeStaffOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  const res = await garantirCardsFunilStepOneParaTodaRede(gate.userId);
+  if (!res.ok) return res;
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath('/funil-stepone');
+
+  const partes: string[] = [];
+  if (res.criados > 0) {
+    partes.push(
+      res.criados === 1
+        ? '1 card criado no Funil Step One'
+        : `${res.criados} cards criados no Funil Step One`,
+    );
+  }
+  if (res.reparados > 0) {
+    partes.push(`${res.reparados} card(s) reparado(s) no Funil Step One`);
+  }
+  if (res.jaExistiam > 0 && res.criados === 0 && res.reparados === 0) {
+    partes.push(`${res.jaExistiam} franqueado(s) já tinham card no funil`);
+  }
+  if (res.ignorados > 0) {
+    partes.push(`${res.ignorados} linha(s) ignorada(s) (sem usuário ou erro)`);
+  }
+  if (partes.length === 0) {
+    partes.push('Nenhuma linha na Rede de Franqueados.');
+  }
+
+  return {
+    ok: true,
+    criados: res.criados,
+    reparados: res.reparados,
+    jaExistiam: res.jaExistiam,
+    ignorados: res.ignorados,
+    mensagem: partes.join('. ') + '.',
+  };
+}
+
+/**
+ * Retorna quantas linhas da Rede ainda não têm card no Funil Step One.
+ */
+export async function contarRedeSemCardFunil(): Promise<
+  { ok: true; total: number } | { ok: false; error: string }
+> {
+  const gate = await requireRedeStaffOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  return contarRedeSemCardFunilStepOne();
 }
 
 /**
  * Retorna quantas linhas da Rede ainda não têm card (processo_id nulo).
  */
 export async function contarLinhasSemCard(): Promise<{ ok: true; total: number } | { ok: false; error: string }> {
-  const gate = await requireRedeAdminOrPublicLink();
+  const gate = await requireRedeStaffOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
   const { supabase } = gate;
 
@@ -335,6 +765,143 @@ export type ExcluirRedeFranqueadoResult =
   | { ok: true; mensagem: string }
   | { ok: false; error: string };
 
+/** Transfere vínculos da linha removida para a que permanece (card, perfil, processo). */
+async function mesclarReferenciasRedeAntesExcluir(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fromId: string,
+  toId: string,
+): Promise<void> {
+  if (fromId === toId) return;
+
+  const [{ data: from }, { data: to }] = await Promise.all([
+    supabase.from('rede_franqueados').select('id, processo_id').eq('id', fromId).maybeSingle(),
+    supabase.from('rede_franqueados').select('id, processo_id').eq('id', toId).maybeSingle(),
+  ]);
+
+  const fromProc = (from as { processo_id?: string | null } | null)?.processo_id ?? null;
+  const toProc = (to as { processo_id?: string | null } | null)?.processo_id ?? null;
+
+  if (fromProc && !toProc) {
+    await supabase.from('rede_franqueados').update({ processo_id: fromProc }).eq('id', toId);
+    await supabase.from('processo_step_one').update({ origem_rede_franqueados_id: toId }).eq('id', fromProc);
+  } else if (fromProc && toProc && fromProc !== toProc) {
+    await supabase
+      .from('processo_step_one')
+      .update({ origem_rede_franqueados_id: toId })
+      .eq('origem_rede_franqueados_id', fromId);
+  }
+
+  await supabase
+    .from('processo_step_one')
+    .update({ origem_rede_franqueados_id: toId })
+    .eq('origem_rede_franqueados_id', fromId);
+  await supabase.from('kanban_cards').update({ rede_franqueado_id: toId }).eq('rede_franqueado_id', fromId);
+  await supabase.from('profiles').update({ rede_franqueado_id: toId }).eq('rede_franqueado_id', fromId);
+  await supabase.from('community_posts').update({ franqueado_id: toId }).eq('franqueado_id', fromId);
+}
+
+async function excluirRedeFranqueadoInterno(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await supabase.from('processo_step_one').update({ origem_rede_franqueados_id: null }).eq('origem_rede_franqueados_id', id);
+  await supabase.from('kanban_cards').update({ rede_franqueado_id: null }).eq('rede_franqueado_id', id);
+  await supabase.from('profiles').update({ rede_franqueado_id: null }).eq('rede_franqueado_id', id);
+
+  const { error } = await supabase.from('rede_franqueados').delete().eq('id', id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+function contarCamposPreenchidosRede(row: Record<string, unknown>): number {
+  let n = 0;
+  for (const k of REDE_FRANQUEADOS_DB_KEYS) {
+    const v = row[k];
+    if (v !== null && v !== undefined && String(v).trim() !== '') n += 1;
+  }
+  return n;
+}
+
+function rowParaDuplicata(row: Record<string, unknown>): RedeLinhaParaDuplicata {
+  return {
+    id: String(row.id ?? ''),
+    n_franquia: (row.n_franquia as string | null) ?? null,
+    nome_completo: (row.nome_completo as string | null) ?? null,
+    processo_id: (row.processo_id as string | null) ?? null,
+    created_at: (row.created_at as string | null) ?? null,
+    preenchidos: contarCamposPreenchidosRede(row),
+  };
+}
+
+export type PreviewDuplicatasRedeResult =
+  | {
+      ok: true;
+      grupos: GrupoDuplicataRede[];
+      totalRemover: number;
+      totalGrupos: number;
+    }
+  | { ok: false; error: string };
+
+export async function previewDuplicatasRedeFranqueados(): Promise<PreviewDuplicatasRedeResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const { data, error } = await supabase.from('rede_franqueados').select('*');
+  if (error) return { ok: false, error: error.message };
+
+  const linhas = (data ?? []).map((r) => rowParaDuplicata(r as Record<string, unknown>));
+  const grupos = agruparDuplicatasRede(linhas);
+  const totalRemover = grupos.reduce((s, g) => s + g.removerIds.length, 0);
+
+  return { ok: true, grupos, totalRemover, totalGrupos: grupos.length };
+}
+
+export type RemoverDuplicatasRedeResult =
+  | { ok: true; removidos: number; grupos: number; mensagem: string }
+  | { ok: false; error: string };
+
+export async function removerDuplicatasRedeFranqueados(): Promise<RemoverDuplicatasRedeResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const preview = await previewDuplicatasRedeFranqueados();
+  if (!preview.ok) return { ok: false, error: preview.error };
+  if (preview.totalRemover === 0) {
+    return { ok: true, removidos: 0, grupos: 0, mensagem: 'Nenhuma duplicata encontrada (mesmo Nº de Franquia ou mesmo nome).' };
+  }
+
+  let removidos = 0;
+  for (const grupo of preview.grupos) {
+    for (const dupId of grupo.removerIds) {
+      await mesclarReferenciasRedeAntesExcluir(supabase, dupId, grupo.manterId);
+      const del = await excluirRedeFranqueadoInterno(supabase, dupId);
+      if (!del.ok) {
+        return {
+          ok: false,
+          error: `Erro ao remover duplicata de ${grupo.rotulo}: ${del.error}`,
+        };
+      }
+      removidos += 1;
+    }
+  }
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath('/painel-novos-negocios');
+  revalidatePath('/comunidade');
+
+  return {
+    ok: true,
+    removidos,
+    grupos: preview.totalGrupos,
+    mensagem:
+      removidos === 1
+        ? `1 linha duplicada removida em ${preview.totalGrupos} grupo(s). A linha mais completa de cada Nº de Franquia foi mantida.`
+        : `${removidos} linhas duplicadas removidas em ${preview.totalGrupos} grupo(s). Em cada grupo foi mantida a linha mais completa (com card, se houver).`,
+  };
+}
+
 export async function excluirRedeFranqueado(id: string): Promise<ExcluirRedeFranqueadoResult> {
   const gate = await requireRedeAdminOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
@@ -342,11 +909,8 @@ export async function excluirRedeFranqueado(id: string): Promise<ExcluirRedeFran
 
   if (!id) return { ok: false, error: 'ID inválido.' };
 
-  // Evita falha por FK: desvincula origem no processo_step_one antes de apagar.
-  await supabase.from('processo_step_one').update({ origem_rede_franqueados_id: null }).eq('origem_rede_franqueados_id', id);
-
-  const { error } = await supabase.from('rede_franqueados').delete().eq('id', id);
-  if (error) return { ok: false, error: error.message };
+  const del = await excluirRedeFranqueadoInterno(supabase, id);
+  if (!del.ok) return { ok: false, error: del.error };
 
   revalidatePath('/rede-franqueados');
   revalidatePath('/painel-novos-negocios');
@@ -357,7 +921,7 @@ export async function atualizarRedeFranqueado(
   id: string,
   patch: Partial<Record<RedeFranqueadoDbKey, string | null>>,
 ): Promise<AtualizarRedeFranqueadoResult> {
-  const gate = await requireRedeAdminOrPublicLink();
+  const gate = await requireRedeStaffOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
   const { supabase } = gate;
 
@@ -382,6 +946,31 @@ export async function atualizarRedeFranqueado(
   return { ok: true, mensagem: 'Linha atualizada.' };
 }
 
+export async function atualizarRedeFranqueadoDiagnostico(
+  id: string,
+  patch: import('@/lib/rede-diagnostico-form').RedeDiagnosticoPatch,
+): Promise<AtualizarRedeFranqueadoResult> {
+  const gate = await requireRedeStaffOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  if (!id) return { ok: false, error: 'ID inválido.' };
+  if (!patch || Object.keys(patch).length === 0) {
+    return { ok: false, error: 'Nada para atualizar.' };
+  }
+
+  const { error } = await supabase
+    .from('rede_franqueados')
+    .update({ ...patch, updated_at: new Date().toISOString() } as never)
+    .eq('id', id);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/rede-franqueados');
+  revalidatePath(`/rede-franqueados/${id}`);
+  revalidatePath('/comunidade');
+  return { ok: true, mensagem: 'Diagnóstico atualizado.' };
+}
+
 const REDE_INSERT_COLUMNS = [
   'ordem', 'n_franquia', 'modalidade', 'nome_completo', 'status_franquia', 'classificacao_franqueado',
   'data_ass_cof', 'data_ass_contrato', 'data_expiracao_franquia', 'regional', 'area_atuacao',
@@ -394,19 +983,30 @@ export type ImportarRedeCSVResult =
   | { ok: true; inseridos: number; mensagem: string }
   | { ok: false; error: string };
 
-/**
- * Importa linhas a partir de um CSV (ex.: exportado do Google Sheets) para a tabela rede_franqueados. Apenas admin.
- */
-export async function importarRedeFranqueadosCSV(csvText: string): Promise<ImportarRedeCSVResult> {
-  const gate = await requireRedeAdminOrPublicLink();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  const { supabase, userId } = gate;
+export type AtualizarRedeCSVResult =
+  | { ok: true; atualizados: number; ignorados: number; mensagem: string }
+  | { ok: false; error: string };
 
-  // (BUG 1) Normaliza cabeçalhos exportados pelo Sheets (trim + canonicalização)
+function redePatchFromCsvRecord(r: RedeFranqueadoRow): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  for (const col of REDE_INSERT_COLUMNS) {
+    const v = r[col];
+    if (v !== undefined && v !== null && v !== '') row[col] = v;
+  }
+  return row;
+}
+
+function chaveNFranquia(val: string | null | undefined): string | null {
+  const n = normalizeNFranquiaCsv(val);
+  return n ? n.toLowerCase() : null;
+}
+
+async function prepararRegistrosCsvRede(
+  csvText: string,
+): Promise<{ ok: true; records: RedeFranqueadoRow[] } | { ok: false; error: string }> {
   const normalizedHeaders = normalizeRedeCsvHeadersFromSheets(csvText);
   if (!normalizedHeaders.ok) return { ok: false, error: normalizedHeaders.error };
 
-  // Mantém também a correção específica das colunas 23..28 ("Sócios")
   const fixed = fixRedeCsvSociosHeadersTextFromSheets(normalizedHeaders.csvText);
   if (!fixed.ok) return { ok: false, error: fixed.error };
 
@@ -429,8 +1029,6 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
     };
   }
 
-  // Se o delimitador do CSV vier como ";" (comum em pt-BR), o parser antigo separava errado.
-  // Agora o parser autodetecta, mas deixamos uma mensagem amigável caso o cabeçalho venha com 1 coluna só.
   if (parsed.meta.headerLen <= 2) {
     return {
       ok: false,
@@ -440,16 +1038,121 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
     };
   }
 
+  return { ok: true, records: parsed.records };
+}
+
+/**
+ * Atualiza linhas existentes pelo Nº de Franquia (coluna "N de Franquia").
+ * Campos vazios no CSV não apagam dados já salvos.
+ */
+export async function atualizarRedeFranqueadosCSV(csvText: string): Promise<AtualizarRedeCSVResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const prep = await prepararRegistrosCsvRede(csvText);
+  if (!prep.ok) return { ok: false, error: prep.error };
+
+  const { data: existentes, error: errList } = await supabase
+    .from('rede_franqueados')
+    .select('id, n_franquia');
+  if (errList) return { ok: false, error: `Erro ao ler rede: ${errList.message}` };
+
+  const porFranquia = new Map<string, string>();
+  for (const row of existentes ?? []) {
+    const chave = chaveNFranquia((row as { n_franquia?: string | null }).n_franquia);
+    if (!chave) continue;
+    const id = String((row as { id?: string }).id ?? '');
+    if (!id) continue;
+    if (porFranquia.has(chave)) {
+      const display = normalizeNFranquiaCsv((row as { n_franquia?: string | null }).n_franquia) ?? chave.toUpperCase();
+      return {
+        ok: false,
+        error: `Há mais de um franqueado com o número ${display}. Corrija duplicatas na rede antes de atualizar em lote.`,
+      };
+    }
+    porFranquia.set(chave, id);
+  }
+
+  let atualizados = 0;
+  let ignorados = 0;
+  const semFranquia: string[] = [];
+  const naoEncontrados: string[] = [];
+
+  for (const record of prep.records) {
+    const chave = chaveNFranquia(record.n_franquia as string | null);
+    const patch = redePatchFromCsvRecord(record);
+    if (Object.keys(patch).length === 0) {
+      ignorados += 1;
+      continue;
+    }
+
+    if (!chave) {
+      ignorados += 1;
+      const nome = String(record.nome_completo ?? '').trim();
+      if (nome) semFranquia.push(nome);
+      continue;
+    }
+
+    const id = porFranquia.get(chave);
+    if (!id) {
+      ignorados += 1;
+      naoEncontrados.push(String(record.n_franquia ?? '').trim() || chave.toUpperCase());
+      continue;
+    }
+
+    const { error } = await supabase
+      .from('rede_franqueados')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) return { ok: false, error: `Erro ao atualizar ${record.n_franquia}: ${error.message}` };
+    atualizados += 1;
+  }
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath('/comunidade');
+
+  const partes: string[] = [];
+  if (atualizados === 1) partes.push('1 linha atualizada');
+  else if (atualizados > 0) partes.push(`${atualizados} linhas atualizadas`);
+  else partes.push('Nenhuma linha atualizada');
+
+  if (ignorados > 0) {
+    partes.push(`${ignorados} ignorada(s)`);
+    if (naoEncontrados.length > 0) {
+      const amostra = naoEncontrados.slice(0, 5).join(', ');
+      partes.push(`não encontradas na rede: ${amostra}${naoEncontrados.length > 5 ? '…' : ''}`);
+    }
+    if (semFranquia.length > 0) {
+      partes.push('algumas sem Nº de Franquia no CSV');
+    }
+  }
+
+  return {
+    ok: true,
+    atualizados,
+    ignorados,
+    mensagem: partes.join('. ') + '.',
+  };
+}
+
+/**
+ * Importa linhas a partir de um CSV (ex.: exportado do Google Sheets) para a tabela rede_franqueados. Apenas admin.
+ */
+export async function importarRedeFranqueadosCSV(csvText: string): Promise<ImportarRedeCSVResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase, userId } = gate;
+
+  const prep = await prepararRegistrosCsvRede(csvText);
+  if (!prep.ok) return { ok: false, error: prep.error };
+
   const BATCH = 50;
   let inseridos = 0;
   const insertedIds: string[] = [];
-  for (let i = 0; i < parsed.records.length; i += BATCH) {
-    const batch = parsed.records.slice(i, i + BATCH).map((r) => {
-      const row: Record<string, unknown> = {};
-      for (const col of REDE_INSERT_COLUMNS) {
-        const v = r[col];
-        if (v !== undefined && v !== null && v !== '') row[col] = v;
-      }
+  for (let i = 0; i < prep.records.length; i += BATCH) {
+    const batch = prep.records.slice(i, i + BATCH).map((r) => {
+      const row = redePatchFromCsvRecord(r);
       if (typeof row.ordem !== 'number') row.ordem = 0;
       return row;
     });
@@ -503,7 +1206,7 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
     const { data: rows, error: errSelect } = await supabase
       .from('rede_franqueados')
       .select(
-        'id, n_franquia, modalidade, nome_completo, status_franquia, classificacao_franqueado, area_atuacao, email_frank, responsavel_comercial, tamanho_camisa_frank, socios, cidade_casa_frank, estado_casa_frank, telefone_frank, cpf_frank, data_nasc_frank, data_ass_cof, data_ass_contrato, data_expiracao_franquia, endereco_casa_frank, endereco_casa_frank_numero, endereco_casa_frank_complemento, cep_casa_frank',
+        'id, n_franquia, modalidade, nome_completo, status_franquia, classificacao_franqueado, area_atuacao, email_frank, tamanho_camisa_frank, socios, cidade_casa_frank, estado_casa_frank, telefone_frank, cpf_frank, data_nasc_frank, data_ass_cof, data_ass_contrato, data_expiracao_franquia, endereco_casa_frank, endereco_casa_frank_numero, endereco_casa_frank_complemento, cep_casa_frank',
       )
       .in('id', insertedIds);
     if (errSelect) return { ok: false, error: `Erro ao ler linhas importadas: ${errSelect.message}` };
@@ -537,7 +1240,6 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
       if (row.classificacao_franqueado != null && String(row.classificacao_franqueado).trim() !== '') payload.classificacao_franqueado = String(row.classificacao_franqueado).trim();
       if (row.area_atuacao != null && String(row.area_atuacao).trim() !== '') payload.area_atuacao_franquia = String(row.area_atuacao).trim();
       if (row.email_frank != null && String(row.email_frank).trim() !== '') payload.email_franqueado = String(row.email_frank).trim();
-      if (row.responsavel_comercial != null && String(row.responsavel_comercial).trim() !== '') payload.responsavel_comercial = String(row.responsavel_comercial).trim();
       if (row.telefone_frank != null && String(row.telefone_frank).trim() !== '') payload.telefone_frank = String(row.telefone_frank).trim();
       if (row.cpf_frank != null && String(row.cpf_frank).trim() !== '') payload.cpf_frank = String(row.cpf_frank).trim();
       if (row.data_nasc_frank != null && String(row.data_nasc_frank).trim() !== '') payload.data_nasc_frank = String(row.data_nasc_frank).trim();
@@ -578,15 +1280,27 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
       criados += 1;
     }
 
+    const funilRes = await garantirCardsFunilStepOneParaTodaRede(userId);
+    if (!funilRes.ok) return { ok: false, error: funilRes.error };
+
     revalidatePath('/painel-novos-negocios');
     revalidatePath('/rede-franqueados');
+    revalidatePath('/funil-stepone');
+
+    const funilMsg =
+      funilRes.criados > 0
+        ? ` ${funilRes.criados} card(s) no Funil Step One.`
+        : funilRes.reparados > 0
+          ? ` ${funilRes.reparados} card(s) reparado(s) no Funil Step One.`
+          : '';
+
     return {
       ok: true,
       inseridos,
       mensagem:
         inseridos === 1
-          ? `1 linha importada. ${criados} card(s) criado(s) no Step 1.`
-          : `${inseridos} linhas importadas. ${criados} card(s) criado(s) no Step 1.`,
+          ? `1 linha importada. ${criados} card(s) criado(s) no Step 1.${funilMsg}`
+          : `${inseridos} linhas importadas. ${criados} card(s) criado(s) no Step 1.${funilMsg}`,
     };
   }
 
@@ -596,4 +1310,393 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
     inseridos,
     mensagem: inseridos === 1 ? '1 linha importada.' : `${inseridos} linhas importadas.`,
   };
+}
+
+const MAX_REDE_DOC_BYTES = 10 * 1024 * 1024;
+
+/** Chaves do bucket Supabase só aceitam caracteres seguros no path do objeto. */
+function sanitizeRedeNomeArquivo(nome: string): string {
+  const safe = String(nome ?? 'arquivo')
+    .replace(/[/\\]/g, '_')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+  return (safe || 'arquivo').slice(0, 180);
+}
+
+async function perfilPodeGerirDocsRede(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<boolean> {
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+  const access = normalizeAccessRole((profile as { role?: string } | null)?.role);
+  return access === 'admin' || access === 'team';
+}
+
+/** Caminho relativo no bucket `rede-attachments` (aceita legado com barra ou prefixo do bucket). */
+function normalizeRedeAnexoStoragePath(storagePath: string): string {
+  let p = String(storagePath ?? '').trim();
+  if (!p) return '';
+  const fromUrl = p.match(/rede-attachments\/(.+)$/i);
+  if (fromUrl) p = fromUrl[1]!;
+  if (p.startsWith('rede-attachments/')) p = p.slice('rede-attachments/'.length);
+  return p.replace(/^\/+/, '');
+}
+
+/** Link assinado (1h) — só equipe interna (admin / team / consultor legado). */
+export async function getSignedUrlRedeAnexo(
+  storagePath: string,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const p = normalizeRedeAnexoStoragePath(storagePath);
+  if (!p) return { ok: false, error: 'Caminho inválido.' };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  if (!(await perfilPodeGerirDocsRede(supabase, user.id))) {
+    return { ok: false, error: 'Sem permissão para baixar este documento.' };
+  }
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço de arquivos indisponível no servidor.' };
+  }
+
+  const { data, error } = await admin.storage.from('rede-attachments').createSignedUrl(p, 3600);
+  if (error || !data?.signedUrl) {
+    const msg = error?.message ?? '';
+    if (/not found|object not found|404/i.test(msg)) {
+      return { ok: false, error: 'Arquivo não encontrado no storage. Envie o documento novamente.' };
+    }
+    return { ok: false, error: msg || 'Não foi possível gerar o link.' };
+  }
+  return { ok: true, url: data.signedUrl };
+}
+
+const REDE_FRANQUIA_ANEXO_COLUNA = {
+  cof: 'anexo_cof_path',
+  contrato: 'anexo_contrato_path',
+  numero_franquia: 'anexo_numero_franquia_path',
+} as const;
+
+const REDE_FRANQUIA_ANEXO_JUSTIFICATIVA_COLUNA = {
+  cof: 'anexo_cof_justificativa',
+  contrato: 'anexo_contrato_justificativa',
+  numero_franquia: 'anexo_numero_franquia_justificativa',
+} as const;
+
+const REDE_ANEXO_COLUNA = {
+  ...REDE_FRANQUIA_ANEXO_COLUNA,
+  ...REDE_FRANQUEADO_ANEXO_PATH_COLUNA,
+  ...REDE_EMPRESA_ANEXO_PATH_COLUNA,
+} as const;
+
+const REDE_ANEXO_JUSTIFICATIVA_COLUNA = {
+  ...REDE_FRANQUIA_ANEXO_JUSTIFICATIVA_COLUNA,
+  ...REDE_FRANQUEADO_ANEXO_JUSTIFICATIVA_COLUNA,
+  ...REDE_EMPRESA_ANEXO_JUSTIFICATIVA_COLUNA,
+} as const;
+
+type RedeAnexoTipo = keyof typeof REDE_ANEXO_COLUNA;
+
+function parseRedeAnexoTipo(tipoRaw: string): RedeAnexoTipo | null {
+  if (tipoRaw in REDE_ANEXO_COLUNA) return tipoRaw as RedeAnexoTipo;
+  return null;
+}
+
+async function updateRedeAnexoPath(
+  redeId: string,
+  column: string,
+  storagePath: string,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.from('rede_franqueados').update({ [column]: storagePath } as never).eq('id', redeId);
+  if (!error) return { ok: true };
+
+  if (column !== 'anexo_numero_franquia_path' || !isRedeAnexoNumeroFranquiaSchemaError(error.message ?? '', column)) {
+    return { ok: false, error: error.message };
+  }
+
+  const ensured = await ensureRedeAnexoNumeroFranquiaColumn();
+  if (!ensured.ok) return ensured;
+
+  const admin = createAdminClient();
+  const { error: retryErr } = await admin
+    .from('rede_franqueados')
+    .update({ [column]: storagePath } as never)
+    .eq('id', redeId);
+  if (retryErr) {
+    return { ok: false, error: retryErr.message };
+  }
+  return { ok: true };
+}
+
+/** Garante coluna/RPC do doc de número de franquia (idempotente; usa PROD_DB_URL no servidor se existir). */
+export async function prepararSchemaAnexoNumeroFranquia(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  if (!(await perfilPodeGerirDocsRede(supabase, user.id))) {
+    return { ok: false, error: 'Sem permissão.' };
+  }
+  return ensureRedeAnexoNumeroFranquiaColumn();
+}
+
+/** Upload COF, contrato ou documento do número de franquia no bucket `rede-attachments`. */
+export async function uploadRedeFranqueadoAssinado(
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const tipoRaw = String(formData.get('tipo') ?? '').trim();
+  const redeId = String(formData.get('redeId') ?? '').trim();
+  const file = formData.get('file');
+  if (!redeId) return { ok: false, error: 'Registro inválido.' };
+  const tipo = parseRedeAnexoTipo(tipoRaw);
+  if (!tipo) return { ok: false, error: 'Tipo inválido.' };
+  if (!(file instanceof File)) return { ok: false, error: 'Arquivo inválido.' };
+  if (file.size > MAX_REDE_DOC_BYTES) return { ok: false, error: 'Arquivo acima de 10 MB.' };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  if (!(await perfilPodeGerirDocsRede(supabase, user.id))) {
+    return { ok: false, error: 'Apenas administradores ou time podem enviar estes documentos.' };
+  }
+
+  const col = REDE_ANEXO_COLUNA[tipo];
+  const { data: atual, error: leErr } = await supabase
+    .from('rede_franqueados')
+    .select('*')
+    .eq('id', redeId)
+    .maybeSingle();
+  if (leErr || !atual) return { ok: false, error: 'Linha da rede não encontrada.' };
+
+  const orig = sanitizeRedeNomeArquivo(file.name || 'arquivo');
+  const storagePath = `rede/${redeId}/${tipo}-${randomUUID()}-${orig}`;
+  const buf = Buffer.from(await file.arrayBuffer());
+  const { error: upErr } = await supabase.storage.from('rede-attachments').upload(storagePath, buf, {
+    contentType: file.type || 'application/octet-stream',
+    upsert: false,
+  });
+  if (upErr) return { ok: false, error: upErr.message };
+
+  const oldPath = String((atual as Record<string, unknown>)[col] ?? '').trim() || null;
+
+  const upRow = await updateRedeAnexoPath(redeId, col, storagePath, supabase);
+  if (!upRow.ok) {
+    await supabase.storage.from('rede-attachments').remove([storagePath]);
+    return { ok: false, error: upRow.error };
+  }
+  if (oldPath) await supabase.storage.from('rede-attachments').remove([oldPath]);
+
+  const justCol = REDE_ANEXO_JUSTIFICATIVA_COLUNA[tipo as keyof typeof REDE_ANEXO_JUSTIFICATIVA_COLUNA];
+  if (justCol) {
+    await supabase.from('rede_franqueados').update({ [justCol]: null } as never).eq('id', redeId);
+  }
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath(`/rede-franqueados/${redeId}`);
+  return { ok: true };
+}
+
+/** Justificativa de ausência de documento (quando não há anexo). */
+export async function salvarJustificativaRedeAnexo(
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const tipoRaw = String(formData.get('tipo') ?? '').trim();
+  const redeId = String(formData.get('redeId') ?? '').trim();
+  const justificativa = String(formData.get('justificativa') ?? '').trim();
+  if (!redeId) return { ok: false, error: 'Registro inválido.' };
+  const tipo = parseRedeAnexoTipo(tipoRaw);
+  if (!tipo) return { ok: false, error: 'Tipo inválido.' };
+  const justCol = REDE_ANEXO_JUSTIFICATIVA_COLUNA[tipo as keyof typeof REDE_ANEXO_JUSTIFICATIVA_COLUNA];
+  if (!justCol) {
+    return {
+      ok: false,
+      error: 'Este documento não aceita justificativa (Inscrição Estadual é opcional; envie o anexo se houver).',
+    };
+  }
+  if (!justificativa) {
+    return { ok: false, error: 'Informe a justificativa para documento sem anexo.' };
+  }
+  if (justificativa.length > 2000) {
+    return { ok: false, error: 'Justificativa muito longa (máx. 2000 caracteres).' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  if (!(await perfilPodeGerirDocsRede(supabase, user.id))) {
+    return { ok: false, error: 'Apenas administradores ou time podem registrar justificativas.' };
+  }
+
+  const pathCol = REDE_ANEXO_COLUNA[tipo];
+  const { data: atual, error: leErr } = await supabase
+    .from('rede_franqueados')
+    .select('*')
+    .eq('id', redeId)
+    .maybeSingle();
+  if (leErr || !atual) return { ok: false, error: 'Linha da rede não encontrada.' };
+
+  const pathAtual = String((atual as Record<string, unknown>)[pathCol] ?? '').trim();
+  if (pathAtual) {
+    return { ok: false, error: 'Já existe arquivo anexado; remova ou substitua o anexo antes de usar justificativa.' };
+  }
+
+  const { error } = await supabase
+    .from('rede_franqueados')
+    .update({ [justCol]: justificativa } as never)
+    .eq('id', redeId);
+  if (error) {
+    if (/justificativa|schema cache|column/i.test(error.message ?? '')) {
+      return {
+        ok: false,
+        error:
+          'Colunas de justificativa ainda não existem no banco. Execute scripts/rede-docs-justificativas.sql no Supabase e recarregue o schema.',
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath(`/rede-franqueados/${redeId}`);
+  return { ok: true };
+}
+
+export type NormalizarStatusEmProcessoResult =
+  | { ok: true; rede: number; step: number }
+  | { ok: false; error: string };
+
+/** Atualiza em lote status legado "Em processo" → "Em Operação" (idempotente). */
+export async function normalizarStatusEmProcessoRede(): Promise<NormalizarStatusEmProcessoResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço indisponível (service role).' };
+  }
+
+  const agora = new Date().toISOString();
+
+  const { data: linhasRede, error: errRede } = await admin.from('rede_franqueados').select('id, status_franquia');
+  if (errRede) return { ok: false, error: errRede.message };
+
+  const idsRede = (linhasRede ?? [])
+    .filter((r) => isRedeStatusEmProcesso((r as { status_franquia?: string | null }).status_franquia))
+    .map((r) => String((r as { id: string }).id));
+
+  let rede = 0;
+  if (idsRede.length) {
+    const { error: upRede } = await admin
+      .from('rede_franqueados')
+      .update({ status_franquia: 'Em Operação', updated_at: agora })
+      .in('id', idsRede);
+    if (upRede) return { ok: false, error: upRede.message };
+    rede = idsRede.length;
+  }
+
+  const { data: linhasStep, error: errStep } = await admin.from('processo_step_one').select('id, status_franquia');
+  if (errStep) return { ok: false, error: errStep.message };
+
+  const idsStep = (linhasStep ?? [])
+    .filter((r) => isRedeStatusEmProcesso((r as { status_franquia?: string | null }).status_franquia))
+    .map((r) => String((r as { id: string }).id));
+
+  let step = 0;
+  if (idsStep.length) {
+    const { error: upStep } = await admin
+      .from('processo_step_one')
+      .update({ status_franquia: 'Em Operação' })
+      .in('id', idsStep);
+    if (upStep) return { ok: false, error: upStep.message };
+    step = idsStep.length;
+  }
+
+  if (rede > 0 || step > 0) {
+    revalidatePath('/rede-franqueados');
+    revalidatePath('/painel-novos-negocios');
+    revalidatePath('/funil-stepone');
+  }
+
+  return { ok: true, rede, step };
+}
+
+export type ExtrairDadosFranqueadoPdfResult =
+  | {
+      ok: true;
+      dados: Partial<Record<RedeCampoFranqueado, string | null>>;
+      aviso?: string;
+      textoExtraidoChars: number;
+    }
+  | { ok: false; error: string };
+
+/** Lê COF e/ou contrato enviados no formulário e devolve campos do franqueado para preenchimento automático. */
+export async function extrairDadosFranqueadoDePdfUpload(
+  formData: FormData,
+): Promise<ExtrairDadosFranqueadoPdfResult> {
+  const gate = await requireRedeStaffOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  const contexto: Parameters<typeof extrairDadosFranqueadoDeTexto>[1] = {
+    nome_completo: String(formData.get('nome_completo') ?? '').trim() || null,
+    modalidade: String(formData.get('modalidade') ?? 'Franquia').trim() || 'Franquia',
+  };
+
+  const pares: [string, File | null][] = [
+    ['cof', formData.get('cof') instanceof File ? (formData.get('cof') as File) : null],
+    ['contrato', formData.get('contrato') instanceof File ? (formData.get('contrato') as File) : null],
+  ];
+
+  let merged: Partial<Record<RedeCampoFranqueado, string | null>> = {};
+  let leuAlgum = false;
+  let textoExtraidoChars = 0;
+
+  for (const [, file] of pares) {
+    if (!file || file.size === 0) continue;
+    if (file.size > MAX_REDE_DOC_BYTES) {
+      return { ok: false, error: 'Arquivo acima de 10 MB.' };
+    }
+    leuAlgum = true;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const texto = await extractText(buffer, file.type || 'application/octet-stream', file.name, {
+      preserveLineBreaks: true,
+    });
+    textoExtraidoChars += texto.length;
+    const extraido = extrairDadosFranqueadoDeTexto(
+      texto,
+      {
+        ...contexto,
+        nome_completo: contexto.nome_completo ?? merged.nome_completo ?? null,
+        cpf_frank: merged.cpf_frank ?? null,
+        email_frank: merged.email_frank ?? null,
+      },
+      { filename: file.name },
+    );
+    merged = { ...merged, ...extraido };
+    if (merged.nome_completo && !contexto.nome_completo) {
+      contexto.nome_completo = merged.nome_completo;
+    }
+  }
+
+  if (!leuAlgum) return { ok: false, error: 'Envie ao menos um PDF (COF ou contrato).' };
+
+  let aviso: string | undefined;
+  if (textoExtraidoChars < 40) {
+    aviso =
+      'O PDF não tem texto selecionável (pode ser só imagem/escaneado). Usamos o nome do arquivo quando possível; confira os campos ou envie um PDF digital.';
+  }
+
+  return { ok: true, dados: merged, aviso, textoExtraidoChars };
 }

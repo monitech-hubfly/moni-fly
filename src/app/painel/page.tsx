@@ -76,20 +76,11 @@ export default async function PainelPage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
-          <Link href="/" className="text-moni-primary hover:underline">
-            ← Início
-          </Link>
-          <span className="text-stone-500">/</span>
-          <span className="font-medium text-stone-700">Painel Moní</span>
-          <span className="text-xs text-stone-500">
-            ({role === 'admin' ? 'Admin' : 'Consultor'})
-          </span>
-        </div>
-      </header>
       <main className="mx-auto max-w-7xl px-4 py-8">
         <h1 className="text-2xl font-bold text-moni-dark">Painel Moní</h1>
+        <p className="text-xs text-stone-500">
+          {role === 'admin' ? 'Admin' : 'Consultor'}
+        </p>
         <p className="mt-1 text-sm text-stone-600">
           {role === 'admin'
             ? 'Todos os processos (funil por Frank, uso Apify e atividades em expansão).'

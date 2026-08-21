@@ -2,7 +2,34 @@
   "git": {
     "deploymentEnabled": {
       "main": true,
-      "develop": true
+      "develop": true,
+      "funcionalidade-danilo": false
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/cobrar-candidatos",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/sla-alertas",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/status-preenchimento",
+      "schedule": "0 12 * * 5"
+    },
+    {
+      "path": "/api/cron/carometro-diario",
+      "schedule": "59 23 * * *"
+    },
+    {
+      "path": "/api/cron/google-calendar-sync",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/kanban-indicadores",
+      "schedule": "0 12 * * 1"
+    }
+  ]
 }

@@ -1,8 +1,9 @@
 'use client';
 
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
-import { REDE_FRANQUEADOS_DB_KEYS } from '@/lib/rede-franqueados';
+import { isRedeColunaDadoSensivel, REDE_FRANQUEADOS_TABLE_KEYS } from '@/lib/rede-franqueados';
 import { Download } from 'lucide-react';
+import { redeBtnGhost } from './rede-ui';
 
 function escapeCsvCell(val: string | null | undefined): string {
   const s = (val ?? '').toString().trim();
@@ -12,11 +13,20 @@ function escapeCsvCell(val: string | null | undefined): string {
   return s;
 }
 
-export function ExportarRedeCSVButton({ rows }: { rows: RedeFranqueadoRowDb[] }) {
+export function ExportarRedeCSVButton({
+  rows,
+  maskSensitiveColumns = false,
+}: {
+  rows: RedeFranqueadoRowDb[];
+  maskSensitiveColumns?: boolean;
+}) {
   const exportar = () => {
-    const header = REDE_FRANQUEADOS_DB_KEYS.join(',');
+    const header = REDE_FRANQUEADOS_TABLE_KEYS.join(',');
     const lines = rows.map((r) =>
-      REDE_FRANQUEADOS_DB_KEYS.map((k) => escapeCsvCell(r[k] ?? '')).join(','),
+      REDE_FRANQUEADOS_TABLE_KEYS.map((k) => {
+        if (maskSensitiveColumns && isRedeColunaDadoSensivel(k)) return '';
+        return escapeCsvCell(r[k] ?? '');
+      }).join(','),
     );
     const csv = [header, ...lines].join('\r\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
@@ -33,7 +43,7 @@ export function ExportarRedeCSVButton({ rows }: { rows: RedeFranqueadoRowDb[] })
       type="button"
       onClick={exportar}
       disabled={rows.length === 0}
-      className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+      className={redeBtnGhost}
     >
       <Download className="h-4 w-4" />
       Exportar tabela (CSV)

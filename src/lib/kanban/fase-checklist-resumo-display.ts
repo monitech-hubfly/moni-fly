@@ -1,0 +1,241 @@
+import type { FaseChecklistItem } from '@/lib/actions/candidato-actions';
+import type { CasaRow } from '@/app/step-one/[id]/etapa/Etapa4Casas';
+import {
+  parseLinhasProspectCondominio,
+  prospectsOrdenadosPorTicketCasas,
+  type LinhaProspectCondominio,
+} from '@/lib/kanban/condominio-prospect-pesquisa';
+import {
+  filtrarCasasPorCondominio,
+} from '@/lib/kanban/mapa-competidores-condominio';
+import {
+  isMultiPracaStoreJson,
+  labelPracaCidade,
+  type PracaCidade,
+} from '@/lib/kanban/dados-cidade-praca-multi';
+import {
+  parseConfiguradorCasasValores,
+  parseValorMonetarioConfigurador,
+} from '@/lib/kanban/configurador-casas-ranking';
+
+export type ResumoChecklistSubLinha = {
+  prefixo: string;
+  valor: string;
+};
+
+export type ResumoChecklistLinha = {
+  label: string;
+  valorExibicao: string;
+  preenchido: boolean;
+  subLinhas?: ResumoChecklistSubLinha[];
+};
+
+function trunc(s: string, max = 100): string {
+  const t = s.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max)}…`;
+}
+
+function nomeArquivo(path: string): string {
+  const parts = path.split('/').filter(Boolean);
+  return parts[parts.length - 1] || path;
+}
+
+function resumoMultiPraca(
+  raw: string,
+  areas: PracaCidade[],
+  formatValor: (v: string) => string,
+): { valorExibicao: string; preenchido: boolean; subLinhas: ResumoChecklistSubLinha[] } {
+  let store: Record<string, string> = {};
+  try {
+    store = JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return { valorExibicao: trunc(raw), preenchido: Boolean(raw.trim()), subLinhas: [] };
+  }
+  const subLinhas = areas.map((a) => {
+    const chave = `${a.uf}::${a.cidade}`;
+    const val = String(store[chave] ?? '').trim();
+    return { prefixo: labelPracaCidade(a), valor: val ? formatValor(val) : '—' };
+  });
+  const preenchido = subLinhas.some((s) => s.valor !== '—');
+  const qtd = subLinhas.filter((s) => s.valor !== '—').length;
+  return {
+    valorExibicao: preenchido ? `${qtd} praça(s)` : '—',
+    preenchido,
+    subLinhas,
+  };
+}
+
+export type ResumoListagemCasasMapaOpts = {
+  casas: Pick<CasaRow, 'condominio'>[];
+  prospects: Pick<LinhaProspectCondominio, 'condominio'>[];
+};
+
+export function resumoListagemCasasMapa(
+  label: string,
+  data: ResumoListagemCasasMapaOpts,
+): ResumoChecklistLinha {
+  const prospects = prospectsOrdenadosPorTicketCasas(
+    data.prospects.filter((p) => p.condominio?.trim()) as LinhaProspectCondominio[],
+  );
+
+  if (prospects.length === 0) {
+    const total = data.casas.length;
+    return {
+      label,
+      valorExibicao: total > 0 ? `${total} listagem(ns)` : 'Pendente',
+      preenchido: total > 0,
+    };
+  }
+
+  const subLinhas = prospects.map((p) => {
+    const nome = p.condominio.trim();
+    const qtd = filtrarCasasPorCondominio(data.casas as CasaRow[], nome).length;
+    return {
+      prefixo: nome,
+      valor: qtd > 0 ? `${qtd} listagem(ns)` : 'Pendente',
+    };
+  });
+
+  const total = data.casas.length;
+  const preenchidos = subLinhas.filter((s) => s.valor !== 'Pendente').length;
+
+  return {
+    label,
+    valorExibicao:
+      total > 0
+        ? `${total} listagem(ns) · ${preenchidos}/${subLinhas.length} condomínio(s)`
+        : 'Pendente',
+    preenchido: total > 0 && preenchidos > 0,
+    subLinhas,
+  };
+}
+
+export function resumoChecklistItem(
+  item: FaseChecklistItem,
+  valor: string | null | undefined,
+  arquivoPath: string | null | undefined,
+  opts?: {
+    multiPraca?: boolean;
+    areas?: PracaCidade[];
+    listagemCasasMapa?: ResumoListagemCasasMapaOpts;
+  },
+): ResumoChecklistLinha {
+  const v = String(valor ?? '').trim();
+  const arquivo = String(arquivoPath ?? '').trim();
+  const areas = opts?.areas ?? [];
+
+  if (item.tipo === 'checkbox') {
+    const valorExibicao = v === 'true' ? 'Sim' : v === 'false' ? 'Não' : '—';
+    return { label: item.label, valorExibicao, preenchido: v === 'true' };
+  }
+
+  if (item.tipo === 'anexo' || item.tipo === 'anexo_template') {
+    const path = arquivo || v;
+    if (isMultiPracaStoreJson(path) && areas.length > 0) {
+      const mp = resumoMultiPraca(path, areas, (p) => nomeArquivo(p));
+      return { label: item.label, ...mp };
+    }
+    const nome = path ? nomeArquivo(path) : '';
+    return { label: item.label, valorExibicao: nome || '—', preenchido: Boolean(path) };
+  }
+
+  if (item.tipo === 'data' && v) {
+    const d = new Date(v);
+    const valorExibicao = Number.isNaN(d.getTime()) ? v : d.toLocaleDateString('pt-BR');
+    return { label: item.label, valorExibicao, preenchido: true };
+  }
+
+  if (item.tipo === 'hora' && v) {
+    return { label: item.label, valorExibicao: v, preenchido: true };
+  }
+
+  if (item.tipo === 'tabela' || item.label.trim().includes('Tabela')) {
+    if (isMultiPracaStoreJson(v) && areas.length > 0) {
+      const mp = resumoMultiPraca(v, areas, (raw) => {
+        try {
+          const rows = parseLinhasProspectCondominio(raw);
+          return rows.length ? `${rows.length} registro(s)` : '—';
+        } catch {
+          return raw ? trunc(raw, 40) : '—';
+        }
+      });
+      return { label: item.label, ...mp };
+    }
+    try {
+      const rows = parseLinhasProspectCondominio(v);
+      return {
+        label: item.label,
+        valorExibicao: rows.length ? `${rows.length} registro(s)` : '—',
+        preenchido: rows.length > 0,
+      };
+    } catch {
+      /* valor livre */
+    }
+  }
+
+  if (
+    item.tipo === 'dados_cidade_ibge' ||
+    item.tipo === 'mapa_praca' ||
+    item.tipo === 'listagem_casas_zap' ||
+    item.tipo === 'configurador_casas_ranking' ||
+    item.tipo === 'bca_simulador' ||
+    item.tipo === 'bca_condominio' ||
+    item.tipo === 'rede_loteador' ||
+    item.tipo === 'pesquisa_condominio' ||
+    item.tipo === 'lotes_condominio' ||
+    item.tipo === 'condominio'
+  ) {
+    if (item.tipo === 'rede_loteador' && v) {
+      return {
+        label: item.label,
+        valorExibicao: 'Loteador vinculado à Rede de Loteadores',
+        preenchido: true,
+      };
+    }
+    if (item.tipo === 'mapa_praca') {
+      return {
+        label: item.label,
+        valorExibicao: 'Visualização interativa',
+        preenchido: true,
+      };
+    }
+    if (item.tipo === 'listagem_casas_zap' && opts?.listagemCasasMapa) {
+      return resumoListagemCasasMapa(item.label, opts.listagemCasasMapa);
+    }
+    if (item.tipo === 'configurador_casas_ranking' && v) {
+      const parsed = parseConfiguradorCasasValores(v);
+      let modelosComValor = 0;
+      let celulas = 0;
+      for (const faixas of Object.values(parsed.valores)) {
+        const vals = Object.values(faixas ?? {});
+        const preenchidas = vals.filter((x) => parseValorMonetarioConfigurador(x) != null);
+        if (preenchidas.length > 0) modelosComValor++;
+        celulas += preenchidas.length;
+      }
+      return {
+        label: item.label,
+        valorExibicao:
+          celulas > 0 ? `${modelosComValor} modelo(s) · ${celulas} custo(s)` : 'Pendente',
+        preenchido: celulas > 0,
+      };
+    }
+    return {
+      label: item.label,
+      valorExibicao: v || arquivo ? 'Preenchido' : 'Pendente',
+      preenchido: Boolean(v || arquivo),
+    };
+  }
+
+  if (opts?.multiPraca && isMultiPracaStoreJson(v) && areas.length > 0) {
+    const mp = resumoMultiPraca(v, areas, (val) => trunc(val, 60));
+    return { label: item.label, ...mp };
+  }
+
+  const texto = v || (arquivo ? nomeArquivo(arquivo) : '');
+  return {
+    label: item.label,
+    valorExibicao: texto ? trunc(texto) : '—',
+    preenchido: Boolean(texto),
+  };
+}

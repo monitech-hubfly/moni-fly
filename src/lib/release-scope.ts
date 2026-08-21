@@ -5,26 +5,66 @@ export function isLiveLimitedRelease(): boolean {
 }
 
 /**
+ * Itens de menu reservados a ambiente de desenvolvimento (`next dev`).
+ * Em build de produção (`next build` / deploy prod) ficam ocultos na sidebar.
+ * Para forçar exibição num preview (ex.: QA), defina `NEXT_PUBLIC_SHOW_DEV_NAV=1`.
+ */
+export function showDevOnlySidebarNav(): boolean {
+  if ((process.env.NEXT_PUBLIC_SHOW_DEV_NAV ?? '').trim() === '1') return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+/**
  * Rotas permitidas quando NEXT_PUBLIC_RELEASE_SCOPE=limited (middleware).
  * Deve estar alinhado com o que o menu / app realmente expõe — senão o usuário cai em /rede-franqueados.
  */
 export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/',
+  '/hub-funis',
   '/aceitar-convite',
   '/esqueci-senha',
   '/redefinir-senha',
   '/auth',
   '/rede-franqueados',
   '/comunidade',
+  '/repositorio',
   '/dashboard-novos-negocios',
   '/painel-novos-negocios',
+  '/portfolio',
+  '/funil-acoplamento',
+  '/funil-moni-capital',
+  '/funil-funding',
+  '/funil-produto',
+  '/funil-modelo-virtual',
+  '/funil-homologacoes',
+  '/funil-projeto-legal',
+  '/projetos-locais',
+  '/projetos-legais',
+  '/funil-projetos-locais',
+  '/funil-contratacoes',
+  '/dashboard',
+  '/operacoes',
+  '/funil-stepone',
+  '/funil-motor01',
+  '/loteadores',
+  '/funil-moni-inc',
   '/painel-contabilidade',
-  '/painel-credito',
+  '/funil-credito-obra',
   '/login',
+  '/portal-frank',
   '/perfil',
-  '/admin/usuarios',
+  '/universidade',
+  '/treinamento-bca',
+  '/pre-batalha',
+  '/casa0',
+  '/casa1',
+  '/admin/universidade',
   '/api',
   '/_next',
+  '/formulario-candidato',
+  '/loteador',
+  '/marketing',
+  '/manutencoes',
 ] as const;
 
 /** Mesma regra do middleware: `/` só a home exata; demais por prefixo. */

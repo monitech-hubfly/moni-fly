@@ -39,7 +39,7 @@ export default async function JuridicoKanbanPage() {
   );
 
   return (
-    <div className="min-h-screen bg-stone-100">
+    <div className="min-h-0 bg-stone-100">
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
           <Link href="/juridico" className="text-moni-primary hover:underline">
@@ -50,17 +50,24 @@ export default async function JuridicoKanbanPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl overflow-x-auto px-4 py-6">
+      <main className="mx-auto max-w-7xl px-4 py-6">
         <h1 className="mb-4 text-xl font-bold text-moni-dark">Kanban Jurídico</h1>
-        <div className="flex min-w-max gap-4">
-          {COLUMNS.map((col) => (
-            <KanbanColumn
-              key={col.key}
-              columnKey={col.key}
-              title={col.label}
-              tickets={byStatus[col.key] ?? []}
-            />
-          ))}
+        <div className="moni-kanban-shell relative min-w-0 w-full">
+        <div className="moni-kanban-board-scroll w-full min-w-0">
+          <div
+            className="moni-kanban-board flex flex-row flex-nowrap items-stretch"
+            style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap' }}
+          >
+            {COLUMNS.map((col) => (
+              <KanbanColumn
+                key={col.key}
+                columnKey={col.key}
+                title={col.label}
+                tickets={byStatus[col.key] ?? []}
+              />
+            ))}
+          </div>
+        </div>
         </div>
       </main>
       <MoniFooter />

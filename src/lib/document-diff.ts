@@ -45,20 +45,42 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   }
 }
 
+/** Mantém quebras de linha (melhor para contratos/COF com blocos de qualificação). */
+function normalizeTextPreserveBreaks(s: string): string {
+  return s
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
 /** Extrai texto conforme o tipo do arquivo. */
 export async function extractText(
   buffer: Buffer,
   mimeType: string,
   filename?: string,
+  opts?: { preserveLineBreaks?: boolean },
 ): Promise<string> {
   const ext = filename?.split('.').pop()?.toLowerCase();
+  let raw = '';
   if (mimeType === MIME_DOCX || ext === 'docx' || ext === 'doc') {
-    return extractTextFromDocx(buffer);
+    raw = await extractTextFromDocx(buffer);
+  } else if (mimeType === MIME_PDF || ext === 'pdf') {
+    try {
+      const mod = await import('pdf-parse');
+      const pdfParse =
+        (mod as { default?: (b: Buffer) => Promise<unknown> }).default ??
+        (mod as unknown as (b: Buffer) => Promise<unknown>);
+      const data = await pdfParse(buffer);
+      raw = String((data as { text?: string }).text ?? '');
+    } catch {
+      raw = '';
+    }
   }
-  if (mimeType === MIME_PDF || ext === 'pdf') {
-    return extractTextFromPdf(buffer);
-  }
-  return '';
+  if (!raw) return '';
+  return opts?.preserveLineBreaks ? normalizeTextPreserveBreaks(raw) : normalizeText(raw);
 }
 
 /**
@@ -103,4 +125,65 @@ export function computeDiff(templateText: string, documentText: string): DiffRes
       documentLength: d.length,
     },
   };
+}
+
+/** Meses por extenso (PT) ignorados na comparação de checklist assinado vs modelo. */
+const MESES_EXTENSO =
+  /\b(janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/giu;
+
+/**
+ * Mascara datas, CPF, anos isolados, meses por extenso e blocos de nome em MAIÚSCULAS
+ * (2+ palavras só com letras maiúsculas/acentos) para comparar modelo vs assinado.
+ */
+export function maskIgnorableContent(s: string): string {
+  let out = s;
+  out = out.replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/gi, '__CPF__');
+  out = out.replace(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g, '__DATA__');
+  out = out.replace(/\b\d{1,2}-\d{1,2}-\d{2,4}\b/g, '__DATA__');
+  out = out.replace(/\b(19|20)\d{2}\b/g, '__ANO__');
+  out = out.replace(MESES_EXTENSO, '__MES__');
+  out = out.replace(/\b[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]{2,}(?:\s+[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]{2,})+\b/g, '__NOME__');
+  return out;
+}
+
+function normalizeForChecklistCompare(line: string): string {
+  return maskIgnorableContent(line).replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function slicesEquivalentForChecklist(a: string, b: string): boolean {
+  return normalizeForChecklistCompare(a) === normalizeForChecklistCompare(b);
+}
+
+function truncateDiffSnippet(s: string, max = 140): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max)}…`;
+}
+
+/**
+ * Após `computeDiff`, mantém só alterações que não se explicam apenas por
+ * datas, meses, anos, CPF ou nomes em maiúsculas.
+ */
+export function filterRelevantChecklistDiff(templateText: string, documentText: string): {
+  diferencas: string[];
+  temDiferencasRelevantes: boolean;
+} {
+  const { changes } = computeDiff(templateText, documentText);
+  const diferencas: string[] = [];
+  for (const ch of changes) {
+    const tl = ch.type === 'add' ? '' : (ch.templateSlice ?? '').trim();
+    const dl = ch.type === 'remove' ? '' : (ch.documentSlice ?? '').trim();
+    if (slicesEquivalentForChecklist(tl, dl)) continue;
+    const ctx = ch.context ?? 'Trecho';
+    if (ch.type === 'replace') {
+      diferencas.push(
+        `${ctx}: no modelo «${truncateDiffSnippet(tl)}» — no documento assinado «${truncateDiffSnippet(dl)}»`,
+      );
+    } else if (ch.type === 'add') {
+      diferencas.push(`${ctx}: adicionado «${truncateDiffSnippet(dl)}»`);
+    } else {
+      diferencas.push(`${ctx}: removido em relação ao modelo «${truncateDiffSnippet(tl)}»`);
+    }
+  }
+  return { diferencas, temDiferencasRelevantes: diferencas.length > 0 };
 }

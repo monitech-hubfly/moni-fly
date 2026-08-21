@@ -3,7 +3,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
-import type { PainelColumnKey } from './painelColumns';
+import {
+  getPainelColumnSlaHeaderBadgeDias,
+  isPainelKanbanDropBlocked,
+  type PainelColumnKey,
+} from './painelColumns';
 import { PainelCard } from './PainelCard';
 import { atualizarEtapaPainel } from './actions';
 import type { ReactNode } from 'react';
@@ -35,6 +39,8 @@ export type ProcessoCard = {
   has_comite_aprovado?: boolean;
   /** Ordem dentro da coluna `etapa_painel` (menor = mais acima). */
   ordem_coluna_painel?: number | null;
+  /** Data de criação do processo (SLA como no Funil Step One: referência + dias úteis da coluna). */
+  created_at?: string | null;
 };
 
 export type CardStatusFilter = 'ativos' | 'cancelados' | 'removidos' | 'concluidos' | 'todos';
@@ -50,6 +56,8 @@ export function StepsKanbanColumn({
   statusFilter = 'ativos',
   tagFilter = 'todas',
   kanbanReadOnly = false,
+  openCardViaUrl = false,
+  cardBasePath,
 }: {
   title: string;
   subtitle?: string;
@@ -61,6 +69,10 @@ export function StepsKanbanColumn({
   tagFilter?: CardTagFilter;
   /** Sem sessão (ex.: painel público): esconde controles de reordenar. */
   kanbanReadOnly?: boolean;
+  /** Abre detalhe via query (?card=id) em vez do CardDetalheModal embutido (ex.: Crédito). */
+  openCardViaUrl?: boolean;
+  /** Caminho base para `?card=` (ex.: `/funil-credito-obra`). Obrigatório se `openCardViaUrl`. */
+  cardBasePath?: string;
 }) {
   const router = useRouter();
 
@@ -102,11 +114,10 @@ export function StepsKanbanColumn({
     try {
       const data = JSON.parse(raw) as { processoId?: string; fromEtapa?: string };
       if (!data.processoId) return;
+      if (!data.fromEtapa) return;
       if (data.fromEtapa === etapaKey) return;
-      // Step 1 não pode passar cards para Step 2
-      if (data.fromEtapa === 'step_1' && etapaKey === 'step_2') return;
-        // Aprovação Moní é obrigatória entre Step 2 e Step 3
-        if (data.fromEtapa === 'step_2' && (etapaKey === 'step_3' || etapaKey === 'credito_terreno')) return;
+      const from = data.fromEtapa as PainelColumnKey;
+      if (isPainelKanbanDropBlocked(from, etapaKey)) return;
       const res = await atualizarEtapaPainel(data.processoId, etapaKey);
       if (res.ok) router.refresh();
     } catch {
@@ -117,37 +128,84 @@ export function StepsKanbanColumn({
   const isStep1 = etapaKey === 'step_1';
   const isStep2 = etapaKey === 'step_2';
 
+  /** Faixa superior das colunas: mesma cor do Funil Step One (`moni-tokens.css`). */
+  const kanbanColumnTopStrip = 'var(--moni-kanban-stepone)';
+
+  // Cores do cabeçalho da coluna (faixa superior unificada com o Funil)
+  const getColumnColors = () => {
+    if (etapaKey.startsWith('contabilidade_')) {
+      return {
+        borderTop: kanbanColumnTopStrip,
+        bgHeader: 'var(--moni-kanban-col-hd)',
+        textTitle: 'var(--moni-navy-800)',
+        textCount: 'var(--moni-navy-600)',
+      };
+    }
+    if (etapaKey.startsWith('credito_')) {
+      return {
+        borderTop: kanbanColumnTopStrip,
+        bgHeader: 'var(--moni-kanban-col-hd)',
+        textTitle: 'var(--moni-navy-800)',
+        textCount: 'var(--moni-navy-600)',
+      };
+    }
+    // Portfolio/Operações (padrão)
+    return {
+      borderTop: kanbanColumnTopStrip,
+      bgHeader: 'var(--moni-kanban-col-hd)',
+      textTitle: 'var(--moni-navy-800)',
+      textCount: 'var(--moni-navy-600)',
+    };
+  };
+
+  const colors = getColumnColors();
+  const slaBadgeDias = getPainelColumnSlaHeaderBadgeDias(etapaKey);
+
   return (
     <div
-      className={`w-72 shrink-0 overflow-hidden rounded-xl border shadow-sm ${
-        isStep1
-          ? 'border-green-300 bg-green-50/80'
-          : 'border-stone-200 bg-white'
-      }`}
+      className="w-80 shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm"
+      style={{ borderTop: `3px solid ${colors.borderTop}` }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
       <div
-        className={`border-b px-4 py-3 ${isStep1 ? 'border-green-200 bg-green-100' : 'border-stone-200 bg-stone-100'}`}
+        className="border-b px-4 py-3"
+        style={{ 
+          background: colors.bgHeader,
+          borderBottom: '0.5px solid var(--moni-border-default)'
+        }}
       >
-        <div className="flex items-start justify-between gap-2">
-          <h2 className={`font-semibold ${isStep1 ? 'text-green-900' : 'text-stone-800'}`}>{title}</h2>
-          <div className="flex items-start gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <h2
+            className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--moni-text-primary)' }}
+          >
+            {title} ({processosFiltrados.length})
+          </h2>
+          <div className="flex shrink-0 items-center gap-2">
+            {slaBadgeDias ? (
+              <span
+                className="whitespace-nowrap text-[10px] font-medium"
+                style={{ color: 'var(--moni-text-tertiary)' }}
+              >
+                {slaBadgeDias}d d.u.
+              </span>
+            ) : null}
             {isStep1 && (
-              <div className="flex flex-col items-stretch gap-1">
-                <Link
-                  href="/painel-novos-negocios/novo-step-1"
-                  className="shrink-0 rounded-md border border-green-600 bg-green-600 px-2 py-1 text-center text-[11px] font-medium text-white hover:bg-green-700"
-                >
-                  Novo Step 1
-                </Link>
-              </div>
+              <Link
+                href="/painel-novos-negocios/novo-step-1"
+                className="shrink-0 rounded-md px-2 py-1 text-center text-[11px] font-medium text-white transition hover:opacity-90"
+                style={{ background: colors.borderTop }}
+              >
+                Novo Step 1
+              </Link>
             )}
             {isStep2 && (
               <div className="flex flex-col items-stretch gap-1">
                 <Link
                   href="/painel-novos-negocios/novo"
-                  className="w-full whitespace-nowrap rounded-md bg-moni-primary px-2 py-1 text-center text-[11px] font-medium text-white hover:bg-moni-secondary"
+                  className="w-full whitespace-nowrap rounded-md px-2 py-1 text-center text-[11px] font-medium text-white transition hover:opacity-90"
+                  style={{ background: colors.borderTop }}
                 >
                   Novo Negócio
                 </Link>
@@ -157,15 +215,12 @@ export function StepsKanbanColumn({
           </div>
         </div>
         {subtitle && (
-          <p className={`mt-1 text-[10px] leading-tight ${isStep1 ? 'text-green-700' : 'text-stone-500'}`}>{subtitle}</p>
+          <p className="mt-1 text-[10px] leading-tight" style={{ color: 'var(--moni-text-tertiary)' }}>
+            {subtitle}
+          </p>
         )}
-        <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className={`text-xs ${isStep1 ? 'text-green-700' : 'text-stone-500'}`}>{processosFiltrados.length} processo(s)</p>
-        </div>
       </div>
-      <div
-        className={`max-h-[70vh] space-y-2 overflow-y-auto p-2 ${isStep1 ? 'bg-green-50/50' : ''}`}
-      >
+      <div className="moni-scrollbar-hidden max-h-[70vh] space-y-2 overflow-y-auto p-3">
         {processosFiltrados.map((p, i) => (
           <PainelCard
             key={p.id}
@@ -175,6 +230,8 @@ export function StepsKanbanColumn({
             vizinhoAcimaId={i > 0 ? processosFiltrados[i - 1]?.id : undefined}
             vizinhoAbaixoId={i < processosFiltrados.length - 1 ? processosFiltrados[i + 1]?.id : undefined}
             kanbanReadOnly={kanbanReadOnly}
+            openCardViaUrl={openCardViaUrl}
+            cardBasePath={cardBasePath}
           />
         ))}
         {processosFiltrados.length === 0 && (

@@ -13,13 +13,15 @@ export type TopicoStatus = 'nao_iniciado' | 'em_andamento' | 'concluido' | 'apro
 
 export type ChamadoTipo = 'padrao' | 'hdm';
 
-export type HdmTime = 'Homologações' | 'Produto' | 'Modelo Virtual';
+export type HdmTime = 'Homologações' | 'Modelo Virtual' | 'Produto' | 'Executivo Local';
 
 export interface Chamado {
   id: number;
   numero: number;
   data_abertura: string;
   time_abertura: string | null;
+  /** Responsável escolhido no modal de abertura (lista fixa por time). */
+  abertura_responsavel_nome?: string | null;
   frank_id: string | null;
   frank_nome: string | null;
   aberto_por: string | null;
@@ -37,6 +39,8 @@ export interface Chamado {
   parecer_final: string | null;
   resolucao_suficiente: boolean | null;
   motivo_insuficiente: string | null;
+  /** Texto obrigatório do criador ao concluir (caminho suficiente). */
+  info_conclusao_criador: string | null;
   created_at: string;
   updated_at: string;
   // HDM
@@ -44,6 +48,12 @@ export interface Chamado {
   hdm_responsavel: HdmTime | null;
   hdm_redirecionado_por: string | null;
   hdm_redirecionado_em: string | null;
+  /** Vínculo opcional a card do kanban (migration 162). */
+  card_id?: string | null;
+  card_kanban_nome?: string | null;
+  card_titulo?: string | null;
+  /** Prazo para ordenação na lista (opcional). */
+  data_vencimento?: string | null;
 }
 
 export interface Topico {
@@ -56,6 +66,7 @@ export interface Topico {
   responsavel_nome: string | null;
   data_inicio: string | null;
   data_fim: string | null;
+  /** Legado: coluna mantida no DB; trava é só no chamado. */
   trava: boolean;
   status: TopicoStatus;
   resolucao_time: string | null;
