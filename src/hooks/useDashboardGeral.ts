@@ -9,14 +9,14 @@ import { listarAreas } from '@/utils/areasOrder';
 export type DiaDetalhe = {
   data: string;
   sireneScore: number | null;
-  atividadesScore: number | null;
-  cardsScore: number | null;
+  engajamentoScore: number | null;
+  indicadoresScore: number | null;
 };
 
 export type SemanaData = {
   sireneScore: number | null;
-  atividadesScore: number | null;
-  cardsScore: number | null;
+  engajamentoScore: number | null;
+  indicadoresScore: number | null;
   dias: DiaDetalhe[];
 };
 
@@ -45,34 +45,27 @@ function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+function extractScore(obj: unknown, key = 'score'): number | null {
+  if (!obj || typeof obj !== 'object') return null;
+  const v = (obj as Record<string, unknown>)[key];
+  if (typeof v === 'number') return Math.round(v);
+  return null;
+}
+
 function extractSireneScore(sirene: unknown): number | null {
-  if (!sirene || typeof sirene !== 'object') return null;
-  const v = (sirene as Record<string, unknown>)['score'];
-  return typeof v === 'number' ? v : null;
+  return extractScore(sirene);
 }
 
-function extractAtividadesScore(engajamento: unknown): number | null {
-  if (!engajamento || typeof engajamento !== 'object') return null;
-  const eng = engajamento as Record<string, unknown>;
-  const atv = eng['atividades'] as Record<string, unknown> | null;
-  if (!atv) return null;
-  const concluidas = typeof atv['concluidas'] === 'number' ? atv['concluidas'] : 0;
-  const atrasadas  = typeof atv['atrasadas']  === 'number' ? atv['atrasadas']  : 0;
-  const denom = concluidas + atrasadas;
-  if (denom === 0) return null;
-  return Math.round((concluidas / denom) * 100);
+function extractEngajamentoScore(engajamento: unknown): number | null {
+  return extractScore(engajamento);
 }
 
-function extractCardsScore(engajamento: unknown): number | null {
-  if (!engajamento || typeof engajamento !== 'object') return null;
-  const eng = engajamento as Record<string, unknown>;
-  const cards = eng['cards'] as Record<string, unknown> | null;
-  if (!cards) return null;
-  const concluidos = typeof cards['concluidos'] === 'number' ? cards['concluidos'] : 0;
-  const atrasados  = typeof cards['atrasados']  === 'number' ? cards['atrasados']  : 0;
-  const denom = concluidos + atrasados;
-  if (denom === 0) return null;
-  return Math.round((concluidos / denom) * 100);
+function extractIndicadoresScore(indicadores: unknown): number | null {
+  // stored as { media: number | null, porIndicador: [...] }
+  if (!indicadores || typeof indicadores !== 'object') return null;
+  const v = (indicadores as Record<string, unknown>)['media'];
+  if (typeof v === 'number') return Math.round(v);
+  return null;
 }
 
 function avgOrNull(nums: (number | null)[]): number | null {
@@ -157,7 +150,7 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
       // 4. Buscar snapshots no intervalo
       const { data: rows, error: rowsErr } = await supabase
         .from('carometro_status_diario')
-        .select('area_id, profile_id, data, sirene, engajamento')
+        .select('area_id, profile_id, data, sirene, engajamento, indicadores')
         .in('area_id', areaIds)
         .gte('data', startStr)
         .lte('data', endStr);
@@ -167,7 +160,7 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
       // 5. Agrupar snapshots: areaId → profileId → semana → DiaDetalhe[]
       type StatusRow = {
         area_id: string; profile_id: string; data: string;
-        sirene: unknown; engajamento: unknown;
+        sirene: unknown; engajamento: unknown; indicadores: unknown;
       };
       const statusRows = (rows ?? []) as StatusRow[];
       const mapa = new Map<string, Map<string, Map<number, DiaDetalhe[]>>>();
@@ -181,10 +174,10 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
         const profMap = areaMap.get(r.profile_id)!;
         if (!profMap.has(semana)) profMap.set(semana, []);
         profMap.get(semana)!.push({
-          data:            r.data,
-          sireneScore:     extractSireneScore(r.sirene),
-          atividadesScore: extractAtividadesScore(r.engajamento),
-          cardsScore:      extractCardsScore(r.engajamento),
+          data:             r.data,
+          sireneScore:      extractSireneScore(r.sirene),
+          engajamentoScore: extractEngajamentoScore(r.engajamento),
+          indicadoresScore: extractIndicadoresScore(r.indicadores),
         });
       }
 
@@ -199,9 +192,9 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
           for (const sem of semList) {
             const dias = (profMap.get(sem) ?? []).sort((x, y) => x.data.localeCompare(y.data));
             porSemana[sem] = {
-              sireneScore:     avgOrNull(dias.map(d => d.sireneScore)),
-              atividadesScore: avgOrNull(dias.map(d => d.atividadesScore)),
-              cardsScore:      avgOrNull(dias.map(d => d.cardsScore)),
+              sireneScore:      avgOrNull(dias.map(d => d.sireneScore)),
+              engajamentoScore: avgOrNull(dias.map(d => d.engajamentoScore)),
+              indicadoresScore: avgOrNull(dias.map(d => d.indicadoresScore)),
               dias,
             };
           }

@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { GuardaConstrucao } from '@/components/carometro/GuardaConstrucao';
 import { isoWeek } from '@/utils/periodos';
-import { useDashboardGeral, AreaDashboard, DiaDetalhe } from '@/hooks/useDashboardGeral';
+import { useDashboardGeral, type AreaDashboard, type DiaDetalhe } from '@/hooks/useDashboardGeral';
 
 // ── Helpers de cor/imagem ─────────────────────────────────────────────────────
 function getCarinhaImg(score: number | null): string {
@@ -66,16 +66,16 @@ function CelulaAgregada({ s, u, isFutura, ativa }: {
   ativa: boolean;
 }) {
   const sem = u.porSemana[s];
-  const temDados = sem && (sem.sireneScore !== null || sem.atividadesScore !== null || sem.cardsScore !== null);
+  const temDados = sem && (sem.sireneScore !== null || sem.engajamentoScore !== null || sem.indicadoresScore !== null);
   if (isFutura || !temDados) {
     return <td className="px-1 py-1 text-center text-xs text-gray-300 select-none">—</td>;
   }
   return (
     <td className={`px-1 py-1 text-center select-none ${ativa ? 'bg-blue-50' : ''}`}>
       <div className="flex justify-center gap-0.5">
-        <Carinha score={sem.sireneScore}     label="Sir." />
-        <Carinha score={sem.atividadesScore} label="Atv." />
-        <Carinha score={sem.cardsScore}      label="Card" />
+        <Carinha score={sem.sireneScore}      label="Sir." />
+        <Carinha score={sem.engajamentoScore} label="Eng." />
+        <Carinha score={sem.indicadoresScore} label="Ind." />
       </div>
     </td>
   );
@@ -86,16 +86,16 @@ function CelulaDia({ data, u }: { data: string; u: AreaDashboard['usuarios'][0] 
   const dia: DiaDetalhe | undefined = Object.values(u.porSemana)
     .flatMap(s => s.dias)
     .find(d => d.data === data);
-  const temDados = dia && (dia.sireneScore !== null || dia.atividadesScore !== null || dia.cardsScore !== null);
+  const temDados = dia && (dia.sireneScore !== null || dia.engajamentoScore !== null || dia.indicadoresScore !== null);
   if (!temDados) {
     return <td className="px-0.5 py-1 text-center text-xs text-gray-300 select-none bg-blue-50/40">—</td>;
   }
   return (
     <td className="px-0.5 py-1 text-center bg-blue-50/40 select-none">
       <div className="flex justify-center gap-0.5">
-        <Carinha score={dia!.sireneScore}     label="Sir." small />
-        <Carinha score={dia!.atividadesScore} label="Atv." small />
-        <Carinha score={dia!.cardsScore}      label="Card" small />
+        <Carinha score={dia!.sireneScore}      label="Sir." small />
+        <Carinha score={dia!.engajamentoScore} label="Eng." small />
+        <Carinha score={dia!.indicadoresScore} label="Ind." small />
       </div>
     </td>
   );
@@ -263,7 +263,7 @@ function DashboardGeralPageContent() {
             <span>{label}</span>
           </div>
         ))}
-        <span className="text-gray-400">Sir. = Sirene/Pastelaria · Atv. = Atividades Planejadas · Card = Cards/Kanban · clique na semana para ver os dias</span>
+        <span className="text-gray-400">Sir. = Sirene/Pastelaria · Eng. = Engajamento · Ind. = Indicadores · clique na semana para ver os dias</span>
       </div>
     </div>
   );
