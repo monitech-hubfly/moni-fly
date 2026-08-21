@@ -263,9 +263,12 @@ type FlyerModalProps = {
 function buildFlyerUrl(data: FlyerData, corretorId: string): string {
   const p = new URLSearchParams();
 
+  // Flyer do cadastro de empreendimentos: sem bloco de corretor / asterisco
+  p.set('origem', 'cadastro');
+  p.set('hide_corretor', '1');
+
   p.set('emp_id', data.emp.id);
   p.set('emp_nome', data.emp.nome);
-  if (data.emp.specs) p.set('emp_specs', data.emp.specs);
   if (data.pipeline) p.set('pipeline', data.pipeline);
 
   const heroImg = data.showroom?.imagem_url ?? data.emp.imagem_url;
@@ -284,17 +287,16 @@ function buildFlyerUrl(data: FlyerData, corretorId: string): string {
     if (u.area) p.set(`c${n}_area`, u.area);
     if (u.imagem_url) p.set(`c${n}_img`, u.imagem_url);
     if (u.valor_avista) p.set(`c${n}_avista`, u.valor_avista);
-    if (u.balao_p8) p.set(`c${n}_p8`, u.balao_p8);
-    if (u.balao_p24) p.set(`c${n}_p24`, u.balao_p24);
+    if (u.entrada) p.set(`c${n}_entrada`, u.entrada);
+    if (u.parcelas) p.set(`c${n}_parcelas`, u.parcelas);
+    if (u.balao) p.set(`c${n}_balao`, u.balao);
     if (u.fin_parcial) p.set(`c${n}_fin`, u.fin_parcial);
   });
 
+  // Mantém corretor_id só para o QR/formulário (não exibe dados no flyer)
   const corretor = data.corretores.find((c) => c.id === corretorId) ?? null;
   if (corretor) {
     p.set('corretor_id', corretor.id);
-    if (corretor.nome) p.set('corretor_nome', corretor.nome);
-    if (corretor.creci) p.set('corretor_creci', corretor.creci);
-    if (corretor.telefone) p.set('corretor_tel', corretor.telefone);
   }
 
   return '/flyermoniv6.html?' + p.toString();

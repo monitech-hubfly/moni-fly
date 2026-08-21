@@ -210,8 +210,9 @@ export type FlyerUnitData = {
   area: string | null;
   imagem_url: string | null;
   valor_avista: string | null;
-  balao_p8: string | null;
-  balao_p24: string | null;
+  entrada: string | null;
+  parcelas: string | null;
+  balao: string | null;
   fin_parcial: string | null;
 };
 
@@ -299,7 +300,7 @@ export async function fetchFlyerData(
     const { data: cardEmps } = await supabase
       .from('imob_card_empreendimentos')
       .select(
-        'tipo, produto_modelo, nome, area_vendas_m2, imagem_oferta_path, valor_avista, balao_parcial_8, balao_parcial_24, fin_parcial_valor',
+        'tipo, produto_modelo, nome, area_vendas_m2, imagem_oferta_path, valor_avista, balao_parcial_8, balao_parcial_24, fin_parcial_valor, fin_parcial_p1',
       )
       .eq('card_id', e.card_id)
       .order('ordem', { ascending: true });
@@ -314,6 +315,7 @@ export async function fetchFlyerData(
       balao_parcial_8: number | null;
       balao_parcial_24: number | null;
       fin_parcial_valor: number | null;
+      fin_parcial_p1: number | null;
     }>) {
       const imgUrl = storageUrl(item.imagem_oferta_path);
 
@@ -324,13 +326,15 @@ export async function fetchFlyerData(
           imagem_url: imgUrl ?? modeloImgUrl ?? e.imagem_url ?? null,
         };
       } else if (units.length < 4) {
+        const balao = item.balao_parcial_8 ?? item.balao_parcial_24;
         units.push({
           nome: item.produto_modelo ?? item.nome ?? null,
           area: item.area_vendas_m2 != null ? String(item.area_vendas_m2) : null,
           imagem_url: imgUrl,
           valor_avista: brl(item.valor_avista),
-          balao_p8: brl(item.balao_parcial_8),
-          balao_p24: brl(item.balao_parcial_24),
+          entrada: null,
+          parcelas: brl(item.fin_parcial_p1),
+          balao: brl(balao),
           fin_parcial: brl(item.fin_parcial_valor),
         });
       }
