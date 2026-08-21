@@ -152,6 +152,7 @@ function AnexoImagem({
   podeEditar,
   uploading,
   onUpload,
+  erroLocal,
 }: {
   label: string;
   path: string;
@@ -159,6 +160,7 @@ function AnexoImagem({
   podeEditar: boolean;
   uploading: boolean;
   onUpload: (file: File) => void;
+  erroLocal?: string | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState<string | null>(null);
@@ -203,8 +205,9 @@ function AnexoImagem({
             <input
               ref={inputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="hidden"
+              accept="image/*"
+              className="sr-only"
+              disabled={uploading}
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) onUpload(f);
@@ -214,7 +217,11 @@ function AnexoImagem({
             <button
               type="button"
               disabled={uploading}
-              onClick={() => inputRef.current?.click()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                inputRef.current?.click();
+              }}
               className="inline-flex min-h-[44px] items-center rounded-md px-2 py-1.5 text-xs font-medium sm:min-h-0"
               style={{
                 border: '0.5px solid var(--moni-border-default)',
@@ -225,8 +232,13 @@ function AnexoImagem({
               {uploading ? 'Enviando…' : path ? 'Trocar imagem' : 'Anexar imagem'}
             </button>
             <p className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-              JPG, PNG ou WebP · até 8 MB
+              Imagens · até 10 MB
             </p>
+            {erroLocal ? (
+              <p className="text-[11px]" style={{ color: 'var(--moni-status-overdue-text)' }} role="alert">
+                {erroLocal}
+              </p>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -242,6 +254,7 @@ function EmpreendimentoBloco({
   podeEditar,
   salvandoId,
   uploadingOferta,
+  erroUpload,
   onChange,
   onSalvar,
   onExcluir,
@@ -254,6 +267,7 @@ function EmpreendimentoBloco({
   podeEditar: boolean;
   salvandoId: string | null;
   uploadingOferta: boolean;
+  erroUpload?: string | null;
   onChange: (key: keyof ImobCardEmpreendimentoDraft, value: string) => void;
   onSalvar: () => void;
   onExcluir: () => void;
@@ -393,6 +407,7 @@ function EmpreendimentoBloco({
               podeEditar={podeEditar}
               uploading={uploadingOferta}
               onUpload={onUploadOferta}
+              erroLocal={erroUpload}
             />
           </div>
         </div>
@@ -477,6 +492,8 @@ export function KanbanCardModalSimulacoesImob({
   const [criandoTipo, setCriandoTipo] = useState<'empreendimento' | 'showroom' | null>(null);
   const [uploadingPrincipal, setUploadingPrincipal] = useState(false);
   const [uploadingOfertaId, setUploadingOfertaId] = useState<string | null>(null);
+  const [erroUploadPrincipal, setErroUploadPrincipal] = useState<string | null>(null);
+  const [erroUploadOferta, setErroUploadOferta] = useState<{ id: string; msg: string } | null>(null);
 
   const showrooms = itens.filter((it) => (it.tipo ?? 'empreendimento') === 'showroom');
   const empreendimentos = itens.filter((it) => (it.tipo ?? 'empreendimento') !== 'showroom');
@@ -520,27 +537,39 @@ export function KanbanCardModalSimulacoesImob({
   }
 
   async function handleUploadPrincipal(file: File) {
-    if (file.size > 8 * 1024 * 1024) {
-      setErro('Imagem muito grande. Use arquivo de até 8 MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      const msg = 'Imagem muito grande. Use arquivo de até 10 MB.';
+      setErro(msg);
+      setErroUploadPrincipal(msg);
       return;
     }
     setUploadingPrincipal(true);
     setErro(null);
-    const fd = new FormData();
-    fd.set('cardId', cardId);
-    fd.set('file', file);
-    const r = await uploadImobImagemPrincipal(fd);
-    setUploadingPrincipal(false);
-    if (!r.ok) {
-      setErro(r.error);
-      return;
+    setErroUploadPrincipal(null);
+    setMsg(null);
+    try {
+      const fd = new FormData();
+      fd.set('cardId', cardId);
+      fd.set('file', file);
+      const r = await uploadImobImagemPrincipal(fd);
+      if (!r.ok) {
+        setErro(r.error);
+        setErroUploadPrincipal(r.error);
+        return;
+      }
+      setModelo((m) => ({
+        ...m,
+        imagem_principal_path: r.path,
+        imagem_principal_nome: r.nome,
+      }));
+      setMsg('Imagem principal anexada.');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Falha ao enviar imagem.';
+      setErro(msg);
+      setErroUploadPrincipal(msg);
+    } finally {
+      setUploadingPrincipal(false);
     }
-    setModelo((m) => ({
-      ...m,
-      imagem_principal_path: r.path,
-      imagem_principal_nome: r.nome,
-    }));
-    setMsg('Imagem principal anexada.');
   }
 
   async function handleSalvar(item: ImobCardEmpreendimentoDraft) {
@@ -583,30 +612,42 @@ export function KanbanCardModalSimulacoesImob({
   }
 
   async function handleUploadOferta(empId: string, file: File) {
-    if (file.size > 8 * 1024 * 1024) {
-      setErro('Imagem muito grande. Use arquivo de até 8 MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      const msg = 'Imagem muito grande. Use arquivo de até 10 MB.';
+      setErro(msg);
+      setErroUploadOferta({ id: empId, msg });
       return;
     }
     setUploadingOfertaId(empId);
     setErro(null);
-    const fd = new FormData();
-    fd.set('cardId', cardId);
-    fd.set('empreendimentoId', empId);
-    fd.set('file', file);
-    const r = await uploadImobImagemOferta(fd);
-    setUploadingOfertaId(null);
-    if (!r.ok) {
-      setErro(r.error);
-      return;
+    setErroUploadOferta(null);
+    setMsg(null);
+    try {
+      const fd = new FormData();
+      fd.set('cardId', cardId);
+      fd.set('empreendimentoId', empId);
+      fd.set('file', file);
+      const r = await uploadImobImagemOferta(fd);
+      if (!r.ok) {
+        setErro(r.error);
+        setErroUploadOferta({ id: empId, msg: r.error });
+        return;
+      }
+      setItens((prev) =>
+        prev.map((it) =>
+          it.id === empId
+            ? { ...it, imagem_oferta_path: r.path, imagem_oferta_nome: r.nome }
+            : it,
+        ),
+      );
+      setMsg('Imagem da oferta anexada.');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Falha ao enviar imagem.';
+      setErro(msg);
+      setErroUploadOferta({ id: empId, msg });
+    } finally {
+      setUploadingOfertaId(null);
     }
-    setItens((prev) =>
-      prev.map((it) =>
-        it.id === empId
-          ? { ...it, imagem_oferta_path: r.path, imagem_oferta_nome: r.nome }
-          : it,
-      ),
-    );
-    setMsg('Imagem da oferta anexada.');
   }
 
   if (loading) {
@@ -708,6 +749,7 @@ export function KanbanCardModalSimulacoesImob({
           podeEditar={podeEditar}
           uploading={uploadingPrincipal}
           onUpload={(f) => void handleUploadPrincipal(f)}
+          erroLocal={erroUploadPrincipal}
         />
         <CampoMoeda
           label="A partir de"
@@ -745,6 +787,7 @@ export function KanbanCardModalSimulacoesImob({
                 podeEditar={podeEditar}
                 salvandoId={salvandoId}
                 uploadingOferta={uploadingOfertaId === item.id}
+                erroUpload={erroUploadOferta?.id === item.id ? erroUploadOferta.msg : null}
                 onChange={(key, value) => patchDraft(setItens, item.id, key, value)}
                 onSalvar={() => void handleSalvar(item)}
                 onExcluir={() => void handleExcluir(item.id, 'showroom')}
@@ -792,6 +835,7 @@ export function KanbanCardModalSimulacoesImob({
               podeEditar={podeEditar}
               salvandoId={salvandoId}
               uploadingOferta={uploadingOfertaId === item.id}
+              erroUpload={erroUploadOferta?.id === item.id ? erroUploadOferta.msg : null}
               onChange={(key, value) => patchDraft(setItens, item.id, key, value)}
               onSalvar={() => void handleSalvar(item)}
               onExcluir={() => void handleExcluir(item.id, 'empreendimento')}

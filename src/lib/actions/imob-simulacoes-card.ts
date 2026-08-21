@@ -18,7 +18,7 @@ import {
 } from '@/lib/kanban/imob-simulacoes-card';
 
 const BUCKET = 'processo-docs';
-const MAX_IMAGEM_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGEM_BYTES = 10 * 1024 * 1024;
 
 function arquivoDoFormData(formData: FormData): { ok: true; blob: Blob; nome: string } | { ok: false; error: string } {
   const file = formData.get('file');
@@ -26,13 +26,59 @@ function arquivoDoFormData(formData: FormData): { ok: true; blob: Blob; nome: st
   const blob = file as Blob;
   if (!blob.size) return { ok: false, error: 'Selecione uma imagem.' };
   if (blob.size > MAX_IMAGEM_BYTES) {
-    return { ok: false, error: 'Imagem muito grande. Use arquivo de até 8 MB.' };
+    return { ok: false, error: 'Imagem muito grande. Use arquivo de até 10 MB.' };
   }
   const nome =
     typeof File !== 'undefined' && file instanceof File && file.name.trim()
       ? file.name.trim()
       : 'imagem.jpg';
   return { ok: true, blob, nome };
+}
+
+function tryAdminClient(): ReturnType<typeof createAdminClient> | null {
+  try {
+    return createAdminClient();
+  } catch {
+    return null;
+  }
+}
+
+async function uploadBuffer(
+  supabase: Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>,
+  path: string,
+  buf: Buffer,
+  contentType: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buf, {
+    contentType: contentType || 'application/octet-stream',
+    upsert: true,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+async function gravarPathImagemPrincipal(
+  supabase: Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>,
+  cardId: string,
+  path: string,
+  nome: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const patch = {
+    imagem_principal_path: path,
+    imagem_principal_nome: nome,
+    updated_at: new Date().toISOString(),
+  };
+  const upd = await supabase
+    .from('imob_card_modelo')
+    .update(patch as never)
+    .eq('card_id', cardId)
+    .select('card_id');
+  if (upd.error) return { ok: false, error: upd.error.message };
+  if ((upd.data ?? []).length > 0) return { ok: true };
+
+  const ins = await supabase.from('imob_card_modelo').insert({ card_id: cardId, ...patch } as never);
+  if (ins.error) return { ok: false, error: ins.error.message };
+  return { ok: true };
 }
 
 async function requireUser() {
@@ -109,16 +155,22 @@ export async function salvarImobCardModelo(
   if (!check.ok) return check;
 
   const patch = { card_id: cardId, ...draftToImobModeloPatch(draft) };
-  const { error } = await auth.supabase.from('imob_card_modelo').upsert(patch as never, { onConflict: 'card_id' });
+  let { error } = await auth.supabase.from('imob_card_modelo').upsert(patch as never, { onConflict: 'card_id' });
+
+  // Ambientes sem migration 544: grava o restante sem preco_a_partir_de
+  if (error && /preco_a_partir_de/i.test(error.message)) {
+    const { preco_a_partir_de: _omit, ...semPreco } = patch as Record<string, unknown> & {
+      preco_a_partir_de?: unknown;
+    };
+    const retry = await auth.supabase
+      .from('imob_card_modelo')
+      .upsert(semPreco as never, { onConflict: 'card_id' });
+    error = retry.error;
+  }
+
   if (error) {
     if (/imob_card_modelo|schema cache|does not exist/i.test(error.message)) {
       return { ok: false, error: 'Tabela de modelo ainda não existe neste ambiente. Aplique a migration 541.' };
-    }
-    if (/preco_a_partir_de/i.test(error.message)) {
-      return {
-        ok: false,
-        error: 'Coluna “A partir de” ainda não existe neste ambiente. Aplique a migration 544.',
-      };
     }
     return { ok: false, error: error.message };
   }
@@ -242,35 +294,32 @@ export async function uploadImobImagemPrincipal(
   const safeName = arquivo.nome.replace(/[^\w.\-()+ ]/g, '_').slice(0, 180);
   const path = `${cardId}/imob/principal/${Date.now()}_${safeName}`;
   const buf = Buffer.from(await arquivo.blob.arrayBuffer());
-  let admin: ReturnType<typeof createAdminClient>;
-  try {
-    admin = createAdminClient();
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Falha ao iniciar upload.' };
-  }
-  const { error: upErr } = await admin.storage.from(BUCKET).upload(path, buf, {
-    contentType: arquivo.blob.type || 'application/octet-stream',
-    upsert: true,
-  });
-  if (upErr) return { ok: false, error: upErr.message };
+  const contentType = arquivo.blob.type || 'application/octet-stream';
 
-  const { data: atual } = await auth.supabase.from('imob_card_modelo').select('*').eq('card_id', cardId).maybeSingle();
-  const base = atual
-    ? rowToImobModeloDraft(mapImobCardModeloRow(atual as Record<string, unknown>))
-    : {
-        status_imovel: '',
-        imagem_principal_path: '',
-        imagem_principal_nome: '',
-        preco_a_partir_de: '',
-      };
-  const draft: ImobCardModeloDraft = {
-    ...base,
-    imagem_principal_path: path,
-    imagem_principal_nome: arquivo.nome.slice(0, 180),
-  };
-  const saved = await salvarImobCardModelo(cardId, draft);
-  if (!saved.ok) return saved;
-  return { ok: true, path, nome: draft.imagem_principal_nome };
+  const admin = tryAdminClient();
+  const uploader = admin ?? auth.supabase;
+  const up = await uploadBuffer(uploader, path, buf, contentType);
+  if (!up.ok) {
+    if (admin) {
+      const fallback = await uploadBuffer(auth.supabase, path, buf, contentType);
+      if (!fallback.ok) return fallback;
+    } else {
+      return up;
+    }
+  }
+
+  const nome = arquivo.nome.slice(0, 180);
+  const writer = admin ?? auth.supabase;
+  const saved = await gravarPathImagemPrincipal(writer, cardId, path, nome);
+  if (!saved.ok && admin) {
+    const retry = await gravarPathImagemPrincipal(auth.supabase, cardId, path, nome);
+    if (!retry.ok) return retry;
+  } else if (!saved.ok) {
+    return saved;
+  }
+
+  revalidatePath('/');
+  return { ok: true, path, nome };
 }
 
 export async function uploadImobImagemOferta(
@@ -292,28 +341,40 @@ export async function uploadImobImagemOferta(
   const safeName = arquivo.nome.replace(/[^\w.\-()+ ]/g, '_').slice(0, 180);
   const path = `${cardId}/imob/oferta/${empreendimentoId}/${Date.now()}_${safeName}`;
   const buf = Buffer.from(await arquivo.blob.arrayBuffer());
-  let admin: ReturnType<typeof createAdminClient>;
-  try {
-    admin = createAdminClient();
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Falha ao iniciar upload.' };
+  const contentType = arquivo.blob.type || 'application/octet-stream';
+
+  const admin = tryAdminClient();
+  const uploader = admin ?? auth.supabase;
+  const up = await uploadBuffer(uploader, path, buf, contentType);
+  if (!up.ok) {
+    if (admin) {
+      const fallback = await uploadBuffer(auth.supabase, path, buf, contentType);
+      if (!fallback.ok) return fallback;
+    } else {
+      return up;
+    }
   }
-  const { error: upErr } = await admin.storage.from(BUCKET).upload(path, buf, {
-    contentType: arquivo.blob.type || 'application/octet-stream',
-    upsert: true,
-  });
-  if (upErr) return { ok: false, error: upErr.message };
 
   const nome = arquivo.nome.slice(0, 180);
-  const { error } = await admin
+  const patch = {
+    imagem_oferta_path: path,
+    imagem_oferta_nome: nome,
+    updated_at: new Date().toISOString(),
+  };
+  const writer = admin ?? auth.supabase;
+  let { error } = await writer
     .from('imob_card_empreendimentos')
-    .update({
-      imagem_oferta_path: path,
-      imagem_oferta_nome: nome,
-      updated_at: new Date().toISOString(),
-    } as never)
+    .update(patch as never)
     .eq('id', empreendimentoId)
     .eq('card_id', cardId);
+  if (error && admin) {
+    const retry = await auth.supabase
+      .from('imob_card_empreendimentos')
+      .update(patch as never)
+      .eq('id', empreendimentoId)
+      .eq('card_id', cardId);
+    error = retry.error;
+  }
   if (error) return { ok: false, error: error.message };
   revalidatePath('/');
   return { ok: true, path, nome };
