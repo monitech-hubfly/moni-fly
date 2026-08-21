@@ -225,12 +225,12 @@
   }
 
   .casa-img {
-    position: relative; height: 88px; flex-shrink: 0;
+    position: relative; height: 118px; flex-shrink: 0;
     background: var(--teal-lt); overflow: hidden;
   }
   .casa-img-actual {
     position: absolute; inset: 0;
-    width: 100%; height: 100%; object-fit: cover;
+    width: 100%; height: 100%; object-fit: cover; object-position: center;
   }
   .casa-img-ph {
     width: 100%; height: 100%;
@@ -246,12 +246,13 @@
     pointer-events: none;
   }
 
-  /* Specs no topo da imagem (suítes · banheiros · área) */
+  /* Specs no topo da imagem (quartos · banheiros · área) */
   .card-specs {
-    position: absolute; top: 6px; left: 6px; right: 5px;
-    font-size: 7.5px; color: var(--gold-lt);
+    position: absolute; top: 7px; left: 7px; right: 6px;
+    font-size: 10.5px; font-weight: 600; color: var(--white);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    line-height: 14px;
+    line-height: 1.3;
+    text-shadow: 0 1px 4px rgba(0,0,0,.65);
   }
 
   /* Nome do modelo embaixo da imagem */
@@ -425,7 +426,7 @@
   <!--
     Cards C1–C4 vêm de imob_card_empreendimentos (não-showroom), ordenados por `ordem`.
     Parâmetros por card (N = 1..4):
-      cN_img, cN_nome, cN_suites, cN_banheiros, cN_area
+      cN_img, cN_nome, cN_quartos, cN_banheiros, cN_area
       cN_avista, cN_entrada, cN_parcela, cN_balao, cN_fin
   -->
   <div id="casas-grid" class="casas-grid"><!-- gerado pelo JS --></div>
@@ -606,7 +607,7 @@
       for (var i = 1; i <= numCards; i++) {
         var cImg      = get("c" + i + "_img");
         var cNome     = get("c" + i + "_nome");
-        var cSuites   = get("c" + i + "_suites");
+        var cQuartos  = get("c" + i + "_quartos") || get("c" + i + "_suites");
         var cBanheiros= get("c" + i + "_banheiros");
         var cArea     = get("c" + i + "_area");
         var cAvista   = get("c" + i + "_avista")  || "—";
@@ -615,9 +616,9 @@
         var cBalao    = get("c" + i + "_balao")   || get("c" + i + "_p8") || "—";
         var cFin      = get("c" + i + "_fin")     || "—";
 
-        // Specs line: "3 suítes | 2 banheiros | 150 m²"
+        // Specs: "4 quartos · 5 banheiros · 500 m²"
         var specsParts = [];
-        if (cSuites)    specsParts.push(cSuites + " suíte" + (cSuites === "1" ? "" : "s"));
+        if (cQuartos)   specsParts.push(cQuartos + " quarto" + (cQuartos === "1" ? "" : "s"));
         if (cBanheiros) specsParts.push(cBanheiros + " banheiro" + (cBanheiros === "1" ? "" : "s"));
         if (cArea)      specsParts.push(cArea + " m²");
         var specsLine = specsParts.join(" · ");
