@@ -104,7 +104,7 @@
     text-shadow: 0 2px 16px rgba(0,0,0,.6);
   }
   .fib-div {
-    width: 24px; height: 1px; background: var(--gold); opacity: .8; margin: 6px 0 5px;
+    width: 28px; height: 2px; background: var(--gold); opacity: .85; margin: 7px 0 6px;
   }
   .fib-cond {
     font-family: 'Cormorant Garamond', serif;
@@ -525,16 +525,16 @@
     var corretorCreci = get("corretor_creci");
     var corretorTel   = get("corretor_tel");
     var empNome       = get("emp_nome");
-    var empSpecs      = get("emp_specs");
     var domain        = get("domain") || BASE_DOMAIN;
 
     // FRENTE
     var heroImg       = get("hero_img");
     var showroomMod   = get("showroom_modelo");
+    var statusImovel  = get("status_imovel");
+    var anoLancamento = get("ano_lancamento");
     var condNome      = get("cond_nome");
     var condCidade    = get("cond_cidade");
     var condEstado    = get("cond_estado");
-    var pipeline      = get("pipeline") || "Loteadores";
     var pValor        = get("p_valor");
     var pParcela      = get("p_parcela");
 
@@ -577,12 +577,15 @@
       if (ph)  ph.style.display = "none";
     }
 
-    // Info overlay no hero
-    if (empSpecs)  setText("fib-status", empSpecs);
+    // Info: modelo · Status | Pronto em · Condomínio · Cidade - Estado
     if (showroomMod) setText("fib-mod", showroomMod);
-    if (condNome)  setText("fib-cond", condNome);
+    var statusParts = [];
+    if (statusImovel) statusParts.push(statusImovel);
+    if (anoLancamento) statusParts.push("Pronto em " + anoLancamento);
+    if (statusParts.length) setText("fib-status", statusParts.join(" | "));
+    if (condNome) setText("fib-cond", condNome);
     if (condCidade || condEstado) {
-      setText("fib-loc", [condCidade, condEstado].filter(Boolean).join(" — "));
+      setText("fib-loc", [condCidade, condEstado].filter(Boolean).join(" - "));
     }
 
     // QR frente
