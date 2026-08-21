@@ -42,7 +42,7 @@
     pointer-events: none; z-index: 10;
   }
 
-  .gold-rule { width: 36px; height: 1px; background: var(--gold); margin: 0 auto; opacity: .7; }
+  .gold-rule { width: 36px; height: 1.5px; background: var(--gold); margin: 0 auto; opacity: .9; }
 
   /* ══════════════════════════
      FRENTE
@@ -72,17 +72,24 @@
     pointer-events: none;
   }
 
-  /* Topo: logo + título */
+  /* Topo: símbolo Moní + tracinho + nome */
   .f-top {
     position: relative; z-index: 2;
-    padding: 28px 32px 0;
-    display: flex; flex-direction: column; align-items: center; gap: 9px;
+    padding: 118px 32px 0;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .f-symbol {
+    display: block;
+    width: 52px;
+    height: 52px;
   }
   .emp-nome {
     font-family: 'Cormorant Garamond', serif;
-    font-size: 44px; font-weight: 700; letter-spacing: 3px;
+    font-size: 36px; font-weight: 700; letter-spacing: 2px;
     text-transform: uppercase; text-align: center;
-    color: var(--white); line-height: 1; margin-top: 3px;
+    color: var(--white); line-height: 1.1; margin-top: 2px;
+    text-shadow: 0 2px 16px rgba(0,0,0,.45);
+    max-width: 86%;
   }
 
   /* Espaçador flexível empurra conteúdo para baixo */
@@ -368,18 +375,22 @@
   </div>
   <div class="f-overlay"></div>
 
-  <!-- Topo: logo + nome do empreendimento -->
+  <!-- Topo: símbolo Moní + tracinho + nome do condomínio -->
   <div class="f-top">
-    <svg width="130" height="40" viewBox="0 0 140 44" fill="none">
-      <text x="0" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">M</text>
-      <g transform="translate(34,0)">
-        <text x="0" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">O</text>
-        <path d="M16 26 Q19 31 22 26" stroke="#c9a96e" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      </g>
-      <text x="68" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">NÍ</text>
+    <svg class="f-symbol" viewBox="0 0 48 48" fill="none" aria-label="Moní" role="img">
+      <!-- Símbolo Moní: O com sorriso -->
+      <text
+        x="24" y="34"
+        text-anchor="middle"
+        font-family="'Cormorant Garamond', serif"
+        font-size="40"
+        font-weight="700"
+        fill="#f5f2ec"
+      >O</text>
+      <path d="M16 34 Q24 42 32 34" stroke="#f5f2ec" stroke-width="2" fill="none" stroke-linecap="round"/>
     </svg>
     <div class="gold-rule"></div>
-    <div class="emp-nome" id="emp-nome"><!-- NOME DO EMPREENDIMENTO --></div>
+    <div class="emp-nome" id="emp-nome"><!-- NOME DO CONDOMÍNIO --></div>
   </div>
 
   <!-- Espaçador -->
@@ -578,7 +589,7 @@
     // FRENTE
     // ════════════════════════════════════════════════════
 
-    setText("emp-nome", empNome);
+    setText("emp-nome", condNome || empNome);
 
     if (pValor)   setText("p-valor", pValor);
     if (pParcela) setText("p-parcela", pParcela);
