@@ -289,8 +289,6 @@ function buildFlyerUrl(data: FlyerData, corretorId: string): string {
     if (u.valor_avista) p.set(`c${n}_avista`, u.valor_avista);
     if (u.entrada) p.set(`c${n}_entrada`, u.entrada);
     if (u.parcelas) p.set(`c${n}_parcelas`, u.parcelas);
-    if (u.balao) p.set(`c${n}_balao`, u.balao);
-    if (u.fin_parcial) p.set(`c${n}_fin`, u.fin_parcial);
   });
 
   // Mantém corretor_id só para o QR/formulário (não exibe dados no flyer)

@@ -226,7 +226,8 @@
   .sim-row:last-child { border-bottom: none; padding-bottom: 0; }
   .sr-cen { font-size: 7.5px; color: var(--gray); line-height: 1; }
   .sr-val { font-size: 9.5px; font-weight: 600; color: var(--white); line-height: 1.1; }
-  .sr-val.hi { color: var(--gold-lt); }
+  .sr-val.hi { color: var(--gold-lt); font-size: 11.5px; }
+  .pv.hi { font-size: 12px; color: var(--gold-lt); }
 
   /* ── Condições de pagamento ── */
   .pag-grid {
@@ -371,7 +372,6 @@
       <div>
         <div class="p-label">A partir de</div>
         <div class="p-valor" id="p-valor"><!-- R$ 000.000 --></div>
-        <div class="p-parcela" id="p-parcela"><!-- Parcelas a partir de R$ 0.000/mês --></div>
       </div>
       <div class="qr-hero">
         <img id="qr-hero" class="qr-box" src="" alt="QR Code">
@@ -439,11 +439,9 @@
   <div class="sec-tit">Condições de pagamento</div>
   <div class="pag-grid">
     <div class="pag-box">
-      <div class="pag-row"><span class="pl">À vista*</span><span class="pv" id="pag-avista">—</span></div>
+      <div class="pag-row"><span class="pl">À vista*</span><span class="pv hi" id="pag-avista">—</span></div>
       <div class="pag-row"><span class="pl">Entrada*</span><span class="pv" id="pag-entrada">—</span></div>
-      <div class="pag-row"><span class="pl">Parcelas*</span><span class="pv" id="pag-parcelas">—</span></div>
-      <div class="pag-row"><span class="pl">Balão*</span><span class="pv" id="pag-balao">—</span></div>
-      <div class="pag-row"><span class="pl">Financiamento*</span><span class="pv" id="pag-fin">—</span></div>
+      <div class="pag-row"><span class="pl">Parcelas mensais*</span><span class="pv" id="pag-parcelas">—</span></div>
       <div class="showroom-row"><span>Preço Showroom</span><span>A combinar ✦</span></div>
       <div class="asterisco" id="pag-asterisco">* Valores já pagos no terreno podem ser abatidos da simulação. Consulte seu corretor.</div>
     </div>
@@ -538,10 +536,8 @@
    *   cN_avista       valor_avista  (ex: "R$ 380.000")
    *   cN_entrada      entrada
    *   cN_parcelas     parcelas mensais
-   *   cN_balao        balão
-   *   cN_fin          financiamento
    *
-   *   pag_avista / pag_entrada / pag_parcelas / pag_balao / pag_fin
+   *   pag_avista / pag_entrada / pag_parcelas
    *   (se ausentes, usa os valores do C1)
    *
    *   origem=cadastro  → oculta bloco do corretor e o asterisco do verso
@@ -642,8 +638,6 @@
         var cAvista= get("c" + i + "_avista") || "—";
         var cEntrada = get("c" + i + "_entrada") || "—";
         var cParcelas = get("c" + i + "_parcelas") || "—";
-        var cBalao = get("c" + i + "_balao") || get("c" + i + "_p8") || "—";
-        var cFin   = get("c" + i + "_fin")    || "—";
 
         var imgMarkup = cImg
           ? '<img class="casa-img-actual" src="' + cImg + '" alt="' + cNome + '">'
@@ -672,9 +666,7 @@
             '<div class="casa-sims">' +
               '<div class="sim-row"><span class="sr-cen">À vista</span><span class="sr-val hi">' + cAvista + '</span></div>' +
               '<div class="sim-row"><span class="sr-cen">Entrada</span><span class="sr-val">' + cEntrada + '</span></div>' +
-              '<div class="sim-row"><span class="sr-cen">Parcelas</span><span class="sr-val">' + cParcelas + '</span></div>' +
-              '<div class="sim-row"><span class="sr-cen">Balão</span><span class="sr-val">' + cBalao + '</span></div>' +
-              '<div class="sim-row"><span class="sr-cen">Financiamento</span><span class="sr-val">' + cFin + '</span></div>' +
+              '<div class="sim-row"><span class="sr-cen">Parcelas mensais</span><span class="sr-val">' + cParcelas + '</span></div>' +
             '</div>' +
           '</div>'
         );
@@ -685,8 +677,6 @@
     setText("pag-avista", get("pag_avista") || get("c1_avista"));
     setText("pag-entrada", get("pag_entrada") || get("c1_entrada"));
     setText("pag-parcelas", get("pag_parcelas") || get("c1_parcelas"));
-    setText("pag-balao", get("pag_balao") || get("c1_balao") || get("c1_p8"));
-    setText("pag-fin", get("pag_fin") || get("c1_fin"));
 
     // QR verso
     var qrCustom = document.getElementById("qr-custom");
