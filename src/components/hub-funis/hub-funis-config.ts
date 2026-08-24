@@ -24,7 +24,6 @@ export const HUB_FUNIS_GRUPOS: GrupoDef[] = [
       { id: KANBAN_IDS.PORTFOLIO, label: 'Portfólio', href: '/portfolio' },
       { id: KANBAN_IDS.LOTEADORES, label: 'Loteadores', href: '/loteadores' },
       { id: KANBAN_IDS.ACOPLAMENTO, label: 'Acoplamento', href: '/funil-acoplamento' },
-      { id: KANBAN_IDS.MOTOR01, label: 'Motor 01', href: '/funil-motor01' },
     ],
   },
   {
@@ -50,6 +49,7 @@ export const HUB_FUNIS_GRUPOS: GrupoDef[] = [
     cor: 'var(--moni-kanban-corretores)',
     funis: [
       { id: KANBAN_IDS.CORRETORES, label: 'Funil Corretores', href: '/corretores', nFases: 8 },
+      { id: KANBAN_IDS.MOTOR01, label: 'Motor 01', href: '/funil-motor01' },
     ],
   },
   {
