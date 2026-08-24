@@ -64,7 +64,6 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/formulario-candidato',
   '/formulario-corretor',
   '/pre-obra',
-  '/obra',
   '/corretores',
   '/loteador',
   '/marketing',

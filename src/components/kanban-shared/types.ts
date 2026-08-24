@@ -17,8 +17,6 @@ export type KanbanNomeDisplay =
   | 'Funil Projetos Locais'
   | 'Funil Projetos Legais'
   | 'Funil Pré Obra e Obra'
-  | 'Funil Pré Obra'
-  | 'Funil Obra'
   | 'Funil Corretores'
   | 'Funil Contabilidade'
   | 'Funil Crédito Obra'

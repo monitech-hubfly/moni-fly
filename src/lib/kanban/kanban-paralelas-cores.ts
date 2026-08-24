@@ -19,8 +19,6 @@ export const PARALELA_CORES: Record<string, string> = {
   [KANBAN_IDS.HDM_PRODUTO]: 'var(--moni-paralela-hdm-produto)',
   [KANBAN_IDS.PORTFOLIO]: 'var(--moni-paralela-portfolio)',
   [KANBAN_IDS.OPERACOES]: 'var(--moni-paralela-operacoes)',
-  [KANBAN_IDS.PRE_OBRA]: 'var(--moni-paralela-operacoes)',
-  [KANBAN_IDS.OBRA]: 'var(--moni-paralela-operacoes)',
 };
 
 /** Nome exibido no tooltip (funil completo). */
@@ -39,8 +37,6 @@ export const PARALELA_FUNIL_NOMES: Record<string, string> = {
   [KANBAN_IDS.HDM_PRODUTO]: 'Produto HDM',
   [KANBAN_IDS.PORTFOLIO]: 'Funil Portfólio',
   [KANBAN_IDS.OPERACOES]: 'Funil Pré Obra e Obra',
-  [KANBAN_IDS.PRE_OBRA]: 'Funil Pré Obra',
-  [KANBAN_IDS.OBRA]: 'Funil Obra',
   [KANBAN_IDS.CORRETORES]: 'Funil Corretores',
 };
 

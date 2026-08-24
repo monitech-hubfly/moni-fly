@@ -93,7 +93,7 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>
   [KANBAN_IDS.LOTEADORES]: 'helenna.luz@moni.casa',
   [KANBAN_IDS.CONTRATACOES]: 'renata.silva@moni.casa',
   [KANBAN_IDS.HDM_PRODUTO]: 'elisabete.nucci@moni.casa',
-  [KANBAN_IDS.HDM_MODELO_VIRTUAL]: 'elisabete.nucci@moni.casa',
+  [KANBAN_IDS.HDM_MODELO_VIRTUAL]: 'bruna.scarpeli@moni.casa',
   [KANBAN_IDS.HDM_HOMOLOGACOES]: 'karoline.galdino@moni.casa',
   [KANBAN_IDS.PROJETOS_LEGAIS]: 'larissa.lima@moni.casa',
   [KANBAN_IDS.MARKETING_GRAVACAO]: 'rafael.abreu@moni.casa',

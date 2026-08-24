@@ -5688,7 +5688,7 @@ export async function moverCardParaFase(input: {
   // Funil Corretores — arquivamento automático nas fases terminais
   if (kanbanIdCard === KANBAN_IDS.CORRETORES) {
     if (novaFaseSlug === FASE_SLUGS.COR_CONVERTIDO) {
-      // TODO: ao chegar em cor_convertido, futuramente disparar bastão para Funil Pré Obra
+      // TODO: ao chegar em cor_convertido, futuramente disparar bastão para Funil Pré Obra e Obra
       // quando a integração de visibilidade por franqueado/loteador estiver implementada.
       const admin = createAdminClient();
       const now = new Date().toISOString();

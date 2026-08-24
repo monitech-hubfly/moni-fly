@@ -22,10 +22,6 @@ export const KANBAN_IDS = {
   MARKETING_PROGRAMACAO: 'f1b25d3c-8e64-4a02-b7d1-3c0f6e9a2b58',
   MARKETING_INC_TO_FLY:  'a2c36e4d-9f75-4b13-c8e2-4d1a7f0b3c69',
   MONI_CARE:             'b3d47f5e-0a86-4c24-89f3-5e2b8a1c4d70',
-  /** Funil Pré Obra — migration 545 */
-  PRE_OBRA: '91686091-077d-479d-bbb3-cb062ded286e',
-  /** Funil Obra — migration 545 */
-  OBRA: '8b25508c-afdc-4a44-84a8-36c4fcf8cb4b',
   /** Funil Corretores — migration 548 */
   CORRETORES: '1e23c356-9993-4f8e-9d09-e17995e8a5c6',
 } as const
@@ -63,8 +59,6 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Programação de Conteúdo Semanal': KANBAN_IDS.MARKETING_PROGRAMACAO,
   'Funil Série Inc. to Fly': KANBAN_IDS.MARKETING_INC_TO_FLY,
   'Funil Moní Care': KANBAN_IDS.MONI_CARE,
-  'Funil Pré Obra': KANBAN_IDS.PRE_OBRA,
-  'Funil Obra': KANBAN_IDS.OBRA,
   'Funil Corretores': KANBAN_IDS.CORRETORES,
 };
 
@@ -351,31 +345,24 @@ export const FASE_SLUGS = {
   CARE_CONCLUIDO: 'care_concluido',
   CARE_ARQUIVADO: 'care_arquivado',
 
-  // Funil Pré Obra (KANBAN_IDS.PRE_OBRA) — fluxo ordem 1–10
-  PRE_BRIEFING: 'pre_briefing',
-  PRE_VIABILIDADE: 'pre_viabilidade',
-  PRE_PROPOSTA: 'pre_proposta',
-  PRE_CONTRATO: 'pre_contrato',
-  PRE_PROJETO_ARQ: 'pre_projeto_arq',
-  PRE_APROVACAO_PROJETO: 'pre_aprovacao_projeto',
-  PRE_PROJETOS_COMP: 'pre_projetos_comp',
-  PRE_ORCAMENTO: 'pre_orcamento',
-  PRE_PLANEJAMENTO: 'pre_planejamento',
-  /** Fase terminal — dispara bastão para Funil Obra */
-  PRE_MOBILIZACAO: 'pre_mobilizacao',
-
-  // Funil Obra (KANBAN_IDS.OBRA) — fluxo ordem 1–10
-  OBRA_PRELIMINARES: 'obra_preliminares',
-  OBRA_FUNDACAO: 'obra_fundacao',
-  OBRA_ESTRUTURA: 'obra_estrutura',
-  OBRA_VEDACOES: 'obra_vedacoes',
-  OBRA_INSTALACOES: 'obra_instalacoes',
-  OBRA_REVESTIMENTOS: 'obra_revestimentos',
-  OBRA_ACABAMENTOS: 'obra_acabamentos',
-  OBRA_PAISAGISMO: 'obra_paisagismo',
-  OBRA_VISTORIA: 'obra_vistoria',
-  /** Fase terminal — dispara bastão para Funil Moní Care */
-  OBRA_ENTREGA: 'obra_entrega',
+  // Funil Modelo Virtual (KANBAN_IDS.HDM_MODELO_VIRTUAL) — fluxo ordem 1–10
+  MV_MODELAGEM_CASA: 'mv_modelagem_casa',
+  MV_MODELAGEM_INFRA: 'mv_modelagem_infra',
+  /** Fase de espera externa — aguardando projeto da Boss Panel (~3 semanas) */
+  MV_AGUARDAR_BOSS: 'mv_aguardar_boss',
+  /** Compatibilização estrutural com Boss Panel — pode repetir N vezes */
+  MV_COMPAT_ESTRUTURA: 'mv_compat_estrutura',
+  /** Compatibilização de infra com Mtechne — pode repetir N vezes */
+  MV_COMPAT_INFRA: 'mv_compat_infra',
+  /** Docs: esquadrias, LightWall, cimentícia, revestimento ext., brises */
+  MV_DOC_FASE1: 'mv_doc_fase1',
+  /** Docs: estrutura cobertura, forro, piso, layout, deck */
+  MV_DOC_FASE2: 'mv_doc_fase2',
+  /** Docs: estrutura casa, escada, parede Boss Panel, MDF, revestimentos int. */
+  MV_DOC_FASE3: 'mv_doc_fase3',
+  /** Docs: louças, metais, marmoraria, marcenaria, box e espelhos */
+  MV_DOC_FASE4: 'mv_doc_fase4',
+  MV_CONCLUIDO: 'mv_concluido',
 
   // Funil Corretores (KANBAN_IDS.CORRETORES) — fluxo ordem 1–8
   COR_OPORTUNIDADE: 'cor_oportunidade',
@@ -419,8 +406,6 @@ export const KANBANS_VINCULO_MANUAL_LIVRE = [
   KANBAN_IDS.PORTFOLIO,
   KANBAN_IDS.LOTEADORES,
   KANBAN_IDS.OPERACOES,
-  KANBAN_IDS.PRE_OBRA,
-  KANBAN_IDS.OBRA,
 ] as const;
 
 // Kanbans onde Frank podia abrir chamado jurídico manualmente (funil desativado — vazio)

@@ -462,7 +462,6 @@ export const CAMPOS_NAO_SYNC = [
   'contabilidade_ok',
   'juridico_ok',
   'capital_ok',
-  'obra_ok',
   'alvara_url',
   'docs_terreno_url',
 ] as const;

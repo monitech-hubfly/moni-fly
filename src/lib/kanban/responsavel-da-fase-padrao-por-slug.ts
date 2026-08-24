@@ -168,7 +168,18 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   prod_executivo: 'moni',
   prod_publicado: 'moni',
 
-  // Funil Modelo Virtual
+  // Funil Modelo Virtual (migration 550)
+  mv_modelagem_casa: 'moni',
+  mv_modelagem_infra: 'moni',
+  mv_aguardar_boss: 'moni',
+  mv_compat_estrutura: 'moni',
+  mv_compat_infra: 'moni',
+  mv_doc_fase1: 'moni',
+  mv_doc_fase2: 'moni',
+  mv_doc_fase3: 'moni',
+  mv_doc_fase4: 'moni',
+  mv_concluido: 'moni',
+  /** @deprecated fases legadas — removidas na 550 */
   mv_recebimento: 'moni',
   mv_modelagem: 'moni',
   mv_renderizacao: 'moni',

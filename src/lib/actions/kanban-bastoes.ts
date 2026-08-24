@@ -1054,7 +1054,10 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
       { kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' },
     ],
     [FASE_SLUGS.PROD_PUBLICADO]: [
-      { kanbanDestinoId: KANBAN_IDS.HDM_MODELO_VIRTUAL, faseDestinoSlug: 'mv_recebimento' },
+      {
+        kanbanDestinoId: KANBAN_IDS.HDM_MODELO_VIRTUAL,
+        faseDestinoSlug: FASE_SLUGS.MV_MODELAGEM_CASA,
+      },
     ],
     [FASE_SLUGS.APROVACAO_CONDOMINIO]: [
       {
@@ -1086,23 +1089,9 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
       },
     ],
-    /** Funil Pré Obra — Mobilização → Funil Obra */
-    [FASE_SLUGS.PRE_MOBILIZACAO]: [
-      {
-        kanbanDestinoId: KANBAN_IDS.OBRA,
-        faseDestinoSlug: FASE_SLUGS.OBRA_PRELIMINARES,
-      },
-    ],
-    /** Funil Obra — Habite-se e Entrega → Moní Care */
-    [FASE_SLUGS.OBRA_ENTREGA]: [
-      {
-        kanbanDestinoId: KANBAN_IDS.MONI_CARE,
-        faseDestinoSlug: FASE_SLUGS.CARE_NOVO_ACIONAMENTO,
-      },
-    ],
-    // TODO: ao chegar em cor_convertido, futuramente disparar bastão para Funil Pré Obra
+    // TODO: ao chegar em cor_convertido, futuramente disparar bastão para Funil Pré Obra e Obra
     // quando a integração de visibilidade por franqueado/loteador estiver implementada.
-    // [FASE_SLUGS.COR_CONVERTIDO]: [{ kanbanDestinoId: KANBAN_IDS.PRE_OBRA, faseDestinoSlug: FASE_SLUGS.PRE_BRIEFING }],
+    // [FASE_SLUGS.COR_CONVERTIDO]: [{ kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' }],
   };
 
   if (slug === FASE_SLUGS.OPERACOES_ENTREGUE) {
@@ -1116,6 +1105,21 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     String(pai.kanban_id ?? '') === KANBAN_IDS.HDM_HOMOLOGACOES
   ) {
     await registrarAvisoHomologacaoConcluida({ cardId: cardPaiId });
+  }
+
+  // Funil Modelo Virtual — avisos manuais futuros (notificações Moní)
+  if (String(pai.kanban_id ?? '') === KANBAN_IDS.HDM_MODELO_VIRTUAL) {
+    if (slug === FASE_SLUGS.MV_MODELAGEM_CASA) {
+      // TODO: notificar Liz (Acoplamento) que o modelo está apto para acoplamento
+      // TODO: notificar Lari/Letícia (Projetos) que podem iniciar estudos do terreno
+    }
+    if (slug === FASE_SLUGS.MV_COMPAT_ESTRUTURA) {
+      // TODO: notificar Alef (exec local) que pode iniciar estudos de fundação
+    }
+    if (slug === FASE_SLUGS.MV_COMPAT_INFRA) {
+      // TODO: notificar Alef que pode validar compatibilidade com fundação projetada
+      // TODO: notificar Lari/Letícia que podem compatibilizar casa com ambientes do terreno
+    }
   }
 
   const destinos = BASTOES_DE_IDA[slug];
@@ -1142,8 +1146,7 @@ type BastaoRetornoFlagCol =
   | 'juridico_ok'
   | 'capital_ok'
   | 'projetos_locais_ok'
-  | 'projetos_legais_ok'
-  | 'obra_ok';
+  | 'projetos_legais_ok';
 
 const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'acoplamento_concluido',
@@ -1160,7 +1163,6 @@ const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   [FASE_SLUGS.CAPITAL_NAO_ELEGIVEL]: 'capital_ok',
   [FASE_SLUGS.PROJETOS_LOCAIS_CONCLUIDO]: 'projetos_locais_ok',
   [FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO]: 'projetos_legais_ok',
-  [FASE_SLUGS.OBRA_ENTREGA]: 'obra_ok',
 };
 
 const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
@@ -1178,7 +1180,6 @@ const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   [FASE_SLUGS.CAPITAL_NAO_ELEGIVEL]: 'Divify (não elegível)',
   [FASE_SLUGS.PROJETOS_LOCAIS_CONCLUIDO]: 'Projetos Locais',
   [FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO]: 'Projetos Legais',
-  [FASE_SLUGS.OBRA_ENTREGA]: 'Obra (entrega)',
 };
 
 /** Desfechos de esteira paralela que só marcam flag no pai — nunca movem fase do pai Operações. */
@@ -1195,7 +1196,6 @@ const DESFECHO_APENAS_FLAG_SEM_MOVER_PAI = new Set<string>([
   FASE_SLUGS.JURIDICO_CONCLUIDO,
   FASE_SLUGS.CAPITAL_CONCLUIDO,
   FASE_SLUGS.CAPITAL_NAO_ELEGIVEL,
-  FASE_SLUGS.OBRA_ENTREGA,
 ]);
 
 /**

@@ -41,8 +41,6 @@ export const HUB_FUNIS_GRUPOS: GrupoDef[] = [
     cor: '#4a3929',
     funis: [
       { id: KANBAN_IDS.OPERACOES, label: 'Pré Obra e Obra', href: '/operacoes' },
-      { id: KANBAN_IDS.PRE_OBRA, label: 'Pré Obra', href: '/pre-obra', nFases: 10 },
-      { id: KANBAN_IDS.OBRA, label: 'Obra', href: '/obra', nFases: 10 },
       { id: KANBAN_IDS.PROJETO_LEGAL, label: 'Projeto Legal', href: '/funil-projeto-legal' },
       { id: KANBAN_IDS.PROJETOS_LOCAIS, label: 'Projetos Locais', href: '/projetos-locais' },
     ],
