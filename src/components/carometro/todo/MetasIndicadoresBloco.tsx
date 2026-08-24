@@ -642,9 +642,10 @@ function MetaCard({
   semanaAtual, semanaAnterior, anoRelativo,
   blockers, onAdicionarBlocker, onResolverBlocker,
   onEditarSubMeta, onExcluirSubMeta, onAddSubMeta,
-  onConcluirMeta, onReabrirMeta,
+  onConcluirMeta, onReabrirMeta, onArquivarMeta,
   onLancarIndicador, onAssumirIndicador,
   onToggleResponsavel, onAssumirProjeto, projetoOr, onToast,
+  isAdmin,
 }: {
   meta: MetaItem; subMetas: SubMetaItem[]; indicadores: IndicadorItemMeta[];
   responsaveis: ResponsavelItem[];
@@ -664,12 +665,14 @@ function MetaCard({
   onAddSubMeta: (metaPaiId: string, desc: string, tipo: string, respId: string | null) => Promise<void>;
   onConcluirMeta: (metaId: string) => Promise<void>;
   onReabrirMeta: (metaId: string) => Promise<void>;
+  onArquivarMeta: (metaId: string) => Promise<void>;
   onLancarIndicador: (indId: string, valor: string, semana: number) => Promise<boolean>;
   onAssumirIndicador: (indId: string) => Promise<void>;
   onToggleResponsavel: (metaId: string) => Promise<void>;
   onAssumirProjeto: (metaId: string, dataInicio: string, dataFim: string) => Promise<void>;
   projetoOr?: { data_inicio: string | null; data_fim: string | null; dias_uteis: number | null } | null;
   onToast?: (msg: string) => void;
+  isAdmin: boolean;
 }) {
   const [secaoFilhas,        setSecaoFilhas]        = useState(false);
   const [adicionandoFilha,   setAdicionandoFilha]   = useState(false);
@@ -775,8 +778,8 @@ function MetaCard({
               }`}>
               {togglenando ? '…' : assumiu ? '✓ Minha' : 'Assumir'}
             </button>
-            {/* Concluído per-user */}
-            {assumiu && (
+            {/* Concluído per-user — indisponível para metas recorrentes */}
+            {assumiu && !isRecorrente && (
               concluiuMeta ? (
                 <button type="button" onClick={handleReabrir} disabled={reabrindo}
                   className="text-[10px] px-1.5 py-0.5 rounded border bg-green-100 text-green-700 border-green-300 hover:bg-green-200 transition-colors whitespace-nowrap disabled:opacity-50">
@@ -789,6 +792,14 @@ function MetaCard({
                   {concluindo ? '…' : '✓'}
                 </button>
               )
+            )}
+            {/* Arquivar — exclusivo para admins em metas recorrentes */}
+            {isRecorrente && isAdmin && (
+              <button type="button" onClick={() => void onArquivarMeta(meta.id)}
+                className="text-[10px] px-1.5 py-0.5 rounded border text-gray-500 border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap"
+                title="Arquivar meta recorrente">
+                Arquivar
+              </button>
             )}
             {/* Indicador de quantos concluíram */}
             {totalResponsaveis > 1 && concluiuCount > 0 && (
@@ -1087,6 +1098,7 @@ export function MetasIndicadoresBloco() {
   const [expandido,         setExpandido]         = useState(false);
   const [localSubMetas,     setLocalSubMetas]      = useState<SubMetaItem[]>([]);
   const [currentUserId,     setCurrentUserId]      = useState<string | null>(null);
+  const [isAdmin,           setIsAdmin]            = useState(false);
   const [filtroMinhas,      setFiltroMinhas]       = useState(true);
   const [semDonoAberta,     setSemDonoAberta]      = useState(true);
   const [concluidasAberta,  setConcluidasAberta]   = useState(false);
@@ -1101,7 +1113,12 @@ export function MetasIndicadoresBloco() {
   useEffect(() => {
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) setCurrentUserId(user.id);
+      if (user) {
+        setCurrentUserId(user.id);
+        const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+        const role = String((prof as { role?: string } | null)?.role ?? '').toLowerCase();
+        setIsAdmin(role === 'admin');
+      }
     })();
   }, [supabase]);
 
@@ -1231,6 +1248,13 @@ export function MetasIndicadoresBloco() {
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta reaberta' });
     recarregar();
   }, [supabase, currentUserId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleArquivarMeta = useCallback(async (metaId: string) => {
+    const { error } = await supabase.from('objetivos').update({ status: 'arquivado' }).eq('id', metaId);
+    if (error) { console.error('[ArquivarMeta]', error); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta recorrente arquivada (admin)' });
+    recarregar();
+  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sub-metas ───────────────────────────────────────────────────────────────
   const handleEditarSubMeta = useCallback(async (id: string, desc: string) => {
@@ -1432,12 +1456,14 @@ export function MetasIndicadoresBloco() {
         onAddSubMeta={handleAddSubMeta}
         onConcluirMeta={handleConcluirMeta}
         onReabrirMeta={handleReabrirMeta}
+        onArquivarMeta={handleArquivarMeta}
         onLancarIndicador={handleLancarIndicador}
         onAssumirIndicador={handleAssumirIndicador}
         onToggleResponsavel={handleToggleResponsavel}
         onAssumirProjeto={handleAssumirProjeto}
         projetoOr={projetoOrFinal}
         onToast={showToast}
+        isAdmin={isAdmin}
       />
     );
   };

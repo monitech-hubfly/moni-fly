@@ -165,12 +165,14 @@ function ComentarioEditor({
 
 // ── SecaoMetas ─────────────────────────────────────────────────────────────────
 function MetaItem({ m }: { m: MetaBone }) {
+  const isRecorrente = m.tipo?.toLowerCase() === 'recorrente';
+  const tipoLabel    = isRecorrente ? 'Recorrente' : 'Atingível';
   return (
     <li className="flex items-start gap-1.5 text-xs">
       <span className={`flex-shrink-0 font-bold mt-px ${m.status === 'concluido' ? 'text-green-500' : 'text-red-400'}`}>
         {m.status === 'concluido' ? '✓' : '✗'}
       </span>
-      <span className={m.status === 'concluido' ? 'text-gray-400' : 'text-gray-700'}>
+      <span className={`flex-1 min-w-0 ${m.status === 'concluido' ? 'text-gray-400' : 'text-gray-700'}`}>
         {m.is_chave && <span className="mr-0.5">🔑</span>}
         <span className={m.status === 'concluido' ? 'line-through' : ''}>{m.descricao}</span>
         {m.meta_unidade && (
@@ -179,20 +181,25 @@ function MetaItem({ m }: { m: MetaBone }) {
           </span>
         )}
       </span>
+      <span className="text-[9px] text-gray-300 flex-shrink-0 ml-1 mt-px">{tipoLabel}</span>
     </li>
   );
 }
 
 function SecaoMetas({ metas, mensagemVazia }: { metas: MetaBone[]; mensagemVazia?: string }) {
-  const recorrentes = metas.filter(m => m.tipo === 'recorrente');
-  const atingiveis  = metas
-    .filter(m => m.tipo !== 'recorrente')
+  // 1. Concluídas (qualquer tipo) — topo
+  const concluidas = metas.filter(m => m.status === 'concluido');
+  // 2. Atingíveis não concluídas — meio, ordenadas por prazo
+  const atingiveisAbertos = metas
+    .filter(m => m.status !== 'concluido' && m.tipo?.toLowerCase() !== 'recorrente')
     .sort((a, b) => {
       if (!a.meta_unidade && !b.meta_unidade) return 0;
       if (!a.meta_unidade) return 1;
       if (!b.meta_unidade) return -1;
       return a.meta_unidade.localeCompare(b.meta_unidade);
     });
+  // 3. Recorrentes não concluídas — sempre ao final
+  const recorrentesAbertos = metas.filter(m => m.status !== 'concluido' && m.tipo?.toLowerCase() === 'recorrente');
 
   return (
     <div>
@@ -203,16 +210,22 @@ function SecaoMetas({ metas, mensagemVazia }: { metas: MetaBone[]; mensagemVazia
         </p>
       ) : (
         <div className="flex flex-col gap-3">
-          {recorrentes.length > 0 && (
+          {concluidas.length > 0 && (
             <div>
-              <p className="text-[9px] text-gray-300 uppercase tracking-wider mb-1.5 font-semibold">Recorrente</p>
-              <ul className="flex flex-col gap-2">{recorrentes.map(m => <MetaItem key={m.id} m={m} />)}</ul>
+              <p className="text-[9px] text-green-400 uppercase tracking-wider mb-1.5 font-semibold">Concluídas</p>
+              <ul className="flex flex-col gap-2">{concluidas.map(m => <MetaItem key={m.id} m={m} />)}</ul>
             </div>
           )}
-          {atingiveis.length > 0 && (
+          {atingiveisAbertos.length > 0 && (
             <div>
               <p className="text-[9px] text-gray-300 uppercase tracking-wider mb-1.5 font-semibold">Atingível</p>
-              <ul className="flex flex-col gap-2">{atingiveis.map(m => <MetaItem key={m.id} m={m} />)}</ul>
+              <ul className="flex flex-col gap-2">{atingiveisAbertos.map(m => <MetaItem key={m.id} m={m} />)}</ul>
+            </div>
+          )}
+          {recorrentesAbertos.length > 0 && (
+            <div>
+              <p className="text-[9px] text-gray-300 uppercase tracking-wider mb-1.5 font-semibold">Recorrente</p>
+              <ul className="flex flex-col gap-2">{recorrentesAbertos.map(m => <MetaItem key={m.id} m={m} />)}</ul>
             </div>
           )}
         </div>
