@@ -43,9 +43,15 @@ export const HUB_FUNIS_GRUPOS: GrupoDef[] = [
       { id: KANBAN_IDS.OPERACOES, label: 'Pré Obra e Obra', href: '/operacoes' },
       { id: KANBAN_IDS.PRE_OBRA, label: 'Pré Obra', href: '/pre-obra', nFases: 10 },
       { id: KANBAN_IDS.OBRA, label: 'Obra', href: '/obra', nFases: 10 },
-      { id: KANBAN_IDS.CORRETORES, label: 'Funil Corretores', href: '/corretores', nFases: 8 },
       { id: KANBAN_IDS.PROJETO_LEGAL, label: 'Projeto Legal', href: '/funil-projeto-legal' },
       { id: KANBAN_IDS.PROJETOS_LOCAIS, label: 'Projetos Locais', href: '/projetos-locais' },
+    ],
+  },
+  {
+    titulo: 'IMOB',
+    cor: 'var(--moni-kanban-corretores)',
+    funis: [
+      { id: KANBAN_IDS.CORRETORES, label: 'Funil Corretores', href: '/corretores', nFases: 8 },
     ],
   },
   {
