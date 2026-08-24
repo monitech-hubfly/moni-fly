@@ -39,6 +39,16 @@ export const KANBAN_CARD_SELECT_BASE = `
       funding_tipo,
       funding_localizacao,
       funding_descritivo,
+      nome_corretor,
+      imobiliaria_corretor,
+      empreendimento_interesse,
+      tipologia_interesse,
+      probabilidade_fechamento,
+      orcamento_lead,
+      cidade_interesse,
+      telefone_lead,
+      email_lead,
+      mensagem_lead,
       proxima_atividade,
       prazo_atividade
     `;
@@ -73,7 +83,12 @@ export const KANBAN_CARD_SELECT_BOARD_FAST = `
       proxima_atividade,
       prazo_atividade,
       sla_iniciado_em,
-      entered_fase_at
+      entered_fase_at,
+      nome_corretor,
+      imobiliaria_corretor,
+      empreendimento_interesse,
+      tipologia_interesse,
+      probabilidade_fechamento
     `;
 
 export const KANBAN_CARD_SELECT_BOARD_FAST_WITH_SLA = `${KANBAN_CARD_SELECT_BOARD_FAST.trim()}`;

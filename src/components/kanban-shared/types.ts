@@ -19,6 +19,7 @@ export type KanbanNomeDisplay =
   | 'Funil Pré Obra e Obra'
   | 'Funil Pré Obra'
   | 'Funil Obra'
+  | 'Funil Corretores'
   | 'Funil Contabilidade'
   | 'Funil Crédito Obra'
   | 'Funil Motor 01'
@@ -158,6 +159,17 @@ export type KanbanCardBrief = {
   funding_tipo?: 'Investidor' | 'Broker' | null;
   funding_localizacao?: string | null;
   funding_descritivo?: string | null;
+  /** Funil Corretores */
+  nome_corretor?: string | null;
+  imobiliaria_corretor?: string | null;
+  empreendimento_interesse?: string | null;
+  tipologia_interesse?: string | null;
+  probabilidade_fechamento?: string | null;
+  orcamento_lead?: number | null;
+  cidade_interesse?: string | null;
+  telefone_lead?: string | null;
+  email_lead?: string | null;
+  mensagem_lead?: string | null;
   proxima_atividade?: string | null;
   prazo_atividade?: string | null;
   /** SLA estourado na fase atual segundo a Calculadora (borda lateral vermelha no board). */

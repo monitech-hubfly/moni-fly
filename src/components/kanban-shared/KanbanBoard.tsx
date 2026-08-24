@@ -482,6 +482,27 @@ export function KanbanBoard({
       userRole === 'consultor');
 
   const nAtivos = countKanbanBoardFiltrosAtivos(filtros);
+  const corretoresFiltroOpcoes = useMemo(() => {
+    if (kanbanId !== KANBAN_IDS.CORRETORES) {
+      return { corretores: [] as string[], imobiliarias: [] as string[], tipologias: [] as string[] };
+    }
+    const corretores = new Set<string>();
+    const imobiliarias = new Set<string>();
+    const tipologias = new Set<string>();
+    for (const c of [...cardsEfetivos, ...cardsConcluidosEfetivos]) {
+      const n = String(c.nome_corretor ?? '').trim();
+      const i = String(c.imobiliaria_corretor ?? '').trim();
+      const t = String(c.tipologia_interesse ?? '').trim();
+      if (n) corretores.add(n);
+      if (i) imobiliarias.add(i);
+      if (t) tipologias.add(t);
+    }
+    return {
+      corretores: [...corretores].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      imobiliarias: [...imobiliarias].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      tipologias: [...tipologias].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    };
+  }, [kanbanId, cardsEfetivos, cardsConcluidosEfetivos]);
   /** Quando o pai passa `true`, não espera a matriz `criar_cards` no client (evita botão oculto para o time). */
   const criarCardsPermitido =
     podeCriarCardsProp === true ||
@@ -559,6 +580,9 @@ export function KanbanBoard({
               responsaveisOpcoes={responsaveisOpcoes}
               showFiltroEu={Boolean(currentUserId)}
               showPerdaGanhoFiltros={showPerdaGanhoFiltros}
+              corretoresOpcoes={corretoresFiltroOpcoes.corretores}
+              imobiliariasOpcoes={corretoresFiltroOpcoes.imobiliarias}
+              tipologiasOpcoes={corretoresFiltroOpcoes.tipologias}
               onLimpar={() => setFiltrosDraft(KANBAN_BOARD_FILTROS_DEFAULT)}
               onAplicar={() => {
                 setFiltros({ ...filtrosDraft });

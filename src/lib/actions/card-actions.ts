@@ -5163,6 +5163,60 @@ export type SalvarDadosFundingInput = {
   basePath?: string;
 };
 
+export type SalvarDadosCorretoresLeadInput = {
+  cardId: string;
+  empreendimento_interesse?: string | null;
+  tipologia_interesse?: string | null;
+  orcamento_lead?: string | number | null;
+  probabilidade_fechamento?: string | null;
+  cidade_interesse?: string | null;
+  basePath?: string;
+};
+
+export async function salvarDadosCorretoresLead(
+  input: SalvarDadosCorretoresLeadInput,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.CORRETORES) {
+    return { ok: false, error: 'Campos de lead aplicáveis apenas ao Funil Corretores.' };
+  }
+
+  const orcRaw = String(input.orcamento_lead ?? '').trim().replace(/\./g, '').replace(',', '.');
+  const orcamento = orcRaw ? Number(orcRaw) : null;
+
+  const { error: updErr } = await supabase
+    .from('kanban_cards')
+    .update({
+      empreendimento_interesse: String(input.empreendimento_interesse ?? '').trim() || null,
+      tipologia_interesse: String(input.tipologia_interesse ?? '').trim() || null,
+      probabilidade_fechamento: String(input.probabilidade_fechamento ?? '').trim() || null,
+      cidade_interesse: String(input.cidade_interesse ?? '').trim() || null,
+      orcamento_lead: Number.isFinite(orcamento as number) ? orcamento : null,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', cardId);
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
 export type SalvarProximaAtividadeInput = {
   cardId: string;
   proxima_atividade?: string | null;
@@ -5616,12 +5670,54 @@ export async function moverCardParaFase(input: {
     if (errMot) return { ok: false, error: errMot.message };
   }
 
+  const kanbanIdCard = String((cardKanban as { kanban_id?: string } | null)?.kanban_id ?? '');
+  if (novaFaseSlug === FASE_SLUGS.COR_PERDIDO && kanbanIdCard === KANBAN_IDS.CORRETORES) {
+    const motivo = String(input.motivoReprovacaoAcoplamento ?? '').trim();
+    if (!motivo) {
+      return { ok: false, error: 'Informe o motivo da perda antes de mover para Perdido.' };
+    }
+  }
+
   const { error: updErr } = await supabase
     .from('kanban_cards')
     .update({ fase_id: novaFaseId })
     .eq('id', cardId);
 
   if (updErr) return { ok: false, error: updErr.message };
+
+  // Funil Corretores — arquivamento automático nas fases terminais
+  if (kanbanIdCard === KANBAN_IDS.CORRETORES) {
+    if (novaFaseSlug === FASE_SLUGS.COR_CONVERTIDO) {
+      // TODO: ao chegar em cor_convertido, futuramente disparar bastão para Funil Pré Obra
+      // quando a integração de visibilidade por franqueado/loteador estiver implementada.
+      const admin = createAdminClient();
+      const now = new Date().toISOString();
+      await admin
+        .from('kanban_cards')
+        .update({
+          arquivado: true,
+          arquivado_em: now,
+          arquivado_por: user.id,
+          motivo_arquivamento: 'Convertido',
+          resultado: 'ganho',
+        } as never)
+        .eq('id', cardId);
+    } else if (novaFaseSlug === FASE_SLUGS.COR_PERDIDO) {
+      const motivo = String(input.motivoReprovacaoAcoplamento ?? '').trim();
+      const admin = createAdminClient();
+      const now = new Date().toISOString();
+      await admin
+        .from('kanban_cards')
+        .update({
+          arquivado: true,
+          arquivado_em: now,
+          arquivado_por: user.id,
+          motivo_arquivamento: motivo || 'Perdido',
+          resultado: 'perda',
+        } as never)
+        .eq('id', cardId);
+    }
+  }
 
   if (novaFaseSlug) {
     const { data: procRow } = await supabase

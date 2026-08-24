@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowUpDown, MessageCircle, Paperclip } from 'lucide-react';
+import { ArrowUpDown, MessageCircle, Paperclip, User } from 'lucide-react';
 import {
   useRef,
   useState,
@@ -319,6 +319,18 @@ export function KanbanColumn({
           const m = motivo.trim();
           if (!m) {
             alert('Informe o motivo da paralisação.');
+            return;
+          }
+          motivoParalisado = m;
+        }
+        if (destSlug === FASE_SLUGS.COR_PERDIDO && basePath.includes('/corretores')) {
+          const motivo = window.prompt(
+            'Informe o motivo da perda antes de mover o card para Perdido:',
+          );
+          if (motivo == null) return;
+          const m = motivo.trim();
+          if (!m) {
+            alert('Informe o motivo da perda.');
             return;
           }
           motivoParalisado = m;
@@ -804,6 +816,33 @@ export function KanbanColumn({
                       </span>
                     ) : null;
                   })()}
+                  {kanbanId === KANBAN_IDS.CORRETORES && card.nome_corretor ? (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-[var(--moni-radius-md)] px-1.5 py-0.5 text-[10px] font-semibold"
+                      style={{
+                        background: 'var(--moni-kanban-corretores-light)',
+                        color: 'var(--moni-kanban-corretores)',
+                        border: '0.5px solid var(--moni-kanban-corretores-accent)',
+                      }}
+                    >
+                      <User className="h-3 w-3" aria-hidden />
+                      {card.nome_corretor}
+                    </span>
+                  ) : null}
+                  {kanbanId === KANBAN_IDS.CORRETORES &&
+                  (faseSlug || '').trim() === FASE_SLUGS.COR_FORECAST &&
+                  card.probabilidade_fechamento ? (
+                    <span
+                      className="inline-flex rounded-[var(--moni-radius-md)] px-1.5 py-0.5 text-[10px] font-semibold"
+                      style={{
+                        background: 'var(--moni-green-50)',
+                        color: 'var(--moni-green-800)',
+                        border: '0.5px solid var(--moni-green-400)',
+                      }}
+                    >
+                      {card.probabilidade_fechamento}
+                    </span>
+                  ) : null}
                   {mostrarSubtitulo ? (
                     <p className="moni-kanban-card-subtitle">{subtituloCard}</p>
                   ) : null}

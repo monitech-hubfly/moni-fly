@@ -210,6 +210,14 @@
   --moni-kanban-moni-care-light:  var(--moni-green-50);
   --moni-kanban-moni-care-accent: var(--moni-green-400);
 
+  /* Funil Corretores — violeta (diferencia de Obras); sem laranja */
+  --moni-kanban-corretores:        #5B21B6;
+  --moni-kanban-corretores-light:  #F5F3FF;
+  --moni-kanban-corretores-accent: #7C3AED;
+  --moni-kanban-corretores-negoc:  var(--moni-gold-600);
+  --moni-kanban-corretores-ok:     var(--moni-green-600);
+  --moni-kanban-corretores-lost:   var(--moni-neutral-500);
+
   /* Funding — badges tipo Investidor / Broker */
   --moni-funding-investidor-bg:   #E6F1FB;
   --moni-funding-investidor-text: #185FA5;
@@ -2374,6 +2382,7 @@
 .moni-kanban-id--credito   { background: var(--moni-kanban-credito-light);   color: var(--moni-kanban-credito);   border-color: var(--moni-kanban-credito-accent); }
 .moni-kanban-id--marketing { background: var(--moni-kanban-marketing-light); color: var(--moni-kanban-marketing); border-color: var(--moni-kanban-marketing-accent); }
 .moni-kanban-id--moni-care { background: var(--moni-kanban-moni-care-light); color: var(--moni-kanban-moni-care); border-color: var(--moni-kanban-moni-care-accent); }
+.moni-kanban-id--corretores { background: var(--moni-kanban-corretores-light); color: var(--moni-kanban-corretores); border-color: var(--moni-kanban-corretores-accent); }
 
 /* Shell do board — isola colunas dentro do main (nunca sob o sidebar) */
 .moni-kanban-shell {

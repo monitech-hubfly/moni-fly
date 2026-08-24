@@ -1100,6 +1100,9 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         faseDestinoSlug: FASE_SLUGS.CARE_NOVO_ACIONAMENTO,
       },
     ],
+    // TODO: ao chegar em cor_convertido, futuramente disparar bastão para Funil Pré Obra
+    // quando a integração de visibilidade por franqueado/loteador estiver implementada.
+    // [FASE_SLUGS.COR_CONVERTIDO]: [{ kanbanDestinoId: KANBAN_IDS.PRE_OBRA, faseDestinoSlug: FASE_SLUGS.PRE_BRIEFING }],
   };
 
   if (slug === FASE_SLUGS.OPERACOES_ENTREGUE) {

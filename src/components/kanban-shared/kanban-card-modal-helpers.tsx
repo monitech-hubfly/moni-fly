@@ -437,6 +437,7 @@ export type SecaoEsquerdaId =
   | 'simulacoesImob'
   | 'moniCapital'
   | 'condominio'
+  | 'dadosLead'
   | 'novoNegocio'
   | 'dadosEmpresas'
   | 'dadosFunding'

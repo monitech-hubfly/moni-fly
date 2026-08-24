@@ -80,7 +80,7 @@ function filterRedeFranqueadosSubitensParaProd(items: NavItem[], showDevNav: boo
 function isRedeFranqueadosActive(pathname: string) {
   if (
     pathname.startsWith('/rede-franqueados') ||
-    pathname.startsWith('/corretores') ||
+    pathname.startsWith('/corretores/novo') ||
     pathname.startsWith('/comunidade') ||
     pathname.startsWith('/portal-frank/rede')
   ) {
@@ -106,6 +106,7 @@ function isHubFunisActive(pathname: string) {
     pathname.startsWith('/operacoes') ||
     pathname.startsWith('/pre-obra') ||
     pathname.startsWith('/obra') ||
+    pathname.startsWith('/corretores') ||
     pathname.startsWith('/funil-projeto-legal') ||
     pathname.startsWith('/projetos-locais') ||
     pathname.startsWith('/projetos-legais') ||

@@ -98,6 +98,8 @@ const DEFERRED_ENRICHMENT_KEYS = [
 ] as const satisfies readonly (keyof KanbanCardBrief)[];
 
 function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): KanbanCardBrief {
+  const emp = String((c as { empreendimento_interesse?: string | null }).empreendimento_interesse ?? '').trim();
+  const tip = String((c as { tipologia_interesse?: string | null }).tipologia_interesse ?? '').trim();
   return {
     id: String(c.id ?? ''),
     titulo: String(c.titulo ?? ''),
@@ -115,6 +117,7 @@ function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): Kanb
         ? String((c as { concluido_em?: string | null }).concluido_em)
         : null,
     origem: 'nativo',
+    subtitulo: kanbanIdStr === KANBAN_IDS.CORRETORES ? emp || tip || null : null,
     data_reuniao: dataIsoParaInput(c.data_reuniao),
     data_followup: dataIsoParaInput(c.data_followup),
     proxima_atividade:
@@ -130,6 +133,13 @@ function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): Kanb
       (c as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
         ? String((c as { sla_iniciado_em?: string | null }).sla_iniciado_em)
         : null,
+    nome_corretor: (c as { nome_corretor?: string | null }).nome_corretor ?? null,
+    imobiliaria_corretor: (c as { imobiliaria_corretor?: string | null }).imobiliaria_corretor ?? null,
+    empreendimento_interesse:
+      (c as { empreendimento_interesse?: string | null }).empreendimento_interesse ?? null,
+    tipologia_interesse: (c as { tipologia_interesse?: string | null }).tipologia_interesse ?? null,
+    probabilidade_fechamento:
+      (c as { probabilidade_fechamento?: string | null }).probabilidade_fechamento ?? null,
     profiles: null,
   };
 }
@@ -1408,6 +1418,16 @@ export async function fetchKanbanBoardSnapshot(
       profilesLinha = nomeHeader ? { full_name: nomeHeader } : null;
     }
 
+    if (kanbanIdStr === KANBAN_IDS.CORRETORES) {
+      const emp = String(
+        (cMerged as { empreendimento_interesse?: string | null }).empreendimento_interesse ?? '',
+      ).trim();
+      const tip = String(
+        (cMerged as { tipologia_interesse?: string | null }).tipologia_interesse ?? '',
+      ).trim();
+      subtituloCard = emp || tip || null;
+    }
+
     return {
       id: String(cMerged.id),
       titulo: tituloExibicao,
@@ -1463,6 +1483,25 @@ export async function fetchKanbanBoardSnapshot(
         (cMerged as { funding_localizacao?: string | null }).funding_localizacao ?? null,
       funding_descritivo:
         (cMerged as { funding_descritivo?: string | null }).funding_descritivo ?? null,
+      nome_corretor: (cMerged as { nome_corretor?: string | null }).nome_corretor ?? null,
+      imobiliaria_corretor:
+        (cMerged as { imobiliaria_corretor?: string | null }).imobiliaria_corretor ?? null,
+      empreendimento_interesse:
+        (cMerged as { empreendimento_interesse?: string | null }).empreendimento_interesse ?? null,
+      tipologia_interesse:
+        (cMerged as { tipologia_interesse?: string | null }).tipologia_interesse ?? null,
+      probabilidade_fechamento:
+        (cMerged as { probabilidade_fechamento?: string | null }).probabilidade_fechamento ?? null,
+      orcamento_lead: (() => {
+        const v = (cMerged as { orcamento_lead?: number | string | null }).orcamento_lead;
+        if (v == null || v === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      })(),
+      cidade_interesse: (cMerged as { cidade_interesse?: string | null }).cidade_interesse ?? null,
+      telefone_lead: (cMerged as { telefone_lead?: string | null }).telefone_lead ?? null,
+      email_lead: (cMerged as { email_lead?: string | null }).email_lead ?? null,
+      mensagem_lead: (cMerged as { mensagem_lead?: string | null }).mensagem_lead ?? null,
       proxima_atividade:
         (cMerged as { proxima_atividade?: string | null }).proxima_atividade ?? null,
       prazo_atividade: dataIsoParaInput(

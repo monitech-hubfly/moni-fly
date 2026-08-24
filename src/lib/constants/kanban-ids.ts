@@ -26,6 +26,8 @@ export const KANBAN_IDS = {
   PRE_OBRA: '91686091-077d-479d-bbb3-cb062ded286e',
   /** Funil Obra — migration 545 */
   OBRA: '8b25508c-afdc-4a44-84a8-36c4fcf8cb4b',
+  /** Funil Corretores — migration 548 */
+  CORRETORES: '1e23c356-9993-4f8e-9d09-e17995e8a5c6',
 } as const
 
 /** Nome canônico em `kanbans.nome` — Funil Crédito Obra. */
@@ -63,6 +65,7 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Moní Care': KANBAN_IDS.MONI_CARE,
   'Funil Pré Obra': KANBAN_IDS.PRE_OBRA,
   'Funil Obra': KANBAN_IDS.OBRA,
+  'Funil Corretores': KANBAN_IDS.CORRETORES,
 };
 
 export const FASE_IDS = {
@@ -373,7 +376,24 @@ export const FASE_SLUGS = {
   OBRA_VISTORIA: 'obra_vistoria',
   /** Fase terminal — dispara bastão para Funil Moní Care */
   OBRA_ENTREGA: 'obra_entrega',
+
+  // Funil Corretores (KANBAN_IDS.CORRETORES) — fluxo ordem 1–8
+  COR_OPORTUNIDADE: 'cor_oportunidade',
+  COR_PRIMEIRO_CONTATO: 'cor_primeiro_contato',
+  COR_AGENDAMENTO: 'cor_agendamento',
+  COR_VISITA_REALIZADA: 'cor_visita_realizada',
+  COR_PROPOSTA_ENVIADA: 'cor_proposta_enviada',
+  COR_FORECAST: 'cor_forecast',
+  /** Fase terminal de ganho — card arquivado como convertido */
+  COR_CONVERTIDO: 'cor_convertido',
+  /** Fase terminal de perda — motivo obrigatório */
+  COR_PERDIDO: 'cor_perdido',
 } as const
+
+/** Funil Corretores — confirmação ao sair de Forecast para Convertido. */
+export const CORRETORES_FASES_CONFIRMACAO_SAIDA = {
+  forecast: [FASE_SLUGS.COR_FORECAST],
+} as const;
 
 /** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389). */
 export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {

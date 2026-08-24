@@ -41,6 +41,7 @@ export const PARALELA_FUNIL_NOMES: Record<string, string> = {
   [KANBAN_IDS.OPERACOES]: 'Funil Pré Obra e Obra',
   [KANBAN_IDS.PRE_OBRA]: 'Funil Pré Obra',
   [KANBAN_IDS.OBRA]: 'Funil Obra',
+  [KANBAN_IDS.CORRETORES]: 'Funil Corretores',
 };
 
 export function corParalelaKanban(kanbanId: string | null | undefined): string {

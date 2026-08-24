@@ -66,6 +66,7 @@ import {
   salvarDadosPreObra,
   salvarDadosPreObraOperacoes,
   salvarDadosFunding,
+  salvarDadosCorretoresLead,
   salvarProximaAtividade,
   salvarFranqueadoCardVinculado,
   salvarInstrucoesFase,
@@ -133,6 +134,11 @@ import {
   type LoteadoresConfirmacaoFaseTipo,
 } from '@/lib/kanban/loteadores-confirmacao-fase';
 import {
+  corretoresConfirmacaoPergunta,
+  deveConfirmarMovimentoCorretores,
+  type CorretoresConfirmacaoFaseTipo,
+} from '@/lib/kanban/corretores-confirmacao-fase';
+import {
   deveExibirModalJustificativaSla,
   justificativaSlaObrigatoria,
 } from '@/lib/kanban/kanban-sla-justificativa';
@@ -159,6 +165,11 @@ import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreObraOperacoes';
 import { KanbanCardModalDadosFunding } from './KanbanCardModalDadosFunding';
+import {
+  KanbanCardModalDadosCorretores,
+  CORRETORES_LEAD_DRAFT_EMPTY,
+  type CorretoresLeadDraft,
+} from './KanbanCardModalDadosCorretores';
 import {
   fundingDraftFromRow,
   fundingDraftVazio,
@@ -684,6 +695,7 @@ export function KanbanCardModal({
     simulacoesImob: false,
     moniCapital: false,
     condominio: false,
+    dadosLead: false,
     novoNegocio: false,
     dadosEmpresas: false,
     dadosFunding: false,
@@ -723,6 +735,7 @@ export function KanbanCardModal({
   const [novaTagCor, setNovaTagCor] = useState('#F5A100');
   const [criandoTag, setCriandoTag] = useState(false);
   const [editandoFunding, setEditandoFunding] = useState(false);
+  const [editandoCorretoresLead, setEditandoCorretoresLead] = useState(false);
   const [negocioDraft, setNegocioDraft] = useState<NegocioDraftKanban>(() => negocioDraftVazio());
   const negocioDraftRef = useRef(negocioDraft);
   negocioDraftRef.current = negocioDraft;
@@ -852,6 +865,10 @@ export function KanbanCardModal({
   const [preObraDraft, setPreObraDraft] = useState<PreObraDraftKanban>(() => preObraDraftFromProcesso(null));
   const [fundingDraft, setFundingDraft] = useState<FundingCardDraft>(() => fundingDraftVazio());
   const [salvandoFunding, setSalvandoFunding] = useState(false);
+  const [corretoresLeadDraft, setCorretoresLeadDraft] = useState<CorretoresLeadDraft>(() => ({
+    ...CORRETORES_LEAD_DRAFT_EMPTY,
+  }));
+  const [salvandoCorretoresLead, setSalvandoCorretoresLead] = useState(false);
   const [operacoesPreObraDraft, setOperacoesPreObraDraft] = useState<OperacoesPreObraDraft>(
     () => ({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY }),
   );
@@ -894,8 +911,12 @@ export function KanbanCardModal({
   } | null>(null);
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
   const [modalConfirmacaoPortfolio, setModalConfirmacaoPortfolio] = useState<{
-    dominio: 'portfolio' | 'operacoes' | 'loteadores';
-    tipo: PortfolioConfirmacaoModalTipo | OperacoesConfirmacaoFaseTipo | LoteadoresConfirmacaoFaseTipo;
+    dominio: 'portfolio' | 'operacoes' | 'loteadores' | 'corretores';
+    tipo:
+      | PortfolioConfirmacaoModalTipo
+      | OperacoesConfirmacaoFaseTipo
+      | LoteadoresConfirmacaoFaseTipo
+      | CorretoresConfirmacaoFaseTipo;
     destinoFase: KanbanFase;
     direcao: 'avancar' | 'retroceder';
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string };
@@ -929,6 +950,8 @@ export function KanbanCardModal({
     preObraAlinhadoComCalcRef.current = null;
     operacoesPreObraAlinhadoComCalcRef.current = null;
     setFundingDraft(fundingDraftVazio());
+    setCorretoresLeadDraft({ ...CORRETORES_LEAD_DRAFT_EMPTY });
+    setEditandoCorretoresLead(false);
     setOperacoesPreObraDraft({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY });
     setCreditoObraAbertura(null);
     setCreditoObraAberturaPending(false);
@@ -1395,7 +1418,9 @@ export function KanbanCardModal({
           'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra';
         const cardSelectFunding =
           'funding_tipo, funding_localizacao, funding_descritivo';
-        const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}`;
+        const cardSelectCorretores =
+          'nome_corretor, imobiliaria_corretor, empreendimento_interesse, tipologia_interesse, probabilidade_fechamento, orcamento_lead, cidade_interesse, telefone_lead, email_lead, mensagem_lead';
+        const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}, ${cardSelectCorretores}`;
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at`;
         let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardIdNorm).maybeSingle();
         const selectFalhouColuna = (msg: string) =>
@@ -1538,6 +1563,32 @@ export function KanbanCardModal({
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
         setOperacoesPreObraDraft(operacoesPreObraDraftFromCard(cardData as Record<string, unknown>));
         setFundingDraft(fundingDraftFromRow(cardData as Record<string, unknown>));
+        setCorretoresLeadDraft({
+          nome_corretor: String((cardData as { nome_corretor?: string | null }).nome_corretor ?? ''),
+          imobiliaria_corretor: String(
+            (cardData as { imobiliaria_corretor?: string | null }).imobiliaria_corretor ?? '',
+          ),
+          empreendimento_interesse: String(
+            (cardData as { empreendimento_interesse?: string | null }).empreendimento_interesse ?? '',
+          ),
+          tipologia_interesse: String(
+            (cardData as { tipologia_interesse?: string | null }).tipologia_interesse ?? '',
+          ),
+          orcamento_lead:
+            (cardData as { orcamento_lead?: number | string | null }).orcamento_lead != null
+              ? String((cardData as { orcamento_lead?: number | string | null }).orcamento_lead)
+              : '',
+          probabilidade_fechamento: String(
+            (cardData as { probabilidade_fechamento?: string | null }).probabilidade_fechamento ?? '',
+          ),
+          cidade_interesse: String(
+            (cardData as { cidade_interesse?: string | null }).cidade_interesse ?? '',
+          ),
+          telefone_lead: String((cardData as { telefone_lead?: string | null }).telefone_lead ?? ''),
+          email_lead: String((cardData as { email_lead?: string | null }).email_lead ?? ''),
+          mensagem_lead: String((cardData as { mensagem_lead?: string | null }).mensagem_lead ?? ''),
+        });
+        setEditandoCorretoresLead(false);
       }
 
       if (!loaded) {
@@ -2763,10 +2814,12 @@ export function KanbanCardModal({
 
   function tipoConfirmacaoSaidaAtual(
     direcao: 'avancar' | 'retroceder' = 'avancar',
+    destinoFaseSlug?: string | null,
   ):
     | { dominio: 'portfolio'; tipo: PortfolioConfirmacaoFaseTipo }
     | { dominio: 'operacoes'; tipo: OperacoesConfirmacaoFaseTipo }
     | { dominio: 'loteadores'; tipo: LoteadoresConfirmacaoFaseTipo }
+    | { dominio: 'corretores'; tipo: CorretoresConfirmacaoFaseTipo }
     | null {
     if (!card || isLegado) return null;
     const portfolio = deveConfirmarSaidaFasePortfolio({
@@ -2788,6 +2841,13 @@ export function KanbanCardModal({
       direcao,
     });
     if (loteadores) return { dominio: 'loteadores', tipo: loteadores };
+    const corretores = deveConfirmarMovimentoCorretores({
+      kanbanId: card.kanban_id,
+      faseSlugAtual: faseAtual?.slug,
+      destinoFaseSlug,
+      origemCard: origem,
+    });
+    if (corretores) return { dominio: 'corretores', tipo: corretores };
     return null;
   }
 
@@ -2795,6 +2855,7 @@ export function KanbanCardModal({
     if (modal.dominio === 'loteadores') {
       return loteadoresConfirmacaoTitulo(modal.tipo as LoteadoresConfirmacaoFaseTipo);
     }
+    if (modal.dominio === 'corretores') return 'Confirmar conversão';
     return 'Confirmação';
   }
 
@@ -2805,6 +2866,12 @@ export function KanbanCardModal({
     if (modal.dominio === 'loteadores') {
       return loteadoresConfirmacaoPergunta(modal.tipo as LoteadoresConfirmacaoFaseTipo);
     }
+    if (modal.dominio === 'corretores') {
+      return corretoresConfirmacaoPergunta(
+        modal.tipo as CorretoresConfirmacaoFaseTipo,
+        card?.titulo,
+      );
+    }
     return portfolioConfirmacaoModalPergunta(modal.tipo as PortfolioConfirmacaoModalTipo);
   }
 
@@ -2813,7 +2880,7 @@ export function KanbanCardModal({
     direcao: 'avancar' | 'retroceder',
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string },
   ) {
-    const confirmacaoSaida = tipoConfirmacaoSaidaAtual(direcao);
+    const confirmacaoSaida = tipoConfirmacaoSaidaAtual(direcao, destinoFase.slug);
     if (confirmacaoSaida) {
       setModalJustificativaSla(null);
       setSlaJustificativaDraft('');
@@ -2997,8 +3064,9 @@ export function KanbanCardModal({
     const proximaSlug = (proximaFase.slug ?? '').trim();
     if (
       !isLegado &&
-      card.kanban_id === KANBAN_IDS.ACOPLAMENTO &&
-      proximaSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO
+      ((card.kanban_id === KANBAN_IDS.ACOPLAMENTO &&
+        proximaSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO) ||
+        (card.kanban_id === KANBAN_IDS.CORRETORES && proximaSlug === FASE_SLUGS.COR_PERDIDO))
     ) {
       setMotivoReprovacaoDraft('');
       setModalReprovacaoAcoplamento(proximaFase);
@@ -3024,7 +3092,18 @@ export function KanbanCardModal({
       return;
     }
 
-    if (!confirm(`Avançar para a fase "${proximaFase.nome}"?`)) return;
+    const skipConfirmGenerico =
+      card.kanban_id === KANBAN_IDS.CORRETORES &&
+      (proximaSlug === FASE_SLUGS.COR_CONVERTIDO ||
+        Boolean(
+          deveConfirmarMovimentoCorretores({
+            kanbanId: card.kanban_id,
+            faseSlugAtual: faseAtual.slug,
+            destinoFaseSlug: proximaSlug,
+            origemCard: origem,
+          }),
+        ));
+    if (!skipConfirmGenerico && !confirm(`Avançar para a fase "${proximaFase.nome}"?`)) return;
 
     const checklist = await verificarChecklistParaFase(card.id);
     if (checklist.bloqueado) {
@@ -3477,6 +3556,33 @@ export function KanbanCardModal({
       alert('Erro ao salvar dados Funding.');
     } finally {
       setSalvandoFunding(false);
+    }
+  }
+
+  async function handleSalvarCorretoresLead() {
+    if (!card?.id) return;
+    setSalvandoCorretoresLead(true);
+    try {
+      const res = await salvarDadosCorretoresLead({
+        cardId: card.id,
+        empreendimento_interesse: corretoresLeadDraft.empreendimento_interesse,
+        tipologia_interesse: corretoresLeadDraft.tipologia_interesse,
+        orcamento_lead: corretoresLeadDraft.orcamento_lead,
+        probabilidade_fechamento: corretoresLeadDraft.probabilidade_fechamento,
+        cidade_interesse: corretoresLeadDraft.cidade_interesse,
+        basePath,
+      });
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      setEditandoCorretoresLead(false);
+      await loadCard({ silencioso: true });
+      router.refresh();
+    } catch {
+      alert('Erro ao salvar dados do lead.');
+    } finally {
+      setSalvandoCorretoresLead(false);
     }
   }
 
@@ -5075,6 +5181,8 @@ export function KanbanCardModal({
     kanbanNome === 'Funil Operações';
   const ehFunilFunding =
     card.kanban_id === KANBAN_IDS.FUNDING || kanbanNome === 'Funding';
+  const ehFunilCorretores =
+    card.kanban_id === KANBAN_IDS.CORRETORES || kanbanNome === 'Funil Corretores';
   const podeGerenciarRelacionamentos =
     !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
   const podeAbrirTrancheVinculos =
@@ -8453,6 +8561,25 @@ export function KanbanCardModal({
                   }}
                 />,
               )}
+            {ehFunilCorretores && !isLegado
+              ? secaoHead(
+                  'dadosLead',
+                  'Dados do Lead',
+                  <KanbanCardModalDadosCorretores
+                    draft={corretoresLeadDraft}
+                    onChange={(patch) => setCorretoresLeadDraft((d) => ({ ...d, ...patch }))}
+                    onSalvar={() => void handleSalvarCorretoresLead()}
+                    salvando={salvandoCorretoresLead}
+                    podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                    editando={editandoCorretoresLead}
+                    onEditar={() => setEditandoCorretoresLead(true)}
+                    onCancelar={() => {
+                      setEditandoCorretoresLead(false);
+                      void loadCard({ silencioso: true });
+                    }}
+                  />,
+                )
+              : null}
             {secaoHead(
               'novoNegocio',
               'Dados do Negócio',
@@ -9126,13 +9253,19 @@ export function KanbanCardModal({
           aria-labelledby="reprovacao-acoplamento-titulo"
         >
           <h3 id="reprovacao-acoplamento-titulo" className="text-base font-semibold text-stone-900">
-            Mover para Paralisados
+            {(modalReprovacaoAcoplamento.slug ?? '').trim() === FASE_SLUGS.COR_PERDIDO
+              ? 'Mover para Perdido'
+              : 'Mover para Paralisados'}
           </h3>
           <p className="mt-2 text-sm text-stone-600">
-            Informe o motivo da paralisação. Os links de Gbox e Acoplamento não são obrigatórios nesta fase.
+            {(modalReprovacaoAcoplamento.slug ?? '').trim() === FASE_SLUGS.COR_PERDIDO
+              ? 'Informe o motivo da perda. O card será arquivado automaticamente.'
+              : 'Informe o motivo da paralisação. Os links de Gbox e Acoplamento não são obrigatórios nesta fase.'}
           </p>
           <label className="mt-4 block text-xs font-medium text-stone-600">
-            Motivo da paralisação
+            {(modalReprovacaoAcoplamento.slug ?? '').trim() === FASE_SLUGS.COR_PERDIDO
+              ? 'Motivo da perda'
+              : 'Motivo da paralisação'}
             <textarea
               value={motivoReprovacaoDraft}
               onChange={(e) => setMotivoReprovacaoDraft(e.target.value)}
@@ -9161,7 +9294,11 @@ export function KanbanCardModal({
               onClick={() => {
                 const motivo = motivoReprovacaoDraft.trim();
                 if (!motivo) {
-                  alert('Informe o motivo da paralisação.');
+                  alert(
+                    (modalReprovacaoAcoplamento.slug ?? '').trim() === FASE_SLUGS.COR_PERDIDO
+                      ? 'Informe o motivo da perda.'
+                      : 'Informe o motivo da paralisação.',
+                  );
                   return;
                 }
                 const fase = modalReprovacaoAcoplamento;

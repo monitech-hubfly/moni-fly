@@ -31,6 +31,10 @@ export type KanbanBoardFiltros = {
   status: KanbanBoardFiltrosStatus;
   /** Tag padronizada «⭐Especial». */
   especial: KanbanBoardFiltrosEspecial;
+  /** Funil Corretores — filtros opcionais */
+  corretor?: 'todos' | string;
+  imobiliaria?: 'todos' | string;
+  tipologia?: 'todos' | string;
 };
 
 export const KANBAN_BOARD_FILTROS_DEFAULT: KanbanBoardFiltros = {
@@ -39,6 +43,9 @@ export const KANBAN_BOARD_FILTROS_DEFAULT: KanbanBoardFiltros = {
   sla: 'todos',
   status: 'ativos',
   especial: 'todos',
+  corretor: 'todos',
+  imobiliaria: 'todos',
+  tipologia: 'todos',
 };
 
 export function countKanbanBoardFiltrosAtivos(f: KanbanBoardFiltros): number {
@@ -49,6 +56,9 @@ export function countKanbanBoardFiltrosAtivos(f: KanbanBoardFiltros): number {
   if (f.sla !== d.sla) n++;
   if (f.status !== d.status) n++;
   if (f.especial !== d.especial) n++;
+  if ((f.corretor ?? 'todos') !== 'todos') n++;
+  if ((f.imobiliaria ?? 'todos') !== 'todos') n++;
+  if ((f.tipologia ?? 'todos') !== 'todos') n++;
   return n;
 }
 
@@ -210,6 +220,11 @@ export function textoVisivelCardKanbanFechado(
   ];
 
   if (card.funding_tipo) partes.push(card.funding_tipo);
+  if (card.nome_corretor) partes.push(card.nome_corretor);
+  if (card.imobiliaria_corretor) partes.push(card.imobiliaria_corretor);
+  if (card.empreendimento_interesse) partes.push(card.empreendimento_interesse);
+  if (card.tipologia_interesse) partes.push(card.tipologia_interesse);
+  if (card.probabilidade_fechamento) partes.push(card.probabilidade_fechamento);
 
   if (arquivado) {
     if (card.resultado === 'perda') partes.push('PERDA');
@@ -359,6 +374,16 @@ export function cardPassaFiltrosBoard(
     const temEspecial = cardTemTagEspecialKanban(card);
     if (f.especial === 'somente' && !temEspecial) return false;
     if (f.especial === 'nao' && temEspecial) return false;
+  }
+
+  if ((f.corretor ?? 'todos') !== 'todos') {
+    if (String(card.nome_corretor ?? '').trim() !== f.corretor) return false;
+  }
+  if ((f.imobiliaria ?? 'todos') !== 'todos') {
+    if (String(card.imobiliaria_corretor ?? '').trim() !== f.imobiliaria) return false;
+  }
+  if ((f.tipologia ?? 'todos') !== 'todos') {
+    if (String(card.tipologia_interesse ?? '').trim() !== f.tipologia) return false;
   }
 
   return true;
