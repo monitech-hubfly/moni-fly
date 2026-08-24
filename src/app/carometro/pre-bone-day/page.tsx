@@ -1635,12 +1635,13 @@ function PreBoneDayPageContent() {
   const [isAdmin,          setIsAdmin]          = useState<boolean | null>(null);
   const [currentUserId,    setCurrentUserId]    = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [bloco0Open, setBloco0Open] = useState(true);
   const [bloco1Open, setBloco1Open] = useState(false);
   const [bloco2Open, setBloco2Open] = useState(true);
   const [bloco3Open, setBloco3Open] = useState(true);
 
   const {
-    metas, metasNaoConcluidas, indicadores, responsaveis, comportamentos, agendaMacro,
+    metas, metasConcluidas, metasNaoConcluidas, indicadores, responsaveis, comportamentos, agendaMacro,
     objetivoResponsaveis, mes, setMes, isLoading, error, recarregar,
   } = usePlanoBoneDay(areaId, effectiveProfileId);
 
@@ -1919,6 +1920,47 @@ function PreBoneDayPageContent() {
         </div>
       ) : (
         <>
+          {/* ── Bloco 0: Metas Concluídas do mês ─────────────────────────────── */}
+          {metasConcluidas.length > 0 && (
+            <section className="rounded-xl border border-green-200 bg-green-50 shadow-sm overflow-hidden">
+              <button type="button"
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-green-100 transition-colors"
+                onClick={() => setBloco0Open(v => !v)}>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-green-800">Metas Concluídas</span>
+                  <span className="text-xs text-green-700 bg-green-200 rounded-full px-2 py-0.5">
+                    {metasConcluidas.length}
+                  </span>
+                </div>
+                <span className="text-green-600 text-xs">{bloco0Open ? '▲' : '▼'}</span>
+              </button>
+              {bloco0Open && (
+                <div className="px-4 pb-4 border-t border-green-200 pt-3">
+                  <div className="flex flex-col gap-2">
+                    {metasConcluidas.map(meta => (
+                      <div key={meta.id} className="flex items-center gap-3 py-1.5 px-2 rounded-lg bg-white border border-green-100">
+                        <span className="text-green-600 text-sm font-semibold flex-shrink-0">✓</span>
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {meta.tipo && (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap flex-shrink-0">
+                              {meta.tipo}
+                            </span>
+                          )}
+                          <span className="text-xs text-gray-400 line-through truncate">
+                            {meta.descricao}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-green-600 font-medium whitespace-nowrap flex-shrink-0">
+                          Concluída
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
           {/* ── Bloco 1: Metas não concluídas ──────────────────────────────── */}
           <section className="rounded-xl border border-amber-200 bg-amber-50 shadow-sm overflow-hidden">
             <button type="button"

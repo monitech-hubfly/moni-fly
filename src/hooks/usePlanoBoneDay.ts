@@ -61,6 +61,7 @@ function mesInicial(): string {
 
 export type UsePlanoBoneDayResult = {
   metas: MetaItem[];
+  metasConcluidas: MetaItem[];
   metasNaoConcluidas: MetaItem[];
   indicadores: IndicadorBone[];
   responsaveis: ResponsavelItem[];
@@ -80,6 +81,7 @@ export function usePlanoBoneDay(
 ): UsePlanoBoneDayResult {
   const supabase = useMemo(() => createClient(), []);
   const [metas,              setMetas]              = useState<MetaItem[]>([]);
+  const [metasConcluidas,    setMetasConcluidas]    = useState<MetaItem[]>([]);
   const [metasNaoConcluidas, setMetasNaoConcluidas] = useState<MetaItem[]>([]);
   const [indicadores,        setIndicadores]        = useState<IndicadorBone[]>([]);
   const [responsaveis,       setResponsaveis]       = useState<ResponsavelItem[]>([]);
@@ -100,12 +102,22 @@ export function usePlanoBoneDay(
     setError(null);
     try {
       // 1. Queries paralelas: objetivos, indicadores, responsáveis
-      const [objAtivRes, objNaoConclRes, indRes, respRes] = await Promise.all([
+      const [objAtivRes, objConclRes, objNaoConclRes, indRes, respRes] = await Promise.all([
         supabase
           .from('objetivos')
           .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
           .eq('area_id', areaId)
           .eq('status', 'ativo')
+          .eq('mes', mes)
+          .is('objetivo_pai_id', null)
+          .order('is_chave', { ascending: false })
+          .order('ordem', { ascending: true }),
+
+        supabase
+          .from('objetivos')
+          .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
+          .eq('area_id', areaId)
+          .eq('status', 'concluido')
           .eq('mes', mes)
           .is('objetivo_pai_id', null)
           .order('is_chave', { ascending: false })
@@ -139,8 +151,9 @@ export function usePlanoBoneDay(
           .order('nome'),
       ]);
 
-      if (objAtivRes.error) throw objAtivRes.error;
-      if (indRes.error)     throw indRes.error;
+      if (objAtivRes.error)  throw objAtivRes.error;
+      if (objConclRes.error) throw objConclRes.error;
+      if (indRes.error)      throw indRes.error;
 
       type ObjRow = {
         id: string; descricao: string; tipo: string | null; is_chave: boolean | null;
@@ -191,13 +204,16 @@ export function usePlanoBoneDay(
 
       // Bloco 2: todas as metas ativas (sem filtro de prazo)
       const metasArr = ((objAtivRes.data ?? []) as ObjRow[]).map(toMeta);
-      // Bloco 1: não concluídas que ainda NÃO estão no Bloco 2 (evita duplicata)
+      // Metas concluídas do mês atual
+      const metasConclArr = ((objConclRes.data ?? []) as ObjRow[]).map(toMeta);
+      // Bloco 1: não concluídas de meses anteriores que ainda NÃO estão no Bloco 2 (evita duplicata)
       const metasAtivasIds = new Set(metasArr.map(m => m.id));
       const metasNaoConclArr = ((objNaoConclRes.data ?? []) as ObjRow[])
         .map(toMeta)
         .filter(m => !metasAtivasIds.has(m.id));
 
       setMetas(metasArr);
+      setMetasConcluidas(metasConclArr);
       setMetasNaoConcluidas(metasNaoConclArr);
 
       const objIds = metasArr.map(m => m.id);
@@ -297,7 +313,7 @@ export function usePlanoBoneDay(
   useEffect(() => { carregar(); }, [carregar]);
 
   return {
-    metas, metasNaoConcluidas, indicadores, responsaveis,
+    metas, metasConcluidas, metasNaoConcluidas, indicadores, responsaveis,
     comportamentos, agendaMacro, objetivoResponsaveis, mes, setMes,
     isLoading, error, recarregar: carregar,
   };

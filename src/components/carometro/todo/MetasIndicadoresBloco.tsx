@@ -1079,7 +1079,7 @@ export function MetasIndicadoresBloco() {
   const mesOptions = useMemo(() => getMonthOptions(), []);
 
   const {
-    metas, subMetas: hookSubMetas, indicadores, responsaveis, objetivoResponsaveis,
+    metas, metasConcluidas, subMetas: hookSubMetas, indicadores, responsaveis, objetivoResponsaveis,
     semanaRelativa, semanaAnterior, anoRelativo,
     isLoading, error, recarregar,
   } = useMetasIndicadores(effectiveProfileId, areaId, mes);
@@ -1089,6 +1089,7 @@ export function MetasIndicadoresBloco() {
   const [currentUserId,     setCurrentUserId]      = useState<string | null>(null);
   const [filtroMinhas,      setFiltroMinhas]       = useState(true);
   const [semDonoAberta,     setSemDonoAberta]      = useState(true);
+  const [concluidasAberta,  setConcluidasAberta]   = useState(false);
   const [allBlockers,       setAllBlockers]        = useState<BlockerRow[]>([]);
   const [toastMsg,          setToastMsg]           = useState<string | null>(null);
 
@@ -1197,25 +1198,35 @@ export function MetasIndicadoresBloco() {
     recarregar();
   }, [supabase, currentUserId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Conclusão individual ────────────────────────────────────────────────────
+  // ── Conclusão ────────────────────────────────────────────────────────────────
   const handleConcluirMeta = useCallback(async (metaId: string) => {
     const uid = currentUserId;
     if (!uid) return;
-    const { error: e } = await (supabase.from('objetivo_responsaveis') as any)
-      .update({ concluido: true, concluido_em: new Date().toISOString() })
+    const agora = new Date().toISOString();
+    const { error: e1 } = await (supabase.from('objetivo_responsaveis') as any)
+      .update({ concluido: true, concluido_em: agora })
       .eq('objetivo_id', metaId).eq('profile_id', uid);
-    if (e) { console.error('[ConcluirMeta]', e); return; }
-    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta concluída (individual)' });
+    if (e1) { console.error('[ConcluirMeta OR]', e1); return; }
+    const { error: e2 } = await supabase.from('objetivos')
+      .update({ status: 'concluido', concluido_em: agora })
+      .eq('id', metaId);
+    if (e2) { console.error('[ConcluirMeta Global]', e2); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta concluída' });
     recarregar();
   }, [supabase, currentUserId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReabrirMeta = useCallback(async (metaId: string) => {
     const uid = currentUserId;
     if (!uid) return;
-    const { error: e } = await (supabase.from('objetivo_responsaveis') as any)
+    const { error: e1 } = await (supabase.from('objetivo_responsaveis') as any)
       .update({ concluido: false, concluido_em: null })
       .eq('objetivo_id', metaId).eq('profile_id', uid);
-    if (e) { console.error('[ReabrirMeta]', e); return; }
+    if (e1) { console.error('[ReabrirMeta OR]', e1); return; }
+    const { error: e2 } = await supabase.from('objetivos')
+      .update({ status: 'ativo', concluido_em: null })
+      .eq('id', metaId);
+    if (e2) { console.error('[ReabrirMeta Global]', e2); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta reaberta' });
     recarregar();
   }, [supabase, currentUserId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1331,6 +1342,11 @@ export function MetasIndicadoresBloco() {
   const metasExibidas   = filtroMinhas ? metasMinhas : metas;
   const metasAtingiveis = useMemo(() => metasExibidas.filter(m => m.tipo?.toLowerCase() !== 'recorrente'), [metasExibidas]);
   const metasRecorrentes = useMemo(() => metasExibidas.filter(m => m.tipo?.toLowerCase() === 'recorrente'), [metasExibidas]);
+
+  const metasConcluidasExibidas = useMemo(() => {
+    if (!filtroMinhas) return metasConcluidas;
+    return metasConcluidas.filter(m => objetivoResponsaveis.some(r => r.objetivo_id === m.id && r.profile_id === uid));
+  }, [metasConcluidas, filtroMinhas, objetivoResponsaveis, uid]);
 
   const metasExibidasCount = metasExibidas.length;
   const indExibidosIds = new Set(metasExibidas.map(m => m.id));
@@ -1491,6 +1507,25 @@ export function MetasIndicadoresBloco() {
                     </div>
                   )}
                 </>
+              )}
+
+              {/* ── 3. METAS CONCLUÍDAS ── sempre no final ── */}
+              {metasConcluidasExibidas.length > 0 && (
+                <div className="mt-4 border-t border-gray-200 pt-3">
+                  <button type="button"
+                    className="w-full flex items-center justify-between mb-2"
+                    onClick={() => setConcluidasAberta(v => !v)}>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      Metas Concluídas ({metasConcluidasExibidas.length})
+                    </h3>
+                    <span className="text-gray-400 text-[10px]">{concluidasAberta ? '▲' : '▼'}</span>
+                  </button>
+                  {concluidasAberta && (
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 opacity-60">
+                      {metasConcluidasExibidas.map(renderMetaCard)}
+                    </div>
+                  )}
+                </div>
               )}
 
             </>

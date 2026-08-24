@@ -106,6 +106,7 @@ export type ObjetivoResponsavel = {
 
 export type UseMetasIndicadoresResult = {
   metas: MetaItem[];
+  metasConcluidas: MetaItem[];
   subMetas: SubMetaItem[];
   indicadores: IndicadorItemMeta[];
   responsaveis: ResponsavelItem[];
@@ -125,6 +126,7 @@ export function useMetasIndicadores(
 ): UseMetasIndicadoresResult {
   const supabase = useMemo(() => createClient(), []);
   const [metas,                setMetas]                = useState<MetaItem[]>([]);
+  const [metasConcluidas,      setMetasConcluidas]      = useState<MetaItem[]>([]);
   const [subMetas,             setSubMetas]             = useState<SubMetaItem[]>([]);
   const [indicadores,          setIndicadores]          = useState<IndicadorItemMeta[]>([]);
   const [responsaveis,         setResponsaveis]         = useState<ResponsavelItem[]>([]);
@@ -151,7 +153,7 @@ export function useMetasIndicadores(
         .from('objetivos')
         .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, objetivo_pai_id, profile_id')
         .eq('area_id', areaId)
-        .eq('status', 'ativo');
+        .in('status', ['ativo', 'concluido']);
       if (mes) objQuery = objQuery.eq('mes', mes);
 
       const [objRes, indRes, respRes] = await Promise.all([
@@ -351,7 +353,8 @@ export function useMetasIndicadores(
         }))
       );
 
-      setMetas(metasArr);
+      setMetas(metasArr.filter(m => m.status === 'ativo'));
+      setMetasConcluidas(metasArr.filter(m => m.status === 'concluido'));
       setSubMetas(subMetasArr);
       setIndicadores(indicadoresArr);
     } catch (e) {
@@ -365,7 +368,7 @@ export function useMetasIndicadores(
   useEffect(() => { carregar(); }, [carregar]);
 
   return {
-    metas, subMetas, indicadores, responsaveis, objetivoResponsaveis,
+    metas, metasConcluidas, subMetas, indicadores, responsaveis, objetivoResponsaveis,
     semanaRelativa, semanaAnterior, anoRelativo, isLoading, error, recarregar: carregar,
   };
 }
