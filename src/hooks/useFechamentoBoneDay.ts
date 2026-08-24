@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { semanasIsoNoIntervalo } from '@/utils/periodos';
+import { semanasIsoNoIntervalo, isoWeek } from '@/utils/periodos';
 
 export type MetaBone = {
   id: string;
@@ -25,6 +25,12 @@ export type IndicadorMedio = {
   indicadores: number | null;
 };
 
+export type BlockerTodo = {
+  id: string;
+  descricao: string;
+  metaDescricao: string | null;
+};
+
 // Dados editáveis armazenados em bone_day_fechamento.comentario como JSON
 export type RegistroFechamento = {
   id: string | null;
@@ -38,6 +44,7 @@ export type UseFechamentoBoneDayResult = {
   metasProximo: MetaBone[];
   comportamentos: ComportamentoHoras[];
   indicadores: IndicadorMedio;
+  blockersDoTodo: BlockerTodo[];
   registro: RegistroFechamento;
   mes: string;
   setMes: (m: string) => void;
@@ -105,6 +112,7 @@ export function useFechamentoBoneDay(
   const [metasProximo, setMetasProximo] = useState<MetaBone[]>([]);
   const [comportamentos, setComportamentos] = useState<ComportamentoHoras[]>([]);
   const [indicadores, setIndicadores] = useState<IndicadorMedio>({ sirene: null, engajamento: null, indicadores: null });
+  const [blockersDoTodo, setBlockersDoTodo] = useState<BlockerTodo[]>([]);
   const [registro, setRegistro] = useState<RegistroFechamento>({ id: null, blockersFechamento: [], comentariosProximo: '', blockersProximo: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +130,8 @@ export function useFechamentoBoneDay(
       const [y, m] = mes.split('-').map(Number);
       const primeiroDia = `${mes}-01`;
       const ultimoDia = new Date(y, m, 0).toISOString().slice(0, 10);
+      // Usado como limite exclusivo para filtros de timestamp (blockers)
+      const proxMesInicio = `${proximo}-01`;
 
       const { data: pessoasData } = await supabase
         .from('area_pessoas').select('profile_id').eq('area_id', areaId).eq('ativo', true);
@@ -132,18 +142,22 @@ export function useFechamentoBoneDay(
       const semanaInicio = semanas.length > 0 ? Math.min(...semanas) : 0;
       const semanaFim    = semanas.length > 0 ? Math.max(...semanas) : 0;
 
-      const [objMesRes, objProxRes, ganttRes, statusRes, fechRes] = await Promise.all([
+      const [objMesRes, objProxRes, ganttRes, statusRes, fechRes, blockersRes] = await Promise.all([
+        // Bug 1 fix: filtrar por mês específico (campo objetivos.mes)
         supabase.from('objetivos')
           .select('id, descricao, tipo, is_chave, meta_unidade, status')
           .eq('area_id', areaId)
+          .eq('mes', mes)
           .in('status', ['ativo', 'concluido'])
           .is('objetivo_pai_id', null)
           .order('is_chave', { ascending: false })
           .order('ordem', { ascending: true }),
 
+        // Bug 2 fix: filtrar próximo mês pelo campo mes
         supabase.from('objetivos')
           .select('id, descricao, tipo, is_chave, meta_unidade, status')
           .eq('area_id', areaId)
+          .eq('mes', proximo)
           .eq('status', 'ativo')
           .is('objetivo_pai_id', null)
           .order('is_chave', { ascending: false })
@@ -158,8 +172,9 @@ export function useFechamentoBoneDay(
               .lte('semana_ano_inicio', semanaFim)
           : Promise.resolve({ data: [], error: null }),
 
+        // Bug 4 fix: incluir campo data para agrupar por semana
         supabase.from('carometro_status_diario')
-          .select('sirene, engajamento, indicadores')
+          .select('data, sirene, engajamento, indicadores')
           .eq('area_id', areaId)
           .gte('data', primeiroDia)
           .lte('data', ultimoDia),
@@ -170,6 +185,14 @@ export function useFechamentoBoneDay(
           .eq('area_id', areaId)
           .eq('mes', mes)
           .maybeSingle(),
+
+        // Bug 3 fix: puxar blockers do TO DO registrados no mês
+        supabase.from('blockers')
+          .select('id, descricao, objetivo_id')
+          .eq('area_id', areaId)
+          .eq('resolvido', false)
+          .gte('criado_em', primeiroDia)
+          .lt('criado_em', proxMesInicio),
       ]);
 
       type ObjRow = { id: string; descricao: string; tipo: string | null; is_chave: boolean | null; meta_unidade: string | null; status: string };
@@ -178,8 +201,6 @@ export function useFechamentoBoneDay(
         is_chave: Boolean(o.is_chave), meta_unidade: o.meta_unidade, status: o.status,
       });
       setMetasMes(((objMesRes.data ?? []) as ObjRow[]).map(toMeta));
-
-      // Próximo mês — só ativas (sem filtro de prazo pois meta_unidade pode ser 'S27')
       setMetasProximo(((objProxRes.data ?? []) as ObjRow[]).map(toMeta));
 
       // Comportamentos: acao_id → tarefa_id → nome, agrupado por tarefa
@@ -214,27 +235,107 @@ export function useFechamentoBoneDay(
         setComportamentos([]);
       }
 
-      // Indicadores: média do mês (tabela vazia no DEV → null)
-      type StatusRow = { sirene: unknown; engajamento: unknown; indicadores: unknown };
+      // Bug 4 fix: Carômetro acumulado — pegar último snapshot por semana ISO
+      // Em vez de média simples de scores diários, acumular os contadores brutos.
+      type StatusRow = { data: string; sirene: unknown; engajamento: unknown; indicadores: unknown };
       const statusArr = (statusRes.data ?? []) as StatusRow[];
-      const extractScore = (v: unknown): number | null => {
-        if (v === null || v === undefined) return null;
-        if (typeof v === 'number') return Math.round(v);
-        if (typeof v === 'object') {
-          const o = v as Record<string, unknown>;
-          const val = o.score ?? o.percentual ?? o.valor ?? o.media;
-          return typeof val === 'number' ? Math.round(val) : null;
-        }
-        return null;
-      };
+
       if (statusArr.length > 0) {
-        const avg = (field: keyof StatusRow): number | null => {
-          const vals = statusArr.map(r => extractScore(r[field])).filter((v): v is number => v !== null);
-          return vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
-        };
-        setIndicadores({ sirene: avg('sirene'), engajamento: avg('engajamento'), indicadores: avg('indicadores') });
+        // Agrupar por semana ISO, manter apenas o snapshot mais recente de cada semana
+        const porSemana = new Map<number, StatusRow>();
+        for (const r of statusArr) {
+          const semana = isoWeek(new Date(`${r.data}T12:00:00`));
+          const existing = porSemana.get(semana);
+          if (!existing || r.data > existing.data) {
+            porSemana.set(semana, r);
+          }
+        }
+        const snapshots = Array.from(porSemana.values());
+
+        // Sirene — acumulado: ΣConcluidos / ΣRelevantes
+        let sireneConcluidos = 0;
+        let sireneRelevantes = 0;
+        for (const r of snapshots) {
+          const s = r.sirene as Record<string, unknown> | null;
+          if (s && typeof s === 'object') {
+            sireneConcluidos += typeof s.concluidos === 'number' ? s.concluidos : 0;
+            sireneRelevantes += typeof s.relevantes === 'number' ? s.relevantes : 0;
+          }
+        }
+        const sireneScore = sireneRelevantes > 0
+          ? Math.max(0, Math.round((sireneConcluidos / sireneRelevantes) * 100))
+          : null;
+
+        // Engajamento — acumulado dos 3 sub-scores (atividades, cards SLA, próximas)
+        let engAtivReal = 0, engAtivAgend = 0;
+        let engCardsEmDia = 0, engCardsComSLA = 0;
+        let engProxConc = 0, engProxRel = 0;
+        for (const r of snapshots) {
+          const e = r.engajamento as Record<string, unknown> | null;
+          if (!e || typeof e !== 'object') continue;
+          const at = e.atividades as Record<string, unknown> | null;
+          if (at) {
+            engAtivReal  += typeof at.realizadas === 'number' ? at.realizadas : 0;
+            engAtivAgend += typeof at.agendadas  === 'number' ? at.agendadas  : 0;
+          }
+          const ca = e.cards as Record<string, unknown> | null;
+          if (ca) {
+            engCardsEmDia  += typeof ca.emDia  === 'number' ? ca.emDia  : 0;
+            engCardsComSLA += typeof ca.comSLA === 'number' ? ca.comSLA : 0;
+          }
+          const pr = e.proximas as Record<string, unknown> | null;
+          if (pr) {
+            engProxConc += typeof pr.concluidos === 'number' ? pr.concluidos : 0;
+            engProxRel  += typeof pr.relevantes === 'number' ? pr.relevantes : 0;
+          }
+        }
+        const scoreAtiv  = engAtivAgend   > 0 ? Math.max(0, Math.round((engAtivReal   / engAtivAgend)   * 100)) : null;
+        const scoreCards = engCardsComSLA > 0  ? Math.max(0, Math.round((engCardsEmDia / engCardsComSLA) * 100))
+                         : snapshots.length > 0 ? 100 : null;
+        const scoreProx  = engProxRel    > 0  ? Math.max(0, Math.round((engProxConc   / engProxRel)    * 100)) : null;
+        const engSubs = [scoreAtiv, scoreCards, scoreProx].filter((s): s is number => s !== null);
+        const engScore = engSubs.length > 0
+          ? Math.round(engSubs.reduce((a, b) => a + b, 0) / engSubs.length)
+          : null;
+
+        // Indicadores — média das medias semanais (semáforo não é cumulativo)
+        const indMedias = snapshots
+          .map(r => {
+            const ind = r.indicadores as Record<string, unknown> | null;
+            if (!ind || typeof ind !== 'object') return null;
+            const v = ind.media;
+            return typeof v === 'number' ? Math.round(v) : null;
+          })
+          .filter((v): v is number => v !== null);
+        const indScore = indMedias.length > 0
+          ? Math.round(indMedias.reduce((a, b) => a + b, 0) / indMedias.length)
+          : null;
+
+        setIndicadores({ sirene: sireneScore, engajamento: engScore, indicadores: indScore });
       } else {
         setIndicadores({ sirene: null, engajamento: null, indicadores: null });
+      }
+
+      // Bug 3 fix: enriquecer blockers com descrição da meta
+      type BlockerRow = { id: string; descricao: string; objetivo_id: string | null };
+      const blockersArr = (blockersRes.data ?? []) as BlockerRow[];
+      if (blockersArr.length > 0) {
+        const objIds = [...new Set(blockersArr.map(b => b.objetivo_id).filter((id): id is string => id !== null))];
+        const objNomes = new Map<string, string>();
+        if (objIds.length > 0) {
+          const { data: objData } = await supabase
+            .from('objetivos').select('id, descricao').in('id', objIds);
+          for (const o of (objData ?? []) as { id: string; descricao: string }[]) {
+            objNomes.set(o.id, o.descricao);
+          }
+        }
+        setBlockersDoTodo(blockersArr.map(b => ({
+          id: b.id,
+          descricao: b.descricao,
+          metaDescricao: b.objetivo_id ? (objNomes.get(b.objetivo_id) ?? null) : null,
+        })));
+      } else {
+        setBlockersDoTodo([]);
       }
 
       // Registro editável (comentario como JSON)
@@ -283,7 +384,7 @@ export function useFechamentoBoneDay(
   }, [supabase, areaId, mes, effectiveProfileId]);
 
   return {
-    metasMes, metasProximo, comportamentos, indicadores, registro,
+    metasMes, metasProximo, comportamentos, indicadores, blockersDoTodo, registro,
     mes, setMes, isLoading, error, recarregar: carregar, salvarRegistro,
   };
 }

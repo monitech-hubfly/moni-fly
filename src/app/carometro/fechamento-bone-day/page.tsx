@@ -10,20 +10,24 @@ import {
   useFechamentoBoneDay,
   proximoMes, getMonthLabel, getMonthOptions,
 } from '@/hooks/useFechamentoBoneDay';
-import type { MetaBone, ComportamentoHoras, IndicadorMedio } from '@/hooks/useFechamentoBoneDay';
+import type { MetaBone, ComportamentoHoras, IndicadorMedio, BlockerTodo } from '@/hooks/useFechamentoBoneDay';
 
-// ── CarinhaResumo (mesma lógica do MeuCarometroCard) ─────────────────────────
+// ── CarinhaResumo — alinhado com MeuCarometroCard (4 faixas) ─────────────────
+// Thresholds idênticos ao TO DO & Planning: ≥75 verde-escuro, ≥60 verde-claro,
+// ≥30 amarelo, <30 vermelho.
 function getCarinhaImg(score: number | null): string {
   if (score === null) return '/carometro/carometro-emoji-branco.png';
-  if (score > 65)  return '/carometro/carometro-emoji-verde-escuro.png';
-  if (score >= 35) return '/carometro/carometro-emoji-amarelo.png';
+  if (score >= 75) return '/carometro/carometro-emoji-verde-escuro.png';
+  if (score >= 60) return '/carometro/carometro-emoji-verde-claro.png';
+  if (score >= 30) return '/carometro/carometro-emoji-amarelo.png';
   return '/carometro/carometro-emoji-vermelho.png';
 }
 
 function scoreColor(score: number | null): string {
   if (score === null) return 'text-gray-300';
-  if (score > 65)  return 'text-green-700';
-  if (score >= 35) return 'text-yellow-600';
+  if (score >= 75) return 'text-green-700';
+  if (score >= 60) return 'text-green-600';
+  if (score >= 30) return 'text-yellow-600';
   return 'text-red-600';
 }
 
@@ -41,7 +45,7 @@ function CarinhaResumo({ titulo, score }: { titulo: string; score: number | null
   );
 }
 
-// ── BlockersList ───────────────────────────────────────────────────────────────
+// ── BlockersList — editável (admin), usado na coluna do próximo mês ───────────
 function BlockersList({
   items, isAdmin, onChange,
 }: {
@@ -108,6 +112,28 @@ function BlockersList({
   );
 }
 
+// ── BlockersTodoList — read-only, vem automaticamente do TO DO & Planning ─────
+function BlockersTodoList({ blockers }: { blockers: BlockerTodo[] }) {
+  if (blockers.length === 0) {
+    return <p className="text-xs text-gray-300 italic">Nenhum blocker registrado no TO DO para este mês</p>;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {blockers.map(b => (
+        <div key={b.id} className="flex flex-col gap-0.5">
+          {b.metaDescricao && (
+            <p className="text-[10px] text-gray-400 font-semibold truncate">{b.metaDescricao}</p>
+          )}
+          <div className="flex items-start gap-1.5">
+            <span className="text-gray-400 flex-shrink-0 mt-0.5 text-xs">•</span>
+            <span className="text-xs text-gray-700 leading-snug">{b.descricao}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── ComentarioEditor ───────────────────────────────────────────────────────────
 function ComentarioEditor({
   valor, isAdmin, onSalvar, placeholder,
@@ -157,7 +183,7 @@ function MetaItem({ m }: { m: MetaBone }) {
   );
 }
 
-function SecaoMetas({ metas }: { metas: MetaBone[] }) {
+function SecaoMetas({ metas, mensagemVazia }: { metas: MetaBone[]; mensagemVazia?: string }) {
   const recorrentes = metas.filter(m => m.tipo === 'recorrente');
   const atingiveis  = metas
     .filter(m => m.tipo !== 'recorrente')
@@ -172,7 +198,9 @@ function SecaoMetas({ metas }: { metas: MetaBone[] }) {
     <div>
       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Metas</p>
       {metas.length === 0 ? (
-        <p className="text-xs text-gray-300 italic">Nenhuma meta</p>
+        <p className="text-xs text-gray-400 italic bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+          {mensagemVazia ?? 'Nenhuma meta definida para este mês.'}
+        </p>
       ) : (
         <div className="flex flex-col gap-3">
           {recorrentes.length > 0 && (
@@ -285,7 +313,7 @@ export default function FechamentoBoneDayPage() {
   const admin  = Boolean(isAdmin);
 
   const {
-    metasMes, metasProximo, comportamentos, indicadores, registro,
+    metasMes, metasProximo, comportamentos, indicadores, blockersDoTodo, registro,
     mes, setMes, isLoading, error, salvarRegistro,
   } = useFechamentoBoneDay(areaId, effectiveProfileId);
 
@@ -344,24 +372,27 @@ export default function FechamentoBoneDayPage() {
 
           {/* ── Coluna esquerda: Fechamento ── */}
           <Coluna titulo={`Fechamento: ${mesLabel}`} badge="Mês atual">
-            <SecaoMetas metas={metasMes} />
+            <SecaoMetas
+              metas={metasMes}
+              mensagemVazia="Nenhuma meta definida para este mês. Acesse Plano Boné Day para criar."
+            />
             <SecaoComportamentos comportamentos={comportamentos} />
             <SecaoCarometro indicadores={indicadores} />
             <div>
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Blocker&apos;s
               </p>
-              <BlockersList
-                items={registro.blockersFechamento}
-                isAdmin={false}
-                onChange={items => salvarRegistro({ blockersFechamento: items })}
-              />
+              {/* Blockers automáticos vindos do TO DO & Planning — somente leitura */}
+              <BlockersTodoList blockers={blockersDoTodo} />
             </div>
           </Coluna>
 
           {/* ── Coluna direita: Próximo mês ── */}
           <Coluna titulo={`Plano: ${proxLabel}`} badge="Próximo mês">
-            <SecaoMetas metas={metasProximo} />
+            <SecaoMetas
+              metas={metasProximo}
+              mensagemVazia="Nenhuma meta planejada para o próximo mês. Acesse Plano Boné Day para criar."
+            />
             <div>
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Comentários
