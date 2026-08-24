@@ -504,7 +504,7 @@ type ColunaSireneProps = {
   items: SireneItem[];
   agendadas?: SireneItemAgendada[];
   chamadosPendentes?: ChamadoPendenteItem[];
-  onAbrirChamado?: (chamadoId: number) => void;
+  onAbrirChamado?: (chamadoId: number, interacaoId: string | null) => void;
 };
 function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirChamado }: ColunaSireneProps) {
   const [pendentesAberta, setPendentesAberta] = useState(false);
@@ -537,7 +537,7 @@ function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirCh
                 descricao={item.chamado_titulo ? item.descricao : null}
                 onClickExternal={
                   item.chamado_id && onAbrirChamado
-                    ? () => onAbrirChamado(Number(item.chamado_id))
+                    ? () => onAbrirChamado(Number(item.chamado_id), item.interacao_id ?? null)
                     : undefined
                 }
                 href={
@@ -576,7 +576,7 @@ function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirCh
                 origemBadge="Sirene"
                 descricao={item.chamado_titulo ? item.descricao : null}
                 abertoPor={item.aberto_por_nome}
-                onClickExternal={item.chamado_id && onAbrirChamado ? () => onAbrirChamado(Number(item.chamado_id)) : undefined}
+                onClickExternal={item.chamado_id && onAbrirChamado ? () => onAbrirChamado(Number(item.chamado_id), item.interacao_id ?? null) : undefined}
                 overrideBg="bg-red-50"
                 agendaBadge={`⚠ Planejado: ${badge.text} — não realizado`}
               />
@@ -644,7 +644,7 @@ function ColunaSirene({ items, agendadas = [], chamadosPendentes = [], onAbrirCh
                     prazo={item.criado_em.slice(0, 10)}
                     status="esta_semana"
                     origemBadge="Sirene"
-                    onClick={onAbrirChamado ? () => onAbrirChamado(item.id) : undefined}
+                    onClick={onAbrirChamado ? () => onAbrirChamado(item.id, null) : undefined}
                   />
                 ))}
               </div>
@@ -721,11 +721,12 @@ function badgeTipoHelper(tipo: string): { label: string; className: string } {
 // ── SireneChamadoBacklogWrapper ───────────────────────────────────────────────
 type SireneChamadoBacklogWrapperProps = {
   chamadoId: number;
+  interacaoId?: string | null;
   onClose: () => void;
   onConcluido?: () => void;
 };
 
-export function SireneChamadoBacklogWrapper({ chamadoId, onClose, onConcluido }: SireneChamadoBacklogWrapperProps) {
+export function SireneChamadoBacklogWrapper({ chamadoId, interacaoId, onClose, onConcluido }: SireneChamadoBacklogWrapperProps) {
   const supabase = useMemo(() => createClient(), []);
   const [row, setRow] = useState<InteracaoSireneRow | null>(null);
   const [topicos, setTopicos] = useState<TopicoPainelLinha[]>([]);
@@ -841,10 +842,15 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose, onConcluido }:
     if (!novaAtivDraft.nome.trim()) { setMsgErroAtividade('Informe o nome da atividade.'); return; }
     if (novaAtivDraft.timesIds.length === 0) { setMsgErroAtividade('Selecione ao menos um time.'); return; }
     if (novaAtivDraft.responsaveisIds.length === 0) { setMsgErroAtividade('Selecione ao menos um responsável.'); return; }
+    const interacaoIdFinal = interacaoId || (row.id.startsWith('chamado-') ? null : row.id);
+    if (!interacaoIdFinal) {
+      setMsgErroAtividade('Não foi possível identificar o chamado. Abra-o pela tela Sirene.');
+      return;
+    }
     setSalvandoNovaAtividade(true);
     try {
       const res = await criarSubInteracao({
-        interacao_id: row.id,
+        interacao_id: interacaoIdFinal,
         nome: novaAtivDraft.nome.trim(),
         descricao_detalhe: novaAtivDraft.descricaoDetalhe.trim() || null,
         times_ids: novaAtivDraft.timesIds,
@@ -1072,7 +1078,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
   const { sirene, chamadosPendentes, atividades, ativoIds, atividadesAgendadas, sireneAgendadas, isLoading, error, recarregar, ativar, desativar } = useBacklog();
   const { areaId, areaIds } = useEffectiveUser();
   const [drawerAberto, setDrawerAberto] = useState(false);
-  const [chamadoModalId, setChamadoModalId] = useState<number | null>(null);
+  const [chamadoAbrir, setChamadoAbrir] = useState<{ id: number; interacaoId: string | null } | null>(null);
 
   // Apenas acoes que o usuário ativou
   const atividadesAtivas = atividades.filter(i => ativoIds.has(i.id));
@@ -1121,7 +1127,7 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
               items={sirene}
               agendadas={sireneAgendadas}
               chamadosPendentes={chamadosPendentes}
-              onAbrirChamado={setChamadoModalId}
+              onAbrirChamado={(id, interacaoId) => setChamadoAbrir({ id, interacaoId })}
             />
           </div>
 
@@ -1172,10 +1178,11 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
           onAtivar={ativar}
         />
       )}
-      {chamadoModalId != null && typeof document !== 'undefined' && createPortal(
+      {chamadoAbrir != null && typeof document !== 'undefined' && createPortal(
         <SireneChamadoBacklogWrapper
-          chamadoId={chamadoModalId}
-          onClose={() => setChamadoModalId(null)}
+          chamadoId={chamadoAbrir.id}
+          interacaoId={chamadoAbrir.interacaoId}
+          onClose={() => setChamadoAbrir(null)}
         />,
         document.body,
       )}
