@@ -1207,8 +1207,9 @@ export function MetasIndicadoresBloco() {
       .update({ concluido: true, concluido_em: agora })
       .eq('objetivo_id', metaId).eq('profile_id', uid);
     if (e1) { console.error('[ConcluirMeta OR]', e1); return; }
+    // concluido_em em objetivos é integer (semana ISO) — não sobrescrever
     const { error: e2 } = await supabase.from('objetivos')
-      .update({ status: 'concluido', concluido_em: agora })
+      .update({ status: 'concluido' })
       .eq('id', metaId);
     if (e2) { console.error('[ConcluirMeta Global]', e2); return; }
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta concluída' });
@@ -1222,8 +1223,9 @@ export function MetasIndicadoresBloco() {
       .update({ concluido: false, concluido_em: null })
       .eq('objetivo_id', metaId).eq('profile_id', uid);
     if (e1) { console.error('[ReabrirMeta OR]', e1); return; }
+    // concluido_em em objetivos é integer (semana ISO) — não sobrescrever
     const { error: e2 } = await supabase.from('objetivos')
-      .update({ status: 'ativo', concluido_em: null })
+      .update({ status: 'ativo' })
       .eq('id', metaId);
     if (e2) { console.error('[ReabrirMeta Global]', e2); return; }
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta reaberta' });
@@ -1329,24 +1331,54 @@ export function MetasIndicadoresBloco() {
   // ── Computed ─────────────────────────────────────────────────────────────────
   const uid = effectiveProfileId ?? currentUserId;
 
-  // Metas que o usuário efetivo assumiu
+  // IDs de metas que o usuário logado concluiu individualmente (OR.concluido=true).
+  // Cobre dados existentes onde objetivos.status ainda é 'ativo' mas OR já foi marcado.
+  const metasConcluidasIndividualIds = useMemo(() => {
+    const lookupUid = currentUserId ?? uid;
+    if (!lookupUid) return new Set<string>();
+    return new Set(
+      metas
+        .filter(m => objetivoResponsaveis.some(
+          r => r.objetivo_id === m.id && r.profile_id === lookupUid && r.concluido
+        ))
+        .map(m => m.id)
+    );
+  }, [metas, objetivoResponsaveis, currentUserId, uid]);
+
+  // Metas que o usuário efetivo assumiu (excluindo as já concluídas individualmente)
   const metasMinhas = useMemo(() =>
-    metas.filter(m => objetivoResponsaveis.some(r => r.objetivo_id === m.id && r.profile_id === uid)),
-    [metas, objetivoResponsaveis, uid]);
+    metas.filter(m =>
+      !metasConcluidasIndividualIds.has(m.id) &&
+      objetivoResponsaveis.some(r => r.objetivo_id === m.id && r.profile_id === uid)
+    ),
+    [metas, objetivoResponsaveis, uid, metasConcluidasIndividualIds]);
 
-  // Metas sem NENHUM responsável
+  // Metas sem NENHUM responsável (excluindo as já concluídas individualmente)
   const metasSemResponsavel = useMemo(() =>
-    metas.filter(m => !objetivoResponsaveis.some(r => r.objetivo_id === m.id)),
-    [metas, objetivoResponsaveis]);
+    metas.filter(m =>
+      !metasConcluidasIndividualIds.has(m.id) &&
+      !objetivoResponsaveis.some(r => r.objetivo_id === m.id)
+    ),
+    [metas, objetivoResponsaveis, metasConcluidasIndividualIds]);
 
-  const metasExibidas   = filtroMinhas ? metasMinhas : metas;
+  const metasExibidas = filtroMinhas
+    ? metasMinhas
+    : metas.filter(m => !metasConcluidasIndividualIds.has(m.id));
   const metasAtingiveis = useMemo(() => metasExibidas.filter(m => m.tipo?.toLowerCase() !== 'recorrente'), [metasExibidas]);
   const metasRecorrentes = useMemo(() => metasExibidas.filter(m => m.tipo?.toLowerCase() === 'recorrente'), [metasExibidas]);
 
   const metasConcluidasExibidas = useMemo(() => {
-    if (!filtroMinhas) return metasConcluidas;
-    return metasConcluidas.filter(m => objetivoResponsaveis.some(r => r.objetivo_id === m.id && r.profile_id === uid));
-  }, [metasConcluidas, filtroMinhas, objetivoResponsaveis, uid]);
+    const lookupUid = currentUserId ?? uid;
+    // Individualmente concluídas: status='ativo' mas OR.concluido=true (dados pré-existentes)
+    const individual = metas.filter(m => metasConcluidasIndividualIds.has(m.id));
+    // Globalmente concluídas: status='concluido' (dados após o novo fluxo)
+    const global = filtroMinhas && lookupUid
+      ? metasConcluidas.filter(m => objetivoResponsaveis.some(r => r.objetivo_id === m.id && r.profile_id === lookupUid))
+      : metasConcluidas;
+    // Combina sem duplicatas (meta pode estar em ambos após migração parcial)
+    const seen = new Set(individual.map(m => m.id));
+    return [...individual, ...global.filter(m => !seen.has(m.id))];
+  }, [metas, metasConcluidasIndividualIds, metasConcluidas, filtroMinhas, objetivoResponsaveis, currentUserId, uid]);
 
   const metasExibidasCount = metasExibidas.length;
   const indExibidosIds = new Set(metasExibidas.map(m => m.id));
