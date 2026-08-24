@@ -470,6 +470,7 @@ export function SireneChamadoDetalheModal({
                   const funil = (row as { kanban_nome_direto?: string | null }).kanban_nome_direto ?? (row.kanban_nome !== 'Sirene' ? row.kanban_nome : null);
                   const cardTitulo = (row as { card_titulo_direto?: string | null }).card_titulo_direto ?? (row.card_titulo !== '(chamado direto)' ? row.card_titulo : null);
                   const faseNome = (row as { fase_nome_direto?: string | null }).fase_nome_direto ?? null;
+                  const franqueadoNome = (row.franqueado_nome ?? '').trim() || null;
                   return (
                     <>
                       {funil ? <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px]">{funil}</span> : null}
@@ -483,6 +484,12 @@ export function SireneChamadoDetalheModal({
                           <span className="font-medium text-[color:var(--moni-text-secondary)]">{cardTitulo}</span>
                         )
                       ) : null}
+                      {franqueadoNome ? (
+                        <span className="flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--moni-text-secondary)]">
+                          <User className="h-3 w-3 shrink-0" aria-hidden />
+                          {franqueadoNome}
+                        </span>
+                      ) : null}
                     </>
                   );
                 })()}
@@ -492,13 +499,6 @@ export function SireneChamadoDetalheModal({
                   </span>
                 ))}
               </div>
-
-              {(row.franqueado_nome ?? '').trim() ? (
-                <div className="flex items-center gap-1 text-xs text-[color:var(--moni-text-tertiary)]">
-                  <User className="h-3.5 w-3.5" aria-hidden />
-                  <span>{row.franqueado_nome!.trim()}</span>
-                </div>
-              ) : null}
 
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="text-[color:var(--moni-text-tertiary)]">
