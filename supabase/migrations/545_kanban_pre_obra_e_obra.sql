@@ -4,12 +4,11 @@
 -- Sem colunas novas em kanban_cards nesta migration (prev_* já existem; obra_ok em migration seguinte).
 
 -- ─── Funil Pré Obra ──────────────────────────────────────────────────────────
-INSERT INTO public.kanbans (id, nome, descricao, cor_hex, ativo)
+INSERT INTO public.kanbans (id, nome, descricao, ativo)
 SELECT
   '91686091-077d-479d-bbb3-cb062ded286e'::uuid,
   'Funil Pré Obra',
   'Da assinatura do contrato até a mobilização da equipe de obra',
-  '#1E3A5F',
   true
 WHERE NOT EXISTS (
   SELECT 1 FROM public.kanbans
@@ -79,12 +78,11 @@ WHERE kf.kanban_id = k.id
   AND kf.slug = v.slug;
 
 -- ─── Funil Obra ──────────────────────────────────────────────────────────────
-INSERT INTO public.kanbans (id, nome, descricao, cor_hex, ativo)
+INSERT INTO public.kanbans (id, nome, descricao, ativo)
 SELECT
   '8b25508c-afdc-4a44-84a8-36c4fcf8cb4b'::uuid,
   'Funil Obra',
   'Da mobilização até a entrega das chaves e emissão do habite-se',
-  '#2D5D9E',
   true
 WHERE NOT EXISTS (
   SELECT 1 FROM public.kanbans
