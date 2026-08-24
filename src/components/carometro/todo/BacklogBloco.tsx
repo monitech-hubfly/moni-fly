@@ -10,7 +10,9 @@ import { SireneModalHoras } from '@/app/sirene/chamados/SireneModalHoras';
 import { ClassificacaoConclusaoModal } from '@/app/sirene/chamados/ClassificacaoConclusaoModal';
 import { buscarDadosModalChamado } from '@/app/sirene/chamados/actions';
 import { getTopicosChamado } from '@/app/sirene/actions';
-import { atualizarStatusSubInteracao, type SubInteracaoStatusDb } from '@/lib/actions/card-actions';
+import { atualizarStatusSubInteracao, criarSubInteracao, type SubInteracaoStatusDb } from '@/lib/actions/card-actions';
+import { usuarioPodeAdicionarAtividadeChamado } from '@/lib/kanban/sirene-chamado-permissoes';
+import { HDM_RESPONSAVEIS_TODOS_EMAILS } from '@/lib/times-responsaveis';
 import { atualizarStatusInteracaoSirene, type StatusInteracaoDb } from '@/app/sirene/chamados/actions';
 import { ATIVIDADE_FORM_DRAFT_VAZIO, type AtividadeFormDraft } from '@/components/kanban-shared/KanbanAtividadeFormFields';
 import type { InteracaoSireneRow } from '@/app/sirene/chamados/InteracoesLista';
@@ -737,6 +739,9 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose, onConcluido }:
   const [classificacaoPendente, setClassificacaoPendente] = useState<{ topicoId: number } | null>(null);
   const [subStatusPendente, setSubStatusPendente] = useState<{ topicoId: number; status: SubInteracaoStatusDb } | null>(null);
   const skipHorasRef = useRef(false);
+  const [times, setTimes] = useState<{ id: string; nome: string }[]>([]);
+  const [responsaveis, setResponsaveis] = useState<{ id: string; nome: string; email?: string | null }[]>([]);
+  const [salvandoNovaAtividade, setSalvandoNovaAtividade] = useState(false);
 
   useEffect(() => {
     void buscarDadosModalChamado(chamadoId).then(r => {
@@ -754,6 +759,22 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose, onConcluido }:
       const role = String((prof as { role?: string | null } | null)?.role ?? '').toLowerCase();
       setPodeArquivar(role === 'admin' || role === 'team');
       setSessionRole(role);
+
+      const { data: timesRows } = await supabase.from('kanban_times').select('id, nome').order('nome');
+      setTimes((timesRows ?? []).map(t => ({ id: String((t as { id: string }).id), nome: String((t as { nome: string }).nome) })));
+
+      const [profsHdmRes, profsAllRes] = await Promise.all([
+        supabase.from('profiles').select('id, full_name, email').in('email', [...HDM_RESPONSAVEIS_TODOS_EMAILS]),
+        supabase.from('profiles').select('id, full_name, email').order('full_name', { ascending: true, nullsFirst: false }).limit(500),
+      ]);
+      const byId = new Map<string, { id: string; nome: string; email: string | null }>();
+      for (const p of [...(profsHdmRes.data ?? []), ...(profsAllRes.data ?? [])]) {
+        const id = String((p as { id: string }).id);
+        const email = String((p as { email?: string | null }).email ?? '').trim().toLowerCase();
+        const nome = String((p as { full_name?: string | null }).full_name ?? '').trim();
+        byId.set(id, { id, nome: nome || email || id.slice(0, 8), email: email || null });
+      }
+      setResponsaveis([...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')));
     })();
   }, [chamadoId, supabase]);
 
@@ -796,6 +817,40 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose, onConcluido }:
     onConcluido?.();
   }
 
+  async function handleAdicionarAtividade() {
+    if (!row) return;
+    const podeAdicionar = usuarioPodeAdicionarAtividadeChamado({
+      sessionEhAdmin: podeArquivar,
+      sessionRole,
+      currentUserId,
+      chamadoAbertoPor: String(row.criado_por ?? '').trim() || null,
+      responsaveisIds: [],
+    });
+    if (!podeAdicionar) return;
+    if (!novaAtivDraft.nome.trim()) return;
+    if (novaAtivDraft.timesIds.length === 0) return;
+    if (novaAtivDraft.responsaveisIds.length === 0) return;
+    setSalvandoNovaAtividade(true);
+    const res = await criarSubInteracao({
+      interacao_id: row.id,
+      nome: novaAtivDraft.nome.trim(),
+      descricao_detalhe: novaAtivDraft.descricaoDetalhe.trim() || null,
+      times_ids: novaAtivDraft.timesIds,
+      responsaveis_ids: novaAtivDraft.responsaveisIds,
+      data_fim: novaAtivDraft.data.trim() || null,
+      status: 'nao_iniciado',
+      pastel: novaAtivDraft.pastel,
+      basePath: '/carometro/todo-planning',
+      viaSirene: true,
+    });
+    setSalvandoNovaAtividade(false);
+    if (res.ok) {
+      setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+      void reloadTopicos();
+      window.dispatchEvent(new CustomEvent('backlog-reload'));
+    }
+  }
+
   if (!row) return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50">
       <div className="bg-white rounded-xl p-6 shadow-xl flex flex-col items-center gap-3">
@@ -829,12 +884,12 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose, onConcluido }:
         onSubStatusChange={(topicoId, status) => void handleSubStatus(topicoId, status)}
         podeArquivar={podeArquivar}
         badgeTipo={badgeTipoHelper(row.tipo)}
-        times={[]}
-        responsaveis={[]}
+        times={times}
+        responsaveis={responsaveis}
         novaAtivDraft={novaAtivDraft}
         setNovaAtivDraft={setNovaAtivDraft}
-        onAdicionarAtividade={() => { /* não implementado no backlog */ }}
-        salvandoNovaAtividade={false}
+        onAdicionarAtividade={() => void handleAdicionarAtividade()}
+        salvandoNovaAtividade={salvandoNovaAtividade}
         currentUserId={currentUserId}
         sessionEhAdmin={podeArquivar}
         sessionRole={sessionRole}
