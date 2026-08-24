@@ -41,6 +41,8 @@ const KANBAN_NOME_DB_PARA_APP: Record<string, { basePath: string; cardQueryParam
     basePath: '/manutencoes/moni-care',
     cardQueryParam: 'card',
   },
+  'Funil Pré Obra': { basePath: '/pre-obra', cardQueryParam: 'card' },
+  'Funil Obra': { basePath: '/obra', cardQueryParam: 'card' },
 };
 
 /** Bases de rota de todos os funis conhecidos (invalidação de cache após mutação). */

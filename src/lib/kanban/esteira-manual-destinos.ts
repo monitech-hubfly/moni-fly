@@ -18,6 +18,8 @@ export type DestinoEsteiraManualKey =
   | 'hdm_produto'
   | 'moni_capital'
   | 'motor01'
+  | 'obra'
+  | 'pre_obra'
   | 'pre_obra_obra'
   | 'projeto_legal'
   | 'projetos_legais'
@@ -77,6 +79,16 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
     kanbanDestinoId: KANBAN_IDS.MOTOR01,
     faseDestinoSlug: 'm1_r01',
   },
+  obra: {
+    label: 'Obra',
+    kanbanDestinoId: KANBAN_IDS.OBRA,
+    faseDestinoSlug: FASE_SLUGS.OBRA_PRELIMINARES,
+  },
+  pre_obra: {
+    label: 'Pré Obra',
+    kanbanDestinoId: KANBAN_IDS.PRE_OBRA,
+    faseDestinoSlug: FASE_SLUGS.PRE_BRIEFING,
+  },
   pre_obra_obra: {
     label: 'Pré Obra e Obra',
     kanbanDestinoId: KANBAN_IDS.OPERACOES,
@@ -108,11 +120,16 @@ const MOTOR01_DESTINOS: DestinoEsteiraManualKey[] = ['credito_obra'];
 
 const KANBANS_INTERNOS_SET = new Set<string>(KANBANS_INTERNOS as readonly string[]);
 
-/** Somente Pré Obra e Obra pode abrir vínculo manual com Funil Projeto Legal. */
+/** Pré Obra / Obra / Operações (legado) podem abrir vínculo manual com Funil Projeto Legal. */
 export function kanbanPermiteVinculoComProjetoLegal(
   kanbanId: string | null | undefined,
 ): boolean {
-  return String(kanbanId ?? '').trim() === KANBAN_IDS.OPERACOES;
+  const id = String(kanbanId ?? '').trim();
+  return (
+    id === KANBAN_IDS.OPERACOES ||
+    id === KANBAN_IDS.PRE_OBRA ||
+    id === KANBAN_IDS.OBRA
+  );
 }
 
 /** Funil Loteadores ou Step One — sempre devem poder abrir Pré Obra e Obra. */

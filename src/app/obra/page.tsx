@@ -1,6 +1,6 @@
 /**
- * Kanban **Funil Pré Obra** (`kanbans.nome`): nativo (`kanban_cards`).
- * Bastão: pre_mobilizacao → Funil Obra.
+ * Kanban **Funil Obra** (`kanbans.nome`): nativo (`kanban_cards`).
+ * Entrada via bastão de Pré Obra (pre_mobilizacao); saída obra_entrega → Moní Care.
  */
 import { renderKanbanDatabasePage } from '@/components/kanban-shared/renderKanbanDatabasePage';
 import { requireFunisInternosNegocioAccess } from '@/lib/guards/kanban-funil-access';
@@ -8,10 +8,10 @@ import { requireFunisInternosNegocioAccess } from '@/lib/guards/kanban-funil-acc
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Funil Pré Obra | moni-fly',
+  title: 'Funil Obra | moni-fly',
 };
 
-export default async function FunilPreObraPage({
+export default async function FunilObraPage({
   searchParams,
 }: {
   searchParams: { [key: string]: string | string[] | undefined };
@@ -19,10 +19,10 @@ export default async function FunilPreObraPage({
   await requireFunisInternosNegocioAccess();
 
   return renderKanbanDatabasePage(searchParams, {
-    kanbanNomeDb: 'Funil Pré Obra',
-    kanbanNomeDisplay: 'Funil Pré Obra',
-    basePath: '/pre-obra',
-    pageTitle: 'Kanban Funil Pré Obra',
+    kanbanNomeDb: 'Funil Obra',
+    kanbanNomeDisplay: 'Funil Obra',
+    basePath: '/obra',
+    pageTitle: 'Kanban Funil Obra',
     tabsVariant: 'acoplamento',
     columnAccent: 'var(--moni-navy-700)',
     novoCardApenasStaff: true,

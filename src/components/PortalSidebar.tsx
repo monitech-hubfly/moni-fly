@@ -104,6 +104,8 @@ function isHubFunisActive(pathname: string) {
     pathname.startsWith('/painel-contabilidade') ||
     pathname.startsWith('/funil-credito-obra') ||
     pathname.startsWith('/operacoes') ||
+    pathname.startsWith('/pre-obra') ||
+    pathname.startsWith('/obra') ||
     pathname.startsWith('/funil-projeto-legal') ||
     pathname.startsWith('/projetos-locais') ||
     pathname.startsWith('/projetos-legais') ||

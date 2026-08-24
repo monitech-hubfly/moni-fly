@@ -1986,7 +1986,7 @@ export async function fetchKanbanBoardEnrichmentPatches(
   let q = supabase
     .from('kanban_cards')
     .select(
-      'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, projeto_id, arquivado, concluido, concluido_em, entered_fase_at, sla_iniciado_em, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, projetos_legais_ok, projetos_locais_ok, proxima_atividade, prazo_atividade',
+      'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, projeto_id, arquivado, concluido, concluido_em, entered_fase_at, sla_iniciado_em, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, projetos_legais_ok, projetos_locais_ok, obra_ok, proxima_atividade, prazo_atividade',
     )
     .eq('kanban_id', kid)
     .eq('status', 'ativo')

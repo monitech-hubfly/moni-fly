@@ -22,6 +22,8 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/comunidade', title: 'Comunidade' },
   { prefix: '/catalogo-produtos-moni', title: 'Catálogo de Produtos Moní' },
   { prefix: '/operacoes', title: 'Funil Pré Obra e Obra' },
+  { prefix: '/pre-obra', title: 'Funil Pré Obra' },
+  { prefix: '/obra', title: 'Funil Obra' },
   { prefix: '/portfolio', title: 'Funil Portfolio' },
   { prefix: '/funil-acoplamento', title: 'Funil Acoplamento' },
   { prefix: '/funil-moni-capital', title: 'Funil Divify' },

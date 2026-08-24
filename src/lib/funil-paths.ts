@@ -13,6 +13,8 @@ export const FUNIL_PATH_PREFIXES: readonly string[] = [
   '/funil-funding',
   '/funil-credito-obra',
   '/operacoes',
+  '/pre-obra',
+  '/obra',
   '/funil-projeto-legal',
   '/projetos-locais',
   '/projetos-legais',

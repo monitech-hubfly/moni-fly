@@ -22,6 +22,10 @@ export const KANBAN_IDS = {
   MARKETING_PROGRAMACAO: 'f1b25d3c-8e64-4a02-b7d1-3c0f6e9a2b58',
   MARKETING_INC_TO_FLY:  'a2c36e4d-9f75-4b13-c8e2-4d1a7f0b3c69',
   MONI_CARE:             'b3d47f5e-0a86-4c24-89f3-5e2b8a1c4d70',
+  /** Funil Pré Obra — migration 545 */
+  PRE_OBRA: '91686091-077d-479d-bbb3-cb062ded286e',
+  /** Funil Obra — migration 545 */
+  OBRA: '8b25508c-afdc-4a44-84a8-36c4fcf8cb4b',
 } as const
 
 /** Nome canônico em `kanbans.nome` — Funil Crédito Obra. */
@@ -57,6 +61,8 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Programação de Conteúdo Semanal': KANBAN_IDS.MARKETING_PROGRAMACAO,
   'Funil Série Inc. to Fly': KANBAN_IDS.MARKETING_INC_TO_FLY,
   'Funil Moní Care': KANBAN_IDS.MONI_CARE,
+  'Funil Pré Obra': KANBAN_IDS.PRE_OBRA,
+  'Funil Obra': KANBAN_IDS.OBRA,
 };
 
 export const FASE_IDS = {
@@ -341,6 +347,32 @@ export const FASE_SLUGS = {
   CARE_EM_EXECUCAO: 'care_em_execucao',
   CARE_CONCLUIDO: 'care_concluido',
   CARE_ARQUIVADO: 'care_arquivado',
+
+  // Funil Pré Obra (KANBAN_IDS.PRE_OBRA) — fluxo ordem 1–10
+  PRE_BRIEFING: 'pre_briefing',
+  PRE_VIABILIDADE: 'pre_viabilidade',
+  PRE_PROPOSTA: 'pre_proposta',
+  PRE_CONTRATO: 'pre_contrato',
+  PRE_PROJETO_ARQ: 'pre_projeto_arq',
+  PRE_APROVACAO_PROJETO: 'pre_aprovacao_projeto',
+  PRE_PROJETOS_COMP: 'pre_projetos_comp',
+  PRE_ORCAMENTO: 'pre_orcamento',
+  PRE_PLANEJAMENTO: 'pre_planejamento',
+  /** Fase terminal — dispara bastão para Funil Obra */
+  PRE_MOBILIZACAO: 'pre_mobilizacao',
+
+  // Funil Obra (KANBAN_IDS.OBRA) — fluxo ordem 1–10
+  OBRA_PRELIMINARES: 'obra_preliminares',
+  OBRA_FUNDACAO: 'obra_fundacao',
+  OBRA_ESTRUTURA: 'obra_estrutura',
+  OBRA_VEDACOES: 'obra_vedacoes',
+  OBRA_INSTALACOES: 'obra_instalacoes',
+  OBRA_REVESTIMENTOS: 'obra_revestimentos',
+  OBRA_ACABAMENTOS: 'obra_acabamentos',
+  OBRA_PAISAGISMO: 'obra_paisagismo',
+  OBRA_VISTORIA: 'obra_vistoria',
+  /** Fase terminal — dispara bastão para Funil Moní Care */
+  OBRA_ENTREGA: 'obra_entrega',
 } as const
 
 /** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389). */
@@ -367,6 +399,8 @@ export const KANBANS_VINCULO_MANUAL_LIVRE = [
   KANBAN_IDS.PORTFOLIO,
   KANBAN_IDS.LOTEADORES,
   KANBAN_IDS.OPERACOES,
+  KANBAN_IDS.PRE_OBRA,
+  KANBAN_IDS.OBRA,
 ] as const;
 
 // Kanbans onde Frank podia abrir chamado jurídico manualmente (funil desativado — vazio)

@@ -41,6 +41,7 @@ export type CardParalelasFlags = {
   credito_obra_ok?: boolean;
   projetos_legais_ok?: boolean | null;
   projetos_locais_ok?: boolean | null;
+  obra_ok?: boolean | null;
 };
 
 export type MontarChipsParalelasInput = {
@@ -490,8 +491,12 @@ function ehKanbanOperacoesChips(kanbanId: string, kanbanNome?: string | null): b
   const nome = String(kanbanNome ?? '').trim();
   return (
     kid === KANBAN_IDS.OPERACOES ||
+    kid === KANBAN_IDS.PRE_OBRA ||
+    kid === KANBAN_IDS.OBRA ||
     nome === 'Funil Operações' ||
-    nome === 'Funil Pré Obra e Obra'
+    nome === 'Funil Pré Obra e Obra' ||
+    nome === 'Funil Pré Obra' ||
+    nome === 'Funil Obra'
   );
 }
 

@@ -1086,6 +1086,20 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
       },
     ],
+    /** Funil Pré Obra — Mobilização → Funil Obra */
+    [FASE_SLUGS.PRE_MOBILIZACAO]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.OBRA,
+        faseDestinoSlug: FASE_SLUGS.OBRA_PRELIMINARES,
+      },
+    ],
+    /** Funil Obra — Habite-se e Entrega → Moní Care */
+    [FASE_SLUGS.OBRA_ENTREGA]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.MONI_CARE,
+        faseDestinoSlug: FASE_SLUGS.CARE_NOVO_ACIONAMENTO,
+      },
+    ],
   };
 
   if (slug === FASE_SLUGS.OPERACOES_ENTREGUE) {
@@ -1125,7 +1139,8 @@ type BastaoRetornoFlagCol =
   | 'juridico_ok'
   | 'capital_ok'
   | 'projetos_locais_ok'
-  | 'projetos_legais_ok';
+  | 'projetos_legais_ok'
+  | 'obra_ok';
 
 const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'acoplamento_concluido',
@@ -1142,6 +1157,7 @@ const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   [FASE_SLUGS.CAPITAL_NAO_ELEGIVEL]: 'capital_ok',
   [FASE_SLUGS.PROJETOS_LOCAIS_CONCLUIDO]: 'projetos_locais_ok',
   [FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO]: 'projetos_legais_ok',
+  [FASE_SLUGS.OBRA_ENTREGA]: 'obra_ok',
 };
 
 const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
@@ -1159,6 +1175,7 @@ const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   [FASE_SLUGS.CAPITAL_NAO_ELEGIVEL]: 'Divify (não elegível)',
   [FASE_SLUGS.PROJETOS_LOCAIS_CONCLUIDO]: 'Projetos Locais',
   [FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO]: 'Projetos Legais',
+  [FASE_SLUGS.OBRA_ENTREGA]: 'Obra (entrega)',
 };
 
 /** Desfechos de esteira paralela que só marcam flag no pai — nunca movem fase do pai Operações. */
@@ -1175,6 +1192,7 @@ const DESFECHO_APENAS_FLAG_SEM_MOVER_PAI = new Set<string>([
   FASE_SLUGS.JURIDICO_CONCLUIDO,
   FASE_SLUGS.CAPITAL_CONCLUIDO,
   FASE_SLUGS.CAPITAL_NAO_ELEGIVEL,
+  FASE_SLUGS.OBRA_ENTREGA,
 ]);
 
 /**
