@@ -170,42 +170,55 @@ function DashboardGeralPageContent() {
       {error && <p className="text-xs text-red-500">Erro: {error}</p>}
 
       <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm bg-white">
-        <table className="w-full text-sm border-collapse">
+        <table className="min-w-full text-sm border-collapse">
           <thead>
+            {/* Linha 1: cabeçalhos de semana — sempre visíveis, clicáveis */}
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="sticky left-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap border-r border-gray-100 w-44">
+              <th
+                rowSpan={semanaExpandida !== null ? 2 : 1}
+                className="sticky left-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap border-r border-gray-100 w-44"
+              >
                 Área / Usuário
               </th>
-              {colunas.map((col, i) => {
-                if (col.type === 'week') {
-                  const isAtual  = col.semana === semanaAtual;
-                  const isFutura = col.semana > semanaAtual;
-                  const expandida = semanaExpandida === col.semana;
-                  return (
-                    <th key={`w-${col.semana}`}
-                      className={`px-2 py-2 text-center text-xs font-semibold whitespace-nowrap ${isAtual ? 'text-blue-600' : 'text-gray-600'}`}>
-                      <button
-                        type="button"
-                        disabled={isFutura}
-                        onClick={() => !isFutura && toggleSemana(col.semana)}
-                        className={`flex flex-col items-center gap-0 mx-auto leading-tight ${isFutura ? 'cursor-default opacity-40' : 'cursor-pointer hover:text-blue-500'}`}
-                      >
-                        <span>S{col.semana}</span>
-                        {isAtual && <span className="text-[8px] font-normal text-blue-400">atual</span>}
-                        {!isFutura && <span className="text-[8px] text-gray-400 mt-0.5">{expandida ? '▲' : '▼'}</span>}
-                      </button>
-                    </th>
-                  );
-                }
-                const isFirst = i === 0 || colunas[i - 1].type === 'week' || (colunas[i - 1] as ColDia).semana !== col.semana;
+              {semanas.map(s => {
+                const isAtual  = s === semanaAtual;
+                const isFutura = s > semanaAtual;
+                const isExp    = s === semanaExpandida;
+                const dias     = isExp ? getDiasParaSemana(areas, s) : [];
                 return (
-                  <th key={`d-${col.data}`}
-                    className={`px-1 py-2 text-center text-[10px] font-medium text-blue-700 bg-blue-50 whitespace-nowrap ${isFirst ? 'border-l border-blue-200' : ''}`}>
-                    {fmtDia(col.data)}
+                  <th
+                    key={`wh-${s}`}
+                    colSpan={isExp && dias.length > 0 ? dias.length : 1}
+                    rowSpan={!isExp && semanaExpandida !== null ? 2 : 1}
+                    className={`px-2 py-2 text-center text-xs font-semibold whitespace-nowrap ${isAtual ? 'text-blue-600' : 'text-gray-600'} ${isExp ? 'bg-blue-50 border-l border-r border-blue-200' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      disabled={isFutura}
+                      onClick={() => !isFutura && toggleSemana(s)}
+                      className={`flex flex-col items-center gap-0 mx-auto leading-tight ${isFutura ? 'cursor-default opacity-40' : 'cursor-pointer hover:text-blue-500'}`}
+                    >
+                      <span>S{s}</span>
+                      {isAtual && <span className="text-[8px] font-normal text-blue-400">atual</span>}
+                      {!isFutura && <span className="text-[8px] text-gray-400 mt-0.5">{isExp ? '▲' : '▼'}</span>}
+                    </button>
                   </th>
                 );
               })}
             </tr>
+            {/* Linha 2: sub-colunas de dias (só aparece quando há semana expandida) */}
+            {semanaExpandida !== null && (
+              <tr className="bg-blue-50/70 border-b border-blue-100">
+                {getDiasParaSemana(areas, semanaExpandida).map((data, i) => (
+                  <th
+                    key={`dh-${data}`}
+                    className={`px-1 py-1.5 text-center text-[10px] font-medium text-blue-700 whitespace-nowrap ${i === 0 ? 'border-l border-blue-200' : ''}`}
+                  >
+                    {fmtDia(data)}
+                  </th>
+                ))}
+              </tr>
+            )}
           </thead>
 
           <tbody>
