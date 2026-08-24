@@ -94,6 +94,7 @@ type Props = {
   setNovaAtivDraft: React.Dispatch<React.SetStateAction<AtividadeFormDraft>>;
   onAdicionarAtividade: () => void;
   salvandoNovaAtividade: boolean;
+  erroNovaAtividade?: string | null;
   currentUserId: string | null;
   onArquivarTopico?: (topicoId: number) => void;
   onEncerrarAtividadeRecusada?: (topicoId: number) => void;
@@ -188,6 +189,7 @@ export function SireneChamadoDetalheModal({
   setNovaAtivDraft,
   onAdicionarAtividade,
   salvandoNovaAtividade,
+  erroNovaAtividade,
   currentUserId,
   onArquivarTopico,
   onEncerrarAtividadeRecusada,
@@ -883,6 +885,9 @@ export function SireneChamadoDetalheModal({
               >
                 {salvandoNovaAtividade ? 'Salvando…' : 'Adicionar atividade'}
               </button>
+              {erroNovaAtividade && (
+                <p className="mt-2 text-sm text-red-700">{erroNovaAtividade}</p>
+              )}
             </ChamadoAtividadeCollapsibleSection>
           ) : null}
         </div>

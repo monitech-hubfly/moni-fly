@@ -742,6 +742,7 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose, onConcluido }:
   const [times, setTimes] = useState<{ id: string; nome: string }[]>([]);
   const [responsaveis, setResponsaveis] = useState<{ id: string; nome: string; email?: string | null }[]>([]);
   const [salvandoNovaAtividade, setSalvandoNovaAtividade] = useState(false);
+  const [msgErroAtividade, setMsgErroAtividade] = useState<string | null>(null);
 
   useEffect(() => {
     void buscarDadosModalChamado(chamadoId).then(r => {
@@ -819,35 +820,52 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose, onConcluido }:
 
   async function handleAdicionarAtividade() {
     if (!row) return;
+    setMsgErroAtividade(null);
+    const responsaveisAtvs = topicos
+      .flatMap(t => [
+        String((t as { responsavel_id?: string | null }).responsavel_id ?? '').trim(),
+        ...((t as { responsaveis_ids?: string[] }).responsaveis_ids ?? []).map((r: string) => String(r ?? '').trim()),
+      ])
+      .filter(Boolean);
     const podeAdicionar = usuarioPodeAdicionarAtividadeChamado({
       sessionEhAdmin: podeArquivar,
       sessionRole,
       currentUserId,
       chamadoAbertoPor: String(row.criado_por ?? '').trim() || null,
-      responsaveisIds: [],
+      responsaveisIds: responsaveisAtvs,
     });
-    if (!podeAdicionar) return;
-    if (!novaAtivDraft.nome.trim()) return;
-    if (novaAtivDraft.timesIds.length === 0) return;
-    if (novaAtivDraft.responsaveisIds.length === 0) return;
+    if (!podeAdicionar) {
+      setMsgErroAtividade('Sem permissão para adicionar atividade neste chamado.');
+      return;
+    }
+    if (!novaAtivDraft.nome.trim()) { setMsgErroAtividade('Informe o nome da atividade.'); return; }
+    if (novaAtivDraft.timesIds.length === 0) { setMsgErroAtividade('Selecione ao menos um time.'); return; }
+    if (novaAtivDraft.responsaveisIds.length === 0) { setMsgErroAtividade('Selecione ao menos um responsável.'); return; }
     setSalvandoNovaAtividade(true);
-    const res = await criarSubInteracao({
-      interacao_id: row.id,
-      nome: novaAtivDraft.nome.trim(),
-      descricao_detalhe: novaAtivDraft.descricaoDetalhe.trim() || null,
-      times_ids: novaAtivDraft.timesIds,
-      responsaveis_ids: novaAtivDraft.responsaveisIds,
-      data_fim: novaAtivDraft.data.trim() || null,
-      status: 'nao_iniciado',
-      pastel: novaAtivDraft.pastel,
-      basePath: '/carometro/todo-planning',
-      viaSirene: true,
-    });
-    setSalvandoNovaAtividade(false);
-    if (res.ok) {
+    try {
+      const res = await criarSubInteracao({
+        interacao_id: row.id,
+        nome: novaAtivDraft.nome.trim(),
+        descricao_detalhe: novaAtivDraft.descricaoDetalhe.trim() || null,
+        times_ids: novaAtivDraft.timesIds,
+        responsaveis_ids: novaAtivDraft.responsaveisIds,
+        data_fim: novaAtivDraft.data.trim() || null,
+        status: 'nao_iniciado',
+        pastel: novaAtivDraft.pastel,
+        basePath: '/carometro/todo-planning',
+        viaSirene: true,
+      });
+      if (!res.ok) {
+        setMsgErroAtividade(res.error ?? 'Erro ao criar atividade.');
+        return;
+      }
       setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
       void reloadTopicos();
       window.dispatchEvent(new CustomEvent('backlog-reload'));
+    } catch {
+      setMsgErroAtividade('Erro inesperado ao criar atividade.');
+    } finally {
+      setSalvandoNovaAtividade(false);
     }
   }
 
@@ -890,6 +908,7 @@ export function SireneChamadoBacklogWrapper({ chamadoId, onClose, onConcluido }:
         setNovaAtivDraft={setNovaAtivDraft}
         onAdicionarAtividade={() => void handleAdicionarAtividade()}
         salvandoNovaAtividade={salvandoNovaAtividade}
+        erroNovaAtividade={msgErroAtividade}
         currentUserId={currentUserId}
         sessionEhAdmin={podeArquivar}
         sessionRole={sessionRole}
