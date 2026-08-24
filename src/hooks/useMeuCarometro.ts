@@ -571,6 +571,25 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         });
 
       if (callId !== callIdRef.current) return;
+
+      // Salva snapshot no banco para que o Dashboard Geral sempre reflita o estado atual.
+      // Só salva quando é o próprio usuário (não simulação admin — não teria permissão RLS).
+      if (areaId && effectiveProfileId === user.id) {
+        void supabase.from('carometro_status_diario').upsert(
+          {
+            area_id:     areaId,
+            profile_id:  effectiveProfileId,
+            data:        hojeStr,
+            sirene:      sireneRuntime,
+            engajamento: engajamentoRuntime,
+            indicadores: indicadoresAnterior, // S-1: mesmo que o card Indicadores exibe
+          },
+          { onConflict: 'area_id,profile_id,data' },
+        ).then(({ error: snapErr }) => {
+          if (snapErr) console.warn('[useMeuCarometro] snapshot save:', snapErr.message);
+        });
+      }
+
       setSirene(sireneRuntime);
       setEngajamento(engajamentoRuntime);
       setIndicadores(indicadoresAnterior); // card principal exibe resultado da semana anterior

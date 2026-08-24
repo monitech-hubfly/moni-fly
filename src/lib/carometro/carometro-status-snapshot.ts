@@ -77,6 +77,15 @@ export async function gerarSnapshotCarometro(
   const semana  = isoWeek(hoje);
   const hojeStr = hoje.toISOString().slice(0, 10);
 
+  // S-1: semana anterior usada como referência de indicadores (igual ao useMeuCarometro)
+  const semAnteriorInd = semana > 1 ? semana - 1 : 52;
+  // sextaAnterior: data de referência para calcular % esperado dos indicadores de S-1
+  const dowRef = hoje.getDay() || 7;
+  const segundaSemana = new Date(hoje);
+  segundaSemana.setDate(hoje.getDate() - (dowRef - 1));
+  const sextaAnterior = new Date(segundaSemana);
+  sextaAnterior.setDate(segundaSemana.getDate() - 3);
+
   // ── Sirene ─────────────────────────────────────────────────────────────────
   // Início da semana para filtro de concluídos
   const dowSnap = hoje.getDay() || 7;
@@ -273,11 +282,12 @@ export async function gerarSnapshotCarometro(
       const indIds = indsTyped.map(i => i.id);
 
       if (indIds.length > 0) {
+        // Busca lançamentos de S-1 — mesma semana que o TO DO & Planning exibe no card principal
         const { data: lancsData } = await db
           .from('indicador_lancamentos')
           .select('indicador_id, valor')
           .in('indicador_id', indIds)
-          .eq('semana', semana);
+          .eq('semana', semAnteriorInd);
 
         const lancMap = new Map<string, unknown>(
           ((lancsData ?? []) as { indicador_id: string; valor: unknown }[]).map(l => [l.indicador_id, l.valor])
@@ -294,7 +304,8 @@ export async function gerarSnapshotCarometro(
           const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
 
           if (isProjeto) {
-            const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', hoje);
+            // Usa sextaAnterior como refDate (S-1), igual ao useMeuCarometro
+            const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', sextaAnterior);
             if (esp <= 0) {
               porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
               continue;

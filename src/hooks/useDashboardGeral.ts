@@ -191,10 +191,13 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
           const porSemana: Record<number, SemanaData> = {};
           for (const sem of semList) {
             const dias = (profMap.get(sem) ?? []).sort((x, y) => x.data.localeCompare(y.data));
+            // Usa o último snapshot da semana — estado mais recente/acumulado —
+            // mesmo critério do useFechamentoBoneDay e alinhado ao que TO DO exibe
+            const lastDia = dias.length > 0 ? dias[dias.length - 1] : null;
             porSemana[sem] = {
-              sireneScore:      avgOrNull(dias.map(d => d.sireneScore)),
-              engajamentoScore: avgOrNull(dias.map(d => d.engajamentoScore)),
-              indicadoresScore: avgOrNull(dias.map(d => d.indicadoresScore)),
+              sireneScore:      lastDia?.sireneScore      ?? null,
+              engajamentoScore: lastDia?.engajamentoScore ?? null,
+              indicadoresScore: lastDia?.indicadoresScore ?? null,
               dias,
             };
           }
