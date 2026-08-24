@@ -1567,7 +1567,7 @@ export function MetasIndicadoresBloco() {
                 </>
               )}
 
-              {/* ── 3. METAS CONCLUÍDAS ── sempre no final ── */}
+              {/* ── 3. METAS CONCLUÍDAS ── compactas, sempre no final ── */}
               {metasConcluidasExibidas.length > 0 && (
                 <div className="mt-4 border-t border-gray-200 pt-3">
                   <button type="button"
@@ -1579,8 +1579,60 @@ export function MetasIndicadoresBloco() {
                     <span className="text-gray-400 text-[10px]">{concluidasAberta ? '▲' : '▼'}</span>
                   </button>
                   {concluidasAberta && (
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 opacity-60">
-                      {metasConcluidasExibidas.map(renderMetaCard)}
+                    <div className="flex flex-col divide-y divide-gray-100 rounded-lg border border-gray-100 overflow-hidden">
+                      {metasConcluidasExibidas.map((meta, i) => {
+                        const euRow = objetivoResponsaveis.find(
+                          r => r.objetivo_id === meta.id && r.profile_id === (currentUserId ?? uid)
+                        );
+                        const dataFim     = euRow?.data_fim     ?? null;
+                        const concluidoEm = euRow?.concluido_em ?? null;
+                        const tipoLabel   = meta.tipo?.toLowerCase() === 'recorrente' ? 'Recorrente' : 'Atingível';
+
+                        let badgeLabel = 'Concluída';
+                        let badgeClass = 'bg-green-50 text-green-600 border-green-200';
+                        if (dataFim && concluidoEm) {
+                          const dias = Math.round(
+                            (new Date(dataFim).getTime() - new Date(concluidoEm).getTime()) / 86_400_000
+                          );
+                          if (dias > 0)       { badgeLabel = `${dias}d antes`; badgeClass = 'bg-green-50 text-green-600 border-green-200'; }
+                          else if (dias === 0) { badgeLabel = 'No prazo';      badgeClass = 'bg-blue-50 text-blue-500 border-blue-200'; }
+                          else                 { badgeLabel = `${Math.abs(dias)}d após`; badgeClass = 'bg-amber-50 text-amber-600 border-amber-200'; }
+                        }
+
+                        return (
+                          <div key={meta.id} className={`flex items-center gap-3 px-3 py-2.5 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}`}>
+                            <span className="text-green-500 font-bold text-sm flex-shrink-0">✓</span>
+
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium text-gray-400 line-through leading-snug">
+                                {meta.descricao}
+                              </span>
+                            </div>
+
+                            <span className="text-[9px] text-gray-300 flex-shrink-0 px-1.5 py-0.5 rounded border border-gray-100">
+                              {tipoLabel}
+                            </span>
+
+                            {dataFim && (
+                              <div className="flex-shrink-0 text-right">
+                                <p className="text-[9px] text-gray-300 leading-none mb-0.5">Prazo</p>
+                                <p className="text-[10px] text-gray-400 tabular-nums">{formatarDataCurta(dataFim)}</p>
+                              </div>
+                            )}
+
+                            {concluidoEm && (
+                              <div className="flex-shrink-0 text-right">
+                                <p className="text-[9px] text-gray-300 leading-none mb-0.5">Realizado</p>
+                                <p className="text-[10px] text-gray-400 tabular-nums">{formatarDataCurta(concluidoEm)}</p>
+                              </div>
+                            )}
+
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded border whitespace-nowrap flex-shrink-0 ${badgeClass}`}>
+                              {badgeLabel}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
