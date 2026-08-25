@@ -7898,30 +7898,33 @@ export function KanbanCardModal({
               </>
             ) : null}
 
+            {/* Tags em todos os funis — painel direito (grupos vazios se ocultam sozinhos) */}
+            {mostrarPainelDireitoCard ? (
+              <PainelLateralSecao titulo="Tags">
+                <KanbanCardModalTagsPainel
+                  cardId={card.id}
+                  kanbanId={card.kanban_id}
+                  basePath={basePath}
+                  tagsKanban={tagsKanban}
+                  tagsCard={tagsCard}
+                  setTagsKanban={setTagsKanban}
+                  setTagsCard={setTagsCard}
+                  tagsOpen={tagsOpen}
+                  setTagsOpen={setTagsOpen}
+                  ocultarGestaoCard={ocultarGestaoCard}
+                  podeCriarChamados={podeCriarChamados}
+                  novatagsNome={novatagsNome}
+                  setNovaTagNome={setNovaTagNome}
+                  novaTagCor={novaTagCor}
+                  setNovaTagCor={setNovaTagCor}
+                  criandoTag={criandoTag}
+                  setCriandoTag={setCriandoTag}
+                />
+              </PainelLateralSecao>
+            ) : null}
+
             {mostrarColunaAcoesLateral ? (
             <>
-            <PainelLateralSecao titulo="Tags">
-              <KanbanCardModalTagsPainel
-                cardId={card.id}
-                kanbanId={card.kanban_id}
-                basePath={basePath}
-                tagsKanban={tagsKanban}
-                tagsCard={tagsCard}
-                setTagsKanban={setTagsKanban}
-                setTagsCard={setTagsCard}
-                tagsOpen={tagsOpen}
-                setTagsOpen={setTagsOpen}
-                ocultarGestaoCard={ocultarGestaoCard}
-                podeCriarChamados={podeCriarChamados}
-                novatagsNome={novatagsNome}
-                setNovaTagNome={setNovaTagNome}
-                novaTagCor={novaTagCor}
-                setNovaTagCor={setNovaTagCor}
-                criandoTag={criandoTag}
-                setCriandoTag={setCriandoTag}
-              />
-            </PainelLateralSecao>
-
             {exibirBlocoDesarquivar ? (
               <PainelLateralSecao titulo={ehReativacaoPerdaModal ? 'Reativar' : 'Desarquivar'}>
                 <button

@@ -3,10 +3,10 @@ import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import type { RelacionamentoCardRow } from '@/lib/actions/card-actions';
 import type { CardProjetoEsteiraRow } from '@/lib/kanban/fetch-cards-projeto-esteiras';
 import {
-  estiloTagTranchePorLabel,
-  nomeTagTrancheCreditoObra,
-  trancheNumeroFromLabel,
-} from '@/lib/kanban/credito-obra-tag-tranche';
+  estiloChipTagKanban,
+  isKanbanTagRodadaNome,
+  isKanbanTagTrancheNome,
+} from '@/lib/kanban/kanban-tag-especial';
 
 export type KanbanVinculoStatus = 'ativo' | 'concluido' | 'arquivado';
 
@@ -18,7 +18,7 @@ export type KanbanVinculoCardItem = {
   dataLabel: string | null;
   href: string;
   onRemove?: () => void;
-  /** Badge de tranche (Crédito Obra) — cores centralizadas em credito-obra-tag-tranche */
+  /** Badge de tag preset (tranche / rodada) — estilo via estiloChipTagKanban */
   trancheBadge?: { label: string; style: CSSProperties } | null;
 };
 
@@ -31,16 +31,34 @@ export function formatKanbanNomeVinculoHeader(nome: string): string {
   return String(nome ?? '—').trim().toUpperCase() || '—';
 }
 
-/** Resolve badge de tranche a partir de um rótulo ("2ª tranche", etc.). */
+/**
+ * Badge colorido a partir de label "Nª tranche" / "Nª rodada"
+ * (reusa o mesmo motor dos chips do board/modal).
+ */
+export function badgeTagPresetFromLabel(nome: string | null | undefined): {
+  label: string;
+  style: CSSProperties;
+} | null {
+  const label = String(nome ?? '').trim();
+  if (!label) return null;
+  if (!isKanbanTagTrancheNome(label) && !isKanbanTagRodadaNome(label)) return null;
+  const chip = estiloChipTagKanban(label);
+  return {
+    label,
+    style: {
+      background: chip.style?.background,
+      color: chip.style?.color,
+      border: chip.style?.border,
+    },
+  };
+}
+
+/** @deprecated Preferir badgeTagPresetFromLabel (também cobre rodadas). */
 export function badgeTrancheFromLabel(nome: string | null | undefined): {
   label: string;
   style: CSSProperties;
 } | null {
-  const num = trancheNumeroFromLabel(nome);
-  if (!num) return null;
-  const style = estiloTagTranchePorLabel(nomeTagTrancheCreditoObra(num));
-  if (!style) return null;
-  return { label: nomeTagTrancheCreditoObra(num), style };
+  return badgeTagPresetFromLabel(nome);
 }
 
 export function statusVinculoCard(row: {
@@ -76,7 +94,7 @@ export function agruparItensVinculoPorKanban(
       dataLabel: item.dataLabel,
       href: item.href,
       onRemove: item.onRemove,
-      trancheBadge: item.trancheBadge ?? badgeTrancheFromLabel(item.faseNome),
+      trancheBadge: item.trancheBadge ?? badgeTagPresetFromLabel(item.faseNome),
     });
   }
   return [...map.values()];
@@ -115,6 +133,6 @@ export function itemVinculoFromRelacionamento(
     dataLabel: dataRaw ? formatIsoDateOnlyPtBr(dataRaw) ?? dataRaw : null,
     href,
     onRemove,
-    trancheBadge: badgeTrancheFromLabel(row.fase_nome),
+    trancheBadge: badgeTagPresetFromLabel(row.fase_nome),
   };
 }
