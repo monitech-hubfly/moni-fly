@@ -88,10 +88,10 @@ function CelulaDia({ data, u }: { data: string; u: AreaDashboard['usuarios'][0] 
     .find(d => d.data === data);
   const temDados = dia && (dia.sireneScore !== null || dia.engajamentoScore !== null || dia.indicadoresScore !== null);
   if (!temDados) {
-    return <td className="px-0.5 py-1 text-center text-xs text-gray-300 select-none bg-blue-50/40">—</td>;
+    return <td className="px-0.5 py-1 text-center text-xs text-gray-300 select-none bg-blue-50/40 border-l border-dotted border-blue-100">—</td>;
   }
   return (
-    <td className="px-0.5 py-1 text-center bg-blue-50/40 select-none">
+    <td className="px-0.5 py-1 text-center bg-blue-50/40 select-none border-l border-dotted border-blue-100">
       <div className="flex justify-center gap-0.5">
         <Carinha score={dia!.sireneScore}      label="Sir." small />
         <Carinha score={dia!.engajamentoScore} label="Eng." small />
@@ -169,14 +169,14 @@ function DashboardGeralPageContent() {
 
       {error && <p className="text-xs text-red-500">Erro: {error}</p>}
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm bg-white">
-        <table className="min-w-full text-sm border-collapse">
+      <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-180px)] rounded-xl border border-gray-200 shadow-sm bg-white">
+        <table className="min-w-full text-sm border-separate border-spacing-0">
           <thead>
             {/* Linha 1: cabeçalhos de semana — sempre visíveis, clicáveis */}
-            <tr className="bg-gray-50 border-b border-gray-200">
+            <tr className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
               <th
                 rowSpan={semanaExpandida !== null ? 2 : 1}
-                className="sticky left-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap border-r border-gray-100 w-44"
+                className="sticky left-0 top-0 bg-gray-50 z-30 px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap border-r border-gray-100 w-44"
               >
                 Área / Usuário
               </th>
@@ -190,7 +190,7 @@ function DashboardGeralPageContent() {
                     key={`wh-${s}`}
                     colSpan={isExp && dias.length > 0 ? dias.length : 1}
                     rowSpan={!isExp && semanaExpandida !== null ? 2 : 1}
-                    className={`px-2 py-2 text-center text-xs font-semibold whitespace-nowrap ${isAtual ? 'text-blue-600' : 'text-gray-600'} ${isExp ? 'bg-blue-50 border-l border-r border-blue-200' : ''}`}
+                    className={`px-2 py-2 text-center text-xs font-semibold whitespace-nowrap bg-gray-50 ${isAtual ? 'text-blue-600' : 'text-gray-600'} ${isExp ? 'bg-blue-50 border-l border-r border-blue-200' : ''}`}
                   >
                     <button
                       type="button"
@@ -208,11 +208,11 @@ function DashboardGeralPageContent() {
             </tr>
             {/* Linha 2: sub-colunas de dias (só aparece quando há semana expandida) */}
             {semanaExpandida !== null && (
-              <tr className="bg-blue-50/70 border-b border-blue-100">
-                {getDiasParaSemana(areas, semanaExpandida).map((data, i) => (
+              <tr className="bg-blue-50/70 border-b border-blue-100 sticky top-[37px] z-20">
+                {getDiasParaSemana(areas, semanaExpandida).map((data) => (
                   <th
                     key={`dh-${data}`}
-                    className={`px-1 py-1.5 text-center text-[10px] font-medium text-blue-700 whitespace-nowrap ${i === 0 ? 'border-l border-blue-200' : ''}`}
+                    className="px-1 py-1.5 text-center text-[10px] font-medium text-blue-700 whitespace-nowrap border-l border-dotted border-blue-200 bg-blue-50/70"
                   >
                     {fmtDia(data)}
                   </th>

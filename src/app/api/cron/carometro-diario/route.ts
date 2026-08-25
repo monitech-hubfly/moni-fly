@@ -25,6 +25,7 @@ export async function GET(request: Request) {
   const { data: pessoas, error } = await db
     .from('area_pessoas')
     .select('profile_id, area_id, nome')
+    .eq('ativo', true)
     .not('profile_id', 'is', null)
     .not('area_id', 'is', null);
 

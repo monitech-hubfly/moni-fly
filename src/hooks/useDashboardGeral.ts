@@ -40,6 +40,10 @@ export type UseDashboardGeralResult = {
   error: string | null;
 };
 
+// Primeira data com dados reais de atividades (semana S32 / 03-ago-2026).
+// Semanas anteriores foram geradas pelo cron sem uso real do sistema — não exibir.
+const DATA_MINIMA_CAROMETRO = '2026-08-03';
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -85,7 +89,9 @@ function calcSemanasRange(nSemanas: number): { semanas: number[]; startStr: stri
   }
   const start = new Date(hoje);
   start.setDate(hoje.getDate() - (nSemanas - 1) * 7);
-  return { semanas, startStr: toDateStr(start), endStr: toDateStr(hoje) };
+  // Garante que nunca buscamos antes da data mínima de dados reais
+  const startStr = toDateStr(start) < DATA_MINIMA_CAROMETRO ? DATA_MINIMA_CAROMETRO : toDateStr(start);
+  return { semanas, startStr, endStr: toDateStr(hoje) };
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
