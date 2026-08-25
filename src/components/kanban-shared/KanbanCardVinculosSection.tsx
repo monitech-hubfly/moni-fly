@@ -52,6 +52,17 @@ function VinculoCardItem({
         {item.faseNome}
       </span>
       <div className="flex flex-wrap items-center gap-1.5">
+        {item.trancheBadge ? (
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 font-semibold ${sidebar ? 'text-[9px]' : 'text-[10px]'}`}
+            style={{
+              borderRadius: 'var(--moni-radius-md)',
+              ...item.trancheBadge.style,
+            }}
+          >
+            {item.trancheBadge.label}
+          </span>
+        ) : null}
         <span className={`shrink-0 uppercase ${st.tagClass} ${sidebar ? 'text-[9px]' : 'text-[10px]'}`}>
           {st.rotulo}
         </span>

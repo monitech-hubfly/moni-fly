@@ -1,15 +1,77 @@
+import type { CSSProperties } from 'react';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import type { createAdminClient } from '@/lib/supabase/admin';
 
-/** Tags preset de tranche no Funil Crédito Obra — cores da paleta Moní (sem laranja). */
-export const CREDITO_OBRA_TRANCHES = [
-  { numero: 1 as const, nome: '1ª tranche', cor: '#0c2633' },
-  { numero: 2 as const, nome: '2ª tranche', cor: '#2f4a3a' },
-  { numero: 3 as const, nome: '3ª tranche', cor: '#4a3929' },
-  { numero: 4 as const, nome: '4ª tranche', cor: '#d4ad68' },
-  { numero: 5 as const, nome: '5ª tranche', cor: '#3e7490' },
-  { numero: 6 as const, nome: '6ª tranche', cor: '#365848' },
-] as const;
+export type TrancheColorToken = {
+  /** Texto no tema light */
+  color: string;
+  /** Fundo no tema light */
+  bg: string;
+  /** Texto no tema dark */
+  colorDark: string;
+  /** Fundo no tema dark */
+  bgDark: string;
+  /** Rótulo da tag */
+  label: string;
+};
+
+/**
+ * Cores das tags de tranche (1ª–6ª) — light + dark.
+ * 1 azul-aço · 2 verde-musgo · 3 marrom-café · 4 âmbar · 5 azul · 6 lilás
+ */
+export const TRANCHE_COLORS: Record<number, TrancheColorToken> = {
+  1: {
+    label: '1ª tranche',
+    color: '#ffffff',
+    bg: '#3e7490',
+    colorDark: '#e8eef1',
+    bgDark: '#2a5570',
+  },
+  2: {
+    label: '2ª tranche',
+    color: '#ffffff',
+    bg: '#2f4a3a',
+    colorDark: '#eaeff0',
+    bgDark: '#3d5f4c',
+  },
+  3: {
+    label: '3ª tranche',
+    color: '#ffffff',
+    bg: '#4a3929',
+    colorDark: '#f0ebe7',
+    bgDark: '#6b5340',
+  },
+  4: {
+    label: '4ª tranche',
+    color: '#0c2633',
+    bg: '#d4ad68',
+    colorDark: '#faf4e8',
+    bgDark: '#b08a3e',
+  },
+  5: {
+    label: '5ª tranche',
+    color: '#ffffff',
+    bg: '#2e6b8a',
+    colorDark: '#e8eef1',
+    bgDark: '#4a8aa6',
+  },
+  6: {
+    label: '6ª tranche',
+    color: '#ffffff',
+    bg: '#6b5b95',
+    colorDark: '#f3f0f8',
+    bgDark: '#8b7ab8',
+  },
+};
+
+/** Tags preset de tranche no Funil Crédito Obra — derivado de TRANCHE_COLORS (cor DB = bg light). */
+export const CREDITO_OBRA_TRANCHES = (
+  [1, 2, 3, 4, 5, 6] as const
+).map((numero) => ({
+  numero,
+  nome: TRANCHE_COLORS[numero].label,
+  cor: TRANCHE_COLORS[numero].bg,
+}));
 
 export type CreditoObraTrancheNumero = (typeof CREDITO_OBRA_TRANCHES)[number]['numero'];
 
@@ -18,16 +80,42 @@ type DbTagClient = Pick<ReturnType<typeof createAdminClient>, 'from'>;
 const NOMES_TRANCHE = new Set<string>(CREDITO_OBRA_TRANCHES.map((t) => t.nome));
 
 export function nomeTagTrancheCreditoObra(numero: CreditoObraTrancheNumero): string {
-  return CREDITO_OBRA_TRANCHES.find((t) => t.numero === numero)?.nome ?? `${numero}ª tranche`;
+  return TRANCHE_COLORS[numero]?.label ?? `${numero}ª tranche`;
 }
 
+/** Cor de fundo (light) — usada em DB `kanban_tags.cor` e fallbacks. */
 export function corTagTrancheCreditoObra(numero: CreditoObraTrancheNumero): string {
-  return CREDITO_OBRA_TRANCHES.find((t) => t.numero === numero)?.cor ?? '#0c2633';
+  return TRANCHE_COLORS[numero]?.bg ?? TRANCHE_COLORS[1].bg;
 }
 
 export function trancheNumeroFromIndex(index: number): CreditoObraTrancheNumero | null {
   if (index >= 1 && index <= 6) return index as CreditoObraTrancheNumero;
   return null;
+}
+
+export function trancheNumeroFromLabel(nome: string | null | undefined): CreditoObraTrancheNumero | null {
+  const n = String(nome ?? '').trim().toLowerCase();
+  for (const [num, token] of Object.entries(TRANCHE_COLORS)) {
+    if (token.label.toLowerCase() === n) return Number(num) as CreditoObraTrancheNumero;
+  }
+  return null;
+}
+
+/** Estilo CSS light/dark via `light-dark()` (respeita color-scheme). */
+export function estiloTagTrancheCreditoObra(
+  numero: CreditoObraTrancheNumero | number,
+): CSSProperties {
+  const t = TRANCHE_COLORS[numero] ?? TRANCHE_COLORS[1];
+  return {
+    background: `light-dark(${t.bg}, ${t.bgDark})`,
+    color: `light-dark(${t.color}, ${t.colorDark})`,
+  };
+}
+
+export function estiloTagTranchePorLabel(nome: string | null | undefined): CSSProperties | null {
+  const num = trancheNumeroFromLabel(nome);
+  if (!num) return null;
+  return estiloTagTrancheCreditoObra(num);
 }
 
 /** Garante as 6 tags de tranche no kanban Crédito Obra (idempotente). */

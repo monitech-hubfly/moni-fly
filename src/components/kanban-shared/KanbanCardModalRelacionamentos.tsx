@@ -1,16 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
-  buscarCardsParaVinculo,
   criarVinculoCard,
-  listarRelacionamentosCard,
+  listarVinculosCard,
   removerVinculoCard,
+  buscarCardsParaVinculo,
   type BuscaCardVinculoRow,
-  type RelacionamentoCardRow,
+  type KanbanCardVinculoListItem,
+  type TipoVinculoKanbanCard,
 } from '@/lib/actions/card-actions';
 import {
   abrirFunilAcoplamentoManualDoCard,
@@ -31,13 +30,66 @@ import { createClient } from '@/lib/supabase/client';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
 import { KanbanCardVinculosSection } from './KanbanCardVinculosSection';
-import {
-  agruparItensVinculoPorKanban,
-  itemVinculoFromRelacionamento,
-} from '@/lib/kanban/kanban-vinculos-display';
+import { agruparItensVinculoPorKanban } from '@/lib/kanban/kanban-vinculos-display';
 
 const BOTAO_ABRIR_FUNIL_CLASS =
   'w-full rounded-md border border-stone-200 bg-white px-2.5 py-2 text-left text-[11px] font-semibold text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50';
+
+const VINCULOS_MANUAIS_OPEN_KEY = 'vinculos-manuais-open';
+
+const TIPOS_VINCULO: { value: TipoVinculoKanbanCard; label: string }[] = [
+  { value: 'relacionado', label: 'relacionado' },
+  { value: 'depende_de', label: 'depende_de' },
+  { value: 'bloqueia', label: 'bloqueia' },
+];
+
+function lerVinculosManuaisOpen(temVinculos: boolean): boolean {
+  try {
+    if (typeof window === 'undefined') return temVinculos;
+    const raw = window.localStorage.getItem(VINCULOS_MANUAIS_OPEN_KEY);
+    if (raw === null) return temVinculos;
+    return raw !== 'false';
+  } catch {
+    return temVinculos;
+  }
+}
+
+function gravarVinculosManuaisOpen(open: boolean): void {
+  try {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(VINCULOS_MANUAIS_OPEN_KEY, open ? 'true' : 'false');
+  } catch {
+    /* ignore */
+  }
+}
+
+function IconeChevron({ className, style }: { className?: string; style?: CSSProperties }) {
+  return (
+    <svg
+      className={className}
+      style={style}
+      width="12"
+      height="12"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M4 6l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function rotuloTipoVinculo(tipo: TipoVinculoKanbanCard): string {
+  if (tipo === 'depende_de') return 'depende_de';
+  if (tipo === 'bloqueia') return 'bloqueia';
+  return 'relacionado';
+}
 
 type Props = {
   cardId: string;
@@ -54,7 +106,7 @@ type Props = {
 
 export function KanbanCardModalRelacionamentos({
   cardId,
-  cardTitulo,
+  cardTitulo: _cardTitulo,
   kanbanId,
   kanbanNome = null,
   basePath,
@@ -64,11 +116,10 @@ export function KanbanCardModalRelacionamentos({
   ocultarKanbansInternos = false,
   cardDesabilitado = false,
 }: Props) {
-  const router = useRouter();
-  const [rows, setRows] = useState<RelacionamentoCardRow[]>([]);
+  const [vinculos, setVinculos] = useState<KanbanCardVinculoListItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [menuAberto, setMenuAberto] = useState(false);
-  const [modo, setModo] = useState<'none' | 'vincular'>('none');
+  const [modoVincular, setModoVincular] = useState(false);
+  const [tipoVinculo, setTipoVinculo] = useState<TipoVinculoKanbanCard>('relacionado');
   const [disparando, setDisparando] = useState(false);
   const [buscaVinculo, setBuscaVinculo] = useState('');
   const [resultadosBusca, setResultadosBusca] = useState<BuscaCardVinculoRow[]>([]);
@@ -77,6 +128,7 @@ export function KanbanCardModalRelacionamentos({
     null,
   );
   const [projetoPeerIds, setProjetoPeerIds] = useState<Set<string>>(new Set());
+  const [camada3Open, setCamada3Open] = useState(false);
 
   const pid = projetoId != null && String(projetoId).trim() !== '' ? String(projetoId).trim() : null;
 
@@ -102,14 +154,14 @@ export function KanbanCardModalRelacionamentos({
     const items: { key: string; label: string; tipo: 'acoplamento' | 'esteira'; destinoKey?: DestinoEsteiraManualKey }[] =
       [];
     if (mostrarAbrirFunilAcoplamento) {
-      items.push({ key: 'acoplamento', label: 'Abrir Funil Acoplamento', tipo: 'acoplamento' });
+      items.push({ key: 'acoplamento', label: 'Acoplamento', tipo: 'acoplamento' });
     }
     if (podeGerenciar && kanbanPermiteDispararEsteiraManual(kanbanId, kanbanNome)) {
       for (const destinoKey of destinosDisponiveis) {
         if (destinoKey === 'pre_obra_obra' && exibirBotaoPreObraObra) continue;
         items.push({
           key: destinoKey,
-          label: `Abrir Funil ${DESTINOS_ESTEIRA_MANUAL[destinoKey].label}`,
+          label: DESTINOS_ESTEIRA_MANUAL[destinoKey].label,
           tipo: 'esteira',
           destinoKey,
         });
@@ -117,18 +169,19 @@ export function KanbanCardModalRelacionamentos({
     }
     return items;
   }, [mostrarAbrirFunilAcoplamento, exibirBotaoPreObraObra, podeGerenciar, kanbanId, kanbanNome, destinosDisponiveis]);
+  const mostrarSecaoDispararEsteira = exibirBotaoPreObraObra || (botoesAbrirFunil.length > 0 && !disabled);
 
   const recarregar = useCallback(async () => {
     if (!cardId || disabled) {
-      setRows([]);
+      setVinculos([]);
       return;
     }
     setLoading(true);
     try {
-      const res = await listarRelacionamentosCard(cardId);
-      setRows(res.ok ? res.items : []);
+      const res = await listarVinculosCard(cardId);
+      setVinculos(res.ok ? res.items : []);
     } catch {
-      setRows([]);
+      setVinculos([]);
     } finally {
       setLoading(false);
     }
@@ -137,6 +190,17 @@ export function KanbanCardModalRelacionamentos({
   useEffect(() => {
     void recarregar();
   }, [recarregar]);
+
+  const vinculosVisiveis = useMemo(
+    () =>
+      pid ? vinculos.filter((row) => !projetoPeerIds.has(row.outro_card.id)) : vinculos,
+    [pid, vinculos, projetoPeerIds],
+  );
+  const temVinculosManuais = vinculosVisiveis.length > 0;
+
+  useEffect(() => {
+    setCamada3Open(lerVinculosManuaisOpen(temVinculosManuais));
+  }, [temVinculosManuais]);
 
   useEffect(() => {
     if (!pid || !cardId || disabled) {
@@ -160,13 +224,8 @@ export function KanbanCardModalRelacionamentos({
     };
   }, [pid, cardId, disabled]);
 
-  const rowsVisiveis = useMemo(
-    () => (pid ? rows.filter((row) => !projetoPeerIds.has(row.card_id)) : rows),
-    [pid, rows, projetoPeerIds],
-  );
-
   useEffect(() => {
-    if (modo !== 'vincular' || !podeGerenciar) {
+    if (!modoVincular || !podeGerenciar) {
       setResultadosBusca([]);
       return;
     }
@@ -189,13 +248,21 @@ export function KanbanCardModalRelacionamentos({
     return () => {
       cancelled = true;
     };
-  }, [buscaVinculo, modo, podeGerenciar, cardId]);
+  }, [buscaVinculo, modoVincular, podeGerenciar, cardId]);
 
-  function fecharFormularios() {
-    setModo('none');
-    setMenuAberto(false);
+  function fecharFormularioVincular() {
+    setModoVincular(false);
     setBuscaVinculo('');
     setResultadosBusca([]);
+    setTipoVinculo('relacionado');
+  }
+
+  function toggleCamada3() {
+    setCamada3Open((prev) => {
+      const next = !prev;
+      gravarVinculosManuaisOpen(next);
+      return next;
+    });
   }
 
   async function handleDispararEsteira(destinoKey: DestinoEsteiraManualKey) {
@@ -215,7 +282,7 @@ export function KanbanCardModalRelacionamentos({
           : `Card criado em ${DESTINOS_ESTEIRA_MANUAL[destinoKey].label}.`,
         href,
       });
-      fecharFormularios();
+      fecharFormularioVincular();
       await recarregar();
     } catch {
       setToast({ tipo: 'erro', msg: 'Erro ao disparar esteira.' });
@@ -231,7 +298,7 @@ export function KanbanCardModalRelacionamentos({
       const res = await criarVinculoCard({
         cardOrigemId: cardId,
         cardDestinoId: destinoId,
-        tipo: 'relacionado',
+        tipo: tipoVinculo,
         basePath,
       });
       if (!res.ok) {
@@ -239,7 +306,9 @@ export function KanbanCardModalRelacionamentos({
         return;
       }
       setToast({ tipo: 'ok', msg: 'Vínculo criado.' });
-      fecharFormularios();
+      fecharFormularioVincular();
+      setCamada3Open(true);
+      gravarVinculosManuaisOpen(true);
       await recarregar();
     } catch {
       setToast({ tipo: 'erro', msg: 'Erro ao vincular card.' });
@@ -265,7 +334,7 @@ export function KanbanCardModalRelacionamentos({
           : 'Card criado no Funil Acoplamento.',
         href,
       });
-      fecharFormularios();
+      fecharFormularioVincular();
       await recarregar();
     } catch {
       setToast({ tipo: 'erro', msg: 'Erro ao abrir Funil Acoplamento.' });
@@ -284,24 +353,31 @@ export function KanbanCardModalRelacionamentos({
   }
 
   const gruposManuais = useMemo(() => {
-    const itens = rowsVisiveis.map((row) =>
-      itemVinculoFromRelacionamento(
-        row,
-        hrefAbrirCardKanban(row.kanban_nome, row.card_id),
-        podeGerenciar && row.vinculo_id
+    const itens = vinculosVisiveis.map((row) => ({
+      key: row.id,
+      kanbanNome: row.outro_card.kanban_nome,
+      titulo: row.outro_card.titulo,
+      faseNome: rotuloTipoVinculo(row.tipo_vinculo),
+      status: 'ativo' as const,
+      dataLabel: null,
+      href: hrefAbrirCardKanban(row.outro_card.kanban_nome, row.outro_card.id),
+      onRemove:
+        podeGerenciar
           ? () => {
-              void handleRemover(row.vinculo_id!);
+              void handleRemover(row.id);
             }
           : undefined,
-      ),
-    );
+    }));
     return agruparItensVinculoPorKanban(itens);
-  }, [rowsVisiveis, podeGerenciar, basePath]);
+  }, [vinculosVisiveis, podeGerenciar, basePath]);
+
+  const mostrarCamada3 = !disabled && (podeGerenciar || temVinculosManuais);
+  const bodyCamada3Visivel = camada3Open;
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       {projetoId != null && String(projetoId).trim() !== '' ? (
-        <div className="border-b border-stone-100 pb-3">
+        <div className="min-w-0 border-b border-stone-100 pb-3">
           <KanbanCardModalProjetoTab
             projetoId={projetoId}
             cardIdAtual={cardId}
@@ -310,22 +386,6 @@ export function KanbanCardModalRelacionamentos({
           />
         </div>
       ) : null}
-
-      {pid && rowsVisiveis.length > 0 ? (
-        <p
-          className="text-[10px] font-semibold uppercase tracking-wide"
-          style={{ color: 'var(--moni-text-tertiary)' }}
-        >
-          Vínculos manuais
-        </p>
-      ) : null}
-
-      <KanbanCardVinculosSection
-        grupos={gruposManuais}
-        loading={loading}
-        emptyMessage={pid ? null : 'Nenhum relacionamento'}
-        variant="sidebar"
-      />
 
       {toast ? (
         <p
@@ -354,121 +414,238 @@ export function KanbanCardModalRelacionamentos({
         </p>
       ) : null}
 
-      {exibirBotaoPreObraObra ? (
-        <div className="space-y-1.5 border-t border-stone-100 pt-2">
-          <button
-            type="button"
-            onClick={() => void handleDispararEsteira('pre_obra_obra')}
-            disabled={disparando || cardDesabilitado}
-            className={BOTAO_ABRIR_FUNIL_CLASS}
-            data-moni-funil-destino="pre_obra_obra"
-          >
-            {disparando ? 'Abrindo…' : `Abrir Funil ${DESTINOS_ESTEIRA_MANUAL.pre_obra_obra.label}`}
-          </button>
-        </div>
-      ) : null}
-
-      {botoesAbrirFunil.length > 0 && !disabled ? (
-        <div className="space-y-1.5 border-t border-stone-100 pt-2">
-          {botoesAbrirFunil.map((botao) => (
+      {/* Camada 2 — Disparar esteira */}
+      {mostrarSecaoDispararEsteira ? (
+        <section
+          className="min-w-0 space-y-1.5"
+          aria-label="Disparar esteira"
+          style={{
+            borderTop: 'var(--moni-border-width) solid var(--moni-border-default)',
+            paddingTop: '0.5rem',
+          }}
+        >
+          <div>
+            <p
+              className="text-[11px] font-semibold"
+              style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}
+            >
+              Disparar esteira
+            </p>
+            <p
+              className="text-[10px] leading-snug"
+              style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}
+            >
+              cria card filho
+            </p>
+          </div>
+          {exibirBotaoPreObraObra ? (
             <button
-              key={botao.key}
               type="button"
-              onClick={() =>
-                void (botao.tipo === 'acoplamento'
-                  ? handleAbrirFunilAcoplamento()
-                  : handleDispararEsteira(botao.destinoKey!))
-              }
+              onClick={() => void handleDispararEsteira('pre_obra_obra')}
               disabled={disparando || cardDesabilitado}
               className={BOTAO_ABRIR_FUNIL_CLASS}
+              data-moni-funil-destino="pre_obra_obra"
+              title={`Criar card filho no funil ${DESTINOS_ESTEIRA_MANUAL.pre_obra_obra.label}`}
             >
-              {disparando ? 'Abrindo…' : botao.label}
+              {disparando ? 'Abrindo…' : `+ ${DESTINOS_ESTEIRA_MANUAL.pre_obra_obra.label}`}
             </button>
-          ))}
-        </div>
+          ) : null}
+          {botoesAbrirFunil.length > 0 && !disabled
+            ? botoesAbrirFunil.map((botao) => (
+                <button
+                  key={botao.key}
+                  type="button"
+                  onClick={() =>
+                    void (botao.tipo === 'acoplamento'
+                      ? handleAbrirFunilAcoplamento()
+                      : handleDispararEsteira(botao.destinoKey!))
+                  }
+                  disabled={disparando || cardDesabilitado}
+                  className={BOTAO_ABRIR_FUNIL_CLASS}
+                  title={`Criar card filho no funil ${botao.label}`}
+                >
+                  {disparando ? 'Abrindo…' : `+ ${botao.label}`}
+                </button>
+              ))
+            : null}
+        </section>
       ) : null}
 
-      {podeGerenciar && !disabled ? (
-        <div className="border-t border-stone-100 pt-2">
-          {!menuAberto && modo === 'none' ? (
-            <button
-              type="button"
-              onClick={() => setMenuAberto(true)}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-moni-primary hover:underline"
-            >
-              <Plus className="h-3.5 w-3.5" aria-hidden />
-              Adicionar
-            </button>
-          ) : (
-            <div className="space-y-2">
-              {modo === 'none' ? (
-                <div className="space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => setModo('vincular')}
-                    className="block w-full rounded px-2 py-1.5 text-left text-[11px] font-medium text-stone-700 hover:bg-stone-100"
-                  >
-                    Vincular card existente
-                  </button>
-                  <button
-                    type="button"
-                    onClick={fecharFormularios}
-                    className="text-[10px] text-stone-500 hover:underline"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              ) : null}
+      {/* Camada 3 — Vincular card existente */}
+      {mostrarCamada3 ? (
+        <section
+          className="min-w-0 overflow-hidden rounded-lg"
+          aria-label="Vincular card existente"
+          style={{
+            border: 'var(--moni-border-width) solid var(--moni-border-default)',
+            borderRadius: 'var(--moni-radius-md)',
+            background: 'var(--moni-surface-0)',
+          }}
+        >
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={bodyCamada3Visivel}
+            aria-controls="vinculos-manuais-body"
+            onClick={toggleCamada3}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleCamada3();
+              }
+            }}
+            className="flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-left text-[11px] select-none"
+            style={{ fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-primary)' }}
+          >
+            <span className="min-w-0 flex-1" style={{ fontWeight: 600 }}>
+              Vincular card existente
+            </span>
+            {temVinculosManuais ? (
+              <span
+                className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold tabular-nums"
+                style={{
+                  background: 'var(--moni-navy-50)',
+                  color: 'var(--moni-navy-600)',
+                }}
+              >
+                {vinculosVisiveis.length}
+              </span>
+            ) : null}
+            <IconeChevron
+              className="shrink-0"
+              style={{
+                color: 'var(--moni-text-tertiary)',
+                transform: bodyCamada3Visivel ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 220ms ease',
+              }}
+            />
+          </div>
 
-              {modo === 'vincular' ? (
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-medium text-stone-600">
-                    Buscar por título ou ID (FK / UUID)
-                    <input
-                      type="search"
-                      value={buscaVinculo}
-                      onChange={(e) => setBuscaVinculo(e.target.value)}
-                      placeholder="Ex.: FK0006, UUID ou nome…"
-                      className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-[11px] text-stone-800"
-                    />
-                  </label>
-                  {buscando ? (
-                    <p className="text-[10px] text-stone-500">Buscando…</p>
-                  ) : resultadosBusca.length > 0 ? (
-                    <ul className="max-h-40 list-none space-y-1 overflow-y-auto rounded border border-stone-100 bg-white p-1">
-                      {resultadosBusca.map((row) => (
-                        <li key={row.id}>
-                          <button
-                            type="button"
-                            onClick={() => void handleVincular(row.id)}
-                            disabled={disparando}
-                            className="w-full rounded px-2 py-1.5 text-left text-[11px] transition hover:bg-stone-50 disabled:opacity-50"
+          <div
+            id="vinculos-manuais-body"
+            style={{
+              display: 'grid',
+              gridTemplateRows: bodyCamada3Visivel ? '1fr' : '0fr',
+              transition: 'grid-template-rows 220ms ease',
+            }}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <div className="space-y-2 px-1.5 pb-1.5">
+                <p
+                  className="px-1 text-[10px] leading-snug"
+                  style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}
+                >
+                  relacionado · depende_de · bloqueia
+                </p>
+
+                <KanbanCardVinculosSection
+                  grupos={gruposManuais}
+                  loading={loading}
+                  emptyMessage={temVinculosManuais ? null : 'Nenhum vínculo manual'}
+                  variant="sidebar"
+                />
+
+                {podeGerenciar && !disabled ? (
+                  <div className="space-y-2 pt-1">
+                    {!modoVincular ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModoVincular(true);
+                          if (!camada3Open) {
+                            setCamada3Open(true);
+                            gravarVinculosManuaisOpen(true);
+                          }
+                        }}
+                        className="w-full rounded-md px-2 py-1.5 text-left text-[11px] font-medium transition hover:bg-stone-50"
+                        style={{
+                          border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                          color: 'var(--moni-text-primary)',
+                          fontFamily: 'var(--moni-font-sans)',
+                        }}
+                      >
+                        + Buscar card para vincular
+                      </button>
+                    ) : (
+                      <div
+                        className="space-y-2 rounded-md p-2"
+                        style={{
+                          border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                          background: 'var(--moni-surface-0)',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <label
+                          className="block text-[10px] font-medium"
+                          style={{ color: 'var(--moni-text-secondary)' }}
+                        >
+                          Tipo
+                          <select
+                            value={tipoVinculo}
+                            onChange={(e) => setTipoVinculo(e.target.value as TipoVinculoKanbanCard)}
+                            className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-[11px] text-stone-800"
                           >
-                            <span className="font-medium text-stone-800">{row.titulo}</span>
-                            <span className="text-stone-500"> · {row.kanban_nome}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : buscaVinculo.trim().length >= 2 ||
-                    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-                      buscaVinculo.trim(),
-                    ) ? (
-                    <p className="text-[10px] text-stone-500">Nenhum card encontrado.</p>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={fecharFormularios}
-                    disabled={disparando}
-                    className="text-[10px] text-stone-500 hover:underline"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              ) : null}
+                            {TIPOS_VINCULO.map((t) => (
+                              <option key={t.value} value={t.value}>
+                                {t.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label
+                          className="block text-[10px] font-medium"
+                          style={{ color: 'var(--moni-text-secondary)' }}
+                        >
+                          Buscar por título ou ID (FK / UUID)
+                          <input
+                            type="search"
+                            value={buscaVinculo}
+                            onChange={(e) => setBuscaVinculo(e.target.value)}
+                            placeholder="Ex.: FK0006, UUID ou nome…"
+                            className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-[11px] text-stone-800"
+                          />
+                        </label>
+                        {buscando ? (
+                          <p className="text-[10px] text-stone-500">Buscando…</p>
+                        ) : resultadosBusca.length > 0 ? (
+                          <ul className="max-h-40 list-none space-y-1 overflow-y-auto rounded border border-stone-100 bg-white p-1">
+                            {resultadosBusca.map((row) => (
+                              <li key={row.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleVincular(row.id)}
+                                  disabled={disparando}
+                                  className="w-full rounded px-2 py-1.5 text-left text-[11px] transition hover:bg-stone-50 disabled:opacity-50"
+                                >
+                                  <span className="font-medium text-stone-800">{row.titulo}</span>
+                                  <span className="text-stone-500"> · {row.kanban_nome}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : buscaVinculo.trim().length >= 2 ||
+                          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                            buscaVinculo.trim(),
+                          ) ? (
+                          <p className="text-[10px] text-stone-500">Nenhum card encontrado.</p>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={fecharFormularioVincular}
+                          disabled={disparando}
+                          className="text-[10px] text-stone-500 hover:underline"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        </section>
       ) : null}
     </div>
   );

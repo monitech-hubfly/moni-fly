@@ -1,6 +1,12 @@
+import type { CSSProperties } from 'react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import type { RelacionamentoCardRow } from '@/lib/actions/card-actions';
 import type { CardProjetoEsteiraRow } from '@/lib/kanban/fetch-cards-projeto-esteiras';
+import {
+  estiloTagTranchePorLabel,
+  nomeTagTrancheCreditoObra,
+  trancheNumeroFromLabel,
+} from '@/lib/kanban/credito-obra-tag-tranche';
 
 export type KanbanVinculoStatus = 'ativo' | 'concluido' | 'arquivado';
 
@@ -12,6 +18,8 @@ export type KanbanVinculoCardItem = {
   dataLabel: string | null;
   href: string;
   onRemove?: () => void;
+  /** Badge de tranche (Crédito Obra) — cores centralizadas em credito-obra-tag-tranche */
+  trancheBadge?: { label: string; style: CSSProperties } | null;
 };
 
 export type KanbanVinculoGrupo = {
@@ -21,6 +29,18 @@ export type KanbanVinculoGrupo = {
 
 export function formatKanbanNomeVinculoHeader(nome: string): string {
   return String(nome ?? '—').trim().toUpperCase() || '—';
+}
+
+/** Resolve badge de tranche a partir de um rótulo ("2ª tranche", etc.). */
+export function badgeTrancheFromLabel(nome: string | null | undefined): {
+  label: string;
+  style: CSSProperties;
+} | null {
+  const num = trancheNumeroFromLabel(nome);
+  if (!num) return null;
+  const style = estiloTagTranchePorLabel(nomeTagTrancheCreditoObra(num));
+  if (!style) return null;
+  return { label: nomeTagTrancheCreditoObra(num), style };
 }
 
 export function statusVinculoCard(row: {
@@ -56,6 +76,7 @@ export function agruparItensVinculoPorKanban(
       dataLabel: item.dataLabel,
       href: item.href,
       onRemove: item.onRemove,
+      trancheBadge: item.trancheBadge ?? badgeTrancheFromLabel(item.faseNome),
     });
   }
   return [...map.values()];
@@ -74,6 +95,7 @@ export function itemVinculoFromProjetoEsteira(
     status: st.status,
     dataLabel: formatIsoDateOnlyPtBr(row.created_at) ?? null,
     href,
+    trancheBadge: null,
   };
 }
 
@@ -93,5 +115,6 @@ export function itemVinculoFromRelacionamento(
     dataLabel: dataRaw ? formatIsoDateOnlyPtBr(dataRaw) ?? dataRaw : null,
     href,
     onRemove,
+    trancheBadge: badgeTrancheFromLabel(row.fase_nome),
   };
 }

@@ -1,5 +1,8 @@
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
-import type { CreditoObraTrancheNumero } from '@/lib/kanban/credito-obra-tag-tranche';
+import {
+  nomeTagTrancheCreditoObra,
+  type CreditoObraTrancheNumero,
+} from '@/lib/kanban/credito-obra-tag-tranche';
 
 export type TrancheVinculoIndex = 2 | 3 | 4 | 5 | 6;
 
@@ -15,43 +18,15 @@ export type TrancheVinculoConfig = {
 };
 
 /** Vínculos preset Operações → Crédito Obra (2ª–6ª tranche). Ao concluir, cria card filho com tag. */
-export const OPERACOES_TRANCHE_VINCULOS: TrancheVinculoConfig[] = [
-  {
-    index: 2,
-    nome: 'Necessidade de 2ª Tranche',
-    tagTranche: 2,
-    tagLabel: '2ª tranche',
-    faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
-  },
-  {
-    index: 3,
-    nome: 'Necessidade de 3ª Tranche',
-    tagTranche: 3,
-    tagLabel: '3ª tranche',
-    faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
-  },
-  {
-    index: 4,
-    nome: 'Necessidade de 4ª Tranche',
-    tagTranche: 4,
-    tagLabel: '4ª tranche',
-    faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
-  },
-  {
-    index: 5,
-    nome: 'Necessidade de 5ª Tranche',
-    tagTranche: 5,
-    tagLabel: '5ª tranche',
-    faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
-  },
-  {
-    index: 6,
-    nome: 'Necessidade de 6ª Tranche',
-    tagTranche: 6,
-    tagLabel: '6ª tranche',
-    faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
-  },
-];
+export const OPERACOES_TRANCHE_VINCULOS: TrancheVinculoConfig[] = (
+  [2, 3, 4, 5, 6] as const
+).map((index) => ({
+  index,
+  nome: `Necessidade de ${index}ª Tranche`,
+  tagTranche: index,
+  tagLabel: nomeTagTrancheCreditoObra(index),
+  faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
+}));
 
 /** Fases Operações em que o 1º card Crédito Obra (1ª tranche) já se presume aberto. */
 export const OPERACOES_FASES_COM_PRIMEIRA_TRANCHE_CO = [

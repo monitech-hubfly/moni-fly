@@ -9016,27 +9016,31 @@ export function KanbanCardModal({
             {secaoHead(
               'relacionamentos',
               'Vínculos',
-              <div className="space-y-3">
+              <div className="min-w-0 space-y-3">
+                {/* Camada 1 — tranches (só Funil Pré Obra e Obra) */}
                 {ehFunilOperacoes ? (
-                  <KanbanCardModalOperacoesTrancheVinculosSidebar
-                    key={`${card.id}-tranche-vinculos`}
-                    cardId={card.id}
-                    faseSlug={faseAtual?.slug ?? null}
-                    basePath={basePath}
-                    refreshKey={trancheVinculosTick}
-                    podeGerenciar={podeAbrirTrancheVinculos}
-                    cardDesabilitado={
-                      cardNativoArquivado ||
-                      cardLegadoArquivado ||
-                      cardNativoConcluido ||
-                      cardLegadoConcluido
-                    }
-                    onConcluido={() => {
-                      setRelacionamentosTick((t) => t + 1);
-                      void loadCard();
-                    }}
-                  />
+                  <section className="min-w-0" aria-label="Divify">
+                    <KanbanCardModalOperacoesTrancheVinculosSidebar
+                      key={`${card.id}-tranche-vinculos`}
+                      cardId={card.id}
+                      faseSlug={faseAtual?.slug ?? null}
+                      basePath={basePath}
+                      refreshKey={trancheVinculosTick}
+                      podeGerenciar={podeAbrirTrancheVinculos}
+                      cardDesabilitado={
+                        cardNativoArquivado ||
+                        cardLegadoArquivado ||
+                        cardNativoConcluido ||
+                        cardLegadoConcluido
+                      }
+                      onConcluido={() => {
+                        setRelacionamentosTick((t) => t + 1);
+                        void loadCard();
+                      }}
+                    />
+                  </section>
                 ) : null}
+                {/* Camadas 2 (Disparar esteira) e 3 (Vincular card existente) */}
                 <KanbanCardModalRelacionamentos
                   key={`${card.id}-${relacionamentosTick}`}
                   cardId={card.id}

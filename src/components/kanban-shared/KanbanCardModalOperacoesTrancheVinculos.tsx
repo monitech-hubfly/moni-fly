@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import {
   abrirTrancheVinculoOperacoes,
@@ -13,9 +13,31 @@ import {
   OPERACOES_TRANCHE_VINCULOS,
 } from '@/lib/operacoes/tranche-vinculos-config';
 import {
-  corTagTrancheCreditoObra,
+  estiloTagTrancheCreditoObra,
   trancheNumeroFromIndex,
 } from '@/lib/kanban/credito-obra-tag-tranche';
+
+const DIVIFY_OPEN_KEY = 'divify-open';
+
+function lerDivifyOpen(): boolean {
+  try {
+    if (typeof window === 'undefined') return true;
+    const raw = window.localStorage.getItem(DIVIFY_OPEN_KEY);
+    if (raw === null) return true;
+    return raw !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+function gravarDivifyOpen(open: boolean): void {
+  try {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(DIVIFY_OPEN_KEY, open ? 'true' : 'false');
+  } catch {
+    /* ignore */
+  }
+}
 
 function itensTrancheVinculoPreset(): TrancheVinculoListItem[] {
   return OPERACOES_TRANCHE_VINCULOS.map((cfg) => ({
@@ -28,14 +50,49 @@ function itensTrancheVinculoPreset(): TrancheVinculoListItem[] {
   }));
 }
 
-function corTextoTagTranche(cor: string): string {
-  const hex = cor.replace('#', '');
-  if (hex.length !== 6) return 'var(--moni-text-inverse)';
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? 'var(--moni-text-primary)' : 'var(--moni-text-inverse)';
+function IconeRamificacao({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+    >
+      <circle cx="4" cy="3" r="1.5" stroke="currentColor" strokeWidth="1.25" />
+      <circle cx="4" cy="13" r="1.5" stroke="currentColor" strokeWidth="1.25" />
+      <circle cx="12" cy="8" r="1.5" stroke="currentColor" strokeWidth="1.25" />
+      <path
+        d="M4 4.5V11.5M4 8h6.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconeChevron({ className, style }: { className?: string; style?: CSSProperties }) {
+  return (
+    <svg
+      className={className}
+      style={style}
+      width="12"
+      height="12"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M4 6l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 type SidebarProps = {
@@ -65,7 +122,20 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
   const [abrindoIndex, setAbrindoIndex] = useState<number | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+  const [divifyOpen, setDivifyOpen] = useState(true);
   const readOnly = !podeGerenciar || cardDesabilitado;
+
+  useEffect(() => {
+    setDivifyOpen(lerDivifyOpen());
+  }, []);
+
+  function toggleDivify() {
+    setDivifyOpen((prev) => {
+      const next = !prev;
+      gravarDivifyOpen(next);
+      return next;
+    });
+  }
 
   const carregar = useCallback(async (options?: { preserveErro?: boolean; preserveOk?: boolean }) => {
     if (!cardId) {
@@ -210,6 +280,8 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
     );
   }
 
+  const tranchesDisponiveis = items.filter((i) => i.status !== 'concluido').length;
+
   return (
     <div className="space-y-2">
       {!temPrimeiroCard ? (
@@ -262,81 +334,155 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
         </p>
       ) : null}
 
-      <ul className="space-y-1">
-        {items.map((item) => {
-          const concluido = item.status === 'concluido';
-          const abrindo = abrindoIndex === item.index;
-          const trancheNum = trancheNumeroFromIndex(item.index);
-          const tagCor = trancheNum ? corTagTrancheCreditoObra(trancheNum) : 'var(--moni-navy-800)';
-          const tagTextoCor = trancheNum ? corTextoTagTranche(tagCor) : 'var(--moni-text-inverse)';
-          const bloqueado = readOnly || !temPrimeiroCard || concluido || abrindo;
+      <div
+        className="rounded-lg"
+        style={{
+          border: 'var(--moni-border-width) solid var(--moni-border-default)',
+          borderRadius: 'var(--moni-radius-md)',
+          background: 'var(--moni-surface-0)',
+        }}
+      >
+        <div
+          role="button"
+          tabIndex={0}
+          aria-expanded={divifyOpen}
+          aria-controls="divify-tranche-body"
+          onClick={toggleDivify}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleDivify();
+            }
+          }}
+          className="flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-left text-[11px] select-none"
+          style={{ fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-primary)' }}
+        >
+          <IconeRamificacao className="shrink-0" />
+          <span className="min-w-0 flex-1" style={{ fontWeight: 600 }}>
+            Divify
+          </span>
+          <span
+            className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold tabular-nums"
+            style={{
+              background: 'var(--moni-navy-50)',
+              color: 'var(--moni-navy-600)',
+            }}
+          >
+            {tranchesDisponiveis}
+          </span>
+          <IconeChevron
+            className="shrink-0"
+            style={{
+              color: 'var(--moni-text-tertiary)',
+              transform: divifyOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 220ms ease',
+            }}
+          />
+        </div>
 
-          return (
-            <li key={item.index}>
-              <button
-                type="button"
-                onClick={() => void handleAbrir(item.index)}
-                aria-disabled={bloqueado}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] transition aria-disabled:cursor-default aria-disabled:opacity-60"
-                style={{
-                  border: 'var(--moni-border-width) solid var(--moni-border-default)',
-                  borderRadius: 'var(--moni-radius-md)',
-                  background: concluido ? 'var(--moni-kanban-portfolio-light)' : 'var(--moni-surface-0)',
-                  fontFamily: 'var(--moni-font-sans)',
-                }}
-              >
-                {abrindo ? (
-                  <Loader2
-                    className="h-3 w-3 shrink-0 animate-spin"
-                    style={{ color: 'var(--moni-text-tertiary)' }}
-                    aria-hidden
-                  />
-                ) : concluido ? (
-                  <CheckCircle2
-                    className="h-3 w-3 shrink-0"
-                    style={{ color: 'var(--moni-green-800)' }}
-                    aria-hidden
-                  />
-                ) : (
-                  <span
-                    className="h-3 w-3 shrink-0 rounded-full"
-                    style={{ background: 'var(--moni-border-default)' }}
-                    aria-hidden
-                  />
-                )}
-                <span
-                  className="min-w-0 flex-1 font-medium"
-                  style={{ color: 'var(--moni-text-primary)' }}
-                >
-                  {item.nome}
-                </span>
-                <span
-                  className="shrink-0 px-1.5 py-0.5 text-[9px] font-semibold"
-                  style={{
-                    borderRadius: 'var(--moni-radius-md)',
-                    background: tagCor,
-                    color: tagTextoCor,
-                  }}
-                >
-                  {item.tagLabel}
-                </span>
-                {concluido ? (
-                  <span className="moni-tag-concluido shrink-0 px-1.5 py-0.5 text-[9px] font-semibold uppercase">
-                    Criado
-                  </span>
-                ) : abrindo ? (
-                  <span
-                    className="shrink-0 text-[9px] font-semibold uppercase"
-                    style={{ color: 'var(--moni-text-tertiary)' }}
-                  >
-                    Abrindo…
-                  </span>
-                ) : null}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+        <div
+          id="divify-tranche-body"
+          style={{
+            display: 'grid',
+            gridTemplateRows: divifyOpen ? '1fr' : '0fr',
+            transition: 'grid-template-rows 220ms ease',
+          }}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <ul className="space-y-1 px-1.5 pb-1.5">
+              {items.map((item) => {
+                const concluido = item.status === 'concluido';
+                const abrindo = abrindoIndex === item.index;
+                const trancheNum = trancheNumeroFromIndex(item.index);
+                const tagEstilo = estiloTagTrancheCreditoObra(trancheNum ?? 1);
+                const bloqueado = readOnly || !temPrimeiroCard || concluido || abrindo;
+
+                return (
+                  <li key={item.index}>
+                    <button
+                      type="button"
+                      onClick={() => void handleAbrir(item.index)}
+                      aria-disabled={bloqueado}
+                      className="group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] transition aria-disabled:cursor-default aria-disabled:opacity-60"
+                      style={{
+                        border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                        borderRadius: 'var(--moni-radius-md)',
+                        background: concluido
+                          ? 'var(--moni-kanban-portfolio-light)'
+                          : 'var(--moni-surface-0)',
+                        fontFamily: 'var(--moni-font-sans)',
+                      }}
+                    >
+                      {abrindo ? (
+                        <Loader2
+                          className="h-3 w-3 shrink-0 animate-spin"
+                          style={{ color: 'var(--moni-text-tertiary)' }}
+                          aria-hidden
+                        />
+                      ) : concluido ? (
+                        <CheckCircle2
+                          className="h-3 w-3 shrink-0"
+                          style={{ color: 'var(--moni-green-800)' }}
+                          aria-hidden
+                        />
+                      ) : (
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-full"
+                          style={{ background: 'var(--moni-border-default)' }}
+                          aria-hidden
+                        />
+                      )}
+                      <span
+                        className="min-w-0 flex-1 font-medium"
+                        style={{
+                          color: 'var(--moni-text-primary)',
+                          textDecoration: concluido ? 'line-through' : undefined,
+                        }}
+                      >
+                        {item.nome}
+                      </span>
+                      <span
+                        className="shrink-0 px-1.5 py-0.5 text-[9px] font-semibold"
+                        style={{
+                          borderRadius: 'var(--moni-radius-md)',
+                          ...tagEstilo,
+                        }}
+                      >
+                        {item.tagLabel}
+                      </span>
+                      {!concluido ? (
+                        <span
+                          className="pointer-events-none shrink-0 px-1.5 py-0.5 text-[9px] font-semibold opacity-0 -translate-x-1 transition-all duration-150 ease-out group-hover:translate-x-0 group-hover:opacity-100"
+                          style={{
+                            borderRadius: 'var(--moni-radius-md)',
+                            background: 'var(--moni-navy-400)',
+                            color: 'var(--moni-text-inverse)',
+                          }}
+                          aria-hidden
+                        >
+                          → Crédito Obra
+                        </span>
+                      ) : null}
+                      {concluido ? (
+                        <span className="moni-tag-concluido shrink-0 px-1.5 py-0.5 text-[9px] font-semibold uppercase">
+                          Criado
+                        </span>
+                      ) : abrindo ? (
+                        <span
+                          className="shrink-0 text-[9px] font-semibold uppercase"
+                          style={{ color: 'var(--moni-text-tertiary)' }}
+                        >
+                          Abrindo…
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
