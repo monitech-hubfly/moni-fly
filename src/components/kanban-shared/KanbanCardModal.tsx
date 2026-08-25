@@ -2759,6 +2759,23 @@ export function KanbanCardModal({
     });
   }
 
+  async function aplicarFaseLocalAposMover(destinoFase: KanbanFase) {
+    setFaseAtual(destinoFase);
+    setCard((prev) => (prev ? { ...prev, fase_id: destinoFase.id } : prev));
+    setSelecaoFaseDirecao(null);
+    // Recarrega modal + board em background — não bloqueia a UI da movimentação.
+    void (async () => {
+      try {
+        await loadCard({ silencioso: true });
+      } catch {
+        /* ignore */
+      }
+      startTransition(() => {
+        router.refresh();
+      });
+    })();
+  }
+
   async function executarAvancarFase(
     proximaFase: KanbanFase,
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string },
@@ -2792,12 +2809,18 @@ export function KanbanCardModal({
             String(proximaFase.slug ?? '').trim() === FASE_SLUGS.STEP_5 &&
             isPortfolioKanbanRef(null, typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome));
           if (destinoStep5) setGateStep5Toast(msg);
-          else alert(msg);
+          else if (
+            /acoplamento|modelagem/i.test(msg) &&
+            card.kanban_id === KANBAN_IDS.ACOPLAMENTO
+          ) {
+            setAcoplamentoGateToast(msg);
+          } else if (/comit[eê]|loteador/i.test(msg)) {
+            setGateStep5Toast(msg);
+          } else alert(msg);
           return;
         }
       }
-      await loadCard({ silencioso: true });
-      router.refresh();
+      await aplicarFaseLocalAposMover(proximaFase);
     } catch {
       alert('Erro ao avançar fase.');
     } finally {
@@ -2823,10 +2846,9 @@ export function KanbanCardModal({
       } else {
         const { error } = await supabase.from('kanban_cards').update({ fase_id: destinoFase.id }).eq('id', card.id);
         if (error) throw error;
-        await sincronizarTagsAutomaticasCard(card.id);
+        void sincronizarTagsAutomaticasCard(card.id);
       }
-      await loadCard({ silencioso: true });
-      router.refresh();
+      await aplicarFaseLocalAposMover(destinoFase);
     } catch {
       alert('Erro ao retroceder fase.');
     } finally {
@@ -3058,42 +3080,10 @@ export function KanbanCardModal({
       return;
     }
 
-    if (
-      (isPortfolioKanbanRef(null, String(kanbanNome)) || isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))) &&
-      origem !== 'legado'
-    ) {
-      const gate = await verificarGateComiteLoteadores(card.id, proximaFase.id);
-      if (!gate.ok) {
-        setGateStep5Toast(gate.error ?? 'Não é possível avançar para o Comitê.');
-        return;
-      }
-      setGateStep5Toast(null);
-    }
-
-    if (
-      !isLegado &&
-      isPortfolioKanbanRef(card.kanban_id, String(kanbanNome)) &&
-      (faseAtual.slug ?? '').trim() === FASE_SLUGS.STEP_4
-    ) {
-      const gateLegal = await verificarGateChecklistLegalPortfolio(card.id, proximaFase.id);
-      if (!gateLegal.ok) {
-        alert(gateLegal.error ?? 'Conclua o Checklist Legal antes de avançar.');
-        return;
-      }
-    }
-
+    // Gates pesados (comitê, checklist legal, acoplamento) ficam só no server action
+    // para evitar round-trips duplicados. Aqui só fluxos que pedem input do usuário.
     setAcoplamentoGateToast(null);
-    if (
-      !isLegado &&
-      card.kanban_id === KANBAN_IDS.ACOPLAMENTO &&
-      (faseAtual.slug ?? '').trim() === FASE_SLUGS.MODELAGEM_CASA_GBOX
-    ) {
-      const gateAcop = await verificarGateAcoplamentoModelagemCasa(card.id, proximaFase.id);
-      if (!gateAcop.ok) {
-        setAcoplamentoGateToast(gateAcop.error);
-        return;
-      }
-    }
+    setGateStep5Toast(null);
 
     const proximaSlug = (proximaFase.slug ?? '').trim();
     if (

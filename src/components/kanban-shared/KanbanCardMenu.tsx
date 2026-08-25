@@ -170,7 +170,10 @@ export function KanbanCardMenu({
       }
       setAssinouPendente(null);
       setAberto(false);
-      router.refresh();
+      // Refresh do board sem bloquear o fechamento do menu.
+      startTransition(() => {
+        router.refresh();
+      });
     });
   }
 

@@ -5631,21 +5631,20 @@ export async function moverCardParaFase(input: {
   if (!faseRow?.id) return { ok: false, error: 'Fase de destino não encontrada.' };
 
   const novaFaseSlug = String((faseRow as { slug?: string | null }).slug ?? '').trim();
-  const gate = await obterGateComiteLoteadores(supabase, cardId, novaFaseSlug, input.kanbanNome);
+
+  // Gates em paralelo — antes eram sequenciais e somavam latência.
+  const [gate, gateAcoplamento, gateChecklistLegal, gateSlaJustificativa] = await Promise.all([
+    obterGateComiteLoteadores(supabase, cardId, novaFaseSlug, input.kanbanNome),
+    verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId),
+    verificarGateChecklistLegalPortfolio(cardId, novaFaseId),
+    (async () => {
+      const { verificarGateJustificativaSla } = await import('@/lib/actions/kanban-sla-justificativa');
+      return verificarGateJustificativaSla(cardId, novaFaseId, input.justificativaSlaQuebra);
+    })(),
+  ]);
   if (!gate.ok) return gate;
-
-  const gateAcoplamento = await verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId);
   if (!gateAcoplamento.ok) return gateAcoplamento;
-
-  const gateChecklistLegal = await verificarGateChecklistLegalPortfolio(cardId, novaFaseId);
   if (!gateChecklistLegal.ok) return gateChecklistLegal;
-
-  const { verificarGateJustificativaSla } = await import('@/lib/actions/kanban-sla-justificativa');
-  const gateSlaJustificativa = await verificarGateJustificativaSla(
-    cardId,
-    novaFaseId,
-    input.justificativaSlaQuebra,
-  );
   if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
 
   const { data: cardKanban } = await supabase
@@ -5734,26 +5733,24 @@ export async function moverCardParaFase(input: {
   }
 
   const { aplicarSlaInicioDocumentacaoAoMoverFase } = await import('@/lib/actions/kanban-credito-obra-docs');
-  await aplicarSlaInicioDocumentacaoAoMoverFase(supabase, cardId, novaFaseSlug);
-
-  await executarBastoes(cardId, novaFaseSlug);
-  await executarBastaoDeVolta(cardId, novaFaseSlug);
-  await sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug);
-
   const { sincronizarTagInstGarantidorOperacoes } = await import(
     '@/lib/kanban/operacoes-tag-inst-garantidor'
   );
-  await sincronizarTagInstGarantidorOperacoes(
-    supabase,
-    cardId,
-    String((cardKanban as { kanban_id?: string } | null)?.kanban_id ?? ''),
-    novaFaseSlug,
-  );
-
   const { propagarResponsavelFaseAoEntrarFase, propagarResponsavelDaFaseAoEntrarFase } =
     await import('@/lib/kanban/responsavel-fase-checklist');
-  await propagarResponsavelFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id);
-  await propagarResponsavelDaFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id);
+
+  const kanbanIdParaTags = String((cardKanban as { kanban_id?: string } | null)?.kanban_id ?? '');
+
+  // Side-effects pós-update em paralelo (independentes entre si).
+  await Promise.all([
+    aplicarSlaInicioDocumentacaoAoMoverFase(supabase, cardId, novaFaseSlug),
+    executarBastoes(cardId, novaFaseSlug),
+    executarBastaoDeVolta(cardId, novaFaseSlug),
+    sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug),
+    sincronizarTagInstGarantidorOperacoes(supabase, cardId, kanbanIdParaTags, novaFaseSlug),
+    propagarResponsavelFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id),
+    propagarResponsavelDaFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id),
+  ]);
 
   void notificarUniversidadeSeAvancoStep2({
     cardId,
