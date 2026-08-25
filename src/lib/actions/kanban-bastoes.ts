@@ -181,7 +181,9 @@ async function registrarAtividadeBastaoCardFilho(
     times_ids: [],
   } as never);
 
-  if (errAtiv) throw new Error(errAtiv.message);
+  if (errAtiv) {
+    console.error('[bastao] falha ao registrar atividade do card filho:', errAtiv.message);
+  }
 }
 
 type CardFilhoExistenteRow = KanbanCardFilhoCriado & { arquivado?: boolean | null };
@@ -497,7 +499,9 @@ export async function criarCardFilho(
   }
 
   const healFranq = await reconciliarFranqueadoNoSyncGroup(db, cardPaiId);
-  if (!healFranq.ok) throw new Error(healFranq.error);
+  if (!healFranq.ok) {
+    console.error('[bastao] reconciliarFranqueadoNoSyncGroup:', healFranq.error);
+  }
 
   if (kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO && faseDestinoSlug === 'modelagem_terreno') {
     void notificarTimeAcoplamentoNovoProjeto({
@@ -518,20 +522,30 @@ export async function criarCardFilho(
 
   const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
     await import('@/lib/kanban/responsavel-fase-checklist');
-  await aplicarResponsavelFasePadraoAoCard(db, cardFilhoId, faseId, kanbanDestinoId, criadoPor);
-  await aplicarResponsavelDaFasePadraoSeVazio(db, cardFilhoId, faseId, criadoPor);
+  try {
+    await aplicarResponsavelFasePadraoAoCard(db, cardFilhoId, faseId, kanbanDestinoId, criadoPor);
+    await aplicarResponsavelDaFasePadraoSeVazio(db, cardFilhoId, faseId, criadoPor);
+  } catch (e) {
+    console.error('[bastao] responsavel fase padrao:', e);
+  }
 
   const syncCalc = await sincronizarCamposCalculadoraBastaoFilho(db, cardPaiId, cardFilhoId, {
     faseDestinoId: faseId,
     faseDestinoSlug: faseDestinoSlug,
     actorUserId: criadoPor,
   });
-  if (!syncCalc.ok) throw new Error(syncCalc.error);
+  if (!syncCalc.ok) {
+    console.error('[bastao] sync calculadora filho:', syncCalc.error);
+  }
 
   if (kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA) {
-    const { aplicarTagTrancheCreditoObra } = await import('@/lib/kanban/credito-obra-tag-tranche');
-    const tranche = params.creditoObraTranche ?? 1;
-    await aplicarTagTrancheCreditoObra(db, cardFilhoId, tranche, kanbanDestinoId);
+    try {
+      const { aplicarTagTrancheCreditoObra } = await import('@/lib/kanban/credito-obra-tag-tranche');
+      const tranche = params.creditoObraTranche ?? 1;
+      await aplicarTagTrancheCreditoObra(db, cardFilhoId, tranche, kanbanDestinoId);
+    } catch (e) {
+      console.error('[bastao] tag tranche credito obra:', e);
+    }
   }
 
   return filho as KanbanCardFilhoCriado;

@@ -165,8 +165,12 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
       onConcluido?.();
       await carregar({ preserveErro: true, preserveOk: true });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Erro inesperado ao abrir tranche.';
-      setErro(msg || 'Erro inesperado ao abrir tranche.');
+      const raw = e instanceof Error ? e.message : String(e);
+      const msg = /server components render|omitted in production|digest/i.test(raw)
+        ? 'Falha ao abrir a tranche (erro interno). Tente novamente; se persistir, avise o time de tecnologia.'
+        : raw || 'Erro inesperado ao abrir tranche.';
+      console.error('[tranche-vinculos] handleAbrir:', raw);
+      setErro(msg);
     } finally {
       setAbrindoIndex(null);
     }

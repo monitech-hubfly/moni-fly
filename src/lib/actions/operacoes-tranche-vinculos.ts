@@ -470,94 +470,127 @@ export async function abrirTrancheVinculoOperacoes(input: {
   trancheIndex: number;
   basePath?: string;
 }): Promise<ActionResult & { creditoObraCardId?: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-
-  const pode = await perfilPodeAbrirTrancheOperacoes(supabase, user.id);
-  if (!pode) return { ok: false, error: 'Sem permissão para abrir tranches.' };
-
-  const cid = String(input.operacoesCardId ?? '').trim();
-  const idx = Number(input.trancheIndex);
-  if (!cid || !indiceTrancheValido(idx)) return { ok: false, error: 'Dados inválidos.' };
-
-  const cfg = configTrancheVinculo(idx);
-  if (!cfg) return { ok: false, error: 'Vínculo inválido.' };
-
-  const cardOk = await validarCardOperacoes(supabase, cid, { garantirShadowLegado: true });
-  if (!cardOk.ok) return cardOk;
-
-  const operacoesId = cardOk.cardId;
-
-  const consultaExistente = await consultarTrancheVinculosSalvos(supabase, operacoesId, {
-    trancheIndex: idx,
-  });
-  if (!consultaExistente.ok) {
-    return { ok: false, error: consultaExistente.error };
-  }
-
-  const row = consultaExistente.rows[0] ?? null;
-  if (row?.concluido_em || row?.credito_obra_card_id) {
-    return { ok: false, error: 'Este vínculo já foi concluído.' };
-  }
-
-  const temPrimeiroCard = await resolverPrimeiroCardCreditoObraDisponivel(supabase, operacoesId);
-  if (!temPrimeiroCard) {
-    return {
-      ok: false,
-      error:
-        'Abra o primeiro card no Funil Crédito Obra (1ª tranche) antes de solicitar tranches adicionais.',
-    };
-  }
-
-  const paiRes = await buscarCardOperacoesPai(supabase, operacoesId);
-  if (!paiRes.ok) return paiRes;
-  const paiRow = paiRes.row;
-
-  const faseOrigemSlug =
-    (await resolverFaseSlugPorFaseId(supabase, paiRow.fase_id)) || 'operacoes';
-
-  let novoFilhoId: string;
   try {
-    const criado = await criarCardFilho({
-      cardPaiId: operacoesId,
-      kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA,
-      faseDestinoSlug: cfg.faseDestinoSlug,
-      titulo: String(paiRow.titulo ?? '').trim() || 'Card',
-      projetoId: String(paiRow.projeto_id ?? '').trim() || null,
-      redeFranqueadoId: String(paiRow.rede_franqueado_id ?? '').trim() || null,
-      kanbanOrigemSlug: 'operacoes',
-      faseOrigemSlug,
-      creditoObraTranche: cfg.tagTranche,
-    });
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: 'Faça login.' };
 
-    if (!criado?.id) {
-      return { ok: false, error: 'Não foi possível criar o card no Funil Crédito Obra.' };
+    const pode = await perfilPodeAbrirTrancheOperacoes(supabase, user.id);
+    if (!pode) return { ok: false, error: 'Sem permissão para abrir tranches.' };
+
+    const cid = String(input.operacoesCardId ?? '').trim();
+    const idx = Number(input.trancheIndex);
+    if (!cid || !indiceTrancheValido(idx)) return { ok: false, error: 'Dados inválidos.' };
+
+    const cfg = configTrancheVinculo(idx);
+    if (!cfg) return { ok: false, error: 'Vínculo inválido.' };
+
+    const cardOk = await validarCardOperacoes(supabase, cid, { garantirShadowLegado: true });
+    if (!cardOk.ok) return cardOk;
+
+    const operacoesId = cardOk.cardId;
+
+    const consultaExistente = await consultarTrancheVinculosSalvos(supabase, operacoesId, {
+      trancheIndex: idx,
+    });
+    if (!consultaExistente.ok) {
+      return { ok: false, error: consultaExistente.error };
     }
-    novoFilhoId = String(criado.id);
+
+    const row = consultaExistente.rows[0] ?? null;
+    if (row?.concluido_em || row?.credito_obra_card_id) {
+      return { ok: false, error: 'Este vínculo já foi concluído.' };
+    }
+
+    const temPrimeiroCard = await resolverPrimeiroCardCreditoObraDisponivel(supabase, operacoesId);
+    if (!temPrimeiroCard) {
+      return {
+        ok: false,
+        error:
+          'Abra o primeiro card no Funil Crédito Obra (1ª tranche) antes de solicitar tranches adicionais.',
+      };
+    }
+
+    const paiRes = await buscarCardOperacoesPai(supabase, operacoesId);
+    if (!paiRes.ok) return paiRes;
+    const paiRow = paiRes.row;
+
+    const faseOrigemSlug =
+      (await resolverFaseSlugPorFaseId(supabase, paiRow.fase_id)) || 'operacoes';
+
+    let novoFilhoId: string;
+    try {
+      const criado = await criarCardFilho({
+        cardPaiId: operacoesId,
+        kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA,
+        faseDestinoSlug: cfg.faseDestinoSlug,
+        titulo: String(paiRow.titulo ?? '').trim() || 'Card',
+        projetoId: String(paiRow.projeto_id ?? '').trim() || null,
+        redeFranqueadoId: String(paiRow.rede_franqueado_id ?? '').trim() || null,
+        kanbanOrigemSlug: 'operacoes',
+        faseOrigemSlug,
+        creditoObraTranche: cfg.tagTranche,
+      });
+
+      if (!criado?.id) {
+        return { ok: false, error: 'Não foi possível criar o card no Funil Crédito Obra.' };
+      }
+      novoFilhoId = String(criado.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[abrirTrancheVinculoOperacoes] criarCardFilho:', msg);
+      return {
+        ok: false,
+        error: mensagemErroTrancheLegivel(msg) || 'Erro ao criar card Crédito Obra.',
+      };
+    }
+
+    const now = new Date().toISOString();
+    const patchVinculo = {
+      operacoes_card_id: operacoesId,
+      tranche_index: idx,
+      concluido_em: now,
+      concluido_por: user.id,
+      credito_obra_card_id: novoFilhoId,
+      updated_at: now,
+    };
+
+    const { error: salvarErr } = await salvarTrancheVinculoOperacoes(supabase, patchVinculo);
+    if (salvarErr) {
+      return {
+        ok: false,
+        error: `Card Crédito Obra criado, mas o vínculo não foi salvo: ${salvarErr}`,
+      };
+    }
+
+    // Evita revalidatePath aqui: em produção o re-render RSC do board com ?card= aberto
+    // pode mascarar o resultado da action com "Server Components render" digest.
+    try {
+      revalidatePath('/funil-credito-obra');
+    } catch (e) {
+      console.error('[abrirTrancheVinculoOperacoes] revalidatePath:', e);
+    }
+
+    return { ok: true, creditoObraCardId: novoFilhoId };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: msg || 'Erro ao criar card Crédito Obra.' };
+    console.error('[abrirTrancheVinculoOperacoes]', msg);
+    return {
+      ok: false,
+      error: mensagemErroTrancheLegivel(msg) || 'Erro inesperado ao abrir tranche.',
+    };
   }
+}
 
-  const now = new Date().toISOString();
-  const patchVinculo = {
-    operacoes_card_id: operacoesId,
-    tranche_index: idx,
-    concluido_em: now,
-    concluido_por: user.id,
-    credito_obra_card_id: novoFilhoId,
-    updated_at: now,
-  };
-
-  const { error: salvarErr } = await salvarTrancheVinculoOperacoes(supabase, patchVinculo);
-  if (salvarErr) return { ok: false, error: salvarErr };
-
-  revalidatePath(input.basePath?.trim() || '/operacoes');
-  revalidatePath('/funil-credito-obra');
-  return { ok: true, creditoObraCardId: novoFilhoId };
+function mensagemErroTrancheLegivel(msg: string): string {
+  const m = String(msg ?? '').trim();
+  if (!m) return '';
+  if (/server components render|omitted in production|digest/i.test(m)) {
+    return 'Falha ao abrir a tranche (erro interno). Tente novamente; se persistir, avise o time de tecnologia.';
+  }
+  return m;
 }
 
 async function perfilPodeAbrirTrancheOperacoes(
