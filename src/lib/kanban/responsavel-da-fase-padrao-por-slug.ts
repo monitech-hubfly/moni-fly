@@ -137,7 +137,10 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   capital_informacoes_obrigatorias: 'franqueado',
   capital_preenchimento_oferta: 'franqueado',
   capital_formalizacao: 'moni',
+  capital_oferta_publicada: 'moni',
+  /** @deprecated slug renomeado — ver capital_oferta_publicada */
   capital_concluido: 'moni',
+  capital_captacao_finalizada: 'moni',
   capital_nao_elegivel: 'moni',
   funding_leads: 'moni',
   funding_r1: 'moni',

@@ -247,7 +247,7 @@ export const FASE_SLUGS = {
   CONTABILIDADE_GESTORA:       'contabilidade_gestora',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',
   JURIDICO_CONCLUIDO:        'juridico_concluido',
-  // Funil Divify / Moní Capital (KANBAN_IDS.MONI_CAPITAL) — fluxo ordem 1–9
+  // Funil Divify / Moní Capital (KANBAN_IDS.MONI_CAPITAL) — fluxo ativo + laterais
   CAPITAL_RECEBIMENTO:            'capital_recebimento',
   CAPITAL_PRIMEIRO_CONTATO:        'capital_primeiro_contato',
   CAPITAL_ABERTURA_SPE:           'capital_abertura_spe',
@@ -257,7 +257,15 @@ export const FASE_SLUGS = {
   CAPITAL_INFORMACOES_OBRIG:      'capital_informacoes_obrigatorias',
   CAPITAL_PREENCHIMENTO_OFERTA:   'capital_preenchimento_oferta',
   CAPITAL_FORMALIZACAO:           'capital_formalizacao',
-  CAPITAL_CONCLUIDO:              'capital_concluido',
+  /** Oferta no ar — NÃO é conclusão (migration 556). */
+  CAPITAL_OFERTA_PUBLICADA:       'capital_oferta_publicada',
+  /**
+   * @deprecated slug antigo `capital_concluido` renomeado para `capital_oferta_publicada`.
+   * Preferir CAPITAL_OFERTA_PUBLICADA. Alias mantido para refs legadas.
+   */
+  CAPITAL_CONCLUIDO:              'capital_oferta_publicada',
+  /** Etapa de conclusão — dispara capital_ok no card pai. */
+  CAPITAL_CAPTACAO_FINALIZADA:    'capital_captacao_finalizada',
   CAPITAL_NAO_ELEGIVEL:           'capital_nao_elegivel',
   // Funil Funding (KANBAN_IDS.FUNDING) — fluxo ordem 1–7
   FUNDING_LEADS:                  'funding_leads',
