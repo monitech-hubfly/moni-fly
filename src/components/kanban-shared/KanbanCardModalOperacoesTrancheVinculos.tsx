@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
+import type { TrancheVinculoListItem } from '@/lib/operacoes/tranche-vinculos-service';
 import {
-  abrirTrancheVinculoOperacoes,
-  listarTrancheVinculosOperacoes,
-  type TrancheVinculoListItem,
-} from '@/lib/actions/operacoes-tranche-vinculos';
+  abrirTrancheVinculoClient,
+  listarTrancheVinculosClient,
+} from '@/lib/operacoes/tranche-vinculos-client';
 import {
   configTrancheVinculo,
   faseOperacoesPresumePrimeiraTrancheCo,
@@ -95,6 +95,16 @@ function IconeChevron({ className, style }: { className?: string; style?: CSSPro
   );
 }
 
+function mensagemErroUsuario(raw: string | null | undefined): string {
+  const m = String(raw ?? '').trim();
+  if (!m) return 'Não foi possível abrir a tranche.';
+  // Nunca exibir digest / RSC ao usuário — mensagem de negócio genérica.
+  if (/server components render|omitted in production|digest|erro de render/i.test(m)) {
+    return 'Não foi possível abrir a tranche. Tente novamente.';
+  }
+  return m;
+}
+
 type SidebarProps = {
   cardId: string;
   /** Slug da fase atual (modal) — fallback local para presumir 1ª tranche CO. */
@@ -137,33 +147,40 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
     });
   }
 
-  const carregar = useCallback(async (options?: { preserveErro?: boolean; preserveOk?: boolean }) => {
-    if (!cardId) {
-      setItems([]);
-      return;
-    }
-    setLoading(true);
-    if (!options?.preserveErro) setErro(null);
-    if (!options?.preserveOk) setOkMsg(null);
-    try {
-      const res = await listarTrancheVinculosOperacoes(cardId);
-      if (!res.ok) {
-        setErro(res.error ?? 'Não foi possível carregar vínculos de tranche.');
-        setItems(itensTrancheVinculoPreset());
-        setTemPrimeiroCard(presumePrimeiraTrancheLocal);
+  const carregar = useCallback(
+    async (options?: { preserveErro?: boolean; preserveOk?: boolean; silencioso?: boolean }) => {
+      if (!cardId) {
+        setItems([]);
         return;
       }
-      setItems(res.items);
-      setTemPrimeiroCard(res.temPrimeiroCardCreditoObra || presumePrimeiraTrancheLocal);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Erro ao carregar vínculos.';
-      setErro(msg);
-      setItems(itensTrancheVinculoPreset());
-      setTemPrimeiroCard(presumePrimeiraTrancheLocal);
-    } finally {
-      setLoading(false);
-    }
-  }, [cardId, presumePrimeiraTrancheLocal]);
+      if (!options?.silencioso) setLoading(true);
+      if (!options?.preserveErro) setErro(null);
+      if (!options?.preserveOk) setOkMsg(null);
+      try {
+        const res = await listarTrancheVinculosClient(cardId);
+        if (!res.ok) {
+          if (!options?.silencioso) {
+            setErro(mensagemErroUsuario(res.error));
+            setItems(itensTrancheVinculoPreset());
+            setTemPrimeiroCard(presumePrimeiraTrancheLocal);
+          }
+          return;
+        }
+        setItems(res.items);
+        setTemPrimeiroCard(res.temPrimeiroCardCreditoObra || presumePrimeiraTrancheLocal);
+      } catch (e) {
+        if (!options?.silencioso) {
+          const msg = e instanceof Error ? e.message : 'Erro ao carregar vínculos.';
+          setErro(mensagemErroUsuario(msg));
+          setItems(itensTrancheVinculoPreset());
+          setTemPrimeiroCard(presumePrimeiraTrancheLocal);
+        }
+      } finally {
+        if (!options?.silencioso) setLoading(false);
+      }
+    },
+    [cardId, presumePrimeiraTrancheLocal],
+  );
 
   useEffect(() => {
     setTemPrimeiroCard((prev) => prev || presumePrimeiraTrancheLocal);
@@ -172,6 +189,32 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
   useEffect(() => {
     void carregar();
   }, [carregar, refreshKey]);
+
+  function marcarConcluidoLocal(index: number, tagLabel: string, filhoId?: string | null) {
+    const agora = new Date().toISOString();
+    setOkMsg(`Card Crédito Obra criado com tag "${tagLabel}".`);
+    setErro(null);
+    setItems((prev) =>
+      prev.map((i) =>
+        i.index === index
+          ? {
+              ...i,
+              status: 'concluido' as const,
+              concluido_em: agora,
+              filhoCreditoObraId: filhoId ?? i.filhoCreditoObraId,
+            }
+          : i,
+      ),
+    );
+    // Refresh do modal/board fora do fluxo da mutation — não pode afetar o estado de sucesso.
+    window.setTimeout(() => {
+      try {
+        onConcluido?.();
+      } catch {
+        /* ignore */
+      }
+    }, 0);
+  }
 
   async function handleAbrir(index: number) {
     const cfg = configTrancheVinculo(index);
@@ -185,7 +228,6 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
     if (abrindoIndex != null) return;
 
     if (item?.status === 'concluido') {
-      setErro('Este vínculo já foi concluído.');
       return;
     }
 
@@ -204,97 +246,63 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
     setErro(null);
     setOkMsg(null);
     setAbrindoIndex(index);
-    let sucessoLocal = false;
+
     try {
-      const res = await abrirTrancheVinculoOperacoes({
+      const res = await abrirTrancheVinculoClient({
         operacoesCardId: cardId,
         trancheIndex: index,
         basePath,
       });
 
-      // Retorno ausente/inválido (flight corrompido) → tenta confirmar via listagem.
-      if (!res || typeof res !== 'object' || !('ok' in res)) {
-        throw new Error('An error occurred in the Server Components render. digest');
-      }
-
-      if (!res.ok) {
-        setErro(res.error ?? 'Não foi possível abrir a tranche.');
-        if (res.error?.includes('já foi concluído') || res.error?.includes('criado (')) {
-          try {
-            await carregar({ preserveErro: true });
-          } catch {
-            /* ignore digest no reload */
-          }
-        }
+      if (res.ok) {
+        marcarConcluidoLocal(index, cfg.tagLabel, res.creditoObraCardId);
+        void carregar({ preserveErro: true, preserveOk: true, silencioso: true });
         return;
       }
 
-      const agora = new Date().toISOString();
-      sucessoLocal = true;
-      setOkMsg(`Card Crédito Obra criado com tag "${cfg.tagLabel}".`);
-      setItems((prev) =>
-        prev.map((i) =>
-          i.index === index
-            ? {
-                ...i,
-                status: 'concluido' as const,
-                concluido_em: agora,
-                filhoCreditoObraId: res.creditoObraCardId ?? i.filhoCreditoObraId,
-              }
-            : i,
-        ),
-      );
-      try {
-        onConcluido?.();
-      } catch {
-        /* ignore */
-      }
-      // carregar() é server action: o refresh RSC do board pode lançar digest
-      // mesmo após sucesso — não pode sobrescrever o estado de sucesso.
-      try {
-        await carregar({ preserveErro: true, preserveOk: true });
-      } catch {
-        /* ignore digest pós-sucesso */
-      }
-    } catch (e) {
-      const raw = e instanceof Error ? e.message : String(e);
-      const isDigest = /server components render|omitted in production|digest/i.test(raw);
-
-      if (sucessoLocal) {
-        // Já marcamos sucesso; digest veio do revalidate/carregar.
-        setErro(null);
-        console.warn('[tranche-vinculos] digest após sucesso (ignorado):', raw);
-        return;
-      }
-
-      if (isDigest) {
+      // Já concluído / card criado: sincroniza lista e trata como sucesso.
+      if (
+        res.error.includes('já foi concluído') ||
+        res.error.includes('criado (') ||
+        /já existe|already/i.test(res.error)
+      ) {
         try {
-          const check = await listarTrancheVinculosOperacoes(cardId);
+          const check = await listarTrancheVinculosClient(cardId);
           if (check.ok) {
             setItems(check.items);
             setTemPrimeiroCard(check.temPrimeiroCardCreditoObra || presumePrimeiraTrancheLocal);
             const itemCheck = check.items.find((i) => i.index === index);
             if (itemCheck?.status === 'concluido' || itemCheck?.filhoCreditoObraId) {
-              setOkMsg(`Card Crédito Obra criado com tag "${cfg.tagLabel}".`);
-              setErro(null);
-              try {
-                onConcluido?.();
-              } catch {
-                /* ignore */
-              }
+              marcarConcluidoLocal(index, cfg.tagLabel, itemCheck.filhoCreditoObraId);
               return;
             }
           }
         } catch {
           /* ignore */
         }
-        setErro(
-          'Não foi possível confirmar a abertura da tranche (erro de render do servidor). Recarregue o card e confira o Funil Crédito Obra; se o card da tranche não existir, avise o time de tecnologia.',
-        );
-        console.error('[tranche-vinculos] handleAbrir digest:', raw);
+        marcarConcluidoLocal(index, cfg.tagLabel, null);
         return;
       }
-      setErro(raw || 'Erro inesperado ao abrir tranche.');
+
+      setErro(mensagemErroUsuario(res.error));
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      // Rede/API falhou: tenta confirmar se a mutation chegou a persistir.
+      try {
+        const check = await listarTrancheVinculosClient(cardId);
+        if (check.ok) {
+          setItems(check.items);
+          setTemPrimeiroCard(check.temPrimeiroCardCreditoObra || presumePrimeiraTrancheLocal);
+          const itemCheck = check.items.find((i) => i.index === index);
+          if (itemCheck?.status === 'concluido' || itemCheck?.filhoCreditoObraId) {
+            marcarConcluidoLocal(index, cfg.tagLabel, itemCheck.filhoCreditoObraId);
+            return;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      setErro(mensagemErroUsuario(raw));
       console.error('[tranche-vinculos] handleAbrir:', raw);
     } finally {
       setAbrindoIndex(null);
@@ -434,9 +442,12 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
                   <li key={item.index}>
                     <button
                       type="button"
-                      onClick={() => void handleAbrir(item.index)}
-                      aria-disabled={bloqueado}
-                      className="group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] transition aria-disabled:cursor-default aria-disabled:opacity-60"
+                      disabled={bloqueado}
+                      onClick={() => {
+                        if (bloqueado) return;
+                        void handleAbrir(item.index);
+                      }}
+                      className="group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] transition disabled:cursor-default disabled:opacity-60"
                       style={{
                         border: 'var(--moni-border-width) solid var(--moni-border-default)',
                         borderRadius: 'var(--moni-radius-md)',
