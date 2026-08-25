@@ -142,7 +142,7 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
       });
       if (!res.ok) {
         setErro(res.error ?? 'Não foi possível abrir a tranche.');
-        if (res.error?.includes('já foi concluído')) {
+        if (res.error?.includes('já foi concluído') || res.error?.includes('criado (')) {
           await carregar({ preserveErro: true });
         }
         return;
@@ -166,11 +166,33 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
       await carregar({ preserveErro: true, preserveOk: true });
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
-      const msg = /server components render|omitted in production|digest/i.test(raw)
-        ? 'Falha ao abrir a tranche (erro interno). Tente novamente; se persistir, avise o time de tecnologia.'
-        : raw || 'Erro inesperado ao abrir tranche.';
+      const isDigest = /server components render|omitted in production|digest/i.test(raw);
+      if (isDigest) {
+        // Action pode ter concluído e o refresh RSC do board falhou (digest opaco).
+        try {
+          const check = await listarTrancheVinculosOperacoes(cardId);
+          if (check.ok) {
+            setItems(check.items);
+            setTemPrimeiroCard(check.temPrimeiroCardCreditoObra || presumePrimeiraTrancheLocal);
+            const item = check.items.find((i) => i.index === index);
+            if (item?.status === 'concluido' || item?.filhoCreditoObraId) {
+              setOkMsg(`Card Crédito Obra criado com tag "${cfg.tagLabel}".`);
+              setErro(null);
+              onConcluido?.();
+              return;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+        setErro(
+          'Não foi possível confirmar a abertura da tranche (erro de render do servidor). Recarregue o card e confira o Funil Crédito Obra; se o card da tranche não existir, avise o time de tecnologia.',
+        );
+        console.error('[tranche-vinculos] handleAbrir digest:', raw);
+        return;
+      }
+      setErro(raw || 'Erro inesperado ao abrir tranche.');
       console.error('[tranche-vinculos] handleAbrir:', raw);
-      setErro(msg);
     } finally {
       setAbrindoIndex(null);
     }

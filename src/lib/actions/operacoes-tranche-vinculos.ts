@@ -1,9 +1,8 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { type ActionResult } from '@/lib/actions/card-actions';
-import { criarCardFilho } from '@/lib/actions/kanban-bastoes';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { criarCardCreditoObraTranche } from '@/lib/operacoes/criar-card-credito-obra-tranche';
 import {
   configTrancheVinculo,
   faseOperacoesPresumePrimeiraTrancheCo,
@@ -517,35 +516,20 @@ export async function abrirTrancheVinculoOperacoes(input: {
     if (!paiRes.ok) return paiRes;
     const paiRow = paiRes.row;
 
-    const faseOrigemSlug =
-      (await resolverFaseSlugPorFaseId(supabase, paiRow.fase_id)) || 'operacoes';
+    const criado = await criarCardCreditoObraTranche({
+      operacoesCardId: operacoesId,
+      faseDestinoSlug: cfg.faseDestinoSlug,
+      tituloFallback: String(paiRow.titulo ?? '').trim() || 'Card',
+      projetoId: String(paiRow.projeto_id ?? '').trim() || null,
+      redeFranqueadoId: String(paiRow.rede_franqueado_id ?? '').trim() || null,
+      tranche: cfg.tagTranche,
+      criadoPor: user.id,
+    });
 
-    let novoFilhoId: string;
-    try {
-      const criado = await criarCardFilho({
-        cardPaiId: operacoesId,
-        kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA,
-        faseDestinoSlug: cfg.faseDestinoSlug,
-        titulo: String(paiRow.titulo ?? '').trim() || 'Card',
-        projetoId: String(paiRow.projeto_id ?? '').trim() || null,
-        redeFranqueadoId: String(paiRow.rede_franqueado_id ?? '').trim() || null,
-        kanbanOrigemSlug: 'operacoes',
-        faseOrigemSlug,
-        creditoObraTranche: cfg.tagTranche,
-      });
-
-      if (!criado?.id) {
-        return { ok: false, error: 'Não foi possível criar o card no Funil Crédito Obra.' };
-      }
-      novoFilhoId = String(criado.id);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error('[abrirTrancheVinculoOperacoes] criarCardFilho:', msg);
-      return {
-        ok: false,
-        error: mensagemErroTrancheLegivel(msg) || 'Erro ao criar card Crédito Obra.',
-      };
+    if (!criado.ok) {
+      return { ok: false, error: criado.error };
     }
+    const novoFilhoId = criado.id;
 
     const now = new Date().toISOString();
     const patchVinculo = {
@@ -561,18 +545,12 @@ export async function abrirTrancheVinculoOperacoes(input: {
     if (salvarErr) {
       return {
         ok: false,
-        error: `Card Crédito Obra criado, mas o vínculo não foi salvo: ${salvarErr}`,
+        error: `Card Crédito Obra criado (${novoFilhoId}), mas o vínculo não foi salvo: ${salvarErr}`,
       };
     }
 
-    // Evita revalidatePath aqui: em produção o re-render RSC do board com ?card= aberto
-    // pode mascarar o resultado da action com "Server Components render" digest.
-    try {
-      revalidatePath('/funil-credito-obra');
-    } catch (e) {
-      console.error('[abrirTrancheVinculoOperacoes] revalidatePath:', e);
-    }
-
+    // Sem revalidatePath: o refresh RSC do board com modal aberto mascara o resultado
+    // da action com digest genérico de produção.
     return { ok: true, creditoObraCardId: novoFilhoId };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
