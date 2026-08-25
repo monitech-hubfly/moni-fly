@@ -279,8 +279,12 @@ import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos
 import {
   KanbanCardModalOperacoesTrancheVinculosSidebar,
 } from './KanbanCardModalOperacoesTrancheVinculos';
+import {
+  KanbanCardModalOperacoesRodadaVinculosSidebar,
+} from './KanbanCardModalOperacoesRodadaVinculos';
 import { KanbanSelecaoFaseLista } from './KanbanSelecaoFaseLista';
 import { rolePodeAbrirTrancheVinculosOperacoes } from '@/lib/operacoes/tranche-vinculos-config';
+import { rolePodeAbrirRodadaVinculosOperacoes } from '@/lib/operacoes/rodada-vinculos-config';
 import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
@@ -761,6 +765,7 @@ export function KanbanCardModal({
   const [enviandoAnexoSirene, setEnviandoAnexoSirene] = useState(false);
   const anexoSireneFileRef = useRef<HTMLInputElement>(null);
   const [trancheVinculosTick, setTrancheVinculosTick] = useState(0);
+  const [rodadaVinculosTick, setRodadaVinculosTick] = useState(0);
   const [emailPara, setEmailPara] = useState('');
   const [emailCc, setEmailCc] = useState('');
   const [emailBcc, setEmailBcc] = useState('');
@@ -5235,6 +5240,9 @@ export function KanbanCardModal({
   const podeAbrirTrancheVinculos =
     !ocultarGestaoCard &&
     (modalSessao.ehAdminOuTeam || rolePodeAbrirTrancheVinculosOperacoes(modalSessao.roleNorm));
+  const podeAbrirRodadaVinculos =
+    !ocultarGestaoCard &&
+    (modalSessao.ehAdminOuTeam || rolePodeAbrirRodadaVinculosOperacoes(modalSessao.roleNorm));
   const painelCentroAlternativo =
     abaCentro === 'chamados' || abaCentro === 'calculadora';
   const cardTitulo = card.titulo;
@@ -9083,28 +9091,57 @@ export function KanbanCardModal({
               'relacionamentos',
               'Vínculos',
               <div className="min-w-0 space-y-3">
-                {/* Camada 1 — tranches (só Funil Pré Obra e Obra) */}
+                {/* Camada 1 — tranches + rodadas (só Funil Pré Obra e Obra) */}
                 {ehFunilOperacoes ? (
-                  <section className="min-w-0" aria-label="Crédito para Obra">
-                    <KanbanCardModalOperacoesTrancheVinculosSidebar
-                      key={`${card.id}-tranche-vinculos`}
-                      cardId={card.id}
-                      faseSlug={faseAtual?.slug ?? null}
-                      basePath={basePath}
-                      refreshKey={trancheVinculosTick}
-                      podeGerenciar={podeAbrirTrancheVinculos}
-                      cardDesabilitado={
-                        cardNativoArquivado ||
-                        cardLegadoArquivado ||
-                        cardNativoConcluido ||
-                        cardLegadoConcluido
-                      }
-                      onConcluido={() => {
-                        setRelacionamentosTick((t) => t + 1);
-                        void loadCard();
+                  <div className="min-w-0 space-y-3">
+                    <section className="min-w-0" aria-label="Crédito para Obra">
+                      <KanbanCardModalOperacoesTrancheVinculosSidebar
+                        key={`${card.id}-tranche-vinculos`}
+                        cardId={card.id}
+                        faseSlug={faseAtual?.slug ?? null}
+                        basePath={basePath}
+                        refreshKey={trancheVinculosTick}
+                        podeGerenciar={podeAbrirTrancheVinculos}
+                        cardDesabilitado={
+                          cardNativoArquivado ||
+                          cardLegadoArquivado ||
+                          cardNativoConcluido ||
+                          cardLegadoConcluido
+                        }
+                        onConcluido={() => {
+                          setTrancheVinculosTick((t) => t + 1);
+                          setRelacionamentosTick((t) => t + 1);
+                          void loadCard();
+                        }}
+                      />
+                    </section>
+                    <section
+                      className="min-w-0 pt-3"
+                      aria-label="Divify"
+                      style={{
+                        borderTop: 'var(--moni-border-width) solid var(--moni-border-default)',
                       }}
-                    />
-                  </section>
+                    >
+                      <KanbanCardModalOperacoesRodadaVinculosSidebar
+                        key={`${card.id}-rodada-vinculos`}
+                        cardId={card.id}
+                        basePath={basePath}
+                        refreshKey={rodadaVinculosTick}
+                        podeGerenciar={podeAbrirRodadaVinculos}
+                        cardDesabilitado={
+                          cardNativoArquivado ||
+                          cardLegadoArquivado ||
+                          cardNativoConcluido ||
+                          cardLegadoConcluido
+                        }
+                        onConcluido={() => {
+                          setRodadaVinculosTick((t) => t + 1);
+                          setRelacionamentosTick((t) => t + 1);
+                          void loadCard();
+                        }}
+                      />
+                    </section>
+                  </div>
                 ) : null}
                 {/* Camadas 2 (Disparar esteira) e 3 (Vincular card existente) */}
                 <KanbanCardModalRelacionamentos

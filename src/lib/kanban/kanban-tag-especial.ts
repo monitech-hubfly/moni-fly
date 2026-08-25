@@ -2,6 +2,10 @@ import {
   estiloTagTranchePorLabel,
   trancheNumeroFromLabel,
 } from '@/lib/kanban/credito-obra-tag-tranche';
+import {
+  estiloTagRodadaPorLabel,
+  rodadaNumeroFromLabel,
+} from '@/lib/kanban/divify-tag-rodada';
 import { OPERACOES_TAG_INST_GARANTIDOR_NOME } from '@/lib/kanban/operacoes-tag-inst-garantidor';
 
 /** Tag padronizada em todos os funis — dourada (tokens Moní). */
@@ -70,6 +74,7 @@ function contrasteTextoSobreFundo(hexBg: string): string {
  * Estilo de chip de tag no board / modal.
  * - Especial / Inst. Garantidor / Dependência: classes prontas
  * - Tranche 1ª–6ª: TRANCHE_COLORS (light/dark)
+ * - Rodada 1ª–6ª: RODADA_COLORS (light/dark) — Funil Divify
  * - Demais: usa `cor` do cadastro (exceto laranja)
  * - Sem cor válida: pill padrão `moni-tag-chip`
  */
@@ -92,6 +97,21 @@ export function estiloChipTagKanban(nome: string, cor?: string): KanbanTagChipSt
         style: {
           background: String(tranche.background ?? ''),
           color: String(tranche.color ?? ''),
+          border: 'var(--moni-border-width) solid transparent',
+        },
+      };
+    }
+  }
+
+  // "Nª rodada" / "Nº rodada" → RODADA_COLORS (light/dark)
+  if (rodadaNumeroFromLabel(nome) != null) {
+    const rodada = estiloTagRodadaPorLabel(nome);
+    if (rodada) {
+      return {
+        className: 'moni-tag-chip-custom',
+        style: {
+          background: String(rodada.background ?? ''),
+          color: String(rodada.color ?? ''),
           border: 'var(--moni-border-width) solid transparent',
         },
       };
