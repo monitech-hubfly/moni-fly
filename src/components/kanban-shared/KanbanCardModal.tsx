@@ -1424,16 +1424,35 @@ export function KanbanCardModal({
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at`;
         let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardIdNorm).maybeSingle();
         const selectFalhouColuna = (msg: string) =>
-          /does not exist|schema cache|could not find/i.test(msg);
+          /does not exist|schema cache|could not find|pgrst204/i.test(msg);
+        // Fallback granular: não descartar Corretores quando só Funding falha (e vice-versa).
         if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
-          const cardSelectSemFunding = `${cardSelectCore}, ${cardSelectPreObra}, sla_iniciado_em, entered_fase_at`;
-          cardRes = await supabase.from('kanban_cards').select(cardSelectSemFunding).eq('id', cardIdNorm).maybeSingle();
+          cardRes = await supabase
+            .from('kanban_cards')
+            .select(`${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}, sla_iniciado_em, entered_fase_at`)
+            .eq('id', cardIdNorm)
+            .maybeSingle();
         }
         if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(`${cardSelectBase}, sla_iniciado_em, entered_fase_at`).eq('id', cardIdNorm).maybeSingle();
+          cardRes = await supabase
+            .from('kanban_cards')
+            .select(`${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectCorretores}, sla_iniciado_em, entered_fase_at`)
+            .eq('id', cardIdNorm)
+            .maybeSingle();
         }
         if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(`${cardSelectCore}, sla_iniciado_em, entered_fase_at`).eq('id', cardIdNorm).maybeSingle();
+          cardRes = await supabase
+            .from('kanban_cards')
+            .select(`${cardSelectCore}, ${cardSelectPreObra}, sla_iniciado_em, entered_fase_at`)
+            .eq('id', cardIdNorm)
+            .maybeSingle();
+        }
+        if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
+          cardRes = await supabase
+            .from('kanban_cards')
+            .select(`${cardSelectCore}, sla_iniciado_em, entered_fase_at`)
+            .eq('id', cardIdNorm)
+            .maybeSingle();
         }
         if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
           cardRes = await supabase.from('kanban_cards').select(cardSelectCore).eq('id', cardIdNorm).maybeSingle();
