@@ -33,7 +33,7 @@ export type SireneSnapshot = {
 export type EngajamentoSnapshot = {
   atividades: { agendadas: number; realizadas: number; atrasadas: number; score: number | null };
   cards:      { comSLA: number; emDia: number; atrasados: number; score: number | null };
-  proximas:   { concluidos: number; venceHoje: number; atrasadas: number; relevantes: number; score: number | null };
+  proximas:   { concluidos: number; venceHoje: number; atrasadas: number; semProxima: number; relevantes: number; score: number | null };
   score: number | null;
 };
 
@@ -288,7 +288,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       let engajamentoRuntime: EngajamentoSnapshot = {
         atividades: { agendadas: 0, realizadas: 0, atrasadas: 0, score: null },
         cards:      { comSLA: 0, emDia: 0, atrasados: 0, score: null },
-        proximas:   { concluidos: 0, venceHoje: 0, atrasadas: 0, relevantes: 0, score: null },
+        proximas:   { concluidos: 0, venceHoje: 0, atrasadas: 0, semProxima: 0, relevantes: 0, score: null },
         score: null,
       };
 
@@ -335,7 +335,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         // Não concluída = agendada sem data_conclusao_real (inclui hoje — afeta score imediatamente)
         const atividadesAtrasadas = ganttArr.filter(g => !g.data_conclusao_real).length;
         const scoreAtividades = atividadesAgendadas === 0
-          ? null
+          ? 0
           : Math.max(0, Math.round((atividadesRealizadas / atividadesAgendadas) * 100));
 
         // Sub-score 2: Cards com SLA
@@ -390,7 +390,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         engajamentoRuntime = {
           atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
           cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, score: scoreCards },
-          proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas, score: scoreProximas },
+          proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, semProxima: cardsSemProxima, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas + cardsSemProxima, score: scoreProximas },
           score:      engScore,
         };
       }
@@ -471,32 +471,35 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
             function calcIndicadores(lancMap: Map<string, unknown>, refDate: Date): IndicadoresSnapshot {
               const porIndicador: IndicadorItem[] = [];
+              const metaScoresMap = new Map<string, number[]>();
               for (const ind of indsTyped) {
-                // Prefixar com nome do objetivo quando há indicadores homônimos
                 const objNome = ind.objetivo_id ? (objNomeMap.get(ind.objetivo_id) ?? '') : '';
                 const nomeDisplay = objNome ? `${objNome} — ${ind.nome}` : (ind.nome || ind.id);
                 const rawSf = ind.semaforo_faixas as SfRaw | null;
                 const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
+                const metaKey = ind.objetivo_id ?? ind.id;
 
                 if (isProjeto) {
-                  // Calcula % esperado com data de referência correta para a semana
-                  const esp = calcularEsperadoPct(
-                    rawSf!.data_inicio ?? '',
-                    rawSf!.data_fim    ?? '',
-                    refDate,
-                  );
+                  const esp = calcularEsperadoPct(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', refDate);
 
                   if (esp <= 0) {
-                    // Nada esperado nesta semana — aparece na lista com percentual null
                     porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
                     continue;
                   }
+
+                  // Cap de 70 pts se refDate ultrapassou a semana do data_fim
+                  const dataFimDate = new Date((rawSf!.data_fim ?? '') + 'T00:00:00');
+                  const dataFimDow = dataFimDate.getDay() || 7;
+                  const endOfDeadlineWeek = new Date(dataFimDate);
+                  endOfDeadlineWeek.setDate(dataFimDate.getDate() + (7 - dataFimDow));
+                  const isPastDeadlineWeek = refDate > endOfDeadlineWeek;
 
                   const valor  = lancMap.get(ind.id);
                   const valStr = valor != null ? String(valor).trim() : '';
 
                   if (valStr === '' || valStr === '-') {
                     porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: 0 });
+                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
                   } else {
                     const n = Number(valStr.replace(',', '.'));
                     if (!Number.isFinite(n)) {
@@ -508,7 +511,9 @@ export function useMeuCarometro(): UseMeuCarometroResult {
                     if (ratio >= 75) score = 100;
                     else if (ratio >= 60) score = 75;
                     else if (ratio >= 30) score = 50;
+                    if (isPastDeadlineWeek && score > 70) score = 70;
                     porIndicador.push({ nome: nomeDisplay, valor: n, meta: esp, percentual: score });
+                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
                   }
                 } else {
                   const valor  = lancMap.get(ind.id);
@@ -516,19 +521,22 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
                   if (valStr === '' || valStr === '-') {
                     porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: 0 });
+                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
                   } else {
                     const score = scoreDeValorESemaforo(valor, ind.semaforo_faixas);
                     const n     = Number(valStr.replace(',', '.'));
                     porIndicador.push({ nome: nomeDisplay, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
+                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
                   }
                 }
               }
-              // Média exclui os nulls (itens sem expectativa nesta semana)
-              const scores = porIndicador
-                .map(i => i.percentual)
-                .filter((p): p is number => p !== null);
-              const media  = scores.length > 0
-                ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length)
+              // Score por meta (média dos seus indicadores), depois média das metas — peso igual por meta
+              const metaMedias: number[] = [];
+              for (const scores of metaScoresMap.values()) {
+                metaMedias.push(Math.round(scores.reduce((s, v) => s + v, 0) / scores.length));
+              }
+              const media = metaMedias.length > 0
+                ? Math.round(metaMedias.reduce((s, v) => s + v, 0) / metaMedias.length)
                 : null;
               return { porIndicador, media };
             }

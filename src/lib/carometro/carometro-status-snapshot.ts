@@ -187,7 +187,7 @@ export async function gerarSnapshotCarometro(
   // Não concluída = agendada sem data_conclusao_real (inclui hoje — afeta score imediatamente)
   const atividadesAtrasadas  = ganttArr.filter(g => !g.data_conclusao_real).length;
   const scoreAtividades = atividadesAgendadas === 0
-    ? null
+    ? 0
     : Math.max(0, Math.round((atividadesRealizadas / atividadesAgendadas) * 100));
 
   // Sub-score 2: Cards com SLA
@@ -244,7 +244,7 @@ export async function gerarSnapshotCarometro(
   const engajamentoData = {
     atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
     cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, score: scoreCards },
-    proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas, score: scoreProximas },
+    proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, semProxima: cardsSemProxima, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas + cardsSemProxima, score: scoreProximas },
     score:      engScore,
   };
 
@@ -296,24 +296,34 @@ export async function gerarSnapshotCarometro(
         type SfRaw = { is_projeto_relativo?: boolean; data_inicio?: string; data_fim?: string };
         type IndItem = { nome: string; valor: number; meta: number; percentual: number | null };
         const porIndicador: IndItem[] = [];
+        const metaScoresMap = new Map<string, number[]>();
 
         for (const ind of indsTyped) {
           const objNome    = ind.objetivo_id ? (objNomeMap.get(ind.objetivo_id) ?? '') : '';
           const nomeDisplay = objNome ? `${objNome} — ${ind.nome}` : (ind.nome || ind.id);
           const rawSf = ind.semaforo_faixas as SfRaw | null;
           const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
+          const metaKey = ind.objetivo_id ?? ind.id;
 
           if (isProjeto) {
-            // Usa sextaAnterior como refDate (S-1), igual ao useMeuCarometro
             const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', sextaAnterior);
             if (esp <= 0) {
               porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
               continue;
             }
+
+            // Cap de 70 pts se sextaAnterior ultrapassou a semana do data_fim
+            const dataFimDate = new Date((rawSf!.data_fim ?? '') + 'T00:00:00');
+            const dataFimDow = dataFimDate.getDay() || 7;
+            const endOfDeadlineWeek = new Date(dataFimDate);
+            endOfDeadlineWeek.setDate(dataFimDate.getDate() + (7 - dataFimDow));
+            const isPastDeadlineWeek = sextaAnterior > endOfDeadlineWeek;
+
             const valor  = lancMap.get(ind.id);
             const valStr = valor != null ? String(valor).trim() : '';
             if (valStr === '' || valStr === '-') {
               porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: 0 });
+              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
             } else {
               const n = Number(valStr.replace(',', '.'));
               if (!Number.isFinite(n)) { porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: null }); continue; }
@@ -322,24 +332,32 @@ export async function gerarSnapshotCarometro(
               if (ratio >= 75) score = 100;
               else if (ratio >= 60) score = 75;
               else if (ratio >= 30) score = 50;
+              if (isPastDeadlineWeek && score > 70) score = 70;
               porIndicador.push({ nome: nomeDisplay, valor: n, meta: esp, percentual: score });
+              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
             }
           } else {
             const valor  = lancMap.get(ind.id);
             const valStr = valor != null ? String(valor).trim() : '';
             if (valStr === '' || valStr === '-') {
               porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: 0 });
+              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
             } else {
               const score = scoreDeValorESemaforoHex(valor, ind.semaforo_faixas);
               const n     = Number(valStr.replace(',', '.'));
               porIndicador.push({ nome: nomeDisplay, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
+              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
             }
           }
         }
 
-        const scores = porIndicador.filter(i => i.percentual !== null).map(i => i.percentual as number);
-        const media  = scores.length > 0
-          ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length)
+        // Score por meta (média dos seus indicadores), depois média das metas — peso igual por meta
+        const metaMedias: number[] = [];
+        for (const scores of metaScoresMap.values()) {
+          metaMedias.push(Math.round(scores.reduce((s, v) => s + v, 0) / scores.length));
+        }
+        const media = metaMedias.length > 0
+          ? Math.round(metaMedias.reduce((s, v) => s + v, 0) / metaMedias.length)
           : null;
 
         indicadoresData = { porIndicador, media };
