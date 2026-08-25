@@ -400,7 +400,7 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
         >
           <IconeRamificacao className="shrink-0" />
           <span className="min-w-0 flex-1" style={{ fontWeight: 600 }}>
-            Divify
+            Crédito para Obra
           </span>
           <span
             className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold tabular-nums"

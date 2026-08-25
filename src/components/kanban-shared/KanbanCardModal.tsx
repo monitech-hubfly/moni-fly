@@ -9085,7 +9085,7 @@ export function KanbanCardModal({
               <div className="min-w-0 space-y-3">
                 {/* Camada 1 — tranches (só Funil Pré Obra e Obra) */}
                 {ehFunilOperacoes ? (
-                  <section className="min-w-0" aria-label="Divify">
+                  <section className="min-w-0" aria-label="Crédito para Obra">
                     <KanbanCardModalOperacoesTrancheVinculosSidebar
                       key={`${card.id}-tranche-vinculos`}
                       cardId={card.id}
