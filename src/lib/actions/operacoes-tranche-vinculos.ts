@@ -516,15 +516,25 @@ export async function abrirTrancheVinculoOperacoes(input: {
     if (!paiRes.ok) return paiRes;
     const paiRow = paiRes.row;
 
-    const criado = await criarCardCreditoObraTranche({
-      operacoesCardId: operacoesId,
-      faseDestinoSlug: cfg.faseDestinoSlug,
-      tituloFallback: String(paiRow.titulo ?? '').trim() || 'Card',
-      projetoId: String(paiRow.projeto_id ?? '').trim() || null,
-      redeFranqueadoId: String(paiRow.rede_franqueado_id ?? '').trim() || null,
-      tranche: cfg.tagTranche,
-      criadoPor: user.id,
-    });
+    let criado: Awaited<ReturnType<typeof criarCardCreditoObraTranche>>;
+    try {
+      criado = await criarCardCreditoObraTranche({
+        operacoesCardId: operacoesId,
+        faseDestinoSlug: cfg.faseDestinoSlug,
+        tituloFallback: String(paiRow.titulo ?? '').trim() || 'Card',
+        projetoId: String(paiRow.projeto_id ?? '').trim() || null,
+        redeFranqueadoId: String(paiRow.rede_franqueado_id ?? '').trim() || null,
+        tranche: cfg.tagTranche,
+        criadoPor: user.id,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[abrirTrancheVinculoOperacoes] criarCardCreditoObraTranche throw:', msg);
+      return {
+        ok: false,
+        error: mensagemErroTrancheLegivel(msg) || 'Erro ao criar card Crédito Obra.',
+      };
+    }
 
     if (!criado.ok) {
       return { ok: false, error: criado.error };

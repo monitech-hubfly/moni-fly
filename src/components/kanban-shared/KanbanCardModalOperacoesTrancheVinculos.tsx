@@ -204,21 +204,33 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
     setErro(null);
     setOkMsg(null);
     setAbrindoIndex(index);
+    let sucessoLocal = false;
     try {
       const res = await abrirTrancheVinculoOperacoes({
         operacoesCardId: cardId,
         trancheIndex: index,
         basePath,
       });
+
+      // Retorno ausente/inválido (flight corrompido) → tenta confirmar via listagem.
+      if (!res || typeof res !== 'object' || !('ok' in res)) {
+        throw new Error('An error occurred in the Server Components render. digest');
+      }
+
       if (!res.ok) {
         setErro(res.error ?? 'Não foi possível abrir a tranche.');
         if (res.error?.includes('já foi concluído') || res.error?.includes('criado (')) {
-          await carregar({ preserveErro: true });
+          try {
+            await carregar({ preserveErro: true });
+          } catch {
+            /* ignore digest no reload */
+          }
         }
         return;
       }
 
       const agora = new Date().toISOString();
+      sucessoLocal = true;
       setOkMsg(`Card Crédito Obra criado com tag "${cfg.tagLabel}".`);
       setItems((prev) =>
         prev.map((i) =>
@@ -232,23 +244,44 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
             : i,
         ),
       );
-      onConcluido?.();
-      await carregar({ preserveErro: true, preserveOk: true });
+      try {
+        onConcluido?.();
+      } catch {
+        /* ignore */
+      }
+      // carregar() é server action: o refresh RSC do board pode lançar digest
+      // mesmo após sucesso — não pode sobrescrever o estado de sucesso.
+      try {
+        await carregar({ preserveErro: true, preserveOk: true });
+      } catch {
+        /* ignore digest pós-sucesso */
+      }
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
       const isDigest = /server components render|omitted in production|digest/i.test(raw);
+
+      if (sucessoLocal) {
+        // Já marcamos sucesso; digest veio do revalidate/carregar.
+        setErro(null);
+        console.warn('[tranche-vinculos] digest após sucesso (ignorado):', raw);
+        return;
+      }
+
       if (isDigest) {
-        // Action pode ter concluído e o refresh RSC do board falhou (digest opaco).
         try {
           const check = await listarTrancheVinculosOperacoes(cardId);
           if (check.ok) {
             setItems(check.items);
             setTemPrimeiroCard(check.temPrimeiroCardCreditoObra || presumePrimeiraTrancheLocal);
-            const item = check.items.find((i) => i.index === index);
-            if (item?.status === 'concluido' || item?.filhoCreditoObraId) {
+            const itemCheck = check.items.find((i) => i.index === index);
+            if (itemCheck?.status === 'concluido' || itemCheck?.filhoCreditoObraId) {
               setOkMsg(`Card Crédito Obra criado com tag "${cfg.tagLabel}".`);
               setErro(null);
-              onConcluido?.();
+              try {
+                onConcluido?.();
+              } catch {
+                /* ignore */
+              }
               return;
             }
           }
