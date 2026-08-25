@@ -3,7 +3,7 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Archive, ArrowRight, MoreHorizontal, RotateCcw, TrendingDown, TrendingUp } from 'lucide-react';
+import { Archive, ArrowLeft, ArrowRight, MoreHorizontal, RotateCcw, TrendingDown, TrendingUp } from 'lucide-react';
 import {
   arquivarCard,
   moverCardParaFase,
@@ -29,7 +29,7 @@ import {
 
 const PERDA_GANHO_ENABLED = true;
 
-type ProximaFase = { id: string; nome: string };
+type FaseOpcao = { id: string; nome: string; ordem: number; slug?: string | null };
 
 type Props = {
   cardId: string;
@@ -39,15 +39,19 @@ type Props = {
   kanbanId?: string;
   /** Slug da fase atual do card (para pop-up Assinou?). */
   faseAtualSlug?: string | null;
+  /** Ordem da fase atual — usada para listar anteriores/futuras. */
+  faseAtualOrdem?: number | null;
+  /** Todas as fases ativas do funil (ordenadas). */
+  fasesFunil?: FaseOpcao[];
   /** Próxima fase ativa do funil (por `ordem`). `null` quando o card já está na última fase. */
-  proximaFase: ProximaFase | null;
+  proximaFase: FaseOpcao | null;
   cardArquivado?: boolean;
   cardResultado?: 'perda' | 'ganho' | null;
 };
 
-type Vista = 'menu' | 'arquivar' | 'perda' | 'ganho';
+type Vista = 'menu' | 'arquivar' | 'perda' | 'ganho' | 'avancar' | 'voltar';
 
-const LARGURA_MENU = 200;
+const LARGURA_MENU = 220;
 
 export function KanbanCardMenu({
   cardId,
@@ -56,6 +60,8 @@ export function KanbanCardMenu({
   kanbanNome,
   kanbanId,
   faseAtualSlug = null,
+  faseAtualOrdem = null,
+  fasesFunil = [],
   proximaFase,
   cardArquivado = false,
   cardResultado = null,
@@ -75,9 +81,26 @@ export function KanbanCardMenu({
   const [assinouPendente, setAssinouPendente] = useState<{
     tipo: LoteadoresConfirmacaoFaseTipo;
     titulo: string;
+    destino: FaseOpcao;
   } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const ordemAtual = faseAtualOrdem ?? null;
+  const fasesFuturas =
+    ordemAtual == null
+      ? proximaFase
+        ? [proximaFase]
+        : []
+      : [...fasesFunil]
+          .filter((f) => f.ordem > ordemAtual)
+          .sort((a, b) => a.ordem - b.ordem);
+  const fasesAnteriores =
+    ordemAtual == null
+      ? []
+      : [...fasesFunil]
+          .filter((f) => f.ordem < ordemAtual)
+          .sort((a, b) => b.ordem - a.ordem);
 
   const reposicionar = () => {
     const rect = btnRef.current?.getBoundingClientRect();
@@ -127,22 +150,22 @@ export function KanbanCardMenu({
     setJustificativaPerda('');
     setJustificativaGanho('');
     setErro(null);
+    setAssinouPendente(null);
     reposicionar();
     setAberto(true);
   }
 
-  function executarAvancar() {
-    if (!proximaFase) return;
+  function executarMoverPara(destino: FaseOpcao) {
     setErro(null);
     startTransition(async () => {
       const res = await moverCardParaFase({
         cardId,
-        novaFaseId: proximaFase.id,
+        novaFaseId: destino.id,
         basePath,
         kanbanNome,
       });
       if (!res.ok) {
-        window.alert(res.error ?? 'Não foi possível avançar o card de fase.');
+        window.alert(res.error ?? 'Não foi possível mover o card de fase.');
         return;
       }
       setAssinouPendente(null);
@@ -151,23 +174,25 @@ export function KanbanCardMenu({
     });
   }
 
-  function handleAvancar() {
-    if (!proximaFase) return;
-    const tipo = deveConfirmarSaidaFaseLoteadores({
-      kanbanId,
-      faseSlug: faseAtualSlug,
-      origemCard: origem,
-      direcao: 'avancar',
-    });
-    if (tipo) {
-      setAssinouPendente({
-        tipo,
-        titulo:
-          loteadoresAssinouTituloPorSlug(faseAtualSlug) ?? loteadoresConfirmacaoTitulo(tipo),
+  function handleEscolherDestino(destino: FaseOpcao, direcao: 'avancar' | 'voltar') {
+    if (direcao === 'avancar') {
+      const tipo = deveConfirmarSaidaFaseLoteadores({
+        kanbanId,
+        faseSlug: faseAtualSlug,
+        origemCard: origem,
+        direcao: 'avancar',
       });
-      return;
+      if (tipo) {
+        setAssinouPendente({
+          tipo,
+          titulo:
+            loteadoresAssinouTituloPorSlug(faseAtualSlug) ?? loteadoresConfirmacaoTitulo(tipo),
+          destino,
+        });
+        return;
+      }
     }
-    executarAvancar();
+    executarMoverPara(destino);
   }
 
   function confirmarAssinou(confirmou: boolean) {
@@ -176,6 +201,7 @@ export function KanbanCardMenu({
       return;
     }
     if (!assinouPendente) return;
+    const destino = assinouPendente.destino;
     startTransition(async () => {
       const reg = await registrarConfirmacaoFaseLoteadores({
         cardId,
@@ -186,7 +212,7 @@ export function KanbanCardMenu({
         window.alert(reg.error ?? 'Não foi possível registrar a confirmação.');
         return;
       }
-      executarAvancar();
+      executarMoverPara(destino);
     });
   }
 
@@ -299,9 +325,34 @@ export function KanbanCardMenu({
                 type="button"
                 role="menuitem"
                 className="moni-kanban-card-menu-item"
-                disabled={!proximaFase || pending}
-                title={proximaFase ? `Avançar para "${proximaFase.nome}"` : 'Já está na última fase'}
-                onClick={handleAvancar}
+                disabled={fasesAnteriores.length === 0 || pending}
+                title={
+                  fasesAnteriores.length > 0
+                    ? 'Escolher fase anterior'
+                    : 'Já está na primeira fase'
+                }
+                onClick={() => {
+                  setErro(null);
+                  setVista('voltar');
+                }}
+              >
+                <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                <span>Voltar fase</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="moni-kanban-card-menu-item"
+                disabled={fasesFuturas.length === 0 || pending}
+                title={
+                  fasesFuturas.length > 0
+                    ? 'Escolher fase futura'
+                    : 'Já está na última fase'
+                }
+                onClick={() => {
+                  setErro(null);
+                  setVista('avancar');
+                }}
               >
                 <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
                 <span>Avançar fase</span>
@@ -344,6 +395,44 @@ export function KanbanCardMenu({
             </>
           )}
         </>
+      )}
+
+      {(vista === 'avancar' || vista === 'voltar') && (
+        <div className="moni-kanban-card-menu-arquivar">
+          <p className="moni-kanban-card-menu-label">
+            {vista === 'avancar' ? 'Fase futura' : 'Fase anterior'}
+          </p>
+          <div className="max-h-52 space-y-1 overflow-y-auto">
+            {(vista === 'avancar' ? fasesFuturas : fasesAnteriores).map((fase) => (
+              <button
+                key={fase.id}
+                type="button"
+                role="menuitem"
+                className="moni-kanban-card-menu-item"
+                disabled={pending}
+                onClick={() =>
+                  handleEscolherDestino(fase, vista === 'avancar' ? 'avancar' : 'voltar')
+                }
+                title={fase.nome}
+              >
+                <span className="min-w-0 flex-1 truncate text-left">{fase.nome}</span>
+              </button>
+            ))}
+          </div>
+          <div className="moni-kanban-card-menu-actions">
+            <button
+              type="button"
+              className="moni-kanban-card-menu-btn moni-kanban-card-menu-btn--ghost"
+              disabled={pending}
+              onClick={() => {
+                setVista('menu');
+                setErro(null);
+              }}
+            >
+              Voltar
+            </button>
+          </div>
+        </div>
       )}
 
       {vista === 'arquivar' && (

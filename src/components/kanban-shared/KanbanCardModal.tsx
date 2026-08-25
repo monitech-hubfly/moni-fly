@@ -279,6 +279,7 @@ import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos
 import {
   KanbanCardModalOperacoesTrancheVinculosSidebar,
 } from './KanbanCardModalOperacoesTrancheVinculos';
+import { KanbanSelecaoFaseLista } from './KanbanSelecaoFaseLista';
 import { rolePodeAbrirTrancheVinculosOperacoes } from '@/lib/operacoes/tranche-vinculos-config';
 import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
@@ -909,6 +910,8 @@ export function KanbanCardModal({
     direcao: 'avancar' | 'retroceder';
     itensPendentes: number;
   } | null>(null);
+  /** Lista para escolher qualquer fase futura (avancar) ou anterior (retroceder). */
+  const [selecaoFaseDirecao, setSelecaoFaseDirecao] = useState<'avancar' | 'retroceder' | null>(null);
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
   const [modalConfirmacaoPortfolio, setModalConfirmacaoPortfolio] = useState<{
     dominio: 'portfolio' | 'operacoes' | 'loteadores' | 'corretores';
@@ -3038,11 +3041,23 @@ export function KanbanCardModal({
       return;
     }
     const idxAtual = fases.findIndex((f) => f.id === faseAtual.id);
-    const proximaFase = idxAtual >= 0 && idxAtual < fases.length - 1 ? fases[idxAtual + 1] : undefined;
-    if (!proximaFase) {
+    if (idxAtual < 0 || idxAtual >= fases.length - 1) {
       alert('Esta é a última fase do funil.');
       return;
     }
+    setSelecaoFaseDirecao('avancar');
+  }
+
+  async function processarAvancarParaFase(
+    proximaFase: KanbanFase,
+    opts?: { fromLista?: boolean },
+  ) {
+    if (!card || !faseAtual) return;
+    if (!podeMoverFaseCard) {
+      alert('Sem permissão para mover de fase.');
+      return;
+    }
+
     if (
       (isPortfolioKanbanRef(null, String(kanbanNome)) || isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))) &&
       origem !== 'legado'
@@ -3112,17 +3127,20 @@ export function KanbanCardModal({
     }
 
     const skipConfirmGenerico =
-      card.kanban_id === KANBAN_IDS.CORRETORES &&
-      (proximaSlug === FASE_SLUGS.COR_CONVERTIDO ||
-        Boolean(
-          deveConfirmarMovimentoCorretores({
-            kanbanId: card.kanban_id,
-            faseSlugAtual: faseAtual.slug,
-            destinoFaseSlug: proximaSlug,
-            origemCard: origem,
-          }),
-        ));
-    if (!skipConfirmGenerico && !confirm(`Avançar para a fase "${proximaFase.nome}"?`)) return;
+      Boolean(opts?.fromLista) ||
+      (card.kanban_id === KANBAN_IDS.CORRETORES &&
+        (proximaSlug === FASE_SLUGS.COR_CONVERTIDO ||
+          Boolean(
+            deveConfirmarMovimentoCorretores({
+              kanbanId: card.kanban_id,
+              faseSlugAtual: faseAtual.slug,
+              destinoFaseSlug: proximaSlug,
+              origemCard: origem,
+            }),
+          )));
+    if (!skipConfirmGenerico && !confirm(`Avançar para a fase "${proximaFase.nome}"?`)) {
+      return;
+    }
 
     const checklist = await verificarChecklistParaFase(card.id);
     if (checklist.bloqueado) {
@@ -3139,13 +3157,29 @@ export function KanbanCardModal({
       return;
     }
     const idxAtual = fases.findIndex((f) => f.id === faseAtual.id);
-    const faseAnterior = idxAtual > 0 ? fases[idxAtual - 1] : undefined;
-    if (!faseAnterior) {
+    if (idxAtual <= 0) {
       alert('Esta é a primeira fase do funil.');
       return;
     }
-    if (!confirm(`Voltar para a fase "${faseAnterior.nome}"?`)) return;
+    setSelecaoFaseDirecao('retroceder');
+  }
+
+  async function processarRetrocederParaFase(faseAnterior: KanbanFase) {
+    if (!card || !faseAtual) return;
+    if (!podeMoverFaseCard) {
+      alert('Sem permissão para mover de fase.');
+      return;
+    }
     await iniciarMovimentoFasePortfolio(faseAnterior, 'retroceder');
+  }
+
+  async function handleSelecionarFaseDaLista(faseId: string) {
+    const destino = fases.find((f) => f.id === faseId);
+    const direcao = selecaoFaseDirecao;
+    setSelecaoFaseDirecao(null);
+    if (!destino || !direcao) return;
+    if (direcao === 'avancar') await processarAvancarParaFase(destino, { fromLista: true });
+    else await processarRetrocederParaFase(destino);
   }
 
   async function handleSolicitarAprovacaoFase() {
@@ -5147,6 +5181,10 @@ export function KanbanCardModal({
   const podeRetrocederFase = !cardNativoConcluido && faseAtualIdx > 0;
   const podeAvancarFase =
     !cardNativoConcluido && faseAtualIdx >= 0 && faseAtualIdx < fases.length - 1;
+  const fasesAnterioresSelecao =
+    faseAtualIdx > 0 ? [...fases.slice(0, faseAtualIdx)].reverse() : [];
+  const fasesFuturasSelecao =
+    faseAtualIdx >= 0 && faseAtualIdx < fases.length - 1 ? fases.slice(faseAtualIdx + 1) : [];
   const maxOrdemFases = fases.length > 0 ? Math.max(...fases.map((f) => f.ordem)) : 0;
   const estaNaUltimaFaseNativo = Boolean(faseAtual && faseAtual.ordem === maxOrdemFases);
   const exibirBotaoFinalizar =
@@ -8148,6 +8186,28 @@ export function KanbanCardModal({
                   </div>
                 ) : !modalAprovacaoFase ? (
                   <div className="moni-kanban-drawer-footer">
+                  {selecaoFaseDirecao ? (
+                    <KanbanSelecaoFaseLista
+                      titulo={
+                        selecaoFaseDirecao === 'avancar'
+                          ? 'Escolha a fase futura'
+                          : 'Escolha a fase anterior'
+                      }
+                      hint={
+                        selecaoFaseDirecao === 'avancar'
+                          ? 'Selecione qualquer fase à frente no funil.'
+                          : 'Selecione qualquer fase já percorrida no funil.'
+                      }
+                      fases={
+                        selecaoFaseDirecao === 'avancar'
+                          ? fasesFuturasSelecao
+                          : fasesAnterioresSelecao
+                      }
+                      disabled={movendoFase}
+                      onCancel={() => setSelecaoFaseDirecao(null)}
+                      onSelect={(fase) => void handleSelecionarFaseDaLista(fase.id)}
+                    />
+                  ) : (
                   <div className="moni-card-modal-movimentacao-grid">
                     <button
                       type="button"
@@ -8180,6 +8240,7 @@ export function KanbanCardModal({
                       <ChevronRight className="moni-card-modal-movimentacao-btn-icon" aria-hidden />
                     </button>
                   </div>
+                  )}
                   </div>
                 ) : (
                   <div className="space-y-1.5">

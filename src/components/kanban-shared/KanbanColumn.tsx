@@ -264,7 +264,7 @@ export function KanbanColumn({
       .filter((f) => f.ativo !== false && f.ordem > fase.ordem)
       .sort((a, b) => a.ordem - b.ordem);
     const prox = candidatas[0];
-    return prox ? { id: prox.id, nome: prox.nome } : null;
+    return prox ? { id: prox.id, nome: prox.nome, ordem: prox.ordem, slug: prox.slug ?? null } : null;
   }, [fasesFunil, fase.ordem]);
   const isFunding = kanbanId === KANBAN_IDS.FUNDING || isDivify;
 
@@ -923,6 +923,15 @@ export function KanbanColumn({
                         kanbanNome={typeof kanbanNome === 'string' ? kanbanNome : undefined}
                         kanbanId={kanbanId}
                         faseAtualSlug={faseSlug || null}
+                        faseAtualOrdem={fase.ordem}
+                        fasesFunil={(fasesFunil ?? [])
+                          .filter((f) => f.ativo !== false)
+                          .map((f) => ({
+                            id: f.id,
+                            nome: f.nome,
+                            ordem: f.ordem,
+                            slug: f.slug ?? null,
+                          }))}
                         proximaFase={proximaFaseFunil}
                         cardArquivado={arquivado}
                         cardResultado={resultado}
