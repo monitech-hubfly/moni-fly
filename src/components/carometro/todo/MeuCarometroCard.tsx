@@ -20,7 +20,7 @@ function scoreColor(score: number | null): string {
 }
 
 function dotColor(score: number | null): string {
-  if (score === null) return '#15803d';
+  if (score === null) return '#9ca3af';
   if (score >= 75) return '#15803d';
   if (score >= 60) return '#22c55e';
   if (score >= 30) return '#ca8a04';
@@ -116,7 +116,7 @@ function SemanaisCirculos({ semanas }: { semanas: SemanaStatusInd[] }) {
               style={{ backgroundColor: dotColor(sem.score) }}
             >
               <span className="text-[10px] font-bold text-white leading-none">
-                {sem.score !== null ? `${sem.score}%` : '100%'}
+                {sem.score !== null ? `${sem.score}%` : '—'}
               </span>
             </button>
             <span className="text-[11px] text-gray-500 font-medium">{sem.label}</span>
@@ -134,7 +134,7 @@ function SemanaisCirculos({ semanas }: { semanas: SemanaStatusInd[] }) {
         return (
           <div className="bg-gray-50 rounded-lg p-2.5 text-xs flex flex-col gap-1.5 border border-gray-100">
             <span className="font-semibold text-gray-600 text-[10px] uppercase tracking-wide">
-              {sem.label} — {sem.score !== null ? `${sem.score}%` : '100%'}
+              {sem.label} — {sem.score !== null ? `${sem.score}%` : '—'}
             </span>
             {sem.indicadores.map(ind => (
               <div key={ind.nome} className="flex justify-between gap-2">
