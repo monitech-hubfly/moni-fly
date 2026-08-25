@@ -11,12 +11,10 @@ import {
   formatCondominioMoeda,
   formatEnderecoNumero,
 } from '@/lib/condominios';
-import {
-  REDE_LOTEADOR_STATUS_LABEL,
-  type RedeLoteadorRow,
-} from '@/lib/rede-loteadores';
+import { type RedeLoteadorRow } from '@/lib/rede-loteadores';
 import type { MoniCapitalCadastroRow } from '@/lib/moni-capital-cadastros';
 
+/** Cabeçalhos alinhados às colunas da tabela Rede de Loteadores (ficha completa). */
 export const REDE_LOTEADOR_CSV_HEADERS = [
   'id',
   'codigo',
@@ -30,7 +28,37 @@ export const REDE_LOTEADOR_CSV_HEADERS = [
   'portfolio_descricao',
   'status',
   'observacoes',
+  'interlocutor_nome',
+  'interlocutor_cargo',
+  'interlocutor_telefone',
+  'interlocutor_email',
+  'condominio_nome',
+  'condominio_data_lancamento',
+  'condominio_cidade',
+  'condominio_estado',
+  'condominio_qtd_lotes',
+  'condominio_preco_lotes',
+  'condominio_metragem_lotes',
+  'condominio_preco_casas',
+  'condominio_metragem_casas',
+  'anexo_planta_cadastral',
+  'anexo_manual_obras',
+  'anexo_casas_concorrentes',
+  'carteira_lotes_disponiveis',
+  'carteira_lotes_vendidos_quitados',
+  'carteira_carteira_curta_qtd',
+  'carteira_curta_financiamento',
+  'carteira_longa_qtd',
+  'carteira_longa_financiamento',
+  'anexo_tabela_precos',
+  'campo_livre',
+  'anexo_material_extra',
 ] as const;
+
+function cellCsv(v: string | number | null | undefined): string {
+  if (v == null) return '';
+  return String(v);
+}
 
 export const CONDOMINIO_CSV_HEADERS = [
   'id',
@@ -74,17 +102,43 @@ export const CADASTRO_EMPRESAS_CSV_HEADERS = [
 export function csvRedeLoteadores(rows: RedeLoteadorRow[]): string {
   const data = rows.map((r) => ({
     id: r.id,
-    codigo: r.codigo ?? '',
-    nome: r.nome ?? '',
-    cnpj: r.cnpj ?? '',
-    cidade: r.cidade ?? '',
-    estado: r.estado ?? '',
-    contato_nome: r.contato_nome ?? '',
-    contato_telefone: r.contato_telefone ?? '',
-    contato_email: r.contato_email ?? '',
-    portfolio_descricao: r.portfolio_descricao ?? '',
-    status: REDE_LOTEADOR_STATUS_LABEL[r.status] ?? r.status,
-    observacoes: r.observacoes ?? '',
+    codigo: cellCsv(r.codigo),
+    nome: cellCsv(r.nome),
+    cnpj: cellCsv(r.cnpj),
+    cidade: cellCsv(r.cidade),
+    estado: cellCsv(r.estado),
+    contato_nome: cellCsv(r.contato_nome),
+    contato_telefone: cellCsv(r.contato_telefone),
+    contato_email: cellCsv(r.contato_email),
+    portfolio_descricao: cellCsv(r.portfolio_descricao),
+    // slug para round-trip no import (`ativo` / `inativo` / `em_analise`)
+    status: r.status,
+    observacoes: cellCsv(r.observacoes),
+    interlocutor_nome: cellCsv(r.interlocutor_nome),
+    interlocutor_cargo: cellCsv(r.interlocutor_cargo),
+    interlocutor_telefone: cellCsv(r.interlocutor_telefone),
+    interlocutor_email: cellCsv(r.interlocutor_email),
+    condominio_nome: cellCsv(r.condominio_nome),
+    condominio_data_lancamento: cellCsv(r.condominio_data_lancamento),
+    condominio_cidade: cellCsv(r.condominio_cidade),
+    condominio_estado: cellCsv(r.condominio_estado ?? r.estado),
+    condominio_qtd_lotes: cellCsv(r.condominio_qtd_lotes),
+    condominio_preco_lotes: cellCsv(r.condominio_preco_lotes),
+    condominio_metragem_lotes: cellCsv(r.condominio_metragem_lotes),
+    condominio_preco_casas: cellCsv(r.condominio_preco_casas),
+    condominio_metragem_casas: cellCsv(r.condominio_metragem_casas),
+    anexo_planta_cadastral: cellCsv(r.anexo_planta_cadastral),
+    anexo_manual_obras: cellCsv(r.anexo_manual_obras),
+    anexo_casas_concorrentes: cellCsv(r.anexo_casas_concorrentes),
+    carteira_lotes_disponiveis: cellCsv(r.carteira_lotes_disponiveis),
+    carteira_lotes_vendidos_quitados: cellCsv(r.carteira_lotes_vendidos_quitados),
+    carteira_carteira_curta_qtd: cellCsv(r.carteira_carteira_curta_qtd),
+    carteira_curta_financiamento: cellCsv(r.carteira_curta_financiamento),
+    carteira_longa_qtd: cellCsv(r.carteira_longa_qtd),
+    carteira_longa_financiamento: cellCsv(r.carteira_longa_financiamento),
+    anexo_tabela_precos: cellCsv(r.anexo_tabela_precos),
+    campo_livre: cellCsv(r.campo_livre),
+    anexo_material_extra: cellCsv(r.anexo_material_extra),
   }));
   return linhasParaCsv(REDE_LOTEADOR_CSV_HEADERS, data);
 }
@@ -191,17 +245,9 @@ export function csvCondominiosTabela(rows: CondominioRow[]): string {
   return linhasParaCsv(headers, data);
 }
 
+/** @deprecated Preferir `csvRedeLoteadores` (export completo da ficha). */
 export function csvLoteadoresTabela(rows: RedeLoteadorRow[]): string {
-  const headers = ['nome', 'cnpj', 'cidade_estado', 'contato', 'portfolio', 'status'] as const;
-  const data = rows.map((r) => ({
-    nome: r.nome,
-    cnpj: r.cnpj ?? '',
-    cidade_estado: [r.cidade, r.estado].filter(Boolean).join(' / '),
-    contato: [r.contato_nome, r.contato_telefone, r.contato_email].filter(Boolean).join(' · '),
-    portfolio: r.portfolio_descricao ?? '',
-    status: REDE_LOTEADOR_STATUS_LABEL[r.status],
-  }));
-  return linhasParaCsv(headers, data);
+  return csvRedeLoteadores(rows);
 }
 
 export function csvEmpresasTabela(linhas: CadastroEmpresasLinhaComSpe[]): string {
