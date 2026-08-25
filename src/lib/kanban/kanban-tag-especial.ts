@@ -26,6 +26,36 @@ export function isKanbanTagDependenciaNome(nome: string | null | undefined): boo
   return String(nome ?? '').trim().toLowerCase().startsWith('dependencia:');
 }
 
+/** Label "Nª/Nº rodada" (1–6). */
+export function isKanbanTagRodadaNome(nome: string | null | undefined): boolean {
+  return rodadaNumeroFromLabel(nome) != null;
+}
+
+/** Label "Nª/Nº tranche" (1–6). */
+export function isKanbanTagTrancheNome(nome: string | null | undefined): boolean {
+  return trancheNumeroFromLabel(nome) != null;
+}
+
+export type KanbanTagGrupoKind = 'rodada' | 'tranche' | 'especial';
+
+export function classificarKanbanTagGrupo(nome: string | null | undefined): KanbanTagGrupoKind {
+  if (isKanbanTagRodadaNome(nome)) return 'rodada';
+  if (isKanbanTagTrancheNome(nome)) return 'tranche';
+  return 'especial';
+}
+
+/** Ordena tags de rodada/tranche pelo índice numérico do label. */
+export function ordenarTagsPorIndiceOrdinal<T extends { nome: string }>(tags: T[]): T[] {
+  return [...tags].sort((a, b) => {
+    const na =
+      rodadaNumeroFromLabel(a.nome) ?? trancheNumeroFromLabel(a.nome) ?? Number.POSITIVE_INFINITY;
+    const nb =
+      rodadaNumeroFromLabel(b.nome) ?? trancheNumeroFromLabel(b.nome) ?? Number.POSITIVE_INFINITY;
+    if (na !== nb) return na - nb;
+    return String(a.nome).localeCompare(String(b.nome), 'pt-BR');
+  });
+}
+
 export type KanbanTagChipStyle = {
   className: string;
   style?: {

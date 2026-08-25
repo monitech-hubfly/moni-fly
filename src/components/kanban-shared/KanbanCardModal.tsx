@@ -10,7 +10,6 @@ import {
   ChevronRight,
   ChevronLeft,
   ArrowLeft,
-  Tag,
   CheckCircle2,
   Pencil,
   Archive,
@@ -44,12 +43,10 @@ import {
   arquivarSubInteracao,
   atualizarStatusInteracao,
   atualizarStatusSubInteracao,
-  criarTagKanban,
   criarChamadoSireneComAtividade,
   vincularChamadoSireneExistenteAoCard,
   buscarChamadosSireneParaVincular,
   criarSubInteracao,
-  desvincularTagCard,
   editarInteracao,
   editarSubInteracao,
   excluirSubInteracao,
@@ -76,7 +73,6 @@ import {
   uploadProcessoNegocioAnexo,
   togglePastelAtividade,
   type ProcessoNegocioAnexoCampo,
-  vincularTagCard,
   verificarChecklistParaFase,
   verificarGateAcoplamentoModelagemCasa,
   verificarGateChecklistLegalPortfolio,
@@ -160,7 +156,7 @@ import {
   condominioPrazosSlaFromRow,
   type CondominioPrazosAprovacaoSla,
 } from '@/lib/kanban/condominio-prazos-aprovacao';
-import { estiloChipTagKanban } from '@/lib/kanban/kanban-tag-especial';
+import { KanbanCardModalTagsPainel } from './KanbanCardModalTagsPainel';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreObraOperacoes';
@@ -7905,149 +7901,25 @@ export function KanbanCardModal({
             {mostrarColunaAcoesLateral ? (
             <>
             <PainelLateralSecao titulo="Tags">
-              <div className="mb-1.5 flex flex-wrap gap-1">
-                {tagsCard.map((t) => {
-                  const chip = estiloChipTagKanban(t.nome, t.cor);
-                  return (
-                  <span
-                    key={t.id}
-                    className={chip.className}
-                    style={chip.style}
-                  >
-                    <span className="truncate">{t.nome}</span>
-                    {!ocultarGestaoCard ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const cardTagId = t.id;
-                          setTagsCard((prev) => prev.filter((x) => x.id !== cardTagId));
-                          void desvincularTagCard(cardTagId, basePath).then((res) => {
-                            if (!res.ok) {
-                              setTagsCard((prev) =>
-                                prev.some((x) => x.id === cardTagId) ? prev : [...prev, t],
-                              );
-                              alert('Erro ao remover tag: ' + res.error);
-                            }
-                          });
-                        }}
-                        className="shrink-0 rounded-full p-0.5 text-current opacity-60 transition hover:bg-black/5 hover:opacity-100"
-                        aria-label={`Remover tag ${t.nome}`}
-                      >
-                        <X className="h-3 w-3" aria-hidden />
-                      </button>
-                    ) : null}
-                  </span>
-                  );
-                })}
-                {tagsCard.length === 0 ? (
-                  <p className="text-[10px] text-stone-400">Nenhuma tag</p>
-                ) : null}
-              </div>
-              {!ocultarGestaoCard && card ? (
-                <div className="space-y-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setTagsOpen((v) => !v)}
-                    className="flex w-full items-center justify-center gap-1 rounded border border-dashed border-stone-300 bg-stone-50/80 px-2 py-1 text-[10px] font-medium text-stone-700 transition hover:border-stone-400 hover:bg-white"
-                  >
-                    <Tag className="h-3 w-3 shrink-0 text-stone-500" aria-hidden />
-                    {tagsOpen ? 'Fechar' : 'Adicionar tag'}
-                  </button>
-                  {tagsOpen ? (
-                    <div className="space-y-1.5 rounded border border-stone-200 bg-stone-50/50 p-1.5">
-                      {tagsKanban.filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id)).length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {tagsKanban
-                          .filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id))
-                          .map((t) => {
-                            const chip = estiloChipTagKanban(t.nome, t.cor);
-                            return (
-                            <button
-                              key={t.id}
-                              type="button"
-                              onClick={() => {
-                                const tempId = `temp-${t.id}`;
-                                setTagsCard((prev) => [
-                                  ...prev,
-                                  { id: tempId, tag_id: t.id, nome: t.nome, cor: t.cor },
-                                ]);
-                                setTagsOpen(false);
-                                void vincularTagCard(card.id, t.id, basePath).then((res) => {
-                                  if (!res.ok) {
-                                    setTagsCard((prev) => prev.filter((x) => x.id !== tempId));
-                                    alert('Erro ao vincular tag: ' + res.error);
-                                    return;
-                                  }
-                                  setTagsCard((prev) =>
-                                    prev.map((x) => (x.id === tempId ? { ...x, id: res.id } : x)),
-                                  );
-                                });
-                              }}
-                              className={`${chip.className} transition hover:opacity-90`}
-                              style={chip.style}
-                            >
-                              {t.nome}
-                            </button>
-                            );
-                          })}
-                      </div>
-                      ) : (
-                        <p className="text-[11px] text-stone-500">Todas as tags do funil já estão no card.</p>
-                      )}
-                      {podeCriarChamados ? (
-                        <div className="space-y-1.5 border-t border-stone-200 pt-1.5">
-                          <p className="text-[10px] font-medium text-stone-600">Nova tag no funil</p>
-                          <input
-                            type="text"
-                            value={novatagsNome}
-                            onChange={(e) => setNovaTagNome(e.target.value)}
-                            placeholder="Nome da tag"
-                            className="w-full rounded border border-stone-300 bg-white px-2 py-1 text-[10px] focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
-                          />
-                          <div className="flex items-center gap-1.5">
-                            <label className="sr-only" htmlFor="kanban-modal-nova-tag-cor">
-                              Cor da tag
-                            </label>
-                          <input
-                              id="kanban-modal-nova-tag-cor"
-                            type="color"
-                            value={novaTagCor}
-                            onChange={(e) => setNovaTagCor(e.target.value)}
-                              className="h-7 w-7 shrink-0 cursor-pointer rounded border border-stone-200 bg-white p-0.5"
-                          />
-                          <button
-                            type="button"
-                            disabled={criandoTag || !novatagsNome.trim()}
-                            onClick={() =>
-                              void (async () => {
-                                if (!card?.kanban_id) return;
-                                setCriandoTag(true);
-                                  const res = await criarTagKanban(
-                                    card.kanban_id,
-                                    novatagsNome.trim(),
-                                    novaTagCor,
-                                    basePath,
-                                  );
-                                if (res.ok) {
-                                  const tk = await listarTagsKanban(card.kanban_id);
-                                  setTagsKanban(tk);
-                                  setNovaTagNome('');
-                                }
-                                setCriandoTag(false);
-                              })()
-                            }
-                              className="min-w-0 flex-1 rounded px-2 py-1 text-[10px] font-semibold text-white transition disabled:opacity-50"
-                            style={{ background: 'var(--moni-text-primary)' }}
-                          >
-                              {criandoTag ? 'Criando…' : 'Criar tag'}
-                          </button>
-                        </div>
-                    </div>
-                      ) : null}
-                </div>
-              ) : null}
-            </div>
-              ) : null}
+              <KanbanCardModalTagsPainel
+                cardId={card.id}
+                kanbanId={card.kanban_id}
+                basePath={basePath}
+                tagsKanban={tagsKanban}
+                tagsCard={tagsCard}
+                setTagsKanban={setTagsKanban}
+                setTagsCard={setTagsCard}
+                tagsOpen={tagsOpen}
+                setTagsOpen={setTagsOpen}
+                ocultarGestaoCard={ocultarGestaoCard}
+                podeCriarChamados={podeCriarChamados}
+                novatagsNome={novatagsNome}
+                setNovaTagNome={setNovaTagNome}
+                novaTagCor={novaTagCor}
+                setNovaTagCor={setNovaTagCor}
+                criandoTag={criandoTag}
+                setCriandoTag={setCriandoTag}
+              />
             </PainelLateralSecao>
 
             {exibirBlocoDesarquivar ? (
