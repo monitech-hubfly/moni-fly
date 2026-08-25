@@ -595,7 +595,7 @@
   border: var(--moni-border-width) solid var(--moni-gold-400);
 }
 
-/* Tag de conteúdo — padrão pill “Média” (todos os funis; ignora cor do cadastro) */
+/* Tag de conteúdo — padrão pill “Média” (fallback sem cor de cadastro) */
 .moni-tag-chip {
   display: inline-flex;
   align-items: center;
@@ -612,6 +612,22 @@
   background: var(--moni-card-tag-bg);
   color: var(--moni-card-tag-text);
   border: var(--moni-border-width) solid var(--moni-card-tag-border);
+}
+
+/* Tag com cor própria (tranche / cadastro) — não sobrescrever com !important */
+.moni-tag-chip-custom {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 2px;
+  height: var(--moni-card-tag-height);
+  padding: 0 var(--moni-card-tag-padding-x);
+  border-radius: 999px;
+  font-family: var(--moni-font-sans);
+  font-size: var(--moni-card-tag-font-size);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .moni-kanban-board-tag-remove {
@@ -3371,7 +3387,7 @@
   opacity: 1;
 }
 
-/* Tags de conteúdo no card — força padrão Média (sobrescreve cor inline do DB) */
+/* Tags de conteúdo no card — força padrão Média só no fallback sem cor */
 .moni-kanban-card .moni-tag-chip {
   height: var(--moni-card-tag-height);
   padding: 0 var(--moni-card-tag-padding-x);
@@ -3382,6 +3398,15 @@
   background: var(--moni-card-tag-bg) !important;
   color: var(--moni-card-tag-text) !important;
   border-color: var(--moni-card-tag-border) !important;
+}
+
+.moni-kanban-card .moni-tag-chip-custom {
+  height: var(--moni-card-tag-height);
+  padding: 0 var(--moni-card-tag-padding-x);
+  border-radius: 999px;
+  font-size: var(--moni-card-tag-font-size);
+  font-weight: 600;
+  line-height: 1;
 }
 
 /* Tag «Contratar Inst. Garantidor» — vermelho sóbrio no board */
