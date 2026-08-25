@@ -172,9 +172,9 @@ export function useFechamentoBoneDay(
               .lte('semana_ano_inicio', semanaFim)
           : Promise.resolve({ data: [], error: null }),
 
-        // Bug 4 fix: incluir campo data para agrupar por semana
+        // Bug 4 fix: incluir profile_id e data para agrupar por pessoa × semana
         supabase.from('carometro_status_diario')
-          .select('data, sirene, engajamento, indicadores')
+          .select('profile_id, data, sirene, engajamento, indicadores')
           .eq('area_id', areaId)
           .gte('data', primeiroDia)
           .lte('data', ultimoDia),
@@ -235,22 +235,26 @@ export function useFechamentoBoneDay(
         setComportamentos([]);
       }
 
-      // Bug 4 fix: Carômetro acumulado — pegar último snapshot por semana ISO
-      // Em vez de média simples de scores diários, acumular os contadores brutos.
-      type StatusRow = { data: string; sirene: unknown; engajamento: unknown; indicadores: unknown };
+      // Carômetro acumulado — último snapshot por pessoa por semana, depois soma todos.
+      // Fórmulas sincronizadas com carometro-status-snapshot.ts (fonte da verdade).
+      type StatusRow = { profile_id: string; data: string; sirene: unknown; engajamento: unknown; indicadores: unknown };
       const statusArr = (statusRes.data ?? []) as StatusRow[];
 
       if (statusArr.length > 0) {
-        // Agrupar por semana ISO, manter apenas o snapshot mais recente de cada semana
-        const porSemana = new Map<number, StatusRow>();
+        // Agrupar: semana ISO → profile_id → snapshot mais recente daquela semana para aquela pessoa
+        const porSemanaProfile = new Map<number, Map<string, StatusRow>>();
         for (const r of statusArr) {
           const semana = isoWeek(new Date(`${r.data}T12:00:00`));
-          const existing = porSemana.get(semana);
-          if (!existing || r.data > existing.data) {
-            porSemana.set(semana, r);
-          }
+          if (!porSemanaProfile.has(semana)) porSemanaProfile.set(semana, new Map());
+          const profMap = porSemanaProfile.get(semana)!;
+          const existing = profMap.get(r.profile_id);
+          if (!existing || r.data > existing.data) profMap.set(r.profile_id, r);
         }
-        const snapshots = Array.from(porSemana.values());
+        // Achatar: 1 snapshot por pessoa por semana → somar contadores de todas as pessoas
+        const snapshots: StatusRow[] = [];
+        for (const profMap of porSemanaProfile.values()) {
+          for (const snap of profMap.values()) snapshots.push(snap);
+        }
 
         // Sirene — acumulado: ΣConcluidos / ΣRelevantes
         let sireneConcluidos = 0;
@@ -289,10 +293,10 @@ export function useFechamentoBoneDay(
             engProxRel  += typeof pr.relevantes === 'number' ? pr.relevantes : 0;
           }
         }
-        const scoreAtiv  = engAtivAgend   > 0 ? Math.max(0, Math.round((engAtivReal   / engAtivAgend)   * 100)) : null;
+        const scoreAtiv  = engAtivAgend   > 0 ? Math.max(0, Math.round((engAtivReal   / engAtivAgend)   * 100)) : 0;
         const scoreCards = engCardsComSLA > 0  ? Math.max(0, Math.round((engCardsEmDia / engCardsComSLA) * 100))
                          : snapshots.length > 0 ? 100 : null;
-        const scoreProx  = engProxRel    > 0  ? Math.max(0, Math.round((engProxConc   / engProxRel)    * 100)) : null;
+        const scoreProx  = engProxRel    > 0  ? Math.max(0, Math.round((engProxConc   / engProxRel)    * 100)) : 100;
         const engSubs = [scoreAtiv, scoreCards, scoreProx].filter((s): s is number => s !== null);
         const engScore = engSubs.length > 0
           ? Math.round(engSubs.reduce((a, b) => a + b, 0) / engSubs.length)
