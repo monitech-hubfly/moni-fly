@@ -7910,11 +7910,18 @@ export function KanbanCardModal({
                     {!ocultarGestaoCard ? (
                       <button
                         type="button"
-                        onClick={() =>
-                          void desvincularTagCard(t.id, basePath).then(() =>
-                            setTagsCard((prev) => prev.filter((x) => x.id !== t.id)),
-                          )
-                        }
+                        onClick={() => {
+                          const cardTagId = t.id;
+                          setTagsCard((prev) => prev.filter((x) => x.id !== cardTagId));
+                          void desvincularTagCard(cardTagId, basePath).then((res) => {
+                            if (!res.ok) {
+                              setTagsCard((prev) =>
+                                prev.some((x) => x.id === cardTagId) ? prev : [...prev, t],
+                              );
+                              alert('Erro ao remover tag: ' + res.error);
+                            }
+                          });
+                        }}
                         className="shrink-0 rounded-full p-0.5 text-current opacity-60 transition hover:bg-black/5 hover:opacity-100"
                         aria-label={`Remover tag ${t.nome}`}
                       >
@@ -7950,15 +7957,23 @@ export function KanbanCardModal({
                             <button
                               key={t.id}
                               type="button"
-                              onClick={async () => {
-                                const res = await vincularTagCard(card.id, t.id, basePath);
-                                if (!res.ok) {
-                                  alert('Erro ao vincular tag: ' + res.error);
-                                  return;
-                                }
-                                const tc = await listarTagsCard(card.id);
-                                setTagsCard(tc);
+                              onClick={() => {
+                                const tempId = `temp-${t.id}`;
+                                setTagsCard((prev) => [
+                                  ...prev,
+                                  { id: tempId, tag_id: t.id, nome: t.nome, cor: t.cor },
+                                ]);
                                 setTagsOpen(false);
+                                void vincularTagCard(card.id, t.id, basePath).then((res) => {
+                                  if (!res.ok) {
+                                    setTagsCard((prev) => prev.filter((x) => x.id !== tempId));
+                                    alert('Erro ao vincular tag: ' + res.error);
+                                    return;
+                                  }
+                                  setTagsCard((prev) =>
+                                    prev.map((x) => (x.id === tempId ? { ...x, id: res.id } : x)),
+                                  );
+                                });
                               }}
                               className={`${chip.className} transition hover:opacity-90`}
                               style={chip.style}

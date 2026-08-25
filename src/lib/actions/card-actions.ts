@@ -254,13 +254,22 @@ export async function vincularTagCard(
   cardId: string,
   tagId: string,
   basePath?: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+  opts?: { revalidate?: boolean },
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   try {
     const supabase = await createClient();
-    const { error } = await supabase.from('kanban_card_tags').insert({ card_id: cardId, tag_id: tagId });
+    const { data, error } = await supabase
+      .from('kanban_card_tags')
+      .insert({ card_id: cardId, tag_id: tagId })
+      .select('id')
+      .single();
     if (error) return { ok: false, error: error.message };
-    revalidatePath(basePath ?? '/');
-    return { ok: true };
+    const id = String((data as { id?: string } | null)?.id ?? '').trim();
+    if (!id) return { ok: false, error: 'Vínculo criado sem id.' };
+    // Default: sem revalidatePath — o client atualiza estado local; refresh RSC
+    // no path crítico deixava add/remove de tags muito lento.
+    if (opts?.revalidate) revalidatePath(basePath ?? '/');
+    return { ok: true, id };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -269,12 +278,13 @@ export async function vincularTagCard(
 export async function desvincularTagCard(
   cardTagId: string,
   basePath?: string,
+  opts?: { revalidate?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const supabase = await createClient();
     const { error } = await supabase.from('kanban_card_tags').delete().eq('id', cardTagId);
     if (error) return { ok: false, error: error.message };
-    revalidatePath(basePath ?? '/');
+    if (opts?.revalidate) revalidatePath(basePath ?? '/');
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };

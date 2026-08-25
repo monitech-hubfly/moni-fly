@@ -244,10 +244,10 @@ export function KanbanColumn({
           window.alert(`Não foi possível remover a tag: ${res.error}`);
           return;
         }
-        router.refresh();
+        // Sem router.refresh() no caminho crítico — o chip já sumiu otimisticamente.
       });
     },
-    [basePath, router],
+    [basePath],
   );
 
   const tagsVisiveisCard = useCallback(
