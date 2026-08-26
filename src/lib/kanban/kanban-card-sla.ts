@@ -110,13 +110,11 @@ export function resolveDataBaseSlaKanban(input: {
   ) {
     return null;
   }
-  const faseSlug = String(input.faseSlug ?? '').trim();
-  // sla_iniciado_em só na fase Documentação Alvará (relógio após upload dos docs).
-  if (faseSlug === FASE_SLUGS.CO_DOCUMENTACAO_ALVARA) {
-    const slaIniciado = parseDataIso(input.sla_iniciado_em);
-    if (slaIniciado) return slaIniciado;
-  }
-  // entered_fase_at: entrada na fase atual — base do SLA por fase (sem acumular fases anteriores).
+  // sla_iniciado_em: data de início do SLA após resolução de trava ou upload de docs (CO).
+  // Aplicado a todas as fases — permite que o relógio recomece do zero quando o bloqueio é removido.
+  const slaIniciado = parseDataIso(input.sla_iniciado_em);
+  if (slaIniciado) return slaIniciado;
+  // entered_fase_at: entrada na fase atual — base padrão do SLA por fase.
   const enteredFase = parseDataIso(input.entered_fase_at);
   if (enteredFase) return enteredFase;
   return null;
@@ -126,12 +124,18 @@ export function calcularSlaKanbanCard(input: {
   created_at: string;
   entered_fase_at?: string | null;
   sla_iniciado_em?: string | null;
+  /** Preenchido quando há chamado Sirene com trava ativa — congela o SLA. */
+  sla_pausado_em?: string | null;
   faseSlug?: string | null;
   alvara_url?: string | null;
   docs_terreno_url?: string | null;
   sla_dias?: number | null;
   sla_tipo?: SlaTipo | string | null;
 }): SlaKanbanResult {
+  // Trava ativa → SLA congelado: não penaliza o responsável enquanto aguarda resolução.
+  if (input.sla_pausado_em) {
+    return { status: 'ok', label: '', classe: '', pausado: true };
+  }
   const aguardando = creditoObraAguardandoDocumentacao({
     faseSlug: input.faseSlug,
     alvara_url: input.alvara_url,

@@ -132,6 +132,14 @@ export function MeuCarometroBloco() {
                         {engajamento.cards.atrasados}
                       </span>
                     </div>
+                    {engajamento.cards.bloqueados > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400 text-[10px]">Bloqueados (trava ativa)</span>
+                        <span className="font-medium text-gray-400 text-[10px]">
+                          {engajamento.cards.bloqueados}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Próximas Atividades */}

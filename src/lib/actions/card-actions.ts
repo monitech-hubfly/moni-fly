@@ -683,6 +683,58 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
 
 const UUID_RE_SIRENE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * Congela o SLA do card quando um chamado Sirene com trava=true é aberto para ele.
+ * Só marca se o card ainda não está pausado (evita sobrescrever timestamp anterior).
+ */
+async function congelarSlaCard(
+  admin: ReturnType<typeof createAdminClient>,
+  cardId: string | null,
+): Promise<void> {
+  if (!cardId) return;
+  await admin
+    .from('kanban_cards')
+    .update({ sla_pausado_em: new Date().toISOString() })
+    .eq('id', cardId)
+    .is('sla_pausado_em', null);
+}
+
+/**
+ * Descongela o SLA do card quando o último chamado Sirene com trava ativa é resolvido.
+ * Seta sla_iniciado_em=NOW() para o relógio reiniciar do zero a partir da resolução.
+ */
+async function descongelarSlaCard(
+  admin: ReturnType<typeof createAdminClient>,
+  sireneChamadoId: number | null,
+  cardId: string | null,
+): Promise<void> {
+  if (!sireneChamadoId || !cardId) return;
+
+  const { data: sc } = await admin
+    .from('sirene_chamados')
+    .select('trava')
+    .eq('id', sireneChamadoId)
+    .maybeSingle();
+  if (!(sc as { trava?: boolean } | null)?.trava) return;
+
+  const { data: outrasTravas } = await admin
+    .from('sirene_chamados')
+    .select('id')
+    .eq('card_id', cardId)
+    .eq('trava', true)
+    .eq('arquivado', false)
+    .not('status', 'in', '(concluido)')
+    .neq('id', sireneChamadoId)
+    .limit(1);
+
+  if (outrasTravas && outrasTravas.length > 0) return;
+
+  await admin
+    .from('kanban_cards')
+    .update({ sla_pausado_em: null, sla_iniciado_em: new Date().toISOString() })
+    .eq('id', cardId);
+}
+
 export async function criarChamadoSireneComAtividade(
   input: CriarChamadoSireneComAtividadeInput,
 ): Promise<ActionResult & { interacaoId?: string; sireneChamadoId?: number }> {
@@ -829,6 +881,11 @@ export async function criarChamadoSireneComAtividade(
   if (statusAtiv === 'em_andamento') {
     await admin.from('kanban_atividades').update({ status: 'em_andamento' }).eq('id', interacaoId);
     await registrarPrimeiroAtendimentoSeNecessario(admin, sireneChamadoId);
+  }
+
+  // Congela SLA do card se o chamado é uma trava
+  if (Boolean(input.trava) && cardId) {
+    await congelarSlaCard(admin, cardId);
   }
 
   if (timeAberturaNome && respIds[0]) {
@@ -2208,11 +2265,12 @@ export async function arquivarInteracao(
         status: 'concluida',
       })
       .eq('id', interacaoId)
-      .select('sirene_chamado_id')
+      .select('sirene_chamado_id, card_id')
       .single();
     if (kaErr) return { ok: false, error: kaErr.message };
 
     const sid = (ka as { sirene_chamado_id?: number | null }).sirene_chamado_id;
+    const kaCardId = (ka as { card_id?: string | null }).card_id ?? null;
     if (sid) {
       const { error: scErr } = await supabase
         .from('sirene_chamados')
@@ -2225,6 +2283,10 @@ export async function arquivarInteracao(
         })
         .eq('id', sid);
       if (scErr) return { ok: false, error: scErr.message };
+
+      // Descongela SLA do card se este era o último chamado com trava ativa
+      const adminSla = createAdminClient();
+      await descongelarSlaCard(adminSla, sid, kaCardId);
     }
 
     const bp = basePath?.trim() || '/';

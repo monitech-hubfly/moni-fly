@@ -51,6 +51,7 @@ function DiariosCirculos({ dias }: { dias: DiaStatus[] }) {
     // Engajamento — cards
     cards_emDia:            'Cards SLA em dia',
     cards_atrasados:        'Cards atrasados',
+    cards_bloqueados:       'Cards bloqueados (trava ativa)',
     // Engajamento — próximas atividades
     proximas_concluidos:    'Próx. concluídas',
     proximas_venceHoje:     'Próx. vence hoje',

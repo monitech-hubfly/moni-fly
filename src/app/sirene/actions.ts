@@ -1905,7 +1905,7 @@ export async function concluirChamadoCriador(
 
   const { data: chamado } = await supabase
     .from('sirene_chamados')
-    .select('id, aberto_por, status')
+    .select('id, aberto_por, status, trava, card_id')
     .eq('id', chamadoId)
     .single();
 
@@ -1993,6 +1993,27 @@ export async function concluirChamadoCriador(
         'criador_reabriu',
         `Criador indicou resolução insuficiente no chamado #${numero}: ${textoTrim}`,
       );
+    }
+  }
+
+  // Descongela SLA do card se este era o último chamado com trava ativa
+  const adminSla = createAdminClient();
+  const cTrava = (chamado as { trava?: boolean; card_id?: string | null });
+  if (cTrava.trava && cTrava.card_id) {
+    const { data: outrasTravas } = await adminSla
+      .from('sirene_chamados')
+      .select('id')
+      .eq('card_id', cTrava.card_id)
+      .eq('trava', true)
+      .eq('arquivado', false)
+      .not('status', 'in', '(concluido)')
+      .neq('id', chamadoId)
+      .limit(1);
+    if (!outrasTravas || outrasTravas.length === 0) {
+      await adminSla
+        .from('kanban_cards')
+        .update({ sla_pausado_em: null, sla_iniciado_em: new Date().toISOString() })
+        .eq('id', cTrava.card_id);
     }
   }
 

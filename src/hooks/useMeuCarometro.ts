@@ -32,7 +32,7 @@ export type SireneSnapshot = {
 
 export type EngajamentoSnapshot = {
   atividades: { agendadas: number; realizadas: number; atrasadas: number; score: number | null };
-  cards:      { comSLA: number; emDia: number; atrasados: number; score: number | null };
+  cards:      { comSLA: number; emDia: number; atrasados: number; bloqueados: number; score: number | null };
   proximas:   { concluidos: number; venceHoje: number; atrasadas: number; semProxima: number; relevantes: number; score: number | null };
   score: number | null;
 };
@@ -287,7 +287,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
       let engajamentoRuntime: EngajamentoSnapshot = {
         atividades: { agendadas: 0, realizadas: 0, atrasadas: 0, score: null },
-        cards:      { comSLA: 0, emDia: 0, atrasados: 0, score: null },
+        cards:      { comSLA: 0, emDia: 0, atrasados: 0, bloqueados: 0, score: null },
         proximas:   { concluidos: 0, venceHoje: 0, atrasadas: 0, semProxima: 0, relevantes: 0, score: null },
         score: null,
       };
@@ -305,7 +305,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .not('objetivo_id', 'is', null),   // exclui "Sem vínculo à meta"
           supabase
             .from('kanban_cards')
-            .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
+            .select('id, created_at, entered_fase_at, sla_iniciado_em, sla_pausado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
             .or(engOrKanban)
             .eq('arquivado', false)
             .eq('concluido', false),
@@ -342,27 +342,33 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         const kanbanArr = (kanbanRes.data ?? []) as Array<{
           id: string; created_at: string; entered_fase_at: string | null;
           sla_iniciado_em: string | null;
+          sla_pausado_em: string | null;
           fase: { sla_dias: number | null; sla_tipo: string | null; slug: string | null } | Array<{ sla_dias: number | null; sla_tipo: string | null; slug: string | null }> | null;
         }>;
         const cardsComSLA = kanbanArr.filter(c => {
           const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
           return (fase?.sla_dias ?? null) !== null;
         });
-        const cardsAtrasados = cardsComSLA.filter(c => {
+        // Cards com trava ativa → bloqueados: excluídos do score (nem bônus, nem penalidade)
+        const cardsBloqueados = cardsComSLA.filter(c => Boolean(c.sla_pausado_em)).length;
+        const cardsNaoBloqueados = cardsComSLA.filter(c => !c.sla_pausado_em);
+        const cardsAtrasados = cardsNaoBloqueados.filter(c => {
           const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
           return calcularSlaKanbanCard({
             created_at:      c.created_at,
             entered_fase_at: c.entered_fase_at,
             sla_iniciado_em: c.sla_iniciado_em,
+            sla_pausado_em:  c.sla_pausado_em,
             sla_dias:        fase?.sla_dias ?? null,
             sla_tipo:        fase?.sla_tipo ?? null,
             faseSlug:        fase?.slug     ?? null,
           }).status === 'atrasado';
         }).length;
-        const cardsEmDia = cardsComSLA.length - cardsAtrasados;
-        const scoreCards = cardsComSLA.length === 0
+        const cardsEmDia = cardsNaoBloqueados.length - cardsAtrasados;
+        // Score: apenas sobre os cards sem trava ativa. Nenhum card ativo (todos bloqueados) = 100%.
+        const scoreCards = cardsComSLA.length === 0 || cardsNaoBloqueados.length === 0
           ? 100
-          : Math.max(0, Math.round((cardsEmDia / cardsComSLA.length) * 100));
+          : Math.max(0, Math.round((cardsEmDia / cardsNaoBloqueados.length) * 100));
 
         // Sub-score 3: Próximas Atividades (kanban_cards.prazo_atividade)
         // Score B: concluidos / (concluidos + atrasados). Vence hoje = contexto, não penaliza.
@@ -389,7 +395,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
         engajamentoRuntime = {
           atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
-          cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, score: scoreCards },
+          cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, bloqueados: cardsBloqueados, score: scoreCards },
           proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, semProxima: cardsSemProxima, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas + cardsSemProxima, score: scoreProximas },
           score:      engScore,
         };
@@ -615,6 +621,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         atividades_atrasadas:  engajamentoRuntime.atividades.atrasadas,
         cards_emDia:           engajamentoRuntime.cards.emDia,
         cards_atrasados:       engajamentoRuntime.cards.atrasados,
+        cards_bloqueados:      engajamentoRuntime.cards.bloqueados,
         proximas_concluidos:   engajamentoRuntime.proximas.concluidos,
         proximas_venceHoje:    engajamentoRuntime.proximas.venceHoje,
         proximas_atrasadas:    engajamentoRuntime.proximas.atrasadas,
