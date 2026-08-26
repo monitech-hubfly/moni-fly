@@ -1664,9 +1664,9 @@ function PreBoneDayPageContent() {
 
     const novaMetaId = (novaMeta as { id: string }).id;
 
-    // 2. Marcar original como concluído (remove de Metas não concluídas)
+    // 2. Marcar original como relançada (remove de Metas não concluídas, mas mantém editável no mês original)
     await supabase.from('objetivos')
-      .update({ status: 'concluido', concluido_em: new Date().toISOString() })
+      .update({ status: 'relancada', concluido_em: new Date().toISOString() })
       .eq('id', id);
 
     // 3. Copiar indicadores da meta original para a nova, sem responsável (zerado para novo ciclo)

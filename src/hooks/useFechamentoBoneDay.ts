@@ -148,7 +148,7 @@ export function useFechamentoBoneDay(
           .select('id, descricao, tipo, is_chave, meta_unidade, status')
           .eq('area_id', areaId)
           .eq('mes', mes)
-          .in('status', ['ativo', 'concluido'])
+          .in('status', ['ativo', 'concluido', 'relancada'])
           .is('objetivo_pai_id', null)
           .order('is_chave', { ascending: false })
           .order('ordem', { ascending: true }),

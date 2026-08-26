@@ -153,7 +153,7 @@ export function useMetasIndicadores(
         .from('objetivos')
         .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, objetivo_pai_id, profile_id')
         .eq('area_id', areaId)
-        .in('status', ['ativo', 'concluido']);
+        .in('status', ['ativo', 'concluido', 'relancada']);
       if (mes) objQuery = objQuery.eq('mes', mes);
 
       const [objRes, indRes, respRes] = await Promise.all([
@@ -353,7 +353,7 @@ export function useMetasIndicadores(
         }))
       );
 
-      setMetas(metasArr.filter(m => m.status === 'ativo'));
+      setMetas(metasArr.filter(m => m.status === 'ativo' || m.status === 'relancada'));
       setMetasConcluidas(metasArr.filter(m => m.status === 'concluido'));
       setSubMetas(subMetasArr);
       setIndicadores(indicadoresArr);
