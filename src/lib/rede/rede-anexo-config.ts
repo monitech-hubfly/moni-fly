@@ -53,3 +53,13 @@ export function sanitizeRedeNomeArquivo(nome: string): string {
 export function isRedeEmpresaDocColumn(column: string): boolean {
   return column.startsWith('anexo_emp_');
 }
+
+/** Caminho relativo no bucket `rede-attachments` (aceita legado com barra ou prefixo do bucket). */
+export function normalizeRedeAnexoStoragePath(storagePath: string): string {
+  let p = String(storagePath ?? '').trim();
+  if (!p) return '';
+  const fromUrl = p.match(/rede-attachments\/(.+)$/i);
+  if (fromUrl) p = fromUrl[1]!;
+  if (p.startsWith('rede-attachments/')) p = p.slice('rede-attachments/'.length);
+  return p.replace(/^\/+/, '');
+}

@@ -35,6 +35,7 @@ import {
 } from '@/lib/rede-franqueado-substituicao';
 import {
   MAX_REDE_DOC_BYTES,
+  normalizeRedeAnexoStoragePath,
   parseRedeAnexoTipo,
   REDE_ANEXO_COLUNA,
   REDE_ANEXO_JUSTIFICATIVA_COLUNA,
@@ -1317,16 +1318,6 @@ async function perfilPodeGerirDocsRede(
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
   const access = normalizeAccessRole((profile as { role?: string } | null)?.role);
   return access === 'admin' || access === 'team';
-}
-
-/** Caminho relativo no bucket `rede-attachments` (aceita legado com barra ou prefixo do bucket). */
-function normalizeRedeAnexoStoragePath(storagePath: string): string {
-  let p = String(storagePath ?? '').trim();
-  if (!p) return '';
-  const fromUrl = p.match(/rede-attachments\/(.+)$/i);
-  if (fromUrl) p = fromUrl[1]!;
-  if (p.startsWith('rede-attachments/')) p = p.slice('rede-attachments/'.length);
-  return p.replace(/^\/+/, '');
 }
 
 /** Link assinado (1h) — só equipe interna (admin / team / consultor legado). */

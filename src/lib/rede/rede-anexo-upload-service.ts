@@ -11,6 +11,7 @@ import {
 import {
   isRedeEmpresaDocColumn,
   MAX_REDE_DOC_BYTES,
+  normalizeRedeAnexoStoragePath,
   parseRedeAnexoTipo,
   REDE_ANEXO_COLUNA,
   REDE_ANEXO_JUSTIFICATIVA_COLUNA,
@@ -41,28 +42,23 @@ function isAnexoColumnSchemaError(message: string, column: string): boolean {
 }
 
 async function updateRedeAnexoPathAdmin(
+  admin: ReturnType<typeof createAdminClient>,
   redeId: string,
   column: string,
   storagePath: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  let admin;
-  try {
-    admin = createAdminClient();
-  } catch {
-    return { ok: false, error: 'Serviço de arquivos indisponível no servidor.' };
-  }
+  const patch = { [column]: storagePath, updated_at: new Date().toISOString() };
 
   const attempt = async () => {
     const { data, error } = await admin
       .from('rede_franqueados')
-      .update({ [column]: storagePath } as never)
+      .update(patch as never)
       .eq('id', redeId)
-      .select(column)
+      .select('id')
       .maybeSingle();
     if (error) return { ok: false as const, error: error.message };
-    const saved = String((data as Record<string, unknown> | null)?.[column] ?? '').trim();
-    if (saved !== storagePath) {
-      return { ok: false as const, error: 'Não foi possível gravar o caminho do anexo na rede.' };
+    if (!data?.id) {
+      return { ok: false as const, error: 'Franqueado não encontrado para gravar o anexo.' };
     }
     return { ok: true as const };
   };
@@ -75,8 +71,7 @@ async function updateRedeAnexoPathAdmin(
   const ensured = await ensureColumnForAnexo(column);
   if (!ensured.ok) return ensured;
 
-  result = await attempt();
-  return result;
+  return attempt();
 }
 
 function revalidateRedePaths(redeId: string) {
@@ -104,8 +99,15 @@ export async function uploadRedeAnexoFromFormData(formData: FormData): Promise<U
     return { ok: false, error: 'Apenas administradores ou time podem enviar estes documentos.' };
   }
 
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço de arquivos indisponível no servidor.' };
+  }
+
   const col = REDE_ANEXO_COLUNA[tipo];
-  const { data: atual, error: leErr } = await supabase
+  const { data: atual, error: leErr } = await admin
     .from('rede_franqueados')
     .select('*')
     .eq('id', redeId)
@@ -116,22 +118,16 @@ export async function uploadRedeAnexoFromFormData(formData: FormData): Promise<U
   const storagePath = `rede/${redeId}/${tipo}-${randomUUID()}-${orig}`;
   const buf = Buffer.from(await file.arrayBuffer());
 
-  let admin;
-  try {
-    admin = createAdminClient();
-  } catch {
-    return { ok: false, error: 'Serviço de arquivos indisponível no servidor.' };
-  }
-
   const { error: upErr } = await admin.storage.from('rede-attachments').upload(storagePath, buf, {
     contentType: file.type || 'application/octet-stream',
     upsert: false,
   });
   if (upErr) return { ok: false, error: upErr.message };
 
-  const oldPath = String((atual as Record<string, unknown>)[col] ?? '').trim() || null;
+  const oldPathRaw = String((atual as Record<string, unknown>)[col] ?? '').trim() || null;
+  const oldPath = oldPathRaw ? normalizeRedeAnexoStoragePath(oldPathRaw) : null;
 
-  const upRow = await updateRedeAnexoPathAdmin(redeId, col, storagePath);
+  const upRow = await updateRedeAnexoPathAdmin(admin, redeId, col, storagePath);
   if (!upRow.ok) {
     await admin.storage.from('rede-attachments').remove([storagePath]);
     return upRow;
@@ -142,7 +138,9 @@ export async function uploadRedeAnexoFromFormData(formData: FormData): Promise<U
     await admin.from('rede_franqueados').update({ [justCol]: null } as never).eq('id', redeId);
   }
 
-  if (oldPath) await admin.storage.from('rede-attachments').remove([oldPath]);
+  if (oldPath && oldPath !== storagePath) {
+    await admin.storage.from('rede-attachments').remove([oldPath]);
+  }
 
   revalidateRedePaths(redeId);
   return { ok: true, path: storagePath };
