@@ -1624,7 +1624,7 @@ function PreBoneDayPageContent() {
 
   const {
     metas, metasConcluidas, metasNaoConcluidas, indicadores, responsaveis, comportamentos, agendaMacro,
-    objetivoResponsaveis, mes, setMes, isLoading, error, recarregar,
+    objetivoResponsaveis, mes, setMes, isLoading, error, recarregar, removerMetaNaoConcluida,
   } = usePlanoBoneDay(areaId, effectiveProfileId);
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -1691,14 +1691,16 @@ function PreBoneDayPageContent() {
 
     LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id,
       operacao: 'INSERT', descricao: `Meta relançada no mês ${mes}: ${metaOriginal.descricao}` });
+    removerMetaNaoConcluida(id);
     recarregar();
-  }, [supabase, areaId, mes, metasNaoConcluidas, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, areaId, mes, metasNaoConcluidas, recarregar, removerMetaNaoConcluida]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleArquivarMeta = useCallback(async (id: string) => {
     await supabase.from('objetivos').update({ status: 'arquivado' }).eq('id', id);
     LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id, operacao: 'UPDATE', descricao: 'Meta arquivada' });
+    removerMetaNaoConcluida(id);
     recarregar();
-  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, recarregar, removerMetaNaoConcluida]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Conclusão global (admin): encerra o objetivo para todos (move para Bloco 1)
   const handleConcluirMeta = useCallback(async (id: string) => {

@@ -73,6 +73,7 @@ export type UsePlanoBoneDayResult = {
   isLoading: boolean;
   error: string | null;
   recarregar: () => void;
+  removerMetaNaoConcluida: (id: string) => void;
 };
 
 export function usePlanoBoneDay(
@@ -316,6 +317,8 @@ export function usePlanoBoneDay(
     metas, metasConcluidas, metasNaoConcluidas, indicadores, responsaveis,
     comportamentos, agendaMacro, objetivoResponsaveis, mes, setMes,
     isLoading, error, recarregar: carregar,
+    removerMetaNaoConcluida: (id: string) =>
+      setMetasNaoConcluidas(prev => prev.filter(m => m.id !== id)),
   };
 }
 
