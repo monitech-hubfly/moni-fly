@@ -435,6 +435,7 @@ export type SecaoEsquerdaId =
   | 'franqueado'
   | 'loteador'
   | 'simulacoesImob'
+  | 'simuladorPagamentos'
   | 'moniCapital'
   | 'condominio'
   | 'novoNegocio'

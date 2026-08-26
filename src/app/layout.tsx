@@ -3,7 +3,7 @@ import './globals.css';
 import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/AppShell';
-import { normalizeAccessRole } from '@/lib/authz';
+import { normalizeAccessRole, profileCacheRoleNeedsRefresh } from '@/lib/authz';
 /** Sessão + papel vêm de cookies; sem isto o shell pode servir HTML cacheado com papel errado. */
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +34,10 @@ export default async function RootLayout({
       if (cachedRaw) {
         try { profile = JSON.parse(cachedRaw); } catch { /* ignore */ }
       }
-      // Cache miss: busca no banco (primeira requisição após login).
+      if (profile && profileCacheRoleNeedsRefresh(profile.role)) {
+        profile = null;
+      }
+      // Cache miss (ou pending/blocked no cookie): busca no banco.
       if (!profile) {
         const { data: dbProfile } = await supabase
           .from('profiles')

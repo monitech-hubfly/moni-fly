@@ -682,6 +682,7 @@ export function KanbanCardModal({
     franqueado: false,
     loteador: false,
     simulacoesImob: false,
+    simuladorPagamentos: false,
     moniCapital: false,
     condominio: false,
     novoNegocio: false,
@@ -8220,6 +8221,25 @@ export function KanbanCardModal({
               />,
               true,
             )}
+            {exibirDadosLoteadorPersistente && modalSessao.ehAdminOuTeam
+              ? secaoHead(
+                  'simuladorPagamentos',
+                  'Simulador de Pagamentos',
+                  <>
+                    <p className="mb-3 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+                      Incorporação em Nuvem — percentuais, link e QR para o corretor. Diferente das
+                      simulações IMOB acima.
+                    </p>
+                    <a
+                      href={`/loteadores/${cardIdDadosLoteador}/simulador-template`}
+                      className="inline-flex min-h-[44px] items-center rounded-[var(--moni-radius-md)] px-4 text-sm font-medium text-white"
+                      style={{ background: 'var(--moni-navy-800)' }}
+                    >
+                      Configurar template e gerar link
+                    </a>
+                  </>,
+                )
+              : null}
             {ehFunilFunding && !isLegado
               ? secaoHead(
                   'moniCapital',
