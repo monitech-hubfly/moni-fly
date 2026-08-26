@@ -829,49 +829,30 @@ function MetaCard({
       </div>
 
       {/* Corpo */}
-      {precisaJustificar ? (
-        <div className="px-3 pb-4 pt-1">
-          <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 flex flex-col items-center gap-2 text-center">
-            <div className="w-10 h-10 rounded-full bg-red-100 border border-red-200 flex items-center justify-center text-lg">🔒</div>
-            <p className="text-sm font-semibold text-red-700">Atrasada há {diffDias} dia{diffDias !== 1 ? 's' : ''}</p>
-            <p className="text-xs text-red-500 leading-snug max-w-[220px]">
-              Justifique o motivo do atraso para desbloquear as ações desta meta.
-            </p>
+      <div className="px-3 pb-3 flex flex-col gap-1.5">
+        {/* Aviso de atraso — compacto, no topo, NÃO bloqueia indicadores */}
+        {precisaJustificar && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 flex items-center gap-2">
+            <span className="text-base flex-shrink-0">🔒</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-red-700">Atrasada há {diffDias} dia{diffDias !== 1 ? 's' : ''}</p>
+              <p className="text-[10px] text-red-500 leading-snug">Justifique o atraso para desbloquear as ações.</p>
+            </div>
             <button type="button" onClick={() => setModalComs(true)}
-              className="mt-1 inline-flex items-center gap-1.5 px-5 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 active:bg-red-800 transition-colors shadow-sm">
-              💬 Justificar agora
+              className="text-xs px-2.5 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 active:bg-red-800 transition-colors whitespace-nowrap flex-shrink-0">
+              💬 Justificar
             </button>
           </div>
-        </div>
-      ) : (
-        <div className="px-3 pb-3 flex flex-col gap-1.5">
-          {/* Indicadores sem responsável — aviso para assumir */}
-          {indsSemDono.length > 0 && (
-            <div className="border-t border-orange-100 pt-1.5">
-              <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide mb-1">
-                📋 Indicadores sem responsável ({indsSemDono.length}) — assuma os seus
-              </p>
-              <div className="flex flex-col gap-1">
-                {indsSemDono.map(ind => (
-                  <IndicadorLinha key={ind.id} ind={ind}
-                    effectiveProfileId={effectiveProfileId}
-                    currentUserId={currentUserId}
-                    responsaveis={responsaveis}
-                    semanaAtual={semanaAtual} semanaAnterior={semanaAnterior} anoRelativo={anoRelativo}
-                    onLancar={onLancarIndicador}
-                    onAssumirIndicador={onAssumirIndicador}
-                    projetoOr={projetoOr}
-                    onToast={onToast}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+        )}
 
-          {/* Indicadores com responsável */}
-          {indicadores.filter(i => !!i.profile_id).length > 0 && (
-            <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-1">
-              {indicadores.filter(i => !!i.profile_id).map(ind => (
+        {/* Indicadores sem responsável — sempre visíveis */}
+        {indsSemDono.length > 0 && (
+          <div className="border-t border-orange-100 pt-1.5">
+            <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide mb-1">
+              📋 Indicadores sem responsável ({indsSemDono.length}) — assuma os seus
+            </p>
+            <div className="flex flex-col gap-1">
+              {indsSemDono.map(ind => (
                 <IndicadorLinha key={ind.id} ind={ind}
                   effectiveProfileId={effectiveProfileId}
                   currentUserId={currentUserId}
@@ -884,70 +865,88 @@ function MetaCard({
                 />
               ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Seção Metas filhas */}
-          {subMetas.length > 0 && (
-            <SecaoToggle label="Metas filhas" count={subMetas.length} aberta={secaoFilhas} onToggle={() => setSecaoFilhas(v => !v)}>
-              <ul className="flex flex-col gap-0.5 pl-2 border-l-2 border-gray-100">
-                {subMetas.map(s => <SubMetaEditavel key={s.id} sub={s} onSalvo={onEditarSubMeta} onExcluir={onExcluirSubMeta} />)}
-              </ul>
-            </SecaoToggle>
-          )}
+        {/* Indicadores com responsável — sempre visíveis */}
+        {indicadores.filter(i => !!i.profile_id).length > 0 && (
+          <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-1">
+            {indicadores.filter(i => !!i.profile_id).map(ind => (
+              <IndicadorLinha key={ind.id} ind={ind}
+                effectiveProfileId={effectiveProfileId}
+                currentUserId={currentUserId}
+                responsaveis={responsaveis}
+                semanaAtual={semanaAtual} semanaAnterior={semanaAnterior} anoRelativo={anoRelativo}
+                onLancar={onLancarIndicador}
+                onAssumirIndicador={onAssumirIndicador}
+                projetoOr={projetoOr}
+                onToast={onToast}
+              />
+            ))}
+          </div>
+        )}
 
-          {/* Blockers */}
-          {blockers.length > 0 && (
-            <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-1">
-              <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">🚧 Blockers ({blockers.length})</p>
-              {blockers.map(b => (
-                <div key={b.id} className="flex items-start gap-2 bg-red-50 border border-red-200 rounded px-2 py-1.5">
-                  <p className="text-xs text-red-800 flex-1 leading-snug">{b.descricao}</p>
-                  <button type="button" onClick={() => onResolverBlocker(b.id)} title="Marcar como resolvido"
-                    className="text-green-600 hover:text-green-800 font-bold text-xs shrink-0">✓</button>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Seção Metas filhas — desabilitada quando bloqueado por atraso */}
+        {!precisaJustificar && subMetas.length > 0 && (
+          <SecaoToggle label="Metas filhas" count={subMetas.length} aberta={secaoFilhas} onToggle={() => setSecaoFilhas(v => !v)}>
+            <ul className="flex flex-col gap-0.5 pl-2 border-l-2 border-gray-100">
+              {subMetas.map(s => <SubMetaEditavel key={s.id} sub={s} onSalvo={onEditarSubMeta} onExcluir={onExcluirSubMeta} />)}
+            </ul>
+          </SecaoToggle>
+        )}
 
-          {/* Formulário add blocker */}
-          {adicionandoBlocker && (
-            <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-2">
-              <textarea rows={2} placeholder="Descreva o blocker *"
-                value={descricaoBlocker} onChange={e => setDescricaoBlocker(e.target.value)}
-                className="w-full text-xs border border-red-200 rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-red-300"
-                autoFocus />
-              <div className="flex gap-2 justify-end">
-                <button type="button" onClick={() => { setAdicionandoBlocker(false); setDescricaoBlocker(''); }}
-                  className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
-                <button type="button" onClick={handleSalvarBlocker} disabled={!descricaoBlocker.trim() || salvandoBlocker}
-                  className="text-xs px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50 transition-colors">
-                  {salvandoBlocker ? 'Salvando...' : 'Adicionar'}
-                </button>
+        {/* Blockers — desabilitados quando bloqueado por atraso */}
+        {!precisaJustificar && blockers.length > 0 && (
+          <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-1">
+            <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">🚧 Blockers ({blockers.length})</p>
+            {blockers.map(b => (
+              <div key={b.id} className="flex items-start gap-2 bg-red-50 border border-red-200 rounded px-2 py-1.5">
+                <p className="text-xs text-red-800 flex-1 leading-snug">{b.descricao}</p>
+                <button type="button" onClick={() => onResolverBlocker(b.id)} title="Marcar como resolvido"
+                  className="text-green-600 hover:text-green-800 font-bold text-xs shrink-0">✓</button>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
+        )}
 
-          {/* Ações do rodapé */}
-          {adicionandoFilha ? (
-            <MetaForm
-              inicial={{ descricao: '', tipo: 'atingivel', respId: '', metaUnidade: '' }}
-              responsaveis={responsaveis} onSalvar={handleSalvarFilha}
-              onCancelar={() => setAdicionandoFilha(false)} salvando={salvandoFilha}
-              labelSalvar="Salvar meta filha" isFilha />
-          ) : !adicionandoBlocker ? (
-            <div className="border-t border-gray-100 pt-1.5 flex items-center gap-4">
-              <button type="button" onClick={() => setAdicionandoFilha(true)}
-                className="text-xs text-gray-400 hover:text-blue-600 text-left transition-colors">
-                + Adicionar meta filha
-              </button>
-              <button type="button" onClick={() => setAdicionandoBlocker(true)}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                🚧 + Blocker
+        {/* Formulário add blocker — desabilitado quando bloqueado por atraso */}
+        {!precisaJustificar && adicionandoBlocker && (
+          <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-2">
+            <textarea rows={2} placeholder="Descreva o blocker *"
+              value={descricaoBlocker} onChange={e => setDescricaoBlocker(e.target.value)}
+              className="w-full text-xs border border-red-200 rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-red-300"
+              autoFocus />
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => { setAdicionandoBlocker(false); setDescricaoBlocker(''); }}
+                className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+              <button type="button" onClick={handleSalvarBlocker} disabled={!descricaoBlocker.trim() || salvandoBlocker}
+                className="text-xs px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50 transition-colors">
+                {salvandoBlocker ? 'Salvando...' : 'Adicionar'}
               </button>
             </div>
-          ) : null}
-        </div>
-      )}
+          </div>
+        )}
+
+        {/* Ações do rodapé — desabilitadas quando bloqueado por atraso */}
+        {!precisaJustificar && (adicionandoFilha ? (
+          <MetaForm
+            inicial={{ descricao: '', tipo: 'atingivel', respId: '', metaUnidade: '' }}
+            responsaveis={responsaveis} onSalvar={handleSalvarFilha}
+            onCancelar={() => setAdicionandoFilha(false)} salvando={salvandoFilha}
+            labelSalvar="Salvar meta filha" isFilha />
+        ) : !adicionandoBlocker ? (
+          <div className="border-t border-gray-100 pt-1.5 flex items-center gap-4">
+            <button type="button" onClick={() => setAdicionandoFilha(true)}
+              className="text-xs text-gray-400 hover:text-blue-600 text-left transition-colors">
+              + Adicionar meta filha
+            </button>
+            <button type="button" onClick={() => setAdicionandoBlocker(true)}
+              className="text-xs text-red-400 hover:text-red-600 transition-colors">
+              🚧 + Blocker
+            </button>
+          </div>
+        ) : null)}
+      </div>
 
       {modalComs && (
         <ComentariosModal metaId={meta.id} onFechar={() => setModalComs(false)}
