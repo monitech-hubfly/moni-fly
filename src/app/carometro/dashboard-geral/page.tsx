@@ -9,14 +9,16 @@ import { useDashboardGeral, type AreaDashboard, type DiaDetalhe } from '@/hooks/
 // ── Helpers de cor/imagem ─────────────────────────────────────────────────────
 function getCarinhaImg(score: number | null): string {
   if (score === null) return '/carometro/carometro-emoji-branco.png';
-  if (score > 65)  return '/carometro/carometro-emoji-verde-escuro.png';
-  if (score >= 35) return '/carometro/carometro-emoji-amarelo.png';
+  if (score >= 75) return '/carometro/carometro-emoji-verde-escuro.png';
+  if (score >= 60) return '/carometro/carometro-emoji-verde-claro.png';
+  if (score >= 30) return '/carometro/carometro-emoji-amarelo.png';
   return '/carometro/carometro-emoji-vermelho.png';
 }
 function scoreTextCls(score: number | null): string {
   if (score === null) return 'text-gray-400';
-  if (score > 65)  return 'text-green-700';
-  if (score >= 35) return 'text-yellow-600';
+  if (score >= 75) return 'text-green-700';
+  if (score >= 60) return 'text-green-500';
+  if (score >= 30) return 'text-yellow-600';
   return 'text-red-600';
 }
 
@@ -266,9 +268,10 @@ function DashboardGeralPageContent() {
 
       <div className="flex flex-wrap items-center gap-4 text-[10px] text-gray-500">
         {[
-          { img: '/carometro/carometro-emoji-verde-escuro.png', label: '> 65%' },
-          { img: '/carometro/carometro-emoji-amarelo.png',      label: '35–65%' },
-          { img: '/carometro/carometro-emoji-vermelho.png',     label: '< 35%' },
+          { img: '/carometro/carometro-emoji-verde-escuro.png', label: '≥ 75%' },
+          { img: '/carometro/carometro-emoji-verde-claro.png',  label: '60–74%' },
+          { img: '/carometro/carometro-emoji-amarelo.png',      label: '30–59%' },
+          { img: '/carometro/carometro-emoji-vermelho.png',     label: '< 30%' },
           { img: '/carometro/carometro-emoji-branco.png',       label: 'Sem dados' },
         ].map(({ img, label }) => (
           <div key={label} className="flex items-center gap-1">
