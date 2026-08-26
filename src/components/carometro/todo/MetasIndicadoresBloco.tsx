@@ -1069,7 +1069,7 @@ function MetaCardSemDono({ meta, indicadores, responsaveis, onToggleResponsavel,
 }
 
 // ── MetasIndicadoresBloco ─────────────────────────────────────────────────────
-const LS_MES_KEY = 'bone_day_ultimo_mes';
+const LS_MES_KEY = 'todo_planning_mes';
 
 function mesAtual(): string {
   const d = new Date();
