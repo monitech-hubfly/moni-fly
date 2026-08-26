@@ -24,3 +24,5 @@ ALTER TABLE public.rede_franqueados
   ADD COLUMN IF NOT EXISTS anexo_emp_gest_conta_bancaria_path TEXT,
   ADD COLUMN IF NOT EXISTS anexo_emp_gest_conta_bancaria_justificativa TEXT,
   ADD COLUMN IF NOT EXISTS anexo_emp_gest_inscricao_estadual_path TEXT;
+
+NOTIFY pgrst, 'reload schema';

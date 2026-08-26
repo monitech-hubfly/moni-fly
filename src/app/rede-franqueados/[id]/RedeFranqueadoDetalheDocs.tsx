@@ -24,8 +24,8 @@ import {
   getSignedUrlRedeAnexo,
   prepararSchemaAnexoNumeroFranquia,
   salvarJustificativaRedeAnexo,
-  uploadRedeFranqueadoAssinado,
 } from '../actions';
+import { uploadRedeAnexoClient } from '@/lib/rede/rede-anexo-upload-client';
 import { RedeDocsSecaoColapsavel, RedeDocsSubsecaoColapsavel } from './rede-docs-secao-colapsavel';
 import type { FranqueadoSpeRow } from '@/lib/franqueado-spe';
 import type { FranqueadoEmpresaExtraRow } from '@/lib/franqueado-empresa-extra';
@@ -299,14 +299,22 @@ export function RedeFranqueadoDetalheDocs({
     fd.set('tipo', tipo);
     fd.set('redeId', redeId);
     fd.set('file', f);
-    const r = await uploadRedeFranqueadoAssinado(fd);
-    setUp(null);
-    if (!r.ok) {
-      setMsg({ tipo: 'erro', texto: r.error });
-      return;
+    try {
+      const r = await uploadRedeAnexoClient(fd);
+      if (!r.ok) {
+        setMsg({ tipo: 'erro', texto: r.error });
+        return;
+      }
+      setMsg({ tipo: 'ok', texto: 'Arquivo enviado com sucesso.' });
+      router.refresh();
+    } catch (err) {
+      setMsg({
+        tipo: 'erro',
+        texto: err instanceof Error ? err.message : 'Erro inesperado ao enviar o arquivo.',
+      });
+    } finally {
+      setUp(null);
     }
-    setMsg({ tipo: 'ok', texto: 'Arquivo enviado com sucesso.' });
-    router.refresh();
   }
 
   const cardProps = {

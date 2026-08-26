@@ -9,9 +9,9 @@ import {
   getProximoNFranquia,
   listarRedeFranqueadosEmTransferencia,
   salvarJustificativaRedeAnexo,
-  uploadRedeFranqueadoAssinado,
   type RedeEmTransferenciaItem,
 } from './actions';
+import { uploadRedeAnexoClient } from '@/lib/rede/rede-anexo-upload-client';
 import type { RedeAnexoDocFranqueadoTipo } from '@/lib/rede-documentos-franqueado';
 import {
   REDE_OPCOES_CLASSIFICACAO_FRANQUEADO,
@@ -79,7 +79,7 @@ async function enviarAnexo(
   fd.append('tipo', tipo);
   fd.append('redeId', redeId);
   fd.append('file', file);
-  const r = await uploadRedeFranqueadoAssinado(fd);
+  const r = await uploadRedeAnexoClient(fd);
   return r.ok ? null : r.error;
 }
 

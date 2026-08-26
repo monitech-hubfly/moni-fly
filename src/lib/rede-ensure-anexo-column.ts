@@ -108,8 +108,15 @@ export async function ensureRedeAnexoNumeroFranquiaColumn(): Promise<{ ok: true 
   return { ok: true };
 }
 
-export function isRedeAnexoNumeroFranquiaSchemaError(message: string, column: string): boolean {
+export function isRedeAnexoColumnSchemaError(message: string, column: string): boolean {
   const m = message.toLowerCase();
   const col = column.toLowerCase();
-  return (m.includes('schema cache') || m.includes('could not find')) && m.includes(col);
+  return (
+    (m.includes('schema cache') || m.includes('could not find') || m.includes('does not exist')) &&
+    m.includes(col)
+  );
+}
+
+export function isRedeAnexoNumeroFranquiaSchemaError(message: string, column: string): boolean {
+  return isRedeAnexoColumnSchemaError(message, column);
 }
