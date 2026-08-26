@@ -243,19 +243,18 @@ function buildSemaforoFaixas(tipo: string, verde: string, amarelo: string): obje
 }
 
 // ── Bloco 1: Metas não concluídas ─────────────────────────────────────────────
-function MetaNaoConcluida({ meta, responsaveis, podeRelançar, onRelançar, onArquivar }: {
-  meta: MetaItem; responsaveis: ResponsavelItem[];
+function MetaNaoConcluida({ meta, podeRelançar, onRelançar, onArquivar }: {
+  meta: MetaItem;
   podeRelançar: boolean;
-  onRelançar: (id: string, f: { metaUnidade: string; respId: string }) => Promise<void>;
+  onRelançar: (id: string) => Promise<void>;
   onArquivar: (id: string) => Promise<void>;
 }) {
   const [aberto,   setAberto]   = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [form, setForm] = useState({ metaUnidade: meta.meta_unidade ?? '', respId: meta.profile_id ?? '' });
 
   const handleSalvar = async () => {
     setSalvando(true);
-    try { await onRelançar(meta.id, form); setAberto(false); }
+    try { await onRelançar(meta.id); setAberto(false); }
     finally { setSalvando(false); }
   };
 
@@ -266,7 +265,6 @@ function MetaNaoConcluida({ meta, responsaveis, podeRelançar, onRelançar, onAr
         <TipoBadge tipo={meta.tipo} />
         <span className="text-sm font-medium text-gray-800 flex-1 leading-snug">{meta.descricao}</span>
         <div className="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
-          {meta.meta_unidade && <span>Prazo: {meta.meta_unidade}</span>}
           {meta.criado_em && (
             <span className="text-gray-400">· aberta {formatarDataCurta(meta.criado_em)}</span>
           )}
@@ -288,23 +286,7 @@ function MetaNaoConcluida({ meta, responsaveis, podeRelançar, onRelançar, onAr
       </div>
       {aberto && (
         <div className="mt-3 pt-3 border-t border-amber-100 flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] text-gray-500 mb-0.5 block">Novo prazo</label>
-              <input type="date" className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
-                value={form.metaUnidade} onChange={e => setForm(p => ({ ...p, metaUnidade: e.target.value }))} />
-            </div>
-            {responsaveis.length > 0 && (
-              <div>
-                <label className="text-[10px] text-gray-500 mb-0.5 block">Responsável</label>
-                <select className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
-                  value={form.respId} onChange={e => setForm(p => ({ ...p, respId: e.target.value }))}>
-                  <option value="">— opcional —</option>
-                  {responsaveis.map(r => <option key={r.profile_id} value={r.profile_id}>{r.nome}</option>)}
-                </select>
-              </div>
-            )}
-          </div>
+          <p className="text-xs text-gray-600">Deseja relançar esta meta? Ela será criada zerada para o mês atual.</p>
           <div className="flex gap-2 justify-end">
             <button type="button" onClick={() => setAberto(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
             <button type="button" onClick={handleSalvar} disabled={salvando}
@@ -1662,18 +1644,19 @@ function PreBoneDayPageContent() {
   }, [supabase]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleRelançar = useCallback(async (id: string, f: { metaUnidade: string; respId: string }) => {
+  const handleRelançar = useCallback(async (id: string) => {
     const metaOriginal = metasNaoConcluidas.find(m => m.id === id);
     if (!metaOriginal || !areaId) return;
 
-    // 1. Criar nova meta no mês atual
+    // 1. Criar nova meta zerada no mês atual, preservando a data de abertura original
     const { data: novaMeta, error: e } = await supabase.from('objetivos').insert({
       area_id: areaId,
       descricao: metaOriginal.descricao,
       tipo: metaOriginal.tipo,
       is_chave: metaOriginal.is_chave,
-      profile_id: f.respId || metaOriginal.profile_id || null,
-      meta_unidade: f.metaUnidade || metaOriginal.meta_unidade || null,
+      profile_id: null,
+      meta_unidade: null,
+      criado_em: metaOriginal.criado_em,
       status: 'ativo',
       mes,
     }).select('id').single();
@@ -1686,13 +1669,13 @@ function PreBoneDayPageContent() {
       .update({ status: 'concluido', concluido_em: new Date().toISOString() })
       .eq('id', id);
 
-    // 3. Copiar indicadores da meta original para a nova
+    // 3. Copiar indicadores da meta original para a nova, sem responsável (zerado para novo ciclo)
     const { data: indsOriginais } = await supabase.from('indicadores')
-      .select('nome, tipo, indicador_chave, semaforo_faixas, profile_id')
+      .select('nome, tipo, indicador_chave, semaforo_faixas')
       .eq('objetivo_id', id);
 
     if (indsOriginais && indsOriginais.length > 0) {
-      type IndRow = { nome: string; tipo: string | null; indicador_chave: boolean | null; semaforo_faixas: unknown; profile_id: string | null };
+      type IndRow = { nome: string; tipo: string | null; indicador_chave: boolean | null; semaforo_faixas: unknown };
       await supabase.from('indicadores').insert(
         (indsOriginais as IndRow[]).map(ind => ({
           area_id: areaId,
@@ -1700,7 +1683,7 @@ function PreBoneDayPageContent() {
           tipo: ind.tipo,
           indicador_chave: ind.indicador_chave ?? false,
           semaforo_faixas: ind.semaforo_faixas,
-          profile_id: ind.profile_id,
+          profile_id: null,
           objetivo_id: novaMetaId,
         }))
       );
@@ -1983,7 +1966,7 @@ function PreBoneDayPageContent() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     {metasNaoConcluidas.map(meta => (
-                      <MetaNaoConcluida key={meta.id} meta={meta} responsaveis={responsaveis}
+                      <MetaNaoConcluida key={meta.id} meta={meta}
                         podeRelançar={Boolean(isAdmin)}
                         onRelançar={handleRelançar}
                         onArquivar={handleArquivarMeta} />
