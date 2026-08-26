@@ -4,6 +4,28 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { MetaItem, ResponsavelItem } from '@/hooks/useMetasIndicadores';
 import { isoWeek } from '@/utils/periodos';
+import { KANBAN_INDICADORES_MENSAIS_IDS } from '@/lib/kanban/kanban-indicadores-ids';
+
+/** Retorna o Date UTC do domingo da semana ISO (year, week). */
+function getSundayOfIsoWeek(year: number, week: number): Date {
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = jan4.getUTCDay() || 7;
+  const monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1 + (week - 1) * 7);
+  const sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  return sunday;
+}
+
+/** Retorna true se o lançamento (pela sua semana) pertence ao mês calendário atual. */
+function lancamentoEhMesAtual(semana: number, semanaAno: number): boolean {
+  const sunday = getSundayOfIsoWeek(semanaAno, semana);
+  const hoje = new Date();
+  return (
+    sunday.getUTCFullYear() === hoje.getUTCFullYear() &&
+    sunday.getUTCMonth() === hoje.getUTCMonth()
+  );
+}
 
 export type IndicadorBone = {
   id: string;
@@ -15,6 +37,10 @@ export type IndicadorBone = {
   tipo: string | null;
   meta_valor: number | null;
   meta_unidade: string | null;
+  /** Valor do lançamento mais recente (string, ex: "7") */
+  lancamento_valor: string | null;
+  /** true = lançamento é do mês corrente (simulação); false = mês anterior (definitivo) */
+  lancamento_is_simulacao: boolean;
 };
 
 export type ComportamentoItem = {
@@ -249,11 +275,39 @@ export function usePlanoBoneDay(
         semaforo_faixas: unknown; objetivo_id: string | null; profile_id: string | null;
         tipo: string | null; meta_valor: number | null; meta_unidade: string | null;
       };
-      setIndicadores(((indRes.data ?? []) as IndRow[]).map(i => ({
-        id: i.id, nome: i.nome, indicador_chave: Boolean(i.indicador_chave),
-        semaforo_faixas: i.semaforo_faixas, objetivo_id: i.objetivo_id,
-        profile_id: i.profile_id, tipo: i.tipo, meta_valor: i.meta_valor, meta_unidade: i.meta_unidade,
-      })));
+      // Buscar lançamentos recentes para exibir valor atual no chip de semáforo
+      const indIds = ((indRes.data ?? []) as IndRow[]).map(i => i.id);
+      const lancMap = new Map<string, { valor: string; semana: number; semana_ano: number }>();
+      if (indIds.length > 0) {
+        const { data: lancData } = await supabase
+          .from('indicador_lancamentos')
+          .select('indicador_id, valor, semana, semana_ano')
+          .in('indicador_id', indIds)
+          .order('semana_ano', { ascending: false })
+          .order('semana', { ascending: false })
+          .limit(indIds.length * 4);
+        type LancRow = { indicador_id: string; valor: string; semana: number; semana_ano: number };
+        for (const l of ((lancData ?? []) as LancRow[])) {
+          if (!lancMap.has(l.indicador_id)) {
+            lancMap.set(l.indicador_id, { valor: l.valor, semana: l.semana, semana_ano: l.semana_ano });
+          }
+        }
+      }
+
+      setIndicadores(((indRes.data ?? []) as IndRow[]).map(i => {
+        const lanc = lancMap.get(i.id);
+        const isMensal = KANBAN_INDICADORES_MENSAIS_IDS.has(i.id);
+        const isSimulacao = isMensal && lanc
+          ? lancamentoEhMesAtual(lanc.semana, lanc.semana_ano)
+          : false;
+        return {
+          id: i.id, nome: i.nome, indicador_chave: Boolean(i.indicador_chave),
+          semaforo_faixas: i.semaforo_faixas, objetivo_id: i.objetivo_id,
+          profile_id: i.profile_id, tipo: i.tipo, meta_valor: i.meta_valor, meta_unidade: i.meta_unidade,
+          lancamento_valor: lanc?.valor ?? null,
+          lancamento_is_simulacao: isSimulacao,
+        };
+      }));
 
       // 2. Queries sequenciais usando dados já buscados
       const metaIds         = metasArr.map(m => m.id);
