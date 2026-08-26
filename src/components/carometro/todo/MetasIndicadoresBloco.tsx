@@ -846,7 +846,7 @@ function MetaCard({
       ) : (
         <div className="px-3 pb-3 flex flex-col gap-1.5">
           {/* Indicadores sem responsável — aviso para assumir */}
-          {indsSemDono.length > 0 && totalResponsaveis > 1 && (
+          {indsSemDono.length > 0 && (
             <div className="border-t border-orange-100 pt-1.5">
               <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide mb-1">
                 📋 Indicadores sem responsável ({indsSemDono.length}) — assuma os seus
