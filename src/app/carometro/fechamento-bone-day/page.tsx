@@ -256,7 +256,7 @@ function SecaoComportamentos({ comportamentos }: { comportamentos: Comportamento
 }
 
 // ── SecaoCarometro ─────────────────────────────────────────────────────────────
-function SecaoCarometro({ indicadores }: { indicadores: IndicadorMedio }) {
+function SecaoCarometro({ indicadores, nota }: { indicadores: IndicadorMedio; nota: string | null }) {
   return (
     <div>
       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Carômetro</p>
@@ -265,6 +265,9 @@ function SecaoCarometro({ indicadores }: { indicadores: IndicadorMedio }) {
         <CarinhaResumo titulo="Engajamento" score={indicadores.engajamento} />
         <CarinhaResumo titulo="Indicadores" score={indicadores.indicadores} />
       </div>
+      {nota && (
+        <p className="text-[10px] text-gray-400 italic mt-2">* {nota}</p>
+      )}
     </div>
   );
 }
@@ -326,7 +329,7 @@ export default function FechamentoBoneDayPage() {
   const admin  = Boolean(isAdmin);
 
   const {
-    metasMes, metasProximo, comportamentos, indicadores, blockersDoTodo, registro,
+    metasMes, metasProximo, comportamentos, indicadores, indicadoresNota, blockersDoTodo, registro,
     mes, setMes, isLoading, error, salvarRegistro,
   } = useFechamentoBoneDay(areaId, effectiveProfileId);
 
@@ -390,7 +393,7 @@ export default function FechamentoBoneDayPage() {
               mensagemVazia="Nenhuma meta definida para este mês. Acesse Plano Boné Day para criar."
             />
             <SecaoComportamentos comportamentos={comportamentos} />
-            <SecaoCarometro indicadores={indicadores} />
+            <SecaoCarometro indicadores={indicadores} nota={indicadoresNota} />
             <div>
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Blocker&apos;s

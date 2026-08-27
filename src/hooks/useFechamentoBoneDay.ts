@@ -44,6 +44,7 @@ export type UseFechamentoBoneDayResult = {
   metasProximo: MetaBone[];
   comportamentos: ComportamentoHoras[];
   indicadores: IndicadorMedio;
+  indicadoresNota: string | null;
   blockersDoTodo: BlockerTodo[];
   registro: RegistroFechamento;
   mes: string;
@@ -112,6 +113,7 @@ export function useFechamentoBoneDay(
   const [metasProximo, setMetasProximo] = useState<MetaBone[]>([]);
   const [comportamentos, setComportamentos] = useState<ComportamentoHoras[]>([]);
   const [indicadores, setIndicadores] = useState<IndicadorMedio>({ sirene: null, engajamento: null, indicadores: null });
+  const [indicadoresNota, setIndicadoresNota] = useState<string | null>(null);
   const [blockersDoTodo, setBlockersDoTodo] = useState<BlockerTodo[]>([]);
   const [registro, setRegistro] = useState<RegistroFechamento>({ id: null, blockersFechamento: [], comentariosProximo: '', blockersProximo: [] });
   const [isLoading, setIsLoading] = useState(true);
@@ -302,8 +304,15 @@ export function useFechamentoBoneDay(
           ? Math.round(engSubs.reduce((a, b) => a + b, 0) / engSubs.length)
           : null;
 
-        // Indicadores — média das medias semanais (semáforo não é cumulativo)
-        const indMedias = snapshots
+        // Indicadores — média das medias semanais (semáforo não é cumulativo).
+        // Filtro por mês: meses com dados incompletos no início usam semana mínima.
+        const INDICADORES_SEMANA_MIN: Record<string, number> = { '2026-08': 34 };
+        const indSemanaMin = INDICADORES_SEMANA_MIN[mes] ?? null;
+        const snapshotsInd = indSemanaMin !== null
+          ? snapshots.filter(r => isoWeek(new Date(`${r.data}T12:00:00`)) >= indSemanaMin)
+          : snapshots;
+
+        const indMedias = snapshotsInd
           .map(r => {
             const ind = r.indicadores as Record<string, unknown> | null;
             if (!ind || typeof ind !== 'object') return null;
@@ -315,9 +324,15 @@ export function useFechamentoBoneDay(
           ? Math.round(indMedias.reduce((a, b) => a + b, 0) / indMedias.length)
           : null;
 
+        const nota = indSemanaMin !== null
+          ? `Indicadores iniciaram na S${indSemanaMin - 1}, considerado apenas S${indSemanaMin} em diante para a métrica`
+          : null;
+
+        setIndicadoresNota(nota);
         setIndicadores({ sirene: sireneScore, engajamento: engScore, indicadores: indScore });
       } else {
         setIndicadores({ sirene: null, engajamento: null, indicadores: null });
+        setIndicadoresNota(null);
       }
 
       // Bug 3 fix: enriquecer blockers com descrição da meta
@@ -388,7 +403,7 @@ export function useFechamentoBoneDay(
   }, [supabase, areaId, mes, effectiveProfileId]);
 
   return {
-    metasMes, metasProximo, comportamentos, indicadores, blockersDoTodo, registro,
+    metasMes, metasProximo, comportamentos, indicadores, indicadoresNota, blockersDoTodo, registro,
     mes, setMes, isLoading, error, recarregar: carregar, salvarRegistro,
   };
 }
