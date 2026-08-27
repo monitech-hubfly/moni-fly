@@ -1186,11 +1186,43 @@ export function MetasIndicadoresBloco() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data: dias } = await supabase.rpc('calcular_dias_uteis', { data_inicio: dataInicio, data_fim: dataFim });
+    const diasUteis = typeof dias === 'number' ? dias : null;
     await supabase.from('objetivo_responsaveis').insert({
       objetivo_id: objetivoId, profile_id: user.id,
       data_inicio: dataInicio, data_fim: dataFim,
-      dias_uteis: typeof dias === 'number' ? dias : null,
+      dias_uteis: diasUteis,
     });
+
+    // Cria o indicador "Percentual de Evolução" se ainda não existir para este usuário+meta
+    // (espelha o comportamento do Pre-Bone Day que cria o indicador ao assumir)
+    const indExistente = indicadores.find(i =>
+      i.objetivo_id === objetivoId &&
+      (i.semaforo_faixas as { is_projeto_relativo?: boolean } | null)?.is_projeto_relativo &&
+      i.profile_id === user.id
+    );
+    if (!indExistente && areaId) {
+      await supabase.from('indicadores').insert({
+        area_id: areaId,
+        objetivo_id: objetivoId,
+        nome: 'Percentual de Evolução até Entrega (%)',
+        indicador_chave: true,
+        tipo: 'percentual',
+        profile_id: user.id,
+        semaforo_faixas: {
+          is_projeto_relativo: true,
+          data_inicio: dataInicio,
+          data_fim: dataFim,
+          dias_uteis: diasUteis,
+          escala_tipo: 'percentual',
+          faixas: [
+            { cor: '#1e7a3a', limite: '75', comparacao: 'gte' },
+            { cor: '#52b36f', limite: '60', comparacao: 'gte' },
+            { cor: '#f2c94c', limite: '30', comparacao: 'gte' },
+            { cor: '#d24141', limite: '0',  comparacao: 'gte' },
+          ],
+        },
+      });
+    }
 
     const totalAgora = objetivoResponsaveis.filter(r => r.objetivo_id === objetivoId).length + 1;
     if (totalAgora === 1) {
@@ -1202,7 +1234,7 @@ export function MetasIndicadoresBloco() {
     }
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: objetivoId, operacao: 'UPDATE', descricao: 'Assumiu projeto com datas' });
     recarregar();
-  }, [supabase, objetivoResponsaveis, indicadores, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, areaId, objetivoResponsaveis, indicadores, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Assumir indicador ───────────────────────────────────────────────────────
   const handleAssumirIndicador = useCallback(async (indId: string) => {
