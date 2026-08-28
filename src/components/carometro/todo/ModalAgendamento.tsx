@@ -521,13 +521,19 @@ export function ModalAgendamento({
         if (assumidosIds.length > 0) {
           const { data: objData } = await supabase
             .from('objetivos')
-            .select('id, descricao, tipo')
+            .select('id, descricao, tipo, mes')
             .in('id', assumidosIds)
             .neq('status', 'concluido')
             .gte('mes', mesAtual)
-            .order('mes')
+            .order('mes')        // ASC: o último da iteração é o mais recente
             .order('descricao');
-          objetivosCarregados = (objData ?? []) as { id: string; descricao: string; tipo: string | null }[];
+          // Deduplicar por descricao mantendo somente o mês mais recente
+          // (array ordenado por mes ASC → Map.set sobrescreve com versão posterior)
+          const deduped = new Map<string, { id: string; descricao: string; tipo: string | null }>();
+          for (const obj of (objData ?? []) as { id: string; descricao: string; tipo: string | null; mes: string }[]) {
+            deduped.set(obj.descricao, { id: obj.id, descricao: obj.descricao, tipo: obj.tipo });
+          }
+          objetivosCarregados = [...deduped.values()].sort((a, b) => a.descricao.localeCompare(b.descricao));
         }
         setObjetivos(objetivosCarregados);
 
