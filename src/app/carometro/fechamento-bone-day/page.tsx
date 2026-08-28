@@ -36,8 +36,8 @@ function CarinhaResumo({ titulo, score }: { titulo: string; score: number | null
     <div className="flex items-center gap-3">
       <img src={getCarinhaImg(score)} alt={titulo} className="w-10 h-10 flex-shrink-0" />
       <div className="min-w-0">
-        <p className="text-xs text-gray-500 font-medium">{titulo}</p>
-        <p className={`text-lg font-bold leading-tight ${scoreColor(score)}`}>
+        <p className="text-sm text-gray-500 font-medium">{titulo}</p>
+        <p className={`text-xl font-bold leading-tight ${scoreColor(score)}`}>
           {score !== null ? `${score}%` : '—'}
         </p>
       </div>
@@ -72,8 +72,8 @@ function BlockersList({
     <div className="flex flex-col gap-1.5">
       {items.map((item, i) => (
         <div key={i} className="flex items-start gap-1.5 group">
-          <span className="text-gray-400 flex-shrink-0 mt-0.5 text-xs">•</span>
-          <span className="text-xs text-gray-700 flex-1 leading-snug">{item}</span>
+          <span className="text-red-400 flex-shrink-0 mt-0.5 text-xs">•</span>
+          <span className="text-sm text-red-700 flex-1 leading-snug">{item}</span>
           {isAdmin && (
             <button type="button" onClick={() => remover(i)}
               className="text-red-400 hover:text-red-600 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-1">
@@ -122,11 +122,11 @@ function BlockersTodoList({ blockers }: { blockers: BlockerTodo[] }) {
       {blockers.map(b => (
         <div key={b.id} className="flex flex-col gap-0.5">
           {b.metaDescricao && (
-            <p className="text-[10px] text-gray-400 font-semibold truncate">{b.metaDescricao}</p>
+            <p className="text-xs text-red-500 font-semibold truncate">{b.metaDescricao}</p>
           )}
           <div className="flex items-start gap-1.5">
-            <span className="text-gray-400 flex-shrink-0 mt-0.5 text-xs">•</span>
-            <span className="text-xs text-gray-700 leading-snug">{b.descricao}</span>
+            <span className="text-red-400 flex-shrink-0 mt-0.5 text-xs">•</span>
+            <span className="text-sm text-red-700 leading-snug">{b.descricao}</span>
           </div>
         </div>
       ))}
@@ -166,11 +166,12 @@ function ComentarioEditor({
 // ── SecaoMetas ─────────────────────────────────────────────────────────────────
 function MetaItem({ m }: { m: MetaBone }) {
   const isRecorrente = m.tipo?.toLowerCase() === 'recorrente';
-  const tipoLabel    = isRecorrente ? 'Recorrente' : 'Atingível';
+  const icone = m.status === 'concluido' ? '✓' : isRecorrente ? '–' : '✗';
+  const iconeColor = m.status === 'concluido' ? 'text-green-500' : isRecorrente ? 'text-gray-400' : 'text-red-400';
   return (
-    <li className="flex items-start gap-1.5 text-xs">
-      <span className={`flex-shrink-0 font-bold mt-px ${m.status === 'concluido' ? 'text-green-500' : 'text-red-400'}`}>
-        {m.status === 'concluido' ? '✓' : '✗'}
+    <li className="flex items-start gap-1.5 text-sm">
+      <span className={`flex-shrink-0 font-bold mt-px ${iconeColor}`}>
+        {icone}
       </span>
       <span className={`flex-1 min-w-0 ${m.status === 'concluido' ? 'text-gray-400' : 'text-gray-700'}`}>
         {m.is_chave && <span className="mr-0.5">🔑</span>}
@@ -181,7 +182,6 @@ function MetaItem({ m }: { m: MetaBone }) {
           </span>
         )}
       </span>
-      <span className="text-[9px] text-gray-300 flex-shrink-0 ml-1 mt-px">{tipoLabel}</span>
     </li>
   );
 }
@@ -203,7 +203,7 @@ function SecaoMetas({ metas, mensagemVazia }: { metas: MetaBone[]; mensagemVazia
 
   return (
     <div>
-      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Metas</p>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Metas</p>
       {metas.length === 0 ? (
         <p className="text-xs text-gray-400 italic bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
           {mensagemVazia ?? 'Nenhuma meta definida para este mês.'}
@@ -212,19 +212,19 @@ function SecaoMetas({ metas, mensagemVazia }: { metas: MetaBone[]; mensagemVazia
         <div className="flex flex-col gap-3">
           {concluidas.length > 0 && (
             <div>
-              <p className="text-[9px] text-green-400 uppercase tracking-wider mb-1.5 font-semibold">Concluídas</p>
+              <p className="text-[11px] text-green-400 uppercase tracking-wider mb-1.5 font-semibold">Concluídas</p>
               <ul className="flex flex-col gap-2">{concluidas.map(m => <MetaItem key={m.id} m={m} />)}</ul>
             </div>
           )}
           {atingiveisAbertos.length > 0 && (
             <div>
-              <p className="text-[9px] text-gray-300 uppercase tracking-wider mb-1.5 font-semibold">Atingível</p>
+              <p className="text-[11px] text-gray-300 uppercase tracking-wider mb-1.5 font-semibold">Atingível</p>
               <ul className="flex flex-col gap-2">{atingiveisAbertos.map(m => <MetaItem key={m.id} m={m} />)}</ul>
             </div>
           )}
           {recorrentesAbertos.length > 0 && (
             <div>
-              <p className="text-[9px] text-gray-300 uppercase tracking-wider mb-1.5 font-semibold">Recorrente</p>
+              <p className="text-[11px] text-gray-300 uppercase tracking-wider mb-1.5 font-semibold">Recorrente</p>
               <ul className="flex flex-col gap-2">{recorrentesAbertos.map(m => <MetaItem key={m.id} m={m} />)}</ul>
             </div>
           )}
@@ -238,7 +238,7 @@ function SecaoMetas({ metas, mensagemVazia }: { metas: MetaBone[]; mensagemVazia
 function SecaoComportamentos({ comportamentos }: { comportamentos: ComportamentoHoras[] }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Comportamentos</p>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Comportamentos</p>
       {comportamentos.length === 0 ? (
         <p className="text-xs text-gray-300 italic">Não identificados</p>
       ) : (
@@ -259,7 +259,7 @@ function SecaoComportamentos({ comportamentos }: { comportamentos: Comportamento
 function SecaoCarometro({ indicadores, nota }: { indicadores: IndicadorMedio; nota: string | null }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Carômetro</p>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Carômetro</p>
       <div className="flex gap-5 flex-wrap">
         <CarinhaResumo titulo="Sirene" score={indicadores.sirene} />
         <CarinhaResumo titulo="Engajamento" score={indicadores.engajamento} />
@@ -279,7 +279,7 @@ function Coluna({ titulo, badge, children }: { titulo: string; badge: string; ch
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
       <div className="px-4 py-3 flex items-center gap-2" style={{ backgroundColor: HEADER_COLOR }}>
-        <h2 className="text-sm font-bold text-white flex-1 truncate">{titulo}</h2>
+        <h2 className="text-base font-bold text-white flex-1 truncate">{titulo}</h2>
         <span className="text-[10px] bg-white/20 text-white font-semibold px-2 py-0.5 rounded-full flex-shrink-0">
           {badge}
         </span>
@@ -392,10 +392,9 @@ export default function FechamentoBoneDayPage() {
               metas={metasMes}
               mensagemVazia="Nenhuma meta definida para este mês. Acesse Plano Boné Day para criar."
             />
-            <SecaoComportamentos comportamentos={comportamentos} />
             <SecaoCarometro indicadores={indicadores} nota={indicadoresNota} />
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Blocker&apos;s
               </p>
               {/* Blockers automáticos vindos do TO DO & Planning — somente leitura */}
@@ -410,7 +409,7 @@ export default function FechamentoBoneDayPage() {
               mensagemVazia="Nenhuma meta planejada para o próximo mês. Acesse Plano Boné Day para criar."
             />
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Comentários
               </p>
               <ComentarioEditor
@@ -421,7 +420,7 @@ export default function FechamentoBoneDayPage() {
               />
             </div>
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Blocker&apos;s
               </p>
               <BlockersList
