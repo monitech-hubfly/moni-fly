@@ -70,7 +70,7 @@ function TodoPlanningPageContent() {
 
     if (drag.type === 'atividade') {
       setOrigemInfo(undefined);
-      modal.abrirParaCriar({ ...base, acao_id: drag.id ?? null });
+      modal.abrirParaCriar({ ...base, acao_id: drag.id ?? null, origem_tipo: 'atividades' });
     } else if (drag.type === 'sirene') {
       setOrigemInfo({ titulo: drag.titulo ?? '', tipo: 'sirene' });
       modal.abrirParaCriar({

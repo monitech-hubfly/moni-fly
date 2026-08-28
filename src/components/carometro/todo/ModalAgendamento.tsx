@@ -622,6 +622,13 @@ export function ModalAgendamento({
     setAbaAtiva(origemInicial);
   }, [aberto, origemInfo, modo]);
 
+  // ── Auto-seleciona item do backlog quando modal abre com acao_id pré-preenchido ──
+  useEffect(() => {
+    if (!aberto || abaAtiva !== 'atividades' || selItem || !form.acao_id) return;
+    const match = atividItems.find(item => item.acoId === form.acao_id);
+    if (match) setSelItem(match);
+  }, [aberto, abaAtiva, selItem, form.acao_id, atividItems]);
+
   // ── Disponibilidade ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!form.data || form.participantes.length === 0) {
