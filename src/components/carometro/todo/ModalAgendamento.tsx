@@ -500,30 +500,43 @@ export function ModalAgendamento({
     (abaAtiva === 'atividades' && backlog.isLoading) ||
     (abaAtiva === 'kanban'     && kanbanData.isLoading);
 
-  // ── Carrega objetivos e pessoas — resolve areaId via profileId se necessário ─
+  // ── Carrega objetivos (metas assumidas pelo usuário) e pessoas ───────────────
   useEffect(() => {
     if (!profileId) return;
     void (async () => {
       try {
-        // Se areaId não veio via prop (ex: admin sem simulação), busca pela área do profileId
-        let resolvedAreaId = areaId;
-        if (!resolvedAreaId) {
-          const { data: ap } = await supabase
-            .from('area_pessoas')
-            .select('area_id')
-            .eq('profile_id', profileId)
-            .maybeSingle();
-          resolvedAreaId = (ap?.area_id as string | null) ?? null;
-        }
-
         const mesAtual = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
-        const [objRes, pessoasRes] = await Promise.all([
-          resolvedAreaId
-            ? supabase.from('objetivos').select('id, descricao, tipo').eq('area_id', resolvedAreaId).eq('status', 'ativo').eq('mes', mesAtual).order('descricao')
-            : supabase.from('objetivos').select('id, descricao, tipo').eq('status', 'ativo').eq('mes', mesAtual).order('descricao'), // admin sem área: exibe todas do mês
-          supabase.from('area_pessoas').select('profile_id, nome, areas(nome)').not('profile_id', 'is', null).order('nome'),
-        ]);
-        setObjetivos((objRes.data ?? []) as { id: string; descricao: string; tipo: string | null }[]);
+
+        // Passo 1: IDs das metas que o usuário assumiu e ainda não concluiu individualmente
+        const { data: orData } = await supabase
+          .from('objetivo_responsaveis')
+          .select('objetivo_id')
+          .eq('profile_id', profileId)
+          .eq('concluido', false);
+
+        const assumidosIds = (orData ?? []).map(r => r.objetivo_id as string);
+
+        // Passo 2: detalhes das metas não encerradas globalmente, do mês atual em diante
+        let objetivosCarregados: { id: string; descricao: string; tipo: string | null }[] = [];
+        if (assumidosIds.length > 0) {
+          const { data: objData } = await supabase
+            .from('objetivos')
+            .select('id, descricao, tipo')
+            .in('id', assumidosIds)
+            .neq('status', 'concluido')
+            .gte('mes', mesAtual)
+            .order('mes')
+            .order('descricao');
+          objetivosCarregados = (objData ?? []) as { id: string; descricao: string; tipo: string | null }[];
+        }
+        setObjetivos(objetivosCarregados);
+
+        // Carga das pessoas para seleção de participantes
+        const pessoasRes = await supabase
+          .from('area_pessoas')
+          .select('profile_id, nome, areas(nome)')
+          .not('profile_id', 'is', null)
+          .order('nome');
         type PessoaRaw = { profile_id: string; nome: string; areas: { nome: string } | { nome: string }[] | null };
         const rawPessoas = (pessoasRes.data ?? []) as PessoaRaw[];
         const seen = new Set<string>();
@@ -555,7 +568,7 @@ export function ModalAgendamento({
         }));
       } catch (e) { console.error('[Modal] objetivos/pessoas:', e); }
     })();
-  }, [areaId, profileId, supabase]);
+  }, [profileId, supabase]);
 
   // ── Carrega vínculos uma vez ──────────────────────────────────────────────
   useEffect(() => {

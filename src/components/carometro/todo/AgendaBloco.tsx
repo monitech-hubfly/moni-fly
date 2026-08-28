@@ -120,6 +120,32 @@ function AgendaCard({
   const visualHoraInicioRef = useRef<string | null>(null);
   const resizingRef = useRef(false);
 
+  // ── Tooltip de hover ──
+  const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null);
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const ORIGEM_LABEL: Record<string, string> = {
+    sirene:     'Chamado Sirene',
+    kanban:     'Card Kanban',
+    atividade:  'Atividade planejada',
+    pastelaria: 'Pastelaria',
+  };
+
+  const handleTooltipEnter = (e: React.MouseEvent) => {
+    tooltipTimerRef.current = setTimeout(() => {
+      setTooltip({ x: e.clientX, y: e.clientY });
+    }, 400);
+  };
+
+  const handleTooltipMove = (e: React.MouseEvent) => {
+    if (tooltip) setTooltip({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleTooltipLeave = () => {
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    setTooltip(null);
+  };
+
   const horaFimEfetiva    = visualHoraFim    ?? atv.hora_fim;
   const horaInicioEfetiva = visualHoraInicio ?? atv.hora_inicio;
   const [hEf, mEf] = horaInicioEfetiva.split(':').map(Number);
@@ -233,7 +259,11 @@ function AgendaCard({
         borderTop: !isPendente && isVencido ? '3px solid rgba(239,159,39,0.9)' : undefined,
         cursor: isPendente ? 'pointer' : undefined,
       }}
+      onMouseEnter={handleTooltipEnter}
+      onMouseMove={handleTooltipMove}
+      onMouseLeave={handleTooltipLeave}
       onMouseDown={(e) => {
+        handleTooltipLeave();
         if ((e.target as HTMLElement).closest('[data-action]')) return;
         if (!isPendente) onDragStart(atv, e);
       }}
@@ -246,6 +276,23 @@ function AgendaCard({
         if (isPendente) onAbrirParaEditar(atv.id);
       }}
     >
+      {tooltip && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed pointer-events-none z-[9999]"
+          style={{ left: tooltip.x + 14, top: tooltip.y - 8 }}
+        >
+          <div className="bg-gray-900 text-white rounded-lg shadow-xl px-3 py-2 text-xs max-w-[220px]">
+            <p className="font-semibold leading-snug break-words">{atv.titulo}</p>
+            <p className="opacity-60 mt-0.5">
+              {atv.hora_inicio}{atv.hora_fim ? ` – ${atv.hora_fim}` : ''}
+            </p>
+            {atv.origem_tipo && ORIGEM_LABEL[atv.origem_tipo] && (
+              <p className="opacity-60">{ORIGEM_LABEL[atv.origem_tipo]}</p>
+            )}
+          </div>
+        </div>,
+        document.body,
+      )}
       {/* Handle de resize superior */}
       {!atv.concluido && !isPendente && (
         <div

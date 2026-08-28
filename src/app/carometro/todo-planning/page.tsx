@@ -70,7 +70,7 @@ function TodoPlanningPageContent() {
 
     if (drag.type === 'atividade') {
       setOrigemInfo(undefined);
-      modal.abrirParaCriar(base);
+      modal.abrirParaCriar({ ...base, acao_id: drag.id ?? null });
     } else if (drag.type === 'sirene') {
       setOrigemInfo({ titulo: drag.titulo ?? '', tipo: 'sirene' });
       modal.abrirParaCriar({
@@ -83,7 +83,7 @@ function TodoPlanningPageContent() {
       modal.abrirParaCriar(base);
     } else if (drag.type === 'kanban') {
       setOrigemInfo({ titulo: drag.titulo ?? '', tipo: 'kanban', subtitulo: drag.subtitulo });
-      modal.abrirParaCriar(base);
+      modal.abrirParaCriar({ ...base, card_id: drag.id ?? null });
     }
   }
 
