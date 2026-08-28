@@ -779,17 +779,25 @@ function MetaCard({
               {togglenando ? '…' : assumiu ? '✓ Minha' : 'Assumir'}
             </button>
             {/* Concluído per-user — indisponível para metas recorrentes */}
-            {assumiu && !isRecorrente && (
-              concluiuMeta ? (
-                <button type="button" onClick={handleReabrir} disabled={reabrindo}
-                  className="text-[10px] px-1.5 py-0.5 rounded border bg-green-100 text-green-700 border-green-300 hover:bg-green-200 transition-colors whitespace-nowrap disabled:opacity-50">
-                  {reabrindo ? '…' : '✓ Concluída'}
-                </button>
+            {!isRecorrente && (
+              assumiu ? (
+                concluiuMeta ? (
+                  <button type="button" onClick={handleReabrir} disabled={reabrindo}
+                    className="text-[10px] px-1.5 py-0.5 rounded border bg-green-100 text-green-700 border-green-300 hover:bg-green-200 transition-colors whitespace-nowrap disabled:opacity-50">
+                    {reabrindo ? '…' : '✓ Concluída'}
+                  </button>
+                ) : (
+                  <button type="button" onClick={handleConcluir} disabled={concluindo}
+                    className="text-[14px] text-green-500 hover:text-green-700 font-bold transition-colors px-0.5 disabled:opacity-50"
+                    title="Marcar como concluída para mim">
+                    {concluindo ? '…' : '✓'}
+                  </button>
+                )
               ) : (
-                <button type="button" onClick={handleConcluir} disabled={concluindo}
-                  className="text-[14px] text-green-500 hover:text-green-700 font-bold transition-colors px-0.5 disabled:opacity-50"
-                  title="Marcar como concluída para mim">
-                  {concluindo ? '…' : '✓'}
+                <button type="button" disabled
+                  className="text-[14px] text-gray-300 font-bold px-0.5 cursor-not-allowed"
+                  title="Assuma esta meta primeiro para poder concluí-la">
+                  ✓
                 </button>
               )
             )}
@@ -1639,6 +1647,15 @@ export function MetasIndicadoresBloco() {
                                 {meta.descricao}
                               </span>
                             </div>
+
+                            <button
+                              type="button"
+                              onClick={() => void handleReabrirMeta(meta.id)}
+                              title="Desfazer conclusão desta meta"
+                              className="text-gray-300 hover:text-amber-500 transition-colors flex-shrink-0 text-sm leading-none"
+                            >
+                              ↩
+                            </button>
 
                             <span className="text-[9px] text-gray-300 flex-shrink-0 px-1.5 py-0.5 rounded border border-gray-100">
                               {tipoLabel}
