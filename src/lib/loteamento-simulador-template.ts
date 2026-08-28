@@ -159,6 +159,34 @@ export function numeroParaInputBr(n: number | null | undefined): string {
   return String(rounded).replace('.', ',');
 }
 
+/**
+ * Interpreta o que a Helena digitou no campo de % (3 / 3,5 / 2.5).
+ * Ponto só é milhar quando há exatamente 3 dígitos depois (ex.: 1.500).
+ */
+export function parsePercentualUi(raw: string): number | null {
+  const t = raw.trim().replace(/\s/g, '').replace('%', '');
+  if (!t) return null;
+  const temVirgula = t.includes(',');
+  const temPonto = t.includes('.');
+  if (temVirgula && temPonto) {
+    return parseDecimalInput(t);
+  }
+  if (temVirgula) {
+    const n = Number(t.replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+  if (temPonto) {
+    const partes = t.split('.');
+    if (partes.length === 2 && partes[1].length === 3 && partes[0] !== '') {
+      return parseDecimalInput(t);
+    }
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  }
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Fração 0.03 → "3" na UI. */
 export function fracaoParaPercentualUi(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(Number(n))) return '';
@@ -166,9 +194,25 @@ export function fracaoParaPercentualUi(n: number | null | undefined): string {
 }
 
 export function percentualUiParaFracao(raw: string): number {
-  const n = parseDecimalInput(raw);
+  const n = parsePercentualUi(raw);
   if (n == null) return 0;
   return n / 100;
+}
+
+/**
+ * Banco → fração mensal para o motor.
+ * 0 é taxa válida (não substitui pelo padrão 2,5%).
+ * Valores >= 1 foram gravados como % (2,5) em vez de fração (0,025).
+ */
+export function normalizarTaxaMensalFracao(
+  raw: number | null | undefined,
+  fallback: number = JUROS_CREDITO_PONTE_PADRAO_FRACAO,
+): number {
+  if (raw == null) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return fallback;
+  if (n >= 1) return n / 100;
+  return n;
 }
 
 export function parsePremissaJson(raw: unknown): PremissaEntrada | null {
@@ -203,15 +247,12 @@ export function rowToSimuladorTemplateDraft(
     row.premissa_entrada_lote_parcial;
   const entradaDraft = premissaParaDraft(entrada);
   const prazo = row.prazo_obra_meses || row.prazo_desembolso_sugerido || PRAZO_OBRA_MESES_PADRAO;
-  const juros =
-    row.taxa_juros_credito_ponte > 0
-      ? fracaoParaPercentualUi(row.taxa_juros_credito_ponte)
-      : JUROS_CREDITO_PONTE_PADRAO_UI;
+  const jurosFracao = normalizarTaxaMensalFracao(row.taxa_juros_credito_ponte);
   return {
     nome: row.nome ?? '',
     pct_itbi: fracaoParaPercentualUi(row.pct_itbi),
     pct_impostos: fracaoParaPercentualUi(row.pct_impostos),
-    taxa_juros_credito_ponte: juros,
+    taxa_juros_credito_ponte: fracaoParaPercentualUi(jurosFracao),
     taxa_juros_financiamento_anual:
       row.taxa_juros_financiamento_anual == null
         ? TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI
@@ -364,10 +405,7 @@ export function rowToTemplateConfig(row: LoteamentoSimuladorTemplateRow): Templa
     percentual_lucro_franqueado: Number(row.pct_lucro_franqueado ?? 0),
     percentual_comissao_corretor: Number(row.pct_comissao_corretor ?? 0),
     prazo_obra_meses: row.prazo_obra_meses || row.prazo_desembolso_sugerido || PRAZO_OBRA_MESES_PADRAO,
-    taxa_juros_credito_ponte:
-      row.taxa_juros_credito_ponte > 0
-        ? row.taxa_juros_credito_ponte
-        : JUROS_CREDITO_PONTE_PADRAO_FRACAO,
+    taxa_juros_credito_ponte: normalizarTaxaMensalFracao(row.taxa_juros_credito_ponte),
     taxa_juros_parcelado_mes: Number(row.taxa_juros_parcelado_mes ?? 0),
     taxa_juros_financiamento_anual:
       row.taxa_juros_financiamento_anual == null

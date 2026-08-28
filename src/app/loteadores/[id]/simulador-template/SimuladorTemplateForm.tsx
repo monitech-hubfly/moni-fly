@@ -6,6 +6,7 @@ import {
   regenerarLinkSimuladorTemplate,
   salvarSimuladorTemplateDoCard,
 } from '@/lib/actions/loteamento-simulador-template';
+import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
   CONDICAO_LOTE_LABEL,
   PCT_FIELDS,
@@ -17,6 +18,10 @@ import {
   type PremissaEntradaTipo,
   type SimulacaoPagamentoResumo,
 } from '@/lib/loteamento-simulador-template';
+import {
+  formatarNumeroInput,
+  parsearNumeroInput,
+} from '@/lib/simulador/formatar-numero-input';
 
 type Props = {
   cardId: string;
@@ -84,7 +89,10 @@ export function SimuladorTemplateForm({
     setErro(null);
   };
 
-  const prazoNum = useMemo(() => Number(draft.prazo_obra_meses), [draft.prazo_obra_meses]);
+  const prazoNum = useMemo(
+    () => (draft.prazo_obra_meses.trim() === '' ? NaN : parsearNumeroInput(draft.prazo_obra_meses)),
+    [draft.prazo_obra_meses],
+  );
 
   async function onSalvar() {
     setSalvando(true);
@@ -99,6 +107,7 @@ export function SimuladorTemplateForm({
     setLink(res.link);
     setMensagem(TOAST_TEMPLATE_SALVO);
     setSalvando(false);
+    router.refresh();
     router.push(`/loteadores/${cardId}/simulador-template/ofertas`);
   }
 
@@ -200,12 +209,9 @@ export function SimuladorTemplateForm({
                 {f.label}
                 {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
               </span>
-              <input
-                className={fieldCls}
-                style={fieldStyle}
-                inputMode="decimal"
+              <CampoDraftNumero
                 value={draft[f.key]}
-                onChange={(e) => setCampo(f.key, e.target.value)}
+                onChange={(v) => setCampo(f.key, v)}
                 placeholder={'placeholder' in f && f.placeholder ? f.placeholder : '0'}
               />
               <span className="mt-1 block text-[11px]" style={hintStyle}>
@@ -232,14 +238,11 @@ export function SimuladorTemplateForm({
             <span className={labelCls} style={labelStyle}>
               Prazo de obra (meses)
             </span>
-            <input
-              className={fieldCls}
-              style={fieldStyle}
-              type="number"
-              min={PRAZO_OBRA_MESES_MINIMO}
-              max={24}
+            <CampoDraftNumero
               value={draft.prazo_obra_meses}
-              onChange={(e) => setCampo('prazo_obra_meses', e.target.value)}
+              onChange={(v) => setCampo('prazo_obra_meses', v)}
+              inteiro
+              placeholder={String(PRAZO_OBRA_MESES_PADRAO)}
             />
             {Number.isFinite(prazoNum) && prazoNum < PRAZO_OBRA_MESES_PADRAO ? (
               <span className="mt-1 block text-[11px]" style={hintStyle}>
@@ -272,12 +275,9 @@ export function SimuladorTemplateForm({
             <span className={labelCls} style={labelStyle}>
               Taxa de juros para pagamento parcelado (% ao mês)
             </span>
-            <input
-              className={fieldCls}
-              style={fieldStyle}
-              inputMode="decimal"
+            <CampoDraftNumero
               value={draft.taxa_juros_parcelado_mes}
-              onChange={(e) => setCampo('taxa_juros_parcelado_mes', e.target.value)}
+              onChange={(v) => setCampo('taxa_juros_parcelado_mes', v)}
               placeholder="2"
             />
             <span className="mt-1 block text-[11px]" style={hintStyle}>
@@ -433,6 +433,36 @@ export function SimuladorTemplateForm({
   );
 }
 
+function CampoDraftNumero({
+  value,
+  onChange,
+  inteiro,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  inteiro?: boolean;
+  placeholder?: string;
+}) {
+  const numero = value.trim() === '' ? null : parsearNumeroInput(value);
+  return (
+    <CampoNumeroBr
+      className={fieldCls}
+      style={fieldStyle}
+      valor={numero}
+      inteiro={inteiro}
+      placeholder={placeholder}
+      onChange={(n) => {
+        if (n == null) {
+          onChange('');
+          return;
+        }
+        onChange(formatarNumeroInput(n, { inteiro }));
+      }}
+    />
+  );
+}
+
 function PremissaFields({
   titulo,
   tipo,
@@ -473,13 +503,10 @@ function PremissaFields({
           <span className="text-[11px]" style={hintStyle}>
             {tipo === 'percentual' ? 'Valor (%)' : 'Valor (R$)'}
           </span>
-          <input
-            className={fieldCls}
-            style={fieldStyle}
-            inputMode="decimal"
+          <CampoDraftNumero
             value={valor}
-            onChange={(e) => onValor(e.target.value)}
-            placeholder={tipo === 'percentual' ? '30' : '50000'}
+            onChange={onValor}
+            placeholder={tipo === 'percentual' ? '30' : '50.000'}
           />
         </label>
       </div>

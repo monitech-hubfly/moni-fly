@@ -41,13 +41,14 @@ export interface LinhaFluxo {
   etapa_obra?: number;
   descricao: string;
   entrada_cliente: number;
-  saidas_moni: number;
+  saidas_obra: number;
   saldo_lote: number;
   juros_lote_mes: number;
   desembolso_obra: number;
   saldo_credito_ponte: number;
   juros_obra_mes: number;
   saidas_total: number;
+  pagamento_loteadora: number;
 }
 
 export interface AlertaCalculo {
@@ -106,6 +107,44 @@ export function getDesembolso(N: number): number[] {
   const numSomar = 8 - n;
   const primeiro = DESEMBOLSO_BASE.slice(0, numSomar).reduce((a, b) => a + b, 0);
   return [primeiro, ...DESEMBOLSO_BASE.slice(numSomar)];
+}
+
+type DadosFase2 = { desembolso: number; saidas: number; juros: number; saldo: number };
+
+function simularFase2(params: {
+  N_obra: number;
+  custo_obra: number;
+  desembolhos: number[];
+  taxa_gestao_mes: number;
+  taxa_plataforma_mes: number;
+  parcela_mensal: number;
+  taxa_cp: number;
+  excessoInicial: number;
+}): { dados: DadosFase2[]; juros_obra_total: number } {
+  const dados: DadosFase2[] = [];
+  let saldo_cp = 0;
+  let juros_obra_total = 0;
+  let excesso_restante = Math.max(0, params.excessoInicial);
+
+  for (let E = 1; E <= params.N_obra; E += 1) {
+    const desembolso_mes = params.custo_obra * params.desembolhos[E - 1];
+    const saidas_mes = desembolso_mes + params.taxa_gestao_mes + params.taxa_plataforma_mes;
+    const raw_delta = saidas_mes - params.parcela_mensal;
+    const excesso_aplicado_mes = Math.min(excesso_restante, Math.max(0, raw_delta));
+    excesso_restante -= excesso_aplicado_mes;
+    const delta_cp = raw_delta - excesso_aplicado_mes;
+    const juros_mes = saldo_cp * params.taxa_cp;
+    saldo_cp = saldo_cp + delta_cp + juros_mes;
+    juros_obra_total += juros_mes;
+    dados.push({
+      desembolso: desembolso_mes,
+      saidas: saidas_mes,
+      juros: juros_mes,
+      saldo: Math.max(0, saldo_cp),
+    });
+  }
+
+  return { dados, juros_obra_total };
 }
 
 export function sugerirParcelaMensal(valor_lote: number): number {
@@ -187,44 +226,50 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
       fase: 'fase1',
       descricao: 'Parcela mensal — fase 1',
       entrada_cliente: r2(parcela_mensal),
-      saidas_moni: r2(parcela_mensal),
+      saidas_obra: 0,
       saldo_lote: r2(lot_balance),
       juros_lote_mes: r2(juros_mes),
       desembolso_obra: 0,
       saldo_credito_ponte: 0,
       juros_obra_mes: 0,
       saidas_total: r2(parcela_mensal),
+      pagamento_loteadora: r2(parcela_mensal),
     });
   }
 
   const juros_last = lot_balance * taxa_parcelado;
   const lot_com_juros = lot_balance * (1 + taxa_parcelado);
-  const apos_mensal = lot_com_juros - parcela_mensal;
-  const min_quitar_lote = Math.max(0, apos_mensal);
+  const saldo_apos_mensal = lot_com_juros - parcela_mensal;
+  const min_quitar_lote = Math.max(0, saldo_apos_mensal);
+  const parcela_unica_necessaria = min_quitar_lote;
 
   const desembolhos = getDesembolso(N_obra);
   const taxa_gestao_mes = taxa_gestao_amount / N_obra;
   const taxa_plataforma_mes = taxa_plataforma_amount / N_obra;
 
-  type DadosFase2 = { desembolso: number; saidas: number; juros: number; saldo: number };
-  const fase2Dados: DadosFase2[] = [];
-  let saldo_cp = 0;
-  let juros_obra_total = 0;
+  const paramsFase2 = {
+    N_obra,
+    custo_obra,
+    desembolhos,
+    taxa_gestao_mes,
+    taxa_plataforma_mes,
+    parcela_mensal,
+    taxa_cp,
+  };
 
-  for (let E = 1; E <= N_obra; E += 1) {
-    const desembolso_mes = custo_obra * desembolhos[E - 1];
-    const saidas_mes = desembolso_mes + taxa_gestao_mes + taxa_plataforma_mes;
-    const necessidade = saidas_mes - parcela_mensal;
-    const juros_mes = saldo_cp * taxa_cp;
-    saldo_cp = saldo_cp + necessidade + juros_mes;
-    juros_obra_total += juros_mes;
-    fase2Dados.push({
-      desembolso: desembolso_mes,
-      saidas: saidas_mes,
-      juros: juros_mes,
-      saldo: Math.max(0, saldo_cp),
-    });
-  }
+  /**
+   * Passo 1: juros da obra para VTP/parcela única.
+   * Com override a parcela única já é conhecida — o excesso entra neste passo.
+   * Sem override o excesso só existe depois da parcela única (passo 2).
+   */
+  const usaOverride = oferta.parcela_unica_override != null;
+  const excessoParaVtp = usaOverride
+    ? Math.max(0, n0(oferta.parcela_unica_override) - parcela_unica_necessaria)
+    : 0;
+  let { dados: fase2Dados, juros_obra_total } = simularFase2({
+    ...paramsFase2,
+    excessoInicial: excessoParaVtp,
+  });
 
   const VTP = VTP_base + juros_obra_total;
   const impostos_amount = n0(template.percentual_impostos) * VTP;
@@ -240,14 +285,24 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
   const min_atingir_30pct = Math.max(0, 0.3 * VTE - total_pago_ate_aqui);
   const parcela_unica = Math.max(min_quitar_lote, min_atingir_30pct);
   const parcela_unica_efetiva = oferta.parcela_unica_override ?? parcela_unica;
+  const excesso_parcela_unica = Math.max(0, parcela_unica_efetiva - parcela_unica_necessaria);
   const pct_vte_antes_obra = VTE > 0 ? (total_pago_ate_aqui + parcela_unica_efetiva) / VTE : 0;
 
+  if (!usaOverride && excesso_parcela_unica > 0) {
+    fase2Dados = simularFase2({
+      ...paramsFase2,
+      excessoInicial: excesso_parcela_unica,
+    }).dados;
+  }
+
+  const pag_loteadora_unica = parcela_mensal + parcela_unica_necessaria;
+  const saidas_unica = parcela_mensal + parcela_unica_necessaria + itbi_amount;
+
   const lucros_ultimo = lucro_loteadora_amount + lucro_moni_amount + lucro_franqueado_amount;
-  const impostos_ultimo = impostos_amount;
-  const total_parcelas_mensais = (prazo_meses + N_obra) * parcela_mensal;
-  const total_pago_pre_sac =
-    entrada_total + total_parcelas_mensais + parcela_unica_efetiva + lucros_ultimo + impostos_ultimo;
-  const saldo_financiar = Math.max(0, VTE - total_pago_pre_sac);
+  /** Lucros + impostos do último mês de obra — entram em saidas_total, não no crédito-ponte. */
+  const liquidacao_entrega = lucros_ultimo + impostos_amount;
+  const saldo_cp_final = fase2Dados.length > 0 ? fase2Dados[fase2Dados.length - 1].saldo : 0;
+  const saldo_financiar = Math.max(0, saldo_cp_final + liquidacao_entrega);
 
   const n_parcelas = prazo_financiamento_anos * 12;
   const taxa_mensal = taxa_fin_anual > -1 ? (1 + taxa_fin_anual) ** (1 / 12) - 1 : 0;
@@ -261,51 +316,51 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
       fase: 'mes0',
       descricao: 'Entrada (comissão + entrada do lote)',
       entrada_cliente: r2(entrada_total),
-      saidas_moni: r2(comissao_amount),
+      saidas_obra: 0,
       saldo_lote: r2(lot_balance_inicio),
       juros_lote_mes: 0,
       desembolso_obra: 0,
       saldo_credito_ponte: 0,
       juros_obra_mes: 0,
       saidas_total: r2(entrada_total),
+      pagamento_loteadora: r2(entrada_do_lote_efetiva),
     },
     ...fluxoFase1,
     {
       mes: prazo_meses,
       fase: 'parcela_unica',
       descricao: 'Parcela mensal + parcela única',
-      entrada_cliente: r2(parcela_mensal + parcela_unica_efetiva),
-      saidas_moni: r2(parcela_mensal + parcela_unica_efetiva),
+      entrada_cliente: r2(parcela_mensal + parcela_unica_efetiva + itbi_amount),
+      saidas_obra: 0,
       saldo_lote: 0,
       juros_lote_mes: r2(juros_last),
       desembolso_obra: 0,
       saldo_credito_ponte: 0,
       juros_obra_mes: 0,
-      saidas_total: r2(parcela_mensal + parcela_unica_efetiva),
+      saidas_total: r2(saidas_unica),
+      pagamento_loteadora: r2(pag_loteadora_unica),
     },
   ];
 
   fase2Dados.forEach((et, idx) => {
     const E = idx + 1;
     const ultimo = E === N_obra;
-    const entrada_cliente = ultimo
-      ? parcela_mensal + lucros_ultimo + impostos_ultimo
-      : parcela_mensal;
-    const saidas_moni = ultimo ? et.saidas + lucros_ultimo : et.saidas;
-    const saidas_total = ultimo ? saidas_moni + impostos_amount : saidas_moni;
+    const saidas_obra = et.saidas;
+    const saidas_total = ultimo ? saidas_obra + liquidacao_entrega : saidas_obra;
     fluxo.push({
       mes: prazo_meses + E,
       fase: 'fase2',
       etapa_obra: E,
       descricao: ultimo ? `Obra — etapa ${E}/${N_obra} (entrega)` : `Obra — etapa ${E}/${N_obra}`,
-      entrada_cliente: r2(entrada_cliente),
-      saidas_moni: r2(saidas_moni),
+      entrada_cliente: r2(parcela_mensal),
+      saidas_obra: r2(saidas_obra),
       saldo_lote: 0,
       juros_lote_mes: 0,
       desembolso_obra: r2(et.desembolso),
       saldo_credito_ponte: r2(et.saldo),
       juros_obra_mes: r2(et.juros),
       saidas_total: r2(saidas_total),
+      pagamento_loteadora: 0,
     });
   });
 

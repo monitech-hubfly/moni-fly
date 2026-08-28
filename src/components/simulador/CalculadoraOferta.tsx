@@ -3,14 +3,12 @@
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { parseDecimalInput } from '@/lib/condominios';
-import { parseMoneyText } from '@/lib/dashboard-novos-negocios/parseMoney';
 import { criarSimuladorOfertaDoCard } from '@/lib/actions/loteamento-simulador-template';
 import {
   fracaoParaPercentualUi,
   numeroParaInputBr,
-  percentualUiParaFracao,
 } from '@/lib/loteamento-simulador-template';
+import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
   calcularOferta,
   formatarMoeda,
@@ -20,6 +18,10 @@ import {
   type ResultadoCalculo,
   type TemplateConfig,
 } from '@/lib/simulador/calcular-oferta';
+import {
+  formatarNumeroInput,
+  parsearNumeroInput,
+} from '@/lib/simulador/formatar-numero-input';
 
 type Props = {
   template: TemplateConfig;
@@ -54,35 +56,24 @@ const FASE_LABEL: Record<string, string> = {
   entrega: 'Entrega',
 };
 
-function parseMoeda(raw: string): number | null {
-  const t = raw.trim();
-  if (!t) return null;
-  return parseMoneyText(t) ?? parseDecimalInput(t);
-}
-
-function parseInteiro(raw: string): number | null {
-  const n = parseDecimalInput(raw);
-  if (n == null) return null;
-  return Math.round(n);
-}
-
 export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props) {
   const router = useRouter();
   const cardId = kanbanCardId || loteadorId;
 
   const prazoObraMeses = Math.max(0, Math.round(template.prazo_obra_meses));
-  const [valorLote, setValorLote] = useState('');
-  const [valorCasa, setValorCasa] = useState('');
-  const [valorCustomizacao, setValorCustomizacao] = useState('0');
-  const [valorJaPago, setValorJaPago] = useState('0');
-  const [prazoTotal, setPrazoTotal] = useState(String(12 + prazoObraMeses));
-  const [parcelaMensal, setParcelaMensal] = useState('');
+  const [valorLote, setValorLote] = useState<number | null>(null);
+  const [valorCasa, setValorCasa] = useState<number | null>(null);
+  const [valorCustomizacao, setValorCustomizacao] = useState<number | null>(0);
+  const [valorJaPago, setValorJaPago] = useState<number | null>(0);
+  const [prazoTotal, setPrazoTotal] = useState<number | null>(12 + prazoObraMeses);
+  const [parcelaMensal, setParcelaMensal] = useState<number | null>(null);
   const [parcelaEditada, setParcelaEditada] = useState(false);
-  const [rendaCliente, setRendaCliente] = useState('');
-  const [prazoFinanciamentoAnos, setPrazoFinanciamentoAnos] = useState('30');
-  const [taxaFinanciamentoUi, setTaxaFinanciamentoUi] = useState(
-    fracaoParaPercentualUi(template.taxa_juros_financiamento_anual) || '10',
-  );
+  const [rendaCliente, setRendaCliente] = useState<number | null>(null);
+  const [prazoFinanciamentoAnos, setPrazoFinanciamentoAnos] = useState<number | null>(30);
+  const [taxaFinanciamento, setTaxaFinanciamento] = useState<number | null>(() => {
+    const ui = fracaoParaPercentualUi(template.taxa_juros_financiamento_anual);
+    return ui ? parsearNumeroInput(ui) : 10;
+  });
 
   const [resultado, setResultado] = useState<ResultadoCalculo | null>(null);
   const [ultimaOferta, setUltimaOferta] = useState<OfertaConfig | null>(null);
@@ -92,37 +83,30 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  const [entradaConfirmada, setEntradaConfirmada] = useState('');
-  const [parcelaConfirmada, setParcelaConfirmada] = useState('');
-  const [unicaConfirmada, setUnicaConfirmada] = useState('');
+  const [entradaConf, setEntradaConf] = useState(0);
+  const [parcelaMensalConf, setParcelaMensalConf] = useState(0);
+  const [parcelaUnicaConf, setParcelaUnicaConf] = useState(0);
   const [fluxoFinalResultado, setFluxoFinalResultado] = useState<ResultadoCalculo | null>(null);
   const [detalheFinalAberto, setDetalheFinalAberto] = useState(false);
 
-  const entradaConf = parseMoeda(entradaConfirmada) ?? 0;
-  const parcelaMensalConf = parseMoeda(parcelaConfirmada) ?? 0;
-  const parcelaUnicaConf = parseMoeda(unicaConfirmada) ?? 0;
-
-  const loteAtual = parseMoeda(valorLote) ?? 0;
+  const loteAtual = valorLote ?? 0;
   const sugestaoParcela = sugerirParcelaMensal(loteAtual);
-  const prazoTotalNum = parseInteiro(prazoTotal);
-  const prazoFase1 = prazoTotalNum != null ? prazoTotalNum - prazoObraMeses : null;
-  const prazoTotalInvalido =
-    prazoTotal.trim() !== '' && (prazoTotalNum == null || prazoTotalNum <= prazoObraMeses);
+  const prazoFase1 = prazoTotal != null ? prazoTotal - prazoObraMeses : null;
+  const prazoTotalInvalido = prazoTotal != null && prazoTotal <= prazoObraMeses;
 
-  function onValorLoteChange(v: string) {
-    setValorLote(v);
+  function onValorLoteChange(n: number | null) {
+    setValorLote(n);
     setResultado(null);
-    const n = parseMoeda(v);
     if (!parcelaEditada && n != null && n > 0) {
-      setParcelaMensal(String(sugerirParcelaMensal(n)));
+      setParcelaMensal(sugerirParcelaMensal(n));
     }
   }
 
   function onCalcular() {
     setErro(null);
     setMensagem(null);
-    const lote = parseMoeda(valorLote);
-    const casa = parseMoeda(valorCasa);
+    const lote = valorLote;
+    const casa = valorCasa;
     if (lote == null || lote <= 0) {
       setErro('Informe o valor do lote à vista.');
       return;
@@ -131,9 +115,9 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       setErro('Informe o valor da casa.');
       return;
     }
-    const custom = parseMoeda(valorCustomizacao) ?? 0;
-    const jaPago = parseMoeda(valorJaPago) ?? 0;
-    const prazoTotalInformado = parseInteiro(prazoTotal);
+    const custom = valorCustomizacao ?? 0;
+    const jaPago = valorJaPago ?? 0;
+    const prazoTotalInformado = prazoTotal;
     if (prazoTotalInformado == null || prazoTotalInformado < 1) {
       setErro('Informe o prazo total do contrato (meses).');
       return;
@@ -143,20 +127,21 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       setErro(`O prazo total deve ser maior que o prazo de obra (${prazoObraMeses} meses).`);
       return;
     }
-    const parcela = parseMoeda(parcelaMensal);
+    const parcela = parcelaMensal;
     if (parcela == null || parcela < 0) {
       setErro('Informe a parcela mensal.');
       return;
     }
-    const renda = parseMoeda(rendaCliente) ?? 0;
-    const prazoFin = parseInteiro(prazoFinanciamentoAnos);
+    const renda = rendaCliente ?? 0;
+    const prazoFin = prazoFinanciamentoAnos;
     if (prazoFin == null || prazoFin < 1) {
       setErro('Informe o prazo do financiamento em anos.');
       return;
     }
-    const taxaFrac = taxaFinanciamentoUi.trim()
-      ? percentualUiParaFracao(taxaFinanciamentoUi)
-      : template.taxa_juros_financiamento_anual;
+    const taxaFrac =
+      taxaFinanciamento == null
+        ? template.taxa_juros_financiamento_anual
+        : taxaFinanciamento / 100;
     if (taxaFrac < 0) {
       setErro('Taxa do financiamento inválida.');
       return;
@@ -176,9 +161,9 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
     const calc = calcularOferta(template, oferta);
     setUltimaOferta(oferta);
     setResultado(calc);
-    setEntradaConfirmada(numeroParaInputBr(calc.entrada_sugerida));
-    setParcelaConfirmada(numeroParaInputBr(calc.parcela_mensal_usada));
-    setUnicaConfirmada(numeroParaInputBr(calc.parcela_unica_sugerida));
+    setEntradaConf(calc.entrada_sugerida);
+    setParcelaMensalConf(calc.parcela_mensal_usada);
+    setParcelaUnicaConf(calc.parcela_unica_sugerida);
   }
 
   useEffect(() => {
@@ -186,9 +171,9 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       setFluxoFinalResultado(null);
       return;
     }
-    setEntradaConfirmada(numeroParaInputBr(resultado.entrada_sugerida));
-    setParcelaConfirmada(numeroParaInputBr(resultado.parcela_mensal_usada));
-    setUnicaConfirmada(numeroParaInputBr(resultado.parcela_unica_sugerida));
+    setEntradaConf(resultado.entrada_sugerida);
+    setParcelaMensalConf(resultado.parcela_mensal_usada);
+    setParcelaUnicaConf(resultado.parcela_unica_sugerida);
     setFluxoFinalResultado(null);
     setDetalheFinalAberto(false);
   }, [resultado]);
@@ -204,12 +189,13 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       valor_customizacao: numeroParaInputBr(ultimaOferta.valor_customizacao),
       valor_ja_pago: numeroParaInputBr(ultimaOferta.valor_ja_pago),
       prazo_meses: String(ultimaOferta.prazo_meses),
-      parcela_mensal: parcelaConfirmada || numeroParaInputBr(resultado.parcela_mensal_usada),
+      parcela_mensal: numeroParaInputBr(parcelaMensalConf),
       renda_cliente: numeroParaInputBr(ultimaOferta.renda_cliente),
       prazo_financiamento_anos: String(ultimaOferta.prazo_financiamento_anos),
-      taxa_financiamento_anual: taxaFinanciamentoUi,
-      entrada_confirmada: entradaConfirmada,
-      parcela_unica_confirmada: unicaConfirmada,
+      taxa_financiamento_anual:
+        taxaFinanciamento == null ? '' : numeroParaInputBr(taxaFinanciamento),
+      entrada_confirmada: numeroParaInputBr(entradaConf),
+      parcela_unica_confirmada: numeroParaInputBr(parcelaUnicaConf),
     });
     setSalvando(false);
     if (!res.ok) {
@@ -232,9 +218,9 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
     setFluxoFinalResultado(calcularOferta(template, ofertaConfirmada));
   }
 
-  function onCampoConfirmado(setter: (v: string) => void) {
-    return (v: string) => {
-      setter(v);
+  function onValorConfirmado(setter: (n: number) => void) {
+    return (n: number) => {
+      setter(n);
       setFluxoFinalResultado(null);
     };
   }
@@ -319,13 +305,13 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
         label: 'Parcela única sugerida',
         valor: `${formatarMoeda(resultado.parcela_unica_sugerida)} no mês ${resultado.mes_parcela_unica}`,
       },
-      { label: 'Saldo a financiar sugerido', valor: formatarMoeda(resultado.saldo_financiar) },
+      { label: 'Saldo a financiar estimado', valor: formatarMoeda(resultado.saldo_financiar) },
       {
-        label: '1ª parcela SAC sugerida (est.)',
+        label: '1ª parcela SAC estimada',
         valor: formatarMoeda(resultado.parcela_sac_primeira),
       },
       {
-        label: 'Última parcela SAC sugerida (est.)',
+        label: 'Última parcela SAC estimada',
         valor: formatarMoeda(resultado.parcela_sac_ultima),
       },
     ];
@@ -407,7 +393,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
             label="Valor do lote à vista (R$)"
             value={valorLote}
             onChange={onValorLoteChange}
-            placeholder="180000"
+            placeholder="180.000"
           />
           <Campo
             label="Valor da casa (R$)"
@@ -416,7 +402,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
               setValorCasa(v);
               setResultado(null);
             }}
-            placeholder="320000"
+            placeholder="320.000"
           />
           <Campo
             label="Valor da customização (R$)"
@@ -440,17 +426,15 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
             <span className={labelCls} style={labelStyle}>
               Prazo total do contrato (meses)
             </span>
-            <input
+            <CampoNumeroBr
               id="prazo_total_contrato"
               name="prazo_total_contrato"
               className={fieldCls}
               style={fieldStyle}
-              inputMode="numeric"
-              type="number"
-              min={prazoObraMeses + 1}
-              value={prazoTotal}
-              onChange={(e) => {
-                setPrazoTotal(e.target.value);
+              valor={prazoTotal}
+              inteiro
+              onChange={(n) => {
+                setPrazoTotal(n);
                 setResultado(null);
               }}
               placeholder={String(12 + prazoObraMeses)}
@@ -481,17 +465,16 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
             <span className={labelCls} style={labelStyle}>
               Parcela mensal · sugestão por faixa: {formatarMoeda(sugestaoParcela)}
             </span>
-            <input
+            <CampoNumeroBr
               className={fieldCls}
               style={fieldStyle}
-              inputMode="decimal"
-              value={parcelaMensal}
-              onChange={(e) => {
-                setParcelaMensal(e.target.value);
+              valor={parcelaMensal}
+              onChange={(n) => {
+                setParcelaMensal(n);
                 setParcelaEditada(true);
                 setResultado(null);
               }}
-              placeholder={String(sugestaoParcela)}
+              placeholder={formatarNumeroInput(sugestaoParcela)}
             />
           </label>
           <Campo
@@ -501,7 +484,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
               setRendaCliente(v);
               setResultado(null);
             }}
-            placeholder="12000"
+            placeholder="12.000"
           />
           <Campo
             label="Prazo do financiamento (anos)"
@@ -511,13 +494,13 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
               setResultado(null);
             }}
             placeholder="30"
-            tipo="number"
+            inteiro
           />
           <Campo
             label="Taxa do financiamento (% ao ano)"
-            value={taxaFinanciamentoUi}
+            value={taxaFinanciamento}
             onChange={(v) => {
-              setTaxaFinanciamentoUi(v);
+              setTaxaFinanciamento(v);
               setResultado(null);
             }}
             placeholder="10"
@@ -624,29 +607,30 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
               Ajuste o que vai constar no contrato e grave como rascunho.
             </p>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Campo
+              <CampoMoedaConfirmado
                 label="Entrada confirmada (R$)"
-                value={entradaConfirmada}
-                onChange={onCampoConfirmado(setEntradaConfirmada)}
+                valor={entradaConf}
+                onValorChange={onValorConfirmado(setEntradaConf)}
                 avisos={avisosSalvar.entrada}
               />
-              <Campo
-                label="Parcela mensal confirmada (o que vai constar no contrato)"
-                value={parcelaConfirmada}
-                onChange={onCampoConfirmado(setParcelaConfirmada)}
+              <CampoMoedaConfirmado
+                label="Parcela mensal confirmada (R$)"
+                valor={parcelaMensalConf}
+                onValorChange={onValorConfirmado(setParcelaMensalConf)}
                 avisos={avisosSalvar.parcela}
               />
-              <Campo
+              <CampoMoedaConfirmado
                 label="Parcela única confirmada (R$)"
-                value={unicaConfirmada}
-                onChange={onCampoConfirmado(setUnicaConfirmada)}
+                valor={parcelaUnicaConf}
+                onValorChange={onValorConfirmado(setParcelaUnicaConf)}
                 avisos={avisosSalvar.unica}
               />
             </div>
+            <div className="mt-6 flex flex-col gap-4">
             <button
               type="button"
               onClick={gerarFluxoFinal}
-              className="mt-6 min-h-[44px] rounded-[var(--moni-radius-md)] px-5 text-sm font-medium"
+              className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium"
               style={{
                 border: 'var(--moni-border-width) solid var(--moni-border-default)',
                 background: 'var(--moni-surface-0)',
@@ -657,7 +641,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
             </button>
             {fluxoFinalResultado ? (
               <div
-                className="mt-6 rounded-[var(--moni-radius-md)] p-4"
+                className="rounded-[var(--moni-radius-md)] p-4"
                 style={{
                   border: 'var(--moni-border-width) solid var(--moni-border-default)',
                   background: 'var(--moni-surface-100)',
@@ -703,11 +687,12 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
               type="button"
               disabled={salvando}
               onClick={() => void onSalvar()}
-              className="mt-6 min-h-[44px] rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:opacity-50"
+              className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:opacity-50"
               style={{ background: 'var(--moni-navy-800)' }}
             >
               {salvando ? 'Salvando…' : 'Salvar oferta'}
             </button>
+            </div>
           </div>
         </>
       ) : null}
@@ -789,19 +774,15 @@ function QuadroPremissasTemplate({ template }: { template: TemplateConfig }) {
   );
 }
 
-function Campo({
+function CampoMoedaConfirmado({
   label,
-  value,
-  onChange,
-  placeholder,
-  tipo = 'decimal',
+  valor,
+  onValorChange,
   avisos,
 }: {
   label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  tipo?: 'decimal' | 'number';
+  valor: number;
+  onValorChange: (n: number) => void;
   avisos?: string[];
 }) {
   return (
@@ -809,14 +790,55 @@ function Campo({
       <span className={labelCls} style={labelStyle}>
         {label}
       </span>
-      <input
+      <CampoNumeroBr
         className={fieldCls}
         style={fieldStyle}
-        inputMode={tipo === 'number' ? 'numeric' : 'decimal'}
-        type={tipo === 'number' ? 'number' : 'text'}
-        min={tipo === 'number' ? 1 : undefined}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        valor={valor}
+        onChange={(n) => onValorChange(n ?? 0)}
+      />
+      {avisos?.map((a) => (
+        <span
+          key={a}
+          className="mt-1 block text-[11px]"
+          role="alert"
+          style={{
+            color: 'var(--moni-status-overdue-text)',
+            fontFamily: 'var(--moni-font-sans)',
+          }}
+        >
+          {a}
+        </span>
+      ))}
+    </label>
+  );
+}
+
+function Campo({
+  label,
+  value,
+  onChange,
+  placeholder,
+  inteiro,
+  avisos,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (v: number | null) => void;
+  placeholder?: string;
+  inteiro?: boolean;
+  avisos?: string[];
+}) {
+  return (
+    <label className="block">
+      <span className={labelCls} style={labelStyle}>
+        {label}
+      </span>
+      <CampoNumeroBr
+        className={fieldCls}
+        style={fieldStyle}
+        valor={value}
+        onChange={onChange}
+        inteiro={inteiro}
         placeholder={placeholder}
       />
       {avisos?.map((a) => (
@@ -894,6 +916,9 @@ function TabelaFluxo({
   detalheAberto: boolean;
   onToggleDetalhe: () => void;
 }) {
+  const celVisivel = { background: 'var(--moni-surface-50)' } as const;
+  const celDetalhe = { background: 'var(--moni-surface-0)' } as const;
+
   return (
     <div className="overflow-x-auto">
       <table
@@ -902,10 +927,16 @@ function TabelaFluxo({
       >
         <thead>
           <tr style={{ color: 'var(--moni-text-tertiary)' }}>
-            <th className="whitespace-nowrap px-2 py-2 font-medium">Mês</th>
-            <th className="whitespace-nowrap px-2 py-2 font-medium">Fase</th>
-            <th className="whitespace-nowrap px-2 py-2 font-medium">Entradas do cliente</th>
-            <th className="px-1 py-2">
+            <th className="whitespace-nowrap px-2 py-2 font-medium" style={celVisivel}>
+              Mês
+            </th>
+            <th className="whitespace-nowrap px-2 py-2 font-medium" style={celVisivel}>
+              Fase
+            </th>
+            <th className="whitespace-nowrap px-2 py-2 font-medium" style={celVisivel}>
+              Entradas do cliente
+            </th>
+            <th className="px-1 py-2" style={celVisivel}>
               <button
                 type="button"
                 onClick={onToggleDetalhe}
@@ -919,21 +950,38 @@ function TabelaFluxo({
               </button>
             </th>
             {detalheAberto ? (
-              <th className="whitespace-nowrap px-2 py-2 font-medium">Saldo do lote</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
+                Pagamentos à loteadora
+              </th>
             ) : null}
             {detalheAberto ? (
-              <th className="whitespace-nowrap px-2 py-2 font-medium">Juros do lote</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
+                Saldo do lote
+              </th>
             ) : null}
             {detalheAberto ? (
-              <th className="whitespace-nowrap px-2 py-2 font-medium">Desembolso de obra</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
+                Juros do lote
+              </th>
             ) : null}
             {detalheAberto ? (
-              <th className="whitespace-nowrap px-2 py-2 font-medium">Juros de obra</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
+                Desembolso de obra
+              </th>
             ) : null}
             {detalheAberto ? (
-              <th className="whitespace-nowrap px-2 py-2 font-medium">Saldo CP</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
+                Juros de obra
+              </th>
             ) : null}
-            <th className="whitespace-nowrap px-2 py-2 font-medium">Saídas</th>
+            {detalheAberto ? (
+              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
+                Saldo CP
+              </th>
+            ) : null}
+            <th className="whitespace-nowrap px-2 py-2 font-medium" style={celVisivel}>
+              Saídas
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -945,26 +993,49 @@ function TabelaFluxo({
                 color: 'var(--moni-text-secondary)',
               }}
             >
-              <td className="px-2 py-2">{l.mes}</td>
-              <td className="whitespace-nowrap px-2 py-2">{FASE_LABEL[l.fase] ?? l.fase}</td>
-              <td className="whitespace-nowrap px-2 py-2">{formatarMoeda(l.entrada_cliente)}</td>
-              <td className="px-1 py-2" aria-hidden="true" />
+              <td className="px-2 py-2" style={celVisivel}>
+                {l.mes}
+              </td>
+              <td className="whitespace-nowrap px-2 py-2" style={celVisivel}>
+                {FASE_LABEL[l.fase] ?? l.fase}
+              </td>
+              <td className="whitespace-nowrap px-2 py-2" style={celVisivel}>
+                {formatarMoeda(l.entrada_cliente)}
+              </td>
+              <td className="px-1 py-2" style={celVisivel} aria-hidden="true" />
               {detalheAberto ? (
-                <td className="whitespace-nowrap px-2 py-2">{formatarMoeda(l.saldo_lote)}</td>
+                <td className="whitespace-nowrap px-2 py-2 text-right" style={celDetalhe}>
+                  {l.pagamento_loteadora > 0 ? formatarMoeda(l.pagamento_loteadora) : '—'}
+                </td>
               ) : null}
               {detalheAberto ? (
-                <td className="whitespace-nowrap px-2 py-2">{formatarMoeda(l.juros_lote_mes)}</td>
+                <td className="whitespace-nowrap px-2 py-2" style={celDetalhe}>
+                  {formatarMoeda(l.saldo_lote)}
+                </td>
               ) : null}
               {detalheAberto ? (
-                <td className="whitespace-nowrap px-2 py-2">{formatarMoeda(l.saidas_moni)}</td>
+                <td className="whitespace-nowrap px-2 py-2" style={celDetalhe}>
+                  {formatarMoeda(l.juros_lote_mes)}
+                </td>
               ) : null}
               {detalheAberto ? (
-                <td className="whitespace-nowrap px-2 py-2">{formatarMoeda(l.juros_obra_mes)}</td>
+                <td className="whitespace-nowrap px-2 py-2 text-right" style={celDetalhe}>
+                  {l.saidas_obra > 0 ? formatarMoeda(l.saidas_obra) : '—'}
+                </td>
               ) : null}
               {detalheAberto ? (
-                <td className="whitespace-nowrap px-2 py-2">{formatarMoeda(l.saldo_credito_ponte)}</td>
+                <td className="whitespace-nowrap px-2 py-2" style={celDetalhe}>
+                  {formatarMoeda(l.juros_obra_mes)}
+                </td>
               ) : null}
-              <td className="whitespace-nowrap px-2 py-2">{formatarMoeda(l.saidas_total)}</td>
+              {detalheAberto ? (
+                <td className="whitespace-nowrap px-2 py-2" style={celDetalhe}>
+                  {formatarMoeda(l.saldo_credito_ponte)}
+                </td>
+              ) : null}
+              <td className="whitespace-nowrap px-2 py-2" style={celVisivel}>
+                {formatarMoeda(l.saidas_total)}
+              </td>
             </tr>
           ))}
         </tbody>
