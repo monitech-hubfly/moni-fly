@@ -162,8 +162,10 @@ export function useBacklog(): UseBacklogResult {
       type KanbanAtivRaw = {
         id: string;
         card_id: string | null;
+        arquivado: boolean | null;
         sirene_chamado_id: number | null;
         sirene_chamados: ChamadoRaw | (ChamadoRaw & { arquivado?: boolean | null });
+        kanban_cards: { arquivado: boolean | null } | { arquivado: boolean | null }[] | null;
       };
       type SireneRaw = {
         id: string;
@@ -187,7 +189,7 @@ export function useBacklog(): UseBacklogResult {
       const kanbanAtivRes = interacaoIds.length > 0
         ? await supabase
             .from('kanban_atividades')
-            .select('id, card_id, sirene_chamado_id, sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado, status)')
+            .select('id, card_id, arquivado, sirene_chamado_id, sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado, status), kanban_cards(arquivado)')
             .in('id', interacaoIds)
         : { data: [] as KanbanAtivRaw[], error: null };
 
@@ -261,6 +263,10 @@ export function useBacklog(): UseBacklogResult {
         // Verifica também chamado via interacao_id (chamado_id=null nesse caso)
         if (!chamadoD && row.interacao_id) {
           const interacaoRaw = kanbanAtivMap.get(row.interacao_id);
+
+          // A própria kanban_atividade está arquivada → não exibir
+          if (interacaoRaw?.arquivado === true) return false;
+
           const chamadoVI = interacaoRaw
             ? (Array.isArray(interacaoRaw.sirene_chamados)
                 ? interacaoRaw.sirene_chamados[0] ?? null
@@ -268,6 +274,13 @@ export function useBacklog(): UseBacklogResult {
             : null;
           const vi = chamadoVI as { arquivado?: boolean | null; status?: string | null } | null;
           if (vi?.arquivado === true || vi?.status === 'concluida') return false;
+
+          // Sem chamado Sirene E o card pai está arquivado → não exibir (tópico fantasma)
+          if (!vi && interacaoRaw?.sirene_chamado_id == null) {
+            const cardRaw = interacaoRaw?.kanban_cards;
+            const card = Array.isArray(cardRaw) ? cardRaw[0] ?? null : cardRaw ?? null;
+            if (card?.arquivado === true) return false;
+          }
         }
         return true;
       });
