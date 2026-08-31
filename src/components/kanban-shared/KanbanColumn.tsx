@@ -882,7 +882,7 @@ export function KanbanColumn({
                               type="button"
                               onClick={() => abrirCard(card)}
                               className="moni-kanban-card-count"
-                              aria-label={`${qtdComentarios} comentário(s)`}
+                              aria-label={`${qtdComentarios} observação(ões)`}
                             >
                               <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
                               <span className="tabular-nums">{qtdComentarios}</span>

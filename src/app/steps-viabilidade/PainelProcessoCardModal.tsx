@@ -999,7 +999,7 @@ export function PainelProcessoCardModal({
 
               <div className="mb-4">
                 <h4 className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Comentários desta fase
+                  Observações desta fase
                 </h4>
                 <textarea
                   value={novoComentario}
@@ -1011,7 +1011,7 @@ export function PainelProcessoCardModal({
                     color: 'var(--moni-text-primary)',
                     border: '0.5px solid var(--moni-border-default)',
                   }}
-                  placeholder="Adicione um comentário…"
+                  placeholder="Adicione uma observação…"
                 />
               </div>
 
@@ -1062,7 +1062,7 @@ export function PainelProcessoCardModal({
 
               <div className="mt-6">
                 <h4 className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Comentários gerais
+                  Observações gerais
                 </h4>
                 <textarea
                   readOnly
@@ -1073,7 +1073,7 @@ export function PainelProcessoCardModal({
                     color: 'var(--moni-text-tertiary)',
                     border: '0.5px solid var(--moni-border-default)',
                   }}
-                  value="Em desenvolvimento — comentários gerais do card. Use o painel completo (legado) para menções e histórico detalhado."
+                  value="Em desenvolvimento — observações gerais do card. Use o painel completo (legado) para menções e histórico detalhado."
                 />
               </div>
             </div>

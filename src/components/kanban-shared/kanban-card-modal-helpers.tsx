@@ -648,7 +648,7 @@ export function textoResumidoAcaoHistorico(acao: string, detalhe: Record<string,
       return 'Chamado atualizado';
     }
     case 'comentario_criado':
-      return 'Comentário publicado no card';
+      return 'Observação publicada no card';
     case 'tag_vinculada':
       return `Tag adicionada: ${String(d.tag_nome ?? '').trim() || '—'}`;
     case 'tag_removida':

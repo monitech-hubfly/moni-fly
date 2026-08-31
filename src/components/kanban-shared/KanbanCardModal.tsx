@@ -3239,7 +3239,7 @@ export function KanbanCardModal({
     if (!card) return;
     const uid = modalSessao.userId;
     if (!uid) {
-      alert('Faça login para editar o comentário.');
+      alert('Faça login para editar a observação.');
       return;
     }
     const html = (comentarioEdicaoRef.current?.innerHTML ?? editComentarioDraft).trim();
@@ -3259,14 +3259,14 @@ export function KanbanCardModal({
       if (comentarioEdicaoRef.current) comentarioEdicaoRef.current.innerHTML = '';
       setComentariosCard(await carregarComentariosCardModal(card.id));
     } catch {
-      alert('Erro ao editar comentário.');
+      alert('Erro ao editar observação.');
     } finally {
       setSalvandoEdicaoComentario(false);
     }
   }
 
   async function handleExcluirComentario(comentarioId: string) {
-    if (!confirm('Excluir este comentário?')) return;
+    if (!confirm('Excluir esta observação?')) return;
     try {
       const supabase = createClient();
       const { error } = await supabase
@@ -3277,7 +3277,7 @@ export function KanbanCardModal({
       if (error) throw error;
       setComentariosCard((prev) => prev.filter((c) => c.id !== comentarioId));
     } catch {
-      alert('Erro ao excluir comentário.');
+      alert('Erro ao excluir observação.');
     }
   }
 
@@ -5450,7 +5450,7 @@ export function KanbanCardModal({
             />
           </label>
           <label className="block">
-            <span className="text-[11px] font-medium text-stone-500">Comentários</span>
+            <span className="text-[11px] font-medium text-stone-500">Observações</span>
             <textarea
               value={edit.comentarioValue}
               onChange={(e) => edit.onComentarioChange(e.target.value)}
@@ -5482,7 +5482,7 @@ export function KanbanCardModal({
           </div>
         </div>
         <div>
-          <div className="text-[11px] font-medium text-stone-500">Comentários</div>
+          <div className="text-[11px] font-medium text-stone-500">Observações</div>
           <div className="whitespace-pre-wrap text-xs text-stone-800">{comentario || '—'}</div>
         </div>
       </div>
@@ -7582,7 +7582,7 @@ export function KanbanCardModal({
                       onClick={() => setAbaComentarios(aba)}
                       className={`moni-kanban-drawer-tab ${ativo ? 'moni-kanban-drawer-tab--active' : ''}`}
                     >
-                      {aba === 'comentarios' ? 'Comentários' : 'E-mail'}
+                      {aba === 'comentarios' ? 'Observações' : 'E-mail'}
                     </button>
                   );
                 })}
@@ -7689,7 +7689,7 @@ export function KanbanCardModal({
                                     <>
                                       <button
                                         type="button"
-                                        title="Editar comentário"
+                                        title="Editar observação"
                                         onClick={() => { setEditingComentarioId(c.id); setEditComentarioDraft(c.conteudo); }}
                                         className="ml-1 rounded p-0.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
                                       >
@@ -7699,7 +7699,7 @@ export function KanbanCardModal({
                                         type="button"
                                         onClick={() => void handleExcluirComentario(c.id)}
                                         className="ml-1 rounded p-0.5 text-stone-400 hover:bg-red-50 hover:text-red-500"
-                                        title="Excluir comentário"
+                                        title="Excluir observação"
                                       >
                                         <Trash2 size={12} />
                                       </button>
@@ -7714,7 +7714,7 @@ export function KanbanCardModal({
                         ))}
                       </ul>
                     ) : (
-                      <p className="mb-4 text-xs text-stone-500">Nenhum comentário ainda.</p>
+                      <p className="mb-4 text-xs text-stone-500">Nenhuma observação ainda.</p>
                     )}
                     <div className="overflow-visible rounded-lg" style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}>
                       <div className="flex gap-1 border-b px-2 py-1" style={{ borderColor: 'var(--moni-border-default)' }}>
@@ -7735,7 +7735,7 @@ export function KanbanCardModal({
                         editorRef={comentarioEditorRef}
                         onInput={(html) => setNovoComentarioCard(html)}
                         className="min-h-[80px] w-full bg-[var(--moni-surface-0)] p-3 text-sm focus:outline-none empty:before:text-stone-400 empty:before:content-[attr(data-placeholder)]"
-                        placeholder="Escreva um comentário… Use @ para mencionar alguém"
+                        placeholder="Escreva uma observação… Use @ para mencionar alguém"
                       />
                     </div>
                     <div className="mt-2 px-1">

@@ -267,10 +267,10 @@ export async function publicarComentarioKanbanCard(input: {
   const cardId = String(input.cardId ?? '').trim();
   const conteudo = String(input.conteudo ?? '').trim();
   if (!cardId) return { ok: false, error: 'Card inválido.' };
-  if (!conteudo) return { ok: false, error: 'Digite o comentário.' };
+  if (!conteudo) return { ok: false, error: 'Digite a observação.' };
 
   const plain = htmlComentarioParaTextoPlano(conteudo);
-  if (!plain) return { ok: false, error: 'Digite o comentário.' };
+  if (!plain) return { ok: false, error: 'Digite a observação.' };
 
   // Detecta @todos — notifica todos admin/team @moni.casa
   let idsTodos: string[] = [];

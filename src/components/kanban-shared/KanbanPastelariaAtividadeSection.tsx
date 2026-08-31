@@ -104,11 +104,11 @@ export function KanbanPastelariaAtividadeSection({
       </p>
 
       <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
-        Comentários do chamado Sirene
+        Observações do chamado Sirene
       </h5>
       <ul className="max-h-48 space-y-2 overflow-y-auto">
         {data.mensagens.length === 0 ? (
-          <li className="text-sm text-stone-500">Nenhum comentário no chamado ainda.</li>
+          <li className="text-sm text-stone-500">Nenhuma observação no chamado ainda.</li>
         ) : (
           data.mensagens.map((m) => (
             <li

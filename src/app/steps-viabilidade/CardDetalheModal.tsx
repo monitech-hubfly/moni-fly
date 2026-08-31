@@ -1952,7 +1952,7 @@ export function CardDetalheModal({
         <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-4 py-3">
           <div>
             <h2 className="font-semibold text-stone-900">{processoLabel}</h2>
-            <p className="text-xs text-stone-500">Dados, checklist, atividades e documentos na mesma página; comentários ao final.</p>
+            <p className="text-xs text-stone-500">Dados, checklist, atividades e documentos na mesma página; observações ao final.</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -2184,7 +2184,7 @@ export function CardDetalheModal({
             </button>
           ) : (
             <p className="max-w-xl text-xs text-stone-600">
-              Tudo em uma única visualização: role a página para checklist, atividades, documentos e comentários.
+              Tudo em uma única visualização: role a página para checklist, atividades, documentos e observações.
             </p>
           )}
           {tab === 'principal' ? (
@@ -5651,7 +5651,7 @@ export function CardDetalheModal({
 
           {tab === 'principal' && (
             <div className="mx-auto mt-10 max-w-4xl space-y-4 border-t border-stone-200 pt-8">
-              <h2 className="text-sm font-bold uppercase tracking-wide text-stone-500">Comentários</h2>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-stone-500">Observações</h2>
               <div className="space-y-2">
                 {comentarios.map((c) => (
                   <div key={c.id} className="rounded-lg border border-stone-200 bg-stone-50 p-2 text-sm">
@@ -5668,7 +5668,7 @@ export function CardDetalheModal({
                   type="text"
                   value={novoComentario}
                   onChange={(e) => setNovoComentario(e.target.value)}
-                  placeholder="Comentário (use @nome para mencionar)"
+                  placeholder="Observação (use @nome para mencionar)"
                   className="flex-1 rounded border border-stone-300 px-3 py-2 text-sm"
                 />
                 <button
