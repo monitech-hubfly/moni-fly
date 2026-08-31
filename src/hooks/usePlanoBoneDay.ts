@@ -58,6 +58,8 @@ export type AgendaMacroItem = {
   tempo_estimado_horas: number | null;
   objetivo_id: string | null;
   descricao_livre: string | null;
+  recorrente: boolean | null;
+  recorrencia_grupo_id: string | null;
 };
 
 export type ObjetivoResponsavel = {
@@ -324,7 +326,7 @@ export function usePlanoBoneDay(
         // gantt do Boné Day (sem area_id na tabela — filtra por profiles da área)
         ganttProfileIds.length > 0
           ? supabase.from('gantt_planejamento')
-              .select('id, acao_id, profile_id, semana_ano_inicio, semana_ano_fim, tempo_estimado_horas, objetivo_id, descricao_livre')
+              .select('id, acao_id, tarefa_id, profile_id, semana_ano_inicio, semana_ano_fim, tempo_estimado_horas, objetivo_id, descricao_livre, recorrente, recorrencia_grupo_id')
               .in('profile_id', ganttProfileIds)
               .eq('origem', 'pre_bone_day')
               .eq('pre_bone_day_mes', mes)
@@ -337,16 +339,19 @@ export function usePlanoBoneDay(
       })));
 
       type GanttRow = {
-        id: string; acao_id: string | null; profile_id: string | null;
+        id: string; acao_id: string | null; tarefa_id: string | null; profile_id: string | null;
         semana_ano_inicio: number | null; semana_ano_fim: number | null;
         tempo_estimado_horas: number | null; objetivo_id: string | null;
-        descricao_livre: string | null;
+        descricao_livre: string | null; recorrente: boolean | null;
+        recorrencia_grupo_id: string | null;
       };
       const ganttArr = ((ganttRes.data ?? []) as GanttRow[]).map(g => ({
         id: g.id, acao_id: g.acao_id ?? null, tarefa_id: null as string | null, profile_id: g.profile_id,
         semana_ano_inicio: g.semana_ano_inicio, semana_ano_fim: g.semana_ano_fim,
         tempo_estimado_horas: g.tempo_estimado_horas, objetivo_id: g.objetivo_id ?? null,
         descricao_livre: g.descricao_livre ?? null,
+        recorrente: g.recorrente ?? null,
+        recorrencia_grupo_id: g.recorrencia_grupo_id ?? null,
       }));
       const acoIds = ganttArr.map(g => g.acao_id).filter((id): id is string => Boolean(id));
       if (acoIds.length > 0) {

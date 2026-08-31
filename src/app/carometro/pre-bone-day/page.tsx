@@ -1175,7 +1175,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
   atividades: AgendaMacroItem[]; semanas: number[]; isAdmin: boolean; currentUserId: string | null; mes: string; areaId: string;
   onAdd: (profileId: string, acoId: string, semana: number, horas: number, objetivoId: string | null) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  onAddLivre: (profileId: string, nome: string, semana: number, horas: number, objetivoId: string | null) => Promise<void>;
+  onAddLivre: (profileId: string, nome: string, semanas: number[], horasPorSemana: Record<number, number>, objetivoId: string | null) => Promise<void>;
 }) {
   // Pode editar: admin pode qualquer card; usuário comum pode apenas o próprio
   const podeEditar = isAdmin || currentUserId === pessoa.profile_id;
@@ -1190,6 +1190,10 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
   const [novoObjId,          setNovoObjId]          = useState('');
   const [novaHoras2,         setNovaHoras2]         = useState('1');
   const [salvandoNovo,       setSalvandoNovo]       = useState(false);
+  // Recorrência
+  const [novoRecorrente,     setNovoRecorrente]     = useState(false);
+  const [novoSemanasChecked, setNovoSemanasChecked] = useState<Set<number>>(new Set());
+  const [novoHorasPorSemana, setNovoHorasPorSemana] = useState<Record<number, string>>({});
 
   // Linhas = apenas comportamentos que já têm atividades (grade começa vazia)
   const comportamentosUsados = useMemo(() => {
@@ -1270,14 +1274,27 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
     if (!novoNome.trim()) return;
     setSalvandoNovo(true);
     try {
-      await onAddLivre(pessoa.profile_id, novoNome.trim(), sem, parseFloat(novaHoras2) || 1, novoObjId || null);
+      const semanasFinal = novoRecorrente
+        ? semanas.filter(s => novoSemanasChecked.has(s))
+        : [sem];
+      if (semanasFinal.length === 0) return;
+      const horasMap: Record<number, number> = {};
+      semanasFinal.forEach(s => {
+        horasMap[s] = parseFloat(novoHorasPorSemana[s] ?? novaHoras2) || 1;
+      });
+      await onAddLivre(pessoa.profile_id, novoNome.trim(), semanasFinal, horasMap, novoObjId || null);
       setPopupSem(null);
       setNovoNome(''); setNovoObjId(''); setNovaHoras2('1');
+      setNovoRecorrente(false); setNovoSemanasChecked(new Set()); setNovoHorasPorSemana({});
     } finally { setSalvandoNovo(false); }
   };
 
-  const abrirPopup = (sem: number) => { setPopupSem(sem); setNovoNome(''); setNovoObjId(''); setNovaHoras2('1'); };
-  const fecharPopup = () => { setPopupSem(null); setNovoNome(''); setNovoObjId(''); setNovaHoras2('1'); };
+  const resetPopup = () => {
+    setNovoNome(''); setNovoObjId(''); setNovaHoras2('1');
+    setNovoRecorrente(false); setNovoSemanasChecked(new Set()); setNovoHorasPorSemana({});
+  };
+  const abrirPopup = (sem: number) => { setPopupSem(sem); resetPopup(); };
+  const fecharPopup = () => { setPopupSem(null); resetPopup(); };
 
   return (
     <>
@@ -1285,46 +1302,178 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
     {popupSem !== null && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
         onClick={fecharPopup}>
-        <div className="bg-white rounded-xl shadow-xl p-6 w-[520px] flex flex-col gap-4"
+        <div className="bg-white rounded-xl shadow-xl w-[520px] flex flex-col max-h-[90vh] overflow-hidden"
           onClick={e => e.stopPropagation()}>
-          <h3 className="text-sm font-semibold text-gray-800">Nova atividade — S{popupSem}</h3>
-          <div>
-            <label className="text-[10px] text-gray-500 mb-1 block">O que será feito?</label>
-            <textarea autoFocus rows={4}
-              className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
-              placeholder="Descreva seus comportamentos e atividades para atingir as metas de sua área"
-              value={novoNome} onChange={e => setNovoNome(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) void handleAddLivre(popupSem); if (e.key === 'Escape') fecharPopup(); }}
-            />
+          {/* Cabeçalho fixo */}
+          <div className="px-6 pt-5 pb-3 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-800">Nova atividade — S{popupSem}</h3>
           </div>
-          <div>
-            <label className="text-[10px] text-gray-500 mb-1 block">Meta vinculada</label>
-            {metasAssumidas.length > 0 ? (
-              <select className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2"
-                value={novoObjId} onChange={e => setNovoObjId(e.target.value)}>
-                <option value="">— opcional —</option>
-                {metasAssumidas.map(m => <option key={m.id} value={m.id}>{m.descricao}</option>)}
-              </select>
-            ) : (
-              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                Nenhuma meta assumida — assuma uma meta para vinculá-la à atividade.
-              </p>
+
+          {/* Corpo com scroll */}
+          <div className="px-6 py-4 overflow-y-auto flex flex-col gap-4">
+            {/* Descrição */}
+            <div>
+              <label className="text-[10px] text-gray-500 mb-1 block">O que será feito?</label>
+              <textarea autoFocus rows={4}
+                className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                placeholder="Descreva seus comportamentos e atividades para atingir as metas de sua área"
+                value={novoNome} onChange={e => setNovoNome(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') fecharPopup(); }}
+              />
+            </div>
+
+            {/* Meta vinculada */}
+            <div>
+              <label className="text-[10px] text-gray-500 mb-1 block">Meta vinculada</label>
+              {metasAssumidas.length > 0 ? (
+                <select className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2"
+                  value={novoObjId} onChange={e => setNovoObjId(e.target.value)}>
+                  <option value="">— opcional —</option>
+                  {metasAssumidas.map(m => <option key={m.id} value={m.id}>{m.descricao}</option>)}
+                </select>
+              ) : (
+                <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Nenhuma meta assumida — assuma uma meta para vinculá-la à atividade.
+                </p>
+              )}
+            </div>
+
+            {/* Horas padrão — visível apenas quando não recorrente */}
+            {!novoRecorrente && (
+              <div>
+                <label className="text-[10px] text-gray-500 mb-1 block">Horas Estimadas Semanais</label>
+                <input type="number" min="0.5" step="0.5"
+                  className="w-24 text-xs border border-gray-300 rounded-lg px-3 py-2"
+                  value={novaHoras2} onChange={e => setNovaHoras2(e.target.value)} />
+              </div>
+            )}
+
+            {/* Divisor */}
+            <div className="border-t border-gray-100" />
+
+            {/* Toggle recorrente */}
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-700">Repetir nas demais semanas?</span>
+                  <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">NOVO</span>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  {novoRecorrente
+                    ? `${semanas.filter(s => novoSemanasChecked.has(s)).length} semana(s) — ${
+                        +(semanas.filter(s => novoSemanasChecked.has(s))
+                          .reduce((acc, s) => acc + (parseFloat(novoHorasPorSemana[s] ?? novaHoras2) || 0), 0)
+                          .toFixed(1))
+                      }h no total`
+                    : `Apenas S${popupSem}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const ativo = !novoRecorrente;
+                  setNovoRecorrente(ativo);
+                  if (ativo) {
+                    setNovoSemanasChecked(new Set(semanas));
+                    const init: Record<number, string> = {};
+                    semanas.forEach(s => { init[s] = novaHoras2; });
+                    setNovoHorasPorSemana(init);
+                  } else {
+                    setNovoSemanasChecked(new Set());
+                    setNovoHorasPorSemana({});
+                  }
+                }}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${novoRecorrente ? 'bg-blue-500' : 'bg-gray-200'}`}
+                role="switch"
+                aria-checked={novoRecorrente}
+              >
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${novoRecorrente ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+
+            {/* Seletor de semanas com horas individuais */}
+            {novoRecorrente && (
+              <div className="flex flex-col gap-1.5">
+                {/* Cabeçalho colunas */}
+                <div className="grid grid-cols-[28px_48px_1fr_72px] gap-2 px-2">
+                  <div />
+                  <span className="text-[10px] text-gray-400 text-center">Semana</span>
+                  <div />
+                  <span className="text-[10px] text-gray-400 text-center">Horas</span>
+                </div>
+
+                {semanas.map(s => {
+                  const isLocked = s === popupSem;
+                  const checked = novoSemanasChecked.has(s);
+                  const hrs = novoHorasPorSemana[s] ?? novaHoras2;
+                  return (
+                    <div key={s}
+                      className={`grid grid-cols-[28px_48px_1fr_72px] items-center gap-2 px-2 py-1.5 rounded-lg border transition-all ${
+                        checked ? 'border-blue-200 bg-blue-50/40' : 'border-gray-100 opacity-50'
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <div className="flex justify-center">
+                        <input type="checkbox"
+                          checked={checked}
+                          disabled={isLocked}
+                          onChange={() => {
+                            if (isLocked) return;
+                            setNovoSemanasChecked(prev => {
+                              const next = new Set(prev);
+                              if (next.has(s)) next.delete(s); else next.add(s);
+                              return next;
+                            });
+                          }}
+                          className="w-3.5 h-3.5 rounded text-blue-500 disabled:cursor-default"
+                        />
+                      </div>
+                      {/* Badge semana */}
+                      <span className={`text-xs text-center font-${checked ? 'semibold' : 'normal'} ${checked ? 'text-blue-600' : 'text-gray-400'}`}>
+                        S{s}
+                      </span>
+                      {/* Label */}
+                      <span className="text-[11px] text-gray-400">
+                        {isLocked ? 'semana de origem' : 'incluída'}
+                      </span>
+                      {/* Input horas */}
+                      <input type="number" min="0.5" step="0.5"
+                        value={hrs}
+                        disabled={!checked}
+                        onChange={e => setNovoHorasPorSemana(prev => ({ ...prev, [s]: e.target.value }))}
+                        className="w-full text-xs text-center border border-gray-300 rounded-md px-1 py-1 disabled:bg-gray-50 disabled:text-gray-300"
+                      />
+                    </div>
+                  );
+                })}
+
+                {/* Total */}
+                <div className="flex justify-end items-center gap-2 px-2 pt-1">
+                  <span className="text-[11px] text-gray-400">Total estimado:</span>
+                  <span className="text-xs font-semibold text-gray-700">
+                    {+(semanas
+                      .filter(s => novoSemanasChecked.has(s))
+                      .reduce((acc, s) => acc + (parseFloat(novoHorasPorSemana[s] ?? novaHoras2) || 0), 0)
+                      .toFixed(1))}h
+                  </span>
+                </div>
+              </div>
             )}
           </div>
-          <div>
-            <label className="text-[10px] text-gray-500 mb-1 block">Horas Estimadas Semanais</label>
-            <input type="number" min="0.5" step="0.5"
-              className="w-24 text-xs border border-gray-300 rounded-lg px-3 py-2"
-              value={novaHoras2} onChange={e => setNovaHoras2(e.target.value)} />
-          </div>
-          <div className="flex gap-2 justify-end pt-1">
+
+          {/* Rodapé fixo */}
+          <div className="px-6 py-4 border-t border-gray-100 flex gap-2 justify-end">
             <button type="button" onClick={fecharPopup}
               className="text-xs px-3 py-1.5 text-gray-500 hover:text-gray-700">Cancelar</button>
             <button type="button"
-              disabled={!novoNome.trim() || salvandoNovo}
+              disabled={!novoNome.trim() || salvandoNovo || (novoRecorrente && semanas.filter(s => novoSemanasChecked.has(s)).length === 0)}
               onClick={() => void handleAddLivre(popupSem)}
-              className="text-xs px-4 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors">
-              {salvandoNovo ? 'Salvando…' : 'Adicionar'}
+              className="text-xs px-4 py-1.5 bg-[var(--moni-navy-800,#0C2633)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
+              {salvandoNovo
+                ? 'Salvando…'
+                : novoRecorrente
+                  ? `Adicionar em ${semanas.filter(s => novoSemanasChecked.has(s)).length} semana(s)`
+                  : 'Adicionar'}
             </button>
           </div>
         </div>
@@ -1424,11 +1573,18 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
               )}
 
               {/* Atividades livres — agrupadas por descrição (1 linha por descrição única) */}
-              {atividadesLivresAgrupadas.map(({ desc, items }) => (
+              {atividadesLivresAgrupadas.map(({ desc, items }) => {
+                const isRecorrente = items.some(a => a.recorrente);
+                return (
                 <tr key={desc} className="border-b border-gray-100 hover:bg-gray-50/50">
                   <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-600 border-r border-gray-100 text-[12px] italic max-w-[160px]"
                     title={desc}>
-                    <span className="block truncate">{desc}</span>
+                    <span className="flex items-center gap-1 truncate">
+                      {isRecorrente && (
+                        <span className="text-blue-500 text-[11px] flex-shrink-0" title="Atividade recorrente">↻</span>
+                      )}
+                      <span className="truncate">{desc}</span>
+                    </span>
                   </td>
                   {semanas.map(sem => {
                     const atv = items.find(a => (a.semana_ano_inicio ?? 0) === sem);
@@ -1453,7 +1609,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
                     return <td key={sem} className="px-2 py-1.5 text-center text-gray-200">—</td>;
                   })}
                 </tr>
-              ))}
+              ); })}
 
               {podeEditar && (
                 <tr>
@@ -1770,19 +1926,35 @@ function PreBoneDayPageContent() {
     recarregar();
   }, [supabase, recarregar]);
 
-  const handleAddAtividadeLivre = useCallback(async (profileId: string, nome: string, semana: number, horas: number, objetivoId: string | null) => {
-    if (!areaId) return;
+  const handleAddAtividadeLivre = useCallback(async (profileId: string, nome: string, semanas: number[], horasPorSemana: Record<number, number>, objetivoId: string | null) => {
+    if (!areaId || semanas.length === 0) return;
     const pidValido = effectiveProfileId ?? profileId;
-    const { data: ins, error: e } = await supabase.from('gantt_planejamento')
-      .insert({ acao_id: null, descricao_livre: nome.trim(), profile_id: pidValido,
-        semana_ano_inicio: semana, semana_ano_fim: semana,
-        tempo_estimado_horas: horas, origem: 'pre_bone_day', pre_bone_day_mes: mes,
-        comportamento_chave: false, objetivo_id: objetivoId })
-      .select('id').single();
+    const isRecorrente = semanas.length > 1;
+    const grupoId = isRecorrente ? crypto.randomUUID() : null;
+
+    const rows = semanas.map(semana => ({
+      acao_id: null,
+      descricao_livre: nome.trim(),
+      profile_id: pidValido,
+      semana_ano_inicio: semana,
+      semana_ano_fim: semana,
+      tempo_estimado_horas: horasPorSemana[semana] ?? 1,
+      origem: 'pre_bone_day',
+      pre_bone_day_mes: mes,
+      comportamento_chave: false,
+      objetivo_id: objetivoId,
+      recorrente: isRecorrente,
+      recorrencia_grupo_id: grupoId,
+    }));
+
+    const { data: ins, error: e } = await supabase.from('gantt_planejamento').insert(rows).select('id');
     if (e) { console.error('[AddLivre] gantt:', e); return; }
+    const ids = (ins as { id: unknown }[]).map(r => String(r.id)).join(', ');
     LOG({ modulo: 'Planejamento', entidade: 'gantt_planejamento',
-      entidade_id: String((ins as { id: unknown }).id), operacao: 'INSERT',
-      descricao: `Atividade livre S${semana}: ${nome}` });
+      entidade_id: ids, operacao: 'INSERT',
+      descricao: isRecorrente
+        ? `Atividade recorrente (${semanas.length}x) S${semanas[0]}–S${semanas[semanas.length - 1]}: ${nome}`
+        : `Atividade livre S${semanas[0]}: ${nome}` });
     recarregar();
   }, [supabase, areaId, effectiveProfileId, mes, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
