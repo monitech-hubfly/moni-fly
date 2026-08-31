@@ -223,7 +223,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const [topicosAbertosRes, topicosConcluidosRes] = await Promise.all([
         supabase
           .from('sirene_topicos')
-          .select('id, data_fim, prazo_proposto')
+          .select('id, data_fim, prazo_proposto, chamado_id, interacao_id')
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['nao_iniciado', 'em_andamento'])
           .eq('arquivado', false),
@@ -236,8 +236,56 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           .gte('updated_at', semanaInicioStr),
       ]);
 
-      type TopicosRow = { id: unknown; data_fim: string | null; prazo_proposto: string | null };
-      const topicosAbertos = (topicosAbertosRes.data ?? []) as TopicosRow[];
+      type TopicosRow = { id: unknown; data_fim: string | null; prazo_proposto: string | null; chamado_id?: string | null; interacao_id?: string | null };
+      const topicosAbertosRaw = (topicosAbertosRes.data ?? []) as TopicosRow[];
+
+      // Round 2 + Round 3: filtrar tópicos fantasmas (card pai arquivado).
+      // Mesma lógica do useBacklog: cards arquivados são escondidos pela RLS,
+      // então buscamos apenas os ativos (arquivado=false) — ausência = arquivado.
+      const interacaoIdsMetrica = topicosAbertosRaw
+        .filter(t => !t.chamado_id && t.interacao_id)
+        .map(t => t.interacao_id as string);
+
+      let topicosAbertos: TopicosRow[] = topicosAbertosRaw;
+
+      if (interacaoIdsMetrica.length > 0) {
+        type KanbanAtivMinimal = { id: string; card_id: string | null; sirene_chamado_id: number | null };
+        const { data: kanbanAtivs } = await supabase
+          .from('kanban_atividades')
+          .select('id, card_id, sirene_chamado_id')
+          .in('id', interacaoIdsMetrica);
+
+        const kanbanAtivMinMap = new Map<string, KanbanAtivMinimal>(
+          ((kanbanAtivs ?? []) as KanbanAtivMinimal[]).map(r => [r.id, r]),
+        );
+
+        const cardIdsMetrica = [...kanbanAtivMinMap.values()]
+          .filter(r => r.sirene_chamado_id == null && r.card_id != null)
+          .map(r => r.card_id as string);
+
+        const cardsAtivosSetMetrica = new Set<string>();
+        if (cardIdsMetrica.length > 0) {
+          const { data: cardsAtivos } = await supabase
+            .from('kanban_cards')
+            .select('id')
+            .in('id', cardIdsMetrica)
+            .eq('arquivado', false);
+          for (const c of (cardsAtivos ?? []) as { id: string }[]) {
+            cardsAtivosSetMetrica.add(c.id);
+          }
+        }
+
+        topicosAbertos = topicosAbertosRaw.filter(t => {
+          if (!t.chamado_id && t.interacao_id) {
+            const kativ = kanbanAtivMinMap.get(t.interacao_id);
+            if (kativ && kativ.sirene_chamado_id == null && kativ.card_id != null) {
+              if (!cardsAtivosSetMetrica.has(kativ.card_id)) return false;
+            }
+          }
+          return true;
+        });
+      }
+
       // Concluídos esta semana com prazo <= hoje entram no numerador como "realizados"
       const topicosConcluidos = ((topicosConcluidosRes.data ?? []) as TopicosRow[]).filter(t => {
         const prazo = t.data_fim || t.prazo_proposto;
