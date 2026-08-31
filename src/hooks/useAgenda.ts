@@ -119,6 +119,7 @@ type GanttRow = {
   sirene_chamado_id: number | null;
   link_reuniao: string | null;
   origem_tipo: string | null;
+  origem: string | null;
   data_conclusao_real: string | null;
   cor: string | null;
   objetivo_id: string | null;
@@ -157,7 +158,7 @@ function rowToAtividade(
   };
 }
 
-const SELECT_FIELDS = 'id, titulo, hora_inicio, hora_fim, data, card_id, sirene_chamado_id, link_reuniao, origem_tipo, data_conclusao_real, cor, objetivo_id, recorrencia_grupo_id, profile_id, acoes(tipo_atividade)';
+const SELECT_FIELDS = 'id, titulo, hora_inicio, hora_fim, data, card_id, sirene_chamado_id, link_reuniao, origem_tipo, origem, data_conclusao_real, cor, objetivo_id, recorrencia_grupo_id, profile_id, acoes(tipo_atividade)';
 
 export function useAgenda(refreshKey = 0): UseAgendaResult {
   const supabase = useMemo(() => createClient(), []);
@@ -235,6 +236,18 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
 
       const rows1 = (r1.data ?? []) as GanttRow[];
 
+      // Deduplicação Causa A: remover rows de outro usuário (via responsavel.ilike)
+      // que representam o mesmo horário já coberto por uma row GCal própria.
+      const gcalTimeKeys = new Set(
+        rows1
+          .filter(r => r.profile_id === effectiveProfileId && r.origem === 'google_calendar')
+          .map(r => `${r.data}_${r.hora_inicio}`),
+      );
+      const rows1Dedup = rows1.filter(r => {
+        if (r.profile_id === effectiveProfileId) return true;
+        return !gcalTimeKeys.has(`${r.data}_${r.hora_inicio}`);
+      });
+
       // Participante: excluir recusados; pendentes/proposta ficam muted
       const rows2Meta = ((r2.data ?? []) as unknown as { gantt_id: string; status: string | null; gantt_planejamento: GanttRow }[])
         .filter(x => (x.status ?? 'aceito') !== 'recusado');
@@ -252,10 +265,10 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
         }
       }
 
-      // Deduplicar por id (owns rows1 têm prioridade)
-      const seen = new Set(rows1.map(r => r.id));
+      // Deduplicar por id (owns rows1Dedup têm prioridade)
+      const seen = new Set(rows1Dedup.map(r => r.id));
       const allAtv: AtividadeAgenda[] = [
-        ...rows1.map(r => rowToAtividade(r)),
+        ...rows1Dedup.map(r => rowToAtividade(r)),
         ...rows2Meta
           .filter(x => !seen.has(x.gantt_planejamento.id))
           .map(x => rowToAtividade(x.gantt_planejamento, {

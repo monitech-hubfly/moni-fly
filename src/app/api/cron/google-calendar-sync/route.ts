@@ -171,6 +171,24 @@ async function syncUser(
       .map(a => a.displayName ? `${a.displayName} <${a.email ?? ''}>` : (a.email ?? ''))
       .filter(Boolean);
 
+    // Causa B: verificar se já existe uma row Hub Fly (não-GCal) no mesmo (data, hora_inicio).
+    // Se encontrar, vincular essa row ao evento GCal em vez de criar uma nova linha duplicada.
+    const { data: hubFlyExistente } = await (supabase.from('gantt_planejamento') as any)
+      .select('id')
+      .eq('profile_id', userId)
+      .eq('data', data)
+      .eq('hora_inicio', hora_inicio)
+      .is('google_calendar_event_id', null)
+      .neq('origem', 'google_calendar')
+      .maybeSingle();
+
+    if (hubFlyExistente) {
+      await (supabase.from('gantt_planejamento') as any)
+        .update({ google_calendar_event_id: ev.id })
+        .eq('id', (hubFlyExistente as { id: string }).id);
+      continue;
+    }
+
     await (supabase.from('gantt_planejamento') as any).upsert({
       profile_id:               userId,
       origem:                   'google_calendar',
