@@ -165,7 +165,6 @@ export function useBacklog(): UseBacklogResult {
         arquivado: boolean | null;
         sirene_chamado_id: number | null;
         sirene_chamados: ChamadoRaw | (ChamadoRaw & { arquivado?: boolean | null });
-        kanban_cards: { arquivado: boolean | null } | { arquivado: boolean | null }[] | null;
       };
       type SireneRaw = {
         id: string;
@@ -189,7 +188,7 @@ export function useBacklog(): UseBacklogResult {
       const kanbanAtivRes = interacaoIds.length > 0
         ? await supabase
             .from('kanban_atividades')
-            .select('id, card_id, arquivado, sirene_chamado_id, sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado, status), kanban_cards(arquivado)')
+            .select('id, card_id, arquivado, sirene_chamado_id, sirene_chamados(numero, frank_id, frank_nome, te_trata, aberto_por_nome, arquivado, status)')
             .in('id', interacaoIds)
         : { data: [] as KanbanAtivRaw[], error: null };
 
@@ -197,6 +196,26 @@ export function useBacklog(): UseBacklogResult {
       const kanbanAtivMap = new Map<string, KanbanAtivRaw>(
         ((kanbanAtivRes.data ?? []) as KanbanAtivRaw[]).map(r => [r.id, r]),
       );
+
+      // Round 3: verificar quais cards pai ainda estão ativos.
+      // A RLS de kanban_cards esconde cards arquivados, então não é possível checar
+      // arquivado=true via join — em vez disso, buscamos os cards que AINDA existem
+      // como ativos (arquivado=false). Card ausente dessa lista = arquivado ou inválido.
+      const cardIdsParaVerificar = [...kanbanAtivMap.values()]
+        .filter(r => r.sirene_chamado_id == null && r.card_id != null)
+        .map(r => r.card_id as string);
+
+      const cardsAtivosSet = new Set<string>();
+      if (cardIdsParaVerificar.length > 0) {
+        const { data: cardsAtivos } = await supabase
+          .from('kanban_cards')
+          .select('id')
+          .in('id', cardIdsParaVerificar)
+          .eq('arquivado', false);
+        for (const c of (cardsAtivos ?? []) as { id: string }[]) {
+          cardsAtivosSet.add(c.id);
+        }
+      }
 
       const sireneArr: SireneItem[] = ((sireneRes.data ?? []) as unknown as SireneRaw[]).map(row => {
         const chamadoDireto = Array.isArray(row.sirene_chamados)
@@ -275,11 +294,10 @@ export function useBacklog(): UseBacklogResult {
           const vi = chamadoVI as { arquivado?: boolean | null; status?: string | null } | null;
           if (vi?.arquivado === true || vi?.status === 'concluida') return false;
 
-          // Sem chamado Sirene E o card pai está arquivado → não exibir (tópico fantasma)
-          if (!vi && interacaoRaw?.sirene_chamado_id == null) {
-            const cardRaw = interacaoRaw?.kanban_cards;
-            const card = Array.isArray(cardRaw) ? cardRaw[0] ?? null : cardRaw ?? null;
-            if (card?.arquivado === true) return false;
+          // Sem chamado Sirene E o card pai não está na lista de cards ativos → não exibir
+          // (card arquivado é escondido pela RLS, então ausência na lista = arquivado/inválido)
+          if (!vi && interacaoRaw?.sirene_chamado_id == null && interacaoRaw?.card_id != null) {
+            if (!cardsAtivosSet.has(interacaoRaw.card_id)) return false;
           }
         }
         return true;
