@@ -268,10 +268,15 @@ export async function gerarSnapshotCarometro(
       .map(o => o.objetivo_id).filter(Boolean);
 
     if (objIds.length > 0) {
+      // Filtra apenas metas do mês vigente com status ativo ou relançado.
+      // Metas concluídas e arquivadas não entram no cálculo — não penalizam o score.
+      const mesAtualSnap = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
       const { data: objetivosData } = await db
         .from('objetivos')
         .select('id, descricao')
-        .in('id', objIds);
+        .in('id', objIds)
+        .eq('mes', mesAtualSnap)
+        .in('status', ['ativo', 'relancada']);
       const objNomeMap = new Map<string, string>(
         ((objetivosData ?? []) as { id: string; descricao: string }[]).map(o => [o.id, o.descricao])
       );

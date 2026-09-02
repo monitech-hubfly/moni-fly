@@ -484,11 +484,16 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           .filter(Boolean);
 
         if (objIds.length > 0) {
+          // Filtra apenas metas do mês vigente com status ativo ou relançado.
+          // Metas concluídas e arquivadas não entram no cálculo — não penalizam o score.
+          const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
           // Busca nomes dos objetivos para distinguir indicadores homônimos
           const { data: objetivosData } = await supabase
             .from('objetivos')
             .select('id, descricao')
-            .in('id', objIds);
+            .in('id', objIds)
+            .eq('mes', mesAtual)
+            .in('status', ['ativo', 'relancada']);
           const objNomeMap = new Map<string, string>(
             ((objetivosData ?? []) as { id: string; descricao: string }[]).map(o => [o.id, o.descricao])
           );
