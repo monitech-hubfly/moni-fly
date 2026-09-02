@@ -151,6 +151,12 @@ export function KanbanBoard({
     Record<string, KanbanProximaAtividadeAberta[]>
   >({});
   const [proximasAtividadesBatchPronto, setProximasAtividadesBatchPronto] = useState(false);
+  /** Posições otimistas do DnD (fase + ordem) até o servidor confirmar / RSC atualizar. */
+  const [dndPosByCardId, setDndPosByCardId] = useState<
+    Record<string, { fase_id: string; ordem_coluna: number }>
+  >({});
+  const dndPosRef = useRef(dndPosByCardId);
+  dndPosRef.current = dndPosByCardId;
 
   /** Assinatura estável: `cards`/`cardsConcluidos` mudam de referência a cada `router.refresh()`. */
   const cardsSnapshotSig = useMemo(
@@ -168,6 +174,7 @@ export function KanbanBoard({
     setComentariosCountPorCard({});
     setProximasAtividadesPorCard({});
     setProximasAtividadesBatchPronto(false);
+    setDndPosByCardId({});
   }, [cardsSnapshotSig]);
 
   useEffect(() => {
@@ -311,17 +318,21 @@ export function KanbanBoard({
 
   const mergeEnrichment = (c: KanbanCardBrief): KanbanCardBrief => {
     const patch = enrichmentByCardId[c.id];
-    return patch ? { ...c, ...patch } : c;
+    const withEnrich = patch ? { ...c, ...patch } : c;
+    const dnd = dndPosByCardId[c.id];
+    return dnd
+      ? { ...withEnrich, fase_id: dnd.fase_id, ordem_coluna: dnd.ordem_coluna }
+      : withEnrich;
   };
 
   const cardsComEnrichment = useMemo(
     () => cards.map(mergeEnrichment),
-    [cards, enrichmentByCardId],
+    [cards, enrichmentByCardId, dndPosByCardId],
   );
 
   const cardsConcluidosComEnrichment = useMemo(
     () => cardsConcluidos.map(mergeEnrichment),
-    [cardsConcluidos, enrichmentByCardId],
+    [cardsConcluidos, enrichmentByCardId, dndPosByCardId],
   );
 
   const cardsEfetivos = useMemo(() => {
@@ -480,6 +491,66 @@ export function KanbanBoard({
       userRole === 'team' ||
       userRole === 'supervisor' ||
       userRole === 'consultor');
+
+  const applyOptimisticDnD = useCallback(
+    (input: {
+      cardId: string;
+      fromFaseId: string;
+      toFaseId: string;
+      beforeCardId: string | null;
+    }): Record<string, { fase_id: string; ordem_coluna: number }> | null => {
+      const snapshot = { ...dndPosRef.current };
+      const movedId = input.cardId.trim();
+      if (!movedId) return null;
+
+      const fonte = [...cardsEfetivos, ...cardsConcluidosEfetivos];
+      const byId = new Map(fonte.map((c) => [c.id, c]));
+      const moved = byId.get(movedId);
+      if (!moved) return null;
+
+      const destCards = fonte
+        .filter((c) => c.fase_id === input.toFaseId && c.id !== movedId)
+        .sort((a, b) => {
+          const oa = a.ordem_coluna ?? 0;
+          const ob = b.ordem_coluna ?? 0;
+          if (oa !== ob) return oa - ob;
+          return a.id.localeCompare(b.id);
+        });
+
+      let insertAt = destCards.length;
+      if (input.beforeCardId) {
+        const idx = destCards.findIndex((c) => c.id === input.beforeCardId);
+        if (idx >= 0) insertAt = idx;
+      }
+      const ordered = [...destCards];
+      ordered.splice(insertAt, 0, { ...moved, fase_id: input.toFaseId });
+
+      setDndPosByCardId((prev) => {
+        const next = { ...prev };
+        if (input.fromFaseId !== input.toFaseId) {
+          const origemRestante = fonte
+            .filter((c) => c.fase_id === input.fromFaseId && c.id !== movedId)
+            .sort((a, b) => (a.ordem_coluna ?? 0) - (b.ordem_coluna ?? 0));
+          origemRestante.forEach((c, i) => {
+            next[c.id] = { fase_id: input.fromFaseId, ordem_coluna: i };
+          });
+        }
+        ordered.forEach((c, i) => {
+          next[c.id] = { fase_id: input.toFaseId, ordem_coluna: i };
+        });
+        return next;
+      });
+      return snapshot;
+    },
+    [cardsEfetivos, cardsConcluidosEfetivos],
+  );
+
+  const rollbackDnD = useCallback(
+    (snapshot: Record<string, { fase_id: string; ordem_coluna: number }> | null) => {
+      setDndPosByCardId(snapshot ?? {});
+    },
+    [],
+  );
 
   const nAtivos = countKanbanBoardFiltrosAtivos(filtros);
   const corretoresFiltroOpcoes = useMemo(() => {
@@ -657,6 +728,8 @@ export function KanbanBoard({
                   comentariosCountPorCard={comentariosCountPorCard}
                   proximasAtividadesPorCard={proximasAtividadesPorCard}
                   proximasAtividadesBatchPronto={proximasAtividadesBatchPronto}
+                  onOptimisticDnD={applyOptimisticDnD}
+                  onRollbackDnD={rollbackDnD}
                 />
               );
             })}

@@ -5682,6 +5682,8 @@ export async function moverCardParaFase(input: {
   motivoReprovacaoAcoplamento?: string;
   /** Obrigatório ao avançar de fase com SLA vencido (quando ainda não há justificativa na fase). */
   justificativaSlaQuebra?: string;
+  /** Quando true, não chama revalidatePath (DnD otimista no client). */
+  skipRevalidate?: boolean;
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -5830,7 +5832,9 @@ export async function moverCardParaFase(input: {
     kanbanNombre: String(input.kanbanNome ?? '').trim(),
   });
 
-  revalidatePath(input.basePath?.trim() || '/');
+  if (!input.skipRevalidate) {
+    revalidatePath(input.basePath?.trim() || '/');
+  }
   return { ok: true };
 }
 
