@@ -1,0 +1,20 @@
+[33mfbfac7df[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfuncionalidade-fernanda[m[33m, [m[1;31morigin/funcionalidade-fernanda[m[33m)[m feat: simulador de pagamentos - fluxo completo
+[33mabda7334[m feat(loteadores): simulador de pagamentos com calculadora de ofertas
+[33mf06e68b0[m Merge branch 'main' into funcionalidade-fernanda
+[33m03b2933c[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m fix(imob): remove campo Nome do empreendimento da simulação
+[33mad9d6008[m feat(imob): substitui balões/financiamento por Entrada e Parcelas mensais
+[33md261b112[m feat(imob): adiciona Moní Lena™ na lista de Produto / Modelo
+[33m3ce826d8[m fix(flyer): remove linha de parcela na frente e limpa params
+[33ma77ad6c7[m fix(flyer): tipologias só À vista, Entrada e Parcelas mensais
+[33mf438ae8d[m fix(flyer): ajusta frente/verso e oculta corretor no cadastro
+[33m85a0a5df[m fix: dashboard geral — usar sirene.score + engajamento.score + indicadores.media do snapshot
+[33me2cd5240[m feat: botão Gerar Flyer + fetchFlyerData + flyer v6 atualizado
+[33m076ea533[m fix(kanban): não bloquear abertura do card pelo prefetch IMOB
+[33m4976e3c4[m feat(imob): seção Showroom com mesmos campos e Imagem Principal
+[33m1c371b72[m feat: Cadastro de Empreendimentos IMOB na aba Rede Casa Moní
+[33md97a7b7c[m fix(imob): corrige tipagem de opções de produto/modelo no build
+[33mdcd921db[m feat(imob): campos de modelo/oferta na seção Modelo e Simulações IMOB
+[33m7bce893f[m fix(realtime): evitar lock steal no canal indicadores-realtime
+[33ma98fa8c1[m fix(indicadores): prefixo objetivo no nome do indicador e refDate correto para S-1
+[33m13bb644b[m feat(indicadores): esp dinâmico, SKIP visível, realtime, snapshot sincronizado
+[33m5e5a4de7[m feat(indicadores): esp dinâmico, SKIP visível com —, realtime subscription

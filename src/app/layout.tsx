@@ -3,7 +3,9 @@ import './globals.css';
 import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/AppShell';
-import { normalizeAccessRole, profileCacheRoleNeedsRefresh } from '@/lib/authz';
+import { profileCacheRoleNeedsRefresh } from '@/lib/authz';
+import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
+import { seedEntryForEmail, seededRoleNeedsRepair } from '@/lib/team-seed-signup';
 /** Sessão + papel vêm de cookies; sem isto o shell pode servir HTML cacheado com papel errado. */
 export const dynamic = 'force-dynamic';
 
@@ -37,16 +39,28 @@ export default async function RootLayout({
       if (profile && profileCacheRoleNeedsRefresh(profile.role)) {
         profile = null;
       }
+      const seeded = seedEntryForEmail(user.email);
+      if (
+        profile &&
+        seeded &&
+        seededRoleNeedsRepair(profile.role, seeded.role)
+      ) {
+        profile = null;
+      }
       // Cache miss (ou pending/blocked no cookie): busca no banco.
       if (!profile) {
         const { data: dbProfile } = await supabase
           .from('profiles')
           .select('role, full_name')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
         profile = dbProfile;
       }
-      userRole = normalizeAccessRole((profile?.role as string) ?? 'pending');
+      userRole = await persistSeededStaffRoleIfNeeded(
+        supabase,
+        { id: user.id, email: user.email },
+        (profile?.role as string) ?? null,
+      );
       (user as { full_name?: string | null }).full_name = profile?.full_name ?? null;
     }
   } catch {

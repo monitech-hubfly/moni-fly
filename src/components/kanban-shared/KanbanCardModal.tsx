@@ -88,7 +88,8 @@ import {
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
 import { deletarChamado, listAnexosPorChamados, uploadAnexoChamado, getAnexoChamadoDownloadUrl } from '@/app/sirene/actions';
-import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
+import { isFrankOrFranqueadoRole, isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
+import { useAdmin } from '@/context/AdminContext';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   isLoteadoresKanbanRef,
@@ -168,6 +169,7 @@ import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoF
 import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociacaoLinhasField';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import { KanbanCardModalSimulacoesImob } from './KanbanCardModalSimulacoesImob';
+import { KanbanCardModalSimuladorPagamentos } from './KanbanCardModalSimuladorPagamentos';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
   NEGOCIO_PRAZO_OPCAO_FASE_SLUG,
@@ -645,6 +647,8 @@ export function KanbanCardModal({
 }: KanbanCardModalProps) {
   const router = useRouter();
   const { pode } = usePermissoes();
+  const { isAdmin: ctxIsAdmin, accessRole: ctxAccessRole } = useAdmin();
+  const staffPeloContexto = ctxIsAdmin || isRedeStaffRole(ctxAccessRole) || isAdmin;
   const suprimirFecharBackdropAteRef = useRef(0);
   const ocultarGestaoCard = portalFrank === true;
   const [loading, setLoading] = useState(true);
@@ -682,7 +686,7 @@ export function KanbanCardModal({
     franqueado: false,
     loteador: false,
     simulacoesImob: false,
-    simuladorPagamentos: false,
+    simuladorPagamentos: isLoteadoresKanbanRef(undefined, kanbanNome),
     moniCapital: false,
     condominio: false,
     novoNegocio: false,
@@ -771,7 +775,7 @@ export function KanbanCardModal({
     ehAdminOuTeam: boolean;
     roleNorm: string;
     cargoNorm: string;
-  }>({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
+  }>({ userId: null, uploaderNome: '—', ehAdminOuTeam: staffPeloContexto, roleNorm: String(ctxAccessRole ?? ''), cargoNorm: '' });
   const podeCriarChamados = useMemo(
     () =>
       podeComFallbackStaff(pode, 'criar_chamados', {
@@ -1228,7 +1232,11 @@ export function KanbanCardModal({
           const fn = String((me as { full_name?: string | null } | null)?.full_name ?? '').trim();
           unome = fn || '—';
           const rl = String((me as { role?: string | null } | null)?.role ?? '').toLowerCase();
-          admTeam = rl === 'admin' || rl === 'team' || rl === 'consultor' || rl === 'supervisor';
+          admTeam =
+            isRedeStaffRole(rl) ||
+            rl === 'consultor' ||
+            rl === 'supervisor' ||
+            staffPeloContexto;
           const cg = String((me as { cargo?: string | null } | null)?.cargo ?? '')
             .trim()
             .toLowerCase();
@@ -8221,25 +8229,6 @@ export function KanbanCardModal({
               />,
               true,
             )}
-            {exibirDadosLoteadorPersistente && modalSessao.ehAdminOuTeam
-              ? secaoHead(
-                  'simuladorPagamentos',
-                  'Simulador de Pagamentos',
-                  <>
-                    <p className="mb-3 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                      Incorporação em Nuvem — percentuais, link e QR para o corretor. Diferente das
-                      simulações IMOB acima.
-                    </p>
-                    <a
-                      href={`/loteadores/${cardIdDadosLoteador}/simulador-template`}
-                      className="inline-flex min-h-[44px] items-center rounded-[var(--moni-radius-md)] px-4 text-sm font-medium text-white"
-                      style={{ background: 'var(--moni-navy-800)' }}
-                    >
-                      Configurar template e gerar link
-                    </a>
-                  </>,
-                )
-              : null}
             {ehFunilFunding && !isLegado
               ? secaoHead(
                   'moniCapital',
@@ -8679,6 +8668,13 @@ export function KanbanCardModal({
               </div>
               ),
             )}
+            {exibirDadosLoteadorPersistente && (modalSessao.ehAdminOuTeam || staffPeloContexto)
+              ? secaoHead(
+                  'simuladorPagamentos',
+                  'Simulador de Pagamentos',
+                  <KanbanCardModalSimuladorPagamentos cardId={cardIdDadosLoteador} />,
+                )
+              : null}
             {!exibirDadosLoteadorPersistente && secaoHead(
               'dadosEmpresas',
               'Dados das Empresas',

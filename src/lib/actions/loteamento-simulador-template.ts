@@ -3,7 +3,8 @@
 import { randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
+import { isRedeStaffRole } from '@/lib/authz';
+import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { getPublicAppUrl } from '@/lib/app-url';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
@@ -12,6 +13,7 @@ import { parseMoneyText } from '@/lib/dashboard-novos-negocios/parseMoney';
 import {
   isColunaSimulador546Ausente,
   isColunaSimulador547Ausente,
+  isColunaSimulador548Ausente,
   isColunaSimuladorAjusteAusente,
   isTabelaSimuladorAusente,
   mapTemplateRow,
@@ -52,7 +54,11 @@ async function requireStaff(): Promise<AuthOk | Err> {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  const access = normalizeAccessRole((profile as { role?: string } | null)?.role);
+  const access = await persistSeededStaffRoleIfNeeded(
+    supabase,
+    { id: user.id, email: user.email },
+    (profile as { role?: string } | null)?.role,
+  );
   if (!isRedeStaffRole(access)) {
     return { ok: false, error: 'Apenas administradores ou time podem configurar o template.' };
   }
@@ -70,11 +76,12 @@ function mensagemTabelaAusente(): string {
 }
 
 function mensagemColunaAusente(): string {
-  return 'Faltam colunas do simulador neste banco. Aplique as migrations 545, 546 e 547 no DEV.';
+  return 'Faltam colunas do simulador neste banco. Aplique as migrations 545, 546, 547 e 548 no DEV.';
 }
 
 function erroBancoSimulador(message: string): Err {
   if (
+    isColunaSimulador548Ausente(message) ||
     isColunaSimulador547Ausente(message) ||
     isColunaSimulador546Ausente(message) ||
     isColunaSimuladorAjusteAusente(message)
@@ -148,7 +155,10 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
     .maybeSingle();
 
   if (error) {
-    return erroBancoSimulador(error.message);
+    // PGRST116 = "0 rows returned" com maybeSingle(). Não é erro real — o card ainda não tem template.
+    if (error.code !== 'PGRST116') {
+      return erroBancoSimulador(error.message);
+    }
   }
 
   const template = data ? mapTemplateRow(data as Record<string, unknown>) : null;
@@ -254,7 +264,7 @@ export async function salvarSimuladorTemplateDoCard(
     .select('id')
     .eq('kanban_card_id', cardId)
     .maybeSingle();
-  if (errExist) {
+  if (errExist && errExist.code !== 'PGRST116') {
     return erroBancoSimulador(errExist.message);
   }
 
@@ -321,14 +331,18 @@ async function listarSimulacoesDoTemplateId(
     .from('simulacoes_pagamento')
     .select('*')
     .eq('template_id', templateId)
+    .not('nome', 'is', null)
     .order('created_at', { ascending: false })
     .limit(80);
   if (error) {
     if (isTabelaSimuladorAusente(error.message)) return [];
+    if (isColunaSimulador548Ausente(error.message)) return [];
     console.error('[simulacoes_pagamento] listar:', error.message);
     return [];
   }
-  return (data ?? []).map((r) => mapSimulacaoRow(r as Record<string, unknown>));
+  return (data ?? [])
+    .map((r) => mapSimulacaoRow(r as Record<string, unknown>))
+    .filter((s) => Boolean(s.nome?.trim()));
 }
 
 export async function regenerarLinkSimuladorTemplate(cardId: string): Promise<Ok | Err> {
@@ -343,7 +357,7 @@ export async function regenerarLinkSimuladorTemplate(cardId: string): Promise<Ok
     .select('id')
     .eq('kanban_card_id', cardId)
     .maybeSingle();
-  if (errExist) {
+  if (errExist && errExist.code !== 'PGRST116') {
     return erroBancoSimulador(errExist.message);
   }
   if (!existente?.id) {
@@ -415,14 +429,19 @@ export async function criarSimuladorOfertaDoCard(
       .select('id, rede_loteador_id')
       .eq('kanban_card_id', cardId)
       .maybeSingle();
-    if (retry.error) return erroBancoSimulador(retry.error.message);
+    if (retry.error && retry.error.code !== 'PGRST116') {
+      return erroBancoSimulador(retry.error.message);
+    }
     tpl = retry.data as { id: string; rede_loteador_id?: string | null } | null;
-  } else if (errTpl) {
+  } else if (errTpl && errTpl.code !== 'PGRST116') {
     return erroBancoSimulador(errTpl.message);
   }
   if (!tpl?.id) {
     return { ok: false, error: 'Salve o template antes de criar ofertas.' };
   }
+
+  const nome = String(draft.nome ?? '').trim();
+  if (!nome) return { ok: false, error: 'Informe o nome da oferta.' };
 
   const valorLote = parseMoedaCampo(draft.valor_lote, 'o valor do lote à vista', { obrigatorio: true });
   if (!valorLote.ok) return valorLote;
@@ -457,6 +476,7 @@ export async function criarSimuladorOfertaDoCard(
   if (!parcelaUnicaConfirmada.ok) return parcelaUnicaConfirmada;
 
   const inputs = {
+    nome,
     valor_lote: valorLote.valor,
     valor_casa: valorCasa.valor,
     valor_customizacao: valorCustom.valor,
@@ -477,6 +497,7 @@ export async function criarSimuladorOfertaDoCard(
     kanban_card_id: cardId,
     rede_loteador_id: tpl.rede_loteador_id ?? card.redeLoteadorId,
     created_by: auth.userId,
+    nome,
     condicao_lote: inferirCondicaoLote(valorPago.valor),
     renda_informada_cliente: renda.valor || null,
     valor_lote: valorLote.valor,
@@ -541,6 +562,8 @@ export async function criarSimuladorOfertaDoCard(
     } else {
       saved = retry547.data as Record<string, unknown>;
     }
+  } else if (error && isColunaSimulador548Ausente(error.message)) {
+    return erroBancoSimulador(error.message);
   } else if (error && isColunaSimulador546Ausente(error.message)) {
     const {
       valor_lote,
@@ -578,9 +601,53 @@ export async function criarSimuladorOfertaDoCard(
 
   revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
   revalidatePath(`/loteadores/${cardId}/simulador-template`);
+  revalidatePath('/loteadores');
   return {
     ok: true,
     mensagem: 'Oferta salva como rascunho!',
     oferta: mapSimulacaoRow(saved),
   };
+}
+
+export async function carregarSimuladorOfertaDoCard(
+  cardId: string,
+  ofertaId: string,
+): Promise<
+  | {
+      ok: true;
+      oferta: SimulacaoPagamentoResumo;
+      template: LoteamentoSimuladorTemplateRow | null;
+      loteadorNome: string | null;
+    }
+  | Err
+> {
+  const auth = await requireStaff();
+  if (!auth.ok) return auth;
+  const card = await carregarCardLoteadores(auth.supabase, cardId);
+  if (!card.ok) return card;
+
+  const { data, error } = await auth.supabase
+    .from('simulacoes_pagamento')
+    .select('*')
+    .eq('id', ofertaId)
+    .eq('kanban_card_id', cardId)
+    .maybeSingle();
+  if (error && error.code !== 'PGRST116') return erroBancoSimulador(error.message);
+  if (!data) return { ok: false, error: 'Oferta não encontrada.' };
+
+  const raw = data as Record<string, unknown>;
+  const oferta = mapSimulacaoRow(raw);
+  const templateId = oferta.template_id;
+  if (!templateId) {
+    return { ok: true, oferta, template: null, loteadorNome: card.loteadorNome };
+  }
+
+  const { data: tplData, error: tplError } = await auth.supabase
+    .from(TABELA)
+    .select('*')
+    .eq('id', templateId)
+    .maybeSingle();
+  if (tplError && tplError.code !== 'PGRST116') return erroBancoSimulador(tplError.message);
+  const template = tplData ? mapTemplateRow(tplData as Record<string, unknown>) : null;
+  return { ok: true, oferta, template, loteadorNome: card.loteadorNome };
 }

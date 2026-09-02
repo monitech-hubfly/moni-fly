@@ -174,6 +174,33 @@ export function isAuthFlowAccessPath(pathname: string): boolean {
   );
 }
 
+const HUB_HOME_PATH = '/hub-funis';
+
+/** `next` pós-login: só caminhos internos; nunca a página pública de leitura. */
+export function isSafePostLoginNextPath(raw: string | null | undefined): boolean {
+  const path = String(raw ?? '').trim();
+  if (!path.startsWith('/') || path.startsWith('//')) return false;
+  const pathname = path.split('?')[0] ?? path;
+  if (isPublicGuiaLeituraPagePath(pathname)) return false;
+  if (isAuthFlowAccessPath(pathname)) return false;
+  if (isPortalFrankAuthAccessPath(pathname)) return false;
+  return true;
+}
+
+export function defaultHubHomeForRole(role: AccessRole): string {
+  if (role === 'frank') return '/portal-frank';
+  if (role === 'admin' || role === 'team') return HUB_HOME_PATH;
+  return '/rede-franqueados';
+}
+
+/** Destino após login/cadastro no Hub — nunca `/treinamento-bca/leitura`. */
+export function resolvePostLoginPath(role: AccessRole, nextPath?: string | null): string {
+  if (role === 'pending') return '/login?status=pending';
+  if (role === 'blocked') return '/login?status=blocked';
+  if (isSafePostLoginNextPath(nextPath)) return String(nextPath).trim();
+  return defaultHubHomeForRole(role);
+}
+
 export function isPortalFrankAuthAccessPath(pathname: string): boolean {
   return (
     pathname === '/portal-frank/login' ||

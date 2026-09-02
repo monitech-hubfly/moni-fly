@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { MoniFooter } from '@/components/MoniFooter';
 import { normalizeAccessRole } from '@/lib/authz';
+import { resolvePostLoginPath } from '@/lib/access-matrix';
+import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { TEAM_SEED_BY_EMAIL } from '@/lib/team-seed-signup';
 import { TIMES_MONI } from '@/lib/times-responsaveis';
 import { notifySignupComplete } from './actions';
@@ -103,7 +105,6 @@ function mapLoginAuthErrorMessage(raw: string | undefined): string {
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/rede-franqueados';
   const status = searchParams.get('status');
   const tabParam = searchParams.get('tab');
 
@@ -194,26 +195,14 @@ export default function LoginPage() {
         return;
       }
 
-      const role = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
-      if (role === 'pending') {
-        router.push('/treinamento-bca/leitura');
-        router.refresh();
-        setLoading(false);
-        return;
-      }
-      if (role === 'blocked') {
-        router.push('/login?status=blocked');
-        router.refresh();
-        setLoading(false);
-        return;
-      }
-      if (role === 'admin' || role === 'team') {
-        router.push(searchParams.get('next') || '/carometro/todo-planning');
-      } else if (role === 'frank') {
-        router.push('/portal-frank');
-      } else {
-        router.push('/rede-franqueados');
-      }
+      const rawRole = String((profile as { role?: string | null } | null)?.role ?? '').trim();
+      const role = await persistSeededStaffRoleIfNeeded(
+        supabase,
+        { id: u.id, email: u.email },
+        rawRole || null,
+      );
+      const dest = resolvePostLoginPath(role, searchParams.get('next'));
+      router.push(dest);
       router.refresh();
     } catch (unknownErr) {
       const raw =
@@ -288,12 +277,10 @@ export default function LoginPage() {
       await notifySignupComplete();
 
       if (!seeded) {
-        router.push('/treinamento-bca/leitura');
+        router.push(resolvePostLoginPath('pending'));
       } else {
         const role = normalizeAccessRole(seeded.role);
-        if (role === 'admin' || role === 'team') router.push('/carometro/todo-planning');
-        else if (role === 'frank') router.push('/portal-frank');
-        else router.push('/rede-franqueados');
+        router.push(resolvePostLoginPath(role));
       }
       router.refresh();
     } catch (unknownErr) {

@@ -65,6 +65,7 @@ export interface ResultadoCalculo {
   lucro_moni_amount: number;
   lucro_franqueado_amount: number;
   juros_obra_total: number;
+  juros_lote_total: number;
   vtp: number;
   impostos_amount: number;
   comissao_amount: number;
@@ -197,28 +198,30 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
     lucro_moni_amount +
     lucro_franqueado_amount;
 
+  // Entrada do contrato atual: percentual/fixo sobre o preço do lote.
+  // ja_pago NÃO abate a entrada — já reduz o saldo como pagamento pré-contrato.
   let entrada_do_lote = 0;
   if (valor_ja_pago >= valor_lote) {
     entrada_do_lote = 0;
   } else if (!template.entrada_minima_loteadora) {
     entrada_do_lote = 0;
   } else if (template.entrada_minima_loteadora.tipo === 'percentual') {
-    entrada_do_lote = Math.max(
-      0,
-      template.entrada_minima_loteadora.valor * valor_lote - valor_ja_pago,
-    );
+    entrada_do_lote = Math.max(0, template.entrada_minima_loteadora.valor * valor_lote);
   } else {
-    entrada_do_lote = Math.max(0, template.entrada_minima_loteadora.valor - valor_ja_pago);
+    entrada_do_lote = Math.max(0, template.entrada_minima_loteadora.valor);
   }
 
   const entrada_do_lote_efetiva = oferta.entrada_do_lote_override ?? entrada_do_lote;
 
+  // ja_pago é pré-contrato: reduz o saldo antes do mês 0. Não entra no fluxo.
   const lot_balance_inicio = Math.max(0, valor_lote - valor_ja_pago - entrada_do_lote_efetiva);
   let lot_balance = lot_balance_inicio;
   const fluxoFase1: LinhaFluxo[] = [];
+  let juros_lote_total = 0;
 
   for (let M = 1; M <= prazo_meses - 1; M += 1) {
     const juros_mes = lot_balance * taxa_parcelado;
+    juros_lote_total += juros_mes;
     lot_balance = lot_balance * (1 + taxa_parcelado) - parcela_mensal;
     if (lot_balance < 0) lot_balance = 0;
     fluxoFase1.push({
@@ -238,6 +241,7 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
   }
 
   const juros_last = lot_balance * taxa_parcelado;
+  juros_lote_total += juros_last;
   const lot_com_juros = lot_balance * (1 + taxa_parcelado);
   const saldo_apos_mensal = lot_com_juros - parcela_mensal;
   const min_quitar_lote = Math.max(0, saldo_apos_mensal);
@@ -271,7 +275,7 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
     excessoInicial: excessoParaVtp,
   });
 
-  const VTP = VTP_base + juros_obra_total;
+  const VTP = VTP_base + juros_obra_total + juros_lote_total;
   const impostos_amount = n0(template.percentual_impostos) * VTP;
   const comissao_amount = n0(template.percentual_comissao_corretor) * VTP;
   const VTE = VTP + impostos_amount + comissao_amount;
@@ -329,8 +333,8 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
     {
       mes: prazo_meses,
       fase: 'parcela_unica',
-      descricao: 'Parcela mensal + parcela única',
-      entrada_cliente: r2(parcela_mensal + parcela_unica_efetiva + itbi_amount),
+      descricao: 'Parcela única',
+      entrada_cliente: r2(parcela_unica_efetiva),
       saidas_obra: 0,
       saldo_lote: 0,
       juros_lote_mes: r2(juros_last),
@@ -397,6 +401,7 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
     lucro_moni_amount: r2(lucro_moni_amount),
     lucro_franqueado_amount: r2(lucro_franqueado_amount),
     juros_obra_total: r2(juros_obra_total),
+    juros_lote_total: r2(juros_lote_total),
     vtp: r2(VTP),
     impostos_amount: r2(impostos_amount),
     comissao_amount: r2(comissao_amount),

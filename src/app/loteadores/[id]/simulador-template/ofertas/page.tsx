@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { createClient } from '@/lib/supabase/server';
-import { isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
+import { isRedeStaffRole } from '@/lib/authz';
+import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { carregarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
 import { rowToTemplateConfig } from '@/lib/loteamento-simulador-template';
 import { CalculadoraOferta } from '@/components/simulador/CalculadoraOferta';
@@ -26,7 +27,11 @@ export default async function SimuladorOfertasPage({ params }: Props) {
   guardLoginRequired(user);
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  const access = normalizeAccessRole((profile as { role?: string } | null)?.role);
+  const access = await persistSeededStaffRoleIfNeeded(
+    supabase,
+    { id: user.id, email: user.email },
+    (profile as { role?: string } | null)?.role,
+  );
   if (!isRedeStaffRole(access)) {
     redirect('/loteadores');
   }
@@ -87,7 +92,7 @@ export default async function SimuladorOfertasPage({ params }: Props) {
         <div className="mt-8 flex flex-col gap-10">
           {loaded.template ? (
             <>
-              <SimuladorOfertasClient ofertas={loaded.simulacoes} />
+              <SimuladorOfertasClient cardId={id} ofertas={loaded.simulacoes} />
               <CalculadoraOferta
                 template={rowToTemplateConfig(loaded.template)}
                 loteadorId={id}
