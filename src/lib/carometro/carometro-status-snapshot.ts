@@ -270,11 +270,17 @@ export async function gerarSnapshotCarometro(
   {
     const { data: objRespData } = await db
       .from('objetivo_responsaveis')
-      .select('objetivo_id')
+      .select('objetivo_id, data_inicio')
       .eq('profile_id', profileId);
 
-    const objIds = ((objRespData ?? []) as { objetivo_id: string }[])
-      .map(o => o.objetivo_id).filter(Boolean);
+    type ObjRespRowSnap = { objetivo_id: string; data_inicio: string | null };
+    const objRespRowsSnap = (objRespData ?? []) as ObjRespRowSnap[];
+    const objIds = objRespRowsSnap.map(o => o.objetivo_id).filter(Boolean);
+
+    // Mapa objetivo_id → data_inicio: evita penalizar projetos ainda não iniciados
+    const metaDataInicioMapSnap = new Map<string, string>(
+      objRespRowsSnap.filter(r => r.data_inicio != null).map(r => [r.objetivo_id, r.data_inicio!])
+    );
 
     if (objIds.length > 0) {
       // Filtra apenas metas do mês vigente com status ativo ou relançado.
@@ -325,6 +331,17 @@ export async function gerarSnapshotCarometro(
           const rawSf = ind.semaforo_faixas as SfRaw | null;
           const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
           const metaKey = ind.objetivo_id ?? ind.id;
+
+          // Se a meta tem data_inicio futura, o projeto ainda não iniciou —
+          // não penaliza o score independentemente do tipo de indicador.
+          const metaDataInicioSnap = ind.objetivo_id ? (metaDataInicioMapSnap.get(ind.objetivo_id) ?? null) : null;
+          if (metaDataInicioSnap) {
+            const metaInicioSnap = new Date(metaDataInicioSnap + 'T00:00:00');
+            if (refDateSnap < metaInicioSnap) {
+              porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
+              continue;
+            }
+          }
 
           if (isProjeto) {
             const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', refDateSnap);

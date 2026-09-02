@@ -483,12 +483,17 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       {
         const { data: objRespData } = await supabase
           .from('objetivo_responsaveis')
-          .select('objetivo_id')
+          .select('objetivo_id, data_inicio')
           .eq('profile_id', effectiveProfileId);
 
-        const objIds = ((objRespData ?? []) as { objetivo_id: string }[])
-          .map(o => o.objetivo_id)
-          .filter(Boolean);
+        type ObjRespRow = { objetivo_id: string; data_inicio: string | null };
+        const objRespRows = (objRespData ?? []) as ObjRespRow[];
+        const objIds = objRespRows.map(o => o.objetivo_id).filter(Boolean);
+
+        // Mapa objetivo_id → data_inicio: usado para não penalizar projetos ainda não iniciados
+        const metaDataInicioMap = new Map<string, string>(
+          objRespRows.filter(r => r.data_inicio != null).map(r => [r.objetivo_id, r.data_inicio!])
+        );
 
         if (objIds.length > 0) {
           // Filtra apenas metas do mês vigente com status ativo ou relançado.
@@ -547,6 +552,17 @@ export function useMeuCarometro(): UseMeuCarometroResult {
                 const rawSf = ind.semaforo_faixas as SfRaw | null;
                 const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
                 const metaKey = ind.objetivo_id ?? ind.id;
+
+                // Se a meta tem data_inicio futura, o projeto ainda não iniciou —
+                // não penaliza o score independentemente do tipo de indicador.
+                const metaDataInicio = ind.objetivo_id ? (metaDataInicioMap.get(ind.objetivo_id) ?? null) : null;
+                if (metaDataInicio) {
+                  const metaInicio = new Date(metaDataInicio + 'T00:00:00');
+                  if (refDate < metaInicio) {
+                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
+                    continue;
+                  }
+                }
 
                 if (isProjeto) {
                   const esp = calcularEsperadoPct(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', refDate);
