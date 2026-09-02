@@ -103,6 +103,15 @@ export type KanbanColumnProps = {
   }) => Record<string, { fase_id: string; ordem_coluna: number }> | null;
   /** Restaura posições após falha no DnD. */
   onRollbackDnD?: (snapshot: Record<string, { fase_id: string; ordem_coluna: number }> | null) => void;
+  /** Sync otimista de próxima atividade no board (sem refresh). */
+  onProximaAtividadeBoardSync?: (
+    cardId: string,
+    sync: {
+      proxima_atividade: string | null;
+      prazo_atividade: string | null;
+      atividadesAbertas?: KanbanProximaAtividadeAberta[];
+    },
+  ) => void;
 };
 
 type DragPayload = {
@@ -221,6 +230,7 @@ export function KanbanColumn({
   proximasAtividadesBatchPronto = false,
   onOptimisticDnD,
   onRollbackDnD,
+  onProximaAtividadeBoardSync,
 }: KanbanColumnProps) {
   const faseSlug = fase.slug?.trim() ?? '';
   const router = useRouter();
@@ -946,6 +956,7 @@ export function KanbanColumn({
                           basePath={basePath}
                           atividadesCache={proximasAtividadesPorCard?.[card.id]}
                           atividadesBatchPronto={proximasAtividadesBatchPronto}
+                          onBoardSync={onProximaAtividadeBoardSync}
                         />
                       ) : null}
                     </div>

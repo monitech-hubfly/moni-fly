@@ -157,6 +157,10 @@ export function KanbanBoard({
   >({});
   const dndPosRef = useRef(dndPosByCardId);
   dndPosRef.current = dndPosByCardId;
+  /** Patches otimistas de próxima atividade (sem refresh do board). */
+  const [proximaPatchByCardId, setProximaPatchByCardId] = useState<
+    Record<string, { proxima_atividade: string | null; prazo_atividade: string | null }>
+  >({});
 
   /** Assinatura estável: `cards`/`cardsConcluidos` mudam de referência a cada `router.refresh()`. */
   const cardsSnapshotSig = useMemo(
@@ -175,6 +179,7 @@ export function KanbanBoard({
     setProximasAtividadesPorCard({});
     setProximasAtividadesBatchPronto(false);
     setDndPosByCardId({});
+    setProximaPatchByCardId({});
   }, [cardsSnapshotSig]);
 
   useEffect(() => {
@@ -318,7 +323,15 @@ export function KanbanBoard({
 
   const mergeEnrichment = (c: KanbanCardBrief): KanbanCardBrief => {
     const patch = enrichmentByCardId[c.id];
-    const withEnrich = patch ? { ...c, ...patch } : c;
+    let withEnrich = patch ? { ...c, ...patch } : c;
+    const prox = proximaPatchByCardId[c.id];
+    if (prox) {
+      withEnrich = {
+        ...withEnrich,
+        proxima_atividade: prox.proxima_atividade,
+        prazo_atividade: prox.prazo_atividade,
+      };
+    }
     const dnd = dndPosByCardId[c.id];
     return dnd
       ? { ...withEnrich, fase_id: dnd.fase_id, ordem_coluna: dnd.ordem_coluna }
@@ -327,12 +340,12 @@ export function KanbanBoard({
 
   const cardsComEnrichment = useMemo(
     () => cards.map(mergeEnrichment),
-    [cards, enrichmentByCardId, dndPosByCardId],
+    [cards, enrichmentByCardId, dndPosByCardId, proximaPatchByCardId],
   );
 
   const cardsConcluidosComEnrichment = useMemo(
     () => cardsConcluidos.map(mergeEnrichment),
-    [cardsConcluidos, enrichmentByCardId, dndPosByCardId],
+    [cardsConcluidos, enrichmentByCardId, dndPosByCardId, proximaPatchByCardId],
   );
 
   const cardsEfetivos = useMemo(() => {
@@ -552,6 +565,34 @@ export function KanbanBoard({
     [],
   );
 
+  const onProximaAtividadeBoardSync = useCallback(
+    (
+      cardId: string,
+      sync: {
+        proxima_atividade: string | null;
+        prazo_atividade: string | null;
+        atividadesAbertas?: KanbanProximaAtividadeAberta[];
+      },
+    ) => {
+      const id = String(cardId ?? '').trim();
+      if (!id) return;
+      setProximaPatchByCardId((prev) => ({
+        ...prev,
+        [id]: {
+          proxima_atividade: sync.proxima_atividade,
+          prazo_atividade: sync.prazo_atividade,
+        },
+      }));
+      if (sync.atividadesAbertas !== undefined) {
+        setProximasAtividadesPorCard((prev) => ({
+          ...prev,
+          [id]: sync.atividadesAbertas!,
+        }));
+      }
+    },
+    [],
+  );
+
   const nAtivos = countKanbanBoardFiltrosAtivos(filtros);
   const corretoresFiltroOpcoes = useMemo(() => {
     if (kanbanId !== KANBAN_IDS.CORRETORES) {
@@ -730,6 +771,7 @@ export function KanbanBoard({
                   proximasAtividadesBatchPronto={proximasAtividadesBatchPronto}
                   onOptimisticDnD={applyOptimisticDnD}
                   onRollbackDnD={rollbackDnD}
+                  onProximaAtividadeBoardSync={onProximaAtividadeBoardSync}
                 />
               );
             })}

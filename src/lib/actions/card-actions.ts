@@ -5294,6 +5294,8 @@ export type SalvarProximaAtividadeInput = {
   proxima_atividade?: string | null;
   prazo_atividade?: string | null;
   basePath?: string;
+  /** DnD/board otimista: não revalida o RSC no caminho crítico. */
+  skipRevalidate?: boolean;
 };
 
 /** Salva próxima atividade e prazo em `kanban_cards` (todos os funis). */
@@ -5340,11 +5342,24 @@ export async function salvarProximaAtividade(input: SalvarProximaAtividadeInput)
   const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
   if (updErr) return { ok: false, error: updErr.message };
 
-  const base = String(input.basePath ?? '/').trim() || '/';
-  revalidatePath(base);
-  revalidatePath('/');
+  if (!input.skipRevalidate) {
+    const base = String(input.basePath ?? '/').trim() || '/';
+    revalidatePath(base);
+    revalidatePath('/');
+  }
   return { ok: true };
 }
+
+export type ProximaAtividadeItemResult = {
+  id: string;
+  descricao: string;
+  prazo: string | null;
+};
+
+export type ProximaAtividadeSyncFields = {
+  proxima_atividade: string | null;
+  prazo_atividade: string | null;
+};
 
 /** Adiciona nova atividade ao histórico do card. */
 export async function adicionarProximaAtividadeItem(input: {
@@ -5352,7 +5367,11 @@ export async function adicionarProximaAtividadeItem(input: {
   descricao: string;
   prazo: string | null;
   basePath: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+  skipRevalidate?: boolean;
+}): Promise<
+  | ({ ok: true; item: ProximaAtividadeItemResult } & ProximaAtividadeSyncFields)
+  | { ok: false; error: string }
+> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
@@ -5361,21 +5380,27 @@ export async function adicionarProximaAtividadeItem(input: {
   if (!cardId) return { ok: false, error: 'Card inválido.' };
   if (!descricao) return { ok: false, error: 'Informe a atividade.' };
 
-  const { error } = await (supabase as any)
+  const prazo = input.prazo || null;
+  const { data: inserted, error } = await (supabase as any)
     .from('kanban_proximas_atividades')
     .insert({
       card_id: cardId,
       descricao,
-      prazo: input.prazo || null,
+      prazo,
       criado_por: user.id,
-    });
+    })
+    .select('id, descricao, prazo')
+    .single();
   if (error) return { ok: false, error: error.message };
 
-  await sincronizarProximaAtividadeCard(supabase, cardId);
-  const base = String(input.basePath ?? '/').trim() || '/';
-  revalidatePath(base);
-  revalidatePath('/');
-  return { ok: true };
+  const sync = await sincronizarProximaAtividadeCard(supabase, cardId);
+  if (!input.skipRevalidate) {
+    const base = String(input.basePath ?? '/').trim() || '/';
+    revalidatePath(base);
+    revalidatePath('/');
+  }
+  const item = (inserted ?? { id: '', descricao, prazo }) as ProximaAtividadeItemResult;
+  return { ok: true, item, ...sync };
 }
 
 /** Conclui uma atividade específica do histórico pelo id. */
@@ -5383,7 +5408,8 @@ export async function concluirProximaAtividadeItem(input: {
   itemId: string;
   cardId: string;
   basePath: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+  skipRevalidate?: boolean;
+}): Promise<({ ok: true } & ProximaAtividadeSyncFields) | { ok: false; error: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
@@ -5395,11 +5421,13 @@ export async function concluirProximaAtividadeItem(input: {
     .eq('card_id', input.cardId);
   if (error) return { ok: false, error: error.message };
 
-  await sincronizarProximaAtividadeCard(supabase, input.cardId);
-  const base = String(input.basePath ?? '/').trim() || '/';
-  revalidatePath(base);
-  revalidatePath('/');
-  return { ok: true };
+  const sync = await sincronizarProximaAtividadeCard(supabase, input.cardId);
+  if (!input.skipRevalidate) {
+    const base = String(input.basePath ?? '/').trim() || '/';
+    revalidatePath(base);
+    revalidatePath('/');
+  }
+  return { ok: true, ...sync };
 }
 
 /** Busca atividades abertas do card (sem concluido_em). */
@@ -5438,7 +5466,7 @@ export async function buscarAtividadesConcluidasCards(
 async function sincronizarProximaAtividadeCard(
   supabase: Awaited<ReturnType<typeof createClient>>,
   cardId: string,
-): Promise<void> {
+): Promise<ProximaAtividadeSyncFields> {
   const hoje = new Date().toISOString().slice(0, 10);
   const { data: abertas } = await (supabase as any)
     .from('kanban_proximas_atividades')
@@ -5455,11 +5483,15 @@ async function sincronizarProximaAtividadeCard(
   const ordenada = [...atrasadas, ...hojeItems, ...futuras];
 
   const proxima = ordenada[0] ?? null;
-  await (supabase as any).from('kanban_cards').update({
+  const sync: ProximaAtividadeSyncFields = {
     proxima_atividade: proxima?.descricao ?? null,
     prazo_atividade: proxima?.prazo ?? null,
+  };
+  await (supabase as any).from('kanban_cards').update({
+    ...sync,
     updated_at: new Date().toISOString(),
   }).eq('id', cardId);
+  return sync;
 }
 
 export type HistoricoAtividadeItem = {

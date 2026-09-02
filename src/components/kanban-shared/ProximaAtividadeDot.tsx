@@ -1,7 +1,7 @@
 'use client';
 
 import { createPortal } from 'react-dom';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import {
   adicionarProximaAtividadeItem,
@@ -11,6 +11,12 @@ import {
 } from '@/lib/actions/card-actions';
 import type { KanbanProximaAtividadeAberta } from './types';
 
+export type ProximaAtividadeBoardSync = {
+  proxima_atividade: string | null;
+  prazo_atividade: string | null;
+  atividadesAbertas?: KanbanProximaAtividadeAberta[];
+};
+
 type Props = {
   cardId: string;
   proximaAtividade: string | null;
@@ -19,6 +25,8 @@ type Props = {
   /** Batch do board — evita server action ao abrir o popover. */
   atividadesCache?: KanbanProximaAtividadeAberta[];
   atividadesBatchPronto?: boolean;
+  /** Atualiza o card no board sem router.refresh. */
+  onBoardSync?: (cardId: string, sync: ProximaAtividadeBoardSync) => void;
 };
 
 function varianteDot(prazo: string | null): 'gray' | 'green' | 'red' {
@@ -50,6 +58,21 @@ function legadoAtividadeAberta(
   return [{ id: 'legado', descricao, prazo: prazoAtividade }];
 }
 
+function pickProximaFromLista(lista: AtividadeAberta[]): {
+  proxima_atividade: string | null;
+  prazo_atividade: string | null;
+} {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const atrasadas = lista.filter((a) => a.prazo && a.prazo < hoje);
+  const hojeItems = lista.filter((a) => a.prazo === hoje);
+  const futuras = lista.filter((a) => !a.prazo || a.prazo > hoje);
+  const proxima = [...atrasadas, ...hojeItems, ...futuras][0] ?? null;
+  return {
+    proxima_atividade: proxima?.descricao ?? null,
+    prazo_atividade: proxima?.prazo ?? null,
+  };
+}
+
 function resolverListaInicial(
   cache: KanbanProximaAtividadeAberta[] | undefined,
   batchPronto: boolean,
@@ -76,6 +99,7 @@ export function ProximaAtividadeDot({
   basePath,
   atividadesCache,
   atividadesBatchPronto = false,
+  onBoardSync,
 }: Props) {
   const [aberto, setAberto] = useState(false);
   const [atividadesAbertas, setAtividadesAbertas] = useState<AtividadeAberta[]>([]);
@@ -84,8 +108,9 @@ export function ProximaAtividadeDot({
   const [novoPrazo, setNovoPrazo] = useState('');
   const [confirmarSemProxima, setConfirmarSemProxima] = useState(false);
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
+  const [busyItemId, setBusyItemId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const dotRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -99,6 +124,14 @@ export function ProximaAtividadeDot({
   const tooltipTitle = semAtividade
     ? 'Próxima atividade não definida'
     : labelPrazo(prazoAtividade) ? `${proximaAtividade} · ${labelPrazo(prazoAtividade)}` : proximaAtividade!;
+
+  function syncBoard(lista: AtividadeAberta[], override?: { proxima_atividade: string | null; prazo_atividade: string | null }) {
+    const fields = override ?? pickProximaFromLista(lista);
+    onBoardSync?.(cardId, {
+      ...fields,
+      atividadesAbertas: lista.filter((a) => a.id !== 'legado' && !a.id.startsWith('temp-')),
+    });
+  }
 
   useEffect(() => {
     if (!aberto) return;
@@ -135,6 +168,7 @@ export function ProximaAtividadeDot({
   /** Quando o batch do board termina, atualiza a lista se o popover estiver aberto. */
   useEffect(() => {
     if (!aberto) return;
+    if (busyItemId || adding) return;
     const { lista, aguardandoFetch } = resolverListaInicial(
       atividadesCache,
       atividadesBatchPronto,
@@ -143,7 +177,7 @@ export function ProximaAtividadeDot({
     );
     setAtividadesAbertas(lista);
     if (!aguardandoFetch) setCarregandoLista(false);
-  }, [aberto, atividadesCache, atividadesBatchPronto, proximaAtividade, prazoAtividade]);
+  }, [aberto, atividadesCache, atividadesBatchPronto, proximaAtividade, prazoAtividade, busyItemId, adding]);
 
   function abrirPopover(e: React.MouseEvent) {
     e.stopPropagation();
@@ -188,49 +222,102 @@ export function ProximaAtividadeDot({
   }
 
   function concluirItem(itemId: string) {
-    const restante = atividadesAbertas.filter(a => a.id !== itemId);
+    const restante = atividadesAbertas.filter((a) => a.id !== itemId);
     if (restante.length === 0 && !novaAtividade.trim()) {
       setPendingItemId(itemId);
       setConfirmarSemProxima(true);
       return;
     }
-    executarConclusao(itemId);
+    void executarConclusao(itemId);
   }
 
-  function executarConclusao(itemId: string) {
-    startTransition(async () => {
+  async function executarConclusao(itemId: string) {
+    const prevLista = atividadesAbertas;
+    const nextLista = prevLista.filter((a) => a.id !== itemId);
+    setAtividadesAbertas(nextLista);
+    setConfirmarSemProxima(false);
+    setPendingItemId(null);
+    setBusyItemId(itemId);
+    setErro(null);
+    syncBoard(nextLista);
+
+    try {
       if (itemId === 'legado') {
-        await salvarProximaAtividade({
+        const res = await salvarProximaAtividade({
           cardId,
           proxima_atividade: null,
           prazo_atividade: null,
           basePath,
+          skipRevalidate: true,
         });
+        if (!res.ok) throw new Error(res.error);
+        syncBoard([], { proxima_atividade: null, prazo_atividade: null });
+      } else if (itemId.startsWith('temp-')) {
+        // item otimista ainda não persistido — só UI
       } else {
-        await concluirProximaAtividadeItem({ itemId, cardId, basePath });
+        const res = await concluirProximaAtividadeItem({
+          itemId,
+          cardId,
+          basePath,
+          skipRevalidate: true,
+        });
+        if (!res.ok) throw new Error(res.error);
+        syncBoard(nextLista, {
+          proxima_atividade: res.proxima_atividade,
+          prazo_atividade: res.prazo_atividade,
+        });
       }
-      setAtividadesAbertas(prev => prev.filter(a => a.id !== itemId));
-      setConfirmarSemProxima(false);
-      setPendingItemId(null);
-    });
+    } catch (err) {
+      setAtividadesAbertas(prevLista);
+      syncBoard(prevLista);
+      setErro(err instanceof Error ? err.message : 'Não foi possível concluir a atividade.');
+    } finally {
+      setBusyItemId(null);
+    }
   }
 
   function adicionarAtividade() {
-    if (!novaAtividade.trim()) return;
+    const descricao = novaAtividade.trim();
+    if (!descricao || adding) return;
+    const prazo = novoPrazo || null;
+    const tempId = `temp-${Date.now()}`;
+    const prevLista = atividadesAbertas;
+    const nextLista = [...prevLista, { id: tempId, descricao, prazo }];
+    setAtividadesAbertas(nextLista);
+    setNovaAtividade('');
+    setNovoPrazo('');
     setErro(null);
-    startTransition(async () => {
-      const res = await adicionarProximaAtividadeItem({
-        cardId,
-        descricao: novaAtividade.trim(),
-        prazo: novoPrazo || null,
-        basePath,
-      });
-      if (!res.ok) { setErro(res.error); return; }
-      const novas = await buscarAtividadesAbertasCard(cardId);
-      setAtividadesAbertas(novas.length > 0 ? novas : legadoAtividadeAberta(novaAtividade.trim(), novoPrazo || null));
-      setNovaAtividade('');
-      setNovoPrazo('');
-    });
+    setAdding(true);
+    syncBoard(nextLista);
+
+    void (async () => {
+      try {
+        const res = await adicionarProximaAtividadeItem({
+          cardId,
+          descricao,
+          prazo,
+          basePath,
+          skipRevalidate: true,
+        });
+        if (!res.ok) throw new Error(res.error);
+        const confirmed = nextLista.map((a) =>
+          a.id === tempId ? { id: res.item.id, descricao: res.item.descricao, prazo: res.item.prazo } : a,
+        );
+        setAtividadesAbertas(confirmed);
+        syncBoard(confirmed, {
+          proxima_atividade: res.proxima_atividade,
+          prazo_atividade: res.prazo_atividade,
+        });
+      } catch (err) {
+        setAtividadesAbertas(prevLista);
+        syncBoard(prevLista);
+        setNovaAtividade(descricao);
+        setNovoPrazo(prazo ?? '');
+        setErro(err instanceof Error ? err.message : 'Não foi possível adicionar a atividade.');
+      } finally {
+        setAdding(false);
+      }
+    })();
   }
 
   const popover = aberto && pos ? (
@@ -238,8 +325,8 @@ export function ProximaAtividadeDot({
       ref={popoverRef}
       style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999, transform: 'translateY(-100%)' }}
       className="w-72 rounded-lg border border-stone-200 bg-white p-3 text-left shadow-xl"
-      onMouseDown={e => e.stopPropagation()}
-      onClick={e => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
       <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-400">
         Próximas Atividades
@@ -249,7 +336,7 @@ export function ProximaAtividadeDot({
         <p className="mb-3 text-[11px] text-stone-400">Carregando…</p>
       ) : atividadesAbertas.length > 0 ? (
         <ul className="mb-3 space-y-1.5">
-          {atividadesAbertas.map(a => {
+          {atividadesAbertas.map((a) => {
             const prazoLabel = labelPrazo(a.prazo);
             const varianteItem = varianteDot(a.prazo);
             const prazoCorTexto = varianteItem === 'red' ? 'text-red-600' : varianteItem === 'green' ? 'text-green-600' : 'text-stone-400';
@@ -257,12 +344,12 @@ export function ProximaAtividadeDot({
               <li key={a.id} className="flex items-start gap-2 rounded border border-stone-100 bg-stone-50 px-2 py-1.5">
                 <input
                   type="checkbox"
-                  className="mt-0.5 rounded border-stone-300 cursor-pointer"
-                  disabled={pending}
+                  className="mt-0.5 cursor-pointer rounded border-stone-300"
+                  disabled={busyItemId === a.id || a.id.startsWith('temp-')}
                   onChange={() => concluirItem(a.id)}
                 />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-stone-800 leading-snug">{a.descricao}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs leading-snug text-stone-800">{a.descricao}</p>
                   {prazoLabel && <p className={`text-[10px] ${prazoCorTexto}`}>{prazoLabel}</p>}
                 </div>
               </li>
@@ -288,8 +375,8 @@ export function ProximaAtividadeDot({
             </button>
             <button
               type="button"
-              onClick={() => pendingItemId && executarConclusao(pendingItemId)}
-              disabled={pending}
+              onClick={() => pendingItemId && void executarConclusao(pendingItemId)}
+              disabled={Boolean(busyItemId)}
               className="flex-1 rounded bg-amber-500 px-2 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               Concluir mesmo assim
@@ -305,7 +392,7 @@ export function ProximaAtividadeDot({
             <input
               type="text"
               value={novaAtividade}
-              onChange={e => setNovaAtividade(e.target.value)}
+              onChange={(e) => setNovaAtividade(e.target.value)}
               placeholder="Ex: Enviar proposta atualizada"
               className="w-full rounded border border-stone-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-moni-primary"
             />
@@ -315,7 +402,7 @@ export function ProximaAtividadeDot({
             <input
               type="date"
               value={novoPrazo}
-              onChange={e => setNovoPrazo(e.target.value)}
+              onChange={(e) => setNovoPrazo(e.target.value)}
               className="w-full rounded border border-stone-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-moni-primary"
             />
           </div>
@@ -324,10 +411,10 @@ export function ProximaAtividadeDot({
             <button
               type="button"
               onClick={adicionarAtividade}
-              disabled={pending || !novaAtividade.trim()}
+              disabled={adding || !novaAtividade.trim()}
               className="flex-1 rounded bg-moni-primary px-2 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              {pending ? 'Salvando…' : '+ Adicionar'}
+              {adding ? 'Salvando…' : '+ Adicionar'}
             </button>
             <button
               type="button"
@@ -350,7 +437,7 @@ export function ProximaAtividadeDot({
         title={tooltipTitle}
         aria-label={semAtividade ? 'Definir próxima atividade' : `Próxima atividade: ${tooltipTitle}`}
         onClick={abrirPopover}
-        onMouseDown={e => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
         className={
           semAtividade
             ? 'flex h-3.5 w-3.5 items-center justify-center transition-transform hover:scale-125 focus:outline-none'
