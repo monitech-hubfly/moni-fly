@@ -58,26 +58,9 @@ export async function resolverMencoesSirene(
   const plain = textoPlanoDeEntrada(conteudo);
   if (!plain) return { plain: '', mencoesIds: [] };
 
-  // Detecta @todos — notifica todos admin/team @moni.casa
-  let idsTodos: string[] = [];
-  if (/@todos\b/i.test(plain)) {
-    const db = await dbParaMencoes(supabase);
-    const { data: profilesTodos } = await db
-      .from('profiles')
-      .select('id')
-      .in('role', ['admin', 'team'])
-      .ilike('email', '%@moni.casa');
-    idsTodos = (profilesTodos ?? []).map((r) => String(r.id));
-  }
-
-  // Resolve menções individuais (exclui "todos" da busca por nome)
-  const nomesMencionados = extrairNomesMencionados(plain).filter(
-    (n) => n.toLowerCase() !== 'todos',
-  );
+  const nomesMencionados = extrairNomesMencionados(plain);
   const perfis = await buscarPerfisPorNomesMencionados(supabase, nomesMencionados);
-  const mencoesNormais = extrairIdsMencoes(plain, perfis);
-
-  const mencoesIds = [...new Set([...mencoesNormais, ...idsTodos])];
+  const mencoesIds = extrairIdsMencoes(plain, perfis);
   return { plain, mencoesIds };
 }
 
@@ -130,30 +113,13 @@ export async function notificarMencoesSirene(input: {
 
   const adminDb = await dbParaMencoes(supabase);
 
-  // Resolve referencia_path: chamados criados via criarChamadoSireneComAtividade têm
-  // um kanban_atividade vinculado — a rota correta é /sirene/chamados?interacao=UUID.
-  // Se não houver kanban_atividade associado, usa o caminho original (chamado nativo Sirene).
-  let referenciaPathFinal = referenciaPath;
-  if (input.sireneChamadoId != null) {
-    const { data: ka } = await adminDb
-      .from('kanban_atividades')
-      .select('id')
-      .eq('sirene_chamado_id', input.sireneChamadoId)
-      .limit(1)
-      .maybeSingle();
-    const interacaoId = (ka as { id?: string } | null)?.id ?? null;
-    if (interacaoId) {
-      referenciaPathFinal = `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`;
-    }
-  }
-
   // Alertas por @menção
   for (const uid of mencionadosSemAutor) {
     await adminDb.from('alertas').insert({
       user_id: uid,
       tipo: 'mencao_sirene',
       mensagem: `${autorNome} mencionou você em "${titulo}" (Sirene): "${preview}"`,
-      referencia_path: referenciaPathFinal,
+      referencia_path: referenciaPath,
     });
   }
 
@@ -163,7 +129,7 @@ export async function notificarMencoesSirene(input: {
       user_id: uid,
       tipo: 'kanban_atividade_atualizada',
       mensagem: `${autorNome} adicionou atividade em "${titulo}" (Sirene): "${preview}"`,
-      referencia_path: referenciaPathFinal,
+      referencia_path: referenciaPath,
     });
   }
 
@@ -175,7 +141,7 @@ export async function notificarMencoesSirene(input: {
       cardTitulo: titulo,
       autorNome,
       comentarioPreview: preview,
-      linkPath: referenciaPathFinal,
+      linkPath: referenciaPath,
     }).catch((err) => console.error('[sirene-mencoes] email menção', err));
   }
 

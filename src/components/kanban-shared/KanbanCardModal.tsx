@@ -2,7 +2,6 @@
 
 import type { ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
-import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   X,
@@ -39,15 +38,12 @@ import {
 import {
   arquivarCard,
   desarquivarCard,
-  reativarPerdaCard,
   arquivarInteracao,
   arquivarSubInteracao,
   atualizarStatusInteracao,
   atualizarStatusSubInteracao,
   criarTagKanban,
   criarChamadoSireneComAtividade,
-  vincularChamadoSireneExistenteAoCard,
-  buscarChamadosSireneParaVincular,
   criarSubInteracao,
   desvincularTagCard,
   editarInteracao,
@@ -57,8 +53,6 @@ import {
   moverCardParaFase,
   registrarConfirmacaoFaseOperacoes,
   registrarConfirmacaoFasePortfolio,
-  registrarConfirmacaoFaseLoteadores,
-  registrarContratoCondicoesPrecedentesPortfolio,
   verificarGateComiteLoteadores,
   listarTagsCard,
   listarTagsKanban,
@@ -69,7 +63,6 @@ import {
   salvarProximaAtividade,
   salvarFranqueadoCardVinculado,
   salvarInstrucoesFase,
-  salvarAncoraCalculadoraKanban,
   obterInfoSyncGrupoCard,
   solicitarAprovacaoFase,
   uploadProcessoNegocioAnexo,
@@ -82,43 +75,26 @@ import {
   gerarFormTokenCandidato,
   enviarEmailCard,
   reconciliarGboxPlanilhaMapaChecklist,
-  garantirShadowCardLegadoParaHistorico,
-  sincronizarTagsAutomaticasCard,
   type SubInteracaoStatusDb,
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
 import { deletarChamado, listAnexosPorChamados, uploadAnexoChamado, getAnexoChamadoDownloadUrl } from '@/app/sirene/actions';
+import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
-import {
-  isLoteadoresKanbanRef,
-  isPortfolioKanbanRef,
-} from '@/lib/kanban/portfolio-paralelas';
-import {
-  resolverFonteDadosLateraisCard,
-  type FonteDadosLaterais,
-} from '@/lib/kanban/card-dados-laterais-pai';
 import {
   autorizarAberturaCreditoObra,
   consultarAberturaCreditoObraPendente,
   recusarAberturaCreditoObra,
 } from '@/lib/actions/credito-obra-abertura-automatica';
-import {
-  garantirBastaoPassagemWayser,
-  garantirBastaoPassagemWaysersLoteadores,
-} from '@/lib/actions/kanban-bastoes';
-import { ensureProcessoStepOneForKanbanCard } from '@/lib/actions/kanban-mapa-competidores';
+import { garantirBastaoPassagemWayser } from '@/lib/actions/kanban-bastoes';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
-import {
-  aplicarDataEmissaoAlvaraNoPreObra,
-  aplicarPrevisaoEmissaoAlvaraNoPreObra,
-} from '@/lib/pre-obra/emissao-alvara-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
+import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import {
   deveConfirmarSaidaFasePortfolio,
-  portfolioConfirmacaoModalPergunta,
+  portfolioConfirmacaoPergunta,
   type PortfolioConfirmacaoFaseTipo,
-  type PortfolioConfirmacaoModalTipo,
 } from '@/lib/kanban/portfolio-confirmacao-fase';
 import {
   deveConfirmarEntradaFaseOperacoes,
@@ -126,12 +102,6 @@ import {
   operacoesConfirmacaoPergunta,
   type OperacoesConfirmacaoFaseTipo,
 } from '@/lib/kanban/operacoes-confirmacao-fase';
-import {
-  deveConfirmarSaidaFaseLoteadores,
-  loteadoresConfirmacaoPergunta,
-  loteadoresConfirmacaoTitulo,
-  type LoteadoresConfirmacaoFaseTipo,
-} from '@/lib/kanban/loteadores-confirmacao-fase';
 import {
   deveExibirModalJustificativaSla,
   justificativaSlaObrigatoria,
@@ -167,37 +137,28 @@ import {
 import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoField';
 import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociacaoLinhasField';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
-import { KanbanCardModalSimulacoesImob } from './KanbanCardModalSimulacoesImob';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
-  NEGOCIO_PRAZO_OPCAO_FASE_SLUG,
-  NEGOCIO_PRAZO_VALORES_VAZIO,
   faseLabelFromOpcoes,
   formatNegocioPrazoDisplay,
   negocioPrazoDbPatchFromValores,
   negocioPrazoDraftFromValores,
   negocioPrazoValoresFromDraft,
   negocioPrazoValoresFromProcessoModal,
-  negocioPrazosDraftVazios,
   type FaseNegocioPrazoOpcao,
   type NegocioPrazoDraft,
 } from '@/lib/kanban/dados-negocio-prazo';
 import {
   negociacaoLinhasToDb,
-  parseNegociacaoLinhasFromDb,
   parseVinculoCalculadoraNegociacao,
   type NegociacaoLinha,
-  type NegociacaoLinhaDraft,
 } from '@/lib/kanban/negociacao-linhas';
 import {
   negocioDraftFromProcesso,
   negocioDraftVazio,
   type NegocioDraftKanban,
 } from '@/lib/kanban/negocio-draft';
-import {
-  isTipoNegociacao100CompraVenda,
-  opcoesTipoNegociacaoComValorAtual,
-} from '@/lib/kanban/tipo-negociacao-terreno';
+import { opcoesTipoNegociacaoComValorAtual } from '@/lib/kanban/tipo-negociacao-terreno';
 import {
   buildOpcoesVinculoCalculadora,
   resolverDataPagamentoNegociacao,
@@ -207,10 +168,8 @@ import { montarTimelineCalculadoraComMarcos } from '@/lib/kanban/calculadora-fas
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
 import { KanbanCardModalCalculadoraFases } from './KanbanCardModalCalculadoraFases';
 import {
-  campoDataAprovacaoOperacoesPorFaseSlug,
   operacoesPreObraDraftFromCard,
   OPERACOES_PRE_OBRA_DRAFT_EMPTY,
-  patchOperacoesPreObraAlinharComCalculadora,
   type OperacoesPreObraDraft,
 } from '@/lib/kanban/previsibilidade-operacoes';
 import {
@@ -266,28 +225,16 @@ import { podeComFallbackStaff } from '@/lib/permissoes-types';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos';
 import {
+  KanbanCardModalOperacoesTrancheVinculoForm,
   KanbanCardModalOperacoesTrancheVinculosSidebar,
 } from './KanbanCardModalOperacoesTrancheVinculos';
-import { rolePodeAbrirTrancheVinculosOperacoes } from '@/lib/operacoes/tranche-vinculos-config';
 import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
-import { KanbanCardReuniaoFasePassouModal } from './KanbanCardReuniaoFasePassouModal';
-import { devePerguntarReinicioReuniao } from '@/lib/kanban/reuniao-fase-passou';
 import { KanbanCardSlaBolinha } from './KanbanCardPrazoIndicadores';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, augmentKanbanFasesComFasesDosCards, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal, loadHistoricoCalculadoraEsteira, buildVisitsCalculadoraEsteiraSyncGroup } from '@/lib/kanban/kanban-card-historico';
-import {
-  carregarChamadosDoCardModal,
-  fetchKanbanTimesCached,
-} from '@/lib/kanban/carregar-chamados-card-modal';
-import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
-import {
-  emptyImobCardModeloDraft,
-  type ImobCardEmpreendimentoDraft,
-  type ImobCardModeloDraft,
-} from '@/lib/kanban/imob-simulacoes-card';
 import {
   listarComentariosKanbanCard,
   publicarComentarioKanbanCard,
@@ -298,14 +245,7 @@ import {
   type KanbanComentarioAnexoRow,
 } from '@/lib/actions/kanban-comentario-anexos';
 import { uploadAnexosComentarioPendentes } from '@/lib/kanban/upload-anexos-comentario-card';
-import {
-  escolherTituloExibicaoCard,
-  extrairNumeroFranquiaDoTitulo,
-  montarTituloCardSync,
-  fetchContextoCalculadoraSyncGroup,
-  processoExplicitamenteVinculadoAoCard,
-  type ContextoCalculadoraSyncGroup,
-} from '@/lib/kanban/card-sync-group';
+import { montarTituloCardSync, fetchContextoCalculadoraSyncGroup, type ContextoCalculadoraSyncGroup } from '@/lib/kanban/card-sync-group';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import { AnexosAtividadeDraft } from './AnexosAtividadeDraft';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
@@ -318,8 +258,6 @@ import {
 } from './KanbanInteracoesFiltrosPanel';
 import {
   derivarChamadoKanbanComSubs,
-  statusEfetivoChamadoKanban,
-  interacaoPassaFiltroListaSituacao,
   formatDataHoraHistorico,
   iconeHistoricoAcao,
   rotuloUsuarioHistorico,
@@ -369,12 +307,10 @@ import { ChecklistCard } from './ChecklistCard';
 import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
 import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
 import { FaseChecklistCard } from './FaseChecklistCard';
-import { FornecedoresRedeCard } from './FornecedoresRedeCard';
 import { ResponsavelFaseSidebar } from './ResponsavelFaseSidebar';
 import { ResponsavelDaFaseSidebar } from './ResponsavelDaFaseSidebar';
 import {
   RESPONSAVEL_DA_FASE_CHECKLIST_LABEL,
-  CRIADOR_DO_CARD_LABEL,
   RESPONSAVEL_FASE_CHECKLIST_LABEL,
   buscarResponsavelDaFaseSalvoPorFases,
   buscarResponsavelDaFaseSalvoPorFasesSyncGroup,
@@ -383,7 +319,7 @@ import {
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { DadosMoniCapitalPersistentPanel } from './DadosMoniCapitalPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoComiteCtoDiligenciaNasLinhas, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, aplicarOverlayAncoraOcultarFasesAnteriores, aplicarPrazoOpcaoCalculadoraLinhas, aplicarDatasAprovacaoPreObraCalculadora, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas, resolverAncoraAprovacaoCondominio, idxAprovacaoCondominioCalculadora, campoDataAprovacaoPreObraPorFaseSlug, patchPreObraAlinharComCalculadora, CALCULADORA_ANCORA_CONDOMINIO_SLUG } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, aplicarDatasManuaisCalculadoraLinhas, sincronizarEstimativasFuturasAPartirFaseAtual, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -429,7 +365,6 @@ type Card = {
   concluido?: boolean;
   concluido_em?: string | null;
   arquivado?: boolean;
-  resultado?: 'perda' | 'ganho' | null;
   /** FK em `projeto_negocio` — esteiras paralelas do mesmo negócio. */
   projeto_id?: string | null;
   processo_step_one_id?: string | null;
@@ -449,7 +384,6 @@ type Card = {
   entered_fase_at?: string | null;
   opcao_assinada_em?: string | null;
   contrato_assinado_em?: string | null;
-  contrato_condicoes_precedentes?: boolean | null;
   obra_iniciada_em?: string | null;
   obra_finalizada_em?: string | null;
   funding_tipo?: 'Investidor' | 'Broker' | null;
@@ -470,17 +404,6 @@ type Card = {
   filho_projeto_legal_arquivado?: boolean;
   projeto_legal_filho_concluido?: boolean;
   projeto_legal_filho_fase?: string | null;
-  tem_filho_credito_obra?: boolean;
-  filho_credito_obra_arquivado?: boolean;
-  credito_obra_filho_fase?: string | null;
-  tem_filho_projetos_locais?: boolean;
-  filho_projetos_locais_arquivado?: boolean;
-  projetos_locais_filho_fase?: string | null;
-  projetos_locais_filho_concluido?: boolean;
-  tem_filho_divify?: boolean;
-  filho_divify_arquivado?: boolean;
-  divify_filho_concluido?: boolean;
-  divify_filho_fase?: string | null;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
   processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
@@ -648,11 +571,6 @@ export function KanbanCardModal({
   const suprimirFecharBackdropAteRef = useRef(0);
   const ocultarGestaoCard = portalFrank === true;
   const [loading, setLoading] = useState(true);
-  /** Fase 2 do modal: painel esquerdo (rede/processo/empresas) ainda carregando. */
-  const [detalhesCarregando, setDetalhesCarregando] = useState(true);
-  /** Fase 2: chamados/interações ainda carregando. */
-  const [chamadosCarregando, setChamadosCarregando] = useState(true);
-  const loadCardGenRef = useRef(0);
   const [movendoFase, setMovendoFase] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
   const [linkCandidato, setLinkCandidato] = useState<string | null>(null);
@@ -665,24 +583,17 @@ export function KanbanCardModal({
     Map<string, CalculadoraFaseDataManual>
   >(() => new Map());
   const ultimaEdicaoDatasManuaisRef = useRef(0);
-  /** Evita re-persistir o mesmo alinhamento Pré Obra ← Calculadora no mesmo card. */
-  const preObraAlinhadoComCalcRef = useRef<string | null>(null);
-  /** Evita re-persistir o mesmo alinhamento Pré Obra Operações ← Calculadora no mesmo card. */
-  const operacoesPreObraAlinhadoComCalcRef = useRef<string | null>(null);
   const [calculadoraSlaCondominio, setCalculadoraSlaCondominio] =
     useState<CondominioPrazosAprovacaoSla | null>(null);
   const [responsavelDaFaseSalvoPorFase, setResponsavelDaFaseSalvoPorFase] = useState<Map<string, string>>(
     () => new Map(),
   );
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
-  const [fonteDadosLaterais, setFonteDadosLaterais] = useState<FonteDadosLaterais | null>(null);
-  const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>(() => ({
+  const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
     calculadora: false,
     cronologia: false,
     franqueado: false,
     loteador: false,
-    simulacoesImob: false,
-    simuladorPagamentos: false,
     moniCapital: false,
     condominio: false,
     novoNegocio: false,
@@ -691,17 +602,11 @@ export function KanbanCardModal({
     preObra: false,
     obra: false,
     documentacaoCreditoObra: true,
-    relacionamentos: isLoteadoresKanbanRef(undefined, kanbanNome),
+    relacionamentos: false,
     atasReuniao: false,
     chamados: false,
     historico: false,
-  }));
-  const [imobSimulacoesPrefetch, setImobSimulacoesPrefetch] = useState<{
-    cardId: string;
-    itens: ImobCardEmpreendimentoDraft[];
-    modelo: ImobCardModeloDraft;
-    error: string | null;
-  } | null>(null);
+  });
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [historicoCalculadora, setHistoricoCalculadora] = useState<HistoricoItem[]>([]);
@@ -725,8 +630,6 @@ export function KanbanCardModal({
   const [criandoTag, setCriandoTag] = useState(false);
   const [editandoFunding, setEditandoFunding] = useState(false);
   const [negocioDraft, setNegocioDraft] = useState<NegocioDraftKanban>(() => negocioDraftVazio());
-  const negocioDraftRef = useRef(negocioDraft);
-  negocioDraftRef.current = negocioDraft;
   const [fasesNegocioPrazo, setFasesNegocioPrazo] = useState<FaseNegocioPrazoOpcao[]>([]);
   const [salvandoNegocio, setSalvandoNegocio] = useState(false);
   const [editandoFranqueado, setEditandoFranqueado] = useState(false);
@@ -737,7 +640,7 @@ export function KanbanCardModal({
   const [salvandoFranqueado, setSalvandoFranqueado] = useState(false);
   const [totalCardsSyncGrupo, setTotalCardsSyncGrupo] = useState(0);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
-  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'chamados' | 'calculadora'>('detalhes');
+  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'chamados' | 'trancheVinculo' | 'calculadora'>('detalhes');
 
   type AnexoSireneRow = { id: number; chamado_id: number; topico_id: number | null; uploader_nome: string | null; nome_original: string | null; origem: string | null; created_at: string };
   const [anexosSirene, setAnexosSirene] = useState<AnexoSireneRow[]>([]);
@@ -747,6 +650,7 @@ export function KanbanCardModal({
   const [uploadAnexoSireneErr, setUploadAnexoSireneErr] = useState<string | null>(null);
   const [enviandoAnexoSirene, setEnviandoAnexoSirene] = useState(false);
   const anexoSireneFileRef = useRef<HTMLInputElement>(null);
+  const [trancheVinculoIndex, setTrancheVinculoIndex] = useState<number | null>(null);
   const [trancheVinculosTick, setTrancheVinculosTick] = useState(0);
   const [emailPara, setEmailPara] = useState('');
   const [emailCc, setEmailCc] = useState('');
@@ -760,9 +664,7 @@ export function KanbanCardModal({
   const [enviandoHipotesePortfolio, setEnviandoHipotesePortfolio] = useState(false);
   const [dataReuniao, setDataReuniao] = useState('');
   const [horaReuniao, setHoraReuniao] = useState('');
-  const [dataReuniaoFaseId, setDataReuniaoFaseId] = useState<string | null>(null);
-  const [dataReuniaoEtapaSlug, setDataReuniaoEtapaSlug] = useState<string | null>(null);
-  const [modalReuniaoFasePassou, setModalReuniaoFasePassou] = useState(false);
+  const [dataFollowup, setDataFollowup] = useState('');
   const [interacoes, setInteracoes] = useState<InteracaoModal[]>([]);
   const [erroCarregarChamados, setErroCarregarChamados] = useState<string | null>(null);
   const [modalSessao, setModalSessao] = useState<{
@@ -802,13 +704,6 @@ export function KanbanCardModal({
   });
   const [novoChamadoFormAberto, setNovoChamadoFormAberto] = useState(false);
   const [modalNovoChamadoAberto, setModalNovoChamadoAberto] = useState(false);
-  const [vincularChamadoAberto, setVincularChamadoAberto] = useState(false);
-  const [vincularChamadoIdInput, setVincularChamadoIdInput] = useState('');
-  const [vinculandoChamado, setVinculandoChamado] = useState(false);
-  const [vincularChamadoResultados, setVincularChamadoResultados] = useState<
-    { id: number; numero: number | null; incendio: string | null; card_id: string | null }[]
-  >([]);
-  const [buscandoChamadoSirene, setBuscandoChamadoSirene] = useState(false);
   const [novaAtividadeAberta, setNovaAtividadeAberta] = useState(false);
   const [subInteracoesPorPai, setSubInteracoesPorPai] = useState<Record<string, SubInteracaoModal[]>>({});
   const [subExpandida, setSubExpandida] = useState<Record<string, boolean>>({});
@@ -840,8 +735,6 @@ export function KanbanCardModal({
     parentInteracaoId: string;
     topicoId: string;
     nomeAtividade: string;
-    /** `sirene_chamados.id` — habilita passo 2 (vínculo à perícia) no modal. */
-    chamadoId?: number;
   } | null>(null);
   const [classificandoPendente, setClassificandoPendente] = useState(false);
   const [modalDetalhes, setModalDetalhes] = useState<KanbanCardModalDetalhes>({
@@ -895,8 +788,8 @@ export function KanbanCardModal({
   } | null>(null);
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
   const [modalConfirmacaoPortfolio, setModalConfirmacaoPortfolio] = useState<{
-    dominio: 'portfolio' | 'operacoes' | 'loteadores';
-    tipo: PortfolioConfirmacaoModalTipo | OperacoesConfirmacaoFaseTipo | LoteadoresConfirmacaoFaseTipo;
+    dominio: 'portfolio' | 'operacoes';
+    tipo: PortfolioConfirmacaoFaseTipo | OperacoesConfirmacaoFaseTipo;
     destinoFase: KanbanFase;
     direcao: 'avancar' | 'retroceder';
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string };
@@ -927,8 +820,6 @@ export function KanbanCardModal({
     setFiltrosOpen(false);
     setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
     setPreObraDraft(preObraDraftFromProcesso(null));
-    preObraAlinhadoComCalcRef.current = null;
-    operacoesPreObraAlinhadoComCalcRef.current = null;
     setFundingDraft(fundingDraftVazio());
     setOperacoesPreObraDraft({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY });
     setCreditoObraAbertura(null);
@@ -989,11 +880,7 @@ export function KanbanCardModal({
     setEmailMensagem('');
     setDataReuniao('');
     setHoraReuniao('');
-    setDataReuniaoFaseId(null);
-    setDataReuniaoEtapaSlug(null);
-    setModalReuniaoFasePassou(false);
-    setDetalhesCarregando(true);
-    setChamadosCarregando(true);
+    setDataFollowup('');
   }, [cardId]);
 
   // Assunto padrão ao abrir o card (N°Franquia_NomeCondomínio a partir do título).
@@ -1046,16 +933,13 @@ export function KanbanCardModal({
     if (filtros.lista === 'abertas' && filtros.situacao === 'concluida') {
       setFiltros((f) => ({ ...f, situacao: 'qualquer' }));
     }
-    if (filtrosDraft.lista === 'abertas' && filtrosDraft.situacao === 'concluida') {
-      setFiltrosDraft((f) => ({ ...f, situacao: 'qualquer' }));
-    }
-  }, [filtros.lista, filtros.situacao, filtrosDraft.lista, filtrosDraft.situacao]);
+  }, [filtros.lista, filtros.situacao]);
 
   useEffect(() => {
     if (!filtrosOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setFiltros({ ...filtrosDraft });
+        setFiltrosDraft({ ...filtros });
         setFiltrosOpen(false);
       }
     };
@@ -1063,7 +947,7 @@ export function KanbanCardModal({
       const t = e.target as Node;
       if (filtrosPopoverRef.current?.contains(t)) return;
       if (filtrosBtnRef.current?.contains(t)) return;
-      setFiltros({ ...filtrosDraft });
+      setFiltrosDraft({ ...filtros });
       setFiltrosOpen(false);
     };
     window.addEventListener('keydown', onKey);
@@ -1072,7 +956,7 @@ export function KanbanCardModal({
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('mousedown', onDown);
     };
-  }, [filtrosOpen, filtrosDraft]);
+  }, [filtrosOpen, filtros]);
 
   useEffect(() => {
     let fileInputAtivado = false;
@@ -1165,51 +1049,9 @@ export function KanbanCardModal({
 
   async function loadCard(opts?: { silencioso?: boolean }) {
     const silencioso = Boolean(opts?.silencioso && card);
-    const gen = ++loadCardGenRef.current;
-    const stillCurrent = () => loadCardGenRef.current === gen;
-    const cardIdNorm = String(cardId ?? '').trim();
-    if (!cardIdNorm) {
-      alert('Card não encontrado');
-      onClose();
-      return;
-    }
-    if (!silencioso) {
-      setLoading(true);
-      setDetalhesCarregando(true);
-      setChamadosCarregando(true);
-      setFonteDadosLaterais(null);
-      setInteracoes([]);
-      setSubInteracoesPorPai({});
-      setErroCarregarChamados(null);
-      setImobSimulacoesPrefetch(null);
-    }
+    if (!silencioso) setLoading(true);
     try {
       const supabase = createClient();
-      const chamadosPromise = carregarChamadosDoCardModal({
-        supabase,
-        cardId: cardIdNorm,
-        stillCurrent,
-        onTimes: (times) => {
-          if (stillCurrent()) setKanbanTimes(times);
-        },
-        onInteracoes: (rows) => {
-          if (!stillCurrent()) return;
-          setErroCarregarChamados(null);
-          setInteracoes(rows);
-        },
-        onSubs: (porPai) => {
-          if (stillCurrent()) setSubInteracoesPorPai(porPai);
-        },
-      }).then((result) => {
-        if (!stillCurrent()) return result;
-        if (result.error) setErroCarregarChamados(result.error);
-        setChamadosCarregando(false);
-        return result;
-      });
-      const fontePromise =
-        origem === 'legado'
-          ? Promise.resolve(null as FonteDadosLaterais | null)
-          : resolverFonteDadosLateraisCard(supabase, cardIdNorm, '', String(kanbanNome));
 
       try {
         const {
@@ -1258,7 +1100,6 @@ export function KanbanCardModal({
         concluido?: boolean;
         concluido_em?: string | null;
         arquivado?: boolean;
-        resultado?: 'perda' | 'ganho' | null;
         nome_condominio?: string | null;
         condominio_id?: string | null;
         quadra?: string | null;
@@ -1268,8 +1109,6 @@ export function KanbanCardModal({
         data_reuniao?: string | null;
         data_followup?: string | null;
         hora_reuniao?: string | null;
-        data_reuniao_fase_id?: string | null;
-        data_reuniao_etapa_slug?: string | null;
         projeto_id?: string | null;
         processo_step_one_id?: string | null;
         acoplamento_concluido?: boolean;
@@ -1286,7 +1125,6 @@ export function KanbanCardModal({
         entered_fase_at?: string | null;
         opcao_assinada_em?: string | null;
         contrato_assinado_em?: string | null;
-        contrato_condicoes_precedentes?: boolean | null;
         obra_iniciada_em?: string | null;
         obra_finalizada_em?: string | null;
         funding_tipo?: 'Investidor' | 'Broker' | null;
@@ -1305,7 +1143,7 @@ export function KanbanCardModal({
           .select(
             'id, titulo, status, criado_em, fase_id, responsavel_id, kanban_id, etapa_slug, origem, data_reuniao, data_followup',
           )
-          .eq('id', cardIdNorm)
+          .eq('id', cardId)
           .maybeSingle();
 
         if (vErr || !vRow) {
@@ -1350,7 +1188,7 @@ export function KanbanCardModal({
         };
 
         try {
-          const [pmRes, evRes, procAnchorRes] = await Promise.all([
+          const [pmRes, evRes] = await Promise.all([
             supabase.from('processo_step_one').select('status, updated_at').eq('id', loaded.id).maybeSingle(),
             supabase
               .from('processo_card_eventos')
@@ -1358,11 +1196,6 @@ export function KanbanCardModal({
               .eq('processo_id', loaded.id)
               .eq('tipo', 'card_move')
               .order('created_at', { ascending: true }),
-            supabase
-              .from('processo_step_one')
-              .select('data_reuniao_etapa_slug')
-              .eq('id', loaded.id)
-              .maybeSingle(),
           ]);
           const pm = pmRes.data as { status?: string | null; updated_at?: string | null } | null;
           loaded.processo_meta = pm
@@ -1371,10 +1204,6 @@ export function KanbanCardModal({
                 updated_at: String(pm.updated_at ?? ''),
               }
             : null;
-          const anchorSlug = (procAnchorRes.data as { data_reuniao_etapa_slug?: string | null } | null)
-            ?.data_reuniao_etapa_slug;
-          loaded.data_reuniao_etapa_slug =
-            anchorSlug != null && String(anchorSlug).trim() !== '' ? String(anchorSlug).trim() : null;
           const evRows = (evRes.data ?? []) as { created_at: string; detalhes?: unknown }[];
           setLegadoCronologiaMoves(
             evRows.map((r) => ({
@@ -1389,46 +1218,33 @@ export function KanbanCardModal({
       } else {
         setLegadoCronologiaMoves([]);
         const cardSelectConfirmacao =
-          'opcao_assinada_em, contrato_assinado_em, contrato_condicoes_precedentes, obra_iniciada_em, obra_finalizada_em';
+          'opcao_assinada_em, contrato_assinado_em, obra_iniciada_em, obra_finalizada_em';
         const cardSelectCore =
-          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, resultado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_reuniao_fase_id, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
+          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
         const cardSelectPreObra =
           'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra';
         const cardSelectFunding =
           'funding_tipo, funding_localizacao, funding_descritivo';
         const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}`;
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at`;
-        let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardIdNorm).maybeSingle();
-        const selectFalhouColuna = (msg: string) =>
-          /does not exist|schema cache|could not find/i.test(msg);
-        if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
+        let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).single();
+        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
           const cardSelectSemFunding = `${cardSelectCore}, ${cardSelectPreObra}, sla_iniciado_em, entered_fase_at`;
-          cardRes = await supabase.from('kanban_cards').select(cardSelectSemFunding).eq('id', cardIdNorm).maybeSingle();
+          cardRes = await supabase.from('kanban_cards').select(cardSelectSemFunding).eq('id', cardId).single();
         }
-        if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(`${cardSelectBase}, sla_iniciado_em, entered_fase_at`).eq('id', cardIdNorm).maybeSingle();
+        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
+          cardRes = await supabase.from('kanban_cards').select(`${cardSelectBase}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).single();
         }
-        if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(`${cardSelectCore}, sla_iniciado_em, entered_fase_at`).eq('id', cardIdNorm).maybeSingle();
+        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
+          cardRes = await supabase.from('kanban_cards').select(`${cardSelectCore}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).single();
         }
-        if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(cardSelectCore).eq('id', cardIdNorm).maybeSingle();
-        }
-        if (cardRes.error && selectFalhouColuna(cardRes.error.message)) {
-          cardRes = await supabase
-            .from('kanban_cards')
-            .select(
-              'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, resultado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_reuniao_fase_id, data_followup, hora_reuniao, projeto_id, processo_step_one_id',
-            )
-            .eq('id', cardIdNorm)
-            .maybeSingle();
+        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
+          cardRes = await supabase.from('kanban_cards').select(cardSelectCore).eq('id', cardId).single();
         }
         const { data: cardData, error: cardError } = cardRes;
 
         if (cardError || !cardData) {
-          const detalhe = cardError?.message ? ` (${cardError.message})` : '';
-          console.error('[KanbanCardModal] falha ao carregar card', cardIdNorm, cardError);
-          alert(`Card não encontrado${detalhe}`);
+          alert('Card não encontrado');
           onClose();
           return;
         }
@@ -1446,11 +1262,6 @@ export function KanbanCardModal({
           concluido: Boolean((cardData as { concluido?: boolean | null }).concluido),
           concluido_em: ccem != null && String(ccem).trim() !== '' ? String(ccem) : null,
           arquivado: Boolean((cardData as { arquivado?: boolean | null }).arquivado),
-          resultado: (() => {
-            const r = String((cardData as { resultado?: string | null }).resultado ?? '').trim();
-            if (r === 'perda' || r === 'ganho') return r;
-            return null;
-          })(),
           nome_condominio: (cardData as { nome_condominio?: string | null }).nome_condominio ?? null,
           condominio_id: (() => {
             const cid = (cardData as { condominio_id?: string | null }).condominio_id;
@@ -1461,10 +1272,6 @@ export function KanbanCardModal({
           rede_franqueado_id:
             (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null,
           data_reuniao: (cardData as { data_reuniao?: string | null }).data_reuniao ?? null,
-          data_reuniao_fase_id: (() => {
-            const fid = (cardData as { data_reuniao_fase_id?: string | null }).data_reuniao_fase_id;
-            return fid != null && String(fid).trim() !== '' ? String(fid) : null;
-          })(),
           data_followup: (cardData as { data_followup?: string | null }).data_followup ?? null,
           hora_reuniao: (cardData as { hora_reuniao?: string | null }).hora_reuniao ?? null,
           projeto_id: (() => {
@@ -1509,11 +1316,6 @@ export function KanbanCardModal({
             (cardData as { contrato_assinado_em?: string | null }).contrato_assinado_em != null
               ? String((cardData as { contrato_assinado_em?: string | null }).contrato_assinado_em)
               : null,
-          contrato_condicoes_precedentes: (() => {
-            const v = (cardData as { contrato_condicoes_precedentes?: boolean | null })
-              .contrato_condicoes_precedentes;
-            return v === true || v === false ? v : null;
-          })(),
           obra_iniciada_em:
             (cardData as { obra_iniciada_em?: string | null }).obra_iniciada_em != null
               ? String((cardData as { obra_iniciada_em?: string | null }).obra_iniciada_em)
@@ -1547,8 +1349,16 @@ export function KanbanCardModal({
         return;
       }
 
+      let profiles: Card['profiles'] = null;
+      if (isAdmin && loaded.franqueado_id) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', loaded.franqueado_id)
+          .single();
+        profiles = profileData ?? null;
+      }
 
-      // ——— Fase 1 (shell): card + fase o mais cedo possível ———
       let cardParaEstado: Card = {
         id: loaded.id,
         titulo: loaded.titulo,
@@ -1566,7 +1376,6 @@ export function KanbanCardModal({
         concluido: loaded.concluido ?? false,
         concluido_em: loaded.concluido_em ?? null,
         arquivado: loaded.arquivado ?? false,
-        resultado: loaded.resultado ?? null,
         projeto_id: loaded.projeto_id ?? null,
         acoplamento_concluido: loaded.acoplamento_concluido,
         acoplamento_filho_fase_nome: loaded.acoplamento_filho_fase_nome ?? null,
@@ -1577,94 +1386,84 @@ export function KanbanCardModal({
         juridico_ok: loaded.juridico_ok,
         credito_obra_ok: loaded.credito_obra_ok,
         processo_meta: loaded.processo_meta ?? null,
-        profiles: null,
-        processo_step_one_id: loaded.processo_step_one_id ?? null,
-        alvara_url: loaded.alvara_url ?? null,
-        docs_terreno_url: loaded.docs_terreno_url ?? null,
-        sla_iniciado_em: loaded.sla_iniciado_em ?? null,
-        entered_fase_at: loaded.entered_fase_at ?? null,
-        opcao_assinada_em: loaded.opcao_assinada_em ?? null,
-        contrato_assinado_em: loaded.contrato_assinado_em ?? null,
-        contrato_condicoes_precedentes: loaded.contrato_condicoes_precedentes ?? null,
-        obra_iniciada_em: loaded.obra_iniciada_em ?? null,
-        obra_finalizada_em: loaded.obra_finalizada_em ?? null,
-        funding_tipo: loaded.funding_tipo ?? null,
-        funding_localizacao: loaded.funding_localizacao ?? null,
-        funding_descritivo: loaded.funding_descritivo ?? null,
-        proxima_atividade: loaded.proxima_atividade ?? null,
-        prazo_atividade: loaded.prazo_atividade ?? null,
+        profiles,
       };
 
-      const prazosNegocioPromise = fetchFasesNegocioPrazoOpcoes(supabase);
-      const detalhesPainelPromise = (async () => {
-        try {
-          let processoStepOneId =
-            String(loaded.processo_step_one_id ?? cardParaEstado.processo_step_one_id ?? '').trim() ||
-            null;
-          if (
-            origem === 'nativo' &&
-            !processoStepOneId &&
-            isLoteadoresKanbanRef(loaded.kanban_id, String(kanbanNome))
-          ) {
-            const ensured = await ensureProcessoStepOneForKanbanCard(loaded.id);
-            if (ensured.ok) {
-              processoStepOneId = ensured.processoId;
-              cardParaEstado = { ...cardParaEstado, processo_step_one_id: processoStepOneId };
-              if (stillCurrent()) setCard(cardParaEstado);
-            }
-          }
-          let det = await fetchKanbanCardModalDetalhes(supabase, {
-            origem,
-            cardId: loaded.id,
-            cardTitulo: cardParaEstado.titulo,
-            redeFranqueadoId:
-              origem === 'nativo'
-                ? cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId
-                : null,
-            cardProjetoId: loaded.projeto_id ?? null,
-            cardProcessoStepOneId: processoStepOneId,
-          });
-          if (!stillCurrent()) return;
-          setModalDetalhes(det);
-          setPreObraDraft(preObraDraftFromProcesso(det.processo));
-          setDetalhesCarregando(false);
-
-          const opcoesNegocioPrazo = await prazosNegocioPromise;
-          if (!stillCurrent()) return;
-          setFasesNegocioPrazo(opcoesNegocioPrazo);
-          setNegocioDraft(negocioDraftFromProcesso(det.processo, opcoesNegocioPrazo));
-
-          if (origem === 'nativo' && det.processo?.id) {
-            const syncLinks = await reconciliarGboxPlanilhaMapaChecklist({
-              cardId: loaded.id,
-              processoId: det.processo.id,
-            });
-            if (syncLinks.ok && syncLinks.alterado) {
-              det = await fetchKanbanCardModalDetalhes(supabase, {
-                origem,
-                cardId: loaded.id,
-                cardTitulo: cardParaEstado.titulo,
-                redeFranqueadoId:
-                  origem === 'nativo'
-                    ? cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId
-                    : null,
-                cardProjetoId: loaded.projeto_id ?? null,
-                cardProcessoStepOneId: processoStepOneId ?? det.processo.id,
-              });
-              if (!stillCurrent()) return;
-              setModalDetalhes(det);
-              setPreObraDraft(preObraDraftFromProcesso(det.processo));
-              setNegocioDraft(negocioDraftFromProcesso(det.processo, opcoesNegocioPrazo));
-            }
-          }
-        } catch {
-          if (!stillCurrent()) return;
-          setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
-          setPreObraDraft(preObraDraftFromProcesso(null));
-          setNegocioDraft(negocioDraftVazio());
-          setDetalhesCarregando(false);
+      if (origem !== 'legado' && cardParaEstado.kanban_id) {
+        const brief: KanbanCardBrief = {
+          id: cardParaEstado.id,
+          titulo: cardParaEstado.titulo,
+          status: cardParaEstado.status,
+          created_at: cardParaEstado.created_at,
+          fase_id: cardParaEstado.fase_id,
+          franqueado_id: cardParaEstado.franqueado_id,
+          kanban_id: cardParaEstado.kanban_id,
+          projeto_id: cardParaEstado.projeto_id,
+          acoplamento_concluido: cardParaEstado.acoplamento_concluido,
+          acoplamento_filho_fase_nome: cardParaEstado.acoplamento_filho_fase_nome,
+          acoplamento_filho_fase_slug: cardParaEstado.acoplamento_filho_fase_slug,
+          credito_terreno_ok: cardParaEstado.credito_terreno_ok,
+          contabilidade_ok: cardParaEstado.contabilidade_ok,
+          capital_ok: cardParaEstado.capital_ok,
+          juridico_ok: cardParaEstado.juridico_ok,
+          credito_obra_ok: cardParaEstado.credito_obra_ok,
+        };
+        const enrichedList = await enrichCardsParalelasContext(supabase, cardParaEstado.kanban_id, [brief]);
+        const enrichedRow = enrichedList[0];
+        if (enrichedRow) {
+          cardParaEstado = {
+            ...cardParaEstado,
+            portfolio_vinculo_rotulo: enrichedRow.portfolio_vinculo_rotulo,
+            tem_filho_juridico: enrichedRow.tem_filho_juridico,
+            tem_filho_acoplamento: enrichedRow.tem_filho_acoplamento,
+            filho_acoplamento_arquivado: enrichedRow.filho_acoplamento_arquivado,
+            tem_filho_operacoes: enrichedRow.tem_filho_operacoes,
+            filho_operacoes_arquivado: enrichedRow.filho_operacoes_arquivado,
+            operacoes_filho_fase_rotulo: enrichedRow.operacoes_filho_fase_rotulo,
+            operacoes_filho_concluido: enrichedRow.operacoes_filho_concluido,
+            juridico_filho_fase_nome: enrichedRow.juridico_filho_fase_nome,
+            acoplamento_filho_fase_nome: enrichedRow.filho_acoplamento_arquivado
+              ? enrichedRow.acoplamento_filho_fase_nome ?? null
+              : enrichedRow.acoplamento_filho_fase_nome ?? cardParaEstado.acoplamento_filho_fase_nome,
+            acoplamento_filho_fase_slug: enrichedRow.filho_acoplamento_arquivado
+              ? enrichedRow.acoplamento_filho_fase_slug ?? null
+              : enrichedRow.acoplamento_filho_fase_slug ?? cardParaEstado.acoplamento_filho_fase_slug,
+          };
         }
-      })();
+      }
+
+      try {
+        const syncInfo = await obterInfoSyncGrupoCard(cardParaEstado.id);
+        if (syncInfo.ok) {
+          setTotalCardsSyncGrupo(syncInfo.totalVinculados);
+          const c = syncInfo.camposCanonicos;
+          if (c) {
+            if (c.titulo) cardParaEstado = { ...cardParaEstado, titulo: c.titulo };
+            if (c.rede_franqueado_id) {
+              cardParaEstado = { ...cardParaEstado, rede_franqueado_id: c.rede_franqueado_id };
+            }
+            if (c.nome_condominio !== undefined) {
+              cardParaEstado = { ...cardParaEstado, nome_condominio: c.nome_condominio };
+            }
+            if (c.condominio_id !== undefined) {
+              cardParaEstado = { ...cardParaEstado, condominio_id: c.condominio_id };
+            }
+            if (c.quadra !== undefined) cardParaEstado = { ...cardParaEstado, quadra: c.quadra };
+            if (c.lote !== undefined) cardParaEstado = { ...cardParaEstado, lote: c.lote };
+            if (c.data_reuniao !== undefined) {
+              const drCanon = c.data_reuniao ? String(c.data_reuniao).slice(0, 10) : '';
+              if (drCanon && dataIsoInputValida(drCanon)) {
+                loaded = { ...loaded, data_reuniao: c.data_reuniao };
+              }
+            }
+            if (c.hora_reuniao !== undefined) {
+              loaded = { ...loaded, hora_reuniao: c.hora_reuniao };
+            }
+          }
+        }
+      } catch {
+        setTotalCardsSyncGrupo(0);
+      }
 
       if (origem === 'legado') {
         try {
@@ -1681,120 +1480,91 @@ export function KanbanCardModal({
               lote?: string | null;
               condominio_id?: string | null;
             };
-            const nFranquiaLegado =
-              String(pr.numero_franquia ?? '').trim() ||
-              extrairNumeroFranquiaDoTitulo(cardParaEstado.titulo) ||
-              null;
             const tituloCalc = montarTituloCardSync({
-              nFranquia: nFranquiaLegado,
+              nFranquia: pr.numero_franquia,
               nomeCondominio: pr.nome_condominio ?? cardParaEstado.nome_condominio,
-              quadra: cardParaEstado.quadra ?? pr.quadra,
-              lote: cardParaEstado.lote ?? pr.lote,
+              quadra: pr.quadra ?? cardParaEstado.quadra,
+              lote: pr.lote ?? cardParaEstado.lote,
               tituloFallback: cardParaEstado.titulo,
             });
             cardParaEstado = {
               ...cardParaEstado,
               nome_condominio: pr.nome_condominio ?? cardParaEstado.nome_condominio,
               condominio_id: pr.condominio_id ?? cardParaEstado.condominio_id,
-              quadra: cardParaEstado.quadra ?? pr.quadra,
-              lote: cardParaEstado.lote ?? pr.lote,
-              titulo: escolherTituloExibicaoCard(
-                cardParaEstado.titulo,
-                tituloCalc,
-                nFranquiaLegado,
-                undefined,
-                {
-                  nomeCondominio: pr.nome_condominio ?? cardParaEstado.nome_condominio,
-                  quadra: cardParaEstado.quadra ?? pr.quadra,
-                  lote: cardParaEstado.lote ?? pr.lote,
-                },
-              ),
+              quadra: pr.quadra ?? cardParaEstado.quadra,
+              lote: pr.lote ?? cardParaEstado.lote,
+              titulo: tituloCalc ?? cardParaEstado.titulo,
             };
           }
         } catch {
           /* mantém título da view */
         }
-      } else {
-        try {
-          const processoId = String(cardParaEstado.processo_step_one_id ?? '').trim();
-          type ProcTituloRow = {
-            numero_franquia?: string | null;
-            nome_condominio?: string | null;
-            quadra?: string | null;
-            lote?: string | null;
-            condominio_id?: string | null;
-          };
-          let procRow: ProcTituloRow | null = null;
-          if (processoId) {
-            const { data } = await supabase
-              .from('processo_step_one')
-              .select('numero_franquia, nome_condominio, quadra, lote, condominio_id')
-              .eq('id', processoId)
-              .maybeSingle();
-            procRow = (data as ProcTituloRow | null) ?? null;
-          }
-
-          let nFranquia: string | null = null;
-          const redeId = String(cardParaEstado.rede_franqueado_id ?? '').trim();
-          if (redeId) {
-            const { data: redeRow } = await supabase
-              .from('rede_franqueados')
-              .select('n_franquia')
-              .eq('id', redeId)
-              .maybeSingle();
-            nFranquia =
-              String((redeRow as { n_franquia?: string | null } | null)?.n_franquia ?? '').trim() ||
-              null;
-          }
-          if (!nFranquia) {
-            nFranquia =
-              String(procRow?.numero_franquia ?? '').trim() ||
-              extrairNumeroFranquiaDoTitulo(cardParaEstado.titulo) ||
-              null;
-          }
-
-          const tituloCalc = montarTituloCardSync({
-            nFranquia,
-            nomeCondominio: procRow?.nome_condominio ?? cardParaEstado.nome_condominio,
-            quadra: cardParaEstado.quadra ?? procRow?.quadra,
-            lote: cardParaEstado.lote ?? procRow?.lote,
-            tituloFallback: cardParaEstado.titulo,
-          });
-          cardParaEstado = {
-            ...cardParaEstado,
-            nome_condominio: procRow?.nome_condominio ?? cardParaEstado.nome_condominio,
-            condominio_id: procRow?.condominio_id ?? cardParaEstado.condominio_id,
-            quadra: cardParaEstado.quadra ?? procRow?.quadra,
-            lote: cardParaEstado.lote ?? procRow?.lote,
-            titulo: escolherTituloExibicaoCard(
-              cardParaEstado.titulo,
-              tituloCalc,
-              nFranquia,
-              undefined,
-              {
-                nomeCondominio: procRow?.nome_condominio ?? cardParaEstado.nome_condominio,
-                quadra: cardParaEstado.quadra ?? procRow?.quadra,
-                lote: cardParaEstado.lote ?? procRow?.lote,
-              },
-            ),
-          };
-        } catch {
-          /* mantém título do kanban_cards */
-        }
       }
 
+      setCard(cardParaEstado);
+      const dr = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
+      setDataReuniao(dr && dataIsoInputValida(dr) ? dr : '');
+      setHoraReuniao(
+        loaded.hora_reuniao ? String(loaded.hora_reuniao).trim().slice(0, 5) : '',
+      );
+      setDataFollowup(loaded.data_followup ? String(loaded.data_followup).slice(0, 10) : '');
+
+      // Carregar tags
+      if (loaded.kanban_id) {
+        const [tk, tc] = await Promise.all([listarTagsKanban(loaded.kanban_id), listarTagsCard(loaded.id)]);
+        setTagsKanban(tk);
+        setTagsCard(tc);
+      }
+
+      try {
+        let det = await fetchKanbanCardModalDetalhes(supabase, {
+          origem,
+          cardId: loaded.id,
+          cardTitulo: cardParaEstado.titulo,
+          redeFranqueadoId:
+            origem === 'nativo'
+              ? cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId
+              : null,
+          cardProjetoId: loaded.projeto_id ?? null,
+          cardProcessoStepOneId: loaded.processo_step_one_id ?? null,
+        });
+        if (origem === 'nativo' && det.processo?.id) {
+          const syncLinks = await reconciliarGboxPlanilhaMapaChecklist({
+            cardId: loaded.id,
+            processoId: det.processo.id,
+          });
+          if (syncLinks.ok && syncLinks.alterado) {
+            det = await fetchKanbanCardModalDetalhes(supabase, {
+              origem,
+              cardId: loaded.id,
+              cardTitulo: cardParaEstado.titulo,
+              redeFranqueadoId:
+                cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId ?? null,
+              cardProjetoId: loaded.projeto_id ?? null,
+              cardProcessoStepOneId: loaded.processo_step_one_id ?? null,
+            });
+          }
+        }
+        setModalDetalhes(det);
+        const opcoesNegocioPrazo = await fetchFasesNegocioPrazoOpcoes(supabase);
+        setFasesNegocioPrazo(opcoesNegocioPrazo);
+        setPreObraDraft(preObraDraftFromProcesso(det.processo));
+        setNegocioDraft(negocioDraftFromProcesso(det.processo, opcoesNegocioPrazo));
+      } catch {
+        setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
+        setPreObraDraft(preObraDraftFromProcesso(null));
+        setNegocioDraft(negocioDraftVazio());
+      }
 
       const mapFaseRow = mapKanbanFaseRow;
 
       let fasesParaHistorico: KanbanFase[] = [];
       if (!fasesProp?.length) {
         let mapped = await fetchKanbanFasesAtivas(supabase, loaded.kanban_id);
-        if (!stillCurrent()) return;
         if (loaded.fase_id && !mapped.some((f) => f.id === loaded.fase_id)) {
           mapped = await augmentKanbanFasesComFasesDosCards(supabase, loaded.kanban_id, mapped, [
             loaded.fase_id,
           ]);
-          if (!stillCurrent()) return;
         }
         fasesParaHistorico = mapped;
         setFases(mapped);
@@ -1819,373 +1589,332 @@ export function KanbanCardModal({
             fasesResolved,
             [loaded.fase_id],
           );
-          if (!stillCurrent()) return;
         }
         fasesParaHistorico = fasesResolved;
         setFases(fasesResolved);
         setFaseAtual(fasesResolved.find((f) => f.id === loaded.fase_id) ?? null);
       }
 
-      if (!stillCurrent()) return;
-      const fonteFallback: FonteDadosLaterais = isLoteadoresKanbanRef(
-        cardParaEstado.kanban_id,
-        String(kanbanNome),
-      )
-        ? { tipo: 'loteador', cardIdFonte: cardParaEstado.id }
-        : { tipo: 'franqueado', cardIdFonte: cardParaEstado.id };
-      void fontePromise
-        .then((fonte) => {
-          if (!stillCurrent()) return;
-          setFonteDadosLaterais(fonte ?? fonteFallback);
-        })
-        .catch(() => {
-          if (!stillCurrent()) return;
-          setFonteDadosLaterais(fonteFallback);
-        });
-      setCard(cardParaEstado);
-      void carregarImobSimulacoesCard(supabase, cardIdNorm)
-        .then((r) => {
-          if (!stillCurrent()) return;
-          setImobSimulacoesPrefetch({
-            cardId: cardIdNorm,
-            itens: r.ok ? r.itens : [],
-            modelo: r.ok ? r.modelo : emptyImobCardModeloDraft(),
-            error: r.ok ? null : r.error,
-          });
-        })
-        .catch((err) => {
-          console.error('[KanbanCardModal] prefetch IMOB', err);
-          if (!stillCurrent()) return;
-          setImobSimulacoesPrefetch({
-            cardId: cardIdNorm,
-            itens: [],
-            modelo: emptyImobCardModeloDraft(),
-            error: err instanceof Error ? err.message : 'Falha ao carregar Modelo e Simulações IMOB.',
-          });
-        });
-      {
-        const drShell = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
-        const drValida = drShell && dataIsoInputValida(drShell) ? drShell : '';
-        setDataReuniao(drValida);
-        setHoraReuniao(
-          loaded.hora_reuniao ? String(loaded.hora_reuniao).trim().slice(0, 5) : '',
-        );
-        const faseAnchor =
-          loaded.data_reuniao_fase_id != null && String(loaded.data_reuniao_fase_id).trim() !== ''
-            ? String(loaded.data_reuniao_fase_id).trim()
-            : null;
-        const etapaAnchor =
-          loaded.data_reuniao_etapa_slug != null && String(loaded.data_reuniao_etapa_slug).trim() !== ''
-            ? String(loaded.data_reuniao_etapa_slug).trim()
-            : null;
-        setDataReuniaoFaseId(faseAnchor);
-        setDataReuniaoEtapaSlug(etapaAnchor);
-        setModalReuniaoFasePassou(
-          devePerguntarReinicioReuniao({
-            dataReuniao: drValida || loaded.data_reuniao,
-            origem,
-            faseIdAtual: loaded.fase_id,
-            dataReuniaoFaseId: faseAnchor,
-            etapaSlugAtual: loaded.etapa_slug ?? null,
-            dataReuniaoEtapaSlug: etapaAnchor,
-          }),
-        );
+      let cacheKanbanTimes: KanbanTimeRow[] = [];
+      try {
+        const { data: kt } = await supabase.from('kanban_times').select('id, nome').order('nome');
+        cacheKanbanTimes = (kt ?? []).map((r) => ({ id: String(r.id), nome: String(r.nome) }));
+        setKanbanTimes(cacheKanbanTimes);
+      } catch {
+        setKanbanTimes([]);
       }
-      if (!silencioso) setLoading(false);
+      const nomePorTimeId = new Map(cacheKanbanTimes.map((t) => [t.id, t.nome]));
 
-      await new Promise<void>((r) => {
-        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => r());
-        else setTimeout(() => r(), 0);
-      });
-      if (!stillCurrent()) return;
-
-      // ——— Fase 2: enriquecimentos pesados (não bloqueiam o shell) ———
-      await Promise.all([
-        (async () => {
-          let next = cardParaEstado;
-          if (isAdmin && loaded.franqueado_id) {
-            try {
-              const { data: profileData } = await supabase
-                .from('profiles')
-                .select('full_name')
-                .eq('id', loaded.franqueado_id)
-                .maybeSingle();
-              if (profileData) next = { ...next, profiles: profileData };
-            } catch {
-              /* ignore */
-            }
+      try {
+        const emailsMoni = [...MONI_TODOS_EMAILS];
+        const [hdmProfRes, profOptsRes] = await Promise.all([
+          supabase.from('profiles').select('id, full_name, email').in('email', emailsMoni),
+          supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .order('full_name', { ascending: true, nullsFirst: false })
+            .limit(500),
+        ]);
+        const profOptsErr = profOptsRes.error;
+        if (profOptsErr) throw profOptsErr;
+        const byId = new Map<string, { id: string; nome: string; email: string | null }>();
+        const ingestProf = (rows: { id: string; full_name?: string | null; email?: string | null }[] | null) => {
+          for (const p of rows ?? []) {
+            const id = String(p.id);
+            const em = String(p.email ?? '')
+              .trim()
+              .toLowerCase();
+            const fn = String(p.full_name ?? '').trim();
+            byId.set(id, { id, nome: fn || em || id.slice(0, 8), email: em || null });
           }
-          if (origem !== 'legado' && next.kanban_id) {
-            try {
-              const brief: KanbanCardBrief = {
-                id: next.id,
-                titulo: next.titulo,
-                status: next.status,
-                created_at: next.created_at,
-                fase_id: next.fase_id,
-                franqueado_id: next.franqueado_id,
-                kanban_id: next.kanban_id,
-                projeto_id: next.projeto_id,
-                acoplamento_concluido: next.acoplamento_concluido,
-                acoplamento_filho_fase_nome: next.acoplamento_filho_fase_nome,
-                acoplamento_filho_fase_slug: next.acoplamento_filho_fase_slug,
-                credito_terreno_ok: next.credito_terreno_ok,
-                contabilidade_ok: next.contabilidade_ok,
-                capital_ok: next.capital_ok,
-                juridico_ok: next.juridico_ok,
-                credito_obra_ok: next.credito_obra_ok,
-              };
-              const enrichedList = await enrichCardsParalelasContext(
-                supabase,
-                next.kanban_id,
-                [brief],
-                undefined,
-                String(kanbanNome),
-              );
-              const enrichedRow = enrichedList[0];
-              if (enrichedRow) {
-                next = {
-                  ...next,
-                  portfolio_vinculo_rotulo: enrichedRow.portfolio_vinculo_rotulo,
-                  tem_filho_juridico: enrichedRow.tem_filho_juridico,
-                  tem_filho_acoplamento: enrichedRow.tem_filho_acoplamento,
-                  filho_acoplamento_arquivado: enrichedRow.filho_acoplamento_arquivado,
-                  tem_filho_operacoes: enrichedRow.tem_filho_operacoes,
-                  filho_operacoes_arquivado: enrichedRow.filho_operacoes_arquivado,
-                  operacoes_filho_fase_rotulo: enrichedRow.operacoes_filho_fase_rotulo,
-                  operacoes_filho_concluido: enrichedRow.operacoes_filho_concluido,
-                  juridico_filho_fase_nome: enrichedRow.juridico_filho_fase_nome,
-                  tem_filho_projeto_legal: enrichedRow.tem_filho_projeto_legal,
-                  filho_projeto_legal_arquivado: enrichedRow.filho_projeto_legal_arquivado,
-                  projeto_legal_filho_concluido: enrichedRow.projeto_legal_filho_concluido,
-                  projeto_legal_filho_fase: enrichedRow.projeto_legal_filho_fase,
-                  tem_filho_credito_obra: enrichedRow.tem_filho_credito_obra,
-                  filho_credito_obra_arquivado: enrichedRow.filho_credito_obra_arquivado,
-                  credito_obra_filho_fase: enrichedRow.credito_obra_filho_fase,
-                  tem_filho_projetos_locais: enrichedRow.tem_filho_projetos_locais,
-                  filho_projetos_locais_arquivado: enrichedRow.filho_projetos_locais_arquivado,
-                  projetos_locais_filho_fase: enrichedRow.projetos_locais_filho_fase,
-                  projetos_locais_filho_concluido: enrichedRow.projetos_locais_filho_concluido,
-                  tem_filho_divify: enrichedRow.tem_filho_divify,
-                  filho_divify_arquivado: enrichedRow.filho_divify_arquivado,
-                  divify_filho_concluido: enrichedRow.divify_filho_concluido,
-                  divify_filho_fase: enrichedRow.divify_filho_fase,
-                  acoplamento_filho_fase_nome: enrichedRow.filho_acoplamento_arquivado
-                    ? enrichedRow.acoplamento_filho_fase_nome ?? null
-                    : enrichedRow.acoplamento_filho_fase_nome ?? next.acoplamento_filho_fase_nome,
-                  acoplamento_filho_fase_slug: enrichedRow.filho_acoplamento_arquivado
-                    ? enrichedRow.acoplamento_filho_fase_slug ?? null
-                    : enrichedRow.acoplamento_filho_fase_slug ?? next.acoplamento_filho_fase_slug,
-                };
-              }
-            } catch {
-              /* ignore */
-            }
+        };
+        ingestProf((hdmProfRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
+        ingestProf((profOptsRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
+        setResponsaveisOpcoes([...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')));
+      } catch {
+        setResponsaveisOpcoes([]);
+      }
+
+      try {
+        setVisitsCalculadoraCarregado(false);
+        const hist = await loadHistoricoCardModal(
+          supabase,
+          cardId,
+          origem === 'legado' ? 'legado' : 'nativo',
+          fasesParaHistorico,
+          loaded.kanban_id,
+        );
+        setHistorico(hist);
+        if (origem !== 'legado') {
+          const histCalc = await loadHistoricoCalculadoraEsteira(
+            supabase,
+            cardId,
+            'nativo',
+            fasesEsteiraCalculadora,
+          );
+          setHistoricoCalculadora(histCalc);
+          const visitsCalc = await buildVisitsCalculadoraEsteiraSyncGroup(
+            supabase,
+            cardId,
+            'nativo',
+            fasesEsteiraCalculadora,
+          );
+          setVisitsCalculadora(visitsCalc);
+          setVisitsCalculadoraCarregado(true);
+        } else {
+          setHistoricoCalculadora(hist);
+          setVisitsCalculadora([]);
+          setVisitsCalculadoraCarregado(true);
+        }
+      } catch {
+        setHistorico([]);
+        setHistoricoCalculadora([]);
+        setVisitsCalculadora([]);
+        setVisitsCalculadoraCarregado(false);
+      }
+
+      try {
+        setComentariosCard(await carregarComentariosCardModal(cardId));
+      } catch {
+        setComentariosCard([]);
+      }
+
+      try {
+        const { data: tokRow } = await supabase
+          .from('kanban_card_form_tokens')
+          .select('email_candidato')
+          .eq('card_id', cardId)
+          .not('email_candidato', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const emailTok = (tokRow as { email_candidato?: string | null } | null)?.email_candidato;
+        if (emailTok) setEmailPara(emailTok);
+      } catch {
+        // sem token — mantém campo vazio
+      }
+
+      try {
+        const interacoesSelect =
+          'id, titulo, descricao, categoria, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por, arquivado, sirene_chamado_id, numero';
+        let interacoesData: Record<string, unknown>[] | null = null;
+        let interacoesError: { message: string } | null = null;
+        {
+          const first = await supabase
+          .from('kanban_atividades')
+            .select(interacoesSelect)
+          .eq('card_id', cardId)
+          .order('ordem', { ascending: true });
+          interacoesData = (first.data ?? null) as Record<string, unknown>[] | null;
+          interacoesError = first.error;
+          if (interacoesError && /ordem/i.test(interacoesError.message)) {
+            const fallback = await supabase
+              .from('kanban_atividades')
+              .select(interacoesSelect)
+              .eq('card_id', cardId)
+              .order('created_at', { ascending: true });
+            interacoesData = (fallback.data ?? null) as Record<string, unknown>[] | null;
+            interacoesError = fallback.error;
           }
-          try {
-            const syncInfo = await obterInfoSyncGrupoCard(next.id);
-            if (syncInfo.ok) {
-              setTotalCardsSyncGrupo(syncInfo.totalVinculados);
-              const c = syncInfo.camposCanonicos;
-              if (c) {
-                if (c.titulo) next = { ...next, titulo: c.titulo };
-                if (c.rede_franqueado_id) {
-                  next = { ...next, rede_franqueado_id: c.rede_franqueado_id };
-                }
-                if (c.nome_condominio !== undefined) {
-                  next = { ...next, nome_condominio: c.nome_condominio };
-                }
-                if (c.condominio_id !== undefined) {
-                  next = { ...next, condominio_id: c.condominio_id };
-                }
-                if (c.quadra !== undefined) {
-                  next = { ...next, quadra: c.quadra };
-                }
-                if (c.lote !== undefined) {
-                  next = { ...next, lote: c.lote };
-                }
-                if (c.data_reuniao !== undefined) {
-                  const drCanon = c.data_reuniao ? String(c.data_reuniao).slice(0, 10) : '';
-                  if (drCanon && dataIsoInputValida(drCanon)) setDataReuniao(drCanon);
-                }
-                if (c.hora_reuniao !== undefined) {
-                  setHoraReuniao(c.hora_reuniao ? String(c.hora_reuniao).trim().slice(0, 5) : '');
-                }
-              }
-            }
-          } catch {
-            setTotalCardsSyncGrupo(0);
+        }
+
+        if (interacoesError) {
+          console.error('[KanbanCardModal] falha ao carregar kanban_atividades', interacoesError);
+          setErroCarregarChamados(interacoesError.message);
+          setInteracoes([]);
+          setSubInteracoesPorPai({});
+        } else if (!interacoesData?.length) {
+          setErroCarregarChamados(null);
+          setInteracoes([]);
+          setSubInteracoesPorPai({});
+        } else {
+          setErroCarregarChamados(null);
+          const rawRespArrays = interacoesData.map((a) => (a as { responsaveis_ids?: unknown }).responsaveis_ids);
+          const respFromArrays = rawRespArrays.flatMap((arr) =>
+            Array.isArray(arr) ? arr.map((x) => String(x)) : [],
+          );
+          const responsavelIds = [
+            ...new Set([
+              ...interacoesData.map((a) => a.responsavel_id).filter(Boolean),
+              ...respFromArrays,
+            ]),
+          ] as string[];
+          let responsaveisMap = new Map<string, { full_name: string | null }>();
+          if (responsavelIds.length > 0) {
+            const { data: responsaveisData } = await supabase
+              .from('profiles')
+              .select('id, full_name')
+              .in('id', responsavelIds);
+            responsaveisMap = new Map(responsaveisData?.map((r) => [r.id, { full_name: r.full_name }]) || []);
           }
-          if (!stillCurrent()) return;
-          cardParaEstado = next;
-          setCard(next);
-        })(),
-        detalhesPainelPromise,
+          const mapeadas: InteracaoModal[] = interacoesData
+            .map((a) => {
+            const rawIds = (a as { times_ids?: unknown }).times_ids;
+            const ids = Array.isArray(rawIds) ? rawIds.map((x) => String(x)) : [];
+            const rawR = (a as { responsaveis_ids?: unknown }).responsaveis_ids;
+            let respIds = Array.isArray(rawR) ? rawR.map((x) => String(x)) : [];
+            const rid = a.responsavel_id ? String(a.responsavel_id) : null;
+            if (respIds.length === 0 && rid) respIds = [rid];
+            const tipoRaw = (a as { tipo?: string }).tipo;
+            const tipo: 'atividade' | 'duvida' | 'proposicoes' = tipoRaw === 'duvida' ? 'duvida' : tipoRaw === 'proposicoes' ? 'proposicoes' : 'atividade';
+            const times_resolvidos = ids.map((id) => ({ id, nome: nomePorTimeId.get(id) ?? id.slice(0, 8) }));
+            const responsaveis_resolvidos = respIds.map((id) => ({
+              id,
+              nome: responsaveisMap.get(id)?.full_name?.trim() || id.slice(0, 8),
+            }));
+            const primeiroResp = respIds[0] ?? rid;
+            const cp = (a as { criado_por?: string | null }).criado_por;
+            const rnt = (a as { responsavel_nome_texto?: string | null }).responsavel_nome_texto;
+            const responsavel_nome_texto =
+              rnt != null && String(rnt).trim() !== '' ? String(rnt).trim() : null;
+            return {
+              id: String(a.id),
+              titulo: String(a.titulo ?? ''),
+              descricao: (a.descricao as string | null) ?? null,
+              categoria: ((a as { categoria?: string }).categoria === 'melhoria' ? 'melhoria' : 'chamado') as
+                | 'chamado'
+                | 'melhoria',
+              tipo,
+              times_ids: ids,
+              responsaveis_ids: respIds,
+              trava: Boolean((a as { trava?: boolean }).trava),
+              status: a.status as InteracaoModal['status'],
+              prioridade: (a.prioridade as InteracaoModal['prioridade']) ?? 'normal',
+              data_vencimento: (a.data_vencimento as string | null) ?? null,
+              responsavel_id: rid,
+              responsavel_nome_texto,
+              time: (a.time as string | null) ?? null,
+              created_at: String(a.created_at),
+              concluida_em: (a.concluida_em as string | null) ?? null,
+              criado_por: cp != null && String(cp).trim() !== '' ? String(cp) : null,
+              profiles: primeiroResp ? responsaveisMap.get(primeiroResp) ?? null : null,
+              times_resolvidos,
+              responsaveis_resolvidos,
+              arquivado: Boolean((a as { arquivado?: boolean | null }).arquivado),
+              numero: (() => {
+                const n = Number((a as { numero?: number | null }).numero);
+                return Number.isFinite(n) ? n : null;
+              })(),
+              sirene_chamado_id: (() => {
+                const sid = (a as { sirene_chamado_id?: number | string | null }).sirene_chamado_id;
+                if (sid == null || sid === '') return null;
+                const n = Number(sid);
+                return Number.isFinite(n) ? n : null;
+              })(),
+            };
+          })
+            .filter((a) => !a.arquivado);
+          setInteracoes(mapeadas);
 
-        (async () => {
-          // Carregar tags
-          if (loaded.kanban_id) {
-            const [tk, tc] = await Promise.all([
-              listarTagsKanban(loaded.kanban_id),
-              listarTagsCard(loaded.id),
-            ]);
-            if (!stillCurrent()) return;
-            setTagsKanban(tk);
-            setTagsCard(tc);
+          const actIds = mapeadas.map((m) => m.id);
+          const { data: topicosRows } = await supabase
+            .from('sirene_topicos')
+            .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, arquivado, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
+            .eq('arquivado', false)
+            .in('interacao_id', actIds)
+            .order('ordem', { ascending: true });
+
+          const topicos = topicosRows ?? [];
+          const tRespIds = [
+            ...new Set(
+              topicos.flatMap((t) => {
+                const arr = (t as { responsaveis_ids?: unknown }).responsaveis_ids;
+                return Array.isArray(arr) ? arr.map((x) => String(x)) : [];
+              }),
+            ),
+          ] as string[];
+          const tTimeIds = [
+            ...new Set(
+              topicos.flatMap((t) => {
+                const arr = (t as { times_ids?: unknown }).times_ids;
+                return Array.isArray(arr) ? arr.map((x) => String(x)) : [];
+              }),
+            ),
+          ] as string[];
+          let profTop = new Map<string, { full_name: string | null }>();
+          if (tRespIds.length > 0) {
+            const { data: pr } = await supabase.from('profiles').select('id, full_name').in('id', tRespIds);
+            profTop = new Map((pr ?? []).map((r) => [String((r as { id: string }).id), { full_name: (r as { full_name?: string | null }).full_name ?? null }]));
           }
-        })(),
-
-        (async () => {
-          try {
-            const rows = await carregarComentariosCardModal(cardIdNorm);
-            if (!stillCurrent()) return;
-            setComentariosCard(rows);
-          } catch {
-            if (!stillCurrent()) return;
-            setComentariosCard([]);
+          const timeTopMap = new Map(cacheKanbanTimes.map((t) => [t.id, t.nome]));
+          const porPai: Record<string, SubInteracaoModal[]> = {};
+          for (const t of topicos) {
+            const iid = String((t as { interacao_id: string }).interacao_id);
+            const rawTi = (t as { times_ids?: unknown }).times_ids;
+            const ti = Array.isArray(rawTi) ? rawTi.map((x) => String(x)) : [];
+            const rawRi = (t as { responsaveis_ids?: unknown }).responsaveis_ids;
+            let ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
+            const st = String((t as { status?: string }).status ?? 'nao_iniciado') as SubInteracaoStatusDb;
+            const tipoRaw = String((t as { tipo?: string }).tipo ?? 'atividade').toLowerCase();
+            const tipoSub: SubInteracaoTipoDb =
+              tipoRaw === 'duvida' || tipoRaw === 'chamado' || tipoRaw === 'proposicoes' ? (tipoRaw as SubInteracaoTipoDb) : 'atividade';
+            const row: SubInteracaoModal = {
+              id: String((t as { id: number }).id),
+              interacao_id: iid,
+              tipo: tipoSub,
+              nome: String((t as { nome?: string }).nome ?? (t as { descricao?: string }).descricao ?? ''),
+              descricao: String((t as { descricao?: string }).descricao ?? ''),
+              descricao_detalhe: (t as { descricao_detalhe?: string | null }).descricao_detalhe ?? null,
+              times_ids: ti,
+              responsaveis_ids: ri,
+              times_resolvidos: ti.map((id) => ({ id, nome: timeTopMap.get(id) ?? id.slice(0, 8) })),
+              responsaveis_resolvidos: ri.map((id) => ({
+                id,
+                nome: profTop.get(id)?.full_name?.trim() || id.slice(0, 8),
+              })),
+              data_fim: (t as { data_fim?: string | null }).data_fim != null ? String((t as { data_fim: string }).data_fim).slice(0, 10) : null,
+              ...camposPrazoNegociacaoDeTopicoRow(t as Record<string, unknown>),
+              status: ['nao_iniciado', 'em_andamento', 'concluido', 'aprovado'].includes(st) ? st : 'nao_iniciado',
+              trava: Boolean((t as { trava?: boolean }).trava),
+              pastel: Boolean((t as { pastel?: boolean }).pastel),
+              historico: Array.isArray((t as { historico?: unknown }).historico)
+                ? ((t as { historico: Array<{ tipo: string; em: string }> }).historico ?? [])
+                : [],
+              atribuicao_status: (t as { atribuicao_status?: string | null }).atribuicao_status ?? null,
+              atribuicao_recusado_por: (t as { atribuicao_recusado_por?: string | null }).atribuicao_recusado_por ?? null,
+              atribuicao_justificativa: (t as { atribuicao_justificativa?: string | null }).atribuicao_justificativa ?? null,
+            };
+            if (!porPai[iid]) porPai[iid] = [];
+            porPai[iid]!.push(row);
           }
-        })(),
+          setSubInteracoesPorPai(porPai);
+        }
+      } catch (e) {
+        console.error('[KanbanCardModal] exceção ao carregar chamados', e);
+        setErroCarregarChamados('Erro inesperado ao carregar chamados.');
+        setInteracoes([]);
+        setSubInteracoesPorPai({});
+      }
 
-        (async () => {
-                try {
-                  const cacheKanbanTimes = await fetchKanbanTimesCached(supabase);
-                  if (stillCurrent()) setKanbanTimes(cacheKanbanTimes);
-                } catch {
-                  if (stillCurrent()) setKanbanTimes([]);
-                }
+      if (origem !== 'legado') {
+        const faseCarregada = fasesParaHistorico.find((f) => f.id === loaded.fase_id);
+        const slugAbertura = faseCarregada?.slug?.trim() ?? '';
+        if (loaded.kanban_id === KANBAN_IDS.OPERACOES && slugAbertura === FASE_SLUGS.APROVACAO_PREFEITURA) {
+          const pend = await consultarAberturaCreditoObraPendente(loaded.id);
+          if (pend.ok && pend.deveExibir) {
+            setCreditoObraAbertura({
+              tituloCard: pend.tituloCard,
+              dataEnvio: pend.dataEnvio,
+              dataEnvioExibicao: pend.dataEnvioExibicao,
+            });
+          } else {
+            setCreditoObraAbertura(null);
+          }
+        } else {
+          setCreditoObraAbertura(null);
+        }
 
-                try {
-                  const emailsMoni = [...MONI_TODOS_EMAILS];
-                  const [hdmProfRes, profOptsRes] = await Promise.all([
-                    supabase.from('profiles').select('id, full_name, email').in('email', emailsMoni),
-                    supabase
-                      .from('profiles')
-                      .select('id, full_name, email')
-                      .order('full_name', { ascending: true, nullsFirst: false })
-                      .limit(500),
-                  ]);
-                  const profOptsErr = profOptsRes.error;
-                  if (profOptsErr) throw profOptsErr;
-                  const byId = new Map<string, { id: string; nome: string; email: string | null }>();
-                  const ingestProf = (rows: { id: string; full_name?: string | null; email?: string | null }[] | null) => {
-                    for (const p of rows ?? []) {
-                      const id = String(p.id);
-                      const em = String(p.email ?? '')
-                        .trim()
-                        .toLowerCase();
-                      const fn = String(p.full_name ?? '').trim();
-                      byId.set(id, { id, nome: fn || em || id.slice(0, 8), email: em || null });
-                    }
-                  };
-                  ingestProf((hdmProfRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
-                  ingestProf((profOptsRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
-                  setResponsaveisOpcoes([...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')));
-                } catch {
-                  setResponsaveisOpcoes([]);
-                }
-                try {
-                  if (origem === 'legado') {
-                    await garantirShadowCardLegadoParaHistorico(cardIdNorm);
-                  }
-                  setVisitsCalculadoraCarregado(false);
-                  const histOrigem = origem === 'legado' ? 'legado' : 'nativo';
-                  const procStepOneId = loaded.processo_step_one_id ?? null;
-                  const hist = await loadHistoricoCardModal(
-                    supabase,
-                    cardIdNorm,
-                    histOrigem,
-                    fasesParaHistorico,
-                    loaded.kanban_id,
-                    procStepOneId,
-                  );
-                  setHistorico(hist);
-                  if (origem !== 'legado') {
-                    const histCalc = await loadHistoricoCalculadoraEsteira(
-                      supabase,
-                      cardIdNorm,
-                      'nativo',
-                      fasesEsteiraCalculadora,
-                      procStepOneId,
-                    );
-                    setHistoricoCalculadora(histCalc);
-                    const visitsCalc = await buildVisitsCalculadoraEsteiraSyncGroup(
-                      supabase,
-                      cardIdNorm,
-                      'nativo',
-                      fasesEsteiraCalculadora,
-                      procStepOneId,
-                    );
-                    setVisitsCalculadora(visitsCalc);
-                    setVisitsCalculadoraCarregado(true);
-                  } else {
-                    setHistoricoCalculadora(hist);
-                    setVisitsCalculadora([]);
-                    setVisitsCalculadoraCarregado(true);
-                  }
-                } catch {
-                  setHistorico([]);
-                  setHistoricoCalculadora([]);
-                  setVisitsCalculadora([]);
-                  setVisitsCalculadoraCarregado(false);
-                }
-                try {
-                  const { data: tokRow } = await supabase
-                    .from('kanban_card_form_tokens')
-                    .select('email_candidato')
-                    .eq('card_id', cardIdNorm)
-                    .not('email_candidato', 'is', null)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-                  const emailTok = (tokRow as { email_candidato?: string | null } | null)?.email_candidato;
-                  if (emailTok) setEmailPara(emailTok);
-                } catch {
-                  // sem token — mantém campo vazio
-                }
-                if (origem !== 'legado') {
-                  const faseCarregada = fasesParaHistorico.find((f) => f.id === loaded.fase_id);
-                  const slugAbertura = faseCarregada?.slug?.trim() ?? '';
-                  if (loaded.kanban_id === KANBAN_IDS.OPERACOES && slugAbertura === FASE_SLUGS.APROVACAO_PREFEITURA) {
-                    const pend = await consultarAberturaCreditoObraPendente(loaded.id);
-                    if (pend.ok && pend.deveExibir) {
-                      setCreditoObraAbertura({
-                        tituloCard: pend.tituloCard,
-                        dataEnvio: pend.dataEnvio,
-                        dataEnvioExibicao: pend.dataEnvioExibicao,
-                      });
-                    } else {
-                      setCreditoObraAbertura(null);
-                    }
-                  } else {
-                    setCreditoObraAbertura(null);
-                  }
-
-                  if (
-                    loaded.kanban_id === KANBAN_IDS.PORTFOLIO &&
-                    slugAbertura === FASE_SLUGS.PASSAGEM_WAYSER
-                  ) {
-                    void garantirBastaoPassagemWayser(loaded.id);
-                  }
-                  if (
-                    loaded.kanban_id === KANBAN_IDS.LOTEADORES &&
-                    slugAbertura === FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC
-                  ) {
-                    void garantirBastaoPassagemWaysersLoteadores(loaded.id);
-                  }
-                }
-        })(),
-        chamadosPromise,
-      ]);
-
-      if (!stillCurrent()) return;
+        if (
+          loaded.kanban_id === KANBAN_IDS.PORTFOLIO &&
+          slugAbertura === FASE_SLUGS.PASSAGEM_WAYSER
+        ) {
+          void garantirBastaoPassagemWayser(loaded.id);
+        }
+      }
     } catch {
       // noop
     } finally {
-      if (stillCurrent()) {
-        if (!silencioso) setLoading(false);
-        setDetalhesCarregando(false);
-        setChamadosCarregando(false);
-      }
+      if (!silencioso) setLoading(false);
     }
   }
 
@@ -2203,14 +1932,7 @@ export function KanbanCardModal({
     if (topicoId) {
       setSubAtividadeExpandida((s) => ({ ...s, [topicoId]: true }));
     }
-    const it = interacoes.find((i) => i.id === interacaoId);
-    if (!it) return;
-    const st = statusEfetivoChamadoKanban(it, subInteracoesPorPai[it.id] ?? []);
-    if (st === 'concluida' || st === 'cancelada') {
-      setFiltros((f) => (f.lista === 'todas' ? f : { ...f, lista: 'todas' }));
-      setFiltrosDraft((f) => (f.lista === 'todas' ? f : { ...f, lista: 'todas' }));
-    }
-  }, [deepLinkInteracaoId, deepLinkTopicoId, interacoes, subInteracoesPorPai]);
+  }, [deepLinkInteracaoId, deepLinkTopicoId, interacoes.length]);
 
   useEffect(() => {
     const topicoId = String(deepLinkTopicoId ?? '').trim();
@@ -2299,8 +2021,8 @@ export function KanbanCardModal({
       });
       setNovoChamadoFormAberto(false);
       setNovaAtividadeAberta(false);
-      // Atualização pontual do modal — não altera o board
       await loadCard();
+      router.refresh();
     } catch {
       alert('Erro ao criar chamado.');
     } finally {
@@ -2352,8 +2074,8 @@ export function KanbanCardModal({
         return;
       }
       setEditingId(null);
-      // Conteúdo interno do chamado — board inalterado
       await loadCard();
+      router.refresh();
     } catch {
       alert('Erro ao salvar chamado.');
     } finally {
@@ -2365,7 +2087,7 @@ export function KanbanCardModal({
     const supabase = createClient();
     const { data: topicosRows } = await supabase
       .from('sirene_topicos')
-      .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, prazo_sla_original, status, trava, pastel, historico, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
+      .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa')
       .eq('interacao_id', interacaoId)
       .order('ordem', { ascending: true });
     const topicos = topicosRows ?? [];
@@ -2535,8 +2257,8 @@ export function KanbanCardModal({
       return;
     }
     await reloadSubsForParent(interacaoId);
-    // Sub-interação interna — board inalterado
     await loadCard();
+    router.refresh();
   }
 
   async function handleSubStatusChange(
@@ -2546,14 +2268,7 @@ export function KanbanCardModal({
     nomeAtividade?: string,
   ) {
     if (status === 'concluido') {
-      const pai = interacoes.find((i) => i.id === parentInteracaoId);
-      const sid = pai?.sirene_chamado_id;
-      setClassificacaoPendente({
-        parentInteracaoId,
-        topicoId,
-        nomeAtividade: nomeAtividade ?? 'Atividade',
-        chamadoId: sid != null && Number.isFinite(Number(sid)) ? Number(sid) : undefined,
-      });
+      setClassificacaoPendente({ parentInteracaoId, topicoId, nomeAtividade: nomeAtividade ?? 'Atividade' });
       return;
     }
     const res = await atualizarStatusSubInteracao(topicoId, status, basePath);
@@ -2561,8 +2276,8 @@ export function KanbanCardModal({
       alert(res.error);
       return;
     }
-    // Status de atividade interna — board inalterado
     await loadCard();
+    router.refresh();
   }
 
   async function confirmarClassificacao(classificacao: 'pontual' | 'recorrente') {
@@ -2578,8 +2293,8 @@ export function KanbanCardModal({
     setClassificandoPendente(false);
     setClassificacaoPendente(null);
     if (!res.ok) { alert(res.error); return; }
-    // Classificação de atividade interna — board inalterado
     await loadCard();
+    router.refresh();
   }
 
   async function handleTogglePastel(subId: string, checked: boolean) {
@@ -2621,8 +2336,8 @@ export function KanbanCardModal({
       alert(res.error);
       return;
     }
-    // Status do chamado interno — board inalterado
     await loadCard();
+    router.refresh();
   }
 
   async function confirmarConclusaoInteracaoCard(payload: {
@@ -2640,8 +2355,8 @@ export function KanbanCardModal({
       return;
     }
     setConclusaoInteracaoId(null);
-    // Conclusão de chamado interno — board inalterado
     await loadCard();
+    router.refresh();
   }
 
   async function handleConfirmarFinalizarCard() {
@@ -2751,7 +2466,6 @@ export function KanbanCardModal({
       } else {
         const { error } = await supabase.from('kanban_cards').update({ fase_id: destinoFase.id }).eq('id', card.id);
         if (error) throw error;
-        await sincronizarTagsAutomaticasCard(card.id);
       }
       await loadCard({ silencioso: true });
       router.refresh();
@@ -2762,12 +2476,9 @@ export function KanbanCardModal({
     }
   }
 
-  function tipoConfirmacaoSaidaAtual(
-    direcao: 'avancar' | 'retroceder' = 'avancar',
-  ):
+  function tipoConfirmacaoSaidaAtual():
     | { dominio: 'portfolio'; tipo: PortfolioConfirmacaoFaseTipo }
     | { dominio: 'operacoes'; tipo: OperacoesConfirmacaoFaseTipo }
-    | { dominio: 'loteadores'; tipo: LoteadoresConfirmacaoFaseTipo }
     | null {
     if (!card || isLegado) return null;
     const portfolio = deveConfirmarSaidaFasePortfolio({
@@ -2782,31 +2493,14 @@ export function KanbanCardModal({
       origemCard: origem,
     });
     if (operacoes) return { dominio: 'operacoes', tipo: operacoes };
-    const loteadores = deveConfirmarSaidaFaseLoteadores({
-      kanbanId: card.kanban_id,
-      faseSlug: faseAtual?.slug,
-      origemCard: origem,
-      direcao,
-    });
-    if (loteadores) return { dominio: 'loteadores', tipo: loteadores };
     return null;
-  }
-
-  function tituloConfirmacaoSaida(modal: NonNullable<typeof modalConfirmacaoPortfolio>): string {
-    if (modal.dominio === 'loteadores') {
-      return loteadoresConfirmacaoTitulo(modal.tipo as LoteadoresConfirmacaoFaseTipo);
-    }
-    return 'Confirmação';
   }
 
   function perguntaConfirmacaoSaida(modal: NonNullable<typeof modalConfirmacaoPortfolio>): string {
     if (modal.dominio === 'operacoes') {
       return operacoesConfirmacaoPergunta(modal.tipo as OperacoesConfirmacaoFaseTipo);
     }
-    if (modal.dominio === 'loteadores') {
-      return loteadoresConfirmacaoPergunta(modal.tipo as LoteadoresConfirmacaoFaseTipo);
-    }
-    return portfolioConfirmacaoModalPergunta(modal.tipo as PortfolioConfirmacaoModalTipo);
+    return portfolioConfirmacaoPergunta(modal.tipo as PortfolioConfirmacaoFaseTipo);
   }
 
   async function iniciarMovimentoFasePortfolio(
@@ -2814,7 +2508,7 @@ export function KanbanCardModal({
     direcao: 'avancar' | 'retroceder',
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string },
   ) {
-    const confirmacaoSaida = tipoConfirmacaoSaidaAtual(direcao);
+    const confirmacaoSaida = tipoConfirmacaoSaidaAtual();
     if (confirmacaoSaida) {
       setModalJustificativaSla(null);
       setSlaJustificativaDraft('');
@@ -2852,29 +2546,9 @@ export function KanbanCardModal({
   async function concluirConfirmacaoPortfolio(confirmou: boolean) {
     const modal = modalConfirmacaoPortfolio;
     if (!modal || !card) return;
-
-    // Funil Loteadores (Prompt 9): «Não» cancela o avanço; «Sim» registra e avança.
-    if (modal.dominio === 'loteadores' && !confirmou) {
-      setModalConfirmacaoPortfolio(null);
-      return;
-    }
-
     setSalvandoConfirmacaoPortfolio(true);
     try {
-      if (modal.dominio === 'portfolio' && modal.tipo === 'condicoes_precedentes') {
-        const res = await registrarContratoCondicoesPrecedentesPortfolio({
-          cardId: card.id,
-          comCondicoesPrecedentes: confirmou,
-          basePath,
-        });
-        if (!res.ok) {
-          alert(res.error ?? 'Não foi possível registrar a confirmação.');
-          return;
-        }
-        setCard((prev) =>
-          prev ? { ...prev, contrato_condicoes_precedentes: confirmou } : prev,
-        );
-      } else if (confirmou) {
+      if (confirmou) {
         const res =
           modal.dominio === 'operacoes'
             ? await registrarConfirmacaoFaseOperacoes({
@@ -2882,36 +2556,15 @@ export function KanbanCardModal({
                 tipo: modal.tipo as OperacoesConfirmacaoFaseTipo,
                 basePath,
               })
-            : modal.dominio === 'loteadores'
-              ? await registrarConfirmacaoFaseLoteadores({
-                  cardId: card.id,
-                  tipo: modal.tipo as LoteadoresConfirmacaoFaseTipo,
-                  basePath,
-                })
-              : await registrarConfirmacaoFasePortfolio({
-                  cardId: card.id,
-                  tipo: modal.tipo as PortfolioConfirmacaoFaseTipo,
-                  basePath,
-                });
+            : await registrarConfirmacaoFasePortfolio({
+                cardId: card.id,
+                tipo: modal.tipo as PortfolioConfirmacaoFaseTipo,
+                basePath,
+              });
         if (!res.ok) {
           alert(res.error ?? 'Não foi possível registrar a confirmação.');
           return;
         }
-      }
-
-      if (
-        modal.dominio === 'portfolio' &&
-        modal.tipo === 'comite' &&
-        modal.direcao === 'avancar'
-      ) {
-        setModalConfirmacaoPortfolio({
-          dominio: 'portfolio',
-          tipo: 'condicoes_precedentes',
-          destinoFase: modal.destinoFase,
-          direcao: modal.direcao,
-          opts: modal.opts,
-        });
-        return;
       }
 
       if (
@@ -3215,28 +2868,22 @@ export function KanbanCardModal({
       alert('Sem permissão para desarquivar cards.');
       return;
     }
-    const ehReativacaoPerda = card.resultado === 'perda';
-    const msgConfirm = ehReativacaoPerda
-      ? 'Reativar este card? Ele voltará ao funil como ativo.'
-      : 'Desarquivar este card? Ele voltará a aparecer no kanban.';
-    if (!confirm(msgConfirm)) return;
+    if (!confirm('Desarquivar este card? Ele voltará a aparecer no kanban.')) return;
     setLoading(true);
     try {
-      const r = ehReativacaoPerda
-        ? await reativarPerdaCard({ cardId: card.id, basePath })
-        : await desarquivarCard({
-            cardId: card.id,
-            basePath,
-            origem: origem === 'legado' ? 'legado' : 'nativo',
-          });
+      const r = await desarquivarCard({
+        cardId: card.id,
+        basePath,
+        origem: origem === 'legado' ? 'legado' : 'nativo',
+      });
       if (!r.ok) {
-        alert(r.error ?? (ehReativacaoPerda ? 'Não foi possível reativar o card.' : 'Não foi possível desarquivar o card.'));
+        alert(r.error ?? 'Não foi possível desarquivar o card.');
         return;
       }
       router.refresh();
       onClose();
     } catch {
-      alert(ehReativacaoPerda ? 'Erro ao reativar o card. Tente novamente.' : 'Erro ao desarquivar o card. Tente novamente.');
+      alert('Erro ao desarquivar o card. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -3248,16 +2895,25 @@ export function KanbanCardModal({
 
   function abrirPainelCalculadora() {
     setAbaCentro('calculadora');
+    setTrancheVinculoIndex(null);
     setSecaoAberta((prev) => ({ ...prev, calculadora: true }));
   }
 
   function abrirPainelChamados() {
     setAbaCentro('chamados');
+    setTrancheVinculoIndex(null);
     setSecaoAberta((prev) => ({ ...prev, chamados: true }));
+  }
+
+  function abrirPainelTrancheVinculo(index: number) {
+    setTrancheVinculoIndex(index);
+    setAbaCentro('trancheVinculo');
+    setSecaoAberta((prev) => ({ ...prev, relacionamentos: true }));
   }
 
   function voltarPainelDetalhes() {
     setAbaCentro('detalhes');
+    setTrancheVinculoIndex(null);
   }
 
   function abrirAnexosSirene() {
@@ -3384,10 +3040,6 @@ export function KanbanCardModal({
     if (!card?.id) return;
     setSalvandoPreObra(true);
     try {
-      const dataCondo = String(operacoesPreObraDraft.condominio_aprovada_em ?? '').trim().slice(0, 10);
-      const dataPref = String(operacoesPreObraDraft.prefeitura_aprovada_em ?? '').trim().slice(0, 10);
-      const ymdOrNull = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
-
       const res = await salvarDadosPreObraOperacoes({
         cardId: card.id,
         condominio_aprovada_em: operacoesPreObraDraft.condominio_aprovada_em,
@@ -3399,43 +3051,6 @@ export function KanbanCardModal({
         alert(res.error);
         return;
       }
-
-      // Espelho Pré Obra Operações → Calculadora: persiste data fim nas fases de aprovação.
-      const cardId = card.id.trim();
-      if (cardId && calculadoraSlugPorFaseId.size > 0) {
-        const supabase = createClient();
-        const patches: Array<{ faseId: string; dataFim: string | null }> = [];
-        for (const [faseId, slug] of calculadoraSlugPorFaseId) {
-          const campo = campoDataAprovacaoOperacoesPorFaseSlug(slug);
-          if (!campo) continue;
-          const dataFim =
-            campo === 'condominio_aprovada_em' ? ymdOrNull(dataCondo) : ymdOrNull(dataPref);
-          patches.push({ faseId, dataFim });
-        }
-        if (patches.length > 0) {
-          ultimaEdicaoDatasManuaisRef.current = Date.now();
-          setDatasManuaisCalculadora((prev) => {
-            const next = new Map(prev);
-            for (const p of patches) {
-              const cur = { ...(next.get(p.faseId) ?? {}) };
-              cur.dataFim = p.dataFim;
-              if (cur.dataInicio == null && cur.dataFim == null) next.delete(p.faseId);
-              else next.set(p.faseId, cur);
-            }
-            return next;
-          });
-          for (const p of patches) {
-            await salvarDataManualCalculadoraSyncGroup(
-              supabase,
-              cardId,
-              p.faseId,
-              { dataFim: p.dataFim },
-              modalSessao.userId,
-            );
-          }
-        }
-      }
-
       await loadCard({ silencioso: true });
       router.refresh();
     } catch {
@@ -3489,10 +3104,6 @@ export function KanbanCardModal({
     }
     setSalvandoPreObra(true);
     try {
-      const dataCondo = String(preObraDraft.data_aprovacao_condominio ?? '').trim().slice(0, 10);
-      const dataPref = String(preObraDraft.data_aprovacao_prefeitura ?? '').trim().slice(0, 10);
-      const ymdOrNull = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
-
       const res = await salvarDadosPreObra({
         processoId: pid,
         cardOrigemId: card?.id,
@@ -3511,56 +3122,6 @@ export function KanbanCardModal({
         alert(res.error);
         return;
       }
-
-      // Espelho Pré Obra → Calculadora: persiste data fim nas fases de aprovação.
-      const cardId = card?.id?.trim();
-      if (cardId && calculadoraSlugPorFaseId.size > 0) {
-        const supabase = createClient();
-        const patches: Array<{ faseId: string; dataFim: string | null }> = [];
-        for (const [faseId, slug] of calculadoraSlugPorFaseId) {
-          const campo = campoDataAprovacaoPreObraPorFaseSlug(slug);
-          if (!campo) continue;
-          const dataFim =
-            campo === 'data_aprovacao_condominio' ? ymdOrNull(dataCondo) : ymdOrNull(dataPref);
-          patches.push({ faseId, dataFim });
-        }
-        if (patches.length > 0) {
-          ultimaEdicaoDatasManuaisRef.current = Date.now();
-          setDatasManuaisCalculadora((prev) => {
-            const next = new Map(prev);
-            for (const p of patches) {
-              const cur = { ...(next.get(p.faseId) ?? {}) };
-              cur.dataFim = p.dataFim;
-              if (cur.dataInicio == null && cur.dataFim == null) next.delete(p.faseId);
-              else next.set(p.faseId, cur);
-            }
-            return next;
-          });
-          for (const p of patches) {
-            await salvarDataManualCalculadoraSyncGroup(
-              supabase,
-              cardId,
-              p.faseId,
-              { dataFim: p.dataFim },
-              modalSessao.userId,
-            );
-          }
-        }
-      }
-
-      setModalDetalhes((prev) =>
-        prev.processo
-          ? {
-              ...prev,
-              processo: {
-                ...prev.processo,
-                data_aprovacao_condominio: ymdOrNull(dataCondo),
-                data_aprovacao_prefeitura: ymdOrNull(dataPref),
-              },
-            }
-          : prev,
-      );
-
       await loadCard();
       router.refresh();
     } catch {
@@ -3574,14 +3135,8 @@ export function KanbanCardModal({
     if (!card) return;
     setSalvandoNegocio(true);
     try {
-      const draft = negocioDraftRef.current;
-      const limparPrazos100Cv = isTipoNegociacao100CompraVenda(draft.tipo_aquisicao_terreno);
-      const prazoOpcao = limparPrazos100Cv
-        ? { ...NEGOCIO_PRAZO_VALORES_VAZIO }
-        : negocioPrazoValoresFromDraft(draft.prazo_opcao);
-      const prazoInstrumento = limparPrazos100Cv
-        ? { ...NEGOCIO_PRAZO_VALORES_VAZIO }
-        : negocioPrazoValoresFromDraft(draft.prazo_instrumento_garantidor);
+      const prazoOpcao = negocioPrazoValoresFromDraft(negocioDraft.prazo_opcao);
+      const prazoInstrumento = negocioPrazoValoresFromDraft(negocioDraft.prazo_instrumento_garantidor);
       const prazoOpcaoDb = negocioPrazoDbPatchFromValores(prazoOpcao, 'prazo_opcao');
       const prazoInstrumentoDb = negocioPrazoDbPatchFromValores(
         prazoInstrumento,
@@ -3591,26 +3146,23 @@ export function KanbanCardModal({
         cardId: card.id,
         processoId: modalDetalhes.processo?.id ?? '',
         payload: {
-          tipo_aquisicao_terreno: draft.tipo_aquisicao_terreno || null,
-          valor_terreno: draft.valor_terreno || null,
-          vgv_pretendido: draft.vgv_pretendido || null,
-          produto_modelo_casa: draft.produto_modelo_casa || null,
-          link_pasta_drive: draft.link_pasta_drive || null,
-          link_bca: draft.link_bca?.trim() || null,
-          link_gbox: draft.link_gbox?.trim() || null,
-          link_mapa_competidores: draft.link_mapa_competidores?.trim() || null,
-          link_acoplamento: draft.link_acoplamento?.trim() || null,
-          link_apresentacao_comite: draft.link_apresentacao_comite?.trim() || null,
-          link_opcao_permuta: draft.link_opcao_permuta?.trim() || null,
-          link_contrato_permuta: draft.link_contrato_permuta?.trim() || null,
-          link_seguro_garantia: draft.link_seguro_garantia?.trim() || null,
-          link_moni_capital_seguro_garantia: draft.link_moni_capital_seguro_garantia?.trim() || null,
+          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
+          valor_terreno: negocioDraft.valor_terreno || null,
+          vgv_pretendido: negocioDraft.vgv_pretendido || null,
+          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
+          link_pasta_drive: negocioDraft.link_pasta_drive || null,
+          link_bca: negocioDraft.link_bca?.trim() || null,
+          link_gbox: negocioDraft.link_gbox?.trim() || null,
+          link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
+          link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
+          link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
+          link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
           comentario_moni_capital_seguro_garantia:
-            draft.comentario_moni_capital_seguro_garantia?.trim() || null,
+            negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
           link_moni_capital_gastos_aporte_inicial:
-            draft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
+            negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
           comentario_moni_capital_gastos_aporte_inicial:
-            draft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
+            negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
           prazo_opcao_dias: prazoOpcaoDb.prazo_opcao_dias as number | null,
           prazo_opcao_sla_tipo: prazoOpcaoDb.prazo_opcao_sla_tipo as 'uteis' | 'corridos' | null,
           prazo_opcao_modo: prazoOpcaoDb.prazo_opcao_modo as 'fase' | 'data' | null,
@@ -3629,99 +3181,15 @@ export function KanbanCardModal({
             | string
             | null,
           prazo_instrumento_garantidor_data: prazoInstrumentoDb.prazo_instrumento_garantidor_data as string | null,
-          negociacao_linhas: negociacaoLinhasToDb(draft.negociacao_linhas),
+          negociacao_linhas: negociacaoLinhasToDb(negocioDraft.negociacao_linhas),
         },
         basePath,
       });
       if (!upd.ok) throw new Error(upd.error);
 
-      const processoIdDepois = upd.processoId?.trim() || modalDetalhes.processo?.id || '';
-      const parsedNeg = negociacaoLinhasToDb(draft.negociacao_linhas);
-      setModalDetalhes((prev) => {
-        if (!prev.processo) return prev;
-        return {
-          ...prev,
-          processo: {
-            ...prev.processo,
-            id: processoIdDepois || prev.processo.id,
-            tipo_aquisicao_terreno: draft.tipo_aquisicao_terreno || null,
-            valor_terreno: draft.valor_terreno || null,
-            vgv_pretendido: draft.vgv_pretendido || null,
-            produto_modelo_casa: draft.produto_modelo_casa || null,
-            link_pasta_drive: draft.link_pasta_drive || null,
-            link_bca: draft.link_bca?.trim() || null,
-            link_gbox: draft.link_gbox?.trim() || null,
-            link_mapa_competidores: draft.link_mapa_competidores?.trim() || null,
-            link_acoplamento: draft.link_acoplamento?.trim() || null,
-            link_apresentacao_comite: draft.link_apresentacao_comite?.trim() || null,
-            link_opcao_permuta: draft.link_opcao_permuta?.trim() || null,
-            link_contrato_permuta: draft.link_contrato_permuta?.trim() || null,
-            link_seguro_garantia: draft.link_seguro_garantia?.trim() || null,
-            link_moni_capital_seguro_garantia: draft.link_moni_capital_seguro_garantia?.trim() || null,
-            comentario_moni_capital_seguro_garantia:
-              draft.comentario_moni_capital_seguro_garantia?.trim() || null,
-            link_moni_capital_gastos_aporte_inicial:
-              draft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
-            comentario_moni_capital_gastos_aporte_inicial:
-              draft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
-            prazo_opcao_dias: prazoOpcaoDb.prazo_opcao_dias as number | null,
-            prazo_opcao_sla_tipo: prazoOpcaoDb.prazo_opcao_sla_tipo as 'uteis' | 'corridos' | null,
-            prazo_opcao_modo: prazoOpcaoDb.prazo_opcao_modo as 'fase' | 'data' | null,
-            prazo_opcao_fase_id: prazoOpcaoDb.prazo_opcao_fase_id as string | null,
-            prazo_opcao_data: prazoOpcaoDb.prazo_opcao_data as string | null,
-            prazo_instrumento_garantidor_dias:
-              prazoInstrumentoDb.prazo_instrumento_garantidor_dias as number | null,
-            prazo_instrumento_garantidor_sla_tipo:
-              prazoInstrumentoDb.prazo_instrumento_garantidor_sla_tipo as 'uteis' | 'corridos' | null,
-            prazo_instrumento_garantidor_modo:
-              prazoInstrumentoDb.prazo_instrumento_garantidor_modo as 'fase' | 'data' | null,
-            prazo_instrumento_garantidor_fase_id:
-              prazoInstrumentoDb.prazo_instrumento_garantidor_fase_id as string | null,
-            prazo_instrumento_garantidor_data:
-              prazoInstrumentoDb.prazo_instrumento_garantidor_data as string | null,
-            negociacao_linhas: parseNegociacaoLinhasFromDb(parsedNeg ?? []),
-          },
-        };
-      });
-      // Refresh leve em background — não trava o botão "Salvando…"
-      void loadCard({ silencioso: true });
+      await loadCard();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Erro ao salvar dados do negócio.');
-    } finally {
-      setSalvandoNegocio(false);
-    }
-  }
-
-  async function handlePersistNegociacaoLinhas(linhas: NegociacaoLinhaDraft[]) {
-    if (!card) return;
-    setNegocioDraft((d) => ({ ...d, negociacao_linhas: linhas }));
-    setSalvandoNegocio(true);
-    try {
-      const processoIdAntes = modalDetalhes.processo?.id ?? '';
-      const dbLinhas = negociacaoLinhasToDb(linhas);
-      const upd = await salvarDadosNegocioKanban({
-        cardId: card.id,
-        processoId: processoIdAntes,
-        payload: { negociacao_linhas: dbLinhas },
-        basePath,
-      });
-      if (!upd.ok) throw new Error(upd.error);
-
-      const processoIdDepois = upd.processoId?.trim() || processoIdAntes;
-      if (processoIdDepois && processoIdDepois !== processoIdAntes) {
-        await loadCard({ silencioso: true });
-        return;
-      }
-
-      const parsed = parseNegociacaoLinhasFromDb(dbLinhas ?? []);
-      setModalDetalhes((prev) =>
-        prev.processo
-          ? { ...prev, processo: { ...prev.processo, negociacao_linhas: parsed } }
-          : prev,
-      );
-    } catch (e) {
-      console.error('[negociacao] persistência data manual:', e);
-      alert(e instanceof Error ? e.message : 'Erro ao salvar data da negociação.');
     } finally {
       setSalvandoNegocio(false);
     }
@@ -3870,16 +3338,6 @@ export function KanbanCardModal({
     () => timesFiltroOpcoesComCatalogoMoni(kanbanTimes),
     [kanbanTimes],
   );
-  const catalogFiltroTime = useMemo(() => {
-    const seen = new Set<string>();
-    const out: typeof kanbanTimes = [];
-    for (const t of [...timesFiltroOpcoesModal, ...kanbanTimes]) {
-      if (!t.id || seen.has(t.id)) continue;
-      seen.add(t.id);
-      out.push(t);
-    }
-    return out;
-  }, [timesFiltroOpcoesModal, kanbanTimes]);
   const responsaveisFiltroOpcoesModal = useMemo(
     () => responsaveisFiltroOpcoesComCatalogoMoni(responsaveisOpcoes),
     [responsaveisOpcoes],
@@ -3933,56 +3391,61 @@ export function KanbanCardModal({
     return modalDetalhes.rede?.id?.trim() ?? null;
   }, [card?.franqueado_id, card?.rede_franqueado_id, modalDetalhes.rede?.id]);
 
-  const filtrosAtivos = filtrosOpen ? filtrosDraft : filtros;
-
   const interacoesFiltradas = useMemo(() => {
+    const situacaoEfetiva =
+      filtros.lista === 'concluidas' ? ('qualquer' as const) : filtros.situacao;
     const prazoOrdKey = (a: InteracaoModal) =>
       prazoEfetivoParaChamado(a, subInteracoesPorPai[a.id] ?? []) ?? '9999-12-31';
     const criadoTs = (a: InteracaoModal) => {
       const t = new Date(a.created_at).getTime();
       return Number.isFinite(t) ? t : 0;
     };
-    const statusDe = (it: InteracaoModal) =>
-      statusEfetivoChamadoKanban(it, subInteracoesPorPai[it.id] ?? []);
     const rankInput = (it: InteracaoModal) => {
       const subs = subInteracoesPorPai[it.id] ?? [];
       return {
         frank_id: cardFrankParaRank,
         trava: travaEfetivaParaChamado(it, subs),
         data_vencimento: prazoEfetivoParaChamado(it, subs),
-        atividade_status: statusDe(it),
+        atividade_status: it.status,
         criado_em: it.created_at,
       };
     };
-    const buscaNorm = filtrosAtivos.busca.trim().toLowerCase();
+    const buscaNorm = filtros.busca.trim().toLowerCase();
     const filtered = interacoes.filter((it) => {
       const subs = subInteracoesPorPai[it.id] ?? [];
-      const statusEfetivo = statusDe(it);
-      if (!interacaoPassaFiltroListaSituacao(statusEfetivo, filtrosAtivos.lista, filtrosAtivos.situacao)) return false;
-      if (!interacaoPassaFiltroTimeComSubs(it, subs, filtrosAtivos.time, catalogFiltroTime)) return false;
-      if (!interacaoPassaFiltroResponsavelComSubs(it, subs, filtrosAtivos.responsavel)) return false;
+      const concl = it.status === 'concluida';
+      if (filtros.lista === 'abertas') {
+        if (concl) return false;
+        if (situacaoEfetiva !== 'qualquer' && it.status !== situacaoEfetiva) return false;
+      } else if (filtros.lista === 'concluidas') {
+        if (!concl) return false;
+      } else if (situacaoEfetiva !== 'qualquer' && it.status !== situacaoEfetiva) {
+        return false;
+      }
+      if (!interacaoPassaFiltroTimeComSubs(it, subs, filtros.time, kanbanTimes)) return false;
+      if (!interacaoPassaFiltroResponsavelComSubs(it, subs, filtros.responsavel)) return false;
       if (buscaNorm) {
-        const blob = `${it.titulo} ${it.descricao ?? ''} ${it.numero ?? ''} ${subs.map((s) => `${s.nome} ${s.descricao_detalhe ?? ''}`).join(' ')}`.toLowerCase();
+        const blob = `${it.titulo} ${it.descricao ?? ''} ${subs.map((s) => `${s.nome} ${s.descricao_detalhe ?? ''}`).join(' ')}`.toLowerCase();
         if (!blob.includes(buscaNorm)) return false;
       }
       return true;
     });
     return [...filtered].sort((a, b) => {
-      if (filtrosAtivos.lista === 'todas') {
-        const ac = statusDe(a) === 'concluida' || statusDe(a) === 'cancelada';
-        const bc = statusDe(b) === 'concluida' || statusDe(b) === 'cancelada';
+      if (filtros.lista === 'todas') {
+        const ac = a.status === 'concluida';
+        const bc = b.status === 'concluida';
         if (ac !== bc) return ac ? 1 : -1;
       }
-      if (filtrosAtivos.ordenacao === 'prioridade_sirene') {
+      if (filtros.ordenacao === 'prioridade_sirene') {
         return compareChamadosPainelRank(rankInput(a), rankInput(b));
       }
-      if (filtrosAtivos.ordenacao === 'prazo_asc') return prazoOrdKey(a).localeCompare(prazoOrdKey(b));
-      if (filtrosAtivos.ordenacao === 'prazo_desc') return prazoOrdKey(b).localeCompare(prazoOrdKey(a));
-      if (filtrosAtivos.ordenacao === 'criado_asc') return criadoTs(a) - criadoTs(b);
-      if (filtrosAtivos.ordenacao === 'criado_desc') return criadoTs(b) - criadoTs(a);
+      if (filtros.ordenacao === 'prazo_asc') return prazoOrdKey(a).localeCompare(prazoOrdKey(b));
+      if (filtros.ordenacao === 'prazo_desc') return prazoOrdKey(b).localeCompare(prazoOrdKey(a));
+      if (filtros.ordenacao === 'criado_asc') return criadoTs(a) - criadoTs(b);
+      if (filtros.ordenacao === 'criado_desc') return criadoTs(b) - criadoTs(a);
       return compareChamadosPainelRank(rankInput(a), rankInput(b));
     });
-  }, [interacoes, filtrosAtivos, catalogFiltroTime, subInteracoesPorPai, cardFrankParaRank]);
+  }, [interacoes, filtros, kanbanTimes, subInteracoesPorPai, cardFrankParaRank]);
 
   const sireneChamadoIdPastel = useMemo(() => {
     for (const it of interacoes) {
@@ -3992,10 +3455,7 @@ export function KanbanCardModal({
     return null;
   }, [interacoes]);
 
-  const chamadosAbertosCount = useMemo(
-    () => countChamadosAbertosNoCard(interacoes, subInteracoesPorPai),
-    [interacoes, subInteracoesPorPai],
-  );
+  const chamadosAbertosCount = useMemo(() => countChamadosAbertosNoCard(interacoes), [interacoes]);
   const sireneChamadoIds = useMemo(
     () => [...new Set(interacoes.map((i) => (i as { sirene_chamado_id?: number | null }).sirene_chamado_id).filter((id): id is number => id != null))],
     [interacoes],
@@ -4277,18 +3737,9 @@ export function KanbanCardModal({
   }, []);
 
   const condominioIdCalculadora =
-    card?.condominio_id?.trim() ||
     contextoCalculadoraSyncGroup?.condominioIdCanonico?.trim() ||
-    (processoExplicitamenteVinculadoAoCard(
-      {
-        cardId: card?.id,
-        cardProcessoStepOneId: card?.processo_step_one_id,
-        cardProjetoId: card?.projeto_id,
-      },
-      modalDetalhes.processo?.id,
-    )
-      ? modalDetalhes.processo?.condominio_id?.trim()
-      : null) ||
+    modalDetalhes.processo?.condominio_id?.trim() ||
+    card?.condominio_id?.trim() ||
     null;
 
   useEffect(() => {
@@ -4321,36 +3772,16 @@ export function KanbanCardModal({
       ultimaEdicaoDatasManuaisRef.current = Date.now();
       setDatasManuaisCalculadora((prev) => {
         const next = new Map(prev);
-        const prevOv = prev.get(faseId) ?? {};
-        const cur = { ...prevOv };
-        if (campo === 'inicio') {
-          cur.dataInicio = valor;
-          // Ao mudar início: sempre remove override de fim para o motor recalcular a estimativa.
-          // Fases posteriores com datas manuais são preservadas (não apagar seus overrides).
-          delete cur.dataFim;
-        } else {
-          cur.dataFim = valor;
-        }
-        if (cur.dataInicio == null && cur.dataFim == null && !('dataInicio' in cur) && !('dataFim' in cur)) {
-          next.delete(faseId);
-        } else {
-          next.set(faseId, cur);
-        }
-        // Não limpar fasesPosteriores: datas manuais definidas em fases seguintes devem ser preservadas.
+        const cur = { ...(next.get(faseId) ?? {}) };
+        if (campo === 'inicio') cur.dataInicio = valor;
+        else cur.dataFim = valor;
+        next.set(faseId, cur);
+        for (const fid of fasesPosteriores) next.delete(fid);
         return next;
       });
     },
     [calculadoraFasesPack.faseIds],
   );
-
-  const calculadoraSlugPorFaseId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const [id, f] of calculadoraFasesMeta) {
-      const slug = String(f.slug ?? '').trim();
-      if (slug) map.set(id, slug);
-    }
-    return map;
-  }, [calculadoraFasesMeta]);
 
   const salvarDataCalculadora = useCallback(
     async (faseId: string, campo: 'inicio' | 'fim', valor: string | null) => {
@@ -4362,48 +3793,8 @@ export function KanbanCardModal({
 
       aplicarOverrideCalculadoraLocal(faseId, campo, valor);
 
-      // Espelho Calculadora → Pré Obra: data fim real das fases de aprovação.
-      const slug = calculadoraSlugPorFaseId.get(faseId);
-      const campoPreObraProcesso = campo === 'fim' ? campoDataAprovacaoPreObraPorFaseSlug(slug) : null;
-      const campoPreObraOperacoes = campo === 'fim' ? campoDataAprovacaoOperacoesPorFaseSlug(slug) : null;
-      const ymdPreObra =
-        valor && /^\d{4}-\d{2}-\d{2}$/.test(String(valor).trim().slice(0, 10))
-          ? String(valor).trim().slice(0, 10)
-          : '';
-      if (campoPreObraProcesso) {
-        setPreObraDraft((d) => {
-          const next = { ...d, [campoPreObraProcesso]: ymdPreObra };
-          return campoPreObraProcesso === 'data_aprovacao_prefeitura'
-            ? aplicarDataEmissaoAlvaraNoPreObra(next)
-            : next;
-        });
-        setModalDetalhes((prev) => {
-          if (!prev.processo) return prev;
-          const procNext = {
-            ...prev.processo,
-            [campoPreObraProcesso]: ymdPreObra || null,
-          };
-          if (campoPreObraProcesso === 'data_aprovacao_prefeitura' && ymdPreObra) {
-            const alvara = aplicarDataEmissaoAlvaraNoPreObra({
-              data_aprovacao_prefeitura: ymdPreObra,
-              data_emissao_alvara: String(prev.processo.data_emissao_alvara ?? '').slice(0, 10),
-            }).data_emissao_alvara;
-            if (alvara) procNext.data_emissao_alvara = alvara;
-          }
-          return { ...prev, processo: procNext };
-        });
-      }
-      if (campoPreObraOperacoes) {
-        setOperacoesPreObraDraft((d) => ({ ...d, [campoPreObraOperacoes]: ymdPreObra }));
-      }
-
       const supabase = createClient();
-      // Ao mudar início: sempre limpa data_fim no banco para o motor recalcular a estimativa.
-      // Fases posteriores com datas manuais não são alteradas (preservadas no banco).
-      const patch =
-        campo === 'inicio'
-          ? { dataInicio: valor, dataFim: null }
-          : { dataFim: valor };
+      const patch = campo === 'inicio' ? { dataInicio: valor } : { dataFim: valor };
       const result = await salvarDataManualCalculadoraSyncGroup(
         supabase,
         cardId,
@@ -4422,82 +3813,30 @@ export function KanbanCardModal({
         return result;
       }
 
-      // Opção (step_3): ancora a calculadora, limpa Step One e alinha prazo do negócio.
-      if (campo === 'fim' && slug === NEGOCIO_PRAZO_OPCAO_FASE_SLUG && valor) {
-        const ancoraResult = await salvarAncoraCalculadoraKanban({
-          cardId,
-          faseSlug: slug,
-          dataFim: valor,
-          basePath,
-        });
-        if (!ancoraResult.ok) {
-          return { ok: false, error: ancoraResult.error ?? 'Falha ao ancorar a calculadora.' };
-        }
-        setModalDetalhes((prev) =>
-          prev.processo
-            ? {
-                ...prev,
-                processo: {
-                  ...prev.processo,
-                  calculadora_ancora_fase_slug: slug,
-                  calculadora_ancora_data_fim: valor,
-                  prazo_opcao_modo: 'data',
-                  prazo_opcao_data: valor,
-                },
-              }
-            : prev,
-        );
-        const mapAncora = await buscarDatasManuaisCalculadoraSyncGroup(
-          supabase,
-          cardId,
-          calculadoraFasesPack.faseIds,
-        );
-        startTransition(() => setDatasManuaisCalculadora(mapAncora));
-      }
-
-      // Não limpar fasesPosteriores no banco: datas manuais das fases seguintes são preservadas.
-
-      if (campoPreObraProcesso) {
-        const pid = modalDetalhes.processo?.id?.trim();
-        if (pid) {
-          const syncPreObra = await salvarDadosPreObra({
-            processoId: pid,
-            cardOrigemId: cardId,
-            [campoPreObraProcesso]: ymdPreObra || null,
-            basePath,
-          });
-          if (!syncPreObra.ok) {
-            return { ok: false, error: syncPreObra.error ?? 'Falha ao espelhar Pré Obra.' };
-          }
-        }
-      }
-      if (campoPreObraOperacoes) {
-        const syncOperacoes = await salvarDadosPreObraOperacoes({
-          cardId,
-          [campoPreObraOperacoes]: ymdPreObra || null,
-          basePath,
-        });
-        if (!syncOperacoes.ok) {
-          return { ok: false, error: syncOperacoes.error ?? 'Falha ao espelhar Pré Obra Operações.' };
-        }
+      if (fasesPosteriores.length > 0) {
+        await limparDatasManuaisCalculadoraSyncGroup(supabase, cardId, fasesPosteriores);
       }
 
       return result;
     },
     [
       card?.id,
-      card?.kanban_id,
       modalSessao.userId,
       calculadoraFasesPack.faseIds,
       aplicarOverrideCalculadoraLocal,
-      datasManuaisCalculadora,
-      calculadoraSlugPorFaseId,
-      modalDetalhes.processo?.id,
-      basePath,
     ],
   );
 
-  const calculadoraLinhasPreAncoraOverlay = useMemo(() => {
+  const calculadoraSlugPorFaseId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [id, f] of calculadoraFasesMeta) {
+      const slug = String(f.slug ?? '').trim();
+      if (slug) map.set(id, slug);
+    }
+    return map;
+  }, [calculadoraFasesMeta]);
+
+  const calculadoraLinhasEncadeadas = useMemo(() => {
     if (!card) return calculadoraFasesPack.linhas;
     const ctx = contextoCalculadoraSyncGroup;
     const cardEncadeamento = ctx
@@ -4509,21 +3848,8 @@ export function KanbanCardModal({
           concluido: card.concluido,
           concluido_em: card.concluido_em,
         };
-    const comComiteCtoDil = aplicarEncadeamentoComiteCtoDiligenciaNasLinhas(
-      calculadoraFasesPack.linhas,
-      calculadoraFasesFlat,
-      {
-        contrato_condicoes_precedentes:
-          contextoCalculadoraSyncGroup?.marcosCanonicos.contrato_condicoes_precedentes ??
-          card.contrato_condicoes_precedentes ??
-          null,
-      },
-      cardEncadeamento,
-      undefined,
-      datasManuaisCalculadora,
-    );
     const encadeadas = aplicarEncadeamentoMarcoContratoNasLinhas(
-      comComiteCtoDil,
+      calculadoraFasesPack.linhas,
       calculadoraFasesFlat,
       { contrato_assinado_em: calculadoraMarcosInput.contrato_assinado_em },
       cardEncadeamento,
@@ -4542,27 +3868,8 @@ export function KanbanCardModal({
     const sincronizadas = sincronizarEstimativasFuturasAPartirFaseAtual(
       comOverrides,
       cardEncadeamento,
-      undefined,
-      datasManuaisCalculadora,
     );
-    const comOverridesFinais =
-      datasManuaisCalculadora.size > 0
-        ? aplicarDatasManuaisCalculadoraLinhas(
-            sincronizadas,
-            datasManuaisCalculadora,
-            cardEncadeamento,
-          )
-        : sincronizadas;
-    const comPrazoOpcao = aplicarPrazoOpcaoCalculadoraLinhas(
-      comOverridesFinais,
-      calculadoraMarcosInput.prazo_opcao,
-      cardEncadeamento,
-      {
-        opcaoAssinadaEm: calculadoraMarcosInput.opcao_assinada_em,
-        overrides: datasManuaisCalculadora,
-      },
-    );
-    return normalizarIntervaloDatasCalculadoraLinhas(comPrazoOpcao, cardEncadeamento);
+    return normalizarIntervaloDatasCalculadoraLinhas(sincronizadas, cardEncadeamento);
   }, [
     card,
     contextoCalculadoraSyncGroup,
@@ -4570,174 +3877,7 @@ export function KanbanCardModal({
     calculadoraFasesPack.visits,
     calculadoraFasesFlat,
     calculadoraMarcosInput.contrato_assinado_em,
-    calculadoraMarcosInput.prazo_opcao,
-    calculadoraMarcosInput.opcao_assinada_em,
-    card?.contrato_condicoes_precedentes,
     datasManuaisCalculadora,
-  ]);
-
-  const calculadoraLinhasSemPreObra = useMemo(() => {
-    if (!card) return calculadoraLinhasPreAncoraOverlay;
-    const ctx = contextoCalculadoraSyncGroup;
-    const cardEncadeamento = ctx
-      ? ctx.cardCalcCanonico
-      : {
-          fase_id: card.fase_id,
-          created_at: card.created_at,
-          entered_fase_at: card.entered_fase_at,
-          concluido: card.concluido,
-          concluido_em: card.concluido_em,
-        };
-    // Overlay oculta visitas/encadeamento nas fases anteriores à âncora; overrides manuais
-    // reaplicados por último para não perder data digitada (ex.: M0 Contrato «est.»).
-    const comAncoraOverlay = aplicarOverlayAncoraOcultarFasesAnteriores(
-      calculadoraLinhasPreAncoraOverlay,
-      calculadoraAncora,
-    );
-    const comOverridesPosOverlay =
-      datasManuaisCalculadora.size > 0
-        ? aplicarDatasManuaisCalculadoraLinhas(
-            comAncoraOverlay,
-            datasManuaisCalculadora,
-            cardEncadeamento,
-          )
-        : comAncoraOverlay;
-    return normalizarIntervaloDatasCalculadoraLinhas(
-      comOverridesPosOverlay,
-      cardEncadeamento,
-    );
-  }, [
-    card,
-    contextoCalculadoraSyncGroup,
-    calculadoraLinhasPreAncoraOverlay,
-    datasManuaisCalculadora,
-    calculadoraAncora,
-  ]);
-
-  const calculadoraLinhasEncadeadas = useMemo(() => {
-    if (!card) return calculadoraLinhasSemPreObra;
-    const ctx = contextoCalculadoraSyncGroup;
-    const cardEncadeamento = ctx
-      ? ctx.cardCalcCanonico
-      : {
-          fase_id: card.fase_id,
-          created_at: card.created_at,
-          entered_fase_at: card.entered_fase_at,
-          concluido: card.concluido,
-          concluido_em: card.concluido_em,
-        };
-    // Pré Obra por último: Calculadora concluída+fim real tem precedência sobre Pré Obra divergente.
-    const datasPreObraOverlay =
-      card.kanban_id === KANBAN_IDS.OPERACOES
-        ? {
-            dataAprovacaoCondominio: operacoesPreObraDraft.condominio_aprovada_em,
-            dataAprovacaoPrefeitura: operacoesPreObraDraft.prefeitura_aprovada_em,
-          }
-        : {
-            dataAprovacaoCondominio: preObraDraft.data_aprovacao_condominio,
-            dataAprovacaoPrefeitura: preObraDraft.data_aprovacao_prefeitura,
-          };
-    return aplicarDatasAprovacaoPreObraCalculadora(
-      calculadoraLinhasSemPreObra,
-      datasPreObraOverlay,
-      cardEncadeamento,
-    );
-  }, [
-    card,
-    contextoCalculadoraSyncGroup,
-    calculadoraLinhasSemPreObra,
-    preObraDraft.data_aprovacao_condominio,
-    preObraDraft.data_aprovacao_prefeitura,
-    operacoesPreObraDraft.condominio_aprovada_em,
-    operacoesPreObraDraft.prefeitura_aprovada_em,
-  ]);
-
-  // Hidratação no load: se aprovação está concluída com fim real na Calculadora e Pré Obra
-  // está vazio/divergente, alinha draft + persiste (Calculadora manda).
-  useEffect(() => {
-    const cardId = card?.id?.trim();
-    const processoId = modalDetalhes.processo?.id?.trim();
-    if (!cardId || !processoId || calculadoraLinhasSemPreObra.length === 0) return;
-
-    const patch = patchPreObraAlinharComCalculadora(
-      calculadoraLinhasPreAncoraOverlay,
-      preObraDraft,
-      { overrides: datasManuaisCalculadora },
-    );
-    if (!patch) return;
-
-    const chave = `${cardId}|${patch.data_aprovacao_condominio ?? ''}|${patch.data_aprovacao_prefeitura ?? ''}|${patch.data_emissao_alvara ?? ''}`;
-    if (preObraAlinhadoComCalcRef.current === chave) return;
-    preObraAlinhadoComCalcRef.current = chave;
-
-    setPreObraDraft((d) => ({ ...d, ...patch }));
-    setModalDetalhes((prev) =>
-      prev.processo
-        ? {
-            ...prev,
-            processo: {
-              ...prev.processo,
-              ...(patch.data_aprovacao_condominio !== undefined
-                ? { data_aprovacao_condominio: patch.data_aprovacao_condominio }
-                : {}),
-              ...(patch.data_aprovacao_prefeitura !== undefined
-                ? { data_aprovacao_prefeitura: patch.data_aprovacao_prefeitura }
-                : {}),
-              ...(patch.data_emissao_alvara !== undefined
-                ? { data_emissao_alvara: patch.data_emissao_alvara }
-                : {}),
-            },
-          }
-        : prev,
-    );
-
-    void salvarDadosPreObra({
-      processoId,
-      cardOrigemId: cardId,
-      ...patch,
-      basePath,
-    });
-  }, [
-    card?.id,
-    modalDetalhes.processo?.id,
-    calculadoraLinhasPreAncoraOverlay,
-    datasManuaisCalculadora,
-    preObraDraft.data_aprovacao_condominio,
-    preObraDraft.data_aprovacao_prefeitura,
-    preObraDraft.data_emissao_alvara,
-    basePath,
-  ]);
-
-  // Hidratação no load (Operações): Calculadora concluída → kanban_cards.condominio/prefeitura_aprovada_em.
-  useEffect(() => {
-    const cardId = card?.id?.trim();
-    if (!cardId || card?.kanban_id !== KANBAN_IDS.OPERACOES || calculadoraLinhasSemPreObra.length === 0) {
-      return;
-    }
-
-    const patch = patchOperacoesPreObraAlinharComCalculadora(
-      calculadoraLinhasSemPreObra,
-      operacoesPreObraDraft,
-    );
-    if (!patch) return;
-
-    const chave = `${cardId}|${patch.condominio_aprovada_em ?? ''}|${patch.prefeitura_aprovada_em ?? ''}`;
-    if (operacoesPreObraAlinhadoComCalcRef.current === chave) return;
-    operacoesPreObraAlinhadoComCalcRef.current = chave;
-
-    setOperacoesPreObraDraft((d) => ({ ...d, ...patch }));
-    void salvarDadosPreObraOperacoes({
-      cardId,
-      ...patch,
-      basePath,
-    });
-  }, [
-    card?.id,
-    card?.kanban_id,
-    calculadoraLinhasSemPreObra,
-    operacoesPreObraDraft.condominio_aprovada_em,
-    operacoesPreObraDraft.prefeitura_aprovada_em,
-    basePath,
   ]);
 
   const calculadoraCardConcluidoCanonico =
@@ -4770,65 +3910,6 @@ export function KanbanCardModal({
     );
     return enriquecerLinhasCalculadoraComCusto(comResponsavel, calculadoraSlugPorFaseId);
   }, [calculadoraLinhasEncadeadas, calculadoraSlugPorFaseId, responsavelDaFaseSalvoPorFase]);
-
-  const ancoraCondominioAtiva =
-    String(calculadoraAncora?.faseSlug ?? '').trim() === CALCULADORA_ANCORA_CONDOMINIO_SLUG;
-
-  const definirAncoraCondominioCalculadora = useCallback(
-    async (ativar: boolean): Promise<{ ok: boolean; error?: string }> => {
-      const cardId = card?.id?.trim();
-      if (!cardId) return { ok: false, error: 'Card não encontrado.' };
-
-      let faseSlug: string | null = null;
-      let dataFim: string | null = null;
-      if (ativar) {
-        const ancora = resolverAncoraAprovacaoCondominio(calculadoraLinhasEnriquecidas);
-        if (!ancora) {
-          return {
-            ok: false,
-            error: 'Fase "Aprovação no Condomínio" não encontrada na esteira deste card.',
-          };
-        }
-        faseSlug = ancora.faseSlug;
-        dataFim = ancora.dataFim;
-      }
-
-      const result = await salvarAncoraCalculadoraKanban({ cardId, faseSlug, dataFim, basePath });
-      if (!result.ok) return result;
-
-      // Limpa overrides locais das fases anteriores — senão a timeline reaplica datas manuais.
-      if (ativar) {
-        const idxAncora = idxAprovacaoCondominioCalculadora(calculadoraLinhasEnriquecidas);
-        if (idxAncora > 0) {
-          const faseIdsAnteriores = calculadoraLinhasEnriquecidas
-            .slice(0, idxAncora)
-            .map((l) => String(l.faseId ?? '').trim())
-            .filter(Boolean);
-          setDatasManuaisCalculadora((prev) => {
-            const next = new Map(prev);
-            for (const fid of faseIdsAnteriores) next.delete(fid);
-            return next;
-          });
-        }
-      }
-
-      // A âncora é lida de modalDetalhes.processo — reflete localmente sem recarregar.
-      setModalDetalhes((prev) =>
-        prev.processo
-          ? {
-              ...prev,
-              processo: {
-                ...prev.processo,
-                calculadora_ancora_fase_slug: faseSlug,
-                calculadora_ancora_data_fim: dataFim,
-              },
-            }
-          : prev,
-      );
-      return { ok: true };
-    },
-    [card?.id, calculadoraLinhasEnriquecidas, basePath],
-  );
 
   const calculadoraTimelineNegociacao = useMemo(
     () =>
@@ -4950,7 +4031,7 @@ export function KanbanCardModal({
       const inst = draftInstrucoesFase.trim() || null;
       setFaseAtual((prev) => (prev ? { ...prev, instrucoes: inst, materiais } : prev));
       setFases((prev) => prev.map((f) => (f.id === faseAtual.id ? { ...f, instrucoes: inst, materiais } : f)));
-      // Instruções da fase já atualizadas no estado local — board inalterado
+      router.refresh();
     } catch {
       alert('Erro ao salvar instruções.');
     } finally {
@@ -4959,13 +4040,11 @@ export function KanbanCardModal({
   }
 
   if (loading && !card) {
-    const loadingOverlay = (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div className="text-white">Carregando…</div>
       </div>
     );
-    if (typeof document === 'undefined') return loadingOverlay;
-    return createPortal(loadingOverlay, document.body);
   }
 
   if (!card) return null;
@@ -5004,16 +4083,10 @@ export function KanbanCardModal({
     sla_tipo: faseAtual?.sla_tipo,
   });
   const exibirDadosLoteadorPersistente =
-    !isLegado &&
-    (fonteDadosLaterais?.tipo === 'loteador' ||
-      (!fonteDadosLaterais && isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))));
-  const cardIdDadosLoteador =
-    fonteDadosLaterais?.tipo === 'loteador' && fonteDadosLaterais.cardIdFonte
-      ? fonteDadosLaterais.cardIdFonte
-      : card.id;
+    !isLegado && isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome));
   const exibirSecaoDocumentacaoCreditoObra =
     !isLegado &&
-    (kanbanNome === 'Funil Crédito Obra' || kanbanNome === 'Funil Cash Me') &&
+    kanbanNome === 'Funil Cash Me' &&
     faseSlugAtual === FASE_SLUGS.CO_DOCUMENTACAO_ALVARA;
   const cardNativoConcluido = !isLegado && Boolean(card.concluido);
   const cardLegadoConcluido = isLegado && card.processo_meta?.status === 'concluido';
@@ -5060,9 +4133,16 @@ export function KanbanCardModal({
     !cardLegadoArquivado;
   const exibirBlocoDesarquivar =
     podeArquivarCardPerm && (cardNativoArquivado || cardLegadoArquivado);
-  const ehReativacaoPerdaModal = cardNativoArquivado && card?.resultado === 'perda';
   const roleNormUsuario = normalizeAccessRole(userRoleRaw);
+  const userRoleLc = (userRoleRaw || '').trim().toLowerCase();
   const usuarioFrank = portalFrank || isFrankOrFranqueadoRole(userRoleRaw);
+  const mostrarBotaoJuridico =
+    !isLegado &&
+    !ocultarGestaoCard &&
+    Boolean(card.kanban_id) &&
+    (KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(card.kanban_id) &&
+    !['frank', 'franqueado'].includes(userRoleLc) &&
+    !portalFrank;
 
   const mostrarColunaAcoesLateral =
     !ocultarGestaoCard &&
@@ -5078,11 +4158,8 @@ export function KanbanCardModal({
     card.kanban_id === KANBAN_IDS.FUNDING || kanbanNome === 'Funding';
   const podeGerenciarRelacionamentos =
     !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
-  const podeAbrirTrancheVinculos =
-    !ocultarGestaoCard &&
-    (modalSessao.ehAdminOuTeam || rolePodeAbrirTrancheVinculosOperacoes(modalSessao.roleNorm));
   const painelCentroAlternativo =
-    abaCentro === 'chamados' || abaCentro === 'calculadora';
+    abaCentro === 'chamados' || abaCentro === 'trancheVinculo' || abaCentro === 'calculadora';
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
   const faseChecklistFaseId = card.fase_id ?? '';
@@ -5091,7 +4168,6 @@ export function KanbanCardModal({
       ? montarChipsParalelas(
           {
             kanbanId: card.kanban_id,
-            kanbanNome: String(kanbanNome),
             faseSlug: faseAtual.slug ?? '',
             faseNome: faseAtual.nome,
             faseOrdem: faseAtual.ordem,
@@ -5111,17 +4187,6 @@ export function KanbanCardModal({
             filhoProjetoLegalArquivado: card.filho_projeto_legal_arquivado,
             projetoLegalFilhoConcluido: card.projeto_legal_filho_concluido,
             projetoLegalFilhoFase: card.projeto_legal_filho_fase,
-            temFilhoCreditoObra: card.tem_filho_credito_obra,
-            filhoCreditoObraArquivado: card.filho_credito_obra_arquivado,
-            creditoObraFilhoFase: card.credito_obra_filho_fase,
-            temFilhoProjetosLocais: card.tem_filho_projetos_locais,
-            filhoProjetosLocaisArquivado: card.filho_projetos_locais_arquivado,
-            projetosLocaisFilhoFase: card.projetos_locais_filho_fase,
-            projetosLocaisFilhoConcluido: card.projetos_locais_filho_concluido,
-            temFilhoDivify: card.tem_filho_divify,
-            filhoDivifyArquivado: card.filho_divify_arquivado,
-            divifyFilhoConcluido: card.divify_filho_concluido,
-            divifyFilhoFase: card.divify_filho_fase,
           },
           { labelsCompletos: true },
         )
@@ -5145,32 +4210,11 @@ export function KanbanCardModal({
 
   const rede = modalDetalhes.rede;
   const proc = modalDetalhes.processo;
-  const procCondominioExplicito = processoExplicitamenteVinculadoAoCard(
-    {
-      cardId: card.id,
-      cardProcessoStepOneId: card.processo_step_one_id,
-      cardProjetoId: card.projeto_id,
-    },
-    proc?.id,
-  )
-    ? proc
-    : null;
   const podeEditarNegocio =
-    !ocultarGestaoCard &&
-    !(ehFunilFunding && !isLegado) &&
-    (processoExplicitamenteVinculadoAoCard(
-      {
-        cardId: card.id,
-        cardProcessoStepOneId: card.processo_step_one_id,
-        cardProjetoId: card.projeto_id,
-      },
-      proc?.id,
-    ) ||
-      (!proc && Boolean(card.rede_franqueado_id?.trim()) && modalSessao.ehAdminOuTeam) ||
-      (exibirDadosLoteadorPersistente && modalSessao.ehAdminOuTeam));
-  const condominioIdSidebar = card.condominio_id ?? procCondominioExplicito?.condominio_id ?? null;
+    !ocultarGestaoCard && Boolean(proc) && !(ehFunilFunding && !isLegado);
+  const condominioIdSidebar = card.condominio_id ?? proc?.condominio_id ?? null;
   const condominioIdChecklistLegal =
-    card.condominio_id?.trim() || procCondominioExplicito?.condominio_id?.trim() || null;
+    card.condominio_id?.trim() || proc?.condominio_id?.trim() || null;
   const exibirChecklistLegalCondominio =
     !isLegado &&
     deveExibirChecklistLegalNaFase(
@@ -5181,16 +4225,7 @@ export function KanbanCardModal({
   const exibirChecklistCredito =
     !isLegado &&
     deveExibirChecklistCreditoNaFase(card.kanban_id, faseAtual?.slug ?? card.etapa_slug);
-  const processoIdChecklists = processoExplicitamenteVinculadoAoCard(
-    {
-      cardId: card.id,
-      cardProcessoStepOneId: card.processo_step_one_id,
-      cardProjetoId: card.projeto_id,
-    },
-    proc?.id,
-  )
-    ? proc?.id?.trim() || null
-    : null;
+  const processoIdChecklists = proc?.id?.trim() || null;
   const enderecoCasaLinha = rede
     ? [
         rede.endereco_casa_frank,
@@ -5335,76 +4370,48 @@ export function KanbanCardModal({
     label: string,
     field: ProcessoNegocioAnexoCampo,
     path: string | null | undefined,
-    linkRaw?: string | null,
-    linkEdit?: { value: string; onChange: (v: string) => void },
   ) {
     if (!proc?.id) return null;
     const inputId = `negocio-anexo-${field}`;
     const uploading = uploadingNegocioAnexo === field;
     const canAnexar = modalSessao.ehAdminOuTeam;
-    // Mesma densidade de renderNegocioLinkCampo (BCA/Gbox): py-1 + text-xs, sem min-h 44.
     const anexoBtnClass =
-      'inline-flex shrink-0 cursor-pointer items-center rounded border border-stone-200 bg-white px-2 py-1 text-[11px] font-medium text-stone-600 transition has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50';
-    const linkHref = linkHrefFromText(linkEdit ? linkEdit.value : linkRaw);
-    const linkDisplay = String((linkEdit ? linkEdit.value : linkRaw) ?? '').trim();
-    const anexoActions = path?.trim() ? (
-      <>
-        <button type="button" onClick={() => void handleBaixarNegocioAnexo(path)} className={anexoBtnClass}>
-          Baixar
-        </button>
-        {canAnexar ? (
-          <label htmlFor={inputId} className={anexoBtnClass}>
-            {uploading ? 'Enviando…' : 'Substituir'}
-          </label>
-        ) : null}
-      </>
-    ) : canAnexar ? (
-      <label htmlFor={inputId} className={anexoBtnClass}>
-        {uploading ? 'Enviando…' : 'Anexar'}
-      </label>
-    ) : null;
-
+      'inline-flex cursor-pointer items-center rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50';
     return (
       <div>
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-          <p className="text-[11px] font-medium text-stone-500">{label}</p>
-          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-            {anexoActions}
-            <input
-              id={inputId}
-              type="file"
-              className="sr-only"
-              onChange={(e) => void handleNegocioAnexoFile(e, field)}
-              accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,image/*"
-              disabled={uploading}
-            />
-          </div>
-        </div>
-        {linkEdit ? (
-          <input
-            type="url"
-            value={linkEdit.value}
-            onChange={(e) => linkEdit.onChange(e.target.value)}
-            placeholder="https://…"
-            aria-label={`${label} — link (opcional)`}
-            className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-          />
-        ) : (
-          <div className="mt-0.5 text-xs">
-            {linkHref ? (
-              <a
-                href={linkHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="break-all text-moni-primary underline"
+        <p className="text-[11px] font-medium text-stone-500">{label}</p>
+        <input
+          id={inputId}
+          type="file"
+          className="sr-only"
+          onChange={(e) => void handleNegocioAnexoFile(e, field)}
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,image/*"
+          disabled={uploading}
+        />
+        <div className="mt-0.5 flex flex-wrap items-center gap-2">
+          {path?.trim() ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void handleBaixarNegocioAnexo(path)}
+                className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50"
               >
-                {linkDisplay}
-              </a>
-            ) : (
-              <span className="text-stone-400">—</span>
-            )}
-          </div>
-        )}
+                Baixar
+              </button>
+              {canAnexar ? (
+                <label htmlFor={inputId} className={anexoBtnClass}>
+                  {uploading ? 'Enviando…' : 'Substituir'}
+                </label>
+              ) : null}
+            </>
+          ) : canAnexar ? (
+            <label htmlFor={inputId} className={anexoBtnClass}>
+              {uploading ? 'Enviando…' : 'Anexar'}
+            </label>
+          ) : (
+            <span className="text-[11px] text-stone-500">—</span>
+          )}
+        </div>
       </div>
     );
   }
@@ -5413,18 +4420,7 @@ export function KanbanCardModal({
     if (!proc) return null;
     return (
       <div className="space-y-2 border-t border-stone-100 pt-2">
-        {renderNegocioAnexoCampo(
-          'Opção de Permuta ou CCV',
-          'opcao_permuta',
-          proc.anexo_opcao_permuta_path,
-          proc.link_opcao_permuta,
-          editMode
-            ? {
-                value: negocioDraft.link_opcao_permuta,
-                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_opcao_permuta: v })),
-              }
-            : undefined,
-        )}
+        {renderNegocioAnexoCampo('Opção de Permuta', 'opcao_permuta', proc.anexo_opcao_permuta_path)}
         {renderNegocioLinkCampo(
           'BCA',
           proc.link_bca,
@@ -5476,29 +4472,11 @@ export function KanbanCardModal({
             : undefined,
         )}
         {renderNegocioAnexoCampo(
-          'Contrato de Permuta ou CCV',
+          'Contrato de Permuta',
           'contrato_permuta',
           proc.anexo_contrato_permuta_path,
-          proc.link_contrato_permuta,
-          editMode
-            ? {
-                value: negocioDraft.link_contrato_permuta,
-                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_contrato_permuta: v })),
-              }
-            : undefined,
         )}
-        {renderNegocioAnexoCampo(
-          'Seguro garantia',
-          'seguro_garantia',
-          proc.anexo_seguro_garantia_path,
-          proc.link_seguro_garantia,
-          editMode
-            ? {
-                value: negocioDraft.link_seguro_garantia,
-                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_seguro_garantia: v })),
-              }
-            : undefined,
-        )}
+        {renderNegocioAnexoCampo('Seguro garantia', 'seguro_garantia', proc.anexo_seguro_garantia_path)}
         {renderNegocioLinkComComentarios(
           'Moní Capital — seguro garantia',
           proc.link_moni_capital_seguro_garantia,
@@ -5532,7 +4510,7 @@ export function KanbanCardModal({
     );
   }
 
-  const secaoHead = (id: SecaoEsquerdaId, label: string, body: ReactNode, persistBody = false) => (
+  const secaoHead = (id: SecaoEsquerdaId, label: string, body: ReactNode) => (
     <div
       className="mb-2 overflow-hidden rounded-lg bg-white text-xs"
       style={{
@@ -5552,14 +4530,8 @@ export function KanbanCardModal({
         )}
         <span className="text-xs font-semibold text-stone-800">{label}</span>
       </button>
-      {secaoAberta[id] || persistBody ? (
-        <div
-          className="border-t px-2 pb-2 pt-1.5 text-xs text-stone-600"
-          style={{
-            borderColor: 'var(--moni-border-subtle)',
-            display: secaoAberta[id] ? undefined : 'none',
-          }}
-        >
+      {secaoAberta[id] ? (
+        <div className="border-t px-2 pb-2 pt-1.5 text-xs text-stone-600" style={{ borderColor: 'var(--moni-border-subtle)' }}>
           {body}
         </div>
       ) : null}
@@ -5625,10 +4597,10 @@ export function KanbanCardModal({
     onClose();
   }
 
-  const modalTree = (
+  return (
     <>
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={handleBackdropClick}
       role="presentation"
     >
@@ -5710,7 +4682,27 @@ export function KanbanCardModal({
                   </div>
             ) : null}
 
-            {abaCentro === 'chamados' ? (
+            {abaCentro === 'trancheVinculo' && trancheVinculoIndex != null ? (
+              <KanbanCardModalOperacoesTrancheVinculoForm
+                cardId={card.id}
+                trancheIndex={trancheVinculoIndex}
+                basePath={basePath}
+                refreshKey={trancheVinculosTick}
+                podeGerenciar={podeGerenciarRelacionamentos}
+                cardDesabilitado={
+                  cardNativoArquivado ||
+                  cardLegadoArquivado ||
+                  cardNativoConcluido ||
+                  cardLegadoConcluido
+                }
+                onVoltar={voltarPainelDetalhes}
+                onConcluido={() => {
+                  setTrancheVinculosTick((t) => t + 1);
+                  void loadCard();
+                  router.refresh();
+                }}
+              />
+            ) : abaCentro === 'chamados' ? (
             <>
                       <button
                         type="button"
@@ -5754,33 +4746,6 @@ export function KanbanCardModal({
                       </button>
                     </div>
               ) : null}
-              {chamadosCarregando && interacoes.length === 0 && !erroCarregarChamados ? (
-                <div
-                  className="mb-3 space-y-2 rounded-lg p-3"
-                  style={{
-                    border: '0.5px solid var(--moni-border-default)',
-                    background: 'var(--moni-surface-50)',
-                  }}
-                  aria-busy="true"
-                  aria-label="Carregando chamados"
-                >
-                  <div
-                    className="h-4 w-1/2 animate-pulse rounded"
-                    style={{ background: 'var(--moni-surface-100)' }}
-                  />
-                  <div
-                    className="h-10 w-full animate-pulse rounded"
-                    style={{ background: 'var(--moni-surface-100)' }}
-                  />
-                  <div
-                    className="h-10 w-full animate-pulse rounded"
-                    style={{ background: 'var(--moni-surface-100)' }}
-                  />
-                  <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                    Carregando chamados…
-                  </p>
-                </div>
-              ) : null}
 
               <div
                 className="flex min-h-0 flex-1 flex-col rounded-lg bg-white p-3"
@@ -5795,7 +4760,7 @@ export function KanbanCardModal({
                   type="button"
                   onClick={() => {
                     if (filtrosOpen) {
-                      setFiltros({ ...filtrosDraft });
+                      setFiltrosDraft({ ...filtros });
                       setFiltrosOpen(false);
                     } else {
                       setFiltrosDraft({ ...filtros });
@@ -5809,23 +4774,19 @@ export function KanbanCardModal({
                     color: 'var(--moni-text-primary)',
                   }}
                 >
-                  Filtros ({countKanbanModalInteracoesFiltrosAtivos(filtrosAtivos)})
+                  Filtros ({countKanbanModalInteracoesFiltrosAtivos(filtros)})
                 </button>
                 {filtrosOpen ? (
                   <div
                     ref={filtrosPopoverRef}
-                    className="absolute left-0 top-full z-[60] mt-1 w-[min(100vw-2rem,22rem)]"
+                    className="absolute left-0 top-full z-[60] mt-1 w-[min(100vw-2rem,12rem)]"
                   >
                     <KanbanInteracoesFiltrosPanel
                       draft={filtrosDraft}
                       setDraft={setFiltrosDraft}
                       kanbanTimes={timesFiltroOpcoesModal}
                       responsaveisOpcoes={responsaveisFiltroOpcoesModal}
-                      onLimpar={() => {
-                        const next = { ...KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT };
-                        setFiltrosDraft(next);
-                        setFiltros(next);
-                      }}
+                      onLimpar={() => setFiltrosDraft(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT)}
                       onAplicar={() => {
                         setFiltros({ ...filtrosDraft });
                         setFiltrosOpen(false);
@@ -5842,7 +4803,7 @@ export function KanbanCardModal({
                     const subs = subInteracoesPorPai[it.id] ?? [];
                     const subsVisiveis = filtrarSubAtividadesPorConclusao(
                       subs,
-                      filtrosAtivos.mostrarAtividadesConcluidas,
+                      filtros.mostrarAtividadesConcluidas,
                     );
                     const subsDetalheAberto = subExpandida[it.id] === true;
                     const deriv = derivarChamadoKanbanComSubs(it.status, subs);
@@ -6001,7 +4962,7 @@ export function KanbanCardModal({
                             {!subsDetalheAberto && subsVisiveis.length > 0 ? (
                               <p className="mt-1 text-[10px] text-stone-500">
                                 {subsVisiveis.length} atividade{subsVisiveis.length === 1 ? '' : 's'}
-                                {!filtrosAtivos.mostrarAtividadesConcluidas && subs.length > subsVisiveis.length
+                                {!filtros.mostrarAtividadesConcluidas && subs.length > subsVisiveis.length
                                   ? ` (${subs.length - subsVisiveis.length} concluída${subs.length - subsVisiveis.length === 1 ? '' : 's'} oculta${subs.length - subsVisiveis.length === 1 ? '' : 's'})`
                                   : ''}{' '}
                                 — clique na seta para expandir
@@ -6159,7 +5120,7 @@ export function KanbanCardModal({
                                 <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5">
                                   <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
                                     Atividades ({subsVisiveis.length}
-                                    {!filtrosAtivos.mostrarAtividadesConcluidas && subs.length > subsVisiveis.length
+                                    {!filtros.mostrarAtividadesConcluidas && subs.length > subsVisiveis.length
                                       ? ` de ${subs.length}`
                                       : ''}
                                     )
@@ -6382,13 +5343,13 @@ export function KanbanCardModal({
                                                   />
                                                 ) : null}
                                                 {sub.atribuicao_status !== 'pendente_aceite' &&
-                                                sub.prazo_status ? (
+                                                sub.prazo_status &&
+                                                (sub.prazo_status !== 'aceito' ||
+                                                  modalSessao.roleNorm === 'admin' ||
+                                                  modalSessao.cargoNorm === 'adm') ? (
                                                   <PrazoNegociacaoPanel
                                                     topicoId={sub.id}
-                                                    row={{
-                                                      ...sub,
-                                                      prazo_sla_original: (sub as { prazo_sla_original?: string | null }).prazo_sla_original ?? null,
-                                                    }}
+                                                    row={sub}
                                                     sessionUserId={modalSessao.userId}
                                                     abridorId={it.criado_por}
                                                     isAdmin={
@@ -6446,7 +5407,7 @@ export function KanbanCardModal({
                                   </ul>
                                 ) : (
                                   <p className="mb-2 text-[11px] text-stone-500">
-                                    {!filtrosAtivos.mostrarAtividadesConcluidas && subs.length > 0
+                                    {!filtros.mostrarAtividadesConcluidas && subs.length > 0
                                       ? 'Só há atividades concluídas. Ative "Mostrar atividades concluídas" nos filtros.'
                                       : 'Nenhum sub-chamado.'}
                                   </p>
@@ -6522,33 +5483,11 @@ export function KanbanCardModal({
                   })}
                 </div>
               ) : (
-                <div className="mb-2 space-y-2">
-                  <p className="text-sm text-stone-500">
-                    {interacoes.length === 0
-                      ? 'Nenhum chamado vinculado a este card no banco.'
-                      : filtrosAtivos.lista === 'abertas' &&
-                          interacoes.every((it) => {
-                            const st = statusEfetivoChamadoKanban(it, subInteracoesPorPai[it.id] ?? []);
-                            return st === 'concluida' || st === 'cancelada';
-                          })
-                        ? `Há ${interacoes.length} chamado${interacoes.length === 1 ? '' : 's'} concluído${interacoes.length === 1 ? '' : 's'} ou cancelado${interacoes.length === 1 ? '' : 's'} neste card. Altere Lista para Todos ou Concluídos.`
-                        : 'Nenhum chamado corresponde aos filtros atuais.'}
-                  </p>
-                  {interacoes.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = { ...KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT };
-                        setFiltrosDraft(next);
-                        setFiltros(next);
-                      }}
-                      className="text-xs font-medium underline-offset-2 hover:underline"
-                      style={{ color: 'var(--moni-navy-800)' }}
-                    >
-                      Limpar filtros e ver todos
-                    </button>
-                  ) : null}
-                </div>
+                <p className="mb-2 text-sm text-stone-500">
+                  {interacoes.length === 0
+                    ? 'Nenhum chamado vinculado a este card no banco.'
+                    : 'Nenhum chamado corresponde aos filtros atuais — limpe os filtros para ver todos.'}
+                </p>
               )}
 
               {sireneChamadoIdPastel != null ? (
@@ -6568,7 +5507,6 @@ export function KanbanCardModal({
                 }}
               >
                 {!novoChamadoFormAberto ? (
-                  <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
                     onClick={() => setModalNovoChamadoAberto(true)}
@@ -6576,14 +5514,6 @@ export function KanbanCardModal({
                   >
                     + Novo Chamado
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setVincularChamadoAberto((v) => !v)}
-                    className="text-left text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
-                  >
-                    Vincular chamado existente
-                  </button>
-                  </div>
                 ) : (
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">
@@ -6716,141 +5646,6 @@ export function KanbanCardModal({
                   </div>
                 </div>
                 )}
-                {vincularChamadoAberto ? (
-                  <div
-                    className="mt-2 flex flex-col gap-2 rounded-md p-2"
-                    style={{
-                      border: 'var(--moni-border-width) solid var(--moni-border-default)',
-                      background: 'var(--moni-surface-0, #fff)',
-                    }}
-                  >
-                    <p className="text-[11px] font-semibold text-stone-600">
-                      Vincular chamado Sirene existente
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="search"
-                        value={vincularChamadoIdInput}
-                        onChange={(e) => setVincularChamadoIdInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            void (async () => {
-                              setBuscandoChamadoSirene(true);
-                              const res = await buscarChamadosSireneParaVincular({
-                                q: vincularChamadoIdInput,
-                              });
-                              setBuscandoChamadoSirene(false);
-                              if (!res.ok) {
-                                alert(res.error);
-                                return;
-                              }
-                              setVincularChamadoResultados(res.data);
-                            })();
-                          }
-                        }}
-                        placeholder="Buscar por nº, ID ou título do chamado…"
-                        className="w-full px-2 py-1.5 text-xs"
-                        style={{
-                          border: '0.5px solid var(--moni-border-default)',
-                          borderRadius: 'var(--moni-radius-md)',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        disabled={buscandoChamadoSirene || !vincularChamadoIdInput.trim()}
-                        onClick={() => {
-                          void (async () => {
-                            setBuscandoChamadoSirene(true);
-                            const res = await buscarChamadosSireneParaVincular({
-                              q: vincularChamadoIdInput,
-                            });
-                            setBuscandoChamadoSirene(false);
-                            if (!res.ok) {
-                              alert(res.error);
-                              return;
-                            }
-                            setVincularChamadoResultados(res.data);
-                          })();
-                        }}
-                        className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
-                        style={{
-                          background: 'var(--moni-navy-800)',
-                          borderRadius: 'var(--moni-radius-md)',
-                          minHeight: 44,
-                        }}
-                      >
-                        {buscandoChamadoSirene ? '…' : 'Buscar'}
-                      </button>
-                    </div>
-                    {vincularChamadoResultados.length > 0 ? (
-                      <ul className="max-h-40 space-y-1 overflow-y-auto">
-                        {vincularChamadoResultados.map((ch) => {
-                          const jaOutro =
-                            Boolean(ch.card_id) && String(ch.card_id) !== String(card.id);
-                          return (
-                            <li
-                              key={ch.id}
-                              className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs"
-                              style={{
-                                border: '0.5px solid var(--moni-border-default)',
-                                borderRadius: 'var(--moni-radius-md)',
-                              }}
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate font-medium text-stone-700">
-                                  #{ch.numero ?? ch.id} — {ch.incendio || 'Sem título'}
-                                </p>
-                                {jaOutro ? (
-                                  <p className="text-[10px] text-stone-400">Já vinculado a outro card</p>
-                                ) : null}
-                              </div>
-                              <button
-                                type="button"
-                                disabled={vinculandoChamado || jaOutro}
-                                onClick={() => {
-                                  void (async () => {
-                                    setVinculandoChamado(true);
-                                    const res = await vincularChamadoSireneExistenteAoCard({
-                                      card_id: card.id,
-                                      sirene_chamado_id: ch.id,
-                                      card_kanban_nome: kanbanNome,
-                                      card_titulo: card.titulo,
-                                    });
-                                    setVinculandoChamado(false);
-                                    if (!res.ok) {
-                                      alert(res.error);
-                                      return;
-                                    }
-                                    setVincularChamadoAberto(false);
-                                    setVincularChamadoIdInput('');
-                                    setVincularChamadoResultados([]);
-                                    void loadCard({ silencioso: true });
-                                  })();
-                                }}
-                                className="shrink-0 text-[11px] font-medium underline-offset-2 hover:underline disabled:opacity-40"
-                                style={{ color: 'var(--moni-navy-800)', minHeight: 44 }}
-                              >
-                                Vincular
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVincularChamadoAberto(false);
-                        setVincularChamadoIdInput('');
-                        setVincularChamadoResultados([]);
-                      }}
-                      className="self-end px-2 py-1.5 text-[11px] text-stone-600"
-                    >
-                      Fechar
-                    </button>
-                  </div>
-                ) : null}
               </div>
               ) : (
                 <p className="text-xs text-stone-500">Criar chamados não está disponível para o seu perfil.</p>
@@ -6954,8 +5749,6 @@ export function KanbanCardModal({
                     podeEditarDatas={podeEditarDatasCalculadora}
                     onSalvarData={salvarDataCalculadora}
                     onAplicarOverrideLocal={aplicarOverrideCalculadoraLocal}
-                    ancoraCondominioAtiva={ancoraCondominioAtiva}
-                    onDefinirAncoraCondominio={definirAncoraCondominioCalculadora}
                   />
                 </div>
               </div>
@@ -6987,7 +5780,9 @@ export function KanbanCardModal({
               origem={origem}
               basePath={basePath}
               dataReuniao={dataReuniao}
+              dataFollowup={dataFollowup}
               onDataReuniaoChange={setDataReuniao}
+              onDataFollowupChange={setDataFollowup}
               onAtaSalva={() => setAtasReuniaoTick((t) => t + 1)}
             />
 
@@ -7223,12 +6018,8 @@ export function KanbanCardModal({
                     {exibirChecklistCredito && !processoIdChecklists ? (
                       <p className="text-xs text-stone-500">
                         Processo Step One não vinculado a este card. O Checklist de Crédito ficará disponível quando
-                        houver um processo associado explicitamente ao card.
+                        houver um processo associado (via rede do franqueado ou número FK no título).
                       </p>
-                    ) : null}
-
-                    {faseSlugAtual === FASE_SLUGS.HOMOLOG_BUSCAR_FORNECEDORES ? (
-                      <FornecedoresRedeCard cardId={card.id} />
                     ) : null}
 
                     <FaseChecklistCard
@@ -7239,8 +6030,10 @@ export function KanbanCardModal({
                       isAdmin={isAdmin}
                       processoId={processoIdChecklists}
                       linkGboxProcesso={
-                        procCondominioExplicito?.link_gbox ??
-                        procCondominioExplicito?.link_mapa_competidores ??
+                        proc?.link_gbox ??
+                        proc?.link_mapa_competidores ??
+                        negocioDraft.link_gbox ??
+                        negocioDraft.link_mapa_competidores ??
                         null
                       }
                       onLinkGboxEspelhado={() => void loadCard({ silencioso: true })}
@@ -7275,11 +6068,10 @@ export function KanbanCardModal({
                           ? {
                               origem,
                               basePath,
-                              condominioId: card.condominio_id ?? procCondominioExplicito?.condominio_id ?? null,
-                              quadra: card.quadra ?? procCondominioExplicito?.quadra ?? null,
-                              lote: card.lote ?? procCondominioExplicito?.lote ?? null,
-                              nomeCondominioLegado:
-                                card.nome_condominio ?? procCondominioExplicito?.nome_condominio ?? null,
+                              condominioId: card.condominio_id ?? proc?.condominio_id ?? null,
+                              quadra: card.quadra ?? proc?.quadra ?? null,
+                              lote: card.lote ?? proc?.lote ?? null,
+                              nomeCondominioLegado: card.nome_condominio ?? proc?.nome_condominio ?? null,
                               podeEditar: !ocultarGestaoCard && modalSessao.ehAdminOuTeam,
                               podeCadastrarNovo: !ocultarGestaoCard && modalSessao.ehAdminOuTeam,
                               onSalvo: () => {
@@ -7874,7 +6666,7 @@ export function KanbanCardModal({
             </PainelLateralSecao>
 
             {exibirBlocoDesarquivar ? (
-              <PainelLateralSecao titulo={ehReativacaoPerdaModal ? 'Reativar' : 'Desarquivar'}>
+              <PainelLateralSecao titulo="Desarquivar">
                 <button
                   type="button"
                   onClick={() => void handleConfirmarDesarquivar()}
@@ -7887,13 +6679,7 @@ export function KanbanCardModal({
                   }}
                 >
                   <ArchiveRestore className="h-4 w-4 shrink-0" aria-hidden />
-                  {loading
-                    ? ehReativacaoPerdaModal
-                      ? 'Reativando…'
-                      : 'Desarquivando…'
-                    : ehReativacaoPerdaModal
-                      ? 'Reativar card'
-                      : 'Desarquivar card'}
+                  {loading ? 'Desarquivando…' : 'Desarquivar card'}
                 </button>
               </PainelLateralSecao>
             ) : null}
@@ -8196,7 +6982,7 @@ export function KanbanCardModal({
                   'loteador',
                   'Dados do Loteador',
                   <DadosLoteadorPersistentPanel
-                    cardId={cardIdDadosLoteador}
+                    cardId={card.id}
                     variant="sidebar"
                     onSalvo={() => {
                       void loadCard({ silencioso: true });
@@ -8204,63 +6990,26 @@ export function KanbanCardModal({
                     }}
                   />,
                 )
-              : null}
-            {secaoHead(
-              'simulacoesImob',
-              'Modelo e Simulações IMOB',
-              <KanbanCardModalSimulacoesImob
-                cardId={card.id}
-                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                prefetch={
-                  imobSimulacoesPrefetch?.cardId === card.id ? imobSimulacoesPrefetch : null
-                }
-                esperarPrefetch={imobSimulacoesPrefetch?.cardId !== card.id}
-                legadoProdutoModeloCasa={
-                  negocioDraft.produto_modelo_casa || proc?.produto_modelo_casa || ''
-                }
-              />,
-              true,
-            )}
-            {exibirDadosLoteadorPersistente && modalSessao.ehAdminOuTeam
-              ? secaoHead(
-                  'simuladorPagamentos',
-                  'Simulador de Pagamentos',
-                  <>
-                    <p className="mb-3 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                      Incorporação em Nuvem — percentuais, link e QR para o corretor. Diferente das
-                      simulações IMOB acima.
-                    </p>
-                    <a
-                      href={`/loteadores/${cardIdDadosLoteador}/simulador-template`}
-                      className="inline-flex min-h-[44px] items-center rounded-[var(--moni-radius-md)] px-4 text-sm font-medium text-white"
-                      style={{ background: 'var(--moni-navy-800)' }}
-                    >
-                      Configurar template e gerar link
-                    </a>
-                  </>,
-                )
-              : null}
-            {ehFunilFunding && !isLegado
-              ? secaoHead(
-                  'moniCapital',
-                  'Dados do Investidor/Broker',
-                  <DadosMoniCapitalPersistentPanel
-                    cardId={card.id}
-                    podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                    onSalvo={() => {
-                      void loadCard({ silencioso: true });
-                      router.refresh();
-                    }}
-                  />,
-                )
-              : !exibirDadosLoteadorPersistente
+              : ehFunilFunding && !isLegado
                 ? secaoHead(
+                    'moniCapital',
+                    'Dados do Investidor/Broker',
+                    <DadosMoniCapitalPersistentPanel
+                      cardId={card.id}
+                      podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                      onSalvo={() => {
+                        void loadCard({ silencioso: true });
+                        router.refresh();
+                      }}
+                    />,
+                  )
+                : secaoHead(
               'franqueado',
               'Dados do Franqueado',
               <div className="space-y-2">
                 {isAdmin && card.profiles ? (
                   <div className="mb-1 rounded border border-stone-100 bg-stone-50/80 p-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">{CRIADOR_DO_CARD_LABEL}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">Responsável (card)</p>
                     <p className="mt-0.5 text-xs font-medium text-stone-800">
                       {card.profiles.full_name || 'Não informado'}
                     </p>
@@ -8304,27 +7053,7 @@ export function KanbanCardModal({
                 ) : (
                   <>
                     {!rede ? (
-                      detalhesCarregando ? (
-                        <div className="space-y-2" aria-busy="true" aria-label="Carregando franqueado">
-                          <div
-                            className="h-3 w-3/5 animate-pulse rounded"
-                            style={{ background: 'var(--moni-surface-100)' }}
-                          />
-                          <div
-                            className="h-3 w-full animate-pulse rounded"
-                            style={{ background: 'var(--moni-surface-100)' }}
-                          />
-                          <div
-                            className="h-3 w-4/5 animate-pulse rounded"
-                            style={{ background: 'var(--moni-surface-100)' }}
-                          />
-                          <p className="pt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                            Carregando dados do franqueado…
-                          </p>
-                        </div>
-                      ) : (
                       <p className="text-xs text-stone-500">Sem dados de franqueado vinculados ao card.</p>
-                      )
                     ) : (
                       <>
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
@@ -8347,10 +7076,6 @@ export function KanbanCardModal({
                       <div>
                         <div className="text-[11px] font-medium text-stone-500">Classificação</div>
                         <div className="text-xs text-stone-800">{displayOrDash(rede.classificacao_franqueado)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-medium text-stone-500">Regional</div>
-                        <div className="text-xs text-stone-800">{displayOrDash(rede.regional)}</div>
                       </div>
                       <div>
                         <div className="text-[11px] font-medium text-stone-500">Área de atuação</div>
@@ -8449,8 +7174,7 @@ export function KanbanCardModal({
                   </div>
                 </div>
               </div>,
-            )
-              : null}
+            )}
             {exibirSecaoCondominioSidebar &&
               secaoHead(
                 'condominio',
@@ -8473,7 +7197,7 @@ export function KanbanCardModal({
                   }}
                 />,
               )}
-            {secaoHead(
+            {!exibirDadosLoteadorPersistente && secaoHead(
               'novoNegocio',
               'Dados do Negócio',
               ehFunilFunding && !isLegado ? (
@@ -8492,20 +7216,8 @@ export function KanbanCardModal({
                 />
               ) : (
               <div className="space-y-2">
-                {!proc && detalhesCarregando ? (
-                    <div className="space-y-2" aria-busy="true" aria-label="Carregando negócio">
-                      <div
-                        className="h-3 w-3/5 animate-pulse rounded"
-                        style={{ background: 'var(--moni-surface-100)' }}
-                      />
-                      <div
-                        className="h-3 w-full animate-pulse rounded"
-                        style={{ background: 'var(--moni-surface-100)' }}
-                      />
-                      <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                        Carregando dados de negócio…
-                      </p>
-                    </div>
+                {!proc ? (
+                  <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
                 ) : podeEditarNegocio ? (
                   <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
@@ -8513,15 +7225,7 @@ export function KanbanCardModal({
                         <span className="text-[11px] font-medium text-stone-500">Tipo de negociação</span>
                         <SearchableSelect
                           value={negocioDraft.tipo_aquisicao_terreno}
-                          onChange={(v) =>
-                            setNegocioDraft((d) => {
-                              const next = { ...d, tipo_aquisicao_terreno: v };
-                              if (isTipoNegociacao100CompraVenda(v)) {
-                                Object.assign(next, negocioPrazosDraftVazios());
-                              }
-                              return next;
-                            })
-                          }
+                          onChange={(v) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: v }))}
                           placeholder="Selecione"
                           className="mt-0.5"
                           options={opcoesTipoNegociacaoComValorAtual(negocioDraft.tipo_aquisicao_terreno)}
@@ -8536,9 +7240,20 @@ export function KanbanCardModal({
                       </label>
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">VGV pretendido</span>
-                        <KanbanCardModalMoedaField
+                        <input
+                          type="text"
                           value={negocioDraft.vgv_pretendido}
-                          onChange={(vgv_pretendido) => setNegocioDraft((d) => ({ ...d, vgv_pretendido }))}
+                          onChange={(e) => setNegocioDraft((d) => ({ ...d, vgv_pretendido: e.target.value }))}
+                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-stone-500">Produto / Modelo</span>
+                        <input
+                          type="text"
+                          value={negocioDraft.produto_modelo_casa}
+                          onChange={(e) => setNegocioDraft((d) => ({ ...d, produto_modelo_casa: e.target.value }))}
+                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                         />
                       </label>
                     </div>
@@ -8556,10 +7271,7 @@ export function KanbanCardModal({
                       draft={negocioDraft.prazo_opcao}
                       onChange={(prazo_opcao) => setNegocioDraft((d) => ({ ...d, prazo_opcao }))}
                       faseOpcoes={fasesNegocioPrazo}
-                      disabled={
-                        salvandoNegocio ||
-                        isTipoNegociacao100CompraVenda(negocioDraft.tipo_aquisicao_terreno)
-                      }
+                      disabled={salvandoNegocio}
                     />
                     <KanbanCardModalNegocioPrazoField
                       label="Prazo Instrumento Garantidor"
@@ -8568,18 +7280,12 @@ export function KanbanCardModal({
                         setNegocioDraft((d) => ({ ...d, prazo_instrumento_garantidor }))
                       }
                       faseOpcoes={fasesNegocioPrazo}
-                      disabled={
-                        salvandoNegocio ||
-                        isTipoNegociacao100CompraVenda(negocioDraft.tipo_aquisicao_terreno)
-                      }
+                      disabled={salvandoNegocio}
                     />
                     <KanbanCardModalNegociacaoLinhasField
                       linhas={negocioDraft.negociacao_linhas}
                       onChange={(negociacao_linhas) =>
                         setNegocioDraft((d) => ({ ...d, negociacao_linhas }))
-                      }
-                      onPersistLinhas={(negociacao_linhas) =>
-                        void handlePersistNegociacaoLinhas(negociacao_linhas)
                       }
                       disabled={salvandoNegocio}
                       opcoesVinculo={calculadoraOpcoesVinculoNegociacao}
@@ -8607,8 +7313,6 @@ export function KanbanCardModal({
                       </button>
                     </div>
                   </div>
-                ) : !proc ? (
-                  <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
                 ) : (
                   <>
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
@@ -8623,6 +7327,10 @@ export function KanbanCardModal({
                       <div>
                         <div className="text-[11px] font-medium text-stone-500">VGV pretendido</div>
                         <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.vgv_pretendido)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Produto / Modelo</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(proc.produto_modelo_casa)}</div>
                       </div>
                       <div className="min-w-0">
                         <div className="text-[11px] font-medium text-stone-500">Link pasta no Drive</div>
@@ -8682,21 +7390,6 @@ export function KanbanCardModal({
             {!exibirDadosLoteadorPersistente && secaoHead(
               'dadosEmpresas',
               'Dados das Empresas',
-              detalhesCarregando && !modalDetalhes.empresas ? (
-                <div className="space-y-2" aria-busy="true" aria-label="Carregando empresas">
-                  <div
-                    className="h-3 w-3/4 animate-pulse rounded"
-                    style={{ background: 'var(--moni-surface-100)' }}
-                  />
-                  <div
-                    className="h-3 w-full animate-pulse rounded"
-                    style={{ background: 'var(--moni-surface-100)' }}
-                  />
-                  <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                    Carregando empresas…
-                  </p>
-                </div>
-              ) : (
               <KanbanCardModalEmpresas
                 cardId={card.id}
                 redeFranqueadoId={modalDetalhes.redeIdContrato ?? card?.rede_franqueado_id ?? null}
@@ -8705,8 +7398,7 @@ export function KanbanCardModal({
                 spe={modalDetalhes.empresas?.spe ?? null}
                 podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
                 onSalvo={() => void loadCard({ silencioso: true })}
-              />
-              ),
+              />,
             )}
             {!exibirDadosLoteadorPersistente && secaoHead(
               'preObra',
@@ -8720,21 +7412,9 @@ export function KanbanCardModal({
                   podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
                 />
               ) : !proc ? (
-                detalhesCarregando ? (
-                  <div className="space-y-2" aria-busy="true" aria-label="Carregando pré-obra">
-                    <div
-                      className="h-3 w-full animate-pulse rounded"
-                      style={{ background: 'var(--moni-surface-100)' }}
-                    />
-                    <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                      Carregando pré-obra…
-                    </p>
-                  </div>
-                ) : (
                 <p className="text-xs text-[var(--moni-text-tertiary)]">
                   Sem processo vinculado — não é possível editar pré-obra neste card.
                 </p>
-                )
               ) : (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-x-2 gap-y-2">
@@ -8756,12 +7436,10 @@ export function KanbanCardModal({
                         value={preObraDraft.previsao_aprovacao_prefeitura}
                         onChange={(e) =>
                           setPreObraDraft((d) =>
-                            aplicarPrevisaoEmissaoAlvaraNoPreObra(
-                              aplicarDataEnvioCreditoObraNoPreObra({
-                                ...d,
-                                previsao_aprovacao_prefeitura: e.target.value,
-                              }),
-                            ),
+                            aplicarDataEnvioCreditoObraNoPreObra({
+                              ...d,
+                              previsao_aprovacao_prefeitura: e.target.value,
+                            }),
                           )
                         }
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
@@ -8817,12 +7495,7 @@ export function KanbanCardModal({
                         type="date"
                         value={preObraDraft.data_aprovacao_prefeitura}
                         onChange={(e) =>
-                          setPreObraDraft((d) =>
-                            aplicarDataEmissaoAlvaraNoPreObra({
-                              ...d,
-                              data_aprovacao_prefeitura: e.target.value,
-                            }),
-                          )
+                          setPreObraDraft((d) => ({ ...d, data_aprovacao_prefeitura: e.target.value }))
                         }
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-1 py-1 text-[11px] text-stone-800"
                       />
@@ -8863,7 +7536,7 @@ export function KanbanCardModal({
             {exibirSecaoDocumentacaoCreditoObra
               ? secaoHead(
                   'documentacaoCreditoObra',
-                  'Docs Alvará e Terreno SPE',
+                  'Documentação Alvará e Terreno SPE',
                   <KanbanCardModalCreditoObraDocumentacao
                     cardId={card.id}
                     alvaraUrl={card.alvara_url ?? null}
@@ -8893,22 +7566,11 @@ export function KanbanCardModal({
               <div className="space-y-3">
                 {ehFunilOperacoes ? (
                   <KanbanCardModalOperacoesTrancheVinculosSidebar
-                    key={`${card.id}-tranche-vinculos`}
+                    key={`${card.id}-tranche-vinculos-${trancheVinculosTick}`}
                     cardId={card.id}
-                    faseSlug={faseAtual?.slug ?? null}
-                    basePath={basePath}
                     refreshKey={trancheVinculosTick}
-                    podeGerenciar={podeAbrirTrancheVinculos}
-                    cardDesabilitado={
-                      cardNativoArquivado ||
-                      cardLegadoArquivado ||
-                      cardNativoConcluido ||
-                      cardLegadoConcluido
-                    }
-                    onConcluido={() => {
-                      setRelacionamentosTick((t) => t + 1);
-                      void loadCard();
-                    }}
+                    trancheSelecionado={trancheVinculoIndex}
+                    onSelecionar={abrirPainelTrancheVinculo}
                   />
                 ) : null}
                 <KanbanCardModalRelacionamentos
@@ -8916,11 +7578,11 @@ export function KanbanCardModal({
                   cardId={card.id}
                   cardTitulo={cardTitulo}
                   kanbanId={card.kanban_id}
-                  kanbanNome={kanbanNome}
                   basePath={basePath}
                   podeGerenciar={podeGerenciarRelacionamentos}
                   projetoId={card.projeto_id}
                   ocultarKanbansInternos={usuarioFrank}
+                  mostrarBotaoJuridico={mostrarBotaoJuridico}
                   cardDesabilitado={
                     cardLegadoArquivado ||
                     cardLegadoConcluido ||
@@ -9024,8 +7686,8 @@ export function KanbanCardModal({
                   return;
                 }
                 setModalExcluirInteracaoId(null);
-                // Exclusão de chamado interno — board inalterado
                 await loadCard();
+                router.refresh();
               }}
               className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
@@ -9076,8 +7738,8 @@ export function KanbanCardModal({
                 }
                 setModalArquivarInteracao(null);
                 setMotivoArquivarInteracao('');
-                // Arquivo de chamado interno — board inalterado
                 await loadCard();
+                router.refresh();
               }}
               className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
@@ -9219,17 +7881,11 @@ export function KanbanCardModal({
             className="text-base font-semibold"
             style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
           >
-            {tituloConfirmacaoSaida(modalConfirmacaoPortfolio)}
+            Confirmação
           </h3>
-          {modalConfirmacaoPortfolio.dominio !== 'loteadores' ? (
-            <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-              {perguntaConfirmacaoSaida(modalConfirmacaoPortfolio)}
-            </p>
-          ) : (
-            <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-              {perguntaConfirmacaoSaida(modalConfirmacaoPortfolio)}
-            </p>
-          )}
+          <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+            {perguntaConfirmacaoSaida(modalConfirmacaoPortfolio)}
+          </p>
           <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
             <button
               type="button"
@@ -9243,7 +7899,7 @@ export function KanbanCardModal({
                 background: 'var(--moni-surface-elevated, #fff)',
               }}
             >
-              {modalConfirmacaoPortfolio.dominio === 'loteadores' ? 'Não' : 'Não — apenas avançar'}
+              Não — apenas avançar
             </button>
             <button
               type="button"
@@ -9260,32 +7916,6 @@ export function KanbanCardModal({
           </div>
         </div>
       </div>
-    ) : null}
-
-    {modalReuniaoFasePassou && card ? (
-      <KanbanCardReuniaoFasePassouModal
-        cardId={card.id}
-        origem={origem}
-        basePath={basePath}
-        faseId={card.fase_id}
-        etapaSlug={card.etapa_slug ?? faseAtual?.slug ?? null}
-        onClose={() => setModalReuniaoFasePassou(false)}
-        onAtualizado={(dr) => {
-          setDataReuniao(dr);
-          if (!dr) {
-            setDataReuniaoFaseId(null);
-            setDataReuniaoEtapaSlug(null);
-            return;
-          }
-          if (origem === 'legado') {
-            const slug = card.etapa_slug ?? faseAtual?.slug ?? null;
-            setDataReuniaoEtapaSlug(slug);
-          } else {
-            setDataReuniaoFaseId(card.fase_id);
-          }
-          setModalReuniaoFasePassou(false);
-        }}
-      />
     ) : null}
 
     <CreditoObraAberturaAutorizacaoModal
@@ -9309,18 +7939,13 @@ export function KanbanCardModal({
         nomeAtividade={classificacaoPendente.nomeAtividade}
         onEscolher={(c) => void confirmarClassificacao(c)}
         pending={classificandoPendente}
-        chamadoId={classificacaoPendente.chamadoId}
       />
     )}
 
     {modalNovoChamadoAberto && card && (
       <ModalNovoChamado
         onClose={() => setModalNovoChamadoAberto(false)}
-        onSuccess={() => {
-          setModalNovoChamadoAberto(false);
-          // Novo chamado Sirene — board inalterado; recarrega lista no modal
-          void loadCard();
-        }}
+        onSuccess={() => { setModalNovoChamadoAberto(false); router.refresh(); }}
         initialCard={
           origem === 'legado'
             ? { card_id: null, processo_id: card.id, titulo: card.titulo ?? '', kanban_nome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome), etapa: card.etapa_slug ?? null, origem: 'legado' }
@@ -9330,7 +7955,4 @@ export function KanbanCardModal({
     )}
     </>
   );
-
-  if (typeof document === 'undefined') return modalTree;
-  return createPortal(modalTree, document.body);
 }

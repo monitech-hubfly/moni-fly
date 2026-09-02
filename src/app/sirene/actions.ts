@@ -16,7 +16,6 @@ import { compareChamadosPainelRank } from '@/lib/sirene-painel-chamados-rank';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
 import { notificarMencoesSirene, resolverMencoesSirene } from '@/lib/actions/sirene-mencoes';
-import { notificarAlertasKanbanAtividade } from '@/lib/kanban/chamados-notificacoes';
 import { criarPastelariaInboxParaChamadoSirene } from '@/lib/pastelaria/sirene-pastel-abertura';
 import {
   aggregatePorPrioridadeAbertosFromBreakdown,
@@ -30,11 +29,6 @@ import {
 } from './dashboard-breakdown';
 import { labelPastelariaColuna } from '@/lib/pastelaria/coluna-labels';
 import { syncPastelariaColunaFromSireneStatus } from '@/lib/pastelaria/sirene-status-sync';
-import {
-  filterKanbanAtividadeIds,
-  filterSireneChamadoIds,
-  isPastelariaSyntheticId,
-} from '@/lib/pastelaria/synthetic-id';
 import {
   buscarTopicosStatusChamado,
   registrarPrimeiroAtendimentoSeNecessario,
@@ -361,7 +355,7 @@ export type TopicoPainelLinha = {
   data_fim: string | null;
   trava: boolean;
   pastel: boolean;
-  historico: Array<{ tipo: string; em: string; por?: string | null; detalhe?: string | null }>;
+  historico: Array<{ tipo: string; em: string; por?: string | null }>;
   status: string;
   resolucao_time: string | null;
   motivo_reprovacao: string | null;
@@ -373,8 +367,6 @@ export type TopicoPainelLinha = {
   atribuicao_status?: string | null;
   atribuicao_recusado_por?: string | null;
   atribuicao_justificativa?: string | null;
-  prazo_sla_original?: string | null;
-  criado_por?: string | null;
 };
 
 type GetTopicosPainelResult =
@@ -382,7 +374,7 @@ type GetTopicosPainelResult =
   | { ok: false; error: string };
 
 const TOPICOS_PAINEL_SELECT =
-  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, responsavel_id, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa, prazo_sla_original, criado_por';
+  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, responsavel_id, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, atribuicao_status, atribuicao_recusado_por, atribuicao_justificativa';
 
 function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLinha[] {
   return rows.map((r) => {
@@ -401,7 +393,7 @@ function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLi
     const descRaw = String((r as { descricao?: string }).descricao ?? '').trim();
     const hist = (r as { historico?: unknown }).historico;
     const historico = Array.isArray(hist)
-      ? (hist as Array<{ tipo: string; em: string; por?: string | null; detalhe?: string | null }>)
+      ? (hist as Array<{ tipo: string; em: string; por?: string | null }>)
       : [];
     return {
       id: r.id as number,
@@ -453,14 +445,6 @@ function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLi
       atribuicao_justificativa:
         (r as { atribuicao_justificativa?: unknown }).atribuicao_justificativa != null
           ? String((r as { atribuicao_justificativa?: unknown }).atribuicao_justificativa)
-          : null,
-      prazo_sla_original:
-        (r as { prazo_sla_original?: unknown }).prazo_sla_original != null
-          ? String((r as { prazo_sla_original?: unknown }).prazo_sla_original)
-          : null,
-      criado_por:
-        (r as { criado_por?: unknown }).criado_por != null
-          ? String((r as { criado_por?: unknown }).criado_por)
           : null,
     };
   });
@@ -515,11 +499,6 @@ export async function getTopicosPorInteracaoId(interacaoId: string): Promise<Get
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
-  // IDs sintéticos `pastelaria-{uuid}` não são UUID — não consultar colunas uuid.
-  if (isPastelariaSyntheticId(interacaoId)) {
-    return { ok: true, topicos: [] };
-  }
-
   const { data, error } = await supabase
     .from('sirene_topicos')
     .select(TOPICOS_PAINEL_SELECT)
@@ -543,23 +522,16 @@ export async function getTopicosBatchPorInteracaoIds(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
-  const porInteracao: Record<string, TopicoPainelLinha[]> = {};
-  for (const raw of interacaoIds) {
-    if (isPastelariaSyntheticId(raw)) porInteracao[String(raw)] = [];
-  }
-
-  const idsUuid = filterKanbanAtividadeIds(interacaoIds);
-  if (idsUuid.length === 0) return { ok: true, porInteracao };
-
   const { data, error } = await supabase
     .from('sirene_topicos')
     .select(`${TOPICOS_PAINEL_SELECT}, interacao_id`)
-    .in('interacao_id', idsUuid)
+    .in('interacao_id', interacaoIds)
     .eq('arquivado', false)
     .order('ordem', { ascending: true });
 
   if (error) return { ok: false, error: error.message };
 
+  const porInteracao: Record<string, TopicoPainelLinha[]> = {};
   for (const row of (data ?? []) as Record<string, unknown>[]) {
     const iid = String((row as { interacao_id?: string }).interacao_id ?? '');
     if (!iid) continue;
@@ -612,7 +584,6 @@ export async function salvarResolucaoComTopicos(
       data_fim: dataFim || null,
       status: 'nao_iniciado',
       tipo: 'atividade',
-      criado_por: me.userId,
     });
     if (insErr) return { ok: false, error: insErr.message };
   }
@@ -688,9 +659,9 @@ type AvisoNotificacaoEstruturado = {
   referencia_id: number;
 };
 
-/** Insere uma notificação para um usuário (service role — bypass RLS; notifica terceiros). */
+/** Insere uma notificação para um usuário. */
 async function inserirNotificacao(
-  _supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   chamadoId: number | null,
   tipo: string,
@@ -699,24 +670,18 @@ async function inserirNotificacao(
   aviso?: AvisoNotificacaoEstruturado,
 ): Promise<void> {
   const corpo = aviso?.mensagem ?? texto;
-  try {
-    const admin = createAdminClient();
-    const { error } = await admin.from('sirene_notificacoes').insert({
-      user_id: userId,
-      chamado_id: chamadoId,
-      tipo,
-      texto: corpo,
-      ...(topicoId != null && { topico_id: topicoId }),
-      ...(aviso && {
-        titulo: aviso.titulo,
-        mensagem: aviso.mensagem,
-        referencia_id: aviso.referencia_id,
-      }),
-    });
-    if (error) console.error('[inserirNotificacao]', error.message);
-  } catch (e) {
-    console.error('[inserirNotificacao]', e);
-  }
+  await supabase.from('sirene_notificacoes').insert({
+    user_id: userId,
+    chamado_id: chamadoId,
+    tipo,
+    texto: corpo,
+    ...(topicoId != null && { topico_id: topicoId }),
+    ...(aviso && {
+      titulo: aviso.titulo,
+      mensagem: aviso.mensagem,
+      referencia_id: aviso.referencia_id,
+    }),
+  });
 }
 
 /** IDs do time responsável por um tópico (responsavel_id ou profiles com time = time_responsavel). */
@@ -786,27 +751,23 @@ async function getTopicosAtrasados(
 
   if (error || !topicos?.length) return [];
 
-  const chamadoIds = filterSireneChamadoIds(topicos.map((t) => t.chamado_id as number | null));
-  const numeroByChamado = new Map<number, number>();
-  if (chamadoIds.length > 0) {
-    const { data: chamados } = await supabase
-      .from('sirene_chamados')
-      .select('id, numero')
-      .in('id', chamadoIds);
-    for (const c of chamados ?? []) {
-      numeroByChamado.set(Number(c.id), Number((c as { numero?: number }).numero ?? c.id));
-    }
-  }
+  const chamadoIds = [...new Set(topicos.map((t) => t.chamado_id))];
+  const { data: chamados } = await supabase
+    .from('sirene_chamados')
+    .select('id, numero')
+    .in('id', chamadoIds);
+  const numeroByChamado = new Map(
+    (chamados ?? []).map((c) => [c.id, (c as { numero?: number }).numero ?? c.id]),
+  );
 
   return topicos
     .map((t) => {
       const dataFim = (t.data_fim as string) ?? '';
       const dias_atraso = diasUteisAtraso(dataFim);
-      const cid = t.chamado_id != null && Number.isFinite(Number(t.chamado_id)) ? Number(t.chamado_id) : null;
       return {
         id: t.id,
-        chamado_id: cid as typeof t.chamado_id,
-        numero: (cid != null ? numeroByChamado.get(cid) : undefined) ?? t.chamado_id,
+        chamado_id: t.chamado_id,
+        numero: numeroByChamado.get(t.chamado_id) ?? t.chamado_id,
         descricao: t.descricao ?? '',
         time_responsavel: t.time_responsavel ?? '',
         responsavel_id: t.responsavel_id ?? null,
@@ -1050,7 +1011,12 @@ export async function criarChamado(
       : `Novo chamado #${numero}: ${incendio}`;
 
   for (const uid of userIds) {
-    await inserirNotificacao(supabase, uid, chamadoRow.id, notifTipo, texto);
+    await supabase.from('sirene_notificacoes').insert({
+      user_id: uid,
+      chamado_id: chamadoRow.id,
+      tipo: notifTipo,
+      texto,
+    });
   }
 
   revalidatePath('/sirene');
@@ -1150,10 +1116,10 @@ export async function buscarCardsParaNovoChamadoSirene(
   const pattern = q ? `%${q.replace(/%/g, '\\%').replace(/_/g, '\\_')}%` : null;
   const out: SireneVinculoCardBuscaItem[] = [];
   const seen = new Set<string>();
-  const limit = kanbanId ? 500 : 18;
+  const limit = kanbanId ? 80 : 18;
 
   // --- Nativos ---
-  let nativeQ = admin.from('kanban_cards').select('id, titulo, kanban_id, fase_id').eq('arquivado', false).eq('concluido', false);
+  let nativeQ = admin.from('kanban_cards').select('id, titulo, kanban_id, fase_id').eq('arquivado', false);
   if (kanbanId) nativeQ = nativeQ.eq('kanban_id', kanbanId);
   if (pattern) nativeQ = nativeQ.ilike('titulo', pattern);
   nativeQ = nativeQ.order('titulo').limit(limit);
@@ -1195,7 +1161,52 @@ export async function buscarCardsParaNovoChamadoSirene(
     });
   }
 
-  return { ok: true, items: out.slice(0, kanbanId ? 500 : 30) };
+  // --- Legados (IDs são de processo_step_one → usam processo_id, sem FK constraint em card_id) ---
+  let legQ = admin.from('v_processo_como_kanban_cards').select('id, titulo, kanban_id, fase_id, etapa_slug');
+  if (kanbanId) legQ = legQ.eq('kanban_id', kanbanId);
+  if (pattern) legQ = legQ.ilike('titulo', pattern);
+  legQ = legQ.order('titulo').limit(limit);
+  const { data: legRows, error: lErr } = await legQ;
+  if (lErr) return { ok: false, error: lErr.message };
+
+  const legFaseIds = [...new Set((legRows ?? []).map((r) => String((r as { fase_id?: string }).fase_id ?? '')).filter(Boolean))];
+  const legFaseNomeById = new Map<string, string>();
+  if (legFaseIds.length > 0) {
+    const { data: legFases } = await admin.from('kanban_fases').select('id, nome').in('id', legFaseIds);
+    (legFases ?? []).forEach((f) => legFaseNomeById.set(String((f as { id: string }).id), String((f as { nome?: string }).nome ?? '')));
+  }
+
+  const kidSet2 = new Set<string>();
+  for (const r of legRows ?? []) {
+    const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
+    if (kid) kidSet2.add(kid);
+  }
+  let kbNome2 = new Map<string, string>();
+  if (kidSet2.size > 0) {
+    const { data: kbs2 } = await admin.from('kanbans').select('id, nome').in('id', [...kidSet2]);
+    kbNome2 = new Map(
+      (kbs2 ?? []).map((k) => [String((k as { id: string }).id), String((k as { nome?: string }).nome ?? '')]),
+    );
+  }
+  for (const r of legRows ?? []) {
+    const id = String((r as { id: string }).id);
+    const key = `l:${id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
+    const fid = String((r as { fase_id?: string }).fase_id ?? '');
+    const etapaSlug = String((r as { etapa_slug?: string | null }).etapa_slug ?? '');
+    out.push({
+      card_id: null,
+      processo_id: id,
+      titulo: String((r as { titulo?: string | null }).titulo ?? 'Sem título'),
+      kanban_nome: kbNome2.get(kid) || '—',
+      etapa: legFaseNomeById.get(fid) || etapaSlug || null,
+      origem: 'legado',
+    });
+  }
+
+  return { ok: true, items: out.slice(0, kanbanId ? 160 : 24) };
 }
 
 /** Redirecionar chamado para HDM. Apenas Bombeiro. */
@@ -1252,7 +1263,12 @@ export async function redirecionarParaHDM(
   const numero = chamado.numero ?? chamadoId;
   const texto = `Chamado #${numero} redirecionado para ${hdmResponsavel}.`;
   for (const uid of userIds) {
-    await inserirNotificacao(supabase, uid, chamadoId, 'chamado_hdm_recebido', texto);
+    await supabase.from('sirene_notificacoes').insert({
+      user_id: uid,
+      chamado_id: chamadoId,
+      tipo: 'chamado_hdm_recebido',
+      texto,
+    });
   }
 
   revalidatePath('/sirene');
@@ -1522,12 +1538,10 @@ export async function adicionarTopicoChamadoPainel(
     responsavel_id: respIds.length > 0 ? respIds[0]! : null,
     responsaveis_ids: respIds,
     atribuicao_status: respIds.length > 0 ? 'pendente_aceite' : 'aceito',
-    atribuicao_aceito_em: respIds.length > 0 ? null : new Date().toISOString(),
     status: 'nao_iniciado',
     data_fim: dataFim,
     tipo,
     tema: payload.tema?.trim() || null,
-    criado_por: me.userId,
   });
   if (insErr) return { ok: false, error: insErr.message };
 
@@ -1536,25 +1550,14 @@ export async function adicionarTopicoChamadoPainel(
   const incendioCh = String((chamadoFull as { incendio?: string | null }).incendio ?? '').trim();
   const contextoTitulo = temaCh || incendioCh || `Chamado #${numero}`;
 
-  const abertoPorChamado = (chamadoFull as { aberto_por?: string | null }).aberto_por ?? null;
-  if (abertoPorChamado && abertoPorChamado !== me.userId) {
-    const admin = createAdminClient();
-    await admin.from('alertas').insert({
-      user_id: abertoPorChamado,
-      tipo: 'kanban_atividade_criada',
-      mensagem: `${me.userName} adicionou uma nova atividade ao seu chamado #${numero}: "${desc.slice(0, 60)}"`,
-      referencia_path: `/sirene/${chamadoId}`,
-      lido: false,
-    });
-  }
-
+  const abertoPorId = String((chamadoFull as { aberto_por?: string | null }).aberto_por ?? '').trim();
   await notificarMencoesSirene({
     mencoesIds,
     plain: desc,
     referenciaPath: `/sirene/${chamadoId}`,
     contextoTitulo,
     autorId: me.userId,
-    extraDestinatarios: respIds,
+    extraDestinatarios: [...respIds, abertoPorId].filter(Boolean),
     sireneChamadoId: chamadoId,
   });
 
@@ -1636,7 +1639,7 @@ export async function concluirTopico(
 
   const { data: topico, error: errT } = await supabase
     .from('sirene_topicos')
-    .select('id, chamado_id, time_responsavel, status, interacao_id, nome, descricao')
+    .select('id, chamado_id, time_responsavel, status')
     .eq('id', topicoId)
     .single();
   if (errT || !topico) return { ok: false, error: 'Tópico não encontrado.' };
@@ -1660,67 +1663,24 @@ export async function concluirTopico(
     .eq('id', topicoId);
 
   if (error) return { ok: false, error: error.message };
-
-  // Resolve sireneChamadoId: direto se chamado_id preenchido,
-  // senão via interacao_id → kanban_atividades.sirene_chamado_id
-  // (chamado_id é null para chamados criados via criarChamadoSireneComAtividade)
-  const interacaoIdRaw = String((topico as { interacao_id?: string | null }).interacao_id ?? '').trim() || null;
-  let sireneChamadoId: number | null = (topico as { chamado_id?: number | null }).chamado_id ?? null;
-  if (sireneChamadoId == null && interacaoIdRaw) {
-    const { data: ka } = await supabase
-      .from('kanban_atividades')
-      .select('sirene_chamado_id')
-      .eq('id', interacaoIdRaw)
-      .maybeSingle();
-    sireneChamadoId = (ka as { sirene_chamado_id?: number | null } | null)?.sirene_chamado_id ?? null;
-  }
-
-  const { data: chamadoRef } = sireneChamadoId != null
-    ? await supabase.from('sirene_chamados').select('numero, aberto_por').eq('id', sireneChamadoId).maybeSingle()
-    : { data: null };
-  const numero = (chamadoRef as { numero?: number; aberto_por?: string | null } | null)?.numero ?? sireneChamadoId ?? topicoId;
-  const abertoPorId = (chamadoRef as { aberto_por?: string | null } | null)?.aberto_por ?? null;
-
+  const { data: chamadoRef } = await supabase
+    .from('sirene_chamados')
+    .select('numero')
+    .eq('id', topico.chamado_id)
+    .single();
+  const numero = (chamadoRef as { numero?: number } | null)?.numero ?? topico.chamado_id;
   const bombeiros = await getUserIdsToNotify(supabase, 'bombeiro');
   for (const uid of bombeiros) {
     await inserirNotificacao(
       supabase,
       uid,
-      sireneChamadoId ?? topico.chamado_id,
+      topico.chamado_id,
       'topico_concluido',
       `Tópico do chamado #${numero} foi concluído pelo time.`,
     );
   }
-
-  // Problema 1: notificar abridor do chamado no Sininho
-  if (abertoPorId && abertoPorId !== me.userId) {
-    const nomeAtiv = String((topico as { nome?: string | null; descricao?: string | null }).nome ?? (topico as { descricao?: string | null }).descricao ?? '').trim() || 'atividade';
-    try {
-      await notificarAlertasKanbanAtividade({
-        userIds: [abertoPorId],
-        tipo: 'kanban_atividade_atualizada',
-        mensagem: `Atividade "${nomeAtiv}" do chamado #${numero} foi concluída.`,
-        sireneChamadoId,
-        interacaoId: interacaoIdRaw,
-        topicoId: topico.id,
-        excluirUserId: me.userId,
-      });
-    } catch {
-      // notificação não bloqueia o fluxo
-    }
-  }
-
-  // Problema 2: marcar como lidos os alertas do usuário logado referentes a este tópico
-  await supabase
-    .from('alertas')
-    .update({ lido: true })
-    .eq('user_id', me.userId)
-    .eq('lido', false)
-    .like('referencia_path', `%topico=${topicoId}%`);
-
   revalidatePath('/sirene');
-  revalidatePath(`/sirene/${sireneChamadoId ?? topico.chamado_id}`);
-  revalidatePath('/alertas');
+  revalidatePath(`/sirene/${topico.chamado_id}`);
   return { ok: true };
 }
 
@@ -1898,9 +1858,14 @@ export async function concluirChamadoCriador(
   const me = await getSireneUserContext(supabase);
   if (!me) return { ok: false, error: 'Faça login.' };
 
-  const textoTrim = texto?.trim() ?? '';
-  if (!suficiente && !textoTrim) {
-    return { ok: false, error: 'Informe o motivo da insuficiência.' };
+  const textoTrim = texto?.trim();
+  if (!textoTrim) {
+    return {
+      ok: false,
+      error: suficiente
+        ? 'Informe as informações da conclusão.'
+        : 'Informe o motivo da insuficiência para reabrir.',
+    };
   }
 
   const { data: chamado } = await supabase
@@ -1916,11 +1881,7 @@ export async function concluirChamadoCriador(
   if (chamado.status === 'concluido')
     return { ok: false, error: 'Este chamado já está concluído.' };
 
-  const admin = createAdminClient();
-
-  // Usa admin para evitar bloqueio de RLS em kanban_atividades para usuários que não
-  // têm acesso direto ao registro (ex.: criador que não é responsável dos tópicos)
-  const topicos = await buscarTopicosStatusChamado(admin, chamadoId);
+  const topicos = await buscarTopicosStatusChamado(supabase, chamadoId);
   if (!todosTopicosFechados(topicos)) {
     return {
       ok: false,
@@ -1936,6 +1897,8 @@ export async function concluirChamadoCriador(
   ) {
     return { ok: false, error: 'Chamado não está em andamento.' };
   }
+
+  const admin = createAdminClient();
 
   if (suficiente) {
     const { error } = await supabase
@@ -1967,8 +1930,7 @@ export async function concluirChamadoCriador(
         resolucao_suficiente: false,
         motivo_insuficiente: textoTrim,
         info_conclusao_criador: null,
-        status: 'concluido',
-        data_conclusao: new Date().toISOString(),
+        status: 'em_andamento',
         updated_at: new Date().toISOString(),
       })
       .eq('id', chamadoId);
@@ -1977,8 +1939,8 @@ export async function concluirChamadoCriador(
     await admin
       .from('kanban_atividades')
       .update({
-        status: 'concluida',
-        concluida_em: new Date().toISOString(),
+        status: 'em_andamento',
+        concluida_em: null,
         updated_at: new Date().toISOString(),
       })
       .eq('sirene_chamado_id', chamadoId);
@@ -1991,13 +1953,13 @@ export async function concluirChamadoCriador(
         uid,
         chamadoId,
         'criador_reabriu',
-        `Criador indicou resolução insuficiente no chamado #${numero}: ${textoTrim}`,
+        `Criador indicou resolução insuficiente no chamado #${numero}. Chamado reaberto.`,
       );
     }
   }
 
   const adminSync = createAdminClient();
-  const statusSync = 'concluido';
+  const statusSync = suficiente ? 'concluido' : 'em_andamento';
   const syncPastel = await syncPastelariaColunaFromSireneStatus(adminSync, chamadoId, statusSync);
   if (!syncPastel.ok) console.error('[concluirChamadoCriador] sync pastelaria', syncPastel.error);
 
@@ -2020,7 +1982,6 @@ export async function listAnexosChamado(chamadoId: number): Promise<
         id: number;
         chamado_id: number;
         topico_id: number | null;
-        uploader_id: string | null;
         uploader_nome: string | null;
         nome_original: string | null;
         origem: string | null;
@@ -2042,7 +2003,7 @@ export async function listAnexosChamado(chamadoId: number): Promise<
 
   const { data: rows, error } = await supabase
     .from('sirene_anexos')
-    .select('id, chamado_id, topico_id, uploader_id, uploader_nome, nome_original, origem, created_at')
+    .select('id, chamado_id, topico_id, uploader_nome, nome_original, origem, created_at')
     .eq('chamado_id', chamadoId)
     .order('created_at', { ascending: false });
 
@@ -2174,51 +2135,6 @@ export async function getAnexoChamadoDownloadUrl(
     .createSignedUrl(anexo.storage_path, 60);
   if (signErr || !signed?.signedUrl) return { ok: false, error: signErr?.message ?? 'Erro ao gerar link.' };
   return { ok: true, url: signed.signedUrl };
-}
-
-export async function excluirAnexoChamado(
-  anexoId: number,
-): Promise<SireneActionResult> {
-  const supabase = await createClient();
-  const me = await getSireneUserContext(supabase);
-  if (!me) return { ok: false, error: 'Faça login.' };
-
-  const { data: anexo, error: fetchErr } = await supabase
-    .from('sirene_anexos')
-    .select('id, chamado_id, storage_path, nome_original, uploader_id')
-    .eq('id', anexoId)
-    .single();
-  if (fetchErr || !anexo) return { ok: false, error: 'Anexo não encontrado.' };
-
-  const row = anexo as { chamado_id: number; storage_path: string; nome_original: string; uploader_id: string };
-
-  const isAdminTeam = me.role === 'admin' || me.role === 'team';
-  const isBombeiro = me.ctx.papel === 'bombeiro' || me.ctx.papel === 'caneta_verde';
-  const isUploader = String(row.uploader_id) === me.userId;
-  if (!isAdminTeam && !isBombeiro && !isUploader) {
-    return { ok: false, error: 'Sem permissão para excluir este anexo.' };
-  }
-
-  await (supabase as any).from('sirene_anexos_log').insert({
-    anexo_id: anexoId,
-    chamado_id: row.chamado_id,
-    storage_path: row.storage_path,
-    nome_original: row.nome_original,
-    excluido_por: me.userId,
-    excluido_por_nome: me.userName,
-    excluido_em: new Date().toISOString(),
-  });
-
-  await supabase.storage.from('sirene-attachments').remove([row.storage_path]);
-
-  const { error: delErr } = await supabase
-    .from('sirene_anexos')
-    .delete()
-    .eq('id', anexoId);
-  if (delErr) return { ok: false, error: delErr.message };
-
-  revalidatePath(`/sirene/${row.chamado_id}`);
-  return { ok: true };
 }
 
 function statusSireneParaRankLista(status: string): string {
@@ -2381,8 +2297,7 @@ export async function getMonitorTopicosPorTime(
   let list = topicos ?? [];
   if (list.length === 0) return { ok: true, isBombeiro: true, porTime: {} };
 
-  const chamadoIds = filterSireneChamadoIds(list.map((t) => t.chamado_id as number | null));
-  if (chamadoIds.length === 0) return { ok: true, isBombeiro: true, porTime: {} };
+  const chamadoIds = [...new Set(list.map((t) => t.chamado_id))];
   let q = supabase
     .from('sirene_chamados')
     .select('id, numero, incendio, frank_nome, trava, tipo')
@@ -3249,7 +3164,7 @@ async function aggregateTopFranqueados(
       const slice = redeIds.slice(i, i + chunk);
       const { data: redes } = await queryClient
         .from('rede_franqueados')
-        .select('id, nome_completo, n_franquia')
+        .select('id, nome_completo, n_franquia, nome, unidade')
         .in('id', slice);
       for (const rf of redes ?? []) {
         redeNome.set(String((rf as { id: string }).id), displayNomeRedeFranqueado(rf as Parameters<typeof displayNomeRedeFranqueado>[0]));
@@ -3347,8 +3262,6 @@ export async function getDashboardData(
         responsavel_nome: string | null;
         dias_aberto: number;
         origem: string;
-        kanban_atividade_id: string | null;
-        arquivado: boolean;
       }>;
     }
   | { ok: false; error: string }
@@ -3364,7 +3277,7 @@ export async function getDashboardData(
   let query = queryClient
     .from('sirene_chamados')
     .select(
-      'id, numero, status, trava, te_trata, data_abertura, data_vencimento, data_inicio_atendimento, resolucao_suficiente, incendio, tema, frank_nome, card_id, time_abertura, tipo, updated_at, prioridade, arquivado',
+      'id, numero, status, trava, te_trata, data_abertura, data_vencimento, data_inicio_atendimento, resolucao_suficiente, incendio, tema, frank_nome, card_id, time_abertura, tipo, updated_at, prioridade',
     );
   if (filtroTipo === 'pasteis') {
     const ids = [...(pastelChamadoIds ?? [])];
@@ -3546,18 +3459,6 @@ export async function getDashboardData(
     ),
   ]);
 
-  // Busca kanban_atividades IDs para gerar links diretos no dashboard
-  const { data: kaRowsAll } = await queryClient
-    .from('kanban_atividades')
-    .select('id, sirene_chamado_id')
-    .in('sirene_chamado_id', list.map((c) => Number(c.id)));
-  const kaIdByChamadoId = new Map<number, string>(
-    (kaRowsAll ?? []).map((k) => [
-      Number((k as { sirene_chamado_id?: number | null }).sirene_chamado_id),
-      String((k as { id?: string }).id),
-    ]),
-  );
-
   return {
     ok: true,
     emAberto,
@@ -3616,6 +3517,7 @@ export async function getDashboardData(
       }
 
       return list
+        .filter((c) => c.status === 'nao_iniciado' || c.status === 'em_andamento')
         .map((c) => {
           const dataAbertura = c.data_abertura ? new Date(String(c.data_abertura)) : null;
           const diasAberto =
@@ -3633,11 +3535,14 @@ export async function getDashboardData(
             responsavel_nome: null,
             dias_aberto: diasAberto,
             origem: 'sirene',
-            kanban_atividade_id: kaIdByChamadoId.get(Number(c.id)) ?? null,
-            arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
           };
         })
-        .sort((a, b) => a.numero - b.numero);
+        .sort((a, b) => {
+          const ord: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4, P5: 5, P6: 6 };
+          const diff = (ord[a.prioridade ?? 'P6'] ?? 6) - (ord[b.prioridade ?? 'P6'] ?? 6);
+          if (diff !== 0) return diff;
+          return b.dias_aberto - a.dias_aberto;
+        });
     })(),
   };
 }
@@ -3858,7 +3763,7 @@ export async function listPericiasComChamados(filtros?: {
     if (!porPericia.has(v.pericia_id)) porPericia.set(v.pericia_id, []);
     porPericia.get(v.pericia_id)!.push(v.chamado_id);
   }
-  const chamadoIds = filterSireneChamadoIds((vinc ?? []).map((v) => v.chamado_id));
+  const chamadoIds = [...new Set((vinc ?? []).map((v) => v.chamado_id))];
   const { data: chamadosList } =
     chamadoIds.length > 0
       ? await supabase.from('sirene_chamados').select('id, numero, incendio').in('id', chamadoIds)
@@ -3939,9 +3844,9 @@ export async function listConclusoesClassificadas(): Promise<
     }
   }
 
-  const chamadoIds = filterSireneChamadoIds(
-    (rows ?? []).map((r) => (r as { chamado_id?: number | null }).chamado_id),
-  );
+  const chamadoIds = (rows ?? [])
+    .map((r) => (r as { chamado_id?: number | null }).chamado_id)
+    .filter((x): x is number => x != null);
 
   let numeroPorChamado = new Map<number, number>();
   if (chamadoIds.length > 0) {

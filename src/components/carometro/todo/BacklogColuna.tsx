@@ -13,14 +13,6 @@ type BacklogColunaProps = {
   status: StatusPrazo;
   origemBadge?: string;
   href?: string;
-  onClickExternal?: () => void;
-  abertoPor?: string | null;
-  descricao?: string | null;
-  onClick?: () => void;
-  /** Substitui bg-white no card (ex: 'bg-red-50') */
-  overrideBg?: string;
-  /** Badge extra exibido abaixo do título (ex: '⚠ Planejado: Ter 10:00') */
-  agendaBadge?: string;
 };
 
 const BORDER_COLOR: Record<StatusPrazo, string> = {
@@ -49,11 +41,13 @@ const BADGE_BG: Record<string, string> = {
 function formatarPrazo(prazo: string | null, status: StatusPrazo): string {
   if (!prazo) return 'Sem prazo';
 
+  // Semana no formato "S25" ou número
   if (/^S?\d+$/i.test(prazo)) {
     const num = prazo.replace(/^S/i, '');
     return `S${num}`;
   }
 
+  // ISO date
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   const prazoDate = new Date(`${prazo}T00:00:00`);
@@ -80,12 +74,6 @@ export function BacklogColunaCard({
   status,
   origemBadge,
   href,
-  onClickExternal,
-  abertoPor,
-  descricao,
-  onClick,
-  overrideBg,
-  agendaBadge,
 }: BacklogColunaProps) {
   const borderColor = BORDER_COLOR[status];
   const prazoLabel  = formatarPrazo(prazo, status);
@@ -93,93 +81,50 @@ export function BacklogColunaCard({
 
   return (
     <div
-      className={`rounded-md ${overrideBg ?? 'bg-white'} border border-gray-200 px-3 py-2 text-sm shadow-sm transition-all ${onClick ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+      className="rounded-md bg-white border border-gray-200 px-3 py-2 text-sm shadow-sm transition-all"
       style={{ borderLeft: `3px solid ${borderColor}` }}
-      onClick={onClick}
     >
-      {/* Linha 1: badges + meta (abertoPor, número, prazo) + dot + link */}
-      <div className="flex items-center justify-between gap-1 min-w-0">
-        <div className="flex items-center gap-1 min-w-0 flex-wrap">
-          {tipo === 'sirene' && origemBadge && (
-            <span className="shrink-0 text-[10px] font-medium px-1 py-0.5 rounded bg-gray-100 text-gray-500">
-              {origemBadge}
-            </span>
-          )}
+      {/* Linha 1: badge prioridade + título (máx 2 linhas) + dot status + link */}
+      <div className="flex items-start justify-between gap-1.5 min-w-0">
+        <div className="flex items-start gap-1.5 min-w-0 flex-1">
           {tipo === 'sirene' && badgeClass && (
             <span className={`shrink-0 text-[10px] font-semibold px-1 py-0.5 rounded ${badgeClass}`}>
               {prioridade!.toUpperCase()}
             </span>
           )}
-          {abertoPor && (
-            <span className="text-gray-400 text-[10px]">por {abertoPor}</span>
-          )}
-          {numeroChamado && (
-            <span className="text-gray-400 text-[10px]">#{numeroChamado}</span>
-          )}
-          <span className={`text-[10px] ${status === 'atrasado' ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
-            {prazoLabel}
+          <span
+            className="text-gray-800 leading-snug"
+            style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+          >
+            {titulo}
           </span>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 mt-1">
           <span className={`h-2 w-2 rounded-full ${DOT_COR[status]}`} />
-          {onClickExternal ? (
-            <button
-              type="button"
-              title="Abrir origem"
-              onClick={(e) => { e.stopPropagation(); onClickExternal(); }}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="text-gray-300 hover:text-gray-500 transition-colors"
-            >
-              <ExternalLink className="h-3 w-3" />
-            </button>
-          ) : href ? (
+          {href && (
             <a
               href={href}
               title="Abrir origem"
               onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
               className="text-gray-300 hover:text-gray-500 transition-colors"
             >
               <ExternalLink className="h-3 w-3" />
             </a>
-          ) : null}
+          )}
         </div>
       </div>
-
-      {/* Linha 2: título principal */}
-      <p
-        className="mt-0.5 text-gray-800 leading-snug text-xs"
-        style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-      >
-        {titulo}
-      </p>
-
-      {/* Linha 3: descrição da atividade (sua tarefa dentro do chamado) */}
-      {descricao ? (
-        <p
-          className="mt-0.5 text-[10px] text-gray-500 leading-snug"
-          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-        >
-          {descricao}
-        </p>
-      ) : null}
-
-      {/* Badge de agenda vencida */}
-      {agendaBadge ? (
-        <p className="mt-0.5 text-[9px] text-red-500 font-medium">{agendaBadge}</p>
-      ) : null}
-
-      {/* Fallback linha 2 para não-sirene: badge origem + prazo */}
-      {tipo !== 'sirene' && (
-        <div className={`mt-1 text-xs flex items-center gap-2 flex-wrap ${status === 'atrasado' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-          {origemBadge && (
-            <span className="shrink-0 text-[10px] font-medium px-1 py-0.5 rounded bg-gray-100 text-gray-500">
-              {origemBadge}
-            </span>
-          )}
-          <span>{prazoLabel}</span>
-        </div>
-      )}
+      {/* Linha 2: badge origem + #número + prazo */}
+      <div className={`mt-1 text-xs flex items-center gap-2 flex-wrap ${status === 'atrasado' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+        {origemBadge && (
+          <span className="shrink-0 text-[10px] font-medium px-1 py-0.5 rounded bg-gray-100 text-gray-500">
+            {origemBadge}
+          </span>
+        )}
+        {numeroChamado && (
+          <span className="text-gray-400 font-normal">#{numeroChamado}</span>
+        )}
+        <span>{prazoLabel}</span>
+      </div>
     </div>
   );
 }

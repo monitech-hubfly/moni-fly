@@ -4,17 +4,6 @@ import { useMeuCarometro } from '@/hooks/useMeuCarometro';
 import { MeuCarometroCard } from './MeuCarometroCard';
 import { SeletorUsuarioAdmin } from './SeletorUsuarioAdmin';
 
-function engScoreColor(score: number | null): string {
-  if (score === null) return '#15803d';
-  if (score >= 75) return '#15803d';
-  if (score >= 60) return '#22c55e';
-  if (score >= 30) return '#ca8a04';
-  return '#dc2626';
-}
-function engScoreLabel(score: number | null): string {
-  return score !== null ? `${score}%` : '—';
-}
-
 export function MeuCarometroBloco() {
   const {
     sirene,
@@ -22,7 +11,7 @@ export function MeuCarometroBloco() {
     indicadores,
     diasSirene,
     diasEngajamento,
-    semanasIndicadores,
+    diasIndicadores,
     semanaAtual,
     isLoading,
     error,
@@ -54,24 +43,18 @@ export function MeuCarometroBloco() {
               {sirene && (
                 <>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Concluídos</span>
-                    <span className="font-medium" style={{ color: (sirene.concluidos ?? 0) > 0 ? '#15803d' : undefined }}>
-                      {sirene.concluidos ?? 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-gray-500">Atrasados</span>
                     <span className="font-medium" style={{ color: sirene.atrasados > 0 ? '#dc2626' : undefined }}>
                       {sirene.atrasados}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Vence hoje</span>
-                    <span className="font-medium">{sirene.venceHoje ?? 0}</span>
+                    <span className="text-gray-500">Abertos</span>
+                    <span className="font-medium">{sirene.abertos}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500 text-[10px]">Futuras (fora do %)</span>
-                    <span className="font-medium text-gray-400">{sirene.futuras ?? 0}</span>
+                    <span className="text-gray-500">Sem prazo</span>
+                    <span className="font-medium text-gray-400">{sirene.semPrazo}</span>
                   </div>
                 </>
               )}
@@ -86,78 +69,31 @@ export function MeuCarometroBloco() {
             >
               {engajamento && (
                 <>
-                  {/* Agenda */}
-                  <div className="flex flex-col gap-1 pb-2 border-b border-gray-100">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600 font-semibold text-[10px] uppercase tracking-wide">Agenda</span>
-                      <span className="font-bold text-[11px]" style={{ color: engScoreColor(engajamento.atividades.score) }}>
-                        {engScoreLabel(engajamento.atividades.score)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Agendadas esta semana</span>
-                      <span className="font-medium">{engajamento.atividades.agendadas}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Concluídos</span>
-                      <span className="font-medium" style={{ color: engajamento.atividades.realizadas > 0 ? '#15803d' : undefined }}>
-                        {engajamento.atividades.realizadas}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Não concluídas</span>
-                      <span className="font-medium" style={{ color: engajamento.atividades.atrasadas > 0 ? '#dc2626' : undefined }}>
-                        {engajamento.atividades.atrasadas}
-                      </span>
-                    </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Ativ. atrasadas</span>
+                    <span
+                      className="font-medium"
+                      style={{ color: engajamento.atividadesAtrasadas > 0 ? '#dc2626' : undefined }}
+                    >
+                      {engajamento.atividadesAtrasadas}
+                    </span>
                   </div>
-
-                  {/* Cards com SLA */}
-                  <div className="flex flex-col gap-1 pb-2 border-b border-gray-100">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600 font-semibold text-[10px] uppercase tracking-wide">Cards / Kanban</span>
-                      <span className="font-bold text-[11px]" style={{ color: engScoreColor(engajamento.cards.score) }}>
-                        {engScoreLabel(engajamento.cards.score)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">SLA em dia</span>
-                      <span className="font-medium" style={{ color: engajamento.cards.emDia > 0 ? '#15803d' : undefined }}>
-                        {engajamento.cards.emDia}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Atrasados</span>
-                      <span className="font-medium" style={{ color: engajamento.cards.atrasados > 0 ? '#dc2626' : undefined }}>
-                        {engajamento.cards.atrasados}
-                      </span>
-                    </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Ativ. planejadas</span>
+                    <span className="font-medium">{engajamento.acumuladoDias}</span>
                   </div>
-
-                  {/* Próximas Atividades */}
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600 font-semibold text-[10px] uppercase tracking-wide">Próximas Ativ.</span>
-                      <span className="font-bold text-[11px]" style={{ color: engScoreColor(engajamento.proximas.score) }}>
-                        {engScoreLabel(engajamento.proximas.score)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Concluídos</span>
-                      <span className="font-medium" style={{ color: engajamento.proximas.concluidos > 0 ? '#15803d' : undefined }}>
-                        {engajamento.proximas.concluidos}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Vence hoje</span>
-                      <span className="font-medium">{engajamento.proximas.venceHoje}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Atrasadas</span>
-                      <span className="font-medium" style={{ color: engajamento.proximas.atrasadas > 0 ? '#dc2626' : undefined }}>
-                        {engajamento.proximas.atrasadas}
-                      </span>
-                    </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Cards atrasados</span>
+                    <span
+                      className="font-medium"
+                      style={{ color: engajamento.cards.atrasados > 0 ? '#dc2626' : undefined }}
+                    >
+                      {engajamento.cards.atrasados}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Cards abertos</span>
+                    <span className="font-medium">{engajamento.cards.abertos}</span>
                   </div>
                 </>
               )}
@@ -167,27 +103,34 @@ export function MeuCarometroBloco() {
             <MeuCarometroCard
               titulo="Indicadores"
               score={indicadores?.media ?? null}
-              semanasIndicadores={semanasIndicadores}
+              diasDaSemana={diasIndicadores}
               tipo="indicadores"
-            />
+            >
+              {indicadores && indicadores.porIndicador.length > 0 ? (
+                indicadores.porIndicador.map(ind => (
+                  <div key={ind.nome} className="flex justify-between gap-2">
+                    <span className="text-gray-500 truncate flex-1">{ind.nome}</span>
+                    <span className="font-medium whitespace-nowrap tabular-nums">{ind.percentual}%</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-400 text-center py-1">Sem lançamentos esta semana</p>
+              )}
+            </MeuCarometroCard>
           </div>
 
           <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-gray-500">
             <span className="flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-700" />
-              ≥75% Verde escuro
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />
-              60–74% Verde claro
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-600" />
+              &lt;35% Vermelho
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-600" />
-              30–59% Amarelo
+              35–65% Amarelo
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-600" />
-              &lt;30% Vermelho
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-700" />
+              &gt;65% Verde
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300" />

@@ -3,8 +3,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { MarcarLidoButton } from './MarcarLidoButton';
 import { MarcarTodosLidoButton } from './MarcarTodosLidoButton';
-import { CategoriaAlerta, categorizarAlerta, PrioridadeAlerta, priorizarAlerta, corPrioridade } from './categorizar';
-import { KanbanAtividadeEnrich } from './KanbanAtividadeEnrich';
+import { CategoriaAlerta, categorizarAlerta } from './categorizar';
 
 function rotuloTipo(tipo: string): string {
   if (tipo === 'mencao_kanban_card') return 'Menção em card';
@@ -17,7 +16,6 @@ function rotuloTipo(tipo: string): string {
   if (tipo === 'sla_atividade_atrasado') return 'Atividade atrasada';
   if (tipo === 'sla_atividade_atencao') return 'Atividade em atenção';
   if (tipo === 'status_preenchimento_lembrete') return 'Lembrete de entrega';
-  if (tipo === 'gbox_atualizado') return 'GBox atualizado';
   return tipo;
 }
 
@@ -63,19 +61,10 @@ const TIPOS_SIRENE = new Set([
   'mencao_sirene',
 ]);
 
-const TIPOS_KANBAN_ATIVIDADE = new Set([
-  'kanban_atividade_criada',
-  'kanban_atividade_atualizada',
-  'kanban_atividade_redirecionada',
-  'sla_atividade_atrasado',
-  'sla_atividade_atencao',
-  'atribuicao_recusada',
-]);
-
 export default async function AlertasPage({
   searchParams,
 }: {
-  searchParams?: { categoria?: string; lidas?: string; prioridade?: string };
+  searchParams?: { categoria?: string; lidas?: string };
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -91,7 +80,6 @@ export default async function AlertasPage({
   // Enrichment sirene: Q1 + Q3 em paralelo, depois Q2 dependente de Q1
   const interacaoIdsSet = new Set<string>();
   const topicoIdsSet = new Set<number>();
-  const cardIdsSet = new Set<string>();
   for (const a of alertas ?? []) {
     const path = (a as { referencia_path?: string | null }).referencia_path;
     if (TIPOS_SIRENE.has(String(a.tipo ?? ''))) {
@@ -103,23 +91,17 @@ export default async function AlertasPage({
       const n = Number(tid);
       if (Number.isFinite(n) && n > 0) topicoIdsSet.add(n);
     }
-    const cid = (a as { referencia_card_id?: string | null }).referencia_card_id;
-    if (cid) cardIdsSet.add(cid);
   }
   const interacaoIds = [...interacaoIdsSet];
   const topicoIds = [...topicoIdsSet];
-  const cardIds = [...cardIdsSet];
 
-  const [atividadesRes, topicosRes, cardsRes] = await Promise.all([
+  const [atividadesRes, topicosRes] = await Promise.all([
     interacaoIds.length > 0
-      ? supabase.from('kanban_atividades').select('id, sirene_chamado_id, descricao, data_vencimento, titulo, card_id').in('id', interacaoIds)
-      : Promise.resolve({ data: [] as { id: string; sirene_chamado_id: number | null; descricao: string | null; data_vencimento: string | null; titulo: string | null; card_id: string | null }[] }),
+      ? supabase.from('kanban_atividades').select('id, sirene_chamado_id').in('id', interacaoIds)
+      : Promise.resolve({ data: [] as { id: string; sirene_chamado_id: number | null }[] }),
     topicoIds.length > 0
-      ? supabase.from('sirene_topicos').select('id, descricao_detalhe, descricao, interacao_id').in('id', topicoIds)
-      : Promise.resolve({ data: [] as { id: number; descricao_detalhe: string | null; descricao: string | null; interacao_id: string | null }[] }),
-    cardIds.length > 0
-      ? supabase.from('kanban_cards').select('id, nome_condominio, quadra, lote, profiles(full_name)').in('id', cardIds)
-      : Promise.resolve({ data: [] as { id: string; nome_condominio: string | null; quadra: string | null; lote: string | null; profiles: { full_name: string | null } | null }[] }),
+      ? supabase.from('sirene_topicos').select('id, descricao_detalhe, descricao').in('id', topicoIds)
+      : Promise.resolve({ data: [] as { id: number; descricao_detalhe: string | null; descricao: string | null }[] }),
   ]);
 
   const atividadeMap = new Map<string, number | null>();
@@ -127,40 +109,10 @@ export default async function AlertasPage({
     atividadeMap.set(a.id, a.sirene_chamado_id);
   }
 
-  type AtividadeEnrich = { id: string; descricao: string | null; data_vencimento: string | null; titulo: string | null; card_id: string | null };
-  const atividadeEnrichMap = new Map<string, AtividadeEnrich>();
-  for (const av of (atividadesRes.data ?? []) as { id: string; descricao: string | null; data_vencimento: string | null; titulo: string | null; card_id: string | null }[]) {
-    atividadeEnrichMap.set(av.id, { id: av.id, descricao: av.descricao, data_vencimento: av.data_vencimento, titulo: av.titulo, card_id: av.card_id });
-  }
-
-  type TopicoEnrich = { descricao_detalhe: string | null; descricao: string | null; interacao_id: string | null };
+  type TopicoEnrich = { descricao_detalhe: string | null; descricao: string | null };
   const topicoMap = new Map<number, TopicoEnrich>();
-  for (const t of (topicosRes.data ?? []) as { id: number; descricao_detalhe: string | null; descricao: string | null; interacao_id: string | null }[]) {
-    topicoMap.set(t.id, { descricao_detalhe: t.descricao_detalhe, descricao: t.descricao, interacao_id: t.interacao_id ?? null });
-  }
-
-  // Buscar atividades que só chegam via tópico (path tem ?topico= mas não ?interacao=)
-  const missingInteracaoIds = [...new Set(
-    [...topicoMap.values()]
-      .map(t => t.interacao_id)
-      .filter((id): id is string => id !== null && id !== '' && !atividadeEnrichMap.has(id))
-  )];
-  if (missingInteracaoIds.length > 0) {
-    const { data: missingAtivs } = await supabase
-      .from('kanban_atividades')
-      .select('id, sirene_chamado_id, descricao, data_vencimento, titulo, card_id')
-      .in('id', missingInteracaoIds);
-    for (const ma of (missingAtivs ?? []) as { id: string; sirene_chamado_id: number | null; descricao: string | null; data_vencimento: string | null; titulo: string | null; card_id: string | null }[]) {
-      atividadeMap.set(ma.id, ma.sirene_chamado_id);
-      atividadeEnrichMap.set(ma.id, { id: ma.id, descricao: ma.descricao, data_vencimento: ma.data_vencimento, titulo: ma.titulo, card_id: ma.card_id });
-    }
-  }
-
-  // Card IDs de atividades puras (sem sirene_chamado_id) para exibir contexto do funil
-  const atividadeCardIdsSet = new Set<string>();
-  for (const enrich of atividadeEnrichMap.values()) {
-    const sid = atividadeMap.get(enrich.id);
-    if (sid == null && enrich.card_id) atividadeCardIdsSet.add(enrich.card_id);
+  for (const t of (topicosRes.data ?? []) as { id: number; descricao_detalhe: string | null; descricao: string | null }[]) {
+    topicoMap.set(t.id, { descricao_detalhe: t.descricao_detalhe, descricao: t.descricao });
   }
 
   const chamadoIdsSet = new Set<number>();
@@ -168,71 +120,19 @@ export default async function AlertasPage({
     if (cid != null) chamadoIdsSet.add(cid);
   }
 
-  type ChamadoEnrich = { numero: number | null; aberto_por_nome: string | null; card_kanban_nome: string | null; card_titulo: string | null; prioridade: string | null; card_id: string | null };
+  type ChamadoEnrich = { numero: number | null; aberto_por_nome: string | null; card_kanban_nome: string | null };
   const chamadoMap = new Map<number, ChamadoEnrich>();
   if (chamadoIdsSet.size > 0) {
     const { data: chamados } = await supabase
       .from('sirene_chamados')
-      .select('id, numero, aberto_por_nome, card_kanban_nome, card_titulo, prioridade, card_id')
+      .select('id, numero, aberto_por_nome, card_kanban_nome')
       .in('id', [...chamadoIdsSet]);
-    for (const c of (chamados ?? []) as { id: number; numero: number | null; aberto_por_nome: string | null; card_kanban_nome: string | null; card_titulo: string | null; prioridade: string | null; card_id: string | null }[]) {
-      chamadoMap.set(c.id, { numero: c.numero, aberto_por_nome: c.aberto_por_nome, card_kanban_nome: c.card_kanban_nome, card_titulo: c.card_titulo, prioridade: c.prioridade, card_id: c.card_id });
+    for (const c of (chamados ?? []) as { id: number; numero: number | null; aberto_por_nome: string | null; card_kanban_nome: string | null }[]) {
+      chamadoMap.set(c.id, { numero: c.numero, aberto_por_nome: c.aberto_por_nome, card_kanban_nome: c.card_kanban_nome });
     }
-  }
-
-  // Buscar funil/título do card para atividades puras (sem chamado Sirene)
-  type AtividadeCardEnrich = { id: string; titulo: string | null; kanban_nome: string | null };
-  const atividadeCardMap = new Map<string, AtividadeCardEnrich>();
-  if (atividadeCardIdsSet.size > 0) {
-    const { data: atividadeCards } = await supabase
-      .from('kanban_cards')
-      .select('id, titulo, kanbans(nome)')
-      .in('id', [...atividadeCardIdsSet]);
-    for (const ac of (atividadeCards ?? []) as unknown as { id: string; titulo: string | null; kanbans: { nome: string | null }[] | null }[]) {
-      atividadeCardMap.set(ac.id, {
-        id: ac.id,
-        titulo: ac.titulo,
-        kanban_nome: ac.kanbans?.[0]?.nome ?? null,
-      });
-    }
-  }
-
-  // Buscar fases dos cards vinculados aos chamados Sirene
-  const cardIdsSirene = [...new Set(
-    [...chamadoMap.values()]
-      .map(c => c.card_id)
-      .filter((id): id is string => Boolean(id))
-  )];
-  type FaseEnrich = { card_id: string; fase_nome: string | null; kanban_nome: string | null };
-  const faseMap = new Map<string, FaseEnrich>();
-  if (cardIdsSirene.length > 0) {
-    const { data: fasesData } = await supabase
-      .from('kanban_cards')
-      .select('id, kanban_fases(nome), kanbans(nome)')
-      .in('id', cardIdsSirene);
-    for (const f of (fasesData ?? []) as unknown as { id: string; kanban_fases: { nome: string | null }[] | null; kanbans: { nome: string | null }[] | null }[]) {
-      faseMap.set(f.id, {
-        card_id: f.id,
-        fase_nome: f.kanban_fases?.[0]?.nome ?? null,
-        kanban_nome: f.kanbans?.[0]?.nome ?? null,
-      });
-    }
-  }
-
-  type CardEnrich = { id: string; nome_condominio: string | null; quadra: string | null; lote: string | null; franqueado_nome: string | null };
-  const cardMap = new Map<string, CardEnrich>();
-  for (const c of (cardsRes.data ?? []) as { id: string; nome_condominio: string | null; quadra: string | null; lote: string | null; profiles: { full_name: string | null } | null }[]) {
-    cardMap.set(c.id, {
-      id: c.id,
-      nome_condominio: c.nome_condominio,
-      quadra: c.quadra,
-      lote: c.lote,
-      franqueado_nome: c.profiles?.full_name ?? null,
-    });
   }
 
   const categoriaAtiva = (searchParams?.categoria ?? 'todos') as CategoriaAlerta | 'todos';
-  const prioridadeAtiva = ((searchParams?.prioridade ?? 'todas') as PrioridadeAlerta | 'todas');
   const soNaoLidas = searchParams?.lidas !== 'todas';
 
   const categorias: { key: CategoriaAlerta | 'todos'; label: string }[] = [
@@ -254,64 +154,13 @@ export default async function AlertasPage({
     }
   }
 
-  const contadoresPrioridade: Record<PrioridadeAlerta | 'todas', number> = {
-    todas: 0, critico: 0, importante: 0, informativo: 0,
-  };
-  for (const a of alertas ?? []) {
-    if (!a.lido) {
-      const pri = priorizarAlerta(String(a.tipo ?? ''));
-      contadoresPrioridade[pri]++;
-      contadoresPrioridade['todas']++;
-    }
-  }
-
-  const naoLidasFiltradas = (alertas ?? []).filter(a => !a.lido && (prioridadeAtiva === 'todas' || priorizarAlerta(String(a.tipo ?? '')) === prioridadeAtiva) && (categoriaAtiva === 'todos' || categorizarAlerta(String(a.tipo ?? '')) === categoriaAtiva));
-  const contagemNaoLidas = {
-    critico: naoLidasFiltradas.filter(a => priorizarAlerta(String(a.tipo ?? '')) === 'critico').length,
-    importante: naoLidasFiltradas.filter(a => priorizarAlerta(String(a.tipo ?? '')) === 'importante').length,
-    informativo: naoLidasFiltradas.filter(a => priorizarAlerta(String(a.tipo ?? '')) === 'informativo').length,
-    total: naoLidasFiltradas.length,
-  };
-
   const alertasFiltrados = (alertas ?? []).filter((a) => {
-    if (prioridadeAtiva !== 'todas' && priorizarAlerta(String(a.tipo ?? '')) !== prioridadeAtiva) return false;
     if (categoriaAtiva !== 'todos' && categorizarAlerta(String(a.tipo ?? '')) !== categoriaAtiva) return false;
     if (soNaoLidas && a.lido) return false;
     return true;
   });
 
-  // Agrupar alertas do mesmo chamado Sirene — manter apenas o mais atrasado
-  function extrairDiasAtrasado(msg: string): number {
-    const m = msg.match(/Atrasado (\d+) d\.u\./);
-    return m ? parseInt(m[1], 10) : 0;
-  }
-
-  const alertasAgrupados = (() => {
-    const grupoMap = new Map<string, { alerta: typeof alertasFiltrados[0]; count: number }>();
-    const semGrupo: typeof alertasFiltrados = [];
-
-    for (const a of alertasFiltrados) {
-      const topicoId = parseQsParam(String((a as { referencia_path?: string | null }).referencia_path ?? ''), 'topico');
-      if (!topicoId || !['sla_atividade_atrasado', 'sla_atividade_atencao'].includes(String(a.tipo ?? ''))) {
-        semGrupo.push(a);
-        continue;
-      }
-      const key = topicoId;
-      const existing = grupoMap.get(key);
-      const diasAtual = extrairDiasAtrasado(String(a.mensagem ?? ''));
-      if (!existing || diasAtual > extrairDiasAtrasado(String(existing.alerta.mensagem ?? ''))) {
-        grupoMap.set(key, { alerta: a, count: (existing?.count ?? 0) + 1 });
-      } else {
-        grupoMap.get(key)!.count += 1;
-      }
-    }
-
-    const grupos = [...grupoMap.values()];
-    return [...semGrupo, ...grupos.map(g => ({ ...g.alerta, _alertCount: g.count }))]
-      .sort((a, b) => new Date(String(b.created_at ?? '')).getTime() - new Date(String(a.created_at ?? '')).getTime());
-  })();
-
-  const naoLidasNaVisao = alertasAgrupados.filter(a => !a.lido).length;
+  const naoLidasNaVisao = alertasFiltrados.filter(a => !a.lido).length;
 
   const hrefNaoLidas = categoriaAtiva !== 'todos'
     ? `/alertas?categoria=${categoriaAtiva}`
@@ -323,55 +172,17 @@ export default async function AlertasPage({
   return (
     <div className="min-h-screen bg-[var(--moni-surface-50)]">
       <header className="border-b border-[color:var(--moni-border-default)] bg-white">
-        <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-4">
+        <div className="mx-auto flex h-14 max-w-3xl items-center gap-4 px-4">
           <Link href="/" className="text-sm text-[color:var(--moni-primary)] hover:underline">← Início</Link>
           <span className="text-stone-400">/</span>
           <span className="text-sm font-medium text-stone-700">Alertas</span>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-8">
+      <main className="mx-auto max-w-3xl px-4 py-8">
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-[color:var(--moni-dark)]">Alertas</h1>
           <p className="mt-1 text-sm text-stone-500">Atualizações dos seus chamados, cards e planejamento.</p>
-        </div>
-
-        {/* Filtros de prioridade */}
-        <div className="mb-3 flex flex-wrap gap-2">
-          {([
-            { key: 'todas' as const, label: 'Todas' },
-            { key: 'critico' as const, label: '🔴 Crítico' },
-            { key: 'importante' as const, label: '🟡 Importante' },
-            { key: 'informativo' as const, label: '⚪ Informativo' },
-          ]).map(({ key, label }) => {
-            const count = contadoresPrioridade[key];
-            const ativo = prioridadeAtiva === key;
-            const params = new URLSearchParams();
-            if (key !== 'todas') params.set('prioridade', key);
-            if (categoriaAtiva !== 'todos') params.set('categoria', categoriaAtiva);
-            if (soNaoLidas) params.set('lidas', 'nao');
-            const href = `/alertas${params.toString() ? `?${params.toString()}` : ''}`;
-            return (
-              <Link
-                key={key}
-                href={href}
-                className={`rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
-                  ativo
-                    ? 'border-[color:var(--moni-primary,#1C3A2B)] bg-[color:var(--moni-primary,#1C3A2B)] text-white'
-                    : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
-                }`}
-              >
-                {label}
-                {count > 0 && (
-                  <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs font-semibold ${
-                    ativo ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-600'
-                  }`}>
-                    {count}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
         </div>
 
         {/* Abas de categoria — preservam estado do toggle via URL */}
@@ -430,16 +241,12 @@ export default async function AlertasPage({
             </Link>
           </div>
           {naoLidasNaVisao > 0 && (
-            <MarcarTodosLidoButton
-                categoriaAtiva={String(categoriaAtiva)}
-                prioridadeAtiva={String(prioridadeAtiva)}
-                contagemNaoLidas={contagemNaoLidas}
-              />
+            <MarcarTodosLidoButton categoriaAtiva={String(categoriaAtiva)} />
           )}
         </div>
 
         {/* Lista */}
-        {!alertasAgrupados.length ? (
+        {!alertasFiltrados.length ? (
           <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-white p-8 text-center text-sm text-stone-500">
             {soNaoLidas
               ? `Nenhum alerta não lido${categoriaAtiva !== 'todos' ? ` em "${labelCategoria(categoriaAtiva as CategoriaAlerta)}"` : ''}.`
@@ -448,7 +255,7 @@ export default async function AlertasPage({
           </div>
         ) : (
           <ul className="space-y-2">
-            {alertasAgrupados.map((a) => {
+            {alertasFiltrados.map((a) => {
               const tipo = String(a.tipo ?? '');
               const cat = categorizarAlerta(tipo);
               const cores = corCategoria(cat);
@@ -462,33 +269,26 @@ export default async function AlertasPage({
                 : null;
               const hrefInteracao = !cardId && basePath?.includes('interacao=') ? basePath : null;
               const hrefSlaAtividade = tipo === 'sla_atividade_atrasado' || tipo === 'sla_atividade_atencao' ? basePath || null : null;
-              const hrefGbox = tipo === 'gbox_atualizado' && basePath ? basePath : null;
-              const hrefAlerta = hrefSlaAtividade || hrefSirene || hrefCard || hrefInteracao || hrefGbox;
+              const hrefAlerta = hrefSlaAtividade || hrefSirene || hrefCard || hrefInteracao;
 
               const interacaoId = parseQsParam(basePath, 'interacao');
               const topicoIdStr = parseQsParam(basePath, 'topico');
               const topicoIdNum = topicoIdStr ? Number(topicoIdStr) : null;
-              const topicoData = topicoIdNum && Number.isFinite(topicoIdNum) ? topicoMap.get(topicoIdNum) : undefined;
-              const effectiveInteracaoId = interacaoId || (topicoData?.interacao_id ?? null);
-              const sireneChamadoId = effectiveInteracaoId ? (atividadeMap.get(effectiveInteracaoId) ?? null) : null;
+              const sireneChamadoId = interacaoId ? (atividadeMap.get(interacaoId) ?? null) : null;
               const chamadoEnrich = sireneChamadoId != null ? (chamadoMap.get(sireneChamadoId) ?? null) : null;
-              const faseEnrich = chamadoEnrich?.card_id ? faseMap.get(chamadoEnrich.card_id) : null;
-              const atividadeEnrichData = effectiveInteracaoId ? atividadeEnrichMap.get(effectiveInteracaoId) : null;
-              const atividadeCardEnrich = (!chamadoEnrich && !cardId && atividadeEnrichData?.card_id)
-                ? atividadeCardMap.get(atividadeEnrichData.card_id) : null;
+              const topicoData = topicoIdNum && Number.isFinite(topicoIdNum) ? topicoMap.get(topicoIdNum) : undefined;
               const descricaoTexto = topicoData
                 ? (topicoData.descricao_detalhe?.trim() || topicoData.descricao?.trim() || '')
                 : null;
-
-              const pri = priorizarAlerta(tipo);
-              const coresPri = corPrioridade(pri);
 
               return (
                 <li
                   key={a.id}
                   className={`rounded-xl border p-4 ${
                     !a.lido
-                      ? `${coresPri.bg} border-l-4 ${coresPri.borda} border-t-stone-100 border-r-stone-100 border-b-stone-100`
+                      ? atrasado
+                        ? 'bg-amber-50 border-l-4 border-l-red-400 border-t-stone-100 border-r-stone-100 border-b-stone-100'
+                        : `bg-amber-50 border-l-4 ${cores.borda} border-t-stone-100 border-r-stone-100 border-b-stone-100`
                       : 'bg-white border-stone-100'
                   }`}
                 >
@@ -504,14 +304,9 @@ export default async function AlertasPage({
                           ⚠ Atrasado
                         </span>
                       )}
-                      {(a as { _alertCount?: number })._alertCount != null && (a as { _alertCount?: number })._alertCount! > 1 && (
-                        <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-500">
-                          {(a as { _alertCount?: number })._alertCount}x
-                        </span>
-                      )}
                     </div>
                     <span className="shrink-0 text-xs text-stone-400">
-                      {a.created_at ? new Date(a.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : ''}
+                      {a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : ''}
                     </span>
                   </div>
 
@@ -523,62 +318,21 @@ export default async function AlertasPage({
                   )}
 
                   {/* Linha 2.5: enriquecimento sirene */}
-                  {cat === 'sirene' && (chamadoEnrich || atividadeCardEnrich || topicoData !== undefined) ? (
+                  {cat === 'sirene' && (chamadoEnrich || topicoData !== undefined) ? (
                     <div className="mb-3 space-y-1">
                       {chamadoEnrich ? (
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-stone-500">
-                          {/* Funil e fase */}
-                          {(chamadoEnrich.card_kanban_nome || faseEnrich?.fase_nome) && (
-                            <span>
-                              {chamadoEnrich.card_kanban_nome ?? ''}
-                              {faseEnrich?.fase_nome ? <span className="text-stone-400"> · {faseEnrich.fase_nome}</span> : null}
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                          {chamadoEnrich.card_kanban_nome ? (
+                            <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-600">
+                              {chamadoEnrich.card_kanban_nome}
                             </span>
-                          )}
-                          {/* Número do chamado */}
-                          {chamadoEnrich.numero != null && (
-                            <span className="tabular-nums text-stone-400">#{chamadoEnrich.numero}</span>
-                          )}
-                          {/* Card vinculado */}
-                          {chamadoEnrich.card_titulo && (
-                            <span className="text-stone-400">Card: <span className="font-medium text-stone-500">{chamadoEnrich.card_titulo}</span></span>
-                          )}
-                          {/* Aberto por */}
-                          {chamadoEnrich.aberto_por_nome && (
+                          ) : null}
+                          {chamadoEnrich.numero != null ? (
+                            <span className="tabular-nums">#{chamadoEnrich.numero}</span>
+                          ) : null}
+                          {chamadoEnrich.aberto_por_nome ? (
                             <span>Aberto por: <span className="font-medium text-stone-600">{chamadoEnrich.aberto_por_nome}</span></span>
-                          )}
-                          {/* Badge P1-P6 */}
-                          {chamadoEnrich.prioridade && (
-                            <span
-                              title={
-                                chamadoEnrich.prioridade === 'P1' ? 'P1 — Crítico: impacto imediato no negócio' :
-                                chamadoEnrich.prioridade === 'P2' ? 'P2 — Alto: urgente, resolver hoje' :
-                                chamadoEnrich.prioridade === 'P3' ? 'P3 — Médio: resolver esta semana' :
-                                chamadoEnrich.prioridade === 'P4' ? 'P4 — Baixo: sem urgência imediata' :
-                                chamadoEnrich.prioridade === 'P5' ? 'P5 — Mínimo: melhorias futuras' :
-                                chamadoEnrich.prioridade === 'P6' ? 'P6 — Informativo: sem ação necessária' :
-                                chamadoEnrich.prioridade
-                              }
-                              className={`cursor-help rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                                chamadoEnrich.prioridade === 'P1' ? 'bg-red-100 text-red-700' :
-                                chamadoEnrich.prioridade === 'P2' ? 'bg-orange-100 text-orange-700' :
-                                chamadoEnrich.prioridade === 'P3' ? 'bg-yellow-100 text-yellow-700' :
-                                chamadoEnrich.prioridade === 'P4' ? 'bg-blue-100 text-blue-700' :
-                                chamadoEnrich.prioridade === 'P5' ? 'bg-stone-100 text-stone-600' :
-                                'bg-stone-50 text-stone-400'
-                              }`}
-                            >
-                              {chamadoEnrich.prioridade}
-                            </span>
-                          )}
-                        </div>
-                      ) : atividadeCardEnrich ? (
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-stone-500">
-                          {atividadeCardEnrich.kanban_nome && (
-                            <span>{atividadeCardEnrich.kanban_nome}</span>
-                          )}
-                          {atividadeCardEnrich.titulo && (
-                            <span className="text-stone-400">Card: <span className="font-medium text-stone-500">{atividadeCardEnrich.titulo}</span></span>
-                          )}
+                          ) : null}
                         </div>
                       ) : null}
                       {topicoData !== undefined ? (
@@ -592,37 +346,6 @@ export default async function AlertasPage({
                     </div>
                   ) : null}
 
-                  {/* Linha 2.6: enriquecimento kanban — franqueado, condomínio, quadra/lote, descrição */}
-                  {TIPOS_KANBAN_ATIVIDADE.has(tipo) && (() => {
-                    const cardEnrich = cardId ? cardMap.get(cardId) : null;
-                    const interacaoIdKanban = parseQsParam(basePath, 'interacao');
-                    const atividadeEnrich = interacaoIdKanban ? atividadeEnrichMap.get(interacaoIdKanban) : null;
-
-                    const linhaCard = [
-                      cardEnrich?.franqueado_nome,
-                      cardEnrich?.nome_condominio,
-                      cardEnrich?.quadra ? `Q${cardEnrich.quadra}` : null,
-                      cardEnrich?.lote ? `L${cardEnrich.lote}` : null,
-                    ].filter(Boolean).join(' · ');
-
-                    const prazoStr = atividadeEnrich?.data_vencimento
-                      ? (() => {
-                          const [y, m, d] = atividadeEnrich.data_vencimento.split('-');
-                          return `Prazo: ${d}/${m}/${y}`;
-                        })()
-                      : null;
-
-                    if (!linhaCard && !atividadeEnrich?.descricao && !prazoStr) return null;
-
-                    return (
-                      <KanbanAtividadeEnrich
-                        linhaCard={linhaCard}
-                        descricao={atividadeEnrich?.descricao ?? null}
-                        prazoStr={prazoStr}
-                      />
-                    );
-                  })()}
-
                   {/* Linha 3: ações */}
                   <div className="flex items-center justify-between gap-2">
                     {hrefAlerta ? (
@@ -632,17 +355,11 @@ export default async function AlertasPage({
                       >
                         {tipo === 'mencao_sirene' || hrefInteracao || hrefSlaAtividade
                           ? 'Abrir chamado →'
-                          : tipo === 'gbox_atualizado'
-                          ? 'Abrir Dashboard →'
                           : 'Abrir card →'}
                       </Link>
                     ) : <span />}
                     {!a.lido
-                      ? <MarcarLidoButton
-                          alertaId={String(a.id)}
-                          alertCount={(a as { _alertCount?: number })._alertCount}
-                          topicoId={parseQsParam(String((a as { referencia_path?: string | null }).referencia_path ?? ''), 'topico') ?? undefined}
-                        />
+                      ? <MarcarLidoButton alertaId={a.id} />
                       : <span className="rounded border border-stone-200 bg-stone-100 px-2 py-0.5 text-xs text-stone-400">Lido</span>
                     }
                   </div>
