@@ -469,6 +469,13 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const sextaAnterior = new Date(segundaEstaSeamna);
       sextaAnterior.setDate(segundaEstaSeamna.getDate() - 3); // Seg - 3 = Sex da semana anterior
 
+      // Regra da quinta-feira (igual ao calendário do Carômetro): a semana pertence ao mês
+      // que contém sua quinta-feira. Quinta de S-1 = sexta de S-1 − 1 dia.
+      const thursdayAnterior = new Date(sextaAnterior);
+      thursdayAnterior.setDate(sextaAnterior.getDate() - 1);
+      const semAnteriorNaMes = thursdayAnterior.getMonth() === hoje.getMonth()
+        && thursdayAnterior.getFullYear() === hoje.getFullYear();
+
       const semAnteriorInd = semana > 1 ? semana - 1 : 52;
       let indicadoresAnterior: IndicadoresSnapshot = { porIndicador: [], media: null };
       let indicadoresAtual: IndicadoresSnapshot    = { porIndicador: [], media: null };
@@ -494,14 +501,16 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .in('id', objIds)
             .eq('mes', mesAtual)
             .in('status', ['ativo', 'relancada']);
-          const objNomeMap = new Map<string, string>(
-            ((objetivosData ?? []) as { id: string; descricao: string }[]).map(o => [o.id, o.descricao])
-          );
+          // Extrai IDs já filtrados (mês vigente + status ativo/relancada) para a query de indicadores
+          const filteredObjs = (objetivosData ?? []) as { id: string; descricao: string }[];
+          const filteredObjIds = filteredObjs.map(o => o.id);
+          const objNomeMap = new Map<string, string>(filteredObjs.map(o => [o.id, o.descricao]));
 
+          if (filteredObjIds.length > 0) {
           const { data: indsData } = await supabase
             .from('indicadores')
             .select('id, nome, semaforo_faixas, objetivo_id')
-            .in('objetivo_id', objIds)
+            .in('objetivo_id', filteredObjIds)
             .eq('ativo', true);
 
           type IndRow = { id: string; nome: string; semaforo_faixas: unknown; objetivo_id: string | null };
@@ -509,12 +518,13 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           const indIds = indsTyped.map(i => i.id);
 
           if (indIds.length > 0) {
-            // Busca lançamentos das duas semanas em uma única query
+            // Busca apenas semanas que pertencem ao mês vigente (regra da quinta-feira)
+            const semanasParaBuscar = semAnteriorNaMes ? [semAnteriorInd, semana] : [semana];
             const { data: lancamentosData } = await supabase
               .from('indicador_lancamentos')
               .select('indicador_id, valor, semana')
               .in('indicador_id', indIds)
-              .in('semana', [semAnteriorInd, semana]);
+              .in('semana', semanasParaBuscar);
 
             type LancRow = { indicador_id: string; valor: unknown; semana: number };
             const lancRows = (lancamentosData ?? []) as LancRow[];
@@ -603,6 +613,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             indicadoresAnterior = calcIndicadores(lancMapAnterior, sextaAnterior);
             indicadoresAtual    = calcIndicadores(lancMapAtual, hojeRef);
           }
+          } // filteredObjIds.length > 0
         }
       }
 
@@ -649,7 +660,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             data:        hojeStr,
             sirene:      sireneRuntime,
             engajamento: engajamentoRuntime,
-            indicadores: indicadoresAnterior, // S-1: mesmo que o card Indicadores exibe
+            indicadores: semAnteriorNaMes ? indicadoresAnterior : indicadoresAtual,
           },
           { onConflict: 'area_id,profile_id,data' },
         ).then(({ error: snapErr }) => {
@@ -659,7 +670,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
       setSirene(sireneRuntime);
       setEngajamento(engajamentoRuntime);
-      setIndicadores(indicadoresAnterior); // card principal exibe resultado da semana anterior
+      // Score principal: S-1 se pertence ao mês vigente; caso contrário, semana atual (primeira do mês)
+      setIndicadores(semAnteriorNaMes ? indicadoresAnterior : indicadoresAtual);
       setDiasSirene(buildDias('sirene', 'score', sireneScore, {
         concluidos: topicosConcluidos.length,
         atrasados:  topicosAtrasados,
@@ -679,8 +691,9 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         proximas_venceHoje:    engajamentoRuntime.proximas.venceHoje,
         proximas_atrasadas:    engajamentoRuntime.proximas.atrasadas,
       }));
+      // Exibe apenas semanas que pertencem ao mês vigente (regra da quinta-feira)
       setSemanasIndicadores([
-        {
+        ...(semAnteriorNaMes ? [{
           label:       `S${String(semAnteriorInd).padStart(2, '0')}`,
           semana:      semAnteriorInd,
           score:       indicadoresAnterior.media,
@@ -689,7 +702,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             valor:      String(i.valor),
             percentual: i.percentual,
           })),
-        },
+        }] : []),
         {
           label:       `S${String(semana).padStart(2, '0')}`,
           semana:      semana,

@@ -86,6 +86,15 @@ export async function gerarSnapshotCarometro(
   const sextaAnterior = new Date(segundaSemana);
   sextaAnterior.setDate(segundaSemana.getDate() - 3);
 
+  // Regra da quinta-feira: a semana pertence ao mês que contém sua quinta-feira
+  const thursdayAnteriorSnap = new Date(sextaAnterior);
+  thursdayAnteriorSnap.setDate(sextaAnterior.getDate() - 1);
+  const semAnteriorNaMesSnap = thursdayAnteriorSnap.getMonth() === hoje.getMonth()
+    && thursdayAnteriorSnap.getFullYear() === hoje.getFullYear();
+  // Semana e data de referência do mês vigente para o snapshot
+  const semRefSnap    = semAnteriorNaMesSnap ? semAnteriorInd : semana;
+  const refDateSnap   = semAnteriorNaMesSnap ? sextaAnterior  : hoje;
+
   // ── Sirene ─────────────────────────────────────────────────────────────────
   // Início da semana para filtro de concluídos
   const dowSnap = hoje.getDay() || 7;
@@ -277,14 +286,16 @@ export async function gerarSnapshotCarometro(
         .in('id', objIds)
         .eq('mes', mesAtualSnap)
         .in('status', ['ativo', 'relancada']);
-      const objNomeMap = new Map<string, string>(
-        ((objetivosData ?? []) as { id: string; descricao: string }[]).map(o => [o.id, o.descricao])
-      );
+      // Extrai IDs já filtrados (mês vigente + status ativo/relancada)
+      const filteredObjsSnap = (objetivosData ?? []) as { id: string; descricao: string }[];
+      const filteredObjIdsSnap = filteredObjsSnap.map(o => o.id);
+      const objNomeMap = new Map<string, string>(filteredObjsSnap.map(o => [o.id, o.descricao]));
 
+      if (filteredObjIdsSnap.length > 0) {
       const { data: indsData } = await db
         .from('indicadores')
         .select('id, nome, semaforo_faixas, objetivo_id')
-        .in('objetivo_id', objIds)
+        .in('objetivo_id', filteredObjIdsSnap)
         .eq('ativo', true);
 
       type IndRow = { id: string; nome: string; semaforo_faixas: unknown; objetivo_id: string | null };
@@ -292,12 +303,12 @@ export async function gerarSnapshotCarometro(
       const indIds = indsTyped.map(i => i.id);
 
       if (indIds.length > 0) {
-        // Busca lançamentos de S-1 — mesma semana que o TO DO & Planning exibe no card principal
+        // Busca lançamentos da semana de referência do mês vigente
         const { data: lancsData } = await db
           .from('indicador_lancamentos')
           .select('indicador_id, valor')
           .in('indicador_id', indIds)
-          .eq('semana', semAnteriorInd);
+          .eq('semana', semRefSnap);
 
         const lancMap = new Map<string, unknown>(
           ((lancsData ?? []) as { indicador_id: string; valor: unknown }[]).map(l => [l.indicador_id, l.valor])
@@ -316,7 +327,7 @@ export async function gerarSnapshotCarometro(
           const metaKey = ind.objetivo_id ?? ind.id;
 
           if (isProjeto) {
-            const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', sextaAnterior);
+            const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', refDateSnap);
             if (esp <= 0) {
               porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
               continue;
@@ -327,7 +338,7 @@ export async function gerarSnapshotCarometro(
             const dataFimDow = dataFimDate.getDay() || 7;
             const endOfDeadlineWeek = new Date(dataFimDate);
             endOfDeadlineWeek.setDate(dataFimDate.getDate() + (7 - dataFimDow));
-            const isPastDeadlineWeek = sextaAnterior > endOfDeadlineWeek;
+            const isPastDeadlineWeek = refDateSnap > endOfDeadlineWeek;
 
             const valor  = lancMap.get(ind.id);
             const valStr = valor != null ? String(valor).trim() : '';
@@ -372,6 +383,7 @@ export async function gerarSnapshotCarometro(
 
         indicadoresData = { porIndicador, media };
       }
+      } // filteredObjIdsSnap.length > 0
     }
   }
 
