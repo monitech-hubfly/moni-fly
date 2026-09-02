@@ -4,11 +4,11 @@ import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import {
-  adicionarProximaAtividadeItem,
-  concluirProximaAtividadeItem,
-  buscarAtividadesAbertasCard,
-  salvarProximaAtividade,
-} from '@/lib/actions/card-actions';
+  adicionarProximaAtividadeClient,
+  concluirProximaAtividadeClient,
+  limparProximaAtividadeLegadoClient,
+  listarProximaAtividadeAbertasClient,
+} from '@/lib/kanban/proxima-atividade-client';
 import type { KanbanProximaAtividadeAberta } from './types';
 
 export type ProximaAtividadeBoardSync = {
@@ -206,7 +206,7 @@ export function ProximaAtividadeDot({
 
     if (!aguardandoFetch) return;
 
-    void buscarAtividadesAbertasCard(cardId)
+    void listarProximaAtividadeAbertasClient(cardId)
       .then((abertas) => {
         if (abertas.length > 0) {
           setAtividadesAbertas(abertas);
@@ -243,28 +243,17 @@ export function ProximaAtividadeDot({
 
     try {
       if (itemId === 'legado') {
-        const res = await salvarProximaAtividade({
-          cardId,
-          proxima_atividade: null,
-          prazo_atividade: null,
-          basePath,
-          skipRevalidate: true,
-        });
+        const res = await limparProximaAtividadeLegadoClient({ cardId, basePath });
         if (!res.ok) throw new Error(res.error);
         syncBoard([], { proxima_atividade: null, prazo_atividade: null });
       } else if (itemId.startsWith('temp-')) {
         // item otimista ainda não persistido — só UI
       } else {
-        const res = await concluirProximaAtividadeItem({
-          itemId,
-          cardId,
-          basePath,
-          skipRevalidate: true,
-        });
+        const res = await concluirProximaAtividadeClient({ itemId, cardId, basePath });
         if (!res.ok) throw new Error(res.error);
         syncBoard(nextLista, {
-          proxima_atividade: res.proxima_atividade,
-          prazo_atividade: res.prazo_atividade,
+          proxima_atividade: res.proxima_atividade ?? null,
+          prazo_atividade: res.prazo_atividade ?? null,
         });
       }
     } catch (err) {
@@ -292,21 +281,23 @@ export function ProximaAtividadeDot({
 
     void (async () => {
       try {
-        const res = await adicionarProximaAtividadeItem({
+        const res = await adicionarProximaAtividadeClient({
           cardId,
           descricao,
           prazo,
           basePath,
-          skipRevalidate: true,
         });
         if (!res.ok) throw new Error(res.error);
+        if (!res.item?.id) throw new Error('Resposta inválida ao salvar a atividade.');
         const confirmed = nextLista.map((a) =>
-          a.id === tempId ? { id: res.item.id, descricao: res.item.descricao, prazo: res.item.prazo } : a,
+          a.id === tempId
+            ? { id: res.item!.id, descricao: res.item!.descricao, prazo: res.item!.prazo }
+            : a,
         );
         setAtividadesAbertas(confirmed);
         syncBoard(confirmed, {
-          proxima_atividade: res.proxima_atividade,
-          prazo_atividade: res.prazo_atividade,
+          proxima_atividade: res.proxima_atividade ?? null,
+          prazo_atividade: res.prazo_atividade ?? null,
         });
       } catch (err) {
         setAtividadesAbertas(prevLista);
