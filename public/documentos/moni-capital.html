@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moní Capital | Guia do Franqueado</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --verde: #1a3a2a;
+    --verde-medio: #2d5c42;
+    --verde-claro: #4a8c63;
+    --dourado: #c9a84c;
+    --dourado-claro: #e8c96a;
+    --creme: #f5f0e8;
+    --creme-escuro: #e8dfc8;
+    --branco: #fafaf7;
+    --texto: #1a1a1a;
+    --cinza: #6b6b6b;
+    --vermelho: #8b2020;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--creme); color: var(--texto); }
+
+  /* ── HERO ── */
+  .hero {
+    background: var(--verde);
+    padding: 60px 56px 52px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute;
+    top: -80px; right: -80px;
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    border: 1px solid rgba(201,168,76,0.2);
+  }
+  .hero::after {
+    content: ''; position: absolute;
+    bottom: -120px; left: 40%;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    border: 1px solid rgba(201,168,76,0.1);
+  }
+  .hero-eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--dourado); margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 44px; font-weight: 900;
+    color: var(--branco); line-height: 1.05;
+    max-width: 600px; margin-bottom: 16px;
+  }
+  .hero h1 em { color: var(--dourado); font-style: normal; }
+  .hero-sub {
+    font-size: 15px; color: rgba(255,255,255,0.65);
+    max-width: 500px; line-height: 1.65;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 28px;
+    background: rgba(201,168,76,0.15);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 6px; padding: 8px 16px;
+    font-size: 12px; color: var(--dourado-claro);
+    font-weight: 500;
+  }
+
+  /* ── PAGE SECTIONS ── */
+  .page-section {
+    padding: 52px 56px;
+    border-bottom: 1px solid var(--creme-escuro);
+  }
+  .page-section:last-child { border-bottom: none; }
+
+  .section-label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--dourado); margin-bottom: 28px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-label::after {
+    content: ''; flex: 1; height: 1px; background: var(--creme-escuro);
+  }
+
+  /* ── CONTEXTO ── */
+  .contexto-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .ctx-card {
+    background: white; border-radius: 12px;
+    padding: 24px 26px; border: 1px solid var(--creme-escuro);
+  }
+  .ctx-card .ctx-icon {
+    font-size: 22px; margin-bottom: 12px; display: block;
+  }
+  .ctx-card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px; color: var(--verde); margin-bottom: 8px;
+  }
+  .ctx-card p { font-size: 13px; color: var(--cinza); line-height: 1.65; }
+
+  .aviso-box {
+    background: rgba(139,32,32,0.06);
+    border: 1px solid rgba(139,32,32,0.2);
+    border-radius: 10px; padding: 18px 22px;
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .aviso-box .aviso-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .aviso-box p { font-size: 13px; color: #5a1a1a; line-height: 1.6; }
+  .aviso-box strong { color: var(--vermelho); }
+
+  /* ── PLATAFORMA ── */
+  .plataforma-hero {
+    background: var(--verde);
+    border-radius: 14px; padding: 32px 36px;
+    margin-bottom: 24px; position: relative; overflow: hidden;
+  }
+  .plataforma-hero::after {
+    content: ''; position: absolute;
+    right: -60px; top: -60px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    border: 1px solid rgba(201,168,76,0.15);
+  }
+  .plataforma-hero h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px; color: var(--dourado); margin-bottom: 8px;
+  }
+  .plataforma-hero p {
+    font-size: 14px; color: rgba(255,255,255,0.75);
+    line-height: 1.65; max-width: 620px;
+  }
+  .plataforma-hero a {
+    display: inline-block; margin-top: 16px;
+    background: var(--dourado); color: var(--verde);
+    font-size: 13px; font-weight: 700;
+    padding: 10px 20px; border-radius: 8px;
+    text-decoration: none;
+  }
+
+  .specs-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .spec-item {
+    background: white; border-radius: 10px;
+    padding: 18px 20px; border: 1px solid var(--creme-escuro);
+  }
+  .spec-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--cinza); margin-bottom: 6px;
+  }
+  .spec-value {
+    font-size: 14px; font-weight: 600; color: var(--verde); line-height: 1.4;
+  }
+
+  /* ── REGRAS ── */
+  .regras-destaque {
+    background: var(--verde);
+    border-radius: 12px; padding: 26px 30px; margin-bottom: 24px;
+  }
+  .regras-destaque h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px; color: var(--dourado); margin-bottom: 14px;
+  }
+  .regra-item {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .regra-item:last-child { border-bottom: none; }
+  .regra-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(201,168,76,0.2); color: var(--dourado);
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .regra-item p { font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.55; }
+  .regra-item strong { color: white; }
+
+  .regras-table {
+    width: 100%; border-collapse: collapse;
+    background: white; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--creme-escuro);
+  }
+  .regras-table tr:not(:last-child) td { border-bottom: 1px solid var(--creme-escuro); }
+  .regras-table td { padding: 12px 16px; font-size: 13px; vertical-align: top; }
+  .regras-table td:first-child {
+    font-weight: 600; color: var(--verde);
+    background: rgba(26,58,42,0.03);
+    width: 35%; white-space: nowrap;
+  }
+  .regras-table td:last-child { color: var(--cinza); line-height: 1.55; }
+
+  /* ── PASSO A PASSO ── */
+  .steps-timeline { position: relative; }
+  .step-row {
+    display: flex; gap: 24px; position: relative;
+    padding-bottom: 32px;
+  }
+  .step-row:last-child { padding-bottom: 0; }
+  .step-row:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 19px; top: 44px;
+    width: 2px; bottom: 0;
+    background: var(--creme-escuro);
+  }
+  .step-num-wrap { flex-shrink: 0; }
+  .step-num {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--verde); color: var(--dourado);
+    font-family: 'Playfair Display', serif;
+    font-size: 16px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; z-index: 1;
+  }
+  .step-body { flex: 1; padding-top: 8px; }
+  .step-body h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px; color: var(--verde); margin-bottom: 6px;
+  }
+  .step-body p { font-size: 14px; color: var(--cinza); line-height: 1.65; }
+  .step-body a {
+    color: var(--verde-claro); font-weight: 500; font-size: 13px;
+  }
+  .step-body .step-note {
+    margin-top: 10px;
+    background: rgba(201,168,76,0.08);
+    border-left: 3px solid var(--dourado);
+    padding: 8px 12px; border-radius: 0 6px 6px 0;
+    font-size: 12px; color: #6a4e10; line-height: 1.5;
+  }
+
+  /* ── MATERIAIS ── */
+  .materiais-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+  }
+  .mat-card {
+    background: white; border-radius: 12px;
+    padding: 24px 26px; border: 1px solid var(--creme-escuro);
+  }
+  .mat-card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px; color: var(--verde); margin-bottom: 14px;
+    padding-bottom: 10px; border-bottom: 1px solid var(--creme-escuro);
+  }
+  .mat-list { list-style: none; }
+  .mat-list li {
+    font-size: 13px; color: var(--cinza); line-height: 1.5;
+    padding: 5px 0; display: flex; gap: 8px; align-items: flex-start;
+  }
+  .mat-list li::before {
+    content: '·'; color: var(--dourado);
+    font-size: 18px; line-height: 1; flex-shrink: 0; margin-top: -1px;
+  }
+  .mat-list li strong { color: var(--texto); }
+
+  /* ── COMPARATIVO ── */
+  .comparativo {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--creme-escuro);
+  }
+  .comp-col { padding: 0; }
+  .comp-header {
+    padding: 18px 24px;
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .comp-col.sem .comp-header {
+    background: rgba(139,32,32,0.06);
+    color: var(--vermelho);
+    border-bottom: 1px solid rgba(139,32,32,0.12);
+  }
+  .comp-col.com .comp-header {
+    background: rgba(26,58,42,0.06);
+    color: var(--verde);
+    border-bottom: 1px solid rgba(26,58,42,0.12);
+  }
+  .comp-items { background: white; }
+  .comp-item {
+    padding: 14px 24px;
+    font-size: 13px; line-height: 1.55;
+    border-bottom: 1px solid var(--creme-escuro);
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .comp-item:last-child { border-bottom: none; }
+  .comp-item .ci { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .comp-col.sem .comp-item { color: #5a1a1a; }
+  .comp-col.com .comp-item { color: #1a3a1a; }
+
+  /* ── PRÓXIMOS PASSOS ── */
+  .proximos-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  }
+  .prox-card {
+    background: white; border-radius: 12px;
+    padding: 22px 22px; border: 1px solid var(--creme-escuro);
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .prox-num {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--verde); color: var(--dourado);
+    font-family: 'Playfair Display', serif;
+    font-size: 14px; font-weight: 700; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .prox-card p { font-size: 13px; color: var(--cinza); line-height: 1.6; padding-top: 5px; }
+  .prox-card strong { color: var(--texto); }
+
+  .cta-box {
+    background: var(--verde); border-radius: 14px;
+    padding: 32px 36px; margin-top: 24px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  }
+  .cta-box h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px; color: var(--dourado); margin-bottom: 6px;
+  }
+  .cta-box p { font-size: 14px; color: rgba(255,255,255,0.7); line-height: 1.5; }
+  .cta-btn {
+    background: var(--dourado); color: var(--verde);
+    font-size: 13px; font-weight: 700;
+    padding: 12px 24px; border-radius: 8px;
+    text-decoration: none; white-space: nowrap; flex-shrink: 0;
+  }
+  .confidencial {
+    text-align: center; font-size: 11px; color: var(--cinza);
+    padding: 24px 0 8px; letter-spacing: 1px;
+  }
+
+  @media (max-width: 700px) {
+    .hero { padding: 40px 24px 32px; }
+    .hero h1 { font-size: 30px; }
+    .page-section { padding: 40px 24px; }
+    .contexto-grid, .specs-grid, .materiais-grid,
+    .comparativo, .proximos-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">Moní | Benefício Exclusivo para Franqueados</div>
+  <h1>Moní <em>Capital</em></h1>
+  <p class="hero-sub">Captação de recursos para o seu projeto, sem tirar dinheiro do seu bolso. Conheça a plataforma de captação privada da rede Moní.</p>
+  <div class="hero-badge">
+    🔒 Documento confidencial · Uso exclusivo do franqueado Moní
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════
+     SEÇÃO 1 | O CONTEXTO
+═════════════════════════════════ -->
+<div class="page-section">
+  <div class="section-label">O contexto</div>
+
+  <div class="contexto-grid">
+    <div class="ctx-card">
+      <span class="ctx-icon">🏗</span>
+      <h4>Carta Fiança (terrenos permutados)</h4>
+      <p>Quando o terreno é permutado, o terrenista exige uma garantia bancária antes da transferência. A carta fiança custa em média 10% do valor do terreno e precisa estar disponível antes da escritura.</p>
+    </div>
+    <div class="ctx-card">
+      <span class="ctx-icon">📋</span>
+      <h4>Custas cartorárias</h4>
+      <p>Registros, escrituras, abertura de SPE e demais atos em cartório são obrigatórios. Variam conforme o município e o porte do projeto, mas sempre precisam ser pagos à vista e com antecedência.</p>
+    </div>
+    <div class="ctx-card">
+      <span class="ctx-icon">🏛</span>
+      <h4>ITBI</h4>
+      <p>Incide sobre a transferência do terreno para a SPE e deve ser pago antes da lavratura da escritura. Não pode ser parcelado nem financiado — é uma obrigação tributária que trava o processo se não estiver em caixa.</p>
+    </div>
+    <div class="ctx-card">
+      <span class="ctx-icon">💡</span>
+      <h4>Por que a Moní Capital existe</h4>
+      <p>Esses custos não são cobertos pelo crédito de obra convencional. Sem uma solução estruturada, o projeto trava. A Moní Capital foi criada para que o franqueado não precise resolver isso sozinho.</p>
+    </div>
+  </div>
+
+  <div class="aviso-box">
+    <span class="aviso-icon">⚠️</span>
+    <p><strong>O que não pode ser captado:</strong> Taxas de franquia, taxas de plataforma e custos não relacionados diretamente ao projeto imobiliário não são elegíveis. Toda solicitação passa por análise da equipe Moní antes de ser aprovada.</p>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════
+     SEÇÃO 2 | A PLATAFORMA
+═════════════════════════════════ -->
+<div class="page-section">
+  <div class="section-label">A plataforma</div>
+
+  <div class="plataforma-hero">
+    <h3>Moní Capital · monicapital.divify.com.br</h3>
+    <p>Opera na plataforma Divify — ambiente regulamentado de crowdfunding, escriturado pela B3 e autorizado pela CVM. Você capta recursos de investidores da sua própria rede de forma totalmente privada, com estrutura jurídica completa e sem burocracia bancária.</p>
+    <a href="https://monicapital.divify.com.br" target="_blank">Acessar a plataforma →</a>
+  </div>
+
+  <div class="specs-grid">
+    <div class="spec-item">
+      <div class="spec-label">Modalidade</div>
+      <div class="spec-value">Crowdfunding regulamentado CVM · escriturado B3</div>
+    </div>
+    <div class="spec-item">
+      <div class="spec-label">Tipo de oferta</div>
+      <div class="spec-value">100% privada · sem divulgação pública</div>
+    </div>
+    <div class="spec-item">
+      <div class="spec-label">Máx. investidores</div>
+      <div class="spec-value">50 por oferta (limite regulatório)</div>
+    </div>
+    <div class="spec-item">
+      <div class="spec-label">Acesso dos investidores</div>
+      <div class="spec-value">Somente CPFs indicados e autorizados pelo franqueado</div>
+    </div>
+    <div class="spec-item">
+      <div class="spec-label">Investidores viram sócios?</div>
+      <div class="spec-value">Não · retorno financeiro definido em contrato</div>
+    </div>
+    <div class="spec-item">
+      <div class="spec-label">CNPJ emissor</div>
+      <div class="spec-value">Preferencialmente a SPE do projeto</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════
+     SEÇÃO 3 | REGRAS
+═════════════════════════════════ -->
+<div class="page-section">
+  <div class="section-label">Regras da oferta</div>
+
+  <div class="regras-destaque">
+    <h4>Regras inegociáveis</h4>
+    <div class="regra-item">
+      <div class="regra-num">1</div>
+      <p><strong>Oferta 100% privada</strong> — É terminantemente proibida qualquer divulgação em redes sociais, grupos de WhatsApp, canais públicos ou qualquer outro meio de comunicação aberto.</p>
+    </div>
+    <div class="regra-item">
+      <div class="regra-num">2</div>
+      <p><strong>Máximo de 50 investidores</strong> — Cada oferta aceita no máximo 50 CPFs cadastrados. O limite é regulatório e não pode ser ampliado.</p>
+    </div>
+    <div class="regra-item">
+      <div class="regra-num">3</div>
+      <p><strong>Distribuição feita pelo franqueado</strong> — Você indica quem pode investir. Cada investidor precisa se cadastrar e ter o CPF incluído pela equipe Moní para visualizar e participar da oferta.</p>
+    </div>
+  </div>
+
+  <table class="regras-table">
+    <tr><td>Elegibilidade</td><td>Custos diretamente relacionados ao projeto imobiliário. Sujeito a análise e conferência de valores pela equipe Moní.</td></tr>
+    <tr><td>Valores</td><td>Valor-alvo e valor mínimo por investidor devem ser múltiplos de R$ 10.</td></tr>
+    <tr><td>Proporcionalidade</td><td>Quanto maior o valor a captar, maior deve ser o ticket mínimo por investidor.</td></tr>
+    <tr><td>Acesso do investidor</td><td>O investidor só visualiza a oferta após cadastro e CPF autorizado pela Moní.</td></tr>
+    <tr><td>Agendamento</td><td>Após contrato assinado e pagamento da taxa: oferta vai ao ar com no mínimo 1h de antecedência.</td></tr>
+    <tr><td>Taxa de publicação</td><td>R$ 2.500 pagos à Moní para configuração e publicação da oferta.</td></tr>
+  </table>
+</div>
+
+
+<!-- ══════════════════════════════
+     SEÇÃO 4 | PASSO A PASSO
+═════════════════════════════════ -->
+<div class="page-section">
+  <div class="section-label">Passo a passo</div>
+
+  <div class="steps-timeline">
+
+    <div class="step-row">
+      <div class="step-num-wrap"><div class="step-num">1</div></div>
+      <div class="step-body">
+        <h4>Abertura da SPE e conta bancária</h4>
+        <p>Esse é o primeiro passo para estruturar a oferta. Assim que a SPE estiver em andamento (ou com os dados básicos definidos), já é possível seguir com as próximas etapas.</p>
+        <div class="step-note">
+          📄 Para apoio nessa etapa, acesse o documento orientativo:
+          <a href="https://docs.google.com/document/d/1gcwz3EiDYyATKDcB112ey8J6Tih0ls4Yuag4NEGCENQ/edit?tab=t.0" target="_blank"> Passo a passo de abertura da SPE</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="step-num-wrap"><div class="step-num">2</div></div>
+      <div class="step-body">
+        <h4>Cadastro na plataforma Moní Capital</h4>
+        <p>Crie uma conta como investidor em <a href="https://monicapital.divify.com.br" target="_blank">monicapital.divify.com.br</a>. Depois do cadastro, a equipe Moní converte o perfil para emissor da oferta.</p>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="step-num-wrap"><div class="step-num">3</div></div>
+      <div class="step-body">
+        <h4>Solicite a análise da captação</h4>
+        <p>Apresente à equipe Moní a necessidade e o valor a captar. A equipe confere a elegibilidade e valida os valores antes de prosseguir.</p>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="step-num-wrap"><div class="step-num">4</div></div>
+      <div class="step-body">
+        <h4>Envie os materiais do projeto</h4>
+        <p>CNPJ da SPE, nome da oferta, valor-alvo de captação (múltiplo de R$ 10), valor mínimo por investidor (múltiplo de R$ 10), logo e imagens do projeto.</p>
+        <div class="step-note">Obs.: o limite é de até 50 investidores por oferta.</div>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="step-num-wrap"><div class="step-num">5</div></div>
+      <div class="step-body">
+        <h4>A Moní monta a oferta profissionalmente</h4>
+        <p>A equipe configura: resumo da oferta, descrição, equipe (opcional), FAQ (opcional), logo e cabeçalho, carrossel de imagens e OnePager. O material é desenvolvido para transmitir credibilidade ao investidor.</p>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="step-num-wrap"><div class="step-num">6</div></div>
+      <div class="step-body">
+        <h4>Formalização — assinatura e pagamento</h4>
+        <p>A Moní prepara o contrato para assinatura. Há uma taxa de <strong>R$ 2.500</strong> para a subida da oferta. Após assinatura e pagamento, a oferta é publicada com agendamento mínimo de 1h.</p>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="step-num-wrap"><div class="step-num">7</div></div>
+      <div class="step-body">
+        <h4>Indique os investidores e acompanhe a captação</h4>
+        <p>Você distribui a oferta de forma privada — somente CPFs que você indicar e que se cadastrarem na plataforma conseguem visualizar e participar. A oferta vai ao ar no horário agendado.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════
+     SEÇÃO 5 | MATERIAIS
+═════════════════════════════════ -->
+<div class="page-section">
+  <div class="section-label">O que você precisa fornecer</div>
+
+  <div class="materiais-grid">
+    <div class="mat-card">
+      <h4>Dados obrigatórios</h4>
+      <ul class="mat-list">
+        <li>CNPJ da SPE do projeto (ou da incorporadora, na ausência de SPE)</li>
+        <li>Nome da oferta</li>
+        <li>Valor-alvo de captação <strong>(múltiplo de R$ 10)</strong></li>
+        <li>Valor mínimo de investimento por CPF <strong>(múltiplo de R$ 10)</strong></li>
+        <li>Logo do projeto e imagem de cabeçalho</li>
+      </ul>
+    </div>
+    <div class="mat-card">
+      <h4>Materiais complementares</h4>
+      <ul class="mat-list">
+        <li>Fotos do terreno, renders ou imagens de projetos similares</li>
+        <li>Informações sobre localização e diferenciais do projeto</li>
+        <li>Equipe envolvida no projeto (opcional · máx. 10 membros)</li>
+        <li>FAQ — perguntas e respostas frequentes do investidor (opcional)</li>
+        <li>Carrossel de imagens (até 10 fotos)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════
+     SEÇÃO 6 | COMPARATIVO
+═════════════════════════════════ -->
+<div class="page-section">
+  <div class="section-label">Por que usar a Moní Capital</div>
+
+  <div class="comparativo">
+    <div class="comp-col sem">
+      <div class="comp-header">❌ Sem a Moní Capital</div>
+      <div class="comp-items">
+        <div class="comp-item"><span class="ci">·</span><span>Tirar do bolso — capital imobilizado</span></div>
+        <div class="comp-item"><span class="ci">·</span><span>Recorrer a banco — burocracia e juros</span></div>
+        <div class="comp-item"><span class="ci">·</span><span>Projeto travado por falta de recurso</span></div>
+        <div class="comp-item"><span class="ci">·</span><span>Sem suporte para estruturar a captação</span></div>
+        <div class="comp-item"><span class="ci">·</span><span>Risco de perder prazo com o terrenista</span></div>
+      </div>
+    </div>
+    <div class="comp-col com">
+      <div class="comp-header">✦ Com a Moní Capital</div>
+      <div class="comp-items">
+        <div class="comp-item"><span class="ci">·</span><span>Captar com investidores sem comprometer o caixa</span></div>
+        <div class="comp-item"><span class="ci">·</span><span>Sem aprovação de crédito ou garantias adicionais</span></div>
+        <div class="comp-item"><span class="ci">·</span><span>Custos cobertos, projeto seguindo no prazo</span></div>
+        <div class="comp-item"><span class="ci">·</span><span>Equipe Moní monta todo o material profissionalmente</span></div>
+        <div class="comp-item"><span class="ci">·</span><span>Operação segura, terrenista protegido e satisfeito</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════
+     SEÇÃO 7 | PRÓXIMOS PASSOS
+═════════════════════════════════ -->
+<div class="page-section">
+  <div class="section-label">Pronto para começar?</div>
+
+  <div class="proximos-grid">
+    <div class="prox-card">
+      <div class="prox-num">1</div>
+      <p>Acesse <strong>monicapital.divify.com.br</strong> e crie seu cadastro como investidor</p>
+    </div>
+    <div class="prox-card">
+      <div class="prox-num">2</div>
+      <p>Fale com a equipe Moní para converter o perfil para <strong>emissor de oferta</strong></p>
+    </div>
+    <div class="prox-card">
+      <div class="prox-num">3</div>
+      <p>Apresente a necessidade de captação para <strong>análise e aprovação</strong></p>
+    </div>
+    <div class="prox-card">
+      <div class="prox-num">4</div>
+      <p>Reúna os materiais do projeto com <strong>Frank ou Lenna</strong></p>
+    </div>
+    <div class="prox-card">
+      <div class="prox-num">5</div>
+      <p>Assine o contrato e efetue o pagamento de <strong>R$ 2.500</strong> à Moní</p>
+    </div>
+    <div class="prox-card">
+      <div class="prox-num">6</div>
+      <p>Indique os investidores por CPF — <strong>a oferta vai ao ar no horário agendado</strong></p>
+    </div>
+  </div>
+
+  <div class="cta-box">
+    <div>
+      <h3>Use o capital captado para destravar o projeto</h3>
+      <p>Benefício exclusivo para Franqueados Moní · Plataforma regulamentada pela CVM · Escriturada pela B3</p>
+    </div>
+    <a class="cta-btn" href="https://monicapital.divify.com.br" target="_blank">Acessar monicapital.divify.com.br →</a>
+  </div>
+
+  <p class="confidencial">Documento confidencial · Uso exclusivo do franqueado Moní · monicapital.divify.com.br</p>
+</div>
+
+</body>
+</html>

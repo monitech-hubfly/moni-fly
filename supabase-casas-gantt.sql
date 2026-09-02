@@ -1,0 +1,2 @@
+-- Conteúdo consolidado (casas + semanas_selecionadas + franqueado_nome + casa_id + RLS):
+-- use o arquivo supabase-gantt-planejamento-colunas-completas.sql

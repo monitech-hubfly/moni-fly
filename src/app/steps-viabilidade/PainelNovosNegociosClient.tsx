@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { PAINEL_COLUMNS, type PainelColumnKey } from './painelColumns';
 import { PainelFlowBoard } from './PainelFlowBoard';
@@ -19,7 +18,7 @@ function normalizarParaBusca(s: string): string {
 function cardCumpreBusca(p: ProcessoCard, buscaNorm: string): boolean {
   if (!buscaNorm) return true;
   const texto =
-    [p.numero_franquia, p.franqueado_nome, p.nome_condominio]
+    [p.id, p.numero_franquia, p.franqueado_nome, p.nome_condominio]
       .filter(Boolean)
       .join(' ') || '';
   return normalizarParaBusca(texto).includes(buscaNorm);
@@ -57,16 +56,10 @@ export function PainelNovosNegociosClient({ byEtapa, initialOpenProcessId, kanba
             type="search"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por Nº franquia, nome do franqueado ou condomínio"
+            placeholder="Buscar por Nº franquia, nome, condomínio ou ID do card"
             className="w-full rounded-lg border border-stone-300 py-2 pl-9 pr-3 text-sm text-stone-800 placeholder:text-stone-400 focus:border-moni-primary focus:outline-none focus:ring-1 focus:ring-moni-primary"
           />
         </div>
-        <Link
-          href="/painel-novos-negocios/tarefas"
-          className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
-        >
-          Painel de Tarefas
-        </Link>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as CardStatusFilter)}
@@ -96,6 +89,8 @@ export function PainelNovosNegociosClient({ byEtapa, initialOpenProcessId, kanba
         statusFilter={statusFilter}
         tagFilter={tagFilter}
         kanbanReadOnly={kanbanReadOnly}
+        openCardViaUrl
+        cardBasePath="/painel-novos-negocios"
         step2HeaderActions={
           <NovoNegocioBatchUploader
             onCreated={() => {

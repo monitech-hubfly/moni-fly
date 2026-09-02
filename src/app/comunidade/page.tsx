@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { fetchRedeFranqueados } from '@/lib/rede-franqueados';
 import { TabelaRedeFranqueados } from '@/components/TabelaRedeFranqueados';
@@ -14,13 +13,6 @@ export default async function ComunidadePage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center px-4">
-          <Link href="/" className="text-moni-primary hover:underline">
-            ← Início
-          </Link>
-        </div>
-      </header>
       <main className="mx-auto max-w-7xl space-y-8 px-4 py-8">
         <div className="card">
           <h1 className="text-xl font-bold text-moni-dark">COMUNIDADE Moní</h1>

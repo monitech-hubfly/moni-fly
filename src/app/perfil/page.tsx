@@ -1,5 +1,4 @@
 import { guardLoginRequired } from '@/lib/auth-guard';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { AutentiqueKeyForm } from './AutentiqueKeyForm';
@@ -27,13 +26,6 @@ export default async function PerfilPage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center px-4">
-          <Link href="/" className="text-moni-primary hover:underline">
-            ← Início
-          </Link>
-        </div>
-      </header>
       <main className="mx-auto max-w-7xl px-4 py-8">
         <div className="card">
           <h1 className="text-xl font-bold text-moni-dark">Perfil</h1>

@@ -1,0 +1,4585 @@
+/* ============================================================
+   CASA MONÍ — Design Tokens
+   Paleta: Verde Naval, Marrom Terra, Verde Médio, Dourado
+   Referências: Porsche, Vogue, moni.casa
+   Sem laranja em qualquer parte do projeto.
+   ============================================================ */
+
+:root {
+  /* --------------------------------------------------
+     CORES BASE — Paleta Moní (RGB da imagem de referência)
+     12/38/51  → Verde Naval escuro  (#0C2633)
+     74/57/47  → Marrom Terra        (#4A3929)
+     47/74/58  → Verde Médio         (#2F4A3A)
+     212/173/104 → Dourado           (#D4AD68)
+  -------------------------------------------------- */
+
+  /* Verde Naval */
+  --moni-navy-25:  #f4f7f8;   /* entre branco e navy-50 — fundos sutis */
+  --moni-navy-50:  #e8eef1;
+  --moni-navy-100: #c0d0d9;
+  --moni-navy-200: #94afc0;
+  --moni-navy-400: #3e7490;
+  --moni-navy-600: #0e3a4e;
+  --moni-navy-800: #0c2633;
+  --moni-navy-900: #071820;
+
+  /* Marrom Terra */
+  --moni-earth-50:  #f0ebe7;
+  --moni-earth-100: #d8cdc5;
+  --moni-earth-200: #bfab9f;
+  --moni-earth-400: #8c7265;
+  --moni-earth-600: #5e473a;
+  --moni-earth-800: #4a3929;
+  --moni-earth-900: #2e2418;
+
+  /* Verde Médio */
+  --moni-green-50:  #eaeff0;
+  --moni-green-100: #c4d4ca;
+  --moni-green-200: #9ab8a6;
+  --moni-green-400: #4d7a62;
+  --moni-green-600: #365848;
+  --moni-green-800: #2f4a3a;
+  --moni-green-900: #1d2f25;
+
+  /* Dourado */
+  --moni-gold-50:  #faf4e8;
+  --moni-gold-100: #f0e2c0;
+  --moni-gold-200: #e6ce96;
+  --moni-gold-400: #d4ad68;
+  --moni-gold-600: #b08a3e;
+  --moni-gold-800: #7a5f22;
+  --moni-gold-900: #4d3c12;
+
+  /* Off-white / superfícies */
+  --moni-surface-0:   #ffffff;
+  --moni-surface-50:  #f9f7f4;   /* fundo da página */
+  --moni-surface-100: #f2ede8;   /* cards em repouso */
+  --moni-surface-200: #e8e2da;   /* hover / separadores */
+
+  /* Neutro — headers de coluna kanban */
+  --moni-neutral-100: #c8cac8;
+  --moni-neutral-200: #b4b6b4;
+
+  /* Alias semântico (KPIs / painéis) */
+  --color-background-secondary: var(--moni-surface-100);
+
+  /* Texto */
+  --moni-text-primary:   #0c2633;   /* Verde Naval — headings, labels */
+  --moni-text-secondary: #4a3929;   /* Marrom — corpo de texto */
+  --moni-text-tertiary:  #7a6e65;   /* Muted — hints, placeholders */
+  --moni-text-inverse:   #ffffff;   /* Texto sobre fundos escuros (branco puro) */
+
+  /* Bordas */
+  --moni-border-subtle:   rgba(12, 38, 51, 0.10);
+  --moni-border-default:  rgba(12, 38, 51, 0.18);
+  --moni-border-strong:   rgba(12, 38, 51, 0.30);
+
+  /* --------------------------------------------------
+     STATUS — sem laranja, usando a paleta Moní
+  -------------------------------------------------- */
+
+  /* Atenção (SLA D-1 ou no dia) — usa dourado */
+  --moni-status-attention-bg:   #faf4e8;
+  --moni-status-attention-text: #7a5f22;
+  --moni-status-attention-border: #d4ad68;
+
+  /* Atrasado (SLA vencido) — vermelho sóbrio */
+  --moni-status-overdue-bg:   #fdf0ee;
+  --moni-status-overdue-text: #8c2a1e;
+  --moni-status-overdue-border: #c24b3a;
+
+  /* Concluído / Aprovado — verde médio */
+  --moni-status-done-bg:   #eaeff0;
+  --moni-status-done-text: #2f4a3a;
+  --moni-status-done-border: #4d7a62;
+
+  /* Em andamento — verde naval suave */
+  --moni-status-active-bg:   #e8eef1;
+  --moni-status-active-text: #0e3a4e;
+  --moni-status-active-border: #3e7490;
+
+  /* Arquivado — neutro */
+  --moni-status-archived-bg:   #f2ede8;
+  --moni-status-archived-text: #7a6e65;
+  --moni-status-archived-border: #bfab9f;
+
+  /* --------------------------------------------------
+     TIPOGRAFIA
+     Referência Vogue/Porsche: serifada para headings,
+     sans-serif clean para corpo e UI
+  -------------------------------------------------- */
+
+  --moni-font-display: 'Georgia', 'Times New Roman', serif;   /* H1, H2 editoriais */
+  --moni-font-sans:    'Inter', 'Helvetica Neue', sans-serif; /* UI, tabelas, labels */
+  --moni-font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Escalas tipográficas */
+  --moni-text-xs:   11px;
+  --moni-text-tag-sla: 9px;
+  --moni-text-sm:   13px;
+  --moni-text-base: 15px;
+  --moni-text-md:   17px;
+  --moni-text-lg:   20px;
+  --moni-text-xl:   24px;
+  --moni-text-2xl:  32px;
+  --moni-text-3xl:  44px;
+
+  --moni-weight-regular: 400;
+  --moni-weight-medium:  500;
+  --moni-weight-bold:    600;   /* usar com parcimônia */
+
+  /* Line heights */
+  --moni-leading-tight:  1.3;
+  --moni-leading-body:   1.65;
+  --moni-leading-loose:  1.9;
+
+  /* --------------------------------------------------
+     ESPAÇAMENTO — escala 4px
+  -------------------------------------------------- */
+
+  --moni-space-1:  4px;
+  --moni-space-2:  8px;
+  --moni-space-3:  12px;
+  --moni-space-4:  16px;
+  --moni-space-5:  20px;
+  --moni-space-6:  24px;
+  --moni-space-8:  32px;
+  --moni-space-10: 40px;
+  --moni-space-12: 48px;
+  --moni-space-16: 64px;
+
+  /* --------------------------------------------------
+     BORDAS & RAIOS
+  -------------------------------------------------- */
+
+  --moni-radius-sm:   4px;
+  --moni-radius-md:   8px;
+  --moni-radius-lg:   12px;
+  --moni-radius-xl:   16px;
+  --moni-radius-pill: 100px;
+
+  --moni-border-width: 0.5px;   /* padrão — refinado */
+  --moni-border-width-em: 1px;  /* destaque — cards featured */
+
+  /* --------------------------------------------------
+     SOMBRAS — sóbrias, sem exagero
+  -------------------------------------------------- */
+
+  --moni-shadow-sm:  0 1px 3px rgba(12, 38, 51, 0.08);
+  --moni-shadow-md:  0 2px 8px rgba(12, 38, 51, 0.10);
+  --moni-shadow-lg:  0 4px 20px rgba(12, 38, 51, 0.12);
+  --moni-shadow-card: 0 1px 4px rgba(12, 38, 51, 0.07), 0 4px 16px rgba(12, 38, 51, 0.06);
+
+  /* --------------------------------------------------
+     KANBAN — cores de fase por Kanban
+     Cada Kanban tem uma cor de identidade
+  -------------------------------------------------- */
+
+  /* Funil Step One — Verde Médio (SEM azul escuro) */
+  --moni-kanban-stepone:         var(--moni-green-600);
+  --moni-kanban-stepone-light:   var(--moni-green-50);
+  --moni-kanban-stepone-accent:  var(--moni-green-400);
+
+  /* Portfólio + Operações — Verde Médio */
+  --moni-kanban-portfolio:       var(--moni-green-800);
+  --moni-kanban-portfolio-light: var(--moni-green-50);
+  --moni-kanban-portfolio-accent: var(--moni-green-400);
+
+  --moni-kanban-loteadores:       var(--moni-earth-600);
+  --moni-kanban-loteadores-light: var(--moni-earth-50);
+  --moni-kanban-loteadores-accent: var(--moni-gold-400);
+
+  /* Contabilidade — Marrom Terra */
+  --moni-kanban-contab:         var(--moni-earth-800);
+  --moni-kanban-contab-light:   var(--moni-earth-50);
+  --moni-kanban-contab-accent:  var(--moni-earth-400);
+
+  /* Crédito — Dourado */
+  --moni-kanban-credito:        var(--moni-gold-800);
+  --moni-kanban-credito-light:  var(--moni-gold-50);
+  --moni-kanban-credito-accent: var(--moni-gold-400);
+
+  /* Marketing — Navy (sem roxo hardcoded) */
+  --moni-kanban-marketing:        var(--moni-navy-800);
+  --moni-kanban-marketing-light:  var(--moni-navy-50);
+  --moni-kanban-marketing-accent: var(--moni-navy-400);
+
+  /* Moní Care — Verde (Manutenções / pós-entrega) */
+  --moni-kanban-moni-care:        var(--moni-green-800);
+  --moni-kanban-moni-care-light:  var(--moni-green-50);
+  --moni-kanban-moni-care-accent: var(--moni-green-400);
+
+  /* Funding — badges tipo Investidor / Broker */
+  --moni-funding-investidor-bg:   #E6F1FB;
+  --moni-funding-investidor-text: #185FA5;
+  --moni-funding-investidor-border: #185FA5;
+  --moni-funding-broker-bg:       #FAEEDA;
+  --moni-funding-broker-text:     #854F0B;
+  --moni-funding-broker-border:   #854F0B;
+
+  /* Kanban board — paleta compartilhada (redesign 2026) */
+  --moni-kanban-board-bg:       #eceae6;
+  --moni-kanban-col-bg:         #e4e2de;
+  --moni-kanban-col-hd:         var(--moni-neutral-100);
+  --moni-kanban-col-hd-fin:     color-mix(in srgb, var(--moni-neutral-100) 42%, transparent);
+  --moni-kanban-col-bg-fin:     color-mix(in srgb, var(--moni-kanban-col-bg) 30%, transparent);
+  --moni-kanban-col-accent:     var(--moni-green-800);
+  --moni-kanban-col-accent-fin: var(--moni-green-600);
+  --moni-kanban-lime:           #d4edaa;
+  --moni-kanban-lime-dim:       rgba(212, 237, 170, 0.6);
+  --moni-kanban-t1:             #191917;
+  --moni-kanban-t2:             #555550;
+  --moni-kanban-tm:             #9a9991;
+  --moni-kanban-bd:             rgba(0, 0, 0, 0.09);
+  --moni-kanban-bds:            rgba(0, 0, 0, 0.16);
+  --moni-kanban-card-hover-bd:  rgba(28, 58, 43, 0.3);
+  --moni-kanban-sla-ok-bg:      #eaf3de;
+  --moni-kanban-sla-ok-text:    #3b6d11;
+  --moni-kanban-sla-ok-border:  #639922;
+  --moni-kanban-sla-ok-dot:     #639922;
+  --moni-kanban-drawer-header:  var(--moni-green-50);
+  --moni-kanban-drawer-header-text: var(--moni-green-800);
+  --moni-kanban-drawer-header-muted: var(--moni-green-400);
+  --moni-kanban-drawer-header-border: var(--moni-green-400);
+  --moni-kanban-drawer-tabs-bg: var(--moni-green-50);
+  --moni-kanban-drawer-tab-text: var(--moni-green-400);
+  --moni-kanban-drawer-tab-text-hover: var(--moni-green-800);
+  --moni-kanban-drawer-tab-active-bg: var(--moni-surface-0);
+  --moni-kanban-drawer-tab-active-text: var(--moni-green-800);
+  --moni-kanban-drawer-tab-active-border: var(--moni-green-400);
+  --moni-kanban-drawer-footer:  #f4f3f0;
+
+  /* --------------------------------------------------
+     CARD FECHADO — redesign premium (Linear / Notion / Vercel)
+     Todos os valores vêm de tokens: nunca hardcodar hex no componente.
+     Sem laranja: o chip "Especial" do mockup é mapeado para o DOURADO Moní.
+  -------------------------------------------------- */
+  --moni-card-surface:        var(--moni-surface-0);       /* branco */
+  --moni-card-border-color:   var(--moni-border-default);  /* borda suave (0.5px) */
+  --moni-card-radius:         var(--moni-radius-lg);       /* 12px — clima Perícias / Moní */
+  --moni-card-pad:            14px;                         /* padding interno */
+  --moni-card-shadow:         var(--moni-shadow-card);
+  --moni-card-shadow-hover:   0 10px 24px rgba(15, 23, 42, 0.08);
+  /* Título do card fechado (.moni-kanban-card-title). */
+  --moni-card-title-size:     12px;
+  /* Título de fase/coluna (.moni-kanban-column-title). */
+  --moni-fase-title-size:     11px;
+  /* Compactação tipográfica do card fechado (pedido: line-height 1,0) */
+  --moni-card-lh:             1;
+  /* Gap MENOR só entre header (FK·franqueado) e título; demais usam section/chips/footer */
+  --moni-card-gap-header-title: 4px;
+  --moni-card-gap-section:    8px;                          /* título→chips / seções */
+  --moni-card-gap-chips:      8px;                          /* entre linhas de chips */
+  --moni-card-gap-footer:     8px;                          /* chips→rodapé */
+  /* Título: quase-preto premium (#111827). NÃO usar --moni-text-primary (#0c2633 navy)
+     nem --moni-text-secondary (#4a3929 earth) — ambos parecem bordô/castanho no board. */
+  --moni-card-title-color:    #111827;
+  /* Código FK: cinza premium (~#4B5563). NÃO usar tertiary marrom (#7a6e65) — pareceria atraso. */
+  --moni-card-code-color:     #4b5563;
+  --moni-card-resp-color:     #6b7280;                      /* responsável */
+  --moni-card-avatar-bg:      var(--moni-green-50);         /* fallback verde claro */
+
+  /* Chips minimalistas (pills, sem sombra, fundos suaves) */
+  --moni-card-chip-especial-bg:   var(--moni-gold-50);      /* dourado suave (NUNCA laranja) */
+  --moni-card-chip-especial-text: var(--moni-gold-800);
+  /* Tag de conteúdo no card — padrão pill “Média” (Perícias); ignora cor do DB */
+  --moni-card-tag-bg:             #dbeafe;                  /* azul claro pastel / periwinkle */
+  --moni-card-tag-text:           #1d4ed8;                  /* azul médio-escuro */
+  --moni-card-tag-border:         transparent;              /* sem borda gritante */
+  --moni-card-tag-font-size:      10px;                     /* pills do board (antes 12px) */
+  --moni-card-tag-height:         20px;                     /* proporcional à fonte menor */
+  --moni-card-tag-padding-x:      8px;
+  /* Legado revisão → mesmo padrão Média (sem roxo saturado no board) */
+  --moni-card-chip-revisao-bg:    var(--moni-card-tag-bg);
+  --moni-card-chip-revisao-text:  var(--moni-card-tag-text);
+  --moni-card-chip-prazo-bg:      var(--moni-status-overdue-bg);
+  --moni-card-chip-prazo-text:    var(--moni-status-overdue-text);
+  --moni-card-chip-prazo-border:  var(--moni-status-overdue-border);
+  --moni-card-sla-font-size:      10px;                     /* chip X d.u. no board */
+  --moni-card-sla-height:         20px;
+  --moni-card-sla-padding-x:      8px;
+  --moni-card-sla-icon-size:      11px;
+  --moni-card-fase-conclusao-opacity: 0.44;                /* fases de conclusão do funil */
+  --moni-card-fase-conclusao-muted-opacity: 0.32;          /* arquivado/concluído na fase fin */
+
+  /* Linha lateral de status — vermelho sóbrio (nunca #dc2626 / nunca laranja) */
+  --moni-card-status-verde:    var(--moni-green-400);       /* no prazo */
+  --moni-card-status-amarelo:  var(--moni-gold-400);        /* atenção */
+  --moni-card-status-vermelho: #c47a72;                     /* atrasado — overdue Moní suave */
+  --moni-card-status-roxo:     #7c3aed;                     /* revisão */
+  --moni-card-status-cinza:    #e2e8f0;                     /* sem informação / default */
+  /* Faixa esquerda do card fechado — accent do funil (--moni-kanban-col-accent) + SLA */
+  --moni-card-rail-width:      3px;
+  --moni-card-rail-width-alert: 3.5px;
+  --moni-card-rail-inset:      5px;                         /* respiro conteúdo ↔ faixa */
+  --moni-card-rail-default:    color-mix(
+    in srgb,
+    var(--moni-kanban-col-accent) 32%,
+    var(--moni-card-status-cinza)
+  );
+  --moni-card-rail-atrasado:   var(--moni-card-status-vermelho);
+  --moni-card-rail-wash:       color-mix(
+    in srgb,
+    var(--moni-card-status-vermelho) 7%,
+    var(--moni-card-surface)
+  );
+
+  /* Bolinhas — vínculos paralelos no board */
+  --moni-paralela-tooltip-bg:       #1c3a2b;
+  --moni-paralela-fallback:           #888780;
+  --moni-paralela-acoplamento:        #1d9e75;
+  --moni-paralela-credito-terreno:    #378add;
+  --moni-paralela-credito-obra:       #185fa5;
+  --moni-paralela-contabilidade:      #7f77dd;
+  --moni-paralela-juridico:           #ba7517;
+  --moni-paralela-moni-capital:       #3b6d11;
+  --moni-paralela-projeto-legal:      #854f0b;
+  --moni-paralela-projetos-locais:    #d85a30;
+  --moni-paralela-projetos-legais:    #993c1d;
+  --moni-paralela-hdm-modelo:         #d4537e;
+  --moni-paralela-hdm-homolog:        #993556;
+  --moni-paralela-hdm-produto:        #888780;
+  --moni-paralela-portfolio:          #2f4a3a;
+  --moni-paralela-operacoes:          #365848;
+
+  /* --------------------------------------------------
+     REDE DE FRANQUEADOS — gráficos, mapa e filtros
+     (mesma identidade que Painéis: Step One / verde médio Moní)
+  -------------------------------------------------- */
+
+  --moni-rede-chart-surface:   var(--moni-status-done-bg);
+  --moni-rede-chart-border:      rgba(77, 122, 98, 0.28);
+  --moni-rede-chart-track:       var(--moni-green-100);
+  --moni-rede-chart-fill:        var(--moni-kanban-stepone);
+  --moni-rede-chart-fill-secondary: var(--moni-gold-600);
+  --moni-rede-kpi-em-operacao: var(--moni-green-800);
+  --moni-rede-kpi-em-transferencia: var(--moni-card-status-amarelo);
+  --moni-rede-filter-em-operacao-bg: var(--moni-green-600);
+  --moni-rede-filter-encerradas-bg:  var(--moni-status-overdue-border);
+  --moni-rede-hover-row:       rgba(154, 184, 166, 0.32);
+  --moni-rede-map-bg:          var(--moni-green-50);
+  --moni-rede-map-land:        var(--moni-surface-200);
+  --moni-rede-map-stroke:      var(--moni-border-default);
+  --moni-rede-map-label:       var(--moni-text-secondary);
+  --moni-rede-map-pin-outer:   var(--moni-green-800);
+  --moni-rede-map-pin-inner:   var(--moni-green-400);
+  --moni-rede-map-callout:     var(--moni-navy-400);
+  --moni-rede-map-tier-0:      #eaf3de;
+  --moni-rede-map-tier-1:      #97c459;
+  --moni-rede-map-tier-2:      #3b6d11;
+  --moni-rede-map-tier-3:      #2d4a3e;
+  --moni-rede-city-track:      #faeeda;
+  --moni-rede-city-fill:       var(--moni-gold-600);
+  --moni-rede-class-beta:      var(--moni-gold-600);
+
+  /* --------------------------------------------------
+     TRANSIÇÕES
+  -------------------------------------------------- */
+
+  --moni-transition-fast:   120ms ease;
+  --moni-transition-base:   200ms ease;
+  --moni-transition-slow:   350ms ease;
+
+  /* --------------------------------------------------
+     BREAKPOINTS (usar como referência no JS/Tailwind)
+     mobile:  < 640px
+     tablet:  640px – 1024px
+     desktop: > 1024px
+     wide:    > 1440px
+  -------------------------------------------------- */
+
+  --moni-bp-mobile:  640px;
+  --moni-bp-tablet:  1024px;
+  --moni-bp-desktop: 1440px;
+
+  /* --------------------------------------------------
+     KANBAN CARD — tamanhos
+  -------------------------------------------------- */
+
+  --moni-card-width-kanban:   280px;   /* largura do card na coluna */
+  --moni-card-width-min:      240px;
+  --moni-card-modal-max:      1180px;  /* largura máx do modal de detalhe */
+  --moni-card-modal-acoes-width: 13rem; /* coluna direita (tags, fase, movimentação) */
+  --moni-column-width:        224px;   /* largura da coluna no board */
+
+  /* Carômetro — layout de página e headlines */
+  --carometro-page-bg: #f4f5f0;
+  --carometro-page-padding: 28px;
+  --carometro-headline-size: 22px;
+  --carometro-headline-weight: 600;
+  --carometro-headline-lh: 1.3;
+  --carometro-subtitle-size: 13px;
+  --carometro-subtitle-color: var(--moni-text-tertiary);
+}
+
+/* --------------------------------------------------
+   DARK MODE — DESABILITADO
+   O sistema usa apenas light mode para manter
+   consistência visual e identidade da marca
+-------------------------------------------------- */
+/* @media (prefers-color-scheme: dark) {
+  :root {
+    --moni-surface-0:   #0f1a20;
+    --moni-surface-50:  #131f27;
+    --moni-surface-100: #1a2b34;
+    --moni-surface-200: #1f3340;
+
+    --moni-text-primary:   #e8eef1;
+    --moni-text-secondary: #c4bab2;
+    --moni-text-tertiary:  #8a8078;
+    --moni-text-inverse:   #0c2633;
+
+    --moni-border-subtle:  rgba(200, 215, 222, 0.08);
+    --moni-border-default: rgba(200, 215, 222, 0.14);
+    --moni-border-strong:  rgba(200, 215, 222, 0.24);
+
+    --moni-status-attention-bg:   rgba(212, 173, 104, 0.12);
+    --moni-status-attention-text: #e6ce96;
+    --moni-status-overdue-bg:     rgba(194, 75, 58, 0.12);
+    --moni-status-overdue-text:   #f0a090;
+    --moni-status-done-bg:        rgba(77, 122, 98, 0.12);
+    --moni-status-done-text:      #9ab8a6;
+    --moni-status-active-bg:      rgba(62, 116, 144, 0.12);
+    --moni-status-active-text:    #94afc0;
+    --moni-status-archived-bg:    rgba(122, 110, 101, 0.12);
+    --moni-status-archived-text:  #bfab9f;
+  }
+} */
+
+/* --------------------------------------------------
+   UTILITIES GLOBAIS — classes utilitárias da marca
+-------------------------------------------------- */
+
+/* Tags de SLA */
+.moni-tag-atencao {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-status-attention-bg);
+  color: var(--moni-status-attention-text);
+  border: var(--moni-border-width) solid var(--moni-status-attention-border);
+}
+
+.moni-tag-atrasado {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-status-overdue-bg);
+  color: var(--moni-status-overdue-text);
+  border: var(--moni-border-width) solid var(--moni-status-overdue-border);
+}
+
+.moni-tag-concluido {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-status-done-bg);
+  color: var(--moni-status-done-text);
+  border: var(--moni-border-width) solid var(--moni-status-done-border);
+}
+
+.moni-tag-arquivado {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-status-archived-bg);
+  color: var(--moni-status-archived-text);
+  border: var(--moni-border-width) solid var(--moni-status-archived-border);
+}
+
+.moni-tag-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-status-active-bg);
+  color: var(--moni-status-active-text);
+  border: var(--moni-border-width) solid var(--moni-status-active-border);
+}
+
+/* Vínculos — cards linked across funis (modal sidebar) */
+.moni-vinculos-section {
+  font-family: var(--moni-font-sans);
+}
+
+.moni-vinculos-item a:focus-visible {
+  outline: 2px solid var(--moni-status-active-border);
+  outline-offset: 2px;
+  border-radius: var(--moni-radius-md);
+}
+
+.moni-vinculos-remove:hover {
+  background: var(--moni-surface-200);
+  color: var(--moni-status-overdue-text);
+}
+
+@media (max-width: 640px) {
+  .moni-vinculos-item > div {
+    padding: 10px 12px;
+  }
+
+  .moni-vinculos-remove {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.moni-tag-dependencia {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: 8px;
+  line-height: 1.2;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-gold-50);
+  color: var(--moni-gold-800);
+  border: var(--moni-border-width) solid var(--moni-gold-400);
+}
+
+.moni-tag-especial {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: 8px;
+  line-height: 1.2;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-gold-50);
+  color: var(--moni-gold-800);
+  border: var(--moni-border-width) solid var(--moni-gold-400);
+}
+
+/* Tag de conteúdo — padrão pill “Média” (todos os funis; ignora cor do cadastro) */
+.moni-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 2px;
+  height: var(--moni-card-tag-height);
+  padding: 0 var(--moni-card-tag-padding-x);
+  border-radius: 999px;
+  font-family: var(--moni-font-sans);
+  font-size: var(--moni-card-tag-font-size);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--moni-card-tag-bg);
+  color: var(--moni-card-tag-text);
+  border: var(--moni-border-width) solid var(--moni-card-tag-border);
+}
+
+.moni-kanban-board-tag-remove {
+  margin-left: 1px;
+  line-height: 0;
+}
+
+/* Calculadora Global de Fases — tokens e componentes */
+:root {
+  --moni-calc-prazo-bg: var(--moni-status-done-bg);
+  --moni-calc-prazo-text: var(--moni-status-done-text);
+  --moni-calc-at-border: #f09595;
+  --moni-calc-at-bg: #fcebeb;
+  --moni-calc-at-text: #a32d2d;
+  --moni-calc-prog-fill: #27500a;
+  --moni-calc-progress-ok: var(--moni-calc-prog-fill);
+  --moni-calc-progress-atraso: var(--moni-calc-at-text);
+  --moni-calc-separator: var(--moni-border-default);
+  --moni-calc-funil-stepone: var(--moni-kanban-stepone);
+  --moni-calc-funil-portfolio: var(--moni-kanban-portfolio);
+  --moni-calc-funil-operacoes: var(--moni-earth-600);
+  --moni-calc-funil-stepone-header-bg: var(--moni-kanban-stepone-light);
+  --moni-calc-funil-portfolio-header-bg: var(--moni-kanban-portfolio-light);
+  --moni-calc-funil-operacoes-header-bg: var(--moni-earth-50);
+  --moni-calc-marco-m0-dot: var(--moni-navy-600);
+  --moni-calc-marco-m0-bg: var(--moni-navy-50);
+  --moni-calc-marco-m0-border: var(--moni-navy-200);
+  --moni-calc-marco-m0-text: var(--moni-navy-800);
+  --moni-calc-marco-m0-badge-bg: var(--moni-navy-100);
+  --moni-calc-marco-m0-badge-text: var(--moni-navy-600);
+  --moni-calc-marco-m0-line: var(--moni-navy-200);
+  --moni-calc-marco-m4-dot: var(--moni-earth-600);
+  --moni-calc-marco-m4-bg: var(--moni-earth-50);
+  --moni-calc-marco-m4-border: var(--moni-earth-200);
+  --moni-calc-marco-m4-text: var(--moni-earth-800);
+  --moni-calc-marco-m4-badge-bg: var(--moni-earth-100);
+  --moni-calc-marco-m4-badge-text: var(--moni-earth-800);
+  --moni-calc-marco-m4-line: var(--moni-earth-200);
+  --moni-calc-marco-m24-dot: var(--moni-calc-at-text);
+  --moni-calc-marco-m24-bg: var(--moni-calc-at-bg);
+  --moni-calc-marco-m24-border: var(--moni-calc-at-border);
+  --moni-calc-marco-m24-text: var(--moni-calc-at-text);
+  --moni-calc-marco-m24-badge-bg: var(--moni-calc-resumo-atrasada-bg);
+  --moni-calc-marco-m24-badge-text: var(--moni-calc-resumo-atrasada-text);
+  --moni-calc-marco-m24-line: var(--moni-calc-at-border);
+  --moni-calc-marco-mo-dot: var(--moni-gold-600);
+  --moni-calc-marco-mo-bg: var(--moni-gold-50);
+  --moni-calc-marco-mo-border: var(--moni-gold-200);
+  --moni-calc-marco-mo-text: var(--moni-gold-800);
+  --moni-calc-marco-mo-line: var(--moni-gold-200);
+  --moni-calc-marco-mig-dot: var(--moni-earth-600);
+  --moni-calc-marco-mig-bg: var(--moni-earth-50);
+  --moni-calc-marco-mig-border: var(--moni-earth-200);
+  --moni-calc-marco-mig-text: var(--moni-earth-800);
+  --moni-calc-marco-mig-line: var(--moni-earth-200);
+  --moni-calc-marco-row-bg: var(--moni-surface-50);
+  --moni-calc-marco-row-border: var(--moni-border-default);
+  --moni-calc-dados-parciais-bg: var(--moni-gold-50);
+  --moni-calc-dados-parciais-text: var(--moni-gold-800);
+  --moni-calc-dados-parciais-border: var(--moni-gold-200);
+  --moni-calc-resumo-bg: #f9f8f3;
+  --moni-calc-resumo-border: var(--moni-border-default);
+  --moni-calc-resumo-atrasada-bg: #fde8e8;
+  --moni-calc-resumo-atrasada-text: #9b1c1c;
+  --moni-calc-resumo-atrasada-border: rgba(155, 28, 28, 0.12);
+  --moni-calc-resumo-gargalo-text: var(--moni-navy-600);
+  --moni-calc-prog-track: #e8e6e0;
+  --moni-calc-gargalo-bg: var(--moni-status-attention-bg);
+  --moni-calc-gargalo-text: var(--moni-status-attention-text);
+  --moni-calc-text-default: var(--moni-text-primary);
+  --moni-calc-text-futura: var(--moni-text-tertiary);
+  --moni-calc-text-futura-sla: var(--moni-text-tertiary);
+
+  /* Pipeline Esteira — visão tabela da rede */
+  --moni-pipeline-esteira-step-bg: var(--moni-kanban-stepone-light);
+  --moni-pipeline-esteira-step-text: var(--moni-kanban-stepone);
+  --moni-pipeline-esteira-port-bg: var(--moni-kanban-portfolio-light);
+  --moni-pipeline-esteira-port-text: var(--moni-kanban-portfolio);
+  --moni-pipeline-esteira-op-bg: var(--moni-earth-50);
+  --moni-pipeline-esteira-op-text: var(--moni-earth-800);
+  --moni-pipeline-esteira-date-real: var(--moni-status-done-text);
+  --moni-pipeline-esteira-date-est: var(--moni-status-active-text);
+  --moni-pipeline-esteira-date-at: var(--moni-status-overdue-text);
+  --moni-pipeline-esteira-date-concluida: var(--moni-text-tertiary);
+  --moni-pipeline-esteira-cur-bg: var(--moni-status-active-bg);
+  --moni-pipeline-esteira-cur-at-bg: var(--moni-status-overdue-bg);
+  --moni-pipeline-esteira-badge-port-bg: var(--moni-kanban-portfolio-light);
+  --moni-pipeline-esteira-badge-port-text: var(--moni-kanban-portfolio);
+  --moni-calc-resp-moni: var(--moni-text-secondary);
+  --moni-calc-resp-franq: var(--moni-text-secondary);
+  --moni-calc-custo-amber: var(--moni-text-secondary);
+  --moni-calc-custo-text: var(--moni-text-secondary);
+  --moni-calc-custo-label: var(--moni-text-tertiary);
+  --moni-calc-custo-bg: var(--moni-navy-25);
+  --moni-calc-row-pass-bg: var(--moni-surface-100);
+  --moni-calc-row-atu-border: var(--moni-border-strong);
+  --moni-calc-row-atu-at-border: var(--moni-calc-at-border);
+  --moni-calc-prazo-undef-bg: var(--moni-surface-100);
+  --moni-calc-prazo-undef-text: var(--moni-text-tertiary);
+  --moni-calc-prazo-at-bg: var(--moni-calc-at-bg);
+  --moni-calc-prazo-at-text: var(--moni-calc-at-text);
+  --moni-calc-prazo-at-border: var(--moni-calc-at-border);
+  --moni-calc-fim-atraso: var(--moni-status-overdue-text);
+  --moni-calc-status-concluida-bg: transparent;
+  --moni-calc-status-concluida-nome: var(--moni-text-primary);
+  --moni-calc-status-concluida-badge-bg: var(--moni-surface-100);
+  --moni-calc-status-concluida-badge-text: var(--moni-text-tertiary);
+  --moni-calc-status-concluida-atraso-bg: transparent;
+  --moni-calc-status-concluida-atraso-nome: var(--moni-text-primary);
+  --moni-calc-status-atual-bg: var(--moni-surface-50);
+  --moni-calc-status-atual-border: var(--moni-border-default);
+  --moni-calc-status-atual-nome: var(--moni-text-primary);
+  --moni-calc-status-atual-badge-bg: var(--moni-surface-100);
+  --moni-calc-status-atual-badge-text: var(--moni-text-primary);
+  --moni-calc-status-futura-nome: var(--moni-text-tertiary);
+  --moni-calc-status-futura-badge-bg: var(--moni-surface-100);
+  --moni-calc-status-futura-badge-text: var(--moni-text-tertiary);
+  --moni-calc-col-header: var(--moni-text-tertiary);
+}
+
+.moni-calculadora-status-futura {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  background: var(--moni-surface-100, #f5f5f4);
+  color: var(--moni-text-tertiary);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calculadora-status-atual {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  background: var(--moni-navy-50, #eef3f5);
+  color: var(--moni-navy-800);
+  border: 0.5px solid var(--moni-navy-200, #b8ccd4);
+}
+
+.moni-calculadora-progress-track {
+  height: 6px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--moni-rede-chart-track, var(--moni-surface-100));
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calculadora-progress-track--compact {
+  height: 3px;
+}
+
+.moni-calculadora-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--moni-calc-progress-ok);
+  transition: width 0.25s ease;
+}
+
+.moni-calculadora-progress-fill--atraso {
+  background: var(--moni-calc-progress-atraso);
+}
+
+.moni-calculadora-resumo {
+  font-family: var(--moni-font-sans);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--moni-radius-md);
+  border: 0.5px solid var(--moni-calc-resumo-border);
+  background: var(--moni-calc-resumo-bg);
+}
+
+.moni-calculadora-resumo-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.moni-calculadora-resumo-headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.moni-calculadora-resumo-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+  min-height: 0;
+  max-width: 52%;
+}
+
+.moni-calculadora-badge-parcial {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 500;
+  background: var(--moni-calc-dados-parciais-bg);
+  color: var(--moni-calc-dados-parciais-text);
+  border: 0.5px solid var(--moni-calc-dados-parciais-border);
+}
+
+.moni-calculadora-badge-prazo {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  line-height: 1.35;
+  font-weight: 500;
+  background: var(--moni-surface-100);
+  color: var(--moni-text-secondary);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calculadora-badge-atrasada {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  line-height: 1.35;
+  font-weight: 500;
+  background: var(--moni-calc-resumo-atrasada-bg);
+  color: var(--moni-calc-resumo-atrasada-text);
+  border: 0.5px solid var(--moni-calc-resumo-atrasada-border);
+}
+
+.moni-calculadora-badge-sla-indefinido {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: 8px;
+  line-height: 1.3;
+  font-weight: var(--moni-weight-semibold, 600);
+  background: var(--moni-calc-prazo-undef-bg);
+  color: var(--moni-calc-prazo-undef-text);
+  border: 0.5px solid var(--moni-border-default);
+  white-space: nowrap;
+}
+
+/* Prazo não definido — neutro ou vermelho se atrasada */
+.moni-calc-prazo-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: 8px;
+  line-height: 1.3;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.moni-calc-prazo-pill.undef {
+  background: var(--moni-calc-prazo-undef-bg);
+  color: var(--moni-calc-prazo-undef-text);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calc-prazo-pill.at {
+  background: var(--moni-calc-prazo-at-bg);
+  color: var(--moni-calc-prazo-at-text);
+  border: 0.5px solid var(--moni-calc-prazo-at-border);
+}
+
+/* Barra de progresso v4 */
+.moni-calc-prog-track {
+  height: 4px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--moni-calc-prog-track);
+}
+
+.moni-calc-prog-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--moni-calc-prog-fill);
+  transition: width 0.25s ease;
+}
+
+.moni-calc-prog-fill.at {
+  background: var(--moni-calc-at-text);
+}
+
+.moni-calculadora-fase-sla-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: 1px;
+  width: 100%;
+  min-width: 0;
+}
+
+.moni-calculadora-resumo-fase {
+  font-family: var(--moni-font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--moni-navy-800);
+  line-height: 1.25;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.moni-calculadora-resumo-meta {
+  font-size: 9px;
+  color: var(--moni-text-tertiary);
+  line-height: 1.25;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.moni-calculadora-resumo-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.moni-calculadora-resumo-progress-label {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: var(--moni-weight-medium);
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-resumo-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--moni-border-tertiary, var(--moni-calc-separator));
+}
+
+.moni-calculadora-resumo-stat {
+  padding: 0 8px;
+  border-right: 0.5px solid var(--moni-border-tertiary, var(--moni-calc-separator));
+}
+
+.moni-calculadora-resumo-stat:first-child {
+  padding-left: 0;
+}
+
+.moni-calculadora-resumo-stat:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+.moni-calculadora-resumo-stat-lbl {
+  font-size: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--moni-text-tertiary);
+  margin-bottom: 1px;
+}
+
+.moni-calculadora-resumo-stat-val {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-navy-800);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.moni-calculadora-resumo-stat-val--atraso {
+  font-weight: 600;
+  color: var(--moni-navy-800);
+}
+
+.moni-calculadora-resumo-stat-val--gargalo {
+  font-weight: 600;
+  color: var(--moni-calc-resumo-gargalo-text);
+}
+
+/* legado */
+.moni-calculadora-resumo-stat-val--warn {
+  font-weight: 600;
+  color: var(--moni-navy-800);
+}
+
+.moni-calculadora-footnote {
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  color: var(--moni-text-tertiary);
+  margin: 0 0 8px;
+  line-height: 1.35;
+}
+
+.moni-calculadora-table-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 60px 80px 96px;
+  gap: 6px;
+  padding: 0 8px 4px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moni-calc-col-header);
+}
+
+.moni-calculadora-table-header span:nth-child(3),
+.moni-calculadora-table-header span:nth-child(4),
+.moni-calculadora-table-header span:nth-child(5) {
+  text-align: right;
+}
+
+.moni-calculadora-fase-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 60px 80px 96px;
+  align-items: start;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--moni-radius-md, 6px);
+  margin-bottom: 1px;
+  font-size: 11px;
+  cursor: pointer;
+  border: 0.5px solid transparent;
+  font-family: var(--moni-font-sans);
+}
+
+.moni-calculadora-fase-row--no-expand {
+  cursor: default;
+}
+
+.moni-calculadora-fase-row:not(.moni-calculadora-fase-row--no-expand):hover {
+  border-color: var(--moni-border-default);
+}
+
+.moni-calculadora-fase-row--futura {
+  opacity: 1;
+}
+
+/* Passada — fundo discreto, badge texto simples */
+.moni-calc-row-pass {
+  background: var(--moni-calc-row-pass-bg);
+}
+
+.moni-calc-row-pass .fn,
+.moni-calc-row-pass .fd-val {
+  color: var(--moni-text-secondary);
+  font-weight: 500;
+}
+
+/* Atual no prazo — borda 1.5px, sem fundo colorido */
+.moni-calc-row-atu {
+  background: transparent;
+  border: 1.5px solid var(--moni-calc-row-atu-border);
+  margin: 4px 0;
+  box-shadow: none;
+}
+
+.moni-calc-row-atu .fn {
+  color: var(--moni-text-primary);
+  font-weight: 600;
+}
+
+.moni-calc-row-atu .fd-val {
+  color: var(--moni-text-primary);
+}
+
+/* Atual atrasada — borda vermelha discreta */
+.moni-calc-row-atu-at {
+  background: transparent;
+  border: 1.5px solid var(--moni-calc-row-atu-at-border);
+  margin: 4px 0;
+  box-shadow: none;
+}
+
+.moni-calc-row-atu-at .fn {
+  color: var(--moni-text-primary);
+  font-weight: 600;
+}
+
+.moni-calc-row-atu-at .fd-val {
+  color: var(--moni-text-primary);
+}
+
+.moni-calc-row-atu-at .fd-val--atraso {
+  color: var(--moni-calc-fim-atraso);
+}
+
+/* Futura */
+.moni-calc-row-fut .fn {
+  color: var(--moni-calc-text-futura);
+}
+
+.moni-calc-row-fut .fd-val {
+  color: var(--moni-calc-text-futura);
+}
+
+.moni-calc-row-fut .fsla {
+  color: var(--moni-calc-text-futura-sla);
+}
+
+.moni-calculadora-fase-col {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.moni-calculadora-fase-row > div:not(.moni-calculadora-fase-col):not(.moni-calculadora-fase-status-col) {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.moni-calculadora-fase-status-col {
+  min-width: 0;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  width: 100%;
+}
+
+.moni-calculadora-fase-status-col .moni-calculadora-fase-status,
+.moni-calculadora-fase-status-col .moni-calc-badge-pass,
+.moni-calculadora-fase-status-col .moni-calc-badge-fut,
+.moni-calculadora-fase-status-col .moni-calc-badge-atu,
+.moni-calculadora-fase-status-col .moni-calc-badge-atu-at,
+.moni-calculadora-fase-status-col .moni-calc-badge-atraso-text {
+  align-self: flex-end;
+  text-align: right;
+}
+
+.moni-calculadora-fase-status-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 6px;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--moni-text-primary);
+  background: var(--moni-surface-50);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+  cursor: pointer;
+  text-align: right;
+  text-align-last: right;
+}
+
+.moni-calculadora-fase-status-select:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (min-width: 641px) {
+  .moni-calculadora-fase-status-select {
+    min-height: 0;
+    font-size: 9px;
+    padding: 3px 4px;
+  }
+}
+
+.moni-calc-fcusto-block {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding: 5px 8px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--moni-calc-custo-bg);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+}
+
+.moni-calc-fcusto-label {
+  flex-shrink: 0;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--moni-calc-custo-label);
+  padding-top: 1px;
+}
+
+.moni-calc-fcusto-list {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--moni-calc-custo-text);
+  word-break: break-word;
+}
+
+.moni-calc-fcusto-list li {
+  position: relative;
+  padding-left: 9px;
+}
+
+.moni-calc-fcusto-list li::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  color: var(--moni-text-tertiary);
+}
+
+.moni-calc-row-fut .moni-calc-fcusto-list {
+  color: var(--moni-calc-custo-text);
+}
+
+.moni-calculadora-fase-row--concluida {
+  background: transparent;
+}
+
+.moni-calculadora-fase-row--concluida_atraso {
+  background: transparent;
+}
+
+.moni-calculadora-fase-row--concluida_atraso .fn {
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-fase-row--concluida_atraso .fd-val--atraso {
+  color: var(--moni-calc-fim-atraso);
+}
+
+.moni-calculadora-fase-row--atual .moni-calculadora-fase-nome {
+  font-weight: 600;
+}
+
+.moni-calculadora-fase-row--atual_atrasada .moni-calculadora-fase-nome {
+  font-weight: 600;
+}
+
+.moni-calculadora-fase-nome-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.moni-calculadora-fase-nome {
+  font-weight: 500;
+  line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+}
+
+.moni-calculadora-fase-chevron {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--moni-text-tertiary);
+  transition: transform 0.2s ease;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.moni-calculadora-fase-row.open .moni-calculadora-fase-chevron {
+  transform: rotate(90deg);
+}
+
+.moni-calculadora-fase-sla {
+  font-size: 9px;
+  color: var(--moni-text-tertiary);
+  line-height: 1.2;
+}
+
+.moni-calculadora-fase-responsavel {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 72px;
+}
+
+.moni-calculadora-fase-responsavel--empty {
+  color: var(--moni-text-tertiary);
+}
+
+.moni-calculadora-fase-responsavel--moni {
+  color: var(--moni-calc-resp-moni);
+}
+
+.moni-calculadora-fase-responsavel--franqueado {
+  color: var(--moni-calc-resp-franq);
+}
+
+.moni-calculadora-fase-responsavel--futura {
+  color: var(--moni-calc-text-futura);
+}
+
+.moni-calculadora-fase-custo {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 58px;
+}
+
+.moni-calculadora-fase-custo--empty {
+  color: var(--moni-text-tertiary);
+  font-size: 10px;
+}
+
+.moni-calculadora-fase-custo--valor {
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-fase-custo--futura {
+  color: var(--moni-calc-text-futura);
+  font-size: 10px;
+}
+
+.moni-calculadora-fase-data.fd-val {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--moni-calc-text-default);
+  line-height: 1.2;
+}
+
+.moni-calculadora-fase-data {
+  font-size: 11px;
+  color: var(--moni-calc-text-default);
+  line-height: 1.2;
+}
+
+.fd-val--atraso {
+  color: var(--moni-calc-fim-atraso) !important;
+}
+
+.moni-calculadora-fase-data-label {
+  display: block;
+  font-size: 8px;
+  color: var(--moni-text-tertiary);
+  line-height: 1.2;
+}
+
+.moni-calculadora-fase-data-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  text-align: right;
+  align-items: flex-end;
+}
+
+.moni-calculadora-fase-data-cell--edit {
+  align-items: stretch;
+}
+
+.moni-calculadora-fase-data-cell--edit .moni-calculadora-fase-data-input {
+  text-align: right;
+}
+
+.moni-calculadora-fase-data-cell .fd-val {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.moni-calculadora-fase-data-cell .fd-val--empty {
+  color: var(--moni-text-tertiary);
+}
+
+.moni-calculadora-fase-data-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 20px;
+  padding: 0 2px;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-calc-text-default);
+  background: var(--moni-surface-0, #fff);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-sm, 5px);
+  line-height: 1.2;
+  cursor: text;
+  box-sizing: border-box;
+}
+
+.moni-calculadora-fase-data-input::placeholder {
+  color: var(--moni-text-tertiary);
+  opacity: 0.7;
+}
+
+.moni-calculadora-fase-data-input:hover {
+  border-color: var(--moni-navy-800);
+}
+
+.moni-calculadora-fase-data-input:focus {
+  outline: none;
+  border-color: var(--moni-navy-800);
+  box-shadow: 0 0 0 1px var(--moni-navy-800);
+}
+
+.moni-calculadora-fase-data-input--atraso {
+  color: var(--moni-calc-fim-atraso);
+}
+
+.moni-calculadora-fase-data-input--saving {
+  opacity: 0.6;
+}
+
+.moni-calculadora-fase-data-input--erro {
+  border-color: var(--moni-calc-fim-atraso);
+  box-shadow: 0 0 0 1px var(--moni-calc-fim-atraso);
+}
+
+.moni-calculadora-edit-hint {
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  color: var(--moni-text-tertiary);
+  line-height: 1.35;
+}
+
+.moni-calculadora-section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.moni-calculadora-edit-datas-btn--active {
+  border-color: var(--moni-navy-800);
+  background: var(--moni-navy-800);
+  color: #fff;
+}
+
+.moni-calculadora-edit-datas-btn--active:hover:not(:disabled) {
+  background: var(--moni-navy-800);
+  opacity: 0.92;
+}
+
+.moni-calculadora--modo-edicao-datas .moni-calculadora-table-header,
+.moni-calculadora--modo-edicao-datas .moni-calculadora-fase-row,
+.moni-calculadora--modo-edicao-datas .moni-calculadora-marco-row {
+  grid-template-columns: minmax(0, 1fr) 72px 64px 72px 104px;
+}
+
+@media (max-width: 640px) {
+  .moni-calculadora-fase-data-input {
+    min-height: 44px;
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+
+  .moni-calculadora--modo-edicao-datas .moni-calculadora-table-header,
+  .moni-calculadora--modo-edicao-datas .moni-calculadora-fase-row,
+  .moni-calculadora--modo-edicao-datas .moni-calculadora-marco-row {
+    grid-template-columns: minmax(0, 1fr) 56px 60px 64px 88px;
+  }
+}
+
+.moni-calculadora-fase-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* Badges v4 — passada/futura: texto simples; atual: pill */
+.moni-calc-badge-pass,
+.moni-calc-badge-fut {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-weight: 500;
+  color: var(--moni-text-tertiary);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.moni-calc-badge-atu {
+  justify-content: flex-end;
+  padding: 1px 5px;
+  border-radius: var(--moni-radius-pill);
+  text-transform: none;
+  font-size: 9px;
+  white-space: normal;
+  text-align: right;
+  line-height: 1.25;
+  background: transparent;
+  color: var(--moni-text-primary);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calc-badge-atu-at {
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 1px 5px;
+  border-radius: var(--moni-radius-pill);
+  text-transform: none;
+  font-size: 9px;
+  white-space: normal;
+  text-align: right;
+  line-height: 1.25;
+  background: var(--moni-calc-at-bg);
+  color: var(--moni-calc-at-text);
+  border: 0.5px solid var(--moni-calc-at-border);
+}
+
+/* Marcos — atraso sem pill (texto simples com cor) */
+.moni-calc-badge-atraso-text {
+  flex-direction: column;
+  align-items: flex-end;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-weight: 500;
+  color: var(--moni-calc-at-text);
+  text-transform: none;
+  letter-spacing: normal;
+  justify-content: flex-end;
+  text-align: right;
+  white-space: normal;
+  font-size: 9px;
+  line-height: 1.25;
+}
+
+.moni-calc-status-stacked-line {
+  display: block;
+  line-height: 1.2;
+}
+
+.moni-calc-status-stacked-sub {
+  display: block;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 1.15;
+}
+
+/* Legado — mantido para compatibilidade */
+.moni-calculadora-fase-status--concluida {
+  background: transparent;
+  color: var(--moni-text-tertiary);
+  border: none;
+  padding: 0;
+}
+
+.moni-calculadora-fase-status--concluida_atraso {
+  background: transparent;
+  color: var(--moni-text-tertiary);
+  border: none;
+  padding: 0;
+}
+
+.moni-calculadora-fase-status--atual {
+  background: transparent;
+  color: var(--moni-text-primary);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calculadora-fase-status--atual_atrasada {
+  background: var(--moni-calc-at-bg);
+  color: var(--moni-calc-at-text);
+  border: 0.5px solid var(--moni-calc-at-border);
+}
+
+.moni-calculadora-fase-status--futura {
+  background: transparent;
+  color: var(--moni-text-tertiary);
+  border: none;
+  padding: 0;
+}
+
+.moni-calculadora-gargalo-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--moni-status-attention-text);
+  border: 0.5px solid var(--moni-status-attention-border);
+  border-radius: var(--moni-radius-pill);
+  padding: 1px 5px;
+  margin-left: 5px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.moni-calculadora-fase-steps {
+  display: none;
+  grid-column: 1 / -1;
+  padding: 2px 0 4px 12px;
+  margin-top: -2px;
+}
+
+.moni-calculadora-fase-row.open .moni-calculadora-fase-steps {
+  display: block;
+}
+
+.moni-calculadora-fase-step {
+  font-size: 9px;
+  color: var(--moni-text-secondary);
+  line-height: 1.45;
+  padding: 1px 0;
+  list-style: disc;
+  margin-left: 12px;
+}
+
+.moni-calculadora-marco-row,
+.moni-calc-row-marco {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 60px 80px 96px;
+  align-items: start;
+  gap: 6px;
+  padding: 6px 8px;
+  margin: 2px 0;
+  border-radius: var(--moni-radius-md, 6px);
+  border: 0.5px solid var(--moni-calc-marco-row-border);
+  background: var(--moni-calc-marco-row-bg);
+  font-family: var(--moni-font-sans);
+}
+
+.moni-calculadora-marco-row--somente-rotulo:not(.moni-calculadora-marco-row--somente-rotulo-com-limite) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* MIG / somenteRotulo — título longo + badge Marco na mesma linha (como M4) */
+.moni-calculadora-marco-row--somente-rotulo .moni-calculadora-marco-label-wrap {
+  flex-wrap: nowrap;
+}
+
+.moni-calculadora-marco-row--somente-rotulo .moni-calculadora-marco-label {
+  min-width: 0;
+}
+
+/* Marcos v4 — separador horizontal */
+.moni-calc-marco-sep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  padding: 0 8px;
+}
+
+.moni-calc-marco-line {
+  flex: 1;
+  height: 0.5px;
+  background: var(--moni-border-default);
+}
+
+.moni-calc-marco-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--moni-radius-pill);
+  border: 0.5px solid var(--moni-border-default);
+  background: var(--moni-surface-50);
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--moni-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.moni-calc-marco-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--moni-navy-800);
+}
+
+.moni-calc-marco-dot--M0 {
+  background: var(--moni-calc-marco-m0-dot);
+}
+
+.moni-calc-marco-dot--M4 {
+  background: var(--moni-calc-marco-m4-dot);
+}
+
+.moni-calc-marco-dot--M24 {
+  background: var(--moni-calc-marco-m24-dot);
+}
+
+.moni-calc-marco-dot--MO {
+  background: var(--moni-calc-marco-mo-dot);
+}
+
+.moni-calc-marco-dot--MIG {
+  background: var(--moni-calc-marco-mig-dot);
+}
+
+.moni-calc-marco-pill--M0 {
+  background: var(--moni-calc-marco-m0-bg);
+  border-color: var(--moni-calc-marco-m0-border);
+  color: var(--moni-calc-marco-m0-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--M4 {
+  background: var(--moni-calc-marco-m4-bg);
+  border-color: var(--moni-calc-marco-m4-border);
+  color: var(--moni-calc-marco-m4-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--M24 {
+  background: var(--moni-calc-marco-m24-bg);
+  border-color: var(--moni-calc-marco-m24-border);
+  color: var(--moni-calc-marco-m24-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--MO {
+  background: var(--moni-calc-marco-mo-bg);
+  border-color: var(--moni-calc-marco-mo-border);
+  color: var(--moni-calc-marco-mo-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--MIG {
+  background: var(--moni-calc-marco-mig-bg);
+  border-color: var(--moni-calc-marco-mig-border);
+  color: var(--moni-calc-marco-mig-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-sep--M0 .moni-calc-marco-line {
+  background: var(--moni-calc-marco-m0-line);
+}
+
+.moni-calc-marco-sep--M4 .moni-calc-marco-line {
+  background: var(--moni-calc-marco-m4-line);
+}
+
+.moni-calc-marco-sep--M24 .moni-calc-marco-line {
+  background: var(--moni-calc-marco-m24-line);
+}
+
+.moni-calc-marco-sep--MO .moni-calc-marco-line {
+  background: var(--moni-calc-marco-mo-line);
+}
+
+.moni-calc-marco-sep--MIG .moni-calc-marco-line {
+  background: var(--moni-calc-marco-mig-line);
+}
+
+.moni-calc-marco-pill .moni-calculadora-marco-badge {
+  margin-left: 2px;
+  font-size: 7px;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+}
+
+.moni-calc-marco-pill--M0 .moni-calc-marco-data,
+.moni-calc-marco-pill--M4 .moni-calc-marco-data,
+.moni-calc-marco-pill--M24 .moni-calc-marco-data,
+.moni-calc-marco-pill--MO .moni-calc-marco-data,
+.moni-calc-marco-pill--MIG .moni-calc-marco-data {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.moni-calc-marco-data {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--moni-text-tertiary);
+}
+
+.moni-calculadora-marco-label-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.moni-calculadora-marco-label-wrap .moni-calculadora-marco-badge {
+  flex-shrink: 0;
+}
+
+.moni-calculadora-marco-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--moni-navy-800);
+}
+
+.moni-calculadora-marco-dot--M0 {
+  background: var(--moni-calc-marco-m0-dot);
+}
+
+.moni-calculadora-marco-dot--M4 {
+  background: var(--moni-calc-marco-m4-dot);
+}
+
+.moni-calculadora-marco-dot--M24 {
+  background: var(--moni-calc-marco-m24-dot);
+}
+
+.moni-calculadora-marco-dot--MO {
+  background: var(--moni-calc-marco-mo-dot);
+}
+
+.moni-calculadora-marco-dot--MIG {
+  background: var(--moni-calc-marco-mig-dot);
+}
+
+.moni-calculadora-marco-label {
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--moni-text-primary);
+}
+
+.moni-calculadora-marco-label--M0 {
+  color: var(--moni-calc-marco-m0-text);
+}
+
+.moni-calculadora-marco-label--M4 {
+  color: var(--moni-calc-marco-m4-text);
+}
+
+.moni-calculadora-marco-label--M24 {
+  color: var(--moni-calc-marco-m24-text);
+}
+
+.moni-calculadora-marco-label--MO {
+  color: var(--moni-calc-marco-mo-text);
+}
+
+.moni-calculadora-marco-label--MIG {
+  color: var(--moni-calc-marco-mig-text);
+}
+
+.moni-calculadora-marco-fim-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: right;
+  align-items: flex-end;
+}
+
+.moni-calculadora-marco-fim-val {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-marco-fim-val--M0 {
+  color: var(--moni-calc-marco-m0-text);
+}
+
+.moni-calculadora-marco-fim-val--M4 {
+  color: var(--moni-calc-marco-m4-text);
+}
+
+.moni-calculadora-marco-fim-val--M24 {
+  color: var(--moni-calc-marco-m24-text);
+}
+
+.moni-calculadora-marco-fim-val--MO {
+  color: var(--moni-calc-marco-mo-text);
+}
+
+.moni-calculadora-marco-fim-val--MIG {
+  color: var(--moni-calc-marco-mig-text);
+}
+
+.moni-calculadora-marco-data {
+  font-size: 10px;
+  color: var(--moni-text-secondary);
+  white-space: nowrap;
+}
+
+.moni-calculadora-marco-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: var(--moni-radius-pill);
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--moni-surface-100);
+  color: var(--moni-text-tertiary);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calculadora-marco-badge--M0 {
+  background: var(--moni-calc-marco-m0-badge-bg);
+  color: var(--moni-calc-marco-m0-badge-text);
+  border-color: var(--moni-calc-marco-m0-border);
+}
+
+.moni-calculadora-marco-badge--M4 {
+  background: var(--moni-calc-marco-m4-badge-bg);
+  color: var(--moni-calc-marco-m4-badge-text);
+  border-color: var(--moni-calc-marco-m4-border);
+}
+
+.moni-calculadora-marco-badge--M24 {
+  background: var(--moni-calc-marco-m24-badge-bg);
+  color: var(--moni-calc-marco-m24-badge-text);
+  border-color: var(--moni-calc-marco-m24-border);
+}
+
+.moni-calculadora-marco-badge--MO {
+  background: var(--moni-calc-marco-mo-bg);
+  color: var(--moni-calc-marco-mo-text);
+  border-color: var(--moni-calc-marco-mo-border);
+}
+
+.moni-calculadora-marco-badge--MIG {
+  background: var(--moni-calc-marco-mig-bg);
+  color: var(--moni-calc-marco-mig-text);
+  border-color: var(--moni-calc-marco-mig-border);
+}
+
+.moni-calculadora-funil-group {
+  margin-bottom: 0;
+}
+
+.moni-calculadora-funil-separator {
+  height: 0.5px;
+  background: var(--moni-calc-separator);
+  margin: 8px 0;
+  border: none;
+}
+
+.moni-calculadora-negociacao-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: var(--moni-radius-pill);
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  color: var(--moni-text-tertiary);
+  background: var(--moni-surface-100);
+  font-family: var(--moni-font-sans);
+}
+
+.moni-calculadora-fase-row.moni-calculadora-negociacao-row .moni-calculadora-fase-sla.fsla {
+  color: var(--moni-text-primary);
+  font-weight: 500;
+}
+
+.moni-calculadora-funil-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--moni-font-sans);
+  border-radius: var(--moni-radius-md);
+  border: 0.5px solid transparent;
+  background: var(--moni-surface-100);
+}
+
+.moni-calculadora-funil-header--stepone {
+  background: var(--moni-calc-funil-stepone-header-bg);
+}
+
+.moni-calculadora-funil-header--portfolio {
+  background: var(--moni-calc-funil-portfolio-header-bg);
+}
+
+.moni-calculadora-funil-header--operacoes {
+  background: var(--moni-calc-funil-operacoes-header-bg);
+}
+
+.moni-calculadora-funil-header--negociacao {
+  background: var(--moni-surface-100);
+}
+
+.moni-calculadora-funil-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.moni-calculadora-funil-dot--stepone {
+  background: var(--moni-calc-funil-stepone);
+}
+
+.moni-calculadora-funil-dot--portfolio {
+  background: var(--moni-calc-funil-portfolio);
+}
+
+.moni-calculadora-funil-dot--operacoes {
+  background: var(--moni-calc-funil-operacoes);
+}
+
+.moni-calculadora-funil-dot--negociacao {
+  background: var(--moni-gold-400);
+}
+
+.moni-calculadora-funil-title {
+  flex: 1;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-funil-count {
+  font-size: 9px;
+  color: var(--moni-text-tertiary);
+}
+
+.moni-calculadora-funil-chev {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--moni-text-tertiary);
+  transition: transform 0.2s;
+  margin-left: 4px;
+  line-height: 1;
+}
+
+.moni-calculadora-funil-body {
+  overflow: hidden;
+  max-height: 9999px;
+  transition: max-height 0.25s ease;
+}
+
+.moni-calculadora-funil-group.collapsed .moni-calculadora-funil-body,
+.moni-calculadora-funil-collapsed .moni-calculadora-funil-body {
+  max-height: 0;
+}
+
+.moni-calculadora-funil-group.collapsed .moni-calculadora-funil-chev,
+.moni-calculadora-funil-collapsed .moni-calculadora-funil-chev {
+  transform: rotate(-90deg);
+}
+
+.moni-calculadora-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.moni-calculadora-section-title {
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  min-height: 28px;
+  border-radius: var(--moni-radius-sm, 5px);
+  border: var(--moni-border-width) solid var(--moni-border-secondary, var(--moni-border-default));
+  background: var(--moni-surface-50, var(--moni-bg-secondary));
+  color: var(--moni-text-tertiary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.moni-calculadora-share-btn:hover:not(:disabled) {
+  background: var(--moni-surface-100, var(--moni-bg-tertiary));
+}
+
+.moni-calculadora-share-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+@media (max-width: 640px) {
+  .moni-calculadora-resumo {
+    padding: 12px;
+  }
+
+  .moni-calculadora-resumo-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .moni-calculadora-resumo-headline {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .moni-calculadora-resumo-badges {
+    justify-content: flex-start;
+    max-width: none;
+  }
+
+  .moni-calculadora-resumo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .moni-calculadora-resumo-stats {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .moni-calculadora-resumo-stat {
+    border-right: none;
+    padding: 0;
+  }
+
+  .moni-calculadora-table-header,
+  .moni-calculadora-fase-row,
+  .moni-calculadora-marco-row {
+    grid-template-columns: minmax(0, 1fr) 56px 52px 64px 76px;
+    gap: 4px;
+    font-size: 10px;
+  }
+
+  .moni-calc-marco-sep {
+    padding: 0 4px;
+    gap: 6px;
+  }
+
+  .moni-calc-marco-pill {
+    font-size: 8px;
+    padding: 2px 8px;
+  }
+
+  .moni-calc-fcusto-block {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .moni-calc-fcusto-list {
+    font-size: 9px;
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
+/* Calculadora — modo público / link compartilhável (tipografia ampliada) */
+.moni-calculadora--modo-publico .moni-calculadora-resumo {
+  padding: 14px 16px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-fase {
+  font-size: 18px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-meta {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-progress-label {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-stat-lbl {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-stat-val {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-badge-parcial,
+.moni-calculadora--modo-publico .moni-calculadora-badge-prazo,
+.moni-calculadora--modo-publico .moni-calculadora-badge-atrasada {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-table-header {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-row,
+.moni-calculadora--modo-publico .moni-calculadora-marco-row {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-nome {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-sla {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-responsavel {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-data,
+.moni-calculadora--modo-publico .moni-calculadora-fase-data.fd-val,
+.moni-calculadora--modo-publico .moni-calculadora-fase-data-cell .fd-val {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-table-header,
+.moni-calculadora--modo-publico .moni-calculadora-fase-row,
+.moni-calculadora--modo-publico .moni-calculadora-marco-row {
+  grid-template-columns: minmax(0, 1fr) 76px 64px 92px 108px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-data-cell .fd-val {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-data-label {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-status,
+.moni-calculadora--modo-publico .moni-calc-badge-atu,
+.moni-calculadora--modo-publico .moni-calc-badge-atu-at,
+.moni-calculadora--modo-publico .moni-calc-badge-atraso-text {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calc-status-stacked-sub {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-funil-title,
+.moni-calculadora--modo-publico .moni-calculadora-funil-count {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-marco-label {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-marco-badge {
+  font-size: 9px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-gargalo-badge {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-step {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calc-fcusto-label,
+.moni-calculadora--modo-publico .moni-calc-fcusto-list {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico > header span:first-child {
+  font-size: 17px;
+}
+
+.moni-calculadora--modo-publico > header span:last-child {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico > p:last-child {
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .moni-calculadora--modo-publico .moni-calculadora-resumo-fase {
+    font-size: 17px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-resumo-stat-val {
+    font-size: 12px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-table-header,
+  .moni-calculadora--modo-publico .moni-calculadora-fase-row,
+  .moni-calculadora--modo-publico .moni-calculadora-marco-row {
+    font-size: 12px;
+    grid-template-columns: minmax(0, 1fr) 56px 52px 82px 96px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-nome {
+    font-size: 12px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data,
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data.fd-val,
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data-cell .fd-val {
+    font-size: 12px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data-label {
+    font-size: 9px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-status,
+  .moni-calculadora--modo-publico .moni-calc-badge-atu,
+  .moni-calculadora--modo-publico .moni-calc-badge-atu-at {
+    font-size: 10px;
+  }
+
+  .moni-calculadora--modo-publico > header span:first-child {
+    font-size: 16px;
+  }
+
+  .moni-calculadora--modo-publico > header span:last-child {
+    font-size: 12px;
+  }
+}
+
+/* Identificadores de Kanban */
+.moni-kanban-id--stepone   { background: var(--moni-kanban-stepone-light);   color: var(--moni-kanban-stepone);   border-color: var(--moni-kanban-stepone-accent); }
+.moni-kanban-id--portfolio { background: var(--moni-kanban-portfolio-light); color: var(--moni-kanban-portfolio); border-color: var(--moni-kanban-portfolio-accent); }
+.moni-kanban-id--loteadores { background: var(--moni-kanban-loteadores-light); color: var(--moni-kanban-loteadores); border-color: var(--moni-kanban-loteadores-accent); }
+.moni-kanban-id--contab    { background: var(--moni-kanban-contab-light);    color: var(--moni-kanban-contab);    border-color: var(--moni-kanban-contab-accent); }
+.moni-kanban-id--credito   { background: var(--moni-kanban-credito-light);   color: var(--moni-kanban-credito);   border-color: var(--moni-kanban-credito-accent); }
+.moni-kanban-id--marketing { background: var(--moni-kanban-marketing-light); color: var(--moni-kanban-marketing); border-color: var(--moni-kanban-marketing-accent); }
+.moni-kanban-id--moni-care { background: var(--moni-kanban-moni-care-light); color: var(--moni-kanban-moni-care); border-color: var(--moni-kanban-moni-care-accent); }
+
+/* Shell do board — isola colunas dentro do main (nunca sob o sidebar) */
+.moni-kanban-shell {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  isolation: isolate;
+  contain: inline-size;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+/* Kanban board — scroll horizontal com colunas largas */
+.moni-kanban-board-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--moni-navy-200) var(--moni-surface-100);
+  padding-bottom: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.moni-kanban-board-scroll::-webkit-scrollbar {
+  display: block;
+  height: 10px;
+}
+
+.moni-kanban-board-scroll::-webkit-scrollbar-track {
+  background: var(--moni-surface-100);
+  border-radius: var(--moni-radius-md);
+}
+
+.moni-kanban-board-scroll::-webkit-scrollbar-thumb {
+  background: var(--moni-navy-200);
+  border-radius: var(--moni-radius-md);
+}
+
+.moni-kanban-board-scroll-hint {
+  background: linear-gradient(
+    to right,
+    var(--moni-kanban-board-bg) 0%,
+    transparent 100%
+  );
+}
+
+.moni-kanban-board-scroll-hint--right {
+  background: linear-gradient(
+    to left,
+    var(--moni-kanban-board-bg) 0%,
+    transparent 100%
+  );
+}
+
+/* Default = fila horizontal. Mobile (≤640px) sobrescreve para column.
+   !important no default: evita regressão se utilitário/Tailwind virar column no desktop.
+   globals.css reforça a mesma regra DEPOIS deste arquivo (ordem de import). */
+.moni-kanban-board {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+  gap: 10px;
+  padding: 14px 20px;
+  background: var(--moni-kanban-board-bg);
+  border-radius: var(--moni-radius-lg);
+  min-width: max-content;
+}
+
+.moni-kanban-board-scroll.flex,
+.moni-kanban-board-scroll > .flex {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+}
+
+.moni-kanban-column {
+  flex-shrink: 0;
+  width: var(--moni-column-width);
+  min-width: var(--moni-column-width);
+}
+
+@media (min-width: 641px) {
+  .moni-kanban-column {
+    flex-shrink: 0 !important;
+    width: var(--moni-column-width) !important;
+    min-width: var(--moni-column-width) !important;
+  }
+}
+
+/* Toolbar do board — filtros e busca */
+.moni-kanban-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.moni-kanban-fpill {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 14px;
+  border: var(--moni-border-width) solid var(--moni-kanban-bd);
+  border-radius: var(--moni-radius-pill);
+  background: var(--moni-surface-0);
+  color: var(--moni-kanban-t2);
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: var(--moni-weight-medium);
+  line-height: 1.2;
+  transition: border-color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-fpill:hover {
+  border-color: var(--moni-kanban-bds);
+  background: var(--moni-surface-50);
+}
+
+.moni-kanban-fpill--search {
+  width: 16rem;
+  max-width: 100%;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.moni-kanban-fpill--search::placeholder {
+  color: var(--moni-kanban-tm);
+}
+
+.moni-kanban-fpill--search:focus {
+  outline: none;
+  border-color: var(--moni-kanban-col-accent);
+}
+
+/* Coluna do kanban */
+.moni-kanban-column {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--moni-column-width);
+  min-width: var(--moni-column-width);
+  overflow: hidden;
+  border-radius: var(--moni-radius-lg);
+  background: var(--moni-kanban-col-bg);
+}
+
+.moni-kanban-column--drag-over {
+  outline: 2px solid var(--moni-kanban-col-accent);
+  outline-offset: -2px;
+}
+
+.moni-kanban-column--fin {
+  background: var(--moni-kanban-col-bg-fin);
+}
+
+.moni-kanban-column-hd {
+  box-sizing: border-box;
+  /* Altura fixa: só título (+ SLA); sem bloco de instruções — base alinhada entre colunas. */
+  min-height: 48px;
+  padding: 10px 10px 9px;
+  background: var(--moni-kanban-col-hd);
+  border-bottom: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
+}
+
+.moni-kanban-column-hd--fin,
+.moni-kanban-column--fin .moni-kanban-column-hd {
+  background: var(--moni-kanban-col-hd-fin);
+  border-bottom-color: color-mix(in srgb, var(--moni-kanban-drawer-header-border) 28%, transparent);
+}
+
+.moni-kanban-column--fin .moni-kanban-column-title {
+  color: var(--moni-text-tertiary);
+  font-weight: var(--moni-weight-medium);
+}
+
+.moni-kanban-column--fin .moni-kanban-column-subtitle,
+.moni-kanban-column--fin .moni-kanban-col-sla,
+.moni-kanban-column--fin .moni-kanban-col-sort {
+  color: var(--moni-text-tertiary);
+}
+
+/* Cards em fases de conclusão (terminal / paralisados / última coluna) — mais transparentes */
+.moni-kanban-column--fin .moni-kanban-card {
+  opacity: var(--moni-card-fase-conclusao-opacity);
+}
+
+.moni-kanban-column--fin .moni-kanban-card.moni-kanban-card--muted {
+  opacity: var(--moni-card-fase-conclusao-muted-opacity);
+}
+
+.moni-kanban-column--fin .moni-kanban-card:hover {
+  opacity: 0.62;
+}
+
+.moni-kanban-column--fin .moni-kanban-card.moni-kanban-card--muted:hover {
+  opacity: 0.48;
+}
+
+.moni-kanban-column-hd-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.moni-kanban-column-hd-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.moni-kanban-column-title {
+  margin: 0;
+  font-family: var(--moni-font-sans);
+  font-size: var(--moni-fase-title-size);
+  font-weight: var(--moni-weight-bold);
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moni-text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.moni-kanban-column-subtitle {
+  margin: 2px 0 0;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--moni-kanban-drawer-header-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.moni-kanban-column-hd-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.moni-kanban-col-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--moni-radius-pill);
+  border: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
+  background: var(--moni-surface-0);
+  color: var(--moni-kanban-drawer-header-text);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.moni-kanban-col-sla {
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--moni-kanban-drawer-header-muted);
+  white-space: nowrap;
+}
+
+.moni-kanban-col-sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: var(--moni-kanban-drawer-header-muted);
+  cursor: default;
+  transition: color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-col-sort:hover {
+  color: var(--moni-kanban-drawer-header-text);
+  background: var(--moni-surface-0);
+}
+
+.moni-kanban-column-body {
+  box-sizing: border-box;
+  flex: 1;
+  max-height: 70vh;
+  padding: 8px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.moni-kanban-column-body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+}
+
+/* Scroll invisível — reutilizável em painéis legados */
+.moni-scrollbar-hidden {
+  scrollbar-width: none;
+}
+
+.moni-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.moni-kanban-column-empty {
+  padding: 24px 8px;
+  text-align: center;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  color: var(--moni-kanban-tm);
+}
+
+.moni-kanban-add-card {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: var(--moni-border-width) dashed var(--moni-kanban-bd);
+  border-radius: var(--moni-radius-md);
+  background: transparent;
+  color: var(--moni-kanban-t2);
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color var(--moni-transition-fast), color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-add-card:hover {
+  border-color: var(--moni-kanban-col-accent);
+  color: var(--moni-kanban-col-accent);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* Card do kanban */
+.moni-kanban-card-wrap {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.moni-kanban-card-wrap:last-child {
+  margin-bottom: 0;
+}
+
+.moni-kanban-card-drop-line {
+  pointer-events: none;
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--moni-kanban-col-accent);
+}
+
+.moni-kanban-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  /* Padding esquerdo extra: o conteúdo não cola na faixa lateral */
+  padding: var(--moni-card-pad);
+  padding-left: calc(var(--moni-card-pad) + var(--moni-card-rail-inset));
+  border: var(--moni-border-width) solid var(--moni-card-border-color);
+  border-radius: var(--moni-card-radius);
+  background: var(--moni-card-surface);
+  box-shadow: var(--moni-card-shadow);
+  /* Clipa a faixa ::before aos cantos arredondados do card */
+  overflow: hidden;
+  text-align: left;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease,
+    background 180ms ease;
+}
+
+.moni-kanban-card:hover {
+  border-color: var(--moni-kanban-card-hover-bd);
+  box-shadow: var(--moni-card-shadow-hover);
+  transform: translateY(-1px);
+}
+
+/* Faixa lateral esquerda: accent sutil do funil; vermelho só com SLA atrasado.
+   Gradiente vertical leve (Porsche/editorial) — sem glow. overflow:hidden curva com o card. */
+.moni-kanban-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--moni-card-rail-width);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--moni-kanban-col-accent) 55%, transparent) 0%,
+    var(--moni-card-rail-default) 42%,
+    color-mix(in srgb, var(--moni-kanban-col-accent) 38%, transparent) 100%
+  );
+  pointer-events: none;
+}
+
+.moni-kanban-card--status-verde::before,
+.moni-kanban-card--status-amarelo::before,
+.moni-kanban-card--status-roxo::before,
+.moni-kanban-card--status-cinza::before {
+  width: var(--moni-card-rail-width);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--moni-kanban-col-accent) 55%, transparent) 0%,
+    var(--moni-card-rail-default) 42%,
+    color-mix(in srgb, var(--moni-kanban-col-accent) 38%, transparent) 100%
+  );
+}
+
+.moni-kanban-card--status-vermelho::before,
+.moni-kanban-card--sla-atrasado::before {
+  width: var(--moni-card-rail-width-alert);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--moni-card-rail-atrasado) 88%, transparent) 0%,
+    var(--moni-card-rail-atrasado) 50%,
+    color-mix(in srgb, var(--moni-card-rail-atrasado) 72%, transparent) 100%
+  );
+}
+
+/* Wash suave à esquerda só com SLA atrasado — reforça a faixa sem “card dentro de card” */
+.moni-kanban-card--status-vermelho,
+.moni-kanban-card--sla-atrasado {
+  background: linear-gradient(
+    90deg,
+    var(--moni-card-rail-wash) 0%,
+    var(--moni-card-surface) 18px
+  );
+}
+
+.moni-kanban-card--archived {
+  border-style: dashed;
+  border-color: var(--moni-status-archived-border);
+}
+
+.moni-kanban-card--done {
+  border-style: dashed;
+  border-color: var(--moni-green-400);
+}
+
+.moni-kanban-card--drag-target {
+  border-color: var(--moni-kanban-col-accent);
+  border-width: 2px;
+}
+
+.moni-kanban-card--muted {
+  opacity: 0.6;
+}
+
+.moni-kanban-card--pending {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.moni-kanban-card--draggable {
+  cursor: grab;
+}
+
+.moni-kanban-card--draggable:active {
+  cursor: grabbing;
+}
+
+.moni-kanban-card-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  /* Raiz de herança: quase-preto premium — nunca navy/earth/overdue via inherit. */
+  color: var(--moni-card-title-color);
+}
+
+/* Menu «...» no rodapé do card (canto inferior direito, sempre visível) */
+.moni-kanban-card-footer-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: var(--moni-text-tertiary);
+  cursor: pointer;
+  transition: color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-card-footer-menu:hover {
+  background: var(--moni-surface-100);
+  color: var(--moni-text-primary);
+}
+
+/* Dropdown de ações do card (⋯) — Avançar fase / Arquivar */
+.moni-kanban-card-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--moni-surface-0);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+  box-shadow: var(--moni-shadow-card);
+  font-family: var(--moni-font-sans);
+}
+
+.moni-kanban-card-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: var(--moni-text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--moni-transition-fast), color var(--moni-transition-fast);
+}
+
+.moni-kanban-card-menu-item:hover:not(:disabled) {
+  background: var(--moni-surface-100);
+}
+
+.moni-kanban-card-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.moni-kanban-card-menu-item--danger {
+  color: var(--moni-status-overdue-text);
+}
+
+.moni-kanban-card-menu-item--danger:hover:not(:disabled) {
+  background: var(--moni-status-overdue-bg);
+}
+
+.moni-kanban-card-menu-arquivar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 8px 6px;
+}
+
+.moni-kanban-card-menu-label {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--moni-text-tertiary);
+}
+
+.moni-kanban-card-menu-select,
+.moni-kanban-card-menu-textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-sm);
+  background: var(--moni-surface-0);
+  color: var(--moni-text-primary);
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+}
+
+.moni-kanban-card-menu-textarea {
+  resize: vertical;
+}
+
+.moni-kanban-card-menu-erro {
+  margin: 0;
+  font-size: 11px;
+  color: var(--moni-status-overdue-text);
+}
+
+.moni-kanban-card-menu-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.moni-kanban-card-menu-btn {
+  flex: 1;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--moni-radius-sm);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-surface-0);
+  color: var(--moni-text-secondary);
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--moni-transition-fast), opacity var(--moni-transition-fast);
+}
+
+.moni-kanban-card-menu-btn:hover:not(:disabled) {
+  background: var(--moni-surface-100);
+}
+
+.moni-kanban-card-menu-btn--danger {
+  border-color: var(--moni-status-overdue-border);
+  background: var(--moni-status-overdue-bg);
+  color: var(--moni-status-overdue-text);
+}
+
+.moni-kanban-card-menu-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.moni-kanban-card-badges {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Header do card fechado: FK · franqueado | avatar (responsável só no avatar) */
+.moni-kanban-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: var(--moni-card-gap-header-title);
+}
+
+/* Bloco esquerdo: FK ancorado + franqueado mais leve (hierarquia editorial) */
+.moni-kanban-card-header-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+
+.moni-kanban-card-header-sep {
+  flex-shrink: 0;
+  color: var(--moni-kanban-tm);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.85;
+  transform: translateY(-0.5px);
+}
+
+.moni-kanban-card-responsavel,
+.moni-kanban-card-franqueado {
+  margin: 0;
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: var(--moni-card-lh);
+  color: var(--moni-card-resp-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.moni-kanban-card-header-end {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.moni-kanban-card-codigo {
+  display: inline;
+  margin: 0;
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: var(--moni-card-lh);
+  letter-spacing: 0.045em;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  color: var(--moni-card-code-color);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.moni-kanban-card-title {
+  margin: 0;
+  font-family: var(--moni-font-sans);
+  font-size: var(--moni-card-title-size);
+  font-weight: 700; /* negrito explícito — token bold=600 fica leve demais vs fase */
+  line-height: 1.25;
+  letter-spacing: normal;
+  color: var(--moni-card-title-color);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Gap header → título já vem do margin-bottom do header (gap-header-title).
+   Fallback quando não há header: sem margem extra no título. */
+.moni-kanban-card-codigo + .moni-kanban-card-title {
+  margin-top: 0;
+}
+
+/*
+ * cache-bust v5 (2026-07-15): layout header FK·franqueado | avatar;
+ * título SEMPRE #111827 negrito; Especial = ★ no título; SLA só em chip; tags = pill Média.
+ */
+.moni-kanban-card .moni-kanban-card-title,
+.moni-kanban-card .moni-kanban-card-title--neutral,
+.moni-kanban-card .moni-kanban-card-open .moni-kanban-card-title,
+.moni-kanban-card .moni-kanban-card-open .moni-kanban-card-title--neutral,
+.moni-kanban-card[data-card-title-v5] .moni-kanban-card-title,
+.moni-kanban-card[data-card-title-v5] .moni-kanban-card-title--neutral,
+.moni-kanban-card-title[data-card-title-v5],
+.moni-kanban-card--status-vermelho .moni-kanban-card-title,
+.moni-kanban-card--status-vermelho .moni-kanban-card-title--neutral,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-title,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-title--neutral,
+.moni-kanban-card--sla-atencao .moni-kanban-card-title,
+.moni-kanban-card--sla-atencao .moni-kanban-card-title--neutral,
+.moni-kanban-card--archived .moni-kanban-card-title,
+.moni-kanban-card--done .moni-kanban-card-title,
+.moni-kanban-card--muted .moni-kanban-card-title,
+.moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-title,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-title,
+.moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-title--neutral,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-title--neutral {
+  color: var(--moni-card-title-color) !important;
+  font-size: var(--moni-card-title-size) !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  letter-spacing: normal !important;
+}
+
+/* Código FK sempre cinza premium — nunca overdue-text / castanho / vermelho. */
+.moni-kanban-card .moni-kanban-card-open .moni-kanban-card-codigo,
+.moni-kanban-card .moni-kanban-card-codigo,
+.moni-kanban-card--status-vermelho .moni-kanban-card-codigo,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-codigo,
+.moni-kanban-card--sla-atencao .moni-kanban-card-codigo,
+.moni-kanban-card--status-vermelho .moni-kanban-card-open .moni-kanban-card-codigo,
+.moni-kanban-card--sla-atrasado .moni-kanban-card-open .moni-kanban-card-codigo {
+  color: var(--moni-card-code-color) !important;
+}
+
+.moni-kanban-card-subtitle {
+  margin: var(--moni-card-gap-section) 0 0;
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--moni-card-resp-color);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.moni-kanban-card-funding {
+  display: inline-block;
+  margin-top: var(--moni-card-gap-chips);
+}
+
+.moni-kanban-card-divider {
+  margin: 7px 0 6px;
+  border: none;
+  border-top: var(--moni-border-width) solid var(--moni-kanban-bd);
+}
+
+.moni-kanban-card-section-label {
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moni-kanban-tm);
+}
+
+.moni-kanban-card-section-value {
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--moni-kanban-t2);
+}
+
+.moni-kanban-card-status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--moni-radius-pill);
+  padding: 2px 8px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: var(--moni-border-width) solid transparent;
+}
+
+.moni-kanban-card-status-badge--archived {
+  background: var(--moni-status-archived-bg);
+  color: var(--moni-status-archived-text);
+  border: var(--moni-border-width) solid var(--moni-status-archived-border);
+}
+
+.moni-kanban-card-status-badge--done {
+  background: var(--moni-green-50);
+  color: var(--moni-green-800);
+  border: var(--moni-border-width) solid var(--moni-green-400);
+}
+
+.moni-kanban-card-status-badge--danger {
+  background: var(--moni-status-overdue-bg);
+  color: var(--moni-status-overdue-text);
+  border-color: var(--moni-status-overdue-border);
+}
+
+.moni-funding-tipo-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: var(--moni-weight-medium);
+  line-height: 1.25;
+  border: var(--moni-border-width) solid transparent;
+}
+
+.moni-funding-tipo-badge--investidor {
+  background: var(--moni-funding-investidor-bg);
+  color: var(--moni-funding-investidor-text);
+  border-color: var(--moni-funding-investidor-border);
+}
+
+.moni-funding-tipo-badge--broker {
+  background: var(--moni-funding-broker-bg);
+  color: var(--moni-funding-broker-text);
+  border-color: var(--moni-funding-broker-border);
+}
+
+/* Tags SLA / reunião / follow-up — tamanho único nos cards */
+.moni-kanban-card-sla {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 16px;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-family: var(--moni-font-sans);
+  font-size: 8px;
+  font-weight: var(--moni-weight-medium);
+  line-height: 1.25;
+  border: var(--moni-border-width) solid transparent;
+  white-space: nowrap;
+}
+
+.moni-kanban-card-sla-dot {
+  flex-shrink: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+
+.moni-kanban-card-sla-icon {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+}
+
+.moni-kanban-card-sla--ok {
+  background: var(--moni-kanban-sla-ok-bg);
+  color: var(--moni-kanban-sla-ok-text);
+  border-color: var(--moni-kanban-sla-ok-border);
+}
+
+.moni-kanban-card-sla--ok .moni-kanban-card-sla-dot {
+  background: var(--moni-kanban-sla-ok-dot);
+}
+
+.moni-kanban-card-sla--atencao {
+  background: var(--moni-surface-0);
+  color: var(--moni-status-attention-text);
+  border-color: var(--moni-status-attention-border);
+  font-weight: var(--moni-weight-bold);
+}
+
+.moni-kanban-card-sla--atencao .moni-kanban-card-sla-dot {
+  background: var(--moni-gold-400);
+}
+
+.moni-kanban-card-sla--atrasado {
+  background: var(--moni-card-chip-prazo-bg);
+  color: var(--moni-card-chip-prazo-text);
+  border-color: var(--moni-card-chip-prazo-border);
+  font-weight: var(--moni-weight-medium);
+}
+
+.moni-kanban-card-sla--atrasado .moni-kanban-card-sla-dot {
+  background: var(--moni-card-status-vermelho);
+}
+
+.moni-kanban-card-indicators {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--moni-card-gap-chips);
+  margin-top: var(--moni-card-gap-chips);
+}
+
+/* Chips minimalistas dentro do card fechado (escopo local — não afeta modal/pipeline)
+   altura 20px · pill · fonte 10px/600 · sem sombra · fundos suaves */
+.moni-kanban-card .moni-kanban-card-sla {
+  height: var(--moni-card-sla-height);
+  min-height: var(--moni-card-sla-height);
+  padding: 0 var(--moni-card-sla-padding-x);
+  gap: 4px;
+  border: var(--moni-border-width) solid transparent;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-card-sla-font-size);
+  font-weight: 600;
+}
+
+.moni-kanban-card .moni-kanban-card-sla-icon {
+  width: var(--moni-card-sla-icon-size);
+  height: var(--moni-card-sla-icon-size);
+}
+
+.moni-kanban-card .moni-kanban-card-sla-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.moni-kanban-card .moni-kanban-card-sla--ok {
+  background: var(--moni-green-50);
+  color: var(--moni-green-800);
+}
+
+.moni-kanban-card .moni-kanban-card-sla--atencao {
+  background: var(--moni-card-chip-especial-bg);
+  color: var(--moni-card-chip-especial-text);
+}
+
+.moni-kanban-card .moni-kanban-card-sla--atrasado {
+  background: var(--moni-card-chip-prazo-bg);
+  color: var(--moni-card-chip-prazo-text);
+  border-color: var(--moni-card-chip-prazo-border);
+  font-weight: 600;
+}
+
+.moni-kanban-card .moni-kanban-card-sla--atrasado .moni-kanban-card-sla-icon {
+  color: var(--moni-card-chip-prazo-text);
+  opacity: 1;
+}
+
+/* Tags de conteúdo no card — força padrão Média (sobrescreve cor inline do DB) */
+.moni-kanban-card .moni-tag-chip {
+  height: var(--moni-card-tag-height);
+  padding: 0 var(--moni-card-tag-padding-x);
+  border-radius: 999px;
+  font-size: var(--moni-card-tag-font-size);
+  font-weight: 600;
+  line-height: 1;
+  background: var(--moni-card-tag-bg) !important;
+  color: var(--moni-card-tag-text) !important;
+  border-color: var(--moni-card-tag-border) !important;
+}
+
+/* Tag «Contratar Inst. Garantidor» — vermelho sóbrio no board */
+.moni-kanban-card .moni-tag-atrasado {
+  height: var(--moni-card-tag-height);
+  padding: 0 var(--moni-card-tag-padding-x);
+  border-radius: 999px;
+  font-size: var(--moni-card-tag-font-size);
+  font-weight: 600;
+  line-height: 1;
+  background: var(--moni-status-overdue-bg) !important;
+  color: var(--moni-status-overdue-text) !important;
+  border: var(--moni-border-width) solid var(--moni-status-overdue-border) !important;
+}
+
+/* ★ Especial — só estrela à esquerda do título (não pill / não linha “Especial”) */
+.moni-kanban-card-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.moni-kanban-card-title-star {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--moni-gold-400);
+  font-size: 14px;
+  line-height: var(--moni-card-lh);
+  font-weight: 600;
+}
+
+.moni-kanban-card-title-row .moni-kanban-card-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.moni-kanban-card-tags-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--moni-card-gap-chips);
+  margin-top: var(--moni-card-gap-section);
+}
+
+.moni-kanban-card-tags-chips,
+.moni-kanban-card-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--moni-card-gap-chips);
+  margin-top: var(--moni-card-gap-chips);
+}
+
+.moni-kanban-card-tag-chip--removable {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 2px;
+  padding-right: 2px;
+}
+
+/* Meta: bolinhas · reunião */
+.moni-kanban-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: var(--moni-card-gap-footer);
+  min-height: 20px;
+}
+
+.moni-kanban-card-meta-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.moni-kanban-card-meta-sep {
+  flex-shrink: 0;
+  color: var(--moni-kanban-tm);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.moni-kanban-card-reuniao {
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--moni-text-secondary);
+  white-space: nowrap;
+}
+
+.moni-kanban-card-reuniao--atencao {
+  color: var(--moni-status-attention-text);
+}
+
+.moni-kanban-card-reuniao--atrasado {
+  color: var(--moni-card-chip-prazo-text);
+  font-weight: 600;
+}
+
+/* Rodapé: bolinhas/menu (linha 1) · reunião (linha 2, abaixo das bolinhas) */
+.moni-kanban-card-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  margin-top: var(--moni-card-gap-footer);
+  min-height: 20px;
+}
+
+.moni-kanban-card-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.moni-kanban-card-footer-reuniao {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.moni-kanban-card-footer-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.moni-kanban-card-footer-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.moni-kanban-card-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.moni-kanban-card-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px 1px 4px;
+  border-radius: var(--moni-radius-pill);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-surface-0);
+  color: var(--moni-text-tertiary);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    border-color var(--moni-transition-fast),
+    color var(--moni-transition-fast);
+}
+
+.moni-kanban-card-count:hover {
+  border-color: var(--moni-border-strong);
+  color: var(--moni-text-primary);
+}
+
+/* Cluster horizontal e discreto de bolinhas de vínculo (funis paralelos) */
+.moni-kanban-paralelas-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: var(--moni-radius-pill);
+  background: var(--moni-surface-100);
+}
+
+.moni-kanban-paralela-bolinha-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.moni-kanban-paralela-bolinha {
+  box-sizing: border-box;
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid transparent;
+  border-radius: 50%;
+  transition: transform var(--moni-transition-fast);
+}
+
+.moni-kanban-paralela-bolinha-wrap:hover .moni-kanban-paralela-bolinha {
+  transform: scale(1.25);
+}
+
+.moni-kanban-paralela-tooltip {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 50;
+  width: max-content;
+  max-width: 220px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--moni-paralela-tooltip-bg);
+  color: var(--moni-surface-0);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.moni-kanban-paralela-tooltip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--moni-paralela-tooltip-bg);
+}
+
+.moni-kanban-paralela-tooltip-fase {
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.moni-kanban-paralela-bolinha-wrap:hover .moni-kanban-paralela-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Drawer / modal de card */
+.moni-kanban-drawer.moni-card-modal-split {
+  border: var(--moni-border-width) solid var(--moni-kanban-bd);
+}
+
+.moni-kanban-drawer-header {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px 12px;
+  background: var(--moni-kanban-drawer-header);
+  border-bottom: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
+  border-top-left-radius: var(--moni-radius-xl);
+  border-top-right-radius: var(--moni-radius-xl);
+}
+
+.moni-kanban-drawer-header-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.moni-kanban-drawer-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--moni-kanban-drawer-header-muted);
+}
+
+.moni-kanban-drawer-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.moni-kanban-drawer-title {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--moni-font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--moni-kanban-drawer-header-text);
+}
+
+.moni-kanban-drawer-badge {
+  flex-shrink: 0;
+  border-radius: var(--moni-radius-pill);
+  padding: 2px 8px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
+  color: var(--moni-kanban-drawer-header-text);
+  background: var(--moni-surface-0);
+}
+
+.moni-kanban-drawer-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--moni-radius-md);
+  background: rgba(47, 74, 58, 0.08);
+  color: var(--moni-kanban-drawer-header-muted);
+  cursor: pointer;
+  transition: background var(--moni-transition-fast), color var(--moni-transition-fast);
+}
+
+.moni-kanban-drawer-close:hover {
+  background: rgba(47, 74, 58, 0.14);
+  color: var(--moni-kanban-drawer-header-text);
+}
+
+.moni-kanban-drawer-body {
+  padding-top: 72px;
+}
+
+.moni-kanban-drawer-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-kanban-drawer-tabs-bg);
+  border: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
+}
+
+.moni-kanban-drawer-tab {
+  flex: 1;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: var(--moni-border-width) solid transparent;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: var(--moni-kanban-drawer-tab-text);
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--moni-transition-fast),
+    color var(--moni-transition-fast),
+    border-color var(--moni-transition-fast);
+}
+
+.moni-kanban-drawer-tab:hover {
+  color: var(--moni-kanban-drawer-tab-text-hover);
+}
+
+.moni-kanban-drawer-tab--active {
+  background: var(--moni-kanban-drawer-tab-active-bg);
+  border-color: var(--moni-kanban-drawer-tab-active-border);
+  color: var(--moni-kanban-drawer-tab-active-text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(47, 74, 58, 0.06);
+}
+
+.moni-kanban-drawer-footer {
+  padding: 10px 8px;
+  border: var(--moni-border-width) solid var(--moni-kanban-bd);
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-kanban-drawer-footer);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn {
+  background: var(--moni-surface-0);
+  border-color: var(--moni-kanban-bd);
+  color: var(--moni-kanban-t1);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn:hover:not(:disabled) {
+  background: var(--moni-surface-50);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn--proxima {
+  background: var(--moni-kanban-col-accent);
+  border-color: var(--moni-kanban-col-accent);
+  color: var(--moni-surface-0);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn--proxima:hover:not(:disabled) {
+  background: var(--moni-kanban-col-accent-fin);
+  opacity: 1;
+}
+
+/* Links em comentários de card kanban */
+.moni-comentario-link {
+  color: var(--moni-navy-400);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+.moni-comentario-link:hover {
+  color: var(--moni-navy-600);
+}
+
+/* Tabelas largas — scroll X no wrap; Y interno após título/abas saírem da tela.
+   Só o thead gruda (freeze panes). max-height: --moni-tabela-scroll-max-height. */
+.moni-tabela-scroll-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+  max-height: var(--moni-tabela-scroll-max-height, none);
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--moni-navy-200) var(--moni-surface-100);
+}
+
+.moni-tabela-footer {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  background: var(--moni-surface-50);
+}
+
+.moni-tabela-scroll-main {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.moni-tabela-scroll-wrap table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.moni-tabela-scroll-wrap table.border-collapse {
+  border-collapse: separate;
+}
+
+.moni-tabela-scroll-main table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  box-shadow:
+    inset 0 calc(-1 * var(--moni-border-width)) 0 var(--moni-border-default),
+    0 2px 6px rgba(12, 38, 51, 0.06);
+}
+
+.moni-tabela-scroll-main table thead th:not([class*='bg-']) {
+  background-color: var(--moni-surface-50);
+}
+
+/* Cabeçalho de uma linha */
+.moni-tabela-scroll-main table thead tr:only-child th {
+  top: 0;
+}
+
+/* Cabeçalho em duas linhas (ex.: Cadastros de Empresas) */
+.moni-tabela-scroll-main table thead tr:first-child:not(:last-child) th {
+  top: 0;
+  z-index: 10;
+}
+
+.moni-tabela-scroll-main table thead tr:last-child:not(:only-child) th {
+  top: var(--moni-tabela-thead-row1-height, 2.25rem);
+  z-index: 9;
+}
+
+.moni-tabela-scroll-main table thead th[class*='sticky'] {
+  z-index: 12;
+}
+
+.moni-tabela-scroll-main table thead th[class*='right-0'] {
+  z-index: 14;
+}
+
+/* Colunas fixas à esquerda — fundo opaco no cabeçalho oculta conteúdo ao rolar horizontalmente */
+.moni-tabela-scroll-main table thead th.moni-rede-sticky-col {
+  background-color: var(--moni-surface-50);
+  z-index: 22;
+}
+
+.moni-tabela-scroll-main table tbody td.moni-rede-sticky-col {
+  z-index: 16;
+}
+
+.moni-rede-sticky-col-last {
+  box-shadow: 4px 0 8px -4px rgba(12, 38, 51, 0.08);
+}
+
+/* Rede de Loteadores — fundo homogêneo (mesmo tom da página, inclusive no scroll horizontal) */
+.moni-tabela-loteadores tbody td {
+  background-color: var(--moni-surface-50);
+}
+
+.moni-tabela-loteadores tbody tr:hover td {
+  background-color: var(--moni-surface-100);
+}
+
+/* Rede de Franqueados — fundo homogêneo por linha (colunas fixas + roláveis) */
+.moni-rede-row-tone-default td {
+  background-color: var(--moni-surface-0);
+}
+
+.moni-rede-row-tone-default:hover td {
+  background-color: var(--moni-surface-50);
+}
+
+/* Encerrada / adormecida: mesmo fundo branco das demais; texto esmaecido (menos peso) */
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada > td,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida > td {
+  background-color: var(--moni-surface-0);
+  color: color-mix(in srgb, var(--moni-text-primary) 42%, transparent);
+}
+
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada > td *,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida > td * {
+  color: color-mix(in srgb, var(--moni-text-primary) 42%, transparent);
+}
+
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada:hover > td,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida:hover > td {
+  background-color: var(--moni-surface-50);
+  color: color-mix(in srgb, var(--moni-text-primary) 68%, transparent);
+}
+
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada:hover > td *,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida:hover > td * {
+  color: color-mix(in srgb, var(--moni-text-primary) 68%, transparent);
+}
+
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada > td button,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-encerrada > td button *,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida > td button,
+.moni-tabela-scroll-main tbody tr.moni-rede-row-tone-adormecida > td button * {
+  color: var(--moni-text-secondary);
+}
+
+.moni-rede-row-tone-transferencia td {
+  background-color: var(--moni-kanban-credito-light);
+}
+
+.moni-rede-row-tone-transferencia:hover td {
+  background-color: var(--moni-gold-100);
+}
+
+@media (max-width: 640px) {
+  .moni-tabela-scroll-main table thead tr:only-child th,
+  .moni-tabela-scroll-main table thead tr:first-child:not(:last-child) th {
+    top: 0;
+  }
+
+  .moni-tabela-scroll-main table thead tr:last-child:not(:only-child) th {
+    top: var(--moni-tabela-thead-row1-height, 2.25rem);
+  }
+}
+
+.moni-tabela-scroll-wrap::-webkit-scrollbar {
+  display: block;
+  height: 10px;
+}
+
+.moni-tabela-scroll-wrap::-webkit-scrollbar-track {
+  background: var(--moni-surface-100);
+}
+
+.moni-tabela-scroll-wrap::-webkit-scrollbar-thumb {
+  background: var(--moni-navy-200);
+  border-radius: var(--moni-radius-md);
+}
+
+/* ── Diagnóstico Rede — tooltips nos cabeçalhos da tabela ── */
+.moni-diagnostico-header-trigger {
+  display: inline-flex;
+  cursor: help;
+  border-bottom: var(--moni-border-width) dotted var(--moni-border-default);
+}
+
+.moni-diagnostico-header-tooltip {
+  pointer-events: none;
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-radius: var(--moni-radius-md);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-navy-800);
+  color: var(--moni-text-inverse);
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  box-shadow: var(--moni-shadow-card);
+}
+
+.moni-diagnostico-header-tooltip-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.moni-diagnostico-header-tooltip-sub {
+  display: block;
+  margin-top: 1px;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--moni-gold-400);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.moni-diagnostico-header-tooltip-desc {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--moni-navy-100);
+  line-height: 1.4;
+}
+
+/* ── Pipeline Esteira Table ── */
+.moni-pipeline-esteira-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.moni-pipeline-esteira-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 1040px;
+  font-family: var(--moni-font-sans);
+}
+
+/* Zebra — facilita seguir a linha horizontalmente */
+.moni-pipeline-esteira-table tbody tr:nth-child(even) .moni-pipeline-esteira-td-info,
+.moni-pipeline-esteira-table tbody tr:nth-child(even) .moni-pipeline-esteira-dc {
+  background: var(--moni-surface-100);
+}
+
+/* Hover na linha inteira para reuniões */
+.moni-pipeline-esteira-table tbody tr:hover .moni-pipeline-esteira-td-info,
+.moni-pipeline-esteira-table tbody tr:hover .moni-pipeline-esteira-dc {
+  background: var(--moni-green-50) !important;
+}
+
+/* Linha atrasada — acento esquerdo vermelho */
+.moni-pipeline-esteira-table tbody tr.linha-atrasada .moni-pipeline-esteira-td-info:first-child {
+  border-left: 4px solid var(--moni-status-overdue-border);
+  padding-left: 7px;
+}
+
+.moni-pipeline-esteira-th {
+  padding: 6px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moni-text-secondary);
+  text-align: center;
+  border-bottom: 1px solid var(--moni-border-strong);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+  white-space: normal;
+  line-height: 1.25;
+  background: var(--moni-surface-0);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.moni-pipeline-esteira-th.cl {
+  text-align: left;
+}
+
+.moni-pipeline-esteira-th-fase {
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.moni-pipeline-esteira-td-fase {
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+  overflow: visible;
+}
+
+.moni-pipeline-esteira-th-info {
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--moni-text-secondary);
+  background: var(--moni-surface-100);
+  border-bottom: 1px solid var(--moni-border-strong);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-th-step {
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  background: var(--moni-pipeline-esteira-step-bg);
+  color: var(--moni-pipeline-esteira-step-text);
+  border-bottom: 1px solid var(--moni-border-strong);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-th-port {
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  background: var(--moni-pipeline-esteira-port-bg);
+  color: var(--moni-pipeline-esteira-port-text);
+  border-bottom: 1px solid var(--moni-border-strong);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-th-op {
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  background: var(--moni-pipeline-esteira-op-bg);
+  color: var(--moni-pipeline-esteira-op-text);
+  border-bottom: 1px solid var(--moni-border-strong);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-td-info {
+  padding: 8px 8px;
+  vertical-align: middle;
+  overflow: hidden;
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-surface-0);
+}
+
+.moni-pipeline-esteira-td-proj-click {
+  cursor: pointer;
+}
+
+.moni-pipeline-esteira-td-proj-click:hover .moni-pipeline-esteira-proj-nome,
+.moni-pipeline-esteira-td-proj-click:focus-visible .moni-pipeline-esteira-proj-nome {
+  color: var(--moni-navy-800);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.moni-pipeline-esteira-td-proj-click:focus-visible {
+  outline: 1px solid var(--moni-navy-800);
+  outline-offset: -1px;
+}
+
+.moni-pipeline-esteira-dc {
+  text-align: center;
+  white-space: nowrap;
+  padding: 6px 8px;
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-surface-0);
+  vertical-align: middle;
+}
+
+.moni-pipeline-esteira-dc.cur {
+  background: var(--moni-pipeline-esteira-cur-bg);
+  box-shadow: inset 0 -2px 0 var(--moni-status-active-border);
+}
+
+.moni-pipeline-esteira-dc.cur-at {
+  background: var(--moni-pipeline-esteira-cur-at-bg);
+  box-shadow: inset 0 -2px 0 var(--moni-status-overdue-border);
+}
+
+.moni-pipeline-esteira-date-real {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--moni-pipeline-esteira-date-real);
+}
+
+.moni-pipeline-esteira-date-concluida {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--moni-pipeline-esteira-date-concluida);
+  opacity: 0.7;
+}
+
+.moni-pipeline-esteira-date-est {
+  font-size: 11px;
+  color: var(--moni-pipeline-esteira-date-est);
+}
+
+.moni-pipeline-esteira-date-at {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--moni-pipeline-esteira-date-at);
+}
+
+.moni-pipeline-esteira-date-none {
+  font-size: 12px;
+  color: var(--moni-text-tertiary);
+  opacity: 0.35;
+}
+
+.moni-pipeline-esteira-proj-linha {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.moni-pipeline-esteira-fk {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--moni-text-secondary);
+}
+
+.moni-pipeline-esteira-frank-nome {
+  font-size: 10px;
+  color: var(--moni-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+.moni-pipeline-esteira-proj-nome {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--moni-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.moni-pipeline-esteira-fase-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--moni-radius-sm, 4px);
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  line-height: 1.25;
+  text-align: center;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.moni-pipeline-esteira-fase-badge.step {
+  background: var(--moni-pipeline-esteira-step-bg);
+  color: var(--moni-pipeline-esteira-step-text);
+}
+
+.moni-pipeline-esteira-fase-badge.port {
+  background: var(--moni-pipeline-esteira-badge-port-bg);
+  color: var(--moni-pipeline-esteira-badge-port-text);
+}
+
+.moni-pipeline-esteira-fase-badge.op {
+  background: var(--moni-pipeline-esteira-op-bg);
+  color: var(--moni-pipeline-esteira-op-text);
+}
+
+.moni-pipeline-esteira-fase-badge.atrasado {
+  background: var(--moni-status-overdue-bg);
+  color: var(--moni-status-overdue-text);
+  font-weight: 700;
+}
+
+.moni-pipeline-esteira-cto-duplo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.moni-pipeline-esteira-cto-linha {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.moni-pipeline-esteira-cto-label {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--moni-text-tertiary);
+  min-width: 44px;
+}
+
+.moni-pipeline-esteira-dc-cto {
+  vertical-align: middle;
+}
+
+/* Funil da rede — controles do cabeçalho (sublinhado + Mês/Tri) */
+.moni-pipeline-funil-header-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0;
+}
+
+.moni-pipeline-funil-header-sep {
+  flex-shrink: 0;
+  width: 0.5px;
+  height: 20px;
+  margin: 0 10px 5px;
+  background: var(--moni-border-default);
+}
+
+.moni-pipeline-funil-underline-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-bottom: 0.5px solid var(--moni-border-default);
+}
+
+.moni-pipeline-funil-underline-tab {
+  position: relative;
+  min-height: 28px;
+  padding: 5px 10px;
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--moni-text-tertiary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.moni-pipeline-funil-underline-tab:hover {
+  color: var(--moni-text-secondary);
+}
+
+.moni-pipeline-funil-underline-tab--active {
+  color: var(--moni-navy-800);
+}
+
+.moni-pipeline-funil-underline-tab--active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -0.5px;
+  left: 0;
+  height: 2px;
+  border-radius: 1px 1px 0 0;
+  background: var(--moni-green-800);
+}
+
+@media (max-width: 640px) {
+  .moni-pipeline-funil-header-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .moni-pipeline-funil-header-sep {
+    display: none;
+  }
+
+  .moni-pipeline-funil-underline-tabs {
+    width: 100%;
+    margin-bottom: 6px;
+  }
+}
+
+/* Tipografia editorial (H1, H2 Vogue-style) */
+.moni-heading-display {
+  font-family: var(--moni-font-display);
+  font-weight: var(--moni-weight-regular);
+  letter-spacing: -0.02em;
+  line-height: var(--moni-leading-tight);
+  color: var(--moni-text-primary);
+}
+
+/* Texto de UI padrão */
+.moni-text-ui {
+  font-family: var(--moni-font-sans);
+  font-size: var(--moni-text-base);
+  line-height: var(--moni-leading-body);
+  color: var(--moni-text-secondary);
+}
+
+/* Card modal — Movimentação (Anterior · Arquivar · Próxima) */
+.moni-card-modal-movimentacao-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.moni-card-modal-movimentacao-btn {
+  box-sizing: border-box;
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 3px;
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-surface-0);
+  color: var(--moni-text-primary);
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.moni-card-modal-movimentacao-btn:hover:not(:disabled) {
+  background: var(--moni-surface-100);
+}
+
+.moni-card-modal-movimentacao-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.moni-card-modal-movimentacao-btn--proxima {
+  background: var(--moni-green-50);
+  color: var(--moni-green-800);
+  border-color: var(--moni-green-400);
+}
+
+.moni-card-modal-movimentacao-btn--proxima:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.moni-card-modal-movimentacao-btn-icon {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+}
+
+.moni-card-modal-movimentacao-btn-label {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 641px) {
+  .moni-card-modal-movimentacao-btn {
+    min-height: 0;
+    flex-direction: row;
+    gap: 3px;
+    padding: 7px 4px;
+    font-size: 10px;
+  }
+}
+
+/* --------------------------------------------------
+   MOBILE — overrides responsivos essenciais
+
+   No mobile, cards do Kanban ficam em lista vertical,
+   o modal de detalhe ocupa tela cheia e o split
+   esq/dir empilha verticalmente.
+-------------------------------------------------- */
+@media (max-width: 640px) {
+  :root {
+    --moni-column-width:     100%;
+    --moni-card-width-kanban: 100%;
+    --moni-card-modal-max:   100vw;
+  }
+
+  /* Kanban board: scroll horizontal → lista empilhada (só ≤640px) */
+  .moni-kanban-board-scroll {
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+
+  .moni-kanban-board-scroll-hint {
+    display: none !important;
+  }
+
+  .moni-kanban-shell .moni-kanban-board,
+  .moni-kanban-board-scroll.flex,
+  .moni-kanban-board-scroll > .flex {
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .moni-kanban-column {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+
+  /* Card fechado no mobile: mais respiro e alvos de toque >= 44px */
+  .moni-kanban-card {
+    padding: 16px;
+    padding-left: calc(16px + var(--moni-card-rail-inset));
+  }
+
+  .moni-kanban-card-footer {
+    min-height: 44px;
+  }
+
+  .moni-kanban-card-footer-menu {
+    width: 44px;
+    height: 44px;
+  }
+
+  .moni-kanban-card-count {
+    min-height: 32px;
+  }
+
+  /* Card modal split: de lado-a-lado para empilhado */
+  .moni-card-modal-split {
+    flex-direction: column !important;
+  }
+
+  .moni-card-modal-left,
+  .moni-card-modal-right,
+  .moni-card-modal-center,
+  .moni-card-modal-acoes {
+    width: 100% !important;
+    max-height: none !important;
+  }
+
+  /* Painel de atividades: coluna única */
+  .moni-painel-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Tipografia menor no mobile */
+  .moni-heading-display {
+    font-size: var(--moni-text-xl);
+  }
+
+  /* Formulário de abertura: full width */
+  .moni-form-novo-card {
+    padding: var(--moni-space-4) !important;
+  }
+
+  /* Modal de card (2 colunas): conteúdo principal antes da sidebar */
+  .moni-card-modal-right {
+    order: 1 !important;
+  }
+
+  .moni-card-modal-left {
+    order: 2 !important;
+  }
+
+  /* KanbanCardModal (3 colunas): centro → ações → sidebar */
+  .moni-card-modal-center {
+    order: 1 !important;
+  }
+
+  .moni-card-modal-acoes {
+    order: 2 !important;
+  }
+
+  .moni-card-modal-split:has(.moni-card-modal-center) .moni-card-modal-left {
+    order: 3 !important;
+  }
+}

@@ -26,7 +26,7 @@ export async function loadDashboardNovosNegociosData(): Promise<
       return {
         ok: false,
         error:
-          'Dashboard: defina SUPABASE_SERVICE_ROLE_KEY no servidor (ex.: Vercel) ou entre com uma conta.',
+          'Dashboard: defina SUPABASE_DEV_SERVICE_ROLE_KEY (dev) ou SUPABASE_SERVICE_ROLE_KEY (prod) no servidor (ex.: Vercel) ou entre com uma conta.',
       };
     }
     try {

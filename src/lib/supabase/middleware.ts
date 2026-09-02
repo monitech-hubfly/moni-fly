@@ -1,8 +1,38 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { normalizeAccessRole } from '@/lib/authz';
-import { isAdminOnlyPath, isTeamAllowedPath } from '@/lib/access-matrix';
-import { allowPublicAccessRedeNovos, isAppFullyPublic } from '@/lib/public-rede-novos';
+import { normalizeAccessRole, profileCacheRoleNeedsRefresh } from '@/lib/authz';
+import {
+  BCA_PUBLIC_LEITURA_PATH,
+  isAdminOnlyPath,
+  isAnonymousAllowedPath,
+  isAuthFlowAccessPath,
+  isBcaPublicLeituraAccessPath,
+  isCalculadoraPublicLeituraPath,
+  isExternalTokenAccessPath,
+  isFrankAllowedPath,
+  isTeamAllowedPath,
+} from '@/lib/access-matrix';
+import { PRE_BATALHA_PUBLIC_LEITURA_PATH } from '@/lib/pre-batalha-secoes';
+import { isLiveLimitedRelease } from '@/lib/release-scope';
+
+const HUB_FLY_HOME_TODO_PATH = '/carometro/todo-planning';
+
+function shouldUseTodoAsHubFlyHome(accessRole: ReturnType<typeof normalizeAccessRole>): boolean {
+  return (accessRole === 'team' || accessRole === 'admin') && !isLiveLimitedRelease();
+}
+
+function redirectToPublicLeituraFallback(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  if (pathname === '/pre-batalha' || pathname.startsWith('/pre-batalha/')) {
+    return NextResponse.redirect(new URL(PRE_BATALHA_PUBLIC_LEITURA_PATH, request.url));
+  }
+  return NextResponse.redirect(new URL(BCA_PUBLIC_LEITURA_PATH, request.url));
+}
+
+/** Cookie de sessão Supabase — evita round-trip Auth em rotas públicas sem login. */
+function hasSupabaseAuthCookie(request: NextRequest): boolean {
+  return request.cookies.getAll().some((cookie) => cookie.name.includes('-auth-token'));
+}
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -10,6 +40,15 @@ export async function updateSession(request: NextRequest) {
     const url = new URL('/login', request.url);
     url.searchParams.set('tab', 'cadastro');
     return NextResponse.redirect(url);
+  }
+
+  if (isCalculadoraPublicLeituraPath(pathname)) {
+    return NextResponse.next({ request });
+  }
+
+  // Rotas públicas sem cookie de sessão: não chama Supabase (reduz timeout no Edge).
+  if (isAnonymousAllowedPath(pathname) && !hasSupabaseAuthCookie(request)) {
+    return NextResponse.next({ request });
   }
 
   const response = NextResponse.next({ request });
@@ -33,17 +72,24 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
+  const getUserWithTimeout = Promise.race([
+    supabase.auth.getUser(),
+    new Promise<{ data: { user: null } }>((resolve) =>
+      setTimeout(() => resolve({ data: { user: null } }), 3000),
+    ),
+  ]);
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUserWithTimeout;
 
-  const isAuthPage = pathname === '/login' || pathname === '/aceitar-convite';
-  const isPublicPage =
-    isAuthPage ||
-    pathname === '/esqueci-senha' ||
-    pathname === '/redefinir-senha' ||
-    pathname.startsWith('/api/webhooks/');
+  // APIs: só renova cookies de sessão; autorização fica nos handlers / RLS.
+  if (pathname.startsWith('/api')) {
+    return response;
+  }
+
+  const isAuthPage = isAuthFlowAccessPath(pathname);
   const protectedPrefixes = [
+    '/hub-funis',
     '/step-one',
     '/step-2',
     '/step-3',
@@ -52,45 +98,132 @@ export async function updateSession(request: NextRequest) {
     '/step-7',
     '/painel',
     '/painel-novos-negocios',
+    '/portfolio',
+    '/funil-acoplamento',
+    '/funil-juridico',
+    '/funil-moni-capital',
+    '/funil-funding',
+    '/funil-produto',
+    '/funil-modelo-virtual',
+    '/funil-homologacoes',
+    '/funil-projeto-legal',
+    '/projetos-locais',
+    '/projetos-legais',
+    '/funil-projetos-locais',
+    '/funil-contratacoes',
+    '/dashboard',
+    '/operacoes',
+    '/funil-stepone',
+    '/funil-motor01',
+    '/loteadores',
+    '/funil-moni-inc',
+    '/marketing',
+    '/manutencoes',
     '/dashboard-novos-negocios',
     '/rede-franqueados',
+    '/corretores',
     '/comunidade',
+    '/repositorio',
     '/perfil',
     '/sirene',
+    '/universidade',
+    '/casa0',
+    '/casa1',
+    '/admin/universidade',
   ];
   const matchesProtected = protectedPrefixes.some((p) => pathname.startsWith(p));
-  const publicRedeNovos = allowPublicAccessRedeNovos(pathname);
-  const appPublic = isAppFullyPublic();
-  const needsAuth = appPublic
-    ? pathname === '/admin' || pathname.startsWith('/admin/')
-    : (matchesProtected && !publicRedeNovos) || isAdminOnlyPath(pathname);
+  const needsAuth = matchesProtected || isAdminOnlyPath(pathname);
 
-  if (needsAuth && !user) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('next', pathname);
-    return NextResponse.redirect(loginUrl);
+  if (!user) {
+    if (isAnonymousAllowedPath(pathname)) {
+      return response;
+    }
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // Try to read role from cache cookie first (avoids DB round-trip on every request)
+  const PROFILE_CACHE_COOKIE = 'moni_profile_cache';
+  const cachedProfile = request.cookies.get(PROFILE_CACHE_COOKIE)?.value;
+  let profileRow: { role?: string | null; cargo?: string | null; full_name?: string | null } | null = null;
+  let profileFromCache = false;
+
+  if (cachedProfile) {
+    try {
+      profileRow = JSON.parse(cachedProfile) as { role?: string | null; cargo?: string | null };
+      profileFromCache = true;
+    } catch {
+      profileRow = null;
+    }
+  }
+
+  // pending/blocked no cookie pode estar velho (papel já promovido no banco).
+  if (profileFromCache && profileCacheRoleNeedsRefresh(profileRow?.role)) {
+    profileRow = null;
+    profileFromCache = false;
+    response.cookies.set(PROFILE_CACHE_COOKIE, '', {
+      maxAge: 0,
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+    });
+  }
+
+  if (!profileRow) {
+    const profileWithTimeout = await Promise.race([
+      supabase.from('profiles').select('role, cargo, full_name').eq('id', user.id).maybeSingle(),
+      new Promise<{ data: null }>((resolve) =>
+        setTimeout(() => resolve({ data: null }), 3000),
+      ),
+    ]);
+    const { data: profile } = profileWithTimeout;
+    profileRow = profile as { role?: string | null; cargo?: string | null; full_name?: string | null } | null;
+    if (profileRow && !profileCacheRoleNeedsRefresh(profileRow.role)) {
+      response.cookies.set(PROFILE_CACHE_COOKIE, JSON.stringify(profileRow), {
+        maxAge: 300,
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+      });
+    }
   }
 
   if (isAuthPage && user) {
+    if (!profileRow) {
+      return response;
+    }
+    const rawRoleLogin = String(profileRow.role ?? '').trim().toLowerCase();
+    const roleLogin = normalizeAccessRole(profileRow.role);
+    if (rawRoleLogin === 'pending') {
+      return redirectToPublicLeituraFallback(request);
+    }
+    if (roleLogin === 'blocked') {
+      return response;
+    }
+    if (roleLogin === 'frank') {
+      return NextResponse.redirect(new URL('/portal-frank', request.url));
+    }
+    if (shouldUseTodoAsHubFlyHome(roleLogin)) {
+      return NextResponse.redirect(new URL(HUB_FLY_HOME_TODO_PATH, request.url));
+    }
     return NextResponse.redirect(new URL('/rede-franqueados', request.url));
   }
+  const rawProfileRole = String(profileRow?.role ?? '').trim().toLowerCase();
+  const accessRole = normalizeAccessRole(profileRow?.role);
 
-  if (!user || isPublicPage) return response;
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-  const accessRole = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
+  const sirenePath = pathname === '/sirene' || pathname.startsWith('/sirene/');
+  if (sirenePath && !pathname.startsWith('/api')) {
+    const bloqueioSirene = ['frank', 'franqueado', 'parceiro', 'fornecedor', 'cliente'];
+    if (bloqueioSirene.includes(rawProfileRole)) {
+      const dest = rawProfileRole === 'frank' || rawProfileRole === 'franqueado' ? '/portal-frank' : '/rede-franqueados';
+      return NextResponse.redirect(new URL(dest, request.url));
+    }
+  }
 
   if (accessRole === 'pending') {
-    if (pathname !== '/login') {
-      const url = new URL('/login', request.url);
-      url.searchParams.set('status', 'pending');
-      return NextResponse.redirect(url);
+    if (isExternalTokenAccessPath(pathname) || isBcaPublicLeituraAccessPath(pathname)) {
+      return response;
     }
-    return response;
+    return redirectToPublicLeituraFallback(request);
   }
 
   if (accessRole === 'blocked') {
@@ -100,6 +233,29 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
     return response;
+  }
+
+  // Formulários externos por token: sem shell/matriz de papel (mesmo se houver sessão).
+  if (isExternalTokenAccessPath(pathname)) {
+    return response;
+  }
+
+  if (pathname === '/' && shouldUseTodoAsHubFlyHome(accessRole)) {
+    return NextResponse.redirect(new URL(HUB_FLY_HOME_TODO_PATH, request.url));
+  }
+
+  // Franqueado: apenas rotas sob /portal-frank (login/cadastro públicos tratados acima).
+  if (accessRole === 'frank' && !pathname.startsWith('/api')) {
+    if (!isFrankAllowedPath(pathname)) {
+      return NextResponse.redirect(new URL('/portal-frank', request.url));
+    }
+  }
+
+  // Team: gestão da Universidade em /admin/universidade; rotas de franqueado não usadas na sidebar.
+  if (accessRole === 'team' && !pathname.startsWith('/api')) {
+    if (pathname === '/universidade' || pathname.startsWith('/universidade/')) {
+      return NextResponse.redirect(new URL('/admin/universidade', request.url));
+    }
   }
 
   // Team: só Rede, Comunidade, Novos Negócios (painel/dashboard/tarefas), Perfil e home `/`.
@@ -112,7 +268,8 @@ export async function updateSession(request: NextRequest) {
 
   const isAdminOnly = isAdminOnlyPath(pathname);
   if (isAdminOnly && accessRole !== 'admin') {
-    return NextResponse.redirect(new URL('/rede-franqueados', request.url));
+    const dest = accessRole === 'frank' ? '/portal-frank' : '/rede-franqueados';
+    return NextResponse.redirect(new URL(dest, request.url));
   }
 
   return response;

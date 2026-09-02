@@ -3,68 +3,97 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { criarCardsDesdeRedeFranqueados } from './actions';
+import { criarCardsDesdeRedeFranqueados, garantirCardsFunilStepOneDesdeRede } from './actions';
+import { redeAlertError, redeAlertSuccess, redeBtnGhost } from './rede-ui';
 
 type Props = {
   linhasSemCard: number;
+  linhasSemFunil: number;
 };
 
-export function CriarCardsDesdeRedeButton({ linhasSemCard }: Props) {
+export function CriarCardsDesdeRedeButton({ linhasSemCard, linhasSemFunil }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
 
+  const pendente = linhasSemCard > 0 || linhasSemFunil > 0;
+  if (!pendente) return null;
+
   const handleCriar = async () => {
     setMensagem(null);
     setLoading(true);
-    const result = await criarCardsDesdeRedeFranqueados();
-    setLoading(false);
-    if (result.ok) {
-      setMensagem({ tipo: 'sucesso', texto: result.criados === 0 ? result.mensagem : `${result.mensagem} Atualize a página do Painel para ver os cards.` });
+
+    const partes: string[] = [];
+
+    if (linhasSemCard > 0) {
+      const result = await criarCardsDesdeRedeFranqueados();
+      if (!result.ok) {
+        setLoading(false);
+        setMensagem({ tipo: 'erro', texto: result.error });
+        return;
+      }
+      partes.push(result.mensagem);
+    } else if (linhasSemFunil > 0) {
+      const result = await garantirCardsFunilStepOneDesdeRede();
+      setLoading(false);
+      if (!result.ok) {
+        setMensagem({ tipo: 'erro', texto: result.error });
+        return;
+      }
+      partes.push(result.mensagem);
+      setMensagem({ tipo: 'sucesso', texto: partes.join(' ') });
       router.refresh();
-    } else {
-      setMensagem({ tipo: 'erro', texto: result.error });
+      return;
     }
+
+    setLoading(false);
+    setMensagem({
+      tipo: 'sucesso',
+      texto: partes.length ? `${partes.join(' ')} Atualize o Painel e o Funil Step One.` : 'Sincronização concluída.',
+    });
+    router.refresh();
   };
 
-  if (linhasSemCard === 0) {
-    return (
-      <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-        Todas as linhas da tabela já possuem um card no Painel Novos Negócios.
-      </div>
-    );
-  }
+  const label =
+    linhasSemCard > 0 && linhasSemFunil > 0
+      ? `Sincronizar cards (${linhasSemCard} Painel · ${linhasSemFunil} Funil)`
+      : linhasSemCard > 0
+        ? `Criar cards no Painel (${linhasSemCard})`
+        : `Criar cards no Funil (${linhasSemFunil})`;
+
+  const title =
+    linhasSemCard > 0 && linhasSemFunil > 0
+      ? `${linhasSemCard} linha(s) sem card no Painel; ${linhasSemFunil} sem card no Funil Step One`
+      : linhasSemCard > 0
+        ? `${linhasSemCard} linha(s) sem card no Painel Step 1`
+        : `${linhasSemFunil} linha(s) sem card no Funil Step One`;
 
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-stone-700">
-        Criar cards no Painel Novos Negócios (Step 1) a partir da tabela
-      </p>
-      <p className="mt-1 text-xs text-stone-500">
-        {linhasSemCard} linha(s) ainda sem card. Será criado um processo (card) para cada uma, na fase Step 1.
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={handleCriar}
-          disabled={loading}
-          className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-60"
+    <>
+      <button
+        type="button"
+        onClick={() => void handleCriar()}
+        disabled={loading}
+        className={redeBtnGhost}
+        title={title}
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Sincronizando…
+          </>
+        ) : (
+          label
+        )}
+      </button>
+      {mensagem ? (
+        <div
+          className={`absolute right-0 top-full z-20 mt-2 min-w-[16rem] max-w-lg shadow-md ${mensagem.tipo === 'sucesso' ? redeAlertSuccess : redeAlertError}`}
+          role="status"
         >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-              Criando…
-            </>
-          ) : (
-            'Criar todos os cards'
-          )}
-        </button>
-      </div>
-      {mensagem && (
-        <p className={`mt-3 text-sm ${mensagem.tipo === 'sucesso' ? 'text-green-700' : 'text-red-600'}`}>
           {mensagem.texto}
-        </p>
-      )}
-    </div>
+        </div>
+      ) : null}
+    </>
   );
 }

@@ -1,93 +1,172 @@
-import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { isAdminRole } from '@/lib/authz';
-import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
+import { createClient } from '@/lib/supabase/server';
+
+import {
+  canAccessCondominiosTab,
+  canAccessRedeFranqueadosCadastrosCompletos,
+  isRedeStaffRole,
+} from '@/lib/authz';
+
+import { fetchFranqueadoEmpresasRows } from '@/lib/franqueado-empresas';
+import { fetchFranqueadoSpeRows } from '@/lib/franqueado-spe';
+import { fetchMoniCapitalCadastrosRows } from '@/lib/moni-capital-cadastros';
+
 import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
-import { TabelaRedeFranqueadosEditavel } from '@/components/TabelaRedeFranqueadosEditavel';
-import { contarLinhasSemCard } from './actions';
-import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
-import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
-import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
-import { AdicionarRedeECardButton } from './AdicionarRedeECardButton';
-import { RedeDashboard } from './RedeDashboard';
-import { createAdminClient } from '@/lib/supabase/admin';
+
+import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
+import { fetchRedeCorretoresRows } from '@/lib/rede-corretores';
+import { fetchCondominiosRows } from '@/lib/condominios';
+import { fetchImobEmpreendimentosRows } from '@/lib/imob-empreendimentos';
+
+import { normalizarStatusEmProcessoRede } from './actions';
+
+import { RedeFranqueadosPageTabs } from './RedeFranqueadosPageTabs';
+
+
+
+export const dynamic = 'force-dynamic';
+
+
 
 export default async function RedeFranqueadosPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const publicAccess = isPublicRedeNovosNegociosEnabled();
 
-  let db = supabase;
-  if (!user && (publicAccess || isAppFullyPublic())) {
-    try {
-      db = createAdminClient();
-    } catch {
-      /* sem service role: RLS pode ocultar linhas */
-    }
+  const supabase = await createClient();
+
+  const {
+
+    data: { user },
+
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect('/login');
+
+
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, departamento, time, email')
+    .eq('id', user.id)
+    .single();
+
+  const role = (profile?.role as string) ?? 'frank';
+  const departamento = (profile as { departamento?: string | null } | null)?.departamento ?? null;
+  const time = (profile as { time?: string | null } | null)?.time ?? null;
+  const email = (profile as { email?: string | null } | null)?.email ?? user.email ?? null;
+
+  const canManage = isRedeStaffRole(role);
+
+  const maskSensitiveColumns = !canAccessRedeFranqueadosCadastrosCompletos(
+    role,
+    departamento,
+    time,
+    email,
+  );
+
+  const showStaffTabs = isRedeStaffRole(role);
+
+  const showCondominiosTab = canAccessCondominiosTab(role);
+
+  const canManageCondominios = showStaffTabs;
+
+
+
+  if (canManage) {
+
+    await normalizarStatusEmProcessoRede();
+
   }
 
-  const { data: profile } = user
-    ? await supabase.from('profiles').select('role').eq('id', user.id).single()
-    : { data: null };
-  const role = (profile?.role as string) ?? 'frank';
-  const canManage =
-    (Boolean(user) && isAdminRole(role)) || publicAccess || isAppFullyPublic();
 
-  const [rows, countResult] = await Promise.all([
-    fetchRedeFranqueadosRows(db),
-    canManage ? contarLinhasSemCard() : Promise.resolve({ ok: true as const, total: 0 }),
+
+  const [rows, loteadoresRows, corretoresRows, empresasResult, spesResult, moniCapitalResult, condominiosRows, imobEmpreendimentosRows] = await Promise.all([
+    fetchRedeFranqueadosRows(supabase),
+    showStaffTabs ? fetchRedeLoteadoresRows(supabase) : Promise.resolve(null),
+    showStaffTabs ? fetchRedeCorretoresRows(supabase) : Promise.resolve(null),
+    showStaffTabs ? fetchFranqueadoEmpresasRows(supabase) : Promise.resolve(null),
+    showStaffTabs ? fetchFranqueadoSpeRows(supabase) : Promise.resolve(null),
+    showStaffTabs ? fetchMoniCapitalCadastrosRows(supabase) : Promise.resolve(null),
+    showCondominiosTab ? fetchCondominiosRows(supabase) : Promise.resolve(null),
+    showStaffTabs ? fetchImobEmpreendimentosRows(supabase) : Promise.resolve(null),
   ]);
-  const linhasSemCard = countResult.ok ? countResult.total : 0;
+
+  const empresasLoadError = showStaffTabs && empresasResult === null;
+  const spesLoadError = showStaffTabs && spesResult === null;
+  const moniCapitalLoadError = showStaffTabs && moniCapitalResult === null;
+
+
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
-          <Link href="/" className="text-moni-primary hover:underline">
-            ← Início
-          </Link>
-          <span className="text-stone-400">/</span>
-          <span className="font-semibold text-moni-dark">Rede de Franqueados</span>
-        </div>
-      </header>
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-moni-dark">Tabela de Franqueados</h1>
-            <p className="mt-1 text-sm text-stone-600">
-              Tabela de franqueados gerenciada dentro da ferramenta (fonte: banco de dados).
-            </p>
-          </div>
-        </div>
 
-        {rows && rows.length > 0 && (
-          <div className="mb-6">
-            <RedeDashboard rows={rows} />
-          </div>
-        )}
+    <div className="min-h-0 bg-[var(--moni-surface-50)]">
 
-        {canManage && (
-          <div className="mb-6 space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <AdicionarRedeECardButton />
-            </div>
-            <ImportarRedeCSVButton />
-            <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
-          </div>
-        )}
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-stone-800">Tabela de Rede de Franqueados</h2>
-          {rows && <ExportarRedeCSVButton rows={rows} />}
-        </div>
+      <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
+
+        <header
+
+          className="flex flex-col gap-4 pb-6"
+
+          style={{ borderBottom: '0.5px solid var(--moni-border-default, #e8e2da)' }}
+
+        >
+
+          <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--color-text-primary, #0c2633)' }}>
+
+            Rede de Franqueados
+
+          </h1>
+
+        </header>
+
+
+
         {rows ? (
-          <TabelaRedeFranqueadosEditavel rows={rows} canEditRows={canManage} />
+
+          <RedeFranqueadosPageTabs
+
+            rows={rows}
+
+            loteadoresRows={loteadoresRows}
+
+            corretoresRows={corretoresRows}
+
+            showStaffTabs={showStaffTabs}
+
+            empresasRows={empresasResult}
+
+            spesRows={spesResult ?? []}
+
+            empresasLoadError={empresasLoadError}
+
+            spesLoadError={spesLoadError}
+
+            moniCapitalRows={moniCapitalResult}
+            moniCapitalLoadError={moniCapitalLoadError}
+
+            condominiosRows={condominiosRows}
+
+            imobEmpreendimentosRows={imobEmpreendimentosRows}
+
+            showCondominiosTab={showCondominiosTab}
+
+            canManageCondominios={canManageCondominios}
+
+            canManageFranqueados={canManage}
+
+            maskSensitiveColumns={maskSensitiveColumns}
+
+            showDashboard={rows.length > 0}
+          />
+
         ) : (
-          <p className="text-sm text-red-600">Erro ao carregar a tabela.</p>
+
+          <p className="mt-10 text-sm text-red-600">Erro ao carregar a tabela.</p>
+
         )}
+
       </main>
+
     </div>
+
   );
+
 }

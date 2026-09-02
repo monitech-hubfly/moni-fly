@@ -100,7 +100,7 @@ export default async function ProcessoStepOnePage({ params }: PageProps) {
                   3
                 </span>
                 <div>
-                  <h3 className="font-semibold text-stone-900">Step 3: Opções</h3>
+                  <h3 className="font-semibold text-stone-900">Opção</h3>
                   <p className="mt-0.5 text-sm text-stone-500">
                     {isMoni && !isOwner
                       ? 'Revisar documento de opções'
@@ -115,7 +115,7 @@ export default async function ProcessoStepOnePage({ params }: PageProps) {
                   7
                 </span>
                 <div>
-                  <h3 className="font-semibold text-stone-900">Step 7: Contrato do Terreno</h3>
+                  <h3 className="font-semibold text-stone-900">Contrato</h3>
                   <p className="mt-0.5 text-sm text-stone-500">
                     {isMoni && !isOwner
                       ? 'Revisar contrato do terreno'
@@ -130,7 +130,7 @@ export default async function ProcessoStepOnePage({ params }: PageProps) {
                   5
                 </span>
                 <div>
-                  <h3 className="font-semibold text-stone-900">Step 5: Comitê</h3>
+                  <h3 className="font-semibold text-stone-900">Comitê</h3>
                   <p className="mt-0.5 text-sm text-stone-500">
                     Apresentação única com todos os PDFs na ordem: Prospecção → Score Batalha →
                     Resumo. Visualizar e baixar.

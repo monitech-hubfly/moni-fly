@@ -1,0 +1,368 @@
+'use client';
+
+import { useCallback, useMemo, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { isoWeek } from '@/utils/periodos';
+import { registrarLog } from '@/hooks/useAuditLog';
+import type { DadosAgendamento, RecorrenciaConfig } from '@/components/carometro/todo/ModalAgendamento';
+import { gerarOcorrencias } from '@/components/carometro/todo/ModalAgendamento';
+import { enviarConvitesInternos } from '@/lib/actions/agenda-participantes';
+import { pushParaGCal } from '@/lib/actions/agenda-gcal';
+
+type Modo = 'criar' | 'editar';
+
+export type RecorrenciaEscopo = 'single' | 'following' | 'all';
+
+export type UseModalAgendamentoResult = {
+  aberto: boolean;
+  preenchido: Partial<DadosAgendamento>;
+  modo: Modo;
+  isSaving: boolean;
+  erroSalvar: string | null;
+  escopo: RecorrenciaEscopo;
+  editandoId: string | null;
+  abrirParaCriar: (preenchido?: Partial<DadosAgendamento>) => void;
+  abrirParaEditar: (id: string, novoEscopo?: RecorrenciaEscopo) => void;
+  fechar: () => void;
+  salvar: (dados: DadosAgendamento) => Promise<void>;
+  excluir: () => Promise<void>;
+};
+
+export function useModalAgendamento(
+  effectiveProfileId: string | null,
+  areaId: string | null,
+  onSalvo?: () => void,
+): UseModalAgendamentoResult {
+  const supabase   = useMemo(() => createClient(), []);
+  const [aberto,     setAberto]     = useState(false);
+  const [preenchido, setPreenchido] = useState<Partial<DadosAgendamento>>({});
+  const [modo,       setModo]       = useState<Modo>('criar');
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [isSaving,   setIsSaving]   = useState(false);
+  const [erroSalvar, setErroSalvar] = useState<string | null>(null);
+  const [escopo,     setEscopo]     = useState<RecorrenciaEscopo>('single');
+  const [grupoId,    setGrupoId]    = useState<string | null>(null);
+  const [dataBase,   setDataBase]   = useState<string | null>(null);
+
+  const abrirParaCriar = useCallback((dados?: Partial<DadosAgendamento>) => {
+    setPreenchido(dados ?? {});
+    setModo('criar');
+    setEditandoId(null);
+    setAberto(true);
+  }, []);
+
+  const abrirParaEditar = useCallback(async (id: string, novoEscopo: RecorrenciaEscopo = 'single') => {
+    const { data } = await supabase
+      .from('gantt_planejamento')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (data) {
+      const r = data as Record<string, unknown>;
+      // Carregar participantes
+      const { data: parts } = await supabase
+        .from('gantt_agenda_participantes')
+        .select('profile_id')
+        .eq('gantt_id', id);
+      const participantes = ((parts ?? []) as { profile_id: string }[]).map(p => p.profile_id);
+
+      // Se não há título explícito no gantt mas há acao_id, busca o nome da ação
+      let tituloFinal = (r.titulo as string | null) ?? null;
+      if (!tituloFinal && r.acao_id) {
+        const { data: acaoData } = await supabase
+          .from('acoes')
+          .select('tipo_atividade')
+          .eq('id', r.acao_id as string)
+          .maybeSingle();
+        tituloFinal = (acaoData as { tipo_atividade?: string } | null)?.tipo_atividade ?? null;
+      }
+
+      setPreenchido({
+        acao_id:           (r.acao_id as string | null)           ?? null,
+        objetivo_id:       (r.objetivo_id as string | null)       ?? null,
+        data:              (r.data as string | null)              ?? null,
+        hora_inicio:       (r.hora_inicio as string | null)       ?? null,
+        hora_fim:          (r.hora_fim as string | null)          ?? null,
+        casa_id:           (r.casa_id as string | null)           ?? null,
+        franqueado_id:     (r.franqueado_id as string | null)     ?? null,
+        rede_loteador_id:  (r.rede_loteador_id as string | null)  ?? null,
+        condominio_id:     (r.condominio_id as string | null)     ?? null,
+        adm_cnpj_id:       (r.adm_cnpj_id as string | null)      ?? null,
+        sirene_chamado_id: (r.sirene_chamado_id as number | null) ?? null,
+        card_id:           (r.card_id as string | null)           ?? null,
+        cor:               (r.cor as string | null)               ?? null,
+        recorrente:        Boolean(r.recorrente),
+        recorrencia_config: (r.recorrencia_config as RecorrenciaConfig | null) ?? null,
+        observacoes:       (r.comentario_conclusao as string | null) ?? null,
+        link_reuniao:           (r.link_reuniao as string | null)           ?? null,
+        local_reuniao:          (r.local_reuniao as string | null)          ?? null,
+        titulo:                 tituloFinal,
+        participantes,
+        participantes_externos: (r.participantes_externos as string[] | null) ?? [],
+        origem_tipo:            (r.origem_tipo as DadosAgendamento['origem_tipo']) ?? null,
+      });
+    }
+    setEscopo(novoEscopo);
+    setGrupoId((data as Record<string, unknown> | null)
+      ? ((data as Record<string, unknown>).recorrencia_grupo_id as string | null) ?? null
+      : null);
+    setDataBase((data as Record<string, unknown> | null)
+      ? ((data as Record<string, unknown>).data as string | null) ?? null
+      : null);
+    setModo('editar');
+    setEditandoId(id);
+    setAberto(true);
+  }, [supabase]);
+
+  const fechar = useCallback(() => {
+    setAberto(false);
+    setPreenchido({});
+    setEditandoId(null);
+    setErroSalvar(null);
+    setEscopo('single');
+    setGrupoId(null);
+    setDataBase(null);
+  }, []);
+
+  const salvar = useCallback(async (dados: DadosAgendamento) => {
+    if (!effectiveProfileId) return;
+    setIsSaving(true);
+    setErroSalvar(null);
+    try {
+      const semana = dados.data ? isoWeek(new Date(dados.data)) : null;
+      const payload: Record<string, unknown> = {
+        acao_id:             dados.acao_id,
+        objetivo_id:         dados.objetivo_id,
+        data:                dados.data,
+        hora_inicio:         dados.hora_inicio,
+        hora_fim:            dados.hora_fim,
+        casa_id:             dados.casa_id,
+        franqueado_id:       dados.franqueado_id,
+        rede_loteador_id:    dados.rede_loteador_id,
+        condominio_id:       dados.condominio_id,
+        adm_cnpj_id:         dados.adm_cnpj_id,
+        sirene_chamado_id:   dados.sirene_chamado_id,
+        card_id:             dados.card_id,
+        cor:                 dados.cor,
+        recorrente:          dados.recorrente,
+        recorrencia_config:  dados.recorrente ? dados.recorrencia_config : null,
+        comentario_conclusao: dados.observacoes,
+        link_reuniao:           dados.link_reuniao,
+        local_reuniao:          dados.local_reuniao,
+        titulo:                 dados.titulo,
+        origem_tipo:            dados.origem_tipo,
+        participantes_externos: dados.participantes_externos ?? [],
+      };
+
+      if (modo === 'criar') {
+        // ── Calcular datas: 1 ou N ocorrências ──────────────────────────────
+        let datas: string[] = dados.data ? [dados.data] : [];
+        if (dados.recorrente && dados.recorrencia_config && dados.data) {
+          try {
+            datas = gerarOcorrencias(dados.data, dados.recorrencia_config);
+          } catch { /* usa apenas a data base */ }
+        }
+
+        // Gera grupo UUID para recorrências (mesmo ID em todas as ocorrências)
+        const recorrenciaGrupoId = datas.length > 1
+          ? crypto.randomUUID()
+          : null;
+
+        // Insere uma linha por ocorrência
+        const inserts = datas.map(dt => {
+          const semDt = isoWeek(new Date(dt));
+          return {
+            ...payload,
+            data:                dt,
+            semana_ano_inicio:   semDt,
+            semana_ano_fim:      semDt,
+            semanas_selecionadas: [semDt],
+            profile_id:          effectiveProfileId,
+            origem:              'agenda',
+            recorrencia_grupo_id: recorrenciaGrupoId,
+          };
+        });
+
+        const { data: inserted, error } = await supabase
+          .from('gantt_planejamento')
+          .insert(inserts)
+          .select('id');
+        if (error) throw error;
+
+        // Participantes: inserir para cada registro criado
+        const ids = ((inserted ?? []) as { id: string }[]).map(r => r.id);
+
+        // Convites externos: enviar apenas para o primeiro evento da série
+        if (dados.participantes_externos.length > 0 && ids[0]) {
+          void fetch('/api/agenda/invite-externos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gantt_id: ids[0] }),
+          }).catch(err => console.warn('[invite-externos]', err));
+        }
+        if (dados.participantes.length > 0 && ids.length > 0) {
+          const partRows = ids.flatMap(gantt_id =>
+            dados.participantes.map(profile_id => ({ gantt_id, profile_id, status: 'pendente' }))
+          );
+          await supabase.from('gantt_agenda_participantes').insert(partRows);
+          // Enviar convite via sininho para o primeiro evento da série
+          if (ids[0]) {
+            void enviarConvitesInternos(ids[0], dados.participantes).catch(
+              e => console.warn('[enviarConvitesInternos]', e)
+            );
+          }
+        }
+
+        void (registrarLog as unknown as (a: Record<string, unknown>) => Promise<void>)({
+          modulo: 'Planejamento', area: areaId,
+          entidade: 'gantt_planejamento', entidade_id: ids[0] ?? null,
+          operacao: 'INSERT',
+          descricao: `Nova atividade agendada para ${dados.data ?? ''}${datas.length > 1 ? ` (${datas.length} ocorrências)` : ''}`,
+        });
+
+        // Push para Google Calendar (best-effort)
+        for (const ganttId of ids) {
+          void pushParaGCal(ganttId).catch(e => console.warn('[gcal-push]', e));
+        }
+
+      } else if (editandoId) {
+        if ((escopo === 'all' || escopo === 'following') && grupoId) {
+          // Atualizar série inteira ou este e seguintes — não altera data de cada ocorrência
+          const groupPayload = { ...payload };
+          delete groupPayload.data;
+          delete groupPayload.semana_ano_inicio;
+          delete groupPayload.semana_ano_fim;
+          delete groupPayload.semanas_selecionadas;
+
+          let q = supabase.from('gantt_planejamento').update(groupPayload)
+            .eq('recorrencia_grupo_id', grupoId);
+          if (escopo === 'following' && dataBase) {
+            q = q.gte('data', dataBase);
+          }
+          const { error: errGroup } = await q;
+          if (errGroup) throw errGroup;
+
+          // Sincronizar participantes para todas as ocorrências do escopo
+          let groupIdsQ = supabase.from('gantt_planejamento').select('id')
+            .eq('recorrencia_grupo_id', grupoId);
+          if (escopo === 'following' && dataBase) groupIdsQ = groupIdsQ.gte('data', dataBase);
+          const { data: groupRows } = await groupIdsQ;
+          const gIds = ((groupRows ?? []) as { id: string }[]).map(r => r.id);
+          if (gIds.length > 0) {
+            await supabase.from('gantt_agenda_participantes').delete().in('gantt_id', gIds);
+            if (dados.participantes.length > 0) {
+              await supabase.from('gantt_agenda_participantes').insert(
+                gIds.flatMap(gantt_id =>
+                  dados.participantes.map(profile_id => ({ gantt_id, profile_id, status: 'pendente' }))
+                )
+              );
+              // Reenviar convites para série atualizada (primeiro evento)
+              if (gIds[0]) {
+                void enviarConvitesInternos(gIds[0], dados.participantes).catch(
+                  e => console.warn('[enviarConvitesInternos]', e)
+                );
+              }
+            }
+          }
+          // Push para Google Calendar (best-effort) — série
+          for (const ganttId of gIds) {
+            void pushParaGCal(ganttId).catch(e => console.warn('[gcal-push]', e));
+          }
+        } else {
+          // Apenas este evento
+          const { error } = await supabase
+            .from('gantt_planejamento')
+            .update(payload)
+            .eq('id', editandoId);
+          if (error) throw error;
+
+          // Smart merge: preservar status de participantes já existentes
+          const { data: currentParts } = await supabase
+            .from('gantt_agenda_participantes')
+            .select('profile_id')
+            .eq('gantt_id', editandoId);
+          const currentIds = new Set(((currentParts ?? []) as { profile_id: string }[]).map(p => p.profile_id));
+          const newIds = new Set(dados.participantes);
+
+          // Remover participantes que saíram
+          const toDelete = [...currentIds].filter(id => !newIds.has(id));
+          if (toDelete.length > 0) {
+            await supabase.from('gantt_agenda_participantes')
+              .delete()
+              .eq('gantt_id', editandoId)
+              .in('profile_id', toDelete);
+          }
+
+          // Adicionar novos participantes com status pendente
+          const toAdd = dados.participantes.filter(id => !currentIds.has(id));
+          if (toAdd.length > 0) {
+            await supabase.from('gantt_agenda_participantes').insert(
+              toAdd.map(profile_id => ({ gantt_id: editandoId, profile_id, status: 'pendente' }))
+            );
+            void enviarConvitesInternos(editandoId, toAdd).catch(
+              e => console.warn('[enviarConvitesInternos]', e)
+            );
+          }
+
+          void (registrarLog as unknown as (a: Record<string, unknown>) => Promise<void>)({
+            modulo: 'Planejamento', area: areaId,
+            entidade: 'gantt_planejamento', entidade_id: editandoId,
+            operacao: 'UPDATE',
+            descricao: `Atividade atualizada: ${dados.data ?? ''}`,
+          });
+
+          // Push para Google Calendar (best-effort)
+          void pushParaGCal(editandoId).catch(e => console.warn('[gcal-push]', e));
+        }
+      }
+
+      fechar();
+      onSalvo?.();
+      window.dispatchEvent(new CustomEvent('backlog-reload'));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : JSON.stringify(e);
+      console.error('[salvar] erro:', e);
+      setErroSalvar(msg);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [supabase, effectiveProfileId, areaId, modo, editandoId, escopo, grupoId, dataBase, fechar, onSalvo]);
+
+  const excluir = useCallback(async () => {
+    if (!editandoId) return;
+    setIsSaving(true);
+    setErroSalvar(null);
+    try {
+      if ((escopo === 'all' || escopo === 'following') && grupoId) {
+        // Buscar ids do escopo para limpar participantes
+        let idsQ = supabase.from('gantt_planejamento').select('id')
+          .eq('recorrencia_grupo_id', grupoId);
+        if (escopo === 'following' && dataBase) idsQ = idsQ.gte('data', dataBase);
+        const { data: scopeRows } = await idsQ;
+        const scopeIds = ((scopeRows ?? []) as { id: string }[]).map(r => r.id);
+        if (scopeIds.length > 0) {
+          await supabase.from('gantt_agenda_participantes').delete().in('gantt_id', scopeIds);
+        }
+        let delQ = supabase.from('gantt_planejamento').delete().eq('recorrencia_grupo_id', grupoId);
+        if (escopo === 'following' && dataBase) delQ = delQ.gte('data', dataBase);
+        const { error } = await delQ;
+        if (error) throw error;
+      } else {
+        await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', editandoId);
+        const { error } = await supabase.from('gantt_planejamento').delete().eq('id', editandoId);
+        if (error) throw error;
+      }
+      fechar();
+      onSalvo?.();
+      window.dispatchEvent(new CustomEvent('backlog-reload'));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : JSON.stringify(e);
+      setErroSalvar(msg);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [supabase, editandoId, escopo, grupoId, dataBase, fechar, onSalvo]);
+
+  return { aberto, preenchido, modo, isSaving, erroSalvar, escopo, editandoId, abrirParaCriar, abrirParaEditar, fechar, salvar, excluir };
+}

@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Flyer A5 — Moní Casa</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+  :root {
+    --teal:    #0d2b2e;
+    --teal-lt: #12363a;
+    --gold:    #c9a96e;
+    --gold-lt: #e2cfa0;
+    --white:   #f5f2ec;
+    --gray:    rgba(245,242,236,.45);
+    --border:  rgba(201,169,110,.38);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #1a1a1a;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 48px; padding: 48px 20px;
+  }
+
+  .side-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 4px;
+    text-transform: uppercase; color: #666; margin-bottom: -40px;
+  }
+
+  .page {
+    width: 559px; height: 794px;
+    background: var(--teal); color: var(--white);
+    position: relative; overflow: hidden; flex-shrink: 0;
+  }
+  .page::before {
+    content: '';
+    position: absolute; inset: 12px;
+    border: 1px solid var(--border); border-radius: 6px;
+    pointer-events: none; z-index: 10;
+  }
+
+  .gold-rule { width: 36px; height: 1px; background: var(--gold); margin: 0 auto; opacity: .7; }
+
+  /* ══════════════════════════
+     FRENTE
+  ══════════════════════════ */
+  .frente { display: flex; flex-direction: column; }
+
+  .f-top {
+    padding: 28px 32px 18px;
+    display: flex; flex-direction: column; align-items: center; gap: 9px;
+  }
+  .emp-nome {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 44px; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; text-align: center;
+    color: var(--white); line-height: 1; margin-top: 3px;
+  }
+  .emp-specs { font-size: 10px; letter-spacing: 2px; color: var(--gold-lt); text-align: center; margin-top: 4px; }
+
+  .f-hero {
+    position: relative; flex: 1; background: var(--teal-lt);
+    margin: 0 26px; border-radius: 4px; overflow: hidden; min-height: 0;
+  }
+  .f-hero-img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .f-hero-ph {
+    width: 100%; height: 100%; min-height: 216px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; color: rgba(245,242,236,.18); font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase;
+    background: linear-gradient(155deg, #1b464b 0%, #0d2b2e 100%);
+  }
+  .f-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(13,43,46,.92) 0%, transparent 55%);
+    pointer-events: none;
+  }
+  .f-tag {
+    position: absolute; top: 12px; left: 12px;
+    background: var(--gold); color: var(--teal);
+    font-size: 8px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 2px;
+  }
+  .f-preco-block {
+    position: absolute; bottom: 14px; left: 16px; right: 16px;
+    display: flex; justify-content: space-between; align-items: flex-end;
+  }
+  .p-label { font-size: 8px; letter-spacing: 2px; color: var(--gold); text-transform: uppercase; }
+  .p-valor {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 32px; font-weight: 700; color: var(--white); line-height: 1; margin-top: 2px;
+  }
+  .p-parcela { font-size: 10px; color: var(--gold-lt); margin-top: 3px; }
+
+  .qr-hero { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .qr-box {
+    background: var(--white); border-radius: 4px;
+    width: 56px; height: 56px;
+    display: block; object-fit: contain; padding: 3px;
+  }
+  .qr-leg { font-size: 7px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
+
+  .f-destaques {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    margin: 13px 26px 0;
+    border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+  }
+  .f-dest { padding: 11px 12px; border-right: 1px solid var(--border); }
+  .f-dest:last-child { border-right: none; }
+  .f-dest .d-lbl { font-size: 7px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
+  .f-dest .d-val { font-size: 11px; color: var(--white); line-height: 1.4; }
+
+  .f-footer {
+    padding: 12px 32px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .f-footer .end-lbl { font-size: 7px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); }
+  .f-footer .end-val { font-size: 12px; font-weight: 500; color: var(--white); margin-top: 2px; }
+  .f-footer .end-ref { font-size: 9px; color: var(--gray); margin-top: 2px; }
+  .f-footer.somente-ig { justify-content: flex-end; }
+  /* Footer verso sem corretor: só logo */
+  .v-footer.sem-corretor {
+    grid-template-columns: 1fr;
+    text-align: right;
+  }
+  .v-footer.sem-corretor .corretor,
+  .v-footer.sem-corretor .vf-div { display: none; }
+  .ig-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    border: 1px solid var(--border); border-radius: 20px;
+    padding: 4px 11px; font-size: 9px; color: var(--gold-lt); letter-spacing: .3px;
+  }
+
+  /* ══════════════════════════
+     VERSO
+  ══════════════════════════ */
+  .verso {
+    display: flex; flex-direction: column;
+    height: 100%;
+    padding-bottom: 18px;
+  }
+
+  .v-top {
+    padding: 18px 32px 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    flex-shrink: 0;
+  }
+  .v-subtitle {
+    font-size: 8px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--gold); margin-top: 2px;
+  }
+
+  .sec-tit {
+    font-size: 7px; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--gold);
+    padding-bottom: 5px; border-bottom: 1px solid var(--border);
+    margin: 10px 26px 8px;
+    flex-shrink: 0;
+  }
+
+  /* ── Cards dinâmicos ── */
+  .casas-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    padding: 0 26px;
+    flex-shrink: 0;
+  }
+
+  .casa-card {
+    border: 1px solid var(--border);
+    border-radius: 4px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+
+  .casa-img {
+    position: relative; height: 90px; flex-shrink: 0;
+    background: var(--teal-lt); overflow: hidden;
+  }
+  .casa-img-actual {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .casa-img-ph {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; color: rgba(245,242,236,.15); font-size: 7px;
+    letter-spacing: 1px; text-transform: uppercase;
+    background: linear-gradient(150deg, #1b464b 0%, #0a2427 100%);
+  }
+  .casa-img-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to bottom, transparent 35%, rgba(13,43,46,.88) 100%);
+    pointer-events: none;
+  }
+  .casa-cod {
+    position: absolute; top: 6px; left: 6px;
+    background: var(--gold); color: var(--teal);
+    font-size: 7px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 2px;
+  }
+  .casa-nome-over { position: absolute; bottom: 5px; left: 7px; right: 5px; }
+  .casa-nome-over .cn {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 14px; font-weight: 700; color: var(--white); line-height: 1;
+    text-shadow: 0 1px 4px rgba(0,0,0,.6);
+  }
+  .casa-nome-over .ca { font-size: 8px; color: var(--gold-lt); display: block; margin-top: 1px; }
+
+  .casa-sims {
+    padding: 6px 7px 7px;
+    border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 0;
+  }
+  .sim-row {
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(201,169,110,.1);
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .sim-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .sr-cen { font-size: 7.5px; color: var(--gray); line-height: 1; }
+  .sr-val { font-size: 9.5px; font-weight: 600; color: var(--white); line-height: 1.1; }
+  .sr-val.hi { color: var(--gold-lt); font-size: 11.5px; }
+  .pv.hi { font-size: 12px; color: var(--gold-lt); }
+
+  /* ── Condições de pagamento ── */
+  .pag-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 7px; padding: 0 26px; flex-shrink: 0;
+  }
+  .pag-box {
+    border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px;
+  }
+  .pag-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 4px 0; border-bottom: 1px solid rgba(201,169,110,.12); font-size: 10px;
+  }
+  .pag-row:last-child { border-bottom: none; }
+  .pl { color: var(--gray); font-size: 9.5px; }
+  .pv { font-weight: 600; color: var(--white); }
+  .showroom-row {
+    margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between;
+    font-size: 9px; font-weight: 700; color: var(--gold);
+  }
+  .asterisco {
+    margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(201,169,110,.15);
+    font-size: 7.5px; color: var(--gray); line-height: 1.4; font-style: italic;
+  }
+
+  .pag-sim {
+    border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .j-qr {
+    background: var(--white); border-radius: 3px;
+    width: 40px; height: 40px; flex-shrink: 0;
+    display: block; object-fit: contain; padding: 2px;
+  }
+  .jornada-title {
+    font-size: 7px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--gold);
+    padding-bottom: 7px; border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .jornada-step { display: flex; align-items: center; gap: 8px; }
+  .jornada-arrow {
+    text-align: left; padding-left: 20px;
+    color: var(--gold); font-size: 12px; line-height: 1;
+    margin: 3px 0;
+  }
+  .j-info { display: flex; align-items: flex-start; gap: 5px; }
+  .j-num {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--gold); color: var(--teal);
+    font-size: 8px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .j-txt { font-size: 9px; color: var(--gray); line-height: 1.4; }
+  .j-txt strong { color: var(--white); font-size: 10px; display: block; margin-bottom: 1px; }
+
+  /* ── Diferenciais (só Moni.care) ── */
+  .difs-single {
+    padding: 0 26px; flex-shrink: 0;
+    margin-bottom: 12px;
+  }
+  .dif {
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px 11px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dif .dt { font-size: 10px; font-weight: 600; color: var(--white); }
+  .dif .dd { font-size: 8.5px; color: var(--gray); margin-top: 1px; }
+
+  /* ── Footer corretor (empurrado ao bottom) ── */
+  .v-footer {
+    margin: auto 26px 0;
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 9px 15px;
+    display: grid; grid-template-columns: 1fr 1px 1fr;
+    align-items: center; flex-shrink: 0;
+  }
+  .vf-div { background: var(--border); height: 38px; justify-self: center; }
+
+  .corretor .c-lbl { font-size: 6.5px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); }
+  .corretor .c-nome { font-size: 13px; font-weight: 600; color: var(--white); margin-top: 2px; }
+  .corretor .c-creci { font-size: 8.5px; color: var(--gray); }
+  .corretor .c-tel { font-size: 10px; color: var(--white); margin-top: 3px; }
+
+  .logo-side { text-align: right; }
+  .logo-side .ls-nome {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 17px; font-weight: 700; letter-spacing: 6px; color: var(--white);
+  }
+  .logo-side .ls-sub { font-size: 7px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); }
+  .logo-side .ls-ig {
+    display: inline-flex; align-items: center; gap: 4px;
+    border: 1px solid var(--border); border-radius: 20px;
+    padding: 3px 8px; font-size: 8px; color: var(--gold-lt);
+    margin-top: 4px; letter-spacing: .3px;
+  }
+
+  .print-note { font-size: 10px; color: #555; letter-spacing: 1px; text-align: center; }
+
+  @media print {
+    body { background: white; padding: 0; gap: 0; }
+    .side-label, .print-note { display: none; }
+    .page { page-break-after: always; width: 148mm; height: 210mm; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════ FRENTE ════ -->
+<p class="side-label">Frente — A5</p>
+<div class="page frente">
+
+  <div class="f-top">
+    <svg width="130" height="40" viewBox="0 0 140 44" fill="none">
+      <text x="0" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">M</text>
+      <g transform="translate(34,0)">
+        <text x="0" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">O</text>
+        <path d="M16 26 Q19 31 22 26" stroke="#c9a96e" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      </g>
+      <text x="68" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">NÍ</text>
+    </svg>
+    <div class="gold-rule"></div>
+    <div class="emp-nome" id="emp-nome"><!-- NOME DO EMPREENDIMENTO --></div>
+  </div>
+
+  <div class="f-hero">
+    <!-- Imagem principal do Showroom (imob_card_modelo.imagem_principal_path) -->
+    <img id="hero-img" class="f-hero-img" src="" alt="" style="display:none">
+    <div class="f-hero-ph" id="f-hero-ph">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+      <span>Render / Foto principal</span>
+    </div>
+    <div class="f-overlay"></div>
+    <div class="f-tag" id="f-tag">Loteadores</div>
+    <div class="f-preco-block">
+      <div>
+        <div class="p-label">A partir de</div>
+        <div class="p-valor" id="p-valor"><!-- R$ 000.000 --></div>
+      </div>
+      <div class="qr-hero">
+        <img id="qr-hero" class="qr-box" src="" alt="QR Code">
+        <div class="qr-leg">Simule agora</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="f-destaques">
+    <div class="f-dest">
+      <!-- produto_modelo do Showroom (imob_card_empreendimentos onde showroom=true) -->
+      <div class="d-lbl">Casa</div>
+      <div class="d-val" id="d-casa"><!-- Produto / Modelo --></div>
+    </div>
+    <div class="f-dest">
+      <div class="d-lbl">Condomínio</div>
+      <div class="d-val" id="d-cond"><!-- Nome do Condomínio --></div>
+    </div>
+  </div>
+
+  <div class="f-footer" id="f-footer">
+    <div id="f-local-block">
+      <div class="end-lbl">Localização</div>
+      <div class="end-val" id="f-end-val"><!-- Cidade — Estado --></div>
+      <div class="end-ref" id="f-end-ref"><!-- Nome do Condomínio --></div>
+    </div>
+    <div class="ig-badge">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/>
+        <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
+      </svg>
+      @casa.moni
+    </div>
+  </div>
+
+</div><!-- /frente -->
+
+
+<!-- ════ VERSO ════ -->
+<p class="side-label">Verso — A5</p>
+<div class="page verso">
+
+  <div class="v-top">
+    <svg width="100" height="32" viewBox="0 0 140 44" fill="none">
+      <text x="0" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">M</text>
+      <g transform="translate(34,0)">
+        <text x="0" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">O</text>
+        <path d="M16 26 Q19 31 22 26" stroke="#c9a96e" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      </g>
+      <text x="68" y="34" font-family="'Cormorant Garamond',serif" font-size="38" font-weight="700" fill="#f5f2ec" letter-spacing="4">NÍ</text>
+    </svg>
+    <div class="v-subtitle">Escolha o modelo ideal para você</div>
+  </div>
+
+  <!-- ── 1. Tipologias (injetadas dinamicamente pelo JS) ── -->
+  <div class="sec-tit">Tipologias disponíveis</div>
+  <!--
+    Cards C1–C4 vêm de imob_card_empreendimentos (não-showroom), ordenados por `ordem`.
+    Cada card usa: produto_modelo, area_vendas_m2, imagem_oferta_path,
+    valor_avista, balao_parcial_8, balao_parcial_24, fin_parcial_valor
+  -->
+  <div id="casas-grid" class="casas-grid"><!-- gerado pelo JS --></div>
+
+  <!-- ── 2. Condições de pagamento ── -->
+  <div class="sec-tit">Condições de pagamento</div>
+  <div class="pag-grid">
+    <div class="pag-box">
+      <div class="pag-row"><span class="pl">À vista*</span><span class="pv hi" id="pag-avista">—</span></div>
+      <div class="pag-row"><span class="pl">Entrada*</span><span class="pv" id="pag-entrada">—</span></div>
+      <div class="pag-row"><span class="pl">Parcelas mensais*</span><span class="pv" id="pag-parcelas">—</span></div>
+      <div class="showroom-row"><span>Preço Showroom</span><span>A combinar ✦</span></div>
+      <div class="asterisco" id="pag-asterisco">* Valores já pagos no terreno podem ser abatidos da simulação. Consulte seu corretor.</div>
+    </div>
+    <div class="pag-sim">
+      <div class="jornada-title">Sua jornada</div>
+      <div class="jornada-step">
+        <img id="qr-custom" class="j-qr" src="" alt="QR Code">
+        <div class="j-info">
+          <div class="j-num">1</div>
+          <div class="j-txt"><strong>Customize</strong>Escolha o modelo e os opcionais da casa</div>
+        </div>
+      </div>
+      <div class="jornada-arrow">↓</div>
+      <div class="jornada-step">
+        <img id="qr-sim" class="j-qr" src="" alt="QR Code">
+        <div class="j-info">
+          <div class="j-num">2</div>
+          <div class="j-txt"><strong>Simule</strong>Valor gerado vai para a simulação</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3. Diferenciais Moní (apenas Moni.care) ── -->
+  <div class="sec-tit">Diferenciais Moní</div>
+  <div class="difs-single">
+    <div class="dif">
+      <div>
+        <div class="dt">Moni.care</div>
+        <div class="dd">Garantia e suporte pós-entrega</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 4. Corretor (oculto no flyer do cadastro de empreendimentos) ── -->
+  <div class="v-footer" id="v-footer">
+    <div class="corretor" id="bloco-corretor">
+      <div class="c-lbl">Seu corretor</div>
+      <div class="c-nome" id="c-nome"><!-- Nome do Corretor --></div>
+      <div class="c-creci" id="c-creci">CRECI 00000-F</div>
+      <div class="c-tel" id="c-tel">(00) 90000-0000</div>
+    </div>
+    <div class="vf-div" id="vf-div"></div>
+    <div class="logo-side">
+      <div class="ls-nome">MONÍ</div>
+      <div class="ls-sub">More than living</div>
+      <div>
+        <span class="ls-ig">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/>
+            <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
+          </svg>
+          @casa.moni
+        </span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /verso -->
+
+<p class="print-note">Imprimir: A5 · Sem margens · Frente e verso · 150 dpi+</p>
+
+<script>
+  // ── Configuração base ──────────────────────────────────────────
+  const BASE_DOMAIN = "https://moni.casa";
+  // ──────────────────────────────────────────────────────────────
+
+  /*
+   * Parâmetros de URL esperados:
+   *
+   * BÁSICOS
+   *   corretor_id, corretor_nome, corretor_creci, corretor_tel
+   *   emp_id, emp_nome
+   *   domain  (opcional — padrão BASE_DOMAIN)
+   *
+   * FRENTE
+   *   hero_img        URL pública da imagem principal do Showroom
+   *                   (imob_card_modelo.imagem_principal_path → URL Supabase Storage)
+   *   showroom_modelo produto_modelo do registro Showroom
+   *   cond_nome       nome do condomínio
+   *   cond_cidade     cidade
+   *   cond_estado     estado (sigla)
+   *   pipeline        "Loteadores" | "Portfolio" (padrão "Loteadores")
+   *   p_valor         preço mínimo (ex: "R$ 380.000")
+   *   p_parcela       texto da parcela (ex: "Parcelas a partir de R$ 1.900/mês")
+   *
+   * VERSO — por card (N = 1..4, não-Showroom, ordenados por `ordem`)
+   *   num_cards       quantidade de cards (1–4, padrão 4)
+   *   cN_img          URL pública da imagem da oferta  (imagem_oferta_path)
+   *   cN_nome         produto_modelo
+   *   cN_area         area_vendas_m2
+   *   cN_avista       valor_avista  (ex: "R$ 380.000")
+   *   cN_entrada      entrada
+   *   cN_parcelas     parcelas mensais
+   *
+   *   pag_avista / pag_entrada / pag_parcelas
+   *   (se ausentes, usa os valores do C1)
+   *
+   *   origem=cadastro  → oculta bloco do corretor e o asterisco do verso
+   *   hide_corretor=1  → idem
+   */
+
+  (function injectParams() {
+    const p = new URLSearchParams(window.location.search);
+
+    function get(k) { return p.get(k) || ""; }
+
+    const corretorId    = get("corretor_id");
+    const empId         = get("emp_id");
+    const corretorNome  = get("corretor_nome");
+    const corretorCreci = get("corretor_creci");
+    const corretorTel   = get("corretor_tel");
+    const empNome       = get("emp_nome");
+    const domain        = get("domain") || BASE_DOMAIN;
+    const origemCadastro =
+      get("origem") === "cadastro" || get("hide_corretor") === "1";
+
+    // FRENTE
+    const heroImg       = get("hero_img");
+    const showroomMod   = get("showroom_modelo");
+    const condNome      = get("cond_nome");
+    const condCidade    = get("cond_cidade");
+    const condEstado    = get("cond_estado");
+    const pipeline      = get("pipeline") || "Loteadores";
+    const pValor        = get("p_valor");
+
+    // VERSO
+    const numCards = Math.min(Math.max(parseInt(get("num_cards") || "4", 10), 1), 4);
+
+    // ── QR helper ──────────────────────────────────────────────
+    const formUrl = domain + "/formulario"
+      + (corretorId ? "?corretor_id=" + corretorId : "?")
+      + (empId      ? "&emp_id=" + empId            : "");
+
+    function qrSrc(size) {
+      return "https://api.qrserver.com/v1/create-qr-code/"
+        + "?data="   + encodeURIComponent(formUrl)
+        + "&size="   + size + "x" + size
+        + "&color=0d2b2e&bgcolor=f5f2ec"
+        + "&margin=2&format=svg";
+    }
+
+    function setText(id, val) {
+      if (!val) return;
+      var el = document.getElementById(id);
+      if (el) el.textContent = val;
+    }
+
+    // ════════════════════════════════════════════════════
+    // FRENTE
+    // ════════════════════════════════════════════════════
+
+    setText("emp-nome", empNome);
+    setText("f-tag", pipeline);
+
+    if (pValor) setText("p-valor", pValor);
+
+    // Imagem principal (Showroom → imob_card_modelo)
+    if (heroImg) {
+      var img = document.getElementById("hero-img");
+      var ph  = document.getElementById("f-hero-ph");
+      if (img) { img.src = heroImg; img.style.display = "block"; }
+      if (ph)  ph.style.display = "none";
+    }
+
+    // Destaques (Casa + Condomínio)
+    setText("d-casa",  showroomMod);
+    setText("d-cond",  condNome);
+
+    // Localização (única — footer)
+    if (condCidade || condEstado) {
+      setText("f-end-val", [condCidade, condEstado].filter(Boolean).join(" — "));
+    }
+    setText("f-end-ref", condNome);
+
+    // QR frente
+    var qrHero = document.getElementById("qr-hero");
+    if (qrHero) qrHero.src = qrSrc(200);
+
+    // ════════════════════════════════════════════════════
+    // VERSO — Cards dinâmicos
+    // ════════════════════════════════════════════════════
+    var grid = document.getElementById("casas-grid");
+    if (grid) {
+      grid.style.gridTemplateColumns = "repeat(" + numCards + ", 1fr)";
+
+      for (var i = 1; i <= numCards; i++) {
+        var cod    = "C" + i;
+        var cImg   = get("c" + i + "_img");
+        var cNome  = get("c" + i + "_nome");
+        var cArea  = get("c" + i + "_area");
+        var cAvista= get("c" + i + "_avista") || "—";
+        var cEntrada = get("c" + i + "_entrada") || "—";
+        var cParcelas = get("c" + i + "_parcelas") || "—";
+
+        var imgMarkup = cImg
+          ? '<img class="casa-img-actual" src="' + cImg + '" alt="' + cNome + '">'
+          : '<div class="casa-img-ph">' +
+              '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">' +
+                '<rect x="3" y="3" width="18" height="18" rx="2"/>' +
+                '<circle cx="8.5" cy="8.5" r="1.5"/>' +
+                '<polyline points="21 15 16 10 5 21"/>' +
+              '</svg>' +
+              '<span>Foto ' + cod + '</span>' +
+            '</div>';
+
+        var areaText = cArea ? cArea + " m²" : "";
+
+        grid.insertAdjacentHTML("beforeend",
+          '<div class="casa-card">' +
+            '<div class="casa-img">' +
+              imgMarkup +
+              '<div class="casa-img-overlay"></div>' +
+              '<div class="casa-cod">' + cod + '</div>' +
+              '<div class="casa-nome-over">' +
+                '<span class="cn">' + cNome + '</span>' +
+                '<span class="ca">' + areaText + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="casa-sims">' +
+              '<div class="sim-row"><span class="sr-cen">À vista</span><span class="sr-val hi">' + cAvista + '</span></div>' +
+              '<div class="sim-row"><span class="sr-cen">Entrada</span><span class="sr-val">' + cEntrada + '</span></div>' +
+              '<div class="sim-row"><span class="sr-cen">Parcelas mensais</span><span class="sr-val">' + cParcelas + '</span></div>' +
+            '</div>' +
+          '</div>'
+        );
+      }
+    }
+
+    // Condições gerais (caixa resumo) — usa pag_* ou herda do C1
+    setText("pag-avista", get("pag_avista") || get("c1_avista"));
+    setText("pag-entrada", get("pag_entrada") || get("c1_entrada"));
+    setText("pag-parcelas", get("pag_parcelas") || get("c1_parcelas"));
+
+    // QR verso
+    var qrCustom = document.getElementById("qr-custom");
+    var qrSim    = document.getElementById("qr-sim");
+    if (qrCustom) qrCustom.src = qrSrc(160);
+    if (qrSim)    qrSim.src    = qrSrc(160);
+
+    // ── Corretor (só página do corretor; oculto no cadastro de empreendimentos) ──
+    var mostrarCorretor = !origemCadastro && Boolean(corretorNome || corretorCreci || corretorTel);
+    var vFooter = document.getElementById("v-footer");
+    var asterisco = document.getElementById("pag-asterisco");
+    if (!mostrarCorretor) {
+      if (vFooter) vFooter.classList.add("sem-corretor");
+      if (asterisco) asterisco.style.display = "none";
+    } else {
+      setText("c-nome",  corretorNome);
+      if (corretorCreci) setText("c-creci", "CRECI " + corretorCreci);
+      setText("c-tel",   corretorTel);
+    }
+  })();
+</script>
+
+</body>
+</html>

@@ -8,6 +8,23 @@ export type CasaRowPDF = {
   preco: number | null;
 };
 
+export type ProdutoSubNotas = {
+  nota_tamanho?: number | null;
+  nota_amenidades?: number | null;
+  nota_quartos?: number | null;
+  nota_banheiros?: number | null;
+  nota_vagas?: number | null;
+  nota_design?: number | null;
+  nota_idade?: number | null;
+};
+
+export type PrecoSubNotas = {
+  D?: number | null;
+  E?: number | null;
+  I?: number | null;
+  P?: number | null;
+};
+
 export type ScoreBatalhaRow = {
   casa: CasaRowPDF;
   precoLabel: string;
@@ -16,7 +33,27 @@ export type ScoreBatalhaRow = {
   notaLocalizacao: number;
   notaFinal: number;
   resultado: 'G' | 'E' | 'P';
+  produtoSub?: ProdutoSubNotas | null;
+  precoSub?: PrecoSubNotas | null;
 };
+
+function SubNotasCell({
+  items,
+}: {
+  items: { label: string; value: number | null | undefined }[];
+}) {
+  const visible = items.filter((i) => i.value != null && Number.isFinite(i.value));
+  if (visible.length === 0) return null;
+  return (
+    <div className="mt-0.5 text-[10px] leading-tight text-stone-500">
+      {visible.map((i) => (
+        <span key={i.label} className="mr-1">
+          {i.label}:{i.value}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 /** Layout do relatório SCORE & BATALHA para impressão/PDF (igual ao template em anexo).
  * omitImages=true evita imagens externas na captura (CORS) e usa placeholder para o PDF não sair em branco. */
@@ -43,8 +80,9 @@ export function ScoreBatalhaPDFContent({
         <div className="shrink-0 text-right">
           <p className="mb-1 text-xs font-bold uppercase text-stone-700">Tabela de referência</p>
           <ul className="space-y-0.5 text-xs text-stone-600">
-            <li>-2: estamos muito piores</li>
-            <li>-1: estamos piores</li>
+            <li>-3: estamos muito piores</li>
+            <li>-2: estamos piores</li>
+            <li>-1: estamos piores (leve)</li>
             <li>0: estamos iguais</li>
             <li>+1: estamos melhores</li>
             <li>+2: estamos muito melhores</li>
@@ -71,7 +109,7 @@ export function ScoreBatalhaPDFContent({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
+          {rows.map((row) => (
             <tr key={row.casa.id} className="border-b border-stone-200">
               <td className="p-2 align-top">
                 <div className="relative inline-block aspect-[4/3] w-full max-w-[180px] overflow-hidden rounded bg-stone-100">
@@ -92,8 +130,35 @@ export function ScoreBatalhaPDFContent({
                   </span>
                 </div>
               </td>
-              <td className="p-2 text-center align-middle">{row.notaPreco}</td>
-              <td className="p-2 text-center align-middle">{row.notaProduto}</td>
+              <td className="p-2 text-center align-middle">
+                {row.notaPreco}
+                {row.precoSub ? (
+                  <SubNotasCell
+                    items={[
+                      { label: 'D', value: row.precoSub.D },
+                      { label: 'E', value: row.precoSub.E },
+                      { label: 'I', value: row.precoSub.I },
+                      { label: 'P', value: row.precoSub.P },
+                    ]}
+                  />
+                ) : null}
+              </td>
+              <td className="p-2 text-center align-middle">
+                {row.notaProduto}
+                {row.produtoSub ? (
+                  <SubNotasCell
+                    items={[
+                      { label: 'T', value: row.produtoSub.nota_tamanho },
+                      { label: 'A', value: row.produtoSub.nota_amenidades },
+                      { label: 'Q', value: row.produtoSub.nota_quartos },
+                      { label: 'B', value: row.produtoSub.nota_banheiros },
+                      { label: 'V', value: row.produtoSub.nota_vagas },
+                      { label: 'D', value: row.produtoSub.nota_design },
+                      { label: 'I', value: row.produtoSub.nota_idade },
+                    ]}
+                  />
+                ) : null}
+              </td>
               <td className="p-2 text-center align-middle">{row.notaLocalizacao}</td>
               <td className="border-l-2 border-r-2 border-amber-200 bg-amber-50/50 p-2 text-center align-middle">
                 <span className="font-bold text-stone-900">{row.notaFinal}</span>

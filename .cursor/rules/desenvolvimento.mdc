@@ -1,0 +1,76 @@
+---
+description: Regras gerais de desenvolvimento para o projeto moni-fly
+alwaysApply: true
+---
+
+# Regras de desenvolvimento — moni-fly
+
+## Reutilização
+- Sempre procure primeiro por implementações semelhantes já existentes no projeto e reutilize o máximo possível
+- Não recrie componentes, layouts, hooks, serviços ou padrões já existentes
+- Antes de criar qualquer coisa nova, busque no projeto por padrões similares
+
+## Execução
+- Faça alterações completas em lote, evitando pedir confirmação a cada passo
+- Pergunte apenas quando houver risco de:
+  - alteração ou perda de dados em banco de produção
+  - alteração estrutural importante e irreversível
+  - decisão de negócio ambígua que impacte regras já validadas
+
+## Criação de telas
+- Copie o padrão visual das telas já aprovadas no projeto
+- Reutilize componentes existentes em src/components/
+- Mantenha responsividade
+- Mantenha a mesma experiência do usuário das telas existentes
+
+## Antes de finalizar qualquer tarefa
+- Corrigir erros de compilação
+- Corrigir erros de tipagem TypeScript
+- Corrigir warnings de lint
+- Validar integrações com Supabase
+- Validar regras de negócio conforme combinado
+
+## Contexto do projeto
+- Stack: Next.js 14, Supabase, TypeScript, Tailwind
+- Branch de trabalho: funcionalidade-danilo
+- PROD: aydryzoxqnwnbybvgiug
+- DEV: bgaadvfucnrkpimaszjv
+- Nunca alterar PROD diretamente — sempre DEV primeiro
+- Migrations coordenar numeração com Ingrid antes de criar
+- PRs para Ingrid revisar antes de merge em main
+
+## Banco de dados
+- Tabela de migrations: supabase_migrations.schema_migrations
+- Sempre usar IF NOT EXISTS em migrations
+- Após qualquer migration rodar: NOTIFY pgrst, 'reload schema'
+- Scripts de banco: usar Node.js com pg (node_modules/pg já instalado)
+- Nunca usar psql diretamente (não está no PATH)
+- Scripts temporários de banco: criar em raiz do projeto, deletar após uso
+
+## Padrões já estabelecidos no projeto
+- Responsável via profile: sempre usar profiles.id (uuid) — nunca texto livre
+- Semana: sempre normalizar via semanaDbParaIsoNaGrade (src/app/carometro/gantt/page.tsx)
+- Auditoria: registrar via useAuditLog.js com módulo correto
+- Pastelaria: usar API routes (/api/pastelaria/*) — não Supabase client direto
+- Permissões: isAdmin vem de profiles.role — nunca localStorage
+- Semáforo: priorizar semaforo_faixas jsonb — fallback em regra_verde_*/amarelo_*
+
+## Arquivos-chave para reutilizar
+- src/utils/periodos.js — semanas ISO, labels, normalização
+- src/utils/semaforoFaixas.js — cores, escalas, semáforo
+- src/utils/metaCiclo.js — prazo S{n}, recorrente vs atingível
+- src/hooks/useAuditLog.js — auditoria
+- src/lib/kanban/kanban-card-href.ts — deep link para cards
+- src/lib/kanban/kanban-card-sla.ts — cálculo de SLA
+- src/lib/kanban/responsavel-fase-checklist.ts — responsável por fase
+- src/components/carometro/ — todos os componentes do Carômetro
+
+## Novas telas em desenvolvimento (TO DO & Planning)
+Rota principal: /carometro/todo-planning
+Tabelas principais envolvidas:
+- gantt_planejamento (atividades — adicionar colunas via migration)
+- objetivos + indicadores (metas — adicionar is_chave, publicado, objetivo_pai_id)
+- status_preenchimento_registros (botão entregar preenchimento)
+- kanban_cards + kanban_fase_checklist_respostas (backlog cards — query da Ingrid)
+- sirene_topicos + kanban_atividades (backlog Sirene)
+- audit_log (rastreabilidade total)

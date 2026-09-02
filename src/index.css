@@ -1,0 +1,130 @@
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light;
+  color: #2d2d2d;
+  background-color: var(--surf1);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* COMPORTAMENTOS — Verde Moní */
+  --comp-dark: #1D2F25;
+  --comp-mid: #2F4A3A;
+  --comp-med: #365848;
+  --comp-light: #4d7a62;
+  --comp-bg: #eaeff0;
+  --comp-text: #2f4a3a;
+  --comp-bdr: #4d7a62;
+
+  /* INDICADORES — Azul Moní Navy */
+  --ind-dark: #0C2633;
+  --ind-med: #0e3a4e;
+  --ind-light: #3e7490;
+  --ind-bg: #e8eef1;
+  --ind-text: #0e3a4e;
+  --ind-bdr: #3e7490;
+
+  /* DOURADO — status Planejado e acentos */
+  --gold: #D4AD68;
+  --gold-dark: #b08a3e;
+
+  /* SUPERFÍCIES — Off-white Moní */
+  --surf0: #ffffff;
+  --surf1: #f9f7f4;
+  --surf2: #f2ede8;
+  --surf3: #e8e2da;
+
+  /* TEXTO SOBRE FUNDOS ESCUROS */
+  --hdr-text: #F5F2EE;
+  --hdr-sub: rgba(245, 242, 238, 0.65);
+
+  /* STATUS */
+  --late-bg: #fdf0ee;
+  --late-txt: #8c2a1e;
+  --late-bdr: #c24b3a;
+  --plan-bg: #faf4e8;
+  --plan-txt: #7a5f22;
+  --plan-bdr: #d4ad68;
+  --done-bg: #eaeff0;
+  --done-txt: #2f4a3a;
+  --done-bdr: #4d7a62;
+  --act-bg: #e8eef1;
+  --act-txt: #0e3a4e;
+  --act-bdr: #3e7490;
+  --arch-bg: #f2ede8;
+  --arch-txt: #7a6e65;
+}
+
+a {
+  font-weight: 500;
+  color: #1e3a2a;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #b8860b;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: var(--surf1);
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+/* Carômetro — grade de semanas (scroll horizontal fino) */
+.carometro-col-mid-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--comp-light) transparent;
+}
+.carometro-col-mid-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.carometro-col-mid-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.carometro-col-mid-scroll::-webkit-scrollbar-thumb {
+  background: var(--comp-light);
+  border-radius: 4px;
+}
+.carometro-col-mid-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--comp-mid);
+}

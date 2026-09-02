@@ -1,0 +1,55 @@
+---
+description: Prompts de implementação do Funil Crédito Obra (slugs, SLA documentação, rename)
+globs: src/lib/constants/kanban-ids.ts,src/lib/actions/kanban-bastoes.ts,src/app/funil-credito-obra/**,src/lib/kanban/kanban-card-sla.ts,src/lib/actions/kanban-credito-obra-docs.ts,supabase/migrations/*credito*
+alwaysApply: false
+---
+
+# Funil Crédito Obra — prompts de referência
+
+Kanban UUID: `6463af1d-850d-4958-b74c-404f8d668e21` (`KANBAN_IDS.CREDITO_OBRA`).
+Rota: `/funil-credito-obra`. Nome: **Funil Crédito Obra**.
+
+---
+
+## PROMPT 1 — Renomear Funil Crédito → Funil Crédito Obra (frontend)
+
+1. Em `src/lib/constants/kanban-ids.ts`: chave `CREDITO_OBRA`, nome `Funil Crédito Obra` em `KANBAN_ID_BY_NOME`.
+2. Em `src/components/kanban-shared/types.ts`: `KanbanNomeDisplay` → `'Funil Crédito Obra'`.
+3. Rota: pasta `src/app/funil-credito-obra/` (não `painel-credito`).
+4. Atualizar: `middleware`, `access-matrix`, `release-scope`, `app-sticky-route-title`, `kanban-card-href`, `rota-card-origem`, sidebar, revalidates.
+5. **Não** alterar Funil Crédito Terreno nem colunas legadas `credito_terreno` no painel Step 4.
+
+---
+
+## PROMPT 2 — Registrar slugs das fases em `kanban-ids.ts`
+
+Fluxo ativo (migration 494, ordem 1–13):
+
+```
+  ordem 1  | slug: co_novo_projeto               | 'Novo Projeto'
+  ordem 2  | slug: co_book                        | 'Book'
+  ordem 3  | slug: co_envio_cashme                | 'Envio p/ Parceiros'
+  ordem 4  | slug: co_documentacao_alvara         | 'Docs Alvará e Terreno SPE'
+  ordem 5  | slug: co_validacao_contrato          | 'Validando o Contrato'
+  ordem 6  | slug: co_contrato_assinaturas        | 'Assinaturas das 3 Partes'
+  ordem 7  | slug: co_followup_cartorio           | 'FUP Cartório'
+  ordem 8  | slug: co_aguardando_1a_tranche       | 'Aguardando Tranche'
+  ordem 9  | slug: co_solicitacao_tranche         | 'Necessidade de Tranche'
+  ordem 10 | slug: co_sharepoint_cashme           | 'SharePoint + Email'
+  ordem 11 | slug: co_acompanhamento_tranche      | 'Liberando Tranche'
+  ordem 12 | slug: co_necessidade_3a_tranche      | 'Captação adicional'
+  ordem 13 | slug: co_sharepoint_3a               | 'Concluídos'              ← terminal / conversão
+```
+
+**Inativas (legado):** `co_outro_parceiro`, tranches 4ª–6ª, `co_acompanhamento_3a`, `credito_obra_aprovado`, `credito_obra_reprovado`.
+
+**Bastões de volta / desfecho:** `CO_OUTRO_PARCEIRO`, `CO_SHAREPOINT_3A` → flag `credito_obra_ok` no card pai.
+
+---
+
+## PROMPT 3 — Tag "Aguardando Documentação" (`co_documentacao_alvara`)
+
+- Migration `229_kanban_credito_obra_documentacao_sla.sql`: `alvara_url`, `docs_terreno_url`, `sla_iniciado_em` em `kanban_cards`.
+- Enquanto faltar URL: tag `Aguardando Documentação` (`moni-tag-atencao`), SLA pausado.
+- Ambos preenchidos: `sla_iniciado_em = now()`, SLA conta a partir daí.
+- `src/lib/kanban/kanban-card-sla.ts`, `kanban-credito-obra-docs.ts`, hook em `moverCardParaFase`, UI no modal/coluna.

@@ -1,0 +1,2 @@
+[functions.status-preenchimento-email]
+schedule = "0 11 * * 5"

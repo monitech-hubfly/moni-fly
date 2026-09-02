@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import {
   addLoteListing,
   deleteLoteListing,
-  saveZapItemsEtapa5,
   saveLoteEscolhidoEtapa4,
 } from './actions';
 
@@ -94,6 +93,7 @@ export function Etapa5Lotes(props: {
           cidade: city,
           estado: state,
           condominio: condominio.trim() || undefined,
+          processoId,
         }),
       });
       const data = await res.json();
@@ -104,14 +104,11 @@ export function Etapa5Lotes(props: {
         return;
       }
 
-      const items = Array.isArray(data.items) ? data.items : [];
-      const saveResult = await saveZapItemsEtapa5(processoId, items);
-
-      if (saveResult.ok) {
-        setZapResult({ inserted: saveResult.inserted });
+      if (data.saved) {
+        setZapResult({ inserted: data.inserted ?? 0 });
         router.refresh();
       } else {
-        setZapError(saveResult.error);
+        setZapError('Resposta inesperada da API (dados não salvos).');
       }
     } catch (err) {
       setZapError(err instanceof Error ? err.message : 'Falha ao chamar a API.');

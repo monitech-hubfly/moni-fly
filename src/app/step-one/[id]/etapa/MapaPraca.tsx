@@ -34,7 +34,7 @@ const CATEGORIES: {
     key: 'supermarket',
     label: 'Supermercados',
     overpassTag: 'shop=supermarket',
-    color: '#ea580c',
+    color: '#4d7a62',
     symbol: 'M',
   },
   { key: 'park', label: 'Parques', overpassTag: 'leisure=park', color: '#16a34a', symbol: 'P' },
@@ -49,41 +49,59 @@ const CATEGORIES: {
   },
 ];
 
+/** Categorias desmarcadas por padrão — só aparecem no mapa após clique. */
+const CATEGORIES_OPT_IN: PoiCategory[] = ['clinic', 'square', 'bank', 'pharmacy'];
+
+const PIN_SIZE = 16;
+
+function initialVisibleCategories(): Set<PoiCategory> {
+  return new Set(CATEGORIES.filter((c) => !CATEGORIES_OPT_IN.includes(c.key)).map((c) => c.key));
+}
+
 export type Poi = { lat: number; lon: number; name: string; category: PoiCategory };
 
 export type Road = { name: string; coordinates: [number, number][] };
 
-type MapData = {
-  pois: Poi[];
-  roads: Road[];
-  bbox: { centerLat: number; centerLon: number };
-};
-
-async function fetchMapData(
+async function fetchMapCenter(
   cidade: string,
   estado: string | null,
-): Promise<{ data: MapData } | { error: string }> {
+): Promise<{ centerLat: number; centerLon: number } | { error: string }> {
+  const params = new URLSearchParams({ cidade: cidade.trim(), centerOnly: '1' });
+  if (estado?.trim()) params.set('estado', estado.trim());
+  const res = await fetch(`/api/etapa1/mapa-pois?${params.toString()}`);
+  const data = (await res.json()) as {
+    bbox?: { centerLat: number; centerLon: number };
+    error?: string;
+  };
+  if (!res.ok) {
+    return { error: data.error ?? 'Não foi possível localizar o município.' };
+  }
+  if (data.bbox?.centerLat == null || data.bbox?.centerLon == null) {
+    return { error: 'Não foi possível localizar o município.' };
+  }
+  return { centerLat: data.bbox.centerLat, centerLon: data.bbox.centerLon };
+}
+
+async function fetchMapPois(
+  cidade: string,
+  estado: string | null,
+): Promise<{ pois: Poi[]; roads: Road[]; warning?: string } | { error: string }> {
   const params = new URLSearchParams({ cidade: cidade.trim() });
   if (estado?.trim()) params.set('estado', estado.trim());
   const res = await fetch(`/api/etapa1/mapa-pois?${params.toString()}`);
   const data = (await res.json()) as {
     pois?: Poi[];
     roads?: Road[];
-    bbox?: { centerLat: number; centerLon: number };
+    warning?: string;
     error?: string;
   };
   if (!res.ok) {
-    return { error: data.error ?? 'Erro ao carregar equipamentos.' };
-  }
-  if (!data.bbox?.centerLat || data.bbox?.centerLon == null) {
-    return { error: 'Resposta inválida do servidor.' };
+    return { error: data.error ?? 'Equipamentos urbanos temporariamente indisponíveis.' };
   }
   return {
-    data: {
-      pois: Array.isArray(data.pois) ? data.pois : [],
-      roads: Array.isArray(data.roads) ? data.roads : [],
-      bbox: { centerLat: data.bbox.centerLat, centerLon: data.bbox.centerLon },
-    },
+    pois: Array.isArray(data.pois) ? data.pois : [],
+    roads: Array.isArray(data.roads) ? data.roads : [],
+    warning: data.warning,
   };
 }
 
@@ -137,7 +155,7 @@ function MapView({
     for (const road of roads) {
       const latLngs = road.coordinates.map(([lat, lon]) => [lat, lon] as [number, number]);
       const polyline = L.polyline(latLngs, {
-        color: '#b45309',
+        color: '#b08a3e',
         weight: 4,
         opacity: 0.8,
       });
@@ -167,10 +185,10 @@ function MapView({
     for (const cat of CATEGORIES) {
       const catConfig = CATEGORIES.find((c) => c.key === cat.key)!;
       const icon = L.divIcon({
-        className: 'custom-marker',
-        html: `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:${catConfig.color};color:white;font-size:11px;font-weight:bold;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);">${catConfig.symbol}</span>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+        className: 'moni-mapa-poi-marker',
+        html: `<span style="display:inline-flex;align-items:center;justify-content:center;width:${PIN_SIZE}px;height:${PIN_SIZE}px;border-radius:50%;background:${catConfig.color};color:white;font-size:8px;font-weight:bold;border:1.5px solid white;box-shadow:0 1px 2px rgba(0,0,0,0.25);">${catConfig.symbol}</span>`,
+        iconSize: [PIN_SIZE, PIN_SIZE],
+        iconAnchor: [PIN_SIZE / 2, PIN_SIZE / 2],
       });
       const group = L.layerGroup();
       const pois = poisByCat.get(cat.key) ?? [];
@@ -182,12 +200,6 @@ function MapView({
       layerGroups[cat.key] = group;
     }
     layerGroupsRef.current = layerGroups;
-
-    // Adicionar todos os grupos ao mapa logo após criar; o effect abaixo só mostra/oculta conforme os checkboxes
-    for (const cat of CATEGORIES) {
-      const group = layerGroups[cat.key];
-      if (group) map.addLayer(group);
-    }
 
     return () => {
       map.remove();
@@ -236,12 +248,12 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
   const [allPois, setAllPois] = useState<Poi[]>([]);
   const [roads, setRoads] = useState<Road[]>([]);
   const [center, setCenter] = useState<{ lat: number; lon: number } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingCenter, setLoadingCenter] = useState(true);
+  const [loadingPois, setLoadingPois] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [visibleCategories, setVisibleCategories] = useState<Set<PoiCategory>>(
-    () => new Set(CATEGORIES.map((c) => c.key)),
-  );
-  const [showRoads, setShowRoads] = useState(true);
+  const [loadWarning, setLoadWarning] = useState<string | null>(null);
+  const [visibleCategories, setVisibleCategories] = useState<Set<PoiCategory>>(initialVisibleCategories);
+  const [showRoads, setShowRoads] = useState(false);
 
   const toggleCategory = useCallback((key: PoiCategory) => {
     setVisibleCategories((prev) => {
@@ -254,29 +266,54 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
 
   useEffect(() => {
     if (!cidade.trim()) {
-      setLoading(false);
+      setLoadingCenter(false);
       return;
     }
-    setLoading(true);
+    let cancelled = false;
+
+    setLoadingCenter(true);
+    setLoadingPois(false);
     setLoadError(null);
-    fetchMapData(cidade, estado)
-      .then((result) => {
-        if ('error' in result) {
-          setLoadError(result.error);
-          setAllPois([]);
-          setRoads([]);
-          setCenter(null);
-        } else {
-          setAllPois(result.data.pois);
-          setRoads(result.data.roads);
-          setCenter({ lat: result.data.bbox.centerLat, lon: result.data.bbox.centerLon });
+    setLoadWarning(null);
+    setAllPois([]);
+    setRoads([]);
+    setCenter(null);
+
+    void fetchMapCenter(cidade, estado)
+      .then((centerResult) => {
+        if (cancelled) return;
+        if ('error' in centerResult) {
+          setLoadError(centerResult.error);
+          return;
         }
+        setCenter({ lat: centerResult.centerLat, lon: centerResult.centerLon });
+        setLoadingCenter(false);
+        setLoadingPois(true);
+
+        return fetchMapPois(cidade, estado).then((poiResult) => {
+          if (cancelled) return;
+          if ('error' in poiResult) {
+            setLoadWarning(poiResult.error);
+            return;
+          }
+          setAllPois(poiResult.pois);
+          setRoads(poiResult.roads);
+          setLoadWarning(poiResult.warning ?? null);
+        });
       })
       .catch(() => {
-        setLoadError('Erro de conexão ao carregar equipamentos.');
-        setCenter(null);
+        if (!cancelled) setLoadError('Erro de conexão ao carregar o mapa.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingCenter(false);
+          setLoadingPois(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [cidade, estado]);
 
   return (
@@ -290,21 +327,21 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
         (OpenStreetMap + Overpass).
       </p>
 
-      <div className="space-y-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span className="w-full text-xs font-semibold uppercase text-stone-500 sm:w-auto">
+      <div className="space-y-2 rounded-lg border border-stone-200 bg-stone-50 p-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="w-full text-[10px] font-semibold uppercase tracking-wide text-stone-500 sm:w-auto">
             Exibir no mapa:
           </span>
-          <label className="flex cursor-pointer select-none items-center gap-2 text-sm">
+          <label className="flex cursor-pointer select-none items-center gap-1.5 text-xs">
             <input
               type="checkbox"
               checked={showRoads}
               onChange={(e) => setShowRoads(e.target.checked)}
-              className="h-4 w-4 rounded border-stone-300"
+              className="h-3.5 w-3.5 rounded border-stone-300"
             />
             <span
-              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-              style={{ backgroundColor: '#b45309' }}
+              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
+              style={{ backgroundColor: 'var(--moni-gold-600)' }}
               title="Vias"
             >
               V
@@ -314,16 +351,16 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
           {CATEGORIES.map((cat) => (
             <label
               key={cat.key}
-              className="flex cursor-pointer select-none items-center gap-2 text-sm"
+              className="flex cursor-pointer select-none items-center gap-1.5 text-xs"
             >
               <input
                 type="checkbox"
                 checked={visibleCategories.has(cat.key)}
                 onChange={() => toggleCategory(cat.key)}
-                className="h-4 w-4 rounded border-stone-300"
+                className="h-3.5 w-3.5 rounded border-stone-300"
               />
               <span
-                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
                 style={{ backgroundColor: cat.color }}
                 title={cat.label}
               >
@@ -333,34 +370,19 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
             </label>
           ))}
         </div>
-        {roads.length > 0 && (
-          <div className="mt-2 border-t border-stone-200 pt-2">
-            <p className="mb-1.5 text-xs font-semibold uppercase text-stone-500">
-              Principais vias exibidas:
-            </p>
-            <ul className="flex list-none flex-wrap gap-x-3 gap-y-1 text-sm text-stone-700">
-              {roads
-                .filter((r) => r.name.trim())
-                .map((r, i) => (
-                  <li key={`${r.name}-${i}`} className="flex items-center gap-1.5">
-                    <span
-                      className="inline-block h-0.5 w-2 shrink-0 rounded bg-amber-600"
-                      aria-hidden
-                    />
-                    <span>{r.name}</span>
-                  </li>
-                ))}
-            </ul>
-            {roads.filter((r) => r.name.trim()).length === 0 && (
-              <p className="text-sm text-stone-500">Vias sem nome cadastrado no mapa base.</p>
-            )}
-          </div>
-        )}
       </div>
 
-      {loading && <p className="text-sm text-stone-500">Carregando mapa e equipamentos…</p>}
+      {loadingCenter && <p className="text-sm text-stone-500">Localizando município…</p>}
+      {loadingPois && !loadError && (
+        <p className="text-sm text-stone-500">Carregando equipamentos urbanos…</p>
+      )}
       {loadError && <p className="text-sm text-red-600">{loadError}</p>}
-      {!loading && !loadError && center && (
+      {loadWarning && !loadError && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {loadWarning}
+        </p>
+      )}
+      {!loadingCenter && !loadError && center && (
         <MapView
           cidade={cidade}
           estado={estado}

@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { MoniFooter } from '@/components/MoniFooter';
 import { normalizeAccessRole } from '@/lib/authz';
 import { TEAM_SEED_BY_EMAIL } from '@/lib/team-seed-signup';
+import { TIMES_MONI } from '@/lib/times-responsaveis';
 import { notifySignupComplete } from './actions';
 
 type TabKey = 'entrar' | 'cadastro';
@@ -33,6 +34,20 @@ function mapAuthRateLimitMessage(raw: string): string | null {
   return 'Por segurança, aguarde alguns segundos antes de tentar novamente.';
 }
 
+/** Limite de envio de e-mail / cadastros (GoTrue), distinto do “security purposes”. */
+function mapEmailSignupRateLimitMessage(raw: string): string | null {
+  const lower = (raw ?? '').trim().toLowerCase();
+  if (
+    lower.includes('email rate limit') ||
+    lower.includes('rate limit exceeded') ||
+    lower.includes('over_email_send_rate_limit') ||
+    lower.includes('too_many_requests')
+  ) {
+    return 'Limite de cadastros atingido. Tente novamente em alguns minutos.';
+  }
+  return null;
+}
+
 /** Mensagens conhecidas do Auth (Supabase / GoTrue); ajuste se o texto do servidor mudar. */
 function mapKnownSignupAuthMessages(raw: string): string | null {
   const m = (raw ?? '').trim();
@@ -40,6 +55,9 @@ function mapKnownSignupAuthMessages(raw: string): string | null {
 
   const rate = mapAuthRateLimitMessage(m);
   if (rate) return rate;
+
+  const emailRate = mapEmailSignupRateLimitMessage(m);
+  if (emailRate) return emailRate;
 
   if (lower.includes('email not confirmed')) {
     return 'Verifique seu e-mail para confirmar o cadastro.';
@@ -52,7 +70,10 @@ function mapKnownSignupAuthMessages(raw: string): string | null {
   ) {
     return 'Este e-mail já está cadastrado. Use a opção Entrar.';
   }
-  if (lower.includes('email domain not allowed') || (lower.includes('domain') && lower.includes('not allowed'))) {
+  if (
+    lower.includes('email domain not allowed') ||
+    (lower.includes('email') && lower.includes('domain') && lower.includes('not allowed'))
+  ) {
     return `Use um e-mail @${ALLOWED_EMAIL_DOMAIN} para se cadastrar.`;
   }
   if (lower.includes('password should be at least') || /password.*at least\s*\d+/i.test(m)) {
@@ -126,8 +147,15 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()) {
+        setError(
+          'Configuração incompleta: faltam NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY no build (ex.: .env.local). O login não pode conectar ao Supabase.',
+        );
+        setLoading(false);
+        return;
+      }
       const supabase = createClient();
-      const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: signInData, error: err } = await supabase.auth.signInWithPassword({ email, password });
       if (err) {
         setError(
           err.message === 'Invalid login credentials'
@@ -137,22 +165,38 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
+      // Aguarda o cookie de sessão propagar antes de ler claims/metadata do JWT
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const sessionUser = signInData.session?.user ?? null;
       const {
-        data: { user },
+        data: { user: refreshedUser },
       } = await supabase.auth.getUser();
-      if (!user) {
+      const u = refreshedUser ?? sessionUser;
+      if (!u) {
         setError('Sessão não encontrada após login.');
         setLoading(false);
         return;
       }
-      const { data: profile } = await supabase
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', user.id)
+        .eq('id', u.id)
         .maybeSingle();
+
+      if (profileError) {
+        console.error('[login] profiles read:', profileError.message, profileError);
+        setError(
+          `Não foi possível ler seu perfil (${profileError.message}). Verifique se o id em profiles coincide com o usuário em Authentication e se a política RLS de leitura permite o próprio utilizador.`,
+        );
+        setLoading(false);
+        return;
+      }
+
       const role = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
       if (role === 'pending') {
-        router.push('/login?status=pending');
+        router.push('/treinamento-bca/leitura');
         router.refresh();
         setLoading(false);
         return;
@@ -163,10 +207,24 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      router.push(role === 'admin' ? (next || '/dashboard-novos-negocios') : '/rede-franqueados');
+      if (role === 'admin' || role === 'team') {
+        router.push(searchParams.get('next') || '/carometro/todo-planning');
+      } else if (role === 'frank') {
+        router.push('/portal-frank');
+      } else {
+        router.push('/rede-franqueados');
+      }
       router.refresh();
-    } catch {
-      setError('Erro ao entrar. Tente de novo.');
+    } catch (unknownErr) {
+      const raw =
+        unknownErr instanceof Error
+          ? unknownErr.message
+          : typeof unknownErr === 'string'
+            ? unknownErr
+            : String(unknownErr);
+      console.error('[login] exceção não tratada:', unknownErr);
+      const mapped = mapLoginAuthErrorMessage(raw) || supabaseNetworkErrorHint(raw);
+      setError(mapped && mapped !== raw ? mapped : raw ? `Erro ao entrar: ${raw}` : 'Erro ao entrar. Tente de novo.');
       setLoading(false);
     }
   };
@@ -200,7 +258,6 @@ export default function LoginPage() {
         options: { data: { full_name: fullName, nome_completo: fullName, departamento } },
       });
       if (err) {
-        console.error('[login/signup] signUp error (mensagem Supabase):', err.message, err);
         setError(signupErrorUserMessage(err.message));
         setLoading(false);
         return;
@@ -212,27 +269,31 @@ export default function LoginPage() {
       if (user?.id) {
         const role = seeded?.role ?? 'pending';
         const dept = seeded?.departamento ?? departamento.trim();
-        await supabase
-          .from('profiles')
-          .update({
-            role,
-            full_name: fullName,
-            nome_completo: fullName,
-            departamento: dept,
-            // Sem seed na lista → pending (sem aprovação); com seed → já liberado
-            aprovado_em: seeded ? new Date().toISOString() : null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', user.id);
+        const baseUpdate = {
+          role,
+          full_name: fullName,
+          nome_completo: fullName,
+          departamento: dept,
+          // Sem seed na lista → pending (sem aprovação); com seed → já liberado
+          aprovado_em: seeded ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        };
+        const cargoUpdate =
+          seeded?.role === 'team'
+            ? { cargo: seeded.cargo ?? 'analista' }
+            : {};
+        await supabase.from('profiles').update({ ...baseUpdate, ...cargoUpdate }).eq('id', user.id);
       }
 
       await notifySignupComplete();
 
       if (!seeded) {
-        router.push('/login?status=pending');
+        router.push('/treinamento-bca/leitura');
       } else {
         const role = normalizeAccessRole(seeded.role);
-        router.push(role === 'admin' ? '/dashboard-novos-negocios' : '/rede-franqueados');
+        if (role === 'admin' || role === 'team') router.push('/carometro/todo-planning');
+        else if (role === 'frank') router.push('/portal-frank');
+        else router.push('/rede-franqueados');
       }
       router.refresh();
     } catch (unknownErr) {
@@ -242,7 +303,6 @@ export default function LoginPage() {
           : typeof unknownErr === 'string'
             ? unknownErr
             : String(unknownErr);
-      console.error('[login/signup] cadastro exceção (mensagem bruta):', raw, unknownErr);
       setError(signupErrorUserMessage(raw) || raw || 'Erro ao cadastrar.');
     } finally {
       setLoading(false);
@@ -282,7 +342,11 @@ export default function LoginPage() {
                 </p>
                 {status === 'pending' && (
                   <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                    Seu cadastro está pendente de aprovação do administrador.
+                    Seu cadastro está pendente de aprovação do administrador. Enquanto isso, você pode usar apenas o{' '}
+                    <Link href="/treinamento-bca/leitura" className="font-medium underline">
+                      manual BCA (link público)
+                    </Link>
+                    .
                   </p>
                 )}
                 {status === 'blocked' && (
@@ -368,14 +432,20 @@ export default function LoginPage() {
                     <label htmlFor="departamento" className="block text-sm font-medium text-stone-700">
                       Departamento
                     </label>
-                    <input
+                    <select
                       id="departamento"
-                      type="text"
                       value={departamento}
                       onChange={(e) => setDepartamento(e.target.value)}
                       className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-moni-accent focus:outline-none focus:ring-1 focus:ring-moni-accent"
                       required
-                    />
+                    >
+                      <option value="">Selecione o time</option>
+                      {TIMES_MONI.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label htmlFor="password-cad" className="block text-sm font-medium text-stone-700">

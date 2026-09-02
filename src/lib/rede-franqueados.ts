@@ -4,20 +4,111 @@
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { isCadastroValorVazio } from '@/lib/cadastro-linha-em-branco';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { pickRedeEmpresaDocsFromRow, type RedeEmpresaDocsRow } from '@/lib/rede-documentos-empresas';
+import { pickRedeFranqueadoDocsFromRow, type RedeFranqueadoDocsRow } from '@/lib/rede-documentos-franqueado';
+import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
+import { normalizarParaBusca } from '@/lib/painel-tarefas-filtros';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+const ORDEM_FALLBACK_FK_MAX = 9999;
+
+function extrairNumeroFranquiaDeTexto(bruto: string): number | null {
+  const fk = bruto.match(/fk\s*0*(\d+)/i);
+  if (fk) {
+    const n = parseInt(fk[1] ?? '', 10);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  if (/^\d+$/.test(bruto)) {
+    const n = parseInt(bruto, 10);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  const norm = normalizeNFranquiaCsv(bruto);
+  if (norm) {
+    const m = norm.match(/(\d+)$/);
+    if (m) {
+      const n = parseInt(m[1] ?? '', 10);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+  }
+  return null;
+}
+
+/** Chave canônica FK0000… para ordenação e exibição (mesma regra nos dois lugares). */
+export function canonicalNFranquiaRede(
+  n_franquia: string | number | null | undefined,
+  ordem?: number | null,
+): string {
+  if (n_franquia !== null && n_franquia !== undefined) {
+    const bruto = String(n_franquia).trim();
+    if (bruto) {
+      const n = extrairNumeroFranquiaDeTexto(bruto);
+      if (n !== null) return `FK${String(n).padStart(4, '0')}`;
+    }
+  }
+  if (
+    typeof ordem === 'number' &&
+    Number.isFinite(ordem) &&
+    ordem >= 0 &&
+    ordem <= ORDEM_FALLBACK_FK_MAX
+  ) {
+    return `FK${String(ordem).padStart(4, '0')}`;
+  }
+  return '';
+}
+
+export function formatNFranquiaRedeExibicao(
+  n_franquia: string | number | null | undefined,
+  ordem?: number | null,
+): string {
+  return canonicalNFranquiaRede(n_franquia, ordem);
+}
+
+export function compareRedePorNFranquia(
+  a: { n_franquia?: string | null; ordem?: number | null; id?: string },
+  b: { n_franquia?: string | null; ordem?: number | null; id?: string },
+): number {
+  const ka = canonicalNFranquiaRede(a.n_franquia, a.ordem) || 'ZZZZZZ';
+  const kb = canonicalNFranquiaRede(b.n_franquia, b.ordem) || 'ZZZZZZ';
+  const d = ka.localeCompare(kb, 'pt-BR', { sensitivity: 'base' });
+  if (d !== 0) return d;
+  return String(a.id ?? '').localeCompare(String(b.id ?? ''));
+}
+
+export function ordenarRedePorNFranquia<
+  T extends { n_franquia?: string | null; ordem?: number | null; id?: string },
+>(rows: T[]): T[] {
+  return [...rows].sort(compareRedePorNFranquia);
+}
+
+/** Linha sem nome (só Nº/tracinhos) — não entra na tabela nem nos totais da rede. */
+export function isRedeFranqueadoLinhaEmBranco(row: {
+  n_franquia?: string | number | null;
+  nome_completo?: string | null;
+  nome?: string | null;
+}): boolean {
+  return isCadastroValorVazio(row.nome_completo ?? row.nome);
+}
+
+export function filtrarLinhasEmBrancoRedeFranqueados<
+  T extends { n_franquia?: string | number | null; nome_completo?: string | null; nome?: string | null },
+>(rows: T[]): T[] {
+  return rows.filter((r) => !isRedeFranqueadoLinhaEmBranco(r));
+}
 
 export const COLUNAS_REDE_FRANQUEADOS = [
   'N de Franquia',
-  'Modalidade',
   'Nome Completo do Franqueado',
   'Status da Franquia',
   'Classificação do Franqueado',
+  'Modalidade',
   'Data de Ass. COF',
   'Data de Ass. Contrato',
   'Data de Expiração da Franquia',
   'Regional',
   'Área de Atuação da Franquia',
   'E-mail do Frank',
-  'Responsável Comercial',
   'Telefone do Frank',
   'CPF do Frank',
   'Data de Nasc. Frank',
@@ -41,10 +132,10 @@ export type RedeFranqueadosData = {
 
 export const REDE_FRANQUEADOS_DB_KEYS = [
   'n_franquia',
-  'modalidade',
   'nome_completo',
   'status_franquia',
   'classificacao_franqueado',
+  'modalidade',
   'data_ass_cof',
   'data_ass_contrato',
   'data_expiracao_franquia',
@@ -67,13 +158,76 @@ export const REDE_FRANQUEADOS_DB_KEYS = [
 ] as const;
 
 export type RedeFranqueadoDbKey = (typeof REDE_FRANQUEADOS_DB_KEYS)[number];
+
+/** Colunas mantidas no banco/CSV mas ocultas na planilha `/rede-franqueados`. */
+export const REDE_COLUNAS_OCULTAS_TABELA: readonly RedeFranqueadoDbKey[] = ['responsavel_comercial'] as const;
+
+const REDE_COLUNAS_OCULTAS_TABELA_SET = new Set<RedeFranqueadoDbKey>(REDE_COLUNAS_OCULTAS_TABELA);
+
+/** Chaves exibidas na tabela editável (alinhadas a `COLUNAS_REDE_FRANQUEADOS`). */
+export const REDE_FRANQUEADOS_TABLE_KEYS = REDE_FRANQUEADOS_DB_KEYS.filter(
+  (k) => !REDE_COLUNAS_OCULTAS_TABELA_SET.has(k),
+);
+
+/** Dados pessoais/endereço do Frank — visíveis para admin e times ADM / Controladoria na tabela. */
+export const REDE_COLUNAS_DADOS_SENSIVEIS: readonly RedeFranqueadoDbKey[] = [
+  'cpf_frank',
+  'data_nasc_frank',
+  'endereco_casa_frank',
+  'endereco_casa_frank_numero',
+  'endereco_casa_frank_complemento',
+  'cep_casa_frank',
+  'estado_casa_frank',
+  'cidade_casa_frank',
+  'tamanho_camisa_frank',
+  'socios',
+  'data_recebimento_kit_boas_vindas',
+] as const;
+
+const REDE_COLUNAS_SENSIVEIS_SET = new Set<RedeFranqueadoDbKey>(REDE_COLUNAS_DADOS_SENSIVEIS);
+
+export function isRedeColunaDadoSensivel(key: RedeFranqueadoDbKey): boolean {
+  return REDE_COLUNAS_SENSIVEIS_SET.has(key);
+}
 export type RedeFranqueadoRowDb = Record<RedeFranqueadoDbKey, string | null> & {
   id: string;
   ordem: number;
   processo_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
-};
+  anexo_cof_path?: string | null;
+  anexo_contrato_path?: string | null;
+  anexo_numero_franquia_path?: string | null;
+  anexo_cof_justificativa?: string | null;
+  anexo_contrato_justificativa?: string | null;
+  anexo_numero_franquia_justificativa?: string | null;
+  // ── Diagnóstico (migration 508) ──────────────────────────────────────────
+  /** 0=Não tem | 2=Moderado | 3=Tem | null=Não aferido */
+  diag_d?: number | null;
+  diag_c?: number | null;
+  diag_k?: number | null;
+  diag_d_desc?: string | null;
+  diag_c_desc?: string | null;
+  diag_k_desc?: string | null;
+  /** NPS 0–10 (≤6 detrator, ≤8 neutro, >8 promotor) */
+  diag_nps?: number | null;
+  /** CSAT 1.0–5.0 */
+  diag_csat?: number | null;
+  diag_contratos_12m?: number | null;
+  diag_ano_meta?: number | null;
+  diag_tend_eng?: '↑' | '→' | '↓' | null;
+  diag_tend_rel?: '↑' | '→' | '↓' | null;
+  diag_tend_ind?: '↑' | '→' | '↓' | null;
+  diag_proxima_acao?: string | null;
+  diag_adormecido?: boolean;
+  /** true=adimplente | false=inadimplente | null=não aferido */
+  diag_adimplente?: boolean | null;
+  diag_ultimo_contato?: string | null;
+  diag_ultima_aval?: string | null;
+  diag_avaliado_por?: string | null;
+  diag_grupo_sec?: string | null;
+} & RedeFranqueadoDocsRow &
+  RedeEmpresaDocsRow;
 
 type RowDb = Record<RedeFranqueadoDbKey, string | null>;
 type OldRow = {
@@ -96,10 +250,10 @@ function formatDate(val: string | null | undefined): string {
 function rowToArray(r: RowAny): string[] {
   return [
     r.n_franquia ?? r.unidade ?? '',
-    (r as unknown as { modalidade?: string | null }).modalidade ?? '',
     r.nome_completo ?? r.nome ?? '',
     r.status_franquia ?? '',
     r.classificacao_franqueado ?? '',
+    (r as unknown as { modalidade?: string | null }).modalidade ?? '',
     formatDate(r.data_ass_cof),
     formatDate(r.data_ass_contrato),
     formatDate(r.data_expiracao_franquia),
@@ -128,13 +282,12 @@ function rowToArray(r: RowAny): string[] {
 export async function fetchRedeFranqueados(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeFranqueadosData> {
-  const { data, error } = await supabase
-    .from('rede_franqueados')
-    .select('*')
-    .order('ordem', { ascending: true });
+  const { data, error } = await supabase.from('rede_franqueados').select('*');
 
   if (error) return null;
-  const list = data || [];
+  const list = ordenarRedePorNFranquia(
+    filtrarLinhasEmBrancoRedeFranqueados((data || []) as RowAny[]),
+  );
   const rows = list.map((r) => rowToArray(r as RowAny));
   const activeCount = list.filter((r) => {
     const s = String((r as { status_franquia?: string | null })?.status_franquia ?? '').toLowerCase();
@@ -154,10 +307,260 @@ export async function fetchRedeFranqueados(
 export async function fetchRedeFranqueadosRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeFranqueadoRowDb[] | null> {
-  const { data, error } = await supabase
-    .from('rede_franqueados')
-    .select('*')
-    .order('ordem', { ascending: true });
+  const { data, error } = await supabase.from('rede_franqueados').select('*');
   if (error) return null;
-  return (data ?? []) as RedeFranqueadoRowDb[];
+  return ordenarRedePorNFranquia(
+    filtrarLinhasEmBrancoRedeFranqueados((data ?? []) as RedeFranqueadoRowDb[]),
+  );
+}
+
+export type RedeFranqueadoDetalheRow = {
+  id: string;
+  ordem?: number;
+  status_franquia?: string | null;
+  nome_completo: string | null;
+  n_franquia: string | null;
+  anexo_cof_path: string | null;
+  anexo_contrato_path: string | null;
+  anexo_numero_franquia_path: string | null;
+  anexo_cof_justificativa: string | null;
+  anexo_contrato_justificativa: string | null;
+  anexo_numero_franquia_justificativa: string | null;
+  diag_d?: number | null;
+  diag_c?: number | null;
+  diag_k?: number | null;
+  diag_d_desc?: string | null;
+  diag_c_desc?: string | null;
+  diag_k_desc?: string | null;
+  diag_nps?: number | null;
+  diag_csat?: number | null;
+  diag_contratos_12m?: number | null;
+  diag_ano_meta?: number | null;
+  diag_tend_eng?: '↑' | '→' | '↓' | null;
+  diag_tend_rel?: '↑' | '→' | '↓' | null;
+  diag_tend_ind?: '↑' | '→' | '↓' | null;
+  diag_proxima_acao?: string | null;
+  diag_adormecido?: boolean;
+  /** true=adimplente | false=inadimplente | null=não aferido */
+  diag_adimplente?: boolean | null;
+  diag_ultimo_contato?: string | null;
+  diag_ultima_aval?: string | null;
+  diag_avaliado_por?: string | null;
+  diag_grupo_sec?: string | null;
+} & RedeFranqueadoDocsRow &
+  RedeEmpresaDocsRow;
+
+function pickRedeDiagnosticoFromRow(r: Record<string, unknown>) {
+  return {
+    ordem: typeof r.ordem === 'number' ? r.ordem : Number(r.ordem ?? 0) || 0,
+    status_franquia: (r.status_franquia as string | null) ?? null,
+    diag_d: (r.diag_d as number | null | undefined) ?? null,
+    diag_c: (r.diag_c as number | null | undefined) ?? null,
+    diag_k: (r.diag_k as number | null | undefined) ?? null,
+    diag_d_desc: (r.diag_d_desc as string | null) ?? null,
+    diag_c_desc: (r.diag_c_desc as string | null) ?? null,
+    diag_k_desc: (r.diag_k_desc as string | null) ?? null,
+    diag_nps: (r.diag_nps as number | null | undefined) ?? null,
+    diag_csat: (r.diag_csat as number | null | undefined) ?? null,
+    diag_contratos_12m: (r.diag_contratos_12m as number | null | undefined) ?? null,
+    diag_ano_meta: (r.diag_ano_meta as number | null | undefined) ?? null,
+    diag_tend_eng: (r.diag_tend_eng as '↑' | '→' | '↓' | null) ?? null,
+    diag_tend_rel: (r.diag_tend_rel as '↑' | '→' | '↓' | null) ?? null,
+    diag_tend_ind: (r.diag_tend_ind as '↑' | '→' | '↓' | null) ?? null,
+    diag_proxima_acao: (r.diag_proxima_acao as string | null) ?? null,
+    diag_adormecido: r.diag_adormecido === true,
+    diag_adimplente:
+      r.diag_adimplente === true ? true : r.diag_adimplente === false ? false : null,
+    diag_ultimo_contato: (r.diag_ultimo_contato as string | null) ?? null,
+    diag_ultima_aval: (r.diag_ultima_aval as string | null) ?? null,
+    diag_avaliado_por: (r.diag_avaliado_por as string | null) ?? null,
+    diag_grupo_sec: (r.diag_grupo_sec as string | null) ?? null,
+  };
+}
+
+async function queryRedeFranqueadoDetalhe(
+  client: SupabaseClient,
+  id: string,
+): Promise<{ row: RedeFranqueadoDetalheRow | null; error: string | null }> {
+  const full = await client.from('rede_franqueados').select('*').eq('id', id).maybeSingle();
+  if (!full.error && full.data) {
+    const r = full.data as Record<string, unknown>;
+    return {
+      row: {
+        id: String(r.id),
+        nome_completo: (r.nome_completo as string | null) ?? null,
+        n_franquia: (r.n_franquia as string | null) ?? null,
+        anexo_cof_path: (r.anexo_cof_path as string | null) ?? null,
+        anexo_contrato_path: (r.anexo_contrato_path as string | null) ?? null,
+        anexo_numero_franquia_path: (r.anexo_numero_franquia_path as string | null) ?? null,
+        anexo_cof_justificativa: (r.anexo_cof_justificativa as string | null) ?? null,
+        anexo_contrato_justificativa: (r.anexo_contrato_justificativa as string | null) ?? null,
+        anexo_numero_franquia_justificativa: (r.anexo_numero_franquia_justificativa as string | null) ?? null,
+        ...pickRedeDiagnosticoFromRow(r),
+        ...pickRedeFranqueadoDocsFromRow(r),
+        ...pickRedeEmpresaDocsFromRow(r),
+      },
+      error: null,
+    };
+  }
+
+  const minimal = await client
+    .from('rede_franqueados')
+    .select('id, nome_completo, n_franquia, anexo_cof_path, anexo_contrato_path')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (minimal.error) return { row: null, error: minimal.error.message };
+  if (!minimal.data) return { row: null, error: null };
+
+  const m = minimal.data as Record<string, unknown>;
+  return {
+    row: {
+      id: String(m.id),
+      nome_completo: (m.nome_completo as string | null) ?? null,
+      n_franquia: (m.n_franquia as string | null) ?? null,
+      anexo_cof_path: (m.anexo_cof_path as string | null) ?? null,
+      anexo_contrato_path: (m.anexo_contrato_path as string | null) ?? null,
+      anexo_numero_franquia_path: null,
+      anexo_cof_justificativa: null,
+      anexo_contrato_justificativa: null,
+      anexo_numero_franquia_justificativa: null,
+      ...pickRedeFranqueadoDocsFromRow({}),
+      ...pickRedeEmpresaDocsFromRow({}),
+    },
+    error: null,
+  };
+}
+
+/** Carrega linha para /rede-franqueados/[id] com fallback se coluna de anexo ainda não existir no banco. */
+export async function fetchRedeFranqueadoDetalheForPage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+  opts?: { staffUseAdminFallback?: boolean },
+): Promise<{ row: RedeFranqueadoDetalheRow | null; error: string | null }> {
+  let result = await queryRedeFranqueadoDetalhe(supabase, id);
+
+  if ((!result.row || result.error) && opts?.staffUseAdminFallback) {
+    try {
+      const admin = createAdminClient();
+      const viaAdmin = await queryRedeFranqueadoDetalhe(admin, id);
+      if (viaAdmin.row) result = viaAdmin;
+      else if (!result.error && viaAdmin.error) result = viaAdmin;
+    } catch {
+      /* service role indisponível */
+    }
+  }
+
+  return result;
+}
+
+/** Colunas permitidas no portal Frank (tabela + agregados dos gráficos). Não inclui dados sensíveis. */
+export const REDE_PORTAL_FRANK_SELECT = [
+  'id',
+  'ordem',
+  'n_franquia',
+  'nome_completo',
+  'status_franquia',
+  'modalidade',
+  'area_atuacao',
+  'email_frank',
+  'telefone_frank',
+  'regional',
+  'estado_casa_frank',
+].join(', ');
+
+export type RedeFranqueadoRowPortalFrank = Pick<
+  RedeFranqueadoRowDb,
+  | 'id'
+  | 'ordem'
+  | 'n_franquia'
+  | 'nome_completo'
+  | 'status_franquia'
+  | 'modalidade'
+  | 'area_atuacao'
+  | 'email_frank'
+  | 'telefone_frank'
+  | 'regional'
+  | 'estado_casa_frank'
+>;
+
+function nullRedeDbFields(): Record<RedeFranqueadoDbKey, string | null> {
+  const o = {} as Record<RedeFranqueadoDbKey, string | null>;
+  for (const k of REDE_FRANQUEADOS_DB_KEYS) {
+    o[k] = null;
+  }
+  return o;
+}
+
+/** Preenche campos ausentes com null para reutilizar `RedeDashboard` sem expor colunas ocultas. */
+export function redePortalFrankRowParaDashboardRow(frank: RedeFranqueadoRowPortalFrank): RedeFranqueadoRowDb {
+  return {
+    id: frank.id,
+    ordem: frank.ordem,
+    processo_id: null,
+    created_at: null,
+    updated_at: null,
+    ...nullRedeDbFields(),
+    n_franquia: frank.n_franquia,
+    nome_completo: frank.nome_completo,
+    status_franquia: frank.status_franquia,
+    modalidade: frank.modalidade,
+    area_atuacao: frank.area_atuacao,
+    email_frank: frank.email_frank,
+    telefone_frank: frank.telefone_frank,
+    regional: frank.regional,
+    estado_casa_frank: frank.estado_casa_frank,
+  };
+}
+
+export async function fetchRedeFranqueadosRowsPortalFrank(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<RedeFranqueadoRowPortalFrank[] | null> {
+  const { data, error } = await supabase.from('rede_franqueados').select(REDE_PORTAL_FRANK_SELECT);
+  if (error) return null;
+  return ordenarRedePorNFranquia(
+    filtrarLinhasEmBrancoRedeFranqueados((data ?? []) as unknown as RedeFranqueadoRowPortalFrank[]),
+  );
+}
+
+const REDE_BUSCA_DATE_KEYS = new Set<RedeFranqueadoDbKey>([
+  'data_ass_cof',
+  'data_ass_contrato',
+  'data_expiracao_franquia',
+  'data_nasc_frank',
+  'data_recebimento_kit_boas_vindas',
+]);
+
+function variantesTextoBuscaRede(k: RedeFranqueadoDbKey, raw: string | null | undefined): string[] {
+  if (raw == null || raw === '') return [];
+  const s = String(raw);
+  if (k === 'n_franquia') {
+    const variants = [s];
+    const m = s.match(/fk\s*0*(\d+)/i);
+    if (m) {
+      const n = parseInt(m[1] ?? '', 10);
+      if (Number.isFinite(n) && n >= 0) variants.push(`FK${String(n).padStart(4, '0')}`);
+    }
+    return variants;
+  }
+  if (REDE_BUSCA_DATE_KEYS.has(k)) {
+    const variants = [s];
+    if (s.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(s)) variants.push(s.slice(0, 10));
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) variants.push(d.toLocaleDateString('pt-BR'));
+    return variants;
+  }
+  return [s];
+}
+
+/** Busca case-insensitive em qualquer coluna exibida na planilha da rede. */
+export function redeFranqueadoRowMatchesBusca(row: RedeFranqueadoRowDb, busca: string): boolean {
+  const q = normalizarParaBusca(busca);
+  if (!q) return true;
+  for (const k of REDE_FRANQUEADOS_DB_KEYS) {
+    for (const v of variantesTextoBuscaRede(k, row[k])) {
+      if (normalizarParaBusca(v).includes(q)) return true;
+    }
+  }
+  return false;
 }

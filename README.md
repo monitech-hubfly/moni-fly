@@ -50,6 +50,26 @@ RLS nas tabelas `processo_step_one`, `etapa_progresso`, `pdf_exports`, `apify_us
 
 - **Especificação completa:** `docs/STEP_ONE_ESPEC.md` (fontes Etapa 1, checklist Etapa 2, 21 campos Etapas 4–5, batalhas, BCA, PDF, rede).
 
+## Sessão Marketing (Hub de Funis)
+
+Três funis nativos no mesmo Kanban do Portfólio (card fechado, modal, DnD e exportação):
+
+- `/marketing` — hub da sessão (pré-selecionada)
+- `/marketing/gravacao-videos-externos`
+- `/marketing/programacao-conteudo-semanal`
+- `/marketing/serie-inc-to-fly`
+
+A migration `528_funis_marketing.sql` cria kanbans, fases e checklists no banco **DEV**. Não aplicar em PROD sem confirmação.
+
+## Sessão Manutenções (Hub de Funis)
+
+Funil nativo no mesmo Kanban do Portfólio (card fechado, modal, DnD e exportação):
+
+- `/manutencoes` — hub da sessão (pré-selecionada)
+- `/manutencoes/moni-care` — Funil Moní Care (pós-entrega, Rev. 00–07, garantia e serviços pagos)
+
+A migration `530_funil_moni_care.sql` cria kanban, 10 fases e checklists no banco **DEV**. Não aplicar em PROD sem confirmação.
+
 ## Stack
 
 - **Next.js 14** (App Router), **TypeScript**, **Tailwind CSS**

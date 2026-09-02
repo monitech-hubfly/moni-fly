@@ -1,13 +1,20 @@
 import { NextResponse } from 'next/server';
-import { mapGlueApiListingsToItems, type ZapListingItem } from '@/lib/zap-glue-api';
+import {
+  ensureProcessoStepOneForKanbanCard,
+  resolverProcessoIdViaRedeFranqueado,
+} from '@/lib/actions/kanban-mapa-competidores';
+import { createClient } from '@/lib/supabase/server';
+import { fetchZapCasasWithFallback } from '@/lib/zap-fetch-casas';
+import { applyZapCasasUpdate, verifyProcessoCasasAccess } from '@/lib/zap-save-casas';
 
-const PAGE_SIZE = 24;
-const MAX_FROM = 500;
+/** Apify: polling do run costuma levar 1,5–4 min. */
+export const maxDuration = 300;
 
 /**
  * POST /api/apify-zap
- * Body: { cidade: string, estado: string, condominio?: string }
- * Chama a Edge Function zap-search (proxy para a glue-api), pagina e retorna o array de listings.
+ * Body: { cidade, estado, condominio?, processoId?, cardId? }
+ * Com processoId (ou cardId para criar/vincular processo): busca + grava no banco.
+ * Sem processoId: devolve items (uso em etapas server-side).
  */
 export async function POST(request: Request) {
   try {
@@ -16,6 +23,14 @@ export async function POST(request: Request) {
     const estado = typeof body?.estado === 'string' ? body.estado.trim() : '';
     const condominio =
       typeof body?.condominio === 'string' ? body.condominio.trim() || undefined : undefined;
+    const condominioVinculo =
+      typeof body?.condominioVinculo === 'string'
+        ? body.condominioVinculo.trim() || undefined
+        : undefined;
+
+    const processoId =
+      typeof body?.processoId === 'string' ? body.processoId.trim() || undefined : undefined;
+    const cardId = typeof body?.cardId === 'string' ? body.cardId.trim() || undefined : undefined;
 
     if (!cidade || !estado) {
       return NextResponse.json(
@@ -24,96 +39,64 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'Configuração Supabase ausente (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).',
-        },
-        { status: 500 },
-      );
-    }
-
-    const projectRef = new URL(supabaseUrl).hostname.split('.')[0];
-    const edgeUrl = `https://${projectRef}.supabase.co/functions/v1/zap-search`;
     const cookieHeader = request.headers.get('cookie') ?? undefined;
+    const result = await fetchZapCasasWithFallback({
+      cidade,
+      estado,
+      condominio,
+      cookie: cookieHeader,
+    });
 
-    const allItems: ZapListingItem[] = [];
-    let from = 0;
-    let hasMore = true;
+    if (!result.ok) {
+      return NextResponse.json({ ok: false, error: result.error }, { status: 200 });
+    }
 
-    while (hasMore) {
-      const res = await fetch(edgeUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${serviceRoleKey}`,
-        },
-        body: JSON.stringify({
-          cidade,
-          estado,
-          condominio,
-          from,
-          ...(cookieHeader ? { cookie: cookieHeader } : {}),
-        }),
-      });
-
-      if (!res.ok) {
-        const errBody = await res.text();
-        console.log('[ZAP-ROUTE] Edge Function error response:', {
-          status: res.status,
-          body: errBody,
-        });
-        let errMsg: string;
-        try {
-          const j = JSON.parse(errBody);
-          errMsg = j.error ?? j.detail ?? errBody.slice(0, 300);
-        } catch {
-          errMsg = errBody.slice(0, 300) || `Edge Function ${res.status}`;
-        }
-        return NextResponse.json({ ok: false, error: errMsg }, { status: 200 });
-      }
-
-      const data = (await res.json()) as Record<string, unknown>;
-      console.log('[ZAP-ROUTE] Edge Function response:', { status: res.status, body: data });
-      const result = (data.search as Record<string, unknown> | undefined)?.result as
-        | Record<string, unknown>
-        | undefined;
-      const rawListings = result?.listings;
-      const listingsArray = Array.isArray(rawListings)
-        ? (rawListings as Array<{ listing?: Record<string, unknown> }>)
-            .map((item) => item.listing)
-            .filter((l): l is Record<string, unknown> => l != null)
-        : [];
-      console.log('[ZAP-ROUTE] listings this page:', listingsArray.length);
-
-      if (!Array.isArray(rawListings)) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'Resposta da glue-api sem array de listings (search.result.listings).',
-          },
-          { status: 200 },
-        );
-      }
-
-      allItems.push(...mapGlueApiListingsToItems(listingsArray));
-
-      if (listingsArray.length < PAGE_SIZE || from + PAGE_SIZE >= MAX_FROM) {
-        hasMore = false;
+    let effectiveProcessoId = processoId;
+    if (!effectiveProcessoId && cardId) {
+      const supabase = await createClient();
+      const viaRede = await resolverProcessoIdViaRedeFranqueado(supabase, cardId);
+      if (viaRede) {
+        effectiveProcessoId = viaRede;
       } else {
-        from += PAGE_SIZE;
+        const ensured = await ensureProcessoStepOneForKanbanCard(cardId);
+        if (!ensured.ok) {
+          return NextResponse.json({ ok: false, error: ensured.error }, { status: 200 });
+        }
+        effectiveProcessoId = ensured.processoId;
       }
     }
 
-    console.log('[ZAP-ROUTE] total items returned:', allItems.length);
+    if (effectiveProcessoId) {
+      const access = await verifyProcessoCasasAccess(effectiveProcessoId);
+      if (!access.ok) {
+        return NextResponse.json({ ok: false, error: access.error }, { status: 200 });
+      }
+
+      const { inserted, updated, despublicados } = await applyZapCasasUpdate(
+        access.supabase,
+        effectiveProcessoId,
+        result.items,
+        cidade,
+        estado,
+        { condominioVinculo },
+      );
+
+      return NextResponse.json({
+        ok: true,
+        saved: true,
+        processoId: effectiveProcessoId,
+        inserted,
+        updated,
+        despublicados,
+        itemCount: result.items.length,
+        source: result.source,
+      });
+    }
 
     return NextResponse.json({
       ok: true,
-      items: allItems,
+      items: result.items,
+      source: result.source,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

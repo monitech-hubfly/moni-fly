@@ -10,3 +10,24 @@ supabase/.temp/
 
 # Artefacto incremental do TypeScript
 *.tsbuildinfo
+
+# Duplicata local do utilitário TypeScript (usar scripts/test-bastoes-prod.ts)
+scripts/test-bastoes-prod.mjs
+
+# Instruções locais para o Claude Code (não versionar)
+CLAUDE.md
+
+# Estado local do Claude Code (muda a cada sessão — não versionar)
+.claude/settings.local.json
+
+# Arquivos temporários locais (diagnóstico, Claude Code, etc.)
+_*.txt
+_*.mjs
+_q*.sql
+migration_*_temp.sql
+tsc_*.txt
+/migration_[0-9]*.sql
+scripts/deploy-para-main.ps1
+.vercel
+
+*.temp

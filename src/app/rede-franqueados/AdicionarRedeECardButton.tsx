@@ -1,36 +1,19 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { criarLinhaRedeECard, getProximoNFranquia } from './actions';
 import { UFS_BRASIL } from '@/lib/uf';
+import {
+  REDE_OPCOES_CLASSIFICACAO_FRANQUEADO,
+  REDE_OPCOES_MODALIDADE,
+  REDE_OPCOES_REGIONAL,
+  REDE_OPCOES_STATUS_FRANQUIA,
+} from '@/lib/rede-franqueado-form-options';
 
 type CidadeIBGE = { id: number; nome: string };
 type AreaAtuacaoItem = { estado: string; cidade: string };
-
-const OPCOES_STATUS_FRANQUIA = [
-  { value: 'Em Operação', label: 'Em Operação' },
-  { value: 'Operação Encerrada', label: 'Operação Encerrada' },
-] as const;
-
-const OPCOES_CLASSIFICACAO_FRANQUEADO = [
-  { value: 'Beta', label: 'Beta' },
-  { value: 'Pagante', label: 'Pagante' },
-] as const;
-
-const OPCOES_MODALIDADE = [
-  { value: 'Franquia', label: 'Franquia' },
-  { value: 'Corporação', label: 'Corporação' },
-] as const;
-
-const OPCOES_REGIONAL = [
-  { value: 'C-oeste', label: 'C-oeste' },
-  { value: 'Nordeste', label: 'Nordeste' },
-  { value: 'Norte', label: 'Norte' },
-  { value: 'Sudeste', label: 'Sudeste' },
-  { value: 'Sul', label: 'Sul' },
-] as const;
 
 const OPCOES_RESPONSAVEL_COMERCIAL = [
   { value: 'Helenna Luz', label: 'Helenna Luz' },
@@ -134,6 +117,7 @@ export function AdicionarRedeECardButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
   // Campos do Novo Step 1 (mesma configuração)
@@ -173,6 +157,7 @@ export function AdicionarRedeECardButton() {
   const close = () => {
     setOpen(false);
     setMsg(null);
+    savingRef.current = false;
     setSaving(false);
     setAreaAtuacaoItens([]);
     setEstadoAtuacao('');
@@ -286,12 +271,15 @@ export function AdicionarRedeECardButton() {
   }, [dataAssContrato]);
 
   const submit = async () => {
+    if (savingRef.current) return;
     setMsg(null);
     if (areaAtuacaoItens.length === 0) {
       setMsg({ tipo: 'erro', texto: 'Adicione pelo menos um estado e cidade na Área de atuação.' });
       return;
     }
+    savingRef.current = true;
     setSaving(true);
+    try {
     const patch = {
       n_franquia: numeroFranquia.trim() || null,
       modalidade: modalidade.trim() || null,
@@ -318,7 +306,6 @@ export function AdicionarRedeECardButton() {
       cidade_casa_frank: cidadeCasa.trim() || null,
     } as const;
     const res = await criarLinhaRedeECard(patch, areaAtuacaoItens[0]?.cidade ?? null, areaAtuacaoItens[0]?.estado ?? null);
-    setSaving(false);
     if (res.ok) {
       setMsg({ tipo: 'ok', texto: res.mensagem });
       router.refresh();
@@ -327,6 +314,10 @@ export function AdicionarRedeECardButton() {
     } else {
       setMsg({ tipo: 'erro', texto: res.error });
     }
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   return (
@@ -334,7 +325,7 @@ export function AdicionarRedeECardButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary"
+        className="inline-flex items-center gap-2 rounded-lg bg-[#0c2633] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#163d4d]"
       >
         <Plus className="h-4 w-4" />
         Adicionar franqueado (gera card Step 1)
@@ -432,7 +423,7 @@ export function AdicionarRedeECardButton() {
                     <label className="block text-sm font-medium text-stone-700">Modalidade</label>
                     <select value={modalidade} onChange={(e) => setModalidade(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm">
                       <option value="">— Selecione —</option>
-                      {OPCOES_MODALIDADE.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+                      {REDE_OPCOES_MODALIDADE.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                     </select>
                   </div>
                   <div className="sm:col-span-2">
@@ -443,14 +434,14 @@ export function AdicionarRedeECardButton() {
                     <label className="block text-sm font-medium text-stone-700">Status da Franquia</label>
                     <select value={statusFranquia} onChange={(e) => setStatusFranquia(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm">
                       <option value="">— Selecione —</option>
-                      {OPCOES_STATUS_FRANQUIA.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+                      {REDE_OPCOES_STATUS_FRANQUIA.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-stone-700">Classificação do Franqueado</label>
                     <select value={classificacaoFranqueado} onChange={(e) => setClassificacaoFranqueado(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm">
                       <option value="">— Selecione —</option>
-                      {OPCOES_CLASSIFICACAO_FRANQUEADO.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+                      {REDE_OPCOES_CLASSIFICACAO_FRANQUEADO.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                     </select>
                   </div>
                   <div className="sm:col-span-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -472,7 +463,7 @@ export function AdicionarRedeECardButton() {
                     <label className="block text-sm font-medium text-stone-700">Regional</label>
                     <select value={regional} onChange={(e) => setRegional(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm">
                       <option value="">— Selecione —</option>
-                      {OPCOES_REGIONAL.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+                      {REDE_OPCOES_REGIONAL.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                     </select>
                   </div>
                   <div>

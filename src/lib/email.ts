@@ -71,6 +71,12 @@ export function humanizeResendError(raw: string): string {
   return raw;
 }
 
+function normalizeEmailRecipients(v?: string | string[]): string[] {
+  if (v == null) return [];
+  const arr = Array.isArray(v) ? v : [v];
+  return arr.flatMap((s) => s.split(/[,;]/).map((x) => x.trim())).filter(Boolean);
+}
+
 /**
  * Envia e-mail via Resend. Em dev sem RESEND_API_KEY devolve ok + skipped (não quebra fluxos locais).
  * Em produção sem chave também skipped — o chamador pode avisar o admin.
@@ -81,6 +87,9 @@ export async function sendEmailViaResend(input: {
   text: string;
   html: string;
   attachments?: ResendAttachment[];
+  cc?: string | string[];
+  bcc?: string | string[];
+  from?: string;
 }): Promise<SendEmailResult> {
   const recipients = (Array.isArray(input.to) ? input.to : [input.to])
     .map((e) => e.trim())
@@ -90,21 +99,28 @@ export async function sendEmailViaResend(input: {
     return { ok: true, skipped: true };
   }
 
+  const ccList = normalizeEmailRecipients(input.cc);
+  const bccList = normalizeEmailRecipients(input.bcc);
+
   try {
+    const body: Record<string, unknown> = {
+      from: input.from ?? RESEND_FROM,
+      to: recipients,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+      attachments: input.attachments,
+    };
+    if (ccList.length) body.cc = ccList;
+    if (bccList.length) body.bcc = bccList;
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
-      body: JSON.stringify({
-        from: RESEND_FROM,
-        to: recipients,
-        subject: input.subject,
-        text: input.text,
-        html: input.html,
-        attachments: input.attachments,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
@@ -130,6 +146,40 @@ export async function sendJuridicoStatusEmail(
     subject: `[Jurídico] ${statusLabel}: ${titulo}`,
     text: `${mensagem}\n\nAcesse o portal para ver detalhes.`,
     html: `<p>${mensagem.replace(/\n/g, '<br>')}</p><p>Acesse o portal para ver detalhes.</p>`,
+  });
+}
+
+/** E-mail quando alguém é mencionado com @ em comentário de kanban ou Sirene. */
+export async function sendMencaoEmail(input: {
+  to: string;
+  cardTitulo: string;
+  autorNome: string;
+  comentarioPreview: string;
+  linkUrl: string;
+}): Promise<SendEmailResult> {
+  const titulo = String(input.cardTitulo ?? '').trim() || 'Card';
+  const autor = String(input.autorNome ?? '').trim() || 'Alguém';
+  const preview = String(input.comentarioPreview ?? '').trim();
+  const link = String(input.linkUrl ?? '').trim();
+  const safeLink = link.replace(/"/g, '%22');
+
+  const text =
+    `${autor} mencionou você em "${titulo}".\n\n` +
+    (preview ? `"${preview}"\n\n` : '') +
+    (link ? `Abrir: ${link}\n` : 'Acesse o portal para ver o comentário.\n');
+
+  const html =
+    `<p><strong>${escapeHtml(autor)}</strong> mencionou você em <strong>${escapeHtml(titulo)}</strong>.</p>` +
+    (preview ? `<blockquote style="margin:12px 0;padding:8px 12px;border-left:3px solid #d6d3d1;color:#57534e">${escapeHtml(preview)}</blockquote>` : '') +
+    (link
+      ? `<p><a href="${safeLink}">Abrir no portal</a></p>`
+      : '<p>Acesse o portal para ver o comentário.</p>');
+
+  return await sendEmailViaResend({
+    to: input.to,
+    subject: `Você foi mencionado em ${titulo}`,
+    text,
+    html,
   });
 }
 
@@ -227,8 +277,8 @@ export async function sendSignupNotifications(opts: {
     return;
   }
 
-  // Cadastro já liberado (seed team / fluxo aprovado): aviso ao próprio usuário (sem spam para admins).
-  if (opts.accessRole === 'team') {
+  // Cadastro já liberado (seed team / franqueado / fluxo aprovado): aviso ao próprio usuário (sem spam para admins).
+  if (opts.accessRole === 'team' || opts.accessRole === 'frank') {
     await sendEmailViaResend({
       to: opts.userEmail,
       subject: 'Conta criada — Casa Moní',

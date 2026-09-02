@@ -5,34 +5,92 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   addCasaListing,
-  saveZapItemsEtapa4,
   updateCasaStatus,
   validarStatusCasasManuais,
   saveCasasEscolhidasEtapa5,
   saveBatalhaCasasEtapa5,
   saveScoreBatalhaPdfUrl,
+  getAtributosLoteFromStepOneChecklist,
+  getDadosTerrenoFromStepOneChecklist,
+  getLinhasProspectCondominioStepOne,
+  autoMarcarChecklistPosRankingPreBatalha,
   type BatalhaCasaRow,
 } from './actions';
-import { ScoreBatalhaPDFContent, type ScoreBatalhaRow } from './ScoreBatalhaPDFContent';
+import {
+  ScoreBatalhaPDFContent,
+  type ScoreBatalhaRow,
+  type PrecoSubNotas,
+  type ProdutoSubNotas,
+} from './ScoreBatalhaPDFContent';
 import {
   ATRIBUTOS_LOTE,
   notaAtributosLote,
+  parseAtributosLoteRespostas,
   notaFinalBatalha,
   type AtributosLoteRespostas,
   CATEGORIAS_REFORMA,
   valorInvestimento,
-  notaEsforco,
-  notaIncertezaPreco,
-  notaPrecoPorPercentual,
-  notaPrecoPonderada,
-  notaTamanhoM2,
-  notaQuartos,
+  calcularNotaPrecoComChecklist,
+  type CatalogoPrecoRef,
   DESIGN_OPCOES,
-  notaIdade,
   notaAmenidades,
-  notaProdutoMedia,
+  calcularNotaProdutoCompleta,
+  type NotaProdutoCompletaResult,
+  formatNotaAn,
+  QUARTOS_PADRAO_NOSSA,
   type ChecklistReforma,
+  CATALOGO_CASAS_SELECT_PRE_BATALHA,
 } from './REGRAS_BATALHA';
+import {
+  calcularRankingModelos,
+  calcularRankingPreBatalhaPorFaixas,
+  flattenRankingPreBatalhaPorFaixas,
+  resolverTipoPredominanteFaixa,
+  resolverTopografiaLote,
+  type CatalogoItem,
+  type DadosTerreno,
+  type RankingPorFaixaMercado,
+  type ResultadoCalcularRankingModelos,
+} from '@/lib/kanban/pre-batalha-compatibilidade';
+import {
+  PRE_BATALHA_INSTRUCOES_FASE,
+  PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
+} from '@/lib/kanban/pre-batalha-checklist';
+import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
+import { Etapa4CasasListagem } from './Etapa4CasasListagem';
+import {
+  ordenarCasasPorFaixaMercado,
+  type FaixaMercado,
+} from '@/lib/kanban/mapa-competidores-condominio';
+import { modeloElegivelParaFaixa } from '@/lib/kanban/modelo-faixa-elegibilidade';
+import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
+
+function parBatalhaElegivelFaixa(
+  nomeModelo: string | null | undefined,
+  faixaAnuncio: FaixaMercado | undefined,
+): boolean {
+  if (!faixaAnuncio) return true;
+  return modeloElegivelParaFaixa(nomeModelo, faixaAnuncio);
+}
+
+/** Observações de quartos/banheiros/suítes flexíveis (+1) na Pré Batalha e Batalha de Casas. */
+export function ObsFlexivelBloco({ obsFlexivel }: { obsFlexivel: string[] }) {
+  if (!obsFlexivel?.length) return null;
+  return (
+    <div className="mt-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-800">
+      {obsFlexivel.map((obs, i) => (
+        <p key={i}>⚡ {obs}</p>
+      ))}
+    </div>
+  );
+}
+
+type ProdutoDadosBatalha = {
+  designId?: string;
+  idade?: number | null;
+  banheiros?: number | null;
+  vagas?: number | null;
+};
 import { createClient } from '@/lib/supabase/client';
 
 export type CasaRow = {
@@ -56,7 +114,13 @@ export type CasaRow = {
   data_despublicado?: string | null;
   link: string | null;
   manual?: boolean | null;
+  importado?: boolean | null;
+  faixa?: FaixaMercado;
 };
+
+function atributosLoteRespostasVazio(resp: AtributosLoteRespostas): boolean {
+  return !ATRIBUTOS_LOTE.some((a) => resp[a.id] === true);
+}
 
 export function Etapa4Casas(props: {
   processoId: string;
@@ -89,8 +153,18 @@ export function Etapa4Casas(props: {
   resultadoPortalTargetId?: string;
   /** Step 1 — apenas listagem (sem modelo/batalha). Step 2 usa false. */
   listagemOnly?: boolean;
+  /** Desabilita varredura ZAP, cadastro manual e edição de status. */
+  readOnly?: boolean;
+  /** Callback após mutação (ex.: recarregar dados no checklist Kanban). */
+  onMutate?: () => void;
+  /** Pré-preenche o condomínio na varredura ZAP e no cadastro manual (sessão por condomínio no funil). */
+  condominioInicial?: string;
+  /** Conteúdo entre o botão Buscar e a tabela (ex.: resumo de faixas no checklist). */
+  painelAposBuscar?: React.ReactNode;
+  modoPreBatalha?: boolean;
   /** URL do PDF Score & Batalha já armazenado na etapa 7 (etapa 6). */
   pdfScoreBatalhaUrl?: string | null;
+  custosConstrucaoChecklist?: Record<number, number | null>;
 }) {
   const {
     processoId,
@@ -103,33 +177,45 @@ export function Etapa4Casas(props: {
     batalhasIniciais,
     resultadoPortalTargetId,
     listagemOnly = false,
+    readOnly = false,
+    onMutate,
+    condominioInicial = '',
+    painelAposBuscar,
+    modoPreBatalha = false,
     pdfScoreBatalhaUrl = null,
+    custosConstrucaoChecklist = {},
   } = props;
-  const casasManuais = useMemo(() => casas.filter((c) => c.manual === true), [casas]);
+  const casasComLink = useMemo(
+    () => casas.filter((c) => typeof c.link === 'string' && c.link.trim().length > 0),
+    [casas],
+  );
   const precisaAlertaValidacao = useMemo(() => {
-    if (casasManuais.length === 0) return false;
+    if (casasComLink.length === 0) return false;
     if (!ultimaValidacaoCasasManuaisEm) return true;
     const ultima = new Date(ultimaValidacaoCasasManuaisEm);
     const hoje = new Date();
     const diffDays = Math.floor((hoje.getTime() - ultima.getTime()) / (1000 * 60 * 60 * 24));
     return diffDays > 30;
-  }, [casasManuais.length, ultimaValidacaoCasasManuaisEm]);
+  }, [casasComLink.length, ultimaValidacaoCasasManuaisEm]);
   const router = useRouter();
+  const stepOneAtributosCacheRef = useRef<AtributosLoteRespostas | null | undefined>(undefined);
+  const autoMarcadoChecklistPreBatalhaRef = useRef(false);
   const [cidade, setCidade] = useState(cidadeInicial);
   const [estado, setEstado] = useState(estadoInicial);
-  const [condominio, setCondominio] = useState('');
+  const [condominio, setCondominio] = useState(condominioInicial);
   const [zapError, setZapError] = useState('');
   const [zapLoading, setZapLoading] = useState(false);
   const [zapResult, setZapResult] = useState<{
     inserted: number;
     updated: number;
     despublicados: number;
+    itemCount: number;
   } | null>(null);
 
   const [cidadeManual, setCidadeManual] = useState(cidadeInicial);
   const [estadoManual, setEstadoManual] = useState(estadoInicial);
   const [statusManual, setStatusManual] = useState<'a_venda' | 'despublicado'>('a_venda');
-  const [condominioManual, setCondominioManual] = useState('');
+  const [condominioManual, setCondominioManual] = useState(condominioInicial);
   const [enderecoManual, setEnderecoManual] = useState('');
   const [quartos, setQuartos] = useState('');
   const [banheiros, setBanheiros] = useState('');
@@ -153,25 +239,280 @@ export function Etapa4Casas(props: {
 
   const [manualFormOpen, setManualFormOpen] = useState(false);
   const [validandoStatus, setValidandoStatus] = useState(false);
+  const [validacaoFeedback, setValidacaoFeedback] = useState('');
+
+  useEffect(() => {
+    setCidade(cidadeInicial);
+    setEstado(estadoInicial);
+    setCidadeManual(cidadeInicial);
+    setEstadoManual(estadoInicial);
+  }, [cidadeInicial, estadoInicial]);
+
+  useEffect(() => {
+    const c = condominioInicial.trim();
+    setCondominio(c);
+    setCondominioManual(c);
+  }, [condominioInicial]);
+
+  const campoTexto = listagemOnly ? 'text-[11px] leading-tight' : 'text-sm';
+  const campoPadding = listagemOnly ? 'px-2 py-1' : 'px-3 py-2';
+  const campoInputClass = `rounded-lg border border-stone-300 ${campoPadding} ${campoTexto} disabled:cursor-not-allowed disabled:opacity-60`;
+  const campoLabelClass = listagemOnly
+    ? 'text-[10px] font-medium leading-tight text-stone-600'
+    : `font-medium text-stone-700 ${campoTexto}`;
+  const tabelaTexto = listagemOnly ? 'text-[11px] leading-snug' : 'text-sm';
+  const tabelaTh = listagemOnly ? 'px-1.5 py-1 text-left font-medium' : 'p-2 text-left';
+  const tabelaTd = listagemOnly ? 'px-1.5 py-1' : 'p-2';
 
   const ROWS_PER_PAGE = 15;
-  const totalPages = Math.max(1, Math.ceil(casas.length / ROWS_PER_PAGE));
+  const casasExibicao = useMemo(() => {
+    if (!listagemOnly) return casas;
+    if (!casas.some((c) => c.preco != null)) return casas;
+    return ordenarCasasPorFaixaMercado(casas);
+  }, [casas, listagemOnly]);
+  const contagemPorFaixa = useMemo(() => {
+    if (!listagemOnly) return null;
+    const m = new Map<FaixaMercado, number>();
+    for (const c of casasExibicao) {
+      if (c.faixa) m.set(c.faixa, (m.get(c.faixa) ?? 0) + 1);
+    }
+    return m;
+  }, [casasExibicao, listagemOnly]);
+  const totalPages = Math.max(1, Math.ceil(casasExibicao.length / ROWS_PER_PAGE));
   const [pageCasas, setPageCasas] = useState(1);
   const casasPaginated = useMemo(() => {
     const start = (pageCasas - 1) * ROWS_PER_PAGE;
-    return casas.slice(start, start + ROWS_PER_PAGE);
-  }, [casas, pageCasas]);
-  useEffect(() => setPageCasas(1), [casas.length]);
+    return casasExibicao.slice(start, start + ROWS_PER_PAGE);
+  }, [casasExibicao, pageCasas]);
+  useEffect(() => setPageCasas(1), [casasExibicao.length]);
 
-  // --- Seção 2: escolha de até 3 casas do catálogo para batalha ---
-  const selectedLimit = 3;
+  // --- Seção 2: escolha de modelos do catálogo (Pré Batalha: ranking por compatibilidade) ---
+  const selectedLimit = modoPreBatalha ? null : 3;
+
+  const [rankingPorFaixaPreBatalha, setRankingPorFaixaPreBatalha] = useState<
+    RankingPorFaixaMercado[]
+  >([]);
+  const [rankingResultPreBatalha, setRankingResultPreBatalha] =
+    useState<ResultadoCalcularRankingModelos | null>(null);
+  const [terrenoPreBatalha, setTerrenoPreBatalha] = useState<DadosTerreno | null>(null);
+  const [carregandoRankingPreBatalha, setCarregandoRankingPreBatalha] = useState(false);
+  const [atributosLotePreBatalha, setAtributosLotePreBatalha] = useState<AtributosLoteRespostas>(
+    {},
+  );
+  const [catalogoPreBatalha, setCatalogoPreBatalha] = useState<CatalogoItem[]>([]);
+  const [linhasProspectCondominio, setLinhasProspectCondominio] = useState<
+    LinhaProspectCondominio[]
+  >([]);
+
+  const casasIdsKey = useMemo(() => casas.map((c) => c.id).sort().join(','), [casas]);
+
+  const atributosLoteVazio = useMemo(
+    () => !ATRIBUTOS_LOTE.some((a) => atributosLotePreBatalha[a.id] === true),
+    [atributosLotePreBatalha],
+  );
+
+  const topografiaLotePreBatalha = useMemo(
+    () => resolverTopografiaLote(atributosLotePreBatalha),
+    [atributosLotePreBatalha],
+  );
+
+  const catalogoAtivoPreBatalha =
+    catalogoPreBatalha.length > 0 ? catalogoPreBatalha : (catalogo as CatalogoItem[]);
+
+  const rankingPreBatalha = useMemo(
+    () => flattenRankingPreBatalhaPorFaixas(rankingPorFaixaPreBatalha),
+    [rankingPorFaixaPreBatalha],
+  );
+
+  const terrenoFiltraGeometriaPreBatalha = useMemo(
+    () =>
+      Boolean(
+        terrenoPreBatalha?.dimensao_frente_m != null &&
+          terrenoPreBatalha?.dimensao_lado_esquerdo_m != null &&
+          terrenoPreBatalha.dimensao_frente_m > 0 &&
+          terrenoPreBatalha.dimensao_lado_esquerdo_m > 0,
+      ),
+    [terrenoPreBatalha],
+  );
+
+  /** Pré Batalha: carrega atributos do lote, catálogo ativo e calcula ranking ao montar. */
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly) return;
+
+    let cancelado = false;
+    setCarregandoRankingPreBatalha(true);
+
+    void (async () => {
+      try {
+        const [prospectsResult, result, terrenoResult] = await Promise.all([
+          getLinhasProspectCondominioStepOne(processoId),
+          getAtributosLoteFromStepOneChecklist(processoId),
+          getDadosTerrenoFromStepOneChecklist(processoId),
+        ]);
+        if (cancelado) return;
+
+        const linhasProspect = prospectsResult.ok ? prospectsResult.linhas : [];
+        setLinhasProspectCondominio(linhasProspect);
+
+        const atributos = result.ok ? result.atributos : {};
+        stepOneAtributosCacheRef.current = atributos;
+        setAtributosLotePreBatalha(atributos);
+
+        const terreno = terrenoResult.ok ? terrenoResult.terreno : null;
+        setTerrenoPreBatalha(terreno);
+
+        const supabase = createClient();
+        const { data: catRows } = await supabase
+          .from('catalogo_casas')
+          .select(CATALOGO_CASAS_SELECT_PRE_BATALHA as '*')
+          .eq('ativo', true);
+        if (cancelado) return;
+
+        const cat: CatalogoItem[] =
+          catRows && catRows.length > 0 ? (catRows as CatalogoItem[]) : (catalogo as CatalogoItem[]);
+        setCatalogoPreBatalha(cat);
+
+        if (casas.length === 0 || cat.length === 0) {
+          setRankingPorFaixaPreBatalha([]);
+          setRankingResultPreBatalha({ ranking: [], tipoPredominanteAusente: false });
+          return;
+        }
+
+        const atributosParaRanking = atributosLoteRespostasVazio(atributos) ? {} : atributos;
+        const casasPreBatalha = casas.map((c) => ({
+          id: c.id,
+          condominio: c.condominio,
+          quartos: c.quartos,
+          banheiros: c.banheiros,
+          vagas: c.vagas,
+          preco: c.preco,
+          area_casa_m2: c.area_casa_m2,
+          piscina: c.piscina,
+          marcenaria: c.marcenaria,
+        }));
+
+        const optsRanking = { terreno: terreno ?? undefined, linhasProspect };
+        const rankingResult = calcularRankingModelos(
+          casasPreBatalha,
+          cat,
+          atributosParaRanking,
+          optsRanking,
+        );
+        const grupos = calcularRankingPreBatalhaPorFaixas(
+          casasPreBatalha,
+          cat,
+          atributosParaRanking,
+          optsRanking,
+        );
+        if (!cancelado) {
+          setRankingResultPreBatalha(rankingResult);
+          setRankingPorFaixaPreBatalha(grupos);
+        }
+      } finally {
+        if (!cancelado) setCarregandoRankingPreBatalha(false);
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [modoPreBatalha, listagemOnly, processoId, casasIdsKey, catalogo]);
+
+  /** Batalha de Casas: carrega prospects para critério Andares (An) na nota de Produto. */
+  useEffect(() => {
+    if (modoPreBatalha || listagemOnly) return;
+    let cancelado = false;
+    void getLinhasProspectCondominioStepOne(processoId).then((res) => {
+      if (!cancelado && res.ok) setLinhasProspectCondominio(res.linhas);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [modoPreBatalha, listagemOnly, processoId]);
+
+  const rankingPreBatalhaIdsKey = useMemo(
+    () => rankingPreBatalha.map((r) => r.catalogoId).join(','),
+    [rankingPreBatalha],
+  );
+
+  /** Pré Batalha: auto-marca checklist do kanban após ranking calculado. */
+  useEffect(() => {
+    autoMarcadoChecklistPreBatalhaRef.current = false;
+  }, [processoId, rankingPreBatalhaIdsKey, rankingPorFaixaPreBatalha.length]);
+
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly || carregandoRankingPreBatalha) return;
+    if (rankingResultPreBatalha?.tipoPredominanteAusente === true) return;
+    if (rankingPreBatalha.length === 0) return;
+    if (autoMarcadoChecklistPreBatalhaRef.current) return;
+
+    autoMarcadoChecklistPreBatalhaRef.current = true;
+
+    void autoMarcarChecklistPosRankingPreBatalha(
+      processoId,
+      rankingPorFaixaPreBatalha,
+      { forceAtualizarRanking: true },
+    ).then((res) => {
+      if (!res.ok) {
+        console.warn('[pre-batalha] Falha ao auto-marcar checklist:', res.error);
+        autoMarcadoChecklistPreBatalhaRef.current = false;
+      }
+    });
+  }, [
+    modoPreBatalha,
+    listagemOnly,
+    carregandoRankingPreBatalha,
+    rankingPreBatalhaIdsKey,
+    processoId,
+    rankingPorFaixaPreBatalha,
+    rankingPreBatalha,
+    rankingResultPreBatalha?.tipoPredominanteAusente,
+  ]);
+
   const [selectedCatalogoIds, setSelectedCatalogoIds] = useState<string[]>(() =>
     casasEscolhidas.map((c) => c.catalogo_casa_id),
   );
+  const [syncPreBatalha, setSyncPreBatalha] = useState(false);
+
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly || rankingResultPreBatalha?.tipoPredominanteAusente === true) return;
+    if (rankingPreBatalha.length === 0) return;
+    const ids = rankingPreBatalha.map((m) => m.catalogoId);
+    const savedSorted = [...casasEscolhidas.map((c) => c.catalogo_casa_id)].sort().join(',');
+    const targetSorted = [...ids].sort().join(',');
+    if (savedSorted === targetSorted && casasEscolhidas.length === ids.length) return;
+
+    let cancelado = false;
+    setSyncPreBatalha(true);
+    void (async () => {
+      const result = await saveCasasEscolhidasEtapa5(processoId, ids, { limiteMaximo: null });
+      if (cancelado) return;
+      setSyncPreBatalha(false);
+      if (!result.ok) {
+        alert(result.error);
+        return;
+      }
+      setSelectedCatalogoIds(ids);
+      router.refresh();
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [
+    modoPreBatalha,
+    listagemOnly,
+    rankingResultPreBatalha?.tipoPredominanteAusente,
+    rankingPreBatalha,
+    casasEscolhidas,
+    processoId,
+    router,
+  ]);
+
   const toggleCatalogoSelected = (id: string) => {
+    if (modoPreBatalha) return;
     setSelectedCatalogoIds((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= selectedLimit) return prev;
+      if (selectedLimit != null && prev.length >= selectedLimit) return prev;
       return [...prev, id];
     });
   };
@@ -187,6 +528,26 @@ export function Etapa4Casas(props: {
 
   // --- Seção 3: batalha de casas (cada casa do catálogo vs cada anúncio da listagem) ---
   const escolhidasComDados = useMemo(() => {
+    if (modoPreBatalha && rankingResultPreBatalha?.tipoPredominanteAusente === true) {
+      return [];
+    }
+    if (modoPreBatalha && rankingPreBatalha.length > 0) {
+      return rankingPreBatalha
+        .map((item, idx) => {
+          const ce = casasEscolhidas.find((c) => c.catalogo_casa_id === item.catalogoId);
+          if (!ce) return null;
+          const catalogoRow =
+            catalogoAtivoPreBatalha.find((c) => c.id === item.catalogoId) ?? null;
+          if (!catalogoRow) return null;
+          return {
+            ...ce,
+            ordem: idx + 1,
+            catalogoRow,
+          };
+        })
+        .filter((ce) => ce != null);
+    }
+
     return casasEscolhidas
       .map((ce, idx) => ({
         ...ce,
@@ -194,7 +555,7 @@ export function Etapa4Casas(props: {
         catalogoRow: catalogo.find((c) => c.id === ce.catalogo_casa_id) || null,
       }))
       .filter((ce) => ce.catalogoRow !== null);
-  }, [casasEscolhidas, catalogo]);
+  }, [casasEscolhidas, catalogo, catalogoAtivoPreBatalha, modoPreBatalha, rankingPreBatalha, rankingResultPreBatalha?.tipoPredominanteAusente]);
 
   const batalhaByKey = useMemo(() => {
     const map = new Map<
@@ -218,6 +579,14 @@ export function Etapa4Casas(props: {
     return map;
   }, [batalhasIniciais]);
 
+  const batalhaFullByKey = useMemo(() => {
+    const map = new Map<string, (typeof batalhasIniciais)[0]>();
+    for (const b of batalhasIniciais) {
+      map.set(`${b.casa_escolhida_id}__${b.listing_id}`, b);
+    }
+    return map;
+  }, [batalhasIniciais]);
+
   /** Atributos do Lote: respostas SIM/NÃO por (casa_escolhida_id, listing_id). Nota = soma dos scores. */
   const [atributosLoteByKey, setAtributosLoteByKey] = useState<
     Record<string, AtributosLoteRespostas>
@@ -226,19 +595,11 @@ export function Etapa4Casas(props: {
     batalhasIniciais.forEach((b) => {
       const key = `${b.casa_escolhida_id}__${b.listing_id}`;
       if (b.atributos_lote_json && typeof b.atributos_lote_json === 'object') {
-        obj[key] = b.atributos_lote_json as AtributosLoteRespostas;
+        obj[key] = parseAtributosLoteRespostas(b.atributos_lote_json);
       }
     });
     return obj;
   });
-
-  const diffToScore = (diff: number): number => {
-    if (diff <= -2) return -2;
-    if (diff === -1) return -1;
-    if (diff === 0) return 0;
-    if (diff === 1) return 1;
-    return 2;
-  };
 
   const calcularNotaPreco = (precoM2Casa: number | null, precoM2Anuncio: number | null): number => {
     if (precoM2Casa == null || precoM2Casa === 0 || precoM2Anuncio == null) return 0;
@@ -250,28 +611,15 @@ export function Etapa4Casas(props: {
     return 2;
   };
 
-  const calcularNotaProduto = (
-    base: { quartos: number | null; banheiros: number | null; vagas: number | null },
-    anuncio: CasaRow,
-  ): number => {
-    const campos: Array<'quartos' | 'banheiros' | 'vagas'> = ['quartos', 'banheiros', 'vagas'];
-    const notas: number[] = [];
-    for (const campo of campos) {
-      const baseVal = base[campo];
-      const anuncioVal = anuncio[campo];
-      if (baseVal == null || anuncioVal == null) continue;
-      const diff = Number(baseVal) - Number(anuncioVal);
-      notas.push(diffToScore(diff));
-    }
-    if (notas.length === 0) return 0;
-    const media = notas.reduce((sum, n) => sum + n, 0) / notas.length;
-    return Math.round(media);
+  const isAtributosLoteEmpty = (resp: AtributosLoteRespostas | undefined): boolean => {
+    if (resp === undefined) return true;
+    return !ATRIBUTOS_LOTE.some((a) => resp[a.id] === true);
   };
 
-  /** Nota Atributos do Lote para um par (casa_escolhida, listing). Fallback para dado salvo se não houver respostas. */
+  /** Nota Atributos do Lote para um par (casa_escolhida, listing). Respostas usam ids de ATRIBUTOS_LOTE (= LOTES_DISPONIVEIS_CHECKBOXES). */
   const getNotaAtributosLote = (key: string): number => {
     const resp = atributosLoteByKey[key];
-    if (resp) return notaAtributosLote(resp);
+    if (resp && !isAtributosLoteEmpty(resp)) return notaAtributosLote(resp);
     return batalhaByKey.get(key)?.nota_localizacao ?? 0;
   };
 
@@ -283,6 +631,62 @@ export function Etapa4Casas(props: {
   };
 
   const [openAtributosKey, setOpenAtributosKey] = useState<string | null>(null);
+  const [prefillingAtributosKey, setPrefillingAtributosKey] = useState<string | null>(null);
+
+  const handleOpenAtributosLote = async (key: string) => {
+    if (openAtributosKey === key) {
+      setOpenAtributosKey(null);
+      return;
+    }
+    setOpenAtributosKey(key);
+    if (!isAtributosLoteEmpty(atributosLoteByKey[key])) return;
+
+    setPrefillingAtributosKey(key);
+    try {
+      if (stepOneAtributosCacheRef.current === undefined) {
+        const result = await getAtributosLoteFromStepOneChecklist(processoId);
+        stepOneAtributosCacheRef.current = result.ok ? result.atributos : {};
+      }
+      const prefill = stepOneAtributosCacheRef.current;
+      setAtributosLoteByKey((prev) => {
+        if (!isAtributosLoteEmpty(prev[key])) return prev;
+        if (prefill && Object.keys(prefill).length > 0) {
+          return { ...prev, [key]: { ...prefill } };
+        }
+        return { ...prev, [key]: prev[key] ?? {} };
+      });
+    } finally {
+      setPrefillingAtributosKey(null);
+    }
+  };
+
+  /** Pré Batalha: aplica atributos do lote escolhido a cada par modelo×anúncio. */
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly || atributosLoteVazio) return;
+    if (escolhidasComDados.length === 0 || casas.length === 0) return;
+
+    setAtributosLoteByKey((prev) => {
+      const next = { ...prev };
+      for (const ce of escolhidasComDados) {
+        for (const c of casas) {
+          if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa)) continue;
+          const key = `${ce.id}__${c.id}`;
+          if (isAtributosLoteEmpty(next[key])) {
+            next[key] = { ...atributosLotePreBatalha };
+          }
+        }
+      }
+      return next;
+    });
+  }, [
+    modoPreBatalha,
+    listagemOnly,
+    atributosLotePreBatalha,
+    atributosLoteVazio,
+    escolhidasComDados,
+    casas,
+  ]);
+
   /** Checklist de reforma: um por listagem (listing_id). Alimenta os 4 sub-itens de Preço. */
   const [reformaChecklistByListingId, setReformaChecklistByListingId] = useState<
     Record<string, ChecklistReforma>
@@ -296,85 +700,123 @@ export function Etapa4Casas(props: {
     });
     return obj;
   });
-  /** Produto: design e idade por (casa_escolhida_id, listing_id). */
-  const [produtoDadosByKey, setProdutoDadosByKey] = useState<
-    Record<string, { designId?: string; idade?: number | null }>
+  const [custoConstrucaoByCasaEscolhidaId, setCustoConstrucaoByCasaEscolhidaId] = useState<
+    Record<string, number | null | undefined>
   >(() => {
-    const obj: Record<string, { designId?: string; idade?: number | null }> = {};
+    const obj: Record<string, number | null | undefined> = {};
     batalhasIniciais.forEach((b) => {
-      const prod = b.produto_dados_json as { designId?: string; idade?: number | null } | undefined;
-      if (prod && (prod.designId != null || prod.idade != null)) {
-        const key = `${b.casa_escolhida_id}__${b.listing_id}`;
-        obj[key] = { designId: prod.designId, idade: prod.idade };
+      const preco = b.preco_dados_json as { custo_construcao?: number } | undefined;
+      if (preco?.custo_construcao != null && obj[b.casa_escolhida_id] === undefined) {
+        obj[b.casa_escolhida_id] = preco.custo_construcao;
       }
     });
     return obj;
   });
+  /** Produto: design, idade e overrides de banheiros/vagas por (casa_escolhida_id, listing_id). */
+  const [produtoDadosByKey, setProdutoDadosByKey] = useState<
+    Record<string, ProdutoDadosBatalha>
+  >(() => {
+    const obj: Record<string, ProdutoDadosBatalha> = {};
+    batalhasIniciais.forEach((b) => {
+      const prod = b.produto_dados_json as ProdutoDadosBatalha | undefined;
+      if (
+        prod &&
+        (prod.designId != null ||
+          prod.idade != null ||
+          prod.banheiros != null ||
+          prod.vagas != null)
+      ) {
+        const key = `${b.casa_escolhida_id}__${b.listing_id}`;
+        obj[key] = {
+          designId: prod.designId,
+          idade: prod.idade,
+          banheiros: prod.banheiros,
+          vagas: prod.vagas,
+        };
+      }
+    });
+    return obj;
+  });
+
+  const getBanheirosAnuncio = (listing: CasaRow, prodDados: ProdutoDadosBatalha): number | null =>
+    prodDados.banheiros ?? listing.banheiros;
+
+  const getVagasAnuncio = (listing: CasaRow, prodDados: ProdutoDadosBatalha): number | null =>
+    prodDados.vagas ?? listing.vagas;
   const [openPrecoKey, setOpenPrecoKey] = useState<string | null>(null);
   const [openProdutoKey, setOpenProdutoKey] = useState<string | null>(null);
 
-  /** Valor da nossa casa (modelo) para comparação de preço. */
-  const getValorNossaCasa = (ce: (typeof escolhidasComDados)[0]): number | null => {
-    const cat = ce.catalogoRow as {
-      preco_venda?: number | null;
-      preco_venda_m2?: number | null;
-      area_m2?: number | null;
-    };
-    if (cat.preco_venda != null && Number.isFinite(cat.preco_venda)) return cat.preco_venda;
-    if (cat.preco_venda_m2 != null && cat.area_m2 != null && cat.area_m2 > 0)
-      return cat.preco_venda_m2 * cat.area_m2;
-    return null;
-  };
+  const getCustoConstrucaoModelo = (
+    ce: (typeof escolhidasComDados)[0],
+  ): number | null | undefined => custoConstrucaoByCasaEscolhidaId[ce.id];
 
   /** Nota Preço: se houver checklist de reforma para a listagem, usa 4 sub-itens; senão usa fórmula antiga (preço/m²). */
   const getNotaPrecoCompleta = (ce: (typeof escolhidasComDados)[0], listing: CasaRow): number => {
     const checklist = reformaChecklistByListingId[listing.id];
-    const cat = ce.catalogoRow as {
-      preco_venda_m2: number | null;
-      area_m2?: number | null;
-      preco_venda?: number | null;
-    };
-    const valorNossa = getValorNossaCasa(ce);
+    const cat = ce.catalogoRow as CatalogoPrecoRef & { preco_venda_m2: number | null };
     const valorListing = listing.preco ?? null;
-    if (checklist && valorNossa != null && valorNossa > 0 && valorListing != null) {
-      const inv = valorInvestimento(checklist);
-      const totalComparativo = valorListing + inv;
-      const diffPercDist = (totalComparativo - valorNossa) / valorNossa;
-      const diffPercNominal = (valorListing - valorNossa) / valorNossa;
-      const D = notaPrecoPorPercentual(diffPercDist);
-      const P = notaPrecoPorPercentual(diffPercNominal);
-      const E = notaEsforco(checklist);
-      const I = notaIncertezaPreco(checklist);
-      return notaPrecoPonderada(D, E, I, P);
+    const custo = getCustoConstrucaoModelo(ce);
+    if (checklist && valorListing != null) {
+      const calc = calcularNotaPrecoComChecklist(cat, checklist, valorListing, custo);
+      if (calc) return calc.nota;
     }
     return calcularNotaPreco(cat.preco_venda_m2, listing.preco_m2);
   };
 
-  /** Nota Produto: se houver design ou idade preenchidos, usa 5 sub-itens; senão fórmula antiga (quartos/banheiros/vagas). */
-  const getNotaProdutoCompleta = (ce: (typeof escolhidasComDados)[0], listing: CasaRow): number => {
+  /** Nota Produto com sub-notas e sugestão de anexo (T < 0). */
+  const getNotaProdutoCompletaDetalhe = (
+    ce: (typeof escolhidasComDados)[0],
+    listing: CasaRow,
+  ): NotaProdutoCompletaResult => {
     const key = `${ce.id}__${listing.id}`;
-    const dados = produtoDadosByKey[key];
+    const dados = produtoDadosByKey[key] ?? {};
     const cat = ce.catalogoRow as {
       quartos: number | null;
+      suites?: number | null;
       banheiros: number | null;
       vagas: number | null;
       area_m2?: number | null;
+      andares?: number | null;
+      rooftop?: boolean | string | null;
+      quartos_flexivel?: boolean | null;
+      suites_flexivel?: boolean | null;
+      banheiros_flexivel?: boolean | null;
+      assinatura?: boolean | null;
     };
-    if (dados && (dados.designId != null || dados.idade != null)) {
-      const T = notaTamanhoM2(listing.area_casa_m2, cat.area_m2 ?? null);
-      const A = notaAmenidades(listing);
-      const Q = notaQuartos(listing.quartos);
-      const designOpt = DESIGN_OPCOES.find((o) => o.id === dados.designId);
-      const D = designOpt?.nota ?? 0;
-      const I = notaIdade(dados.idade ?? null);
-      return notaProdutoMedia(T, A, Q, D, I);
-    }
-    return calcularNotaProduto(cat, listing);
+    const tipoPredominante = resolverTipoPredominanteFaixa(
+      linhasProspectCondominio,
+      listing.condominio,
+      listing.faixa,
+    );
+    return calcularNotaProdutoCompleta(cat, listing, {
+      ...dados,
+      tipoPredominante,
+    });
   };
 
+  const getNotaProdutoCompleta = (ce: (typeof escolhidasComDados)[0], listing: CasaRow): number =>
+    getNotaProdutoCompletaDetalhe(ce, listing).nota;
+
+  const calcNotaFinal = (notaAtrib: number, notaPreco: number, notaProduto: number): number =>
+    notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+
   /** Cores por modelo (seções de colunas na tabela) */
-  const CORES_POR_MODELO = ['bg-sky-50', 'bg-emerald-50', 'bg-amber-50'] as const;
-  const CORES_HEADER_POR_MODELO = ['bg-sky-100', 'bg-emerald-100', 'bg-amber-100'] as const;
+  const CORES_POR_MODELO = [
+    'bg-sky-50',
+    'bg-emerald-50',
+    'bg-amber-50',
+    'bg-violet-50',
+    'bg-rose-50',
+    'bg-cyan-50',
+  ] as const;
+  const CORES_HEADER_POR_MODELO = [
+    'bg-sky-100',
+    'bg-emerald-100',
+    'bg-amber-100',
+    'bg-violet-100',
+    'bg-rose-100',
+    'bg-cyan-100',
+  ] as const;
 
   /** Ranking por modelo: pontuação total = soma das notas finais. Desempate: Atributos do Lote > Preço > Produto. */
   const rankingPorModelo = useMemo(() => {
@@ -392,11 +834,12 @@ export function Etapa4Casas(props: {
       let sumPreco = 0;
       let sumProduto = 0;
       for (const c of casas) {
+        if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa)) continue;
         const key = `${ce.id}__${c.id}`;
         const notaAtrib = getNotaAtributosLote(key);
         const notaPreco = getNotaPrecoCompleta(ce, c);
         const notaProduto = getNotaProdutoCompleta(ce, c);
-        const notaFinal = notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+        const notaFinal = calcNotaFinal(notaAtrib, notaPreco, notaProduto);
         total += notaFinal;
         sumAtributos += notaAtrib;
         sumPreco += notaPreco;
@@ -424,9 +867,9 @@ export function Etapa4Casas(props: {
     batalhaByKey,
     reformaChecklistByListingId,
     produtoDadosByKey,
+    custoConstrucaoByCasaEscolhidaId,
+    linhasProspectCondominio,
   ]);
-
-  /** Ranking das casas pela nota final (média entre os modelos). Só entram listagens com Atributos do Lote preenchido. */
   const rankingBatalha = useMemo(() => {
     if (escolhidasComDados.length === 0) return [];
     const scores: { casa: CasaRow; notaMedia: number }[] = [];
@@ -434,11 +877,12 @@ export function Etapa4Casas(props: {
       let soma = 0;
       let count = 0;
       for (const ce of escolhidasComDados) {
+        if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa)) continue;
         const key = `${ce.id}__${c.id}`;
         const notaAtrib = getNotaAtributosLote(key);
         const notaPreco = getNotaPrecoCompleta(ce, c);
         const notaProduto = getNotaProdutoCompleta(ce, c);
-        const notaFinal = notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+        const notaFinal = calcNotaFinal(notaAtrib, notaPreco, notaProduto);
         if (
           atributosLoteByKey[key] !== undefined ||
           batalhaByKey.get(key)?.nota_localizacao != null ||
@@ -460,6 +904,8 @@ export function Etapa4Casas(props: {
     batalhaByKey,
     reformaChecklistByListingId,
     produtoDadosByKey,
+    custoConstrucaoByCasaEscolhidaId,
+    linhasProspectCondominio,
   ]);
 
   /** Ranking final por pontuação total = soma das notas finais de cada modelo (para Seção 5). */
@@ -469,58 +915,68 @@ export function Etapa4Casas(props: {
     const rows: BatalhaCasaRow[] = [];
     for (const ce of escolhidasComDados) {
       for (const anuncio of casas) {
+        if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, anuncio.faixa)) continue;
         const key = `${ce.id}__${anuncio.id}`;
         const respostas = atributosLoteByKey[key];
         const temReforma = reformaChecklistByListingId[anuncio.id] !== undefined;
         const temProduto = produtoDadosByKey[key] !== undefined;
-        if (respostas === undefined && !temReforma && !temProduto) continue;
+        const custoConstrucao = getCustoConstrucaoModelo(ce);
+        const temCustoConstrucao =
+          custoConstrucao != null && Number.isFinite(custoConstrucao) && custoConstrucao > 0;
+        if (respostas === undefined && !temReforma && !temProduto && !temCustoConstrucao) continue;
         const notaAtrib =
           respostas != null
             ? notaAtributosLote(respostas)
             : (batalhaByKey.get(key)?.nota_localizacao ?? 0);
         const notaPreco = getNotaPrecoCompleta(ce, anuncio);
         const notaProduto = getNotaProdutoCompleta(ce, anuncio);
-        const notaFinal = notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+        const notaFinal = calcNotaFinal(notaAtrib, notaPreco, notaProduto);
         const checklistReforma = reformaChecklistByListingId[anuncio.id];
         let precoDados: Record<string, unknown> | null = null;
+        const catPreco = ce.catalogoRow as CatalogoPrecoRef;
+        const valorListing = anuncio.preco ?? 0;
         if (checklistReforma) {
-          const inv = valorInvestimento(checklistReforma);
-          const valorNossa = getValorNossaCasa(ce);
-          const valorListing = anuncio.preco ?? 0;
-          const totalComp = valorListing + inv;
-          const diffD =
-            valorNossa != null && valorNossa > 0 ? (totalComp - valorNossa) / valorNossa : 0;
-          const diffP =
-            valorNossa != null && valorNossa > 0 ? (valorListing - valorNossa) / valorNossa : 0;
-          precoDados = {
-            checklist: checklistReforma,
-            valor_investimento: inv,
-            D: notaPrecoPorPercentual(diffD),
-            E: notaEsforco(checklistReforma),
-            I: notaIncertezaPreco(checklistReforma),
-            P: notaPrecoPorPercentual(diffP),
-            nota_preco: notaPreco,
-          };
+          const calc = calcularNotaPrecoComChecklist(
+            catPreco,
+            checklistReforma,
+            valorListing,
+            custoConstrucao,
+          );
+          if (calc) {
+            precoDados = {
+              checklist: checklistReforma,
+              valor_investimento: valorInvestimento(checklistReforma),
+              D: calc.D,
+              E: calc.E,
+              I: calc.I,
+              P: calc.P,
+              nota_preco: notaPreco,
+              ...(temCustoConstrucao && { custo_construcao: custoConstrucao }),
+            };
+          }
+        } else if (temCustoConstrucao) {
+          precoDados = { custo_construcao: custoConstrucao };
         }
         const prodDados = produtoDadosByKey[key];
         let produtoDados: Record<string, unknown> | null = null;
         if (prodDados) {
-          const cat = ce.catalogoRow as { area_m2?: number | null };
-          const T = notaTamanhoM2(anuncio.area_casa_m2, cat.area_m2 ?? null);
-          const A = notaAmenidades(anuncio);
-          const Q = notaQuartos(anuncio.quartos);
-          const designOpt = DESIGN_OPCOES.find((o) => o.id === prodDados.designId);
-          const D = designOpt?.nota ?? 0;
-          const I = notaIdade(prodDados.idade ?? null);
+          const produtoCalc = getNotaProdutoCompletaDetalhe(ce, anuncio);
+          const sub = produtoCalc.subnotas;
           produtoDados = {
             designId: prodDados.designId,
             idade: prodDados.idade,
-            nota_tamanho: T,
-            nota_quartos: Q,
-            nota_amenidades: A,
-            nota_design: D,
-            nota_idade: I,
+            ...(prodDados.banheiros != null && { banheiros: prodDados.banheiros }),
+            ...(prodDados.vagas != null && { vagas: prodDados.vagas }),
+            nota_tamanho: sub?.tamanho ?? 0,
+            nota_quartos: sub?.quartos ?? 0,
+            nota_banheiros: sub?.banheiros ?? 0,
+            nota_vagas: sub?.vagas ?? 0,
+            nota_amenidades: sub?.amenidades ?? 0,
+            nota_design: sub?.design ?? 0,
+            nota_idade: sub?.idade ?? 0,
+            nota_andares: sub?.andares ?? 0,
             nota_produto: notaProduto,
+            ...(produtoCalc.sugestaoAnexo && { sugestao_anexo: produtoCalc.sugestaoAnexo }),
           };
         }
         rows.push({
@@ -574,28 +1030,31 @@ export function Etapa4Casas(props: {
           cidade: city,
           estado: state,
           condominio: condominio.trim() || undefined,
+          processoId,
+          ...(listagemOnly && condominioInicial.trim()
+            ? { condominioVinculo: condominioInicial.trim() }
+            : {}),
         }),
       });
       const data = await res.json();
 
       if (!data.ok) {
-        setZapError(data.error ?? 'Erro ao buscar listagens na ZAP.');
+        setZapError(data.error ?? 'Erro ao buscar listagens.');
         setZapLoading(false);
         return;
       }
 
-      const items = Array.isArray(data.items) ? data.items : [];
-      const saveResult = await saveZapItemsEtapa4(processoId, items, city, state);
-
-      if (saveResult.ok) {
+      if (data.saved) {
         setZapResult({
-          inserted: saveResult.inserted,
-          updated: saveResult.updated,
-          despublicados: saveResult.despublicados,
+          inserted: data.inserted ?? 0,
+          updated: data.updated ?? 0,
+          despublicados: data.despublicados ?? 0,
+          itemCount: data.itemCount ?? 0,
         });
         router.refresh();
+        onMutate?.();
       } else {
-        setZapError(saveResult.error);
+        setZapError('Resposta inesperada da API (dados não salvos).');
       }
     } catch (err) {
       setZapError(err instanceof Error ? err.message : 'Falha ao chamar a API.');
@@ -639,9 +1098,10 @@ export function Etapa4Casas(props: {
     setLoading(false);
     if (result.ok) {
       router.refresh();
+      onMutate?.();
       setCidadeManual(cidadeInicial);
       setEstadoManual(estadoInicial);
-      setCondominioManual('');
+      setCondominioManual(condominioInicial.trim());
       setEnderecoManual('');
       setQuartos('');
       setBanheiros('');
@@ -659,14 +1119,36 @@ export function Etapa4Casas(props: {
 
   const handleStatusChange = async (casaId: string, status: 'a_venda' | 'despublicado') => {
     const result = await updateCasaStatus(casaId, status);
-    if (result.ok) router.refresh();
+    if (result.ok) {
+      router.refresh();
+      onMutate?.();
+    }
   };
 
   const handleValidarStatusCasasManuais = async () => {
+    setValidacaoFeedback('');
     setValidandoStatus(true);
     const result = await validarStatusCasasManuais(processoId);
     setValidandoStatus(false);
-    if (result.ok) router.refresh();
+    if (result.ok) {
+      const partes = [
+        `${result.verificados} link(s) verificado(s)`,
+        result.despublicados > 0 ? `${result.despublicados} marcado(s) como despublicado` : null,
+        result.republicados > 0 ? `${result.republicados} republicado(s)` : null,
+        result.indeterminados > 0 ? `${result.indeterminados} indeterminado(s)` : null,
+        result.bloqueados > 0
+          ? `${result.bloqueados} bloqueado(s) pelo portal (tente novamente em instantes)`
+          : null,
+        result.apifyIndisponivel
+          ? 'ImovelWeb/Viva Real exigem APIFY_API_TOKEN no servidor — configure na Vercel'
+          : null,
+      ].filter(Boolean);
+      setValidacaoFeedback(partes.join(' · '));
+      router.refresh();
+      onMutate?.();
+    } else {
+      setValidacaoFeedback(result.error);
+    }
   };
 
   const labelCasa = (c: CasaRow) =>
@@ -678,7 +1160,17 @@ export function Etapa4Casas(props: {
       <div className="p-3">
         {escolhidasComDados.length === 0 ? (
           <p className="text-sm italic text-stone-500">
-            Selecione até 3 modelos e confirme para habilitar a batalha.
+            {modoPreBatalha
+              ? rankingResultPreBatalha?.tipoPredominanteAusente === true
+                ? 'Preencha o tipo de casa predominante em Dados do Condomínio para ver o ranking.'
+                : carregandoRankingPreBatalha
+                ? 'Calculando ranking dos modelos…'
+                : syncPreBatalha
+                  ? 'Sincronizando modelos ranqueados…'
+                  : casas.length === 0
+                    ? 'Nenhum anúncio encontrado. Execute a varredura no Mapa de Competidores primeiro.'
+                    : 'Aguardando catálogo para ranquear os modelos.'
+              : 'Selecione modelos e confirme para habilitar a batalha.'}
           </p>
         ) : rankingPorModelo.length === 0 ? (
           <p className="text-sm italic text-stone-500">
@@ -736,22 +1228,52 @@ export function Etapa4Casas(props: {
   const pdfRef = useRef<HTMLDivElement>(null);
   const [gerandoPdf, setGerandoPdf] = useState(false);
 
-  /** Dados para o PDF Score & Batalha: uma linha por competidor (casa), com notas do primeiro modelo e resultado G/E/P. */
+  /** Dados para o PDF Score & Batalha: uma linha por competidor (casa), com notas salvas do primeiro modelo. */
   const pdfRows = useMemo((): ScoreBatalhaRow[] => {
     if (rankingBatalha.length === 0 || escolhidasComDados.length === 0) return [];
     const primeiroModelo = escolhidasComDados[0];
     return rankingBatalha.map(({ casa, notaMedia }) => {
       const key = `${primeiroModelo.id}__${casa.id}`;
-      const notaAtrib = getNotaAtributosLote(key);
-      const catRow = primeiroModelo.catalogoRow as {
-        preco_venda_m2: number | null;
-        quartos: number | null;
-        banheiros: number | null;
-        vagas: number | null;
-      };
-      const notaPreco = calcularNotaPreco(catRow.preco_venda_m2, casa.preco_m2);
-      const notaProduto = calcularNotaProduto(catRow, casa);
-      const notaFinal = notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+      const saved = batalhaFullByKey.get(key);
+
+      const notaPreco =
+        saved?.nota_preco ?? getNotaPrecoCompleta(primeiroModelo, casa);
+      const notaProduto =
+        saved?.nota_produto ?? getNotaProdutoCompleta(primeiroModelo, casa);
+      const notaAtrib =
+        saved?.nota_localizacao ?? getNotaAtributosLote(key);
+      const notaFinal =
+        saved?.nota_final ??
+        calcNotaFinal(notaAtrib, notaPreco, notaProduto);
+
+      const precoJson = saved?.preco_dados_json as Record<string, unknown> | undefined;
+      const precoSub: PrecoSubNotas | null =
+        precoJson && (precoJson.D != null || precoJson.E != null)
+          ? {
+              D: precoJson.D as number | null,
+              E: precoJson.E as number | null,
+              I: precoJson.I as number | null,
+              P: precoJson.P as number | null,
+            }
+          : null;
+
+      const prodJson = saved?.produto_dados_json as Record<string, unknown> | undefined;
+      const produtoSub: ProdutoSubNotas | null =
+        prodJson &&
+        (prodJson.nota_tamanho != null ||
+          prodJson.nota_quartos != null ||
+          prodJson.nota_banheiros != null)
+          ? {
+              nota_tamanho: prodJson.nota_tamanho as number | null,
+              nota_amenidades: prodJson.nota_amenidades as number | null,
+              nota_quartos: prodJson.nota_quartos as number | null,
+              nota_banheiros: prodJson.nota_banheiros as number | null,
+              nota_vagas: prodJson.nota_vagas as number | null,
+              nota_design: prodJson.nota_design as number | null,
+              nota_idade: prodJson.nota_idade as number | null,
+            }
+          : null;
+
       const resultado: 'G' | 'E' | 'P' = notaMedia >= 1 ? 'G' : notaMedia <= -1 ? 'P' : 'E';
       const precoNum = casa.preco != null ? casa.preco / 1e6 : 0;
       const precoLabel = precoNum > 0 ? `R$ ${precoNum.toFixed(2).replace('.', ',')} MM` : '—';
@@ -763,9 +1285,11 @@ export function Etapa4Casas(props: {
         notaLocalizacao: notaAtrib,
         notaFinal: Number(notaFinal.toFixed(1)),
         resultado,
+        precoSub,
+        produtoSub,
       };
     });
-  }, [rankingBatalha, escolhidasComDados, atributosLoteByKey, batalhaByKey]);
+  }, [rankingBatalha, escolhidasComDados, batalhaFullByKey, atributosLoteByKey, batalhaByKey, reformaChecklistByListingId, produtoDadosByKey, linhasProspectCondominio]);
 
   const handleGerarPdf = () => {
     if (pdfRows.length === 0) return;
@@ -831,6 +1355,22 @@ export function Etapa4Casas(props: {
       ? document.getElementById(resultadoPortalTargetId)
       : null;
 
+  if (listagemOnly) {
+    return (
+      <Etapa4CasasListagem
+        processoId={processoId}
+        casas={casas}
+        cidadeInicial={cidadeInicial}
+        estadoInicial={estadoInicial}
+        ultimaValidacaoCasasManuaisEm={ultimaValidacaoCasasManuaisEm}
+        readOnly={readOnly}
+        condominioInicial={condominioInicial}
+        painelAposBuscar={painelAposBuscar}
+        onMutate={onMutate}
+      />
+    );
+  }
+
   return (
     <>
       {!listagemOnly && resultadoPortalTargetId && portalTarget
@@ -844,71 +1384,104 @@ export function Etapa4Casas(props: {
       )}
       <div className={resultadoPortalTargetId ? 'space-y-8 p-4 sm:p-6' : 'mt-6 space-y-8'}>
         {/* Bloco Varrer ZAP */}
-        <section className="space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-4">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <input
-              type="text"
-              placeholder="Cidade"
-              value={cidade}
-              onChange={(e) => setCidade(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
-            />
-            <input
-              type="text"
-              placeholder="Estado (ex.: SP)"
-              value={estado}
-              onChange={(e) => setEstado(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
-              maxLength={2}
-            />
-            <input
-              type="text"
-              placeholder="Condomínio (opcional)"
-              value={condominio}
-              onChange={(e) => setCondominio(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
-            />
+        <section className={`space-y-3 rounded-xl border border-stone-200 bg-stone-50 ${listagemOnly ? 'p-3' : 'p-4'}`}>
+          <div className={`grid sm:grid-cols-3 ${listagemOnly ? 'gap-2' : 'gap-3'}`}>
+            <label className="grid gap-1">
+              <span className={campoLabelClass}>Cidade</span>
+              <input
+                type="text"
+                placeholder="Ex.: Salto"
+                value={cidade}
+                onChange={(e) => setCidade(e.target.value)}
+                disabled={readOnly}
+                className={campoInputClass}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className={campoLabelClass}>Estado</span>
+              <input
+                type="text"
+                placeholder="Ex.: SP"
+                value={estado}
+                onChange={(e) => setEstado(e.target.value)}
+                disabled={readOnly}
+                className={campoInputClass}
+                maxLength={2}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className={campoLabelClass}>Condomínio</span>
+              <input
+                type="text"
+                placeholder={listagemOnly ? 'Nome do condomínio' : 'Condomínio (opcional)'}
+                value={condominio}
+                onChange={(e) => setCondominio(e.target.value)}
+                disabled={readOnly}
+                className={campoInputClass}
+              />
+            </label>
           </div>
+          {listagemOnly &&
+          condominioInicial.trim() &&
+          condominio.trim().toLowerCase() !== condominioInicial.trim().toLowerCase() ? (
+            <p className={`${campoTexto} text-stone-500`}>
+              Termo de busca para &quot;{condominioInicial.trim()}&quot; — ajuste se necessário.
+            </p>
+          ) : null}
           {zapLoading ? (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              Chamando Apify (actor fatihtahta/zap-imoveis-scraper)… aguardando resultado (polling a
-              cada 3 s). Não feche a página.
+            <p className={`rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 ${campoTexto}`}>
+              Buscando imóveis online… pode levar até 4 minutos. Não feche a página.
             </p>
           ) : null}
           {zapError ? (
             <div
-              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+              className={`rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 ${campoTexto}`}
               role="alert"
             >
-              <strong>Erro ao varrer ZAP:</strong> {zapError}
+              <strong>Erro na busca:</strong> {zapError}
             </div>
           ) : null}
           {zapResult ? (
-            <p className="text-sm text-green-700">
-              Inseridos: {zapResult.inserted}, atualizados: {zapResult.updated}, marcados
-              despublicados: {zapResult.despublicados}.
-            </p>
+            zapResult.itemCount === 0 ? (
+              <p
+                className={`rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 ${campoTexto}`}
+              >
+                Nenhum imóvel encontrado com estes filtros (casas/sobrados acima de R$
+                4.000.000). Confira se o termo do condomínio corresponde ao bairro/loteamento na busca ou cadastre manualmente.
+              </p>
+            ) : (
+              <p className={`${campoTexto} text-green-700`}>
+                {zapResult.itemCount} {zapResult.itemCount === 1 ? 'imóvel' : 'imóveis'} encontrado(s) —
+                inseridos: {zapResult.inserted}, atualizados: {zapResult.updated}, marcados
+                despublicados: {zapResult.despublicados}.
+              </p>
+            )
           ) : null}
           <button
             type="button"
             onClick={handleVarrerZap}
-            disabled={zapLoading}
-            className="btn-primary text-sm"
+            disabled={zapLoading || readOnly}
+            className={`btn-primary disabled:cursor-not-allowed disabled:opacity-60 ${
+              listagemOnly ? '!px-2.5 !py-1 !text-[11px] !font-normal' : 'text-sm'
+            }`}
           >
             {zapLoading ? 'Buscando…' : 'Buscar'}
           </button>
         </section>
 
+        {painelAposBuscar}
+
         {/* Alerta mensal: validar status das casas manuais */}
-        {casasManuais.length > 0 && precisaAlertaValidacao && (
+        {casasComLink.length > 0 && precisaAlertaValidacao && (
           <div
             className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4"
             role="alert"
           >
             <p className="text-sm text-amber-900">
-              <strong>Validação mensal:</strong> Você tem {casasManuais.length} casa(s)
-              cadastrada(s) manualmente. Confira se o status (à venda / despublicado) ainda está
-              correto.
+              <strong>Validação mensal:</strong> Você tem {casasComLink.length}{' '}
+              {casasComLink.length === 1 ? 'link' : 'links'} de anúncio. O sistema acessa cada URL
+              e marca como despublicado quando o imóvel não estiver mais no ar (ImovelWeb, Viva Real,
+              ZAP etc.).
               {ultimaValidacaoCasasManuaisEm ? (
                 <>
                   {' '}
@@ -922,19 +1495,118 @@ export function Etapa4Casas(props: {
             <button
               type="button"
               onClick={handleValidarStatusCasasManuais}
-              disabled={validandoStatus}
-              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+              disabled={validandoStatus || readOnly}
+              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {validandoStatus ? 'Salvando…' : 'Validar status'}
+              {validandoStatus ? 'Verificando links…' : 'Verificar links agora'}
             </button>
           </div>
         )}
 
+        {validacaoFeedback ? (
+          <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }} role="status">
+            {validacaoFeedback}
+          </p>
+        ) : null}
+
         {/* Seção 1 — Listagem (+ opcional: escolha dos 3 modelos e batalha) */}
+        {modoPreBatalha && !listagemOnly && casas.length === 0 ? (
+          <div
+            className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            role="status"
+          >
+            Nenhum anúncio encontrado. Execute a varredura no Mapa de Competidores primeiro.
+          </div>
+        ) : null}
         {casas.length > 0 && (
           <section className="overflow-hidden rounded-xl border border-stone-200">
-            {/* Bloco compacto: escolher 3 do catálogo para batalha — só no Step 2 (não listagemOnly) */}
-            {!listagemOnly && catalogo.length > 0 && (
+            {modoPreBatalha ? (
+              <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2">
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300">
+                  Pré Batalha
+                </span>
+                <span className="text-xs text-amber-900/90">
+                  Ranking por faixa: match de atributos do lote + topografia, depois Preço (INC + Kit
+                  Moní) e Produto vs. cada anúncio. Desempate: Lote (atributos) &gt; Preço &gt;
+                  Produto.
+                </span>
+              </div>
+            ) : null}
+            {modoPreBatalha && !listagemOnly ? (
+              <div className="border-b border-stone-200 bg-stone-50 px-4 py-4">
+                {atributosLoteVazio ? (
+                  <p
+                    className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                    role="status"
+                  >
+                    Atributos do lote não preenchidos — nota de localização zerada. Preencha a fase
+                    Lotes Disponíveis.
+                  </p>
+                ) : null}
+                {carregandoRankingPreBatalha ? (
+                  <div className="flex items-center gap-2 text-sm text-stone-500">
+                    <span
+                      className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-stone-300 border-t-amber-600"
+                      aria-hidden
+                    />
+                    Calculando ranking…
+                  </div>
+                ) : syncPreBatalha ? (
+                  <p className="text-sm text-stone-500">Sincronizando ranking…</p>
+                ) : rankingResultPreBatalha?.tipoPredominanteAusente === true ? (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="mb-1 font-semibold">⚠️ Informação obrigatória não preenchida</p>
+                    <p>
+                      O tipo de casa predominante desta faixa não foi informado. Acesse{' '}
+                      <strong>Dados do Condomínio</strong>, preencha o campo &quot;Qual tipo de casa
+                      é predominante nessa faixa?&quot; (Térrea ou Sobrado) e volte para continuar a
+                      Pré Batalha.
+                    </p>
+                  </div>
+                ) : rankingPorFaixaPreBatalha.length === 0 ? (
+                  <p className="text-sm text-stone-500">Nenhum modelo no catálogo ativo.</p>
+                ) : (
+                  <>
+                    <p
+                      className="mb-3 whitespace-pre-line rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs leading-relaxed text-stone-800"
+                      role="note"
+                    >
+                      {PRE_BATALHA_INSTRUCOES_FASE}
+                    </p>
+                    <p
+                      className="mb-3 whitespace-pre-line rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs leading-relaxed text-amber-950"
+                      role="note"
+                    >
+                      {PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING}
+                    </p>
+                    {topografiaLotePreBatalha ? (
+                      <p className="mb-3 text-xs font-medium text-stone-700">
+                        Topografia do lote:{' '}
+                        <span className="text-amber-900">{topografiaLotePreBatalha}</span> — modelos
+                        incompatíveis aparecem ao final do ranking.{' '}
+                        {rankingPreBatalha.length}{' '}
+                        {rankingPreBatalha.length === 1 ? 'modelo' : 'modelos'} em{' '}
+                        {rankingPorFaixaPreBatalha.length}{' '}
+                        {rankingPorFaixaPreBatalha.length === 1 ? 'faixa' : 'faixas'}.
+                      </p>
+                    ) : null}
+
+                    <section className="space-y-3">
+                      <h4 className="text-sm font-semibold text-stone-800">Casas rankeadas</h4>
+                      {!terrenoFiltraGeometriaPreBatalha ? (
+                        <p className="rounded-lg border border-stone-200 bg-stone-100 px-3 py-2 text-xs text-stone-600">
+                          Preencha as dimensões do lote e os recuos do condomínio para filtrar casas
+                          que cabem no terreno.
+                        </p>
+                      ) : null}
+                      <PreBatalhaRankingLeaderboard grupos={rankingPorFaixaPreBatalha} />
+                    </section>
+                  </>
+                )}
+              </div>
+            ) : null}
+            {/* Escolher 3 do catálogo — Step 2 clássico (não Pré Batalha) */}
+            {!listagemOnly && !modoPreBatalha && catalogo.length > 0 && (
               <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
                 <p className="mb-2 text-sm font-medium text-stone-800">
                   Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:
@@ -951,6 +1623,7 @@ export function Etapa4Casas(props: {
                         onChange={() => toggleCatalogoSelected(mod.id)}
                         disabled={
                           !selectedCatalogoIds.includes(mod.id) &&
+                          selectedLimit != null &&
                           selectedCatalogoIds.length >= selectedLimit
                         }
                         className="rounded"
@@ -974,49 +1647,49 @@ export function Etapa4Casas(props: {
                   >
                     Confirmar seleção
                   </button>
-                  {escolhidasComDados.length > 0 && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={handleSalvarBatalha}
-                        className="btn-primary text-sm"
-                      >
-                        Salvar batalha
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleGerarPdf}
-                        disabled={gerandoPdf || pdfRows.length === 0}
-                        className="btn-primary text-sm"
-                      >
-                        {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
-                      </button>
-                    </>
-                  )}
                 </div>
               </div>
             )}
+            {!listagemOnly && escolhidasComDados.length > 0 && (
+              <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
+                <button
+                  type="button"
+                  onClick={handleSalvarBatalha}
+                  className="btn-primary text-sm"
+                >
+                  Salvar batalha
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGerarPdf}
+                  disabled={gerandoPdf || pdfRows.length === 0}
+                  className="btn-primary ml-2 text-sm"
+                >
+                  {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
+                </button>
+              </div>
+            )}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className={`w-full min-w-[900px] ${tabelaTexto}`}>
                 <thead>
                   <tr className="border-b border-stone-200 bg-stone-100">
-                    <th className="p-2 text-left">Cidade</th>
-                    <th className="p-2 text-left">Fotos</th>
-                    <th className="p-2 text-left">Status</th>
-                    <th className="p-2 text-left">Condomínio</th>
-                    <th className="p-2 text-left">Endereço</th>
-                    <th className="p-2 text-left">Quartos</th>
-                    <th className="p-2 text-left">Banheiros</th>
-                    <th className="p-2 text-left">Vagas</th>
-                    <th className="p-2 text-left">Piscina</th>
-                    <th className="p-2 text-left">Móveis planej.</th>
-                    <th className="p-2 text-left">Preço</th>
-                    <th className="p-2 text-left">m²</th>
-                    <th className="p-2 text-left">R$/m²</th>
-                    <th className="p-2 text-left">Estado</th>
-                    <th className="p-2 text-left">Data criação ZAP</th>
-                    <th className="p-2 text-left">Duração anúncio</th>
-                    <th className="p-2 text-left">Listing</th>
+                    <th className={tabelaTh}>Cidade</th>
+                    <th className={tabelaTh}>Fotos</th>
+                    <th className={tabelaTh}>Status</th>
+                    <th className={tabelaTh}>Condomínio</th>
+                    <th className={tabelaTh}>Endereço</th>
+                    <th className={tabelaTh}>Quartos</th>
+                    <th className={tabelaTh}>Banheiros</th>
+                    <th className={tabelaTh}>Vagas</th>
+                    <th className={tabelaTh}>Piscina</th>
+                    <th className={tabelaTh}>Móveis planej.</th>
+                    <th className={tabelaTh}>Preço</th>
+                    <th className={tabelaTh}>m²</th>
+                    <th className={tabelaTh}>R$/m²</th>
+                    <th className={tabelaTh}>Estado</th>
+                    <th className={tabelaTh}>Data publicação</th>
+                    <th className={tabelaTh}>Duração anúncio</th>
+                    <th className={tabelaTh}>Listing</th>
                     {!listagemOnly &&
                       escolhidasComDados.map((ce, idx) => {
                         const cat = ce.catalogoRow as { nome: string | null };
@@ -1047,7 +1720,7 @@ export function Etapa4Casas(props: {
                               Nota Preço
                             </th>
                             <th
-                              className={`p-1 px-2 text-center ${bg} min-w-[70px] text-xs font-medium`}
+                              className={`min-w-[70px] p-1 px-2 text-center text-xs font-medium ${bg}`}
                             >
                               Nota Produto
                             </th>
@@ -1069,10 +1742,37 @@ export function Etapa4Casas(props: {
                   )}
                 </thead>
                 <tbody>
-                  {casasPaginated.map((c) => (
-                    <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50">
-                      <td className="p-2">{c.cidade ?? '—'}</td>
-                      <td className="p-2">
+                  {casasPaginated.map((c, idx) => {
+                    const prevFaixa = idx > 0 ? casasPaginated[idx - 1]?.faixa : undefined;
+                    const showFaixaHeader =
+                      listagemOnly && c.faixa != null && (idx === 0 || c.faixa !== prevFaixa);
+                    const qtdFaixa =
+                      showFaixaHeader && c.faixa && contagemPorFaixa
+                        ? (contagemPorFaixa.get(c.faixa) ?? 0)
+                        : 0;
+                    const colCountListagem = 17;
+                    const colCountBatalha =
+                      colCountListagem + escolhidasComDados.length * 4;
+                    return (
+                    <React.Fragment key={c.id}>
+                    {showFaixaHeader ? (
+                      <tr className="border-b border-stone-200 bg-stone-50/90">
+                        <td
+                          colSpan={listagemOnly ? colCountListagem : colCountBatalha}
+                          className={`${tabelaTd} py-1.5`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <BadgeFaixaMercado faixa={c.faixa} />
+                            <span className="font-medium text-stone-600">
+                              {qtdFaixa} {qtdFaixa === 1 ? 'casa' : 'casas'}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                    <tr className="border-b border-stone-100 hover:bg-stone-50">
+                      <td className={tabelaTd}>{c.cidade ?? '—'}</td>
+                      <td className={tabelaTd}>
                         {c.foto_url ? (
                           <a
                             href={c.foto_url}
@@ -1086,14 +1786,15 @@ export function Etapa4Casas(props: {
                           '—'
                         )}
                       </td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>
                         {c.manual ? (
                           <select
                             value={c.status ?? 'a_venda'}
                             onChange={(e) =>
                               handleStatusChange(c.id, e.target.value as 'a_venda' | 'despublicado')
                             }
-                            className="rounded border border-stone-300 px-2 py-1 text-sm"
+                            disabled={readOnly}
+                            className={`rounded border border-stone-300 ${campoPadding} ${campoTexto} disabled:cursor-not-allowed disabled:opacity-60`}
                           >
                             <option value="a_venda">À venda</option>
                             <option value="despublicado">Despublicado</option>
@@ -1104,28 +1805,31 @@ export function Etapa4Casas(props: {
                           'a venda'
                         )}
                       </td>
-                      <td className="p-2">{c.condominio ?? '—'}</td>
+                      <td className={tabelaTd}>{c.condominio ?? '—'}</td>
                       <td
-                        className="max-w-[120px] truncate p-2"
+                        className={`${tabelaTd} max-w-[120px] truncate`}
                         title={c.localizacao_condominio ?? undefined}
                       >
                         {c.localizacao_condominio ?? '—'}
                       </td>
-                      <td className="p-2">{c.quartos ?? '—'}</td>
-                      <td className="p-2">{c.banheiros ?? '—'}</td>
-                      <td className="p-2">{c.vagas ?? '—'}</td>
-                      <td className="p-2">{c.piscina ? 'sim' : 'não'}</td>
-                      <td className="p-2">{c.marcenaria ? 'sim' : 'não'}</td>
-                      <td className="p-2">
-                        {c.preco != null ? `R$ ${c.preco.toLocaleString('pt-BR')}` : '—'}
+                      <td className={tabelaTd}>{c.quartos ?? '—'}</td>
+                      <td className={tabelaTd}>{c.banheiros ?? '—'}</td>
+                      <td className={tabelaTd}>{c.vagas ?? '—'}</td>
+                      <td className={tabelaTd}>{c.piscina ? 'sim' : 'não'}</td>
+                      <td className={tabelaTd}>{c.marcenaria ? 'sim' : 'não'}</td>
+                      <td className={tabelaTd}>
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
+                          {c.preco != null ? `R$ ${c.preco.toLocaleString('pt-BR')}` : '—'}
+                          <BadgeFaixaMercado faixa={c.faixa} />
+                        </span>
                       </td>
-                      <td className="p-2">{c.area_casa_m2 ?? '—'}</td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>{c.area_casa_m2 ?? '—'}</td>
+                      <td className={tabelaTd}>
                         {c.preco_m2 != null ? `R$ ${c.preco_m2.toLocaleString('pt-BR')}` : '—'}
                       </td>
-                      <td className="p-2">{c.estado ?? '—'}</td>
-                      <td className="p-2">{c.data_publicacao ?? '—'}</td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>{c.estado ?? '—'}</td>
+                      <td className={tabelaTd}>{c.data_publicacao ?? '—'}</td>
+                      <td className={tabelaTd}>
                         {(() => {
                           const pub = c.data_publicacao ? new Date(c.data_publicacao) : null;
                           if (!pub || isNaN(pub.getTime())) return '—';
@@ -1147,7 +1851,7 @@ export function Etapa4Casas(props: {
                           return `${dias} dias`;
                         })()}
                       </td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>
                         {c.link ? (
                           <a
                             href={c.link}
@@ -1163,11 +1867,25 @@ export function Etapa4Casas(props: {
                       </td>
                       {!listagemOnly &&
                         escolhidasComDados.map((ce, idx) => {
+                          const elegivel = parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa);
+                          if (!elegivel) {
+                            return (
+                              <td
+                                key={ce.id}
+                                colSpan={4}
+                                className="border-l border-stone-200 bg-stone-100/80 p-1 text-center text-[10px] text-stone-400"
+                                title="Modelo não elegível para a faixa deste anúncio"
+                              >
+                                —
+                              </td>
+                            );
+                          }
                           const key = `${ce.id}__${c.id}`;
                           const notaAtrib = getNotaAtributosLote(key);
                           const notaPreco = getNotaPrecoCompleta(ce, c);
                           const notaProduto = getNotaProdutoCompleta(ce, c);
-                          const notaFinal = notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+                          const produtoCalc = getNotaProdutoCompletaDetalhe(ce, c);
+                          const notaFinal = calcNotaFinal(notaAtrib, notaPreco, notaProduto);
                           const bg = CORES_POR_MODELO[idx % CORES_POR_MODELO.length];
                           const borderLeft = 'border-l border-stone-200';
                           const isOpenAtrib = openAtributosKey === key;
@@ -1179,11 +1897,32 @@ export function Etapa4Casas(props: {
                           const precoManualPreenchido = Object.values(checklistReforma).some(
                             (m) => !!m?.marked,
                           );
-                          const atribManualPreenchido =
-                            atributosLoteByKey[key] !== undefined && Object.keys(resp).length > 0;
+                          const atribManualPreenchido = !isAtributosLoteEmpty(atributosLoteByKey[key]);
                           const produtoManualPreenchido =
                             (prodDados.designId != null && prodDados.designId !== '') ||
                             (prodDados.idade != null && Number.isFinite(prodDados.idade));
+                          const catProduto = ce.catalogoRow as {
+                            nome: string | null;
+                            quartos: number | null;
+                            suites?: number | null;
+                            banheiros: number | null;
+                            vagas: number | null;
+                            area_m2?: number | null;
+                            quartos_flexivel?: boolean | null;
+                            suites_flexivel?: boolean | null;
+                            banheiros_flexivel?: boolean | null;
+                            assinatura?: boolean | null;
+                          };
+                          const banheirosAnuncio = getBanheirosAnuncio(c, prodDados);
+                          const vagasAnuncio = getVagasAnuncio(c, prodDados);
+                          const notaQ = produtoCalc.subnotas?.quartos ?? 0;
+                          const notaB = produtoCalc.subnotas?.banheiros ?? 0;
+                          const notaV = produtoCalc.subnotas?.vagas ?? 0;
+                          const notaAn = produtoCalc.subnotas?.andares ?? 0;
+                          const modoProdutoCompleto =
+                            prodDados.designId != null || prodDados.idade != null;
+                          const refCustoEscolha = custosConstrucaoChecklist[ce.ordem];
+                          const custoModelo = custoConstrucaoByCasaEscolhidaId[ce.id];
                           return (
                             <React.Fragment key={ce.id}>
                               <td
@@ -1217,6 +1956,35 @@ export function Etapa4Casas(props: {
                                 {isOpenPreco && (
                                   <>
                                     <div className="absolute left-0 top-full z-30 mt-0.5 max-h-[70vh] w-72 overflow-y-auto rounded-lg border border-stone-200 bg-white p-2 shadow-lg">
+                                      <label className="mb-2 block text-xs">
+                                        <span className="font-medium text-stone-700">
+                                          Custo de construção do modelo (R$)
+                                        </span>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          step={1000}
+                                          value={custoModelo ?? ''}
+                                          onChange={(e) => {
+                                            const v =
+                                              e.target.value === ''
+                                                ? null
+                                                : Number(e.target.value);
+                                            setCustoConstrucaoByCasaEscolhidaId((p) => ({
+                                              ...p,
+                                              [ce.id]: v,
+                                            }));
+                                          }}
+                                          className="mt-0.5 w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                        />
+                                      </label>
+                                      {refCustoEscolha != null &&
+                                      Number.isFinite(refCustoEscolha) ? (
+                                        <p className="mb-2 text-[11px] text-stone-500">
+                                          Referência Escolha (checklist): R${' '}
+                                          {refCustoEscolha.toLocaleString('pt-BR')}
+                                        </p>
+                                      ) : null}
                                       <p className="mb-2 text-xs font-semibold text-stone-800">
                                         Preço — Checklist de reforma (listagem)
                                       </p>
@@ -1284,7 +2052,9 @@ export function Etapa4Casas(props: {
                                   </>
                                 )}
                               </td>
-                              <td className={`p-1 px-2 text-center ${bg} relative min-w-[70px]`}>
+                              <td
+                                className={`p-1 px-2 text-center ${bg} relative min-w-[70px]`}
+                              >
                                 <div className="flex items-center justify-center gap-0.5">
                                   <button
                                     type="button"
@@ -1294,7 +2064,11 @@ export function Etapa4Casas(props: {
                                         setProdutoDadosByKey((p) => ({ ...p, [key]: {} }));
                                     }}
                                     className="min-w-[2rem] rounded border border-stone-300 bg-white px-1 py-0.5 text-xs hover:bg-stone-50"
-                                    title="Produto (5 sub-itens: tamanho, amenidades, quartos, design, idade)"
+                                    title={
+                                      modoProdutoCompleto
+                                        ? 'Produto (8 sub-itens: tamanho, amenidades, quartos, banheiros, vagas, design, idade, andares)'
+                                        : 'Produto (5 sub-itens: tamanho, quartos, banheiros, vagas, andares)'
+                                    }
                                   >
                                     {notaProduto}
                                   </button>
@@ -1309,51 +2083,49 @@ export function Etapa4Casas(props: {
                                 </div>
                                 {isOpenProduto && (
                                   <>
-                                    <div className="absolute left-0 top-full z-30 mt-0.5 w-64 rounded-lg border border-stone-200 bg-white p-2 shadow-lg">
+                                    <div className="absolute left-0 top-full z-30 mt-0.5 w-72 rounded-lg border border-stone-200 bg-white p-2 shadow-lg">
                                       <p className="mb-2 text-xs font-semibold text-stone-800">
-                                        Produto — 5 sub-itens
+                                        Produto — {modoProdutoCompleto ? '8' : '5'} sub-itens
+                                      </p>
+                                      <p className="mb-2 text-[11px] text-stone-500">
+                                        Modelo (
+                                        {catProduto.nome ?? `Casa ${ce.ordem}`}):{' '}
+                                        {catProduto.quartos ?? QUARTOS_PADRAO_NOSSA} quartos,{' '}
+                                        {catProduto.banheiros ?? '—'} banh.,{' '}
+                                        {catProduto.vagas ?? '—'} vagas
+                                        {(ce.catalogoRow as { andares?: number | null }).andares !=
+                                        null
+                                          ? `, ${(ce.catalogoRow as { andares?: number | null }).andares} and.`
+                                          : ''}
                                       </p>
                                       <div className="space-y-1.5 text-xs">
                                         <p>
-                                          Tamanho m²: auto (
-                                          {notaTamanhoM2(
-                                            c.area_casa_m2,
-                                            (ce.catalogoRow as { area_m2?: number | null })
-                                              .area_m2 ?? null,
-                                          )}
-                                          )
+                                          Tamanho m²: auto ({produtoCalc.subnotas?.tamanho ?? 0})
                                         </p>
-                                        <p>Quartos: auto ({notaQuartos(c.quartos)})</p>
-                                        <p>Amenidades: auto ({notaAmenidades(c)})</p>
-                                        <label className="block">
-                                          <span className="text-stone-600">Design:</span>
-                                          <select
-                                            value={prodDados.designId ?? ''}
-                                            onChange={(e) =>
-                                              setProdutoDadosByKey((p) => ({
-                                                ...p,
-                                                [key]: {
-                                                  ...p[key],
-                                                  designId: e.target.value || undefined,
-                                                },
-                                              }))
-                                            }
-                                            className="ml-1 w-full rounded border border-stone-300 px-1 py-0.5"
-                                          >
-                                            <option value="">—</option>
-                                            {DESIGN_OPCOES.map((o) => (
-                                              <option key={o.id} value={o.id}>
-                                                {o.label}
-                                              </option>
-                                            ))}
-                                          </select>
-                                        </label>
-                                        <label className="block">
-                                          <span className="text-stone-600">Idade (anos):</span>
+                                        {produtoCalc.sugestaoAnexo ? (
+                                          <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-950">
+                                            Sugestão: {produtoCalc.sugestaoAnexo.anexosNecessarios}{' '}
+                                            {produtoCalc.sugestaoAnexo.anexosNecessarios === 1
+                                              ? 'anexo'
+                                              : 'anexos'}{' '}
+                                            de 20 m² (+{produtoCalc.sugestaoAnexo.m2Anexo} m² →{' '}
+                                            {produtoCalc.sugestaoAnexo.areaMoniComAnexo.toFixed(0)}{' '}
+                                            m² total)
+                                            {produtoCalc.sugestaoAnexo.penalizacaoEliminada
+                                              ? ' — elimina a penalização de tamanho'
+                                              : null}
+                                          </p>
+                                        ) : null}
+                                        <ObsFlexivelBloco obsFlexivel={produtoCalc.obsFlexivel} />
+                                        <p>
+                                          Quartos: anúncio {c.quartos ?? '—'} → auto ({notaQ})
+                                        </p>
+                                        <label className="flex items-center gap-2">
+                                          <span className="shrink-0 text-stone-600">Banheiros:</span>
                                           <input
                                             type="number"
                                             min={0}
-                                            value={prodDados.idade ?? ''}
+                                            value={banheirosAnuncio ?? ''}
                                             onChange={(e) => {
                                               const v =
                                                 e.target.value === ''
@@ -1361,12 +2133,81 @@ export function Etapa4Casas(props: {
                                                   : Number(e.target.value);
                                               setProdutoDadosByKey((p) => ({
                                                 ...p,
-                                                [key]: { ...p[key], idade: v },
+                                                [key]: { ...p[key], banheiros: v },
                                               }));
                                             }}
-                                            className="ml-1 w-16 rounded border border-stone-300 px-1 py-0.5"
+                                            className="w-16 rounded border border-stone-300 px-1 py-0.5"
                                           />
+                                          <span className="text-stone-500">({notaB})</span>
                                         </label>
+                                        <label className="flex items-center gap-2">
+                                          <span className="shrink-0 text-stone-600">Vagas:</span>
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            value={vagasAnuncio ?? ''}
+                                            onChange={(e) => {
+                                              const v =
+                                                e.target.value === ''
+                                                  ? null
+                                                  : Number(e.target.value);
+                                              setProdutoDadosByKey((p) => ({
+                                                ...p,
+                                                [key]: { ...p[key], vagas: v },
+                                              }));
+                                            }}
+                                            className="w-16 rounded border border-stone-300 px-1 py-0.5"
+                                          />
+                                          <span className="text-stone-500">({notaV})</span>
+                                        </label>
+                                        <p>{formatNotaAn(notaAn)}</p>
+                                        {modoProdutoCompleto ? (
+                                          <>
+                                            <p>Amenidades: auto ({notaAmenidades(c)})</p>
+                                            <label className="block">
+                                              <span className="text-stone-600">Design:</span>
+                                              <select
+                                                value={prodDados.designId ?? ''}
+                                                onChange={(e) =>
+                                                  setProdutoDadosByKey((p) => ({
+                                                    ...p,
+                                                    [key]: {
+                                                      ...p[key],
+                                                      designId: e.target.value || undefined,
+                                                    },
+                                                  }))
+                                                }
+                                                className="ml-1 w-full rounded border border-stone-300 px-1 py-0.5"
+                                              >
+                                                <option value="">—</option>
+                                                {DESIGN_OPCOES.map((o) => (
+                                                  <option key={o.id} value={o.id}>
+                                                    {o.label}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            </label>
+                                            <label className="block">
+                                              <span className="text-stone-600">Idade (anos):</span>
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                value={prodDados.idade ?? ''}
+                                                onChange={(e) => {
+                                                  const v =
+                                                    e.target.value === ''
+                                                      ? null
+                                                      : Number(e.target.value);
+                                                  setProdutoDadosByKey((p) => ({
+                                                    ...p,
+                                                    [key]: { ...p[key], idade: v },
+                                                  }));
+                                                }}
+                                                className="ml-1 w-16 rounded border border-stone-300 px-1 py-0.5"
+                                              />
+                                            </label>
+                                          </>
+                                        ) : null}
                                       </div>
                                       <p className="mt-2 text-xs text-stone-600">
                                         Nota produto: {notaProduto}
@@ -1384,11 +2225,7 @@ export function Etapa4Casas(props: {
                                 <div className="relative inline-block flex items-center justify-center gap-0.5">
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setOpenAtributosKey((k) => (k === key ? null : key));
-                                      if (!atributosLoteByKey[key])
-                                        setAtributosLoteByKey((p) => ({ ...p, [key]: {} }));
-                                    }}
+                                    onClick={() => void handleOpenAtributosLote(key)}
                                     className="min-w-[2rem] rounded border border-stone-300 bg-white px-1 py-0.5 text-xs hover:bg-stone-50"
                                     title="Atributos do Lote (SIM/NÃO)"
                                   >
@@ -1408,6 +2245,11 @@ export function Etapa4Casas(props: {
                                         <p className="mb-1.5 text-xs font-medium text-stone-700">
                                           Atributos do Lote
                                         </p>
+                                        {prefillingAtributosKey === key && (
+                                          <p className="mb-1 text-[10px] text-stone-500">
+                                            Carregando do Step One…
+                                          </p>
+                                        )}
                                         {ATRIBUTOS_LOTE.map((a) => (
                                           <label
                                             key={a.id}
@@ -1452,16 +2294,20 @@ export function Etapa4Casas(props: {
                           );
                         })}
                     </tr>
-                  ))}
+                    </React.Fragment>
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
           </section>
         )}
-        {casas.length > ROWS_PER_PAGE && (
-          <div className="mt-3 flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-2 text-sm">
+        {casasExibicao.length > ROWS_PER_PAGE && (
+          <div
+            className={`mt-3 flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 ${listagemOnly ? 'px-3 py-1.5 text-[11px]' : 'px-4 py-2 text-sm'}`}
+          >
             <span className="text-stone-600">
-              Página {pageCasas} de {totalPages} ({casas.length} casas)
+              Página {pageCasas} de {totalPages} ({casasExibicao.length} casas)
             </span>
             <div className="flex gap-2">
               <button
@@ -1530,15 +2376,18 @@ export function Etapa4Casas(props: {
         )}
 
         {/* Adicionar casa manual — dropdown */}
+        {!readOnly ? (
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-stone-50">
           <button
             type="button"
             onClick={() => setManualFormOpen((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 text-left font-medium text-stone-800 transition-colors hover:bg-stone-100"
+            className={`flex w-full items-center justify-between text-left text-stone-800 transition-colors hover:bg-stone-100 ${
+              listagemOnly ? 'px-3 py-1.5 text-[11px] font-medium' : 'px-4 py-3 font-medium'
+            }`}
             aria-expanded={manualFormOpen}
           >
             <span>Adicionar casa manualmente</span>
-            <span className="text-lg leading-none text-stone-500">
+            <span className={`leading-none text-stone-500 ${listagemOnly ? 'text-xs' : 'text-lg'}`}>
               {manualFormOpen ? '−' : '+'}
             </span>
           </button>
@@ -1548,7 +2397,7 @@ export function Etapa4Casas(props: {
               className="space-y-3 border-t border-stone-200 p-4 pt-0"
             >
               <p className="text-sm text-stone-600">
-                Use somente se alguma casa relevante não tiver sido puxada automaticamente pela ZAP.
+                Use somente se alguma casa relevante não tiver sido puxada automaticamente na busca.
                 Casas manuais só têm o status editável na tabela.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1578,7 +2427,8 @@ export function Etapa4Casas(props: {
                     type="text"
                     value={condominioManual}
                     onChange={(e) => setCondominioManual(e.target.value)}
-                    className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                    disabled={readOnly}
+                    className={`rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60`}
                   />
                 </label>
                 <label className="grid gap-1 sm:col-span-2">
@@ -1681,6 +2531,7 @@ export function Etapa4Casas(props: {
                     maxLength={2}
                   />
                 </label>
+                {!listagemOnly ? (
                 <label className="grid gap-1 sm:col-span-2">
                   <span className="text-sm font-medium text-stone-700">Compat. Moní</span>
                   <input
@@ -1690,6 +2541,7 @@ export function Etapa4Casas(props: {
                     className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
                   />
                 </label>
+                ) : null}
                 <label className="grid gap-1">
                   <span className="text-sm font-medium text-stone-700">Data levant.</span>
                   <input
@@ -1717,7 +2569,54 @@ export function Etapa4Casas(props: {
             </form>
           )}
         </div>
+        ) : null}
       </div>
     </>
   );
+}
+
+function BadgeFaixaMercado({ faixa }: { faixa?: CasaRow['faixa'] }) {
+  if (faixa === 'premium_plus3') {
+    return (
+      <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-900">
+        Premium+++
+      </span>
+    );
+  }
+  if (faixa === 'premium_plus2') {
+    return (
+      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+        Premium++
+      </span>
+    );
+  }
+  if (faixa === 'premium_plus') {
+    return (
+      <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">
+        Premium+
+      </span>
+    );
+  }
+  if (faixa === 'premium') {
+    return (
+      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+        Premium
+      </span>
+    );
+  }
+  if (faixa === 'intermediaria') {
+    return (
+      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+        Intermediária
+      </span>
+    );
+  }
+  if (faixa === 'entrada') {
+    return (
+      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+        Entrada
+      </span>
+    );
+  }
+  return null;
 }

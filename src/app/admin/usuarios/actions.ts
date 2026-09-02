@@ -7,8 +7,16 @@ import { revalidatePath } from 'next/cache';
 import { normalizeAccessRole } from '@/lib/authz';
 import { getPublicAppUrl } from '@/lib/app-url';
 import { sendEmailViaResend } from '@/lib/email';
+import type { InviteCargo } from '@/lib/admin-convite-grupos';
 
-type UpdatableRole = 'admin' | 'team' | 'pending' | 'blocked';
+export type UpdatableRole =
+  | 'admin'
+  | 'team'
+  | 'frank'
+  | 'parceiro'
+  | 'fornecedor'
+  | 'cliente'
+  | 'blocked';
 
 async function assertAdmin() {
   const supabase = await createClient();
@@ -20,25 +28,47 @@ async function assertAdmin() {
   if (normalizeAccessRole((profile as { role?: string } | null)?.role) !== 'admin') {
     return { ok: false as const, error: 'Apenas admin.' };
   }
-  return { ok: true as const, supabase, actorId: user.id };
+  return { ok: true as const, actorId: user.id };
 }
 
 export async function updateUserRole(profileId: string, role: UpdatableRole) {
   const guard = await assertAdmin();
   if (!guard.ok) return guard;
-  const { supabase, actorId } = guard;
+  const { actorId } = guard;
+  const admin = createAdminClient();
   const patch: Record<string, unknown> = {
     role,
     updated_at: new Date().toISOString(),
   };
-  if (role === 'admin' || role === 'team') {
+  if (['admin', 'team', 'frank', 'parceiro', 'fornecedor', 'cliente'].includes(role)) {
     patch.aprovado_em = new Date().toISOString();
     patch.aprovado_por = actorId;
   }
-  const { error } = await supabase.from('profiles').update(patch).eq('id', profileId);
+  const { error } = await admin.from('profiles').update(patch).eq('id', profileId);
   if (error) return { ok: false as const, error: error.message };
   revalidatePath('/admin/usuarios');
   return { ok: true as const };
+}
+
+export async function updateUserCargo(profileId: string, cargo: InviteCargo) {
+  const guard = await assertAdmin();
+  if (!guard.ok) return guard;
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('profiles')
+    .update({ cargo, updated_at: new Date().toISOString() })
+    .eq('id', profileId);
+  if (error) return { ok: false as const, error: error.message };
+  revalidatePath('/admin/usuarios');
+  return { ok: true as const };
+}
+
+export async function updateUserCargoFormAction(
+  profileId: string,
+  cargo: InviteCargo,
+  _formData: FormData,
+): Promise<void> {
+  await updateUserCargo(profileId, cargo);
 }
 
 /**
