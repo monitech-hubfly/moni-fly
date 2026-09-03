@@ -243,11 +243,11 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
     });
   }
 
+  // Mês da parcela única: juros acruam, a mensal é paga, a única quita o restante.
   const juros_last = lot_balance * taxa_parcelado;
   juros_lote_total += juros_last;
-  const lot_com_juros = lot_balance * (1 + taxa_parcelado);
-  const saldo_apos_mensal = lot_com_juros - parcela_mensal;
-  const min_quitar_lote = Math.max(0, saldo_apos_mensal);
+  const saldo_com_juros = lot_balance * (1 + taxa_parcelado);
+  const min_quitar_lote = Math.max(0, saldo_com_juros - parcela_mensal);
   const parcela_unica_necessaria = min_quitar_lote;
 
   const desembolhos = getDesembolso(N_obra);
@@ -303,7 +303,7 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
   }
 
   const pag_loteadora_unica = parcela_mensal + parcela_unica_necessaria;
-  const saidas_unica = parcela_mensal + parcela_unica_necessaria + itbi_amount;
+  const saidas_unica = parcela_mensal + parcela_unica_efetiva + itbi_amount;
 
   const lucros_ultimo = lucro_loteadora_amount + lucro_moni_amount + lucro_franqueado_amount;
   /** Lucros + impostos do último mês de obra — entram em saidas_total, não no crédito-ponte. */
@@ -336,8 +336,8 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
     {
       mes: prazo_meses,
       fase: 'parcela_unica',
-      descricao: 'Parcela única',
-      entrada_cliente: r2(parcela_unica_efetiva),
+      descricao: 'Parcela mensal + parcela única',
+      entrada_cliente: r2(parcela_mensal + parcela_unica_efetiva + itbi_amount),
       saidas_obra: 0,
       saldo_lote: 0,
       juros_lote_mes: r2(juros_last),

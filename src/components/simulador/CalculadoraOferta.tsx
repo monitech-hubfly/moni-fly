@@ -364,8 +364,6 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
 
   const cardsSugeridos = useMemo((): CardResultadoItem[] => {
     if (!resultado) return [];
-    const linhaUnica = resultado.fluxo.find((l) => l.fase === 'parcela_unica');
-    const parcelaUnicaExibida = linhaUnica?.entrada_cliente ?? resultado.parcela_unica_sugerida;
     return [
       { label: 'Entrada sugerida', valor: formatarMoeda(resultado.entrada_sugerida) },
       {
@@ -374,7 +372,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       },
       {
         label: 'Parcela única sugerida',
-        valor: `${formatarMoeda(parcelaUnicaExibida)} no mês ${resultado.mes_parcela_unica}`,
+        valor: `${formatarMoeda(resultado.parcela_unica_sugerida)} no mês ${resultado.mes_parcela_unica}`,
       },
       { label: 'Saldo a financiar estimado', valor: formatarMoeda(resultado.saldo_financiar) },
       {
