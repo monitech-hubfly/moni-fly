@@ -278,6 +278,11 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
     excessoInicial: excessoParaVtp,
   });
 
+  /**
+   * VTP à prazo = custos base + juros da obra (crédito-ponte) + juros do lote (Fase 1).
+   * juros_lote_total já inclui todos os meses da Fase 1 e o mês da parcela única.
+   * vte_avista usa só VTP_base — sem juros de lote nem de obra.
+   */
   const VTP = VTP_base + juros_obra_total + juros_lote_total;
   const impostos_amount = n0(template.percentual_impostos) * VTP;
   const comissao_amount = n0(template.percentual_comissao_corretor) * VTP;

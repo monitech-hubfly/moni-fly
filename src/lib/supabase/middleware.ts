@@ -8,6 +8,7 @@ import {
   isAdminOnlyPath,
   isAnonymousAllowedPath,
   isAuthFlowAccessPath,
+  isSafePostLoginNextPath,
   isBcaPublicLeituraAccessPath,
   isCalculadoraPublicLeituraPath,
   isExternalTokenAccessPath,
@@ -124,7 +125,12 @@ export async function updateSession(request: NextRequest) {
     if (isAnonymousAllowedPath(pathname)) {
       return response;
     }
-    return NextResponse.redirect(new URL('/login', request.url));
+    const loginUrl = new URL('/login', request.url);
+    const returnPath = `${pathname}${request.nextUrl.search}`;
+    if (isSafePostLoginNextPath(returnPath)) {
+      loginUrl.searchParams.set('next', returnPath);
+    }
+    return NextResponse.redirect(loginUrl);
   }
 
   // Try to read role from cache cookie first (avoids DB round-trip on every request)

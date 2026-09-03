@@ -6,13 +6,22 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { MoniFooter } from '@/components/MoniFooter';
 import { normalizeAccessRole } from '@/lib/authz';
-import { resolvePostLoginPath } from '@/lib/access-matrix';
+import { isSafePostLoginNextPath, resolvePostLoginPath } from '@/lib/access-matrix';
 import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { TEAM_SEED_BY_EMAIL } from '@/lib/team-seed-signup';
 import { TIMES_MONI } from '@/lib/times-responsaveis';
 import { notifySignupComplete } from './actions';
 
 type TabKey = 'entrar' | 'cadastro';
+
+function nextPathFromLoginQuery(searchParams: { get: (key: string) => string | null }): string | null {
+  return (
+    searchParams.get('next') ??
+    searchParams.get('redirectTo') ??
+    searchParams.get('redirect') ??
+    searchParams.get('callbackUrl')
+  );
+}
 
 function supabaseNetworkErrorHint(message: string | undefined): string {
   const msg = message ?? '';
@@ -128,6 +137,23 @@ export default function LoginPage() {
     if (t === 'entrar' || t === 'login') setTab('entrar');
   }, [searchParams]);
 
+  /** Remove `next`/`redirectTo` da leitura pública para não reenviar o usuário para /leitura. */
+  useEffect(() => {
+    const keys = ['next', 'redirectTo', 'redirect', 'callbackUrl'] as const;
+    const params = new URLSearchParams(searchParams.toString());
+    let dirty = false;
+    for (const key of keys) {
+      const val = params.get(key);
+      if (val && !isSafePostLoginNextPath(val)) {
+        params.delete(key);
+        dirty = true;
+      }
+    }
+    if (!dirty) return;
+    const q = params.toString();
+    router.replace(q ? `/login?${q}` : '/login', { scroll: false });
+  }, [searchParams, router]);
+
   const setTabAndUrl = (t: TabKey) => {
     setTab(t);
     const params = new URLSearchParams(searchParams.toString());
@@ -201,9 +227,8 @@ export default function LoginPage() {
         { id: u.id, email: u.email },
         rawRole || null,
       );
-      const dest = resolvePostLoginPath(role, searchParams.get('next'));
-      router.push(dest);
-      router.refresh();
+      const dest = resolvePostLoginPath(role, nextPathFromLoginQuery(searchParams));
+      window.location.assign(dest);
     } catch (unknownErr) {
       const raw =
         unknownErr instanceof Error
@@ -277,12 +302,11 @@ export default function LoginPage() {
       await notifySignupComplete();
 
       if (!seeded) {
-        router.push(resolvePostLoginPath('pending'));
+        window.location.assign(resolvePostLoginPath('pending'));
       } else {
         const role = normalizeAccessRole(seeded.role);
-        router.push(resolvePostLoginPath(role));
+        window.location.assign(resolvePostLoginPath(role));
       }
-      router.refresh();
     } catch (unknownErr) {
       const raw =
         unknownErr instanceof Error
