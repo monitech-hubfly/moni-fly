@@ -213,9 +213,12 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
 
   const entrada_do_lote_efetiva = oferta.entrada_do_lote_override ?? entrada_do_lote;
 
-  // ja_pago é pré-contrato: reduz o saldo antes do mês 0. Não entra no fluxo.
-  const lot_balance_inicio = Math.max(0, valor_lote - valor_ja_pago - entrada_do_lote_efetiva);
-  let lot_balance = lot_balance_inicio;
+  // ja_pago é pré-contrato: reduz o saldo antes do mês 0, como uma entrada que já aconteceu.
+  // Não entra no fluxo (pagamento_loteadora[0] e entrada_cliente[0] ficam só com a entrada do contrato).
+  const ja_pago_loteadora = Math.min(valor_ja_pago, valor_lote);
+  let lot_balance = Math.max(0, valor_lote - ja_pago_loteadora);
+  lot_balance = Math.max(0, lot_balance - entrada_do_lote_efetiva);
+  const lot_balance_inicio = lot_balance;
   const fluxoFase1: LinhaFluxo[] = [];
   let juros_lote_total = 0;
 
