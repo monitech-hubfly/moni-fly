@@ -265,50 +265,70 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
   };
 
   /**
-   * Passo 1: juros da obra para VTP/parcela única.
-   * Com override a parcela única já é conhecida — o excesso entra neste passo.
-   * Sem override o excesso só existe depois da parcela única (passo 2).
+   * Fase 2 e VTE são circulares: o excesso da parcela única (piso 30% do VTE)
+   * reduz o CP e os juros da obra, que entram no VTP/VTE e portanto no próprio excesso.
+   * Itera até o excesso usado na simulação coincidir com o excesso implícito no VTE (tol. R$1).
+   * Com override o excesso já é conhecido — uma passagem basta.
    */
   const usaOverride = oferta.parcela_unica_override != null;
-  const excessoParaVtp = usaOverride
+  const excessoOverride = usaOverride
     ? Math.max(0, n0(oferta.parcela_unica_override) - parcela_unica_necessaria)
     : 0;
-  let { dados: fase2Dados, juros_obra_total } = simularFase2({
-    ...paramsFase2,
-    excessoInicial: excessoParaVtp,
-  });
 
-  /**
-   * VTP à prazo = custos base + juros da obra (crédito-ponte) + juros do lote (Fase 1).
-   * juros_lote_total já inclui todos os meses da Fase 1 e o mês da parcela única.
-   * vte_avista usa só VTP_base — sem juros de lote nem de obra.
-   */
-  const VTP = VTP_base + juros_obra_total + juros_lote_total;
-  const impostos_amount = n0(template.percentual_impostos) * VTP;
-  const comissao_amount = n0(template.percentual_comissao_corretor) * VTP;
-  const VTE = VTP + impostos_amount + comissao_amount;
+  let excessoAtual = excessoOverride;
+  let fase2Dados: DadosFase2[] = [];
+  let juros_obra_total = 0;
+  let VTP = VTP_base;
+  let impostos_amount = 0;
+  let comissao_amount = 0;
+  let VTE = VTP_base;
+  let entrada_total = entrada_do_lote_efetiva;
+  let total_pago_ate_aqui = 0;
+  let min_atingir_30pct = 0;
+  let parcela_unica = parcela_unica_necessaria;
+  let parcela_unica_efetiva = parcela_unica;
+
+  const MAX_ITERS_F2 = 8;
+  const TOL_EXCESSO = 1;
+
+  for (let i = 0; i < MAX_ITERS_F2; i += 1) {
+    const sim = simularFase2({
+      ...paramsFase2,
+      excessoInicial: excessoAtual,
+    });
+    fase2Dados = sim.dados;
+    juros_obra_total = sim.juros_obra_total;
+
+    VTP = VTP_base + juros_obra_total + juros_lote_total;
+    impostos_amount = n0(template.percentual_impostos) * VTP;
+    comissao_amount = n0(template.percentual_comissao_corretor) * VTP;
+    VTE = VTP + impostos_amount + comissao_amount;
+
+    entrada_total = comissao_amount + entrada_do_lote_efetiva;
+    total_pago_ate_aqui = entrada_total + prazo_meses * parcela_mensal;
+    min_atingir_30pct = Math.max(0, 0.3 * VTE - total_pago_ate_aqui);
+    parcela_unica = Math.max(min_quitar_lote, min_atingir_30pct);
+    parcela_unica_efetiva = oferta.parcela_unica_override ?? parcela_unica;
+    const novoExcesso = Math.max(0, parcela_unica_efetiva - parcela_unica_necessaria);
+
+    if (usaOverride || Math.abs(novoExcesso - excessoAtual) < TOL_EXCESSO) {
+      break;
+    }
+    excessoAtual = novoExcesso;
+  }
+
   const vte_avista =
     VTP_base *
     (1 + n0(template.percentual_impostos) + n0(template.percentual_comissao_corretor));
-
-  const entrada_total = comissao_amount + entrada_do_lote_efetiva;
-
-  const total_pago_ate_aqui = entrada_total + prazo_meses * parcela_mensal;
-  const min_atingir_30pct = Math.max(0, 0.3 * VTE - total_pago_ate_aqui);
-  const parcela_unica = Math.max(min_quitar_lote, min_atingir_30pct);
-  const parcela_unica_efetiva = oferta.parcela_unica_override ?? parcela_unica;
-  const excesso_parcela_unica = Math.max(0, parcela_unica_efetiva - parcela_unica_necessaria);
   const pct_vte_antes_obra = VTE > 0 ? (total_pago_ate_aqui + parcela_unica_efetiva) / VTE : 0;
 
-  if (!usaOverride && excesso_parcela_unica > 0) {
-    fase2Dados = simularFase2({
-      ...paramsFase2,
-      excessoInicial: excesso_parcela_unica,
-    }).dados;
-  }
-
   const pag_loteadora_unica = parcela_mensal + parcela_unica_necessaria;
-  const saidas_unica = parcela_mensal + parcela_unica_efetiva + itbi_amount;
+  /**
+   * Caixa do mês da parcela única = quitação real do lote + mensal + ITBI.
+   * Não usar parcela_unica_efetiva aqui: o excesso sobre o saldo do lote
+   * (piso de 30% do VTE) é crédito contábil, já descontado do saldo a financiar.
+   */
+  const saidas_unica = parcela_mensal + parcela_unica_necessaria + itbi_amount;
 
   const lucros_ultimo = lucro_loteadora_amount + lucro_moni_amount + lucro_franqueado_amount;
   /** Lucros + impostos do último mês de obra — entram em saidas_total, não no crédito-ponte. */
@@ -342,7 +362,7 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
       mes: prazo_meses,
       fase: 'parcela_unica',
       descricao: 'Parcela mensal + parcela única',
-      entrada_cliente: r2(parcela_mensal + parcela_unica_efetiva + itbi_amount),
+      entrada_cliente: r2(parcela_mensal + parcela_unica + itbi_amount),
       saidas_obra: 0,
       saldo_lote: 0,
       juros_lote_mes: r2(juros_last),
