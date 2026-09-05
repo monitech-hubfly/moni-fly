@@ -33,6 +33,11 @@ export interface OfertaConfig {
   entrada_do_lote_override?: number;
   /** Substitui a parcela única calculada (min_quitar_lote / 30% VTE). */
   parcela_unica_override?: number;
+  /**
+   * Substitui entrada_cliente e saidas_total do mês 0 (entrada confirmada total).
+   * Não altera pagamento à loteadora nem o saldo do lote.
+   */
+  entrada_total_override?: number;
 }
 
 export interface LinhaFluxo {
@@ -342,19 +347,20 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
   const parcela_sac_primeira = n_parcelas > 0 ? amortizacao + saldo_financiar * taxa_mensal : 0;
   const parcela_sac_ultima = n_parcelas > 0 ? amortizacao * (1 + taxa_mensal) : 0;
 
+  const caixa_mes0 = oferta.entrada_total_override ?? entrada_total;
   const fluxo: LinhaFluxo[] = [
     {
       mes: 0,
       fase: 'mes0',
       descricao: 'Entrada (comissão + entrada do lote)',
-      entrada_cliente: r2(entrada_total),
+      entrada_cliente: r2(caixa_mes0),
       saidas_obra: 0,
       saldo_lote: r2(lot_balance_inicio),
       juros_lote_mes: 0,
       desembolso_obra: 0,
       saldo_credito_ponte: 0,
       juros_obra_mes: 0,
-      saidas_total: r2(entrada_total),
+      saidas_total: r2(caixa_mes0),
       pagamento_loteadora: r2(entrada_do_lote_efetiva),
     },
     ...fluxoFase1,
@@ -362,7 +368,7 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
       mes: prazo_meses,
       fase: 'parcela_unica',
       descricao: 'Parcela mensal + parcela única',
-      entrada_cliente: r2(parcela_mensal + parcela_unica + itbi_amount),
+      entrada_cliente: r2(parcela_mensal + parcela_unica_efetiva + itbi_amount),
       saidas_obra: 0,
       saldo_lote: 0,
       juros_lote_mes: r2(juros_last),

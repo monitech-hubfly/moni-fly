@@ -260,6 +260,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       parcela_mensal: parcelaMensalConf,
       entrada_do_lote_override: entrada_do_lote_conf,
       parcela_unica_override: parcelaUnicaConf,
+      entrada_total_override: entradaConf,
     };
     setFluxoFinalResultado(calcularOferta(template, ofertaConfirmada));
   }

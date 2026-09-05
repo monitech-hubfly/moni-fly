@@ -98,6 +98,7 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
           parcela_mensal: parcelaMensalConf,
           entrada_do_lote_override: Math.max(0, entradaConf - sugerido.comissao_amount),
           parcela_unica_override: parcelaUnicaConf,
+          entrada_total_override: entradaConf,
         })
       : null;
 
