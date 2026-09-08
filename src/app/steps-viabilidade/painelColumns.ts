@@ -49,7 +49,7 @@ export const PAINEL_COLUMNS: PainelColumnDef[] = [
   { key: 'step_1', title: 'Step 1: Mapeamento da Região', hrefBase: '/step-one' },
   { key: 'step_2', title: 'Novo Negócio', hrefBase: '/step-2', slaDiasUteis: 2 },
   { key: 'aprovacao_moni_novo_negocio', title: 'Análise de Novo Negócio', slaDiasUteis: 2 },
-  { key: 'step_3', title: 'Opção', hrefBase: '/step-3', slaDiasUteis: 3 },
+  { key: 'step_3', title: 'Enviar Opção', hrefBase: '/step-3', slaDiasUteis: 3 },
   {
     key: 'step_4',
     title: 'Check Legal e Crédito',

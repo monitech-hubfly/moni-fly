@@ -23,7 +23,9 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   // Funil Portfólio
   step_2: 'moni',
   aprovacao_moni_novo_negocio: 'moni',
-  step_3: 'franqueado',
+  step_3: 'franqueado', // Enviar Opção
+  juridico_opcao: 'moni',
+  assinaturas_opcao: 'franqueado',
   step_4: 'franqueado',
   acoplamento: 'moni',
   step_5: 'moni',

@@ -5,6 +5,8 @@
 export const CUSTO_PADRAO_POR_SLUG: Record<string, string> = {
   // Funil Portfólio
   step_3: 'Franqueado: autenticação de documentos e custos administrativos.',
+  juridico_opcao: 'Moní: revisão jurídica da opção.',
+  assinaturas_opcao: 'Franqueado: coleta de assinaturas da opção.',
   opcao: 'Franqueado: autenticação de documentos e custos administrativos.',
   step_6:
     'Franqueado: lista obrigatória e complementares: certidões negativas, análises jurídicas, avaliações técnicas, estudos ambientais e despesas administrativas.',

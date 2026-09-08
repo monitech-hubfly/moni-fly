@@ -22,10 +22,15 @@ export const FUNIL_MES_ETAPA_FASES: Record<PipelineFunilMesEtapaKey, FunilMesEta
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
     slugs: ['aprovacao_moni_novo_negocio'],
   },
-  /** Funil Portfólio — Opção */
+  /** Funil Portfólio — Enviar / Jurídico / Assinaturas Opção */
   opcoes: {
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
-    slugs: [FASE_SLUGS.STEP_3, FASE_SLUGS.OPCAO],
+    slugs: [
+      FASE_SLUGS.STEP_3,
+      FASE_SLUGS.OPCAO,
+      FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO,
+      FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO,
+    ],
   },
   /** Funil Portfólio — Check Legal e Crédito + Acoplamento + Comitê */
   comites: {

@@ -64,7 +64,9 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
 
 export const FASE_IDS = {
   // Portfolio — gatilhos de bastão de IDA
-  PORTFOLIO_STEP_3:          '6d019704-95f7-42ee-8a85-973ffafc236b',
+  PORTFOLIO_STEP_3:          '6d019704-95f7-42ee-8a85-973ffafc236b', // Enviar Opção (ex-Opção)
+  PORTFOLIO_JURIDICO_OPCAO:  'f977b1f8-9946-4707-8e7c-78eabb621dbb',
+  PORTFOLIO_ASSINATURAS_OPCAO: 'da0f9628-e3a5-4481-b49b-a22d30175e0f',
   PORTFOLIO_STEP_4:          'fd05dc4a-b44a-470e-993f-5df79c223488',
   PORTFOLIO_STEP_7:          'd78771cb-f79d-4650-a056-f3e2dbc3f3a6',
   PORTFOLIO_CAPTACAO_CAPITAL: 'd7e79cd4-a8ba-4239-b7b4-b82ad07acb11',
@@ -99,7 +101,11 @@ export const FASE_IDS = {
 
 export const FASE_SLUGS = {
   // Gatilhos de IDA
+  /** Funil Portfólio — Enviar Opção (legado `step_3`; checklist/instruções da antiga Opção). */
   STEP_3:             'step_3',
+  PORTFOLIO_ENVIAR_OPCAO: 'step_3',
+  PORTFOLIO_JURIDICO_OPCAO: 'juridico_opcao',
+  PORTFOLIO_ASSINATURAS_OPCAO: 'assinaturas_opcao',
   STEP_4:             'step_4',
   STEP_7:             'step_7',
   CAPTACAO_CAPITAL:   'captacao_moni_capital',
@@ -282,7 +288,7 @@ export const FASE_SLUGS = {
   STEP_5:             'step_5',
   CTO_CONDICOES_PRECEDENTES: 'cto_condicoes_precedentes',
   STEP_6:             'step_6',
-  /** Funil Portfólio — fase Opção (confirmação migration 389). Legado PROD: `step_3`. */
+  /** @deprecated Preferir STEP_3 / PORTFOLIO_ENVIAR_OPCAO. Alias legado. */
   OPCAO:              'opcao',
   // Funil Step One (KANBAN_IDS.STEP_ONE) — fluxo ordem 1–13 (PROD)
   ONBOARDING:           'onboarding',
@@ -390,9 +396,10 @@ export const CORRETORES_FASES_CONFIRMACAO_SAIDA = {
   forecast: [FASE_SLUGS.COR_FORECAST],
 } as const;
 
-/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389). */
+/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389 / 559). */
 export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
-  opcao: [FASE_SLUGS.OPCAO, FASE_SLUGS.STEP_3],
+  /** «A opção foi assinada?» — ao sair de Assinaturas Opção. */
+  opcao: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO],
   comite: [FASE_SLUGS.STEP_5],
   contrato: [FASE_SLUGS.STEP_7],
 } as const;
