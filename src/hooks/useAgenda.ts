@@ -22,6 +22,9 @@ export type AtividadeAgenda = {
   isPendente: boolean;
   isParticipante: boolean;
   organizador_nome: string | null;
+  // Flags de origem
+  isAllDay: boolean;    // evento de dia inteiro importado do GCal (hora_inicio='00:00', sem hora_fim)
+  isFromGCal: boolean;  // evento importado do Google Calendar (somente leitura no Hub Fly)
 };
 
 export type DiaAgenda = {
@@ -139,6 +142,7 @@ function rowToAtividade(
   const cor = concluido
     ? COR_CONCLUIDA
     : (row.cor ?? autoObjetivoColor(row.objetivo_id));
+  const isFromGCal = row.origem === 'google_calendar';
   return {
     id:                   row.id,
     titulo,
@@ -155,6 +159,8 @@ function rowToAtividade(
     isPendente:           opts?.isPendente ?? false,
     isParticipante:       opts?.isParticipante ?? false,
     organizador_nome:     opts?.organizador_nome ?? null,
+    isFromGCal,
+    isAllDay:             isFromGCal && row.hora_inicio === '00:00' && !row.hora_fim,
   };
 }
 
