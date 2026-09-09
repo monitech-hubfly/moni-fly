@@ -143,27 +143,50 @@ async function syncUser(
   const events   = gcalData.items ?? [];
   const eventIds: string[] = [];
 
-  // Buscar IDs de eventos criados pelo HubFly para evitar loop
+  // Buscar eventos Hub-Fly que foram empurrados para o GCal, para comparar e atualizar se mudaram
   const { data: hubflyPushRows } = await (supabase.from('gantt_planejamento') as any)
-    .select('gcal_hubfly_push_id')
+    .select('id, gcal_hubfly_push_id, data, hora_inicio, hora_fim, titulo')
     .eq('profile_id', userId)
     .not('gcal_hubfly_push_id', 'is', null);
 
-  const hubflyPushIds = new Set<string>(
-    ((hubflyPushRows ?? []) as { gcal_hubfly_push_id: string }[])
-      .map(r => r.gcal_hubfly_push_id)
+  // Mapa: GCal event ID → row do Supabase (para comparar e atualizar)
+  type HubFlyRow = { id: string; gcal_hubfly_push_id: string; data: string; hora_inicio: string; hora_fim: string | null; titulo: string };
+  const hubflyPushMap = new Map<string, HubFlyRow>(
+    ((hubflyPushRows ?? []) as HubFlyRow[]).map(r => [r.gcal_hubfly_push_id, r])
   );
 
   for (const ev of events) {
     if (!ev.id || !ev.start) continue;
-    if (hubflyPushIds.has(ev.id)) continue; // skip eventos originados no HubFly
-    if (ev.summary?.startsWith('[HUB-FLY]')) continue; // skip eventos sem gcal_hubfly_push_id salvo
-    eventIds.push(ev.id);
 
-    const isAllDay   = !ev.start.dateTime;
-    const data       = isAllDay ? ev.start.date! : toDateBR(ev.start.dateTime!);
+    // Calcular campos antecipadamente (necessário tanto para eventos Hub-Fly quanto GCal)
+    const isAllDay    = !ev.start.dateTime;
+    const data        = isAllDay ? ev.start.date! : toDateBR(ev.start.dateTime!);
     const hora_inicio = isAllDay ? '00:00' : toTimeBR(ev.start.dateTime!);
     const hora_fim    = (!isAllDay && ev.end?.dateTime) ? toTimeBR(ev.end.dateTime) : null;
+    const titulo      = ev.summary ?? '(sem título)';
+
+    // ── Evento originado no Hub-Fly ──────────────────────────────────────────
+    // Anti-loop: cron compara e atualiza Supabase sem chamar pushParaGCal.
+    // O pushParaGCal só é chamado por ações do usuário (UI) → sem loop.
+    if (hubflyPushMap.has(ev.id)) {
+      const row = hubflyPushMap.get(ev.id)!;
+      const mudou = row.data !== data
+        || row.hora_inicio !== hora_inicio
+        || row.hora_fim !== hora_fim
+        || row.titulo !== titulo;
+      if (mudou) {
+        await (supabase.from('gantt_planejamento') as any)
+          .update({ data, hora_inicio, hora_fim, titulo })
+          .eq('id', row.id);
+      }
+      continue; // não criar entrada GCal duplicada
+    }
+
+    // Fallback: eventos antigos com prefixo [HUB-FLY] criados antes da migration gcal_hubfly_push_id
+    if (ev.summary?.startsWith('[HUB-FLY]')) continue;
+
+    // ── Evento originado no GCal → upsert normal ─────────────────────────────
+    eventIds.push(ev.id);
 
     const meetLink = ev.conferenceData?.entryPoints?.find(e => e.entryPointType === 'video')?.uri ?? null;
 
@@ -196,7 +219,7 @@ async function syncUser(
       google_calendar_organizer: ev.organizer?.displayName
         ? `${ev.organizer.displayName} <${ev.organizer.email ?? ''}>`
         : (ev.organizer?.email ?? null),
-      titulo:                   ev.summary ?? '(sem título)',
+      titulo,
       data,
       hora_inicio,
       hora_fim,
