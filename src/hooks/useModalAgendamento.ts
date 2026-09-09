@@ -7,7 +7,7 @@ import { registrarLog } from '@/hooks/useAuditLog';
 import type { DadosAgendamento, RecorrenciaConfig } from '@/components/carometro/todo/ModalAgendamento';
 import { gerarOcorrencias } from '@/components/carometro/todo/ModalAgendamento';
 import { enviarConvitesInternos } from '@/lib/actions/agenda-participantes';
-import { pushParaGCal } from '@/lib/actions/agenda-gcal';
+import { pushParaGCal, deletarDoGCal } from '@/lib/actions/agenda-gcal';
 
 type Modo = 'criar' | 'editar';
 
@@ -341,6 +341,10 @@ export function useModalAgendamento(
         if (escopo === 'following' && dataBase) idsQ = idsQ.gte('data', dataBase);
         const { data: scopeRows } = await idsQ;
         const scopeIds = ((scopeRows ?? []) as { id: string }[]).map(r => r.id);
+        // Remover do Google Calendar ANTES de apagar do banco (a função lê o gcal_hubfly_push_id)
+        for (const id of scopeIds) {
+          void deletarDoGCal(id).catch(e => console.warn('[gcal-delete-serie]', e));
+        }
         if (scopeIds.length > 0) {
           await supabase.from('gantt_agenda_participantes').delete().in('gantt_id', scopeIds);
         }
@@ -349,6 +353,8 @@ export function useModalAgendamento(
         const { error } = await delQ;
         if (error) throw error;
       } else {
+        // Remover do Google Calendar ANTES de apagar do banco (a função lê o gcal_hubfly_push_id)
+        void deletarDoGCal(editandoId).catch(e => console.warn('[gcal-delete]', e));
         await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', editandoId);
         const { error } = await supabase.from('gantt_planejamento').delete().eq('id', editandoId);
         if (error) throw error;

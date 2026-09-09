@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { deletarDoGCal } from '@/lib/actions/agenda-gcal';
+import { deletarDoGCal, pushParaGCal } from '@/lib/actions/agenda-gcal';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
 
 export type AtividadeAgenda = {
@@ -354,6 +354,8 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
     setAtividades(prev => prev.map(a =>
       a.id === id ? { ...a, hora_fim } : a
     ));
+    // Sincronizar com Google Calendar (best-effort; ignora eventos importados do GCal)
+    void pushParaGCal(id).catch(e => console.warn('[gcal-push-resize]', e));
   }, [supabase]);
 
   const atualizarHorarioInicio = useCallback(async (id: string, hora_inicio: string) => {
@@ -365,6 +367,8 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
     setAtividades(prev => prev.map(a =>
       a.id === id ? { ...a, hora_inicio } : a
     ));
+    // Sincronizar com Google Calendar (best-effort; ignora eventos importados do GCal)
+    void pushParaGCal(id).catch(e => console.warn('[gcal-push-resize-top]', e));
   }, [supabase]);
 
   const moverEvento = useCallback(async (id: string, data: string, hora_inicio: string, hora_fim: string | null) => {
@@ -377,6 +381,8 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
     setAtividades(prev => prev.map(a =>
       a.id === id ? { ...a, data, hora_inicio, hora_fim } : a
     ));
+    // Sincronizar com Google Calendar (best-effort; ignora eventos importados do GCal)
+    void pushParaGCal(id).catch(e => console.warn('[gcal-push-mover]', e));
   }, [supabase]);
 
   const excluir = useCallback(async (id: string) => {
