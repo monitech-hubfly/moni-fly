@@ -93,7 +93,6 @@ export async function pushParaGCal(ganttId: string): Promise<void> {
 
     if (!gantt) return;
     if (gantt.origem === 'google_calendar') return;
-    if (gantt.recorrente === true) return; // não empurrar ocorrências de séries recorrentes
 
     // Buscar email do organizador
     const { data: { user: organizer } } = await adminDb.auth.admin.getUserById(gantt.profile_id);
