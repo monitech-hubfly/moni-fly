@@ -6,11 +6,22 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { MoniFooter } from '@/components/MoniFooter';
 import { normalizeAccessRole } from '@/lib/authz';
+import { isSafePostLoginNextPath, resolvePostLoginPath } from '@/lib/access-matrix';
+import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { TEAM_SEED_BY_EMAIL } from '@/lib/team-seed-signup';
 import { TIMES_MONI } from '@/lib/times-responsaveis';
 import { notifySignupComplete } from './actions';
 
 type TabKey = 'entrar' | 'cadastro';
+
+function nextPathFromLoginQuery(searchParams: { get: (key: string) => string | null }): string | null {
+  return (
+    searchParams.get('next') ??
+    searchParams.get('redirectTo') ??
+    searchParams.get('redirect') ??
+    searchParams.get('callbackUrl')
+  );
+}
 
 function supabaseNetworkErrorHint(message: string | undefined): string {
   const msg = message ?? '';
@@ -103,7 +114,6 @@ function mapLoginAuthErrorMessage(raw: string | undefined): string {
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/rede-franqueados';
   const status = searchParams.get('status');
   const tabParam = searchParams.get('tab');
 
@@ -126,6 +136,23 @@ export default function LoginPage() {
     if (t === 'cadastro' || t === 'signup') setTab('cadastro');
     if (t === 'entrar' || t === 'login') setTab('entrar');
   }, [searchParams]);
+
+  /** Remove `next`/`redirectTo` da leitura pública para não reenviar o usuário para /leitura. */
+  useEffect(() => {
+    const keys = ['next', 'redirectTo', 'redirect', 'callbackUrl'] as const;
+    const params = new URLSearchParams(searchParams.toString());
+    let dirty = false;
+    for (const key of keys) {
+      const val = params.get(key);
+      if (val && !isSafePostLoginNextPath(val)) {
+        params.delete(key);
+        dirty = true;
+      }
+    }
+    if (!dirty) return;
+    const q = params.toString();
+    router.replace(q ? `/login?${q}` : '/login', { scroll: false });
+  }, [searchParams, router]);
 
   const setTabAndUrl = (t: TabKey) => {
     setTab(t);
@@ -194,27 +221,14 @@ export default function LoginPage() {
         return;
       }
 
-      const role = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
-      if (role === 'pending') {
-        router.push('/treinamento-bca/leitura');
-        router.refresh();
-        setLoading(false);
-        return;
-      }
-      if (role === 'blocked') {
-        router.push('/login?status=blocked');
-        router.refresh();
-        setLoading(false);
-        return;
-      }
-      if (role === 'admin' || role === 'team') {
-        router.push(searchParams.get('next') || '/carometro/todo-planning');
-      } else if (role === 'frank') {
-        router.push('/portal-frank');
-      } else {
-        router.push('/rede-franqueados');
-      }
-      router.refresh();
+      const rawRole = String((profile as { role?: string | null } | null)?.role ?? '').trim();
+      const role = await persistSeededStaffRoleIfNeeded(
+        supabase,
+        { id: u.id, email: u.email },
+        rawRole || null,
+      );
+      const dest = resolvePostLoginPath(role, nextPathFromLoginQuery(searchParams));
+      window.location.assign(dest);
     } catch (unknownErr) {
       const raw =
         unknownErr instanceof Error
@@ -288,14 +302,11 @@ export default function LoginPage() {
       await notifySignupComplete();
 
       if (!seeded) {
-        router.push('/treinamento-bca/leitura');
+        window.location.assign(resolvePostLoginPath('pending'));
       } else {
         const role = normalizeAccessRole(seeded.role);
-        if (role === 'admin' || role === 'team') router.push('/carometro/todo-planning');
-        else if (role === 'frank') router.push('/portal-frank');
-        else router.push('/rede-franqueados');
+        window.location.assign(resolvePostLoginPath(role));
       }
-      router.refresh();
     } catch (unknownErr) {
       const raw =
         unknownErr instanceof Error

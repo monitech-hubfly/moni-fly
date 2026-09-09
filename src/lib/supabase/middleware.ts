@@ -1,33 +1,20 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { normalizeAccessRole } from '@/lib/authz';
+import { profileCacheRoleNeedsRefresh } from '@/lib/authz';
+import { effectiveAccessRoleFromEmail } from '@/lib/seeded-staff-role';
+import { seedEntryForEmail } from '@/lib/team-seed-signup';
 import {
-  BCA_PUBLIC_LEITURA_PATH,
+  defaultHubHomeForRole,
   isAdminOnlyPath,
   isAnonymousAllowedPath,
   isAuthFlowAccessPath,
+  isSafePostLoginNextPath,
   isBcaPublicLeituraAccessPath,
   isCalculadoraPublicLeituraPath,
   isExternalTokenAccessPath,
   isFrankAllowedPath,
   isTeamAllowedPath,
 } from '@/lib/access-matrix';
-import { PRE_BATALHA_PUBLIC_LEITURA_PATH } from '@/lib/pre-batalha-secoes';
-import { isLiveLimitedRelease } from '@/lib/release-scope';
-
-const HUB_FLY_HOME_TODO_PATH = '/carometro/todo-planning';
-
-function shouldUseTodoAsHubFlyHome(accessRole: ReturnType<typeof normalizeAccessRole>): boolean {
-  return (accessRole === 'team' || accessRole === 'admin') && !isLiveLimitedRelease();
-}
-
-function redirectToPublicLeituraFallback(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
-  if (pathname === '/pre-batalha' || pathname.startsWith('/pre-batalha/')) {
-    return NextResponse.redirect(new URL(PRE_BATALHA_PUBLIC_LEITURA_PATH, request.url));
-  }
-  return NextResponse.redirect(new URL(BCA_PUBLIC_LEITURA_PATH, request.url));
-}
 
 /** Cookie de sessão Supabase — evita round-trip Auth em rotas públicas sem login. */
 function hasSupabaseAuthCookie(request: NextRequest): boolean {
@@ -138,7 +125,12 @@ export async function updateSession(request: NextRequest) {
     if (isAnonymousAllowedPath(pathname)) {
       return response;
     }
-    return NextResponse.redirect(new URL('/login', request.url));
+    const loginUrl = new URL('/login', request.url);
+    const returnPath = `${pathname}${request.nextUrl.search}`;
+    if (isSafePostLoginNextPath(returnPath)) {
+      loginUrl.searchParams.set('next', returnPath);
+    }
+    return NextResponse.redirect(loginUrl);
   }
 
   // Try to read role from cache cookie first (avoids DB round-trip on every request)
@@ -156,6 +148,18 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // pending/blocked no cookie pode estar velho (papel já promovido no banco).
+  if (profileFromCache && profileCacheRoleNeedsRefresh(profileRow?.role)) {
+    profileRow = null;
+    profileFromCache = false;
+    response.cookies.set(PROFILE_CACHE_COOKIE, '', {
+      maxAge: 0,
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+    });
+  }
+
   if (!profileRow) {
     const profileWithTimeout = await Promise.race([
       supabase.from('profiles').select('role, cargo, full_name').eq('id', user.id).maybeSingle(),
@@ -165,8 +169,7 @@ export async function updateSession(request: NextRequest) {
     ]);
     const { data: profile } = profileWithTimeout;
     profileRow = profile as { role?: string | null; cargo?: string | null; full_name?: string | null } | null;
-    // Cache the profile in a cookie for 5 minutes
-    if (profileRow) {
+    if (profileRow && !profileCacheRoleNeedsRefresh(profileRow.role)) {
       response.cookies.set(PROFILE_CACHE_COOKIE, JSON.stringify(profileRow), {
         maxAge: 300,
         httpOnly: true,
@@ -177,27 +180,18 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (isAuthPage && user) {
-    if (!profileRow) {
-      return response;
-    }
-    const rawRoleLogin = String(profileRow.role ?? '').trim().toLowerCase();
-    const roleLogin = normalizeAccessRole(profileRow.role);
-    if (rawRoleLogin === 'pending') {
-      return redirectToPublicLeituraFallback(request);
-    }
-    if (roleLogin === 'blocked') {
-      return response;
-    }
-    if (roleLogin === 'frank') {
-      return NextResponse.redirect(new URL('/portal-frank', request.url));
-    }
-    if (shouldUseTodoAsHubFlyHome(roleLogin)) {
-      return NextResponse.redirect(new URL(HUB_FLY_HOME_TODO_PATH, request.url));
-    }
-    return NextResponse.redirect(new URL('/rede-franqueados', request.url));
+    // /login precisa permanecer acessível para entrar ou trocar de conta.
+    return response;
   }
+
   const rawProfileRole = String(profileRow?.role ?? '').trim().toLowerCase();
-  const accessRole = normalizeAccessRole(profileRow?.role);
+  const seeded = seedEntryForEmail(user.email);
+  const isExplicitPending = rawProfileRole === 'pending' && !seeded;
+  const accessRole = profileRow
+    ? effectiveAccessRoleFromEmail(profileRow.role, user.email)
+    : seeded
+      ? effectiveAccessRoleFromEmail(null, user.email)
+      : null;
 
   const sirenePath = pathname === '/sirene' || pathname.startsWith('/sirene/');
   if (sirenePath && !pathname.startsWith('/api')) {
@@ -208,11 +202,18 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  if (accessRole === 'pending') {
-    if (isExternalTokenAccessPath(pathname) || isBcaPublicLeituraAccessPath(pathname)) {
+  // Só cadastro explicitamente pending — perfil ausente/timeout NÃO vai para /leitura.
+  if (isExplicitPending) {
+    if (isExternalTokenAccessPath(pathname) || isBcaPublicLeituraAccessPath(pathname) || isAuthFlowAccessPath(pathname)) {
       return response;
     }
-    return redirectToPublicLeituraFallback(request);
+    const url = new URL('/login', request.url);
+    url.searchParams.set('status', 'pending');
+    return NextResponse.redirect(url);
+  }
+
+  if (!profileRow || !accessRole) {
+    return response;
   }
 
   if (accessRole === 'blocked') {
@@ -229,8 +230,8 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
-  if (pathname === '/' && shouldUseTodoAsHubFlyHome(accessRole)) {
-    return NextResponse.redirect(new URL(HUB_FLY_HOME_TODO_PATH, request.url));
+  if (pathname === '/' && (accessRole === 'team' || accessRole === 'admin')) {
+    return NextResponse.redirect(new URL(defaultHubHomeForRole(accessRole), request.url));
   }
 
   // Franqueado: apenas rotas sob /portal-frank (login/cadastro públicos tratados acima).

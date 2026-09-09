@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { normalizeAccessRole } from '@/lib/authz';
+import { resolveBoardStaffAuth } from '@/lib/seeded-staff-role';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { tryCreateAdminClient } from '@/lib/supabase/admin';
 import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
@@ -416,26 +416,11 @@ export async function fetchKanbanBoardShell(
   kanbanNomeDb: string,
   userId: string | null,
 ): Promise<KanbanBoardShell> {
-  let role = 'frank';
-  let isAdmin = false;
-
-  const profilePromise = userId
-    ? supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
-    : Promise.resolve({ data: null as { role?: string | null } | null });
-
-  const [profileRes, kanban] = await Promise.all([
-    profilePromise,
+  const [staff, kanban] = await Promise.all([
+    resolveBoardStaffAuth(supabase, userId),
     resolveKanbanAtivoCached(supabase, kanbanNomeDb),
   ]);
-
-  if (userId) {
-    const profile = profileRes.data;
-    role = (profile?.role as string) ?? 'frank';
-    const accessRole = normalizeAccessRole(profile?.role);
-    isAdmin = accessRole === 'admin' || accessRole === 'team';
-  } else {
-    isAdmin = true;
-  }
+  const { role, isAdmin } = staff;
 
   if (!kanban) {
     return { kanban: null, fases: [], role, isAdmin };
@@ -877,29 +862,11 @@ export async function fetchKanbanBoardSnapshot(
   const wantArquivados = snapshotMode === 'full' || snapshotMode === 'arquivados';
   const wantConcluidos = snapshotMode === 'full' || snapshotMode === 'concluidos';
 
-  let role = 'frank';
-  let isAdmin = false;
-
-  const profilePromise = userId
-    ? supabase.from('profiles').select('role').eq('id', userId).maybeSingle()
-    : Promise.resolve({ data: null as { role?: string | null } | null });
-
-  const [profileRes, kanban] = await Promise.all([
-    profilePromise,
+  const [staff, kanban] = await Promise.all([
+    resolveBoardStaffAuth(supabase, userId),
     resolveKanbanAtivoCached(supabase, kanbanNomeDb),
   ]);
-
-  let veTodosCards = false;
-  if (userId) {
-    const profile = profileRes.data;
-    role = (profile?.role as string) ?? 'frank';
-    const accessRole = normalizeAccessRole(profile?.role);
-    isAdmin = accessRole === 'admin' || accessRole === 'team';
-    veTodosCards = isAdmin || role === 'consultor' || role === 'supervisor';
-  } else {
-    isAdmin = true;
-    veTodosCards = true;
-  }
+  const { role, isAdmin, veTodosCards } = staff;
 
   if (!kanban) {
     return {
@@ -2014,12 +1981,7 @@ export async function fetchKanbanBoardEnrichmentPatches(
   const kid = String(kanbanId ?? '').trim();
   if (!kid) return {};
 
-  let veTodosCards = false;
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
-  const role = (profile?.role as string) ?? 'frank';
-  const accessRole = normalizeAccessRole(profile?.role);
-  const isAdmin = accessRole === 'admin' || accessRole === 'team';
-  veTodosCards = isAdmin || role === 'consultor' || role === 'supervisor';
+  const { veTodosCards } = await resolveBoardStaffAuth(supabase, userId);
 
   type KanbanCardRow = Record<string, unknown>;
   let q = supabase
