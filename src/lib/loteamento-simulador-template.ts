@@ -392,6 +392,33 @@ export function formatarMoedaBr(n: number | null | undefined): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+/**
+ * `simulacoes_pagamento.prazo_meses` é o prazo total do contrato.
+ * Ofertas antigas gravaram a Fase 1 (menor ou igual ao prazo de obra).
+ */
+export function prazoTotalDePrazoSalvo(
+  prazoSalvo: number | null | undefined,
+  prazoObraMeses: number,
+): number | null {
+  if (prazoSalvo == null || !Number.isFinite(prazoSalvo)) return null;
+  const salvo = Math.round(prazoSalvo);
+  const obra = Math.max(0, Math.round(prazoObraMeses));
+  if (salvo <= 0) return null;
+  return salvo > obra ? salvo : salvo + obra;
+}
+
+/** Converte o prazo persistido no total para os meses de Fase 1 do motor. */
+export function prazoFase1DePrazoSalvo(
+  prazoSalvo: number | null | undefined,
+  prazoObraMeses: number,
+): number {
+  if (prazoSalvo == null || !Number.isFinite(prazoSalvo)) return 1;
+  const salvo = Math.round(prazoSalvo);
+  const obra = Math.max(0, Math.round(prazoObraMeses));
+  if (salvo > obra) return Math.max(1, salvo - obra);
+  return Math.max(1, salvo);
+}
+
 export type SimuladorOfertaDraft = {
   nome: string;
   valor_lote: string;

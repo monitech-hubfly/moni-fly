@@ -92,7 +92,11 @@ export default async function SimuladorOfertasPage({ params }: Props) {
         <div className="mt-8 flex flex-col gap-10">
           {loaded.template ? (
             <>
-              <SimuladorOfertasClient cardId={id} ofertas={loaded.simulacoes} />
+              <SimuladorOfertasClient
+                cardId={id}
+                ofertas={loaded.simulacoes}
+                prazoObraMeses={rowToTemplateConfig(loaded.template).prazo_obra_meses}
+              />
               <CalculadoraOferta
                 template={rowToTemplateConfig(loaded.template)}
                 loteadorId={id}

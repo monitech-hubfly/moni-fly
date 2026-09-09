@@ -2,12 +2,14 @@
 
 import {
   formatarMoedaBr,
+  prazoTotalDePrazoSalvo,
   type SimulacaoPagamentoResumo,
 } from '@/lib/loteamento-simulador-template';
 
 type Props = {
   cardId: string;
   ofertas: SimulacaoPagamentoResumo[];
+  prazoObraMeses: number;
 };
 
 function formatarQuando(iso: string | null): string {
@@ -17,7 +19,7 @@ function formatarQuando(iso: string | null): string {
   return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-export function SimuladorOfertasClient({ cardId, ofertas }: Props) {
+export function SimuladorOfertasClient({ cardId, ofertas, prazoObraMeses }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <h2
@@ -57,7 +59,9 @@ export function SimuladorOfertasClient({ cardId, ofertas }: Props) {
               </tr>
             </thead>
             <tbody>
-              {ofertas.map((o) => (
+              {ofertas.map((o) => {
+                const prazo = prazoTotalDePrazoSalvo(o.prazo_meses, prazoObraMeses);
+                return (
                 <tr
                   key={o.id}
                   style={{
@@ -70,7 +74,7 @@ export function SimuladorOfertasClient({ cardId, ofertas }: Props) {
                   <td className="whitespace-nowrap px-3 py-2">{formatarMoedaBr(o.valor_lote)}</td>
                   <td className="whitespace-nowrap px-3 py-2">{formatarMoedaBr(o.valor_casa)}</td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    {o.prazo_meses != null ? `${o.prazo_meses} meses` : '—'}
+                    {prazo != null ? `${prazo} meses` : '—'}
                   </td>
                   <td className="px-3 py-2">
                     <a
@@ -82,7 +86,8 @@ export function SimuladorOfertasClient({ cardId, ofertas }: Props) {
                     </a>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

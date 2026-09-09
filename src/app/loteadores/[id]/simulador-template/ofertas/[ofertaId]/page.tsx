@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { isRedeStaffRole } from '@/lib/authz';
 import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { carregarSimuladorOfertaDoCard } from '@/lib/actions/loteamento-simulador-template';
-import { formatarMoedaBr } from '@/lib/loteamento-simulador-template';
+import { formatarMoedaBr, PRAZO_OBRA_MESES_PADRAO, prazoTotalDePrazoSalvo } from '@/lib/loteamento-simulador-template';
 import { OfertaDetalheLeitura } from '@/components/simulador/OfertaDetalheLeitura';
 import { BotaoImprimirOferta } from '@/components/simulador/BotaoImprimirOferta';
 
@@ -65,13 +65,15 @@ export default async function SimuladorOfertaDetalhePage({ params }: Props) {
   const nomeOferta = o.nome?.trim() || 'Oferta';
   const nomeLoteador = loaded.loteadorNome?.trim() || loaded.template?.nome?.trim() || '—';
   const dataGeracao = new Date().toLocaleDateString('pt-BR');
+  const prazoObra = loaded.template?.prazo_obra_meses ?? PRAZO_OBRA_MESES_PADRAO;
+  const prazoTotal = prazoTotalDePrazoSalvo(o.prazo_meses, prazoObra);
   const linhas: Array<{ label: string; valor: string }> = [
     { label: 'Valor do lote', valor: formatarMoedaBr(o.valor_lote) },
     { label: 'Valor da casa', valor: formatarMoedaBr(o.valor_casa) },
     { label: 'Customização', valor: formatarMoedaBr(o.valor_customizacao) },
     { label: 'Valor já pago à loteadora', valor: formatarMoedaBr(o.valor_ja_pago) },
     { label: 'Parcela mensal', valor: formatarMoedaBr(o.parcela_mensal) },
-    { label: 'Prazo', valor: o.prazo_meses != null ? `${o.prazo_meses} meses` : '—' },
+    { label: 'Prazo', valor: prazoTotal != null ? `${prazoTotal} meses` : '—' },
     { label: 'Renda', valor: formatarMoedaBr(o.renda_cliente ?? o.renda_informada_cliente) },
   ];
 

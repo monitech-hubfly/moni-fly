@@ -7,6 +7,7 @@ import type { CardResultadoItem } from '@/lib/simulador/oferta-resultado-helpers
 export type { CardResultadoItem };
 
 const FASE_LABEL: Record<string, string> = {
+  pre_contrato: 'Pré-contrato',
   mes0: 'Mês 0',
   fase1: 'Fase 1',
   parcela_unica: 'Parcela única',
@@ -223,7 +224,7 @@ export function TabelaFluxo({
               }}
             >
               <td className="px-2 py-2" style={celVisivel}>
-                {l.mes}
+                {l.fase === 'pre_contrato' ? '—' : l.mes}
               </td>
               <td className="whitespace-nowrap px-2 py-2" style={celVisivel}>
                 {FASE_LABEL[l.fase] ?? l.fase}

@@ -55,28 +55,19 @@ const dicaConfStyle = {
   fontFamily: 'var(--moni-font-sans)',
 } as const;
 
-function calcularMinimosConfirmados(params: {
-  valorLote: number;
-  valorJaPago: number;
-  comissao: number;
-  entradaConf: number;
-  parcelaMensalConf: number;
-  prazoFase1: number;
-  taxaJurosParcelado: number;
-  vtp: number;
-}): { parcelaUnicaNecessaria: number; parcelaUnicaMinima: number } {
-  const entrada_do_lote = Math.max(0, params.entradaConf - params.comissao);
-  let saldo = Math.max(0, params.valorLote - params.valorJaPago - entrada_do_lote);
-  const nMensaisAntes = Math.max(0, params.prazoFase1 - 1);
-  for (let m = 1; m <= nMensaisAntes; m += 1) {
-    saldo = Math.max(0, saldo * (1 + params.taxaJurosParcelado) - params.parcelaMensalConf);
-  }
-  const saldoAposMensal = saldo * (1 + params.taxaJurosParcelado) - params.parcelaMensalConf;
-  const parcelaUnicaNecessaria = Math.max(0, saldoAposMensal);
-  const pagamentosAcumulados = params.entradaConf + params.prazoFase1 * params.parcelaMensalConf;
-  const threshold30 = params.vtp * 0.3 - pagamentosAcumulados;
-  const parcelaUnicaMinima = Math.max(parcelaUnicaNecessaria, Math.max(0, threshold30));
-  return { parcelaUnicaNecessaria, parcelaUnicaMinima };
+function calcularParcelaUnicaMinimaHint(
+  resultado: ResultadoCalculo,
+  entradaEfetiva: number,
+  mensalEfetiva: number,
+): number {
+  const entrada = entradaEfetiva > 0 ? entradaEfetiva : resultado.entrada_sugerida;
+  const mensal = mensalEfetiva > 0 ? mensalEfetiva : resultado.parcela_mensal_usada;
+  const deltaEntrada = entrada - resultado.entrada_sugerida;
+  const deltaMensais = (mensal - resultado.parcela_mensal_usada) * resultado.mes_parcela_unica;
+  return Math.max(
+    resultado.parcela_unica_detalhe.min_quitar_lote,
+    resultado.parcela_unica_sugerida - deltaEntrada - deltaMensais,
+  );
 }
 
 export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props) {
@@ -183,21 +174,11 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       taxa_financiamento_anual: taxaFrac,
     };
     const calc = calcularOferta(template, oferta);
-    const unicaMinima = calcularMinimosConfirmados({
-      valorLote: oferta.valor_lote,
-      valorJaPago: oferta.valor_ja_pago,
-      comissao: calc.comissao_amount,
-      entradaConf: calc.entrada_sugerida,
-      parcelaMensalConf: calc.parcela_mensal_usada,
-      prazoFase1: oferta.prazo_meses,
-      taxaJurosParcelado: template.taxa_juros_parcelado_mes,
-      vtp: calc.vtp,
-    }).parcelaUnicaMinima;
     setUltimaOferta(oferta);
     setResultado(calc);
     setEntradaConf(calc.entrada_sugerida);
     setParcelaMensalConf(calc.parcela_mensal_usada);
-    setParcelaUnicaConf(Math.max(calc.parcela_unica_sugerida, unicaMinima));
+    setParcelaUnicaConf(calc.parcela_unica_sugerida);
   }
 
   useEffect(() => {
@@ -234,7 +215,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       valor_casa: numeroParaInputBr(ultimaOferta.valor_casa),
       valor_customizacao: numeroParaInputBr(ultimaOferta.valor_customizacao),
       valor_ja_pago: numeroParaInputBr(ultimaOferta.valor_ja_pago),
-      prazo_meses: String(ultimaOferta.prazo_meses),
+      prazo_meses: String(prazoTotal ?? ultimaOferta.prazo_meses + prazoObraMeses),
       parcela_mensal: numeroParaInputBr(parcelaMensalConf),
       renda_cliente: numeroParaInputBr(ultimaOferta.renda_cliente),
       prazo_financiamento_anos: String(ultimaOferta.prazo_financiamento_anos),
@@ -254,51 +235,18 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
 
   function gerarFluxoFinal() {
     if (!resultado || !ultimaOferta) return;
-    const entrada_do_lote_conf = Math.max(0, entradaConf - resultado.comissao_amount);
     const ofertaConfirmada: OfertaConfig = {
       ...ultimaOferta,
-      parcela_mensal: parcelaMensalConf,
-      entrada_do_lote_override: entrada_do_lote_conf,
-      parcela_unica_override: parcelaUnicaConf,
-      entrada_total_override: entradaConf,
+      entrada_confirmada: entradaConf,
+      mensal_confirmada: parcelaMensalConf,
+      parcela_unica_confirmada: parcelaUnicaConf,
     };
     setFluxoFinalResultado(calcularOferta(template, ofertaConfirmada));
   }
 
-  const minimosConf = useMemo(() => {
-    if (!resultado || !ultimaOferta) {
-      return { parcelaUnicaNecessaria: 0, parcelaUnicaMinima: 0 };
-    }
-    return calcularMinimosConfirmados({
-      valorLote: ultimaOferta.valor_lote,
-      valorJaPago: ultimaOferta.valor_ja_pago,
-      comissao: resultado.comissao_amount,
-      entradaConf,
-      parcelaMensalConf,
-      prazoFase1: ultimaOferta.prazo_meses,
-      taxaJurosParcelado: template.taxa_juros_parcelado_mes,
-      vtp: resultado.vtp,
-    });
-  }, [
-    entradaConf,
-    parcelaMensalConf,
-    resultado,
-    template.taxa_juros_parcelado_mes,
-    ultimaOferta,
-  ]);
-
   function aplicarMinimoParcelaUnica(entrada: number, parcela: number, unicaAtual: number): number {
-    if (!resultado || !ultimaOferta) return unicaAtual;
-    const { parcelaUnicaMinima } = calcularMinimosConfirmados({
-      valorLote: ultimaOferta.valor_lote,
-      valorJaPago: ultimaOferta.valor_ja_pago,
-      comissao: resultado.comissao_amount,
-      entradaConf: entrada,
-      parcelaMensalConf: parcela,
-      prazoFase1: ultimaOferta.prazo_meses,
-      taxaJurosParcelado: template.taxa_juros_parcelado_mes,
-      vtp: resultado.vtp,
-    });
+    if (!resultado) return unicaAtual;
+    const parcelaUnicaMinima = calcularParcelaUnicaMinimaHint(resultado, entrada, parcela);
     return unicaAtual < parcelaUnicaMinima ? parcelaUnicaMinima : unicaAtual;
   }
 
@@ -319,12 +267,16 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
     setFluxoFinalResultado(null);
   }
 
+  const parcelaUnicaMinimaHint = useMemo(() => {
+    if (!resultado) return 0;
+    return calcularParcelaUnicaMinimaHint(resultado, entradaConf, parcelaMensalConf);
+  }, [entradaConf, parcelaMensalConf, resultado]);
+
   const avisosSalvar = useMemo(() => {
-    const vazio = { entrada: [] as string[], parcela: [] as string[], unica: [] as string[] };
+    const vazio = { entrada: [] as string[], parcela: [] as string[] };
     if (!resultado || !ultimaOferta) return vazio;
     const entrada: string[] = [];
     const parcela: string[] = [];
-    const unica: string[] = [];
 
     if (entradaConf < resultado.entrada_sugerida) {
       entrada.push('⚠ Entrada abaixo do mínimo sugerido. A loteadora pode exigir o valor mínimo.');
@@ -340,23 +292,8 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       );
     }
 
-    if (parcelaUnicaConf < minimosConf.parcelaUnicaNecessaria) {
-      unica.push('⚠ Parcela única insuficiente para quitar o lote.');
-    } else if (parcelaUnicaConf < resultado.parcela_unica_sugerida) {
-      unica.push(
-        '⚠ Parcela única abaixo do sugerido. O cliente cobrirá menos de 30% do valor antes da obra.',
-      );
-    }
-
-    return { entrada, parcela, unica };
-  }, [
-    entradaConf,
-    minimosConf.parcelaUnicaNecessaria,
-    parcelaMensalConf,
-    parcelaUnicaConf,
-    resultado,
-    ultimaOferta,
-  ]);
+    return { entrada, parcela };
+  }, [entradaConf, parcelaMensalConf, resultado, ultimaOferta]);
 
   const cardsTotais = useMemo((): CardResultadoItem[] => {
     if (!resultado) return [];
@@ -683,6 +620,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
                     ? `⚠ Mínimo sugerido: ${formatarMoeda(resultado.entrada_sugerida)}`
                     : undefined
                 }
+                dicaValida={entradaConf >= resultado.entrada_sugerida}
                 avisos={avisosSalvar.entrada}
               />
               <CampoMoedaConfirmado
@@ -695,8 +633,8 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
                 label="Parcela única confirmada (R$)"
                 valor={parcelaUnicaConf}
                 onValorChange={onParcelaUnicaConfirmada}
-                dica={`⚠ Mínimo para quitar o lote: ${formatarMoeda(minimosConf.parcelaUnicaNecessaria)}`}
-                avisos={avisosSalvar.unica}
+                dica={`⚠ Mínimo sugerido: ${formatarMoeda(parcelaUnicaMinimaHint)}`}
+                dicaValida={parcelaUnicaConf >= parcelaUnicaMinimaHint}
               />
             </div>
             <div className="mt-6 flex flex-col gap-4">
@@ -852,14 +790,22 @@ function CampoMoedaConfirmado({
   valor,
   onValorChange,
   dica,
+  dicaValida,
   avisos,
 }: {
   label: string;
   valor: number;
   onValorChange: (n: number) => void;
   dica?: string;
+  dicaValida?: boolean;
   avisos?: string[];
 }) {
+  const dicaStyle =
+    dicaValida === true
+      ? { ...dicaConfStyle, color: 'var(--moni-status-done-text)' }
+      : dicaValida === false
+        ? { ...dicaConfStyle, color: 'var(--moni-status-overdue-text)' }
+        : dicaConfStyle;
   return (
     <label className="block">
       <span className={labelCls} style={labelStyle}>
@@ -872,7 +818,11 @@ function CampoMoedaConfirmado({
         onChange={(n) => onValorChange(n ?? 0)}
       />
       {dica ? (
-        <span className="mt-1 block text-[11px]" style={dicaConfStyle}>
+        <span
+          className="mt-1 block text-[11px]"
+          style={dicaStyle}
+          role={dicaValida === false ? 'alert' : undefined}
+        >
           {dica}
         </span>
       ) : null}

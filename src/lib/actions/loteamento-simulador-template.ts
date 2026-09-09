@@ -452,7 +452,7 @@ export async function criarSimuladorOfertaDoCard(
   if (!valorCustom.ok) return valorCustom;
   const valorPago = parseMoedaCampo(draft.valor_ja_pago, 'o valor já pago à loteadora', { padrao: 0 });
   if (!valorPago.ok) return valorPago;
-  const prazoMeses = parseInteiroCampo(draft.prazo_meses, 'o prazo de Fase 1', { obrigatorio: true });
+  const prazoMeses = parseInteiroCampo(draft.prazo_meses, 'o prazo total do contrato', { obrigatorio: true });
   if (!prazoMeses.ok) return prazoMeses;
   const parcelaMensal = parseMoedaCampo(draft.parcela_mensal, 'a parcela mensal', { obrigatorio: true });
   if (!parcelaMensal.ok) return parcelaMensal;

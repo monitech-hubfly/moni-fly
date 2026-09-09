@@ -10,6 +10,7 @@ import {
 } from '@/lib/simulador/oferta-resultado-helpers';
 import {
   formatarMoedaBr,
+  prazoFase1DePrazoSalvo,
   rowToTemplateConfig,
   type LoteamentoSimuladorTemplateRow,
   type SimulacaoPagamentoResumo,
@@ -29,14 +30,17 @@ function n(v: number | null | undefined): number {
   return v != null && Number.isFinite(v) ? v : 0;
 }
 
-function ofertaParaConfig(oferta: SimulacaoPagamentoResumo): OfertaConfig {
+function ofertaParaConfig(
+  oferta: SimulacaoPagamentoResumo,
+  prazoObraMeses: number,
+): OfertaConfig {
   return {
     valor_lote: n(oferta.valor_lote),
     valor_casa: n(oferta.valor_casa),
     valor_customizacao: n(oferta.valor_customizacao),
     valor_ja_pago: n(oferta.valor_ja_pago),
-    prazo_meses: Math.max(1, Math.round(n(oferta.prazo_meses) || 1)),
-    parcela_mensal: n(oferta.parcela_mensal_confirmada ?? oferta.parcela_mensal),
+    prazo_meses: prazoFase1DePrazoSalvo(oferta.prazo_meses, prazoObraMeses),
+    parcela_mensal: n(oferta.parcela_mensal),
     renda_cliente: n(oferta.renda_cliente ?? oferta.renda_informada_cliente),
     prazo_financiamento_anos: Math.max(0, Math.round(n(oferta.prazo_financiamento_anos))),
     taxa_financiamento_anual: oferta.taxa_financiamento_anual ?? undefined,
@@ -82,7 +86,7 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
   }
 
   const tpl = rowToTemplateConfig(template);
-  const cfg = ofertaParaConfig(oferta);
+  const cfg = ofertaParaConfig(oferta, tpl.prazo_obra_meses);
   const sugerido = calcularOferta(tpl, cfg);
 
   const entradaConf = oferta.entrada_confirmada;
@@ -95,10 +99,9 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
     entradaConf != null && parcelaMensalConf != null && parcelaUnicaConf != null
       ? calcularOferta(tpl, {
           ...cfg,
-          parcela_mensal: parcelaMensalConf,
-          entrada_do_lote_override: Math.max(0, entradaConf - sugerido.comissao_amount),
-          parcela_unica_override: parcelaUnicaConf,
-          entrada_total_override: entradaConf,
+          entrada_confirmada: entradaConf,
+          mensal_confirmada: parcelaMensalConf,
+          parcela_unica_confirmada: parcelaUnicaConf,
         })
       : null;
 
