@@ -708,6 +708,7 @@ export function KanbanCardModal({
     novoNegocio: false,
     dadosEmpresas: false,
     dadosFunding: false,
+    dadosMaterial: false,
     preObra: false,
     obra: false,
     documentacaoCreditoObra: true,

@@ -441,6 +441,7 @@ export type SecaoEsquerdaId =
   | 'novoNegocio'
   | 'dadosEmpresas'
   | 'dadosFunding'
+  | 'dadosMaterial'
   | 'preObra'
   | 'obra'
   | 'documentacaoCreditoObra'
