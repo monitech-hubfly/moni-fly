@@ -73,8 +73,8 @@ export interface CriarCardFilhoParams {
   faseOrigemSlug: string;
   /** Bastão automático → Acoplamento / Jurídico: UUID do funil que disparou (migration 389). */
   origemKanbanId?: string | null;
-  /** Funil Jurídico: origem do chamado (`portfolio` | `loteadores` | `operacoes`). */
-  juridicoOrigem?: 'portfolio' | 'loteadores' | 'operacoes' | null;
+  /** Funil Jurídico: origem do chamado (`portfolio` | `loteadores` | `comercial`). */
+  juridicoOrigem?: 'portfolio' | 'loteadores' | 'comercial' | null;
   /** Funil Crédito Obra: tranche da tag (1ª automática; 2ª–6ª cria card adicional). */
   creditoObraTranche?: 1 | 2 | 3 | 4 | 5 | 6;
 }
@@ -271,11 +271,12 @@ async function resolverCamposOrigemKanbanBastao(
 
 function juridicoOrigemPorKanbanPai(
   kanbanId: string | null | undefined,
-): 'portfolio' | 'loteadores' | 'operacoes' | null {
+): 'portfolio' | 'loteadores' | 'comercial' | null {
   const kid = String(kanbanId ?? '').trim();
   if (kid === KANBAN_IDS.PORTFOLIO) return 'portfolio';
   if (kid === KANBAN_IDS.LOTEADORES) return 'loteadores';
-  if (kid === KANBAN_IDS.OPERACOES) return 'operacoes';
+  /** Manual / Operações → comercial (migration 565). */
+  if (kid === KANBAN_IDS.OPERACOES) return 'comercial';
   return null;
 }
 
@@ -1233,8 +1234,11 @@ const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   /** @deprecated legado — cards em fase inativa (migration 494) */
   [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'credito_obra_ok',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'contabilidade_ok',
+  /** Funil Jurídico — bastão de volta na Fase 7 (Pós-Assinatura / Retroalimentação). */
+  [FASE_SLUGS.JURIDICO_POS_ASSINATURA]: 'juridico_ok',
+  /** @deprecated legado — preferir JURIDICO_POS_ASSINATURA */
   [FASE_SLUGS.JURIDICO_DEMANDA_CONCLUIDA]: 'juridico_ok',
-  /** @deprecated legado — preferir JURIDICO_DEMANDA_CONCLUIDA */
+  /** @deprecated legado */
   [FASE_SLUGS.JURIDICO_CONCLUIDO]: 'juridico_ok',
   [FASE_SLUGS.CAPITAL_CAPTACAO_FINALIZADA]: 'capital_ok',
   [FASE_SLUGS.CAPITAL_NAO_ELEGIVEL]: 'capital_ok',
@@ -1252,6 +1256,8 @@ const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   /** @deprecated legado */
   [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'Crédito Obra (reprovado)',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'Contabilidade',
+  [FASE_SLUGS.JURIDICO_POS_ASSINATURA]: 'Jurídico',
+  /** @deprecated legado */
   [FASE_SLUGS.JURIDICO_DEMANDA_CONCLUIDA]: 'Jurídico',
   /** @deprecated legado */
   [FASE_SLUGS.JURIDICO_CONCLUIDO]: 'Jurídico',
@@ -1272,6 +1278,7 @@ const DESFECHO_APENAS_FLAG_SEM_MOVER_PAI = new Set<string>([
   FASE_SLUGS.CREDITO_OBRA_APROVADO,
   FASE_SLUGS.CREDITO_OBRA_REPROVADO,
   FASE_SLUGS.CONTABILIDADE_CONCLUIDO,
+  FASE_SLUGS.JURIDICO_POS_ASSINATURA,
   FASE_SLUGS.JURIDICO_DEMANDA_CONCLUIDA,
   FASE_SLUGS.JURIDICO_CONCLUIDO,
   FASE_SLUGS.CAPITAL_CAPTACAO_FINALIZADA,

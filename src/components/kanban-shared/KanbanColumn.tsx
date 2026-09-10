@@ -854,7 +854,7 @@ export function KanbanColumn({
                     {Number(card.juridico_bolinha_count ?? 0) > 0 ? (
                       <span
                         className="moni-juridico-bolinha-badge"
-                        title={`Voltou para Tratativas ${Number(card.juridico_bolinha_count)} vez(es)`}
+                        title={`Contrato revisado ${Number(card.juridico_bolinha_count)} vez(es)`}
                       >
                         ↺ {Number(card.juridico_bolinha_count)}x
                       </span>

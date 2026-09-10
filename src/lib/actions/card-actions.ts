@@ -118,7 +118,7 @@ export async function verificarGateAcoplamentoModelagemCasa(
   return verify(cardId, novaFaseId);
 }
 
-/** Gate Jurídico: Pós-Assinatura → Enviado ao Parceiro exige `juridico_retroalimentar`. */
+/** Gate Jurídico: Pós-Assinatura (07) → Atendimentos Concluídos (08) exige `juridico_retroalimentar`. */
 export async function verificarGateJuridicoRetroalimentar(
   cardId: string,
   novaFaseId: string,
@@ -5858,11 +5858,18 @@ export async function moverCardParaFase(input: {
   }
 
   const patchFase: Record<string, unknown> = { fase_id: novaFaseId };
-  if (
+  /** Contador de revisões: volta da Fase 5/6 → Fase 3 (Alterações e Respostas). */
+  const bolinhaJuridico8Fases =
+    kanbanIdCard === KANBAN_IDS.JURIDICO &&
+    (faseOrigemSlug === FASE_SLUGS.JURIDICO_SUBIR_ASSINATURA ||
+      faseOrigemSlug === FASE_SLUGS.JURIDICO_AGUARDANDO_ASSINATURAS) &&
+    novaFaseSlug === FASE_SLUGS.JURIDICO_ALTERACOES_RESPOSTAS;
+  /** @deprecated legado — Assinatura → Tratativas */
+  const bolinhaJuridicoLegado =
     kanbanIdCard === KANBAN_IDS.JURIDICO &&
     faseOrigemSlug === FASE_SLUGS.JURIDICO_ASSINATURA &&
-    novaFaseSlug === FASE_SLUGS.JURIDICO_TRATATIVAS
-  ) {
+    novaFaseSlug === FASE_SLUGS.JURIDICO_TRATATIVAS;
+  if (bolinhaJuridico8Fases || bolinhaJuridicoLegado) {
     const atual = Number(
       (cardKanban as { juridico_bolinha_count?: number | null } | null)?.juridico_bolinha_count ?? 0,
     );

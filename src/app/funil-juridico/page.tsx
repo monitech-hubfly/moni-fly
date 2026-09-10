@@ -1,6 +1,6 @@
 /**
  * Kanban **Funil Jurídico** (`kanbans.nome`): nativo (`kanban_cards`).
- * Acesso: team e admin (Frank bloqueado pelo middleware / portal).
+ * Acesso: team e admin (Frank bloqueado pelo middleware + guard da página).
  */
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
@@ -42,7 +42,7 @@ export default async function FunilJuridicoPage({
     basePath: '/funil-juridico',
     pageTitle: 'Kanban Funil Jurídico',
     tabsVariant: 'juridico',
-    /** Accent do funil (sem prop `corHex` em renderKanbanDatabasePage). */
+    /** Accent do funil — `renderKanbanDatabasePage` usa `columnAccent` (não `corHex`). */
     columnAccent: '#1E3A5F',
     novoCardApenasStaff: true,
   });

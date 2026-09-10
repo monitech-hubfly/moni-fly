@@ -3,13 +3,13 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 export const MSG_GATE_JURIDICO_RETROALIMENTAR =
-  'Defina se há necessidade de retroalimentação do padrão antes de avançar (campo obrigatório na Fase 05 — Pós-Assinatura).';
+  'Defina se há necessidade de retroalimentação do padrão antes de concluir (campo obrigatório na Fase 7).';
 
 type GateResult = { ok: true } | { ok: false; error: string };
 
 /**
- * Gate: Pós-Assinatura (05) → Enviado ao Parceiro (06).
- * Exige decisão em `juridico_retroalimentar` (true/false) antes de avançar.
+ * Gate: Pós-Assinatura (07) → Atendimentos Concluídos (08).
+ * Exige decisão em `juridico_retroalimentar` (true/false) — não pode ficar null.
  */
 export async function verificarGateJuridicoRetroalimentar(
   cardId: string,
@@ -45,7 +45,7 @@ export async function verificarGateJuridicoRetroalimentar(
   const slugDest = String((faseDest as { slug?: string | null } | null)?.slug ?? '').trim();
 
   if (slugAtual !== FASE_SLUGS.JURIDICO_POS_ASSINATURA) return { ok: true };
-  if (slugDest !== FASE_SLUGS.JURIDICO_ENVIADO_PARCEIRO) return { ok: true };
+  if (slugDest !== FASE_SLUGS.JURIDICO_ATENDIMENTOS_CONCLUIDOS) return { ok: true };
 
   const flag = (card as { juridico_retroalimentar?: boolean | null }).juridico_retroalimentar;
   if (flag === true || flag === false) return { ok: true };
