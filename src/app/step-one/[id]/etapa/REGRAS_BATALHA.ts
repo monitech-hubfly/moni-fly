@@ -724,7 +724,7 @@ export type ProdutoDadosPar = {
   idade?: number | null;
   banheiros?: number | null;
   vagas?: number | null;
-  /** Tipo predominante da faixa (Dados dos Condomínios) — critério Andares (An). */
+  /** Tipo predominante da faixa (Dados dos Condomínios) — critério An (aderência à tipologia). */
   tipoPredominante?: TipoCasaPredominanteFaixa | null;
 };
 
@@ -745,6 +745,10 @@ export type NotaProdutoCompletaResult = {
   };
 };
 
+/**
+ * Catálogo legado ainda pode trazer S / N / Integrado / boolean.
+ * Para An só importa: tem rooftop (qualquer forma) ou não.
+ */
 export function normalizarRooftopCatalogo(raw: RooftopCatalogo): 'S' | 'N' | 'Integrado' | null {
   if (raw === true || raw === 'S' || raw === 's' || raw === 'true') return 'S';
   if (raw === false || raw === 'N' || raw === 'n' || raw === 'false') return 'N';
@@ -752,9 +756,19 @@ export function normalizarRooftopCatalogo(raw: RooftopCatalogo): 'S' | 'N' | 'In
   return null;
 }
 
+/** true = térrea com rooftop; false = térrea sem rooftop / sem informação. */
+export function modeloMoniTemRooftop(raw: RooftopCatalogo): boolean {
+  const rt = normalizarRooftopCatalogo(raw);
+  return rt === 'S' || rt === 'Integrado';
+}
+
 export type NotaAndaresResult = { nota: number; bloqueado: boolean };
 
-/** Nota Andares (An): depende do tipo predominante da faixa e de andares/rooftop do modelo Moní. */
+/**
+ * An — Aderência à tipologia predominante.
+ * Sobrado: andares > 1. Térrea: andares === 1 (+ rooftop ou sem).
+ * 0 = aderente; negativo = divergência. Escala natural −2…0 (sem vantagem artificial).
+ */
 export function notaAndares(
   tipoPredominante: string | null | undefined,
   andaresMoni: number | null | undefined,
@@ -769,20 +783,23 @@ export function notaAndares(
     andaresMoni != null && Number.isFinite(Number(andaresMoni)) ? Number(andaresMoni) : null;
   if (andares == null) return { nota: 0, bloqueado: false };
 
+  const ehSobrado = andares > 1;
+  const ehTerrea = andares === 1;
+
   if (tipo === 'Sobrado') {
-    if (andares > 1) return { nota: 2, bloqueado: false };
-    if (andares === 1) {
-      const rt = normalizarRooftopCatalogo(rooftop);
-      if (rt === 'S') return { nota: -2, bloqueado: false };
-      if (rt === 'N') return { nota: -3, bloqueado: false };
-      if (rt === 'Integrado') return { nota: -1, bloqueado: false };
-      return { nota: 0, bloqueado: false };
+    if (ehSobrado) return { nota: 0, bloqueado: false };
+    if (ehTerrea) {
+      return {
+        nota: modeloMoniTemRooftop(rooftop) ? -1 : -2,
+        bloqueado: false,
+      };
     }
     return { nota: 0, bloqueado: false };
   }
 
-  if (andares > 1) return { nota: -3, bloqueado: false };
-  if (andares === 1) return { nota: 2, bloqueado: false };
+  // Predomina Térrea
+  if (ehTerrea) return { nota: 0, bloqueado: false };
+  if (ehSobrado) return { nota: -2, bloqueado: false };
   return { nota: 0, bloqueado: false };
 }
 
@@ -792,12 +809,13 @@ export function formatNotaAn(n: number): string {
 }
 
 /**
- * Modelo incompatível com o tipo predominante da faixa (andares vs térrea/sobrado).
- * Usado para reordenação prioritária no ranking Pré Batalha.
+ * Divergência forte de tipologia (−2): rebaixa no ranking Pré Batalha.
+ * Térrea + rooftop em faixa de Sobrado (−1) não é tratada como incompatível.
  */
 export function modeloTipoAndarIncompativel(
   tipoPredominante: string | null | undefined,
   andaresMoni: number | null | undefined,
+  rooftop?: RooftopCatalogo,
 ): boolean {
   const tipo = String(tipoPredominante ?? '').trim();
   if (tipo !== 'Sobrado' && tipo !== 'Térrea') return false;
@@ -807,7 +825,9 @@ export function modeloTipoAndarIncompativel(
   if (andares == null) return false;
 
   if (tipo === 'Térrea') return andares > 1;
-  return andares === 1;
+  // Sobrado: só térrea sem rooftop (nota −2)
+  if (andares === 1) return !modeloMoniTemRooftop(rooftop ?? null);
+  return false;
 }
 
 /** Texto do badge vermelho quando o modelo é rebaixado por incompatibilidade de andares. */

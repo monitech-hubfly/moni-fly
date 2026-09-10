@@ -2,7 +2,8 @@
  * Ranking Pré Batalha: modelos Moní vs. listagem ZAP por faixa de mercado.
  * Ordenação elegíveis: match atributos lote (DESC) → Preço (DESC) → Produto (DESC).
  * Nota final e confrontos G/E/P: só Preço + Produto (lote não pontua entre modelos).
- * Topografia incompatível ou geometria inelegível → final do ranking, sem pontuação.
+ * Elegibilidade física: topografia inviável ou geometria (largura/profundidade) → final sem pontuação.
+ * Tipologia (térrea/sobrado) não elimina — entra só na nota An (Produto).
  */
 
 import {
@@ -20,7 +21,6 @@ import {
   OBS_FLEXIVEL_VAGAS,
   modeloPermitidoNaFaixa,
   penalizacaoTamanhoEliminada,
-  modeloTipoAndarIncompativel,
   type AtributosLoteRespostas,
   type CatalogoComAtributosLote,
   type NotaTamanhoResult,
@@ -144,11 +144,15 @@ export type RankingModeloPreBatalha = {
   obsFlexivel: string[];
   matchScore: number;
   totalAtributosLote: number;
+  /** true = mesma topografia do lote; false = adaptação prevista (ainda elegível, salvo inviável). */
   topoCompativel: boolean;
   elegivel: boolean;
   /** Confrontos head-to-head vs. outros modelos Moní elegíveis da faixa. */
   confrontosModelos?: ConfrontosModeloFaixa;
-  /** Modelo com andares incompatíveis com o tipo predominante da faixa (térrea/sobrado). */
+  /**
+   * @deprecated Tipologia não é mais critério eliminatório/rebaixa — só nota An.
+   * Mantido false para compatibilidade de UI.
+   */
   tipoAndareIncompativel: boolean;
   /** Tipo predominante usado na faixa — para badge na UI. */
   tipoPredominanteFaixa?: TipoCasaPredominanteFaixa | null;
@@ -232,15 +236,19 @@ export function isTipoPredominanteFaixaAusente(
   return t !== 'Sobrado' && t !== 'Térrea';
 }
 
-/** Geometria do terreno: dimensões do lote + recuos do condomínio. */
+/** Geometria do terreno: dimensões do lote + recuos efetivamente aplicáveis. */
 export interface DadosTerreno {
   /** Do lote (`condominios_lotes`). */
   dimensao_frente_m: number | null;
   dimensao_lado_esquerdo_m: number | null;
-  /** Do condomínio (`condominios`) — recuo_lateral_m vale para esq. e dir. */
+  /** Do condomínio / lote — recuos aplicáveis (não assumir simetria). */
   recuo_frontal_m: number | null;
   recuo_fundo_m: number | null;
+  /** Fallback quando laterais esq/dir não vierem separados. */
   recuo_lateral_m: number | null;
+  /** Recuos laterais distintos (esquina / irregular) — preferidos quando informados. */
+  recuo_lateral_esquerdo_m?: number | null;
+  recuo_lateral_direito_m?: number | null;
 }
 
 export interface ResultadoElegibilidade {
@@ -251,8 +259,22 @@ export interface ResultadoElegibilidade {
   falhas: ('largura' | 'profundidade' | 'area')[];
 }
 
+function recuosLateraisAplicaveis(terreno: DadosTerreno): { esq: number; dir: number } {
+  const simetrico = terreno.recuo_lateral_m ?? 0;
+  const esq =
+    terreno.recuo_lateral_esquerdo_m != null && Number.isFinite(Number(terreno.recuo_lateral_esquerdo_m))
+      ? Number(terreno.recuo_lateral_esquerdo_m)
+      : simetrico;
+  const dir =
+    terreno.recuo_lateral_direito_m != null && Number.isFinite(Number(terreno.recuo_lateral_direito_m))
+      ? Number(terreno.recuo_lateral_direito_m)
+      : simetrico;
+  return { esq, dir };
+}
+
 /**
- * Verifica se a casa cabe no terreno útil (após recuos do condomínio).
+ * Verifica se a casa cabe na área edificável (largura e profundidade após recuos aplicáveis).
+ * Área total isolada não elimina — só largura/profundidade.
  * Sem dimensões do lote → elegível (dados insuficientes para filtrar).
  */
 export function verificarElegibilidadeCasa(
@@ -266,7 +288,7 @@ export function verificarElegibilidadeCasa(
   const { dimensao_frente_m: frente, dimensao_lado_esquerdo_m: lateral } = terreno;
   const rFront = terreno.recuo_frontal_m ?? 0;
   const rFundo = terreno.recuo_fundo_m ?? 0;
-  const rLat = terreno.recuo_lateral_m ?? 0;
+  const { esq: rLatEsq, dir: rLatDir } = recuosLateraisAplicaveis(terreno);
 
   if (!frente || !lateral) {
     return {
@@ -278,14 +300,13 @@ export function verificarElegibilidadeCasa(
     };
   }
 
-  const largura_util = frente - rLat * 2;
+  const largura_util = frente - rLatEsq - rLatDir;
   const profundidade_util = lateral - rFront - rFundo;
   const area_util = largura_util * profundidade_util;
 
   const falhas: ResultadoElegibilidade['falhas'] = [];
   if (casa.dimensao_x_m != null && largura_util < casa.dimensao_x_m) falhas.push('largura');
   if (casa.dimensao_y_m != null && profundidade_util < casa.dimensao_y_m) falhas.push('profundidade');
-  if (casa.area_perimetro_m2 != null && area_util < casa.area_perimetro_m2) falhas.push('area');
 
   return { elegivel: falhas.length === 0, largura_util, profundidade_util, area_util, falhas };
 }
@@ -305,13 +326,24 @@ function geoModeloCatalogo(mod: CatalogoItem, terreno?: DadosTerreno): Resultado
   return verificarElegibilidadeCasa(terreno, dimsCasaFromCatalogo(mod));
 }
 
-function topoCompativelComLote(
+export type StatusTopografiaImplantacao = 'compativel' | 'adaptacao' | 'inviavel';
+
+/**
+ * Compatibilidade de topografia (não igualdade automática).
+ * Sem dados → trata como compatível (não elimina).
+ * Topografias diferentes → adaptação prevista (permanece com ressalva).
+ * `inviavel` reservado para regra explícita futura — hoje não auto-elimina por mismatch.
+ */
+export function avaliarTopografiaImplantacao(
   mod: CatalogoItem,
   atributosLote: AtributosLoteRespostas,
-): boolean {
+): StatusTopografiaImplantacao {
   const topografiaLote = resolverTopografiaLote(atributosLote);
-  if (!topografiaLote) return true;
-  return normalizeTopografiaCatalogo(mod.topografia) === topografiaLote;
+  if (!topografiaLote) return 'compativel';
+  const topoModelo = normalizeTopografiaCatalogo(mod.topografia);
+  if (!topoModelo) return 'adaptacao';
+  if (topoModelo === topografiaLote) return 'compativel';
+  return 'adaptacao';
 }
 
 function criarRankingModeloInelegivel(
@@ -407,16 +439,11 @@ function filtrarCatalogoElegivelGeometria(
 function ordenarRankingComInelegiveisNoFinal(
   ranking: RankingModeloPreBatalha[],
 ): RankingModeloPreBatalha[] {
-  const elegiveisCompat = ranking
-    .filter((r) => r.elegivel && !r.tipoAndareIncompativel)
-    .sort(compararRankingModelo);
-  const elegiveisIncompat = ranking
-    .filter((r) => r.elegivel && r.tipoAndareIncompativel)
-    .sort(compararRankingModelo);
+  const elegiveis = ranking.filter((r) => r.elegivel).sort(compararRankingModelo);
   const inelegiveis = ranking
     .filter((r) => !r.elegivel)
     .sort((a, b) => a.modelo.localeCompare(b.modelo, 'pt-BR'));
-  return [...elegiveisCompat, ...elegiveisIncompat, ...inelegiveis];
+  return [...elegiveis, ...inelegiveis];
 }
 
 const TOPOGRAFIA_LABEL: Record<string, string> = {
@@ -654,9 +681,9 @@ function rankearModelosContraAnuncios(
 
   const rankings = catalogoFiltrado.map((mod) => {
     const matchScore = calcularMatchScoreAtributosLote(atributosLote, mod);
-    const topoOk = topoCompativelComLote(mod, atributosLote);
+    const statusTopo = avaliarTopografiaImplantacao(mod, atributosLote);
 
-    if (!topoOk) {
+    if (statusTopo === 'inviavel') {
       return criarRankingModeloInelegivel(mod, geoPadraoSemTerreno(), faixa, {
         topoCompativel: false,
         matchScore: 0,
@@ -678,17 +705,14 @@ function rankearModelosContraAnuncios(
         },
         faixa,
         {
-          topoCompativel: true,
+          topoCompativel: statusTopo === 'compativel',
           matchScore,
           totalAtributosLote,
         },
       );
     }
 
-    const tipoAndareIncompativel = modeloTipoAndarIncompativel(
-      tipoPredominanteFaixa,
-      mod.andares ?? null,
-    );
+    const tipoAndareIncompativel = false;
 
     const precoIncKitMoni = getPrecoIncMaisKitMoni(mod);
 
@@ -760,7 +784,7 @@ function rankearModelosContraAnuncios(
       obsFlexivel,
       matchScore,
       totalAtributosLote,
-      topoCompativel: true,
+      topoCompativel: statusTopo === 'compativel',
       tipoAndareIncompativel,
       tipoPredominanteFaixa,
       ...geoCampos,
@@ -828,7 +852,7 @@ export function calcularRankingPreBatalhaPorFaixas(
 
     const catalogoFaixaElegivel = catalogoFaixa.filter(
       (mod) =>
-        topoCompativelComLote(mod, atributosLote) &&
+        avaliarTopografiaImplantacao(mod, atributosLote) !== 'inviavel' &&
         geoModeloCatalogo(mod, opts?.terreno).elegivel,
     );
     const batalhas = gerarBatalhasModeloAnuncio(
@@ -869,7 +893,6 @@ export function flattenRankingPreBatalhaPorFaixas(
   for (const g of grupos) {
     for (const item of g.ranking) {
       if (item.elegivel === false) continue;
-      if (item.tipoAndareIncompativel) continue;
       if (seen.has(item.catalogoId)) continue;
       seen.add(item.catalogoId);
       out.push(item);

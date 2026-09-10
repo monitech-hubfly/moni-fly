@@ -461,7 +461,8 @@
       <div class="section-label" id="filtros">Lote, match e elegibilidade</div>
 
       <p style="font-size:13px;font-weight:600;color:var(--verde);margin-bottom:10px;">Passo 3 — Match de atributos do lote</p>
-      <p class="lead">Conte quantos atributos marcados no lote o modelo também tem no catálogo. Isso <strong>ordena</strong> o ranking; não entra na nota final.</p>
+      <p class="lead">Conte quantos atributos marcados no lote o modelo também tem no catálogo. Isso <strong>ordena</strong> o ranking (“qual modelo aproveita melhor este lote?”); <strong>não</strong> entra na nota final e <strong>não</strong> é elegibilidade.</p>
+      <div class="step-note" style="margin-bottom:12px;"><strong>Exemplo:</strong> lote com vista + fundo de mata + plano → 3 atributos. Modelo com vista e mata → <strong>match 2/3</strong>.</div>
 
       <table class="data-table">
         <thead><tr><th>Atributo</th><th>Nota</th><th>Racional</th></tr></thead>
@@ -485,26 +486,35 @@
       </table>
       <p style="font-size:12px;color:var(--cinza);margin-top:8px;">Na Pré Batalha a nota dos atributos <strong>não entra</strong> na nota final (só o match ordena o ranking). As notas acima valem na Batalha completa.</p>
 
-      <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">Passo 4 — Eliminar inelegíveis</p>
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">Passo 4 — Validar elegibilidade física</p>
+      <p class="lead">Responde apenas: <strong>“este modelo pode ou não ser implantado neste lote?”</strong> Separado do ranking (competitividade) e do match (aproveitamento do lote). Tipologia térrea/sobrado <strong>não</strong> elimina aqui — entra em <strong>An — Aderência à tipologia</strong>.</p>
 
-      <div class="grid-2">
-        <div class="card">
-          <h4>4a. Topografia</h4>
-          <p>Se o lote é Plano, Aclive ou Declive, o modelo precisa ter a <strong>mesma</strong> topografia. Diferente → <strong>fora</strong> (nota zero).</p>
-        </div>
-        <div class="card">
-          <h4>4b. Geometria do terreno</h4>
-          <p>Largura útil = frente − 2×recuo lateral. Profundidade útil = lateral − recuo frontal − recuo fundo. Inelegível se não cabe em largura, profundidade ou área.</p>
-        </div>
-        <div class="card">
-          <h4>4c. Tipo de andar</h4>
-          <p>Se predomina Térrea e o modelo é sobrado (ou vice-versa) → <strong>rebaixa</strong> no ranking, mas ainda pontua (antes dos totalmente inelegíveis).</p>
-        </div>
-        <div class="card">
-          <h4>Exemplo de match</h4>
-          <p>Lote: vista + fundo de mata + plano → 3 atributos. Modelo com vista e mata → <strong>match 2/3</strong>.</p>
-        </div>
-      </div>
+      <table class="data-table">
+        <thead><tr><th>Critério</th><th>Regra</th><th>Resultado</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Topografia</strong></td>
+            <td>Compatibilidade técnica com a condição do lote (plano, aclive ou declive) — não exige igualdade automática do catálogo.</td>
+            <td>Compatível → permanece.<br>Compatível mediante adaptação prevista → permanece, com ressalva.<br>Implantação tecnicamente inviável → <strong>inelegível</strong>.</td>
+          </tr>
+          <tr>
+            <td><strong>Largura</strong></td>
+            <td>Modelo + recuos efetivamente aplicáveis precisam caber na largura edificável.</td>
+            <td>Não cabe → <strong>elimina</strong>.</td>
+          </tr>
+          <tr>
+            <td><strong>Profundidade</strong></td>
+            <td>Modelo + recuos efetivamente aplicáveis precisam caber na profundidade edificável.</td>
+            <td>Não cabe → <strong>elimina</strong>.</td>
+          </tr>
+          <tr>
+            <td><strong>Demais restrições de implantação</strong></td>
+            <td>Regras aplicáveis do lote/condomínio (além da área total isolada).</td>
+            <td>Inviável → <strong>elimina</strong>.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="step-note" style="margin-top:12px;">Área total sozinha não basta: o modelo pode “caber em m²” e ainda assim falhar em largura ou profundidade. Use os <strong>recuos efetivamente aplicáveis</strong> (laterais podem diferir; lotes irregulares/esquinas) — evite fórmula fixa genérica.</div>
     </section>
 
     <section id="sec-5" class="page-section" aria-labelledby="preco" data-hub-grupo="preco">
@@ -536,7 +546,7 @@
     <section id="sec-6" class="page-section" aria-labelledby="produto" data-hub-grupo="produto">
       <div class="section-label" id="produto">Eixo Produto (Pré Batalha)</div>
 
-      <div class="formula-box">Nota Produto = (T + Q + B + V + An) ÷ 5 — cada critério de −3 a +3</div>
+      <div class="formula-box">Nota Produto = (T + Q + B + V + An) ÷ 5 — escala geral −3…+3; An (aderência) naturalmente −2…0</div>
 
       <p style="font-size:13px;font-weight:600;color:var(--verde);margin-bottom:10px;">T — Tamanho (m²)</p>
       <table class="data-table">
@@ -561,24 +571,25 @@
         <p><strong>Campos flexíveis:</strong> se o modelo permitir adicionar quarto, suíte, banheiro ou vaga e essa adição for necessária para competir com o anúncio, recalcule a diferença considerando o item adicional e anote: “1 quarto/suíte/banheiro/vaga adicional necessário para competir”.</p>
       </div>
 
-      <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">An — Andares (tipo predominante da faixa)</p>
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">An — Aderência à tipologia predominante</p>
       <div class="grid-2">
         <div class="card">
           <h4>Se predomina Sobrado</h4>
           <ul>
-            <li>Mais de 1 andar → +2</li>
-            <li>1 andar sem rooftop problemático → 0</li>
-            <li>1 andar com rooftop “S” → −2; “N” → −3; integrado → −1</li>
+            <li>Sobrado → 0</li>
+            <li>Térrea + rooftop → −1</li>
+            <li>Térrea sem rooftop → −2</li>
           </ul>
         </div>
         <div class="card">
           <h4>Se predomina Térrea</h4>
           <ul>
-            <li>1 andar → +2</li>
-            <li>Mais de 1 andar → −3</li>
+            <li>Térrea → 0</li>
+            <li>Sobrado → −2</li>
           </ul>
         </div>
       </div>
+      <div class="step-note" style="margin-top:12px;"><strong>0 = aderente;</strong> negativo = divergência. Rooftop só como “com” ou “sem”. A escala geral do produto é −3…+3, mas este critério naturalmente fica em −2…0 — não se força vantagem artificial (+1/+2/+3) só para preencher a escala.</div>
     </section>
 
     <section id="sec-7" class="page-section" aria-labelledby="ranking" data-hub-grupo="ranking">
@@ -605,7 +616,7 @@
               <li><strong>Nota Produto média</strong> (maior primeiro)</li>
               <li>Nome do modelo (alfabético)</li>
             </ol>
-            <p style="margin-top:8px;">Depois: tipo de andar incompatível → inelegíveis (topografia/geometria) no final.</p>
+            <p style="margin-top:8px;">Inelegíveis (implantação física inviável: topografia inviável / geometria) ficam no final, sem pontuação.</p>
           </div>
         </div>
         <div class="step-row">
@@ -654,9 +665,9 @@
       <ul class="checklist">
         <li>Anúncios classificados por faixa (terços + Premium+/++/+++)</li>
         <li>Modelos filtrados pela faixa (Lu/Isa/Val só Entrada, etc.)</li>
-        <li>Topografia do lote = topografia do modelo</li>
-        <li>Casa cabe no terreno útil (largura, profundidade, área)</li>
-        <li>Tipo predominante Térrea/Sobrado preenchido em Dados do Condomínio</li>
+        <li>Topografia: compatível (ou adaptação prevista) — inviável elimina</li>
+        <li>Cabe em largura e profundidade com recuos aplicáveis</li>
+        <li>Tipo predominante Térrea/Sobrado preenchido (critério An na nota Produto)</li>
         <li>Match de atributos lote × catálogo anotado</li>
         <li>Para cada modelo × anúncio: Preço (−3 a +3) + Produto (média de 5)</li>
         <li>Médias por modelo → nota final</li>

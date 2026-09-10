@@ -418,7 +418,7 @@ export function Etapa4Casas(props: {
     };
   }, [modoPreBatalha, listagemOnly, processoId, casasIdsKey, catalogo]);
 
-  /** Batalha de Casas: carrega prospects para critério Andares (An) na nota de Produto. */
+  /** Batalha de Casas: carrega prospects para critério An (aderência à tipologia) na nota de Produto. */
   useEffect(() => {
     if (modoPreBatalha || listagemOnly) return;
     let cancelado = false;
@@ -2066,8 +2066,8 @@ export function Etapa4Casas(props: {
                                     className="min-w-[2rem] rounded border border-stone-300 bg-white px-1 py-0.5 text-xs hover:bg-stone-50"
                                     title={
                                       modoProdutoCompleto
-                                        ? 'Produto (8 sub-itens: tamanho, amenidades, quartos, banheiros, vagas, design, idade, andares)'
-                                        : 'Produto (5 sub-itens: tamanho, quartos, banheiros, vagas, andares)'
+                                        ? 'Produto (8 sub-itens: tamanho, amenidades, quartos, banheiros, vagas, design, idade, aderência à tipologia)'
+                                        : 'Produto (5 sub-itens: tamanho, quartos, banheiros, vagas, aderência à tipologia)'
                                     }
                                   >
                                     {notaProduto}
