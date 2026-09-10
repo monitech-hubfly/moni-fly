@@ -181,6 +181,50 @@ export async function salvarImobSimulacaoEmpreendimento(
   return { ok: true };
 }
 
+export async function vincularOfertaAoEmpreendimentoImob(
+  cardId: string,
+  empreendimentoId: string,
+  valores: {
+    simulacao_pagamento_id: string;
+    valor_avista: number | null;
+    entrada: number | null;
+    parcelas_mensais: number | null;
+    parcela_unica: number | null;
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  if (!auth.isStaff) return { ok: false, error: 'Apenas admin/team podem editar Modelo e Simulações IMOB.' };
+  const check = await assertCardExiste(auth.supabase, cardId);
+  if (!check.ok) return check;
+
+  const { error } = await auth.supabase
+    .from('imob_card_empreendimentos')
+    .update({
+      simulacao_pagamento_id: valores.simulacao_pagamento_id,
+      valor_avista: valores.valor_avista,
+      entrada: valores.entrada,
+      parcelas_mensais: valores.parcelas_mensais,
+      parcela_unica: valores.parcela_unica,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', empreendimentoId)
+    .eq('card_id', cardId)
+    .eq('tipo', 'empreendimento');
+  if (error) {
+    if (/parcela_unica|simulacao_pagamento_id|schema cache|does not exist/i.test(error.message)) {
+      return {
+        ok: false,
+        error: 'Falta a migration 550 (parcela_unica / vínculo da oferta) neste banco.',
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+  revalidatePath('/');
+  revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
+  return { ok: true };
+}
+
 export async function excluirImobSimulacaoEmpreendimento(
   cardId: string,
   id: string,

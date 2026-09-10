@@ -36,6 +36,7 @@ type Props = {
   template: TemplateConfig;
   loteadorId: string;
   kanbanCardId?: string;
+  empreendimentoId?: string | null;
 };
 
 const fieldCls =
@@ -70,7 +71,7 @@ function calcularParcelaUnicaMinimaHint(
   );
 }
 
-export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props) {
+export function CalculadoraOferta({ template, loteadorId, kanbanCardId, empreendimentoId }: Props) {
   const router = useRouter();
   const cardId = kanbanCardId || loteadorId;
 
@@ -223,6 +224,12 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
         taxaFinanciamento == null ? '' : numeroParaInputBr(taxaFinanciamento),
       entrada_confirmada: numeroParaInputBr(entradaConf),
       parcela_unica_confirmada: numeroParaInputBr(parcelaUnicaConf),
+      parcela_mensal_confirmada: numeroParaInputBr(parcelaMensalConf),
+      empreendimento_id: empreendimentoId?.trim() || undefined,
+      vte_avista: resultado.vte_avista,
+      entrada_sugerida: resultado.entrada_sugerida,
+      parcela_mensal_sugerida: resultado.parcela_mensal_usada,
+      parcela_unica_sugerida: resultado.parcela_unica_sugerida,
     });
     setSalvando(false);
     if (!res.ok) {
@@ -230,6 +237,10 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       return;
     }
     setMensagem('Oferta salva como rascunho!');
+    if (empreendimentoId?.trim()) {
+      router.push(`/loteadores/${cardId}/simulador-template/ofertas/${res.oferta.id}`);
+      return;
+    }
     router.refresh();
   }
 
@@ -258,7 +269,9 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
 
   function onParcelaMensalConfirmada(n: number) {
     setParcelaMensalConf(n);
-    setParcelaUnicaConf((u) => aplicarMinimoParcelaUnica(entradaConf, n, u));
+    if (resultado) {
+      setParcelaUnicaConf(calcularParcelaUnicaMinimaHint(resultado, entradaConf, n));
+    }
     setFluxoFinalResultado(null);
   }
 

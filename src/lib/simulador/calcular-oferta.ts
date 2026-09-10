@@ -162,9 +162,11 @@ function simularFase2(params: {
 
 type DadosFase1 = {
   lot_balance_inicio: number;
+  lot_balance_fim: number;
   juros_lote_total: number;
   min_quitar_lote: number;
   juros_last: number;
+  reserva_caixa: number;
   fluxo: LinhaFluxo[];
 };
 
@@ -177,12 +179,19 @@ function simularFase1Lote(params: {
   let lot_balance = Math.max(0, params.lot_balance_inicio);
   const fluxo: LinhaFluxo[] = [];
   let juros_lote_total = 0;
+  let reserva_caixa = 0;
 
   for (let M = 1; M <= params.prazo_meses - 1; M += 1) {
     const juros_mes = lot_balance * params.taxa_parcelado;
     juros_lote_total += juros_mes;
-    lot_balance = lot_balance * (1 + params.taxa_parcelado) - params.parcela_mensal;
-    if (lot_balance < 0) lot_balance = 0;
+    lot_balance = lot_balance * (1 + params.taxa_parcelado);
+    const loteQuitado = lot_balance <= 0;
+    if (loteQuitado) {
+      reserva_caixa += params.parcela_mensal;
+    } else {
+      lot_balance -= params.parcela_mensal;
+      if (lot_balance < 0) lot_balance = 0;
+    }
     fluxo.push({
       mes: M,
       fase: 'fase1',
@@ -194,8 +203,8 @@ function simularFase1Lote(params: {
       desembolso_obra: 0,
       saldo_credito_ponte: 0,
       juros_obra_mes: 0,
-      saidas_total: r2(params.parcela_mensal),
-      pagamento_loteadora: r2(params.parcela_mensal),
+      saidas_total: r2(loteQuitado ? 0 : params.parcela_mensal),
+      pagamento_loteadora: r2(loteQuitado ? 0 : params.parcela_mensal),
     });
   }
 
@@ -208,9 +217,11 @@ function simularFase1Lote(params: {
 
   return {
     lot_balance_inicio: Math.max(0, params.lot_balance_inicio),
+    lot_balance_fim: Math.max(0, lot_balance),
     juros_lote_total,
     min_quitar_lote,
     juros_last,
+    reserva_caixa,
     fluxo,
   };
 }
@@ -298,11 +309,15 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
   const entrada_do_lote_definida = oferta.entrada_do_lote_override ?? entrada_do_lote;
   const ja_pago_loteadora = Math.min(valor_ja_pago, valor_lote);
   entrada_do_lote = Math.max(0, entrada_do_lote_definida - ja_pago_loteadora);
-  /** Precificação: entrada definida, como se ja_pago = 0. */
-  const lot_balance_preco = Math.max(0, valor_lote - entrada_do_lote_definida);
+  /**
+   * O já pago à loteadora amortiza o lote. Se for só adiantamento da entrada mínima,
+   * o saldo (e a parcela única) não muda; se passar da entrada, o extra reduz a quitação
+   * e conta nos 30% do VTE.
+   */
+  const amortizado_lote = Math.max(entrada_do_lote_definida, ja_pago_loteadora);
+  const lot_balance_preco = Math.max(0, valor_lote - amortizado_lote);
   const entrada_mes0_fluxo = entrada_do_lote + comissao_amount;
-  /** 30% do VTE usa a entrada cheia (sem ja_pago), para a parcela única não mudar. */
-  const entrada_total = comissao_amount + entrada_do_lote_definida;
+  const entrada_total = comissao_amount + amortizado_lote;
 
   const paramsFase1 = {
     prazo_meses,
@@ -394,7 +409,24 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
     : r2(parcela_unica);
 
   const entrada_do_lote_fluxo = Math.max(0, n0(entrada_fluxo) - comissao_amount);
-  const lot_balance_fluxo_conf = Math.max(0, valor_lote - ja_pago_loteadora - entrada_do_lote_fluxo);
+  const saldo_lote_antes_mes0 = Math.max(0, valor_lote - ja_pago_loteadora);
+  const loteQuitadoMes0 = saldo_lote_antes_mes0 <= 0;
+  /**
+   * Mês 0 com lote quitado: pagamento_loteadora = min(saldo, entrada) = 0.
+   * O que seria entrada do lote (excedente sobre a sugerida) vai para reserva
+   * e reduz o CP, como as mensais da Fase 1. Comissão permanece como saída.
+   * Lote com saldo: Mês 0 inalterado.
+   */
+  const pag_lote_mes0 = loteQuitadoMes0
+    ? Math.min(saldo_lote_antes_mes0, n0(entrada_fluxo))
+    : entrada_do_lote_fluxo;
+  const reserva_mes0 = loteQuitadoMes0 ? entrada_do_lote_fluxo : 0;
+  const lot_balance_fluxo_conf = loteQuitadoMes0
+    ? 0
+    : Math.max(0, valor_lote - ja_pago_loteadora - entrada_do_lote_fluxo);
+  const saidas_mes0 = loteQuitadoMes0
+    ? Math.max(0, n0(entrada_fluxo) - reserva_mes0)
+    : n0(entrada_fluxo);
   const fase1Fluxo = simularFase1Lote({
     prazo_meses,
     parcela_mensal: mensal_fluxo,
@@ -402,18 +434,21 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
     lot_balance_inicio: lot_balance_fluxo_conf,
   });
   const quitacao_real_fluxo = fase1Fluxo.min_quitar_lote;
-
-  const pag_loteadora_unica = mensal_fluxo + quitacao_real_fluxo;
+  const loteQuitadoUnica = fase1Fluxo.lot_balance_fim * (1 + taxa_parcelado) <= 0;
+  const mensal_unica_lote = loteQuitadoUnica ? 0 : mensal_fluxo;
+  const reserva_fase1 =
+    reserva_mes0 + fase1Fluxo.reserva_caixa + (loteQuitadoUnica ? mensal_fluxo : 0);
+  const pag_loteadora_unica = mensal_unica_lote + quitacao_real_fluxo;
   /**
-   * Caixa do mês da parcela única = quitação real do lote (fluxo) + mensal + ITBI.
-   * min_quitar_lote da precificação continua na parcela única sugerida / excesso do VTE.
+   * Caixa do mês da parcela única = quitação real do lote (fluxo) + mensal (se for à loteadora) + ITBI.
+   * Com lote quitado, a mensal fica em reserva e não sai do caixa da Moní.
    */
-  const saidas_unica = mensal_fluxo + quitacao_real_fluxo + itbi_amount;
+  const saidas_unica = mensal_unica_lote + quitacao_real_fluxo + itbi_amount;
 
   const lucros_ultimo = lucro_loteadora_amount + lucro_moni_amount + lucro_franqueado_amount;
   /** Lucros + impostos do último mês de obra — entram em saidas_total, não no crédito-ponte. */
   const liquidacao_entrega = lucros_ultimo + impostos_amount;
-  const excesso_fluxo = Math.max(0, parcela_unica_fluxo - quitacao_real_fluxo);
+  const excesso_fluxo = Math.max(0, parcela_unica_fluxo - quitacao_real_fluxo) + reserva_fase1;
   const fase2Fluxo = simularFase2({
     N_obra,
     custo_obra,
@@ -464,8 +499,8 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
       desembolso_obra: 0,
       saldo_credito_ponte: 0,
       juros_obra_mes: 0,
-      saidas_total: r2(caixa_mes0),
-      pagamento_loteadora: r2(entrada_do_lote_fluxo),
+      saidas_total: r2(saidas_mes0),
+      pagamento_loteadora: r2(pag_lote_mes0),
     },
     ...fase1Fluxo.fluxo,
     {

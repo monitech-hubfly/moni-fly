@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   regenerarLinkSimuladorTemplate,
@@ -378,30 +377,6 @@ export function SimuladorTemplateForm({
         >
           {salvando ? 'Salvando…' : jaSalvo ? 'Salvar template' : 'Salvar e gerar link'}
         </button>
-        {jaSalvo ? (
-          <Link
-            href={`/loteadores/${cardId}/simulador-template/ofertas`}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-[var(--moni-radius-md)] px-5 text-sm font-medium"
-            style={{
-              background: 'var(--moni-navy-800)',
-              color: 'var(--moni-text-inverse)',
-              fontFamily: 'var(--moni-font-sans)',
-            }}
-          >
-            Criar oferta
-          </Link>
-        ) : (
-          <span
-            className="inline-flex min-h-[44px] items-center justify-center rounded-[var(--moni-radius-md)] px-5 text-sm font-medium"
-            style={{
-              background: 'var(--moni-surface-200)',
-              color: 'var(--moni-text-tertiary)',
-              fontFamily: 'var(--moni-font-sans)',
-            }}
-          >
-            Criar oferta
-          </span>
-        )}
       </div>
     </form>
   );

@@ -88,13 +88,6 @@ export default async function SimuladorTemplatePage({ params }: Props) {
       <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
         Percentuais e premissas deste loteamento. Ao salvar, o link e o QR para o corretor aparecem nesta tela.
       </p>
-      <Link
-        href={`/loteadores/${id}/simulador-template/ofertas`}
-        className="mt-3 inline-flex min-h-[44px] items-center text-sm font-medium"
-        style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
-      >
-        Ir para ofertas →
-      </Link>
       <div className="mt-8">
         <SimuladorTemplateForm
           cardId={id}

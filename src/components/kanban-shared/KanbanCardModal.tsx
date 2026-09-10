@@ -686,7 +686,7 @@ export function KanbanCardModal({
     franqueado: false,
     loteador: false,
     simulacoesImob: false,
-    simuladorPagamentos: isLoteadoresKanbanRef(undefined, kanbanNome),
+    simuladorPagamentos: false,
     moniCapital: false,
     condominio: false,
     novoNegocio: false,
@@ -8219,6 +8219,7 @@ export function KanbanCardModal({
               <KanbanCardModalSimulacoesImob
                 cardId={card.id}
                 podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                mostrarTemplate={exibirDadosLoteadorPersistente}
                 prefetch={
                   imobSimulacoesPrefetch?.cardId === card.id ? imobSimulacoesPrefetch : null
                 }
@@ -8668,7 +8669,9 @@ export function KanbanCardModal({
               </div>
               ),
             )}
-            {exibirDadosLoteadorPersistente && (modalSessao.ehAdminOuTeam || staffPeloContexto)
+            {/* Entrada do template/ofertas moveu para Modelo e Simulações IMOB. Código preservado. */}
+            {false &&
+            exibirDadosLoteadorPersistente && (modalSessao.ehAdminOuTeam || staffPeloContexto)
               ? secaoHead(
                   'simuladorPagamentos',
                   'Simulador de Pagamentos',

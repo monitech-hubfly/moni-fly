@@ -432,6 +432,12 @@ export type SimuladorOfertaDraft = {
   taxa_financiamento_anual: string;
   entrada_confirmada?: string;
   parcela_unica_confirmada?: string;
+  parcela_mensal_confirmada?: string;
+  empreendimento_id?: string;
+  vte_avista?: number;
+  entrada_sugerida?: number;
+  parcela_mensal_sugerida?: number;
+  parcela_unica_sugerida?: number;
 };
 
 export function emptySimuladorOfertaDraft(taxaAnualUi?: string): SimuladorOfertaDraft {
@@ -516,6 +522,10 @@ export type SimulacaoPagamentoResumo = {
   entrada_confirmada: number | null;
   parcela_unica_confirmada: number | null;
   parcela_mensal_confirmada: number | null;
+  entrada_sugerida: number | null;
+  parcela_unica_sugerida: number | null;
+  parcela_mensal_sugerida: number | null;
+  vte_avista: number | null;
   template_id: string | null;
 };
 
@@ -541,12 +551,24 @@ function textoOuNulo(raw: unknown): string | null {
   return s || null;
 }
 
+function resultadoDaSimulacao(raw: unknown): Record<string, unknown> {
+  return inputsDaSimulacao(raw);
+}
+
 export function mapSimulacaoRow(raw: Record<string, unknown>): SimulacaoPagamentoResumo {
   const inp = inputsDaSimulacao(raw.inputs);
+  const res = resultadoDaSimulacao(raw.resultado);
   const pick = (key: string) => numOrNull(raw[key]) ?? numOrNull(inp[key]);
   const rendaCliente = pick('renda_cliente');
   const rendaInformada = numOrNull(raw.renda_informada_cliente);
   const parcelaMensal = pick('parcela_mensal');
+  const entradaSugerida = numOrNull(res.entrada_sugerida) ?? numOrNull(inp.entrada_sugerida);
+  const parcelaUnicaSugerida =
+    numOrNull(res.parcela_unica_sugerida) ?? numOrNull(inp.parcela_unica_sugerida);
+  const parcelaMensalSugerida =
+    numOrNull(res.parcela_mensal_usada) ??
+    numOrNull(res.parcela_mensal_sugerida) ??
+    numOrNull(inp.parcela_mensal_sugerida);
   return {
     id: String(raw.id),
     nome: textoOuNulo(raw.nome) ?? textoOuNulo(inp.nome),
@@ -576,6 +598,30 @@ export function mapSimulacaoRow(raw: Record<string, unknown>): SimulacaoPagament
       numOrNull(raw.parcela_mensal_confirmada) ??
       numOrNull(raw.parcela_mensal_conf) ??
       parcelaMensal,
+    entrada_sugerida: entradaSugerida,
+    parcela_unica_sugerida: parcelaUnicaSugerida,
+    parcela_mensal_sugerida: parcelaMensalSugerida,
+    vte_avista:
+      numOrNull(res.vte_avista) ??
+      numOrNull(inp.vte_avista) ??
+      numOrNull(raw.vte_avista) ??
+      numOrNull(res.valor_total_vista),
     template_id: raw.template_id != null ? String(raw.template_id) : null,
+  };
+}
+
+/** Valores IMOB a partir da oferta Helena: confirmado ?? sugerido. */
+export function valoresImobDaSimulacao(oferta: SimulacaoPagamentoResumo): {
+  valor_avista: number | null;
+  entrada: number | null;
+  parcelas_mensais: number | null;
+  parcela_unica: number | null;
+} {
+  return {
+    valor_avista: oferta.vte_avista,
+    entrada: oferta.entrada_confirmada ?? oferta.entrada_sugerida,
+    parcelas_mensais:
+      oferta.parcela_mensal_confirmada ?? oferta.parcela_mensal_sugerida ?? oferta.parcela_mensal,
+    parcela_unica: oferta.parcela_unica_confirmada ?? oferta.parcela_unica_sugerida,
   };
 }

@@ -26,11 +26,13 @@ import {
   PRAZO_OBRA_MESES_MINIMO,
   TOAST_TEMPLATE_SALVO,
   inferirCondicaoLote,
+  valoresImobDaSimulacao,
   type LoteamentoSimuladorTemplateDraft,
   type LoteamentoSimuladorTemplateRow,
   type SimulacaoPagamentoResumo,
   type SimuladorOfertaDraft,
 } from '@/lib/loteamento-simulador-template';
+import { vincularOfertaAoEmpreendimentoImob } from '@/lib/actions/imob-simulacoes-card';
 
 type Ok = {
   ok: true;
@@ -475,6 +477,11 @@ export async function criarSimuladorOfertaDoCard(
     : { ok: true as const, valor: 0 };
   if (!parcelaUnicaConfirmada.ok) return parcelaUnicaConfirmada;
 
+  const parcelaMensalConfirmada = draft.parcela_mensal_confirmada?.trim()
+    ? parseMoedaCampo(draft.parcela_mensal_confirmada, 'a parcela mensal confirmada')
+    : { ok: true as const, valor: parcelaMensal.valor };
+  if (!parcelaMensalConfirmada.ok) return parcelaMensalConfirmada;
+
   const inputs = {
     nome,
     valor_lote: valorLote.valor,
@@ -490,6 +497,20 @@ export async function criarSimuladorOfertaDoCard(
     parcela_unica_confirmada: draft.parcela_unica_confirmada?.trim()
       ? parcelaUnicaConfirmada.valor
       : null,
+    parcela_mensal_confirmada: draft.parcela_mensal_confirmada?.trim()
+      ? parcelaMensalConfirmada.valor
+      : parcelaMensal.valor,
+    vte_avista: draft.vte_avista ?? null,
+    entrada_sugerida: draft.entrada_sugerida ?? null,
+    parcela_mensal_sugerida: draft.parcela_mensal_sugerida ?? null,
+    parcela_unica_sugerida: draft.parcela_unica_sugerida ?? null,
+  };
+
+  const resultadoSnapshot = {
+    vte_avista: draft.vte_avista ?? null,
+    entrada_sugerida: draft.entrada_sugerida ?? null,
+    parcela_mensal_usada: draft.parcela_mensal_sugerida ?? null,
+    parcela_unica_sugerida: draft.parcela_unica_sugerida ?? null,
   };
 
   const rowCheio: Record<string, unknown> = {
@@ -510,7 +531,7 @@ export async function criarSimuladorOfertaDoCard(
     prazo_financiamento_anos: prazoFin.valor,
     taxa_financiamento_anual: taxaFin,
     inputs,
-    resultado: {},
+    resultado: resultadoSnapshot,
     alertas: [],
     status: 'rascunho',
   };
@@ -599,13 +620,24 @@ export async function criarSimuladorOfertaDoCard(
 
   if (!saved) return { ok: false, error: 'Não foi possível salvar a oferta.' };
 
+  const oferta = mapSimulacaoRow(saved);
+  const empId = String(draft.empreendimento_id ?? '').trim();
+  if (empId) {
+    const valores = valoresImobDaSimulacao(oferta);
+    const vinculo = await vincularOfertaAoEmpreendimentoImob(cardId, empId, {
+      simulacao_pagamento_id: oferta.id,
+      ...valores,
+    });
+    if (!vinculo.ok) return vinculo;
+  }
+
   revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
   revalidatePath(`/loteadores/${cardId}/simulador-template`);
   revalidatePath('/loteadores');
   return {
     ok: true,
     mensagem: 'Oferta salva como rascunho!',
-    oferta: mapSimulacaoRow(saved),
+    oferta,
   };
 }
 

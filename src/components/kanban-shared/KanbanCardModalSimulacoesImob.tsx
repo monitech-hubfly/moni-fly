@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import {
@@ -12,6 +13,7 @@ import {
   uploadImobImagemPrincipal,
   urlAssinadaImobAnexo,
 } from '@/lib/actions/imob-simulacoes-card';
+import { carregarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
 import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -39,7 +41,23 @@ type Props = {
   esperarPrefetch?: boolean;
   /** Valor legado em processo_step_one — preservado se não estiver na lista. */
   legadoProdutoModeloCasa?: string;
+  /** Funil Loteadores: botões de template e oferta da Helena. */
+  mostrarTemplate?: boolean;
 };
+
+const btnDarkCls =
+  'inline-flex min-h-[44px] w-full items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium sm:min-h-0';
+const btnDarkStyle = {
+  background: 'var(--moni-navy-800)',
+  color: 'var(--moni-text-inverse, #fff)',
+} as const;
+const btnOutlineCls =
+  'inline-flex min-h-[44px] w-full items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium sm:min-h-0';
+const btnOutlineStyle = {
+  border: '0.5px solid var(--moni-border-default)',
+  background: 'var(--moni-surface-0)',
+  color: 'var(--moni-text-secondary)',
+} as const;
 
 const inputCls =
   'mt-0.5 min-h-[44px] w-full rounded-md px-2 py-1 text-xs sm:min-h-0';
@@ -145,6 +163,19 @@ function CampoMoeda({
   );
 }
 
+function CampoMoedaLeitura({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className={labelCls} style={labelStyle}>
+        {label}
+      </span>
+      <div className="mt-0.5 text-xs tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
+        {formatImobMoedaExibicao(value)}
+      </div>
+    </div>
+  );
+}
+
 function AnexoImagem({
   label,
   path,
@@ -236,6 +267,8 @@ function EmpreendimentoBloco({
   index,
   total,
   kind,
+  cardId,
+  templateSalvo,
   podeEditar,
   salvandoId,
   uploadingOferta,
@@ -248,6 +281,8 @@ function EmpreendimentoBloco({
   index: number;
   total: number;
   kind: 'empreendimento' | 'showroom';
+  cardId: string;
+  templateSalvo: boolean;
   podeEditar: boolean;
   salvandoId: string | null;
   uploadingOferta: boolean;
@@ -259,6 +294,7 @@ function EmpreendimentoBloco({
   const setMoney = (key: ImobMoneyKey, value: string) => onChange(key, value);
   const produtoOpcoes = opcoesProdutoModeloComValorAtual(item.produto_modelo);
   const isShowroom = kind === 'showroom';
+  const ofertaId = String(item.simulacao_pagamento_id ?? '').trim();
   const tituloFinal = isShowroom
     ? total > 1
       ? `Showroom ${index + 1} de ${total}`
@@ -395,6 +431,41 @@ function EmpreendimentoBloco({
         </div>
       </div>
 
+      {!isShowroom ? (
+        <div className="space-y-2">
+          {ofertaId ? (
+            <Link
+              href={`/loteadores/${cardId}/simulador-template/ofertas/${ofertaId}`}
+              className={btnOutlineCls}
+              style={btnOutlineStyle}
+            >
+              Ver detalhes da oferta
+            </Link>
+          ) : podeEditar ? (
+            templateSalvo ? (
+              <Link
+                href={`/loteadores/${cardId}/simulador-template/ofertas?empreendimento=${item.id}`}
+                className={btnOutlineCls}
+                style={btnOutlineStyle}
+              >
+                Criar Oferta
+              </Link>
+            ) : (
+              <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Crie o template do loteador acima antes de gerar a oferta.
+              </p>
+            )
+          ) : null}
+          {ofertaId ? (
+            <div className="grid grid-cols-1 gap-2">
+              <CampoMoedaLeitura label="Valor do imóvel à vista (R$)" value={item.valor_avista} />
+              <CampoMoedaLeitura label="Entrada (R$)" value={item.entrada} />
+              <CampoMoedaLeitura label="Parcelas mensais (R$)" value={item.parcelas_mensais} />
+              <CampoMoedaLeitura label="Parcela única (R$)" value={item.parcela_unica} />
+            </div>
+          ) : null}
+        </div>
+      ) : (
       <div>
         <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
           Dados gerais da simulação
@@ -420,6 +491,7 @@ function EmpreendimentoBloco({
           />
         </div>
       </div>
+      )}
 
       {podeEditar ? (
         <button
@@ -458,6 +530,7 @@ export function KanbanCardModalSimulacoesImob({
   prefetch = null,
   esperarPrefetch = false,
   legadoProdutoModeloCasa = '',
+  mostrarTemplate = false,
 }: Props) {
   const prefetchOk = prefetch?.cardId === cardId ? prefetch : null;
   const [itens, setItens] = useState<ImobCardEmpreendimentoDraft[]>(() =>
@@ -474,6 +547,7 @@ export function KanbanCardModalSimulacoesImob({
   const [criandoTipo, setCriandoTipo] = useState<'empreendimento' | 'showroom' | null>(null);
   const [uploadingPrincipal, setUploadingPrincipal] = useState(false);
   const [uploadingOfertaId, setUploadingOfertaId] = useState<string | null>(null);
+  const [templateSalvo, setTemplateSalvo] = useState(false);
 
   const showrooms = itens.filter((it) => (it.tipo ?? 'empreendimento') === 'showroom');
   const empreendimentos = itens.filter((it) => (it.tipo ?? 'empreendimento') !== 'showroom');
@@ -490,6 +564,21 @@ export function KanbanCardModalSimulacoesImob({
     setItens(aplicarLegadoProduto(r.itens, legadoProdutoModeloCasa));
     setModelo(r.modelo);
   }, [cardId, legadoProdutoModeloCasa]);
+
+  useEffect(() => {
+    if (!mostrarTemplate) {
+      setTemplateSalvo(false);
+      return;
+    }
+    let ativo = true;
+    void carregarSimuladorTemplateDoCard(cardId).then((res) => {
+      if (!ativo) return;
+      setTemplateSalvo(res.ok ? res.template != null : false);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [cardId, mostrarTemplate]);
 
   useEffect(() => {
     if (prefetch?.cardId === cardId) {
@@ -513,7 +602,7 @@ export function KanbanCardModalSimulacoesImob({
       setErro(r.error);
       return;
     }
-    setMsg('Dados do imóvel salvos.');
+    setMsg('Dados do loteamento salvos.');
   }
 
   async function handleUploadPrincipal(file: File) {
@@ -617,11 +706,11 @@ export function KanbanCardModalSimulacoesImob({
         }}
       >
         <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Dados do imóvel
+          Dados do loteamento
         </p>
         <label className="block">
           <span className={labelCls} style={labelStyle}>
-            Status do Imóvel
+            Status do Loteamento
           </span>
           {podeEditar ? (
             <select
@@ -654,10 +743,45 @@ export function KanbanCardModalSimulacoesImob({
               color: 'var(--moni-text-inverse, #fff)',
             }}
           >
-            {salvandoModelo ? 'Salvando…' : 'Salvar status do imóvel'}
+            {salvandoModelo ? 'Salvando…' : 'Salvar status do loteamento'}
           </button>
         ) : null}
       </div>
+
+      {mostrarTemplate ? (
+        <div
+          className="space-y-2 rounded-lg p-2"
+          style={{
+            border: '0.5px solid var(--moni-border-default)',
+            background: 'var(--moni-surface-50)',
+          }}
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Simulação de pagamentos - Template
+          </p>
+          {templateSalvo ? (
+            <Link
+              href={`/loteadores/${cardId}/simulador-template`}
+              className={btnDarkCls}
+              style={btnDarkStyle}
+            >
+              Ver Template
+            </Link>
+          ) : podeEditar ? (
+            <Link
+              href={`/loteadores/${cardId}/simulador-template`}
+              className={btnDarkCls}
+              style={btnDarkStyle}
+            >
+              Criar Template
+            </Link>
+          ) : (
+            <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Nenhum template neste card.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {erro ? (
         <div
@@ -686,7 +810,13 @@ export function KanbanCardModalSimulacoesImob({
         </div>
       ) : null}
 
-      <div className="space-y-2">
+      <div
+        className="space-y-2 rounded-lg p-2"
+        style={{
+          border: '0.5px solid var(--moni-border-default)',
+          background: 'var(--moni-surface-50)',
+        }}
+      >
         <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
           Showroom
         </p>
@@ -711,6 +841,8 @@ export function KanbanCardModalSimulacoesImob({
                 index={idx}
                 total={showrooms.length}
                 kind="showroom"
+                cardId={cardId}
+                templateSalvo={templateSalvo}
                 podeEditar={podeEditar}
                 salvandoId={salvandoId}
                 uploadingOferta={uploadingOfertaId === item.id}
@@ -752,13 +884,15 @@ export function KanbanCardModalSimulacoesImob({
       ) : (
         <div className="space-y-3">
           {empreendimentos.map((item, idx) => (
-            <EmpreendimentoBloco
-              key={item.id}
-              item={item}
-              index={idx}
-              total={empreendimentos.length}
-              kind="empreendimento"
-              podeEditar={podeEditar}
+              <EmpreendimentoBloco
+                key={item.id}
+                item={item}
+                index={idx}
+                total={empreendimentos.length}
+                kind="empreendimento"
+                cardId={cardId}
+                templateSalvo={templateSalvo}
+                podeEditar={podeEditar}
               salvandoId={salvandoId}
               uploadingOferta={uploadingOfertaId === item.id}
               onChange={(key, value) => patchDraft(setItens, item.id, key, value)}

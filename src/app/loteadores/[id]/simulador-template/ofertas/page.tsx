@@ -14,10 +14,13 @@ export const dynamic = 'force-dynamic';
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ empreendimento?: string }> };
 
-export default async function SimuladorOfertasPage({ params }: Props) {
+export default async function SimuladorOfertasPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const qs = await searchParams;
+  const empreendimentoId = String(qs.empreendimento ?? '').trim();
+  const criandoParaEmpreendimento = UUID_RE.test(empreendimentoId);
   if (!UUID_RE.test(id)) notFound();
 
   const supabase = await createClient();
@@ -87,21 +90,27 @@ export default async function SimuladorOfertasPage({ params }: Props) {
           {loaded.loteadorNome ? ` · ${loaded.loteadorNome}` : ''}
         </p>
         <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Uma oferta por lote ou modelo de casa. O template traz as premissas da loteadora.
+          {criandoParaEmpreendimento
+            ? 'Preencha a calculadora da Helena para vincular a oferta a este empreendimento.'
+            : 'Uma oferta por empreendimento. Crie a oferta a partir do card (Modelo e Simulações IMOB).'}
         </p>
         <div className="mt-8 flex flex-col gap-10">
           {loaded.template ? (
             <>
-              <SimuladorOfertasClient
-                cardId={id}
-                ofertas={loaded.simulacoes}
-                prazoObraMeses={rowToTemplateConfig(loaded.template).prazo_obra_meses}
-              />
-              <CalculadoraOferta
-                template={rowToTemplateConfig(loaded.template)}
-                loteadorId={id}
-                kanbanCardId={id}
-              />
+              {criandoParaEmpreendimento ? (
+                <CalculadoraOferta
+                  template={rowToTemplateConfig(loaded.template)}
+                  loteadorId={id}
+                  kanbanCardId={id}
+                  empreendimentoId={empreendimentoId}
+                />
+              ) : (
+                <SimuladorOfertasClient
+                  cardId={id}
+                  ofertas={loaded.simulacoes}
+                  prazoObraMeses={rowToTemplateConfig(loaded.template).prazo_obra_meses}
+                />
+              )}
             </>
           ) : (
           <div

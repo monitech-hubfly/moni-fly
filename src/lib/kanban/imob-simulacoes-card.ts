@@ -66,6 +66,8 @@ export type ImobCardEmpreendimentoRow = {
   valor_avista: number | null;
   entrada: number | null;
   parcelas_mensais: number | null;
+  parcela_unica: number | null;
+  simulacao_pagamento_id: string | null;
   balao_parcial_8: number | null;
   balao_parcial_18: number | null;
   balao_parcial_24: number | null;
@@ -109,6 +111,8 @@ export type ImobCardEmpreendimentoDraft = {
   valor_avista: string;
   entrada: string;
   parcelas_mensais: string;
+  parcela_unica: string;
+  simulacao_pagamento_id: string;
   balao_parcial_8: string;
   balao_parcial_18: string;
   balao_parcial_24: string;
@@ -136,6 +140,7 @@ const MONEY_KEYS = [
   'valor_avista',
   'entrada',
   'parcelas_mensais',
+  'parcela_unica',
   'balao_parcial_8',
   'balao_parcial_18',
   'balao_parcial_24',
@@ -261,6 +266,8 @@ export function rowToImobDraft(row: ImobCardEmpreendimentoRow): ImobCardEmpreend
     valor_avista: numToCampo(row.valor_avista),
     entrada: numToCampo(row.entrada),
     parcelas_mensais: numToCampo(row.parcelas_mensais),
+    parcela_unica: numToCampo(row.parcela_unica),
+    simulacao_pagamento_id: String(row.simulacao_pagamento_id ?? '').trim(),
     balao_parcial_8: numToCampo(row.balao_parcial_8),
     balao_parcial_18: numToCampo(row.balao_parcial_18),
     balao_parcial_24: numToCampo(row.balao_parcial_24),
@@ -297,13 +304,14 @@ export function draftToImobPatch(draft: ImobCardEmpreendimentoDraft): Record<str
     link_imagens_planta: draft.link_imagens_planta.trim() || null,
     imagem_oferta_path: draft.imagem_oferta_path.trim() || null,
     imagem_oferta_nome: draft.imagem_oferta_nome.trim() || null,
+    simulacao_pagamento_id: draft.simulacao_pagamento_id.trim() || null,
     updated_at: new Date().toISOString(),
   };
   for (const k of NUM_KEYS) {
     patch[k] = plainToNum(draft[k]);
   }
   // Só persiste os campos de simulação ativos na UI (legado balão/fin permanece no banco).
-  for (const k of ['valor_avista', 'entrada', 'parcelas_mensais'] as const) {
+  for (const k of ['valor_avista', 'entrada', 'parcelas_mensais', 'parcela_unica'] as const) {
     patch[k] = campoToNum(draft[k]);
   }
   return patch;
@@ -365,6 +373,8 @@ export function mapImobCardEmpreendimentoRow(raw: Record<string, unknown>): Imob
     valor_avista: n('valor_avista'),
     entrada: n('entrada'),
     parcelas_mensais: n('parcelas_mensais'),
+    parcela_unica: n('parcela_unica'),
+    simulacao_pagamento_id: t('simulacao_pagamento_id'),
     balao_parcial_8: n('balao_parcial_8'),
     balao_parcial_18: n('balao_parcial_18'),
     balao_parcial_24: n('balao_parcial_24'),
