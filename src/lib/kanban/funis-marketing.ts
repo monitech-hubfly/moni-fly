@@ -45,7 +45,7 @@ export const MARKETING_FUNIS: readonly MarketingFunilDef[] = [
     titulo: 'Série Inc. to Fly',
     tipo: 'temporada',
     entrada: 'Aprovação de destino/temporada (marketing ou franquias)',
-    saida: 'Ao final de D4, episódio segue para publicação/aprovação',
+    saida: 'Ao final da Versão final, episódio segue para publicação/aprovação',
   },
 ] as const;
 

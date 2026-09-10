@@ -167,6 +167,18 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   mkt_grav_aprovacao: 'moni',
   mkt_grav_revisao: 'moni',
   mkt_grav_videos_concluidos: 'moni',
+
+  // Funil Série Inc. to Fly
+  mkt_inc_planejamento: 'moni',
+  mkt_inc_gravacao: 'moni',
+  mkt_inc_decupagem: 'moni',
+  mkt_inc_d2_roteiro: 'moni',
+  mkt_inc_d21_extra: 'moni',
+  mkt_inc_d1_storyline: 'moni',
+  mkt_inc_d3_edicao: 'moni',
+  mkt_inc_aprovacao: 'moni',
+  mkt_inc_revisao: 'moni',
+  mkt_inc_d4_final: 'moni',
   funding_r1: 'moni',
   funding_evento: 'moni',
   funding_qualif: 'moni',

@@ -373,12 +373,26 @@ export const FASE_SLUGS = {
   MKT_PROG_AGENDAMENTO: 'mkt_prog_agendamento',
   MKT_INC_PLANEJAMENTO: 'mkt_inc_planejamento',
   MKT_INC_GRAVACAO: 'mkt_inc_gravacao',
+  /** Organização (ex-Decupagem). */
   MKT_INC_DECUPAGEM: 'mkt_inc_decupagem',
+  MKT_INC_ORGANIZACAO: 'mkt_inc_decupagem',
+  /** Storyline (ex-D1). */
   MKT_INC_D1_STORYLINE: 'mkt_inc_d1_storyline',
+  MKT_INC_STORYLINE: 'mkt_inc_d1_storyline',
+  /** Roteiro (ex-D2). */
   MKT_INC_D2_ROTEIRO: 'mkt_inc_d2_roteiro',
+  MKT_INC_ROTEIRO: 'mkt_inc_d2_roteiro',
+  /** Gravação extra (ex-D2.1). */
   MKT_INC_D21_EXTRA: 'mkt_inc_d21_extra',
+  MKT_INC_GRAVACAO_EXTRA: 'mkt_inc_d21_extra',
+  /** Edição (ex-D3). */
   MKT_INC_D3_EDICAO: 'mkt_inc_d3_edicao',
+  MKT_INC_EDICAO: 'mkt_inc_d3_edicao',
+  MKT_INC_APROVACAO: 'mkt_inc_aprovacao',
+  MKT_INC_REVISAO: 'mkt_inc_revisao',
+  /** Versão final (ex-D4). */
   MKT_INC_D4_FINAL: 'mkt_inc_d4_final',
+  MKT_INC_VERSAO_FINAL: 'mkt_inc_d4_final',
 
   CARE_NOVO_ACIONAMENTO: 'care_novo_acionamento',
   CARE_TRIAGEM: 'care_triagem',
