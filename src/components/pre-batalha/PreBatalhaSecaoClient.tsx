@@ -27,7 +27,7 @@ export function PreBatalhaSecaoClient({ secao, modoPublico = false, usuarioLogad
   const iframeSrc = useMemo(() => {
     const q = new URLSearchParams();
     /** Bust de cache CDN do HTML estático (notas/racional atributos do lote). */
-    q.set('v', 'atributos-lote-2026-09-10');
+    q.set('v', 'escala-notas-2026-09-10');
     if (modoPublico) q.set('leitura', '1');
     const qs = q.toString();
     const base = `/embed/pre-batalha-casas.html?${qs}`;
