@@ -2254,6 +2254,7 @@ export function Etapa4Casas(props: {
                                           <label
                                             key={a.id}
                                             className="flex items-center gap-2 py-0.5 text-xs"
+                                            title={a.racional}
                                           >
                                             <input
                                               type="checkbox"

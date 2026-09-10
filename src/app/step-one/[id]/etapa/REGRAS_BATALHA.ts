@@ -1,7 +1,8 @@
 /**
  * Regras consolidadas da Batalha de Casas (documento Cursor).
  * Ordem de desempate: Atributos do Lote > Preço > Produto.
- * Nota final = Atributos do Lote + Preço + Produto (soma; cada critério -3 a +2).
+ * Nota final = Atributos do Lote + Preço + Produto (soma; eixos Preço/Produto em −3…+2;
+ * Atributos do Lote em −3…+3 conforme tabela de racional).
  */
 
 import {
@@ -11,22 +12,118 @@ import {
 import type { FaixaMercado } from '@/lib/kanban/mapa-competidores-condominio';
 
 export const ATRIBUTOS_LOTE = [
-  { id: 'vista', label: 'Vista privilegiada', nota: 2 },
-  { id: 'plano', label: 'Terreno plano', nota: 0 },
-  { id: 'aclive', label: 'Terreno aclive', nota: 0 },
-  { id: 'declive', label: 'Terreno declive', nota: 0 },
-  { id: 'fundo_mata', label: 'Fundo de mata', nota: 2 },
-  { id: 'frente_mata', label: 'Frente de mata', nota: 2 },
-  { id: 'area_verde', label: 'Perto de área verde', nota: 1 },
-  { id: 'perto_lago', label: 'Perto do lago', nota: 1 },
-  { id: 'fundo_lago', label: 'Fundo de lago', nota: 2 },
-  { id: 'frente_lago', label: 'Frente de lago', nota: 2 },
-  { id: 'area_convivencia', label: 'Perto de área de convivência', nota: 1 },
-  { id: 'lixeira', label: 'Perto de lixeira', nota: -2 },
-  { id: 'portaria', label: 'Perto de portaria', nota: 0 },
-  { id: 'muro_rodovia', label: 'Muro com rodovia', nota: -2 },
-  { id: 'muro_comunidade', label: 'Muro com comunidade', nota: -2 },
-  { id: 'muro_vegetacao', label: 'Muro com vegetação', nota: -1 },
+  {
+    id: 'fundo_lago',
+    label: 'Fundo lago',
+    nota: 3,
+    racional:
+      'Diferencial de alto valor, com vista permanente e forte integração das áreas de lazer da casa com o lago.',
+  },
+  {
+    id: 'frente_lago',
+    label: 'Frente lago',
+    nota: 3,
+    racional:
+      'Diferencial de alto valor, com forte impacto visual, percepção de exclusividade e valorização do imóvel.',
+  },
+  {
+    id: 'fundo_mata',
+    label: 'Fundo mata',
+    nota: 3,
+    racional:
+      'Proporciona vista, privacidade e contato direto com área verde, valorizando principalmente lazer e áreas sociais.',
+  },
+  {
+    id: 'frente_mata',
+    label: 'Frente mata',
+    nota: 3,
+    racional:
+      'Gera vista privilegiada, menor interferência visual de vizinhos e maior percepção de exclusividade.',
+  },
+  {
+    id: 'vista',
+    label: 'Vista privilegiada',
+    nota: 2,
+    racional:
+      'Aumenta a atratividade e percepção de valor do imóvel, mesmo sem contato direto com lago ou mata.',
+  },
+  {
+    id: 'area_verde',
+    label: 'Próximo de área verde',
+    nota: 1,
+    racional:
+      'Agrega qualidade de localização e acesso a elementos valorizados do condomínio, mesmo sem vista ou contato direto.',
+  },
+  {
+    id: 'perto_lago',
+    label: 'Próximo de lago',
+    nota: 1,
+    racional:
+      'Agrega qualidade de localização e acesso a elementos valorizados do condomínio, mesmo sem vista ou contato direto.',
+  },
+  {
+    id: 'plano',
+    label: 'Terreno plano',
+    nota: 1,
+    racional:
+      'Facilita a implantação dos modelos e tende a reduzir complexidade, movimentação de terra e custos adicionais de obra.',
+  },
+  {
+    id: 'aclive',
+    label: 'Aclive',
+    nota: 0,
+    racional:
+      'Não é positivo ou negativo isoladamente; seu impacto depende da intensidade da inclinação e do modelo implantado.',
+  },
+  {
+    id: 'declive',
+    label: 'Declive',
+    nota: 0,
+    racional:
+      'Pode gerar maior complexidade construtiva, mas também favorecer vista e soluções arquitetônicas; depende da implantação.',
+  },
+  {
+    id: 'portaria',
+    label: 'Próximo da portaria',
+    nota: 0,
+    racional:
+      'Traz facilidade de acesso, mas pode aumentar circulação, ruído e exposição; vantagens e desvantagens tendem a se equilibrar.',
+  },
+  {
+    id: 'muro_vegetacao',
+    label: 'Muro de divisa do condomínio',
+    nota: -1,
+    racional:
+      'Pode reduzir abertura visual, privacidade e percepção de integração com o condomínio, dependendo do entorno do muro.',
+  },
+  {
+    id: 'area_convivencia',
+    label: 'Próximo de área de convivência / lazer',
+    nota: -1,
+    racional:
+      'A proximidade excessiva pode gerar maior circulação de pessoas, ruído e perda de privacidade.',
+  },
+  {
+    id: 'lixeira',
+    label: 'Próximo de lixeira',
+    nota: -2,
+    racional:
+      'Pode gerar incômodos relacionados a odor, movimentação e percepção negativa, criando uma objeção comercial relevante.',
+  },
+  {
+    id: 'muro_rodovia',
+    label: 'Muro com rodovia / via de alto fluxo',
+    nota: -3,
+    racional:
+      'Pode gerar ruído constante, poluição, perda de privacidade e impacto significativo na experiência e comercialização do imóvel.',
+  },
+  {
+    id: 'muro_comunidade',
+    label: 'Muro / divisa com comunidade ou ocupação',
+    nota: -3,
+    racional:
+      'Pode afetar a atratividade quando houver impactos objetivos no lote, como ruído, privacidade, qualidade visual ou segurança percebida.',
+  },
 ] as const;
 
 export type AtributosLoteIds = (typeof ATRIBUTOS_LOTE)[number]['id'];
@@ -66,7 +163,7 @@ export function notaAtributosLote(respostas: AtributosLoteRespostas): number {
   for (const a of ATRIBUTOS_LOTE) {
     if (respostas[a.id]) sum += a.nota;
   }
-  return clampNota(sum);
+  return clampNotaAtributos(sum);
 }
 
 /** Campo booleano em `catalogo_casas` correspondente a cada id de ATRIBUTOS_LOTE. */
@@ -877,5 +974,13 @@ function clampNota(n: number): number {
   if (!Number.isFinite(n)) return 0;
   if (n <= -3) return -3;
   if (n >= 2) return 2;
+  return Math.round(n * 10) / 10;
+}
+
+/** Clamp do eixo Atributos do Lote (−3…+3) — alinha à tabela de racional. */
+function clampNotaAtributos(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  if (n <= -3) return -3;
+  if (n >= 3) return 3;
   return Math.round(n * 10) / 10;
 }

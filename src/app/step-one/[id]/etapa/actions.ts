@@ -51,11 +51,25 @@ const STEP_ONE_LOTES_DISPONIVEIS_FASE_ID = 'a6afabd9-2409-49a7-ab11-d2df4d3784e7
 const LEGACY_CHECKLIST_LABEL_ALIASES: Record<string, AtributosLoteIds> = {
   'Terreno aclive acentuado': 'aclive',
   'Terreno declive acentuado': 'declive',
+  'Terreno aclive': 'aclive',
+  'Terreno declive': 'declive',
   'Fundo mata': 'fundo_mata',
   'Frente mata': 'frente_mata',
+  'Fundo de mata': 'fundo_mata',
+  'Frente de mata': 'frente_mata',
   'Fundo lago': 'fundo_lago',
   'Frente lago': 'frente_lago',
+  'Fundo de lago': 'fundo_lago',
+  'Frente de lago': 'frente_lago',
   'Perto da portaria': 'portaria',
+  'Perto de portaria': 'portaria',
+  'Perto de área verde': 'area_verde',
+  'Perto do lago': 'perto_lago',
+  'Perto de área de convivência': 'area_convivencia',
+  'Perto de lixeira': 'lixeira',
+  'Muro com rodovia': 'muro_rodovia',
+  'Muro com comunidade': 'muro_comunidade',
+  'Muro com vegetação': 'muro_vegetacao',
 };
 
 const CHECKLIST_LABEL_TO_ATRIBUTO: Record<string, AtributosLoteIds> = {
