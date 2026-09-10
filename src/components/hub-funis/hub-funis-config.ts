@@ -24,7 +24,6 @@ export const HUB_FUNIS_GRUPOS: GrupoDef[] = [
       { id: KANBAN_IDS.PORTFOLIO, label: 'Portfólio', href: '/portfolio' },
       { id: KANBAN_IDS.LOTEADORES, label: 'Loteadores', href: '/loteadores' },
       { id: KANBAN_IDS.ACOPLAMENTO, label: 'Acoplamento', href: '/funil-acoplamento' },
-      { id: KANBAN_IDS.JURIDICO, label: 'Jurídico', href: '/funil-juridico' },
     ],
   },
   {
@@ -41,6 +40,7 @@ export const HUB_FUNIS_GRUPOS: GrupoDef[] = [
     cor: '#4a3929',
     funis: [
       { id: KANBAN_IDS.OPERACOES, label: 'Pré Obra e Obra', href: '/operacoes' },
+      { id: KANBAN_IDS.JURIDICO, label: 'Jurídico', href: '/funil-juridico' },
       { id: KANBAN_IDS.PROJETO_LEGAL, label: 'Projeto Legal', href: '/funil-projeto-legal' },
       { id: KANBAN_IDS.PROJETOS_LOCAIS, label: 'Projetos Locais', href: '/projetos-locais' },
     ],
