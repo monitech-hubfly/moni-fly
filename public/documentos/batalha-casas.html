@@ -447,25 +447,28 @@
     <section id="sec-4" class="page-section" aria-labelledby="lbl-4">
       <div class="section-label" id="lbl-4">Eixo: Atributos do Lote</div>
 
-      <p style="font-size:14px;color:var(--cinza);line-height:1.65;margin-bottom:16px;">Para cada par <strong>modelo × anúncio</strong>, marque SIM/NÃO nos atributos aplicáveis. A nota é a <strong>soma</strong> dos scores dos itens marcados SIM, com clamp em +2 (mesmo que a soma bruta ultrapasse).</p>
+      <p style="font-size:14px;color:var(--cinza);line-height:1.65;margin-bottom:16px;">Para cada par <strong>modelo × anúncio</strong>, marque SIM/NÃO nos atributos aplicáveis. A nota é a <strong>soma</strong> dos scores dos itens marcados SIM, com clamp em <strong>−3…+3</strong> no eixo Atributos do Lote.</p>
 
       <table class="data-table">
         <thead>
-          <tr><th>Atributo</th><th>Se SIM</th><th>Interpretação</th></tr>
+          <tr><th>Atributo</th><th>Nota</th><th>Racional</th></tr>
         </thead>
         <tbody>
-          <tr><td>Vista privilegiada</td><td class="nota-pos">+2</td><td>Lote com vista relevante</td></tr>
-          <tr><td>Terreno plano</td><td class="nota-neu">0</td><td>Topografia plana</td></tr>
-          <tr><td>Terreno aclive / declive</td><td class="nota-neu">0</td><td>Topografia inclinada</td></tr>
-          <tr><td>Fundo / frente de mata</td><td class="nota-pos">+2</td><td>Contato com mata preservada</td></tr>
-          <tr><td>Perto de área verde</td><td class="nota-pos">+1</td><td>Proximidade de área verde / parque</td></tr>
-          <tr><td>Perto / fundo / frente de lago</td><td class="nota-pos">+1 a +2</td><td>Conforme proximidade ou frente/fundo</td></tr>
-          <tr><td>Perto de área de convivência</td><td class="nota-neg">-2</td><td>Barulho / fluxo — desvantagem de privacidade</td></tr>
-          <tr><td>Perto de lixeira</td><td class="nota-neg">-2</td><td>Impacto de odor e circulação</td></tr>
-          <tr><td>Perto de portaria</td><td class="nota-neu">0</td><td>Neutro na soma</td></tr>
-          <tr><td>Muro com rodovia</td><td class="nota-neg">-2</td><td>Divisa com via de tráfego</td></tr>
-          <tr><td>Muro com comunidade</td><td class="nota-neg">-2</td><td>Divisa com área comunitária externa</td></tr>
-          <tr><td>Muro com vegetação</td><td class="nota-neg">-1</td><td>Divisa com vegetação (impacto menor)</td></tr>
+          <tr><td>Fundo lago</td><td class="nota-pos">+3</td><td>Diferencial de alto valor, com vista permanente e forte integração das áreas de lazer da casa com o lago.</td></tr>
+          <tr><td>Frente lago</td><td class="nota-pos">+3</td><td>Diferencial de alto valor, com forte impacto visual, percepção de exclusividade e valorização do imóvel.</td></tr>
+          <tr><td>Fundo mata</td><td class="nota-pos">+3</td><td>Proporciona vista, privacidade e contato direto com área verde, valorizando principalmente lazer e áreas sociais.</td></tr>
+          <tr><td>Frente mata</td><td class="nota-pos">+3</td><td>Gera vista privilegiada, menor interferência visual de vizinhos e maior percepção de exclusividade.</td></tr>
+          <tr><td>Vista privilegiada</td><td class="nota-pos">+2</td><td>Aumenta a atratividade e percepção de valor do imóvel, mesmo sem contato direto com lago ou mata.</td></tr>
+          <tr><td>Próximo de área verde / lago</td><td class="nota-pos">+1</td><td>Agrega qualidade de localização e acesso a elementos valorizados do condomínio, mesmo sem vista ou contato direto.</td></tr>
+          <tr><td>Terreno plano</td><td class="nota-pos">+1</td><td>Facilita a implantação dos modelos e tende a reduzir complexidade, movimentação de terra e custos adicionais de obra.</td></tr>
+          <tr><td>Aclive</td><td class="nota-neu">0</td><td>Não é positivo ou negativo isoladamente; seu impacto depende da intensidade da inclinação e do modelo implantado.</td></tr>
+          <tr><td>Declive</td><td class="nota-neu">0</td><td>Pode gerar maior complexidade construtiva, mas também favorecer vista e soluções arquitetônicas; depende da implantação.</td></tr>
+          <tr><td>Próximo da portaria</td><td class="nota-neu">0</td><td>Traz facilidade de acesso, mas pode aumentar circulação, ruído e exposição; vantagens e desvantagens tendem a se equilibrar.</td></tr>
+          <tr><td>Muro de divisa do condomínio</td><td class="nota-neg">−1</td><td>Pode reduzir abertura visual, privacidade e percepção de integração com o condomínio, dependendo do entorno do muro.</td></tr>
+          <tr><td>Próximo de área de convivência / lazer</td><td class="nota-neg">−1</td><td>A proximidade excessiva pode gerar maior circulação de pessoas, ruído e perda de privacidade.</td></tr>
+          <tr><td>Próximo de lixeira</td><td class="nota-neg">−2</td><td>Pode gerar incômodos relacionados a odor, movimentação e percepção negativa, criando uma objeção comercial relevante.</td></tr>
+          <tr><td>Muro com rodovia / via de alto fluxo</td><td class="nota-neg">−3</td><td>Pode gerar ruído constante, poluição, perda de privacidade e impacto significativo na experiência e comercialização do imóvel.</td></tr>
+          <tr><td>Muro / divisa com comunidade ou ocupação</td><td class="nota-neg">−3</td><td>Pode afetar a atratividade quando houver impactos objetivos no lote, como ruído, privacidade, qualidade visual ou segurança percebida.</td></tr>
         </tbody>
       </table>
 
