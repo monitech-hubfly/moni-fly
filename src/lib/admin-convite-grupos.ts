@@ -1,6 +1,5 @@
-import { KANBANS_OCULTOS_FRANK } from '@/lib/constants/kanban-ids';
+import { KANBAN_ID_BY_NOME, KANBANS_OCULTOS_FRANK } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole } from '@/lib/authz';
-import { KANBAN_ID_BY_NOME } from '@/lib/constants/kanban-ids';
 
 /** Valores de `profiles.role` escolhíveis no convite admin. */
 export type InviteGrupoRole = 'admin' | 'team' | 'frank' | 'parceiro' | 'fornecedor' | 'cliente';
@@ -57,9 +56,12 @@ export function exibirFunisNoConvite(grupo: InviteGrupoRole, cargo: InviteCargo)
   return grupo === 'team' && cargo === 'estagiario';
 }
 
-/** Funis exibidos em seletores de convite / permissão — sem internos para frank. */
+/** Funis exibidos em seletores de convite / permissão — sem ocultos ao frank. */
 export function funisKanbanParaRole(role: string | null | undefined): FunilKanbanNome[] {
   if (!isFrankOrFranqueadoRole(role)) return [...FUNIS_KANBAN_NOMES];
-  const internos = new Set<string>(KANBANS_INTERNOS_NOMES as readonly string[]);
-  return FUNIS_KANBAN_NOMES.filter((n) => !internos.has(n));
+  const ocultos = new Set<string>(KANBANS_OCULTOS_FRANK as readonly string[]);
+  return FUNIS_KANBAN_NOMES.filter((n) => {
+    const id = KANBAN_ID_BY_NOME[n];
+    return !id || !ocultos.has(id);
+  });
 }
