@@ -23,7 +23,7 @@ import {
 import { hipotesesOrdemMinima } from '@/lib/kanban/kanban-paralelas-chips';
 import { sortKanbanCardsPorProximaAtividade } from '@/lib/kanban/kanban-proxima-atividade-ordem';
 import type { KanbanNomeDisplay, KanbanCardBrief, KanbanFase, KanbanProximaAtividadeAberta } from './types';
-import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
+import { isFaseConclusaoKanban, isFaseNaoConclusaoExplicita } from '@/lib/kanban/kanban-fase-conclusao';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { isMarketingKanbanId, type MarketingFrente } from '@/lib/kanban/funis-marketing';
 import { fetchMarketingPerfilDestino } from '@/lib/actions/marketing-kanban';
@@ -747,7 +747,9 @@ export function KanbanBoard({
               const listaVaziaPorFiltro = clientFiltersActive && raw.length > 0 && vis.length === 0;
               const isPrimeiraColuna = fase.ordem === ordemMinima;
               const isUltimaFaseAtiva = fase.ativo !== false && fase.ordem === maxOrdemAtiva;
-              const isFaseConclusao = isFaseConclusaoKanban(fase) || isUltimaFaseAtiva;
+              const isFaseConclusao =
+                !isFaseNaoConclusaoExplicita(fase) &&
+                (isFaseConclusaoKanban(fase) || isUltimaFaseAtiva);
               return (
                 <KanbanColumn
                   key={fase.id}
