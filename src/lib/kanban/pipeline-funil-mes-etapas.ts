@@ -22,7 +22,7 @@ export const FUNIL_MES_ETAPA_FASES: Record<PipelineFunilMesEtapaKey, FunilMesEta
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
     slugs: ['aprovacao_moni_novo_negocio'],
   },
-  /** Funil Portfólio — Enviar / Jurídico / Assinaturas Opção */
+  /** Funil Portfólio — Enviar / Jurídico / Assinaturas / Opção Assinada */
   opcoes: {
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
     slugs: [
@@ -30,21 +30,36 @@ export const FUNIL_MES_ETAPA_FASES: Record<PipelineFunilMesEtapaKey, FunilMesEta
       FASE_SLUGS.OPCAO,
       FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO,
       FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO,
+      FASE_SLUGS.PORTFOLIO_OPCAO_ASSINADA,
     ],
   },
-  /** Funil Portfólio — Check Legal e Crédito + Acoplamento + Comitê */
+  /** Funil Portfólio — Check Legal + Pré Comitê + Acoplamento + Comitê / Revisões / 2º Comitê */
   comites: {
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
-    slugs: [FASE_SLUGS.STEP_4, FASE_SLUGS.ACOPLAMENTO, FASE_SLUGS.STEP_5],
+    slugs: [
+      FASE_SLUGS.STEP_4,
+      FASE_SLUGS.PORTFOLIO_PRE_COMITE,
+      FASE_SLUGS.ACOPLAMENTO,
+      FASE_SLUGS.STEP_5,
+      FASE_SLUGS.PORTFOLIO_REVISOES_COMITE,
+      FASE_SLUGS.PORTFOLIO_SEGUNDO_COMITE,
+    ],
   },
-  /** Funil Portfólio — CTO Condições Precedentes + Diligência + Contrato + Captação Moní Capital */
+  /** Funil Portfólio — CTO c/ Precedentes + Diligência + Contrato s/ Precedentes + Passagem / Convertidos */
   contratos: {
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
     slugs: [
       FASE_SLUGS.CTO_CONDICOES_PRECEDENTES,
+      FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES,
+      FASE_SLUGS.PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES,
+      FASE_SLUGS.PORTFOLIO_CTO_PRECEDENTES_ASSINADO,
       FASE_SLUGS.STEP_6,
       FASE_SLUGS.STEP_7,
-      FASE_SLUGS.CAPTACAO_CAPITAL,
+      FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO,
+      FASE_SLUGS.PORTFOLIO_ASSINATURAS_CONTRATO,
+      FASE_SLUGS.PORTFOLIO_CONTRATO_ASSINADO,
+      FASE_SLUGS.PASSAGEM_WAYSER,
+      FASE_SLUGS.PORTFOLIO_CONVERTIDOS,
     ],
   },
   /** Funil Pré Obra e Obra — Planialtimétrico + Projeto Legal + Aprovação Condomínio + Prefeitura */

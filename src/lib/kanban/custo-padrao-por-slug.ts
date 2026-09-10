@@ -8,9 +8,14 @@ export const CUSTO_PADRAO_POR_SLUG: Record<string, string> = {
   juridico_opcao: 'Moní: revisão jurídica da opção.',
   assinaturas_opcao: 'Franqueado: coleta de assinaturas da opção.',
   opcao: 'Franqueado: autenticação de documentos e custos administrativos.',
+  cto_condicoes_precedentes: 'Franqueado: autenticação de documentos e custos administrativos.',
+  juridico_cto_precedentes: 'Moní: revisão jurídica do CTO com precedentes.',
+  assinaturas_cto_precedentes: 'Franqueado: coleta de assinaturas do CTO com precedentes.',
   step_6:
     'Franqueado: lista obrigatória e complementares: certidões negativas, análises jurídicas, avaliações técnicas, estudos ambientais e despesas administrativas.',
   step_7: 'Franqueado: autenticação de documentos e custos administrativos.',
+  juridico_contrato: 'Moní: revisão jurídica do contrato sem precedentes.',
+  assinaturas_contrato: 'Franqueado: coleta de assinaturas do contrato sem precedentes.',
 
   // Funil Contabilidade
   contabilidade_incorporadora: 'Franqueado: Todos os custos contábeis',

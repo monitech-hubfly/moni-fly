@@ -13,11 +13,13 @@ export type PainelColumnKey =
   | 'cto_condicoes_precedentes'
   | 'step_6'
   | 'step_7'
+  /** @deprecated fase Portfólio inativa desde migration 560 */
   | 'captacao_moni_capital'
   | 'contabilidade_incorporadora'
   | 'contabilidade_spe'
   | 'contabilidade_gestora'
   | 'passagem_wayser'
+  | 'convertidos'
   | 'planialtimetrico'
   | 'projeto_legal'
   | 'aprovacao_condominio'
@@ -65,16 +67,18 @@ export const PAINEL_COLUMNS: PainelColumnDef[] = [
     slaDiasUteis: 5,
   },
   { key: 'step_5', title: 'Comitê', hrefBase: '/step-5', slaDiasUteis: 5 },
-  { key: 'cto_condicoes_precedentes', title: 'Cto Condições Precedentes', slaDiasUteis: 7 },
+  { key: 'cto_condicoes_precedentes', title: 'Enviar Cto c/ Precedentes', slaDiasUteis: 7 },
   { key: 'step_6', title: 'Diligência', hrefBase: '/step-6', slaDiasUteis: 10 },
   {
     key: 'step_7',
-    title: 'Contrato',
+    title: 'Enviar Contrato s/ Precedentes',
     hrefBase: '/step-7',
     slaDiasUteis: 3,
   },
-  { key: 'captacao_moni_capital', title: 'Captação Moní Capital', slaDiasUteis: 30 },
-  { key: 'passagem_wayser', title: 'Passagem para Wayser', slaDiasUteis: 2 },
+  /** @deprecated coluna legada — fase Portfólio inativa desde migration 560 */
+  { key: 'captacao_moni_capital', title: 'Captação Moní Capital (inativa)', slaDiasUteis: 30 },
+  { key: 'passagem_wayser', title: 'Passagem p/ Wayser', slaDiasUteis: 2 },
+  { key: 'convertidos', title: 'Convertidos', slaDiasUteis: null },
   { key: 'planialtimetrico', title: 'Planialtimétrico' },
   { key: 'projeto_legal', title: 'Projeto Legal' },
   { key: 'aprovacao_condominio', title: 'Aprovação no Condomínio' },
@@ -143,8 +147,8 @@ export const PAINEL_FLOW_ROWS: PainelFlowRow[] = [
   { type: 'sequential', keys: ['cto_condicoes_precedentes'] },
   { type: 'sequential', keys: ['step_6'] },
   { type: 'sequential', keys: ['step_7'] },
-  { type: 'sequential', keys: ['captacao_moni_capital'] },
   { type: 'sequential', keys: ['passagem_wayser'] },
+  { type: 'sequential', keys: ['convertidos'] },
   { type: 'sequential', keys: ['planialtimetrico'] },
   { type: 'sequential', keys: ['projeto_legal'] },
   { type: 'sequential', keys: ['aprovacao_condominio'] },

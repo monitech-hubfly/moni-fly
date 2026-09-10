@@ -26,14 +26,26 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   step_3: 'franqueado', // Enviar Opção
   juridico_opcao: 'moni',
   assinaturas_opcao: 'franqueado',
+  opcao_assinada: 'moni',
   step_4: 'franqueado',
+  pre_comite: 'moni',
   acoplamento: 'moni',
   step_5: 'moni',
-  cto_condicoes_precedentes: 'moni',
+  revisoes_comite: 'moni',
+  segundo_comite: 'moni',
+  cto_condicoes_precedentes: 'franqueado', // Enviar Cto c/ Precedentes
+  juridico_cto_precedentes: 'moni',
+  assinaturas_cto_precedentes: 'franqueado',
+  cto_precedentes_assinado: 'moni',
   step_6: 'moni',
-  step_7: 'franqueado',
+  step_7: 'franqueado', // Enviar Contrato s/ Precedentes
+  juridico_contrato: 'moni',
+  assinaturas_contrato: 'franqueado',
+  contrato_s_precedentes_assinado: 'moni',
+  /** @deprecated fase inativa desde migration 560 */
   captacao_moni_capital: 'moni',
   passagem_wayser: 'moni',
+  convertidos: 'moni',
 
   // Funil Acoplamento
   novo_acoplamento: 'moni',

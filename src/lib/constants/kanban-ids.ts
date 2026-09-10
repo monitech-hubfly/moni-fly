@@ -67,11 +67,23 @@ export const FASE_IDS = {
   PORTFOLIO_STEP_3:          '6d019704-95f7-42ee-8a85-973ffafc236b', // Enviar Opção (ex-Opção)
   PORTFOLIO_JURIDICO_OPCAO:  'f977b1f8-9946-4707-8e7c-78eabb621dbb',
   PORTFOLIO_ASSINATURAS_OPCAO: 'da0f9628-e3a5-4481-b49b-a22d30175e0f',
+  PORTFOLIO_OPCAO_ASSINADA:  '32234ccf-6fa1-4f58-a9f8-418b02c22ef0',
   PORTFOLIO_STEP_4:          'fd05dc4a-b44a-470e-993f-5df79c223488',
-  PORTFOLIO_STEP_7:          'd78771cb-f79d-4650-a056-f3e2dbc3f3a6',
+  PORTFOLIO_PRE_COMITE:      'a4489f12-71a1-49f3-99ca-c500c58f799b',
+  PORTFOLIO_STEP_5:          '9e1c76ba-ce84-4dbd-ae40-e434dc068a81', // Comitê
+  PORTFOLIO_REVISOES_COMITE: '1c6ab47e-9b18-421b-8869-6c9ce2ab4c3a',
+  PORTFOLIO_SEGUNDO_COMITE:  'a292ed7e-0c5c-4b23-9c09-82986c102b79',
+  PORTFOLIO_JURIDICO_CTO_PRECEDENTES: '7d035a10-5403-44b5-819f-104786b48150',
+  PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES: '27bc415f-4b70-4873-9cfc-5f51e7d925c8',
+  PORTFOLIO_CTO_PRECEDENTES_ASSINADO: 'ee0e3aa9-6a18-410a-87a2-5f6210c4573f',
+  PORTFOLIO_STEP_7:          'd78771cb-f79d-4650-a056-f3e2dbc3f3a6', // Enviar Contrato s/ Precedentes
+  PORTFOLIO_JURIDICO_CONTRATO: 'e35fffc4-ddd9-412d-861b-3118697ae0b8',
+  PORTFOLIO_ASSINATURAS_CONTRATO: '28601c1e-cd5a-4956-8eb6-9ba432588e60',
+  PORTFOLIO_CONTRATO_ASSINADO: '81bf57ac-48e5-4b9b-8eed-b416b9672e0e',
+  /** @deprecated fase inativa desde migration 560 */
   PORTFOLIO_CAPTACAO_CAPITAL: 'd7e79cd4-a8ba-4239-b7b4-b82ad07acb11',
   PORTFOLIO_PASSAGEM_WAYSER: '5f48a367-699b-4dc4-a310-377fc7d0ff88',
-  PORTFOLIO_STEP_5:          '9e1c76ba-ce84-4dbd-ae40-e434dc068a81', // gate
+  PORTFOLIO_CONVERTIDOS:     'eda6139e-65f4-43d4-955f-026a488524be',
   // Acoplamento — bastão de volta
   ACOPLAMENTO_APROVADO:      'b6a83104-e74f-4d0b-902b-2c4227227411',
   ACOPLAMENTO_REPROVADO:     '6d383485-9c9e-4f41-9d2a-c23c20b950c9',
@@ -106,10 +118,23 @@ export const FASE_SLUGS = {
   PORTFOLIO_ENVIAR_OPCAO: 'step_3',
   PORTFOLIO_JURIDICO_OPCAO: 'juridico_opcao',
   PORTFOLIO_ASSINATURAS_OPCAO: 'assinaturas_opcao',
+  PORTFOLIO_OPCAO_ASSINADA: 'opcao_assinada',
   STEP_4:             'step_4',
-  STEP_7:             'step_7',
+  PORTFOLIO_PRE_COMITE: 'pre_comite',
+  STEP_7:             'step_7', // Enviar Contrato s/ Precedentes
+  PORTFOLIO_ENVIAR_CONTRATO: 'step_7',
+  PORTFOLIO_JURIDICO_CONTRATO: 'juridico_contrato',
+  PORTFOLIO_ASSINATURAS_CONTRATO: 'assinaturas_contrato',
+  PORTFOLIO_CONTRATO_ASSINADO: 'contrato_s_precedentes_assinado',
+  /** @deprecated fase inativa desde migration 560 */
   CAPTACAO_CAPITAL:   'captacao_moni_capital',
   PASSAGEM_WAYSER:    'passagem_wayser',
+  PORTFOLIO_CONVERTIDOS: 'convertidos',
+  PORTFOLIO_REVISOES_COMITE: 'revisoes_comite',
+  PORTFOLIO_SEGUNDO_COMITE: 'segundo_comite',
+  PORTFOLIO_JURIDICO_CTO_PRECEDENTES: 'juridico_cto_precedentes',
+  PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES: 'assinaturas_cto_precedentes',
+  PORTFOLIO_CTO_PRECEDENTES_ASSINADO: 'cto_precedentes_assinado',
   AGUARDANDO_CREDITO: 'aguardando_credito',
   PROD_PUBLICADO: 'prod_publicado',
   APROVACAO_CONDOMINIO: 'aprovacao_condominio',
@@ -396,12 +421,14 @@ export const CORRETORES_FASES_CONFIRMACAO_SAIDA = {
   forecast: [FASE_SLUGS.COR_FORECAST],
 } as const;
 
-/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389 / 559). */
+/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migrations 389 / 559 / 560). */
 export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
-  /** «A opção foi assinada?» — ao sair de Assinaturas Opção. */
+  /** «A opção foi assinada?» — ao sair de Assinaturas Opção → Opção Assinada. */
   opcao: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO],
-  comite: [FASE_SLUGS.STEP_5],
-  contrato: [FASE_SLUGS.STEP_7],
+  /** «O card foi aprovado em Comitê?» — ao sair de Comitê ou 2º Comitê. */
+  comite: [FASE_SLUGS.STEP_5, FASE_SLUGS.PORTFOLIO_SEGUNDO_COMITE],
+  /** «O contrato foi assinado?» — ao sair de Assinaturas Contrato → Contrato Assinado. */
+  contrato: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CONTRATO],
 } as const;
 
 /** Funil Loteadores — slugs que disparam popup ao sair da fase (Assinou? / Comitê). */
