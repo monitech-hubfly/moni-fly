@@ -45,7 +45,7 @@ export function isGuiaPublicoLeituraPath(pathname: string): boolean {
 
 export function guiaPublicoIframeSrc(slug: GuiaPublicoSlug): string {
   if (slug === 'pre-batalha-casas') {
-    return '/embed/pre-batalha-casas.html?leitura=1&v=qbv-escala-2026-09-10';
+    return '/embed/pre-batalha-casas.html?leitura=1&v=preco-escala-2026-09-10';
   }
   return iframeSrcDocumentoInterno(slug);
 }
