@@ -520,7 +520,7 @@ export function modeloPermitidoNaFaixa(nomeModelo: string, faixa: FaixaMercado):
   });
 }
 
-/** Escala comum para banheiros e vagas: diff = nosso − anúncio (−3…+3). */
+/** Escala comum Q/B/V (e suítes): diff = Moní − anúncio → nota (−3…+3). */
 export function notaDiffContagem(nosso: number | null, anuncio: number | null): number {
   if (anuncio == null || nosso == null) return 0;
   const diff = nosso - anuncio;
@@ -538,16 +538,7 @@ export function notaQuartos(
   quartosAnuncio: number | null,
 ): number {
   if (quartosAnuncio == null) return 0;
-  const nosso = quartosNosso ?? QUARTOS_PADRAO_NOSSA;
-  const diff = nosso - quartosAnuncio;
-  if (diff <= -4) return -3;
-  if (diff === -3) return -3;
-  if (diff === -2) return -2;
-  if (diff === -1) return -1;
-  if (diff === 0) return 0;
-  if (diff === 1) return 1;
-  if (diff === 2) return 2;
-  return 3;
+  return notaDiffContagem(quartosNosso ?? QUARTOS_PADRAO_NOSSA, quartosAnuncio);
 }
 
 export function notaBanheiros(

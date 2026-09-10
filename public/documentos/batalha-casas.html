@@ -550,9 +550,9 @@
         <tbody>
           <tr><td>T</td><td>Tamanho (m²)</td><td>Anúncio <strong>maior</strong> que nossa área → nota negativa (faixas %: neutro ±10%; ≥50% → ±3).</td></tr>
           <tr><td>A</td><td>Amenidades</td><td>Piscina/rooftop: anúncio tem e nós não → -2; nós temos e anúncio não → +2. Ofurô/hidromassagem: ±1.</td></tr>
-          <tr><td>Q</td><td>Quartos</td><td><code>quartos</code> do <strong>catálogo</strong> do modelo vs. anúncio. Fallback 4 se catálogo vazio. Escala por diferença (até -3).</td></tr>
-          <tr><td>B</td><td>Banheiros</td><td><code>banheiros</code> do catálogo vs. anúncio. diff = nosso − anúncio (≤-3 → -3 … ≥+3 → +3).</td></tr>
-          <tr><td>V</td><td>Vagas</td><td><code>vagas</code> do catálogo vs. anúncio — mesma escala de B.</td></tr>
+          <tr><td>Q</td><td>Quartos</td><td>diff = Moní − anúncio (−3…+3). Fallback 4 se catálogo vazio.</td></tr>
+          <tr><td>B</td><td>Banheiros</td><td>diff = Moní − anúncio (−3…+3).</td></tr>
+          <tr><td>V</td><td>Vagas</td><td>diff = Moní − anúncio (−3…+3).</td></tr>
           <tr><td>D</td><td>Design</td><td>Seleção manual: arquiteto renomado -2 … fachada degradada +2.</td></tr>
           <tr><td>I</td><td>Idade</td><td>Até 1 ano → 0; 2–19 anos → +2 (casa usada favorece Moní nova); 20+ anos → +1.</td></tr>
         </tbody>
