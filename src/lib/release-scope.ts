@@ -62,6 +62,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/api',
   '/_next',
   '/formulario-candidato',
+  '/simulador',
   '/loteador',
   '/marketing',
   '/manutencoes',

@@ -155,12 +155,18 @@ export function isCalculadoraPublicLeituraPath(pathname: string): boolean {
   return /^\/calculadora\/[^/]+\/leitura\/?$/.test(pathname);
 }
 
+/** Página pública do corretor — QR /simulador/[token], sem login. */
+export function isSimuladorPublicoPath(pathname: string): boolean {
+  return pathname === '/simulador' || pathname.startsWith('/simulador/');
+}
+
 /**
  * Conteúdo do portal acessível sem login: guias em leitura + iframe do embed + calculadora pública.
  */
 export function isBcaPublicLeituraAccessPath(pathname: string): boolean {
   if (isPublicGuiaLeituraPagePath(pathname)) return true;
   if (isCalculadoraPublicLeituraPath(pathname)) return true;
+  if (isSimuladorPublicoPath(pathname)) return true;
   return pathname === '/embed' || pathname.startsWith('/embed/');
 }
 

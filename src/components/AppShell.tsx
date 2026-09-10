@@ -3,7 +3,7 @@
 import { Suspense } from 'react';
 import { usePathname } from 'next/navigation';
 import { AdminProvider } from '@/context/AdminContext';
-import { isCalculadoraPublicLeituraPath, isExternalTokenAccessPath, isPublicGuiaLeituraPagePath } from '@/lib/access-matrix';
+import { isCalculadoraPublicLeituraPath, isExternalTokenAccessPath, isPublicGuiaLeituraPagePath, isSimuladorPublicoPath } from '@/lib/access-matrix';
 import { PortalSidebar } from './PortalSidebar';
 import { AppStickyHeader } from './AppStickyHeader';
 
@@ -54,6 +54,7 @@ export function AppShell({ user, userRole, children }: AppShellProps) {
   const publicStandalone =
     isPublicGuiaLeituraPagePath(pathname) ||
     isCalculadoraPublicLeituraPath(pathname) ||
+    isSimuladorPublicoPath(pathname) ||
     isExternalTokenAccessPath(pathname);
 
   if (!user || publicStandalone) {

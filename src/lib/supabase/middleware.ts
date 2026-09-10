@@ -11,6 +11,7 @@ import {
   isSafePostLoginNextPath,
   isBcaPublicLeituraAccessPath,
   isCalculadoraPublicLeituraPath,
+  isSimuladorPublicoPath,
   isExternalTokenAccessPath,
   isFrankAllowedPath,
   isTeamAllowedPath,
@@ -29,7 +30,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (isCalculadoraPublicLeituraPath(pathname)) {
+  if (isCalculadoraPublicLeituraPath(pathname) || isSimuladorPublicoPath(pathname)) {
     return NextResponse.next({ request });
   }
 
