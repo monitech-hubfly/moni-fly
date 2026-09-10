@@ -1,8 +1,7 @@
 /**
  * Regras consolidadas da Batalha de Casas (documento Cursor).
  * Ordem de desempate: Atributos do Lote > Preço > Produto.
- * Nota final = Atributos do Lote + Preço + Produto (soma; eixos Preço/Produto em −3…+2;
- * Atributos do Lote em −3…+3 conforme tabela de racional).
+ * Nota final = Atributos do Lote + Preço + Produto (soma; cada eixo e a nota final em −3…+3).
  */
 
 import {
@@ -163,7 +162,7 @@ export function notaAtributosLote(respostas: AtributosLoteRespostas): number {
   for (const a of ATRIBUTOS_LOTE) {
     if (respostas[a.id]) sum += a.nota;
   }
-  return clampNotaAtributos(sum);
+  return clampNota(sum);
 }
 
 /** Campo booleano em `catalogo_casas` correspondente a cada id de ATRIBUTOS_LOTE. */
@@ -970,15 +969,8 @@ export function notaFinalBatalha(
   return clampNota(notaAtributos + notaPreco + notaProduto);
 }
 
+/** Clamp unificado da escala de notas (−3…+3). */
 function clampNota(n: number): number {
-  if (!Number.isFinite(n)) return 0;
-  if (n <= -3) return -3;
-  if (n >= 2) return 2;
-  return Math.round(n * 10) / 10;
-}
-
-/** Clamp do eixo Atributos do Lote (−3…+3) — alinha à tabela de racional. */
-function clampNotaAtributos(n: number): number {
   if (!Number.isFinite(n)) return 0;
   if (n <= -3) return -3;
   if (n >= 3) return 3;
