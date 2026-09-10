@@ -451,13 +451,15 @@ export interface NotaTamanhoResult {
 export function calcularNotaTamanho(areaAnuncio: number, areaMoni: number): NotaTamanhoResult {
   const diffPct = (areaAnuncio - areaMoni) / areaMoni;
 
+  /** Faixas Anúncio vs Moní: neutro ±10%; extremos ≥50% → ±3. */
   let nota: number;
   if (diffPct >= 0.5) nota = -3;
-  else if (diffPct >= 0.2) nota = -2;
-  else if (diffPct >= 0.01) nota = -1;
-  else if (diffPct >= -0.2) nota = 0;
-  else if (diffPct >= -0.5) nota = 1;
-  else nota = 2;
+  else if (diffPct >= 0.3) nota = -2;
+  else if (diffPct > 0.1) nota = -1;
+  else if (diffPct >= -0.1) nota = 0;
+  else if (diffPct > -0.3) nota = 1;
+  else if (diffPct >= -0.5) nota = 2;
+  else nota = 3;
 
   let sugestaoAnexo: NotaTamanhoResult['sugestaoAnexo'];
   if (nota < 0) {
@@ -518,7 +520,7 @@ export function modeloPermitidoNaFaixa(nomeModelo: string, faixa: FaixaMercado):
   });
 }
 
-/** Escala comum para banheiros e vagas: diff = nosso − anúncio. */
+/** Escala comum para banheiros e vagas: diff = nosso − anúncio (−3…+3). */
 export function notaDiffContagem(nosso: number | null, anuncio: number | null): number {
   if (anuncio == null || nosso == null) return 0;
   const diff = nosso - anuncio;
@@ -527,7 +529,8 @@ export function notaDiffContagem(nosso: number | null, anuncio: number | null): 
   if (diff === -1) return -1;
   if (diff === 0) return 0;
   if (diff === 1) return 1;
-  return 2;
+  if (diff === 2) return 2;
+  return 3;
 }
 
 export function notaQuartos(
@@ -543,7 +546,8 @@ export function notaQuartos(
   if (diff === -1) return -1;
   if (diff === 0) return 0;
   if (diff === 1) return 1;
-  return 2;
+  if (diff === 2) return 2;
+  return 3;
 }
 
 export function notaBanheiros(

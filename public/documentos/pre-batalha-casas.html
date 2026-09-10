@@ -519,20 +519,21 @@
 
       <p style="font-size:13px;font-weight:600;color:var(--verde);margin-bottom:10px;">T — Tamanho (m²)</p>
       <table class="data-table">
-        <thead><tr><th>Diferença % (anúncio vs Moní)</th><th>Nota</th></tr></thead>
+        <thead><tr><th>Diferença de tamanho — Anúncio vs. Moní</th><th>Nota</th><th>Racional</th></tr></thead>
         <tbody>
-          <tr><td>Anúncio ≥ 50% maior</td><td class="nota-neg">−3</td></tr>
-          <tr><td>20% a 50% maior</td><td class="nota-neg">−2</td></tr>
-          <tr><td>1% a 20% maior</td><td class="nota-neg">−1</td></tr>
-          <tr><td>± até 20%</td><td class="nota-neu">0</td></tr>
-          <tr><td>Moní 20% a 50% maior</td><td class="nota-pos">+1</td></tr>
-          <tr><td>Moní &gt; 50% maior</td><td class="nota-pos">+2</td></tr>
+          <tr><td>Anúncio ≥ 50% maior que Moní</td><td class="nota-neg">−3</td><td>Forte desvantagem: o modelo Moní entrega uma casa significativamente menor que a referência de mercado.</td></tr>
+          <tr><td>Anúncio 30% a 49% maior</td><td class="nota-neg">−2</td><td>Desvantagem relevante de tamanho em relação ao mercado.</td></tr>
+          <tr><td>Anúncio 10% a 29% maior</td><td class="nota-neg">−1</td><td>Desvantagem moderada, mas ainda com diferença perceptível.</td></tr>
+          <tr><td>Diferença de até ±10%</td><td class="nota-neu">0</td><td>Tamanhos equivalentes; diferença pouco relevante para a comparação.</td></tr>
+          <tr><td>Moní 10% a 29% maior</td><td class="nota-pos">+1</td><td>Vantagem moderada de tamanho frente à referência de mercado.</td></tr>
+          <tr><td>Moní 30% a 49% maior</td><td class="nota-pos">+2</td><td>Vantagem relevante de tamanho.</td></tr>
+          <tr><td>Moní ≥ 50% maior</td><td class="nota-pos">+3</td><td>Forte vantagem: o modelo Moní entrega uma casa significativamente maior que a referência de mercado.</td></tr>
         </tbody>
       </table>
       <div class="step-note" style="margin-bottom:18px;">Se o anúncio for muito maior, o sistema sugere <strong>anexo</strong> (+20 m² por módulo) — orientação visual no Hub, não altera a nota automaticamente.</div>
 
       <p style="font-size:13px;font-weight:600;color:var(--verde);margin-bottom:10px;">Q — Quartos · B — Banheiros · V — Vagas</p>
-      <p class="lead">Diferença = valor Moní − valor anúncio. Quartos: se catálogo vazio, assume 4. Banheiros/vagas: diff ≤ −2 → −2 (ou −3 em quartos); −1 → −1; 0 → 0; +1 → +1; +2 ou mais → +2.</p>
+      <p class="lead">Diferença = valor Moní − valor anúncio (escala −3 a +3). Quartos: se catálogo vazio, assume 4. Banheiros/vagas: diff ≤ −3 → −3; −2 → −2; −1 → −1; 0 → 0; +1 → +1; +2 → +2; +3 ou mais → +3.</p>
 
       <div class="aviso-box amber">
         <span>⚡</span>
