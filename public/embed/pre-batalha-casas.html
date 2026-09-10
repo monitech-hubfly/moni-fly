@@ -515,14 +515,15 @@
       <p class="lead">Calcule a diferença percentual: <strong>(Preço anúncio − Preço Moní) ÷ Preço Moní</strong></p>
 
       <table class="data-table">
-        <thead><tr><th>Diferença % (anúncio vs Moní)</th><th>Nota Preço</th></tr></thead>
+        <thead><tr><th>Diferença % — Anúncio vs. Moní</th><th>Nota Preço</th><th>Racional</th></tr></thead>
         <tbody>
-          <tr><td>Anúncio ≥ 50% mais barato</td><td class="nota-neg">−3</td></tr>
-          <tr><td>20% a 50% mais barato</td><td class="nota-neg">−2</td></tr>
-          <tr><td>1% a 20% mais barato</td><td class="nota-neg">−1</td></tr>
-          <tr><td>Diferença &lt; 1% (empate técnico)</td><td class="nota-neu">0</td></tr>
-          <tr><td>Moní até 20% mais barato</td><td class="nota-pos">+1</td></tr>
-          <tr><td>Moní mais de 20% mais barato</td><td class="nota-pos">+2</td></tr>
+          <tr><td>Anúncio ≥ 50% mais barato</td><td class="nota-neg">−3</td><td>Moní está muito acima do preço da referência; forte desvantagem competitiva.</td></tr>
+          <tr><td>Anúncio 20% a 49,99% mais barato</td><td class="nota-neg">−2</td><td>Moní apresenta desvantagem relevante de preço.</td></tr>
+          <tr><td>Anúncio 1% a 19,99% mais barato</td><td class="nota-neg">−1</td><td>Moní está um pouco mais cara; desvantagem moderada.</td></tr>
+          <tr><td>Diferença &lt; 1%</td><td class="nota-neu">0</td><td>Empate técnico; preços praticamente equivalentes.</td></tr>
+          <tr><td>Moní 1% a 19,99% mais barata</td><td class="nota-pos">+1</td><td>Vantagem moderada de preço.</td></tr>
+          <tr><td>Moní 20% a 49,99% mais barata</td><td class="nota-pos">+2</td><td>Vantagem relevante de preço frente ao anúncio.</td></tr>
+          <tr><td>Moní ≥ 50% mais barata</td><td class="nota-pos">+3</td><td>Forte vantagem competitiva de preço.</td></tr>
         </tbody>
       </table>
 

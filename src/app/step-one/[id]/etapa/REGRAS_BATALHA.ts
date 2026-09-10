@@ -220,14 +220,15 @@ export function calcularMatchScoreAtributosLote(
   return score;
 }
 
-/** Faixas percentuais para critério Preço (Distância Nominal e Preço Nominal): -3 a +2 */
+/** Faixas percentuais para critério Preço (Distância Nominal e Preço Nominal): −3…+3. */
 export function notaPrecoPorPercentual(diffPerc: number): number {
   if (diffPerc <= -0.5) return -3;
   if (diffPerc <= -0.2) return -2;
   if (diffPerc <= -0.01) return -1;
   if (diffPerc < 0.01) return 0;
   if (diffPerc < 0.2) return 1;
-  return 2;
+  if (diffPerc < 0.5) return 2;
+  return 3;
 }
 
 /** Checklist de reforma: 8 categorias (valor em R$, dificuldade, incerteza) */
