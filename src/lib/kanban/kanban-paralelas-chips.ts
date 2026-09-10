@@ -207,7 +207,8 @@ function chipOperacoesParalela(
  * Funil Loteadores — 5 bolinhas:
  * 1 Acoplamento (Fase 13 / Acoplamento + Gbox)
  * 2 Pré Obra e Obra (Fase 19 / Passagem para Waysers)
- * 3–5 placeholders até mapear as esteiras.
+ * 3 Jurídico
+ * 4–5 placeholders até mapear as esteiras.
  */
 function montarChipsLoteadoresParalelas(
   input: MontarChipsParalelasInput,
@@ -250,19 +251,20 @@ function montarChipsLoteadoresParalelas(
     ),
   );
 
-  // TODO: esteira paralela a mapear
   chips.push(
-    chipEsteira(
-      'loteadores-paralela-todo-3',
-      'Esteira a mapear',
-      null,
-      '—',
-      '—',
-      false,
+    chipOperacoesParalela(
+      KANBAN_IDS.JURIDICO,
+      'Jurídico',
+      {
+        temFilho: Boolean(input.temFilhoJuridico) || boolFlag(f.juridico_ok),
+        filhoArquivado: false,
+        filhoFase: input.juridicoFilhoFaseRotulo,
+        filhoConcluido: boolFlag(f.juridico_ok),
+      },
       opts,
-      false,
     ),
   );
+
   // TODO: esteira paralela a mapear
   chips.push(
     chipEsteira(
@@ -430,6 +432,30 @@ function pushChipAcoplamentoPortfolio(
   });
 }
 
+/** Chip Funil Jurídico — Portfólio / Loteadores (filho + flag `juridico_ok`). */
+function pushChipJuridico(
+  chips: ParalelaChip[],
+  input: MontarChipsParalelasInput,
+  opts?: MontarChipsParalelasOptions,
+): void {
+  const temFilho = Boolean(input.temFilhoJuridico);
+  const concluido = boolFlag(input.flags.juridico_ok);
+  if (!temFilho && !concluido) return;
+  const faseNome = String(input.juridicoFilhoFaseRotulo ?? '').trim() || null;
+  chips.push(
+    chipEsteira(
+      KANBAN_IDS.JURIDICO,
+      nomeFunilParalela(KANBAN_IDS.JURIDICO),
+      faseNome,
+      'Jurídico',
+      'Jurídico',
+      concluido,
+      opts,
+      temFilho || concluido,
+    ),
+  );
+}
+
 /** Chip Pré Obra e Obra (vínculo) — Portfólio e Loteadores. */
 function pushChipPreObraObra(
   chips: ParalelaChip[],
@@ -548,6 +574,7 @@ export function montarChipsParalelas(
 
   if (ehPortfolio) {
     chips.push(...montarChipsEsteirasParalelasFixas(input, opts));
+    pushChipJuridico(chips, input, opts);
     pushChipPreObraObra(chips, input, slug === FASE_SLUGS.PASSAGEM_WAYSER, opts);
     return chips;
   }

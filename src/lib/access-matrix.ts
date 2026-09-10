@@ -18,6 +18,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/painel-novos-negocios',
   '/portfolio',
   '/funil-acoplamento',
+  '/funil-juridico',
   '/funil-moni-capital',
   '/funil-funding',
   '/funil-produto',
@@ -86,6 +87,7 @@ export const FRANK_FORBIDDEN_PATH_PREFIXES: readonly string[] = [
   '/unidade-franquia',
   '/catalogo-produtos-moni',
   '/obra-ways',
+  '/funil-juridico',
 ] as const;
 
 /** Detalhe de uma linha da rede (`/rede-franqueados/:id`): a página restringe à própria franquia. */
@@ -96,10 +98,10 @@ export function isFrankRedeFranqueadoDetalhePath(pathname: string): boolean {
 }
 
 export function isFrankAllowedPath(pathname: string): boolean {
-  if (isFunilPath(pathname)) return true;
   if (FRANK_FORBIDDEN_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return false;
   }
+  if (isFunilPath(pathname)) return true;
   if (FRANK_ALLOWED_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
   if (isFrankRedeFranqueadoDetalhePath(pathname)) return true;
   return false;

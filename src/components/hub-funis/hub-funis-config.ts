@@ -24,6 +24,7 @@ export const HUB_FUNIS_GRUPOS: GrupoDef[] = [
       { id: KANBAN_IDS.PORTFOLIO, label: 'Portfólio', href: '/portfolio' },
       { id: KANBAN_IDS.LOTEADORES, label: 'Loteadores', href: '/loteadores' },
       { id: KANBAN_IDS.ACOPLAMENTO, label: 'Acoplamento', href: '/funil-acoplamento' },
+      { id: KANBAN_IDS.JURIDICO, label: 'Jurídico', href: '/funil-juridico' },
     ],
   },
   {

@@ -118,6 +118,15 @@ export async function verificarGateAcoplamentoModelagemCasa(
   return verify(cardId, novaFaseId);
 }
 
+/** Gate Jurídico: Pós-Assinatura → Enviado ao Parceiro exige `juridico_retroalimentar`. */
+export async function verificarGateJuridicoRetroalimentar(
+  cardId: string,
+  novaFaseId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { verificarGateJuridicoRetroalimentar: verify } = await import('@/lib/kanban/juridico-gates');
+  return verify(cardId, novaFaseId);
+}
+
 export type { FaseChecklistItem } from './candidato-actions';
 
 /**
@@ -5788,23 +5797,26 @@ export async function moverCardParaFase(input: {
   const novaFaseSlug = String((faseRow as { slug?: string | null }).slug ?? '').trim();
 
   // Gates em paralelo — antes eram sequenciais e somavam latência.
-  const [gate, gateAcoplamento, gateChecklistLegal, gateSlaJustificativa] = await Promise.all([
-    obterGateComiteLoteadores(supabase, cardId, novaFaseSlug, input.kanbanNome),
-    verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId),
-    verificarGateChecklistLegalPortfolio(cardId, novaFaseId),
-    (async () => {
-      const { verificarGateJustificativaSla } = await import('@/lib/actions/kanban-sla-justificativa');
-      return verificarGateJustificativaSla(cardId, novaFaseId, input.justificativaSlaQuebra);
-    })(),
-  ]);
+  const [gate, gateAcoplamento, gateChecklistLegal, gateSlaJustificativa, gateJuridicoRetro] =
+    await Promise.all([
+      obterGateComiteLoteadores(supabase, cardId, novaFaseSlug, input.kanbanNome),
+      verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId),
+      verificarGateChecklistLegalPortfolio(cardId, novaFaseId),
+      (async () => {
+        const { verificarGateJustificativaSla } = await import('@/lib/actions/kanban-sla-justificativa');
+        return verificarGateJustificativaSla(cardId, novaFaseId, input.justificativaSlaQuebra);
+      })(),
+      verificarGateJuridicoRetroalimentar(cardId, novaFaseId),
+    ]);
   if (!gate.ok) return gate;
   if (!gateAcoplamento.ok) return gateAcoplamento;
   if (!gateChecklistLegal.ok) return gateChecklistLegal;
   if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
+  if (!gateJuridicoRetro.ok) return gateJuridicoRetro;
 
   const { data: cardKanban } = await supabase
     .from('kanban_cards')
-    .select('kanban_id')
+    .select('kanban_id, fase_id, juridico_bolinha_count')
     .eq('id', cardId)
     .maybeSingle();
 
@@ -5832,9 +5844,34 @@ export async function moverCardParaFase(input: {
     }
   }
 
+  let faseOrigemSlug = '';
+  const faseOrigemId = String(
+    (cardKanban as { fase_id?: string | null } | null)?.fase_id ?? '',
+  ).trim();
+  if (faseOrigemId) {
+    const { data: faseOrigemRow } = await supabase
+      .from('kanban_fases')
+      .select('slug')
+      .eq('id', faseOrigemId)
+      .maybeSingle();
+    faseOrigemSlug = String((faseOrigemRow as { slug?: string | null } | null)?.slug ?? '').trim();
+  }
+
+  const patchFase: Record<string, unknown> = { fase_id: novaFaseId };
+  if (
+    kanbanIdCard === KANBAN_IDS.JURIDICO &&
+    faseOrigemSlug === FASE_SLUGS.JURIDICO_ASSINATURA &&
+    novaFaseSlug === FASE_SLUGS.JURIDICO_TRATATIVAS
+  ) {
+    const atual = Number(
+      (cardKanban as { juridico_bolinha_count?: number | null } | null)?.juridico_bolinha_count ?? 0,
+    );
+    patchFase.juridico_bolinha_count = (Number.isFinite(atual) ? atual : 0) + 1;
+  }
+
   const { error: updErr } = await supabase
     .from('kanban_cards')
-    .update({ fase_id: novaFaseId })
+    .update(patchFase as never)
     .eq('id', cardId);
 
   if (updErr) return { ok: false, error: updErr.message };

@@ -94,6 +94,7 @@ function isHubFunisActive(pathname: string) {
     pathname.startsWith('/painel-novos-negocios') ||
     pathname.startsWith('/portfolio') ||
     pathname.startsWith('/funil-acoplamento') ||
+    pathname.startsWith('/funil-juridico') ||
     pathname.startsWith('/dashboard-novos-negocios') ||
     pathname.startsWith('/funil-stepone') ||
     pathname.startsWith('/funil-motor01') ||

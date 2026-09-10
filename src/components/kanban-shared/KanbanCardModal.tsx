@@ -81,7 +81,6 @@ import {
   enviarEmailCard,
   reconciliarGboxPlanilhaMapaChecklist,
   garantirShadowCardLegadoParaHistorico,
-  sincronizarTagsAutomaticasCard,
   type SubInteracaoStatusDb,
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
@@ -459,6 +458,8 @@ type Card = {
   contabilidade_ok?: boolean;
   capital_ok?: boolean;
   juridico_ok?: boolean;
+  /** Funil Jurídico: retrocessos Assinatura → Tratativas. */
+  juridico_bolinha_count?: number | null;
   credito_obra_ok?: boolean;
   projetos_legais_ok?: boolean | null;
   projetos_locais_ok?: boolean | null;
@@ -1317,6 +1318,7 @@ export function KanbanCardModal({
         contabilidade_ok?: boolean;
         capital_ok?: boolean;
         juridico_ok?: boolean;
+        juridico_bolinha_count?: number | null;
         credito_obra_ok?: boolean;
         alvara_url?: string | null;
         docs_terreno_url?: string | null;
@@ -1429,7 +1431,7 @@ export function KanbanCardModal({
         const cardSelectConfirmacao =
           'opcao_assinada_em, contrato_assinado_em, contrato_condicoes_precedentes, obra_iniciada_em, obra_finalizada_em';
         const cardSelectCore =
-          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, resultado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_reuniao_fase_id, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
+          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, resultado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_reuniao_fase_id, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, juridico_bolinha_count, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
         const cardSelectPreObra =
           'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra';
         const cardSelectFunding =
@@ -1550,6 +1552,12 @@ export function KanbanCardModal({
           contabilidade_ok: Boolean((cardData as { contabilidade_ok?: boolean | null }).contabilidade_ok),
           capital_ok: Boolean((cardData as { capital_ok?: boolean | null }).capital_ok),
           juridico_ok: Boolean((cardData as { juridico_ok?: boolean | null }).juridico_ok),
+          juridico_bolinha_count: (() => {
+            const n = Number(
+              (cardData as { juridico_bolinha_count?: number | null }).juridico_bolinha_count ?? 0,
+            );
+            return Number.isFinite(n) ? n : 0;
+          })(),
           credito_obra_ok: Boolean((cardData as { credito_obra_ok?: boolean | null }).credito_obra_ok),
           alvara_url: (cardData as { alvara_url?: string | null }).alvara_url ?? null,
           docs_terreno_url: (cardData as { docs_terreno_url?: string | null }).docs_terreno_url ?? null,
@@ -1667,6 +1675,7 @@ export function KanbanCardModal({
         contabilidade_ok: loaded.contabilidade_ok,
         capital_ok: loaded.capital_ok,
         juridico_ok: loaded.juridico_ok,
+        juridico_bolinha_count: loaded.juridico_bolinha_count ?? 0,
         credito_obra_ok: loaded.credito_obra_ok,
         processo_meta: loaded.processo_meta ?? null,
         profiles: null,
@@ -2025,6 +2034,7 @@ export function KanbanCardModal({
                 contabilidade_ok: next.contabilidade_ok,
                 capital_ok: next.capital_ok,
                 juridico_ok: next.juridico_ok,
+                juridico_bolinha_count: next.juridico_bolinha_count ?? 0,
                 credito_obra_ok: next.credito_obra_ok,
               };
               const enrichedList = await enrichCardsParalelasContext(
@@ -2864,9 +2874,16 @@ export function KanbanCardModal({
         if (error) throw error;
         if (fromSlug) await registrarMovimentoLegadoKanban(fromSlug, slug);
       } else {
-        const { error } = await supabase.from('kanban_cards').update({ fase_id: destinoFase.id }).eq('id', card.id);
-        if (error) throw error;
-        void sincronizarTagsAutomaticasCard(card.id);
+        const res = await moverCardParaFase({
+          cardId: card.id,
+          novaFaseId: destinoFase.id,
+          basePath,
+          kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome),
+        });
+        if (!res.ok) {
+          alert(res.error ?? 'Erro ao retroceder fase.');
+          return;
+        }
       }
       await aplicarFaseLocalAposMover(destinoFase);
     } catch {
@@ -5852,6 +5869,14 @@ export function KanbanCardModal({
               <h2 id="kanban-card-modal-title" className="moni-kanban-drawer-title">
                 {cardTitulo}
               </h2>
+            {(Number(card.juridico_bolinha_count ?? 0) > 0) ? (
+              <span
+                className="moni-juridico-bolinha-badge"
+                title={`Voltou para Tratativas ${Number(card.juridico_bolinha_count)} vez(es)`}
+              >
+                ↺ {Number(card.juridico_bolinha_count)}x
+              </span>
+            ) : null}
             {isLegado ? (
               <span className="moni-kanban-drawer-badge">Legado</span>
             ) : null}

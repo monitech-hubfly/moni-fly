@@ -3726,6 +3726,23 @@
   background: var(--moni-surface-0);
 }
 
+/* Funil Jurídico — contador de retrocessos Assinatura → Tratativas */
+.moni-juridico-bolinha-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--moni-radius-md);
+  padding: 2px 7px;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--moni-navy-800);
+  background: color-mix(in srgb, var(--moni-gold-400) 22%, var(--moni-surface-0));
+  border: var(--moni-border-width) solid var(--moni-gold-400);
+}
+
 .moni-kanban-drawer-close {
   flex-shrink: 0;
   display: inline-flex;

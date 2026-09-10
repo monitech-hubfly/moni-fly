@@ -1,6 +1,5 @@
 /**
- * Rotas de funis ativos — qualquer usuário autenticado pode acessar (middleware + sidebar).
- * Funil Jurídico (`/funil-juridico`) permanece desativado e redireciona ao hub.
+ * Rotas de funis ativos — qualquer usuário autenticado com papel adequado (middleware + sidebar).
  */
 export const FUNIL_PATH_PREFIXES: readonly string[] = [
   '/hub-funis',
@@ -8,6 +7,7 @@ export const FUNIL_PATH_PREFIXES: readonly string[] = [
   '/portfolio',
   '/loteadores',
   '/funil-acoplamento',
+  '/funil-juridico',
   '/funil-motor01',
   '/funil-moni-capital',
   '/funil-funding',

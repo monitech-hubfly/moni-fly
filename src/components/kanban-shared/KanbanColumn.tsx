@@ -851,6 +851,14 @@ export function KanbanColumn({
                     >
                       {tituloLimpo}
                     </span>
+                    {Number(card.juridico_bolinha_count ?? 0) > 0 ? (
+                      <span
+                        className="moni-juridico-bolinha-badge"
+                        title={`Voltou para Tratativas ${Number(card.juridico_bolinha_count)} vez(es)`}
+                      >
+                        ↺ {Number(card.juridico_bolinha_count)}x
+                      </span>
+                    ) : null}
                   </div>
                   {(() => {
                     const fundingBadgeCls = fundingTipoBadgeClass(card.funding_tipo);

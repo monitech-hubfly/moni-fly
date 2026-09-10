@@ -90,6 +90,8 @@ export type KanbanCardBrief = {
   contabilidade_ok?: boolean;
   capital_ok?: boolean;
   juridico_ok?: boolean;
+  /** Funil Jurídico: retrocessos Assinatura → Tratativas. */
+  juridico_bolinha_count?: number | null;
   credito_obra_ok?: boolean;
   projetos_legais_ok?: boolean | null;
   projetos_locais_ok?: boolean | null;

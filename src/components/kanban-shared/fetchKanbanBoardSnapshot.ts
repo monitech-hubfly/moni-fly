@@ -1459,6 +1459,10 @@ export async function fetchKanbanBoardSnapshot(
       contabilidade_ok: Boolean((cMerged as { contabilidade_ok?: boolean | null }).contabilidade_ok),
       capital_ok: Boolean((cMerged as { capital_ok?: boolean | null }).capital_ok),
       juridico_ok: Boolean((cMerged as { juridico_ok?: boolean | null }).juridico_ok),
+      juridico_bolinha_count: (() => {
+        const n = Number((cMerged as { juridico_bolinha_count?: number | null }).juridico_bolinha_count ?? 0);
+        return Number.isFinite(n) ? n : 0;
+      })(),
       credito_obra_ok: Boolean((cMerged as { credito_obra_ok?: boolean | null }).credito_obra_ok),
       projetos_legais_ok:
         (cMerged as { projetos_legais_ok?: boolean | null }).projetos_legais_ok ?? null,
@@ -1991,6 +1995,10 @@ function mapNativeRowToEnrichmentBrief(
     contabilidade_ok: Boolean(row.contabilidade_ok),
     capital_ok: Boolean(row.capital_ok),
     juridico_ok: Boolean(row.juridico_ok),
+    juridico_bolinha_count: (() => {
+      const n = Number(row.juridico_bolinha_count ?? 0);
+      return Number.isFinite(n) ? n : 0;
+    })(),
     credito_obra_ok: Boolean(row.credito_obra_ok),
     projetos_legais_ok: (row.projetos_legais_ok as boolean | null) ?? null,
     projetos_locais_ok: (row.projetos_locais_ok as boolean | null) ?? null,
@@ -2025,7 +2033,7 @@ export async function fetchKanbanBoardEnrichmentPatches(
   let q = supabase
     .from('kanban_cards')
     .select(
-      'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, projeto_id, arquivado, concluido, concluido_em, entered_fase_at, sla_iniciado_em, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, projetos_legais_ok, projetos_locais_ok, proxima_atividade, prazo_atividade',
+      'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, projeto_id, arquivado, concluido, concluido_em, entered_fase_at, sla_iniciado_em, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, juridico_bolinha_count, credito_obra_ok, projetos_legais_ok, projetos_locais_ok, proxima_atividade, prazo_atividade',
     )
     .eq('kanban_id', kid)
     .eq('status', 'ativo')

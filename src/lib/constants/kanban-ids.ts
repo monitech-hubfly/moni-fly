@@ -7,7 +7,7 @@ export const KANBAN_IDS = {
   CREDITO_OBRA:  '6463af1d-850d-4958-b74c-404f8d668e21',
   LOTEADORES:    '3e7b6ec7-2e15-4a66-8fdf-9dc942b5019c',
   OPERACOES:     'f6bba1de-a7a1-4b14-89d1-10c2f7bba636',
-  JURIDICO:      '35fb5c8d-50c0-4999-bc16-89d53c2e758f',
+  JURIDICO:      '35fb5c8d-0000-0000-0000-000000000001',
   MONI_CAPITAL:  '724aef36-37de-4454-bf6f-ec481693aeeb',
   FUNDING:       '7c9e4a21-6b3d-4f82-a591-0d8e6f4b2c19',
   CONTRATACOES:  '5f40aa71-8156-423b-baa8-e3512e308c04',
@@ -277,6 +277,18 @@ export const FASE_SLUGS = {
   CONTABILIDADE_SPE:           'contabilidade_spe',
   CONTABILIDADE_GESTORA:       'contabilidade_gestora',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',
+  // Funil Jurídico — 10 fases (migration 564)
+  JURIDICO_RECEBIMENTO:            'juridico_recebimento',
+  JURIDICO_ANALISE_INICIAL:        'juridico_analise_inicial',
+  JURIDICO_TRATATIVAS:             'juridico_tratativas',
+  JURIDICO_ASSINATURA:             'juridico_assinatura',
+  JURIDICO_POS_ASSINATURA:         'juridico_pos_assinatura',
+  JURIDICO_ENVIADO_PARCEIRO:       'juridico_enviado_parceiro',
+  JURIDICO_AGUARDANDO_RETORNO:     'juridico_aguardando_retorno',
+  JURIDICO_DEMANDA_CONCLUIDA:      'juridico_demanda_concluida',
+  JURIDICO_RETROALIMENTACAO:       'juridico_retroalimentacao',
+  JURIDICO_ATENDIMENTOS_CONCLUIDOS:'juridico_atendimentos_concluidos',
+  /** @deprecated legado — preferir JURIDICO_DEMANDA_CONCLUIDA / JURIDICO_ATENDIMENTOS_CONCLUIDOS */
   JURIDICO_CONCLUIDO:        'juridico_concluido',
   // Funil Divify / Moní Capital (KANBAN_IDS.MONI_CAPITAL) — fluxo ativo + laterais
   CAPITAL_RECEBIMENTO:            'capital_recebimento',
@@ -471,8 +483,12 @@ export const KANBANS_VINCULO_MANUAL_LIVRE = [
   KANBAN_IDS.OPERACOES,
 ] as const;
 
-// Kanbans onde Frank podia abrir chamado jurídico manualmente (funil desativado — vazio)
-export const KANBANS_COM_CHAMADO_JURIDICO = [] as const;
+// Kanbans de origem que podem abrir chamado / esteira para Funil Jurídico.
+export const KANBANS_COM_CHAMADO_JURIDICO = [
+  KANBAN_IDS.PORTFOLIO,
+  KANBAN_IDS.LOTEADORES,
+  KANBAN_IDS.OPERACOES,
+] as const;
 
 // Kanbans desativados ou ocultos (apenas Funil Jurídico — rota redireciona ao hub).
 export const KANBANS_INTERNOS = [KANBAN_IDS.JURIDICO] as const;
