@@ -158,6 +158,7 @@ export type KanbanCardBrief = {
   funding_localizacao?: string | null;
   funding_descritivo?: string | null;
   /** Funil Corretores */
+  mkt_tipo_material?: string | null;
   nome_corretor?: string | null;
   imobiliaria_corretor?: string | null;
   empreendimento_interesse?: string | null;

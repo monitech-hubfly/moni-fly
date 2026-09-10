@@ -157,6 +157,16 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   capital_captacao_finalizada: 'moni',
   capital_nao_elegivel: 'moni',
   funding_leads: 'moni',
+
+  // Funil Gravação de Vídeos Externos
+  mkt_grav_caixa_entrada: 'moni',
+  mkt_grav_planejamento: 'moni',
+  mkt_grav_in_loco: 'moni',
+  mkt_grav_decupagem: 'moni', // Organização
+  mkt_grav_edicao: 'moni',
+  mkt_grav_aprovacao: 'moni',
+  mkt_grav_revisao: 'moni',
+  mkt_grav_videos_concluidos: 'moni',
   funding_r1: 'moni',
   funding_evento: 'moni',
   funding_qualif: 'moni',

@@ -27,7 +27,7 @@ export const MARKETING_FUNIS: readonly MarketingFunilDef[] = [
     titulo: 'Gravação de Vídeos Externos',
     tipo: 'pontual',
     entrada: 'Oportunidade originada pela Agenda / Assessoria do Murillo',
-    saida: 'Material segue para time de conteúdo/social media após decupagem',
+    saida: 'Material segue para Vídeos Concluídos após edição, aprovação e revisão',
   },
   {
     slug: 'programacao-conteudo-semanal',
@@ -52,8 +52,21 @@ export const MARKETING_FUNIS: readonly MarketingFunilDef[] = [
 export const MARKETING_FRENTES = ['Moní Capital', 'Franks', 'Murillo'] as const;
 export type MarketingFrente = (typeof MARKETING_FRENTES)[number];
 
+export const MKT_TIPO_MATERIAL_OPCOES = [
+  'Autoridade',
+  'Campanha',
+  'Institucional',
+  'Comunicado Interno',
+  'Comunicado Externo',
+] as const;
+export type MktTipoMaterial = (typeof MKT_TIPO_MATERIAL_OPCOES)[number];
+
 export const MKT_CAMPO_PERFIL_DESTINO = 'mkt_perfil_destino';
 export const MKT_PROG_PLANEJAMENTO_SLUG = 'mkt_prog_planejamento';
+
+export function isMktTipoMaterial(v: string | null | undefined): v is MktTipoMaterial {
+  return (MKT_TIPO_MATERIAL_OPCOES as readonly string[]).includes(String(v ?? '').trim());
+}
 
 export function isMarketingFunilSlug(v: string): v is MarketingFunilSlug {
   return MARKETING_FUNIS.some((f) => f.slug === v);

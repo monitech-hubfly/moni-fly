@@ -358,9 +358,16 @@ export const FASE_SLUGS = {
   /** @deprecated migration 462 */
   HOM_REPROVADO:    'hom_reprovado',
 
+  MKT_GRAV_CAIXA_ENTRADA: 'mkt_grav_caixa_entrada',
   MKT_GRAV_PLANEJAMENTO: 'mkt_grav_planejamento',
   MKT_GRAV_IN_LOCO: 'mkt_grav_in_loco',
+  /** Organização (ex-Decupagem) — slug legado `mkt_grav_decupagem`. */
   MKT_GRAV_DECUPAGEM: 'mkt_grav_decupagem',
+  MKT_GRAV_ORGANIZACAO: 'mkt_grav_decupagem',
+  MKT_GRAV_EDICAO: 'mkt_grav_edicao',
+  MKT_GRAV_APROVACAO: 'mkt_grav_aprovacao',
+  MKT_GRAV_REVISAO: 'mkt_grav_revisao',
+  MKT_GRAV_VIDEOS_CONCLUIDOS: 'mkt_grav_videos_concluidos',
   MKT_PROG_PLANEJAMENTO: 'mkt_prog_planejamento',
   MKT_PROG_EDICAO: 'mkt_prog_edicao',
   MKT_PROG_AGENDAMENTO: 'mkt_prog_agendamento',

@@ -5289,6 +5289,55 @@ export async function salvarDadosCorretoresLead(
   return { ok: true };
 }
 
+export type SalvarDadosMaterialMarketingInput = {
+  cardId: string;
+  mkt_tipo_material?: string | null;
+  basePath?: string;
+};
+
+export async function salvarDadosMaterialMarketing(
+  input: SalvarDadosMaterialMarketingInput,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  const kid = String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim();
+  if (
+    kid !== KANBAN_IDS.MARKETING_GRAVACAO &&
+    kid !== KANBAN_IDS.MARKETING_PROGRAMACAO &&
+    kid !== KANBAN_IDS.MARKETING_INC_TO_FLY
+  ) {
+    return { ok: false, error: 'Campos de material aplicáveis apenas aos funis de Marketing.' };
+  }
+
+  const tipo = String(input.mkt_tipo_material ?? '').trim() || null;
+  const { error: updErr } = await supabase
+    .from('kanban_cards')
+    .update({
+      mkt_tipo_material: tipo,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', cardId);
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
 export type SalvarProximaAtividadeInput = {
   cardId: string;
   proxima_atividade?: string | null;

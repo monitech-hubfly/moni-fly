@@ -64,6 +64,7 @@ import {
   salvarDadosPreObraOperacoes,
   salvarDadosFunding,
   salvarDadosCorretoresLead,
+  salvarDadosMaterialMarketing,
   salvarProximaAtividade,
   salvarFranqueadoCardVinculado,
   salvarInstrucoesFase,
@@ -166,6 +167,12 @@ import {
   CORRETORES_LEAD_DRAFT_EMPTY,
   type CorretoresLeadDraft,
 } from './KanbanCardModalDadosCorretores';
+import {
+  KanbanCardModalDadosMaterial,
+  MARKETING_MATERIAL_DRAFT_EMPTY,
+  type MarketingMaterialDraft,
+} from './KanbanCardModalDadosMaterial';
+import { isMarketingKanbanId } from '@/lib/kanban/funis-marketing';
 import {
   fundingDraftFromRow,
   fundingDraftVazio,
@@ -871,6 +878,11 @@ export function KanbanCardModal({
     ...CORRETORES_LEAD_DRAFT_EMPTY,
   }));
   const [salvandoCorretoresLead, setSalvandoCorretoresLead] = useState(false);
+  const [editandoMarketingMaterial, setEditandoMarketingMaterial] = useState(false);
+  const [marketingMaterialDraft, setMarketingMaterialDraft] = useState<MarketingMaterialDraft>(() => ({
+    ...MARKETING_MATERIAL_DRAFT_EMPTY,
+  }));
+  const [salvandoMarketingMaterial, setSalvandoMarketingMaterial] = useState(false);
   const [operacoesPreObraDraft, setOperacoesPreObraDraft] = useState<OperacoesPreObraDraft>(
     () => ({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY }),
   );
@@ -1424,7 +1436,8 @@ export function KanbanCardModal({
           'funding_tipo, funding_localizacao, funding_descritivo';
         const cardSelectCorretores =
           'nome_corretor, imobiliaria_corretor, empreendimento_interesse, tipologia_interesse, probabilidade_fechamento, orcamento_lead, cidade_interesse, telefone_lead, email_lead, mensagem_lead';
-        const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}, ${cardSelectCorretores}`;
+        const cardSelectMarketing = 'mkt_tipo_material';
+        const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}, ${cardSelectCorretores}, ${cardSelectMarketing}`;
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at`;
         let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardIdNorm).maybeSingle();
         const selectFalhouColuna = (msg: string) =>
@@ -1612,6 +1625,12 @@ export function KanbanCardModal({
           mensagem_lead: String((cardData as { mensagem_lead?: string | null }).mensagem_lead ?? ''),
         });
         setEditandoCorretoresLead(false);
+        setMarketingMaterialDraft({
+          mkt_tipo_material: String(
+            (cardData as { mkt_tipo_material?: string | null }).mkt_tipo_material ?? '',
+          ),
+        });
+        setEditandoMarketingMaterial(false);
       }
 
       if (!loaded) {
@@ -3630,6 +3649,29 @@ export function KanbanCardModal({
     }
   }
 
+  async function handleSalvarMarketingMaterial() {
+    if (!card?.id) return;
+    setSalvandoMarketingMaterial(true);
+    try {
+      const res = await salvarDadosMaterialMarketing({
+        cardId: card.id,
+        mkt_tipo_material: marketingMaterialDraft.mkt_tipo_material,
+        basePath,
+      });
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      setEditandoMarketingMaterial(false);
+      await loadCard({ silencioso: true });
+      router.refresh();
+    } catch {
+      alert('Erro ao salvar dados do material.');
+    } finally {
+      setSalvandoMarketingMaterial(false);
+    }
+  }
+
   async function handleSalvarPreObraKanban() {
     const pid = modalDetalhes.processo?.id;
     if (!pid) {
@@ -5231,6 +5273,7 @@ export function KanbanCardModal({
     card.kanban_id === KANBAN_IDS.FUNDING || kanbanNome === 'Funding';
   const ehFunilCorretores =
     card.kanban_id === KANBAN_IDS.CORRETORES || kanbanNome === 'Funil Corretores';
+  const ehFunilMarketing = isMarketingKanbanId(card.kanban_id);
   const podeGerenciarRelacionamentos =
     !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
   const podeAbrirTrancheVinculos =
@@ -8280,7 +8323,8 @@ export function KanbanCardModal({
                   />,
                 )
               : null}
-            {secaoHead(
+            {!ehFunilMarketing
+              ? secaoHead(
               'simulacoesImob',
               'Modelo e Simulações IMOB',
               <KanbanCardModalSimulacoesImob
@@ -8295,7 +8339,8 @@ export function KanbanCardModal({
                 }
               />,
               true,
-            )}
+            )
+              : null}
             {ehFunilFunding && !isLegado
               ? secaoHead(
                   'moniCapital',
@@ -8309,7 +8354,7 @@ export function KanbanCardModal({
                     }}
                   />,
                 )
-              : !exibirDadosLoteadorPersistente
+              : !exibirDadosLoteadorPersistente && !ehFunilMarketing
                 ? secaoHead(
               'franqueado',
               'Dados do Franqueado',
@@ -8548,7 +8593,25 @@ export function KanbanCardModal({
                   />,
                 )
               : null}
-            {secaoHead(
+            {ehFunilMarketing && !isLegado
+              ? secaoHead(
+                  'dadosMaterial',
+                  'Dados do Material',
+                  <KanbanCardModalDadosMaterial
+                    draft={marketingMaterialDraft}
+                    onChange={(patch) => setMarketingMaterialDraft((d) => ({ ...d, ...patch }))}
+                    onSalvar={() => void handleSalvarMarketingMaterial()}
+                    salvando={salvandoMarketingMaterial}
+                    podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                    editando={editandoMarketingMaterial}
+                    onEditar={() => setEditandoMarketingMaterial(true)}
+                    onCancelar={() => {
+                      setEditandoMarketingMaterial(false);
+                      void loadCard({ silencioso: true });
+                    }}
+                  />,
+                )
+              : secaoHead(
               'novoNegocio',
               'Dados do Negócio',
               ehFunilFunding && !isLegado ? (
@@ -8754,7 +8817,7 @@ export function KanbanCardModal({
               </div>
               ),
             )}
-            {!exibirDadosLoteadorPersistente && secaoHead(
+            {!exibirDadosLoteadorPersistente && !ehFunilMarketing && secaoHead(
               'dadosEmpresas',
               'Dados das Empresas',
               detalhesCarregando && !modalDetalhes.empresas ? (
@@ -8783,7 +8846,7 @@ export function KanbanCardModal({
               />
               ),
             )}
-            {!exibirDadosLoteadorPersistente && secaoHead(
+            {!exibirDadosLoteadorPersistente && !ehFunilMarketing && secaoHead(
               'preObra',
               'Dados Pré Obra',
               ehFunilOperacoes && !isLegado ? (
@@ -8934,7 +8997,7 @@ export function KanbanCardModal({
                 </div>
               ),
             )}
-            {!exibirDadosLoteadorPersistente && secaoHeadPainelCentroCalculadora()}
+            {!exibirDadosLoteadorPersistente && !ehFunilMarketing && secaoHeadPainelCentroCalculadora()}
             {exibirSecaoDocumentacaoCreditoObra
               ? secaoHead(
                   'documentacaoCreditoObra',
@@ -8949,7 +9012,7 @@ export function KanbanCardModal({
                   />,
                 )
               : null}
-            {!isLegado ? (
+            {!isLegado && !ehFunilMarketing ? (
               secaoHead(
                 'atasReuniao',
                 'Atas de reunião',
