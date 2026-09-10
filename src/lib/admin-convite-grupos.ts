@@ -1,5 +1,6 @@
-import { KANBANS_INTERNOS_NOMES } from '@/lib/constants/kanban-ids';
+import { KANBANS_OCULTOS_FRANK } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole } from '@/lib/authz';
+import { KANBAN_ID_BY_NOME } from '@/lib/constants/kanban-ids';
 
 /** Valores de `profiles.role` escolhíveis no convite admin. */
 export type InviteGrupoRole = 'admin' | 'team' | 'frank' | 'parceiro' | 'fornecedor' | 'cliente';

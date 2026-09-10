@@ -493,11 +493,15 @@ export const KANBANS_COM_CHAMADO_JURIDICO = [
   KANBAN_IDS.OPERACOES,
 ] as const;
 
-// Kanbans desativados ou ocultos (apenas Funil Jurídico — rota redireciona ao hub).
-export const KANBANS_INTERNOS = [KANBAN_IDS.JURIDICO] as const;
+// Kanbans internos ocultos do Hub/listagens para papéis externos.
+// Funil Jurídico é funil operacional ativo (Hub → Operações) — não listar aqui.
+export const KANBANS_INTERNOS = [] as const;
 
 /** Nomes em `kanbans.nome` alinhados a `KANBANS_INTERNOS`. */
-export const KANBANS_INTERNOS_NOMES = ['Funil Jurídico'] as const;
+export const KANBANS_INTERNOS_NOMES = [] as const;
+
+/** Funis do Hub ocultos para frank/franqueado (mesmo com card no Hub para staff). */
+export const KANBANS_OCULTOS_FRANK = [KANBAN_IDS.JURIDICO] as const;
 
 export const MSG_CHAMADO_JURIDICO_JA_EXISTE =
   'Já existe um chamado jurídico aberto para este card';

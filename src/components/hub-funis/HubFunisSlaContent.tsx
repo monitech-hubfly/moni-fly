@@ -1,18 +1,14 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { normalizeAccessRole } from '@/lib/authz';
-import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
+import { funilHrefVisivelNoHub } from '@/lib/kanban/filtrar-kanbans-internos';
 import type { HubFunisSlaItem } from '@/lib/actions/hub-funis-sla';
 import type { FunilDef, GrupoDef } from './hub-funis-config';
 import { HUB_FUNIS_GRUPOS } from './hub-funis-config';
 
 function filtrarGruposParaRole(role: string | null | undefined): GrupoDef[] {
-  const access = normalizeAccessRole(role);
-  const staff = access === 'admin' || access === 'team';
-  if (staff) return HUB_FUNIS_GRUPOS;
   return HUB_FUNIS_GRUPOS.map((g) => ({
     ...g,
-    funis: g.funis.filter((f) => !isKanbanIdInterno(f.id)),
+    funis: g.funis.filter((f) => funilHrefVisivelNoHub(f.href, role)),
   })).filter((g) => g.funis.length > 0);
 }
 
@@ -129,10 +125,10 @@ function slaMap(items: HubFunisSlaItem[]): Record<string, HubFunisSlaItem> {
   return Object.fromEntries(items.map((i) => [i.kanbanId, i]));
 }
 
-/** Placeholder imediato: cards clicáveis enquanto SLA carrega. */
+/** Placeholder imediato: cards clicáveis enquanto SLA carrega (inclui Jurídico para staff). */
 export function HubFunisPlaceholder() {
-  /** Sem role ainda: oculta funis internos (ex.: Jurídico) para não expor a frank no fallback. */
-  const grupos = filtrarGruposParaRole('frank');
+  /** Role ainda desconhecido: mostra lista staff completa; frank só após HubFunisSlaContent. */
+  const grupos = filtrarGruposParaRole('admin');
   return (
     <>
       <div className="hub-hero">
