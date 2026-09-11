@@ -169,6 +169,7 @@ import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoF
 import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociacaoLinhasField';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import { KanbanCardModalSimulacoesImob } from './KanbanCardModalSimulacoesImob';
+import { KanbanCardModalListaLotes } from './KanbanCardModalListaLotes';
 import { KanbanCardModalSimuladorPagamentos } from './KanbanCardModalSimuladorPagamentos';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
@@ -685,6 +686,7 @@ export function KanbanCardModal({
     cronologia: false,
     franqueado: false,
     loteador: false,
+    listaLotes: false,
     simulacoesImob: false,
     simuladorPagamentos: false,
     moniCapital: false,
@@ -8213,23 +8215,6 @@ export function KanbanCardModal({
                   />,
                 )
               : null}
-            {secaoHead(
-              'simulacoesImob',
-              'Modelo e Simulações IMOB',
-              <KanbanCardModalSimulacoesImob
-                cardId={card.id}
-                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                mostrarTemplate={exibirDadosLoteadorPersistente}
-                prefetch={
-                  imobSimulacoesPrefetch?.cardId === card.id ? imobSimulacoesPrefetch : null
-                }
-                esperarPrefetch={imobSimulacoesPrefetch?.cardId !== card.id}
-                legadoProdutoModeloCasa={
-                  negocioDraft.produto_modelo_casa || proc?.produto_modelo_casa || ''
-                }
-              />,
-              true,
-            )}
             {ehFunilFunding && !isLegado
               ? secaoHead(
                   'moniCapital',
@@ -8668,6 +8653,29 @@ export function KanbanCardModal({
                 )}
               </div>
               ),
+            )}
+            {exibirDadosLoteadorPersistente
+              ? secaoHead(
+                  'listaLotes',
+                  'Lista de Lotes',
+                  <KanbanCardModalListaLotes cardId={card.id} />,
+                )
+              : null}
+            {secaoHead(
+              'simulacoesImob',
+              'Modelo e Simulações IMOB',
+              <KanbanCardModalSimulacoesImob
+                cardId={card.id}
+                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                mostrarTemplate={exibirDadosLoteadorPersistente}
+                prefetch={
+                  imobSimulacoesPrefetch?.cardId === card.id ? imobSimulacoesPrefetch : null
+                }
+                esperarPrefetch={imobSimulacoesPrefetch?.cardId !== card.id}
+                legadoProdutoModeloCasa={
+                  negocioDraft.produto_modelo_casa || proc?.produto_modelo_casa || ''
+                }
+              />,
             )}
             {/* Entrada do template/ofertas moveu para Modelo e Simulações IMOB. Código preservado. */}
             {false &&

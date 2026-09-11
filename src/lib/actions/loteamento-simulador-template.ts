@@ -49,6 +49,15 @@ type AuthOk = {
 
 const TABELA = 'loteamento_simulador_templates';
 
+async function requireUser(): Promise<AuthOk | Err> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  return { ok: true, supabase, userId: user.id };
+}
+
 async function requireStaff(): Promise<AuthOk | Err> {
   const supabase = await createClient();
   const {
@@ -145,7 +154,7 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
     }
   | Err
 > {
-  const auth = await requireStaff();
+  const auth = await requireUser();
   if (!auth.ok) return auth;
   const card = await carregarCardLoteadores(auth.supabase, cardId);
   if (!card.ok) return card;
@@ -158,7 +167,7 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
 
   if (error) {
     // PGRST116 = "0 rows returned" com maybeSingle(). Não é erro real — o card ainda não tem template.
-    if (error.code !== 'PGRST116') {
+    if (error.code !== 'PGRST116' && !/0 rows|multiple \(or no\) rows/i.test(error.message)) {
       return erroBancoSimulador(error.message);
     }
   }

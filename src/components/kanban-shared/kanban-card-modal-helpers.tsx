@@ -434,6 +434,7 @@ export type SecaoEsquerdaId =
   | 'cronologia'
   | 'franqueado'
   | 'loteador'
+  | 'listaLotes'
   | 'simulacoesImob'
   | 'simuladorPagamentos'
   | 'moniCapital'

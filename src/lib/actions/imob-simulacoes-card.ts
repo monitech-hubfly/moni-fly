@@ -171,12 +171,28 @@ export async function salvarImobSimulacaoEmpreendimento(
   const check = await assertCardExiste(auth.supabase, cardId);
   if (!check.ok) return check;
 
+  const patch = draftToImobPatch(draft);
   const { error } = await auth.supabase
     .from('imob_card_empreendimentos')
-    .update(draftToImobPatch(draft) as never)
+    .update(patch as never)
     .eq('id', draft.id)
     .eq('card_id', cardId);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    if (/parcela_unica|simulacao_pagamento_id|schema cache|does not exist/i.test(error.message)) {
+      const { parcela_unica, simulacao_pagamento_id, ...sem550 } = patch;
+      void parcela_unica;
+      void simulacao_pagamento_id;
+      const retry = await auth.supabase
+        .from('imob_card_empreendimentos')
+        .update(sem550 as never)
+        .eq('id', draft.id)
+        .eq('card_id', cardId);
+      if (retry.error) return { ok: false, error: retry.error.message };
+      revalidatePath('/');
+      return { ok: true };
+    }
+    return { ok: false, error: error.message };
+  }
   revalidatePath('/');
   return { ok: true };
 }

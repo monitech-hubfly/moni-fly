@@ -197,10 +197,13 @@ function AnexoImagem({
   useEffect(() => {
     let cancelled = false;
     setUrl(null);
-    if (!path.trim()) return;
-    void urlAssinadaImobAnexo(path).then((r) => {
-      if (!cancelled && r.ok) setUrl(r.url);
-    });
+    const p = String(path ?? '').trim();
+    if (!p) return;
+    void urlAssinadaImobAnexo(p)
+      .then((r) => {
+        if (!cancelled && r.ok) setUrl(r.url);
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -340,7 +343,7 @@ function EmpreendimentoBloco({
             </span>
             {podeEditar ? (
               <select
-                value={item.produto_modelo}
+                value={item.produto_modelo ?? ''}
                 onChange={(e) => onChange('produto_modelo', e.target.value)}
                 className={inputCls}
                 style={inputStyle}
@@ -354,7 +357,7 @@ function EmpreendimentoBloco({
               </select>
             ) : (
               <div className="mt-0.5 text-xs" style={{ color: 'var(--moni-text-primary)' }}>
-                {item.produto_modelo.trim() || '—'}
+                {String(item.produto_modelo ?? '').trim() || '—'}
               </div>
             )}
           </label>
@@ -421,8 +424,8 @@ function EmpreendimentoBloco({
           <div className="sm:col-span-2">
             <AnexoImagem
               label="Imagem da Oferta"
-              path={item.imagem_oferta_path}
-              nome={item.imagem_oferta_nome}
+          path={item.imagem_oferta_path ?? ''}
+          nome={item.imagem_oferta_nome ?? ''}
               podeEditar={podeEditar}
               uploading={uploadingOferta}
               onUpload={onUploadOferta}
@@ -458,10 +461,10 @@ function EmpreendimentoBloco({
           ) : null}
           {ofertaId ? (
             <div className="grid grid-cols-1 gap-2">
-              <CampoMoedaLeitura label="Valor do imóvel à vista (R$)" value={item.valor_avista} />
-              <CampoMoedaLeitura label="Entrada (R$)" value={item.entrada} />
-              <CampoMoedaLeitura label="Parcelas mensais (R$)" value={item.parcelas_mensais} />
-              <CampoMoedaLeitura label="Parcela única (R$)" value={item.parcela_unica} />
+              <CampoMoedaLeitura label="Valor do imóvel à vista (R$)" value={item.valor_avista ?? ''} />
+              <CampoMoedaLeitura label="Entrada (R$)" value={item.entrada ?? ''} />
+              <CampoMoedaLeitura label="Parcelas mensais (R$)" value={item.parcelas_mensais ?? ''} />
+              <CampoMoedaLeitura label="Parcela única (R$)" value={item.parcela_unica ?? ''} />
             </div>
           ) : null}
         </div>
@@ -473,19 +476,19 @@ function EmpreendimentoBloco({
         <div className="space-y-2">
           <CampoMoeda
             label="Valor do imóvel à vista (R$)"
-            value={item.valor_avista}
+            value={item.valor_avista ?? ''}
             podeEditar={podeEditar}
             onChange={(v) => setMoney('valor_avista', v)}
           />
           <CampoMoeda
             label="Entrada (R$)"
-            value={item.entrada}
+            value={item.entrada ?? ''}
             podeEditar={podeEditar}
             onChange={(v) => setMoney('entrada', v)}
           />
           <CampoMoeda
             label="Parcelas mensais (R$)"
-            value={item.parcelas_mensais}
+            value={item.parcelas_mensais ?? ''}
             podeEditar={podeEditar}
             onChange={(v) => setMoney('parcelas_mensais', v)}
           />
@@ -571,10 +574,15 @@ export function KanbanCardModalSimulacoesImob({
       return;
     }
     let ativo = true;
-    void carregarSimuladorTemplateDoCard(cardId).then((res) => {
-      if (!ativo) return;
-      setTemplateSalvo(res.ok ? res.template != null : false);
-    });
+    void carregarSimuladorTemplateDoCard(cardId)
+      .then((res) => {
+        if (!ativo) return;
+        setTemplateSalvo(res.ok ? res.template != null : false);
+      })
+      .catch(() => {
+        if (!ativo) return;
+        setTemplateSalvo(false);
+      });
     return () => {
       ativo = false;
     };
@@ -822,8 +830,8 @@ export function KanbanCardModalSimulacoesImob({
         </p>
         <AnexoImagem
           label="Imagem Principal"
-          path={modelo.imagem_principal_path}
-          nome={modelo.imagem_principal_nome}
+          path={modelo.imagem_principal_path ?? ''}
+          nome={modelo.imagem_principal_nome ?? ''}
           podeEditar={podeEditar}
           uploading={uploadingPrincipal}
           onUpload={(f) => void handleUploadPrincipal(f)}

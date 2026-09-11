@@ -45,6 +45,9 @@ function rpcAusente(message: string | undefined): boolean {
   return /could not find the function|schema cache|does not exist/i.test(message ?? '');
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function salvarOfertaCorretor(
   token: string,
   input: SalvarOfertaCorretorInput,
@@ -68,6 +71,10 @@ export async function salvarOfertaCorretor(
     if (!lote) return { ok: false, error: 'Lote inválido para este loteamento.' };
     valorLote = lote.valor;
     loteCodigo = lote.codigo;
+    if (!UUID_RE.test(loteId)) {
+      loteValorManual = valorLote;
+      loteId = null;
+    }
   } else {
     const manual = n0(input.loteValorManual);
     if (manual <= 0) return { ok: false, error: 'Informe o valor do lote.' };

@@ -15,6 +15,14 @@ function tabelaImobAusente(message: string): boolean {
   );
 }
 
+/** maybeSingle com 0 ou N linhas, ou coluna da 550 ainda ausente. */
+function imobConsultaIgnoravel(message: string): boolean {
+  return (
+    tabelaImobAusente(message) ||
+    /PGRST116|0 rows|multiple \(or no\) rows|parcela_unica|simulacao_pagamento_id/i.test(message)
+  );
+}
+
 export async function carregarImobSimulacoesCard(
   supabase: SupabaseClient,
   cardId: string,
@@ -35,7 +43,7 @@ export async function carregarImobSimulacoesCard(
   ]);
 
   if (empRes.error) {
-    if (tabelaImobAusente(empRes.error.message)) {
+    if (imobConsultaIgnoravel(empRes.error.message)) {
       return { ok: true, itens: [], modelo: emptyImobCardModeloDraft() };
     }
     return { ok: false, error: empRes.error.message };
@@ -43,7 +51,7 @@ export async function carregarImobSimulacoesCard(
 
   let modelo = emptyImobCardModeloDraft();
   if (modeloRes.error) {
-    if (!tabelaImobAusente(modeloRes.error.message)) {
+    if (!imobConsultaIgnoravel(modeloRes.error.message)) {
       return { ok: false, error: modeloRes.error.message };
     }
   } else if (modeloRes.data) {

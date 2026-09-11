@@ -44,7 +44,7 @@ async function requireStaff() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, error: 'Faça login.' };
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
   const access = normalizeAccessRole((profile as { role?: string } | null)?.role);
   if (access !== 'admin' && access !== 'team') {
     return { ok: false as const, error: 'Apenas administradores ou time podem gerir loteadores.' };
