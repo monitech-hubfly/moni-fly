@@ -277,7 +277,8 @@ function AgendaCard({
         e.stopPropagation();
         // Para eventos pendentes, o drag nunca é iniciado (dragState null),
         // então o click precisa ser tratado aqui diretamente.
-        if (isPendente) onAbrirParaEditar(atv.id);
+        // Eventos do GCal também abrem o modal aqui (drag bloqueado para somente leitura).
+        if (isPendente || atv.isFromGCal) onAbrirParaEditar(atv.id);
       }}
     >
       {tooltip && typeof document !== 'undefined' && createPortal(
@@ -883,8 +884,9 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
                   <div
                     key={a.id}
                     title={a.titulo}
-                    className="text-[10px] px-1.5 py-0.5 rounded text-white truncate cursor-default select-none"
+                    className="text-[10px] px-1.5 py-0.5 rounded text-white truncate cursor-pointer select-none"
                     style={{ backgroundColor: a.cor }}
+                    onClick={() => onAbrirParaEditar(a.id)}
                   >
                     {a.titulo}
                   </div>
