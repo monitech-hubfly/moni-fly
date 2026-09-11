@@ -43,6 +43,7 @@ import { rotuloUnidadeSla } from '@/lib/dias-uteis';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   deveExibirModalJustificativaSla,
+  isErroGateJustificativaSla,
   justificativaSlaObrigatoria,
 } from '@/lib/kanban/kanban-sla-justificativa';
 import { obterJustificativaSlaFase } from '@/lib/actions/kanban-sla-justificativa';
@@ -145,6 +146,8 @@ type AssinouModalPendente = {
   beforeCardId: string | null;
   tipo: LoteadoresConfirmacaoFaseTipo;
   titulo: string;
+  /** Justificativa já coletada no modal de SLA (quando o gate veio antes do Assinou?). */
+  justificativaSla?: string;
 };
 
 function cardArquivadoVisual(card: KanbanCardBrief): boolean {
@@ -322,6 +325,25 @@ export function KanbanColumn({
     if (!columnDragOver) setColumnDragOver(true);
   };
 
+  const abrirModalJustificativaSla = (
+    payload: DragPayload,
+    beforeCardId: string | null,
+  ) => {
+    void (async () => {
+      const res = await obterJustificativaSlaFase(payload.cardId, payload.fromFaseId);
+      const justificativaExistente = res.ok ? res.justificativa : null;
+      setSlaJustificativaDraft('');
+      setSlaModalPendente({
+        payload,
+        beforeCardId,
+        faseOrigemNome: payload.fromFaseNome?.trim() || payload.fromFaseSlug || 'atual',
+        faseDestinoNome: fase.nome,
+        justificativaExistente,
+        obrigatoria: justificativaSlaObrigatoria(justificativaExistente),
+      });
+    })();
+  };
+
   const executarMovimentoEntreFases = (
     payload: DragPayload,
     beforeCardId: string | null,
@@ -381,6 +403,11 @@ export function KanbanColumn({
         });
         if (!resMove.ok) {
           onRollbackDnD?.(snapshot);
+          // Fallback: gate no server pediu justificativa — abre o modal (não só alert).
+          if (isErroGateJustificativaSla(resMove.error)) {
+            abrirModalJustificativaSla(payload, beforeCardId);
+            return;
+          }
           alert(resMove.error ?? 'Não foi possível mover o card.');
         }
       } catch (err) {
@@ -444,8 +471,32 @@ export function KanbanColumn({
     const movimentoPosterior = fase.ordem > fromOrdem;
     const fromSlug = (payload.fromFaseSlug || '').trim();
 
+    // SLA vencido antes de Assinou?/move — senão o gate no server só devolve alert sem campo.
+    if (origem === 'nativo' && movimentoPosterior && payload.created_at) {
+      const slaOrigem = calcularSlaKanbanCard({
+        created_at: payload.created_at,
+        entered_fase_at: payload.entered_fase_at,
+        sla_iniciado_em: payload.sla_iniciado_em,
+        faseSlug: fromSlug,
+        alvara_url: payload.alvara_url,
+        docs_terreno_url: payload.docs_terreno_url,
+        sla_dias: payload.fromFaseSlaDias ?? null,
+        sla_tipo: payload.fromFaseSlaTipo ?? null,
+      });
+      if (
+        deveExibirModalJustificativaSla({
+          slaStatus: slaOrigem.status,
+          sla_dias: payload.fromFaseSlaDias ?? null,
+          movimentoPosterior,
+        })
+      ) {
+        abrirModalJustificativaSla(payload, beforeCardId);
+        return;
+      }
+    }
+
     // Funil Loteadores — pop-up «Assinou?» ao sair das fases de contrato/opção
-    if (payload.origem === 'nativo' && fromSlug !== (faseSlug || '').trim()) {
+    if (payload.origem === 'nativo' && fromSlug !== (faseSlug || '').trim() && movimentoPosterior) {
       const tipoAssinou = deveConfirmarSaidaFaseLoteadores({
         kanbanId: payload.kanbanId || kanbanId,
         faseSlug: fromSlug,
@@ -465,47 +516,12 @@ export function KanbanColumn({
       }
     }
 
-    if (origem === 'nativo' && movimentoPosterior && payload.created_at) {
-      const slaOrigem = calcularSlaKanbanCard({
-        created_at: payload.created_at,
-        entered_fase_at: payload.entered_fase_at,
-        sla_iniciado_em: payload.sla_iniciado_em,
-        faseSlug: fromSlug,
-        alvara_url: payload.alvara_url,
-        docs_terreno_url: payload.docs_terreno_url,
-        sla_dias: payload.fromFaseSlaDias ?? null,
-        sla_tipo: payload.fromFaseSlaTipo ?? null,
-      });
-      if (
-        deveExibirModalJustificativaSla({
-          slaStatus: slaOrigem.status,
-          sla_dias: payload.fromFaseSlaDias ?? null,
-          movimentoPosterior,
-        })
-      ) {
-        void (async () => {
-          const res = await obterJustificativaSlaFase(payload.cardId, payload.fromFaseId);
-          const justificativaExistente = res.ok ? res.justificativa : null;
-          setSlaJustificativaDraft('');
-          setSlaModalPendente({
-            payload,
-            beforeCardId,
-            faseOrigemNome: payload.fromFaseNome?.trim() || fromSlug || 'atual',
-            faseDestinoNome: fase.nome,
-            justificativaExistente,
-            obrigatoria: justificativaSlaObrigatoria(justificativaExistente),
-          });
-        })();
-        return;
-      }
-    }
-
     executarMovimentoEntreFases(payload, beforeCardId);
   };
 
   const confirmarJustificativaSlaDrop = () => {
     if (!slaModalPendente) return;
-    const { payload, beforeCardId, justificativaExistente, obrigatoria } = slaModalPendente;
+    const { justificativaExistente, obrigatoria } = slaModalPendente;
     const complemento = slaJustificativaDraft.trim();
     if (obrigatoria && !complemento) {
       alert('Informe a justificativa da quebra de SLA.');
@@ -519,6 +535,30 @@ export function KanbanColumn({
     const pendente = slaModalPendente;
     setSlaModalPendente(null);
     setSlaJustificativaDraft('');
+
+    const fromSlug = (pendente.payload.fromFaseSlug || '').trim();
+    const tipoAssinou =
+      pendente.payload.origem === 'nativo' && fromSlug !== (faseSlug || '').trim()
+        ? deveConfirmarSaidaFaseLoteadores({
+            kanbanId: pendente.payload.kanbanId || kanbanId,
+            faseSlug: fromSlug,
+            origemCard: 'nativo',
+            direcao: 'avancar',
+          })
+        : null;
+    if (tipoAssinou) {
+      setAssinouModalPendente({
+        payload: pendente.payload,
+        beforeCardId: pendente.beforeCardId,
+        tipo: tipoAssinou,
+        titulo:
+          loteadoresAssinouTituloPorSlug(fromSlug) ??
+          loteadoresConfirmacaoTitulo(tipoAssinou),
+        justificativaSla: textoFinal,
+      });
+      return;
+    }
+
     executarMovimentoEntreFases(pendente.payload, pendente.beforeCardId, textoFinal);
   };
 
@@ -542,7 +582,11 @@ export function KanbanColumn({
           return;
         }
         setAssinouModalPendente(null);
-        executarMovimentoEntreFases(pendente.payload, pendente.beforeCardId);
+        executarMovimentoEntreFases(
+          pendente.payload,
+          pendente.beforeCardId,
+          pendente.justificativaSla,
+        );
       } finally {
         setSalvandoAssinou(false);
       }
@@ -976,6 +1020,8 @@ export function KanbanColumn({
                         kanbanNome={typeof kanbanNome === 'string' ? kanbanNome : undefined}
                         kanbanId={kanbanId}
                         faseAtualSlug={faseSlug || null}
+                        faseAtualNome={fase.nome}
+                        faseAtualId={fase.id}
                         faseAtualOrdem={fase.ordem}
                         fasesFunil={(fasesFunil ?? [])
                           .filter((f) => f.ativo !== false)

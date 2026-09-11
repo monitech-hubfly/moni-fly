@@ -41,3 +41,10 @@ export function cardPrecisaJustificativaSla(input: {
 
 export const MSG_GATE_JUSTIFICATIVA_SLA =
   'O SLA desta fase está vencido. Registre a justificativa da quebra de SLA antes de mover o card.';
+
+/** Erro do gate server — UI deve abrir o modal de justificativa em vez de só `alert`. */
+export function isErroGateJustificativaSla(error?: string | null): boolean {
+  const msg = String(error ?? '').trim();
+  if (!msg) return false;
+  return msg === MSG_GATE_JUSTIFICATIVA_SLA || /justificativa da quebra de SLA/i.test(msg);
+}

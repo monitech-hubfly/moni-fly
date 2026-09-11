@@ -136,6 +136,7 @@ import {
 } from '@/lib/kanban/corretores-confirmacao-fase';
 import {
   deveExibirModalJustificativaSla,
+  isErroGateJustificativaSla,
   justificativaSlaObrigatoria,
 } from '@/lib/kanban/kanban-sla-justificativa';
 import { obterJustificativaSlaFase } from '@/lib/actions/kanban-sla-justificativa';
@@ -2836,6 +2837,17 @@ export function KanbanCardModal({
         });
         if (!res.ok) {
           const msg = res.error ?? 'Erro ao avançar fase.';
+          if (isErroGateJustificativaSla(msg) && faseAtual) {
+            const resJust = await obterJustificativaSlaFase(card.id, faseAtual.id);
+            const justificativaExistente = resJust.ok ? resJust.justificativa : null;
+            setSlaJustificativaDraft('');
+            setModalJustificativaSla({
+              destino: proximaFase,
+              justificativaExistente,
+              obrigatoria: justificativaSlaObrigatoria(justificativaExistente),
+            });
+            return;
+          }
           const destinoStep5 =
             String(proximaFase.slug ?? '').trim() === FASE_SLUGS.STEP_5 &&
             isPortfolioKanbanRef(null, typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome));
