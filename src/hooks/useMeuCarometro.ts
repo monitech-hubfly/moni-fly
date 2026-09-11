@@ -223,7 +223,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const [topicosAbertosRes, topicosConcluidosRes] = await Promise.all([
         supabase
           .from('sirene_topicos')
-          .select('id, data_fim, prazo_proposto, chamado_id, interacao_id')
+          .select('id, data_fim, prazo_proposto, chamado_id, interacao_id, sirene_chamados!chamado_id(arquivado)')
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['nao_iniciado', 'em_andamento'])
           .eq('arquivado', false),
@@ -236,8 +236,24 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           .gte('updated_at', semanaInicioStr),
       ]);
 
-      type TopicosRow = { id: unknown; data_fim: string | null; prazo_proposto: string | null; chamado_id?: string | null; interacao_id?: string | null };
-      const topicosAbertosRaw = (topicosAbertosRes.data ?? []) as TopicosRow[];
+      type TopicosRow = {
+        id: unknown;
+        data_fim: string | null;
+        prazo_proposto: string | null;
+        chamado_id?: string | null;
+        interacao_id?: string | null;
+        sirene_chamados?: { arquivado: boolean | null } | { arquivado: boolean | null }[] | null;
+      };
+      // Exclui tópicos cujo chamado-pai já foi arquivado (mesmo que o tópico ainda esteja aberto),
+      // igualando o comportamento ao useBacklog. Evita que chamados concluídos/arquivados
+      // penalizem o score do Carômetro.
+      const topicosAbertosRaw = ((topicosAbertosRes.data ?? []) as TopicosRow[]).filter(t => {
+        if (t.chamado_id) {
+          const ch = Array.isArray(t.sirene_chamados) ? t.sirene_chamados[0] : t.sirene_chamados;
+          if (ch?.arquivado === true) return false;
+        }
+        return true;
+      });
 
       // Round 2 + Round 3: filtrar tópicos fantasmas (card pai arquivado).
       // Mesma lógica do useBacklog: cards arquivados são escondidos pela RLS,
