@@ -614,7 +614,7 @@ export function ModalAgendamento({
     setExternEmail('');
     setErros({ data: false, titulo: false, meta: false, recorrencia: false });
     setAbertas([true, false, false, false, false, false]);
-    setPartAbertas([true, false]);
+    setPartAbertas([true, (base.participantes_externos?.length ?? 0) > 0]);
     setMetaDefinida(modo === 'editar');
 
     // Aba inicial
