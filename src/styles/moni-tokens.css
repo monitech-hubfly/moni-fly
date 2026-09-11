@@ -4451,7 +4451,56 @@
   color: var(--moni-text-secondary);
 }
 
-/* Card modal — Movimentação (Anterior · Arquivar · Próxima) */
+/* Card modal — Movimentação (select de fase + Anterior · Arquivar · Próxima) */
+.moni-card-modal-movimentacao-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.moni-card-modal-movimentacao-fase-select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.moni-card-modal-movimentacao-fase-select-label {
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--moni-text-secondary);
+}
+
+.moni-card-modal-movimentacao-fase-select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-surface-0);
+  color: var(--moni-text-primary);
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.moni-card-modal-movimentacao-fase-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.moni-card-modal-movimentacao-fase-select:focus {
+  outline: none;
+  border-color: var(--moni-navy-800);
+}
+
 .moni-card-modal-movimentacao-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -3210,6 +3210,20 @@ export function KanbanCardModal({
     else await processarRetrocederParaFase(destino);
   }
 
+  /** Select permanente em Movimentação: ir para qualquer fase do funil. */
+  async function handleSelecionarFaseDropdown(faseId: string) {
+    if (!faseAtual || !podeMoverFaseCard || movendoFase) return;
+    if (!faseId || faseId === faseAtual.id) return;
+    const destino = fases.find((f) => f.id === faseId);
+    if (!destino) return;
+    const idxAtual = fases.findIndex((f) => f.id === faseAtual.id);
+    const idxDest = fases.findIndex((f) => f.id === destino.id);
+    if (idxAtual < 0 || idxDest < 0 || idxDest === idxAtual) return;
+    setSelecaoFaseDirecao(null);
+    if (idxDest > idxAtual) await processarAvancarParaFase(destino, { fromLista: true });
+    else await processarRetrocederParaFase(destino);
+  }
+
   async function handleSolicitarAprovacaoFase() {
     if (!card || !modalAprovacaoFase) return;
     setSolicitandoAprovacaoFase(true);
@@ -8165,37 +8179,63 @@ export function KanbanCardModal({
                       onSelect={(fase) => void handleSelecionarFaseDaLista(fase.id)}
                     />
                   ) : (
-                  <div className="moni-card-modal-movimentacao-grid">
-                    <button
-                      type="button"
-                      onClick={() => void handleRetrocederFase()}
-                      disabled={movendoFase || !podeRetrocederFase || !podeMoverFaseCard}
-                      className="moni-card-modal-movimentacao-btn"
-                    >
-                      <ChevronLeft className="moni-card-modal-movimentacao-btn-icon" aria-hidden />
-                      <span className="moni-card-modal-movimentacao-btn-label">
-                        {movendoFase ? '…' : 'Anterior'}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setArquivamentoAberto(true)}
-                      disabled={loading || !exibirBlocoArquivar}
-                      className="moni-card-modal-movimentacao-btn"
-                    >
-                      <span className="moni-card-modal-movimentacao-btn-label">Arquivar</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleAvancarFase()}
-                      disabled={movendoFase || !podeAvancarFase || !podeMoverFaseCard}
-                      className="moni-card-modal-movimentacao-btn moni-card-modal-movimentacao-btn--proxima"
-                    >
-                      <span className="moni-card-modal-movimentacao-btn-label">
-                        {movendoFase ? '…' : 'Próxima'}
-                      </span>
-                      <ChevronRight className="moni-card-modal-movimentacao-btn-icon" aria-hidden />
-                    </button>
+                  <div className="moni-card-modal-movimentacao-stack">
+                    {podeMoverFaseCard && !cardNativoConcluido && fases.length > 0 ? (
+                      <div className="moni-card-modal-movimentacao-fase-select-wrap">
+                        <label
+                          className="moni-card-modal-movimentacao-fase-select-label"
+                          htmlFor="movimentacao-fase-destino"
+                        >
+                          Ir para fase
+                        </label>
+                        <select
+                          id="movimentacao-fase-destino"
+                          value={faseAtual?.id ?? ''}
+                          disabled={movendoFase || !faseAtual}
+                          onChange={(e) => void handleSelecionarFaseDropdown(e.target.value)}
+                          className="moni-card-modal-movimentacao-fase-select"
+                          aria-label="Mover card para fase"
+                        >
+                          {fases.map((fase) => (
+                            <option key={fase.id} value={fase.id}>
+                              {fase.nome}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null}
+                    <div className="moni-card-modal-movimentacao-grid">
+                      <button
+                        type="button"
+                        onClick={() => void handleRetrocederFase()}
+                        disabled={movendoFase || !podeRetrocederFase || !podeMoverFaseCard}
+                        className="moni-card-modal-movimentacao-btn"
+                      >
+                        <ChevronLeft className="moni-card-modal-movimentacao-btn-icon" aria-hidden />
+                        <span className="moni-card-modal-movimentacao-btn-label">
+                          {movendoFase ? '…' : 'Anterior'}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setArquivamentoAberto(true)}
+                        disabled={loading || !exibirBlocoArquivar}
+                        className="moni-card-modal-movimentacao-btn"
+                      >
+                        <span className="moni-card-modal-movimentacao-btn-label">Arquivar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleAvancarFase()}
+                        disabled={movendoFase || !podeAvancarFase || !podeMoverFaseCard}
+                        className="moni-card-modal-movimentacao-btn moni-card-modal-movimentacao-btn--proxima"
+                      >
+                        <span className="moni-card-modal-movimentacao-btn-label">
+                          {movendoFase ? '…' : 'Próxima'}
+                        </span>
+                        <ChevronRight className="moni-card-modal-movimentacao-btn-icon" aria-hidden />
+                      </button>
+                    </div>
                   </div>
                   )}
                   </div>
