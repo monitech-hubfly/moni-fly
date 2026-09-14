@@ -138,7 +138,359 @@ export type GraficosData = {
   concluidosHoje: number;
   mediaAceiteHoras: number | null;
   mesesDisponiveis: string[];
+  melhorMesInicial: string;
 };
+
+// ─── Tipos de drill-down ──────────────────────────────────────────────────────
+
+export type DrilldownFiltro =
+  | { tipo: 'total_aberto' }
+  | { tipo: 'sem_aceite' }
+  | { tipo: 'abertos_dia'; data: string }
+  | { tipo: 'concluidos_dia'; data: string }
+  | { tipo: 'responsavel'; responsavel_id: string; nome: string }
+  | { tipo: 'funil'; funil_id: string; funil_nome: string }
+  | { tipo: 'area'; time: string };
+
+export type DetalheChamadoRow = {
+  id: number;
+  numero: number;
+  titulo: string | null;
+  status: string;
+  criado_em: string;
+  aberto_por_nome: string | null;
+  responsavel_nome: string | null;
+  dias_uteis: number;
+  data_conclusao: string | null;
+};
+
+export type DetalheTopicoRow = {
+  topico_id: number;
+  chamado_id: number;
+  chamado_numero: number;
+  chamado_titulo: string | null;
+  atribuicao_status: string | null;
+  responsavel_nome: string | null;
+  criado_em: string;
+  dias_espera_uteis: number;
+};
+
+export type DrilldownData =
+  | { tipo: 'chamados'; titulo: string; rows: DetalheChamadoRow[] }
+  | { tipo: 'topicos'; titulo: string; rows: DetalheTopicoRow[] };
+
+// ─── Action de drill-down ─────────────────────────────────────────────────────
+
+export async function buscarDetalheChamados(
+  filtro: DrilldownFiltro,
+): Promise<{ ok: true; data: DrilldownData } | { ok: false; error: string }> {
+  try {
+    const admin = createAdminClient();
+    const now = new Date();
+
+    // ── Helpers internos ──────────────────────────────────────────────────────
+    async function resolveNomesChamados(
+      ids: number[],
+    ): Promise<Map<number, { aberto_por_nome: string | null; responsavel_nome: string | null }>> {
+      const map = new Map<number, { aberto_por_nome: string | null; responsavel_nome: string | null }>();
+      if (ids.length === 0) return map;
+
+      const { data: chamados } = await admin
+        .from('sirene_chamados')
+        .select('id, aberto_por')
+        .in('id', ids);
+
+      const abrirIds = [...new Set((chamados ?? []).map((c) => (c as { aberto_por?: string | null }).aberto_por).filter((x): x is string => x != null))];
+      const nomeById = new Map<string, string>();
+      if (abrirIds.length > 0) {
+        const { data: profs } = await admin.from('profiles').select('id, full_name').in('id', abrirIds);
+        for (const p of profs ?? []) {
+          const pr = p as { id: string; full_name?: string | null };
+          if (pr.full_name) nomeById.set(pr.id, pr.full_name);
+        }
+      }
+      for (const c of chamados ?? []) {
+        const cr = c as { id: number; aberto_por?: string | null };
+        map.set(cr.id, {
+          aberto_por_nome: cr.aberto_por ? (nomeById.get(cr.aberto_por) ?? null) : null,
+          responsavel_nome: null,
+        });
+      }
+      return map;
+    }
+
+    function chamadoParaRow(
+      c: { id: number; numero: number; incendio?: string | null; tema?: string | null; status: string; created_at: string; data_conclusao?: string | null },
+      extras: { aberto_por_nome: string | null; responsavel_nome: string | null },
+    ): DetalheChamadoRow {
+      return {
+        id: c.id,
+        numero: c.numero,
+        titulo: c.incendio?.trim() || c.tema?.trim() || null,
+        status: c.status,
+        criado_em: c.created_at,
+        aberto_por_nome: extras.aberto_por_nome,
+        responsavel_nome: extras.responsavel_nome,
+        dias_uteis: diasUteisDe(new Date(c.created_at), now),
+        data_conclusao: c.data_conclusao ?? null,
+      };
+    }
+
+    // ── Filtros ───────────────────────────────────────────────────────────────
+
+    if (filtro.tipo === 'total_aberto') {
+      const { data: rows, error } = await admin
+        .from('sirene_chamados')
+        .select('id, numero, incendio, tema, status, created_at, data_conclusao, aberto_por')
+        .neq('status', 'concluido')
+        .eq('arquivado', false)
+        .order('created_at', { ascending: false });
+      if (error) return { ok: false, error: error.message };
+
+      const chamados = rows ?? [];
+      const ids = chamados.map((c) => (c as { id: number }).id);
+      const extras = await resolveNomesChamados(ids);
+
+      return {
+        ok: true,
+        data: {
+          tipo: 'chamados',
+          titulo: `${chamados.length} chamados em aberto`,
+          rows: chamados.map((c) => chamadoParaRow(c as Parameters<typeof chamadoParaRow>[0], extras.get((c as { id: number }).id) ?? { aberto_por_nome: null, responsavel_nome: null })),
+        },
+      };
+    }
+
+    if (filtro.tipo === 'sem_aceite') {
+      const { data: rows, error } = await admin
+        .from('sirene_chamados')
+        .select('id, numero, incendio, tema, status, created_at, data_conclusao, aberto_por')
+        .eq('status', 'nao_iniciado')
+        .eq('arquivado', false)
+        .order('created_at', { ascending: true });
+      if (error) return { ok: false, error: error.message };
+
+      const chamados = rows ?? [];
+      const ids = chamados.map((c) => (c as { id: number }).id);
+      const extras = await resolveNomesChamados(ids);
+
+      return {
+        ok: true,
+        data: {
+          tipo: 'chamados',
+          titulo: `${chamados.length} chamados sem aceite`,
+          rows: chamados.map((c) => chamadoParaRow(c as Parameters<typeof chamadoParaRow>[0], extras.get((c as { id: number }).id) ?? { aberto_por_nome: null, responsavel_nome: null })),
+        },
+      };
+    }
+
+    if (filtro.tipo === 'abertos_dia') {
+      const { data: rows, error } = await admin
+        .from('sirene_chamados')
+        .select('id, numero, incendio, tema, status, created_at, data_conclusao, aberto_por')
+        .gte('created_at', `${filtro.data}T00:00:00.000Z`)
+        .lte('created_at', `${filtro.data}T23:59:59.999Z`)
+        .order('created_at', { ascending: true });
+      if (error) return { ok: false, error: error.message };
+
+      const chamados = rows ?? [];
+      const ids = chamados.map((c) => (c as { id: number }).id);
+      const extras = await resolveNomesChamados(ids);
+      const [, m, d] = filtro.data.split('-');
+
+      return {
+        ok: true,
+        data: {
+          tipo: 'chamados',
+          titulo: `${chamados.length} chamados abertos em ${d}/${m}`,
+          rows: chamados.map((c) => chamadoParaRow(c as Parameters<typeof chamadoParaRow>[0], extras.get((c as { id: number }).id) ?? { aberto_por_nome: null, responsavel_nome: null })),
+        },
+      };
+    }
+
+    if (filtro.tipo === 'concluidos_dia') {
+      const { data: rows, error } = await admin
+        .from('sirene_chamados')
+        .select('id, numero, incendio, tema, status, created_at, data_conclusao, aberto_por')
+        .eq('status', 'concluido')
+        .gte('data_conclusao', `${filtro.data}T00:00:00.000Z`)
+        .lte('data_conclusao', `${filtro.data}T23:59:59.999Z`)
+        .order('created_at', { ascending: true });
+      if (error) return { ok: false, error: error.message };
+
+      const chamados = rows ?? [];
+      const ids = chamados.map((c) => (c as { id: number }).id);
+      const extras = await resolveNomesChamados(ids);
+      const [, m, d] = filtro.data.split('-');
+
+      return {
+        ok: true,
+        data: {
+          tipo: 'chamados',
+          titulo: `${chamados.length} chamados concluídos em ${d}/${m}`,
+          rows: chamados.map((c) => chamadoParaRow(c as Parameters<typeof chamadoParaRow>[0], extras.get((c as { id: number }).id) ?? { aberto_por_nome: null, responsavel_nome: null })),
+        },
+      };
+    }
+
+    if (filtro.tipo === 'responsavel') {
+      // Busca tópicos do responsável com o chamado vinculado
+      const { data: topicos, error } = await admin
+        .from('sirene_topicos')
+        .select('id, chamado_id, atribuicao_status, responsavel_nome, created_at')
+        .eq('responsavel_id', filtro.responsavel_id)
+        .eq('arquivado', false)
+        .order('created_at', { ascending: false });
+      if (error) return { ok: false, error: error.message };
+
+      const chamadoIds = [...new Set((topicos ?? []).map((t) => (t as { chamado_id: number }).chamado_id).filter(Boolean))];
+      const chamadoInfoById = new Map<number, { numero: number; titulo: string | null }>();
+      if (chamadoIds.length > 0) {
+        const { data: chams } = await admin
+          .from('sirene_chamados')
+          .select('id, numero, incendio, tema')
+          .in('id', chamadoIds);
+        for (const c of chams ?? []) {
+          const cr = c as { id: number; numero: number; incendio?: string | null; tema?: string | null };
+          chamadoInfoById.set(cr.id, { numero: cr.numero, titulo: cr.incendio?.trim() || cr.tema?.trim() || null });
+        }
+      }
+
+      const rows: DetalheTopicoRow[] = (topicos ?? []).map((t) => {
+        const tr = t as { id: number; chamado_id: number; atribuicao_status?: string | null; responsavel_nome?: string | null; created_at: string };
+        const chamInfo = chamadoInfoById.get(tr.chamado_id);
+        return {
+          topico_id: tr.id,
+          chamado_id: tr.chamado_id,
+          chamado_numero: chamInfo?.numero ?? 0,
+          chamado_titulo: chamInfo?.titulo ?? null,
+          atribuicao_status: tr.atribuicao_status ?? null,
+          responsavel_nome: tr.responsavel_nome ?? null,
+          criado_em: tr.created_at,
+          dias_espera_uteis: diasUteisDe(new Date(tr.created_at), now),
+        };
+      });
+
+      return {
+        ok: true,
+        data: {
+          tipo: 'topicos',
+          titulo: `Tópicos de ${filtro.nome} (${rows.length})`,
+          rows,
+        },
+      };
+    }
+
+    if (filtro.tipo === 'funil') {
+      // Busca chamados vinculados ao funil via kanban_atividades
+      const { data: atividades, error: e1 } = await admin
+        .from('kanban_atividades')
+        .select('sirene_chamado_id, card_id')
+        .not('sirene_chamado_id', 'is', null)
+        .not('card_id', 'is', null);
+      if (e1) return { ok: false, error: e1.message };
+
+      // Filtra cards do funil desejado
+      const cardIds = [...new Set((atividades ?? []).map((a) => (a as { card_id: string }).card_id))];
+      if (cardIds.length === 0) {
+        return { ok: true, data: { tipo: 'chamados', titulo: 'Nenhum chamado vinculado', rows: [] } };
+      }
+
+      const { data: cards } = await admin
+        .from('kanban_cards')
+        .select('id, kanban_id')
+        .in('id', cardIds)
+        .eq('kanban_id', filtro.funil_id);
+
+      const cardsDoFunil = new Set((cards ?? []).map((c) => (c as { id: string }).id));
+      const chamadoIds = [...new Set(
+        (atividades ?? [])
+          .filter((a) => cardsDoFunil.has((a as { card_id: string }).card_id))
+          .map((a) => (a as { sirene_chamado_id: number }).sirene_chamado_id),
+      )];
+
+      if (chamadoIds.length === 0) {
+        return { ok: true, data: { tipo: 'chamados', titulo: 'Nenhum chamado vinculado', rows: [] } };
+      }
+
+      const BATCH = 400;
+      const allChamados: Parameters<typeof chamadoParaRow>[0][] = [];
+      for (let i = 0; i < chamadoIds.length; i += BATCH) {
+        const { data: batch } = await admin
+          .from('sirene_chamados')
+          .select('id, numero, incendio, tema, status, created_at, data_conclusao, aberto_por')
+          .in('id', chamadoIds.slice(i, i + BATCH));
+        for (const c of batch ?? []) allChamados.push(c as Parameters<typeof chamadoParaRow>[0]);
+      }
+
+      const ids = allChamados.map((c) => c.id);
+      const extras = await resolveNomesChamados(ids);
+
+      return {
+        ok: true,
+        data: {
+          tipo: 'chamados',
+          titulo: `${allChamados.length} chamados — ${filtro.funil_nome}`,
+          rows: allChamados
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .map((c) => chamadoParaRow(c, extras.get(c.id) ?? { aberto_por_nome: null, responsavel_nome: null })),
+        },
+      };
+    }
+
+    if (filtro.tipo === 'area') {
+      // Busca tópicos da área via time_responsavel (campo texto no tópico)
+      const { data: topicos, error } = await admin
+        .from('sirene_topicos')
+        .select('id, chamado_id, atribuicao_status, responsavel_nome, created_at')
+        .eq('time_responsavel', filtro.time)
+        .eq('arquivado', false)
+        .order('created_at', { ascending: false });
+      if (error) return { ok: false, error: error.message };
+
+      const chamadoIds = [...new Set((topicos ?? []).map((t) => (t as { chamado_id: number }).chamado_id).filter(Boolean))];
+      const chamadoInfoById = new Map<number, { numero: number; titulo: string | null }>();
+      if (chamadoIds.length > 0) {
+        const { data: chams } = await admin
+          .from('sirene_chamados')
+          .select('id, numero, incendio, tema')
+          .in('id', chamadoIds);
+        for (const c of chams ?? []) {
+          const cr = c as { id: number; numero: number; incendio?: string | null; tema?: string | null };
+          chamadoInfoById.set(cr.id, { numero: cr.numero, titulo: cr.incendio?.trim() || cr.tema?.trim() || null });
+        }
+      }
+
+      const rows: DetalheTopicoRow[] = (topicos ?? []).map((t) => {
+        const tr = t as { id: number; chamado_id: number; atribuicao_status?: string | null; responsavel_nome?: string | null; created_at: string };
+        const chamInfo = chamadoInfoById.get(tr.chamado_id);
+        return {
+          topico_id: tr.id,
+          chamado_id: tr.chamado_id,
+          chamado_numero: chamInfo?.numero ?? 0,
+          chamado_titulo: chamInfo?.titulo ?? null,
+          atribuicao_status: tr.atribuicao_status ?? null,
+          responsavel_nome: tr.responsavel_nome ?? null,
+          criado_em: tr.created_at,
+          dias_espera_uteis: diasUteisDe(new Date(tr.created_at), now),
+        };
+      });
+
+      return {
+        ok: true,
+        data: {
+          tipo: 'topicos',
+          titulo: `Tópicos da área: ${filtro.time} (${rows.length})`,
+          rows,
+        },
+      };
+    }
+
+    return { ok: false, error: 'Filtro desconhecido' };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
 
 // ─── Action principal ─────────────────────────────────────────────────────────
 
@@ -150,7 +502,42 @@ export async function buscarDadosGraficos(mes?: string): Promise<
     const hoje = new Date();
     hoje.setHours(23, 59, 59, 999);
 
-    const mesAtual = mes ?? hoje.toISOString().slice(0, 7);
+    // ── 8. Meses disponíveis (calcular antes para determinar melhor mês inicial)
+    const { data: primeiroRow } = await admin
+      .from('sirene_chamados')
+      .select('created_at')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const mesesDisponiveis: string[] = [];
+    if (primeiroRow) {
+      const primeiro = new Date((primeiroRow as { created_at: string }).created_at);
+      const cur = new Date(primeiro.getFullYear(), primeiro.getMonth(), 1);
+      const fim = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      while (cur <= fim) {
+        mesesDisponiveis.push(cur.toISOString().slice(0, 7));
+        cur.setMonth(cur.getMonth() + 1);
+      }
+    }
+
+    // Determina o melhor mês inicial: o último mês que tem pelo menos 1 chamado aberto
+    // (evita mostrar o mês atual vazio quando nenhum chamado foi aberto ainda)
+    let melhorMesInicial = mesesDisponiveis.at(-1) ?? hoje.toISOString().slice(0, 7);
+    if (mesesDisponiveis.length > 1) {
+      const mesAtualStr = hoje.toISOString().slice(0, 7);
+      // Conta chamados abertos no mês atual
+      const inicioMesAtual = new Date(`${mesAtualStr}-01T00:00:00.000Z`);
+      const { count: abertosNoMesAtual } = await admin
+        .from('sirene_chamados')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', inicioMesAtual.toISOString())
+        .lte('created_at', hoje.toISOString());
+      if ((abertosNoMesAtual ?? 0) === 0 && mesesDisponiveis.length >= 2) {
+        melhorMesInicial = mesesDisponiveis[mesesDisponiveis.length - 2];
+      }
+    }
+
+    const mesAtual = mes ?? melhorMesInicial;
     const [anoStr, mesStr] = mesAtual.split('-');
     const ano = Number(anoStr);
     const mesNum = Number(mesStr) - 1;
@@ -256,12 +643,17 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       const ds = isoDate(new Date(tr.created_at));
       const slot = slaDia.get(ds) ?? { dentro: 0, fora: 0 };
       if (tr.atribuicao_aceito_em) {
+        // Tópico aceito com timestamp: calcula horas reais
         const h = horasUteis(new Date(tr.created_at), new Date(tr.atribuicao_aceito_em));
         if (h <= 24) slot.dentro++;
         else slot.fora++;
+      } else if (tr.atribuicao_status === 'aceito') {
+        // Aceito mas sem timestamp — conta como dentro do prazo
+        slot.dentro++;
       } else if (tr.atribuicao_status === 'pendente_aceite') {
         const hEspera = horasUteis(new Date(tr.created_at), now);
         if (hEspera > 24) slot.fora++;
+        // se < 24h: ainda dentro do prazo, não conta nem dentro nem fora (pendente legítimo)
       }
       slaDia.set(ds, slot);
     }
@@ -280,7 +672,7 @@ export async function buscarDadosGraficos(mes?: string): Promise<
     // ── 4. SLA por responsável + área (todos os tópicos não arquivados) ───────
     const { data: todosTopicos, error: e5 } = await admin
       .from('sirene_topicos')
-      .select('id, created_at, atribuicao_aceito_em, atribuicao_status, responsavel_id')
+      .select('id, created_at, atribuicao_aceito_em, atribuicao_status, responsavel_id, time_responsavel')
       .eq('arquivado', false)
       .not('responsavel_id', 'is', null);
     if (e5) return { ok: false, error: e5.message };
@@ -292,10 +684,14 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       const slot = respMap.get(rid) ?? { total: 0, dentro: 0, fora: 0, pendente: 0, horasAceitos: [] };
       slot.total++;
       if (tr.atribuicao_aceito_em) {
+        // Aceite com timestamp — mede horas reais
         const h = horasUteis(new Date(tr.created_at), new Date(tr.atribuicao_aceito_em));
         slot.horasAceitos.push(h);
         if (h <= 24) slot.dentro++;
         else slot.fora++;
+      } else if (tr.atribuicao_status === 'aceito') {
+        // Aceito sem timestamp — conta como dentro do prazo (sem dado de hora)
+        slot.dentro++;
       } else if (tr.atribuicao_status === 'pendente_aceite') {
         const hEspera = horasUteis(new Date(tr.created_at), now);
         if (hEspera > 24) slot.fora++;
@@ -306,19 +702,17 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       respMap.set(rid, slot);
     }
 
-    // Resolve nomes e time dos responsáveis (time = área do Boné Day)
+    // Resolve nomes dos responsáveis
     const respIds = [...respMap.keys()];
     const respNomeById = new Map<string, string>();
-    const respTimeById = new Map<string, string>();
     if (respIds.length > 0) {
       const { data: profs2 } = await admin
         .from('profiles')
-        .select('id, full_name, time')
+        .select('id, full_name')
         .in('id', respIds);
       for (const p of profs2 ?? []) {
-        const pr = p as { id: string; full_name?: string | null; time?: string | null };
+        const pr = p as { id: string; full_name?: string | null };
         respNomeById.set(pr.id, pr.full_name ?? pr.id.slice(0, 8));
-        if (pr.time) respTimeById.set(pr.id, pr.time);
       }
     }
 
@@ -337,22 +731,34 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       .filter((r) => r.total >= 1)
       .sort((a, b) => b.total - a.total);
 
-    // Média global de aceite
+    // Média global de aceite (só de tópicos com timestamp real)
     const todasHoras = [...respMap.values()].flatMap((s) => s.horasAceitos);
     const mediaAceiteHoras = todasHoras.length > 0
       ? Math.round((todasHoras.reduce((a, b) => a + b, 0) / todasHoras.length) * 10) / 10
       : null;
 
-    // ── 5. Por área (agrupa respMap por profiles.time) ────────────────────────
+    // ── 5. Por área — usa time_responsavel direto do tópico ───────────────────
+    // Este campo já tem os dados reais (ex: "Caneta Verde", "Jurídico", "Produto")
     const areaMap = new Map<string, { total: number; dentro: number; fora: number; pendente: number; horasAceitos: number[] }>();
-    for (const [rid, s] of respMap.entries()) {
-      const time = respTimeById.get(rid) ?? 'Sem área';
+    for (const r of todosTopicos ?? []) {
+      const tr = r as { created_at: string; atribuicao_aceito_em?: string | null; atribuicao_status?: string | null; responsavel_id: string; time_responsavel?: string | null };
+      const time = tr.time_responsavel?.trim() || 'Sem área';
       const slot = areaMap.get(time) ?? { total: 0, dentro: 0, fora: 0, pendente: 0, horasAceitos: [] };
-      slot.total += s.total;
-      slot.dentro += s.dentro;
-      slot.fora += s.fora;
-      slot.pendente += s.pendente;
-      slot.horasAceitos.push(...s.horasAceitos);
+      slot.total++;
+      if (tr.atribuicao_aceito_em) {
+        const h = horasUteis(new Date(tr.created_at), new Date(tr.atribuicao_aceito_em));
+        slot.horasAceitos.push(h);
+        if (h <= 24) slot.dentro++;
+        else slot.fora++;
+      } else if (tr.atribuicao_status === 'aceito') {
+        slot.dentro++;
+      } else if (tr.atribuicao_status === 'pendente_aceite') {
+        const hEspera = horasUteis(new Date(tr.created_at), now);
+        if (hEspera > 24) slot.fora++;
+        else slot.pendente++;
+      } else {
+        slot.pendente++;
+      }
       areaMap.set(time, slot);
     }
 
@@ -371,11 +777,10 @@ export async function buscarDadosGraficos(mes?: string): Promise<
           sla_pct: aceitos > 0 ? Math.round((s.dentro / aceitos) * 100) : null,
         };
       })
-      .filter((r) => r.total >= 1)
+      .filter((r) => r.total >= 1 && r.time !== 'Sem área')
       .sort((a, b) => b.total - a.total);
 
     // ── 6. Por funil e etapa (via kanban_atividades) ──────────────────────────
-    // Busca atividades com vínculo a chamados Sirene
     const { data: atividadesChamados, error: e6 } = await admin
       .from('kanban_atividades')
       .select('sirene_chamado_id, card_id')
@@ -387,7 +792,6 @@ export async function buscarDadosGraficos(mes?: string): Promise<
     const topEtapas: EtapaRow[] = [];
 
     if ((atividadesChamados ?? []).length > 0) {
-      // Mapa: sirene_chamado_id → card_ids (um chamado pode ter múltiplas atividades)
       const chamadoCardMap = new Map<number, Set<string>>();
       for (const r of atividadesChamados ?? []) {
         const ar = r as { sirene_chamado_id: number; card_id: string };
@@ -397,7 +801,6 @@ export async function buscarDadosGraficos(mes?: string): Promise<
         chamadoCardMap.get(ar.sirene_chamado_id)!.add(ar.card_id);
       }
 
-      // Busca cards únicos
       const uniqueCardIds = [...new Set((atividadesChamados ?? []).map((r) => (r as { card_id: string }).card_id))];
       const BATCH = 400;
       const cardRows: { id: string; kanban_id: string; fase_id: string | null }[] = [];
@@ -413,7 +816,6 @@ export async function buscarDadosGraficos(mes?: string): Promise<
 
       const cardInfoById = new Map(cardRows.map((c) => [c.id, c]));
 
-      // Resolve nomes de kanbans
       const kanbanIds = [...new Set(cardRows.map((c) => c.kanban_id).filter(Boolean))];
       const kanbanNomeById = new Map<string, string>();
       if (kanbanIds.length > 0) {
@@ -427,10 +829,8 @@ export async function buscarDadosGraficos(mes?: string): Promise<
         }
       }
 
-      // Resolve nomes de fases
       const faseIds = [...new Set(cardRows.map((c) => c.fase_id).filter((f): f is string => f != null))];
       const faseNomeById = new Map<string, string>();
-      const faseKanbanById = new Map<string, string>();
       if (faseIds.length > 0) {
         const { data: fasesData } = await admin
           .from('kanban_fases')
@@ -439,11 +839,9 @@ export async function buscarDadosGraficos(mes?: string): Promise<
         for (const f of fasesData ?? []) {
           const fr = f as { id: string; nome: string; kanban_id: string };
           faseNomeById.set(fr.id, fr.nome);
-          faseKanbanById.set(fr.id, fr.kanban_id);
         }
       }
 
-      // Status dos chamados (para saber se está aberto ou concluído)
       const allChamadoIds = [...chamadoCardMap.keys()];
       const chamadoStatusMap = new Map<number, string>();
       for (let i = 0; i < allChamadoIds.length; i += BATCH) {
@@ -457,9 +855,7 @@ export async function buscarDadosGraficos(mes?: string): Promise<
         }
       }
 
-      // Agrupa por funil
       const funilMap = new Map<string, { nome: string; total: Set<number>; abertos: Set<number>; concluidos: Set<number> }>();
-      // Agrupa por etapa
       const etapaMap = new Map<string, { etapa_nome: string; funil_nome: string; total: Set<number>; abertos: Set<number> }>();
 
       for (const [chamadoId, cardIds] of chamadoCardMap.entries()) {
@@ -474,7 +870,6 @@ export async function buscarDadosGraficos(mes?: string): Promise<
           const faseId = card.fase_id;
           const funilNome = kanbanNomeById.get(kanbanId) ?? 'Sem funil';
 
-          // Funil
           if (!funilMap.has(kanbanId)) {
             funilMap.set(kanbanId, { nome: funilNome, total: new Set(), abertos: new Set(), concluidos: new Set() });
           }
@@ -483,7 +878,6 @@ export async function buscarDadosGraficos(mes?: string): Promise<
           if (isConcluido) fSlot.concluidos.add(chamadoId);
           else fSlot.abertos.add(chamadoId);
 
-          // Etapa (fase atual do card)
           if (faseId) {
             const etapaNome = faseNomeById.get(faseId) ?? 'Fase desconhecida';
             const etapaKey = `${kanbanId}::${faseId}`;
@@ -533,24 +927,6 @@ export async function buscarDadosGraficos(mes?: string): Promise<
     const abriosHoje = abertosPorDia.get(hojeStr) ?? 0;
     const concluidosHoje = concluidosPorDia.get(hojeStr) ?? 0;
 
-    // ── 8. Meses disponíveis ─────────────────────────────────────────────────
-    const { data: primeiroRow } = await admin
-      .from('sirene_chamados')
-      .select('created_at')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    const mesesDisponiveis: string[] = [];
-    if (primeiroRow) {
-      const primeiro = new Date((primeiroRow as { created_at: string }).created_at);
-      const cur = new Date(primeiro.getFullYear(), primeiro.getMonth(), 1);
-      const fim = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      while (cur <= fim) {
-        mesesDisponiveis.push(cur.toISOString().slice(0, 7));
-        cur.setMonth(cur.getMonth() + 1);
-      }
-    }
-
     return {
       ok: true,
       data: {
@@ -566,6 +942,7 @@ export async function buscarDadosGraficos(mes?: string): Promise<
         concluidosHoje,
         mediaAceiteHoras,
         mesesDisponiveis,
+        melhorMesInicial,
       },
     };
   } catch (err) {

@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
-import type { GraficosData } from './actions';
+import type { DrilldownData, DrilldownFiltro, GraficosData } from './actions';
 import { buscarDadosGraficos } from './actions';
+import { DetalheDrawer, type DrawerState } from './DetalheDrawer';
 import { registerDashboardCharts } from '@/lib/charts/registerCharts';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -52,7 +53,6 @@ const C = {
   tealLight:   'rgba(42, 120, 138, 0.12)',
 };
 
-// Paleta sequencial para múltiplas séries (funis, áreas)
 const PALETTE_SEQ = [C.navy, C.green, C.gold, C.slate, C.purple, C.teal, C.red,
   'rgba(160,120,80,0.80)', 'rgba(80,130,100,0.80)', 'rgba(100,80,140,0.80)'];
 
@@ -84,13 +84,32 @@ function ChartCard({ title, subtitle, height = 220, children }: {
   );
 }
 
-function KpiCard({ value, label, color }: { value: string | number; label: string; color?: string }) {
+function KpiCard({
+  value, label, color, onClick,
+}: {
+  value: string | number;
+  label: string;
+  color?: string;
+  onClick?: () => void;
+}) {
   return (
-    <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
+    <div
+      className={`rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5 transition-colors ${onClick ? 'cursor-pointer hover:border-[color:var(--moni-navy-800)] hover:bg-[var(--moni-surface-50)]' : ''}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
+      title={onClick ? 'Clique para ver detalhes' : undefined}
+    >
       <div className={`text-3xl font-bold tabular-nums ${color ?? 'text-[color:var(--moni-text-primary)]'}`}>
         {value}
       </div>
       <div className="mt-1 text-xs text-[color:var(--moni-text-tertiary)]">{label}</div>
+      {onClick && (
+        <div className="mt-2 text-[10px] text-[color:var(--moni-text-tertiary)] opacity-60">
+          ↗ ver detalhes
+        </div>
+      )}
     </div>
   );
 }
@@ -148,16 +167,38 @@ function MesSeletor({ meses, value, onChange }: {
 
 // ─── Seção: KPIs do dia ───────────────────────────────────────────────────────
 
-function KpisSection({ data, mediaAceite }: { data: GraficosData; mediaAceite: number | null }) {
+function KpisSection({
+  data,
+  mediaAceite,
+  onDrilldown,
+}: {
+  data: GraficosData;
+  mediaAceite: number | null;
+  onDrilldown: (filtro: DrilldownFiltro) => void;
+}) {
   const diff = data.concluidosHoje - data.abriosHoje;
   const diffLabel = diff > 0 ? `+${diff} resolvidos` : diff < 0 ? `${diff} acumulados` : 'Neutro';
   const diffColor = diff > 0 ? 'text-green-700' : diff < 0 ? 'text-red-600' : 'text-amber-600';
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-      <KpiCard value={data.abriosHoje} label="Abertos hoje" />
-      <KpiCard value={data.concluidosHoje} label="Concluídos hoje" color="text-green-700" />
+      <KpiCard
+        value={data.abriosHoje}
+        label="Abertos hoje"
+        onClick={data.abriosHoje > 0 ? () => onDrilldown({ tipo: 'abertos_dia', data: new Date().toISOString().slice(0, 10) }) : undefined}
+      />
+      <KpiCard
+        value={data.concluidosHoje}
+        label="Concluídos hoje"
+        color="text-green-700"
+        onClick={data.concluidosHoje > 0 ? () => onDrilldown({ tipo: 'concluidos_dia', data: new Date().toISOString().slice(0, 10) }) : undefined}
+      />
       <KpiCard value={diffLabel} label="Saldo do dia" color={diffColor} />
-      <KpiCard value={data.totalAberto} label="Total em aberto" color={data.totalAberto > 80 ? 'text-amber-600' : undefined} />
+      <KpiCard
+        value={data.totalAberto}
+        label="Total em aberto"
+        color={data.totalAberto > 80 ? 'text-amber-600' : undefined}
+        onClick={() => onDrilldown({ tipo: 'total_aberto' })}
+      />
       <KpiCard
         value={mediaAceite !== null ? `${mediaAceite}h` : '—'}
         label="Média de aceite (h úteis)"
@@ -168,7 +209,13 @@ function KpisSection({ data, mediaAceite }: { data: GraficosData; mediaAceite: n
 
 // ─── Seção: Chamados sem aceite ───────────────────────────────────────────────
 
-function SemAceiteSection({ rows }: { rows: GraficosData['semAceite'] }) {
+function SemAceiteSection({
+  rows,
+  onDrilldown,
+}: {
+  rows: GraficosData['semAceite'];
+  onDrilldown: (filtro: DrilldownFiltro) => void;
+}) {
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const totalArquivados = rows.filter((r) => r.arquivado).length;
   const filtered = useMemo(() => {
@@ -193,6 +240,14 @@ function SemAceiteSection({ rows }: { rows: GraficosData['semAceite'] }) {
             <input type="checkbox" checked={mostrarArquivados} onChange={(e) => setMostrarArquivados(e.target.checked)} className="h-3 w-3 rounded" />
             Mostrar arquivados ({totalArquivados})
           </label>
+        )}
+        {total > 0 && (
+          <button
+            onClick={() => onDrilldown({ tipo: 'sem_aceite' })}
+            className="rounded-lg border border-[color:var(--moni-border-default)] px-3 py-1 text-[11px] font-medium text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-navy-800)] hover:text-[color:var(--moni-text-primary)]"
+          >
+            Ver detalhes ↗
+          </button>
         )}
       </div>
 
@@ -236,7 +291,12 @@ function SemAceiteSection({ rows }: { rows: GraficosData['semAceite'] }) {
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr key={r.id} className={`border-b border-[color:var(--moni-border-default)] last:border-b-0 hover:bg-[var(--moni-surface-50)] ${r.arquivado ? 'opacity-60' : ''}`}>
+                <tr
+                  key={r.id}
+                  className={`cursor-pointer border-b border-[color:var(--moni-border-default)] last:border-b-0 hover:bg-[var(--moni-surface-50)] ${r.arquivado ? 'opacity-60' : ''}`}
+                  onClick={() => window.open(`/sirene/${r.id}`, '_blank')}
+                  title="Abrir chamado"
+                >
                   <td className="px-3 py-1.5 font-mono text-[color:var(--moni-text-tertiary)]">#{String(r.numero).padStart(4, '0')}</td>
                   <td className="max-w-[200px] truncate px-3 py-1.5 text-[color:var(--moni-text-primary)]">
                     {r.arquivado && <span className="mr-1 rounded border border-amber-200 bg-amber-50 px-1 text-[9px] text-amber-700">Arq</span>}
@@ -257,7 +317,15 @@ function SemAceiteSection({ rows }: { rows: GraficosData['semAceite'] }) {
 
 // ─── Seção: Fluxo do mês ─────────────────────────────────────────────────────
 
-function FluxoSection({ data, mes }: { data: GraficosData; mes: string }) {
+function FluxoSection({
+  data,
+  mes,
+  onDrilldown,
+}: {
+  data: GraficosData;
+  mes: string;
+  onDrilldown: (filtro: DrilldownFiltro) => void;
+}) {
   const labels = data.porDia.map((d) => labelData(d.data));
 
   const barData = {
@@ -283,9 +351,26 @@ function FluxoSection({ data, mes }: { data: GraficosData; mes: string }) {
 
   const barOpts = {
     ...CHART_DEFAULTS,
+    onClick: (_: unknown, elements: { index: number; datasetIndex: number }[]) => {
+      if (!elements.length) return;
+      const { index, datasetIndex } = elements[0];
+      const dia = data.porDia[index];
+      if (!dia) return;
+      if (datasetIndex === 0 && dia.abertos > 0) {
+        onDrilldown({ tipo: 'abertos_dia', data: dia.data });
+      } else if (datasetIndex === 1 && dia.concluidos > 0) {
+        onDrilldown({ tipo: 'concluidos_dia', data: dia.data });
+      }
+    },
     plugins: {
       ...CHART_DEFAULTS.plugins,
       legend: { ...CHART_DEFAULTS.plugins.legend, position: 'bottom' as const },
+      tooltip: {
+        ...CHART_DEFAULTS.plugins.tooltip,
+        callbacks: {
+          footer: () => 'Clique para ver chamados',
+        },
+      },
     },
   };
 
@@ -307,7 +392,7 @@ function FluxoSection({ data, mes }: { data: GraficosData; mes: string }) {
         <SectionTitle>Fluxo de chamados — {mesLabel(mes)}</SectionTitle>
       </div>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <ChartCard title="Abertos e concluídos por dia" subtitle="Barras agrupadas por dia do mês" height={220}>
+        <ChartCard title="Abertos e concluídos por dia" subtitle="Clique em uma barra para ver os chamados do dia" height={220}>
           <Bar data={barData} options={barOpts} />
         </ChartCard>
         <ChartCard title="Acumulado em aberto" subtitle="Evolução do estoque de chamados não concluídos" height={220}>
@@ -439,8 +524,23 @@ function SlaSection({ data, mes }: { data: GraficosData; mes: string }) {
 
 // ─── Seção: Por funil ─────────────────────────────────────────────────────────
 
-function FunilSection({ porFunil, topEtapas }: { porFunil: GraficosData['porFunil']; topEtapas: GraficosData['topEtapas'] }) {
-  if (porFunil.length === 0) return null;
+function FunilSection({
+  porFunil,
+  topEtapas,
+  onDrilldown,
+}: {
+  porFunil: GraficosData['porFunil'];
+  topEtapas: GraficosData['topEtapas'];
+  onDrilldown: (filtro: DrilldownFiltro) => void;
+}) {
+  if (porFunil.length === 0) {
+    return (
+      <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-6 text-center text-sm text-[color:var(--moni-text-tertiary)]">
+        <div className="mb-1 font-medium">Análise por funil indisponível</div>
+        <div className="text-xs">Nenhum chamado Sirene está vinculado a cards Kanban. Para habilitar esta análise, associe chamados a atividades via kanban_atividades.</div>
+      </div>
+    );
+  }
 
   const top = porFunil.slice(0, 10);
 
@@ -473,14 +573,22 @@ function FunilSection({ porFunil, topEtapas }: { porFunil: GraficosData['porFuni
   const hBarOpts = {
     ...CHART_DEFAULTS,
     indexAxis: 'y' as const,
-    plugins: { ...CHART_DEFAULTS.plugins, legend: { ...CHART_DEFAULTS.plugins.legend, position: 'bottom' as const } },
+    onClick: (_: unknown, elements: { index: number }[]) => {
+      if (!elements.length) return;
+      const funil = top[elements[0].index];
+      if (funil) onDrilldown({ tipo: 'funil', funil_id: funil.funil_id, funil_nome: funil.funil_nome });
+    },
+    plugins: {
+      ...CHART_DEFAULTS.plugins,
+      legend: { ...CHART_DEFAULTS.plugins.legend, position: 'bottom' as const },
+      tooltip: { ...CHART_DEFAULTS.plugins.tooltip, callbacks: { footer: () => 'Clique para ver chamados' } },
+    },
     scales: {
       x: CHART_DEFAULTS.scales.x,
       y: { ticks: { font: { family: CHART_FONT, size: 10 }, color: 'rgba(44,44,42,0.6)' }, grid: { display: false } },
     },
   };
 
-  // Top etapas
   const topEtapasBar = {
     labels: topEtapas.map((e) => `${e.etapa_nome} (${e.funil_nome.replace('Funil ', '')})`),
     datasets: [
@@ -508,7 +616,6 @@ function FunilSection({ porFunil, topEtapas }: { porFunil: GraficosData['porFuni
         {totalChamados} chamados vinculados a funis via kanban · quais funis e etapas geram mais atrito
       </SectionSubtitle>
 
-      {/* Linha 1: donut + barras horizontais */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 mb-5">
         <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
           <div className="mb-2 text-sm font-semibold text-[color:var(--moni-text-primary)]">Distribuição por funil</div>
@@ -519,7 +626,7 @@ function FunilSection({ porFunil, topEtapas }: { porFunil: GraficosData['porFuni
         <div className="sm:col-span-2">
           <ChartCard
             title="Volume por funil — abertos vs concluídos"
-            subtitle="Ordenado pelo maior volume total"
+            subtitle="Clique em um funil para ver os chamados"
             height={Math.max(200, top.length * 28)}
           >
             <Bar data={hBarData} options={hBarOpts} />
@@ -527,7 +634,6 @@ function FunilSection({ porFunil, topEtapas }: { porFunil: GraficosData['porFuni
         </div>
       </div>
 
-      {/* Top etapas */}
       {topEtapas.length > 0 && (
         <div className="mb-5">
           <ChartCard
@@ -556,7 +662,12 @@ function FunilSection({ porFunil, topEtapas }: { porFunil: GraficosData['porFuni
             {porFunil.map((f) => {
               const pctResolvido = f.total > 0 ? Math.round((f.concluidos / f.total) * 100) : 0;
               return (
-                <tr key={f.funil_id} className="border-b border-[color:var(--moni-border-default)] last:border-b-0 hover:bg-[var(--moni-surface-50)]">
+                <tr
+                  key={f.funil_id}
+                  className="cursor-pointer border-b border-[color:var(--moni-border-default)] last:border-b-0 hover:bg-[var(--moni-surface-50)]"
+                  onClick={() => onDrilldown({ tipo: 'funil', funil_id: f.funil_id, funil_nome: f.funil_nome })}
+                  title="Ver chamados deste funil"
+                >
                   <td className="px-3 py-2 font-medium text-[color:var(--moni-text-primary)]">{f.funil_nome}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-[color:var(--moni-text-secondary)]">{f.total}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-semibold text-amber-700">{f.abertos}</td>
@@ -576,8 +687,22 @@ function FunilSection({ porFunil, topEtapas }: { porFunil: GraficosData['porFuni
 
 // ─── Seção: Por área ──────────────────────────────────────────────────────────
 
-function AreaSection({ porArea }: { porArea: GraficosData['porArea'] }) {
-  if (porArea.length === 0) return null;
+function AreaSection({
+  porArea,
+  onDrilldown,
+}: {
+  porArea: GraficosData['porArea'];
+  onDrilldown: (filtro: DrilldownFiltro) => void;
+}) {
+  // Oculta a seção se não houver dados reais (apenas "Sem área")
+  if (porArea.length === 0) {
+    return (
+      <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-6 text-center text-sm text-[color:var(--moni-text-tertiary)]">
+        <div className="mb-1 font-medium">Análise por área indisponível</div>
+        <div className="text-xs">O campo <code>time_responsavel</code> não está preenchido nos tópicos. Configure as áreas nos chamados para habilitar esta análise.</div>
+      </div>
+    );
+  }
 
   const top = porArea.slice(0, 10);
 
@@ -611,7 +736,16 @@ function AreaSection({ porArea }: { porArea: GraficosData['porArea'] }) {
   const hBarOpts = {
     ...CHART_DEFAULTS,
     indexAxis: 'y' as const,
-    plugins: { ...CHART_DEFAULTS.plugins, legend: { ...CHART_DEFAULTS.plugins.legend, position: 'bottom' as const } },
+    onClick: (_: unknown, elements: { index: number }[]) => {
+      if (!elements.length) return;
+      const area = top[elements[0].index];
+      if (area) onDrilldown({ tipo: 'area', time: area.time });
+    },
+    plugins: {
+      ...CHART_DEFAULTS.plugins,
+      legend: { ...CHART_DEFAULTS.plugins.legend, position: 'bottom' as const },
+      tooltip: { ...CHART_DEFAULTS.plugins.tooltip, callbacks: { footer: () => 'Clique para ver tópicos' } },
+    },
     scales: {
       x: { ...CHART_DEFAULTS.scales.x, stacked: true },
       y: { ticks: { font: { family: CHART_FONT, size: 10 }, color: 'rgba(44,44,42,0.6)' }, grid: { display: false }, stacked: true },
@@ -622,8 +756,8 @@ function AreaSection({ porArea }: { porArea: GraficosData['porArea'] }) {
     <div>
       <SectionTitle>Análise por área</SectionTitle>
       <SectionSubtitle>
-        Agrupado pelo campo <strong>time</strong> do perfil — mesmo critério do Boné Day.
-        Métricas sobre tópicos (atividades) atribuídos a cada área.
+        Agrupado pelo campo <strong>time_responsavel</strong> do tópico — mesmo critério do Boné Day.
+        Métricas sobre tópicos atribuídos a cada área. Clique em uma linha ou barra para ver os tópicos.
       </SectionSubtitle>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 mb-5">
@@ -636,7 +770,7 @@ function AreaSection({ porArea }: { porArea: GraficosData['porArea'] }) {
         <div className="sm:col-span-2">
           <ChartCard
             title="SLA por área — dentro / fora / pendente"
-            subtitle="Tópicos atribuídos a cada time"
+            subtitle="Clique em uma área para ver os tópicos"
             height={Math.max(200, top.length * 32)}
           >
             <Bar data={hBarData} options={hBarOpts} />
@@ -661,7 +795,12 @@ function AreaSection({ porArea }: { porArea: GraficosData['porArea'] }) {
           </thead>
           <tbody>
             {porArea.map((a) => (
-              <tr key={a.time} className="border-b border-[color:var(--moni-border-default)] last:border-b-0 hover:bg-[var(--moni-surface-50)]">
+              <tr
+                key={a.time}
+                className="cursor-pointer border-b border-[color:var(--moni-border-default)] last:border-b-0 hover:bg-[var(--moni-surface-50)]"
+                onClick={() => onDrilldown({ tipo: 'area', time: a.time })}
+                title="Ver tópicos desta área"
+              >
                 <td className="px-3 py-2 font-medium text-[color:var(--moni-text-primary)]">{a.time}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-[color:var(--moni-text-secondary)]">{a.total}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-green-700">{a.dentro}</td>
@@ -687,12 +826,18 @@ function AreaSection({ porArea }: { porArea: GraficosData['porArea'] }) {
 
 // ─── Seção: Responsáveis ──────────────────────────────────────────────────────
 
-function ResponsaveisSection({ slaResponsaveis }: { slaResponsaveis: GraficosData['slaResponsaveis'] }) {
+function ResponsaveisSection({
+  slaResponsaveis,
+  onDrilldown,
+}: {
+  slaResponsaveis: GraficosData['slaResponsaveis'];
+  onDrilldown: (filtro: DrilldownFiltro) => void;
+}) {
   if (slaResponsaveis.length === 0) return null;
   return (
     <div>
       <SectionTitle>Desempenho por responsável</SectionTitle>
-      <SectionSubtitle>Todos os tópicos não arquivados · ordenado por total de atribuições</SectionSubtitle>
+      <SectionSubtitle>Todos os tópicos não arquivados · clique em uma linha para ver os tópicos da pessoa</SectionSubtitle>
       <div className="overflow-x-auto rounded-xl border border-[color:var(--moni-border-default)]">
         <table className="w-full text-[11px]">
           <thead>
@@ -715,7 +860,12 @@ function ResponsaveisSection({ slaResponsaveis }: { slaResponsaveis: GraficosDat
                 ? (pct >= 80 ? C.green : pct >= 60 ? C.gold : C.red)
                 : 'rgba(0,0,0,0.1)';
               return (
-                <tr key={r.responsavel_id} className="border-b border-[color:var(--moni-border-default)] last:border-b-0 hover:bg-[var(--moni-surface-50)]">
+                <tr
+                  key={r.responsavel_id}
+                  className="cursor-pointer border-b border-[color:var(--moni-border-default)] last:border-b-0 hover:bg-[var(--moni-surface-50)]"
+                  onClick={() => onDrilldown({ tipo: 'responsavel', responsavel_id: r.responsavel_id, nome: r.nome })}
+                  title="Ver tópicos desta pessoa"
+                >
                   <td className="px-3 py-2 font-medium text-[color:var(--moni-text-primary)]">{r.nome}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-[color:var(--moni-text-secondary)]">{r.total}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-green-700">{r.dentro}</td>
@@ -752,6 +902,9 @@ export function GraficosConteudo({
   const [isPending, startTransition] = useTransition();
   const [chartsReady, setChartsReady] = useState(false);
 
+  // Estado do drawer de detalhamento
+  const [drawer, setDrawer] = useState<DrawerState>({ open: false });
+
   useEffect(() => {
     registerDashboardCharts();
     setChartsReady(true);
@@ -765,70 +918,99 @@ export function GraficosConteudo({
     });
   }
 
+  // Abre o drawer com um filtro específico
+  const openDrilldown = useCallback((filtro: DrilldownFiltro) => {
+    setDrawer({ open: true, filtro, data: null, loading: true });
+  }, []);
+
+  // Recebe os dados carregados pelo drawer
+  const onDrawerLoad = useCallback((loaded: DrilldownData) => {
+    setDrawer((prev) => prev.open ? { ...prev, data: loaded, loading: false } : prev);
+  }, []);
+
+  const closeDrawer = useCallback(() => {
+    setDrawer({ open: false });
+  }, []);
+
   return (
-    <div className={`mx-auto w-full min-w-0 max-w-[1200px] space-y-8 px-6 py-8 transition-opacity ${isPending ? 'pointer-events-none opacity-60' : ''}`}>
+    <>
+      <div className={`mx-auto w-full min-w-0 max-w-[1200px] space-y-8 px-6 py-8 transition-opacity ${isPending ? 'pointer-events-none opacity-60' : ''}`}>
 
-      {/* Cabeçalho */}
-      <div className="flex flex-wrap items-end gap-4">
+        {/* Cabeçalho */}
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-[color:var(--moni-text-primary)]">Gráficos</h1>
+            <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">Visão executiva dos chamados Sirene. Clique em qualquer número para ver os registros.</p>
+          </div>
+          <div className="flex-1" />
+          <MesSeletor meses={data.mesesDisponiveis} value={mesSelecionado} onChange={onMesChange} />
+        </div>
+
+        {/* KPIs do dia */}
         <div>
-          <h1 className="text-2xl font-bold text-[color:var(--moni-text-primary)]">Gráficos</h1>
-          <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">Visão executiva dos chamados Sirene.</p>
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-[color:var(--moni-text-tertiary)]">
+            Hoje — {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}
+          </p>
+          <KpisSection data={data} mediaAceite={data.mediaAceiteHoras} onDrilldown={openDrilldown} />
         </div>
-        <div className="flex-1" />
-        <MesSeletor meses={data.mesesDisponiveis} value={mesSelecionado} onChange={onMesChange} />
-      </div>
 
-      {/* KPIs do dia */}
-      <div>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-[color:var(--moni-text-tertiary)]">
-          Hoje — {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}
+        {/* Sem aceite */}
+        <SemAceiteSection rows={data.semAceite} onDrilldown={openDrilldown} />
+
+        {/* Separador */}
+        <div className="border-t border-[color:var(--moni-border-default)]" />
+
+        {/* Fluxo do mês + SLA — só renderiza após Chart.js registrado */}
+        {chartsReady ? (
+          <>
+            <FluxoSection data={data} mes={mesSelecionado} onDrilldown={openDrilldown} />
+            <SlaSection data={data} mes={mesSelecionado} />
+          </>
+        ) : (
+          <div className="space-y-5">
+            <div className="h-64 animate-pulse rounded-xl bg-[var(--moni-surface-100)]" />
+            <div className="h-64 animate-pulse rounded-xl bg-[var(--moni-surface-100)]" />
+          </div>
+        )}
+
+        {/* Separador */}
+        <div className="border-t border-[color:var(--moni-border-default)]" />
+
+        {/* Por funil */}
+        {chartsReady && (
+          <FunilSection porFunil={data.porFunil} topEtapas={data.topEtapas} onDrilldown={openDrilldown} />
+        )}
+
+        {/* Separador */}
+        {chartsReady && data.porFunil.length > 0 && (
+          <div className="border-t border-[color:var(--moni-border-default)]" />
+        )}
+
+        {/* Por área */}
+        {chartsReady && (
+          <AreaSection porArea={data.porArea} onDrilldown={openDrilldown} />
+        )}
+
+        {/* Separador */}
+        {data.porArea.length > 0 && <div className="border-t border-[color:var(--moni-border-default)]" />}
+
+        {/* Responsáveis */}
+        <ResponsaveisSection slaResponsaveis={data.slaResponsaveis} onDrilldown={openDrilldown} />
+
+        {/* Rodapé */}
+        <p className="pb-4 text-[11px] text-[color:var(--moni-text-tertiary)]">
+          SLA calculado sobre tópicos com atribuição registrada · aceite sem timestamp conta como dentro do prazo ·
+          finais de semana e feriados excluídos ·
+          Área via time_responsavel do tópico · Funil via kanban_atividades → kanban_cards → kanbans
         </p>
-        <KpisSection data={data} mediaAceite={data.mediaAceiteHoras} />
       </div>
 
-      {/* Sem aceite */}
-      <SemAceiteSection rows={data.semAceite} />
-
-      {/* Separador */}
-      <div className="border-t border-[color:var(--moni-border-default)]" />
-
-      {/* Fluxo do mês + SLA — só renderiza após Chart.js registrado */}
-      {chartsReady ? (
-        <>
-          <FluxoSection data={data} mes={mesSelecionado} />
-          <SlaSection data={data} mes={mesSelecionado} />
-        </>
-      ) : (
-        <div className="space-y-5">
-          <div className="h-64 animate-pulse rounded-xl bg-[var(--moni-surface-100)]" />
-          <div className="h-64 animate-pulse rounded-xl bg-[var(--moni-surface-100)]" />
-        </div>
-      )}
-
-      {/* Separador */}
-      <div className="border-t border-[color:var(--moni-border-default)]" />
-
-      {/* Por funil */}
-      {chartsReady && <FunilSection porFunil={data.porFunil} topEtapas={data.topEtapas} />}
-
-      {/* Separador */}
-      {chartsReady && data.porFunil.length > 0 && <div className="border-t border-[color:var(--moni-border-default)]" />}
-
-      {/* Por área */}
-      {chartsReady && <AreaSection porArea={data.porArea} />}
-
-      {/* Separador */}
-      {data.porArea.length > 0 && <div className="border-t border-[color:var(--moni-border-default)]" />}
-
-      {/* Responsáveis */}
-      <ResponsaveisSection slaResponsaveis={data.slaResponsaveis} />
-
-      {/* Rodapé */}
-      <p className="pb-4 text-[11px] text-[color:var(--moni-text-tertiary)]">
-        SLA calculado sobre tópicos com atribuição registrada · finais de semana e feriados excluídos ·
-        Funil/etapa via kanban_atividades → kanban_cards → kanbans ·
-        Área via profiles.time (mesmo critério do Boné Day)
-      </p>
-    </div>
+      {/* Drawer de detalhamento */}
+      <DetalheDrawer
+        state={drawer}
+        onClose={closeDrawer}
+        onLoad={onDrawerLoad}
+      />
+    </>
   );
 }
