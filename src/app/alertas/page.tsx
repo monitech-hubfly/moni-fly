@@ -241,7 +241,11 @@ export default async function AlertasPage({
             </Link>
           </div>
           {naoLidasNaVisao > 0 && (
-            <MarcarTodosLidoButton categoriaAtiva={String(categoriaAtiva)} />
+            <MarcarTodosLidoButton
+                categoriaAtiva={String(categoriaAtiva)}
+                prioridadeAtiva="todas"
+                contagemNaoLidas={{ critico: 0, importante: 0, informativo: naoLidasNaVisao, total: naoLidasNaVisao }}
+              />
           )}
         </div>
 
