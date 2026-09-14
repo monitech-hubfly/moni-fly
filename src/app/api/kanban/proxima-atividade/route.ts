@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
+import { salvarProximaAtividade } from '@/lib/actions/card-actions';
 import {
   adicionarProximaAtividadeItem,
   buscarAtividadesAbertasCard,
   concluirProximaAtividadeItem,
-  salvarProximaAtividade,
-} from '@/lib/actions/card-actions';
+} from '@/lib/actions/kanban-proximas-atividades';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
