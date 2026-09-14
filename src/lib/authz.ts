@@ -19,6 +19,15 @@ export function normalizeAccessRole(role: string | null | undefined): AccessRole
   return 'pending';
 }
 
+/**
+ * Cookie `moni_profile_cache`: pending/blocked não devem ser confiados sem reler o banco
+ * (ex.: promoção a admin no DEV). Admin/team/frank seguem o cache de 5 min.
+ */
+export function profileCacheRoleNeedsRefresh(role: string | null | undefined): boolean {
+  const access = normalizeAccessRole(role);
+  return access === 'pending' || access === 'blocked';
+}
+
 export function isAdminRole(role: string | null | undefined): boolean {
   return normalizeAccessRole(role) === 'admin';
 }
