@@ -15,7 +15,6 @@ const FERIADOS_NACIONAIS_MMDD = new Set([
   '12-25', // Natal
 ]);
 
-// Feriados móveis (Carnaval, Sexta-feira Santa, Corpus Christi) por ano
 const FERIADOS_MOVEIS: Record<number, string[]> = {
   2025: ['2025-03-04', '2025-03-05', '2025-04-18', '2025-06-19'],
   2026: ['2026-02-17', '2026-02-18', '2026-04-03', '2026-06-04'],
@@ -27,8 +26,7 @@ function isFeriado(d: Date): boolean {
   if (FERIADOS_NACIONAIS_MMDD.has(mmdd)) return true;
   const iso = d.toISOString().slice(0, 10);
   const year = d.getFullYear();
-  const moveis = FERIADOS_MOVEIS[year] ?? [];
-  return moveis.includes(iso);
+  return (FERIADOS_MOVEIS[year] ?? []).includes(iso);
 }
 
 function isDiaUtil(d: Date): boolean {
@@ -37,7 +35,7 @@ function isDiaUtil(d: Date): boolean {
   return !isFeriado(d);
 }
 
-/** Horas úteis entre duas datas (exclui fins de semana e feriados nacionais). */
+/** Horas úteis entre duas datas */
 function horasUteis(inicio: Date, fim: Date): number {
   if (fim <= inicio) return 0;
   let horas = 0;
@@ -47,6 +45,19 @@ function horasUteis(inicio: Date, fim: Date): number {
     cur.setHours(cur.getHours() + 1);
   }
   return horas;
+}
+
+function diasUteisDe(inicio: Date, fim: Date): number {
+  let count = 0;
+  const d = new Date(inicio);
+  d.setHours(0, 0, 0, 0);
+  const end = new Date(fim);
+  end.setHours(0, 0, 0, 0);
+  while (d < end) {
+    if (isDiaUtil(d)) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
 }
 
 function isoDate(d: Date): string {
@@ -74,9 +85,9 @@ export type GraficoDiaRow = {
 
 export type SlaTopicoDiaRow = {
   data: string;
-  dentro: number;   // aceitos em ≤ 24h úteis
-  fora: number;     // aceitos em > 24h úteis ou ainda pendentes
-  pct: number;      // % dentro (0–100)
+  dentro: number;
+  fora: number;
+  pct: number;
 };
 
 export type SlaResponsavelRow = {
@@ -86,7 +97,32 @@ export type SlaResponsavelRow = {
   dentro: number;
   fora: number;
   pendente: number;
-  media_horas: number | null; // média de horas úteis dos aceitos
+  media_horas: number | null;
+};
+
+export type AreaRow = {
+  time: string;
+  total: number;
+  dentro: number;
+  fora: number;
+  pendente: number;
+  media_horas: number | null;
+  sla_pct: number | null;
+};
+
+export type FunilRow = {
+  funil_id: string;
+  funil_nome: string;
+  total: number;
+  abertos: number;
+  concluidos: number;
+};
+
+export type EtapaRow = {
+  etapa_nome: string;
+  funil_nome: string;
+  total: number;
+  abertos: number;
 };
 
 export type GraficosData = {
@@ -94,10 +130,13 @@ export type GraficosData = {
   porDia: GraficoDiaRow[];
   slaPorDia: SlaTopicoDiaRow[];
   slaResponsaveis: SlaResponsavelRow[];
+  porArea: AreaRow[];
+  porFunil: FunilRow[];
+  topEtapas: EtapaRow[];
   totalAberto: number;
   abriosHoje: number;
   concluidosHoje: number;
-  // meses disponíveis para filtro (YYYY-MM)
+  mediaAceiteHoras: number | null;
   mesesDisponiveis: string[];
 };
 
@@ -111,7 +150,6 @@ export async function buscarDadosGraficos(mes?: string): Promise<
     const hoje = new Date();
     hoje.setHours(23, 59, 59, 999);
 
-    // Mês selecionado (default = mês atual)
     const mesAtual = mes ?? hoje.toISOString().slice(0, 7);
     const [anoStr, mesStr] = mesAtual.split('-');
     const ano = Number(anoStr);
@@ -120,7 +158,7 @@ export async function buscarDadosGraficos(mes?: string): Promise<
     const fimMes = new Date(ano, mesNum + 1, 0, 23, 59, 59, 999);
     const fimMesEfetivo = fimMes < hoje ? fimMes : hoje;
 
-    // ── 1. Chamados sem aceite (nao_iniciado) ────────────────────────────────
+    // ── 1. Chamados sem aceite ────────────────────────────────────────────────
     const { data: semAceiteRows, error: e1 } = await admin
       .from('sirene_chamados')
       .select('id, numero, incendio, tema, created_at, aberto_por, arquivado')
@@ -130,7 +168,6 @@ export async function buscarDadosGraficos(mes?: string): Promise<
 
     const now = new Date();
 
-    // resolve nomes dos abridores
     const abrIds = [...new Set(
       (semAceiteRows ?? [])
         .map((r) => (r as { aberto_por?: string | null }).aberto_por)
@@ -143,20 +180,6 @@ export async function buscarDadosGraficos(mes?: string): Promise<
         const pr = p as { id: string; full_name?: string | null };
         if (pr.full_name) nomeById.set(pr.id, pr.full_name);
       }
-    }
-
-    // dias úteis de espera para cada chamado sem aceite
-    function diasUteisDe(inicio: Date, fim: Date): number {
-      let count = 0;
-      const d = new Date(inicio);
-      d.setHours(0, 0, 0, 0);
-      const end = new Date(fim);
-      end.setHours(0, 0, 0, 0);
-      while (d < end) {
-        if (isDiaUtil(d)) count++;
-        d.setDate(d.getDate() + 1);
-      }
-      return count;
     }
 
     const semAceite: ChamadoSemAceiteRow[] = (semAceiteRows ?? []).map((r) => {
@@ -172,7 +195,7 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       };
     });
 
-    // ── 2. Chamados abertos/concluídos no mês selecionado ────────────────────
+    // ── 2. Chamados abertos/concluídos no mês ────────────────────────────────
     const { data: abertosRows, error: e2 } = await admin
       .from('sirene_chamados')
       .select('id, created_at, status, data_conclusao')
@@ -202,7 +225,6 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       concluidosPorDia.set(d, (concluidosPorDia.get(d) ?? 0) + 1);
     }
 
-    // acumulado antes do inicio do mês
     const { count: acumuladoBase } = await admin
       .from('sirene_chamados')
       .select('id', { count: 'exact', head: true })
@@ -219,7 +241,7 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       porDia.push({ data: ds, abertos, concluidos, acumulado: Math.max(0, acumulado) });
     }
 
-    // ── 3. SLA de aceite de tópicos (sirene_topicos) no mês ─────────────────
+    // ── 3. SLA de tópicos no mês ─────────────────────────────────────────────
     const { data: topicosRows, error: e4 } = await admin
       .from('sirene_topicos')
       .select('id, created_at, atribuicao_aceito_em, atribuicao_status, responsavel_id, arquivado')
@@ -228,7 +250,6 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       .eq('arquivado', false);
     if (e4) return { ok: false, error: e4.message };
 
-    // Mapa dia → { dentro, fora }
     const slaDia = new Map<string, { dentro: number; fora: number }>();
     for (const r of topicosRows ?? []) {
       const tr = r as { id: number; created_at: string; atribuicao_aceito_em?: string | null; atribuicao_status?: string | null; responsavel_id?: string | null };
@@ -239,10 +260,8 @@ export async function buscarDadosGraficos(mes?: string): Promise<
         if (h <= 24) slot.dentro++;
         else slot.fora++;
       } else if (tr.atribuicao_status === 'pendente_aceite') {
-        // ainda sem aceite — conta como fora se já passou 24h úteis
         const hEspera = horasUteis(new Date(tr.created_at), now);
         if (hEspera > 24) slot.fora++;
-        // se < 24h ainda dentro do prazo: não conta (pendente legítimo)
       }
       slaDia.set(ds, slot);
     }
@@ -258,7 +277,7 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       };
     });
 
-    // ── 4. SLA por responsável (todos os tópicos não arquivados) ─────────────
+    // ── 4. SLA por responsável + área (todos os tópicos não arquivados) ───────
     const { data: todosTopicos, error: e5 } = await admin
       .from('sirene_topicos')
       .select('id, created_at, atribuicao_aceito_em, atribuicao_status, responsavel_id')
@@ -287,14 +306,19 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       respMap.set(rid, slot);
     }
 
-    // resolve nomes dos responsáveis
+    // Resolve nomes e time dos responsáveis (time = área do Boné Day)
     const respIds = [...respMap.keys()];
     const respNomeById = new Map<string, string>();
+    const respTimeById = new Map<string, string>();
     if (respIds.length > 0) {
-      const { data: profs2 } = await admin.from('profiles').select('id, full_name').in('id', respIds);
+      const { data: profs2 } = await admin
+        .from('profiles')
+        .select('id, full_name, time')
+        .in('id', respIds);
       for (const p of profs2 ?? []) {
-        const pr = p as { id: string; full_name?: string | null };
+        const pr = p as { id: string; full_name?: string | null; time?: string | null };
         respNomeById.set(pr.id, pr.full_name ?? pr.id.slice(0, 8));
+        if (pr.time) respTimeById.set(pr.id, pr.time);
       }
     }
 
@@ -313,7 +337,192 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       .filter((r) => r.total >= 1)
       .sort((a, b) => b.total - a.total);
 
-    // ── 5. KPIs de hoje ──────────────────────────────────────────────────────
+    // Média global de aceite
+    const todasHoras = [...respMap.values()].flatMap((s) => s.horasAceitos);
+    const mediaAceiteHoras = todasHoras.length > 0
+      ? Math.round((todasHoras.reduce((a, b) => a + b, 0) / todasHoras.length) * 10) / 10
+      : null;
+
+    // ── 5. Por área (agrupa respMap por profiles.time) ────────────────────────
+    const areaMap = new Map<string, { total: number; dentro: number; fora: number; pendente: number; horasAceitos: number[] }>();
+    for (const [rid, s] of respMap.entries()) {
+      const time = respTimeById.get(rid) ?? 'Sem área';
+      const slot = areaMap.get(time) ?? { total: 0, dentro: 0, fora: 0, pendente: 0, horasAceitos: [] };
+      slot.total += s.total;
+      slot.dentro += s.dentro;
+      slot.fora += s.fora;
+      slot.pendente += s.pendente;
+      slot.horasAceitos.push(...s.horasAceitos);
+      areaMap.set(time, slot);
+    }
+
+    const porArea: AreaRow[] = [...areaMap.entries()]
+      .map(([time, s]) => {
+        const aceitos = s.dentro + s.fora;
+        return {
+          time,
+          total: s.total,
+          dentro: s.dentro,
+          fora: s.fora,
+          pendente: s.pendente,
+          media_horas: s.horasAceitos.length > 0
+            ? Math.round(s.horasAceitos.reduce((a, b) => a + b, 0) / s.horasAceitos.length)
+            : null,
+          sla_pct: aceitos > 0 ? Math.round((s.dentro / aceitos) * 100) : null,
+        };
+      })
+      .filter((r) => r.total >= 1)
+      .sort((a, b) => b.total - a.total);
+
+    // ── 6. Por funil e etapa (via kanban_atividades) ──────────────────────────
+    // Busca atividades com vínculo a chamados Sirene
+    const { data: atividadesChamados, error: e6 } = await admin
+      .from('kanban_atividades')
+      .select('sirene_chamado_id, card_id')
+      .not('sirene_chamado_id', 'is', null)
+      .not('card_id', 'is', null);
+    if (e6) return { ok: false, error: e6.message };
+
+    const porFunil: FunilRow[] = [];
+    const topEtapas: EtapaRow[] = [];
+
+    if ((atividadesChamados ?? []).length > 0) {
+      // Mapa: sirene_chamado_id → card_ids (um chamado pode ter múltiplas atividades)
+      const chamadoCardMap = new Map<number, Set<string>>();
+      for (const r of atividadesChamados ?? []) {
+        const ar = r as { sirene_chamado_id: number; card_id: string };
+        if (!chamadoCardMap.has(ar.sirene_chamado_id)) {
+          chamadoCardMap.set(ar.sirene_chamado_id, new Set());
+        }
+        chamadoCardMap.get(ar.sirene_chamado_id)!.add(ar.card_id);
+      }
+
+      // Busca cards únicos
+      const uniqueCardIds = [...new Set((atividadesChamados ?? []).map((r) => (r as { card_id: string }).card_id))];
+      const BATCH = 400;
+      const cardRows: { id: string; kanban_id: string; fase_id: string | null }[] = [];
+      for (let i = 0; i < uniqueCardIds.length; i += BATCH) {
+        const { data: batch } = await admin
+          .from('kanban_cards')
+          .select('id, kanban_id, fase_id')
+          .in('id', uniqueCardIds.slice(i, i + BATCH));
+        for (const c of batch ?? []) {
+          cardRows.push(c as { id: string; kanban_id: string; fase_id: string | null });
+        }
+      }
+
+      const cardInfoById = new Map(cardRows.map((c) => [c.id, c]));
+
+      // Resolve nomes de kanbans
+      const kanbanIds = [...new Set(cardRows.map((c) => c.kanban_id).filter(Boolean))];
+      const kanbanNomeById = new Map<string, string>();
+      if (kanbanIds.length > 0) {
+        const { data: kanbansData } = await admin
+          .from('kanbans')
+          .select('id, nome')
+          .in('id', kanbanIds);
+        for (const k of kanbansData ?? []) {
+          const kr = k as { id: string; nome: string };
+          kanbanNomeById.set(kr.id, kr.nome);
+        }
+      }
+
+      // Resolve nomes de fases
+      const faseIds = [...new Set(cardRows.map((c) => c.fase_id).filter((f): f is string => f != null))];
+      const faseNomeById = new Map<string, string>();
+      const faseKanbanById = new Map<string, string>();
+      if (faseIds.length > 0) {
+        const { data: fasesData } = await admin
+          .from('kanban_fases')
+          .select('id, nome, kanban_id')
+          .in('id', faseIds);
+        for (const f of fasesData ?? []) {
+          const fr = f as { id: string; nome: string; kanban_id: string };
+          faseNomeById.set(fr.id, fr.nome);
+          faseKanbanById.set(fr.id, fr.kanban_id);
+        }
+      }
+
+      // Status dos chamados (para saber se está aberto ou concluído)
+      const allChamadoIds = [...chamadoCardMap.keys()];
+      const chamadoStatusMap = new Map<number, string>();
+      for (let i = 0; i < allChamadoIds.length; i += BATCH) {
+        const { data: statusBatch } = await admin
+          .from('sirene_chamados')
+          .select('id, status')
+          .in('id', allChamadoIds.slice(i, i + BATCH));
+        for (const s of statusBatch ?? []) {
+          const sr = s as { id: number; status: string };
+          chamadoStatusMap.set(sr.id, sr.status);
+        }
+      }
+
+      // Agrupa por funil
+      const funilMap = new Map<string, { nome: string; total: Set<number>; abertos: Set<number>; concluidos: Set<number> }>();
+      // Agrupa por etapa
+      const etapaMap = new Map<string, { etapa_nome: string; funil_nome: string; total: Set<number>; abertos: Set<number> }>();
+
+      for (const [chamadoId, cardIds] of chamadoCardMap.entries()) {
+        const status = chamadoStatusMap.get(chamadoId) ?? 'nao_iniciado';
+        const isConcluido = status === 'concluido';
+
+        for (const cardId of cardIds) {
+          const card = cardInfoById.get(cardId);
+          if (!card) continue;
+
+          const kanbanId = card.kanban_id;
+          const faseId = card.fase_id;
+          const funilNome = kanbanNomeById.get(kanbanId) ?? 'Sem funil';
+
+          // Funil
+          if (!funilMap.has(kanbanId)) {
+            funilMap.set(kanbanId, { nome: funilNome, total: new Set(), abertos: new Set(), concluidos: new Set() });
+          }
+          const fSlot = funilMap.get(kanbanId)!;
+          fSlot.total.add(chamadoId);
+          if (isConcluido) fSlot.concluidos.add(chamadoId);
+          else fSlot.abertos.add(chamadoId);
+
+          // Etapa (fase atual do card)
+          if (faseId) {
+            const etapaNome = faseNomeById.get(faseId) ?? 'Fase desconhecida';
+            const etapaKey = `${kanbanId}::${faseId}`;
+            if (!etapaMap.has(etapaKey)) {
+              etapaMap.set(etapaKey, { etapa_nome: etapaNome, funil_nome: funilNome, total: new Set(), abertos: new Set() });
+            }
+            const eSlot = etapaMap.get(etapaKey)!;
+            eSlot.total.add(chamadoId);
+            if (!isConcluido) eSlot.abertos.add(chamadoId);
+          }
+        }
+      }
+
+      porFunil.push(
+        ...([...funilMap.entries()]
+          .map(([id, s]) => ({
+            funil_id: id,
+            funil_nome: s.nome,
+            total: s.total.size,
+            abertos: s.abertos.size,
+            concluidos: s.concluidos.size,
+          }))
+          .sort((a, b) => b.total - a.total))
+      );
+
+      topEtapas.push(
+        ...([...etapaMap.values()]
+          .map((s) => ({
+            etapa_nome: s.etapa_nome,
+            funil_nome: s.funil_nome,
+            total: s.total.size,
+            abertos: s.abertos.size,
+          }))
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 12))
+      );
+    }
+
+    // ── 7. KPIs de hoje ──────────────────────────────────────────────────────
     const hojeStr = isoDate(new Date());
     const totalAberto = (await admin
       .from('sirene_chamados')
@@ -324,7 +533,7 @@ export async function buscarDadosGraficos(mes?: string): Promise<
     const abriosHoje = abertosPorDia.get(hojeStr) ?? 0;
     const concluidosHoje = concluidosPorDia.get(hojeStr) ?? 0;
 
-    // ── 6. Meses disponíveis ─────────────────────────────────────────────────
+    // ── 8. Meses disponíveis ─────────────────────────────────────────────────
     const { data: primeiroRow } = await admin
       .from('sirene_chamados')
       .select('created_at')
@@ -349,9 +558,13 @@ export async function buscarDadosGraficos(mes?: string): Promise<
         porDia,
         slaPorDia,
         slaResponsaveis,
+        porArea,
+        porFunil,
+        topEtapas,
         totalAberto,
         abriosHoje,
         concluidosHoje,
+        mediaAceiteHoras,
         mesesDisponiveis,
       },
     };
