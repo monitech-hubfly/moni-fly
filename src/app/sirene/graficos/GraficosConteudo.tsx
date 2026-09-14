@@ -750,9 +750,11 @@ export function GraficosConteudo({
   const [data, setData] = useState<GraficosData>(initialData);
   const [mesSelecionado, setMesSelecionado] = useState(initialMes);
   const [isPending, startTransition] = useTransition();
+  const [chartsReady, setChartsReady] = useState(false);
 
   useEffect(() => {
     registerDashboardCharts();
+    setChartsReady(true);
   }, []);
 
   function onMesChange(m: string) {
@@ -790,23 +792,30 @@ export function GraficosConteudo({
       {/* Separador */}
       <div className="border-t border-[color:var(--moni-border-default)]" />
 
-      {/* Fluxo do mês */}
-      <FluxoSection data={data} mes={mesSelecionado} />
-
-      {/* SLA */}
-      <SlaSection data={data} mes={mesSelecionado} />
+      {/* Fluxo do mês + SLA — só renderiza após Chart.js registrado */}
+      {chartsReady ? (
+        <>
+          <FluxoSection data={data} mes={mesSelecionado} />
+          <SlaSection data={data} mes={mesSelecionado} />
+        </>
+      ) : (
+        <div className="space-y-5">
+          <div className="h-64 animate-pulse rounded-xl bg-[var(--moni-surface-100)]" />
+          <div className="h-64 animate-pulse rounded-xl bg-[var(--moni-surface-100)]" />
+        </div>
+      )}
 
       {/* Separador */}
       <div className="border-t border-[color:var(--moni-border-default)]" />
 
       {/* Por funil */}
-      <FunilSection porFunil={data.porFunil} topEtapas={data.topEtapas} />
+      {chartsReady && <FunilSection porFunil={data.porFunil} topEtapas={data.topEtapas} />}
 
       {/* Separador */}
-      {data.porFunil.length > 0 && <div className="border-t border-[color:var(--moni-border-default)]" />}
+      {chartsReady && data.porFunil.length > 0 && <div className="border-t border-[color:var(--moni-border-default)]" />}
 
       {/* Por área */}
-      <AreaSection porArea={data.porArea} />
+      {chartsReady && <AreaSection porArea={data.porArea} />}
 
       {/* Separador */}
       {data.porArea.length > 0 && <div className="border-t border-[color:var(--moni-border-default)]" />}
