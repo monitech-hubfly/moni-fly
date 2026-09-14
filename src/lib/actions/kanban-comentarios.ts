@@ -362,6 +362,8 @@ export async function publicarComentarioKanbanCard(input: {
 
   const adminDb = await dbParaMencoes(supabase);
 
+  const adminDb = await dbParaMencoes(supabase);
+
   // Alertas por @menção
   for (const uid of mencionadosSemAutor) {
     await adminDb.from('alertas').insert({

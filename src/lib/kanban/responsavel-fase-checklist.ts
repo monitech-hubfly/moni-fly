@@ -103,10 +103,20 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>
   // Step One: responsável do card = franqueado da rede (não owner Moní fixo).
 };
 
-/** E-mail do responsável padrão por slug de fase (prioridade sobre o mapa por kanban). */
+/** E-mail do responsável padrão por slug de fase (prioridade sobre o mapa por kanban).
+ * String vazia = sem responsável padrão (não herda o owner do funil). */
 export const EMAIL_RESPONSAVEL_PADRAO_POR_FASE_SLUG: Partial<Record<string, string>> = {
   novo_acoplamento: 'elisabete.nucci@moni.casa',
   alteracoes_acoplamento: 'elisabete.nucci@moni.casa',
+  /** Gravação — Caixa de Entrada: não preencher */
+  mkt_grav_caixa_entrada: '',
+  mkt_grav_planejamento: 'rafael.abreu@moni.casa',
+  mkt_grav_in_loco: 'joao.paulo@moni.casa',
+  mkt_grav_decupagem: 'joao.paulo@moni.casa', // Organização
+  mkt_grav_edicao: 'joao.paulo@moni.casa',
+  mkt_grav_aprovacao: 'rafael.abreu@moni.casa',
+  mkt_grav_revisao: 'joao.paulo@moni.casa',
+  mkt_grav_videos_concluidos: 'rafael.abreu@moni.casa',
 };
 
 /** Fallback Moní quando o funil não tem e-mail mapeado. */
@@ -236,9 +246,10 @@ export async function resolverResponsavelPadraoPorFase(
   faseSlug: string | null | undefined,
 ): Promise<string | null> {
   const slug = String(faseSlug ?? '').trim();
-  if (slug) {
+  if (slug && Object.prototype.hasOwnProperty.call(EMAIL_RESPONSAVEL_PADRAO_POR_FASE_SLUG, slug)) {
     const email = EMAIL_RESPONSAVEL_PADRAO_POR_FASE_SLUG[slug];
-    if (email) return buscarProfileIdPorEmail(supabase, email);
+    if (!email?.trim()) return null;
+    return buscarProfileIdPorEmail(supabase, email);
   }
   return resolverResponsavelPadraoPorKanban(supabase, kanbanId);
 }

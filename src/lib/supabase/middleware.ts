@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { normalizeAccessRole } from '@/lib/authz';
+import { normalizeAccessRole, profileCacheRoleNeedsRefresh } from '@/lib/authz';
 import {
   BCA_PUBLIC_LEITURA_PATH,
   isAdminOnlyPath,
@@ -156,6 +156,18 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // pending/blocked no cookie pode estar velho (papel já promovido no banco).
+  if (profileFromCache && profileCacheRoleNeedsRefresh(profileRow?.role)) {
+    profileRow = null;
+    profileFromCache = false;
+    response.cookies.set(PROFILE_CACHE_COOKIE, '', {
+      maxAge: 0,
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+    });
+  }
+
   if (!profileRow) {
     const profileWithTimeout = await Promise.race([
       supabase.from('profiles').select('role, cargo, full_name').eq('id', user.id).maybeSingle(),
@@ -165,8 +177,7 @@ export async function updateSession(request: NextRequest) {
     ]);
     const { data: profile } = profileWithTimeout;
     profileRow = profile as { role?: string | null; cargo?: string | null; full_name?: string | null } | null;
-    // Cache the profile in a cookie for 5 minutes
-    if (profileRow) {
+    if (profileRow && !profileCacheRoleNeedsRefresh(profileRow.role)) {
       response.cookies.set(PROFILE_CACHE_COOKIE, JSON.stringify(profileRow), {
         maxAge: 300,
         httpOnly: true,

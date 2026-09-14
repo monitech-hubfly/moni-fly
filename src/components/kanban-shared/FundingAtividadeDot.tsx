@@ -111,6 +111,7 @@ export function FundingAtividadeDot({ cardId, proximaAtividade, prazoAtividade, 
         proxima_atividade: concluida ? null : novaAtividade.trim() || null,
         prazo_atividade: concluida ? null : novoPrazo || null,
         basePath,
+        skipRevalidate: true,
       });
       if (!res.ok) { setErro(res.error); return; }
       setAberto(false);

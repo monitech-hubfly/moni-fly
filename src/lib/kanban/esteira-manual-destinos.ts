@@ -16,6 +16,7 @@ export type DestinoEsteiraManualKey =
   | 'hdm_homologacoes'
   | 'hdm_modelo_virtual'
   | 'hdm_produto'
+  | 'juridico'
   | 'moni_capital'
   | 'motor01'
   | 'pre_obra_obra'
@@ -67,6 +68,11 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
     kanbanDestinoId: KANBAN_IDS.HDM_PRODUTO,
     faseDestinoSlug: 'prod_brief',
   },
+  juridico: {
+    label: 'Jurídico',
+    kanbanDestinoId: KANBAN_IDS.JURIDICO,
+    faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+  },
   moni_capital: {
     label: 'Divify',
     kanbanDestinoId: KANBAN_IDS.MONI_CAPITAL,
@@ -113,6 +119,18 @@ export function kanbanPermiteVinculoComProjetoLegal(
   kanbanId: string | null | undefined,
 ): boolean {
   return String(kanbanId ?? '').trim() === KANBAN_IDS.OPERACOES;
+}
+
+/** Portfólio, Loteadores e Operações podem disparar esteira manual para Funil Jurídico. */
+export function kanbanPermiteVinculoComJuridico(
+  kanbanId: string | null | undefined,
+): boolean {
+  const id = String(kanbanId ?? '').trim();
+  return (
+    id === KANBAN_IDS.PORTFOLIO ||
+    id === KANBAN_IDS.LOTEADORES ||
+    id === KANBAN_IDS.OPERACOES
+  );
 }
 
 /** Funil Loteadores ou Step One — sempre devem poder abrir Pré Obra e Obra. */
@@ -215,6 +233,14 @@ function aplicarRestricaoProjetoLegal(
   return destinos.filter((key) => key !== 'projeto_legal');
 }
 
+function aplicarRestricaoJuridico(
+  kanbanOrigemId: string,
+  destinos: DestinoEsteiraManualKey[],
+): DestinoEsteiraManualKey[] {
+  if (kanbanPermiteVinculoComJuridico(kanbanOrigemId)) return destinos;
+  return destinos.filter((key) => key !== 'juridico');
+}
+
 export function destinosEsteiraManualParaKanban(
   kanbanId: string | null | undefined,
   kanbanNome?: string | null,
@@ -235,6 +261,8 @@ export function destinosEsteiraManualParaKanban(
   } else {
     destinos = aplicarRestricaoProjetoLegal(id, filtrarDestinosEsteiraManual(id, ['credito_obra']));
   }
+
+  destinos = aplicarRestricaoJuridico(id, destinos);
 
   return garantirPreObraObraParaLoteadoresStepOne(id, destinos, kanbanNome, basePath);
 }

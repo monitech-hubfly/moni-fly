@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, ChevronDown, ChevronRight, User } from 'lucide-react';
+import { Building2, ChevronDown, ChevronRight, Scale, User } from 'lucide-react';
 import { AlertasBellLink } from '@/components/AlertasBellLink';
 import { createClient } from '@/lib/supabase/client';
 import { canAccessFunilContratacoes, isAdminRole, isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
@@ -24,7 +24,7 @@ function getInicialNome(fullName: string | null | undefined): string {
   return (parts[0][0] ?? '?').toUpperCase();
 }
 
-type NavItem = { href: string; label: string };
+type NavItem = { href: string; label: string; icon?: typeof Scale };
 const REDE_FRANQUEADOS_SUBITENS: NavItem[] = [
   { href: '/rede-franqueados', label: 'Rede Casa Moní' },
   { href: '/comunidade', label: 'Comunidade' },
@@ -42,6 +42,14 @@ const STEPS_SUBITENS: NavItem[] = [
   { href: '/step-5', label: 'Comitê' },
   { href: '/step-6', label: 'Diligência' },
   { href: '/step-7', label: 'Contrato' },
+];
+/** Pilares operacionais — visível só admin/team (não frank). */
+const OPERACOES_SUBITENS: NavItem[] = [
+  { href: '/portfolio', label: 'Portfólio' },
+  { href: '/funil-acoplamento', label: 'Acoplamento' },
+  { href: '/funil-juridico', label: 'Jurídico', icon: Scale },
+  { href: '/operacoes', label: 'Pré Obra e Obra' },
+  { href: '/funil-credito-obra', label: 'Crédito Obra' },
 ];
 const INTERNO_SUBITENS: NavItem[] = [{ href: '/funil-contratacoes', label: 'Contratações' }];
 const SIRENE_SUBITENS: NavItem[] = [
@@ -94,6 +102,7 @@ function isHubFunisActive(pathname: string) {
     pathname.startsWith('/painel-novos-negocios') ||
     pathname.startsWith('/portfolio') ||
     pathname.startsWith('/funil-acoplamento') ||
+    pathname.startsWith('/funil-juridico') ||
     pathname.startsWith('/dashboard-novos-negocios') ||
     pathname.startsWith('/funil-stepone') ||
     pathname.startsWith('/funil-motor01') ||
@@ -118,6 +127,16 @@ function isHubFunisActive(pathname: string) {
 
 function isInternoNavActive(pathname: string) {
   return pathname.startsWith('/funil-contratacoes');
+}
+
+function isOperacoesNavActive(pathname: string) {
+  return (
+    pathname.startsWith('/portfolio') ||
+    pathname.startsWith('/funil-acoplamento') ||
+    pathname.startsWith('/funil-juridico') ||
+    pathname.startsWith('/operacoes') ||
+    pathname.startsWith('/funil-credito-obra')
+  );
 }
 
 function isSireneNavActive(pathname: string) {
@@ -184,6 +203,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const [catalogoOpen, setCatalogoOpen] = useState(() => isCatalogoActive(pathname ?? ''));
   const [stepsOpen, setStepsOpen] = useState(() => isStepsActive(pathname ?? ''));
   const [internoOpen, setInternoOpen] = useState(() => isInternoNavActive(pathname ?? ''));
+  const [operacoesOpen, setOperacoesOpen] = useState(() => isOperacoesNavActive(pathname ?? ''));
   const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
   const [carometroOpen, setCarometroOpen] = useState(() => isCarometroNavActive(pathname ?? ''));
   /** Franqueado não acessa `/rede-franqueados` (middleware); visão consolidada em `/portal-frank/rede`. */
@@ -205,6 +225,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
       setPerfilOpen(true);
     }
     if (isInternoNavActive(p)) setInternoOpen(true);
+    if (isOperacoesNavActive(p)) setOperacoesOpen(true);
     if (isSireneNavActive(p)) setSireneOpen(true);
     if (isCarometroNavActive(p)) setCarometroOpen(true);
     if (isRedeFranqueadosActive(p)) setRedeFranqueadosOpen(true);
@@ -237,6 +258,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
       | 'novosNegocios'
       | 'creditoJuridico'
       | 'preObra'
+      | 'operacoes'
       | 'hdm'
       | 'interno'
       | 'sirene'
@@ -271,15 +293,19 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
         </div>
         {open && (
           <div className="mt-0.5 space-y-0.5">
-            {subitens.map((s) => (
-              <Link
-                key={s.href}
-                href={s.href}
-                className={linkClassSub(isActiveHref(s.href))}
-              >
-                {s.label}
-              </Link>
-            ))}
+            {subitens.map((s) => {
+              const Icon = s.icon;
+              return (
+                <Link
+                  key={s.href}
+                  href={s.href}
+                  className={`${linkClassSub(isActiveHref(s.href))} flex items-center gap-1.5`}
+                >
+                  {Icon ? <Icon className="h-3 w-3 shrink-0 opacity-70" aria-hidden /> : null}
+                  {s.label}
+                </Link>
+              );
+            })}
             {inativas && (
               <>
                 <button
@@ -382,6 +408,17 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
             Hub de Funis
           </Link>
         )}
+
+        {!limitedRelease && isStaff &&
+          renderMacro(
+            'operacoes',
+            'Operações',
+            isOperacoesNavActive(pathname ?? ''),
+            operacoesOpen,
+            setOperacoesOpen,
+            OPERACOES_SUBITENS,
+            (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
+          )}
 
         {!limitedRelease && showInternoNav &&
           renderMacro(

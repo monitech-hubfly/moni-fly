@@ -1,7 +1,20 @@
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { funilHrefVisivelNoHub } from '@/lib/kanban/filtrar-kanbans-internos';
 import type { HubFunisSlaItem } from '@/lib/actions/hub-funis-sla';
 import type { FunilDef, GrupoDef } from './hub-funis-config';
-import { HUB_FUNIS_GRUPOS, HUB_FUNIS_TODOS } from './hub-funis-config';
+import { HUB_FUNIS_GRUPOS } from './hub-funis-config';
+
+function filtrarGruposParaRole(role: string | null | undefined): GrupoDef[] {
+  return HUB_FUNIS_GRUPOS.map((g) => ({
+    ...g,
+    funis: g.funis.filter((f) => funilHrefVisivelNoHub(f.href, role)),
+  })).filter((g) => g.funis.length > 0);
+}
+
+function funisVisiveis(grupos: GrupoDef[]): FunilDef[] {
+  return grupos.flatMap((g) => g.funis);
+}
 
 function FunilCard({
   funil,
@@ -112,8 +125,10 @@ function slaMap(items: HubFunisSlaItem[]): Record<string, HubFunisSlaItem> {
   return Object.fromEntries(items.map((i) => [i.kanbanId, i]));
 }
 
-/** Placeholder imediato: cards clicáveis enquanto SLA carrega. */
+/** Placeholder imediato: cards clicáveis enquanto SLA carrega (inclui Jurídico para staff). */
 export function HubFunisPlaceholder() {
+  /** Role ainda desconhecido: mostra lista staff completa; frank só após HubFunisSlaContent. */
+  const grupos = filtrarGruposParaRole('admin');
   return (
     <>
       <div className="hub-hero">
@@ -127,7 +142,7 @@ export function HubFunisPlaceholder() {
         </div>
       </div>
       <div className="hub-grupos">
-        {HUB_FUNIS_GRUPOS.map((grupo) => (
+        {grupos.map((grupo) => (
           <GrupoRow key={grupo.titulo} grupo={grupo} slaData={{}} />
         ))}
       </div>
@@ -136,6 +151,23 @@ export function HubFunisPlaceholder() {
 }
 
 export async function HubFunisSlaContent() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  let role: string | null = null;
+  if (user?.id) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+    role = (profile as { role?: string | null } | null)?.role ?? null;
+  }
+
+  const grupos = filtrarGruposParaRole(role);
+  const funis = funisVisiveis(grupos);
+
   const { fetchHubFunisSla } = await import('@/lib/actions/hub-funis-sla');
   const slaItems = await fetchHubFunisSla();
   const sla = slaMap(slaItems);
@@ -161,7 +193,7 @@ export async function HubFunisSlaContent() {
             <p className="hub-gargalos-empty">Nenhum SLA vencido ou vencendo hoje.</p>
           ) : (
             <div className="hub-gargalos-lista">
-              {HUB_FUNIS_TODOS.map((f) => (
+              {funis.map((f) => (
                 <GargaloItem key={f.id} funil={f} sla={sla[f.id]} />
               ))}
             </div>
@@ -170,7 +202,7 @@ export async function HubFunisSlaContent() {
       </div>
 
       <div className="hub-grupos">
-        {HUB_FUNIS_GRUPOS.map((grupo) => (
+        {grupos.map((grupo) => (
           <GrupoRow key={grupo.titulo} grupo={grupo} slaData={sla} />
         ))}
       </div>

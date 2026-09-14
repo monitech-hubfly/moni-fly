@@ -1,10 +1,9 @@
 'use client';
 
 import type React from 'react';
-import { filterKanbanAtividadeIds } from '@/lib/pastelaria/synthetic-id';
 import { Archive, CheckSquare, ChevronRight, Info, MessageCircle, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
 import { compareChamadosPainelRank, ORDEM_GRUPOS_PAINEL, rankChamadoPainelUnificado } from '@/lib/sirene-painel-chamados-rank';
@@ -13,12 +12,13 @@ import {
   MONI_TIME_FILTRO_PREFIX,
   filtrarOpcoesTimeIdNomePorHdm,
   inferirHdmResponsavelPorNomesTimes,
-  nomesTimesCoincidem,
   responsaveisDoTimeMoni,
   responsaveisFiltroOpcoesComCatalogoMoni,
   timesFiltroOpcoesComCatalogoMoni,
+  timesMoniReceberChamadoOpcoes,
 } from '@/lib/times-responsaveis';
 import {
+  atualizarInteracaoCompletaSirene,
   atualizarStatusInteracaoSirene,
   listarComentariosCardSirene,
   publicarComentarioCardSirene,
@@ -31,6 +31,7 @@ import {
 import {
   arquivarChamado,
   arquivarTopico,
+  atualizarChamadoPainelUnificado,
   getTopicosBatchPorInteracaoIds,
   getTopicosChamado,
   getTopicosPorInteracaoId,
@@ -47,11 +48,12 @@ import { ModalNovoChamado } from '../ModalNovoChamado';
 import { SireneChamadoDetalheModal } from './SireneChamadoDetalheModal';
 import { ClassificacaoConclusaoModal } from './ClassificacaoConclusaoModal';
 import { SireneModalHoras } from './SireneModalHoras';
+import type { EditLinhaDraft, EditSireneDraft } from './SireneChamadoEdicaoForms';
 import {
   ATIVIDADE_FORM_DRAFT_VAZIO,
   type AtividadeFormDraft,
 } from '@/components/kanban-shared/KanbanAtividadeFormFields';
-import { chamadoEditavelNaSirene, usuarioPodeAdicionarAtividadeChamado } from '@/lib/kanban/sirene-chamado-permissoes';
+import { chamadoEditavelNaSirene } from '@/lib/kanban/sirene-chamado-permissoes';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
 import { ConclusaoChamadoCriadorModal } from '@/components/sirene/ConclusaoChamadoCriadorModal';
@@ -105,10 +107,6 @@ export type InteracaoSireneRow = {
   processo_id?: string | null;
   processo_titulo?: string | null;
   processo_kanban_nome?: string | null;
-  /** Card/fase/funil diretos via sirene_chamados.card_id (chamados com card vinculado). */
-  card_titulo_direto?: string | null;
-  fase_nome_direto?: string | null;
-  kanban_nome_direto?: string | null;
 };
 type TimeOpt = { id: string; nome: string };
 type RespOpt = { id: string; nome: string; email?: string | null };
@@ -272,62 +270,25 @@ function SelectMoni(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 
 const BOMBEIRO_SENTINEL = '__bombeiro__';
 
-function nomesTimesDoChamado(
-  row: InteracaoSireneRow,
-  timesById: Map<string, string>,
-  topicos?: TopicoChamadoLinha[],
-): string[] {
-  const nomes: string[] = [];
-  const tn = (row.time_nome ?? '').trim();
-  if (tn) nomes.push(tn);
-  for (const x of parseTimesNomes(row.times_nomes)) {
-    const s = x.trim();
-    if (s) nomes.push(s);
-  }
-  for (const id of row.times_ids ?? []) {
-    const n = timesById.get(id)?.trim();
-    if (n) nomes.push(n);
-  }
-  for (const t of topicos ?? []) {
-    const tr = String(t.time_responsavel ?? '').trim();
-    if (tr) nomes.push(tr);
-    for (const id of t.times_ids ?? []) {
-      const n = timesById.get(id)?.trim();
-      if (n) nomes.push(n);
-    }
-  }
-  return nomes;
-}
-
-function idsTimesDoChamado(row: InteracaoSireneRow, topicos?: TopicoChamadoLinha[]): string[] {
-  const ids = [...(row.times_ids ?? [])];
-  for (const t of topicos ?? []) {
-    ids.push(...(t.times_ids ?? []));
-  }
-  return ids;
-}
-
-function rowMatchTime(
-  row: InteracaoSireneRow,
-  timeFiltro: string,
-  timesById: Map<string, string>,
-  topicos?: TopicoChamadoLinha[],
-): boolean {
+function rowMatchTime(row: InteracaoSireneRow, timeFiltro: string, timesById: Map<string, string>): boolean {
   if (timeFiltro === 'todos') return true;
-  const nomes = nomesTimesDoChamado(row, timesById, topicos);
-  const ids = idsTimesDoChamado(row, topicos);
   if (timeFiltro === BOMBEIRO_SENTINEL) {
-    return nomes.some((n) => n.toLowerCase().includes('bombeiro'));
+    const tn = (row.time_nome ?? '').toLowerCase();
+    const nomes = [tn, ...parseTimesNomes(row.times_nomes).map((x) => x.toLowerCase())];
+    return nomes.some((n) => n.includes('bombeiro'));
   }
-  if (ids.includes(timeFiltro)) return true;
-  let alvo = '';
   if (timeFiltro.startsWith(MONI_TIME_FILTRO_PREFIX)) {
-    alvo = timeFiltro.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
-  } else {
-    alvo = (timesById.get(timeFiltro) ?? '').trim();
+    const nome = timeFiltro.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
+    if (!nome) return false;
+    const n = nome.toLowerCase();
+    if ((row.time_nome ?? '').trim().toLowerCase() === n) return true;
+    return parseTimesNomes(row.times_nomes).some((x) => x.trim().toLowerCase() === n);
   }
-  if (!alvo) return false;
-  return nomes.some((n) => nomesTimesCoincidem(n, alvo));
+  const nomeTime = timesById.get(timeFiltro);
+  if (!nomeTime) return false;
+  const n = nomeTime.toLowerCase();
+  if ((row.time_nome ?? '').toLowerCase() === n) return true;
+  return parseTimesNomes(row.times_nomes).some((x) => x.toLowerCase() === n);
 }
 
 function rowMatchResponsavel(
@@ -383,65 +344,19 @@ function SecaoFiltro({ titulo, children }: SecaoRadioProps) {
   );
 }
 
+function tipoEdicaoFromRow(tipo: string): 'atividade' | 'duvida' | 'proposicoes' {
+  const t = norm(tipo);
+  if (t === 'duvida' || t === 'dúvida') return 'duvida';
+  if (t === 'proposicoes' || t === 'proposições') return 'proposicoes';
+  return 'atividade';
+}
+
 function nomesTimesDeIds(ids: string[], catalog: TimeOpt[]): unknown {
   const m = new Map(catalog.map((t) => [t.id, t.nome]));
   return ids.map((id) => m.get(id) ?? '').filter(Boolean);
 }
 
-type SireneUrlSnap = {
-  interacao: string | null;
-  topico: string | null;
-  id: string | null;
-};
-
-function lerSireneUrlSnapDoWindow(): SireneUrlSnap {
-  if (typeof window === 'undefined') {
-    return { interacao: null, topico: null, id: null };
-  }
-  const sp = new URLSearchParams(window.location.search);
-  return {
-    interacao: sp.get('interacao')?.trim() || null,
-    topico: sp.get('topico')?.trim() || null,
-    id: sp.get('id')?.trim() || null,
-  };
-}
-
-/** Só sincroniza a URL — vive no Suspense; a lista/modal ficam fora e não desmontam. */
-function SireneChamadosUrlSync({ onChange }: { onChange: (s: SireneUrlSnap) => void }) {
-  const searchParams = useSearchParams();
-  useEffect(() => {
-    onChange({
-      interacao: searchParams.get('interacao')?.trim() || null,
-      topico: searchParams.get('topico')?.trim() || null,
-      id: searchParams.get('id')?.trim() || null,
-    });
-  }, [searchParams, onChange]);
-  return null;
-}
-
-/**
- * Lista unificada de chamados. Estado (modal detalhe, expansões) fica fora do Suspense
- * de `useSearchParams` para não piscar “Carregando…” / fechar modal a cada refresh.
- */
-export function InteracoesLista(props: Props) {
-  const [urlSnap, setUrlSnap] = useState<SireneUrlSnap>(lerSireneUrlSnapDoWindow);
-  const onUrlChange = useCallback((s: SireneUrlSnap) => {
-    setUrlSnap((prev) =>
-      prev.interacao === s.interacao && prev.topico === s.topico && prev.id === s.id ? prev : s,
-    );
-  }, []);
-
-  return (
-    <>
-      <Suspense fallback={null}>
-        <SireneChamadosUrlSync onChange={onUrlChange} />
-      </Suspense>
-      <InteracoesListaInner {...props} urlSnap={urlSnap} />
-    </>
-  );
-}
-
-function InteracoesListaInner({
+export function InteracoesLista({
   interacoes,
   times,
   responsaveis,
@@ -449,14 +364,17 @@ function InteracoesListaInner({
   sessionEhAdmin = false,
   comentariosCountByCardId,
   filtroTipoChamado: _filtroTipoChamado,
-  urlSnap,
-}: Props & { urlSnap: SireneUrlSnap }) {
+}: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   void _filtroTipoChamado;
   const [highlightTopicoId, setHighlightTopicoId] = useState<number | null>(null);
   const highlightIdRef = useRef<number | null>(null);
   const skipHorasModalRef = useRef(false);
   const [modalNovoAberto, setModalNovoAberto] = useState(false);
+  const [editingSireneCid, setEditingSireneCid] = useState<number | null>(null);
+  const [editSireneDraft, setEditSireneDraft] = useState<EditSireneDraft | null>(null);
+  const [salvandoSirene, setSalvandoSirene] = useState(false);
   const [detalheRow, setDetalheRow] = useState<InteracaoSireneRow | null>(null);
   const [novaAtivDraft, setNovaAtivDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   const [topicosPorAlvo, setTopicosPorAlvo] = useState<Record<string, TopicoChamadoLinha[]>>({});
@@ -479,9 +397,11 @@ function InteracoesListaInner({
   /** Campos da linha após edição inline (merge sobre `interacoes`). */
   const [rowPatch, setRowPatch] = useState<Record<string, Partial<InteracaoSireneRow>>>({});
   const [msgErro, setMsgErro] = useState<string | null>(null);
-  const [msgSucesso, setMsgSucesso] = useState<string | null>(null);
   const [conclusaoInteracaoId, setConclusaoInteracaoId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<EditLinhaDraft | null>(null);
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [commentsOpenByRow, setCommentsOpenByRow] = useState<Record<string, boolean>>({});
   const [commentsFetchedByCard, setCommentsFetchedByCard] = useState<Record<string, boolean>>({});
   const [commentsByCardId, setCommentsByCardId] = useState<Record<string, ComentarioCardSireneRow[]>>({});
@@ -503,7 +423,6 @@ function InteracoesListaInner({
   const [salvandoArquivarTopico, setSalvandoArquivarTopico] = useState(false);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [podeArquivar, setPodeArquivar] = useState(false);
-  const [sessionRole, setSessionRole] = useState<string>('');
   const [detalheExpandido, setDetalheExpandido] = useState<Record<string, boolean>>({});
   const [atividadesExpandido, setAtividadesExpandido] = useState<Record<string, boolean>>({});
   const [horasModalChamado, setHorasModalChamado] = useState<{ chamadoId: number; titulo: string } | null>(null);
@@ -514,12 +433,10 @@ function InteracoesListaInner({
     status: SubInteracaoStatusDb;
   } | null>(null);
 
-  const interacoesIdsSig = useMemo(() => interacoes.map((r) => r.id).join(','), [interacoes]);
-
   useEffect(() => {
-    const interacaoId = urlSnap.interacao;
+    const interacaoId = searchParams.get('interacao')?.trim();
     if (!interacaoId) return;
-    const topicoRaw = urlSnap.topico;
+    const topicoRaw = searchParams.get('topico')?.trim();
     const topicoNum = topicoRaw ? Number.parseInt(topicoRaw, 10) : NaN;
     setHighlightTopicoId(Number.isFinite(topicoNum) ? topicoNum : null);
 
@@ -530,12 +447,10 @@ function InteracoesListaInner({
     }
     setDetalheRow(row);
     void carregarTopicosSeNecessario(row, true);
-    // interacoes: só reabrir deep link quando ids/URL mudam — não a cada refresh RSC.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- interacoesIdsSig cobre mudança real da lista
-  }, [interacoesIdsSig, urlSnap.interacao, urlSnap.topico]);
+  }, [interacoes, searchParams]);
 
   useEffect(() => {
-    const idRaw = urlSnap.id;
+    const idRaw = searchParams.get('id')?.trim();
     if (!idRaw) return;
     const idNum = Number(idRaw);
     if (!Number.isFinite(idNum)) return;
@@ -549,8 +464,7 @@ function InteracoesListaInner({
     setVerTodas(true);
     setDetalheRow(row);
     void carregarTopicosSeNecessario(row, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- interacoesIdsSig cobre mudança real da lista
-  }, [interacoesIdsSig, urlSnap.id]);
+  }, [interacoes, searchParams]);
 
   useEffect(() => {
     void (async () => {
@@ -562,25 +476,31 @@ function InteracoesListaInner({
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
       const role = String((profile as { role?: string | null } | null)?.role ?? '').toLowerCase();
       setPodeArquivar(role === 'admin' || role === 'team');
-      setSessionRole(role);
     })();
   }, []);
 
   useEffect(() => {
-    // Grupo 1: estado derivado da lista — resetar quando o conjunto de ids muda de verdade
-    // (não a cada `router.refresh()`, que troca a referência do array).
     setStatusPatch({});
     setRowPatch({});
+    setEditingId(null);
+    setEditDraft(null);
+    setEditingSireneCid(null);
+    setEditSireneDraft(null);
+    setTopicosPorAlvo({});
+    setTopicosLoading({});
+    setSalvandoTopico({});
+    setCommentsOpenByRow({});
+    setCommentsFetchedByCard({});
+    setCommentsByCardId({});
+    setNovoComentarioPorCard({});
     setCountPatch({});
     setModalArquivar(null);
     setMotivoArquivamento('');
     setMostrarArquivados(false);
-    // Grupo 2 (tópicos, comentários) NÃO reseta aqui — são dados buscados
-    // independentemente e persistem entre revalidações automáticas do servidor.
-  }, [interacoesIdsSig]);
+  }, [interacoes]);
 
   const painelTopicosPrefetch = useMemo(() => {
-    return { iids: filterKanbanAtividadeIds(interacoes.map((r) => r.id)) };
+    return { iids: interacoes.map((r) => r.id) };
   }, [interacoes]);
 
   useEffect(() => {
@@ -712,7 +632,7 @@ function InteracoesListaInner({
 
       if (applied.kanbanF !== 'todos' && row.kanban_nome !== applied.kanbanF) return false;
 
-      if (!rowMatchTime(row, applied.timeF, timesById, topicosPorAlvo[topicosAlvoKey(row)])) return false;
+      if (!rowMatchTime(row, applied.timeF, timesById)) return false;
 
       if (applied.travaF === 'com' && !row.trava) return false;
       if (applied.travaF === 'sem' && row.trava) return false;
@@ -734,7 +654,6 @@ function InteracoesListaInner({
     nomePorUserId,
     podeArquivar,
     mostrarArquivados,
-    topicosPorAlvo,
   ]);
 
   const filtradas = useMemo(
@@ -751,13 +670,8 @@ function InteracoesListaInner({
     const concluido: InteracaoSireneRow[] = [];
     for (const row of linhas) {
       if (!passaFiltrosLista(row, false)) continue;
+      if (subGrupoFluxo(row) === 'concluido') { concluido.push(row); continue; }
       const isAbri = row.criado_por === currentUserId;
-      const s = norm(row.atividade_status);
-      const ativConcluida = s === 'concluida' || s === 'concluída' || s === 'cancelada';
-      // Criador que concluiu seus tópicos mas não fechou o chamado fica em "Abertos por mim"
-      if (subGrupoFluxo(row) === 'concluido' && !(isAbri && !ativConcluida)) {
-        concluido.push(row); continue;
-      }
       if (isAbri) { (row.trava ? abriTrava : abriSemTrava).push(row); }
       else { (row.trava ? pra_mimTrava : pra_mimSemTrava).push(row); }
     }
@@ -871,26 +785,64 @@ function InteracoesListaInner({
         resolucaoSuficiente: payload.suficiente,
       });
       if (!res.ok) {
-        setConclusaoInteracaoId(null); // fecha modal para o erro ficar visível
         setMsgErro(res.error);
         return;
       }
       setConclusaoInteracaoId(null);
       setStatusPatch((prev) => ({
         ...prev,
-        [id]: 'concluida',
+        [id]: payload.suficiente ? 'concluida' : 'em_andamento',
       }));
       router.refresh();
     });
   }
 
+  function abrirEdicao(row: InteracaoSireneRow) {
+    if (!chamadoEditavelNaSirene(row)) {
+      setMsgErro('Este chamado só pode ser alterado no card vinculado.');
+      return;
+    }
+    if (row.origem === 'sirene' && row.sirene_chamado_id != null) {
+      setEditingId(null);
+      setEditDraft(null);
+      setEditingSireneCid(row.sirene_chamado_id);
+      const tipoSc = (row.sirene_chamado_tipo ?? 'padrao') === 'hdm' ? 'hdm' : 'padrao';
+      setEditSireneDraft({
+        incendio: row.titulo,
+        time_abertura: row.sirene_time_abertura ?? '',
+        abertura_responsavel_nome: row.sirene_abertura_responsavel_nome ?? '',
+        data: row.data_vencimento ?? '',
+        trava: row.trava,
+        tipo: tipoSc,
+        hdm_responsavel: row.sirene_hdm_responsavel ?? '',
+      });
+      return;
+    }
+    setEditingSireneCid(null);
+    setEditSireneDraft(null);
+    const rids = [...(row.responsaveis_ids ?? [])];
+    if (row.responsavel_id && !rids.includes(row.responsavel_id)) rids.unshift(row.responsavel_id);
+    setEditingId(row.id);
+    setEditDraft({
+      titulo: row.titulo,
+      tipo: tipoEdicaoFromRow(row.tipo),
+      data: row.data_vencimento ?? '',
+      timesIds: [...(row.times_ids ?? [])],
+      responsaveisIds: rids,
+      trava: row.trava,
+    });
+  }
+
+  function cancelarEdicao() {
+    setEditingId(null);
+    setEditDraft(null);
+    setEditingSireneCid(null);
+    setEditSireneDraft(null);
+  }
+
   async function carregarTopicosSeNecessario(row: InteracaoSireneRow, force = false) {
     const key = topicosAlvoKey(row);
     if (!force && topicosPorAlvo[key] != null && !topicosLoading[key]) return;
-    if (row.origem === 'pastelaria' && row.sirene_chamado_id == null) {
-      setTopicosPorAlvo((m) => ({ ...m, [key]: [] }));
-      return;
-    }
     setTopicosLoading((l) => ({ ...l, [key]: true }));
     const res =
       row.sirene_chamado_id != null
@@ -918,30 +870,15 @@ function InteracoesListaInner({
   function abrirDetalheChamado(row: InteracaoSireneRow) {
     setDetalheRow(row);
     setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+    cancelarEdicao();
     void carregarTopicosSeNecessario(row, true);
   }
 
   async function handleAdicionarAtividadeModal(row: InteracaoSireneRow) {
-    const topicosDoChamado = topicosPorAlvo[topicosAlvoKey(row)] ?? [];
-    const responsaveisAtvs = topicosDoChamado
-      .flatMap((t) => [
-        String((t as { responsavel_id?: string | null }).responsavel_id ?? '').trim(),
-        ...((t as { responsaveis_ids?: string[] }).responsaveis_ids ?? []).map((r: string) => String(r ?? '').trim()),
-      ])
-      .filter(Boolean);
-
-    const podeAdicionar = usuarioPodeAdicionarAtividadeChamado({
-      sessionEhAdmin: sessionEhAdmin ?? false,
-      sessionRole: sessionRole,
-      currentUserId: currentUserId ?? null,
-      chamadoAbertoPor: String(row.criado_por ?? '').trim() || null,
-      responsaveisIds: responsaveisAtvs,
-    });
-    if (!podeAdicionar) {
-      setMsgErro('Sem permissão para adicionar atividade neste chamado.');
+    if (!chamadoEditavelNaSirene(row)) {
+      setMsgErro('Este chamado só pode ser alterado no card vinculado.');
       return;
     }
-
     const d = novaAtivDraft;
     if (!d.nome.trim()) {
       setMsgErro('Informe o nome da atividade.');
@@ -958,7 +895,6 @@ function InteracoesListaInner({
     const alvoKey = topicosAlvoKey(row);
     setSalvandoTopico((s) => ({ ...s, [alvoKey]: true }));
     setMsgErro(null);
-    setMsgSucesso(null);
     const res = await criarSubInteracao({
       interacao_id: row.id,
       nome: d.nome.trim(),
@@ -973,12 +909,103 @@ function InteracoesListaInner({
     });
     setSalvandoTopico((s) => ({ ...s, [alvoKey]: false }));
     if (!res.ok) {
-      setMsgErro(res.error ?? 'Erro ao abrir atividade.');
+      setMsgErro(res.error);
       return;
     }
     setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
-    setMsgSucesso('Atividade aberta com sucesso!');
     void carregarTopicosSeNecessario(row, true);
+  }
+
+  async function salvarEdicao(atividadeId: string) {
+    if (!editDraft) return;
+    if (!editDraft.titulo.trim()) {
+      setMsgErro('Informe o título.');
+      return;
+    }
+    setMsgErro(null);
+    setSalvandoEdicao(true);
+    try {
+      const res = await atualizarInteracaoCompletaSirene(atividadeId, {
+        titulo: editDraft.titulo.trim(),
+        tipo: editDraft.tipo,
+        data_vencimento: editDraft.data.trim() || null,
+        times_ids: editDraft.timesIds,
+        responsaveis_ids: editDraft.responsaveisIds,
+        trava: editDraft.trava,
+      });
+      if (!res.ok) {
+        setMsgErro(res.error);
+        return;
+      }
+      const tnomes = nomesTimesDeIds(editDraft.timesIds, times);
+      const firstTimeNome = Array.isArray(tnomes) && tnomes.length > 0 ? String(tnomes[0]) : null;
+      setRowPatch((prev) => ({
+        ...prev,
+        [atividadeId]: {
+          titulo: editDraft.titulo.trim(),
+          tipo: editDraft.tipo,
+          data_vencimento: editDraft.data.trim() || null,
+          trava: editDraft.trava,
+          times_ids: [...editDraft.timesIds],
+          responsaveis_ids: [...editDraft.responsaveisIds],
+          times_nomes: tnomes,
+          time_nome: firstTimeNome,
+        },
+      }));
+      setEditingId(null);
+      setEditDraft(null);
+      router.refresh();
+    } finally {
+      setSalvandoEdicao(false);
+    }
+  }
+
+  async function salvarEdicaoSirene(atividadeRowId: string, chamadoId: number) {
+    if (!editSireneDraft) return;
+    if (!editSireneDraft.incendio.trim()) {
+      setMsgErro('Informe o resumo (incêndio).');
+      return;
+    }
+    setMsgErro(null);
+    setSalvandoSirene(true);
+    try {
+      const timeAb = editSireneDraft.time_abertura.trim();
+      const inferred = inferirHdmResponsavelPorNomesTimes(timeAb ? [timeAb] : []);
+      const tipoEff = inferred ? 'hdm' : 'padrao';
+      const hdmVal = inferred;
+      const res = await atualizarChamadoPainelUnificado(chamadoId, {
+        incendio: editSireneDraft.incendio.trim(),
+        time_abertura: timeAb || null,
+        abertura_responsavel_nome: editSireneDraft.abertura_responsavel_nome.trim() || null,
+        data_vencimento: editSireneDraft.data.trim() || null,
+        trava: editSireneDraft.trava,
+        tipo: tipoEff,
+        hdm_responsavel: hdmVal,
+      });
+      if (!res.ok) {
+        setMsgErro(res.error);
+        return;
+      }
+      const tipoKa = tipoEff === 'hdm' ? 'chamado_hdm' : 'chamado_padrao';
+      setRowPatch((prev) => ({
+        ...prev,
+        [atividadeRowId]: {
+          titulo: editSireneDraft.incendio.trim(),
+          tipo: tipoKa,
+          data_vencimento: editSireneDraft.data.trim() || null,
+          trava: editSireneDraft.trava,
+          sirene_time_abertura: timeAb || null,
+          sirene_abertura_responsavel_nome: editSireneDraft.abertura_responsavel_nome.trim() || null,
+          sirene_chamado_tipo: tipoEff,
+          sirene_hdm_responsavel: tipoEff === 'hdm' ? hdmVal : null,
+        },
+      }));
+      setEditingSireneCid(null);
+      setEditSireneDraft(null);
+      router.refresh();
+    } finally {
+      setSalvandoSirene(false);
+    }
   }
 
   async function handleSubStatusPainel(
@@ -1011,6 +1038,7 @@ function InteracoesListaInner({
     if (status === 'em_andamento') {
       setStatusPatch((prev) => ({ ...prev, [row.id]: 'em_andamento' }));
     }
+    router.refresh();
     await carregarTopicosSeNecessario(row, true);
   }
 
@@ -1018,13 +1046,13 @@ function InteracoesListaInner({
     if (!classificacaoPendente) return;
     const { row, topicoId } = classificacaoPendente;
     setClassificacaoPendente(null);
-    try {
-      const res = await atualizarStatusSubInteracao(String(topicoId), 'concluido', '/sirene/chamados', true, classificacao);
-      if (!res.ok) { setMsgErro(res.error); return; }
-      await carregarTopicosSeNecessario(row, true);
-    } catch {
-      setMsgErro('Erro ao concluir atividade. Tente novamente.');
+    const res = await atualizarStatusSubInteracao(String(topicoId), 'concluido', '/sirene/chamados', true, classificacao);
+    if (!res.ok) {
+      setMsgErro(res.error);
+      return;
     }
+    router.refresh();
+    await carregarTopicosSeNecessario(row, true);
   }
 
   function toggleComentarios(row: InteracaoSireneRow) {
@@ -1146,6 +1174,8 @@ function InteracoesListaInner({
 
   const ativos = countFiltrosAtivos(applied);
 
+  const timesSireneEditOpcoes = useMemo(() => [...timesMoniReceberChamadoOpcoes(false)], []);
+
   const radioRow = 'flex flex-wrap gap-x-4 gap-y-2 text-sm text-[color:var(--moni-text-secondary)]';
   const radioLabel = 'inline-flex cursor-pointer items-center gap-2';
 
@@ -1187,7 +1217,7 @@ function InteracoesListaInner({
                           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--moni-text-tertiary)]">
                               {(() => { const nomeAberto = (row.criado_por ? nomePorUserId.get(row.criado_por) : null) ?? row.sirene_abertura_responsavel_nome ?? null; return nomeAberto ? (<span className="text-[11px] text-[color:var(--moni-text-tertiary)]">Aberto por <strong className="font-medium text-[color:var(--moni-text-secondary)]">{nomeAberto}</strong></span>) : null; })()}
-                              {(() => { const funil = row.processo_kanban_nome ?? row.kanban_nome_direto ?? (row.kanban_nome && row.kanban_nome !== 'Sirene' ? row.kanban_nome : null) ?? null; const fase = row.fase_nome_direto?.trim() || (row.fase_nome?.trim() || null); const cardNome = row.processo_titulo ?? row.card_titulo_direto ?? (row.card_titulo && row.card_titulo !== '(chamado direto)' ? row.card_titulo : null) ?? null; const franqueado = row.franqueado_nome ?? null; const temContexto = funil || fase || cardNome || franqueado; if (!temContexto) return null; return (<span className="flex items-center gap-1 text-[11px] text-[color:var(--moni-text-tertiary)]"><span className="text-[color:var(--moni-text-tertiary)]">·</span>{funil && (<span className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">{funil}</span>)}{fase && (<><span className="text-[color:var(--moni-text-tertiary)]">·</span><span className="text-[10px] text-[color:var(--moni-text-tertiary)]">{fase}</span></>)}{cardNome && (<><span className="text-[color:var(--moni-text-tertiary)]">·</span><strong className="font-medium text-[color:var(--moni-text-secondary)]">{cardNome}</strong></>)}{franqueado && (<><span className="text-[color:var(--moni-text-tertiary)]">·</span><span>{franqueado}</span></>)}</span>); })()}
+                              {(() => { const funil = row.processo_kanban_nome ?? row.kanban_nome ?? null; const cardNome = row.processo_titulo ?? row.card_titulo ?? null; const franqueado = row.franqueado_nome ?? null; const temContexto = funil || cardNome || franqueado; if (!temContexto) return null; return (<span className="flex items-center gap-1 text-[11px] text-[color:var(--moni-text-tertiary)]"><span className="text-[color:var(--moni-text-tertiary)]">·</span>{funil && (<span className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">{funil}</span>)}{cardNome && (<><span className="text-[color:var(--moni-text-tertiary)]">·</span><strong className="font-medium text-[color:var(--moni-text-secondary)]">{cardNome}</strong></>)}{franqueado && (<><span className="text-[color:var(--moni-text-tertiary)]">·</span><span>{franqueado}</span></>)}</span>); })()}
                               {(() => { if (!row.data_vencimento) return null; const hoje = new Date(); hoje.setHours(0,0,0,0); const prazo = new Date(row.data_vencimento); prazo.setHours(0,0,0,0); const diffDias = Math.round((prazo.getTime() - hoje.getTime()) / (1000*60*60*24)); if (diffDias < 0) return (<span className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">⏰ Atrasado {Math.abs(diffDias)} d.u.</span>); if (diffDias <= 3) return (<span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">⏰ Vence em {diffDias} d.u.</span>); return (<span className="inline-flex items-center gap-1 rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700">⏰ Vence em {diffDias} d.u.</span>); })()}
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
@@ -1196,10 +1226,10 @@ function InteracoesListaInner({
                               {(() => { const ck = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null); if (!ck) return null; return (<button type="button" onClick={() => toggleComentarios(row)} className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]" aria-expanded={Boolean(commentsOpenByRow[row.id])} aria-label={`Comentários do chamado (${cnt})`}><MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden /><span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span></button>); })()}
                               {idsResp.length > 0 ? (<div className="flex -space-x-1">{idsResp.slice(0, 4).map((uid) => (<span key={uid} title={nomePorUserId.get(uid) ?? uid} className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[9px] font-semibold text-[color:var(--moni-text-primary)]">{iniciaisNome(nomePorUserId.get(uid) ?? '?')}</span>))}</div>) : null}
                               <SlaAtividadeBadge prazoIso={row.data_vencimento} status={sel === 'concluida' ? 'concluida' : sel} showOkText={false} />
-                              <SelectMoni value={sel} disabled={pending} onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)} className="min-w-[8rem] text-xs" aria-label="Status do chamado"><option value="pendente">A fazer</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option></SelectMoni>
+                              {sel === 'em_andamento' ? (<span className="min-w-[8rem] rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-2 py-1 text-center text-xs text-[color:var(--moni-text-secondary)]">Em andamento</span>) : (<SelectMoni value={sel} disabled={pending} onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)} className="min-w-[8rem] text-xs" aria-label="Status do chamado"><option value="pendente">A fazer</option><option value="concluida">Concluída</option></SelectMoni>)}
                             </div>
                           </div>
-                          {detalheExpandido[row.id] ? (<div className="mt-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2 text-[11px] text-[color:var(--moni-text-secondary)]"><div className="flex flex-wrap gap-x-4 gap-y-1">{row.criado_em ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Aberto em</span> {new Date(row.criado_em).toLocaleDateString('pt-BR')}</span>) : null}{row.card_titulo ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Card</span> {row.card_titulo.trim()}</span>) : null}{row.kanban_nome ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Funil</span> {row.kanban_nome}</span>) : null}{row.franqueado_nome ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Franqueado</span> {row.franqueado_nome.trim()}</span>) : null}</div>{row.descricao ? (<p className="mt-1.5 leading-relaxed text-[color:var(--moni-text-secondary)]">{row.descricao}</p>) : null}</div>) : null}
+                          {detalheExpandido[row.id] ? (<div className="mt-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2 text-[11px] text-[color:var(--moni-text-secondary)]"><div className="flex flex-wrap gap-x-4 gap-y-1">{row.criado_em ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Aberto em</span> {new Date(row.criado_em).toLocaleDateString('pt-BR')}</span>) : null}{row.card_titulo ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Card</span> {row.card_titulo.trim()}</span>) : null}{row.kanban_nome ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Funil</span> {row.kanban_nome}</span>) : null}</div>{row.descricao ? (<p className="mt-1.5 leading-relaxed text-[color:var(--moni-text-secondary)]">{row.descricao}</p>) : null}</div>) : null}
                           {atividadesExpandido[row.id] && subs.length > 0 ? (<div className="mt-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-1">{subs.map((s) => (<div key={s.id ?? (s as { topico_id?: number }).topico_id} className="flex items-center gap-2 border-b border-[color:var(--moni-border-default)] py-1.5 last:border-b-0 text-[11px]"><span className={`h-2 w-2 shrink-0 rounded-full ${s.status === 'concluido' || s.status === 'aprovado' ? 'bg-green-500' : s.status === 'em_andamento' ? 'bg-amber-500' : 'bg-stone-400'}`} /><span className="min-w-0 flex-1 truncate text-[color:var(--moni-text-primary)]">{(s as { titulo?: string }).titulo ?? (s as { tema?: string }).tema ?? s.descricao ?? '—'}</span>{(s as { responsavel_nome?: string }).responsavel_nome ? (<span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[8px] font-semibold text-[color:var(--moni-text-primary)]" title={(s as { responsavel_nome?: string }).responsavel_nome}>{iniciaisNome((s as { responsavel_nome?: string }).responsavel_nome ?? '')}</span>) : null}{(s as { prazo?: string }).prazo ?? s.data_fim ? (<span className="shrink-0 text-[10px] text-[color:var(--moni-text-tertiary)]">{new Date(((s as { prazo?: string }).prazo ?? s.data_fim)!).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>) : null}</div>))}</div>) : null}
                         </div>
                       {commentsOpenByRow[row.id] && (() => { const ck2 = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null); return ck2 ? (<div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3"><p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">Comentários</p>{commentsLoading[ck2] ? (<p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>) : (<>{(commentsByCardId[ck2] ?? []).length > 0 && (<><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do card</p><ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">{[...(commentsByCardId[ck2] ?? [])].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()).map((c)=>(<li key={c.id} className="flex gap-2 rounded bg-white p-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-200 text-xs font-medium text-stone-600">{iniciaisNome(c.autor_nome??'')}</span><div><p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p><p className="mt-0.5 text-stone-700">{c.texto}</p></div></li>))}</ul></>)}{(commentsBySireneId[ck2] ?? []).length > 0 && (<><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do chamado</p><ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">{[...(commentsBySireneId[ck2] ?? [])].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()).map((c)=>(<li key={`sirene-${c.id}`} className="flex gap-2 rounded bg-white p-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">{iniciaisNome(c.autor_nome??'')}</span><div><p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p><p className="mt-0.5 text-stone-700">{c.texto}</p></div></li>))}</ul></>)}{(commentsByCardId[ck2]??[]).length===0&&(commentsBySireneId[ck2]??[]).length===0&&(<p className="mb-3 text-xs text-stone-400">Nenhum comentário ainda.</p>)}<div className="flex flex-col gap-2"><div className="overflow-visible rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]" onFocus={() => { comentarioAtivoCardIdRef.current = ck2; }}><MencaoContentEditable editorRef={comentarioEditorRef} onInput={(html) => setNovoComentarioPorCard((m) => ({ ...m, [ck2]: html }))} className="min-h-[72px] w-full p-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none empty:before:text-[color:var(--moni-text-tertiary)] empty:before:content-[attr(data-placeholder)]" placeholder="Escreva um comentário… Use @ para mencionar" /></div><button type="button" disabled={Boolean(salvandoComentario[ck2])} onClick={() => void publicarComentario(ck2, row)} className="self-end shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50">{salvandoComentario[ck2] ? '…' : 'Publicar'}</button></div></>) }</div>) : null; })()}
@@ -1512,13 +1542,10 @@ function InteracoesListaInner({
           {msgErro}
         </div>
       )}
-      {msgSucesso && (
-        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-          {msgSucesso}
-        </div>
-      )}
 
       {pending && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando status…</p>}
+      {salvandoEdicao && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando chamado…</p>}
+      {salvandoSirene && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando chamado Sirene…</p>}
       {!verTodas && porPapel ? (
         <div className="space-y-4">
           {(
@@ -1799,7 +1826,10 @@ function InteracoesListaInner({
                                 status={sel === 'concluida' ? 'concluida' : sel}
                                 showOkText={false}
                               />
-                              <SelectMoni
+                              {sel === 'em_andamento' ? (
+                                <span className="min-w-[8rem] rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-2 py-1 text-center text-xs text-[color:var(--moni-text-secondary)]">Em andamento</span>
+                              ) : (
+                                <SelectMoni
                                   value={sel}
                                   disabled={pending}
                                   onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)}
@@ -1807,9 +1837,9 @@ function InteracoesListaInner({
                                   aria-label="Status do chamado"
                                 >
                                   <option value="pendente">A fazer</option>
-                                  <option value="em_andamento">Em andamento</option>
                                   <option value="concluida">Concluída</option>
                                 </SelectMoni>
+                              )}
                             </div>
                           </div>
 
@@ -1825,9 +1855,6 @@ function InteracoesListaInner({
                                 ) : null}
                                 {row.kanban_nome ? (
                                   <span><span className="font-medium text-[color:var(--moni-text-primary)]">Funil</span> {row.kanban_nome}</span>
-                                ) : null}
-                                {row.franqueado_nome ? (
-                                  <span><span className="font-medium text-[color:var(--moni-text-primary)]">Franqueado</span> {row.franqueado_nome.trim()}</span>
                                 ) : null}
                               </div>
                               {row.descricao ? (
@@ -1941,7 +1968,8 @@ function InteracoesListaInner({
             setDetalheRow(null);
             setHighlightTopicoId(null);
             setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
-            if (urlSnap.interacao) {
+            cancelarEdicao();
+            if (searchParams.get('interacao')) {
               router.replace('/sirene/chamados');
             }
           }}
@@ -1975,6 +2003,7 @@ function InteracoesListaInner({
           onSubStatusChange={(topicoId, status) =>
             void handleSubStatusPainel(detalheRowEff, topicoId, status)
           }
+          onEdit={() => abrirEdicao(detalheRowEff)}
           onArquivar={() =>
             setModalArquivar({
               cid: detalheRowEff.sirene_chamado_id ?? null,
@@ -1983,8 +2012,26 @@ function InteracoesListaInner({
           }
           podeArquivar={podeArquivar}
           badgeTipo={badgeTipo(detalheRowEff.tipo)}
+          editingKanban={editingId === detalheRowEff.id && editDraft != null}
+          editDraft={editDraft}
+          setEditDraft={setEditDraft}
+          editingSirene={
+            detalheRowEff.sirene_chamado_id != null &&
+            editingSireneCid === detalheRowEff.sirene_chamado_id &&
+            editSireneDraft != null
+          }
+          editSireneDraft={editSireneDraft}
+          setEditSireneDraft={setEditSireneDraft}
           times={times}
           responsaveis={responsaveis}
+          timesSireneEditOpcoes={timesSireneEditOpcoes}
+          salvandoEdicao={salvandoEdicao}
+          salvandoSirene={salvandoSirene}
+          onSalvarEdicao={() => void salvarEdicao(detalheRowEff.id)}
+          onSalvarEdicaoSirene={() =>
+            void salvarEdicaoSirene(detalheRowEff.id, detalheRowEff.sirene_chamado_id!)
+          }
+          onCancelarEdicao={cancelarEdicao}
           novaAtivDraft={novaAtivDraft}
           setNovaAtivDraft={setNovaAtivDraft}
           onAdicionarAtividade={() => void handleAdicionarAtividadeModal(detalheRowEff)}
@@ -2003,11 +2050,10 @@ function InteracoesListaInner({
               alert(res.error ?? 'Erro ao encerrar atividade.');
               return;
             }
-            if (detalheRowEff) await carregarTopicosSeNecessario(detalheRowEff, true);
+            router.refresh();
           }}
           highlightTopicoId={highlightTopicoId}
           sessionEhAdmin={sessionEhAdmin}
-          sessionRole={sessionRole}
           onRecarregarTopicos={() => {
             if (detalheRowEff) void carregarTopicosSeNecessario(detalheRowEff, true);
           }}
@@ -2024,9 +2070,8 @@ function InteracoesListaInner({
       {classificacaoPendente && (
         <ClassificacaoConclusaoModal
           nomeAtividade={classificacaoPendente.row.titulo ?? 'Atividade'}
-          onEscolher={(c) => { confirmarClassificacao(c).catch((e) => setMsgErro(String(e))); }}
+          onEscolher={(c) => void confirmarClassificacao(c)}
           pending={pending}
-          chamadoId={classificacaoPendente.row.sirene_chamado_id ?? undefined}
         />
       )}
 
@@ -2035,7 +2080,6 @@ function InteracoesListaInner({
           onClose={() => setModalNovoAberto(false)}
           onSuccess={() => {
             setModalNovoAberto(false);
-            setMsgSucesso('Chamado aberto com sucesso!');
             router.refresh();
           }}
         />
@@ -2126,6 +2170,7 @@ function InteracoesListaInner({
                 disabled={salvandoArquivamento || !motivoArquivamento.trim()}
                 onClick={async () => {
                   if (!modalArquivar) return;
+                  if (!confirm('Tem certeza que deseja arquivar este chamado?')) return;
                   setSalvandoArquivamento(true);
                   try {
                     let res: { ok: true } | { ok: false; error: string };
@@ -2144,7 +2189,6 @@ function InteracoesListaInner({
                     }
                     setModalArquivar(null);
                     setMotivoArquivamento('');
-                    setDetalheRow(null);
                     router.refresh();
                   } finally {
                     setSalvandoArquivamento(false);

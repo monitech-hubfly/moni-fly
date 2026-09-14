@@ -64,12 +64,26 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
 
 export const FASE_IDS = {
   // Portfolio — gatilhos de bastão de IDA
-  PORTFOLIO_STEP_3:          '6d019704-95f7-42ee-8a85-973ffafc236b',
+  PORTFOLIO_STEP_3:          '6d019704-95f7-42ee-8a85-973ffafc236b', // Enviar Opção (ex-Opção)
+  PORTFOLIO_JURIDICO_OPCAO:  'f977b1f8-9946-4707-8e7c-78eabb621dbb',
+  PORTFOLIO_ASSINATURAS_OPCAO: 'da0f9628-e3a5-4481-b49b-a22d30175e0f',
+  PORTFOLIO_OPCAO_ASSINADA:  '32234ccf-6fa1-4f58-a9f8-418b02c22ef0',
   PORTFOLIO_STEP_4:          'fd05dc4a-b44a-470e-993f-5df79c223488',
-  PORTFOLIO_STEP_7:          'd78771cb-f79d-4650-a056-f3e2dbc3f3a6',
+  PORTFOLIO_PRE_COMITE:      'a4489f12-71a1-49f3-99ca-c500c58f799b',
+  PORTFOLIO_STEP_5:          '9e1c76ba-ce84-4dbd-ae40-e434dc068a81', // Comitê
+  PORTFOLIO_REVISOES_COMITE: '1c6ab47e-9b18-421b-8869-6c9ce2ab4c3a',
+  PORTFOLIO_SEGUNDO_COMITE:  'a292ed7e-0c5c-4b23-9c09-82986c102b79',
+  PORTFOLIO_JURIDICO_CTO_PRECEDENTES: '7d035a10-5403-44b5-819f-104786b48150',
+  PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES: '27bc415f-4b70-4873-9cfc-5f51e7d925c8',
+  PORTFOLIO_CTO_PRECEDENTES_ASSINADO: 'ee0e3aa9-6a18-410a-87a2-5f6210c4573f',
+  PORTFOLIO_STEP_7:          'd78771cb-f79d-4650-a056-f3e2dbc3f3a6', // Enviar Contrato s/ Precedentes
+  PORTFOLIO_JURIDICO_CONTRATO: 'e35fffc4-ddd9-412d-861b-3118697ae0b8',
+  PORTFOLIO_ASSINATURAS_CONTRATO: '28601c1e-cd5a-4956-8eb6-9ba432588e60',
+  PORTFOLIO_CONTRATO_ASSINADO: '81bf57ac-48e5-4b9b-8eed-b416b9672e0e',
+  /** @deprecated fase inativa desde migration 560 */
   PORTFOLIO_CAPTACAO_CAPITAL: 'd7e79cd4-a8ba-4239-b7b4-b82ad07acb11',
   PORTFOLIO_PASSAGEM_WAYSER: '5f48a367-699b-4dc4-a310-377fc7d0ff88',
-  PORTFOLIO_STEP_5:          '9e1c76ba-ce84-4dbd-ae40-e434dc068a81', // gate
+  PORTFOLIO_CONVERTIDOS:     'eda6139e-65f4-43d4-955f-026a488524be',
   // Acoplamento — bastão de volta
   ACOPLAMENTO_APROVADO:      'b6a83104-e74f-4d0b-902b-2c4227227411',
   ACOPLAMENTO_REPROVADO:     '6d383485-9c9e-4f41-9d2a-c23c20b950c9',
@@ -99,11 +113,28 @@ export const FASE_IDS = {
 
 export const FASE_SLUGS = {
   // Gatilhos de IDA
+  /** Funil Portfólio — Enviar Opção (legado `step_3`; checklist/instruções da antiga Opção). */
   STEP_3:             'step_3',
+  PORTFOLIO_ENVIAR_OPCAO: 'step_3',
+  PORTFOLIO_JURIDICO_OPCAO: 'juridico_opcao',
+  PORTFOLIO_ASSINATURAS_OPCAO: 'assinaturas_opcao',
+  PORTFOLIO_OPCAO_ASSINADA: 'opcao_assinada',
   STEP_4:             'step_4',
-  STEP_7:             'step_7',
+  PORTFOLIO_PRE_COMITE: 'pre_comite',
+  STEP_7:             'step_7', // Enviar Contrato s/ Precedentes
+  PORTFOLIO_ENVIAR_CONTRATO: 'step_7',
+  PORTFOLIO_JURIDICO_CONTRATO: 'juridico_contrato',
+  PORTFOLIO_ASSINATURAS_CONTRATO: 'assinaturas_contrato',
+  PORTFOLIO_CONTRATO_ASSINADO: 'contrato_s_precedentes_assinado',
+  /** @deprecated fase inativa desde migration 560 */
   CAPTACAO_CAPITAL:   'captacao_moni_capital',
   PASSAGEM_WAYSER:    'passagem_wayser',
+  PORTFOLIO_CONVERTIDOS: 'convertidos',
+  PORTFOLIO_REVISOES_COMITE: 'revisoes_comite',
+  PORTFOLIO_SEGUNDO_COMITE: 'segundo_comite',
+  PORTFOLIO_JURIDICO_CTO_PRECEDENTES: 'juridico_cto_precedentes',
+  PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES: 'assinaturas_cto_precedentes',
+  PORTFOLIO_CTO_PRECEDENTES_ASSINADO: 'cto_precedentes_assinado',
   AGUARDANDO_CREDITO: 'aguardando_credito',
   PROD_PUBLICADO: 'prod_publicado',
   APROVACAO_CONDOMINIO: 'aprovacao_condominio',
@@ -246,6 +277,21 @@ export const FASE_SLUGS = {
   CONTABILIDADE_SPE:           'contabilidade_spe',
   CONTABILIDADE_GESTORA:       'contabilidade_gestora',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',
+  // Funil Jurídico — 8 fases (migration 565) + slugs legados
+  JURIDICO_RECEBIMENTO:            'juridico_recebimento',
+  JURIDICO_ANALISE_INICIAL:        'juridico_analise_inicial',
+  JURIDICO_ALTERACOES_RESPOSTAS:   'juridico_alteracoes_respostas',
+  JURIDICO_TRATATIVAS:             'juridico_tratativas',
+  JURIDICO_ASSINATURA:             'juridico_assinatura',
+  JURIDICO_SUBIR_ASSINATURA:       'juridico_subir_assinatura',
+  JURIDICO_POS_ASSINATURA:         'juridico_pos_assinatura',
+  JURIDICO_ENVIADO_PARCEIRO:       'juridico_enviado_parceiro',
+  JURIDICO_AGUARDANDO_ASSINATURAS: 'juridico_aguardando_assinaturas',
+  JURIDICO_AGUARDANDO_RETORNO:     'juridico_aguardando_retorno',
+  JURIDICO_DEMANDA_CONCLUIDA:      'juridico_demanda_concluida',
+  JURIDICO_RETROALIMENTACAO:       'juridico_retroalimentacao',
+  JURIDICO_ATENDIMENTOS_CONCLUIDOS:'juridico_atendimentos_concluidos',
+  /** @deprecated legado — preferir JURIDICO_DEMANDA_CONCLUIDA / JURIDICO_ATENDIMENTOS_CONCLUIDOS */
   JURIDICO_CONCLUIDO:        'juridico_concluido',
   // Funil Divify / Moní Capital (KANBAN_IDS.MONI_CAPITAL) — fluxo ativo + laterais
   CAPITAL_RECEBIMENTO:            'capital_recebimento',
@@ -282,7 +328,7 @@ export const FASE_SLUGS = {
   STEP_5:             'step_5',
   CTO_CONDICOES_PRECEDENTES: 'cto_condicoes_precedentes',
   STEP_6:             'step_6',
-  /** Funil Portfólio — fase Opção (confirmação migration 389). Legado PROD: `step_3`. */
+  /** @deprecated Preferir STEP_3 / PORTFOLIO_ENVIAR_OPCAO. Alias legado. */
   OPCAO:              'opcao',
   // Funil Step One (KANBAN_IDS.STEP_ONE) — fluxo ordem 1–13 (PROD)
   ONBOARDING:           'onboarding',
@@ -327,20 +373,41 @@ export const FASE_SLUGS = {
   /** @deprecated migration 462 */
   HOM_REPROVADO:    'hom_reprovado',
 
+  MKT_GRAV_CAIXA_ENTRADA: 'mkt_grav_caixa_entrada',
   MKT_GRAV_PLANEJAMENTO: 'mkt_grav_planejamento',
   MKT_GRAV_IN_LOCO: 'mkt_grav_in_loco',
+  /** Organização (ex-Decupagem) — slug legado `mkt_grav_decupagem`. */
   MKT_GRAV_DECUPAGEM: 'mkt_grav_decupagem',
+  MKT_GRAV_ORGANIZACAO: 'mkt_grav_decupagem',
+  MKT_GRAV_EDICAO: 'mkt_grav_edicao',
+  MKT_GRAV_APROVACAO: 'mkt_grav_aprovacao',
+  MKT_GRAV_REVISAO: 'mkt_grav_revisao',
+  MKT_GRAV_VIDEOS_CONCLUIDOS: 'mkt_grav_videos_concluidos',
   MKT_PROG_PLANEJAMENTO: 'mkt_prog_planejamento',
   MKT_PROG_EDICAO: 'mkt_prog_edicao',
   MKT_PROG_AGENDAMENTO: 'mkt_prog_agendamento',
   MKT_INC_PLANEJAMENTO: 'mkt_inc_planejamento',
   MKT_INC_GRAVACAO: 'mkt_inc_gravacao',
+  /** Organização (ex-Decupagem). */
   MKT_INC_DECUPAGEM: 'mkt_inc_decupagem',
+  MKT_INC_ORGANIZACAO: 'mkt_inc_decupagem',
+  /** Storyline (ex-D1). */
   MKT_INC_D1_STORYLINE: 'mkt_inc_d1_storyline',
+  MKT_INC_STORYLINE: 'mkt_inc_d1_storyline',
+  /** Roteiro (ex-D2). */
   MKT_INC_D2_ROTEIRO: 'mkt_inc_d2_roteiro',
+  MKT_INC_ROTEIRO: 'mkt_inc_d2_roteiro',
+  /** Gravação extra (ex-D2.1). */
   MKT_INC_D21_EXTRA: 'mkt_inc_d21_extra',
+  MKT_INC_GRAVACAO_EXTRA: 'mkt_inc_d21_extra',
+  /** Edição (ex-D3). */
   MKT_INC_D3_EDICAO: 'mkt_inc_d3_edicao',
+  MKT_INC_EDICAO: 'mkt_inc_d3_edicao',
+  MKT_INC_APROVACAO: 'mkt_inc_aprovacao',
+  MKT_INC_REVISAO: 'mkt_inc_revisao',
+  /** Versão final (ex-D4). */
   MKT_INC_D4_FINAL: 'mkt_inc_d4_final',
+  MKT_INC_VERSAO_FINAL: 'mkt_inc_d4_final',
 
   CARE_NOVO_ACIONAMENTO: 'care_novo_acionamento',
   CARE_TRIAGEM: 'care_triagem',
@@ -390,11 +457,14 @@ export const CORRETORES_FASES_CONFIRMACAO_SAIDA = {
   forecast: [FASE_SLUGS.COR_FORECAST],
 } as const;
 
-/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389). */
+/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migrations 389 / 559 / 560). */
 export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
-  opcao: [FASE_SLUGS.OPCAO, FASE_SLUGS.STEP_3],
-  comite: [FASE_SLUGS.STEP_5],
-  contrato: [FASE_SLUGS.STEP_7],
+  /** «A opção foi assinada?» — ao sair de Assinaturas Opção → Opção Assinada. */
+  opcao: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO],
+  /** «O card foi aprovado em Comitê?» — ao sair de Comitê ou 2º Comitê. */
+  comite: [FASE_SLUGS.STEP_5, FASE_SLUGS.PORTFOLIO_SEGUNDO_COMITE],
+  /** «O contrato foi assinado?» — ao sair de Assinaturas Contrato → Contrato Assinado. */
+  contrato: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CONTRATO],
 } as const;
 
 /** Funil Loteadores — slugs que disparam popup ao sair da fase (Assinou? / Comitê). */
@@ -416,14 +486,22 @@ export const KANBANS_VINCULO_MANUAL_LIVRE = [
   KANBAN_IDS.OPERACOES,
 ] as const;
 
-// Kanbans onde Frank podia abrir chamado jurídico manualmente (funil desativado — vazio)
-export const KANBANS_COM_CHAMADO_JURIDICO = [] as const;
+// Kanbans de origem que podem abrir chamado / esteira para Funil Jurídico.
+export const KANBANS_COM_CHAMADO_JURIDICO = [
+  KANBAN_IDS.PORTFOLIO,
+  KANBAN_IDS.LOTEADORES,
+  KANBAN_IDS.OPERACOES,
+] as const;
 
-// Kanbans desativados ou ocultos (apenas Funil Jurídico — rota redireciona ao hub).
-export const KANBANS_INTERNOS = [KANBAN_IDS.JURIDICO] as const;
+// Kanbans internos ocultos do Hub/listagens para papéis externos.
+// Funil Jurídico é funil operacional ativo (Hub → Operações) — não listar aqui.
+export const KANBANS_INTERNOS = [] as const;
 
 /** Nomes em `kanbans.nome` alinhados a `KANBANS_INTERNOS`. */
-export const KANBANS_INTERNOS_NOMES = ['Funil Jurídico'] as const;
+export const KANBANS_INTERNOS_NOMES = [] as const;
+
+/** Funis do Hub ocultos para frank/franqueado (mesmo com card no Hub para staff). */
+export const KANBANS_OCULTOS_FRANK = [KANBAN_IDS.JURIDICO] as const;
 
 export const MSG_CHAMADO_JURIDICO_JA_EXISTE =
   'Já existe um chamado jurídico aberto para este card';

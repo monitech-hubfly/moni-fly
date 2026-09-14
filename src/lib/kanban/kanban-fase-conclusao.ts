@@ -1,5 +1,13 @@
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 
+/** Slugs que NUNCA são coluna de conclusão (mesmo se forem a última ativa). */
+const SLUGS_NAO_CONCLUSAO_EXPLICITOS = new Set<string>([
+  /** Gravação — Organização (ex-Decupagem). */
+  FASE_SLUGS.MKT_GRAV_DECUPAGEM,
+  /** Série Inc. — Organização (ex-Decupagem). */
+  FASE_SLUGS.MKT_INC_DECUPAGEM,
+]);
+
 /** Slugs terminais explícitos (evita falso positivo em *_projeto_aprovado). */
 const SLUGS_APROVADO_TERMINAL = new Set<string>([
   FASE_SLUGS.ACOPLAMENTO_APROVADO,
@@ -10,7 +18,7 @@ const SLUGS_APROVADO_TERMINAL = new Set<string>([
 ]);
 
 const SLUGS_FASE_CONCLUSAO_EXPLICITOS = new Set<string>([
-  FASE_SLUGS.PASSAGEM_WAYSER,
+  FASE_SLUGS.PORTFOLIO_CONVERTIDOS,
   FASE_SLUGS.LOTEADORES_ASSINADOS,
   FASE_SLUGS.OPERACOES_ENTREGUE,
   FASE_SLUGS.PL_PAGAMENTOS,
@@ -18,7 +26,7 @@ const SLUGS_FASE_CONCLUSAO_EXPLICITOS = new Set<string>([
   FASE_SLUGS.PL_P_PROJETO_APROVADO,
   FASE_SLUGS.HOMOLOG_CRIAR_PRODUTO_DATABASE,
   FASE_SLUGS.FUNDING_CONTRATO,
-  FASE_SLUGS.MKT_GRAV_DECUPAGEM,
+  FASE_SLUGS.MKT_GRAV_VIDEOS_CONCLUIDOS,
   FASE_SLUGS.MKT_PROG_AGENDAMENTO,
   FASE_SLUGS.MKT_INC_D4_FINAL,
   FASE_SLUGS.CARE_ARQUIVADO,
@@ -27,11 +35,20 @@ const SLUGS_FASE_CONCLUSAO_EXPLICITOS = new Set<string>([
   ...SLUGS_APROVADO_TERMINAL,
 ]);
 
+export function isFaseNaoConclusaoExplicita(fase: {
+  slug?: string | null;
+}): boolean {
+  const slug = String(fase.slug ?? '').trim().toLowerCase();
+  return Boolean(slug) && SLUGS_NAO_CONCLUSAO_EXPLICITOS.has(slug);
+}
+
 /** Fases finais / paralisadas / concluídas — cards com transparência no board. */
 export function isFaseConclusaoKanban(fase: {
   slug?: string | null;
   nome?: string | null;
 }): boolean {
+  if (isFaseNaoConclusaoExplicita(fase)) return false;
+
   const slug = String(fase.slug ?? '').trim().toLowerCase();
   if (slug) {
     if (SLUGS_FASE_CONCLUSAO_EXPLICITOS.has(slug)) return true;
