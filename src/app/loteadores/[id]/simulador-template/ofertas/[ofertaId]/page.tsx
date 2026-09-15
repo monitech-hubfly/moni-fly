@@ -6,6 +6,8 @@ import { isRedeStaffRole } from '@/lib/authz';
 import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { carregarSimuladorOfertaDoCard } from '@/lib/actions/loteamento-simulador-template';
 import { formatarMoedaBr, PRAZO_OBRA_MESES_PADRAO, prazoTotalDePrazoSalvo } from '@/lib/loteamento-simulador-template';
+import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
+import { rotuloEmpreendimentoOrigem } from '@/lib/kanban/imob-simulacoes-card';
 import { OfertaDetalheLeitura } from '@/components/simulador/OfertaDetalheLeitura';
 import { BotaoImprimirOferta } from '@/components/simulador/BotaoImprimirOferta';
 
@@ -67,6 +69,16 @@ export default async function SimuladorOfertaDetalhePage({ params }: Props) {
   const dataGeracao = new Date().toLocaleDateString('pt-BR');
   const prazoObra = loaded.template?.prazo_obra_meses ?? PRAZO_OBRA_MESES_PADRAO;
   const prazoTotal = prazoTotalDePrazoSalvo(o.prazo_meses, prazoObra);
+
+  let empreendimentoLabel: string | null = null;
+  const imob = await carregarImobSimulacoesCard(supabase, id);
+  if (imob.ok) {
+    const empreendimentos = imob.itens.filter((it) => (it.tipo ?? 'empreendimento') !== 'showroom');
+    const idx = empreendimentos.findIndex((it) => it.simulacao_pagamento_id === o.id);
+    if (idx >= 0) {
+      empreendimentoLabel = rotuloEmpreendimentoOrigem(empreendimentos[idx], idx + 1);
+    }
+  }
   const linhas: Array<{ label: string; valor: string }> = [
     { label: 'Valor do lote', valor: formatarMoedaBr(o.valor_lote) },
     { label: 'Valor da casa', valor: formatarMoedaBr(o.valor_casa) },
@@ -82,13 +94,22 @@ export default async function SimuladorOfertaDetalhePage({ params }: Props) {
       className="mx-auto max-w-6xl px-4 py-8 sm:px-6"
       style={{ background: 'var(--moni-surface-50)', minHeight: '100%' }}
     >
-      <Link
-        href={`/loteadores/${id}/simulador-template/ofertas`}
-        className="print-screen-only text-sm"
-        style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
-      >
-        ← Voltar às ofertas
-      </Link>
+        <nav className="print-screen-only flex flex-col items-start gap-1" aria-label="Voltar">
+          <Link
+            href={`/loteadores/${id}/simulador-template/ofertas`}
+            className="inline-flex min-h-[44px] items-center text-sm sm:min-h-0"
+            style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
+          >
+            ← Voltar às ofertas
+          </Link>
+          <Link
+            href={`/loteadores?card=${id}`}
+            className="inline-flex min-h-[44px] items-center text-sm sm:min-h-0"
+            style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
+          >
+            ← Voltar ao card
+          </Link>
+        </nav>
       <div className="print-header">
         <p
           className="text-xl"
@@ -115,6 +136,14 @@ export default async function SimuladorOfertaDetalhePage({ params }: Props) {
       >
         {nomeOferta}
       </h1>
+      {empreendimentoLabel ? (
+        <p
+          className="print-screen-only mt-1 text-sm"
+          style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}
+        >
+          Empreendimento: {empreendimentoLabel}
+        </p>
+      ) : null}
       <div
         className="print-no-break mt-8 rounded-[var(--moni-radius-lg)] p-4 sm:p-5"
         style={{

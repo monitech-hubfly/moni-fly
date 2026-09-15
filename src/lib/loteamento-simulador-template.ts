@@ -1,6 +1,7 @@
 import { parseDecimalInput } from '@/lib/condominios';
 import { parseMoneyText } from '@/lib/dashboard-novos-negocios/parseMoney';
 import type { TemplateConfig } from '@/lib/simulador/calcular-oferta';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type PremissaEntradaTipo = 'percentual' | 'valor_fixo';
 
@@ -354,6 +355,27 @@ export function isTabelaSimuladorAusente(message: string | undefined): boolean {
   // NÃO inclui o nome da tabela isolado para evitar falso positivo com PGRST116
   // ("The result contains 0 rows" que o PostgREST emite ao retornar 0 linhas com maybeSingle).
   return /schema cache|relation .* does not exist|table .* does not exist/i.test(message ?? '');
+}
+
+/** Leitura no cliente (sem Server Action) — o accordion do card não pode depender do cache do Next. */
+export async function existeSimuladorTemplateDoCard(
+  supabase: SupabaseClient,
+  cardId: string,
+): Promise<boolean> {
+  const id = String(cardId ?? '').trim();
+  if (!id) return false;
+  const { data, error } = await supabase
+    .from('loteamento_simulador_templates')
+    .select('id')
+    .eq('kanban_card_id', id)
+    .limit(1);
+  if (error) {
+    if (error.code === 'PGRST116') return false;
+    if (isTabelaSimuladorAusente(error.message)) return false;
+    console.error('[existeSimuladorTemplateDoCard]', error.message);
+    return false;
+  }
+  return Array.isArray(data) ? data.length > 0 : Boolean(data);
 }
 
 export function isColunaSimuladorAjusteAusente(message: string | undefined): boolean {

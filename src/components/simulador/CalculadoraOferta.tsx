@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { criarSimuladorOfertaDoCard } from '@/lib/actions/loteamento-simulador-template';
+import { marcarSimuladorOfertaVinculada } from '@/lib/simulador/simulador-card-ui-state';
 import {
   fracaoParaPercentualUi,
   numeroParaInputBr,
@@ -237,11 +238,16 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId, empreend
       return;
     }
     setMensagem('Oferta salva como rascunho!');
-    if (empreendimentoId?.trim()) {
-      router.push(`/loteadores/${cardId}/simulador-template/ofertas/${res.oferta.id}`);
-      return;
+    const empId = empreendimentoId?.trim() ?? '';
+    if (empId) {
+      marcarSimuladorOfertaVinculada(cardId, empId, res.oferta.id);
     }
-    router.refresh();
+    startTransition(() => {
+      router.refresh();
+      if (empId) {
+        router.push(`/loteadores/${cardId}/simulador-template/ofertas/${res.oferta.id}`);
+      }
+    });
   }
 
   function gerarFluxoFinal() {

@@ -1,7 +1,7 @@
 'use server';
 
 import { randomBytes } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { isRedeStaffRole } from '@/lib/authz';
 import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
@@ -48,6 +48,13 @@ type AuthOk = {
 };
 
 const TABELA = 'loteamento_simulador_templates';
+
+function revalidateAposMutacaoSimulador(cardId: string) {
+  revalidatePath('/hub-funis');
+  revalidatePath('/loteadores');
+  revalidatePath(`/loteadores/${cardId}/simulador-template`);
+  revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
+}
 
 async function requireUser(): Promise<AuthOk | Err> {
   const supabase = await createClient();
@@ -154,6 +161,7 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
     }
   | Err
 > {
+  noStore();
   const auth = await requireUser();
   if (!auth.ok) return auth;
   const card = await carregarCardLoteadores(auth.supabase, cardId);
@@ -163,16 +171,16 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
     .from(TABELA)
     .select('*')
     .eq('kanban_card_id', cardId)
-    .maybeSingle();
+    .limit(1);
 
   if (error) {
-    // PGRST116 = "0 rows returned" com maybeSingle(). Não é erro real — o card ainda não tem template.
     if (error.code !== 'PGRST116' && !/0 rows|multiple \(or no\) rows/i.test(error.message)) {
       return erroBancoSimulador(error.message);
     }
   }
 
-  const template = data ? mapTemplateRow(data as Record<string, unknown>) : null;
+  const row = Array.isArray(data) ? data[0] : data;
+  const template = row ? mapTemplateRow(row as Record<string, unknown>) : null;
   const simulacoes = template ? await listarSimulacoesDoTemplateId(auth.supabase, template.id) : [];
   return {
     ok: true,
@@ -323,9 +331,7 @@ export async function salvarSimuladorTemplateDoCard(
   }
 
   const template = mapTemplateRow(saved);
-  revalidatePath(`/loteadores/${cardId}/simulador-template`);
-  revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
-  revalidatePath('/loteadores');
+  revalidateAposMutacaoSimulador(cardId);
   return {
     ok: true,
     template,
@@ -384,7 +390,7 @@ export async function regenerarLinkSimuladorTemplate(cardId: string): Promise<Ok
   if (error) return erroBancoSimulador(error.message);
 
   const template = mapTemplateRow(data as Record<string, unknown>);
-  revalidatePath(`/loteadores/${cardId}/simulador-template`);
+  revalidateAposMutacaoSimulador(cardId);
   return {
     ok: true,
     template,
@@ -640,9 +646,7 @@ export async function criarSimuladorOfertaDoCard(
     if (!vinculo.ok) return vinculo;
   }
 
-  revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
-  revalidatePath(`/loteadores/${cardId}/simulador-template`);
-  revalidatePath('/loteadores');
+  revalidateAposMutacaoSimulador(cardId);
   return {
     ok: true,
     mensagem: 'Oferta salva como rascunho!',

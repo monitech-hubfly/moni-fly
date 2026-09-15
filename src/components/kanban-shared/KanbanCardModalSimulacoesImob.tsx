@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import {
@@ -13,8 +14,13 @@ import {
   uploadImobImagemPrincipal,
   urlAssinadaImobAnexo,
 } from '@/lib/actions/imob-simulacoes-card';
-import { carregarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
 import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
+import { existeSimuladorTemplateDoCard } from '@/lib/loteamento-simulador-template';
+import {
+  aplicarOfertasMarcadasNoCliente,
+  simuladorTemplateMarcadoNoCliente,
+  subscribeSimuladorCardUi,
+} from '@/lib/simulador/simulador-card-ui-state';
 import { createClient } from '@/lib/supabase/client';
 import {
   IMOB_STATUS_IMOVEL,
@@ -32,6 +38,7 @@ type Prefetch = {
   itens: ImobCardEmpreendimentoDraft[];
   modelo: ImobCardModeloDraft;
   error: string | null;
+  templateSalvo?: boolean;
 };
 
 type Props = {
@@ -535,9 +542,13 @@ export function KanbanCardModalSimulacoesImob({
   legadoProdutoModeloCasa = '',
   mostrarTemplate = false,
 }: Props) {
+  const pathname = usePathname();
   const prefetchOk = prefetch?.cardId === cardId ? prefetch : null;
   const [itens, setItens] = useState<ImobCardEmpreendimentoDraft[]>(() =>
-    aplicarLegadoProduto(prefetchOk?.itens ?? [], legadoProdutoModeloCasa),
+    aplicarOfertasMarcadasNoCliente(
+      cardId,
+      aplicarLegadoProduto(prefetchOk?.itens ?? [], legadoProdutoModeloCasa),
+    ),
   );
   const [modelo, setModelo] = useState<ImobCardModeloDraft>(
     () => prefetchOk?.modelo ?? emptyImobCardModeloDraft(),
@@ -550,7 +561,11 @@ export function KanbanCardModalSimulacoesImob({
   const [criandoTipo, setCriandoTipo] = useState<'empreendimento' | 'showroom' | null>(null);
   const [uploadingPrincipal, setUploadingPrincipal] = useState(false);
   const [uploadingOfertaId, setUploadingOfertaId] = useState<string | null>(null);
-  const [templateSalvo, setTemplateSalvo] = useState(false);
+  const [templateSalvo, setTemplateSalvo] = useState(
+    () =>
+      Boolean(mostrarTemplate && prefetchOk?.templateSalvo) ||
+      (mostrarTemplate && simuladorTemplateMarcadoNoCliente(cardId)),
+  );
 
   const showrooms = itens.filter((it) => (it.tipo ?? 'empreendimento') === 'showroom');
   const empreendimentos = itens.filter((it) => (it.tipo ?? 'empreendimento') !== 'showroom');
@@ -564,7 +579,12 @@ export function KanbanCardModalSimulacoesImob({
       setErro(r.error);
       return;
     }
-    setItens(aplicarLegadoProduto(r.itens, legadoProdutoModeloCasa));
+    setItens(
+      aplicarOfertasMarcadasNoCliente(
+        cardId,
+        aplicarLegadoProduto(r.itens, legadoProdutoModeloCasa),
+      ),
+    );
     setModelo(r.modelo);
   }, [cardId, legadoProdutoModeloCasa]);
 
@@ -573,32 +593,71 @@ export function KanbanCardModalSimulacoesImob({
       setTemplateSalvo(false);
       return;
     }
+    const aplicarLocal = () => {
+      if (simuladorTemplateMarcadoNoCliente(cardId)) setTemplateSalvo(true);
+      setItens((prev) => aplicarOfertasMarcadasNoCliente(cardId, prev));
+    };
+    aplicarLocal();
     let ativo = true;
-    void carregarSimuladorTemplateDoCard(cardId)
-      .then((res) => {
-        if (!ativo) return;
-        setTemplateSalvo(res.ok ? res.template != null : false);
-      })
-      .catch(() => {
-        if (!ativo) return;
-        setTemplateSalvo(false);
-      });
+    const carregarTemplate = () => {
+      void existeSimuladorTemplateDoCard(createClient(), cardId)
+        .then((existe) => {
+          if (!ativo) return;
+          setTemplateSalvo(existe || simuladorTemplateMarcadoNoCliente(cardId));
+        })
+        .catch(() => {
+          if (!ativo) return;
+          if (!simuladorTemplateMarcadoNoCliente(cardId)) setTemplateSalvo(false);
+        });
+    };
+    carregarTemplate();
+    const unsub = subscribeSimuladorCardUi(cardId, aplicarLocal);
+    const onVisivel = () => {
+      if (document.visibilityState === 'hidden') return;
+      aplicarLocal();
+      carregarTemplate();
+    };
+    window.addEventListener('focus', onVisivel);
+    window.addEventListener('pageshow', onVisivel);
+    document.addEventListener('visibilitychange', onVisivel);
     return () => {
       ativo = false;
+      unsub();
+      window.removeEventListener('focus', onVisivel);
+      window.removeEventListener('pageshow', onVisivel);
+      document.removeEventListener('visibilitychange', onVisivel);
     };
-  }, [cardId, mostrarTemplate]);
+  }, [cardId, mostrarTemplate, pathname]);
 
   useEffect(() => {
     if (prefetch?.cardId === cardId) {
-      setItens(aplicarLegadoProduto(prefetch.itens, legadoProdutoModeloCasa));
+      setItens(
+        aplicarOfertasMarcadasNoCliente(
+          cardId,
+          aplicarLegadoProduto(prefetch.itens, legadoProdutoModeloCasa),
+        ),
+      );
       setModelo(prefetch.modelo);
       setErro(prefetch.error);
       setLoading(false);
+      if (typeof prefetch.templateSalvo === 'boolean') {
+        setTemplateSalvo(prefetch.templateSalvo || simuladorTemplateMarcadoNoCliente(cardId));
+      }
       return;
     }
     if (esperarPrefetch) return;
     void recarregar();
   }, [cardId, prefetch, esperarPrefetch, recarregar, legadoProdutoModeloCasa]);
+
+  useEffect(() => {
+    const onPageShow = () => {
+      void recarregar();
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => {
+      window.removeEventListener('pageshow', onPageShow);
+    };
+  }, [recarregar]);
 
   async function handleSalvarModelo() {
     setSalvandoModelo(true);

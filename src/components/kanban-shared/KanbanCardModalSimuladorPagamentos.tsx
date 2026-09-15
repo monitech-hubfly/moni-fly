@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { carregarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
+import { usePathname } from 'next/navigation';
+import { existeSimuladorTemplateDoCard } from '@/lib/loteamento-simulador-template';
 import type { SimulacaoPagamentoResumo } from '@/lib/loteamento-simulador-template';
+import {
+  simuladorTemplateMarcadoNoCliente,
+  subscribeSimuladorCardUi,
+} from '@/lib/simulador/simulador-card-ui-state';
+import { createClient } from '@/lib/supabase/client';
 
 type Props = {
   cardId: string;
@@ -28,8 +34,9 @@ const btnPrimaryStyle = {
 } as const;
 
 export function KanbanCardModalSimuladorPagamentos({ cardId }: Props) {
-  const [carregando, setCarregando] = useState(true);
-  const [templateSalvo, setTemplateSalvo] = useState(false);
+  const pathname = usePathname();
+  const [carregando, setCarregando] = useState(!simuladorTemplateMarcadoNoCliente(cardId));
+  const [templateSalvo, setTemplateSalvo] = useState(() => simuladorTemplateMarcadoNoCliente(cardId));
   const [ofertas, setOfertas] = useState<SimulacaoPagamentoResumo[]>([]);
   const [listaAberta, setListaAberta] = useState(false);
 
@@ -38,22 +45,41 @@ export function KanbanCardModalSimuladorPagamentos({ cardId }: Props) {
 
   useEffect(() => {
     let ativo = true;
-    setCarregando(true);
-    void carregarSimuladorTemplateDoCard(cardId).then((res) => {
-      if (!ativo) return;
-      if (res.ok) {
-        setTemplateSalvo(res.template != null);
-        setOfertas(res.simulacoes);
-      } else {
-        setTemplateSalvo(false);
-        setOfertas([]);
-      }
-      setCarregando(false);
-    });
+    const aplicarLocal = () => {
+      if (simuladorTemplateMarcadoNoCliente(cardId)) setTemplateSalvo(true);
+    };
+    aplicarLocal();
+    const carregar = (marcarLoading: boolean) => {
+      if (marcarLoading && !simuladorTemplateMarcadoNoCliente(cardId)) setCarregando(true);
+      void existeSimuladorTemplateDoCard(createClient(), cardId)
+        .then((existe) => {
+          if (!ativo) return;
+          setTemplateSalvo(existe || simuladorTemplateMarcadoNoCliente(cardId));
+          setCarregando(false);
+        })
+        .catch(() => {
+          if (!ativo) return;
+          setCarregando(false);
+        });
+    };
+    carregar(true);
+    const unsub = subscribeSimuladorCardUi(cardId, aplicarLocal);
+    const onVisivel = () => {
+      if (document.visibilityState === 'hidden') return;
+      aplicarLocal();
+      carregar(false);
+    };
+    window.addEventListener('focus', onVisivel);
+    window.addEventListener('pageshow', onVisivel);
+    document.addEventListener('visibilitychange', onVisivel);
     return () => {
       ativo = false;
+      unsub();
+      window.removeEventListener('focus', onVisivel);
+      window.removeEventListener('pageshow', onVisivel);
+      document.removeEventListener('visibilitychange', onVisivel);
     };
-  }, [cardId]);
+  }, [cardId, pathname]);
 
   const ofertasComNome = ofertas.filter((o) => Boolean(o.nome?.trim()));
 

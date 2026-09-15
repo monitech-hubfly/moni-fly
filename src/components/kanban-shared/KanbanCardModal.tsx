@@ -286,6 +286,7 @@ import {
   fetchKanbanTimesCached,
 } from '@/lib/kanban/carregar-chamados-card-modal';
 import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
+import { existeSimuladorTemplateDoCard } from '@/lib/loteamento-simulador-template';
 import {
   emptyImobCardModeloDraft,
   type ImobCardEmpreendimentoDraft,
@@ -707,6 +708,7 @@ export function KanbanCardModal({
     itens: ImobCardEmpreendimentoDraft[];
     modelo: ImobCardModeloDraft;
     error: string | null;
+    templateSalvo?: boolean;
   } | null>(null);
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
@@ -1853,14 +1855,18 @@ export function KanbanCardModal({
           setFonteDadosLaterais(fonteFallback);
         });
       setCard(cardParaEstado);
-      void carregarImobSimulacoesCard(supabase, cardIdNorm)
-        .then((r) => {
+      void Promise.all([
+        carregarImobSimulacoesCard(supabase, cardIdNorm),
+        existeSimuladorTemplateDoCard(supabase, cardIdNorm),
+      ])
+        .then(([r, temTemplate]) => {
           if (!stillCurrent()) return;
           setImobSimulacoesPrefetch({
             cardId: cardIdNorm,
             itens: r.ok ? r.itens : [],
             modelo: r.ok ? r.modelo : emptyImobCardModeloDraft(),
             error: r.ok ? null : r.error,
+            templateSalvo: temTemplate,
           });
         })
         .catch((err) => {
@@ -1871,6 +1877,7 @@ export function KanbanCardModal({
             itens: [],
             modelo: emptyImobCardModeloDraft(),
             error: err instanceof Error ? err.message : 'Falha ao carregar Modelo e Simulações IMOB.',
+            templateSalvo: false,
           });
         });
       {

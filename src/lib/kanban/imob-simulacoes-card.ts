@@ -344,6 +344,20 @@ export function opcoesProdutoModeloComValorAtual(valorAtual: string): string[] {
   return base;
 }
 
+/** Rótulo curto para a origem da oferta: produto + título, ou "Empreendimento N". */
+export function rotuloEmpreendimentoOrigem(
+  item: Pick<ImobCardEmpreendimentoDraft, 'produto_modelo' | 'titulo_oferta'>,
+  posicaoNaLista: number,
+): string {
+  const produto = String(item.produto_modelo ?? '').trim();
+  const titulo = String(item.titulo_oferta ?? '').trim();
+  if (produto && titulo) return `${produto} — ${titulo}`;
+  if (produto) return produto;
+  if (titulo) return titulo;
+  const n = Number.isFinite(posicaoNaLista) && posicaoNaLista > 0 ? posicaoNaLista : 1;
+  return `Empreendimento ${n}`;
+}
+
 export function mapImobCardEmpreendimentoRow(raw: Record<string, unknown>): ImobCardEmpreendimentoRow {
   const n = (k: string) => {
     const v = raw[k];

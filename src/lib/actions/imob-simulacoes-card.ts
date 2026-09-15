@@ -237,6 +237,8 @@ export async function vincularOfertaAoEmpreendimentoImob(
     return { ok: false, error: error.message };
   }
   revalidatePath('/');
+  revalidatePath('/hub-funis');
+  revalidatePath('/loteadores');
   revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
   return { ok: true };
 }

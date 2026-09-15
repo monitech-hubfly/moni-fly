@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   regenerarLinkSimuladorTemplate,
@@ -15,6 +15,7 @@ import {
   type LoteamentoSimuladorTemplateDraft,
   type PremissaEntradaTipo,
 } from '@/lib/loteamento-simulador-template';
+import { marcarSimuladorTemplateSalvo } from '@/lib/simulador/simulador-card-ui-state';
 import {
   formatarNumeroInput,
   parsearNumeroInput,
@@ -87,18 +88,23 @@ export function SimuladorTemplateForm({
     setSalvando(true);
     setErro(null);
     setMensagem(null);
-    const res = await salvarSimuladorTemplateDoCard(cardId, draft);
-    if (!res.ok) {
-      setErro(res.error);
-      setSalvando(false);
-      return;
-    }
-    setLink(res.link);
-    setJaSalvo(true);
-    setRascunhoBase(JSON.stringify(draft));
-    setMensagem(TOAST_TEMPLATE_SALVO);
-    setSalvando(false);
-    router.refresh();
+    startTransition(() => {
+      void (async () => {
+        const res = await salvarSimuladorTemplateDoCard(cardId, draft);
+        if (!res.ok) {
+          setErro(res.error);
+          setSalvando(false);
+          return;
+        }
+        marcarSimuladorTemplateSalvo(cardId);
+        setLink(res.link);
+        setJaSalvo(true);
+        setRascunhoBase(JSON.stringify(draft));
+        setMensagem(TOAST_TEMPLATE_SALVO);
+        setSalvando(false);
+        router.refresh();
+      })();
+    });
   }
 
   async function onNovoLink() {
@@ -117,6 +123,7 @@ export function SimuladorTemplateForm({
     setLink(res.link);
     setMensagem(res.mensagem);
     setSalvando(false);
+    router.refresh();
   }
 
   async function copiarLink() {
