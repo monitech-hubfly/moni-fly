@@ -11,6 +11,7 @@ import { isoWeek } from '@/utils/periodos';
 import type { DadosAgendamento } from './ModalAgendamento';
 import { BacklogKanbanColuna } from './BacklogKanbanColuna';
 import { NovaAtividadeDrawer } from './NovaAtividadeDrawer';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 const STATUS_ORDER: Record<StatusPrazo, number> = {
   atrasado: 0, esta_semana: 1, sem_prazo: 2, futuro: 3,
@@ -178,7 +179,7 @@ type ColunaAtividadesProps = {
   items: AtividadeItem[];
   semanaAtual: number;
   onNovaAtividade?: () => void;
-  onExcluirAtividade?: (id: string, nome: string | null) => Promise<void>;
+  onExcluirAtividade?: (id: string, nome: string | null) => void;
 };
 function ColunaAtividades({ items, semanaAtual, onNovaAtividade, onExcluirAtividade }: ColunaAtividadesProps) {
   const comStatus = items.map(i => ({ item: i, status: statusAtividade(i, semanaAtual) }));
@@ -341,17 +342,21 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
   const semanaAtual = isoWeek(new Date());
   const supabase = useMemo(() => createClient(), []);
   const [drawerAberto, setDrawerAberto] = useState(false);
+  const [confirmExcluir, setConfirmExcluir] = useState<{ id: string; nome: string | null } | null>(null);
 
-  async function handleExcluirAtividade(id: string, nome: string | null) {
-    const label = nome ? `"${nome}"` : 'esta atividade';
-    if (!confirm(`Remover ${label} do backlog? O registro de planejamento será excluído.`)) return;
+  function handleExcluirAtividade(id: string, nome: string | null) {
+    setConfirmExcluir({ id, nome });
+  }
+
+  async function handleConfirmarExclusao() {
+    if (!confirmExcluir) return;
     const { error: err } = await supabase
       .from('gantt_planejamento')
       .delete()
-      .eq('id', id);
+      .eq('id', confirmExcluir.id);
+    setConfirmExcluir(null);
     if (err) {
       console.error('[BacklogBloco] erro ao excluir atividade:', err);
-      alert('Erro ao excluir. Tente novamente.');
       return;
     }
     recarregar();
@@ -435,6 +440,18 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
           onSalvo={() => { recarregar(); setDrawerAberto(false); }}
         />
       )}
+
+      {/* Modal de confirmação de exclusão */}
+      <ConfirmModal
+        open={confirmExcluir !== null}
+        title={`Remover "${confirmExcluir?.nome ?? 'atividade'}" do backlog?`}
+        description="O registro de planejamento será excluído."
+        confirmLabel="Remover"
+        cancelLabel="Cancelar"
+        destructive
+        onConfirm={handleConfirmarExclusao}
+        onClose={() => setConfirmExcluir(null)}
+      />
     </section>
   );
 }
