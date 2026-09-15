@@ -4184,9 +4184,11 @@ export async function salvarProximaAtividade(input: SalvarProximaAtividadeInput)
   const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
   if (updErr) return { ok: false, error: updErr.message };
 
-  const base = String(input.basePath ?? '/').trim() || '/';
-  revalidatePath(base);
-  revalidatePath('/');
+  if (!input.skipRevalidate) {
+    const base = String(input.basePath ?? '/').trim() || '/';
+    revalidatePath(base);
+    revalidatePath('/');
+  }
   return { ok: true };
 }
 
