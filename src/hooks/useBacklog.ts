@@ -27,6 +27,7 @@ export type SireneItem = {
 
 export type AtividadeItem = {
   id: string;
+  acao_id: string | null;
   nome_acao: string | null;
   comportamento_chave: boolean;
   semana_ano_inicio: number | null;
@@ -134,7 +135,7 @@ export function useBacklog(): UseBacklogResult {
         // Janela: semana atual ±4 semanas. Atividades atrasadas além da janela são buscadas separadamente.
         supabase
           .from('gantt_planejamento')
-          .select('id, acao_id, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
+          .select('id, acao_id, titulo, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
           .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
           .is('data_conclusao_real', null)
           .overlaps('semanas_selecionadas', [
@@ -154,7 +155,7 @@ export function useBacklog(): UseBacklogResult {
         // Atividades atrasadas além da janela de ±4 semanas (garante cobertura total)
         supabase
           .from('gantt_planejamento')
-          .select('id, acao_id, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
+          .select('id, acao_id, titulo, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
           .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
           .is('data_conclusao_real', null)
           .lt('semana_ano_fim', semanaAtual - 4),
@@ -229,6 +230,7 @@ export function useBacklog(): UseBacklogResult {
       type AtivRaw = {
         id: string;
         acao_id: string | null;
+        titulo: string | null;
         comportamento_chave: boolean;
         semana_ano_inicio: number | null;
         semana_ano_fim: number | null;
@@ -244,7 +246,8 @@ export function useBacklog(): UseBacklogResult {
         const acaoObj = Array.isArray(row.acoes) ? row.acoes[0] : row.acoes;
         return {
           id:                    row.id,
-          nome_acao:             acaoObj?.nome ?? null,
+          acao_id:               row.acao_id,
+          nome_acao:             acaoObj?.nome ?? row.titulo ?? null,
           comportamento_chave:   row.comportamento_chave ?? false,
           semana_ano_inicio:     row.semana_ano_inicio,
           semana_ano_fim:        row.semana_ano_fim,

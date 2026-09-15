@@ -181,28 +181,30 @@ function ColunaAtividades({ items, semanaAtual, onAbrirModal }: ColunaAtividades
   const comStatus = items.map(i => ({ item: i, status: statusAtividade(i, semanaAtual) }));
 
   return (
-    <div className={`flex flex-col gap-1.5 ${items.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
-      {items.length === 0 && <EmptyState />}
-      {comStatus.map(({ item, status }) => (
-        <DraggableAtividade key={item.id} id={String(item.id)}>
-          <BacklogColunaCard
-            tipo="atividade"
-            titulo={item.nome_acao ?? '(sem título)'}
-            prazo={semanaFimEfetiva(item) != null ? `S${semanaFimEfetiva(item)}` : null}
-            status={status}
-          />
-        </DraggableAtividade>
-      ))}
+    <>
+      <div className={`flex flex-col gap-1.5 ${items.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
+        {items.length === 0 && <EmptyState />}
+        {comStatus.map(({ item, status }) => (
+          <DraggableAtividade key={item.id} id={String(item.id)}>
+            <BacklogColunaCard
+              tipo="atividade"
+              titulo={item.nome_acao ?? '(sem título)'}
+              prazo={semanaFimEfetiva(item) != null ? `S${semanaFimEfetiva(item)}` : null}
+              status={status}
+            />
+          </DraggableAtividade>
+        ))}
+      </div>
       {onAbrirModal && (
         <button
           type="button"
-          onClick={() => onAbrirModal({})}
+          onClick={() => onAbrirModal({ origem_tipo: 'atividades' })}
           className="mt-2 w-full text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 border border-dashed border-gray-300 hover:border-blue-300 rounded-md py-1.5 transition-colors"
         >
           + Nova atividade
         </button>
       )}
-    </div>
+    </>
   );
 }
 
