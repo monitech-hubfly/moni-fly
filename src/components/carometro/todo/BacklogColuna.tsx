@@ -1,6 +1,6 @@
 'use client';
 
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
 
 export type StatusPrazo = 'atrasado' | 'esta_semana' | 'futuro' | 'sem_prazo';
 
@@ -13,6 +13,8 @@ type BacklogColunaProps = {
   status: StatusPrazo;
   origemBadge?: string;
   href?: string;
+  /** Callback de exclusão. Quando presente, exibe botão ✕ ao lado do dot de status. */
+  onExcluir?: () => void;
 };
 
 const BORDER_COLOR: Record<StatusPrazo, string> = {
@@ -74,6 +76,7 @@ export function BacklogColunaCard({
   status,
   origemBadge,
   href,
+  onExcluir,
 }: BacklogColunaProps) {
   const borderColor = BORDER_COLOR[status];
   const prazoLabel  = formatarPrazo(prazo, status);
@@ -110,6 +113,19 @@ export function BacklogColunaCard({
             >
               <ExternalLink className="h-3 w-3" />
             </a>
+          )}
+          {onExcluir && (
+            <button
+              type="button"
+              title="Remover do backlog"
+              aria-label="Remover atividade do backlog"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onExcluir(); }}
+              className="text-gray-300 hover:text-red-500 transition-colors"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center' }}
+            >
+              <X className="h-3 w-3" />
+            </button>
           )}
         </div>
       </div>

@@ -4,13 +4,13 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useBacklog, SireneItem, AtividadeItem, PastelariaItem } from '@/hooks/useBacklog';
 import { BacklogColunaCard, StatusPrazo } from './BacklogColuna';
 import { isoWeek } from '@/utils/periodos';
 import type { DadosAgendamento } from './ModalAgendamento';
 import { BacklogKanbanColuna } from './BacklogKanbanColuna';
+import { NovaAtividadeDrawer } from './NovaAtividadeDrawer';
 
 const STATUS_ORDER: Record<StatusPrazo, number> = {
   atrasado: 0, esta_semana: 1, sem_prazo: 2, futuro: 3,
@@ -189,28 +189,16 @@ function ColunaAtividades({ items, semanaAtual, onNovaAtividade, onExcluirAtivid
         {items.length === 0 && <EmptyState />}
         {comStatus.map(({ item, status }) => (
           <DraggableAtividade key={item.id} id={String(item.id)}>
-            <div className="relative group">
-              <BacklogColunaCard
-                tipo="atividade"
-                titulo={item.nome_acao ?? '(sem título)'}
-                prazo={semanaFimEfetiva(item) != null ? `S${semanaFimEfetiva(item)}` : null}
-                status={status}
-              />
-              {onExcluirAtividade && (
-                <button
-                  type="button"
-                  title="Remover do backlog"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onExcluirAtividade(item.id, item.nome_acao);
-                  }}
-                  className="absolute top-1 right-1 hidden group-hover:flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-300 text-gray-400 hover:text-red-500 hover:border-red-300 transition-colors shadow-sm z-10"
-                  aria-label="Remover atividade do backlog"
-                >
-                  <X size={11} />
-                </button>
-              )}
-            </div>
+            <BacklogColunaCard
+              tipo="atividade"
+              titulo={item.nome_acao ?? '(sem título)'}
+              prazo={semanaFimEfetiva(item) != null ? `S${semanaFimEfetiva(item)}` : null}
+              status={status}
+              onExcluir={onExcluirAtividade
+                ? () => onExcluirAtividade(item.id, item.nome_acao)
+                : undefined
+              }
+            />
           </DraggableAtividade>
         ))}
       </div>
@@ -351,8 +339,8 @@ type BacklogBlocoProps = {
 export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps = {}) {
   const { sirene, pastelaria, atividades, isLoading, error, recarregar } = useBacklog();
   const semanaAtual = isoWeek(new Date());
-  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const [drawerAberto, setDrawerAberto] = useState(false);
 
   async function handleExcluirAtividade(id: string, nome: string | null) {
     const label = nome ? `"${nome}"` : 'esta atividade';
@@ -430,7 +418,7 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
             <ColunaAtividades
               items={atividades}
               semanaAtual={semanaAtual}
-              onNovaAtividade={() => router.push('/carometro/comportamentos-e-atividades')}
+              onNovaAtividade={() => setDrawerAberto(true)}
               onExcluirAtividade={handleExcluirAtividade}
             />
           </div>
@@ -438,6 +426,14 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
           {/* Coluna 3 — Cards / Kanban */}
           <BacklogKanbanColuna />
         </div>
+      )}
+
+      {/* Drawer de Nova Atividade */}
+      {drawerAberto && (
+        <NovaAtividadeDrawer
+          onFechar={() => setDrawerAberto(false)}
+          onSalvo={() => { recarregar(); setDrawerAberto(false); }}
+        />
       )}
     </section>
   );
