@@ -231,6 +231,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId, empreend
       entrada_sugerida: resultado.entrada_sugerida,
       parcela_mensal_sugerida: resultado.parcela_mensal_usada,
       parcela_unica_sugerida: resultado.parcela_unica_sugerida,
+      prazo_total_meses: resultado.quantidade_parcelas_total,
     });
     setSalvando(false);
     if (!res.ok) {

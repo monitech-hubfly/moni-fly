@@ -206,6 +206,7 @@ export async function vincularOfertaAoEmpreendimentoImob(
     entrada: number | null;
     parcelas_mensais: number | null;
     parcela_unica: number | null;
+    prazo_total_meses: number | null;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const auth = await requireUser();
@@ -221,6 +222,7 @@ export async function vincularOfertaAoEmpreendimentoImob(
       valor_avista: valores.valor_avista,
       entrada: valores.entrada,
       parcelas_mensais: valores.parcelas_mensais,
+      prazo_total_meses: valores.prazo_total_meses,
       parcela_unica: valores.parcela_unica,
       updated_at: new Date().toISOString(),
     } as never)
@@ -228,6 +230,35 @@ export async function vincularOfertaAoEmpreendimentoImob(
     .eq('card_id', cardId)
     .eq('tipo', 'empreendimento');
   if (error) {
+    if (/prazo_total_meses/i.test(error.message)) {
+      const { error: retryErr } = await auth.supabase
+        .from('imob_card_empreendimentos')
+        .update({
+          simulacao_pagamento_id: valores.simulacao_pagamento_id,
+          valor_avista: valores.valor_avista,
+          entrada: valores.entrada,
+          parcelas_mensais: valores.parcelas_mensais,
+          parcela_unica: valores.parcela_unica,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq('id', empreendimentoId)
+        .eq('card_id', cardId)
+        .eq('tipo', 'empreendimento');
+      if (retryErr) {
+        if (/parcela_unica|simulacao_pagamento_id|schema cache|does not exist/i.test(retryErr.message)) {
+          return {
+            ok: false,
+            error: 'Falta a migration 550 (parcela_unica / vínculo da oferta) neste banco.',
+          };
+        }
+        return { ok: false, error: retryErr.message };
+      }
+      revalidatePath('/');
+      revalidatePath('/hub-funis');
+      revalidatePath('/loteadores');
+      revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
+      return { ok: true };
+    }
     if (/parcela_unica|simulacao_pagamento_id|schema cache|does not exist/i.test(error.message)) {
       return {
         ok: false,

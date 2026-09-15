@@ -460,6 +460,7 @@ export type SimuladorOfertaDraft = {
   entrada_sugerida?: number;
   parcela_mensal_sugerida?: number;
   parcela_unica_sugerida?: number;
+  prazo_total_meses?: number;
 };
 
 export function emptySimuladorOfertaDraft(taxaAnualUi?: string): SimuladorOfertaDraft {
@@ -548,6 +549,7 @@ export type SimulacaoPagamentoResumo = {
   parcela_unica_sugerida: number | null;
   parcela_mensal_sugerida: number | null;
   vte_avista: number | null;
+  prazo_total_meses: number | null;
   template_id: string | null;
 };
 
@@ -628,6 +630,10 @@ export function mapSimulacaoRow(raw: Record<string, unknown>): SimulacaoPagament
       numOrNull(inp.vte_avista) ??
       numOrNull(raw.vte_avista) ??
       numOrNull(res.valor_total_vista),
+    prazo_total_meses:
+      numOrNull(res.quantidade_parcelas_total) ??
+      numOrNull(inp.prazo_total_meses) ??
+      numOrNull(raw.prazo_total_meses),
     template_id: raw.template_id != null ? String(raw.template_id) : null,
   };
 }
@@ -637,13 +643,21 @@ export function valoresImobDaSimulacao(oferta: SimulacaoPagamentoResumo): {
   valor_avista: number | null;
   entrada: number | null;
   parcelas_mensais: number | null;
+  prazo_total_meses: number | null;
   parcela_unica: number | null;
 } {
+  const prazoTotal =
+    oferta.prazo_total_meses != null && Number.isFinite(oferta.prazo_total_meses)
+      ? Math.round(oferta.prazo_total_meses)
+      : oferta.prazo_meses != null && Number.isFinite(oferta.prazo_meses)
+        ? Math.round(oferta.prazo_meses)
+        : null;
   return {
     valor_avista: oferta.vte_avista,
     entrada: oferta.entrada_confirmada ?? oferta.entrada_sugerida,
     parcelas_mensais:
       oferta.parcela_mensal_confirmada ?? oferta.parcela_mensal_sugerida ?? oferta.parcela_mensal,
+    prazo_total_meses: prazoTotal != null && prazoTotal > 0 ? prazoTotal : null,
     parcela_unica: oferta.parcela_unica_confirmada ?? oferta.parcela_unica_sugerida,
   };
 }

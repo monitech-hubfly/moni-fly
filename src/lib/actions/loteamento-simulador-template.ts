@@ -519,6 +519,7 @@ export async function criarSimuladorOfertaDoCard(
     entrada_sugerida: draft.entrada_sugerida ?? null,
     parcela_mensal_sugerida: draft.parcela_mensal_sugerida ?? null,
     parcela_unica_sugerida: draft.parcela_unica_sugerida ?? null,
+    prazo_total_meses: draft.prazo_total_meses ?? prazoMeses.valor,
   };
 
   const resultadoSnapshot = {
@@ -526,6 +527,7 @@ export async function criarSimuladorOfertaDoCard(
     entrada_sugerida: draft.entrada_sugerida ?? null,
     parcela_mensal_usada: draft.parcela_mensal_sugerida ?? null,
     parcela_unica_sugerida: draft.parcela_unica_sugerida ?? null,
+    quantidade_parcelas_total: draft.prazo_total_meses ?? prazoMeses.valor,
   };
 
   const rowCheio: Record<string, unknown> = {

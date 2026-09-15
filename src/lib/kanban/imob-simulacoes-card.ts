@@ -66,6 +66,7 @@ export type ImobCardEmpreendimentoRow = {
   valor_avista: number | null;
   entrada: number | null;
   parcelas_mensais: number | null;
+  prazo_total_meses: number | null;
   parcela_unica: number | null;
   simulacao_pagamento_id: string | null;
   balao_parcial_8: number | null;
@@ -111,6 +112,7 @@ export type ImobCardEmpreendimentoDraft = {
   valor_avista: string;
   entrada: string;
   parcelas_mensais: string;
+  prazo_total_meses: string;
   parcela_unica: string;
   simulacao_pagamento_id: string;
   balao_parcial_8: string;
@@ -266,6 +268,7 @@ export function rowToImobDraft(row: ImobCardEmpreendimentoRow): ImobCardEmpreend
     valor_avista: numToCampo(row.valor_avista),
     entrada: numToCampo(row.entrada),
     parcelas_mensais: numToCampo(row.parcelas_mensais),
+    prazo_total_meses: numToPlain(row.prazo_total_meses),
     parcela_unica: numToCampo(row.parcela_unica),
     simulacao_pagamento_id: String(row.simulacao_pagamento_id ?? '').trim(),
     balao_parcial_8: numToCampo(row.balao_parcial_8),
@@ -331,6 +334,16 @@ export function formatImobMoedaExibicao(raw: string): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+/** Ex.: "18 meses". Vazio ou inválido → "—". */
+export function formatImobPrazoTotalExibicao(raw: string): string {
+  const s = String(raw ?? '').trim().replace(',', '.');
+  if (!s) return '—';
+  const n = Number(s);
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  const meses = Math.round(n);
+  return meses === 1 ? '1 mês' : `${meses} meses`;
+}
+
 export function labelStatusImovel(id: string | null | undefined): string {
   const s = String(id ?? '').trim();
   const hit = IMOB_STATUS_IMOVEL.find((x) => x.id === s || x.label.toLowerCase() === s.toLowerCase());
@@ -387,6 +400,7 @@ export function mapImobCardEmpreendimentoRow(raw: Record<string, unknown>): Imob
     valor_avista: n('valor_avista'),
     entrada: n('entrada'),
     parcelas_mensais: n('parcelas_mensais'),
+    prazo_total_meses: n('prazo_total_meses') != null ? Math.round(n('prazo_total_meses')!) : null,
     parcela_unica: n('parcela_unica'),
     simulacao_pagamento_id: t('simulacao_pagamento_id'),
     balao_parcial_8: n('balao_parcial_8'),

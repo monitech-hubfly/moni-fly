@@ -26,6 +26,7 @@ import {
   IMOB_STATUS_IMOVEL,
   emptyImobCardModeloDraft,
   formatImobMoedaExibicao,
+  formatImobPrazoTotalExibicao,
   labelStatusImovel,
   opcoesProdutoModeloComValorAtual,
   type ImobCardEmpreendimentoDraft,
@@ -178,6 +179,19 @@ function CampoMoedaLeitura({ label, value }: { label: string; value: string }) {
       </span>
       <div className="mt-0.5 text-xs tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
         {formatImobMoedaExibicao(value)}
+      </div>
+    </div>
+  );
+}
+
+function CampoPrazoLeitura({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className={labelCls} style={labelStyle}>
+        {label}
+      </span>
+      <div className="mt-0.5 text-xs tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
+        {formatImobPrazoTotalExibicao(value)}
       </div>
     </div>
   );
@@ -471,6 +485,7 @@ function EmpreendimentoBloco({
               <CampoMoedaLeitura label="Valor do imóvel à vista (R$)" value={item.valor_avista ?? ''} />
               <CampoMoedaLeitura label="Entrada (R$)" value={item.entrada ?? ''} />
               <CampoMoedaLeitura label="Parcelas mensais (R$)" value={item.parcelas_mensais ?? ''} />
+              <CampoPrazoLeitura label="Prazo total" value={item.prazo_total_meses ?? ''} />
               <CampoMoedaLeitura label="Parcela única (R$)" value={item.parcela_unica ?? ''} />
             </div>
           ) : null}
