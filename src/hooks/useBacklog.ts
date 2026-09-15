@@ -133,11 +133,14 @@ export function useBacklog(): UseBacklogResult {
           .eq('arquivado', false),
 
         // Janela: semana atual ±4 semanas. Atividades atrasadas além da janela são buscadas separadamente.
+        // Filtra apenas atividades vinculadas ao catálogo (acao_id IS NOT NULL).
+        // Atividades de agenda livre (titulo sem acao_id) ficam apenas no calendário.
         supabase
           .from('gantt_planejamento')
           .select('id, acao_id, titulo, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
           .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
           .is('data_conclusao_real', null)
+          .not('acao_id', 'is', null)
           .overlaps('semanas_selecionadas', [
             semanaAtual - 4, semanaAtual - 3, semanaAtual - 2,
             semanaAtual - 1, semanaAtual, semanaAtual + 1, semanaAtual + 2,
@@ -158,6 +161,7 @@ export function useBacklog(): UseBacklogResult {
           .select('id, acao_id, titulo, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
           .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
           .is('data_conclusao_real', null)
+          .not('acao_id', 'is', null)
           .lt('semana_ano_fim', semanaAtual - 4),
       ]);
 
