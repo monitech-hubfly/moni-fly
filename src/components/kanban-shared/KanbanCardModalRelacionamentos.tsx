@@ -102,6 +102,8 @@ type Props = {
   projetoId?: string | null;
   ocultarKanbansInternos?: boolean;
   cardDesabilitado?: boolean;
+  /** Exibe botão de esteira jurídica (Funil Jurídico). */
+  mostrarBotaoJuridico?: boolean;
 };
 
 export function KanbanCardModalRelacionamentos({

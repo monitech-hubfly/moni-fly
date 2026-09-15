@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPIs Diretoria · Hub Fly — Cruzamento Estrito</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --navy:   #0C2633;
+  --green:  #2F4A3A;
+  --earth:  #4A3929;
+  --gold:   #D4AD68;
+  --red:    #c0392b;
+  --ok-txt: #1d3a27;
+  --ok-bg:  #e4ede7;
+  --nm-txt: #555;
+  --nm-bg:  #f0f0f0;
+  --pend-txt:#3a3a6a;
+  --pend-bg: #e8e8f4;
+  --bg:     #f2f1ef;
+  --surf:   #fff;
+  --bord:   rgba(0,0,0,0.09);
+  --sw:     220px;
+  --sans:   'Inter',system-ui,sans-serif;
+  --disp:   'Georgia',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:#1a1a1a;font-size:13px}
+a{color:inherit;text-decoration:none}
+
+/* TOP BAR */
+.topbar{
+  position:sticky;top:0;z-index:100;
+  background:var(--navy);color:#fff;
+  display:flex;align-items:center;gap:12px;
+  padding:0 24px;height:48px;
+}
+.topbar-logo{font-family:var(--disp);font-size:17px}
+.topbar-sep{opacity:.3}
+.topbar-title{font-size:12px;opacity:.6;letter-spacing:.3px;text-transform:uppercase}
+.topbar-right{margin-left:auto;display:flex;gap:20px}
+.tstat{font-size:11px;opacity:.85}
+.tstat strong{font-size:15px;font-weight:700;margin-right:3px}
+
+/* LAYOUT */
+.layout{display:flex;min-height:calc(100vh - 48px)}
+.sidebar{
+  width:var(--sw);min-width:var(--sw);
+  background:var(--navy);padding:20px 0;
+  position:sticky;top:48px;height:calc(100vh - 48px);overflow-y:auto;
+}
+.sidebar a{
+  display:block;padding:7px 18px;
+  font-size:11px;font-weight:500;letter-spacing:.4px;text-transform:uppercase;
+  color:rgba(255,255,255,.5);transition:all .15s;
+}
+.sidebar a:hover,.sidebar a.active{color:#fff;background:rgba(255,255,255,.07)}
+.sb-sec{
+  padding:13px 18px 4px;font-size:9px;
+  color:rgba(255,255,255,.25);letter-spacing:.9px;text-transform:uppercase;margin-top:4px;
+}
+.main{flex:1;padding:28px 28px 80px;overflow-x:hidden;max-width:1440px}
+
+/* SUMMARY TABLE */
+.sec-title{
+  font-family:var(--disp);font-size:20px;color:var(--navy);margin-bottom:14px;
+}
+.sum-wrap{
+  background:var(--surf);border:.5px solid var(--bord);
+  border-radius:12px;overflow:hidden;margin-bottom:28px;
+}
+.sum-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.sum-tbl th{
+  background:var(--navy);color:#fff;
+  padding:9px 14px;text-align:left;font-weight:600;
+  font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;
+}
+.sum-tbl th.r{text-align:right}
+.sum-tbl td{padding:8px 14px;border-bottom:.5px solid var(--bord)}
+.sum-tbl tr:last-child td{border-bottom:none;font-weight:700;background:#f8f8f6}
+.sum-tbl tr:hover td{background:#f6f5f2}
+.c-ok  {color:var(--ok-txt);font-weight:700}
+.c-nm  {color:#888;font-weight:700}
+.c-pd  {color:var(--pend-txt);font-style:italic}
+td.r{text-align:right}
+.bar-wrap{display:flex;height:7px;border-radius:4px;overflow:hidden;gap:1px;min-width:80px}
+.bar-m{background:var(--green)}
+.bar-nm{background:#ddd}
+
+/* LEGENDA */
+.legenda{
+  display:flex;gap:18px;flex-wrap:wrap;
+  background:var(--surf);border:.5px solid var(--bord);
+  border-radius:10px;padding:11px 16px;margin-bottom:20px;font-size:11px;
+}
+.leg{display:flex;align-items:center;gap:6px}
+.leg-bar{width:3px;height:16px;border-radius:2px;flex-shrink:0}
+
+/* INFO */
+.info-box{
+  background:#e8e8f4;border:.5px solid #aac;
+  border-radius:10px;padding:10px 15px;margin-bottom:24px;
+  font-size:11.5px;color:var(--navy);line-height:1.65;
+}
+code{background:#dde8f0;padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+/* DEPTO */
+.depto{margin-bottom:52px;scroll-margin-top:64px}
+.depto-header{
+  display:flex;align-items:baseline;gap:10px;
+  margin-bottom:18px;padding-bottom:10px;
+  border-bottom:.5px solid var(--bord);
+}
+.depto-name{font-family:var(--disp);font-size:23px;color:var(--navy)}
+.depto-badge{font-size:11.5px;color:#aaa}
+
+.divisao{margin-bottom:24px}
+.div-title{
+  font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
+  color:#bbb;margin-bottom:10px;padding:3px 0;border-bottom:.5px solid var(--bord);
+}
+
+/* GRID */
+.kpi-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+  gap:10px;
+}
+
+/* CARD */
+.kpi-card{
+  background:var(--surf);border:.5px solid var(--bord);
+  border-radius:12px;padding:12px 12px 11px;
+  display:flex;flex-direction:column;gap:6px;
+  transition:border-color .15s;
+}
+.kpi-card:hover{border-color:rgba(0,0,0,.18)}
+.kpi-card.c-mon{border-left:2.5px solid var(--green)}
+.kpi-card.c-pnd{border-left:2.5px solid #aac}
+
+/* BADGES */
+.kpi-top{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.tbadge{
+  font-size:9px;font-weight:800;letter-spacing:.3px;
+  padding:2px 6px;border-radius:4px;white-space:nowrap;flex-shrink:0;
+}
+.tN  {background:#e3ecf1;color:var(--navy)}
+.tP  {background:#e4ede7;color:var(--green)}
+.tFIN{background:#fdf6e8;color:#7a5a00;border:.5px solid var(--gold)}
+.tH  {background:#ebebeb;color:#444}
+.tNT {background:#ede9e5;color:var(--earth)}
+.tTX {background:#ebebeb;color:#555}
+.tOU {background:#f0f0f0;color:#888}
+
+.sbadge{
+  font-size:9px;font-weight:700;letter-spacing:.2px;
+  padding:2px 8px;border-radius:20px;white-space:nowrap;
+}
+.sm{background:var(--ok-bg);color:var(--ok-txt)}    /* monitored */
+.snm{background:var(--nm-bg);color:var(--nm-txt)}   /* not monitored */
+.spd{background:var(--pend-bg);color:var(--pend-txt)} /* a definir */
+
+/* KPI NOME */
+.kpi-nome{font-size:13px;font-weight:700;color:#111;line-height:1.3;min-height:32px}
+
+/* BLOCO HUB FLY */
+.bloco-hub{
+  background:#f2f7fb;border:.5px solid #cde0ee;
+  border-radius:7px;padding:7px 9px;
+  display:flex;flex-direction:column;gap:3px;
+}
+.bloco-hub .bh-row{
+  display:flex;gap:5px;align-items:flex-start;font-size:10.5px;line-height:1.4;
+}
+.bh-label{
+  font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  color:#5a8aaa;white-space:nowrap;flex-shrink:0;min-width:80px;
+}
+.bh-val{color:#0C2633;font-weight:600}
+.bh-val.area{color:var(--green);font-weight:500}
+.bh-val.como{color:#555;font-weight:400;font-style:italic}
+.bh-sep{height:.5px;background:#d8eaf5;margin:2px 0}
+
+/* BLOCO NÃO MONITORADO */
+.bloco-nm{
+  background:#f5f5f5;border:.5px solid #e0e0e0;
+  border-radius:7px;padding:7px 9px;
+}
+.nm-title{
+  font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  color:#aaa;margin-bottom:3px;
+}
+.nm-text{font-size:10.5px;color:#999;line-height:1.4;font-style:italic}
+
+/* GRÁFICO */
+.kpi-chart-wrap{height:65px;margin:2px 0 0}
+.kpi-meta-info{font-size:9.5px;color:#c0392b;margin-top:1px;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-logo">Hub Fly</span>
+  <span class="topbar-sep">·</span>
+  <span class="topbar-title">KPIs Diretoria — Cruzamento Estrito · TO DO &amp; PLANNING</span>
+  <div class="topbar-right" id="tc"></div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar" id="sb"></nav>
+  <main class="main" id="main"></main>
+</div>
+
+<script>
+'use strict';
+const SEMS = ['S33','S34','S35','S36','S37','S38','S39','S40'];
+
+/* ── HELPERS ────────────────────────────────────────────────────────────── */
+function tBadge(t){
+  const M = {
+    'N':['(n)','tN'], '%':['(%)','tP'], '$':['($)','tFIN'],
+    'H':['(h)','tH'], '05':['(0-5)','tNT'], 'NOTA':['(nota)','tNT'],
+    'NOME':['(nome)','tTX'], 'DATA':['(data)','tTX'],
+    'LISTA':['(lista)','tTX'], 'DIAS':['(dias)','tTX'],
+    '?':['(?)','tOU'], '—':['(—)','tOU'],
+  };
+  const [l,c] = M[t] || ['(?)','tOU'];
+  return `<span class="tbadge ${c}">${l}</span>`;
+}
+
+/*
+  Cada KPI:
+  tipo      → código do tipo (N, %, $, H, 05, NOTA, NOME, DATA, LISTA, DIAS, ?, —)
+  nome      → nome do KPI conforme planilha da diretoria
+  excelArea → "DEPTO / DIVISÃO" conforme planilha
+  monitored → true = tem indicador exato em TO DO & PLANNING
+  hub       → { indicador, area, como } — só se monitored=true
+              como: texto de como o dado é preenchido/calculado
+  criar     → texto descrevendo o que precisaria ser criado (se !monitored)
+  d[]       → dados simulados semanais (só se monitored e numérico)
+  meta      → array de 8 pontos com o valor de meta por semana (stepped quando muda)
+*/
+
+const DEPTOS = [
+
+/* ══════════════════════════════════ MKT */
+{id:'mkt', nome:'MKT', divisoes:[
+  {nome:'Franks', kpis:[
+    {tipo:'N', nome:'R1 / Mês',       excelArea:'MKT / Franks',
+     monitored:true,
+     hub:{
+       indicador:'QTD REUNIÕES AGENDADAS / SEMANA',
+       area:'Marketing',
+       como:'Preenchido manualmente pelo responsável de Marketing toda semana em Metas & Indicadores. Unidade: Número (quantidade de reuniões agendadas na semana).',
+     },
+     nota:'Indicador rastreia semanas. Para visão mensal é necessário somar as 4–5 semanas do mês. Hoje não existe agregação mensal automática.',
+     d:[14,16,18,15,20,22,19,21],
+     meta:[20,20,20,20,20,20,20,20],
+    },
+    {tipo:'%',  nome:'mql > r1',      excelArea:'MKT / Franks',     monitored:false,
+     criar:'Criar indicador de taxa de conversão MQL → R1 na área Marketing. Hoje não existe indicador percentual com essa fórmula no sistema.'},
+    {tipo:'$',  nome:'Invest Total',  excelArea:'MKT / Franks',     monitored:false,
+     criar:'Criar indicador financeiro de investimento total em MKT Franks. Necessário integração com plataforma de Ads ou input manual.'},
+    {tipo:'$',  nome:'Invest / R1',   excelArea:'MKT / Franks',     monitored:false,
+     criar:'Calculável após criação do indicador de Invest Total. Fórmula: Invest Total ÷ Qtd R1.'},
+    {tipo:'?',  nome:'Engajamento IG',excelArea:'MKT / Franks',     monitored:false,
+     criar:'Criar indicador de engajamento Instagram (alcance, curtidas, seguidores). Hoje existe apenas "FRANK\'S: POST\'S SEMANAIS" (contagem de posts) — não é o mesmo que engajamento.'},
+  ]},
+  {nome:'Loteadores', kpis:[
+    {tipo:'N',  nome:'R1 / Mês',      excelArea:'MKT / Loteadores', monitored:false,
+     criar:'Reuniões MKT para Loteadores não existem como indicador separado. Criar indicador segmentado por público-alvo.'},
+    {tipo:'%',  nome:'mql > r1',      excelArea:'MKT / Loteadores', monitored:false,
+     criar:'Taxa de qualificação Loteadores não existe. Criar indicador com filtro de divisão.'},
+    {tipo:'$',  nome:'Invest Total',  excelArea:'MKT / Loteadores', monitored:false,
+     criar:'Sem indicador financeiro de MKT Loteadores. Criar ou segmentar o investimento total por divisão.'},
+    {tipo:'$',  nome:'Invest / R1',   excelArea:'MKT / Loteadores', monitored:false,
+     criar:'Calculável após criar Invest Total Loteadores.'},
+    {tipo:'?',  nome:'Engajamento IG',excelArea:'MKT / Loteadores', monitored:false,
+     criar:'Criar indicador de engajamento. Hoje existe "IMOB: POST\'S SEMANAIS" (contagem de posts) — não é engajamento.'},
+  ]},
+  {nome:'IMOB', kpis:[
+    {tipo:'N',  nome:'Visitas',       excelArea:'MKT / IMOB',
+     monitored:true,
+     hub:{
+       indicador:'QTD DE VISITAS EM ITU (AQUINO) + QTD DE VISITAS EM CURITIBA (VANALLI)',
+       area:'Marketing',
+       como:'Dois indicadores separados por empreendimento, preenchidos manualmente em Metas & Indicadores. Hoje são dois registros distintos — não existe um único indicador "visitas IMOB" consolidado.',
+     },
+     nota:'Indica visitas por empreendimento. Não segmentado por canal (Loteadores vs Franks).',
+     d:[5,7,8,6,9,11,10,12],
+     meta:[8,8,8,8,8,8,8,8],
+    },
+    {tipo:'N',  nome:'Leads',         excelArea:'MKT / IMOB',
+     monitored:true,
+     hub:{
+       indicador:'QTD LEADS CAPTADOS / SEMANA',
+       area:'Marketing',
+       como:'Preenchido manualmente pelo responsável de Marketing toda semana em Metas & Indicadores. Unidade: Número.',
+     },
+     nota:'Leads gerais de Marketing — não segmentados por divisão (IMOB, Franks, Loteadores).',
+     d:[42,38,45,50,48,55,52,58],
+     meta:[40,40,40,40,40,50,50,50],
+    },
+    {tipo:'%',  nome:'lead > mql',    excelArea:'MKT / IMOB',      monitored:false,
+     criar:'Taxa de qualificação lead → MQL não existe. Criar indicador percentual na área Marketing.'},
+    {tipo:'%',  nome:'mql > visita',  excelArea:'MKT / IMOB',      monitored:false,
+     criar:'Taxa de conversão MQL → visita não existe. Criar indicador percentual.'},
+    {tipo:'N',  nome:'CPC',           excelArea:'MKT / IMOB',      monitored:false,
+     criar:'Custo por clique não existe. Necessário integração com plataforma de Ads (Meta/Google) ou input manual.'},
+    {tipo:'N',  nome:'CPV',           excelArea:'MKT / IMOB',      monitored:false,
+     criar:'Custo por visita não existe. Calculável via Invest ÷ Visitas após criar indicador de investimento.'},
+  ]},
+  {nome:'M. Capital', kpis:[
+    {tipo:'N',  nome:'R1',            excelArea:'MKT / M. Capital', monitored:false,
+     criar:'Reuniões MKT M. Capital não existem como indicador separado em Marketing.'},
+    {tipo:'N',  nome:'Leads',         excelArea:'MKT / M. Capital', monitored:false,
+     criar:'Leads M. Capital não estão separados do funil geral de Marketing.'},
+    {tipo:'%',  nome:'lead > mql',    excelArea:'MKT / M. Capital', monitored:false, criar:'Criar indicador percentual.'},
+    {tipo:'%',  nome:'mql > visita',  excelArea:'MKT / M. Capital', monitored:false, criar:'Criar indicador percentual.'},
+    {tipo:'N',  nome:'CPC',           excelArea:'MKT / M. Capital', monitored:false, criar:'Necessário integração plataforma de Ads.'},
+    {tipo:'N',  nome:'CPV',           excelArea:'MKT / M. Capital', monitored:false, criar:'Calculável após criar indicador de investimento.'},
+  ]},
+]},
+
+/* ══════════════════════════════════ COMERCIAL */
+{id:'comercial', nome:'COMERCIAL', divisoes:[
+  {nome:'Franks', kpis:[
+    {tipo:'N',   nome:'Contratos',          excelArea:'COMERCIAL / Franks',
+     monitored:true,
+     hub:{
+       indicador:'QTD NOVOS FRANKS',
+       area:'Comercial',
+       como:'Preenchido manualmente pelo responsável Comercial toda semana em Metas & Indicadores. Unidade: Número (quantidade de novos contratos de franquia fechados na semana).',
+     },
+     d:[3,4,2,5,4,6,5,7],
+     meta:[5,5,5,5,5,5,5,5],
+    },
+    {tipo:'N',   nome:'R1 Realizadas',      excelArea:'COMERCIAL / Franks',
+     monitored:true,
+     hub:{
+       indicador:'QTD REUNIÕES REALIZADAS / SEMANA',
+       area:'Comercial',
+       como:'Preenchido manualmente pelo responsável Comercial toda semana em Metas & Indicadores. Unidade: Número.',
+     },
+     nota:'Dado semanal. Para visão mensal somar as semanas do mês.',
+     d:[15,18,16,20,19,22,20,24],
+     meta:[18,18,18,18,18,22,22,22],
+    },
+    {tipo:'%',   nome:'R1 > R2',            excelArea:'COMERCIAL / Franks', monitored:false,
+     criar:'Taxa de conversão R1 → R2 não existe. Criar indicador percentual de funil com 2 etapas de reunião.'},
+    {tipo:'%',   nome:'R1 > Contrato',      excelArea:'COMERCIAL / Franks', monitored:false,
+     criar:'Taxa de fechamento (R1 → contrato) não monitorada. Criar indicador percentual.'},
+    {tipo:'05',  nome:'Nota Atendimento',   excelArea:'COMERCIAL / Franks', monitored:false,
+     criar:'Existe "NPS PIPEDRIVE - AVALIAÇÃO" em Comercial, mas NPS (escala 0–10 ou Net Score) é diferente de nota 0–5. São indicadores distintos — criar avaliação de nota 0–5 específica.'},
+    {tipo:'NOTA',nome:'Quiz Pós R1',        excelArea:'COMERCIAL / Franks', monitored:false,
+     criar:'Não existe. Criar formulário de quiz pós-reunião + indicador para capturar o resultado.'},
+  ]},
+]},
+
+/* ══════════════════════════════════ JURÍDICO */
+{id:'juridico', nome:'JURÍDICO', divisoes:[
+  {nome:'ALL', kpis:[
+    {tipo:'N',   nome:'Docs Concluídos',   excelArea:'JURÍDICO / ALL', monitored:false,
+     criar:'Existe "PADRONIZAÇÃO DOS CONTRATOS" (OK/NOK) em Jurídico — indicador qualitativo, não quantitativo. Criar indicador numérico de contagem de documentos concluídos por semana.'},
+    {tipo:'H',   nome:'Mediana Entregas',  excelArea:'JURÍDICO / ALL', monitored:false,
+     criar:'Tempo médio de entrega jurídica não monitorado. Criar indicador de horas/dias com input manual ou calcular via datas de abertura e conclusão.'},
+    {tipo:'NOTA',nome:'Interações',        excelArea:'JURÍDICO / ALL', monitored:false,
+     criar:'Avaliação de qualidade das interações jurídicas não existe. Criar formulário de avaliação + indicador.'},
+  ]},
+]},
+
+/* ══════════════════════════════════ ADM */
+{id:'adm', nome:'ADM', divisoes:[
+  {nome:'Work Spaces', kpis:[
+    {tipo:'05', nome:'Quiz Semanal Usuários', excelArea:'ADM / Work Spaces', monitored:false,
+     criar:'Quiz de satisfação do workspace não existe. Criar formulário semanal + indicador 0–5.'},
+    {tipo:'N',  nome:'Chamados Relacionados', excelArea:'ADM / Work Spaces', monitored:false,
+     criar:'Não existe indicador de chamados relacionados ao workspace em Adm. Criar indicador numérico (dado potencial na Sirene, mas não está em TO DO & PLANNING hoje).'},
+    {tipo:'H',  nome:'Mediana Chamados',      excelArea:'ADM / Work Spaces', monitored:false,
+     criar:'Tempo médio de resolução de chamados ADM não monitorado. Criar indicador de horas com input manual ou cálculo automático.'},
+  ]},
+  {nome:'Financeiro', kpis:[
+    {tipo:'$', nome:'Em Caixa',              excelArea:'ADM / Financeiro', monitored:false,
+     criar:'Existe "INFORMAÇÕES NIBO E CASHFLOW EM DIA" em Adm, mas é qualitativo (OK/NOK) — não é valor em R$. Criar indicador financeiro com input do valor em caixa.'},
+    {tipo:'$', nome:'Receber até Dia 30',    excelArea:'ADM / Financeiro', monitored:false,
+     criar:'Contas a receber não monitoradas em valor R$. Criar indicador financeiro — dado potencial via integração NIBO.'},
+    {tipo:'$', nome:'Pagar até Dia 30',      excelArea:'ADM / Financeiro', monitored:false,
+     criar:'Contas a pagar não monitoradas em valor R$. Criar indicador financeiro.'},
+    {tipo:'$', nome:'Pgto Atrasados',        excelArea:'ADM / Financeiro', monitored:false,
+     criar:'Existe "Quantidade de atrasos no Recebimento" em Adm, mas é uma contagem (N), não um valor monetário ($). Indicadores de tipo diferente — criar indicador de valor R$ em atraso.'},
+    {tipo:'$', nome:'Receb. Atrasados',      excelArea:'ADM / Financeiro', monitored:false,
+     criar:'Mesma situação acima — existe contagem de atrasos, não valor R$.'},
+    {tipo:'%', nome:'Evol. Rotina Contábil', excelArea:'ADM / Financeiro',
+     monitored:true,
+     hub:{
+       indicador:'Percentual de Evolução até Entrega (%)',
+       area:'Adm',
+       como:'Preenchido manualmente pelo responsável de Adm toda semana em Metas & Indicadores. Representa o percentual de evolução das entregas contábeis até o fechamento. Unidade: Percentual (0–100%).',
+     },
+     d:[65,70,72,75,78,80,82,85],
+     meta:[100,100,100,100,100,100,100,100],
+    },
+  ]},
+  {nome:'Controladoria', kpis:[
+    {tipo:'—', nome:'IDEM METAS (Carômetro)', excelArea:'ADM / Controladoria',
+     monitored:true,
+     hub:{
+       indicador:'ROTINA CONTÁBIL EM DIA · NF\'s EMITIDAS - OBRA · NF\'s EMITIDAS - FUNCIONÁRIOS · Percentual de Evolução até Entrega (%)',
+       area:'Controladoria',
+       como:'Cada indicador preenchido manualmente pela Controladoria toda semana em Metas & Indicadores. ROTINA CONTÁBIL EM DIA e NF\'s são qualitativos (OK/NOK/ANDAMENTO). Percentual de Evolução é numérico (0–100%).',
+     },
+    },
+  ]},
+]},
+
+/* ══════════════════════════════════ NOVOS NEGÓCIOS */
+{id:'nn', nome:'NOVOS NEG.',
+ avisoAlinhamento:'A planilha usa "Novos Negócios". No Hub Fly, o pipeline de Franquias está na área "Moní Inc" e os contratos de parceria/showroom estão na área "Loteadores".',
+ divisoes:[
+  {nome:'Franks', kpis:[
+    {tipo:'N',  nome:'Hipóteses',       excelArea:'NOVOS NEG. / Franks', monitored:false,
+     criar:'Não existe indicador de hipóteses em TO DO & PLANNING. Dado potencial no Kanban (cards Step One), mas não está formalizado como indicador recorrente em Metas & Indicadores.'},
+    {tipo:'H',  nome:'Hipo > Opção',    excelArea:'NOVOS NEG. / Franks', monitored:false,
+     criar:'Tempo de conversão hipótese → opção não monitorado. KPI novo — criar indicador de horas/dias.'},
+    {tipo:'N',  nome:'Opções Ativas',   excelArea:'NOVOS NEG. / Franks', monitored:false,
+     criar:'Existem "QUANTIDADE DE OPÇÃO DE COMPRA (AGOSTO)" e "QUANTIDADE DE OPÇÃO DE COMPRA (SETEMBRO)" em Moní Inc, mas são metas pontuais mensais, não um indicador contínuo de "opções ativas". Criar indicador recorrente.'},
+    {tipo:'N',  nome:'Contratos Ativos',excelArea:'NOVOS NEG. / Franks',
+     monitored:true,
+     hub:{
+       indicador:'QUANTIDADE DE CONTRATOS ASSINADOS',
+       area:'Moní Inc',
+       como:'Preenchido manualmente pelo responsável de Moní Inc toda semana em Metas & Indicadores. Unidade: Número (contratos assinados no período).',
+     },
+     nota:'Área no Hub Fly chama-se "Moní Inc" — corresponde ao pipeline de novas franquias (Novos Negócios / Franks).',
+     d:[2,3,3,4,4,5,5,6],
+     meta:[4,4,4,4,4,4,4,4],
+    },
+    {tipo:'$',  nome:'Revenue Contratos',excelArea:'NOVOS NEG. / Franks', monitored:false,
+     criar:'Valor financeiro dos contratos não existe. Criar indicador monetário com input do valor por contrato.'},
+    {tipo:'N',  nome:'Franks Ativos',   excelArea:'NOVOS NEG. / Franks', monitored:false,
+     criar:'Não existe indicador de franquias ativas em TO DO & PLANNING. Dado existe na tabela rede_franqueados mas não está em Metas & Indicadores — criar indicador recorrente.'},
+    {tipo:'H',  nome:'Op > Contrato',   excelArea:'NOVOS NEG. / Franks', monitored:false,
+     criar:'Tempo de conversão opção → contrato não monitorado. KPI novo.'},
+  ]},
+  {nome:'Loteadores Comercial', kpis:[
+    {tipo:'N',  nome:'R1 Novas',         excelArea:'NOVOS NEG. / Loteadores Comercial', monitored:false,
+     criar:'Reuniões de loteadores não separadas do funil geral. Criar indicador segmentado.'},
+    {tipo:'%',  nome:'R1 > Proposta',    excelArea:'NOVOS NEG. / Loteadores Comercial', monitored:false,
+     criar:'Taxa de conversão R1 → proposta não monitorada.'},
+    {tipo:'N',  nome:'Propostas Ativas', excelArea:'NOVOS NEG. / Loteadores Comercial', monitored:false,
+     criar:'Fase "proposta" para loteadores não rastreada. Criar indicador.'},
+    {tipo:'N',  nome:'Contratos Parceria',excelArea:'NOVOS NEG. / Loteadores Comercial',
+     monitored:true,
+     hub:{
+       indicador:'Quantidade de Contratos de Parceria Fechados',
+       area:'Loteadores',
+       como:'Preenchido manualmente pelo responsável da área Loteadores toda semana em Metas & Indicadores. Unidade: Número.',
+     },
+     d:[1,2,1,2,2,3,2,3],
+     meta:[2,2,2,2,2,2,2,2],
+    },
+    {tipo:'%',  nome:'Prop > Contrato',  excelArea:'NOVOS NEG. / Loteadores Comercial', monitored:false,
+     criar:'Taxa de conversão proposta → contrato não monitorada.'},
+  ]},
+  {nome:'Show Room', kpis:[
+    {tipo:'N',  nome:'Hipóteses',        excelArea:'NOVOS NEG. / Show Room', monitored:false,
+     criar:'Sem rastreio de hipóteses de Showroom no sistema.'},
+    {tipo:'N',  nome:'Propostas',        excelArea:'NOVOS NEG. / Show Room', monitored:false,
+     criar:'Propostas de Showroom não monitoradas.'},
+    {tipo:'N',  nome:'Contratos',        excelArea:'NOVOS NEG. / Show Room',
+     monitored:true,
+     hub:{
+       indicador:'Quantidad de Contratos de Showrrom Fechados',
+       area:'Loteadores',
+       como:'Preenchido manualmente pelo responsável da área Loteadores toda semana em Metas & Indicadores. Unidade: Número. Obs: o nome do indicador no banco contém um typo ("Showrrom") — confirmar se é o indicador correto.',
+     },
+     d:[1,1,2,1,2,2,3,2],
+     meta:[2,2,2,2,2,2,2,2],
+    },
+    {tipo:'%',  nome:'Hipo > Prop',      excelArea:'NOVOS NEG. / Show Room', monitored:false,
+     criar:'Taxa de conversão hipótese → proposta não monitorada.'},
+    {tipo:'%',  nome:'Prop > Contrato',  excelArea:'NOVOS NEG. / Show Room', monitored:false,
+     criar:'Taxa de conversão proposta → contrato não monitorada.'},
+  ]},
+]},
+
+/* ══════════════════════════════════ POOL PROJETOS */
+{id:'pool', nome:'POOL PROJ.', divisoes:[
+  {nome:'Legalização', kpis:[
+    {tipo:'N',  nome:'Proj Ativos',            excelArea:'POOL PROJ. / Legalização', monitored:false,
+     criar:'Sem área "Legalização" em TO DO & PLANNING. Criar área + indicador de projetos ativos.'},
+    {tipo:'H',  nome:'Entrega',                excelArea:'POOL PROJ. / Legalização', monitored:false,
+     criar:'Tempo de entrega não monitorado. Criar indicador de horas/dias.'},
+    {tipo:'05', nome:'Nota Entrega',           excelArea:'POOL PROJ. / Legalização', monitored:false,
+     criar:'Avaliação de qualidade de entrega não existe. Criar indicador 0–5.'},
+    {tipo:'N',  nome:'Int. Rev.',              excelArea:'POOL PROJ. / Legalização', monitored:false,
+     criar:'Revisões internas (Comuniq-ses) de legalização não monitoradas.'},
+    {tipo:'N',  nome:'Out. Rev. (Comuniq-se)', excelArea:'POOL PROJ. / Legalização', monitored:false,
+     criar:'Comuniq-ses externos de legalização não monitorados.'},
+  ]},
+  {nome:'Acoplamento', kpis:[
+    {tipo:'N',  nome:'Proj Ativos',            excelArea:'POOL PROJ. / Acoplamento',
+     monitored:true,
+     hub:{
+       indicador:'QUANTIDADE DE ACOPLAMENTOS',
+       area:'Acoplamento',
+       como:'Preenchido manualmente pelo responsável de Acoplamento toda semana em Metas & Indicadores. Unidade: Número.',
+     },
+     d:[4,5,6,5,7,6,8,7],
+     meta:[6,6,6,6,6,6,6,6],
+    },
+    {tipo:'H',  nome:'Entrega',                excelArea:'POOL PROJ. / Acoplamento', monitored:false,
+     criar:'Tempo de entrega de acoplamento não monitorado. Criar indicador de horas/dias.'},
+    {tipo:'05', nome:'Nota Entrega',           excelArea:'POOL PROJ. / Acoplamento', monitored:false,
+     criar:'Avaliação 0–5 de qualidade de acoplamento não existe. Criar indicador.'},
+    {tipo:'N',  nome:'Int. Rev. (Curador)',    excelArea:'POOL PROJ. / Acoplamento',
+     monitored:true,
+     hub:{
+       indicador:'COMUNIQUE-SES INTERNO',
+       area:'Acoplamento',
+       como:'Preenchido manualmente pelo responsável de Acoplamento toda semana em Metas & Indicadores. Unidade: Número (quantidade de comunique-ses internos emitidos).',
+     },
+     d:[2,3,2,4,3,5,4,3],
+     meta:[2,2,2,2,2,2,2,2],
+    },
+    {tipo:'N',  nome:'Out. Rev. (Wayz/Obra)',  excelArea:'POOL PROJ. / Acoplamento',
+     monitored:true,
+     hub:{
+       indicador:'COMUNIQUE-SES EXTERNOS',
+       area:'Acoplamento',
+       como:'Preenchido manualmente pelo responsável de Acoplamento toda semana em Metas & Indicadores. Unidade: Número (quantidade de comunique-ses externos emitidos).',
+     },
+     d:[1,2,1,3,2,2,3,2],
+     meta:[1,1,1,1,1,1,1,1],
+    },
+  ]},
+  {nome:'Exec Local — Arq', kpis:[
+    {tipo:'N',  nome:'Proj Ativos',            excelArea:'POOL PROJ. / Exec Local Arq',
+     monitored:true,
+     hub:{
+       indicador:'Quantidade de Projetos Executivos Realizados',
+       area:'Projetos - Executivos Locais',
+       como:'Preenchido manualmente pelo responsável da área toda semana em Metas & Indicadores. Unidade: Número. Importante: área única no banco engloba Arq + Fundações + Instalações sem segmentação por disciplina.',
+     },
+     nota:'Um único indicador cobre as 3 disciplinas (Arq, Fundações, Instalações). Não existe segmentação por tipo no banco hoje.',
+     d:[3,4,4,5,4,6,5,6],
+     meta:[4,4,4,4,4,4,4,4],
+    },
+    {tipo:'H',  nome:'Entrega',                excelArea:'POOL PROJ. / Exec Local Arq', monitored:false, criar:'Não monitorado. Criar indicador de prazo de entrega.'},
+    {tipo:'05', nome:'Nota Entrega',           excelArea:'POOL PROJ. / Exec Local Arq', monitored:false, criar:'Não existe. Criar indicador 0–5.'},
+    {tipo:'N',  nome:'Int. Rev. (Curador)',    excelArea:'POOL PROJ. / Exec Local Arq', monitored:false, criar:'Comunique-ses de exec. locais não monitorados separadamente. Criar indicador.'},
+    {tipo:'N',  nome:'Out. Rev. (Wayz/Obra)',  excelArea:'POOL PROJ. / Exec Local Arq', monitored:false, criar:'Não monitorado. Criar indicador.'},
+  ]},
+  {nome:'Exec Local — Fundações', kpis:[
+    {tipo:'N',  nome:'Proj Ativos',            excelArea:'POOL PROJ. / Exec Local Fundações',
+     monitored:true,
+     hub:{
+       indicador:'Quantidade de Projetos Executivos Realizados',
+       area:'Projetos - Executivos Locais',
+       como:'Mesmo indicador de Arq — área única "Projetos - Executivos Locais" sem separação por disciplina. Preenchimento manual semanal.',
+     },
+     nota:'Mesmo indicador de Arq. Não há segmentação Fundações vs Arq vs Instalações no banco.',
+     d:[2,3,3,4,3,4,4,5],
+     meta:[3,3,3,3,3,3,3,3],
+    },
+    {tipo:'H',  nome:'Entrega',                excelArea:'POOL PROJ. / Exec Local Fundações', monitored:false, criar:'Não monitorado.'},
+    {tipo:'05', nome:'Nota Entrega',           excelArea:'POOL PROJ. / Exec Local Fundações', monitored:false, criar:'Não existe.'},
+    {tipo:'N',  nome:'Int. Rev. (Curador)',    excelArea:'POOL PROJ. / Exec Local Fundações', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N',  nome:'Out. Rev. (Wayz/Obra)',  excelArea:'POOL PROJ. / Exec Local Fundações', monitored:false, criar:'Não monitorado.'},
+  ]},
+  {nome:'Exec Local — Instalações', kpis:[
+    {tipo:'N',  nome:'Proj Ativos',            excelArea:'POOL PROJ. / Exec Local Instalações',
+     monitored:true,
+     hub:{
+       indicador:'Quantidade de Projetos Executivos Realizados',
+       area:'Projetos - Executivos Locais',
+       como:'Mesmo indicador de Arq/Fundações — área única sem separação por disciplina. Preenchimento manual semanal.',
+     },
+     nota:'Mesmo indicador de Arq/Fundações. Não há segmentação por disciplina no banco.',
+     d:[2,2,3,3,4,3,4,4],
+     meta:[3,3,3,3,3,3,3,3],
+    },
+    {tipo:'H',  nome:'Entrega',                excelArea:'POOL PROJ. / Exec Local Instalações', monitored:false, criar:'Não monitorado.'},
+    {tipo:'05', nome:'Nota Entrega',           excelArea:'POOL PROJ. / Exec Local Instalações', monitored:false, criar:'Não existe.'},
+    {tipo:'N',  nome:'Int. Rev. (Curador)',    excelArea:'POOL PROJ. / Exec Local Instalações', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N',  nome:'Out. Rev. (Wayz/Obra)',  excelArea:'POOL PROJ. / Exec Local Instalações', monitored:false, criar:'Não monitorado.'},
+  ]},
+]},
+
+/* ══════════════════════════════════ SUPPLY */
+{id:'supply', nome:'SUPPLY', pendente:true, divisoes:[
+  {nome:'Geral (P1 · P2)', kpis:[
+    {tipo:'—', nome:'KPIs a definir pela diretoria', excelArea:'SUPPLY', monitored:false,
+     criar:'A diretoria não definiu KPIs mensais para SUPPLY na planilha. A área existe no Hub Fly com 12 indicadores (Faturamento Loja, Percentual Itens Cadastrados, Quantidade Produtos Revisados, ZERO ERROS DATABASE/SEMANA, etc.) mas nenhum foi solicitado como KPI mensal da diretoria.'},
+  ]},
+]},
+
+/* ══════════════════════════════════ WAYSER */
+{id:'wayser', nome:'WAYSER', divisoes:[
+  {nome:'Geral', kpis:[
+    {tipo:'—', nome:'KPIs a definir pela diretoria', excelArea:'WAYSER / Geral', monitored:false,
+     criar:'A diretoria não definiu KPIs mensais para WAYSER GERAL. A área "Wayzers" existe no Hub Fly com 30 indicadores (NPS Frank, % ABC Construção, Obras em Atraso, etc.) mas nenhum foi listado na planilha.'},
+  ]},
+  {nome:'P1', kpis:[
+    {tipo:'N', nome:'Itens em Negociação',  excelArea:'WAYSER / P1', monitored:false,
+     criar:'Novo KPI — não existe em TO DO & PLANNING. Criar indicador numérico na área Wayzers.'},
+    {tipo:'N', nome:'Categorias em Aberto', excelArea:'WAYSER / P1', monitored:false,
+     criar:'Novo KPI — não existe. Criar indicador numérico.'},
+    {tipo:'N', nome:'Itens em Aberto',      excelArea:'WAYSER / P1', monitored:false,
+     criar:'Novo KPI — não existe. Criar indicador numérico.'},
+  ]},
+  {nome:'P2', kpis:[
+    {tipo:'—', nome:'KPIs a definir pela diretoria', excelArea:'WAYSER / P2', monitored:false,
+     criar:'Sem KPIs definidos para WAYSER P2 na planilha.'},
+  ]},
+]},
+
+/* ══════════════════════════════════ PRODUTO */
+{id:'produto', nome:'PRODUTO',
+ avisoAlinhamento:'A área "Produto" no Hub Fly tem indicadores qualitativos (RECALL EVA, STATUS DETALHAMENTO, etc.). Os KPIs solicitados pela diretoria (projeto ativo, próxima entrega, to do com datas, itens em atraso) são de natureza completamente diferente — nenhum tem correspondência.',
+ divisoes:[
+  {nome:'Curadoria', kpis:[
+    {tipo:'NOME', nome:'Projeto Ativo',       excelArea:'PRODUTO / Curadoria', monitored:false,
+     criar:'Não existe indicador de "nome do projeto ativo" em TO DO & PLANNING para Produto. Criar indicador do tipo texto/nome.'},
+    {tipo:'DATA', nome:'Próxima Entrega',     excelArea:'PRODUTO / Curadoria', monitored:false,
+     criar:'Não existe indicador de data de próxima entrega em Metas & Indicadores para Produto. Criar indicador do tipo data.'},
+    {tipo:'LISTA',nome:'To Do com Datas',     excelArea:'PRODUTO / Curadoria', monitored:false,
+     criar:'Não existe indicador de lista de atividades com datas. Dado potencial no Gantt, mas não está em TO DO & PLANNING como indicador.'},
+    {tipo:'DIAS', nome:'Em Atraso',           excelArea:'PRODUTO / Curadoria', monitored:false,
+     criar:'Não existe indicador de dias em atraso para Produto. Criar indicador numérico (dias).'},
+    {tipo:'N',    nome:'Itens em Atraso',     excelArea:'PRODUTO / Curadoria', monitored:false,
+     criar:'Não existe indicador de contagem de itens em atraso em Metas & Indicadores de Produto.'},
+    {tipo:'N',    nome:'Itens em Negociação', excelArea:'PRODUTO / Curadoria', monitored:false,
+     criar:'Fase "em negociação" não existe. Criar indicador + definir o que significa estar "em negociação" no contexto de Produto.'},
+    {tipo:'N',    nome:'Itens em Aberto',     excelArea:'PRODUTO / Curadoria', monitored:false,
+     criar:'Não existe indicador de contagem de itens em aberto em Metas & Indicadores de Produto.'},
+  ]},
+  {nome:'Design', kpis:[
+    {tipo:'NOME', nome:'Projeto Ativo',       excelArea:'PRODUTO / Design', monitored:false, criar:'Não existe em TO DO & PLANNING.'},
+    {tipo:'DATA', nome:'Próxima Entrega',     excelArea:'PRODUTO / Design', monitored:false, criar:'Não existe.'},
+    {tipo:'LISTA',nome:'To Do com Datas',     excelArea:'PRODUTO / Design', monitored:false, criar:'Não existe.'},
+    {tipo:'DIAS', nome:'Em Atraso',           excelArea:'PRODUTO / Design', monitored:false, criar:'Não existe.'},
+    {tipo:'N',    nome:'Itens em Atraso',     excelArea:'PRODUTO / Design', monitored:false, criar:'Não existe.'},
+  ]},
+  {nome:'Modelo Virtual', kpis:[
+    {tipo:'NOME', nome:'Projeto Ativo',       excelArea:'PRODUTO / Modelo Virtual', monitored:false,
+     criar:'Área "Projetos - Modelo Virtual" tem 3 indicadores no Hub Fly, mas são OK/NOK para projetos específicos (CONCLUIR MODELAGEM EVA, etc.) — não correspondem a "nome do projeto ativo". Criar indicador.'},
+    {tipo:'DATA', nome:'Próxima Entrega',     excelArea:'PRODUTO / Modelo Virtual', monitored:false, criar:'Não existe.'},
+    {tipo:'LISTA',nome:'To Do com Datas',     excelArea:'PRODUTO / Modelo Virtual', monitored:false, criar:'Não existe.'},
+    {tipo:'DIAS', nome:'Em Atraso',           excelArea:'PRODUTO / Modelo Virtual', monitored:false, criar:'Não existe.'},
+    {tipo:'N',    nome:'Itens em Atraso',     excelArea:'PRODUTO / Modelo Virtual', monitored:false, criar:'Não existe.'},
+  ]},
+]},
+
+/* ══════════════════════════════════ MONÍ CARE */
+{id:'care', nome:'MONÍ CARE',
+ avisoAlinhamento:'Não existe área "MONÍ CARE" em TO DO & PLANNING / Metas & Indicadores. Nenhum KPI desta área é monitorado via Hub Fly hoje.',
+ divisoes:[
+  {nome:'Care', kpis:[
+    {tipo:'N',    nome:'Chamados Abertos',      excelArea:'MONÍ CARE / Care', monitored:false,
+     criar:'Não existe indicador de chamados abertos em TO DO & PLANNING. Dado potencial na Sirene, mas não está em Metas & Indicadores — criar área MONÍ CARE + indicador.'},
+    {tipo:'LISTA',nome:'Lista Chamados Abertos',excelArea:'MONÍ CARE / Care', monitored:false,
+     criar:'Não existe. Criar indicador + painel de listagem de chamados ativos para a área Care.'},
+    {tipo:'DATA', nome:'Previsão Conclusão',    excelArea:'MONÍ CARE / Care', monitored:false,
+     criar:'Não existe indicador de data de previsão de conclusão em Metas & Indicadores.'},
+    {tipo:'05',   nome:'Avaliação Cliente',     excelArea:'MONÍ CARE / Care', monitored:false,
+     criar:'Não existe. Criar formulário de avaliação de atendimento 0–5 + indicador.'},
+  ]},
+]},
+
+/* ══════════════════════════════════ M. CAPITAL */
+{id:'mcapital', nome:'M. CAPITAL',
+ avisoAlinhamento:'A área "Moní Capital" no Hub Fly tem 19 indicadores, mas a grande maioria são metas qualitativas (OK/NOK), eventos e projetos pontuais. Nenhum KPI numérico da planilha tem correspondência exata.',
+ divisoes:[
+  {nome:'Franks Varejo', kpis:[
+    {tipo:'$', nome:'Necessidade Imediata',   excelArea:'M. CAPITAL / Franks Varejo', monitored:false,
+     criar:'Não existe indicador de necessidade imediata por Frank em TO DO & PLANNING.'},
+    {tipo:'$', nome:'Captados',               excelArea:'M. CAPITAL / Franks Varejo', monitored:false,
+     criar:'Existe "VAREJO: CAPTAR 1MM" em Moní Capital, mas é uma meta binária (captar ou não), não um indicador de valor captado por semana. Criar indicador numérico de valor R$ captado.'},
+    {tipo:'N', nome:'R1 Realizadas',          excelArea:'M. CAPITAL / Franks Varejo', monitored:false, criar:'Não existe indicador de R1 de M. Capital segmentado. Criar indicador.'},
+    {tipo:'%', nome:'R1 > Prop Realizadas',   excelArea:'M. CAPITAL / Franks Varejo', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$', nome:'Propostas Emitidas',     excelArea:'M. CAPITAL / Franks Varejo', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Avaliando Proposta',     excelArea:'M. CAPITAL / Franks Varejo', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Negados',                excelArea:'M. CAPITAL / Franks Varejo', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$', nome:'Alocados',               excelArea:'M. CAPITAL / Franks Varejo', monitored:false, criar:'Não monitorado.'},
+  ]},
+  {nome:'Franks Atacado', kpis:[
+    {tipo:'$', nome:'Captados',               excelArea:'M. CAPITAL / Franks Atacado', monitored:false,
+     criar:'Existe "ATACADO: PROPOSTA ASSINADA" em Moní Capital mas é um indicador de meta de proposta assinada, não de valor captado. Criar indicador de valor R$ captado segmentado por Atacado.'},
+    {tipo:'N', nome:'R1 Realizadas',          excelArea:'M. CAPITAL / Franks Atacado', monitored:false, criar:'Não existe.'},
+    {tipo:'%', nome:'R1 > Prop Realizadas',   excelArea:'M. CAPITAL / Franks Atacado', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$', nome:'Propostas Emitidas',     excelArea:'M. CAPITAL / Franks Atacado', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Avaliando Proposta',     excelArea:'M. CAPITAL / Franks Atacado', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Negados',                excelArea:'M. CAPITAL / Franks Atacado', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$', nome:'Alocados',               excelArea:'M. CAPITAL / Franks Atacado', monitored:false, criar:'Não monitorado.'},
+  ]},
+  {nome:'Fundo Moní', kpis:[
+    {tipo:'N', nome:'R1 Realizadas',          excelArea:'M. CAPITAL / Fundo Moní', monitored:false, criar:'Não existe.'},
+    {tipo:'%', nome:'R1 > Prop Realizadas',   excelArea:'M. CAPITAL / Fundo Moní', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$', nome:'Propostas Emitidas',     excelArea:'M. CAPITAL / Fundo Moní', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Avaliando Proposta',     excelArea:'M. CAPITAL / Fundo Moní', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Negados',                excelArea:'M. CAPITAL / Fundo Moní', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$', nome:'Alocados',               excelArea:'M. CAPITAL / Fundo Moní', monitored:false, criar:'Não monitorado.'},
+  ]},
+  {nome:'Loteadores (CPF)', kpis:[
+    {tipo:'$', nome:'Necessidade Imediata',   excelArea:'M. CAPITAL / Loteadores (CPF)', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$', nome:'Captados',               excelArea:'M. CAPITAL / Loteadores (CPF)', monitored:false, criar:'Não monitorado por divisão.'},
+    {tipo:'N', nome:'R1 Realizadas',          excelArea:'M. CAPITAL / Loteadores (CPF)', monitored:false, criar:'Não monitorado.'},
+    {tipo:'%', nome:'R1 > Prop Realizadas',   excelArea:'M. CAPITAL / Loteadores (CPF)', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$', nome:'Propostas Emitidas',     excelArea:'M. CAPITAL / Loteadores (CPF)', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Avaliando Proposta',     excelArea:'M. CAPITAL / Loteadores (CPF)', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Negados',                excelArea:'M. CAPITAL / Loteadores (CPF)', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$', nome:'Alocados',               excelArea:'M. CAPITAL / Loteadores (CPF)', monitored:false, criar:'Não monitorado.'},
+  ]},
+]},
+
+/* ══════════════════════════════════ IMOB */
+{id:'imob', nome:'IMOB',
+ avisoAlinhamento:'Não existe área "IMOB" em TO DO & PLANNING / Metas & Indicadores. Nenhum KPI desta área é monitorado via Hub Fly hoje.',
+ divisoes:[
+  {nome:'By Loteadores', kpis:[
+    {tipo:'N',  nome:'R1 Realizadas',    excelArea:'IMOB / By Loteadores', monitored:false, criar:'Não existe.'},
+    {tipo:'N',  nome:'Visitas',          excelArea:'IMOB / By Loteadores', monitored:false,
+     criar:'Não existe indicador IMOB de visitas em TO DO & PLANNING. Os indicadores "QTD DE VISITAS EM ITU (AQUINO)" e "QTD DE VISITAS EM CURITIBA (VANALLI)" estão em Marketing, não em uma área IMOB — e não segmentam por canal (Loteadores vs Franks). Criar área IMOB + indicador segmentado.'},
+    {tipo:'N',  nome:'Visitas / Casa',   excelArea:'IMOB / By Loteadores', monitored:false, criar:'Não monitorado.'},
+    {tipo:'05', nome:'Nota Visita',      excelArea:'IMOB / By Loteadores', monitored:false, criar:'Não existe. Criar formulário de avaliação de visita 0–5.'},
+    {tipo:'N',  nome:'Propostas',        excelArea:'IMOB / By Loteadores', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N',  nome:'Forecast (unid.)', excelArea:'IMOB / By Loteadores', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$',  nome:'Forecast (R$)',    excelArea:'IMOB / By Loteadores', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N',  nome:'Ganhos (unid.)',   excelArea:'IMOB / By Loteadores', monitored:false,
+     criar:'Existe "Quantidade de Contratos Assinados" em Portfólio, mas é um indicador genérico de Portfólio — não de IMOB/canal Loteadores. Criar indicador IMOB segmentado.'},
+    {tipo:'$',  nome:'Ganhos (R$)',      excelArea:'IMOB / By Loteadores', monitored:false, criar:'Não monitorado.'},
+  ]},
+  {nome:'By Franks', kpis:[
+    {tipo:'N',  nome:'R1 Realizadas',    excelArea:'IMOB / By Franks', monitored:false, criar:'Não existe.'},
+    {tipo:'N',  nome:'Visitas',          excelArea:'IMOB / By Franks', monitored:false, criar:'Não existe indicador IMOB segmentado por canal Franks.'},
+    {tipo:'N',  nome:'Visitas / Casa',   excelArea:'IMOB / By Franks', monitored:false, criar:'Não monitorado.'},
+    {tipo:'05', nome:'Nota Visita',      excelArea:'IMOB / By Franks', monitored:false, criar:'Não existe.'},
+    {tipo:'N',  nome:'Propostas',        excelArea:'IMOB / By Franks', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N',  nome:'Forecast (unid.)', excelArea:'IMOB / By Franks', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$',  nome:'Forecast (R$)',    excelArea:'IMOB / By Franks', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N',  nome:'Ganhos (unid.)',   excelArea:'IMOB / By Franks', monitored:false, criar:'Não monitorado segmentado por canal.'},
+    {tipo:'$',  nome:'Ganhos (R$)',      excelArea:'IMOB / By Franks', monitored:false, criar:'Não monitorado.'},
+  ]},
+  {nome:'Permutas', kpis:[
+    {tipo:'N', nome:'Leads',            excelArea:'IMOB / Permutas', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'SQL',              excelArea:'IMOB / Permutas', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Prop Emitidas',    excelArea:'IMOB / Permutas', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Negociações',      excelArea:'IMOB / Permutas', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Forecast (unid.)', excelArea:'IMOB / Permutas', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$', nome:'Forecast (R$)',    excelArea:'IMOB / Permutas', monitored:false, criar:'Não monitorado.'},
+    {tipo:'N', nome:'Ganhos (unid.)',   excelArea:'IMOB / Permutas', monitored:false, criar:'Não monitorado.'},
+    {tipo:'$', nome:'Ganhos (R$)',      excelArea:'IMOB / Permutas', monitored:false, criar:'Não monitorado.'},
+  ]},
+]},
+]; // fim DEPTOS
+
+/* ── CONTAGENS ───────────────────────────────────────────────────────────── */
+const SUM_ROWS = [
+  {id:'mkt',      lbl:'MKT'},
+  {id:'comercial',lbl:'COMERCIAL'},
+  {id:'juridico', lbl:'JURÍDICO'},
+  {id:'adm',      lbl:'ADM'},
+  {id:'nn',       lbl:'NOVOS NEG.'},
+  {id:'pool',     lbl:'POOL PROJ.'},
+  {id:'supply',   lbl:'SUPPLY',   pendente:true},
+  {id:'wayser',   lbl:'WAYSER'},
+  {id:'produto',  lbl:'PRODUTO'},
+  {id:'care',     lbl:'MONÍ CARE'},
+  {id:'mcapital', lbl:'M. CAPITAL'},
+  {id:'imob',     lbl:'IMOB'},
+];
+
+function contar(id){
+  const dep = DEPTOS.find(d=>d.id===id);
+  if(!dep) return {t:0,m:0,nm:0};
+  const kpis = dep.divisoes.flatMap(div=>div.kpis).filter(k=>k.tipo!=='—'||k.monitored);
+  const kpisReal = dep.divisoes.flatMap(div=>div.kpis).filter(k=>!(k.tipo==='—'&&!k.monitored));
+  return {
+    t: kpisReal.length,
+    m: kpisReal.filter(k=>k.monitored).length,
+    nm: kpisReal.filter(k=>!k.monitored).length,
+  };
+}
+
+/* ── SIDEBAR ──────────────────────────────────────────────────────────────── */
+function renderSidebar(){
+  const groups = [
+    {lbl:'Principal', ids:['mkt','comercial','juridico','adm','nn']},
+    {lbl:'Operações', ids:['pool','supply','wayser','produto']},
+    {lbl:'Negócios',  ids:['care','mcapital','imob']},
+  ];
+  let h='';
+  groups.forEach(({lbl,ids})=>{
+    h+=`<div class="sb-sec">${lbl}</div>`;
+    ids.forEach(id=>{
+      const d=DEPTOS.find(x=>x.id===id);
+      if(d) h+=`<a href="#dep-${id}" data-id="${id}">${d.nome}</a>`;
+    });
+  });
+  document.getElementById('sb').innerHTML=h;
+}
+
+/* ── MAIN ─────────────────────────────────────────────────────────────────── */
+function renderMain(){
+  /* topbar */
+  let totM=0,totNM=0,totT=0;
+  SUM_ROWS.forEach(r=>{
+    if(r.pendente) return;
+    const c=contar(r.id);
+    totM+=c.m; totNM+=c.nm; totT+=c.t;
+  });
+  document.getElementById('tc').innerHTML=
+    `<span class="tstat"><strong>${totT}</strong>KPIs</span>`+
+    `<span class="tstat"><strong>${totM}</strong>monitorados</span>`+
+    `<span class="tstat"><strong>${totNM}</strong>a criar/identificar</span>`;
+
+  /* TABELA RESUMO */
+  let rows='';
+  let gT=0,gM=0,gNM=0;
+  SUM_ROWS.forEach(r=>{
+    if(r.pendente){
+      rows+=`<tr><td><a href="#dep-${r.id}" style="color:var(--navy);font-weight:600">${r.lbl}</a></td>
+        <td class="r" style="color:var(--pend-txt);font-style:italic">A definir</td>
+        <td class="r">—</td><td class="r">—</td><td class="r">—</td><td></td></tr>`;
+      return;
+    }
+    const c=contar(r.id);
+    gT+=c.t; gM+=c.m; gNM+=c.nm;
+    const pct=c.t>0?Math.round(c.m/c.t*100):0;
+    const mW=c.t>0?Math.round(c.m/c.t*100):0;
+    const nmW=100-mW;
+    rows+=`<tr>
+      <td><a href="#dep-${r.id}" style="color:var(--navy);font-weight:600">${r.lbl}</a></td>
+      <td class="r">${c.t}</td>
+      <td class="r c-ok">${c.m}</td>
+      <td class="r c-nm">${c.nm}</td>
+      <td class="r">${pct}%</td>
+      <td style="min-width:90px">
+        <div class="bar-wrap">
+          <div class="bar-m" style="width:${mW}%"></div>
+          <div class="bar-nm" style="width:${nmW}%"></div>
+        </div>
+      </td>
+    </tr>`;
+  });
+  const gPct=gT>0?Math.round(gM/gT*100):0;
+  rows+=`<tr>
+    <td>TOTAL</td>
+    <td class="r">${gT}</td>
+    <td class="r c-ok">${gM}</td>
+    <td class="r c-nm">${gNM}</td>
+    <td class="r">${gPct}%</td>
+    <td></td>
+  </tr>`;
+
+  /* CARDS */
+  let cardsH='';
+  DEPTOS.forEach(dep=>{
+    const kpis=dep.divisoes.flatMap(d=>d.kpis).filter(k=>!(k.tipo==='—'&&!k.monitored));
+    const nM=kpis.filter(k=>k.monitored).length;
+    const nNM=kpis.filter(k=>!k.monitored).length;
+
+    const avisoH=dep.avisoAlinhamento
+      ?`<div style="background:#fff8e6;border:.5px solid var(--gold);border-radius:8px;padding:8px 13px;margin-bottom:14px;font-size:11px;color:#7a5a00;line-height:1.5"><strong style="color:var(--earth)">⚠ Alinhamento:</strong> ${dep.avisoAlinhamento}</div>`
+      :'';
+
+    cardsH+=`<div class="depto" id="dep-${dep.id}">
+      <div class="depto-header">
+        <span class="depto-name">${dep.nome}</span>
+        <span class="depto-badge">${nM} monitorados · ${nNM} a criar/identificar</span>
+      </div>
+      ${avisoH}`;
+
+    dep.divisoes.forEach((div,di)=>{
+      cardsH+=`<div class="divisao">
+        <div class="div-title">${div.nome}</div>
+        <div class="kpi-grid">`;
+      div.kpis.forEach((kpi,ki)=>{
+        if(kpi.tipo==='—'&&!kpi.monitored&&kpi.criar){
+          cardsH+=`<div class="kpi-card c-pnd" style="grid-column:1/-1">
+            <div class="kpi-top">
+              <span class="tbadge tOU">(—)</span>
+              <span class="sbadge spd">◌ A Definir</span>
+            </div>
+            <div class="kpi-nome">${kpi.nome}</div>
+            <div class="bloco-nm"><div class="nm-title">Situação</div><div class="nm-text">${kpi.criar}</div></div>
+          </div>`;
+          return;
+        }
+
+        const cid=`c-${dep.id}-${di}-${ki}`;
+        const bordCls=kpi.monitored?'c-mon':'';
+        const statusBadge=kpi.monitored
+          ?`<span class="sbadge sm">● Monitorado</span>`
+          :`<span class="sbadge snm">○ Não monitorado</span>`;
+
+        /* bloco hub fly */
+        let blocoH='';
+        if(kpi.monitored && kpi.hub){
+          blocoH=`<div class="bloco-hub">
+            <div class="bh-row">
+              <span class="bh-label">Área Excel</span>
+              <span class="bh-val">${kpi.excelArea}</span>
+            </div>
+            <div class="bh-sep"></div>
+            <div class="bh-row">
+              <span class="bh-label">Área Hub Fly</span>
+              <span class="bh-val area">${kpi.hub.area}</span>
+            </div>
+            <div class="bh-row">
+              <span class="bh-label">Indicador</span>
+              <span class="bh-val">${kpi.hub.indicador}</span>
+            </div>
+            <div class="bh-sep"></div>
+            <div class="bh-row">
+              <span class="bh-label">Como é preenchido</span>
+              <span class="bh-val como">${kpi.hub.como}</span>
+            </div>
+          </div>`;
+        } else {
+          blocoH=`<div class="bloco-nm">
+            <div class="nm-title">Não monitorado no Hub Fly hoje</div>
+            <div class="nm-text">${kpi.criar||'—'}</div>
+          </div>`;
+        }
+
+        /* gráfico com meta stepped vermelha */
+        let chartH='';
+        if(kpi.monitored && kpi.d && kpi.meta){
+          const metaStepStr = JSON.stringify(kpi.meta);
+          const metaInfo = `Meta: ${[...new Set(kpi.meta)].join(' → ')}`;
+          chartH=`<div class="kpi-chart-wrap"><canvas id="${cid}" data-values='${JSON.stringify(kpi.d)}' data-meta='${metaStepStr}'></canvas></div>
+            <div class="kpi-meta-info">${metaInfo}</div>`;
+        }
+
+        /* nota */
+        const notaH=kpi.nota?`<div style="font-size:10px;color:#999;line-height:1.4;font-style:italic;margin-top:2px">${kpi.nota}</div>`:'';
+
+        cardsH+=`<div class="kpi-card ${bordCls}">
+          <div class="kpi-top">${tBadge(kpi.tipo)}${statusBadge}</div>
+          <div class="kpi-nome">${kpi.nome}</div>
+          ${blocoH}
+          ${chartH}
+          ${notaH}
+        </div>`;
+      });
+      cardsH+=`</div></div>`;
+    });
+    cardsH+=`</div>`;
+  });
+
+  document.getElementById('main').innerHTML=`
+  <h2 class="sec-title">Resumo por Área</h2>
+  <div class="sum-wrap">
+    <table class="sum-tbl">
+      <thead>
+        <tr>
+          <th>Área</th>
+          <th class="r">KPIs definidos</th>
+          <th class="r">● Monitorado</th>
+          <th class="r">○ A criar/identificar</th>
+          <th class="r">Cobertura</th>
+          <th>Distribuição</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>
+
+  <div class="legenda">
+    <div class="leg"><div class="leg-bar" style="background:var(--green)"></div>
+      <strong style="color:var(--ok-txt)">● Monitorado</strong> — existe indicador exato em TO DO &amp; PLANNING / Metas &amp; Indicadores</div>
+    <div class="leg"><div class="leg-bar" style="background:#ddd"></div>
+      <strong style="color:var(--nm-txt)">○ A criar/identificar</strong> — KPI não monitorado via Hub Fly hoje; requer criação ou identificação de fonte</div>
+    <div class="leg"><div class="leg-bar" style="background:#aac"></div>
+      <strong style="color:var(--pend-txt)">◌ A definir</strong> — área sem KPIs definidos pela diretoria na planilha</div>
+    <div class="leg" style="gap:8px">
+      <div style="width:24px;height:3px;background:var(--red);border-top:2px dashed var(--red);border-bottom:none;flex-shrink:0"></div>
+      <span><strong style="color:var(--red)">Linha pontilhada vermelha</strong> = Meta. Quando a meta muda, a linha sobe/desce a partir da semana X preservando o histórico anterior.</span>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>Critério de mapeamento:</strong> Apenas indicadores que existem exatamente em
+    TO DO &amp; PLANNING / Metas &amp; Indicadores (tabela <code>indicadores</code> no banco DEV) foram marcados como monitorados.
+    Nenhum proxy de Kanban, Sirene, rede_franqueados ou indicador qualitativo (OK/NOK) foi considerado.<br>
+    <strong>Preenchimento:</strong> todos os indicadores monitorados são inseridos manualmente pelo responsável da área toda semana em <em>Metas &amp; Indicadores</em>.
+  </div>
+
+  ${cardsH}`;
+}
+
+/* ── CHARTS (meta = linha vermelha stepped) ──────────────────────────────── */
+function initCharts(){
+  document.querySelectorAll('canvas[data-values]').forEach(canvas=>{
+    const vals = JSON.parse(canvas.dataset.values);
+    const meta = JSON.parse(canvas.dataset.meta);
+    new Chart(canvas, {
+      type:'line',
+      data:{
+        labels: SEMS,
+        datasets:[
+          {
+            data: vals,
+            borderColor: 'var(--navy)',
+            backgroundColor: 'rgba(12,38,51,0.05)',
+            borderWidth: 2,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            tension: 0.35,
+            fill: true,
+            label: 'Realizado',
+          },
+          {
+            data: meta,
+            borderColor: '#c0392b',
+            borderWidth: 1.5,
+            borderDash: [5,3],
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            fill: false,
+            stepped: true,   /* linha em degrau — preserva histórico visualmente */
+            label: 'Meta',
+          },
+        ],
+      },
+      options:{
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins:{
+          legend:{
+            display: true,
+            position: 'bottom',
+            labels:{ boxWidth:10, font:{size:8}, padding:5, color:'#999' },
+          },
+          tooltip:{
+            mode:'index', intersect:false,
+            callbacks:{
+              label: i=>`${i.dataset.label}: ${i.raw}`,
+            },
+          },
+        },
+        scales:{
+          x:{ display:true, ticks:{font:{size:8},color:'#bbb',maxRotation:0}, grid:{display:false} },
+          y:{ display:true, ticks:{font:{size:8},color:'#bbb',maxTicksLimit:3}, grid:{color:'rgba(0,0,0,0.04)'} },
+        },
+      },
+    });
+  });
+}
+
+/* ── SCROLL SPY ──────────────────────────────────────────────────────────── */
+function initSpy(){
+  const obs = new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        const id=e.target.id.replace('dep-','');
+        document.querySelectorAll('.sidebar a').forEach(a=>{
+          a.classList.toggle('active', a.dataset.id===id);
+        });
+      }
+    });
+  },{threshold:0.12, rootMargin:'-48px 0px -55% 0px'});
+  document.querySelectorAll('.depto').forEach(el=>obs.observe(el));
+}
+
+/* ── BOOT ─────────────────────────────────────────────────────────────────── */
+renderSidebar();
+renderMain();
+window.addEventListener('load',()=>{ initCharts(); initSpy(); });
+</script>
+</body>
+</html>

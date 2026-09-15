@@ -1,6 +1,7 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useBacklog, SireneItem, AtividadeItem, PastelariaItem } from '@/hooks/useBacklog';
@@ -201,6 +202,121 @@ function ColunaAtividades({ items, semanaAtual, onAbrirModal }: ColunaAtividades
           + Nova atividade
         </button>
       )}
+    </div>
+  );
+}
+
+// ── SireneChamadoBacklogWrapper ───────────────────────────────────────────────
+type SireneChamadoBacklogWrapperProps = {
+  chamadoId: number;
+  onClose: () => void;
+  onConcluido?: () => void;
+};
+
+type ChamadoBasico = {
+  id: number;
+  numero: number;
+  incendio: string;
+  status: string;
+};
+
+export function SireneChamadoBacklogWrapper({
+  chamadoId,
+  onClose,
+  onConcluido,
+}: SireneChamadoBacklogWrapperProps) {
+  const [chamado, setChamado] = useState<ChamadoBasico | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/sirene/chamado-basico?id=${chamadoId}`)
+      .then((r) => r.ok ? r.json() as Promise<ChamadoBasico> : null)
+      .then((d) => { setChamado(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [chamadoId]);
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: 'var(--moni-surface-0)',
+          borderRadius: 'var(--moni-radius-lg)',
+          border: 'var(--moni-border-width) solid var(--moni-border-default)',
+          boxShadow: 'var(--moni-shadow-card)',
+          width: '100%', maxWidth: 480, padding: 24, position: 'relative',
+          fontFamily: 'var(--moni-font-sans)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--moni-text-tertiary)' }}
+          aria-label="Fechar"
+        >
+          <X size={16} />
+        </button>
+
+        {loading ? (
+          <p style={{ color: 'var(--moni-text-tertiary)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
+            Carregando chamado…
+          </p>
+        ) : chamado ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 11, color: 'var(--moni-text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Sirene #{chamado.numero}
+            </p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-display)' }}>
+              {chamado.incendio}
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--moni-text-secondary)' }}>
+              Status: <strong>{chamado.status}</strong>
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <a
+                href={`/sirene/chamados?interacao=${chamadoId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  flex: 1, textAlign: 'center',
+                  padding: '8px 12px', borderRadius: 'var(--moni-radius-md)',
+                  background: 'var(--moni-navy-800)', color: '#fff',
+                  fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                }}
+              >
+                Abrir chamado completo
+              </a>
+              {onConcluido && (
+                <button
+                  type="button"
+                  onClick={onConcluido}
+                  style={{
+                    flex: 1, padding: '8px 12px',
+                    borderRadius: 'var(--moni-radius-md)',
+                    border: 'var(--moni-border-width) solid var(--moni-green-800)',
+                    background: 'var(--moni-kanban-portfolio-light)',
+                    color: 'var(--moni-green-800)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  Marcar concluído
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p style={{ color: 'var(--moni-text-tertiary)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
+            Chamado não encontrado.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

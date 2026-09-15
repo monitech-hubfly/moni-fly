@@ -29,6 +29,10 @@ type Props = {
   onUpdated?: () => void;
   /** Quando true (atribuição já aceita), responsável e abridor não veem "Propor/Alterar prazo"; admin mantém acesso. */
   atribuicaoAceita?: boolean;
+  /** Histórico de status do tópico (opcional — exibição futura). */
+  historico?: Array<{ tipo: string; em: string; por?: string | null }>;
+  /** Mapa de userId → nome para exibição (opcional). */
+  nomePorId?: Map<string, string>;
 };
 
 export function PrazoNegociacaoPanel({

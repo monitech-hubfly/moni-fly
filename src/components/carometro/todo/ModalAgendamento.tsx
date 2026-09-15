@@ -341,7 +341,7 @@ export function ModalAgendamento({
   const kanbanData = useBacklogKanban();
 
   // Atividades ativas: mesma fonte do BacklogBloco (backlog_atividades_usuario no Supabase)
-  const ativoIds = backlog.ativoIds;
+  const ativoIds = backlog.ativoIds ?? new Set<string>();
 
   const [form, setForm] = useState<DadosAgendamento>({ ...EMPTY });
 
@@ -458,11 +458,11 @@ export function ModalAgendamento({
   const atividItems = useMemo<BacklogItem[]>(() => {
     // Combina não-agendadas (do backlog principal) + já agendadas (collapsible), sem duplicar
     const seen = new Set<string>();
-    const combined: { id: string; nome: string; prazo: string | null }[] = [];
-    for (const a of [...backlog.atividades.filter(a => ativoIds.has(a.id)), ...backlog.atividadesAgendadas]) {
+    const combined: { id: string; nome: string | null; prazo: string | null }[] = [];
+    for (const a of [...backlog.atividades.filter(a => ativoIds.has(a.id)), ...(backlog.atividadesAgendadas ?? [])]) {
       if (seen.has(a.id)) continue;
       seen.add(a.id);
-      combined.push(a);
+      combined.push(a as { id: string; nome: string | null; prazo: string | null });
     }
     return combined
       .sort((a, b) => prazoStatusOrder(a.prazo) - prazoStatusOrder(b.prazo))
@@ -476,7 +476,7 @@ export function ModalAgendamento({
         objetivoId: null,
         acoId:      a.id,
       }));
-  }, [backlog.atividades, backlog.atividadesAgendadas, ativoIds]);
+  }, [backlog.atividades, backlog.atividadesAgendadas, ativoIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const kanbanItems = useMemo<BacklogItem[]>(() =>
     [...kanbanData.cards, ...kanbanData.sndCards].map(c => {

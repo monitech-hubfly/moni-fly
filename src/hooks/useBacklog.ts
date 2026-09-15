@@ -21,6 +21,8 @@ export type SireneItem = {
   frank_nome: string | null;
   trava: boolean;
   te_trata: boolean;
+  /** Nome da pessoa que abriu o tópico (preenchido quando disponível). */
+  aberto_por_nome?: string | null;
 };
 
 export type AtividadeItem = {
@@ -49,6 +51,10 @@ export type UseBacklogResult = {
   atividades: AtividadeItem[];
   isLoading: boolean;
   error: string | null;
+  /** IDs de atividades ativas (para filtrar no Modal de Agendamento). */
+  ativoIds?: Set<string>;
+  /** Atividades já agendadas (incluídas no Modal de Agendamento). */
+  atividadesAgendadas?: { id: string; nome: string | null; prazo: string | null }[];
 };
 
 const ADMIN_EMAIL = 'danilo.n@moni.casa';

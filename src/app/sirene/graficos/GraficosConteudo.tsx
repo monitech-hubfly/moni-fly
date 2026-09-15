@@ -985,8 +985,8 @@ export function GraficosConteudo({
           SLA calculado sobre tópicos com atribuição registrada · aceite sem timestamp conta como dentro do prazo ·
           finais de semana e feriados excluídos ·
           Área via time_responsavel do tópico · Funil via kanban_atividades → kanban_cards → kanbans ·
-          "Tópicos aguardando aceite" = atribuicao_status pendente_aceite em chamados ativos ·
-          "Total em aberto" exclui registros sem identificação de abertura (legados)
+          &quot;Tópicos aguardando aceite&quot; = atribuicao_status pendente_aceite em chamados ativos ·
+          &quot;Total em aberto&quot; exclui registros sem identificação de abertura (legados)
         </p>
       </div>
 
