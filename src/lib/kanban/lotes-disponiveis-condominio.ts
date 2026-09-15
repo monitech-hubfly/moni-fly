@@ -9,22 +9,22 @@ import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-p
 import { linhaProspectTemNome } from '@/lib/kanban/condominio-prospect-pesquisa';
 
 export const LOTES_DISPONIVEIS_CHECKBOXES = [
+  { chave: 'fundo_lago', label: 'Fundo lago' },
+  { chave: 'frente_lago', label: 'Frente lago' },
+  { chave: 'fundo_mata', label: 'Fundo mata' },
+  { chave: 'frente_mata', label: 'Frente mata' },
   { chave: 'vista', label: 'Vista privilegiada' },
+  { chave: 'area_verde', label: 'Próximo de área verde' },
+  { chave: 'perto_lago', label: 'Próximo de lago' },
   { chave: 'plano', label: 'Terreno plano' },
-  { chave: 'aclive', label: 'Terreno aclive' },
-  { chave: 'declive', label: 'Terreno declive' },
-  { chave: 'fundo_mata', label: 'Fundo de mata' },
-  { chave: 'frente_mata', label: 'Frente de mata' },
-  { chave: 'area_verde', label: 'Perto de área verde' },
-  { chave: 'perto_lago', label: 'Perto do lago' },
-  { chave: 'fundo_lago', label: 'Fundo de lago' },
-  { chave: 'frente_lago', label: 'Frente de lago' },
-  { chave: 'area_convivencia', label: 'Perto de área de convivência' },
-  { chave: 'lixeira', label: 'Perto de lixeira' },
-  { chave: 'portaria', label: 'Perto de portaria' },
-  { chave: 'muro_rodovia', label: 'Muro com rodovia' },
-  { chave: 'muro_comunidade', label: 'Muro com comunidade' },
-  { chave: 'muro_vegetacao', label: 'Muro com vegetação' },
+  { chave: 'aclive', label: 'Aclive' },
+  { chave: 'declive', label: 'Declive' },
+  { chave: 'portaria', label: 'Próximo da portaria' },
+  { chave: 'muro_vegetacao', label: 'Muro de divisa do condomínio' },
+  { chave: 'area_convivencia', label: 'Próximo de área de convivência / lazer' },
+  { chave: 'lixeira', label: 'Próximo de lixeira' },
+  { chave: 'muro_rodovia', label: 'Muro com rodovia / via de alto fluxo' },
+  { chave: 'muro_comunidade', label: 'Muro / divisa com comunidade ou ocupação' },
 ] as const;
 
 export type ChaveLoteCheckbox = (typeof LOTES_DISPONIVEIS_CHECKBOXES)[number]['chave'];

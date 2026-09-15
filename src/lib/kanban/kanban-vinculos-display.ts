@@ -1,6 +1,12 @@
+import type { CSSProperties } from 'react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import type { RelacionamentoCardRow } from '@/lib/actions/card-actions';
 import type { CardProjetoEsteiraRow } from '@/lib/kanban/fetch-cards-projeto-esteiras';
+import {
+  estiloChipTagKanban,
+  isKanbanTagRodadaNome,
+  isKanbanTagTrancheNome,
+} from '@/lib/kanban/kanban-tag-especial';
 
 export type KanbanVinculoStatus = 'ativo' | 'concluido' | 'arquivado';
 
@@ -12,6 +18,8 @@ export type KanbanVinculoCardItem = {
   dataLabel: string | null;
   href: string;
   onRemove?: () => void;
+  /** Badge de tag preset (tranche / rodada) — estilo via estiloChipTagKanban */
+  trancheBadge?: { label: string; style: CSSProperties } | null;
 };
 
 export type KanbanVinculoGrupo = {
@@ -21,6 +29,36 @@ export type KanbanVinculoGrupo = {
 
 export function formatKanbanNomeVinculoHeader(nome: string): string {
   return String(nome ?? '—').trim().toUpperCase() || '—';
+}
+
+/**
+ * Badge colorido a partir de label "Nª tranche" / "Nª rodada"
+ * (reusa o mesmo motor dos chips do board/modal).
+ */
+export function badgeTagPresetFromLabel(nome: string | null | undefined): {
+  label: string;
+  style: CSSProperties;
+} | null {
+  const label = String(nome ?? '').trim();
+  if (!label) return null;
+  if (!isKanbanTagTrancheNome(label) && !isKanbanTagRodadaNome(label)) return null;
+  const chip = estiloChipTagKanban(label);
+  return {
+    label,
+    style: {
+      background: chip.style?.background,
+      color: chip.style?.color,
+      border: chip.style?.border,
+    },
+  };
+}
+
+/** @deprecated Preferir badgeTagPresetFromLabel (também cobre rodadas). */
+export function badgeTrancheFromLabel(nome: string | null | undefined): {
+  label: string;
+  style: CSSProperties;
+} | null {
+  return badgeTagPresetFromLabel(nome);
 }
 
 export function statusVinculoCard(row: {
@@ -56,6 +94,7 @@ export function agruparItensVinculoPorKanban(
       dataLabel: item.dataLabel,
       href: item.href,
       onRemove: item.onRemove,
+      trancheBadge: item.trancheBadge ?? badgeTagPresetFromLabel(item.faseNome),
     });
   }
   return [...map.values()];
@@ -74,6 +113,7 @@ export function itemVinculoFromProjetoEsteira(
     status: st.status,
     dataLabel: formatIsoDateOnlyPtBr(row.created_at) ?? null,
     href,
+    trancheBadge: null,
   };
 }
 
@@ -93,5 +133,6 @@ export function itemVinculoFromRelacionamento(
     dataLabel: dataRaw ? formatIsoDateOnlyPtBr(dataRaw) ?? dataRaw : null,
     href,
     onRemove,
+    trancheBadge: badgeTagPresetFromLabel(row.fase_nome),
   };
 }

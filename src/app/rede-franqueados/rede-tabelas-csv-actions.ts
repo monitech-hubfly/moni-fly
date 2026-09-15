@@ -44,8 +44,13 @@ function parseNumeroCsv(raw: string): number | null {
 }
 
 function parseStatusLoteador(raw: string): RedeLoteadorStatus | undefined {
-  const t = raw.trim().toLowerCase();
-  if (t === 'ativo' || t === 'inativo') return t;
+  const t = raw
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (t === 'ativo') return 'ativo';
+  if (t === 'inativo') return 'inativo';
   if (t === 'em_analise' || t === 'em analise') return 'em_analise';
   return undefined;
 }
@@ -74,7 +79,7 @@ function chaveCondominio(row: Record<string, string>): string | null {
   return nome ? `nome:${nome}` : null;
 }
 
-const LOTEADOR_CSV_COLS = [
+const LOTEADOR_CSV_COLS_TEXTO = [
   'codigo',
   'nome',
   'cnpj',
@@ -84,13 +89,46 @@ const LOTEADOR_CSV_COLS = [
   'contato_telefone',
   'contato_email',
   'portfolio_descricao',
-  'status',
   'observacoes',
+  'interlocutor_nome',
+  'interlocutor_cargo',
+  'interlocutor_telefone',
+  'interlocutor_email',
+  'condominio_nome',
+  'condominio_data_lancamento',
+  'condominio_cidade',
+  'condominio_estado',
+  'condominio_preco_lotes',
+  'condominio_metragem_lotes',
+  'condominio_preco_casas',
+  'condominio_metragem_casas',
+  'anexo_planta_cadastral',
+  'anexo_manual_obras',
+  'anexo_casas_concorrentes',
+  'carteira_curta_financiamento',
+  'carteira_longa_financiamento',
+  'anexo_tabela_precos',
+  'campo_livre',
+  'anexo_material_extra',
+] as const;
+
+const LOTEADOR_CSV_COLS_INT = [
+  'condominio_qtd_lotes',
+  'carteira_lotes_disponiveis',
+  'carteira_lotes_vendidos_quitados',
+  'carteira_carteira_curta_qtd',
+  'carteira_longa_qtd',
 ] as const;
 
 function rowLoteadorFromCsv(row: Record<string, string>): Record<string, unknown> {
-  const patch = patchCsvNaoVazio(row, LOTEADOR_CSV_COLS);
+  const patch = patchCsvNaoVazio(row, LOTEADOR_CSV_COLS_TEXTO);
   const out: Record<string, unknown> = { ...patch };
+  for (const k of LOTEADOR_CSV_COLS_INT) {
+    const raw = valorCsv(row, k);
+    if (!raw) continue;
+    const n = parseNumeroCsv(raw);
+    if (n != null) out[k] = Math.trunc(n);
+  }
   const st = parseStatusLoteador(valorCsv(row, 'status'));
   if (st) out.status = st;
   if (!out.nome) out.nome = valorCsv(row, 'nome');

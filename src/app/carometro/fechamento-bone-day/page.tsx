@@ -10,20 +10,24 @@ import {
   useFechamentoBoneDay,
   proximoMes, getMonthLabel, getMonthOptions,
 } from '@/hooks/useFechamentoBoneDay';
-import type { MetaBone, ComportamentoHoras, IndicadorMedio } from '@/hooks/useFechamentoBoneDay';
+import type { MetaBone, ComportamentoHoras, IndicadorMedio, BlockerTodo } from '@/hooks/useFechamentoBoneDay';
 
-// ── CarinhaResumo (mesma lógica do MeuCarometroCard) ─────────────────────────
+// ── CarinhaResumo — alinhado com MeuCarometroCard (4 faixas) ─────────────────
+// Thresholds idênticos ao TO DO & Planning: ≥75 verde-escuro, ≥60 verde-claro,
+// ≥30 amarelo, <30 vermelho.
 function getCarinhaImg(score: number | null): string {
   if (score === null) return '/carometro/carometro-emoji-branco.png';
-  if (score > 65)  return '/carometro/carometro-emoji-verde-escuro.png';
-  if (score >= 35) return '/carometro/carometro-emoji-amarelo.png';
+  if (score >= 75) return '/carometro/carometro-emoji-verde-escuro.png';
+  if (score >= 60) return '/carometro/carometro-emoji-verde-claro.png';
+  if (score >= 30) return '/carometro/carometro-emoji-amarelo.png';
   return '/carometro/carometro-emoji-vermelho.png';
 }
 
 function scoreColor(score: number | null): string {
   if (score === null) return 'text-gray-300';
-  if (score > 65)  return 'text-green-700';
-  if (score >= 35) return 'text-yellow-600';
+  if (score >= 75) return 'text-green-700';
+  if (score >= 60) return 'text-green-600';
+  if (score >= 30) return 'text-yellow-600';
   return 'text-red-600';
 }
 
@@ -32,8 +36,8 @@ function CarinhaResumo({ titulo, score }: { titulo: string; score: number | null
     <div className="flex items-center gap-3">
       <img src={getCarinhaImg(score)} alt={titulo} className="w-10 h-10 flex-shrink-0" />
       <div className="min-w-0">
-        <p className="text-xs text-gray-500 font-medium">{titulo}</p>
-        <p className={`text-lg font-bold leading-tight ${scoreColor(score)}`}>
+        <p className="text-sm text-gray-500 font-medium">{titulo}</p>
+        <p className={`text-xl font-bold leading-tight ${scoreColor(score)}`}>
           {score !== null ? `${score}%` : '—'}
         </p>
       </div>
@@ -41,7 +45,7 @@ function CarinhaResumo({ titulo, score }: { titulo: string; score: number | null
   );
 }
 
-// ── BlockersList ───────────────────────────────────────────────────────────────
+// ── BlockersList — editável (admin), usado na coluna do próximo mês ───────────
 function BlockersList({
   items, isAdmin, onChange,
 }: {
@@ -68,8 +72,8 @@ function BlockersList({
     <div className="flex flex-col gap-1.5">
       {items.map((item, i) => (
         <div key={i} className="flex items-start gap-1.5 group">
-          <span className="text-gray-400 flex-shrink-0 mt-0.5 text-xs">•</span>
-          <span className="text-xs text-gray-700 flex-1 leading-snug">{item}</span>
+          <span className="text-red-400 flex-shrink-0 mt-0.5 text-xs">•</span>
+          <span className="text-sm text-red-700 flex-1 leading-snug">{item}</span>
           {isAdmin && (
             <button type="button" onClick={() => remover(i)}
               className="text-red-400 hover:text-red-600 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-1">
@@ -108,6 +112,28 @@ function BlockersList({
   );
 }
 
+// ── BlockersTodoList — read-only, vem automaticamente do TO DO & Planning ─────
+function BlockersTodoList({ blockers }: { blockers: BlockerTodo[] }) {
+  if (blockers.length === 0) {
+    return <p className="text-xs text-gray-300 italic">Nenhum blocker registrado no TO DO para este mês</p>;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {blockers.map(b => (
+        <div key={b.id} className="flex flex-col gap-0.5">
+          {b.metaDescricao && (
+            <p className="text-xs text-red-500 font-semibold truncate">{b.metaDescricao}</p>
+          )}
+          <div className="flex items-start gap-1.5">
+            <span className="text-red-400 flex-shrink-0 mt-0.5 text-xs">•</span>
+            <span className="text-sm text-red-700 leading-snug">{b.descricao}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── ComentarioEditor ───────────────────────────────────────────────────────────
 function ComentarioEditor({
   valor, isAdmin, onSalvar, placeholder,
@@ -139,12 +165,15 @@ function ComentarioEditor({
 
 // ── SecaoMetas ─────────────────────────────────────────────────────────────────
 function MetaItem({ m }: { m: MetaBone }) {
+  const isRecorrente = m.tipo?.toLowerCase() === 'recorrente';
+  const icone = m.status === 'concluido' ? '✓' : isRecorrente ? '–' : '✗';
+  const iconeColor = m.status === 'concluido' ? 'text-green-500' : isRecorrente ? 'text-gray-400' : 'text-red-400';
   return (
-    <li className="flex items-start gap-1.5 text-xs">
-      <span className={`flex-shrink-0 font-bold mt-px ${m.status === 'concluido' ? 'text-green-500' : 'text-red-400'}`}>
-        {m.status === 'concluido' ? '✓' : '✗'}
+    <li className="flex items-start gap-1.5 text-sm">
+      <span className={`flex-shrink-0 font-bold mt-px ${iconeColor}`}>
+        {icone}
       </span>
-      <span className={m.status === 'concluido' ? 'text-gray-400' : 'text-gray-700'}>
+      <span className={`flex-1 min-w-0 ${m.status === 'concluido' ? 'text-gray-400' : 'text-gray-700'}`}>
         {m.is_chave && <span className="mr-0.5">🔑</span>}
         <span className={m.status === 'concluido' ? 'line-through' : ''}>{m.descricao}</span>
         {m.meta_unidade && (
@@ -157,34 +186,46 @@ function MetaItem({ m }: { m: MetaBone }) {
   );
 }
 
-function SecaoMetas({ metas }: { metas: MetaBone[] }) {
-  const recorrentes = metas.filter(m => m.tipo === 'recorrente');
-  const atingiveis  = metas
-    .filter(m => m.tipo !== 'recorrente')
+function SecaoMetas({ metas, mensagemVazia }: { metas: MetaBone[]; mensagemVazia?: string }) {
+  // 1. Concluídas (qualquer tipo) — topo
+  const concluidas = metas.filter(m => m.status === 'concluido');
+  // 2. Atingíveis não concluídas — meio, ordenadas por prazo
+  const atingiveisAbertos = metas
+    .filter(m => m.status !== 'concluido' && m.tipo?.toLowerCase() !== 'recorrente')
     .sort((a, b) => {
       if (!a.meta_unidade && !b.meta_unidade) return 0;
       if (!a.meta_unidade) return 1;
       if (!b.meta_unidade) return -1;
       return a.meta_unidade.localeCompare(b.meta_unidade);
     });
+  // 3. Recorrentes não concluídas — sempre ao final
+  const recorrentesAbertos = metas.filter(m => m.status !== 'concluido' && m.tipo?.toLowerCase() === 'recorrente');
 
   return (
     <div>
-      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Metas</p>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Metas</p>
       {metas.length === 0 ? (
-        <p className="text-xs text-gray-300 italic">Nenhuma meta</p>
+        <p className="text-xs text-gray-400 italic bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+          {mensagemVazia ?? 'Nenhuma meta definida para este mês.'}
+        </p>
       ) : (
         <div className="flex flex-col gap-3">
-          {recorrentes.length > 0 && (
+          {concluidas.length > 0 && (
             <div>
-              <p className="text-[9px] text-gray-300 uppercase tracking-wider mb-1.5 font-semibold">Recorrente</p>
-              <ul className="flex flex-col gap-2">{recorrentes.map(m => <MetaItem key={m.id} m={m} />)}</ul>
+              <p className="text-[11px] text-green-400 uppercase tracking-wider mb-1.5 font-semibold">Concluídas</p>
+              <ul className="flex flex-col gap-2">{concluidas.map(m => <MetaItem key={m.id} m={m} />)}</ul>
             </div>
           )}
-          {atingiveis.length > 0 && (
+          {atingiveisAbertos.length > 0 && (
             <div>
-              <p className="text-[9px] text-gray-300 uppercase tracking-wider mb-1.5 font-semibold">Atingível</p>
-              <ul className="flex flex-col gap-2">{atingiveis.map(m => <MetaItem key={m.id} m={m} />)}</ul>
+              <p className="text-[11px] text-gray-300 uppercase tracking-wider mb-1.5 font-semibold">Atingível</p>
+              <ul className="flex flex-col gap-2">{atingiveisAbertos.map(m => <MetaItem key={m.id} m={m} />)}</ul>
+            </div>
+          )}
+          {recorrentesAbertos.length > 0 && (
+            <div>
+              <p className="text-[11px] text-gray-300 uppercase tracking-wider mb-1.5 font-semibold">Recorrente</p>
+              <ul className="flex flex-col gap-2">{recorrentesAbertos.map(m => <MetaItem key={m.id} m={m} />)}</ul>
             </div>
           )}
         </div>
@@ -197,7 +238,7 @@ function SecaoMetas({ metas }: { metas: MetaBone[] }) {
 function SecaoComportamentos({ comportamentos }: { comportamentos: ComportamentoHoras[] }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Comportamentos</p>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Comportamentos</p>
       {comportamentos.length === 0 ? (
         <p className="text-xs text-gray-300 italic">Não identificados</p>
       ) : (
@@ -215,15 +256,18 @@ function SecaoComportamentos({ comportamentos }: { comportamentos: Comportamento
 }
 
 // ── SecaoCarometro ─────────────────────────────────────────────────────────────
-function SecaoCarometro({ indicadores }: { indicadores: IndicadorMedio }) {
+function SecaoCarometro({ indicadores, nota }: { indicadores: IndicadorMedio; nota: string | null }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Carômetro</p>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Carômetro</p>
       <div className="flex gap-5 flex-wrap">
         <CarinhaResumo titulo="Sirene" score={indicadores.sirene} />
         <CarinhaResumo titulo="Engajamento" score={indicadores.engajamento} />
         <CarinhaResumo titulo="Indicadores" score={indicadores.indicadores} />
       </div>
+      {nota && (
+        <p className="text-[10px] text-gray-400 italic mt-2">* {nota}</p>
+      )}
     </div>
   );
 }
@@ -235,7 +279,7 @@ function Coluna({ titulo, badge, children }: { titulo: string; badge: string; ch
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
       <div className="px-4 py-3 flex items-center gap-2" style={{ backgroundColor: HEADER_COLOR }}>
-        <h2 className="text-sm font-bold text-white flex-1 truncate">{titulo}</h2>
+        <h2 className="text-base font-bold text-white flex-1 truncate">{titulo}</h2>
         <span className="text-[10px] bg-white/20 text-white font-semibold px-2 py-0.5 rounded-full flex-shrink-0">
           {badge}
         </span>
@@ -285,7 +329,7 @@ export default function FechamentoBoneDayPage() {
   const admin  = Boolean(isAdmin);
 
   const {
-    metasMes, metasProximo, comportamentos, indicadores, registro,
+    metasMes, metasProximo, comportamentos, indicadores, indicadoresNota, blockersDoTodo, registro,
     mes, setMes, isLoading, error, salvarRegistro,
   } = useFechamentoBoneDay(areaId, effectiveProfileId);
 
@@ -344,26 +388,28 @@ export default function FechamentoBoneDayPage() {
 
           {/* ── Coluna esquerda: Fechamento ── */}
           <Coluna titulo={`Fechamento: ${mesLabel}`} badge="Mês atual">
-            <SecaoMetas metas={metasMes} />
-            <SecaoComportamentos comportamentos={comportamentos} />
-            <SecaoCarometro indicadores={indicadores} />
+            <SecaoMetas
+              metas={metasMes}
+              mensagemVazia="Nenhuma meta definida para este mês. Acesse Plano Boné Day para criar."
+            />
+            <SecaoCarometro indicadores={indicadores} nota={indicadoresNota} />
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Blocker&apos;s
               </p>
-              <BlockersList
-                items={registro.blockersFechamento}
-                isAdmin={false}
-                onChange={items => salvarRegistro({ blockersFechamento: items })}
-              />
+              {/* Blockers automáticos vindos do TO DO & Planning — somente leitura */}
+              <BlockersTodoList blockers={blockersDoTodo} />
             </div>
           </Coluna>
 
           {/* ── Coluna direita: Próximo mês ── */}
           <Coluna titulo={`Plano: ${proxLabel}`} badge="Próximo mês">
-            <SecaoMetas metas={metasProximo} />
+            <SecaoMetas
+              metas={metasProximo}
+              mensagemVazia="Nenhuma meta planejada para o próximo mês. Acesse Plano Boné Day para criar."
+            />
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Comentários
               </p>
               <ComentarioEditor
@@ -374,7 +420,7 @@ export default function FechamentoBoneDayPage() {
               />
             </div>
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Blocker&apos;s
               </p>
               <BlockersList

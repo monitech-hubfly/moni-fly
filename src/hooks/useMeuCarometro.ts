@@ -32,8 +32,8 @@ export type SireneSnapshot = {
 
 export type EngajamentoSnapshot = {
   atividades: { agendadas: number; realizadas: number; atrasadas: number; score: number | null };
-  cards:      { comSLA: number; emDia: number; atrasados: number; score: number | null };
-  proximas:   { concluidos: number; venceHoje: number; atrasadas: number; relevantes: number; score: number | null };
+  cards:      { comSLA: number; emDia: number; atrasados: number; bloqueados: number; score: number | null };
+  proximas:   { concluidos: number; venceHoje: number; atrasadas: number; semProxima: number; relevantes: number; score: number | null };
   score: number | null;
 };
 
@@ -223,7 +223,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const [topicosAbertosRes, topicosConcluidosRes] = await Promise.all([
         supabase
           .from('sirene_topicos')
-          .select('id, data_fim, prazo_proposto')
+          .select('id, data_fim, prazo_proposto, chamado_id, interacao_id, sirene_chamados!chamado_id(arquivado)')
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['nao_iniciado', 'em_andamento'])
           .eq('arquivado', false),
@@ -236,8 +236,72 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           .gte('updated_at', semanaInicioStr),
       ]);
 
-      type TopicosRow = { id: unknown; data_fim: string | null; prazo_proposto: string | null };
-      const topicosAbertos = (topicosAbertosRes.data ?? []) as TopicosRow[];
+      type TopicosRow = {
+        id: unknown;
+        data_fim: string | null;
+        prazo_proposto: string | null;
+        chamado_id?: string | null;
+        interacao_id?: string | null;
+        sirene_chamados?: { arquivado: boolean | null } | { arquivado: boolean | null }[] | null;
+      };
+      // Exclui tópicos cujo chamado-pai já foi arquivado (mesmo que o tópico ainda esteja aberto),
+      // igualando o comportamento ao useBacklog. Evita que chamados concluídos/arquivados
+      // penalizem o score do Carômetro.
+      const topicosAbertosRaw = ((topicosAbertosRes.data ?? []) as TopicosRow[]).filter(t => {
+        if (t.chamado_id) {
+          const ch = Array.isArray(t.sirene_chamados) ? t.sirene_chamados[0] : t.sirene_chamados;
+          if (ch?.arquivado === true) return false;
+        }
+        return true;
+      });
+
+      // Round 2 + Round 3: filtrar tópicos fantasmas (card pai arquivado).
+      // Mesma lógica do useBacklog: cards arquivados são escondidos pela RLS,
+      // então buscamos apenas os ativos (arquivado=false) — ausência = arquivado.
+      const interacaoIdsMetrica = topicosAbertosRaw
+        .filter(t => !t.chamado_id && t.interacao_id)
+        .map(t => t.interacao_id as string);
+
+      let topicosAbertos: TopicosRow[] = topicosAbertosRaw;
+
+      if (interacaoIdsMetrica.length > 0) {
+        type KanbanAtivMinimal = { id: string; card_id: string | null; sirene_chamado_id: number | null };
+        const { data: kanbanAtivs } = await supabase
+          .from('kanban_atividades')
+          .select('id, card_id, sirene_chamado_id')
+          .in('id', interacaoIdsMetrica);
+
+        const kanbanAtivMinMap = new Map<string, KanbanAtivMinimal>(
+          ((kanbanAtivs ?? []) as KanbanAtivMinimal[]).map(r => [r.id, r]),
+        );
+
+        const cardIdsMetrica = [...kanbanAtivMinMap.values()]
+          .filter(r => r.sirene_chamado_id == null && r.card_id != null)
+          .map(r => r.card_id as string);
+
+        const cardsAtivosSetMetrica = new Set<string>();
+        if (cardIdsMetrica.length > 0) {
+          const { data: cardsAtivos } = await supabase
+            .from('kanban_cards')
+            .select('id')
+            .in('id', cardIdsMetrica)
+            .eq('arquivado', false);
+          for (const c of (cardsAtivos ?? []) as { id: string }[]) {
+            cardsAtivosSetMetrica.add(c.id);
+          }
+        }
+
+        topicosAbertos = topicosAbertosRaw.filter(t => {
+          if (!t.chamado_id && t.interacao_id) {
+            const kativ = kanbanAtivMinMap.get(t.interacao_id);
+            if (kativ && kativ.sirene_chamado_id == null && kativ.card_id != null) {
+              if (!cardsAtivosSetMetrica.has(kativ.card_id)) return false;
+            }
+          }
+          return true;
+        });
+      }
+
       // Concluídos esta semana com prazo <= hoje entram no numerador como "realizados"
       const topicosConcluidos = ((topicosConcluidosRes.data ?? []) as TopicosRow[]).filter(t => {
         const prazo = t.data_fim || t.prazo_proposto;
@@ -287,8 +351,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
       let engajamentoRuntime: EngajamentoSnapshot = {
         atividades: { agendadas: 0, realizadas: 0, atrasadas: 0, score: null },
-        cards:      { comSLA: 0, emDia: 0, atrasados: 0, score: null },
-        proximas:   { concluidos: 0, venceHoje: 0, atrasadas: 0, relevantes: 0, score: null },
+        cards:      { comSLA: 0, emDia: 0, atrasados: 0, bloqueados: 0, score: null },
+        proximas:   { concluidos: 0, venceHoje: 0, atrasadas: 0, semProxima: 0, relevantes: 0, score: null },
         score: null,
       };
 
@@ -305,7 +369,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             .not('objetivo_id', 'is', null),   // exclui "Sem vínculo à meta"
           supabase
             .from('kanban_cards')
-            .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
+            .select('id, created_at, entered_fase_at, sla_iniciado_em, sla_pausado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
             .or(engOrKanban)
             .eq('arquivado', false)
             .eq('concluido', false),
@@ -335,34 +399,40 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         // Não concluída = agendada sem data_conclusao_real (inclui hoje — afeta score imediatamente)
         const atividadesAtrasadas = ganttArr.filter(g => !g.data_conclusao_real).length;
         const scoreAtividades = atividadesAgendadas === 0
-          ? null
+          ? 0
           : Math.max(0, Math.round((atividadesRealizadas / atividadesAgendadas) * 100));
 
         // Sub-score 2: Cards com SLA
         const kanbanArr = (kanbanRes.data ?? []) as Array<{
           id: string; created_at: string; entered_fase_at: string | null;
           sla_iniciado_em: string | null;
+          sla_pausado_em: string | null;
           fase: { sla_dias: number | null; sla_tipo: string | null; slug: string | null } | Array<{ sla_dias: number | null; sla_tipo: string | null; slug: string | null }> | null;
         }>;
         const cardsComSLA = kanbanArr.filter(c => {
           const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
           return (fase?.sla_dias ?? null) !== null;
         });
-        const cardsAtrasados = cardsComSLA.filter(c => {
+        // Cards com trava ativa → bloqueados: excluídos do score (nem bônus, nem penalidade)
+        const cardsBloqueados = cardsComSLA.filter(c => Boolean(c.sla_pausado_em)).length;
+        const cardsNaoBloqueados = cardsComSLA.filter(c => !c.sla_pausado_em);
+        const cardsAtrasados = cardsNaoBloqueados.filter(c => {
           const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
           return calcularSlaKanbanCard({
             created_at:      c.created_at,
             entered_fase_at: c.entered_fase_at,
             sla_iniciado_em: c.sla_iniciado_em,
+            sla_pausado_em:  c.sla_pausado_em,
             sla_dias:        fase?.sla_dias ?? null,
             sla_tipo:        fase?.sla_tipo ?? null,
             faseSlug:        fase?.slug     ?? null,
           }).status === 'atrasado';
         }).length;
-        const cardsEmDia = cardsComSLA.length - cardsAtrasados;
-        const scoreCards = cardsComSLA.length === 0
+        const cardsEmDia = cardsNaoBloqueados.length - cardsAtrasados;
+        // Score: apenas sobre os cards sem trava ativa. Nenhum card ativo (todos bloqueados) = 100%.
+        const scoreCards = cardsComSLA.length === 0 || cardsNaoBloqueados.length === 0
           ? 100
-          : Math.max(0, Math.round((cardsEmDia / cardsComSLA.length) * 100));
+          : Math.max(0, Math.round((cardsEmDia / cardsNaoBloqueados.length) * 100));
 
         // Sub-score 3: Próximas Atividades (kanban_cards.prazo_atividade)
         // Score B: concluidos / (concluidos + atrasados). Vence hoje = contexto, não penaliza.
@@ -389,8 +459,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
         engajamentoRuntime = {
           atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
-          cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, score: scoreCards },
-          proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas, score: scoreProximas },
+          cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, bloqueados: cardsBloqueados, score: scoreCards },
+          proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, semProxima: cardsSemProxima, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas + cardsSemProxima, score: scoreProximas },
           score:      engScore,
         };
       }
@@ -415,6 +485,13 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const sextaAnterior = new Date(segundaEstaSeamna);
       sextaAnterior.setDate(segundaEstaSeamna.getDate() - 3); // Seg - 3 = Sex da semana anterior
 
+      // Regra da quinta-feira (igual ao calendário do Carômetro): a semana pertence ao mês
+      // que contém sua quinta-feira. Quinta de S-1 = sexta de S-1 − 1 dia.
+      const thursdayAnterior = new Date(sextaAnterior);
+      thursdayAnterior.setDate(sextaAnterior.getDate() - 1);
+      const semAnteriorNaMes = thursdayAnterior.getMonth() === hoje.getMonth()
+        && thursdayAnterior.getFullYear() === hoje.getFullYear();
+
       const semAnteriorInd = semana > 1 ? semana - 1 : 52;
       let indicadoresAnterior: IndicadoresSnapshot = { porIndicador: [], media: null };
       let indicadoresAtual: IndicadoresSnapshot    = { porIndicador: [], media: null };
@@ -422,27 +499,39 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       {
         const { data: objRespData } = await supabase
           .from('objetivo_responsaveis')
-          .select('objetivo_id')
+          .select('objetivo_id, data_inicio')
           .eq('profile_id', effectiveProfileId);
 
-        const objIds = ((objRespData ?? []) as { objetivo_id: string }[])
-          .map(o => o.objetivo_id)
-          .filter(Boolean);
+        type ObjRespRow = { objetivo_id: string; data_inicio: string | null };
+        const objRespRows = (objRespData ?? []) as ObjRespRow[];
+        const objIds = objRespRows.map(o => o.objetivo_id).filter(Boolean);
+
+        // Mapa objetivo_id → data_inicio: usado para não penalizar projetos ainda não iniciados
+        const metaDataInicioMap = new Map<string, string>(
+          objRespRows.filter(r => r.data_inicio != null).map(r => [r.objetivo_id, r.data_inicio!])
+        );
 
         if (objIds.length > 0) {
+          // Filtra apenas metas do mês vigente com status ativo ou relançado.
+          // Metas concluídas e arquivadas não entram no cálculo — não penalizam o score.
+          const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
           // Busca nomes dos objetivos para distinguir indicadores homônimos
           const { data: objetivosData } = await supabase
             .from('objetivos')
             .select('id, descricao')
-            .in('id', objIds);
-          const objNomeMap = new Map<string, string>(
-            ((objetivosData ?? []) as { id: string; descricao: string }[]).map(o => [o.id, o.descricao])
-          );
+            .in('id', objIds)
+            .eq('mes', mesAtual)
+            .in('status', ['ativo', 'relancada']);
+          // Extrai IDs já filtrados (mês vigente + status ativo/relancada) para a query de indicadores
+          const filteredObjs = (objetivosData ?? []) as { id: string; descricao: string }[];
+          const filteredObjIds = filteredObjs.map(o => o.id);
+          const objNomeMap = new Map<string, string>(filteredObjs.map(o => [o.id, o.descricao]));
 
+          if (filteredObjIds.length > 0) {
           const { data: indsData } = await supabase
             .from('indicadores')
             .select('id, nome, semaforo_faixas, objetivo_id')
-            .in('objetivo_id', objIds)
+            .in('objetivo_id', filteredObjIds)
             .eq('ativo', true);
 
           type IndRow = { id: string; nome: string; semaforo_faixas: unknown; objetivo_id: string | null };
@@ -450,12 +539,13 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           const indIds = indsTyped.map(i => i.id);
 
           if (indIds.length > 0) {
-            // Busca lançamentos das duas semanas em uma única query
+            // Busca apenas semanas que pertencem ao mês vigente (regra da quinta-feira)
+            const semanasParaBuscar = semAnteriorNaMes ? [semAnteriorInd, semana] : [semana];
             const { data: lancamentosData } = await supabase
               .from('indicador_lancamentos')
               .select('indicador_id, valor, semana')
               .in('indicador_id', indIds)
-              .in('semana', [semAnteriorInd, semana]);
+              .in('semana', semanasParaBuscar);
 
             type LancRow = { indicador_id: string; valor: unknown; semana: number };
             const lancRows = (lancamentosData ?? []) as LancRow[];
@@ -471,32 +561,46 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
             function calcIndicadores(lancMap: Map<string, unknown>, refDate: Date): IndicadoresSnapshot {
               const porIndicador: IndicadorItem[] = [];
+              const metaScoresMap = new Map<string, number[]>();
               for (const ind of indsTyped) {
-                // Prefixar com nome do objetivo quando há indicadores homônimos
                 const objNome = ind.objetivo_id ? (objNomeMap.get(ind.objetivo_id) ?? '') : '';
                 const nomeDisplay = objNome ? `${objNome} — ${ind.nome}` : (ind.nome || ind.id);
                 const rawSf = ind.semaforo_faixas as SfRaw | null;
                 const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
+                const metaKey = ind.objetivo_id ?? ind.id;
 
-                if (isProjeto) {
-                  // Calcula % esperado com data de referência correta para a semana
-                  const esp = calcularEsperadoPct(
-                    rawSf!.data_inicio ?? '',
-                    rawSf!.data_fim    ?? '',
-                    refDate,
-                  );
-
-                  if (esp <= 0) {
-                    // Nada esperado nesta semana — aparece na lista com percentual null
+                // Se a meta tem data_inicio futura, o projeto ainda não iniciou —
+                // não penaliza o score independentemente do tipo de indicador.
+                const metaDataInicio = ind.objetivo_id ? (metaDataInicioMap.get(ind.objetivo_id) ?? null) : null;
+                if (metaDataInicio) {
+                  const metaInicio = new Date(metaDataInicio + 'T00:00:00');
+                  if (refDate < metaInicio) {
                     porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
                     continue;
                   }
+                }
+
+                if (isProjeto) {
+                  const esp = calcularEsperadoPct(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', refDate);
+
+                  if (esp <= 0) {
+                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
+                    continue;
+                  }
+
+                  // Cap de 70 pts se refDate ultrapassou a semana do data_fim
+                  const dataFimDate = new Date((rawSf!.data_fim ?? '') + 'T00:00:00');
+                  const dataFimDow = dataFimDate.getDay() || 7;
+                  const endOfDeadlineWeek = new Date(dataFimDate);
+                  endOfDeadlineWeek.setDate(dataFimDate.getDate() + (7 - dataFimDow));
+                  const isPastDeadlineWeek = refDate > endOfDeadlineWeek;
 
                   const valor  = lancMap.get(ind.id);
                   const valStr = valor != null ? String(valor).trim() : '';
 
                   if (valStr === '' || valStr === '-') {
                     porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: 0 });
+                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
                   } else {
                     const n = Number(valStr.replace(',', '.'));
                     if (!Number.isFinite(n)) {
@@ -508,7 +612,9 @@ export function useMeuCarometro(): UseMeuCarometroResult {
                     if (ratio >= 75) score = 100;
                     else if (ratio >= 60) score = 75;
                     else if (ratio >= 30) score = 50;
+                    if (isPastDeadlineWeek && score > 70) score = 70;
                     porIndicador.push({ nome: nomeDisplay, valor: n, meta: esp, percentual: score });
+                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
                   }
                 } else {
                   const valor  = lancMap.get(ind.id);
@@ -516,19 +622,22 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
                   if (valStr === '' || valStr === '-') {
                     porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: 0 });
+                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
                   } else {
                     const score = scoreDeValorESemaforo(valor, ind.semaforo_faixas);
                     const n     = Number(valStr.replace(',', '.'));
                     porIndicador.push({ nome: nomeDisplay, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
+                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
                   }
                 }
               }
-              // Média exclui os nulls (itens sem expectativa nesta semana)
-              const scores = porIndicador
-                .map(i => i.percentual)
-                .filter((p): p is number => p !== null);
-              const media  = scores.length > 0
-                ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length)
+              // Score por meta (média dos seus indicadores), depois média das metas — peso igual por meta
+              const metaMedias: number[] = [];
+              for (const scores of metaScoresMap.values()) {
+                metaMedias.push(Math.round(scores.reduce((s, v) => s + v, 0) / scores.length));
+              }
+              const media = metaMedias.length > 0
+                ? Math.round(metaMedias.reduce((s, v) => s + v, 0) / metaMedias.length)
                 : null;
               return { porIndicador, media };
             }
@@ -536,6 +645,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             indicadoresAnterior = calcIndicadores(lancMapAnterior, sextaAnterior);
             indicadoresAtual    = calcIndicadores(lancMapAtual, hojeRef);
           }
+          } // filteredObjIds.length > 0
         }
       }
 
@@ -571,9 +681,29 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         });
 
       if (callId !== callIdRef.current) return;
+
+      // Salva snapshot no banco para que o Dashboard Geral sempre reflita o estado atual.
+      // Só salva quando é o próprio usuário (não simulação admin — não teria permissão RLS).
+      if (areaId && effectiveProfileId === user.id) {
+        void supabase.from('carometro_status_diario').upsert(
+          {
+            area_id:     areaId,
+            profile_id:  effectiveProfileId,
+            data:        hojeStr,
+            sirene:      sireneRuntime,
+            engajamento: engajamentoRuntime,
+            indicadores: semAnteriorNaMes ? indicadoresAnterior : indicadoresAtual,
+          },
+          { onConflict: 'area_id,profile_id,data' },
+        ).then(({ error: snapErr }) => {
+          if (snapErr) console.warn('[useMeuCarometro] snapshot save:', snapErr.message);
+        });
+      }
+
       setSirene(sireneRuntime);
       setEngajamento(engajamentoRuntime);
-      setIndicadores(indicadoresAnterior); // card principal exibe resultado da semana anterior
+      // Score principal: S-1 se pertence ao mês vigente; caso contrário, semana atual (primeira do mês)
+      setIndicadores(semAnteriorNaMes ? indicadoresAnterior : indicadoresAtual);
       setDiasSirene(buildDias('sirene', 'score', sireneScore, {
         concluidos: topicosConcluidos.length,
         atrasados:  topicosAtrasados,
@@ -588,12 +718,14 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         atividades_atrasadas:  engajamentoRuntime.atividades.atrasadas,
         cards_emDia:           engajamentoRuntime.cards.emDia,
         cards_atrasados:       engajamentoRuntime.cards.atrasados,
+        cards_bloqueados:      engajamentoRuntime.cards.bloqueados,
         proximas_concluidos:   engajamentoRuntime.proximas.concluidos,
         proximas_venceHoje:    engajamentoRuntime.proximas.venceHoje,
         proximas_atrasadas:    engajamentoRuntime.proximas.atrasadas,
       }));
+      // Exibe apenas semanas que pertencem ao mês vigente (regra da quinta-feira)
       setSemanasIndicadores([
-        {
+        ...(semAnteriorNaMes ? [{
           label:       `S${String(semAnteriorInd).padStart(2, '0')}`,
           semana:      semAnteriorInd,
           score:       indicadoresAnterior.media,
@@ -602,7 +734,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             valor:      String(i.valor),
             percentual: i.percentual,
           })),
-        },
+        }] : []),
         {
           label:       `S${String(semana).padStart(2, '0')}`,
           semana:      semana,

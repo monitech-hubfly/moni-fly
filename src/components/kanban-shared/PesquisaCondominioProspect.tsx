@@ -674,8 +674,8 @@ function CampoSelecaoMultipla({
         {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
       </label>
       <p className="mb-2 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-        Pode marcar um ou os dois. Com ambos selecionados, o critério Andares (An) não entra no rank
-        na Pré Batalha e na Batalha.
+        Pode marcar um ou os dois. Com ambos selecionados, o critério An (aderência à tipologia)
+        não entra no rank na Pré Batalha e na Batalha.
       </p>
       <div className="flex flex-wrap gap-2">
         {opcoes.map((opcao) => (

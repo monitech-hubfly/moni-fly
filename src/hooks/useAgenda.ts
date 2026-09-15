@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { deletarDoGCal } from '@/lib/actions/agenda-gcal';
+import { deletarDoGCal, pushParaGCal } from '@/lib/actions/agenda-gcal';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
 
 export type AtividadeAgenda = {
@@ -22,6 +22,9 @@ export type AtividadeAgenda = {
   isPendente: boolean;
   isParticipante: boolean;
   organizador_nome: string | null;
+  // Flags de origem
+  isAllDay: boolean;    // evento de dia inteiro importado do GCal (hora_inicio='00:00', sem hora_fim)
+  isFromGCal: boolean;  // evento importado do Google Calendar (somente leitura no Hub Fly)
 };
 
 export type DiaAgenda = {
@@ -119,6 +122,7 @@ type GanttRow = {
   sirene_chamado_id: number | null;
   link_reuniao: string | null;
   origem_tipo: string | null;
+  origem: string | null;
   data_conclusao_real: string | null;
   cor: string | null;
   objetivo_id: string | null;
@@ -138,6 +142,7 @@ function rowToAtividade(
   const cor = concluido
     ? COR_CONCLUIDA
     : (row.cor ?? autoObjetivoColor(row.objetivo_id));
+  const isFromGCal = row.origem === 'google_calendar';
   return {
     id:                   row.id,
     titulo,
@@ -154,10 +159,12 @@ function rowToAtividade(
     isPendente:           opts?.isPendente ?? false,
     isParticipante:       opts?.isParticipante ?? false,
     organizador_nome:     opts?.organizador_nome ?? null,
+    isFromGCal,
+    isAllDay:             isFromGCal && row.hora_inicio === '00:00' && !row.hora_fim,
   };
 }
 
-const SELECT_FIELDS = 'id, titulo, hora_inicio, hora_fim, data, card_id, sirene_chamado_id, link_reuniao, origem_tipo, data_conclusao_real, cor, objetivo_id, recorrencia_grupo_id, profile_id, acoes(tipo_atividade)';
+const SELECT_FIELDS = 'id, titulo, hora_inicio, hora_fim, data, card_id, sirene_chamado_id, link_reuniao, origem_tipo, origem, data_conclusao_real, cor, objetivo_id, recorrencia_grupo_id, profile_id, acoes(tipo_atividade)';
 
 export function useAgenda(refreshKey = 0): UseAgendaResult {
   const supabase = useMemo(() => createClient(), []);
@@ -235,6 +242,18 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
 
       const rows1 = (r1.data ?? []) as GanttRow[];
 
+      // Deduplicação Causa A: remover rows de outro usuário (via responsavel.ilike)
+      // que representam o mesmo horário já coberto por uma row GCal própria.
+      const gcalTimeKeys = new Set(
+        rows1
+          .filter(r => r.profile_id === effectiveProfileId && r.origem === 'google_calendar')
+          .map(r => `${r.data}_${r.hora_inicio}`),
+      );
+      const rows1Dedup = rows1.filter(r => {
+        if (r.profile_id === effectiveProfileId) return true;
+        return !gcalTimeKeys.has(`${r.data}_${r.hora_inicio}`);
+      });
+
       // Participante: excluir recusados; pendentes/proposta ficam muted
       const rows2Meta = ((r2.data ?? []) as unknown as { gantt_id: string; status: string | null; gantt_planejamento: GanttRow }[])
         .filter(x => (x.status ?? 'aceito') !== 'recusado');
@@ -252,10 +271,10 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
         }
       }
 
-      // Deduplicar por id (owns rows1 têm prioridade)
-      const seen = new Set(rows1.map(r => r.id));
+      // Deduplicar por id (owns rows1Dedup têm prioridade)
+      const seen = new Set(rows1Dedup.map(r => r.id));
       const allAtv: AtividadeAgenda[] = [
-        ...rows1.map(r => rowToAtividade(r)),
+        ...rows1Dedup.map(r => rowToAtividade(r)),
         ...rows2Meta
           .filter(x => !seen.has(x.gantt_planejamento.id))
           .map(x => rowToAtividade(x.gantt_planejamento, {
@@ -341,6 +360,8 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
     setAtividades(prev => prev.map(a =>
       a.id === id ? { ...a, hora_fim } : a
     ));
+    // Sincronizar com Google Calendar (best-effort; ignora eventos importados do GCal)
+    void pushParaGCal(id).catch(e => console.warn('[gcal-push-resize]', e));
   }, [supabase]);
 
   const atualizarHorarioInicio = useCallback(async (id: string, hora_inicio: string) => {
@@ -352,6 +373,8 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
     setAtividades(prev => prev.map(a =>
       a.id === id ? { ...a, hora_inicio } : a
     ));
+    // Sincronizar com Google Calendar (best-effort; ignora eventos importados do GCal)
+    void pushParaGCal(id).catch(e => console.warn('[gcal-push-resize-top]', e));
   }, [supabase]);
 
   const moverEvento = useCallback(async (id: string, data: string, hora_inicio: string, hora_fim: string | null) => {
@@ -364,6 +387,8 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
     setAtividades(prev => prev.map(a =>
       a.id === id ? { ...a, data, hora_inicio, hora_fim } : a
     ));
+    // Sincronizar com Google Calendar (best-effort; ignora eventos importados do GCal)
+    void pushParaGCal(id).catch(e => console.warn('[gcal-push-mover]', e));
   }, [supabase]);
 
   const excluir = useCallback(async (id: string) => {

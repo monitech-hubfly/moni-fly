@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { podeComFallbackStaff } from '@/lib/permissoes-types';
 import { fetchKanbanBoardStatusPool } from '@/lib/actions/kanban-board-snapshot';
@@ -23,7 +23,7 @@ import {
 import { hipotesesOrdemMinima } from '@/lib/kanban/kanban-paralelas-chips';
 import { sortKanbanCardsPorProximaAtividade } from '@/lib/kanban/kanban-proxima-atividade-ordem';
 import type { KanbanNomeDisplay, KanbanCardBrief, KanbanFase, KanbanProximaAtividadeAberta } from './types';
-import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
+import { isFaseConclusaoKanban, isFaseNaoConclusaoExplicita } from '@/lib/kanban/kanban-fase-conclusao';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { isMarketingKanbanId, type MarketingFrente } from '@/lib/kanban/funis-marketing';
 import { fetchMarketingPerfilDestino } from '@/lib/actions/marketing-kanban';
@@ -151,6 +151,16 @@ export function KanbanBoard({
     Record<string, KanbanProximaAtividadeAberta[]>
   >({});
   const [proximasAtividadesBatchPronto, setProximasAtividadesBatchPronto] = useState(false);
+  /** Posições otimistas do DnD (fase + ordem) até o servidor confirmar / RSC atualizar. */
+  const [dndPosByCardId, setDndPosByCardId] = useState<
+    Record<string, { fase_id: string; ordem_coluna: number }>
+  >({});
+  const dndPosRef = useRef(dndPosByCardId);
+  dndPosRef.current = dndPosByCardId;
+  /** Patches otimistas de próxima atividade (sem refresh do board). */
+  const [proximaPatchByCardId, setProximaPatchByCardId] = useState<
+    Record<string, { proxima_atividade: string | null; prazo_atividade: string | null }>
+  >({});
 
   /** Assinatura estável: `cards`/`cardsConcluidos` mudam de referência a cada `router.refresh()`. */
   const cardsSnapshotSig = useMemo(
@@ -168,6 +178,8 @@ export function KanbanBoard({
     setComentariosCountPorCard({});
     setProximasAtividadesPorCard({});
     setProximasAtividadesBatchPronto(false);
+    setDndPosByCardId({});
+    setProximaPatchByCardId({});
   }, [cardsSnapshotSig]);
 
   useEffect(() => {
@@ -311,17 +323,29 @@ export function KanbanBoard({
 
   const mergeEnrichment = (c: KanbanCardBrief): KanbanCardBrief => {
     const patch = enrichmentByCardId[c.id];
-    return patch ? { ...c, ...patch } : c;
+    let withEnrich = patch ? { ...c, ...patch } : c;
+    const prox = proximaPatchByCardId[c.id];
+    if (prox) {
+      withEnrich = {
+        ...withEnrich,
+        proxima_atividade: prox.proxima_atividade,
+        prazo_atividade: prox.prazo_atividade,
+      };
+    }
+    const dnd = dndPosByCardId[c.id];
+    return dnd
+      ? { ...withEnrich, fase_id: dnd.fase_id, ordem_coluna: dnd.ordem_coluna }
+      : withEnrich;
   };
 
   const cardsComEnrichment = useMemo(
     () => cards.map(mergeEnrichment),
-    [cards, enrichmentByCardId],
+    [cards, enrichmentByCardId, dndPosByCardId, proximaPatchByCardId],
   );
 
   const cardsConcluidosComEnrichment = useMemo(
     () => cardsConcluidos.map(mergeEnrichment),
-    [cardsConcluidos, enrichmentByCardId],
+    [cardsConcluidos, enrichmentByCardId, dndPosByCardId, proximaPatchByCardId],
   );
 
   const cardsEfetivos = useMemo(() => {
@@ -481,7 +505,116 @@ export function KanbanBoard({
       userRole === 'supervisor' ||
       userRole === 'consultor');
 
+  const applyOptimisticDnD = useCallback(
+    (input: {
+      cardId: string;
+      fromFaseId: string;
+      toFaseId: string;
+      beforeCardId: string | null;
+    }): Record<string, { fase_id: string; ordem_coluna: number }> | null => {
+      const snapshot = { ...dndPosRef.current };
+      const movedId = input.cardId.trim();
+      if (!movedId) return null;
+
+      const fonte = [...cardsEfetivos, ...cardsConcluidosEfetivos];
+      const byId = new Map(fonte.map((c) => [c.id, c]));
+      const moved = byId.get(movedId);
+      if (!moved) return null;
+
+      const destCards = fonte
+        .filter((c) => c.fase_id === input.toFaseId && c.id !== movedId)
+        .sort((a, b) => {
+          const oa = a.ordem_coluna ?? 0;
+          const ob = b.ordem_coluna ?? 0;
+          if (oa !== ob) return oa - ob;
+          return a.id.localeCompare(b.id);
+        });
+
+      let insertAt = destCards.length;
+      if (input.beforeCardId) {
+        const idx = destCards.findIndex((c) => c.id === input.beforeCardId);
+        if (idx >= 0) insertAt = idx;
+      }
+      const ordered = [...destCards];
+      ordered.splice(insertAt, 0, { ...moved, fase_id: input.toFaseId });
+
+      setDndPosByCardId((prev) => {
+        const next = { ...prev };
+        if (input.fromFaseId !== input.toFaseId) {
+          const origemRestante = fonte
+            .filter((c) => c.fase_id === input.fromFaseId && c.id !== movedId)
+            .sort((a, b) => (a.ordem_coluna ?? 0) - (b.ordem_coluna ?? 0));
+          origemRestante.forEach((c, i) => {
+            next[c.id] = { fase_id: input.fromFaseId, ordem_coluna: i };
+          });
+        }
+        ordered.forEach((c, i) => {
+          next[c.id] = { fase_id: input.toFaseId, ordem_coluna: i };
+        });
+        return next;
+      });
+      return snapshot;
+    },
+    [cardsEfetivos, cardsConcluidosEfetivos],
+  );
+
+  const rollbackDnD = useCallback(
+    (snapshot: Record<string, { fase_id: string; ordem_coluna: number }> | null) => {
+      setDndPosByCardId(snapshot ?? {});
+    },
+    [],
+  );
+
+  const onProximaAtividadeBoardSync = useCallback(
+    (
+      cardId: string,
+      sync: {
+        proxima_atividade: string | null;
+        prazo_atividade: string | null;
+        atividadesAbertas?: KanbanProximaAtividadeAberta[];
+      },
+    ) => {
+      const id = String(cardId ?? '').trim();
+      if (!id) return;
+      setProximaPatchByCardId((prev) => ({
+        ...prev,
+        [id]: {
+          proxima_atividade: sync.proxima_atividade,
+          prazo_atividade: sync.prazo_atividade,
+        },
+      }));
+      if (sync.atividadesAbertas !== undefined) {
+        setProximasAtividadesPorCard((prev) => ({
+          ...prev,
+          [id]: sync.atividadesAbertas!,
+        }));
+      }
+    },
+    [],
+  );
+
   const nAtivos = countKanbanBoardFiltrosAtivos(filtros);
+  const corretoresFiltroOpcoes = useMemo(() => {
+    if (kanbanId !== KANBAN_IDS.CORRETORES) {
+      return { corretores: [] as string[], imobiliarias: [] as string[], tipologias: [] as string[] };
+    }
+    const corretores = new Set<string>();
+    const imobiliarias = new Set<string>();
+    const tipologias = new Set<string>();
+    for (const c of [...cardsEfetivos, ...cardsConcluidosEfetivos]) {
+      const n = String(c.nome_corretor ?? '').trim();
+      const i = String(c.imobiliaria_corretor ?? '').trim();
+      const t = String(c.tipologia_interesse ?? '').trim();
+      if (n) corretores.add(n);
+      if (i) imobiliarias.add(i);
+      if (t) tipologias.add(t);
+    }
+    return {
+      corretores: [...corretores].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      imobiliarias: [...imobiliarias].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      tipologias: [...tipologias].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    };
+  }, [kanbanId, cardsEfetivos, cardsConcluidosEfetivos]);
   /** Quando o pai passa `true`, não espera a matriz `criar_cards` no client (evita botão oculto para o time). */
   const criarCardsPermitido =
     podeCriarCardsProp === true ||
@@ -559,6 +692,9 @@ export function KanbanBoard({
               responsaveisOpcoes={responsaveisOpcoes}
               showFiltroEu={Boolean(currentUserId)}
               showPerdaGanhoFiltros={showPerdaGanhoFiltros}
+              corretoresOpcoes={corretoresFiltroOpcoes.corretores}
+              imobiliariasOpcoes={corretoresFiltroOpcoes.imobiliarias}
+              tipologiasOpcoes={corretoresFiltroOpcoes.tipologias}
               onLimpar={() => setFiltrosDraft(KANBAN_BOARD_FILTROS_DEFAULT)}
               onAplicar={() => {
                 setFiltros({ ...filtrosDraft });
@@ -611,7 +747,9 @@ export function KanbanBoard({
               const listaVaziaPorFiltro = clientFiltersActive && raw.length > 0 && vis.length === 0;
               const isPrimeiraColuna = fase.ordem === ordemMinima;
               const isUltimaFaseAtiva = fase.ativo !== false && fase.ordem === maxOrdemAtiva;
-              const isFaseConclusao = isFaseConclusaoKanban(fase) || isUltimaFaseAtiva;
+              const isFaseConclusao =
+                !isFaseNaoConclusaoExplicita(fase) &&
+                (isFaseConclusaoKanban(fase) || isUltimaFaseAtiva);
               return (
                 <KanbanColumn
                   key={fase.id}
@@ -633,6 +771,9 @@ export function KanbanBoard({
                   comentariosCountPorCard={comentariosCountPorCard}
                   proximasAtividadesPorCard={proximasAtividadesPorCard}
                   proximasAtividadesBatchPronto={proximasAtividadesBatchPronto}
+                  onOptimisticDnD={applyOptimisticDnD}
+                  onRollbackDnD={rollbackDnD}
+                  onProximaAtividadeBoardSync={onProximaAtividadeBoardSync}
                 />
               );
             })}

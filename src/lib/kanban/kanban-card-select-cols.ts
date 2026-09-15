@@ -26,6 +26,7 @@ export const KANBAN_CARD_SELECT_BASE = `
       contabilidade_ok,
       capital_ok,
       juridico_ok,
+      juridico_bolinha_count,
       credito_obra_ok,
       projetos_legais_ok,
       projetos_locais_ok,
@@ -38,6 +39,16 @@ export const KANBAN_CARD_SELECT_BASE = `
       funding_tipo,
       funding_localizacao,
       funding_descritivo,
+      nome_corretor,
+      imobiliaria_corretor,
+      empreendimento_interesse,
+      tipologia_interesse,
+      probabilidade_fechamento,
+      orcamento_lead,
+      cidade_interesse,
+      telefone_lead,
+      email_lead,
+      mensagem_lead,
       proxima_atividade,
       prazo_atividade
     `;
@@ -72,10 +83,40 @@ export const KANBAN_CARD_SELECT_BOARD_FAST = `
       proxima_atividade,
       prazo_atividade,
       sla_iniciado_em,
-      entered_fase_at
+      entered_fase_at,
+      nome_corretor,
+      imobiliaria_corretor,
+      empreendimento_interesse,
+      tipologia_interesse,
+      probabilidade_fechamento
     `;
 
 export const KANBAN_CARD_SELECT_BOARD_FAST_WITH_SLA = `${KANBAN_CARD_SELECT_BOARD_FAST.trim()}`;
+
+/** Colunas opcionais do Funil Corretores — se faltarem no banco, o SELECT do board inteiro quebra. */
+const KANBAN_CARD_SELECT_LEAD_OPTIONAL = [
+  'telefone_lead',
+  'email_lead',
+  'mensagem_lead',
+  'nome_corretor',
+  'imobiliaria_corretor',
+  'empreendimento_interesse',
+  'tipologia_interesse',
+  'probabilidade_fechamento',
+  'orcamento_lead',
+  'cidade_interesse',
+] as const;
+
+function stripOptionalLeadColumns(select: string): string {
+  const skip = new Set(
+    KANBAN_CARD_SELECT_LEAD_OPTIONAL.map((c) => c.toLowerCase()),
+  );
+  return select
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && !skip.has(part.toLowerCase()))
+    .join(',\n      ');
+}
 
 export function isSupabaseMissingColumnError(message: string | undefined): boolean {
   if (!message) return false;
@@ -97,8 +138,15 @@ export async function runKanbanCardSelectWithSlaFallback<T>(run: (select: string
   if (!isSupabaseMissingColumnError(withSla.error?.message)) {
     return { ...withSla, slaColsAvailable: false };
   }
+
   const base = await run(KANBAN_CARD_SELECT_BASE);
-  return { ...base, slaColsAvailable: false };
+  if (!base.error) return { ...base, slaColsAvailable: false };
+  if (!isSupabaseMissingColumnError(base.error?.message)) {
+    return { ...base, slaColsAvailable: false };
+  }
+
+  const stripped = await run(stripOptionalLeadColumns(KANBAN_CARD_SELECT_BASE));
+  return { ...stripped, slaColsAvailable: false };
 }
 
 export async function runKanbanCardSelectBoardFast<T>(run: (select: string) => Promise<{
@@ -112,5 +160,10 @@ export async function runKanbanCardSelectBoardFast<T>(run: (select: string) => P
   }
   const trimmed = KANBAN_CARD_SELECT_BOARD_FAST.replace(/\s+sla_iniciado_em,\s+entered_fase_at\s*/i, '');
   const base = await run(trimmed);
-  return { ...base, slaColsAvailable: false };
+  if (!base.error) return { ...base, slaColsAvailable: false };
+  if (!isSupabaseMissingColumnError(base.error?.message)) {
+    return { ...base, slaColsAvailable: false };
+  }
+  const stripped = await run(stripOptionalLeadColumns(trimmed));
+  return { ...stripped, slaColsAvailable: false };
 }

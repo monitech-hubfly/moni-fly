@@ -17,6 +17,7 @@ export type KanbanNomeDisplay =
   | 'Funil Projetos Locais'
   | 'Funil Projetos Legais'
   | 'Funil Pré Obra e Obra'
+  | 'Funil Corretores'
   | 'Funil Contabilidade'
   | 'Funil Crédito Obra'
   | 'Funil Motor 01'
@@ -89,6 +90,8 @@ export type KanbanCardBrief = {
   contabilidade_ok?: boolean;
   capital_ok?: boolean;
   juridico_ok?: boolean;
+  /** Funil Jurídico: retrocessos Assinatura → Tratativas. */
+  juridico_bolinha_count?: number | null;
   credito_obra_ok?: boolean;
   projetos_legais_ok?: boolean | null;
   projetos_locais_ok?: boolean | null;
@@ -156,6 +159,18 @@ export type KanbanCardBrief = {
   funding_tipo?: 'Investidor' | 'Broker' | null;
   funding_localizacao?: string | null;
   funding_descritivo?: string | null;
+  /** Funil Corretores */
+  mkt_tipo_material?: string | null;
+  nome_corretor?: string | null;
+  imobiliaria_corretor?: string | null;
+  empreendimento_interesse?: string | null;
+  tipologia_interesse?: string | null;
+  probabilidade_fechamento?: string | null;
+  orcamento_lead?: number | null;
+  cidade_interesse?: string | null;
+  telefone_lead?: string | null;
+  email_lead?: string | null;
+  mensagem_lead?: string | null;
   proxima_atividade?: string | null;
   prazo_atividade?: string | null;
   /** SLA estourado na fase atual segundo a Calculadora (borda lateral vermelha no board). */

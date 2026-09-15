@@ -1,20 +1,41 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { KANBAN_IDS, FASE_IDS } from '@/lib/constants/kanban-ids';
+export { KANBAN_INDICADORES_MENSAIS_IDS } from './kanban-indicadores-ids';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface KanbanIndicadorConfig {
+/** Indicador semanal: conta cards que entraram em uma fase específica na semana anterior */
+interface KanbanIndicadorFaseConfig {
+  tipo?: 'fase_entrada'; // default — omitir ou declarar explicitamente
   /** Label para logs */
   label: string;
-  /** UUID do indicador em `indicadores` — preenchido após rodar a migration SQL */
+  /** UUID do indicador em `indicadores` */
   indicadorId: string;
   /** UUID do kanban (funil) */
   kanbanId: string;
   /** UUID da fase que conta como "conversão" */
   faseAlvoId: string;
 }
+
+/** Indicador mensal: acumula contagem desde o 1º do mês corrente.
+ *  No 1º Monday de cada mês novo, reescreve todas as semanas do mês anterior com o total final. */
+interface KanbanIndicadorMensalConfig {
+  tipo: 'mensal_acumulado';
+  /** Label para logs */
+  label: string;
+  /** UUID do indicador em `indicadores` */
+  indicadorId: string;
+  /** UUID do kanban (funil) */
+  kanbanId: string;
+  /** Campo boolean a verificar em kanban_cards (ex: 'contrato_assinado') */
+  campoFlag: string;
+  /** Campo timestamp correspondente (ex: 'contrato_assinado_em') */
+  campoData: string;
+}
+
+type KanbanIndicadorConfig = KanbanIndicadorFaseConfig | KanbanIndicadorMensalConfig;
 
 interface ResultadoProcessamento {
   label: string;
@@ -31,11 +52,14 @@ interface ResultadoProcessamento {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Cada entrada representa um indicador automático vinculado a uma fase de funil.
- * Para adicionar um novo funil:
- *   1. Inserir a fase e o kanban em kanban-ids.ts (se ainda não existir)
- *   2. Criar o indicador no banco (migration SQL)
- *   3. Adicionar uma entrada aqui com o indicadorId retornado pelo INSERT
+ * Para adicionar indicador de FASE (semanal):
+ *   1. Inserir fase e kanban em kanban-ids.ts
+ *   2. Criar indicador no banco (migration SQL)
+ *   3. Adicionar entrada com tipo?: 'fase_entrada' (ou omitir tipo)
+ *
+ * Para adicionar indicador MENSAL (acumulado):
+ *   1. Criar indicador no banco com meta_unidade = 'mensal'
+ *   2. Adicionar entrada com tipo: 'mensal_acumulado', campoFlag e campoData
  */
 export const KANBAN_INDICADORES_CONFIG: KanbanIndicadorConfig[] = [
   {
@@ -49,6 +73,14 @@ export const KANBAN_INDICADORES_CONFIG: KanbanIndicadorConfig[] = [
     indicadorId: 'b18dadfd-31b9-44f7-a7cb-270f5312e6a6',
     kanbanId: KANBAN_IDS.PROJETOS_LOCAIS,
     faseAlvoId: FASE_IDS.PROJETOS_LOCAIS_CONCLUIDO,
+  },
+  {
+    tipo: 'mensal_acumulado',
+    label: 'Contratos Assinados Portfólio',
+    indicadorId: '34ea3769-d0c9-4c89-8710-386f48f830a6',
+    kanbanId: KANBAN_IDS.PORTFOLIO,
+    campoFlag: 'contrato_assinado',
+    campoData: 'contrato_assinado_em',
   },
 ];
 
@@ -96,17 +128,30 @@ export function getSemanaAnterior(ref: Date): {
   return { week, year, start, end };
 }
 
+/**
+ * Retorna todos os Domingos do mês (1-based) de um dado year.
+ * Usado para saber quais (semana, semanaAno) reescrever no fechamento do mês.
+ */
+function getSundaysInMonth(year: number, month: number): Date[] {
+  const sundays: Date[] = [];
+  const d = new Date(Date.UTC(year, month - 1, 1));
+  // Avançar até o primeiro domingo do mês
+  while (d.getUTCDay() !== 0) d.setUTCDate(d.getUTCDate() + 1);
+  // Coletar todos os domingos enquanto ainda estamos no mesmo mês
+  while (d.getUTCMonth() === month - 1) {
+    sundays.push(new Date(d));
+    d.setUTCDate(d.getUTCDate() + 7);
+  }
+  return sundays;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Contagem de cards na fase alvo
+// Contagem de cards na fase alvo (indicadores semanais)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Conta quantos cards distintos do funil `kanbanId` entraram na fase `faseAlvoId`
  * dentro do intervalo [weekStart, weekEnd).
- *
- * Fontes:
- *  1. kanban_historico onde detalhe->>'fase_nova_id' = faseAlvoId (inclui avançados E retrocedidos que foram parar lá)
- *  2. kanban_cards atualmente na fase com entered_fase_at no intervalo (cards sem histórico)
  */
 async function contarCardsNaFase(
   db: ReturnType<typeof createAdminClient>,
@@ -118,8 +163,6 @@ async function contarCardsNaFase(
   const startIso = weekStart.toISOString();
   const endIso   = weekEnd.toISOString();
 
-  // Fonte 1: via kanban_historico
-  // Supabase PostgREST suporta .filter('detalhe->>chave', 'eq', valor) para JSONB text
   const { data: histRows, error: histErr } = await db
     .from('kanban_historico')
     .select('card_id, kanban_cards!inner(kanban_id)')
@@ -142,8 +185,6 @@ async function contarCardsNaFase(
     }
   }
 
-  // Fonte 2: cards que estão AGORA na faseAlvo com entered_fase_at no período
-  // (captura cards que nunca tiveram registro no histórico)
   const { data: currRows, error: currErr } = await db
     .from('kanban_cards')
     .select('id')
@@ -161,6 +202,40 @@ async function contarCardsNaFase(
   }
 
   return cardIds.size;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Contagem por campo booleano + timestamp (indicadores mensais)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Conta cards do funil `kanbanId` onde `campoFlag = true` e
+ * `campoData` está no intervalo [monthStart, countEnd).
+ *
+ * Usado para indicadores mensais (ex: contratos_assinado_em no mês corrente).
+ */
+async function contarCardsPorCampo(
+  db: ReturnType<typeof createAdminClient>,
+  kanbanId: string,
+  campoFlag: string,
+  campoData: string,
+  monthStart: Date,
+  countEnd: Date,
+): Promise<number> {
+  const { count, error } = await db
+    .from('kanban_cards')
+    .select('id', { count: 'exact', head: true })
+    .eq('kanban_id', kanbanId)
+    .eq(campoFlag, true)
+    .gte(campoData, monthStart.toISOString())
+    .lt(campoData, countEnd.toISOString());
+
+  if (error) {
+    console.error('[kanban-indicadores-auto] erro ao contar por campo:', error.message);
+    return 0;
+  }
+
+  return count ?? 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -201,14 +276,38 @@ async function upsertLancamento(
   return 'insert';
 }
 
+/**
+ * Reescreve todos os lançamentos do mês `closingMonth/closingYear` com o valor final.
+ * Chamado no 1º Monday de cada mês para fechar o mês anterior.
+ */
+async function reescreverMesFechado(
+  db: ReturnType<typeof createAdminClient>,
+  indicadorId: string,
+  closingYear: number,
+  closingMonth: number, // 1-based
+  finalCount: number,
+): Promise<void> {
+  const sundays = getSundaysInMonth(closingYear, closingMonth);
+  for (const sunday of sundays) {
+    const { week, year: weekYear } = getIsoWeekInfo(sunday);
+    await upsertLancamento(db, indicadorId, week, weekYear, finalCount);
+    console.log(
+      `[kanban-indicadores-auto] reescrita: semana ${week}/${weekYear} → ${finalCount}`,
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Função principal — chamada pelo cron
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Processa todos os indicadores configurados em KANBAN_INDICADORES_CONFIG.
- * Para cada um, conta os cards que entraram na fase alvo na semana anterior
- * e persiste o valor em indicador_lancamentos.
+ *
+ * - Indicadores de fase (semanal): conta cards que entraram na fase na semana anterior.
+ * - Indicadores mensais: acumula contratos/eventos desde o 1º do mês até domingo passado.
+ *   No 1º Monday de novo mês (crossing de mês), reescreve todas as semanas do mês fechado
+ *   com o total final.
  *
  * @param ref  Data de referência (default: now). O cron passa `new Date()`.
  */
@@ -216,64 +315,121 @@ export async function processarKanbanIndicadores(
   ref: Date = new Date(),
 ): Promise<ResultadoProcessamento[]> {
   const db = createAdminClient();
-  const semana = getSemanaAnterior(ref);
+  const semanaAnterior = getSemanaAnterior(ref);
+
+  // Para indicadores mensais: domingo anterior ao cron (= último dia da semana processada)
+  const prevSunday = new Date(ref);
+  prevSunday.setUTCDate(ref.getUTCDate() - 1);
+  const prevSundayMonth = prevSunday.getUTCMonth() + 1; // 1-based
+  const prevSundayYear  = prevSunday.getUTCFullYear();
+  // É um run de fechamento se o Monday (ref) está num mês diferente do Sunday anterior
+  const refMonth = ref.getUTCMonth() + 1;
+  const isMensalFechamento = refMonth !== prevSundayMonth;
 
   console.log(
-    `[kanban-indicadores-auto] Processando semana ISO ${semana.week}/${semana.year}` +
-    ` (${semana.start.toISOString()} – ${semana.end.toISOString()})`,
+    `[kanban-indicadores-auto] Processando semana ISO ${semanaAnterior.week}/${semanaAnterior.year}` +
+    ` (${semanaAnterior.start.toISOString()} – ${semanaAnterior.end.toISOString()})` +
+    (isMensalFechamento ? ` | FECHAMENTO MÊS ${prevSundayMonth}/${prevSundayYear}` : ''),
   );
 
   const resultados: ResultadoProcessamento[] = [];
 
   for (const cfg of KANBAN_INDICADORES_CONFIG) {
-    if (cfg.indicadorId === 'PREENCHER_APOS_MIGRATION') {
+    if (cfg.indicadorId.startsWith('PREENCHER')) {
       console.warn(`[kanban-indicadores-auto] ${cfg.label}: indicadorId não configurado — pulando`);
-    resultados.push({
-      label: cfg.label,
-      indicadorId: cfg.indicadorId,
-      semana: semana.week,
-      semanaAno: semana.year,
-      count: 0,
-      operacao: 'skip',
-      erro: 'indicadorId não configurado',
-    });
-    continue;
-    }
-
-    try {
-      const count = await contarCardsNaFase(
-        db,
-        cfg.kanbanId,
-        cfg.faseAlvoId,
-        semana.start,
-        semana.end,
-      );
-
-      const operacao = await upsertLancamento(
-        db,
-        cfg.indicadorId,
-        semana.week,
-        semana.year,
-        count,
-      );
-
-      console.log(`[kanban-indicadores-auto] ${cfg.label}: ${count} → ${operacao}`);
       resultados.push({
         label: cfg.label,
         indicadorId: cfg.indicadorId,
-        semana: semana.week,
-        semanaAno: semana.year,
-        count,
-        operacao,
+        semana: semanaAnterior.week,
+        semanaAno: semanaAnterior.year,
+        count: 0,
+        operacao: 'skip',
+        erro: 'indicadorId não configurado',
       });
+      continue;
+    }
+
+    try {
+      if (cfg.tipo === 'mensal_acumulado') {
+        // ── INDICADOR MENSAL ──────────────────────────────────────────────────
+        const monthStart = new Date(Date.UTC(prevSundayYear, prevSundayMonth - 1, 1));
+        // countEnd = início do Monday (exclusive) = fim do domingo
+        const countEnd = new Date(ref);
+
+        const count = await contarCardsPorCampo(
+          db,
+          cfg.kanbanId,
+          cfg.campoFlag,
+          cfg.campoData,
+          monthStart,
+          countEnd,
+        );
+
+        if (isMensalFechamento) {
+          // Mês fechado: reescrever TODAS as semanas do mês anterior com total final
+          await reescreverMesFechado(db, cfg.indicadorId, prevSundayYear, prevSundayMonth, count);
+          console.log(
+            `[kanban-indicadores-auto] ${cfg.label}: FECHAMENTO ${prevSundayMonth}/${prevSundayYear} → ${count}`,
+          );
+          resultados.push({
+            label: cfg.label,
+            indicadorId: cfg.indicadorId,
+            semana: semanaAnterior.week,
+            semanaAno: semanaAnterior.year,
+            count,
+            operacao: 'update',
+          });
+        } else {
+          // Mês em andamento: salvar acumulado como simulação desta semana
+          const { week, year: weekYear } = getIsoWeekInfo(prevSunday);
+          const operacao = await upsertLancamento(db, cfg.indicadorId, week, weekYear, count);
+          console.log(`[kanban-indicadores-auto] ${cfg.label}: acumulado ${count} (semana ${week}/${weekYear}) → ${operacao}`);
+          resultados.push({
+            label: cfg.label,
+            indicadorId: cfg.indicadorId,
+            semana: week,
+            semanaAno: weekYear,
+            count,
+            operacao,
+          });
+        }
+
+      } else {
+        // ── INDICADOR SEMANAL (fase entrada) ─────────────────────────────────
+        const count = await contarCardsNaFase(
+          db,
+          cfg.kanbanId,
+          cfg.faseAlvoId,
+          semanaAnterior.start,
+          semanaAnterior.end,
+        );
+
+        const operacao = await upsertLancamento(
+          db,
+          cfg.indicadorId,
+          semanaAnterior.week,
+          semanaAnterior.year,
+          count,
+        );
+
+        console.log(`[kanban-indicadores-auto] ${cfg.label}: ${count} → ${operacao}`);
+        resultados.push({
+          label: cfg.label,
+          indicadorId: cfg.indicadorId,
+          semana: semanaAnterior.week,
+          semanaAno: semanaAnterior.year,
+          count,
+          operacao,
+        });
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error(`[kanban-indicadores-auto] ${cfg.label} ERRO:`, msg);
       resultados.push({
         label: cfg.label,
         indicadorId: cfg.indicadorId,
-        semana: semana.week,
-        semanaAno: semana.year,
+        semana: semanaAnterior.week,
+        semanaAno: semanaAnterior.year,
         count: 0,
         operacao: 'skip',
         erro: msg,

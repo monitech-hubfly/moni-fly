@@ -40,6 +40,10 @@ export type UseDashboardGeralResult = {
   error: string | null;
 };
 
+// Primeira data com dados reais de atividades (semana S32 / 03-ago-2026).
+// Semanas anteriores foram geradas pelo cron sem uso real do sistema — não exibir.
+const DATA_MINIMA_CAROMETRO = '2026-08-03';
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -85,7 +89,9 @@ function calcSemanasRange(nSemanas: number): { semanas: number[]; startStr: stri
   }
   const start = new Date(hoje);
   start.setDate(hoje.getDate() - (nSemanas - 1) * 7);
-  return { semanas, startStr: toDateStr(start), endStr: toDateStr(hoje) };
+  // Garante que nunca buscamos antes da data mínima de dados reais
+  const startStr = toDateStr(start) < DATA_MINIMA_CAROMETRO ? DATA_MINIMA_CAROMETRO : toDateStr(start);
+  return { semanas, startStr, endStr: toDateStr(hoje) };
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -191,10 +197,13 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
           const porSemana: Record<number, SemanaData> = {};
           for (const sem of semList) {
             const dias = (profMap.get(sem) ?? []).sort((x, y) => x.data.localeCompare(y.data));
+            // Usa o último snapshot da semana — estado mais recente/acumulado —
+            // mesmo critério do useFechamentoBoneDay e alinhado ao que TO DO exibe
+            const lastDia = dias.length > 0 ? dias[dias.length - 1] : null;
             porSemana[sem] = {
-              sireneScore:      avgOrNull(dias.map(d => d.sireneScore)),
-              engajamentoScore: avgOrNull(dias.map(d => d.engajamentoScore)),
-              indicadoresScore: avgOrNull(dias.map(d => d.indicadoresScore)),
+              sireneScore:      lastDia?.sireneScore      ?? null,
+              engajamentoScore: lastDia?.engajamentoScore ?? null,
+              indicadoresScore: lastDia?.indicadoresScore ?? null,
               dias,
             };
           }

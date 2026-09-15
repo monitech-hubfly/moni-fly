@@ -363,7 +363,7 @@
 
       <div class="aviso-box info">
         <span style="font-size:18px;">ℹ️</span>
-        <p><strong>Nota da linha</strong> = Preço + Produto (cada subnota de −3 a +2). A <strong>nota final do modelo</strong> = média de Preço + média de Produto contra todos os anúncios da faixa.</p>
+        <p><strong>Nota da linha</strong> = Preço + Produto (cada subnota de −3 a +3). A <strong>nota final do modelo</strong> = média de Preço + média de Produto contra todos os anúncios da faixa.</p>
       </div>
     </section>
 
@@ -444,17 +444,26 @@
       <p class="lead">Conte quantos atributos marcados no lote o modelo também tem no catálogo. Isso <strong>ordena</strong> o ranking; não entra na nota final.</p>
 
       <table class="data-table">
-        <thead><tr><th>Atributo</th><th>Nota (só na Batalha completa)</th></tr></thead>
+        <thead><tr><th>Atributo</th><th>Nota</th><th>Racional</th></tr></thead>
         <tbody>
-          <tr><td>Vista privilegiada</td><td class="nota-pos">+2</td></tr>
-          <tr><td>Fundo / frente de mata</td><td class="nota-pos">+2 cada</td></tr>
-          <tr><td>Fundo / frente de lago</td><td class="nota-pos">+2 cada</td></tr>
-          <tr><td>Perto de área verde / lago / convivência</td><td class="nota-pos">+1 cada</td></tr>
-          <tr><td>Terreno plano / aclive / declive / perto de portaria</td><td class="nota-neu">0</td></tr>
-          <tr><td>Perto de lixeira / muro com rodovia / comunidade</td><td class="nota-neg">−2 cada</td></tr>
-          <tr><td>Muro com vegetação</td><td class="nota-neg">−1</td></tr>
+          <tr><td>Fundo lago</td><td class="nota-pos">+3</td><td>Diferencial de alto valor, com vista permanente e forte integração das áreas de lazer da casa com o lago.</td></tr>
+          <tr><td>Frente lago</td><td class="nota-pos">+3</td><td>Diferencial de alto valor, com forte impacto visual, percepção de exclusividade e valorização do imóvel.</td></tr>
+          <tr><td>Fundo mata</td><td class="nota-pos">+3</td><td>Proporciona vista, privacidade e contato direto com área verde, valorizando principalmente lazer e áreas sociais.</td></tr>
+          <tr><td>Frente mata</td><td class="nota-pos">+3</td><td>Gera vista privilegiada, menor interferência visual de vizinhos e maior percepção de exclusividade.</td></tr>
+          <tr><td>Vista privilegiada</td><td class="nota-pos">+2</td><td>Aumenta a atratividade e percepção de valor do imóvel, mesmo sem contato direto com lago ou mata.</td></tr>
+          <tr><td>Próximo de área verde / lago</td><td class="nota-pos">+1</td><td>Agrega qualidade de localização e acesso a elementos valorizados do condomínio, mesmo sem vista ou contato direto.</td></tr>
+          <tr><td>Terreno plano</td><td class="nota-pos">+1</td><td>Facilita a implantação dos modelos e tende a reduzir complexidade, movimentação de terra e custos adicionais de obra.</td></tr>
+          <tr><td>Aclive</td><td class="nota-neu">0</td><td>Não é positivo ou negativo isoladamente; seu impacto depende da intensidade da inclinação e do modelo implantado.</td></tr>
+          <tr><td>Declive</td><td class="nota-neu">0</td><td>Pode gerar maior complexidade construtiva, mas também favorecer vista e soluções arquitetônicas; depende da implantação.</td></tr>
+          <tr><td>Próximo da portaria</td><td class="nota-neu">0</td><td>Traz facilidade de acesso, mas pode aumentar circulação, ruído e exposição; vantagens e desvantagens tendem a se equilibrar.</td></tr>
+          <tr><td>Muro de divisa do condomínio</td><td class="nota-neg">−1</td><td>Pode reduzir abertura visual, privacidade e percepção de integração com o condomínio, dependendo do entorno do muro.</td></tr>
+          <tr><td>Próximo de área de convivência / lazer</td><td class="nota-neg">−1</td><td>A proximidade excessiva pode gerar maior circulação de pessoas, ruído e perda de privacidade.</td></tr>
+          <tr><td>Próximo de lixeira</td><td class="nota-neg">−2</td><td>Pode gerar incômodos relacionados a odor, movimentação e percepção negativa, criando uma objeção comercial relevante.</td></tr>
+          <tr><td>Muro com rodovia / via de alto fluxo</td><td class="nota-neg">−3</td><td>Pode gerar ruído constante, poluição, perda de privacidade e impacto significativo na experiência e comercialização do imóvel.</td></tr>
+          <tr><td>Muro / divisa com comunidade ou ocupação</td><td class="nota-neg">−3</td><td>Pode afetar a atratividade quando houver impactos objetivos no lote, como ruído, privacidade, qualidade visual ou segurança percebida.</td></tr>
         </tbody>
       </table>
+      <p style="font-size:12px;color:var(--cinza);margin-top:8px;">Na Pré Batalha a nota dos atributos <strong>não entra</strong> na nota final (só o match ordena o ranking). As notas acima valem na Batalha completa.</p>
 
       <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">Passo 4 — Eliminar inelegíveis</p>
 
@@ -486,14 +495,15 @@
       <p class="lead">Calcule a diferença percentual: <strong>(Preço anúncio − Preço Moní) ÷ Preço Moní</strong></p>
 
       <table class="data-table">
-        <thead><tr><th>Diferença % (anúncio vs Moní)</th><th>Nota Preço</th></tr></thead>
+        <thead><tr><th>Diferença % — Anúncio vs. Moní</th><th>Nota Preço</th><th>Racional</th></tr></thead>
         <tbody>
-          <tr><td>Anúncio ≥ 50% mais barato</td><td class="nota-neg">−3</td></tr>
-          <tr><td>20% a 50% mais barato</td><td class="nota-neg">−2</td></tr>
-          <tr><td>1% a 20% mais barato</td><td class="nota-neg">−1</td></tr>
-          <tr><td>Diferença &lt; 1% (empate técnico)</td><td class="nota-neu">0</td></tr>
-          <tr><td>Moní até 20% mais barato</td><td class="nota-pos">+1</td></tr>
-          <tr><td>Moní mais de 20% mais barato</td><td class="nota-pos">+2</td></tr>
+          <tr><td>Anúncio ≥ 50% mais barato</td><td class="nota-neg">−3</td><td>Moní está muito acima do preço da referência; forte desvantagem competitiva.</td></tr>
+          <tr><td>Anúncio 20% a 49% mais barato</td><td class="nota-neg">−2</td><td>Moní apresenta desvantagem relevante de preço.</td></tr>
+          <tr><td>Anúncio 1% a 19% mais barato</td><td class="nota-neg">−1</td><td>Moní está um pouco mais cara; desvantagem moderada.</td></tr>
+          <tr><td>Diferença &lt; 1%</td><td class="nota-neu">0</td><td>Empate técnico; preços praticamente equivalentes.</td></tr>
+          <tr><td>Moní 1% a 19% mais barata</td><td class="nota-pos">+1</td><td>Vantagem moderada de preço.</td></tr>
+          <tr><td>Moní 20% a 49% mais barata</td><td class="nota-pos">+2</td><td>Vantagem relevante de preço frente ao anúncio.</td></tr>
+          <tr><td>Moní ≥ 50% mais barata</td><td class="nota-pos">+3</td><td>Forte vantagem competitiva de preço.</td></tr>
         </tbody>
       </table>
 
@@ -506,28 +516,29 @@
     <section id="sec-6" class="page-section" aria-labelledby="lbl-6">
       <div class="section-label" id="lbl-6">Eixo Produto (Pré Batalha)</div>
 
-      <div class="formula-box">Nota Produto = (T + Q + B + V + An) ÷ 5 — cada critério de −3 a +2</div>
+      <div class="formula-box">Nota Produto = (T + Q + B + V + An) ÷ 5 — cada critério de −3 a +3</div>
 
       <p style="font-size:13px;font-weight:600;color:var(--verde);margin-bottom:10px;">T — Tamanho (m²)</p>
       <table class="data-table">
-        <thead><tr><th>Diferença % (anúncio vs Moní)</th><th>Nota</th></tr></thead>
+        <thead><tr><th>Diferença de tamanho — Anúncio vs. Moní</th><th>Nota</th><th>Racional</th></tr></thead>
         <tbody>
-          <tr><td>Anúncio ≥ 50% maior</td><td class="nota-neg">−3</td></tr>
-          <tr><td>20% a 50% maior</td><td class="nota-neg">−2</td></tr>
-          <tr><td>1% a 20% maior</td><td class="nota-neg">−1</td></tr>
-          <tr><td>± até 20%</td><td class="nota-neu">0</td></tr>
-          <tr><td>Moní 20% a 50% maior</td><td class="nota-pos">+1</td></tr>
-          <tr><td>Moní &gt; 50% maior</td><td class="nota-pos">+2</td></tr>
+          <tr><td>Anúncio ≥ 50% maior que Moní</td><td class="nota-neg">−3</td><td>Forte desvantagem: o modelo Moní entrega uma casa significativamente menor que a referência de mercado.</td></tr>
+          <tr><td>Anúncio 30% a 49% maior</td><td class="nota-neg">−2</td><td>Desvantagem relevante de tamanho em relação ao mercado.</td></tr>
+          <tr><td>Anúncio 10% a 29% maior</td><td class="nota-neg">−1</td><td>Desvantagem moderada, mas ainda com diferença perceptível.</td></tr>
+          <tr><td>Diferença de até ±10%</td><td class="nota-neu">0</td><td>Tamanhos equivalentes; diferença pouco relevante para a comparação.</td></tr>
+          <tr><td>Moní 10% a 29% maior</td><td class="nota-pos">+1</td><td>Vantagem moderada de tamanho frente à referência de mercado.</td></tr>
+          <tr><td>Moní 30% a 49% maior</td><td class="nota-pos">+2</td><td>Vantagem relevante de tamanho.</td></tr>
+          <tr><td>Moní ≥ 50% maior</td><td class="nota-pos">+3</td><td>Forte vantagem: o modelo Moní entrega uma casa significativamente maior que a referência de mercado.</td></tr>
         </tbody>
       </table>
       <div class="step-note" style="margin-bottom:18px;">Se o anúncio for muito maior, o sistema sugere <strong>anexo</strong> (+20 m² por módulo) — orientação visual no Hub, não altera a nota automaticamente.</div>
 
       <p style="font-size:13px;font-weight:600;color:var(--verde);margin-bottom:10px;">Q — Quartos · B — Banheiros · V — Vagas</p>
-      <p class="lead">Diferença = valor Moní − valor anúncio. Quartos: se catálogo vazio, assume 4. Banheiros/vagas: diff ≤ −2 → −2 (ou −3 em quartos); −1 → −1; 0 → 0; +1 → +1; +2 ou mais → +2.</p>
+      <p class="lead">Diferença = valor Moní − valor anúncio.<br>−3 ou menos → −3; −2 → −2; −1 → −1; 0 → 0; +1 → +1; +2 → +2; +3 ou mais → +3.<br>Quartos: se o catálogo estiver vazio, assumir 4.</p>
 
       <div class="aviso-box amber">
         <span>⚡</span>
-        <p><strong>Campos flexíveis:</strong> se o modelo permite +1 quarto, suíte, banheiro ou vaga e estaria perdendo, recalcule como se tivesse +1 e anote: “1 quarto/suíte/banheiro/vaga adicional necessário para competir”.</p>
+        <p><strong>Campos flexíveis:</strong> se o modelo permitir adicionar quarto, suíte, banheiro ou vaga e essa adição for necessária para competir com o anúncio, recalcule a diferença considerando o item adicional e anote: “1 quarto/suíte/banheiro/vaga adicional necessário para competir”.</p>
       </div>
 
       <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">An — Andares (tipo predominante da faixa)</p>
@@ -627,7 +638,7 @@
         <li>Casa cabe no terreno útil (largura, profundidade, área)</li>
         <li>Tipo predominante Térrea/Sobrado preenchido em Dados do Condomínio</li>
         <li>Match de atributos lote × catálogo anotado</li>
-        <li>Para cada modelo × anúncio: Preço (−3 a +2) + Produto (média de 5)</li>
+        <li>Para cada modelo × anúncio: Preço (−3 a +3) + Produto (média de 5)</li>
         <li>Médias por modelo → nota final</li>
         <li>Ranking: match → Preço médio → Produto médio</li>
         <li>G/E/P e rótulo Alta / Média / Baixa</li>

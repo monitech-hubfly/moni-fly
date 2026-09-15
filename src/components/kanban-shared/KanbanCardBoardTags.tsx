@@ -58,6 +58,7 @@ export function KanbanCardBoardTags({
           <span
             key={t.id || t.tag_id}
             className={`${chip.className}${podeRemover ? ' moni-kanban-card-tag-chip--removable' : ''}`}
+            style={chip.style}
             title={t.nome}
           >
             <span className={podeRemover ? 'truncate' : undefined}>{t.nome}</span>

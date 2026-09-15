@@ -129,7 +129,7 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
         </div>
       ) : null}
 
-      {/* Linha 2: badge SLA + badge origem (exceto checklist) + funil · fase */}
+      {/* Linha 2: badge SLA + badge origem + funil · fase */}
       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
         {slaBadge ? (
           <span
@@ -143,11 +143,9 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
             {slaBadge.texto}
           </span>
         ) : null}
-        {card.origem !== 'checklist' && (
-          <span className={`text-[10px] font-medium px-1 py-0.5 rounded ${badgeCls}`}>
-            {ORIGEM_LABEL[card.origem]}
-          </span>
-        )}
+        <span className={`text-[10px] font-medium px-1 py-0.5 rounded ${badgeCls}`}>
+          {ORIGEM_LABEL[card.origem]}
+        </span>
         {card.kanban_nome && (
           <span className="text-[10px] text-gray-400 truncate max-w-[8rem]">{card.kanban_nome}</span>
         )}
@@ -155,35 +153,6 @@ function KanbanCard({ card }: { card: KanbanCardItem }) {
           <span className="text-[10px] text-gray-400 truncate">· {card.fase_nome}</span>
         )}
       </div>
-
-      {/* Linha 3: prazo SLA + prazo atividade */}
-      {(card.sla_prazo_iso ?? card.prazo_atividade) && (
-        <div className="mt-0.5 flex items-center gap-2 flex-wrap">
-          {card.sla_prazo_iso && (() => {
-            const d = new Date(`${card.sla_prazo_iso}T00:00:00`);
-            const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-            const atrasado = d < hoje;
-            const fmt = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-            return (
-              <span className={`text-[10px] ${atrasado ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-                SLA {fmt}
-              </span>
-            );
-          })()}
-          {card.prazo_atividade && (() => {
-            const d = new Date(`${card.prazo_atividade}T00:00:00`);
-            const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-            const atrasado = d < hoje;
-            const diff = Math.round((hoje.getTime() - d.getTime()) / 86400000);
-            const fmt = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-            return (
-              <span className={`text-[10px] ${atrasado ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
-                Ativ {atrasado ? `+${diff}d` : fmt}
-              </span>
-            );
-          })()}
-        </div>
-      )}
     </div>
   );
 }
@@ -208,9 +177,8 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
 }
 
 export function BacklogKanbanColuna() {
-  const { cards, sndCards, orphanCards, isLoading, error } = useBacklogKanban();
-  const [sndAberto,    setSndAberto]    = useState(false);
-  const [orphanAberto, setOrphanAberto] = useState(false);
+  const { cards, sndCards, isLoading, error } = useBacklogKanban();
+  const [sndAberto, setSndAberto] = useState(false);
 
   const atrasados  = cards.filter(c => c.sla?.status === 'atrasado').length;
   const atencao    = cards.filter(c => c.sla?.status === 'atencao').length;
@@ -244,11 +212,10 @@ export function BacklogKanbanColuna() {
         </div>
       ) : error ? (
         <p className="text-xs text-red-500 break-all">{error}</p>
-      ) : cards.length === 0 && sndCards.length === 0 && orphanCards.length === 0 ? (
+      ) : cards.length === 0 ? (
         <EmptyState />
       ) : (
         <>
-          {cards.length > 0 && (
           <div className="flex flex-col gap-1.5 max-h-[22rem] overflow-y-auto pr-0.5">
             {cards.map(card => (
               <DraggableKanbanCard key={card.id} card={card}>
@@ -256,7 +223,6 @@ export function BacklogKanbanColuna() {
               </DraggableKanbanCard>
             ))}
           </div>
-          )}
           {sndCards.length > 0 && (
             <div className="mt-2 border-t border-gray-200 pt-2">
               <button
@@ -270,27 +236,6 @@ export function BacklogKanbanColuna() {
               {sndAberto && (
                 <div className="flex flex-col gap-1.5 mt-1.5 max-h-[12rem] overflow-y-auto">
                   {sndCards.map(card => (
-                    <DraggableKanbanCard key={card.id} card={card}>
-                      <KanbanCard card={card} />
-                    </DraggableKanbanCard>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          {orphanCards.length > 0 && (
-            <div className="mt-2 border-t border-gray-200 pt-2">
-              <button
-                type="button"
-                onClick={() => setOrphanAberto(v => !v)}
-                className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 w-full text-left"
-              >
-                <span>{orphanAberto ? '▾' : '▸'}</span>
-                <span className="text-amber-600 font-medium">SRC — Sem Responsável do Card ({orphanCards.length})</span>
-              </button>
-              {orphanAberto && (
-                <div className="flex flex-col gap-1.5 mt-1.5 max-h-[12rem] overflow-y-auto">
-                  {orphanCards.map(card => (
                     <DraggableKanbanCard key={card.id} card={card}>
                       <KanbanCard card={card} />
                     </DraggableKanbanCard>

@@ -1,7 +1,7 @@
 /**
  * Regras consolidadas da Batalha de Casas (documento Cursor).
  * Ordem de desempate: Atributos do Lote > Preço > Produto.
- * Nota final = Atributos do Lote + Preço + Produto (soma; cada critério -3 a +2).
+ * Nota final = Atributos do Lote + Preço + Produto (soma; cada eixo e a nota final em −3…+3).
  */
 
 import {
@@ -11,22 +11,118 @@ import {
 import type { FaixaMercado } from '@/lib/kanban/mapa-competidores-condominio';
 
 export const ATRIBUTOS_LOTE = [
-  { id: 'vista', label: 'Vista privilegiada', nota: 2 },
-  { id: 'plano', label: 'Terreno plano', nota: 0 },
-  { id: 'aclive', label: 'Terreno aclive', nota: 0 },
-  { id: 'declive', label: 'Terreno declive', nota: 0 },
-  { id: 'fundo_mata', label: 'Fundo de mata', nota: 2 },
-  { id: 'frente_mata', label: 'Frente de mata', nota: 2 },
-  { id: 'area_verde', label: 'Perto de área verde', nota: 1 },
-  { id: 'perto_lago', label: 'Perto do lago', nota: 1 },
-  { id: 'fundo_lago', label: 'Fundo de lago', nota: 2 },
-  { id: 'frente_lago', label: 'Frente de lago', nota: 2 },
-  { id: 'area_convivencia', label: 'Perto de área de convivência', nota: 1 },
-  { id: 'lixeira', label: 'Perto de lixeira', nota: -2 },
-  { id: 'portaria', label: 'Perto de portaria', nota: 0 },
-  { id: 'muro_rodovia', label: 'Muro com rodovia', nota: -2 },
-  { id: 'muro_comunidade', label: 'Muro com comunidade', nota: -2 },
-  { id: 'muro_vegetacao', label: 'Muro com vegetação', nota: -1 },
+  {
+    id: 'fundo_lago',
+    label: 'Fundo lago',
+    nota: 3,
+    racional:
+      'Diferencial de alto valor, com vista permanente e forte integração das áreas de lazer da casa com o lago.',
+  },
+  {
+    id: 'frente_lago',
+    label: 'Frente lago',
+    nota: 3,
+    racional:
+      'Diferencial de alto valor, com forte impacto visual, percepção de exclusividade e valorização do imóvel.',
+  },
+  {
+    id: 'fundo_mata',
+    label: 'Fundo mata',
+    nota: 3,
+    racional:
+      'Proporciona vista, privacidade e contato direto com área verde, valorizando principalmente lazer e áreas sociais.',
+  },
+  {
+    id: 'frente_mata',
+    label: 'Frente mata',
+    nota: 3,
+    racional:
+      'Gera vista privilegiada, menor interferência visual de vizinhos e maior percepção de exclusividade.',
+  },
+  {
+    id: 'vista',
+    label: 'Vista privilegiada',
+    nota: 2,
+    racional:
+      'Aumenta a atratividade e percepção de valor do imóvel, mesmo sem contato direto com lago ou mata.',
+  },
+  {
+    id: 'area_verde',
+    label: 'Próximo de área verde',
+    nota: 1,
+    racional:
+      'Agrega qualidade de localização e acesso a elementos valorizados do condomínio, mesmo sem vista ou contato direto.',
+  },
+  {
+    id: 'perto_lago',
+    label: 'Próximo de lago',
+    nota: 1,
+    racional:
+      'Agrega qualidade de localização e acesso a elementos valorizados do condomínio, mesmo sem vista ou contato direto.',
+  },
+  {
+    id: 'plano',
+    label: 'Terreno plano',
+    nota: 1,
+    racional:
+      'Facilita a implantação dos modelos e tende a reduzir complexidade, movimentação de terra e custos adicionais de obra.',
+  },
+  {
+    id: 'aclive',
+    label: 'Aclive',
+    nota: 0,
+    racional:
+      'Não é positivo ou negativo isoladamente; seu impacto depende da intensidade da inclinação e do modelo implantado.',
+  },
+  {
+    id: 'declive',
+    label: 'Declive',
+    nota: 0,
+    racional:
+      'Pode gerar maior complexidade construtiva, mas também favorecer vista e soluções arquitetônicas; depende da implantação.',
+  },
+  {
+    id: 'portaria',
+    label: 'Próximo da portaria',
+    nota: 0,
+    racional:
+      'Traz facilidade de acesso, mas pode aumentar circulação, ruído e exposição; vantagens e desvantagens tendem a se equilibrar.',
+  },
+  {
+    id: 'muro_vegetacao',
+    label: 'Muro de divisa do condomínio',
+    nota: -1,
+    racional:
+      'Pode reduzir abertura visual, privacidade e percepção de integração com o condomínio, dependendo do entorno do muro.',
+  },
+  {
+    id: 'area_convivencia',
+    label: 'Próximo de área de convivência / lazer',
+    nota: -1,
+    racional:
+      'A proximidade excessiva pode gerar maior circulação de pessoas, ruído e perda de privacidade.',
+  },
+  {
+    id: 'lixeira',
+    label: 'Próximo de lixeira',
+    nota: -2,
+    racional:
+      'Pode gerar incômodos relacionados a odor, movimentação e percepção negativa, criando uma objeção comercial relevante.',
+  },
+  {
+    id: 'muro_rodovia',
+    label: 'Muro com rodovia / via de alto fluxo',
+    nota: -3,
+    racional:
+      'Pode gerar ruído constante, poluição, perda de privacidade e impacto significativo na experiência e comercialização do imóvel.',
+  },
+  {
+    id: 'muro_comunidade',
+    label: 'Muro / divisa com comunidade ou ocupação',
+    nota: -3,
+    racional:
+      'Pode afetar a atratividade quando houver impactos objetivos no lote, como ruído, privacidade, qualidade visual ou segurança percebida.',
+  },
 ] as const;
 
 export type AtributosLoteIds = (typeof ATRIBUTOS_LOTE)[number]['id'];
@@ -124,14 +220,15 @@ export function calcularMatchScoreAtributosLote(
   return score;
 }
 
-/** Faixas percentuais para critério Preço (Distância Nominal e Preço Nominal): -3 a +2 */
+/** Faixas percentuais para critério Preço (Distância Nominal e Preço Nominal): −3…+3. */
 export function notaPrecoPorPercentual(diffPerc: number): number {
   if (diffPerc <= -0.5) return -3;
   if (diffPerc <= -0.2) return -2;
   if (diffPerc <= -0.01) return -1;
   if (diffPerc < 0.01) return 0;
   if (diffPerc < 0.2) return 1;
-  return 2;
+  if (diffPerc < 0.5) return 2;
+  return 3;
 }
 
 /** Checklist de reforma: 8 categorias (valor em R$, dificuldade, incerteza) */
@@ -355,13 +452,15 @@ export interface NotaTamanhoResult {
 export function calcularNotaTamanho(areaAnuncio: number, areaMoni: number): NotaTamanhoResult {
   const diffPct = (areaAnuncio - areaMoni) / areaMoni;
 
+  /** Faixas Anúncio vs Moní: neutro ±10%; extremos ≥50% → ±3. */
   let nota: number;
   if (diffPct >= 0.5) nota = -3;
-  else if (diffPct >= 0.2) nota = -2;
-  else if (diffPct >= 0.01) nota = -1;
-  else if (diffPct >= -0.2) nota = 0;
-  else if (diffPct >= -0.5) nota = 1;
-  else nota = 2;
+  else if (diffPct >= 0.3) nota = -2;
+  else if (diffPct > 0.1) nota = -1;
+  else if (diffPct >= -0.1) nota = 0;
+  else if (diffPct > -0.3) nota = 1;
+  else if (diffPct >= -0.5) nota = 2;
+  else nota = 3;
 
   let sugestaoAnexo: NotaTamanhoResult['sugestaoAnexo'];
   if (nota < 0) {
@@ -422,7 +521,7 @@ export function modeloPermitidoNaFaixa(nomeModelo: string, faixa: FaixaMercado):
   });
 }
 
-/** Escala comum para banheiros e vagas: diff = nosso − anúncio. */
+/** Escala comum Q/B/V (e suítes): diff = Moní − anúncio → nota (−3…+3). */
 export function notaDiffContagem(nosso: number | null, anuncio: number | null): number {
   if (anuncio == null || nosso == null) return 0;
   const diff = nosso - anuncio;
@@ -431,7 +530,8 @@ export function notaDiffContagem(nosso: number | null, anuncio: number | null): 
   if (diff === -1) return -1;
   if (diff === 0) return 0;
   if (diff === 1) return 1;
-  return 2;
+  if (diff === 2) return 2;
+  return 3;
 }
 
 export function notaQuartos(
@@ -439,15 +539,7 @@ export function notaQuartos(
   quartosAnuncio: number | null,
 ): number {
   if (quartosAnuncio == null) return 0;
-  const nosso = quartosNosso ?? QUARTOS_PADRAO_NOSSA;
-  const diff = nosso - quartosAnuncio;
-  if (diff <= -4) return -3;
-  if (diff === -3) return -3;
-  if (diff === -2) return -2;
-  if (diff === -1) return -1;
-  if (diff === 0) return 0;
-  if (diff === 1) return 1;
-  return 2;
+  return notaDiffContagem(quartosNosso ?? QUARTOS_PADRAO_NOSSA, quartosAnuncio);
 }
 
 export function notaBanheiros(
@@ -632,7 +724,7 @@ export type ProdutoDadosPar = {
   idade?: number | null;
   banheiros?: number | null;
   vagas?: number | null;
-  /** Tipo predominante da faixa (Dados dos Condomínios) — critério Andares (An). */
+  /** Tipo predominante da faixa (Dados dos Condomínios) — critério An (aderência à tipologia). */
   tipoPredominante?: TipoCasaPredominanteFaixa | null;
 };
 
@@ -653,6 +745,10 @@ export type NotaProdutoCompletaResult = {
   };
 };
 
+/**
+ * Catálogo legado ainda pode trazer S / N / Integrado / boolean.
+ * Para An só importa: tem rooftop (qualquer forma) ou não.
+ */
 export function normalizarRooftopCatalogo(raw: RooftopCatalogo): 'S' | 'N' | 'Integrado' | null {
   if (raw === true || raw === 'S' || raw === 's' || raw === 'true') return 'S';
   if (raw === false || raw === 'N' || raw === 'n' || raw === 'false') return 'N';
@@ -660,9 +756,19 @@ export function normalizarRooftopCatalogo(raw: RooftopCatalogo): 'S' | 'N' | 'In
   return null;
 }
 
+/** true = térrea com rooftop; false = térrea sem rooftop / sem informação. */
+export function modeloMoniTemRooftop(raw: RooftopCatalogo): boolean {
+  const rt = normalizarRooftopCatalogo(raw);
+  return rt === 'S' || rt === 'Integrado';
+}
+
 export type NotaAndaresResult = { nota: number; bloqueado: boolean };
 
-/** Nota Andares (An): depende do tipo predominante da faixa e de andares/rooftop do modelo Moní. */
+/**
+ * An — Aderência à tipologia predominante.
+ * Sobrado: andares > 1. Térrea: andares === 1 (+ rooftop ou sem).
+ * 0 = aderente; negativo = divergência. Escala natural −2…0 (sem vantagem artificial).
+ */
 export function notaAndares(
   tipoPredominante: string | null | undefined,
   andaresMoni: number | null | undefined,
@@ -677,20 +783,23 @@ export function notaAndares(
     andaresMoni != null && Number.isFinite(Number(andaresMoni)) ? Number(andaresMoni) : null;
   if (andares == null) return { nota: 0, bloqueado: false };
 
+  const ehSobrado = andares > 1;
+  const ehTerrea = andares === 1;
+
   if (tipo === 'Sobrado') {
-    if (andares > 1) return { nota: 2, bloqueado: false };
-    if (andares === 1) {
-      const rt = normalizarRooftopCatalogo(rooftop);
-      if (rt === 'S') return { nota: -2, bloqueado: false };
-      if (rt === 'N') return { nota: -3, bloqueado: false };
-      if (rt === 'Integrado') return { nota: -1, bloqueado: false };
-      return { nota: 0, bloqueado: false };
+    if (ehSobrado) return { nota: 0, bloqueado: false };
+    if (ehTerrea) {
+      return {
+        nota: modeloMoniTemRooftop(rooftop) ? -1 : -2,
+        bloqueado: false,
+      };
     }
     return { nota: 0, bloqueado: false };
   }
 
-  if (andares > 1) return { nota: -3, bloqueado: false };
-  if (andares === 1) return { nota: 2, bloqueado: false };
+  // Predomina Térrea
+  if (ehTerrea) return { nota: 0, bloqueado: false };
+  if (ehSobrado) return { nota: -2, bloqueado: false };
   return { nota: 0, bloqueado: false };
 }
 
@@ -700,12 +809,13 @@ export function formatNotaAn(n: number): string {
 }
 
 /**
- * Modelo incompatível com o tipo predominante da faixa (andares vs térrea/sobrado).
- * Usado para reordenação prioritária no ranking Pré Batalha.
+ * Divergência forte de tipologia (−2): rebaixa no ranking Pré Batalha.
+ * Térrea + rooftop em faixa de Sobrado (−1) não é tratada como incompatível.
  */
 export function modeloTipoAndarIncompativel(
   tipoPredominante: string | null | undefined,
   andaresMoni: number | null | undefined,
+  rooftop?: RooftopCatalogo,
 ): boolean {
   const tipo = String(tipoPredominante ?? '').trim();
   if (tipo !== 'Sobrado' && tipo !== 'Térrea') return false;
@@ -715,7 +825,9 @@ export function modeloTipoAndarIncompativel(
   if (andares == null) return false;
 
   if (tipo === 'Térrea') return andares > 1;
-  return andares === 1;
+  // Sobrado: só térrea sem rooftop (nota −2)
+  if (andares === 1) return !modeloMoniTemRooftop(rooftop ?? null);
+  return false;
 }
 
 /** Texto do badge vermelho quando o modelo é rebaixado por incompatibilidade de andares. */
@@ -873,9 +985,10 @@ export function notaFinalBatalha(
   return clampNota(notaAtributos + notaPreco + notaProduto);
 }
 
+/** Clamp unificado da escala de notas (−3…+3). */
 function clampNota(n: number): number {
   if (!Number.isFinite(n)) return 0;
   if (n <= -3) return -3;
-  if (n >= 2) return 2;
+  if (n >= 3) return 3;
   return Math.round(n * 10) / 10;
 }

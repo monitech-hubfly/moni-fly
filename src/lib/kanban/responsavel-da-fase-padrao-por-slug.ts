@@ -23,15 +23,29 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   // Funil Portfólio
   step_2: 'moni',
   aprovacao_moni_novo_negocio: 'moni',
-  step_3: 'franqueado',
+  step_3: 'franqueado', // Enviar Opção
+  juridico_opcao: 'moni',
+  assinaturas_opcao: 'franqueado',
+  opcao_assinada: 'moni',
   step_4: 'franqueado',
+  pre_comite: 'moni',
   acoplamento: 'moni',
   step_5: 'moni',
-  cto_condicoes_precedentes: 'moni',
+  revisoes_comite: 'moni',
+  segundo_comite: 'moni',
+  cto_condicoes_precedentes: 'franqueado', // Enviar Cto c/ Precedentes
+  juridico_cto_precedentes: 'moni',
+  assinaturas_cto_precedentes: 'franqueado',
+  cto_precedentes_assinado: 'moni',
   step_6: 'moni',
-  step_7: 'franqueado',
+  step_7: 'franqueado', // Enviar Contrato s/ Precedentes
+  juridico_contrato: 'moni',
+  assinaturas_contrato: 'franqueado',
+  contrato_s_precedentes_assinado: 'moni',
+  /** @deprecated fase inativa desde migration 560 */
   captacao_moni_capital: 'moni',
   passagem_wayser: 'moni',
+  convertidos: 'moni',
 
   // Funil Acoplamento
   novo_acoplamento: 'moni',
@@ -137,9 +151,34 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   capital_informacoes_obrigatorias: 'franqueado',
   capital_preenchimento_oferta: 'franqueado',
   capital_formalizacao: 'moni',
+  capital_oferta_publicada: 'moni',
+  /** @deprecated slug renomeado — ver capital_oferta_publicada */
   capital_concluido: 'moni',
+  capital_captacao_finalizada: 'moni',
   capital_nao_elegivel: 'moni',
   funding_leads: 'moni',
+
+  // Funil Gravação de Vídeos Externos
+  mkt_grav_caixa_entrada: 'moni',
+  mkt_grav_planejamento: 'moni',
+  mkt_grav_in_loco: 'moni',
+  mkt_grav_decupagem: 'moni', // Organização
+  mkt_grav_edicao: 'moni',
+  mkt_grav_aprovacao: 'moni',
+  mkt_grav_revisao: 'moni',
+  mkt_grav_videos_concluidos: 'moni',
+
+  // Funil Série Inc. to Fly
+  mkt_inc_planejamento: 'moni',
+  mkt_inc_gravacao: 'moni',
+  mkt_inc_decupagem: 'moni',
+  mkt_inc_d2_roteiro: 'moni',
+  mkt_inc_d21_extra: 'moni',
+  mkt_inc_d1_storyline: 'moni',
+  mkt_inc_d3_edicao: 'moni',
+  mkt_inc_aprovacao: 'moni',
+  mkt_inc_revisao: 'moni',
+  mkt_inc_d4_final: 'moni',
   funding_r1: 'moni',
   funding_evento: 'moni',
   funding_qualif: 'moni',
@@ -168,7 +207,18 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   prod_executivo: 'moni',
   prod_publicado: 'moni',
 
-  // Funil Modelo Virtual
+  // Funil Modelo Virtual (migration 550)
+  mv_modelagem_casa: 'moni',
+  mv_modelagem_infra: 'moni',
+  mv_aguardar_boss: 'moni',
+  mv_compat_estrutura: 'moni',
+  mv_compat_infra: 'moni',
+  mv_doc_fase1: 'moni',
+  mv_doc_fase2: 'moni',
+  mv_doc_fase3: 'moni',
+  mv_doc_fase4: 'moni',
+  mv_concluido: 'moni',
+  /** @deprecated fases legadas — removidas na 550 */
   mv_recebimento: 'moni',
   mv_modelagem: 'moni',
   mv_renderizacao: 'moni',

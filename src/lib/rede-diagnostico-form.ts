@@ -75,7 +75,7 @@ export type RedeDiagnosticoPatch = Partial<{
   diag_grupo_sec: DiagGrupo | null;
 }>;
 
-const DIM_VALUES = new Set(['0', '2', '3']);
+const DIM_VALUES = new Set(['0', '1', '2']);
 const TEND_VALUES = new Set(['↑', '→', '↓']);
 const GA_VALUES = new Set(['GA1', 'GA2', 'GA3', 'GA4', 'GA5', 'GA6', 'GA7']);
 
@@ -140,7 +140,7 @@ export function parseRedeDiagnosticoDraft(
       continue;
     }
     if (!DIM_VALUES.has(raw)) {
-      return { ok: false, error: `${key.toUpperCase()} deve ser 0, 2 ou 3.` };
+      return { ok: false, error: `${key.toUpperCase()} deve ser 0, 1 ou 2.` };
     }
     patch[key] = Number(raw);
   }

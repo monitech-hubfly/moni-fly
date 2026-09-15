@@ -380,7 +380,7 @@
           <div class="step-body">
             <h4>Pré-Batalha (Step One — fase Pré-Batalha)</h4>
             <p>Escolha até <strong>3 modelos</strong> e ranqueie candidatos Moní só com <strong>Atributos do Lote + Produto</strong> (sem Preço/reforma). Notas locais na sessão — serve para eliminar tipologias fracas antes de investir tempo no configurador.</p>
-            <div class="step-note">Nota pré-batalha = média (Atributos + Produto) / 2, clamp -3…+2.</div>
+            <div class="step-note">Nota pré-batalha = média (Atributos + Produto) / 2, clamp -3…+3.</div>
           </div>
         </div>
         <div class="step-row">
@@ -418,7 +418,7 @@
     <section id="sec-3" class="page-section" aria-labelledby="lbl-3">
       <div class="section-label" id="lbl-3">Escala de notas</div>
 
-      <p style="font-size:14px;color:var(--cinza);line-height:1.65;margin-bottom:18px;">Todos os sub-itens e a nota final usam a faixa <strong>-3 a +2</strong>, com arredondamento de uma casa decimal e <strong>clamp</strong> nos extremos.</p>
+      <p style="font-size:14px;color:var(--cinza);line-height:1.65;margin-bottom:18px;">Todos os sub-itens e a nota final usam a faixa <strong>-3 a +3</strong>, com arredondamento de uma casa decimal e <strong>clamp</strong> nos extremos.</p>
 
       <div class="scale-grid">
         <div class="scale-cell"><div class="val">-3</div><div class="lbl">Caso extremo contra nós</div></div>
@@ -427,14 +427,15 @@
         <div class="scale-cell"><div class="val">0</div><div class="lbl">Equivalente</div></div>
         <div class="scale-cell"><div class="val">+1</div><div class="lbl">Melhor</div></div>
         <div class="scale-cell"><div class="val">+2</div><div class="lbl">Muito melhor</div></div>
+        <div class="scale-cell"><div class="val">+3</div><div class="lbl">Diferencial extremo a favor</div></div>
       </div>
 
-      <div class="formula-box">Nota final = Atributos do Lote + Preço + Produto → clamp[-3, +2]</div>
+      <div class="formula-box">Nota final = Atributos do Lote + Preço + Produto → clamp[-3, +3]</div>
 
       <div class="grid-2">
         <div class="card">
           <h4>Nota final (batalha completa)</h4>
-          <p><strong>Atributos do Lote + Preço + Produto</strong> (soma dos três eixos, cada um clamp -3…+2).</p>
+          <p><strong>Atributos do Lote + Preço + Produto</strong> (soma dos três eixos, cada um clamp -3…+3).</p>
         </div>
         <div class="card">
           <h4>Desempate (ranking de modelos)</h4>
@@ -447,25 +448,28 @@
     <section id="sec-4" class="page-section" aria-labelledby="lbl-4">
       <div class="section-label" id="lbl-4">Eixo: Atributos do Lote</div>
 
-      <p style="font-size:14px;color:var(--cinza);line-height:1.65;margin-bottom:16px;">Para cada par <strong>modelo × anúncio</strong>, marque SIM/NÃO nos atributos aplicáveis. A nota é a <strong>soma</strong> dos scores dos itens marcados SIM, com clamp em +2 (mesmo que a soma bruta ultrapasse).</p>
+      <p style="font-size:14px;color:var(--cinza);line-height:1.65;margin-bottom:16px;">Para cada par <strong>modelo × anúncio</strong>, marque SIM/NÃO nos atributos aplicáveis. A nota é a <strong>soma</strong> dos scores dos itens marcados SIM, com clamp em <strong>−3…+3</strong> no eixo Atributos do Lote.</p>
 
       <table class="data-table">
         <thead>
-          <tr><th>Atributo</th><th>Se SIM</th><th>Interpretação</th></tr>
+          <tr><th>Atributo</th><th>Nota</th><th>Racional</th></tr>
         </thead>
         <tbody>
-          <tr><td>Vista privilegiada</td><td class="nota-pos">+2</td><td>Lote com vista relevante</td></tr>
-          <tr><td>Terreno plano</td><td class="nota-neu">0</td><td>Topografia plana</td></tr>
-          <tr><td>Terreno aclive / declive</td><td class="nota-neu">0</td><td>Topografia inclinada</td></tr>
-          <tr><td>Fundo / frente de mata</td><td class="nota-pos">+2</td><td>Contato com mata preservada</td></tr>
-          <tr><td>Perto de área verde</td><td class="nota-pos">+1</td><td>Proximidade de área verde / parque</td></tr>
-          <tr><td>Perto / fundo / frente de lago</td><td class="nota-pos">+1 a +2</td><td>Conforme proximidade ou frente/fundo</td></tr>
-          <tr><td>Perto de área de convivência</td><td class="nota-neg">-2</td><td>Barulho / fluxo — desvantagem de privacidade</td></tr>
-          <tr><td>Perto de lixeira</td><td class="nota-neg">-2</td><td>Impacto de odor e circulação</td></tr>
-          <tr><td>Perto de portaria</td><td class="nota-neu">0</td><td>Neutro na soma</td></tr>
-          <tr><td>Muro com rodovia</td><td class="nota-neg">-2</td><td>Divisa com via de tráfego</td></tr>
-          <tr><td>Muro com comunidade</td><td class="nota-neg">-2</td><td>Divisa com área comunitária externa</td></tr>
-          <tr><td>Muro com vegetação</td><td class="nota-neg">-1</td><td>Divisa com vegetação (impacto menor)</td></tr>
+          <tr><td>Fundo lago</td><td class="nota-pos">+3</td><td>Diferencial de alto valor, com vista permanente e forte integração das áreas de lazer da casa com o lago.</td></tr>
+          <tr><td>Frente lago</td><td class="nota-pos">+3</td><td>Diferencial de alto valor, com forte impacto visual, percepção de exclusividade e valorização do imóvel.</td></tr>
+          <tr><td>Fundo mata</td><td class="nota-pos">+3</td><td>Proporciona vista, privacidade e contato direto com área verde, valorizando principalmente lazer e áreas sociais.</td></tr>
+          <tr><td>Frente mata</td><td class="nota-pos">+3</td><td>Gera vista privilegiada, menor interferência visual de vizinhos e maior percepção de exclusividade.</td></tr>
+          <tr><td>Vista privilegiada</td><td class="nota-pos">+2</td><td>Aumenta a atratividade e percepção de valor do imóvel, mesmo sem contato direto com lago ou mata.</td></tr>
+          <tr><td>Próximo de área verde / lago</td><td class="nota-pos">+1</td><td>Agrega qualidade de localização e acesso a elementos valorizados do condomínio, mesmo sem vista ou contato direto.</td></tr>
+          <tr><td>Terreno plano</td><td class="nota-pos">+1</td><td>Facilita a implantação dos modelos e tende a reduzir complexidade, movimentação de terra e custos adicionais de obra.</td></tr>
+          <tr><td>Aclive</td><td class="nota-neu">0</td><td>Não é positivo ou negativo isoladamente; seu impacto depende da intensidade da inclinação e do modelo implantado.</td></tr>
+          <tr><td>Declive</td><td class="nota-neu">0</td><td>Pode gerar maior complexidade construtiva, mas também favorecer vista e soluções arquitetônicas; depende da implantação.</td></tr>
+          <tr><td>Próximo da portaria</td><td class="nota-neu">0</td><td>Traz facilidade de acesso, mas pode aumentar circulação, ruído e exposição; vantagens e desvantagens tendem a se equilibrar.</td></tr>
+          <tr><td>Muro de divisa do condomínio</td><td class="nota-neg">−1</td><td>Pode reduzir abertura visual, privacidade e percepção de integração com o condomínio, dependendo do entorno do muro.</td></tr>
+          <tr><td>Próximo de área de convivência / lazer</td><td class="nota-neg">−1</td><td>A proximidade excessiva pode gerar maior circulação de pessoas, ruído e perda de privacidade.</td></tr>
+          <tr><td>Próximo de lixeira</td><td class="nota-neg">−2</td><td>Pode gerar incômodos relacionados a odor, movimentação e percepção negativa, criando uma objeção comercial relevante.</td></tr>
+          <tr><td>Muro com rodovia / via de alto fluxo</td><td class="nota-neg">−3</td><td>Pode gerar ruído constante, poluição, perda de privacidade e impacto significativo na experiência e comercialização do imóvel.</td></tr>
+          <tr><td>Muro / divisa com comunidade ou ocupação</td><td class="nota-neg">−3</td><td>Pode afetar a atratividade quando houver impactos objetivos no lote, como ruído, privacidade, qualidade visual ou segurança percebida.</td></tr>
         </tbody>
       </table>
 
@@ -485,7 +489,7 @@
     <section id="sec-5" class="page-section" aria-labelledby="lbl-5">
       <div class="section-label" id="lbl-5">Eixo: Preço</div>
 
-      <div class="formula-box">Nota Preço = (D×4 + E×3 + I×2 + P×1) / 10 → clamp[-3, +2]</div>
+      <div class="formula-box">Nota Preço = (D×4 + E×3 + I×2 + P×1) / 10 → clamp[-3, +3]</div>
 
       <div class="peso-bar">
         <span style="width:40%;background:var(--verde);">D — Distância (4)</span>
@@ -503,7 +507,7 @@
       <table class="data-table">
         <thead><tr><th>Sub-item</th><th>Peso</th><th>Como calcular</th></tr></thead>
         <tbody>
-          <tr><td>D — Distância nominal</td><td>4</td><td>(preço anúncio + investimento reforma) vs. <strong>custo construção</strong> (ou catálogo). Faixas % → -3…+2.</td></tr>
+          <tr><td>D — Distância nominal</td><td>4</td><td>(preço anúncio + investimento reforma) vs. <strong>custo construção</strong> (ou catálogo). Faixas % → -3…+3.</td></tr>
           <tr><td>E — Esforço da reforma</td><td>3</td><td>+2 se nada ou tudo marcado; +1 só fácil ou só difícil+intermediário; 0 se mix intermediário+fácil.</td></tr>
           <tr><td>I — Incerteza da reforma</td><td>2</td><td>-3 nada marcado; -2 só normal; +1 só alta; +2 tudo; -1 ou 0 conforme mix.</td></tr>
           <tr><td>P — Preço nominal</td><td>1</td><td>Preço do anúncio vs. <strong>preço de venda catálogo</strong> — mesmas faixas percentuais.</td></tr>
@@ -539,16 +543,16 @@
     <section id="sec-6" class="page-section" aria-labelledby="lbl-6">
       <div class="section-label" id="lbl-6">Eixo: Produto</div>
 
-      <div class="formula-box">Nota Produto = (T + A + Q + B + V + D + I) / 7 → clamp[-3, +2]</div>
+      <div class="formula-box">Nota Produto = (T + A + Q + B + V + D + I) / 7 → clamp[-3, +3]</div>
 
       <table class="data-table">
         <thead><tr><th>Sigla</th><th>Sub-item</th><th>Regra resumida</th></tr></thead>
         <tbody>
-          <tr><td>T</td><td>Tamanho (m²)</td><td>Anúncio <strong>maior</strong> que nossa área → nota negativa para nós (faixas % sobre nossa metragem).</td></tr>
+          <tr><td>T</td><td>Tamanho (m²)</td><td>Anúncio <strong>maior</strong> que nossa área → nota negativa (faixas %: neutro ±10%; ≥50% → ±3).</td></tr>
           <tr><td>A</td><td>Amenidades</td><td>Piscina/rooftop: anúncio tem e nós não → -2; nós temos e anúncio não → +2. Ofurô/hidromassagem: ±1.</td></tr>
-          <tr><td>Q</td><td>Quartos</td><td><code>quartos</code> do <strong>catálogo</strong> do modelo vs. anúncio. Fallback 4 se catálogo vazio. Escala por diferença (até -3).</td></tr>
-          <tr><td>B</td><td>Banheiros</td><td><code>banheiros</code> do catálogo vs. anúncio. diff = nosso − anúncio (≤-2 → -2 … ≥+2 → +2).</td></tr>
-          <tr><td>V</td><td>Vagas</td><td><code>vagas</code> do catálogo vs. anúncio — mesma escala de B.</td></tr>
+          <tr><td>Q</td><td>Quartos</td><td>diff = Moní − anúncio (−3…+3). Fallback 4 se catálogo vazio.</td></tr>
+          <tr><td>B</td><td>Banheiros</td><td>diff = Moní − anúncio (−3…+3).</td></tr>
+          <tr><td>V</td><td>Vagas</td><td>diff = Moní − anúncio (−3…+3).</td></tr>
           <tr><td>D</td><td>Design</td><td>Seleção manual: arquiteto renomado -2 … fachada degradada +2.</td></tr>
           <tr><td>I</td><td>Idade</td><td>Até 1 ano → 0; 2–19 anos → +2 (casa usada favorece Moní nova); 20+ anos → +1.</td></tr>
         </tbody>

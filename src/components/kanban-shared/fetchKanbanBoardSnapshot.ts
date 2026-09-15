@@ -98,6 +98,8 @@ const DEFERRED_ENRICHMENT_KEYS = [
 ] as const satisfies readonly (keyof KanbanCardBrief)[];
 
 function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): KanbanCardBrief {
+  const emp = String((c as { empreendimento_interesse?: string | null }).empreendimento_interesse ?? '').trim();
+  const tip = String((c as { tipologia_interesse?: string | null }).tipologia_interesse ?? '').trim();
   return {
     id: String(c.id ?? ''),
     titulo: String(c.titulo ?? ''),
@@ -115,6 +117,7 @@ function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): Kanb
         ? String((c as { concluido_em?: string | null }).concluido_em)
         : null,
     origem: 'nativo',
+    subtitulo: kanbanIdStr === KANBAN_IDS.CORRETORES ? emp || tip || null : null,
     data_reuniao: dataIsoParaInput(c.data_reuniao),
     data_followup: dataIsoParaInput(c.data_followup),
     proxima_atividade:
@@ -130,6 +133,13 @@ function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): Kanb
       (c as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
         ? String((c as { sla_iniciado_em?: string | null }).sla_iniciado_em)
         : null,
+    nome_corretor: (c as { nome_corretor?: string | null }).nome_corretor ?? null,
+    imobiliaria_corretor: (c as { imobiliaria_corretor?: string | null }).imobiliaria_corretor ?? null,
+    empreendimento_interesse:
+      (c as { empreendimento_interesse?: string | null }).empreendimento_interesse ?? null,
+    tipologia_interesse: (c as { tipologia_interesse?: string | null }).tipologia_interesse ?? null,
+    probabilidade_fechamento:
+      (c as { probabilidade_fechamento?: string | null }).probabilidade_fechamento ?? null,
     profiles: null,
   };
 }
@@ -1375,6 +1385,16 @@ export async function fetchKanbanBoardSnapshot(
       profilesLinha = nomeHeader ? { full_name: nomeHeader } : null;
     }
 
+    if (kanbanIdStr === KANBAN_IDS.CORRETORES) {
+      const emp = String(
+        (cMerged as { empreendimento_interesse?: string | null }).empreendimento_interesse ?? '',
+      ).trim();
+      const tip = String(
+        (cMerged as { tipologia_interesse?: string | null }).tipologia_interesse ?? '',
+      ).trim();
+      subtituloCard = emp || tip || null;
+    }
+
     return {
       id: String(cMerged.id),
       titulo: tituloExibicao,
@@ -1406,6 +1426,10 @@ export async function fetchKanbanBoardSnapshot(
       contabilidade_ok: Boolean((cMerged as { contabilidade_ok?: boolean | null }).contabilidade_ok),
       capital_ok: Boolean((cMerged as { capital_ok?: boolean | null }).capital_ok),
       juridico_ok: Boolean((cMerged as { juridico_ok?: boolean | null }).juridico_ok),
+      juridico_bolinha_count: (() => {
+        const n = Number((cMerged as { juridico_bolinha_count?: number | null }).juridico_bolinha_count ?? 0);
+        return Number.isFinite(n) ? n : 0;
+      })(),
       credito_obra_ok: Boolean((cMerged as { credito_obra_ok?: boolean | null }).credito_obra_ok),
       projetos_legais_ok:
         (cMerged as { projetos_legais_ok?: boolean | null }).projetos_legais_ok ?? null,
@@ -1430,6 +1454,25 @@ export async function fetchKanbanBoardSnapshot(
         (cMerged as { funding_localizacao?: string | null }).funding_localizacao ?? null,
       funding_descritivo:
         (cMerged as { funding_descritivo?: string | null }).funding_descritivo ?? null,
+      nome_corretor: (cMerged as { nome_corretor?: string | null }).nome_corretor ?? null,
+      imobiliaria_corretor:
+        (cMerged as { imobiliaria_corretor?: string | null }).imobiliaria_corretor ?? null,
+      empreendimento_interesse:
+        (cMerged as { empreendimento_interesse?: string | null }).empreendimento_interesse ?? null,
+      tipologia_interesse:
+        (cMerged as { tipologia_interesse?: string | null }).tipologia_interesse ?? null,
+      probabilidade_fechamento:
+        (cMerged as { probabilidade_fechamento?: string | null }).probabilidade_fechamento ?? null,
+      orcamento_lead: (() => {
+        const v = (cMerged as { orcamento_lead?: number | string | null }).orcamento_lead;
+        if (v == null || v === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      })(),
+      cidade_interesse: (cMerged as { cidade_interesse?: string | null }).cidade_interesse ?? null,
+      telefone_lead: (cMerged as { telefone_lead?: string | null }).telefone_lead ?? null,
+      email_lead: (cMerged as { email_lead?: string | null }).email_lead ?? null,
+      mensagem_lead: (cMerged as { mensagem_lead?: string | null }).mensagem_lead ?? null,
       proxima_atividade:
         (cMerged as { proxima_atividade?: string | null }).proxima_atividade ?? null,
       prazo_atividade: dataIsoParaInput(
@@ -1919,6 +1962,10 @@ function mapNativeRowToEnrichmentBrief(
     contabilidade_ok: Boolean(row.contabilidade_ok),
     capital_ok: Boolean(row.capital_ok),
     juridico_ok: Boolean(row.juridico_ok),
+    juridico_bolinha_count: (() => {
+      const n = Number(row.juridico_bolinha_count ?? 0);
+      return Number.isFinite(n) ? n : 0;
+    })(),
     credito_obra_ok: Boolean(row.credito_obra_ok),
     projetos_legais_ok: (row.projetos_legais_ok as boolean | null) ?? null,
     projetos_locais_ok: (row.projetos_locais_ok as boolean | null) ?? null,
@@ -1948,7 +1995,7 @@ export async function fetchKanbanBoardEnrichmentPatches(
   let q = supabase
     .from('kanban_cards')
     .select(
-      'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, projeto_id, arquivado, concluido, concluido_em, entered_fase_at, sla_iniciado_em, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, projetos_legais_ok, projetos_locais_ok, proxima_atividade, prazo_atividade',
+      'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, projeto_id, arquivado, concluido, concluido_em, entered_fase_at, sla_iniciado_em, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, juridico_bolinha_count, credito_obra_ok, projetos_legais_ok, projetos_locais_ok, proxima_atividade, prazo_atividade',
     )
     .eq('kanban_id', kid)
     .eq('status', 'ativo')

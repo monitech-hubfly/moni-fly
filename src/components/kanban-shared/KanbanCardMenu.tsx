@@ -3,7 +3,7 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Archive, ArrowRight, MoreHorizontal, RotateCcw, TrendingDown, TrendingUp } from 'lucide-react';
+import { Archive, ArrowLeft, ArrowRight, MoreHorizontal, RotateCcw, TrendingDown, TrendingUp } from 'lucide-react';
 import {
   arquivarCard,
   moverCardParaFase,
@@ -26,10 +26,16 @@ import {
   loteadoresConfirmacaoTitulo,
   type LoteadoresConfirmacaoFaseTipo,
 } from '@/lib/kanban/loteadores-confirmacao-fase';
+import {
+  isErroGateJustificativaSla,
+  justificativaSlaObrigatoria,
+} from '@/lib/kanban/kanban-sla-justificativa';
+import { obterJustificativaSlaFase, cardPrecisaJustificativaSlaQuebrado } from '@/lib/actions/kanban-sla-justificativa';
+import { KanbanSlaJustificativaModal } from './KanbanSlaJustificativaModal';
 
 const PERDA_GANHO_ENABLED = true;
 
-type ProximaFase = { id: string; nome: string };
+type FaseOpcao = { id: string; nome: string; ordem: number; slug?: string | null };
 
 type Props = {
   cardId: string;
@@ -39,15 +45,23 @@ type Props = {
   kanbanId?: string;
   /** Slug da fase atual do card (para pop-up Assinou?). */
   faseAtualSlug?: string | null;
+  /** Nome da fase atual (modal de justificativa de SLA). */
+  faseAtualNome?: string | null;
+  /** Id da fase atual (carregar/salvar justificativa de SLA). */
+  faseAtualId?: string | null;
+  /** Ordem da fase atual — usada para listar anteriores/futuras. */
+  faseAtualOrdem?: number | null;
+  /** Todas as fases ativas do funil (ordenadas). */
+  fasesFunil?: FaseOpcao[];
   /** Próxima fase ativa do funil (por `ordem`). `null` quando o card já está na última fase. */
-  proximaFase: ProximaFase | null;
+  proximaFase: FaseOpcao | null;
   cardArquivado?: boolean;
   cardResultado?: 'perda' | 'ganho' | null;
 };
 
-type Vista = 'menu' | 'arquivar' | 'perda' | 'ganho';
+type Vista = 'menu' | 'arquivar' | 'perda' | 'ganho' | 'avancar' | 'voltar';
 
-const LARGURA_MENU = 200;
+const LARGURA_MENU = 220;
 
 export function KanbanCardMenu({
   cardId,
@@ -56,6 +70,10 @@ export function KanbanCardMenu({
   kanbanNome,
   kanbanId,
   faseAtualSlug = null,
+  faseAtualNome = null,
+  faseAtualId = null,
+  faseAtualOrdem = null,
+  fasesFunil = [],
   proximaFase,
   cardArquivado = false,
   cardResultado = null,
@@ -75,9 +93,35 @@ export function KanbanCardMenu({
   const [assinouPendente, setAssinouPendente] = useState<{
     tipo: LoteadoresConfirmacaoFaseTipo;
     titulo: string;
+    destino: FaseOpcao;
+    justificativaSla?: string;
   } | null>(null);
+  const [slaPendente, setSlaPendente] = useState<{
+    destino: FaseOpcao;
+    faseOrigemNome: string;
+    justificativaExistente: string | null;
+    obrigatoria: boolean;
+  } | null>(null);
+  const [slaDraft, setSlaDraft] = useState('');
+  const [salvandoSla, setSalvandoSla] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const ordemAtual = faseAtualOrdem ?? null;
+  const fasesFuturas =
+    ordemAtual == null
+      ? proximaFase
+        ? [proximaFase]
+        : []
+      : [...fasesFunil]
+          .filter((f) => f.ordem > ordemAtual)
+          .sort((a, b) => a.ordem - b.ordem);
+  const fasesAnteriores =
+    ordemAtual == null
+      ? []
+      : [...fasesFunil]
+          .filter((f) => f.ordem < ordemAtual)
+          .sort((a, b) => b.ordem - a.ordem);
 
   const reposicionar = () => {
     const rect = btnRef.current?.getBoundingClientRect();
@@ -127,32 +171,132 @@ export function KanbanCardMenu({
     setJustificativaPerda('');
     setJustificativaGanho('');
     setErro(null);
+    setAssinouPendente(null);
     reposicionar();
     setAberto(true);
   }
 
-  function executarAvancar() {
-    if (!proximaFase) return;
+  function executarMoverPara(destino: FaseOpcao, justificativaSla?: string) {
     setErro(null);
     startTransition(async () => {
       const res = await moverCardParaFase({
         cardId,
-        novaFaseId: proximaFase.id,
+        novaFaseId: destino.id,
         basePath,
         kanbanNome,
+        justificativaSlaQuebra: justificativaSla,
       });
       if (!res.ok) {
-        window.alert(res.error ?? 'Não foi possível avançar o card de fase.');
+        if (isErroGateJustificativaSla(res.error) && faseAtualId) {
+          const resJust = await obterJustificativaSlaFase(cardId, faseAtualId);
+          const justificativaExistente = resJust.ok ? resJust.justificativa : null;
+          setSlaDraft('');
+          setSlaPendente({
+            destino,
+            faseOrigemNome: String(faseAtualNome ?? '').trim() || String(faseAtualSlug ?? '').trim() || 'atual',
+            justificativaExistente,
+            obrigatoria: justificativaSlaObrigatoria(justificativaExistente),
+          });
+          return;
+        }
+        window.alert(res.error ?? 'Não foi possível mover o card de fase.');
         return;
       }
       setAssinouPendente(null);
+      setSlaPendente(null);
       setAberto(false);
-      router.refresh();
+      // Refresh do board sem bloquear o fechamento do menu.
+      startTransition(() => {
+        router.refresh();
+      });
     });
   }
 
-  function handleAvancar() {
-    if (!proximaFase) return;
+  function handleEscolherDestino(destino: FaseOpcao, direcao: 'avancar' | 'voltar') {
+    if (direcao === 'avancar') {
+      startTransition(async () => {
+        if (faseAtualId) {
+          try {
+            const precisa = await cardPrecisaJustificativaSlaQuebrado(cardId, destino.id);
+            if (precisa) {
+              const resJust = await obterJustificativaSlaFase(cardId, faseAtualId);
+              const justificativaExistente = resJust.ok ? resJust.justificativa : null;
+              setSlaDraft('');
+              setSlaPendente({
+                destino,
+                faseOrigemNome:
+                  String(faseAtualNome ?? '').trim() ||
+                  String(faseAtualSlug ?? '').trim() ||
+                  'atual',
+                justificativaExistente,
+                obrigatoria: justificativaSlaObrigatoria(justificativaExistente),
+              });
+              return;
+            }
+          } catch {
+            /* segue para Assinou?/move — recovery no erro do gate */
+          }
+        }
+        const tipo = deveConfirmarSaidaFaseLoteadores({
+          kanbanId,
+          faseSlug: faseAtualSlug,
+          origemCard: origem,
+          direcao: 'avancar',
+        });
+        if (tipo) {
+          setAssinouPendente({
+            tipo,
+            titulo:
+              loteadoresAssinouTituloPorSlug(faseAtualSlug) ?? loteadoresConfirmacaoTitulo(tipo),
+            destino,
+          });
+          return;
+        }
+        executarMoverPara(destino);
+      });
+      return;
+    }
+    executarMoverPara(destino);
+  }
+
+  function confirmarAssinou(confirmou: boolean) {
+    if (!confirmou) {
+      setAssinouPendente(null);
+      return;
+    }
+    if (!assinouPendente) return;
+    const destino = assinouPendente.destino;
+    const justificativaSla = assinouPendente.justificativaSla;
+    startTransition(async () => {
+      const reg = await registrarConfirmacaoFaseLoteadores({
+        cardId,
+        tipo: assinouPendente.tipo,
+        basePath,
+      });
+      if (!reg.ok) {
+        window.alert(reg.error ?? 'Não foi possível registrar a confirmação.');
+        return;
+      }
+      executarMoverPara(destino, justificativaSla);
+    });
+  }
+
+  function confirmarJustificativaSlaMenu() {
+    if (!slaPendente) return;
+    const complemento = slaDraft.trim();
+    if (slaPendente.obrigatoria && !complemento) {
+      window.alert('Informe a justificativa da quebra de SLA.');
+      return;
+    }
+    const textoFinal = slaPendente.obrigatoria
+      ? complemento
+      : complemento
+        ? [slaPendente.justificativaExistente, complemento].filter(Boolean).join('\n\n')
+        : undefined;
+    const destino = slaPendente.destino;
+    setSlaPendente(null);
+    setSlaDraft('');
+
     const tipo = deveConfirmarSaidaFaseLoteadores({
       kanbanId,
       faseSlug: faseAtualSlug,
@@ -164,30 +308,17 @@ export function KanbanCardMenu({
         tipo,
         titulo:
           loteadoresAssinouTituloPorSlug(faseAtualSlug) ?? loteadoresConfirmacaoTitulo(tipo),
+        destino,
+        justificativaSla: textoFinal,
       });
       return;
     }
-    executarAvancar();
-  }
-
-  function confirmarAssinou(confirmou: boolean) {
-    if (!confirmou) {
-      setAssinouPendente(null);
-      return;
+    setSalvandoSla(true);
+    try {
+      executarMoverPara(destino, textoFinal);
+    } finally {
+      setSalvandoSla(false);
     }
-    if (!assinouPendente) return;
-    startTransition(async () => {
-      const reg = await registrarConfirmacaoFaseLoteadores({
-        cardId,
-        tipo: assinouPendente.tipo,
-        basePath,
-      });
-      if (!reg.ok) {
-        window.alert(reg.error ?? 'Não foi possível registrar a confirmação.');
-        return;
-      }
-      executarAvancar();
-    });
   }
 
   function handleArquivar() {
@@ -299,9 +430,34 @@ export function KanbanCardMenu({
                 type="button"
                 role="menuitem"
                 className="moni-kanban-card-menu-item"
-                disabled={!proximaFase || pending}
-                title={proximaFase ? `Avançar para "${proximaFase.nome}"` : 'Já está na última fase'}
-                onClick={handleAvancar}
+                disabled={fasesAnteriores.length === 0 || pending}
+                title={
+                  fasesAnteriores.length > 0
+                    ? 'Escolher fase anterior'
+                    : 'Já está na primeira fase'
+                }
+                onClick={() => {
+                  setErro(null);
+                  setVista('voltar');
+                }}
+              >
+                <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                <span>Voltar fase</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="moni-kanban-card-menu-item"
+                disabled={fasesFuturas.length === 0 || pending}
+                title={
+                  fasesFuturas.length > 0
+                    ? 'Escolher fase futura'
+                    : 'Já está na última fase'
+                }
+                onClick={() => {
+                  setErro(null);
+                  setVista('avancar');
+                }}
               >
                 <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
                 <span>Avançar fase</span>
@@ -344,6 +500,44 @@ export function KanbanCardMenu({
             </>
           )}
         </>
+      )}
+
+      {(vista === 'avancar' || vista === 'voltar') && (
+        <div className="moni-kanban-card-menu-arquivar">
+          <p className="moni-kanban-card-menu-label">
+            {vista === 'avancar' ? 'Fase futura' : 'Fase anterior'}
+          </p>
+          <div className="max-h-52 space-y-1 overflow-y-auto">
+            {(vista === 'avancar' ? fasesFuturas : fasesAnteriores).map((fase) => (
+              <button
+                key={fase.id}
+                type="button"
+                role="menuitem"
+                className="moni-kanban-card-menu-item"
+                disabled={pending}
+                onClick={() =>
+                  handleEscolherDestino(fase, vista === 'avancar' ? 'avancar' : 'voltar')
+                }
+                title={fase.nome}
+              >
+                <span className="min-w-0 flex-1 truncate text-left">{fase.nome}</span>
+              </button>
+            ))}
+          </div>
+          <div className="moni-kanban-card-menu-actions">
+            <button
+              type="button"
+              className="moni-kanban-card-menu-btn moni-kanban-card-menu-btn--ghost"
+              disabled={pending}
+              onClick={() => {
+                setVista('menu');
+                setErro(null);
+              }}
+            >
+              Voltar
+            </button>
+          </div>
+        </div>
       )}
 
       {vista === 'arquivar' && (
@@ -534,6 +728,26 @@ export function KanbanCardMenu({
                 </div>
               </div>
             </div>,
+            document.body,
+          )
+        : null}
+      {slaPendente && typeof document !== 'undefined'
+        ? createPortal(
+            <KanbanSlaJustificativaModal
+              open
+              faseOrigemNome={slaPendente.faseOrigemNome}
+              faseDestinoNome={slaPendente.destino.nome}
+              justificativaExistente={slaPendente.justificativaExistente}
+              obrigatoria={slaPendente.obrigatoria}
+              draft={slaDraft}
+              onDraftChange={setSlaDraft}
+              salvando={pending || salvandoSla}
+              onCancel={() => {
+                setSlaPendente(null);
+                setSlaDraft('');
+              }}
+              onConfirm={confirmarJustificativaSlaMenu}
+            />,
             document.body,
           )
         : null}

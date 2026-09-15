@@ -642,9 +642,10 @@ function MetaCard({
   semanaAtual, semanaAnterior, anoRelativo,
   blockers, onAdicionarBlocker, onResolverBlocker,
   onEditarSubMeta, onExcluirSubMeta, onAddSubMeta,
-  onConcluirMeta, onReabrirMeta,
+  onConcluirMeta, onReabrirMeta, onArquivarMeta,
   onLancarIndicador, onAssumirIndicador,
   onToggleResponsavel, onAssumirProjeto, projetoOr, onToast,
+  isAdmin,
 }: {
   meta: MetaItem; subMetas: SubMetaItem[]; indicadores: IndicadorItemMeta[];
   responsaveis: ResponsavelItem[];
@@ -664,12 +665,14 @@ function MetaCard({
   onAddSubMeta: (metaPaiId: string, desc: string, tipo: string, respId: string | null) => Promise<void>;
   onConcluirMeta: (metaId: string) => Promise<void>;
   onReabrirMeta: (metaId: string) => Promise<void>;
+  onArquivarMeta: (metaId: string) => Promise<void>;
   onLancarIndicador: (indId: string, valor: string, semana: number) => Promise<boolean>;
   onAssumirIndicador: (indId: string) => Promise<void>;
   onToggleResponsavel: (metaId: string) => Promise<void>;
   onAssumirProjeto: (metaId: string, dataInicio: string, dataFim: string) => Promise<void>;
   projetoOr?: { data_inicio: string | null; data_fim: string | null; dias_uteis: number | null } | null;
   onToast?: (msg: string) => void;
+  isAdmin: boolean;
 }) {
   const [secaoFilhas,        setSecaoFilhas]        = useState(false);
   const [adicionandoFilha,   setAdicionandoFilha]   = useState(false);
@@ -775,20 +778,36 @@ function MetaCard({
               }`}>
               {togglenando ? '…' : assumiu ? '✓ Minha' : 'Assumir'}
             </button>
-            {/* Concluído per-user */}
-            {assumiu && (
-              concluiuMeta ? (
-                <button type="button" onClick={handleReabrir} disabled={reabrindo}
-                  className="text-[10px] px-1.5 py-0.5 rounded border bg-green-100 text-green-700 border-green-300 hover:bg-green-200 transition-colors whitespace-nowrap disabled:opacity-50">
-                  {reabrindo ? '…' : '✓ Concluída'}
-                </button>
+            {/* Concluído per-user — indisponível para metas recorrentes */}
+            {!isRecorrente && (
+              assumiu ? (
+                concluiuMeta ? (
+                  <button type="button" onClick={handleReabrir} disabled={reabrindo}
+                    className="text-[10px] px-1.5 py-0.5 rounded border bg-green-100 text-green-700 border-green-300 hover:bg-green-200 transition-colors whitespace-nowrap disabled:opacity-50">
+                    {reabrindo ? '…' : '✓ Concluída'}
+                  </button>
+                ) : (
+                  <button type="button" onClick={handleConcluir} disabled={concluindo}
+                    className="text-[14px] text-green-500 hover:text-green-700 font-bold transition-colors px-0.5 disabled:opacity-50"
+                    title="Marcar como concluída para mim">
+                    {concluindo ? '…' : '✓'}
+                  </button>
+                )
               ) : (
-                <button type="button" onClick={handleConcluir} disabled={concluindo}
-                  className="text-[14px] text-green-500 hover:text-green-700 font-bold transition-colors px-0.5 disabled:opacity-50"
-                  title="Marcar como concluída para mim">
-                  {concluindo ? '…' : '✓'}
+                <button type="button" disabled
+                  className="text-[14px] text-gray-300 font-bold px-0.5 cursor-not-allowed"
+                  title="Assuma esta meta primeiro para poder concluí-la">
+                  ✓
                 </button>
               )
+            )}
+            {/* Arquivar — exclusivo para admins em metas recorrentes */}
+            {isRecorrente && isAdmin && (
+              <button type="button" onClick={() => void onArquivarMeta(meta.id)}
+                className="text-[10px] px-1.5 py-0.5 rounded border text-gray-500 border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap"
+                title="Arquivar meta recorrente">
+                Arquivar
+              </button>
             )}
             {/* Indicador de quantos concluíram */}
             {totalResponsaveis > 1 && concluiuCount > 0 && (
@@ -818,49 +837,30 @@ function MetaCard({
       </div>
 
       {/* Corpo */}
-      {precisaJustificar ? (
-        <div className="px-3 pb-4 pt-1">
-          <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 flex flex-col items-center gap-2 text-center">
-            <div className="w-10 h-10 rounded-full bg-red-100 border border-red-200 flex items-center justify-center text-lg">🔒</div>
-            <p className="text-sm font-semibold text-red-700">Atrasada há {diffDias} dia{diffDias !== 1 ? 's' : ''}</p>
-            <p className="text-xs text-red-500 leading-snug max-w-[220px]">
-              Justifique o motivo do atraso para desbloquear as ações desta meta.
-            </p>
+      <div className="px-3 pb-3 flex flex-col gap-1.5">
+        {/* Aviso de atraso — compacto, no topo, NÃO bloqueia indicadores */}
+        {precisaJustificar && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 flex items-center gap-2">
+            <span className="text-base flex-shrink-0">🔒</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-red-700">Atrasada há {diffDias} dia{diffDias !== 1 ? 's' : ''}</p>
+              <p className="text-[10px] text-red-500 leading-snug">Justifique o atraso para desbloquear as ações.</p>
+            </div>
             <button type="button" onClick={() => setModalComs(true)}
-              className="mt-1 inline-flex items-center gap-1.5 px-5 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 active:bg-red-800 transition-colors shadow-sm">
-              💬 Justificar agora
+              className="text-xs px-2.5 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 active:bg-red-800 transition-colors whitespace-nowrap flex-shrink-0">
+              💬 Justificar
             </button>
           </div>
-        </div>
-      ) : (
-        <div className="px-3 pb-3 flex flex-col gap-1.5">
-          {/* Indicadores sem responsável — aviso para assumir */}
-          {indsSemDono.length > 0 && totalResponsaveis > 1 && (
-            <div className="border-t border-orange-100 pt-1.5">
-              <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide mb-1">
-                📋 Indicadores sem responsável ({indsSemDono.length}) — assuma os seus
-              </p>
-              <div className="flex flex-col gap-1">
-                {indsSemDono.map(ind => (
-                  <IndicadorLinha key={ind.id} ind={ind}
-                    effectiveProfileId={effectiveProfileId}
-                    currentUserId={currentUserId}
-                    responsaveis={responsaveis}
-                    semanaAtual={semanaAtual} semanaAnterior={semanaAnterior} anoRelativo={anoRelativo}
-                    onLancar={onLancarIndicador}
-                    onAssumirIndicador={onAssumirIndicador}
-                    projetoOr={projetoOr}
-                    onToast={onToast}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+        )}
 
-          {/* Indicadores com responsável */}
-          {indicadores.filter(i => !!i.profile_id).length > 0 && (
-            <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-1">
-              {indicadores.filter(i => !!i.profile_id).map(ind => (
+        {/* Indicadores sem responsável — sempre visíveis */}
+        {indsSemDono.length > 0 && (
+          <div className="border-t border-orange-100 pt-1.5">
+            <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide mb-1">
+              📋 Indicadores sem responsável ({indsSemDono.length}) — assuma os seus
+            </p>
+            <div className="flex flex-col gap-1">
+              {indsSemDono.map(ind => (
                 <IndicadorLinha key={ind.id} ind={ind}
                   effectiveProfileId={effectiveProfileId}
                   currentUserId={currentUserId}
@@ -873,70 +873,88 @@ function MetaCard({
                 />
               ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Seção Metas filhas */}
-          {subMetas.length > 0 && (
-            <SecaoToggle label="Metas filhas" count={subMetas.length} aberta={secaoFilhas} onToggle={() => setSecaoFilhas(v => !v)}>
-              <ul className="flex flex-col gap-0.5 pl-2 border-l-2 border-gray-100">
-                {subMetas.map(s => <SubMetaEditavel key={s.id} sub={s} onSalvo={onEditarSubMeta} onExcluir={onExcluirSubMeta} />)}
-              </ul>
-            </SecaoToggle>
-          )}
+        {/* Indicadores com responsável — sempre visíveis */}
+        {indicadores.filter(i => !!i.profile_id).length > 0 && (
+          <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-1">
+            {indicadores.filter(i => !!i.profile_id).map(ind => (
+              <IndicadorLinha key={ind.id} ind={ind}
+                effectiveProfileId={effectiveProfileId}
+                currentUserId={currentUserId}
+                responsaveis={responsaveis}
+                semanaAtual={semanaAtual} semanaAnterior={semanaAnterior} anoRelativo={anoRelativo}
+                onLancar={onLancarIndicador}
+                onAssumirIndicador={onAssumirIndicador}
+                projetoOr={projetoOr}
+                onToast={onToast}
+              />
+            ))}
+          </div>
+        )}
 
-          {/* Blockers */}
-          {blockers.length > 0 && (
-            <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-1">
-              <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">🚧 Blockers ({blockers.length})</p>
-              {blockers.map(b => (
-                <div key={b.id} className="flex items-start gap-2 bg-red-50 border border-red-200 rounded px-2 py-1.5">
-                  <p className="text-xs text-red-800 flex-1 leading-snug">{b.descricao}</p>
-                  <button type="button" onClick={() => onResolverBlocker(b.id)} title="Marcar como resolvido"
-                    className="text-green-600 hover:text-green-800 font-bold text-xs shrink-0">✓</button>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Seção Metas filhas — desabilitada quando bloqueado por atraso */}
+        {!precisaJustificar && subMetas.length > 0 && (
+          <SecaoToggle label="Metas filhas" count={subMetas.length} aberta={secaoFilhas} onToggle={() => setSecaoFilhas(v => !v)}>
+            <ul className="flex flex-col gap-0.5 pl-2 border-l-2 border-gray-100">
+              {subMetas.map(s => <SubMetaEditavel key={s.id} sub={s} onSalvo={onEditarSubMeta} onExcluir={onExcluirSubMeta} />)}
+            </ul>
+          </SecaoToggle>
+        )}
 
-          {/* Formulário add blocker */}
-          {adicionandoBlocker && (
-            <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-2">
-              <textarea rows={2} placeholder="Descreva o blocker *"
-                value={descricaoBlocker} onChange={e => setDescricaoBlocker(e.target.value)}
-                className="w-full text-xs border border-red-200 rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-red-300"
-                autoFocus />
-              <div className="flex gap-2 justify-end">
-                <button type="button" onClick={() => { setAdicionandoBlocker(false); setDescricaoBlocker(''); }}
-                  className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
-                <button type="button" onClick={handleSalvarBlocker} disabled={!descricaoBlocker.trim() || salvandoBlocker}
-                  className="text-xs px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50 transition-colors">
-                  {salvandoBlocker ? 'Salvando...' : 'Adicionar'}
-                </button>
+        {/* Blockers — desabilitados quando bloqueado por atraso */}
+        {!precisaJustificar && blockers.length > 0 && (
+          <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-1">
+            <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">🚧 Blockers ({blockers.length})</p>
+            {blockers.map(b => (
+              <div key={b.id} className="flex items-start gap-2 bg-red-50 border border-red-200 rounded px-2 py-1.5">
+                <p className="text-xs text-red-800 flex-1 leading-snug">{b.descricao}</p>
+                <button type="button" onClick={() => onResolverBlocker(b.id)} title="Marcar como resolvido"
+                  className="text-green-600 hover:text-green-800 font-bold text-xs shrink-0">✓</button>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
+        )}
 
-          {/* Ações do rodapé */}
-          {adicionandoFilha ? (
-            <MetaForm
-              inicial={{ descricao: '', tipo: 'atingivel', respId: '', metaUnidade: '' }}
-              responsaveis={responsaveis} onSalvar={handleSalvarFilha}
-              onCancelar={() => setAdicionandoFilha(false)} salvando={salvandoFilha}
-              labelSalvar="Salvar meta filha" isFilha />
-          ) : !adicionandoBlocker ? (
-            <div className="border-t border-gray-100 pt-1.5 flex items-center gap-4">
-              <button type="button" onClick={() => setAdicionandoFilha(true)}
-                className="text-xs text-gray-400 hover:text-blue-600 text-left transition-colors">
-                + Adicionar meta filha
-              </button>
-              <button type="button" onClick={() => setAdicionandoBlocker(true)}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                🚧 + Blocker
+        {/* Formulário add blocker — desabilitado quando bloqueado por atraso */}
+        {!precisaJustificar && adicionandoBlocker && (
+          <div className="border-t border-gray-100 pt-1.5 flex flex-col gap-2">
+            <textarea rows={2} placeholder="Descreva o blocker *"
+              value={descricaoBlocker} onChange={e => setDescricaoBlocker(e.target.value)}
+              className="w-full text-xs border border-red-200 rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-red-300"
+              autoFocus />
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => { setAdicionandoBlocker(false); setDescricaoBlocker(''); }}
+                className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+              <button type="button" onClick={handleSalvarBlocker} disabled={!descricaoBlocker.trim() || salvandoBlocker}
+                className="text-xs px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50 transition-colors">
+                {salvandoBlocker ? 'Salvando...' : 'Adicionar'}
               </button>
             </div>
-          ) : null}
-        </div>
-      )}
+          </div>
+        )}
+
+        {/* Ações do rodapé — desabilitadas quando bloqueado por atraso */}
+        {!precisaJustificar && (adicionandoFilha ? (
+          <MetaForm
+            inicial={{ descricao: '', tipo: 'atingivel', respId: '', metaUnidade: '' }}
+            responsaveis={responsaveis} onSalvar={handleSalvarFilha}
+            onCancelar={() => setAdicionandoFilha(false)} salvando={salvandoFilha}
+            labelSalvar="Salvar meta filha" isFilha />
+        ) : !adicionandoBlocker ? (
+          <div className="border-t border-gray-100 pt-1.5 flex items-center gap-4">
+            <button type="button" onClick={() => setAdicionandoFilha(true)}
+              className="text-xs text-gray-400 hover:text-blue-600 text-left transition-colors">
+              + Adicionar meta filha
+            </button>
+            <button type="button" onClick={() => setAdicionandoBlocker(true)}
+              className="text-xs text-red-400 hover:text-red-600 transition-colors">
+              🚧 + Blocker
+            </button>
+          </div>
+        ) : null)}
+      </div>
 
       {modalComs && (
         <ComentariosModal metaId={meta.id} onFechar={() => setModalComs(false)}
@@ -1058,7 +1076,7 @@ function MetaCardSemDono({ meta, indicadores, responsaveis, onToggleResponsavel,
 }
 
 // ── MetasIndicadoresBloco ─────────────────────────────────────────────────────
-const LS_MES_KEY = 'bone_day_ultimo_mes';
+const LS_MES_KEY = 'todo_planning_mes';
 
 function mesAtual(): string {
   const d = new Date();
@@ -1079,7 +1097,7 @@ export function MetasIndicadoresBloco() {
   const mesOptions = useMemo(() => getMonthOptions(), []);
 
   const {
-    metas, subMetas: hookSubMetas, indicadores, responsaveis, objetivoResponsaveis,
+    metas, metasConcluidas, subMetas: hookSubMetas, indicadores, responsaveis, objetivoResponsaveis,
     semanaRelativa, semanaAnterior, anoRelativo,
     isLoading, error, recarregar,
   } = useMetasIndicadores(effectiveProfileId, areaId, mes);
@@ -1087,8 +1105,10 @@ export function MetasIndicadoresBloco() {
   const [expandido,         setExpandido]         = useState(false);
   const [localSubMetas,     setLocalSubMetas]      = useState<SubMetaItem[]>([]);
   const [currentUserId,     setCurrentUserId]      = useState<string | null>(null);
+  const [isAdmin,           setIsAdmin]            = useState(false);
   const [filtroMinhas,      setFiltroMinhas]       = useState(true);
   const [semDonoAberta,     setSemDonoAberta]      = useState(true);
+  const [concluidasAberta,  setConcluidasAberta]   = useState(false);
   const [allBlockers,       setAllBlockers]        = useState<BlockerRow[]>([]);
   const [toastMsg,          setToastMsg]           = useState<string | null>(null);
 
@@ -1100,7 +1120,12 @@ export function MetasIndicadoresBloco() {
   useEffect(() => {
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) setCurrentUserId(user.id);
+      if (user) {
+        setCurrentUserId(user.id);
+        const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+        const role = String((prof as { role?: string } | null)?.role ?? '').toLowerCase();
+        setIsAdmin(role === 'admin');
+      }
     })();
   }, [supabase]);
 
@@ -1169,11 +1194,43 @@ export function MetasIndicadoresBloco() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data: dias } = await supabase.rpc('calcular_dias_uteis', { data_inicio: dataInicio, data_fim: dataFim });
+    const diasUteis = typeof dias === 'number' ? dias : null;
     await supabase.from('objetivo_responsaveis').insert({
       objetivo_id: objetivoId, profile_id: user.id,
       data_inicio: dataInicio, data_fim: dataFim,
-      dias_uteis: typeof dias === 'number' ? dias : null,
+      dias_uteis: diasUteis,
     });
+
+    // Cria o indicador "Percentual de Evolução" se ainda não existir para este usuário+meta
+    // (espelha o comportamento do Pre-Bone Day que cria o indicador ao assumir)
+    const indExistente = indicadores.find(i =>
+      i.objetivo_id === objetivoId &&
+      (i.semaforo_faixas as { is_projeto_relativo?: boolean } | null)?.is_projeto_relativo &&
+      i.profile_id === user.id
+    );
+    if (!indExistente && areaId) {
+      await supabase.from('indicadores').insert({
+        area_id: areaId,
+        objetivo_id: objetivoId,
+        nome: 'Percentual de Evolução até Entrega (%)',
+        indicador_chave: true,
+        tipo: 'percentual',
+        profile_id: user.id,
+        semaforo_faixas: {
+          is_projeto_relativo: true,
+          data_inicio: dataInicio,
+          data_fim: dataFim,
+          dias_uteis: diasUteis,
+          escala_tipo: 'percentual',
+          faixas: [
+            { cor: '#1e7a3a', limite: '75', comparacao: 'gte' },
+            { cor: '#52b36f', limite: '60', comparacao: 'gte' },
+            { cor: '#f2c94c', limite: '30', comparacao: 'gte' },
+            { cor: '#d24141', limite: '0',  comparacao: 'gte' },
+          ],
+        },
+      });
+    }
 
     const totalAgora = objetivoResponsaveis.filter(r => r.objetivo_id === objetivoId).length + 1;
     if (totalAgora === 1) {
@@ -1185,7 +1242,7 @@ export function MetasIndicadoresBloco() {
     }
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: objetivoId, operacao: 'UPDATE', descricao: 'Assumiu projeto com datas' });
     recarregar();
-  }, [supabase, objetivoResponsaveis, indicadores, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, areaId, objetivoResponsaveis, indicadores, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Assumir indicador ───────────────────────────────────────────────────────
   const handleAssumirIndicador = useCallback(async (indId: string) => {
@@ -1197,27 +1254,46 @@ export function MetasIndicadoresBloco() {
     recarregar();
   }, [supabase, currentUserId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Conclusão individual ────────────────────────────────────────────────────
+  // ── Conclusão ────────────────────────────────────────────────────────────────
   const handleConcluirMeta = useCallback(async (metaId: string) => {
     const uid = currentUserId;
     if (!uid) return;
-    const { error: e } = await (supabase.from('objetivo_responsaveis') as any)
-      .update({ concluido: true, concluido_em: new Date().toISOString() })
+    const agora = new Date().toISOString();
+    const { error: e1 } = await (supabase.from('objetivo_responsaveis') as any)
+      .update({ concluido: true, concluido_em: agora })
       .eq('objetivo_id', metaId).eq('profile_id', uid);
-    if (e) { console.error('[ConcluirMeta]', e); return; }
-    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta concluída (individual)' });
+    if (e1) { console.error('[ConcluirMeta OR]', e1); return; }
+    // concluido_em em objetivos é integer (semana ISO) — não sobrescrever
+    const { error: e2 } = await supabase.from('objetivos')
+      .update({ status: 'concluido' })
+      .eq('id', metaId);
+    if (e2) { console.error('[ConcluirMeta Global]', e2); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta concluída' });
     recarregar();
   }, [supabase, currentUserId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReabrirMeta = useCallback(async (metaId: string) => {
     const uid = currentUserId;
     if (!uid) return;
-    const { error: e } = await (supabase.from('objetivo_responsaveis') as any)
+    const { error: e1 } = await (supabase.from('objetivo_responsaveis') as any)
       .update({ concluido: false, concluido_em: null })
       .eq('objetivo_id', metaId).eq('profile_id', uid);
-    if (e) { console.error('[ReabrirMeta]', e); return; }
+    if (e1) { console.error('[ReabrirMeta OR]', e1); return; }
+    // concluido_em em objetivos é integer (semana ISO) — não sobrescrever
+    const { error: e2 } = await supabase.from('objetivos')
+      .update({ status: 'ativo' })
+      .eq('id', metaId);
+    if (e2) { console.error('[ReabrirMeta Global]', e2); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta reaberta' });
     recarregar();
   }, [supabase, currentUserId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleArquivarMeta = useCallback(async (metaId: string) => {
+    const { error } = await supabase.from('objetivos').update({ status: 'arquivado' }).eq('id', metaId);
+    if (error) { console.error('[ArquivarMeta]', error); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta recorrente arquivada (admin)' });
+    recarregar();
+  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sub-metas ───────────────────────────────────────────────────────────────
   const handleEditarSubMeta = useCallback(async (id: string, desc: string) => {
@@ -1318,19 +1394,54 @@ export function MetasIndicadoresBloco() {
   // ── Computed ─────────────────────────────────────────────────────────────────
   const uid = effectiveProfileId ?? currentUserId;
 
-  // Metas que o usuário efetivo assumiu
+  // IDs de metas que o usuário logado concluiu individualmente (OR.concluido=true).
+  // Cobre dados existentes onde objetivos.status ainda é 'ativo' mas OR já foi marcado.
+  const metasConcluidasIndividualIds = useMemo(() => {
+    const lookupUid = currentUserId ?? uid;
+    if (!lookupUid) return new Set<string>();
+    return new Set(
+      metas
+        .filter(m => objetivoResponsaveis.some(
+          r => r.objetivo_id === m.id && r.profile_id === lookupUid && r.concluido
+        ))
+        .map(m => m.id)
+    );
+  }, [metas, objetivoResponsaveis, currentUserId, uid]);
+
+  // Metas que o usuário efetivo assumiu (excluindo as já concluídas individualmente)
   const metasMinhas = useMemo(() =>
-    metas.filter(m => objetivoResponsaveis.some(r => r.objetivo_id === m.id && r.profile_id === uid)),
-    [metas, objetivoResponsaveis, uid]);
+    metas.filter(m =>
+      !metasConcluidasIndividualIds.has(m.id) &&
+      objetivoResponsaveis.some(r => r.objetivo_id === m.id && r.profile_id === uid)
+    ),
+    [metas, objetivoResponsaveis, uid, metasConcluidasIndividualIds]);
 
-  // Metas sem NENHUM responsável
+  // Metas sem NENHUM responsável (excluindo as já concluídas individualmente)
   const metasSemResponsavel = useMemo(() =>
-    metas.filter(m => !objetivoResponsaveis.some(r => r.objetivo_id === m.id)),
-    [metas, objetivoResponsaveis]);
+    metas.filter(m =>
+      !metasConcluidasIndividualIds.has(m.id) &&
+      !objetivoResponsaveis.some(r => r.objetivo_id === m.id)
+    ),
+    [metas, objetivoResponsaveis, metasConcluidasIndividualIds]);
 
-  const metasExibidas   = filtroMinhas ? metasMinhas : metas;
+  const metasExibidas = filtroMinhas
+    ? metasMinhas
+    : metas.filter(m => !metasConcluidasIndividualIds.has(m.id));
   const metasAtingiveis = useMemo(() => metasExibidas.filter(m => m.tipo?.toLowerCase() !== 'recorrente'), [metasExibidas]);
   const metasRecorrentes = useMemo(() => metasExibidas.filter(m => m.tipo?.toLowerCase() === 'recorrente'), [metasExibidas]);
+
+  const metasConcluidasExibidas = useMemo(() => {
+    const lookupUid = currentUserId ?? uid;
+    // Individualmente concluídas: status='ativo' mas OR.concluido=true (dados pré-existentes)
+    const individual = metas.filter(m => metasConcluidasIndividualIds.has(m.id));
+    // Globalmente concluídas: status='concluido' (dados após o novo fluxo)
+    const global = filtroMinhas && lookupUid
+      ? metasConcluidas.filter(m => objetivoResponsaveis.some(r => r.objetivo_id === m.id && r.profile_id === lookupUid))
+      : metasConcluidas;
+    // Combina sem duplicatas (meta pode estar em ambos após migração parcial)
+    const seen = new Set(individual.map(m => m.id));
+    return [...individual, ...global.filter(m => !seen.has(m.id))];
+  }, [metas, metasConcluidasIndividualIds, metasConcluidas, filtroMinhas, objetivoResponsaveis, currentUserId, uid]);
 
   const metasExibidasCount = metasExibidas.length;
   const indExibidosIds = new Set(metasExibidas.map(m => m.id));
@@ -1384,12 +1495,14 @@ export function MetasIndicadoresBloco() {
         onAddSubMeta={handleAddSubMeta}
         onConcluirMeta={handleConcluirMeta}
         onReabrirMeta={handleReabrirMeta}
+        onArquivarMeta={handleArquivarMeta}
         onLancarIndicador={handleLancarIndicador}
         onAssumirIndicador={handleAssumirIndicador}
         onToggleResponsavel={handleToggleResponsavel}
         onAssumirProjeto={handleAssumirProjeto}
         projetoOr={projetoOrFinal}
         onToast={showToast}
+        isAdmin={isAdmin}
       />
     );
   };
@@ -1491,6 +1604,86 @@ export function MetasIndicadoresBloco() {
                     </div>
                   )}
                 </>
+              )}
+
+              {/* ── 3. METAS CONCLUÍDAS ── compactas, sempre no final ── */}
+              {metasConcluidasExibidas.length > 0 && (
+                <div className="mt-4 border-t border-gray-200 pt-3">
+                  <button type="button"
+                    className="w-full flex items-center justify-between mb-2"
+                    onClick={() => setConcluidasAberta(v => !v)}>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      Metas Concluídas ({metasConcluidasExibidas.length})
+                    </h3>
+                    <span className="text-gray-400 text-[10px]">{concluidasAberta ? '▲' : '▼'}</span>
+                  </button>
+                  {concluidasAberta && (
+                    <div className="flex flex-col divide-y divide-gray-100 rounded-lg border border-gray-100 overflow-hidden">
+                      {metasConcluidasExibidas.map((meta, i) => {
+                        const euRow = objetivoResponsaveis.find(
+                          r => r.objetivo_id === meta.id && r.profile_id === (currentUserId ?? uid)
+                        );
+                        const dataFim     = euRow?.data_fim     ?? null;
+                        const concluidoEm = euRow?.concluido_em ?? null;
+                        const tipoLabel   = meta.tipo?.toLowerCase() === 'recorrente' ? 'Recorrente' : 'Atingível';
+
+                        let badgeLabel = 'Concluída';
+                        let badgeClass = 'bg-green-50 text-green-600 border-green-200';
+                        if (dataFim && concluidoEm) {
+                          const dias = Math.round(
+                            (new Date(dataFim).getTime() - new Date(concluidoEm).getTime()) / 86_400_000
+                          );
+                          if (dias > 0)       { badgeLabel = `${dias}d antes`; badgeClass = 'bg-green-50 text-green-600 border-green-200'; }
+                          else if (dias === 0) { badgeLabel = 'No prazo';      badgeClass = 'bg-blue-50 text-blue-500 border-blue-200'; }
+                          else                 { badgeLabel = `${Math.abs(dias)}d após`; badgeClass = 'bg-amber-50 text-amber-600 border-amber-200'; }
+                        }
+
+                        return (
+                          <div key={meta.id} className={`flex items-center gap-3 px-3 py-2.5 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}`}>
+                            <span className="text-green-500 font-bold text-sm flex-shrink-0">✓</span>
+
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium text-gray-400 line-through leading-snug">
+                                {meta.descricao}
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => void handleReabrirMeta(meta.id)}
+                              title="Desfazer conclusão desta meta"
+                              className="text-gray-300 hover:text-amber-500 transition-colors flex-shrink-0 text-sm leading-none"
+                            >
+                              ↩
+                            </button>
+
+                            <span className="text-[9px] text-gray-300 flex-shrink-0 px-1.5 py-0.5 rounded border border-gray-100">
+                              {tipoLabel}
+                            </span>
+
+                            {dataFim && (
+                              <div className="flex-shrink-0 text-right">
+                                <p className="text-[9px] text-gray-300 leading-none mb-0.5">Prazo</p>
+                                <p className="text-[10px] text-gray-400 tabular-nums">{formatarDataCurta(dataFim)}</p>
+                              </div>
+                            )}
+
+                            {concluidoEm && (
+                              <div className="flex-shrink-0 text-right">
+                                <p className="text-[9px] text-gray-300 leading-none mb-0.5">Realizado</p>
+                                <p className="text-[10px] text-gray-400 tabular-nums">{formatarDataCurta(concluidoEm)}</p>
+                              </div>
+                            )}
+
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded border whitespace-nowrap flex-shrink-0 ${badgeClass}`}>
+                              {badgeLabel}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
 
             </>

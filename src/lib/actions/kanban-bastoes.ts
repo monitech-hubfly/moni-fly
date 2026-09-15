@@ -71,8 +71,10 @@ export interface CriarCardFilhoParams {
   redeFranqueadoId: string | null;
   kanbanOrigemSlug: string;
   faseOrigemSlug: string;
-  /** Bastão automático → Acoplamento: UUID do funil que disparou (migration 389). */
+  /** Bastão automático → Acoplamento / Jurídico: UUID do funil que disparou (migration 389). */
   origemKanbanId?: string | null;
+  /** Funil Jurídico: origem do chamado (`portfolio` | `loteadores` | `comercial`). */
+  juridicoOrigem?: 'portfolio' | 'loteadores' | 'comercial' | null;
   /** Funil Crédito Obra: tranche da tag (1ª automática; 2ª–6ª cria card adicional). */
   creditoObraTranche?: 1 | 2 | 3 | 4 | 5 | 6;
 }
@@ -181,7 +183,9 @@ async function registrarAtividadeBastaoCardFilho(
     times_ids: [],
   } as never);
 
-  if (errAtiv) throw new Error(errAtiv.message);
+  if (errAtiv) {
+    console.error('[bastao] falha ao registrar atividade do card filho:', errAtiv.message);
+  }
 }
 
 type CardFilhoExistenteRow = KanbanCardFilhoCriado & { arquivado?: boolean | null };
@@ -263,6 +267,23 @@ async function resolverCamposOrigemKanbanBastao(
   } catch {
     return { origem_kanban_id: null, origem_kanban_nome: null };
   }
+}
+
+function juridicoOrigemPorKanbanPai(
+  kanbanId: string | null | undefined,
+): 'portfolio' | 'loteadores' | 'comercial' | null {
+  const kid = String(kanbanId ?? '').trim();
+  if (kid === KANBAN_IDS.PORTFOLIO) return 'portfolio';
+  if (kid === KANBAN_IDS.LOTEADORES) return 'loteadores';
+  /** Manual / Operações → comercial (migration 565). */
+  if (kid === KANBAN_IDS.OPERACOES) return 'comercial';
+  return null;
+}
+
+function destinoPrecisaOrigemKanbanId(kanbanDestinoId: string): boolean {
+  return (
+    kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO || kanbanDestinoId === KANBAN_IDS.JURIDICO
+  );
 }
 
 /**
@@ -379,26 +400,35 @@ export async function criarCardFilho(
 
   if (existente?.id) {
     const filhoId = String(existente.id);
+    const reativarPayload: Record<string, unknown> = {
+      fase_id: faseId,
+      titulo,
+      projeto_id: params.projetoId ?? null,
+      rede_franqueado_id: redeFranqueadoId,
+      nome_condominio: nomeCondominio,
+      quadra,
+      lote,
+      condominio_id: condominioId,
+      franqueado_id: franqueadoId,
+      rede_loteador_id: redeLoteadorId,
+      status: 'ativo',
+      origem_card_id: cardPaiId,
+      arquivado: false,
+      arquivado_em: null,
+      arquivado_por: null,
+      motivo_arquivamento: null,
+    };
+    if (destinoPrecisaOrigemKanbanId(kanbanDestinoId) && params.origemKanbanId) {
+      const origemKanban = await resolverCamposOrigemKanbanBastao(db, params.origemKanbanId);
+      reativarPayload.origem_kanban_id = origemKanban.origem_kanban_id;
+      reativarPayload.origem_kanban_nome = origemKanban.origem_kanban_nome;
+    }
+    if (kanbanDestinoId === KANBAN_IDS.JURIDICO && params.juridicoOrigem) {
+      reativarPayload.juridico_origem = params.juridicoOrigem;
+    }
     const { data: filhoReativado, error: errReativar } = await db
       .from('kanban_cards')
-      .update({
-        fase_id: faseId,
-        titulo,
-        projeto_id: params.projetoId ?? null,
-        rede_franqueado_id: redeFranqueadoId,
-        nome_condominio: nomeCondominio,
-        quadra,
-        lote,
-        condominio_id: condominioId,
-        franqueado_id: franqueadoId,
-        rede_loteador_id: redeLoteadorId,
-        status: 'ativo',
-        origem_card_id: cardPaiId,
-        arquivado: false,
-        arquivado_em: null,
-        arquivado_por: null,
-        motivo_arquivamento: null,
-      } as never)
+      .update(reativarPayload as never)
       .eq('id', filhoId)
       .select(CARD_FILHO_SELECT)
       .single();
@@ -463,10 +493,14 @@ export async function criarCardFilho(
     status: 'ativo',
   };
 
-  if (kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO && params.origemKanbanId) {
+  if (destinoPrecisaOrigemKanbanId(kanbanDestinoId) && params.origemKanbanId) {
     const origemKanban = await resolverCamposOrigemKanbanBastao(db, params.origemKanbanId);
     insertPayload.origem_kanban_id = origemKanban.origem_kanban_id;
     insertPayload.origem_kanban_nome = origemKanban.origem_kanban_nome;
+  }
+
+  if (kanbanDestinoId === KANBAN_IDS.JURIDICO && params.juridicoOrigem) {
+    insertPayload.juridico_origem = params.juridicoOrigem;
   }
 
   const { data: filho, error: errInsert } = await db
@@ -497,7 +531,9 @@ export async function criarCardFilho(
   }
 
   const healFranq = await reconciliarFranqueadoNoSyncGroup(db, cardPaiId);
-  if (!healFranq.ok) throw new Error(healFranq.error);
+  if (!healFranq.ok) {
+    console.error('[bastao] reconciliarFranqueadoNoSyncGroup:', healFranq.error);
+  }
 
   if (kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO && faseDestinoSlug === 'modelagem_terreno') {
     void notificarTimeAcoplamentoNovoProjeto({
@@ -518,20 +554,30 @@ export async function criarCardFilho(
 
   const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
     await import('@/lib/kanban/responsavel-fase-checklist');
-  await aplicarResponsavelFasePadraoAoCard(db, cardFilhoId, faseId, kanbanDestinoId, criadoPor);
-  await aplicarResponsavelDaFasePadraoSeVazio(db, cardFilhoId, faseId, criadoPor);
+  try {
+    await aplicarResponsavelFasePadraoAoCard(db, cardFilhoId, faseId, kanbanDestinoId, criadoPor);
+    await aplicarResponsavelDaFasePadraoSeVazio(db, cardFilhoId, faseId, criadoPor);
+  } catch (e) {
+    console.error('[bastao] responsavel fase padrao:', e);
+  }
 
   const syncCalc = await sincronizarCamposCalculadoraBastaoFilho(db, cardPaiId, cardFilhoId, {
     faseDestinoId: faseId,
     faseDestinoSlug: faseDestinoSlug,
     actorUserId: criadoPor,
   });
-  if (!syncCalc.ok) throw new Error(syncCalc.error);
+  if (!syncCalc.ok) {
+    console.error('[bastao] sync calculadora filho:', syncCalc.error);
+  }
 
   if (kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA) {
-    const { aplicarTagTrancheCreditoObra } = await import('@/lib/kanban/credito-obra-tag-tranche');
-    const tranche = params.creditoObraTranche ?? 1;
-    await aplicarTagTrancheCreditoObra(db, cardFilhoId, tranche, kanbanDestinoId);
+    try {
+      const { aplicarTagTrancheCreditoObra } = await import('@/lib/kanban/credito-obra-tag-tranche');
+      const tranche = params.creditoObraTranche ?? 1;
+      await aplicarTagTrancheCreditoObra(db, cardFilhoId, tranche, kanbanDestinoId);
+    } catch (e) {
+      console.error('[bastao] tag tranche credito obra:', e);
+    }
   }
 
   return filho as KanbanCardFilhoCriado;
@@ -618,6 +664,8 @@ export async function abrirChamadoJuridicoDoCard(
       redeFranqueadoId: pai.rede_franqueado_id ?? null,
       kanbanOrigemSlug: kanbanOrigemSlugPorId(kanbanId),
       faseOrigemSlug,
+      origemKanbanId: kanbanId,
+      juridicoOrigem: juridicoOrigemPorKanbanPai(kanbanId),
     });
 
     if (!filho?.id) {
@@ -836,8 +884,13 @@ async function dispararBastao(
       redeFranqueadoId: pai.rede_franqueado_id,
       kanbanOrigemSlug: kanbanOrigemSlugPorId(pai.kanban_id),
       faseOrigemSlug,
-      origemKanbanId:
-        destino.kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO ? pai.kanban_id : undefined,
+      origemKanbanId: destinoPrecisaOrigemKanbanId(destino.kanbanDestinoId)
+        ? pai.kanban_id
+        : undefined,
+      juridicoOrigem:
+        destino.kanbanDestinoId === KANBAN_IDS.JURIDICO
+          ? juridicoOrigemPorKanbanPai(pai.kanban_id)
+          : undefined,
     });
     if (
       filho?.id &&
@@ -1029,6 +1082,15 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
   const pai = paiRow as CardPaiBastao;
   const titulo = String(pai.titulo ?? '').trim() || 'Card';
 
+  /** Funil Jurídico — fork automático ao entrar em Demanda Concluída (08). */
+  if (
+    slug === FASE_SLUGS.JURIDICO_DEMANDA_CONCLUIDA &&
+    String(pai.kanban_id ?? '') === KANBAN_IDS.JURIDICO
+  ) {
+    const { executarForkJuridicoDemandaConcluida } = await import('@/lib/kanban/juridico-gates');
+    await executarForkJuridicoDemandaConcluida(cardPaiId);
+  }
+
   const BASTOES_DE_IDA: Partial<Record<string, BastaoDestino[]>> = {
     [FASE_SLUGS.ACOPLAMENTO]: [
       { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
@@ -1043,6 +1105,20 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     [FASE_SLUGS.STEP_7]: [
       { kanbanDestinoId: KANBAN_IDS.CONTABILIDADE, faseDestinoSlug: 'contabilidade_spe' },
     ],
+    /** Funil Portfólio — Enviar Opção → Funil Jurídico. */
+    [FASE_SLUGS.STEP_3]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+      },
+    ],
+    /** Funil Loteadores — Jurídico → Funil Jurídico. */
+    [FASE_SLUGS.LOTEADOR_JURIDICO]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+      },
+    ],
     [FASE_SLUGS.CAPTACAO_CAPITAL]: [
       { kanbanDestinoId: KANBAN_IDS.MONI_CAPITAL, faseDestinoSlug: 'capital_recebimento' },
     ],
@@ -1054,7 +1130,10 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
       { kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' },
     ],
     [FASE_SLUGS.PROD_PUBLICADO]: [
-      { kanbanDestinoId: KANBAN_IDS.HDM_MODELO_VIRTUAL, faseDestinoSlug: 'mv_recebimento' },
+      {
+        kanbanDestinoId: KANBAN_IDS.HDM_MODELO_VIRTUAL,
+        faseDestinoSlug: FASE_SLUGS.MV_MODELAGEM_CASA,
+      },
     ],
     [FASE_SLUGS.APROVACAO_CONDOMINIO]: [
       {
@@ -1086,6 +1165,9 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
       },
     ],
+    // TODO: ao chegar em cor_convertido, futuramente disparar bastão para Funil Pré Obra e Obra
+    // quando a integração de visibilidade por franqueado/loteador estiver implementada.
+    // [FASE_SLUGS.COR_CONVERTIDO]: [{ kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' }],
   };
 
   if (slug === FASE_SLUGS.OPERACOES_ENTREGUE) {
@@ -1099,6 +1181,21 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     String(pai.kanban_id ?? '') === KANBAN_IDS.HDM_HOMOLOGACOES
   ) {
     await registrarAvisoHomologacaoConcluida({ cardId: cardPaiId });
+  }
+
+  // Funil Modelo Virtual — avisos manuais futuros (notificações Moní)
+  if (String(pai.kanban_id ?? '') === KANBAN_IDS.HDM_MODELO_VIRTUAL) {
+    if (slug === FASE_SLUGS.MV_MODELAGEM_CASA) {
+      // TODO: notificar Liz (Acoplamento) que o modelo está apto para acoplamento
+      // TODO: notificar Lari/Letícia (Projetos) que podem iniciar estudos do terreno
+    }
+    if (slug === FASE_SLUGS.MV_COMPAT_ESTRUTURA) {
+      // TODO: notificar Alef (exec local) que pode iniciar estudos de fundação
+    }
+    if (slug === FASE_SLUGS.MV_COMPAT_INFRA) {
+      // TODO: notificar Alef que pode validar compatibilidade com fundação projetada
+      // TODO: notificar Lari/Letícia que podem compatibilizar casa com ambientes do terreno
+    }
   }
 
   const destinos = BASTOES_DE_IDA[slug];
@@ -1137,8 +1234,13 @@ const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   /** @deprecated legado — cards em fase inativa (migration 494) */
   [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'credito_obra_ok',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'contabilidade_ok',
+  /** Funil Jurídico — bastão de volta na Fase 7 (Pós-Assinatura / Retroalimentação). */
+  [FASE_SLUGS.JURIDICO_POS_ASSINATURA]: 'juridico_ok',
+  /** @deprecated legado — preferir JURIDICO_POS_ASSINATURA */
+  [FASE_SLUGS.JURIDICO_DEMANDA_CONCLUIDA]: 'juridico_ok',
+  /** @deprecated legado */
   [FASE_SLUGS.JURIDICO_CONCLUIDO]: 'juridico_ok',
-  [FASE_SLUGS.CAPITAL_CONCLUIDO]: 'capital_ok',
+  [FASE_SLUGS.CAPITAL_CAPTACAO_FINALIZADA]: 'capital_ok',
   [FASE_SLUGS.CAPITAL_NAO_ELEGIVEL]: 'capital_ok',
   [FASE_SLUGS.PROJETOS_LOCAIS_CONCLUIDO]: 'projetos_locais_ok',
   [FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO]: 'projetos_legais_ok',
@@ -1154,8 +1256,12 @@ const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   /** @deprecated legado */
   [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'Crédito Obra (reprovado)',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'Contabilidade',
+  [FASE_SLUGS.JURIDICO_POS_ASSINATURA]: 'Jurídico',
+  /** @deprecated legado */
+  [FASE_SLUGS.JURIDICO_DEMANDA_CONCLUIDA]: 'Jurídico',
+  /** @deprecated legado */
   [FASE_SLUGS.JURIDICO_CONCLUIDO]: 'Jurídico',
-  [FASE_SLUGS.CAPITAL_CONCLUIDO]: 'Divify (concluído)',
+  [FASE_SLUGS.CAPITAL_CAPTACAO_FINALIZADA]: 'Divify (captação finalizada)',
   [FASE_SLUGS.CAPITAL_NAO_ELEGIVEL]: 'Divify (não elegível)',
   [FASE_SLUGS.PROJETOS_LOCAIS_CONCLUIDO]: 'Projetos Locais',
   [FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO]: 'Projetos Legais',
@@ -1172,8 +1278,10 @@ const DESFECHO_APENAS_FLAG_SEM_MOVER_PAI = new Set<string>([
   FASE_SLUGS.CREDITO_OBRA_APROVADO,
   FASE_SLUGS.CREDITO_OBRA_REPROVADO,
   FASE_SLUGS.CONTABILIDADE_CONCLUIDO,
+  FASE_SLUGS.JURIDICO_POS_ASSINATURA,
+  FASE_SLUGS.JURIDICO_DEMANDA_CONCLUIDA,
   FASE_SLUGS.JURIDICO_CONCLUIDO,
-  FASE_SLUGS.CAPITAL_CONCLUIDO,
+  FASE_SLUGS.CAPITAL_CAPTACAO_FINALIZADA,
   FASE_SLUGS.CAPITAL_NAO_ELEGIVEL,
 ]);
 
@@ -1563,6 +1671,13 @@ export async function dispararEsteiraManualDoCard(
       redeFranqueadoId: pai.rede_franqueado_id ?? null,
       kanbanOrigemSlug: kanbanOrigemSlugPorId(kanbanId),
       faseOrigemSlug,
+      origemKanbanId: destinoPrecisaOrigemKanbanId(destino.kanbanDestinoId)
+        ? kanbanId
+        : undefined,
+      juridicoOrigem:
+        destino.kanbanDestinoId === KANBAN_IDS.JURIDICO
+          ? juridicoOrigemPorKanbanPai(kanbanId)
+          : undefined,
       ...(destino.kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA
         ? { creditoObraTranche: 1 as const }
         : {}),
@@ -1587,6 +1702,9 @@ export async function dispararEsteiraManualDoCard(
     }
     if (destino.kanbanDestinoId === KANBAN_IDS.OPERACOES) {
       revalidatePath('/operacoes');
+    }
+    if (destino.kanbanDestinoId === KANBAN_IDS.JURIDICO) {
+      revalidatePath('/funil-juridico');
     }
 
     return {
@@ -1706,6 +1824,7 @@ export async function abrirFunilAcoplamentoManualDoCard(
       redeFranqueadoId: pai.rede_franqueado_id ?? null,
       kanbanOrigemSlug: kanbanOrigemSlugPorId(String(pai.kanban_id ?? '')),
       faseOrigemSlug,
+      origemKanbanId: String(pai.kanban_id ?? '').trim() || undefined,
     });
 
     if (!filho?.id) {
@@ -1805,6 +1924,7 @@ export async function reativarFilhoAcoplamentoArquivadoSeNecessario(
       redeFranqueadoId: pai.rede_franqueado_id ?? null,
       kanbanOrigemSlug: kanbanOrigemSlugPorId(String(pai.kanban_id ?? '')),
       faseOrigemSlug,
+      origemKanbanId: String(pai.kanban_id ?? '').trim() || undefined,
     });
 
     if (!filho?.id) return { ok: true, reativado: false };

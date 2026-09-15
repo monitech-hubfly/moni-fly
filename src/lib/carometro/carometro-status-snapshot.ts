@@ -77,6 +77,24 @@ export async function gerarSnapshotCarometro(
   const semana  = isoWeek(hoje);
   const hojeStr = hoje.toISOString().slice(0, 10);
 
+  // S-1: semana anterior usada como referência de indicadores (igual ao useMeuCarometro)
+  const semAnteriorInd = semana > 1 ? semana - 1 : 52;
+  // sextaAnterior: data de referência para calcular % esperado dos indicadores de S-1
+  const dowRef = hoje.getDay() || 7;
+  const segundaSemana = new Date(hoje);
+  segundaSemana.setDate(hoje.getDate() - (dowRef - 1));
+  const sextaAnterior = new Date(segundaSemana);
+  sextaAnterior.setDate(segundaSemana.getDate() - 3);
+
+  // Regra da quinta-feira: a semana pertence ao mês que contém sua quinta-feira
+  const thursdayAnteriorSnap = new Date(sextaAnterior);
+  thursdayAnteriorSnap.setDate(sextaAnterior.getDate() - 1);
+  const semAnteriorNaMesSnap = thursdayAnteriorSnap.getMonth() === hoje.getMonth()
+    && thursdayAnteriorSnap.getFullYear() === hoje.getFullYear();
+  // Semana e data de referência do mês vigente para o snapshot
+  const semRefSnap    = semAnteriorNaMesSnap ? semAnteriorInd : semana;
+  const refDateSnap   = semAnteriorNaMesSnap ? sextaAnterior  : hoje;
+
   // ── Sirene ─────────────────────────────────────────────────────────────────
   // Início da semana para filtro de concluídos
   const dowSnap = hoje.getDay() || 7;
@@ -156,7 +174,7 @@ export async function gerarSnapshotCarometro(
       .is('card_id', null)
       .not('objetivo_id', 'is', null),   // exclui "Sem vínculo à meta"
     db.from('kanban_cards')
-      .select('id, created_at, entered_fase_at, sla_iniciado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
+      .select('id, created_at, entered_fase_at, sla_iniciado_em, sla_pausado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
       .or(orKanban).eq('arquivado', false).eq('concluido', false),
     db.from('kanban_cards')
       .select('id, prazo_atividade')
@@ -178,14 +196,14 @@ export async function gerarSnapshotCarometro(
   // Não concluída = agendada sem data_conclusao_real (inclui hoje — afeta score imediatamente)
   const atividadesAtrasadas  = ganttArr.filter(g => !g.data_conclusao_real).length;
   const scoreAtividades = atividadesAgendadas === 0
-    ? null
+    ? 0
     : Math.max(0, Math.round((atividadesRealizadas / atividadesAgendadas) * 100));
 
   // Sub-score 2: Cards com SLA
   type FaseKanban = { sla_dias: number | null; sla_tipo: string | null; slug: string | null };
   type KanbanCardSla = {
     id: string; created_at: string; entered_fase_at: string | null;
-    sla_iniciado_em: string | null; fase: FaseKanban | FaseKanban[] | null;
+    sla_iniciado_em: string | null; sla_pausado_em: string | null; fase: FaseKanban | FaseKanban[] | null;
   };
 
   const kanbanArr = (kanbanAbertosRes.data ?? []) as KanbanCardSla[];
@@ -193,21 +211,26 @@ export async function gerarSnapshotCarometro(
     const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
     return (fase?.sla_dias ?? null) !== null;
   });
-  const cardsAtrasados = cardsComSLA.filter(c => {
+  // Cards com trava ativa → bloqueados: excluídos do score (nem bônus, nem penalidade)
+  const cardsBloqueados = cardsComSLA.filter(c => Boolean(c.sla_pausado_em)).length;
+  const cardsNaoBloqueados = cardsComSLA.filter(c => !c.sla_pausado_em);
+  const cardsAtrasados = cardsNaoBloqueados.filter(c => {
     const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
     return calcularSlaKanbanCard({
       created_at:      c.created_at,
       entered_fase_at: c.entered_fase_at,
       sla_iniciado_em: c.sla_iniciado_em,
+      sla_pausado_em:  c.sla_pausado_em,
       sla_dias:        fase?.sla_dias ?? null,
       sla_tipo:        fase?.sla_tipo ?? null,
       faseSlug:        fase?.slug     ?? null,
     }).status === 'atrasado';
   }).length;
-  const cardsEmDia = cardsComSLA.length - cardsAtrasados;
-  const scoreCards = cardsComSLA.length === 0
+  const cardsEmDia = cardsNaoBloqueados.length - cardsAtrasados;
+  // Score: apenas sobre os cards sem trava ativa. Nenhum card ativo (todos bloqueados) = 100%.
+  const scoreCards = cardsComSLA.length === 0 || cardsNaoBloqueados.length === 0
     ? 100
-    : Math.max(0, Math.round((cardsEmDia / cardsComSLA.length) * 100));
+    : Math.max(0, Math.round((cardsEmDia / cardsNaoBloqueados.length) * 100));
 
   // Sub-score 3: Próximas Atividades (kanban_cards.prazo_atividade)
   // Score B: concluidos / (concluidos + atrasados). Vence hoje = contexto, não penaliza.
@@ -234,8 +257,8 @@ export async function gerarSnapshotCarometro(
 
   const engajamentoData = {
     atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
-    cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, score: scoreCards },
-    proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas, score: scoreProximas },
+    cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, bloqueados: cardsBloqueados, score: scoreCards },
+    proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, semProxima: cardsSemProxima, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas + cardsSemProxima, score: scoreProximas },
     score:      engScore,
   };
 
@@ -247,25 +270,38 @@ export async function gerarSnapshotCarometro(
   {
     const { data: objRespData } = await db
       .from('objetivo_responsaveis')
-      .select('objetivo_id')
+      .select('objetivo_id, data_inicio')
       .eq('profile_id', profileId);
 
-    const objIds = ((objRespData ?? []) as { objetivo_id: string }[])
-      .map(o => o.objetivo_id).filter(Boolean);
+    type ObjRespRowSnap = { objetivo_id: string; data_inicio: string | null };
+    const objRespRowsSnap = (objRespData ?? []) as ObjRespRowSnap[];
+    const objIds = objRespRowsSnap.map(o => o.objetivo_id).filter(Boolean);
+
+    // Mapa objetivo_id → data_inicio: evita penalizar projetos ainda não iniciados
+    const metaDataInicioMapSnap = new Map<string, string>(
+      objRespRowsSnap.filter(r => r.data_inicio != null).map(r => [r.objetivo_id, r.data_inicio!])
+    );
 
     if (objIds.length > 0) {
+      // Filtra apenas metas do mês vigente com status ativo ou relançado.
+      // Metas concluídas e arquivadas não entram no cálculo — não penalizam o score.
+      const mesAtualSnap = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
       const { data: objetivosData } = await db
         .from('objetivos')
         .select('id, descricao')
-        .in('id', objIds);
-      const objNomeMap = new Map<string, string>(
-        ((objetivosData ?? []) as { id: string; descricao: string }[]).map(o => [o.id, o.descricao])
-      );
+        .in('id', objIds)
+        .eq('mes', mesAtualSnap)
+        .in('status', ['ativo', 'relancada']);
+      // Extrai IDs já filtrados (mês vigente + status ativo/relancada)
+      const filteredObjsSnap = (objetivosData ?? []) as { id: string; descricao: string }[];
+      const filteredObjIdsSnap = filteredObjsSnap.map(o => o.id);
+      const objNomeMap = new Map<string, string>(filteredObjsSnap.map(o => [o.id, o.descricao]));
 
+      if (filteredObjIdsSnap.length > 0) {
       const { data: indsData } = await db
         .from('indicadores')
         .select('id, nome, semaforo_faixas, objetivo_id')
-        .in('objetivo_id', objIds)
+        .in('objetivo_id', filteredObjIdsSnap)
         .eq('ativo', true);
 
       type IndRow = { id: string; nome: string; semaforo_faixas: unknown; objetivo_id: string | null };
@@ -273,11 +309,12 @@ export async function gerarSnapshotCarometro(
       const indIds = indsTyped.map(i => i.id);
 
       if (indIds.length > 0) {
+        // Busca lançamentos da semana de referência do mês vigente
         const { data: lancsData } = await db
           .from('indicador_lancamentos')
           .select('indicador_id, valor')
           .in('indicador_id', indIds)
-          .eq('semana', semana);
+          .eq('semana', semRefSnap);
 
         const lancMap = new Map<string, unknown>(
           ((lancsData ?? []) as { indicador_id: string; valor: unknown }[]).map(l => [l.indicador_id, l.valor])
@@ -286,23 +323,45 @@ export async function gerarSnapshotCarometro(
         type SfRaw = { is_projeto_relativo?: boolean; data_inicio?: string; data_fim?: string };
         type IndItem = { nome: string; valor: number; meta: number; percentual: number | null };
         const porIndicador: IndItem[] = [];
+        const metaScoresMap = new Map<string, number[]>();
 
         for (const ind of indsTyped) {
           const objNome    = ind.objetivo_id ? (objNomeMap.get(ind.objetivo_id) ?? '') : '';
           const nomeDisplay = objNome ? `${objNome} — ${ind.nome}` : (ind.nome || ind.id);
           const rawSf = ind.semaforo_faixas as SfRaw | null;
           const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
+          const metaKey = ind.objetivo_id ?? ind.id;
+
+          // Se a meta tem data_inicio futura, o projeto ainda não iniciou —
+          // não penaliza o score independentemente do tipo de indicador.
+          const metaDataInicioSnap = ind.objetivo_id ? (metaDataInicioMapSnap.get(ind.objetivo_id) ?? null) : null;
+          if (metaDataInicioSnap) {
+            const metaInicioSnap = new Date(metaDataInicioSnap + 'T00:00:00');
+            if (refDateSnap < metaInicioSnap) {
+              porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
+              continue;
+            }
+          }
 
           if (isProjeto) {
-            const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', hoje);
+            const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', refDateSnap);
             if (esp <= 0) {
               porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
               continue;
             }
+
+            // Cap de 70 pts se sextaAnterior ultrapassou a semana do data_fim
+            const dataFimDate = new Date((rawSf!.data_fim ?? '') + 'T00:00:00');
+            const dataFimDow = dataFimDate.getDay() || 7;
+            const endOfDeadlineWeek = new Date(dataFimDate);
+            endOfDeadlineWeek.setDate(dataFimDate.getDate() + (7 - dataFimDow));
+            const isPastDeadlineWeek = refDateSnap > endOfDeadlineWeek;
+
             const valor  = lancMap.get(ind.id);
             const valStr = valor != null ? String(valor).trim() : '';
             if (valStr === '' || valStr === '-') {
               porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: 0 });
+              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
             } else {
               const n = Number(valStr.replace(',', '.'));
               if (!Number.isFinite(n)) { porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: null }); continue; }
@@ -311,28 +370,37 @@ export async function gerarSnapshotCarometro(
               if (ratio >= 75) score = 100;
               else if (ratio >= 60) score = 75;
               else if (ratio >= 30) score = 50;
+              if (isPastDeadlineWeek && score > 70) score = 70;
               porIndicador.push({ nome: nomeDisplay, valor: n, meta: esp, percentual: score });
+              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
             }
           } else {
             const valor  = lancMap.get(ind.id);
             const valStr = valor != null ? String(valor).trim() : '';
             if (valStr === '' || valStr === '-') {
               porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: 0 });
+              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
             } else {
               const score = scoreDeValorESemaforoHex(valor, ind.semaforo_faixas);
               const n     = Number(valStr.replace(',', '.'));
               porIndicador.push({ nome: nomeDisplay, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
+              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
             }
           }
         }
 
-        const scores = porIndicador.filter(i => i.percentual !== null).map(i => i.percentual as number);
-        const media  = scores.length > 0
-          ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length)
+        // Score por meta (média dos seus indicadores), depois média das metas — peso igual por meta
+        const metaMedias: number[] = [];
+        for (const scores of metaScoresMap.values()) {
+          metaMedias.push(Math.round(scores.reduce((s, v) => s + v, 0) / scores.length));
+        }
+        const media = metaMedias.length > 0
+          ? Math.round(metaMedias.reduce((s, v) => s + v, 0) / metaMedias.length)
           : null;
 
         indicadoresData = { porIndicador, media };
       }
+      } // filteredObjIdsSnap.length > 0
     }
   }
 

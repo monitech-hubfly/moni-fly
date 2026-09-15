@@ -106,7 +106,9 @@ function AgendaCard({
   onAtualizarHorarioInicio: (id: string, hora_inicio: string) => Promise<void>;
   onDragStart: (atv: AtividadeAgenda, e: React.MouseEvent) => void;
   isBeingDragged?: boolean;
-}) {
+})
+// Nota: eventos isFromGCal são somente leitura — sem drag, sem resize
+{
   const [h, m] = atv.hora_inicio.split(':').map(Number);
   const topPx  = (h - HORA_INICIO) * ALTURA_HORA + (m ?? 0);
 
@@ -119,6 +121,32 @@ function AgendaCard({
   const [visualHoraInicio, setVisualHoraInicio] = useState<string | null>(null);
   const visualHoraInicioRef = useRef<string | null>(null);
   const resizingRef = useRef(false);
+
+  // ── Tooltip de hover ──
+  const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null);
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const ORIGEM_LABEL: Record<string, string> = {
+    sirene:     'Chamado Sirene',
+    kanban:     'Card Kanban',
+    atividade:  'Atividade planejada',
+    pastelaria: 'Pastelaria',
+  };
+
+  const handleTooltipEnter = (e: React.MouseEvent) => {
+    tooltipTimerRef.current = setTimeout(() => {
+      setTooltip({ x: e.clientX, y: e.clientY });
+    }, 400);
+  };
+
+  const handleTooltipMove = (e: React.MouseEvent) => {
+    if (tooltip) setTooltip({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleTooltipLeave = () => {
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    setTooltip(null);
+  };
 
   const horaFimEfetiva    = visualHoraFim    ?? atv.hora_fim;
   const horaInicioEfetiva = visualHoraInicio ?? atv.hora_inicio;
@@ -233,8 +261,14 @@ function AgendaCard({
         borderTop: !isPendente && isVencido ? '3px solid rgba(239,159,39,0.9)' : undefined,
         cursor: isPendente ? 'pointer' : undefined,
       }}
+      onMouseEnter={handleTooltipEnter}
+      onMouseMove={handleTooltipMove}
+      onMouseLeave={handleTooltipLeave}
       onMouseDown={(e) => {
+        handleTooltipLeave();
         if ((e.target as HTMLElement).closest('[data-action]')) return;
+        // Eventos importados do GCal são somente leitura — sem drag
+        if (atv.isFromGCal) return;
         if (!isPendente) onDragStart(atv, e);
       }}
       onClick={(e) => {
@@ -243,11 +277,29 @@ function AgendaCard({
         e.stopPropagation();
         // Para eventos pendentes, o drag nunca é iniciado (dragState null),
         // então o click precisa ser tratado aqui diretamente.
-        if (isPendente) onAbrirParaEditar(atv.id);
+        // Eventos do GCal também abrem o modal aqui (drag bloqueado para somente leitura).
+        if (isPendente || atv.isFromGCal) onAbrirParaEditar(atv.id);
       }}
     >
-      {/* Handle de resize superior */}
-      {!atv.concluido && !isPendente && (
+      {tooltip && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed pointer-events-none z-[9999]"
+          style={{ left: tooltip.x + 14, top: tooltip.y - 8 }}
+        >
+          <div className="bg-gray-900 text-white rounded-lg shadow-xl px-3 py-2 text-xs max-w-[220px]">
+            <p className="font-semibold leading-snug break-words">{atv.titulo}</p>
+            <p className="opacity-60 mt-0.5">
+              {atv.hora_inicio}{atv.hora_fim ? ` – ${atv.hora_fim}` : ''}
+            </p>
+            {atv.origem_tipo && ORIGEM_LABEL[atv.origem_tipo] && (
+              <p className="opacity-60">{ORIGEM_LABEL[atv.origem_tipo]}</p>
+            )}
+          </div>
+        </div>,
+        document.body,
+      )}
+      {/* Handle de resize superior — oculto para eventos GCal (somente leitura) */}
+      {!atv.concluido && !isPendente && !atv.isFromGCal && (
         <div
           data-action="resize-top"
           className="absolute top-0 left-0 right-0 h-2 cursor-n-resize opacity-0 group-hover:opacity-100 flex items-center justify-center"
@@ -259,7 +311,9 @@ function AgendaCard({
       <div className="flex items-start justify-between gap-1 h-full">
         <div className="flex-1 min-w-0">
           <div className={`font-medium truncate leading-tight ${atv.concluido ? 'line-through opacity-70' : ''}`}>
-            {isPendente && <span className="mr-0.5">📨</span>}{atv.titulo}
+            {isPendente && <span className="mr-0.5">📨</span>}
+            {atv.isFromGCal && <span className="mr-0.5 opacity-80" title="Evento do Google Calendar (somente leitura)">📅</span>}
+            {atv.titulo}
           </div>
           {isPendente && heightPx >= 36 && (
             <div className="text-[10px] text-gray-500 truncate leading-tight">
@@ -318,8 +372,8 @@ function AgendaCard({
         )}
       </div>
 
-      {/* Handle de resize — aparece no hover, na borda inferior */}
-      {!atv.concluido && !isPendente && (
+      {/* Handle de resize — oculto para eventos GCal (somente leitura) */}
+      {!atv.concluido && !isPendente && !atv.isFromGCal && (
         <div
           data-action="resize"
           className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize opacity-0 group-hover:opacity-100 flex items-center justify-center"
@@ -815,6 +869,34 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
         ))}
       </div>
 
+      {/* Faixa de eventos de dia inteiro (all-day) — igual Google Calendar */}
+      {atividades.some(a => a.isAllDay) && (
+        <div className="flex border-b border-gray-100 bg-gray-50">
+          <div style={{ width: LARGURA_HORAS, flexShrink: 0 }}
+            className="text-[9px] text-gray-400 flex items-end justify-end pr-2 pb-1 select-none">
+            dia int.
+          </div>
+          {diasDaSemana.map(dia => {
+            const allDayDia = atividades.filter(a => a.isAllDay && a.data === dia.dateStr);
+            return (
+              <div key={dia.dateStr} className="flex-1 px-0.5 py-1 flex flex-col gap-0.5 min-h-[22px]">
+                {allDayDia.map(a => (
+                  <div
+                    key={a.id}
+                    title={a.titulo}
+                    className="text-[10px] px-1.5 py-0.5 rounded text-white truncate cursor-pointer select-none"
+                    style={{ backgroundColor: a.cor }}
+                    onClick={() => onAbrirParaEditar(a.id)}
+                  >
+                    {a.titulo}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Grade */}
       <div ref={gradeRef} className="overflow-y-auto" style={{ height: 600 }}>
         <div className="relative flex" style={{ minHeight: ALTURA_GRADE }}>
@@ -823,7 +905,7 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
             <ColunaDia
               key={dia.dateStr}
               dia={dia}
-              atividades={atividades.filter(a => a.data === dia.dateStr)}
+              atividades={atividades.filter(a => a.data === dia.dateStr && !a.isAllDay)}
               onAbrirModal={onAbrirModal}
               onAbrirParaEditar={handleAbrirParaEditar}
               onConcluir={handleConcluir}

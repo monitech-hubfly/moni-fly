@@ -19,7 +19,8 @@ export default async function SireneGraficosPage({
     );
   }
 
-  const mesInicial = mes ?? result.data.mesesDisponiveis.at(-1) ?? new Date().toISOString().slice(0, 7);
+  // Usa melhorMesInicial: último mês com chamados abertos (evita exibir mês atual vazio)
+  const mesInicial = mes ?? result.data.melhorMesInicial ?? result.data.mesesDisponiveis.at(-1) ?? new Date().toISOString().slice(0, 7);
 
   return (
     <GraficosConteudo

@@ -25,7 +25,7 @@ function mensagemFalhaRanking(
   falha: 'largura' | 'profundidade' | 'area' | 'topografia',
 ): string {
   if (falha === 'topografia') {
-    return 'Topografia do modelo incompatível com o lote escolhido';
+    return 'Topografia: implantação tecnicamente inviável neste lote';
   }
   if (falha === 'largura') {
     return `Largura útil ${item.largura_util?.toFixed(1) ?? '—'}m < ${item.dimensao_x_m ?? '—'}m`;
@@ -79,8 +79,8 @@ function BadgeTopografiaCompat({ topoCompativel }: { topoCompativel: boolean }) 
     );
   }
   return (
-    <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 ring-1 ring-red-300">
-      ✗ Topografia incompatível
+    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-300">
+      ⚠ Adaptação prevista
     </span>
   );
 }

@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { pushParaGCal } from '@/lib/actions/agenda-gcal';
 
 export type ParticipanteStatus = {
   profile_id: string;
@@ -311,6 +312,9 @@ export async function aceitarPropostaHorario(
     .eq('id', ganttId);
 
   if (errGantt) return { ok: false, error: errGantt.message };
+
+  // Sincronizar novo horário com Google Calendar (best-effort)
+  void pushParaGCal(ganttId).catch(e => console.warn('[gcal-push-proposta]', e));
 
   // Atualizar status do participante para aceito (admin client: sem UPDATE policy)
   const { createAdminClient } = await import('@/lib/supabase/admin');

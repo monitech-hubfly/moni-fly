@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { normalizeAccessRole } from '@/lib/authz';
 import type { ImobEmpreendimentoPatch } from '@/lib/imob-empreendimentos';
+import { labelStatusImovel } from '@/lib/kanban/imob-simulacoes-card';
 
 type Ok = { ok: true; mensagem: string; id?: string };
 type Err = { ok: false; error: string };
@@ -178,19 +180,48 @@ export async function fetchCorretoresDoEmpreendimento(
 const KANBAN_LOTEADORES = '3e7b6ec7-2e15-4a66-8fdf-9dc942b5019c';
 const KANBAN_PORTFOLIO  = 'c57120a0-991c-422b-8def-4d16a9411d45';
 
-/** URL base do Supabase Storage público */
-const SUPABASE_STORAGE = 'https://aydryzoxqnwnbybvgiug.supabase.co/storage/v1/object/public';
+/** Bucket das imagens IMOB (imagem_principal_path / imagem_oferta_path). */
+const IMOB_BUCKET = 'processo-docs';
+/** URLs assinadas válidas por 7 dias (flyer impresso / aba aberta). */
+const SIGNED_URL_TTL_SEC = 60 * 60 * 24 * 7;
+
+type StorageClient =
+  | Awaited<ReturnType<typeof createClient>>
+  | ReturnType<typeof createAdminClient>;
+
+function tryAdminClient(): ReturnType<typeof createAdminClient> | null {
+  try {
+    return createAdminClient();
+  } catch {
+    return null;
+  }
+}
+
+function publicStorageUrl(path: string): string | null {
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '');
+  if (!base) return null;
+  return `${base}/storage/v1/object/public/${IMOB_BUCKET}/${path}`;
+}
 
 /**
- * Bucket onde ficam as imagens IMOB (imagem_principal_path / imagem_oferta_path).
- * Atualize aqui quando o bucket for criado/renomeado.
+ * Resolve path do storage para URL usável no flyer.
+ * Preferência: signed URL (bucket privado) → URL pública do projeto ativo.
  */
-const IMOB_BUCKET = 'processo-docs';
-
-function storageUrl(path: string | null | undefined): string | null {
+async function storageUrl(
+  supabase: StorageClient,
+  path: string | null | undefined,
+): Promise<string | null> {
   const p = path?.trim();
   if (!p) return null;
-  return `${SUPABASE_STORAGE}/${IMOB_BUCKET}/${p}`;
+  if (/^https?:\/\//i.test(p)) return p;
+
+  const admin = tryAdminClient();
+  const clients: StorageClient[] = admin ? [admin, supabase] : [supabase];
+  for (const client of clients) {
+    const { data, error } = await client.storage.from(IMOB_BUCKET).createSignedUrl(p, SIGNED_URL_TTL_SEC);
+    if (!error && data?.signedUrl) return data.signedUrl;
+  }
+  return publicStorageUrl(p);
 }
 
 function brl(v: number | null | undefined): string | null {
@@ -208,6 +239,8 @@ export type FlyerCorretorData = {
 export type FlyerUnitData = {
   nome: string | null;
   area: string | null;
+  quartos: string | null;
+  banheiros: string | null;
   imagem_url: string | null;
   valor_avista: string | null;
   entrada: string | null;
@@ -219,6 +252,13 @@ export type FlyerData = {
   cond: { nome: string; cidade: string | null; estado: string | null } | null;
   pipeline: string | null;
   showroom: { produto_modelo: string | null; imagem_url: string | null } | null;
+  /** Render / foto principal = imob_card_modelo.imagem_principal_path */
+  hero_imagem_url: string | null;
+  /** Produto / Modelo para o quadro Casa (Showroom → 1ª tipologia). */
+  casa_produto_modelo: string | null;
+  status_imovel: string | null;
+  ano_lancamento: number | null;
+  preco_a_partir_de: string | null;
   units: FlyerUnitData[];
   corretores: FlyerCorretorData[];
 };
@@ -277,28 +317,52 @@ export async function fetchFlyerData(
     else if (kid === KANBAN_PORTFOLIO) pipeline = 'Portfólio';
   }
 
-  // 4. Imagem principal do Showroom (imob_card_modelo)
+  // 4. Imagem principal + "A partir de" + status do Showroom (imob_card_modelo)
   let modeloImgUrl: string | null = null;
+  let precoAPartirDe: string | null = null;
+  let statusImovel: string | null = null;
   if (e.card_id) {
-    const { data: modelo } = await supabase
+    type ModeloFlyerRow = {
+      imagem_principal_path?: string | null;
+      preco_a_partir_de?: number | null;
+      status_imovel?: string | null;
+    };
+    let modelo: ModeloFlyerRow | null = null;
+    const full = await supabase
       .from('imob_card_modelo')
-      .select('imagem_principal_path')
+      .select('imagem_principal_path, preco_a_partir_de, status_imovel')
       .eq('card_id', e.card_id)
-      .single();
-    modeloImgUrl = storageUrl(
-      (modelo as { imagem_principal_path?: string } | null)?.imagem_principal_path,
-    );
+      .maybeSingle();
+    if (!full.error) {
+      modelo = (full.data as ModeloFlyerRow | null) ?? null;
+    } else {
+      const fallback = await supabase
+        .from('imob_card_modelo')
+        .select('imagem_principal_path')
+        .eq('card_id', e.card_id)
+        .maybeSingle();
+      modelo = (fallback.data as ModeloFlyerRow | null) ?? null;
+    }
+    modeloImgUrl = await storageUrl(supabase, modelo?.imagem_principal_path);
+    precoAPartirDe = brl(modelo?.preco_a_partir_de);
+    const statusRaw = String(modelo?.status_imovel ?? '').trim();
+    if (statusRaw) {
+      const label = labelStatusImovel(statusRaw);
+      statusImovel = label && label !== '—' ? label : statusRaw;
+    }
   }
 
   // 5. Unidades IMOB (showroom + empreendimentos ordenados)
   let showroom: FlyerData['showroom'] = null;
   const units: FlyerUnitData[] = [];
+  let anoShowroom: number | null = null;
+  let anoPrimeiraUnidade: number | null = null;
 
   if (e.card_id) {
     const { data: cardEmps } = await supabase
       .from('imob_card_empreendimentos')
       .select(
-        'tipo, produto_modelo, nome, area_vendas_m2, imagem_oferta_path, valor_avista, entrada, parcelas_mensais',
+        'tipo, produto_modelo, nome, area_vendas_m2, ano_lancamento, quartos, banheiros, imagem_oferta_path, valor_avista, entrada, parcelas_mensais',
       )
       .eq('card_id', e.card_id)
       .order('ordem', { ascending: true });
@@ -308,31 +372,52 @@ export async function fetchFlyerData(
       produto_modelo: string | null;
       nome: string | null;
       area_vendas_m2: number | null;
+      ano_lancamento: number | null;
+      quartos: number | null;
+      banheiros: number | null;
       imagem_oferta_path: string | null;
       valor_avista: number | null;
       entrada: number | null;
       parcelas_mensais: number | null;
     }>) {
-      const imgUrl = storageUrl(item.imagem_oferta_path);
+      const imgUrl = await storageUrl(supabase, item.imagem_oferta_path);
+      const ano =
+        item.ano_lancamento != null && Number.isFinite(Number(item.ano_lancamento))
+          ? Number(item.ano_lancamento)
+          : null;
 
       if (item.tipo === 'showroom') {
         showroom = {
           produto_modelo: item.produto_modelo ?? null,
-          // Prioridade: imagem do showroom → imagem_principal do modelo → imagem_url do empreendimento
-          imagem_url: imgUrl ?? modeloImgUrl ?? e.imagem_url ?? null,
+          imagem_url: imgUrl,
         };
+        if (ano != null && anoShowroom == null) anoShowroom = ano;
       } else if (units.length < 4) {
         units.push({
           nome: item.produto_modelo ?? item.nome ?? null,
           area: item.area_vendas_m2 != null ? String(item.area_vendas_m2) : null,
+          quartos: item.quartos != null ? String(item.quartos) : null,
+          banheiros: item.banheiros != null ? String(item.banheiros) : null,
           imagem_url: imgUrl,
           valor_avista: brl(item.valor_avista),
           entrada: brl(item.entrada),
           parcelas: brl(item.parcelas_mensais),
         });
+        if (ano != null && anoPrimeiraUnidade == null) anoPrimeiraUnidade = ano;
       }
     }
   }
+
+  const anoLancamento = anoShowroom ?? anoPrimeiraUnidade;
+
+  // Render / foto principal = Imagem Principal do card (sempre prioridade)
+  const heroImagemUrl = modeloImgUrl ?? showroom?.imagem_url ?? e.imagem_url ?? null;
+
+  // Casa (Produto / Modelo): Showroom primeiro; senão 1ª tipologia
+  const casaProdutoModelo =
+    String(showroom?.produto_modelo ?? '').trim() ||
+    String(units[0]?.nome ?? '').trim() ||
+    null;
 
   // 6. Corretores vinculados
   const { data: corrLinks } = await supabase
@@ -367,6 +452,11 @@ export async function fetchFlyerData(
     cond,
     pipeline,
     showroom,
+    hero_imagem_url: heroImagemUrl,
+    casa_produto_modelo: casaProdutoModelo,
+    status_imovel: statusImovel,
+    ano_lancamento: anoLancamento,
+    preco_a_partir_de: precoAPartirDe,
     units,
     corretores,
   };

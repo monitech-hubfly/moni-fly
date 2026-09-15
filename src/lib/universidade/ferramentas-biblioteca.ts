@@ -106,7 +106,7 @@ Estar no **Giro** do condomínio na faixa de valor escolhida. Posição ≤ giro
 
 ## Guia completo
 
-Escala -3 a +2, pré-preenchimento de atributos (Lotes Disponíveis), custo do Configurador, ranking G/E/P e tese — no guia interativo (botão abaixo).
+Escala -3 a +3, pré-preenchimento de atributos (Lotes Disponíveis), custo do Configurador, ranking G/E/P e tese — no guia interativo (botão abaixo).
 
 ## Armadilhas comuns
 

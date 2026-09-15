@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import type { KanbanFase } from './types';
 import { KANBAN_BOARD_FILTROS_DEFAULT, type KanbanBoardFiltros } from './kanbanBoardFiltros';
 
-type SecaoId = 'fase' | 'responsavel' | 'sla' | 'status' | 'especial';
+type SecaoId = 'fase' | 'responsavel' | 'sla' | 'status' | 'especial' | 'corretor' | 'imobiliaria' | 'tipologia';
 
 const def = KANBAN_BOARD_FILTROS_DEFAULT;
 
@@ -15,9 +15,22 @@ function computeExpandedInicial(f: KanbanBoardFiltros): Record<SecaoId, boolean>
   const hasSla = f.sla !== def.sla;
   const hasStatus = f.status !== def.status;
   const hasEspecial = f.especial !== def.especial;
-  const algum = hasFase || hasResp || hasSla || hasStatus || hasEspecial;
+  const hasCorretor = (f.corretor ?? 'todos') !== 'todos';
+  const hasImob = (f.imobiliaria ?? 'todos') !== 'todos';
+  const hasTip = (f.tipologia ?? 'todos') !== 'todos';
+  const algum =
+    hasFase || hasResp || hasSla || hasStatus || hasEspecial || hasCorretor || hasImob || hasTip;
   if (!algum) {
-    return { fase: false, responsavel: false, sla: false, status: false, especial: false };
+    return {
+      fase: false,
+      responsavel: false,
+      sla: false,
+      status: false,
+      especial: false,
+      corretor: false,
+      imobiliaria: false,
+      tipologia: false,
+    };
   }
   return {
     fase: hasFase,
@@ -25,6 +38,9 @@ function computeExpandedInicial(f: KanbanBoardFiltros): Record<SecaoId, boolean>
     sla: hasSla,
     status: hasStatus,
     especial: hasEspecial,
+    corretor: hasCorretor,
+    imobiliaria: hasImob,
+    tipologia: hasTip,
   };
 }
 
@@ -142,6 +158,10 @@ type Props = {
   showFiltroEu: boolean;
   /** Exibe opções Perdas/Ganhos no filtro STATUS (Kanban Funding). */
   showPerdaGanhoFiltros?: boolean;
+  /** Funil Corretores — opções derivadas dos cards. */
+  corretoresOpcoes?: string[];
+  imobiliariasOpcoes?: string[];
+  tipologiasOpcoes?: string[];
   onLimpar: () => void;
   onAplicar: () => void;
 };
@@ -153,10 +173,15 @@ export function KanbanBoardFiltrosPanel({
   responsaveisOpcoes,
   showFiltroEu,
   showPerdaGanhoFiltros = false,
+  corretoresOpcoes = [],
+  imobiliariasOpcoes = [],
+  tipologiasOpcoes = [],
   onLimpar,
   onAplicar,
 }: Props) {
   const [expanded, setExpanded] = useState<Record<SecaoId, boolean>>(() => computeExpandedInicial(draft));
+  const showCorretoresFiltros =
+    corretoresOpcoes.length > 0 || imobiliariasOpcoes.length > 0 || tipologiasOpcoes.length > 0;
 
   const badges = useMemo(
     () => ({
@@ -165,6 +190,9 @@ export function KanbanBoardFiltrosPanel({
       sla: badgeSla(draft),
       status: badgeStatus(draft),
       especial: badgeEspecial(draft),
+      corretor: (draft.corretor ?? 'todos') !== 'todos' ? draft.corretor! : null,
+      imobiliaria: (draft.imobiliaria ?? 'todos') !== 'todos' ? draft.imobiliaria! : null,
+      tipologia: (draft.tipologia ?? 'todos') !== 'todos' ? draft.tipologia! : null,
     }),
     [draft, fases, responsaveisOpcoes],
   );
@@ -344,6 +372,117 @@ export function KanbanBoardFiltrosPanel({
             ))}
           </div>
         </SecaoColapsavel>
+
+        {showCorretoresFiltros && corretoresOpcoes.length > 0 ? (
+          <SecaoColapsavel
+            titulo="Corretor"
+            expandido={expanded.corretor}
+            onToggle={() => toggle('corretor')}
+            badge={badges.corretor}
+          >
+            <div
+              className={`${radioRow} max-h-28 flex-col flex-nowrap overflow-y-auto`}
+              style={{ color: 'var(--moni-text-primary)' }}
+            >
+              <label className={radioLabel}>
+                <input
+                  type="radio"
+                  name="board-filtro-corretor"
+                  checked={(draft.corretor ?? 'todos') === 'todos'}
+                  onChange={() => setDraft((d) => ({ ...d, corretor: 'todos' }))}
+                  className={radioClass}
+                />
+                Todos
+              </label>
+              {corretoresOpcoes.map((nome) => (
+                <label key={nome} className={radioLabel}>
+                  <input
+                    type="radio"
+                    name="board-filtro-corretor"
+                    checked={draft.corretor === nome}
+                    onChange={() => setDraft((d) => ({ ...d, corretor: nome }))}
+                    className={radioClass}
+                  />
+                  <span className="max-w-[11rem] truncate">{nome}</span>
+                </label>
+              ))}
+            </div>
+          </SecaoColapsavel>
+        ) : null}
+
+        {showCorretoresFiltros && imobiliariasOpcoes.length > 0 ? (
+          <SecaoColapsavel
+            titulo="Imobiliária"
+            expandido={expanded.imobiliaria}
+            onToggle={() => toggle('imobiliaria')}
+            badge={badges.imobiliaria}
+          >
+            <div
+              className={`${radioRow} max-h-28 flex-col flex-nowrap overflow-y-auto`}
+              style={{ color: 'var(--moni-text-primary)' }}
+            >
+              <label className={radioLabel}>
+                <input
+                  type="radio"
+                  name="board-filtro-imob"
+                  checked={(draft.imobiliaria ?? 'todos') === 'todos'}
+                  onChange={() => setDraft((d) => ({ ...d, imobiliaria: 'todos' }))}
+                  className={radioClass}
+                />
+                Todas
+              </label>
+              {imobiliariasOpcoes.map((nome) => (
+                <label key={nome} className={radioLabel}>
+                  <input
+                    type="radio"
+                    name="board-filtro-imob"
+                    checked={draft.imobiliaria === nome}
+                    onChange={() => setDraft((d) => ({ ...d, imobiliaria: nome }))}
+                    className={radioClass}
+                  />
+                  <span className="max-w-[11rem] truncate">{nome}</span>
+                </label>
+              ))}
+            </div>
+          </SecaoColapsavel>
+        ) : null}
+
+        {showCorretoresFiltros && tipologiasOpcoes.length > 0 ? (
+          <SecaoColapsavel
+            titulo="Tipologia"
+            expandido={expanded.tipologia}
+            onToggle={() => toggle('tipologia')}
+            badge={badges.tipologia}
+          >
+            <div
+              className={`${radioRow} max-h-28 flex-col flex-nowrap overflow-y-auto`}
+              style={{ color: 'var(--moni-text-primary)' }}
+            >
+              <label className={radioLabel}>
+                <input
+                  type="radio"
+                  name="board-filtro-tipologia"
+                  checked={(draft.tipologia ?? 'todos') === 'todos'}
+                  onChange={() => setDraft((d) => ({ ...d, tipologia: 'todos' }))}
+                  className={radioClass}
+                />
+                Todas
+              </label>
+              {tipologiasOpcoes.map((nome) => (
+                <label key={nome} className={radioLabel}>
+                  <input
+                    type="radio"
+                    name="board-filtro-tipologia"
+                    checked={draft.tipologia === nome}
+                    onChange={() => setDraft((d) => ({ ...d, tipologia: nome }))}
+                    className={radioClass}
+                  />
+                  <span className="max-w-[11rem] truncate">{nome}</span>
+                </label>
+              ))}
+            </div>
+          </SecaoColapsavel>
+        ) : null}
       </div>
 
       <div

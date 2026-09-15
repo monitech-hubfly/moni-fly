@@ -4,6 +4,28 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { MetaItem, ResponsavelItem } from '@/hooks/useMetasIndicadores';
 import { isoWeek } from '@/utils/periodos';
+import { KANBAN_INDICADORES_MENSAIS_IDS } from '@/lib/kanban/kanban-indicadores-ids';
+
+/** Retorna o Date UTC do domingo da semana ISO (year, week). */
+function getSundayOfIsoWeek(year: number, week: number): Date {
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = jan4.getUTCDay() || 7;
+  const monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1 + (week - 1) * 7);
+  const sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  return sunday;
+}
+
+/** Retorna true se o lançamento (pela sua semana) pertence ao mês calendário atual. */
+function lancamentoEhMesAtual(semana: number, semanaAno: number): boolean {
+  const sunday = getSundayOfIsoWeek(semanaAno, semana);
+  const hoje = new Date();
+  return (
+    sunday.getUTCFullYear() === hoje.getUTCFullYear() &&
+    sunday.getUTCMonth() === hoje.getUTCMonth()
+  );
+}
 
 export type IndicadorBone = {
   id: string;
@@ -15,6 +37,10 @@ export type IndicadorBone = {
   tipo: string | null;
   meta_valor: number | null;
   meta_unidade: string | null;
+  /** Valor do lançamento mais recente (string, ex: "7") */
+  lancamento_valor: string | null;
+  /** true = lançamento é do mês corrente (simulação); false = mês anterior (definitivo) */
+  lancamento_is_simulacao: boolean;
 };
 
 export type ComportamentoItem = {
@@ -32,6 +58,8 @@ export type AgendaMacroItem = {
   tempo_estimado_horas: number | null;
   objetivo_id: string | null;
   descricao_livre: string | null;
+  recorrente: boolean | null;
+  recorrencia_grupo_id: string | null;
 };
 
 export type ObjetivoResponsavel = {
@@ -61,6 +89,7 @@ function mesInicial(): string {
 
 export type UsePlanoBoneDayResult = {
   metas: MetaItem[];
+  metasConcluidas: MetaItem[];
   metasNaoConcluidas: MetaItem[];
   indicadores: IndicadorBone[];
   responsaveis: ResponsavelItem[];
@@ -72,6 +101,7 @@ export type UsePlanoBoneDayResult = {
   isLoading: boolean;
   error: string | null;
   recarregar: () => void;
+  removerMetaNaoConcluida: (id: string) => void;
 };
 
 export function usePlanoBoneDay(
@@ -80,6 +110,7 @@ export function usePlanoBoneDay(
 ): UsePlanoBoneDayResult {
   const supabase = useMemo(() => createClient(), []);
   const [metas,              setMetas]              = useState<MetaItem[]>([]);
+  const [metasConcluidas,    setMetasConcluidas]    = useState<MetaItem[]>([]);
   const [metasNaoConcluidas, setMetasNaoConcluidas] = useState<MetaItem[]>([]);
   const [indicadores,        setIndicadores]        = useState<IndicadorBone[]>([]);
   const [responsaveis,       setResponsaveis]       = useState<ResponsavelItem[]>([]);
@@ -100,7 +131,7 @@ export function usePlanoBoneDay(
     setError(null);
     try {
       // 1. Queries paralelas: objetivos, indicadores, responsáveis
-      const [objAtivRes, objNaoConclRes, indRes, respRes] = await Promise.all([
+      const [objAtivRes, objConclRes, objNaoConclRes, indRes, respRes] = await Promise.all([
         supabase
           .from('objetivos')
           .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
@@ -115,8 +146,19 @@ export function usePlanoBoneDay(
           .from('objetivos')
           .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
           .eq('area_id', areaId)
+          .eq('status', 'concluido')
+          .eq('mes', mes)
+          .is('objetivo_pai_id', null)
+          .order('is_chave', { ascending: false })
+          .order('ordem', { ascending: true }),
+
+        supabase
+          .from('objetivos')
+          .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
+          .eq('area_id', areaId)
           .neq('status', 'concluido')
           .neq('status', 'arquivado')
+          .neq('status', 'relancada')
           .lt('mes', mes)
           .not('mes', 'is', null)
           .is('objetivo_pai_id', null)
@@ -139,8 +181,9 @@ export function usePlanoBoneDay(
           .order('nome'),
       ]);
 
-      if (objAtivRes.error) throw objAtivRes.error;
-      if (indRes.error)     throw indRes.error;
+      if (objAtivRes.error)  throw objAtivRes.error;
+      if (objConclRes.error) throw objConclRes.error;
+      if (indRes.error)      throw indRes.error;
 
       type ObjRow = {
         id: string; descricao: string; tipo: string | null; is_chave: boolean | null;
@@ -191,13 +234,16 @@ export function usePlanoBoneDay(
 
       // Bloco 2: todas as metas ativas (sem filtro de prazo)
       const metasArr = ((objAtivRes.data ?? []) as ObjRow[]).map(toMeta);
-      // Bloco 1: não concluídas que ainda NÃO estão no Bloco 2 (evita duplicata)
+      // Metas concluídas do mês atual
+      const metasConclArr = ((objConclRes.data ?? []) as ObjRow[]).map(toMeta);
+      // Bloco 1: não concluídas de meses anteriores que ainda NÃO estão no Bloco 2 (evita duplicata)
       const metasAtivasIds = new Set(metasArr.map(m => m.id));
       const metasNaoConclArr = ((objNaoConclRes.data ?? []) as ObjRow[])
         .map(toMeta)
         .filter(m => !metasAtivasIds.has(m.id));
 
       setMetas(metasArr);
+      setMetasConcluidas(metasConclArr);
       setMetasNaoConcluidas(metasNaoConclArr);
 
       const objIds = metasArr.map(m => m.id);
@@ -231,11 +277,39 @@ export function usePlanoBoneDay(
         semaforo_faixas: unknown; objetivo_id: string | null; profile_id: string | null;
         tipo: string | null; meta_valor: number | null; meta_unidade: string | null;
       };
-      setIndicadores(((indRes.data ?? []) as IndRow[]).map(i => ({
-        id: i.id, nome: i.nome, indicador_chave: Boolean(i.indicador_chave),
-        semaforo_faixas: i.semaforo_faixas, objetivo_id: i.objetivo_id,
-        profile_id: i.profile_id, tipo: i.tipo, meta_valor: i.meta_valor, meta_unidade: i.meta_unidade,
-      })));
+      // Buscar lançamentos recentes para exibir valor atual no chip de semáforo
+      const indIds = ((indRes.data ?? []) as IndRow[]).map(i => i.id);
+      const lancMap = new Map<string, { valor: string; semana: number; semana_ano: number }>();
+      if (indIds.length > 0) {
+        const { data: lancData } = await supabase
+          .from('indicador_lancamentos')
+          .select('indicador_id, valor, semana, semana_ano')
+          .in('indicador_id', indIds)
+          .order('semana_ano', { ascending: false })
+          .order('semana', { ascending: false })
+          .limit(indIds.length * 4);
+        type LancRow = { indicador_id: string; valor: string; semana: number; semana_ano: number };
+        for (const l of ((lancData ?? []) as LancRow[])) {
+          if (!lancMap.has(l.indicador_id)) {
+            lancMap.set(l.indicador_id, { valor: l.valor, semana: l.semana, semana_ano: l.semana_ano });
+          }
+        }
+      }
+
+      setIndicadores(((indRes.data ?? []) as IndRow[]).map(i => {
+        const lanc = lancMap.get(i.id);
+        const isMensal = KANBAN_INDICADORES_MENSAIS_IDS.has(i.id);
+        const isSimulacao = isMensal && lanc
+          ? lancamentoEhMesAtual(lanc.semana, lanc.semana_ano)
+          : false;
+        return {
+          id: i.id, nome: i.nome, indicador_chave: Boolean(i.indicador_chave),
+          semaforo_faixas: i.semaforo_faixas, objetivo_id: i.objetivo_id,
+          profile_id: i.profile_id, tipo: i.tipo, meta_valor: i.meta_valor, meta_unidade: i.meta_unidade,
+          lancamento_valor: lanc?.valor ?? null,
+          lancamento_is_simulacao: isSimulacao,
+        };
+      }));
 
       // 2. Queries sequenciais usando dados já buscados
       const metaIds         = metasArr.map(m => m.id);
@@ -252,7 +326,7 @@ export function usePlanoBoneDay(
         // gantt do Boné Day (sem area_id na tabela — filtra por profiles da área)
         ganttProfileIds.length > 0
           ? supabase.from('gantt_planejamento')
-              .select('id, acao_id, profile_id, semana_ano_inicio, semana_ano_fim, tempo_estimado_horas, objetivo_id, descricao_livre')
+              .select('id, acao_id, tarefa_id, profile_id, semana_ano_inicio, semana_ano_fim, tempo_estimado_horas, objetivo_id, descricao_livre, recorrente, recorrencia_grupo_id')
               .in('profile_id', ganttProfileIds)
               .eq('origem', 'pre_bone_day')
               .eq('pre_bone_day_mes', mes)
@@ -265,16 +339,19 @@ export function usePlanoBoneDay(
       })));
 
       type GanttRow = {
-        id: string; acao_id: string | null; profile_id: string | null;
+        id: string; acao_id: string | null; tarefa_id: string | null; profile_id: string | null;
         semana_ano_inicio: number | null; semana_ano_fim: number | null;
         tempo_estimado_horas: number | null; objetivo_id: string | null;
-        descricao_livre: string | null;
+        descricao_livre: string | null; recorrente: boolean | null;
+        recorrencia_grupo_id: string | null;
       };
       const ganttArr = ((ganttRes.data ?? []) as GanttRow[]).map(g => ({
         id: g.id, acao_id: g.acao_id ?? null, tarefa_id: null as string | null, profile_id: g.profile_id,
         semana_ano_inicio: g.semana_ano_inicio, semana_ano_fim: g.semana_ano_fim,
         tempo_estimado_horas: g.tempo_estimado_horas, objetivo_id: g.objetivo_id ?? null,
         descricao_livre: g.descricao_livre ?? null,
+        recorrente: g.recorrente ?? null,
+        recorrencia_grupo_id: g.recorrencia_grupo_id ?? null,
       }));
       const acoIds = ganttArr.map(g => g.acao_id).filter((id): id is string => Boolean(id));
       if (acoIds.length > 0) {
@@ -297,9 +374,11 @@ export function usePlanoBoneDay(
   useEffect(() => { carregar(); }, [carregar]);
 
   return {
-    metas, metasNaoConcluidas, indicadores, responsaveis,
+    metas, metasConcluidas, metasNaoConcluidas, indicadores, responsaveis,
     comportamentos, agendaMacro, objetivoResponsaveis, mes, setMes,
     isLoading, error, recarregar: carregar,
+    removerMetaNaoConcluida: (id: string) =>
+      setMetasNaoConcluidas(prev => prev.filter(m => m.id !== id)),
   };
 }
 

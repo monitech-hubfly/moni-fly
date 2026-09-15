@@ -210,6 +210,14 @@
   --moni-kanban-moni-care-light:  var(--moni-green-50);
   --moni-kanban-moni-care-accent: var(--moni-green-400);
 
+  /* Funil Corretores — violeta (diferencia de Obras); sem laranja */
+  --moni-kanban-corretores:        #5B21B6;
+  --moni-kanban-corretores-light:  #F5F3FF;
+  --moni-kanban-corretores-accent: #7C3AED;
+  --moni-kanban-corretores-negoc:  var(--moni-gold-600);
+  --moni-kanban-corretores-ok:     var(--moni-green-600);
+  --moni-kanban-corretores-lost:   var(--moni-neutral-500);
+
   /* Funding — badges tipo Investidor / Broker */
   --moni-funding-investidor-bg:   #E6F1FB;
   --moni-funding-investidor-text: #185FA5;
@@ -587,7 +595,7 @@
   border: var(--moni-border-width) solid var(--moni-gold-400);
 }
 
-/* Tag de conteúdo — padrão pill “Média” (todos os funis; ignora cor do cadastro) */
+/* Tag de conteúdo — padrão pill “Média” (fallback sem cor de cadastro) */
 .moni-tag-chip {
   display: inline-flex;
   align-items: center;
@@ -604,6 +612,22 @@
   background: var(--moni-card-tag-bg);
   color: var(--moni-card-tag-text);
   border: var(--moni-border-width) solid var(--moni-card-tag-border);
+}
+
+/* Tag com cor própria (tranche / cadastro) — não sobrescrever com !important */
+.moni-tag-chip-custom {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 2px;
+  height: var(--moni-card-tag-height);
+  padding: 0 var(--moni-card-tag-padding-x);
+  border-radius: 999px;
+  font-family: var(--moni-font-sans);
+  font-size: var(--moni-card-tag-font-size);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .moni-kanban-board-tag-remove {
@@ -2374,6 +2398,7 @@
 .moni-kanban-id--credito   { background: var(--moni-kanban-credito-light);   color: var(--moni-kanban-credito);   border-color: var(--moni-kanban-credito-accent); }
 .moni-kanban-id--marketing { background: var(--moni-kanban-marketing-light); color: var(--moni-kanban-marketing); border-color: var(--moni-kanban-marketing-accent); }
 .moni-kanban-id--moni-care { background: var(--moni-kanban-moni-care-light); color: var(--moni-kanban-moni-care); border-color: var(--moni-kanban-moni-care-accent); }
+.moni-kanban-id--corretores { background: var(--moni-kanban-corretores-light); color: var(--moni-kanban-corretores); border-color: var(--moni-kanban-corretores-accent); }
 
 /* Shell do board — isola colunas dentro do main (nunca sob o sidebar) */
 .moni-kanban-shell {
@@ -3362,7 +3387,7 @@
   opacity: 1;
 }
 
-/* Tags de conteúdo no card — força padrão Média (sobrescreve cor inline do DB) */
+/* Tags de conteúdo no card — força padrão Média só no fallback sem cor */
 .moni-kanban-card .moni-tag-chip {
   height: var(--moni-card-tag-height);
   padding: 0 var(--moni-card-tag-padding-x);
@@ -3373,6 +3398,15 @@
   background: var(--moni-card-tag-bg) !important;
   color: var(--moni-card-tag-text) !important;
   border-color: var(--moni-card-tag-border) !important;
+}
+
+.moni-kanban-card .moni-tag-chip-custom {
+  height: var(--moni-card-tag-height);
+  padding: 0 var(--moni-card-tag-padding-x);
+  border-radius: 999px;
+  font-size: var(--moni-card-tag-font-size);
+  font-weight: 600;
+  line-height: 1;
 }
 
 /* Tag «Contratar Inst. Garantidor» — vermelho sóbrio no board */
@@ -3690,6 +3724,23 @@
   border: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
   color: var(--moni-kanban-drawer-header-text);
   background: var(--moni-surface-0);
+}
+
+/* Funil Jurídico — contador de revisões (Fase 5/6 → Fase 3) */
+.moni-juridico-bolinha-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--moni-radius-md);
+  padding: 2px 7px;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--moni-navy-800);
+  background: color-mix(in srgb, var(--moni-gold-400) 22%, var(--moni-surface-0));
+  border: var(--moni-border-width) solid var(--moni-gold-400);
 }
 
 .moni-kanban-drawer-close {
@@ -4400,7 +4451,56 @@
   color: var(--moni-text-secondary);
 }
 
-/* Card modal — Movimentação (Anterior · Arquivar · Próxima) */
+/* Card modal — Movimentação (select de fase + Anterior · Arquivar · Próxima) */
+.moni-card-modal-movimentacao-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.moni-card-modal-movimentacao-fase-select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.moni-card-modal-movimentacao-fase-select-label {
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--moni-text-secondary);
+}
+
+.moni-card-modal-movimentacao-fase-select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-surface-0);
+  color: var(--moni-text-primary);
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.moni-card-modal-movimentacao-fase-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.moni-card-modal-movimentacao-fase-select:focus {
+  outline: none;
+  border-color: var(--moni-navy-800);
+}
+
 .moni-card-modal-movimentacao-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

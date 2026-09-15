@@ -24,8 +24,8 @@ import {
   getSignedUrlRedeAnexo,
   prepararSchemaAnexoNumeroFranquia,
   salvarJustificativaRedeAnexo,
-  uploadRedeFranqueadoAssinado,
 } from '../actions';
+import { uploadRedeAnexoClient } from '@/lib/rede/rede-anexo-upload-client';
 import { RedeDocsSecaoColapsavel, RedeDocsSubsecaoColapsavel } from './rede-docs-secao-colapsavel';
 import type { FranqueadoSpeRow } from '@/lib/franqueado-spe';
 import type { FranqueadoEmpresaExtraRow } from '@/lib/franqueado-empresa-extra';
@@ -153,7 +153,11 @@ function DocUploadCard({
         <button
           type="button"
           disabled={busy}
-          onClick={() => inputRef.current?.click()}
+          onClick={() => {
+            if (!inputRef.current) return;
+            inputRef.current.value = '';
+            inputRef.current.click();
+          }}
           className={`inline-flex min-h-[2.25rem] items-center justify-center rounded-lg bg-moni-primary px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 ${
             path ? 'min-w-0 flex-1' : 'w-full'
           }`}
@@ -210,7 +214,12 @@ export function RedeFranqueadoDetalheDocs({
   const router = useRouter();
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [up, setUp] = useState<string | null>(null);
+  const [pathOverrides, setPathOverrides] = useState<Record<string, string>>({});
   const [abrirSecaoEmpresas, setAbrirSecaoEmpresas] = useState(false);
+
+  function resolvePath(tipo: string, fallback: string | null): string | null {
+    return pathOverrides[tipo] ?? fallback;
+  }
 
   useEffect(() => {
     void prepararSchemaAnexoNumeroFranquia();
@@ -231,7 +240,7 @@ export function RedeFranqueadoDetalheDocs({
     return {
       tipo: slot.tipo,
       titulo: slot.titulo,
-      path,
+      path: resolvePath(slot.tipo, path),
       justificativa,
       permiteJustificativa: slot.justificativaKey !== null,
       contaPendencia: true,
@@ -252,7 +261,7 @@ export function RedeFranqueadoDetalheDocs({
     return {
       tipo: slot.tipo,
       titulo: slot.titulo,
-      path: paths[slot.tipo],
+      path: resolvePath(slot.tipo, paths[slot.tipo]),
       justificativa: justs[slot.tipo],
       permiteJustificativa: true,
       contaPendencia: true,
@@ -265,7 +274,7 @@ export function RedeFranqueadoDetalheDocs({
       return {
         tipo: slot.tipo,
         titulo: slot.titulo,
-        path,
+        path: resolvePath(slot.tipo, path),
         justificativa,
         permiteJustificativa: slot.justificativaKey !== null,
         contaPendencia: slot.obrigatorioParaCadastroCompleto,
@@ -299,14 +308,25 @@ export function RedeFranqueadoDetalheDocs({
     fd.set('tipo', tipo);
     fd.set('redeId', redeId);
     fd.set('file', f);
-    const r = await uploadRedeFranqueadoAssinado(fd);
-    setUp(null);
-    if (!r.ok) {
-      setMsg({ tipo: 'erro', texto: r.error });
-      return;
+    try {
+      const r = await uploadRedeAnexoClient(fd);
+      if (!r.ok) {
+        setMsg({ tipo: 'erro', texto: r.error });
+        return;
+      }
+      if (r.path) {
+        setPathOverrides((prev) => ({ ...prev, [tipo]: r.path! }));
+      }
+      setMsg({ tipo: 'ok', texto: 'Arquivo salvo com sucesso.' });
+      router.refresh();
+    } catch (err) {
+      setMsg({
+        tipo: 'erro',
+        texto: err instanceof Error ? err.message : 'Erro inesperado ao enviar o arquivo.',
+      });
+    } finally {
+      setUp(null);
     }
-    setMsg({ tipo: 'ok', texto: 'Arquivo enviado com sucesso.' });
-    router.refresh();
   }
 
   const cardProps = {
