@@ -18,6 +18,8 @@ import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
 import { validarMotivoArquivamento } from '@/lib/kanban/motivos-arquivamento';
 import type { PortfolioConfirmacaoFaseTipo } from '@/lib/kanban/portfolio-confirmacao-fase';
 import type { OperacoesConfirmacaoFaseTipo } from '@/lib/kanban/operacoes-confirmacao-fase';
+import type { LoteadoresConfirmacaoFaseTipo } from '@/lib/kanban/loteadores-confirmacao-fase';
+import type { HistoricoItem } from '@/components/kanban-shared/kanban-card-modal-helpers';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
@@ -213,13 +215,17 @@ export async function vincularTagCard(
   cardId: string,
   tagId: string,
   basePath?: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   try {
     const supabase = await createClient();
-    const { error } = await supabase.from('kanban_card_tags').insert({ card_id: cardId, tag_id: tagId });
+    const { data, error } = await supabase
+      .from('kanban_card_tags')
+      .insert({ card_id: cardId, tag_id: tagId })
+      .select('id')
+      .single();
     if (error) return { ok: false, error: error.message };
     revalidatePath(basePath ?? '/');
-    return { ok: true };
+    return { ok: true, id: String((data as { id?: string } | null)?.id ?? '') };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -1919,8 +1925,6 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
       montarTituloCardLoteadores({
         nomeLoteador: (input.nomeLoteador ?? '').trim() || titulo,
         nomeCondominio,
-        quadra,
-        lote,
         tituloFallback: titulo,
       }) ?? titulo;
   }
@@ -2624,6 +2628,9 @@ export type RelacionamentoCardRow = {
   fase_nome: string;
   tipo: TipoRelacionamentoDisplay;
   vinculo_id: string | null;
+  arquivado?: boolean | null;
+  concluido?: boolean | null;
+  created_at?: string | null;
 };
 
 async function perfilEhAdminOuConsultor(
@@ -4129,6 +4136,8 @@ export type SalvarProximaAtividadeInput = {
   proxima_atividade?: string | null;
   prazo_atividade?: string | null;
   basePath?: string;
+  /** Se true, não revalida paths após salvar (útil em cenários de batch). */
+  skipRevalidate?: boolean;
 };
 
 /** Salva próxima atividade e prazo em `kanban_cards` (todos os funis). */
@@ -4399,6 +4408,8 @@ export async function moverCardParaFase(input: {
   motivoReprovacaoAcoplamento?: string;
   /** Obrigatório ao avançar de fase com SLA vencido (quando ainda não há justificativa na fase). */
   justificativaSlaQuebra?: string;
+  /** Se true, não revalida paths após mover (usado em operações DnD em batch). */
+  skipRevalidate?: boolean;
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -5263,4 +5274,213 @@ export async function salvarLinksBcaAcoplamentoNegocio(input: {
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
   return { ok: true, linkGbox: sync.linkGbox, linkAcoplamento: sync.linkAcoplamento };
+}
+
+// ---------------------------------------------------------------------------
+// Funil Loteadores — confirmação de fase (contrato/opção/comitê)
+// ---------------------------------------------------------------------------
+
+export async function registrarConfirmacaoFaseLoteadores(input: {
+  cardId: string;
+  tipo: LoteadoresConfirmacaoFaseTipo;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar a confirmação.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  const tipo = input.tipo;
+  if (!cardId || !tipo) return { ok: false, error: 'Dados inválidos.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.LOTEADORES) {
+    return { ok: false, error: 'Confirmação aplicável apenas ao Funil Loteadores.' };
+  }
+
+  const now = new Date().toISOString();
+  const patchByTipo: Record<LoteadoresConfirmacaoFaseTipo, Record<string, boolean | string>> = {
+    opcao:          { opcao_assinada: true,            opcao_assinada_em: now },
+    comite:         { comite_aprovado: true,            comite_aprovado_em: now },
+    cto_precedentes: { cto_precedentes_assinado: true, cto_precedentes_assinado_em: now },
+    cto_showroom:   { cto_showroom_assinado: true,      cto_showroom_assinado_em: now },
+    cto_parceria:   { cto_parceria_assinado: true,      cto_parceria_assinado_em: now },
+  };
+
+  const patch = patchByTipo[tipo];
+  if (!patch) return { ok: false, error: 'Tipo de confirmação inválido.' };
+
+  const { error: updErr } = await supabase
+    .from('kanban_cards')
+    .update(patch as never)
+    .eq('id', cardId);
+
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Perda / Ganho de cards Kanban
+// ---------------------------------------------------------------------------
+
+/** Retorna os motivos de perda cadastrados. */
+export async function buscarMotivosPerda(): Promise<{ id: string; descricao: string }[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('kanban_motivos_perda')
+    .select('id, descricao')
+    .eq('ativo', true)
+    .order('descricao');
+  return (data ?? []) as { id: string; descricao: string }[];
+}
+
+/** Registra o resultado "perda" num card Kanban. */
+export async function registrarPerda(input: {
+  cardId: string;
+  motivoId: string;
+  justificativa?: string | null;
+  basePath?: string;
+  kanbanNome?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar a perda.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { error } = await supabase
+    .from('kanban_cards')
+    .update({
+      resultado: 'perda',
+      motivo_perda_id: input.motivoId || null,
+      justificativa_perda: input.justificativa ? String(input.justificativa).trim() : null,
+      arquivado: true,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', cardId);
+
+  if (error) return { ok: false, error: error.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Registra o resultado "ganho" num card Kanban. */
+export async function registrarGanho(input: {
+  cardId: string;
+  justificativa?: string | null;
+  basePath?: string;
+  kanbanNome?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar o ganho.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { error } = await supabase
+    .from('kanban_cards')
+    .update({
+      resultado: 'ganho',
+      justificativa_ganho: input.justificativa ? String(input.justificativa).trim() : null,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', cardId);
+
+  if (error) return { ok: false, error: error.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Reativa um card marcado como perda — limpa resultado e desarquiva. */
+export async function reativarPerdaCard(input: {
+  cardId: string;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para reativar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { error } = await supabase
+    .from('kanban_cards')
+    .update({
+      resultado: null,
+      motivo_perda_id: null,
+      justificativa_perda: null,
+      arquivado: false,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', cardId);
+
+  if (error) return { ok: false, error: error.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Histórico unificado de card (audit_log)
+// ---------------------------------------------------------------------------
+
+/** Carrega o histórico de ações registradas em audit_log para um card. */
+export async function carregarHistoricoUnificadoCard(input: {
+  cardId: string;
+  origem?: 'nativo' | 'legado';
+}): Promise<{ ok: true; items: HistoricoItem[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('id, acao, usuario, detalhe:snapshot_depois, criado_em:created_at')
+    .or(`entidade_id.eq.${cardId},recurso_id.eq.${cardId}`)
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (error) return { ok: false, error: error.message };
+
+  const items: HistoricoItem[] = (data ?? []).map((row) => ({
+    id: String(row.id ?? ''),
+    acao: String((row as { acao?: string | null }).acao ?? '—'),
+    usuario_nome: String((row as { usuario?: string | null }).usuario ?? '') || null,
+    detalhe: (row as { detalhe?: Record<string, unknown> | null }).detalhe ?? null,
+    criado_em: String((row as { criado_em?: string | null }).criado_em ?? ''),
+  }));
+
+  return { ok: true, items };
 }

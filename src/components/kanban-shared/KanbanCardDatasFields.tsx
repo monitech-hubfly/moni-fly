@@ -14,6 +14,10 @@ type Props = {
   dataReuniao: string;
   onDataReuniaoChange: (v: string) => void;
   onAtaSalva: () => void;
+  /** Data de follow-up (opcional — reservado para uso futuro). */
+  dataFollowup?: string;
+  /** Callback ao alterar data de follow-up (opcional). */
+  onDataFollowupChange?: (v: string) => void;
 };
 
 const cardStyle = {

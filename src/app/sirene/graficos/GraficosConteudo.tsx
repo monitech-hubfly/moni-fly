@@ -207,7 +207,7 @@ function KpisSection({
   );
 }
 
-// ─── Seção: Chamados sem aceite ───────────────────────────────────────────────
+// ─── Seção: Tópicos aguardando aceite ────────────────────────────────────────
 
 function SemAceiteSection({
   rows,
@@ -216,31 +216,18 @@ function SemAceiteSection({
   rows: GraficosData['semAceite'];
   onDrilldown: (filtro: DrilldownFiltro) => void;
 }) {
-  const [mostrarArquivados, setMostrarArquivados] = useState(false);
-  const totalArquivados = rows.filter((r) => r.arquivado).length;
-  const filtered = useMemo(() => {
-    const list = mostrarArquivados ? rows : rows.filter((r) => !r.arquivado);
-    return [...list].sort((a, b) => b.dias_uteis - a.dias_uteis);
-  }, [rows, mostrarArquivados]);
-  const ativos = filtered.filter((r) => !r.arquivado && r.dias_uteis >= 1);
-  const f1  = ativos.filter((r) => r.dias_uteis === 1).length;
-  const f2  = ativos.filter((r) => r.dias_uteis === 2).length;
-  const f35 = ativos.filter((r) => r.dias_uteis >= 3 && r.dias_uteis <= 5).length;
-  const f5p = ativos.filter((r) => r.dias_uteis > 5).length;
+  const ativos = useMemo(() => [...rows.filter((r) => !r.arquivado)].sort((a, b) => b.dias_aguardando - a.dias_aguardando), [rows]);
   const total = ativos.length;
+  const f1  = ativos.filter((r) => r.dias_aguardando === 1).length;
+  const f25 = ativos.filter((r) => r.dias_aguardando >= 2 && r.dias_aguardando <= 5).length;
+  const f5p = ativos.filter((r) => r.dias_aguardando > 5).length;
 
   return (
     <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <span className="font-semibold text-[color:var(--moni-text-primary)]">Chamados sem aceite</span>
-        <span className="text-xs text-[color:var(--moni-text-tertiary)]">Meta: 0 · Finais de semana e feriados não contam</span>
+        <span className="font-semibold text-[color:var(--moni-text-primary)]">Tópicos aguardando aceite</span>
+        <span className="text-xs text-[color:var(--moni-text-tertiary)]">Meta: 0 · Tópico atribuído a alguém mas ainda não confirmado · d.u. = dias úteis</span>
         <div className="flex-1" />
-        {totalArquivados > 0 && (
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-[color:var(--moni-text-tertiary)]">
-            <input type="checkbox" checked={mostrarArquivados} onChange={(e) => setMostrarArquivados(e.target.checked)} className="h-3 w-3 rounded" />
-            Mostrar arquivados ({totalArquivados})
-          </label>
-        )}
         {total > 0 && (
           <button
             onClick={() => onDrilldown({ tipo: 'sem_aceite' })}
@@ -255,12 +242,11 @@ function SemAceiteSection({
       <div className="mb-4 flex flex-wrap items-end gap-4">
         <div>
           <span className={`text-5xl font-bold tabular-nums ${total === 0 ? 'text-green-600' : 'text-red-600'}`}>{total}</span>
-          <div className="mt-0.5 text-[11px] text-[color:var(--moni-text-tertiary)]">chamados</div>
+          <div className="mt-0.5 text-[11px] text-[color:var(--moni-text-tertiary)]">tópicos</div>
         </div>
         <div className="flex flex-wrap gap-2">
           {f1  > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-center"><div className="text-lg font-bold text-amber-700">{f1}</div><div className="text-[10px] text-amber-600">1 d.u.</div></div>}
-          {f2  > 0 && <div className="rounded-lg border border-amber-300 bg-amber-100 px-3 py-1.5 text-center"><div className="text-lg font-bold text-amber-800">{f2}</div><div className="text-[10px] text-amber-700">2 d.u.</div></div>}
-          {f35 > 0 && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-center"><div className="text-lg font-bold text-red-700">{f35}</div><div className="text-[10px] text-red-600">3–5 d.u.</div></div>}
+          {f25 > 0 && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-center"><div className="text-lg font-bold text-red-700">{f25}</div><div className="text-[10px] text-red-600">2–5 d.u.</div></div>}
           {f5p > 0 && <div className="rounded-lg border border-red-300 bg-red-100 px-3 py-1.5 text-center"><div className="text-lg font-bold text-red-900">{f5p}</div><div className="text-[10px] text-red-700">+5 d.u.</div></div>}
         </div>
         {total > 0 && (
@@ -274,9 +260,9 @@ function SemAceiteSection({
       </div>
 
       <div className="max-h-72 overflow-y-auto rounded-lg border border-[color:var(--moni-border-default)]">
-        {filtered.length === 0 ? (
+        {ativos.length === 0 ? (
           <div className="flex items-center justify-center py-6">
-            <span className="text-sm font-medium text-green-700">✓ Todos os chamados foram aceitos a tempo</span>
+            <span className="text-sm font-medium text-green-700">✓ Nenhum tópico aguardando aceite</span>
           </div>
         ) : (
           <table className="w-full text-[11px]">
@@ -284,27 +270,24 @@ function SemAceiteSection({
               <tr className="border-b border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)]">
                 <th className="px-3 py-1.5 text-left font-semibold text-[color:var(--moni-text-secondary)]">#</th>
                 <th className="px-3 py-1.5 text-left font-semibold text-[color:var(--moni-text-secondary)]">Chamado</th>
-                <th className="px-3 py-1.5 text-left font-semibold text-[color:var(--moni-text-secondary)]">Aberto por</th>
-                <th className="px-3 py-1.5 text-left font-semibold text-[color:var(--moni-text-secondary)]">Aberto em</th>
+                <th className="px-3 py-1.5 text-left font-semibold text-[color:var(--moni-text-secondary)]">Responsável</th>
+                <th className="px-3 py-1.5 text-left font-semibold text-[color:var(--moni-text-secondary)]">Atribuído em</th>
                 <th className="px-3 py-1.5 text-right font-semibold text-[color:var(--moni-text-secondary)]">Espera</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {ativos.map((r) => (
                 <tr
-                  key={r.id}
-                  className={`cursor-pointer border-b border-[color:var(--moni-border-default)] last:border-b-0 hover:bg-[var(--moni-surface-50)] ${r.arquivado ? 'opacity-60' : ''}`}
-                  onClick={() => window.open(`/sirene/${r.id}`, '_blank')}
+                  key={r.topico_id}
+                  className="cursor-pointer border-b border-[color:var(--moni-border-default)] last:border-b-0 hover:bg-[var(--moni-surface-50)]"
+                  onClick={() => window.open(`/sirene/${r.chamado_id}`, '_blank')}
                   title="Abrir chamado"
                 >
                   <td className="px-3 py-1.5 font-mono text-[color:var(--moni-text-tertiary)]">#{String(r.numero).padStart(4, '0')}</td>
-                  <td className="max-w-[200px] truncate px-3 py-1.5 text-[color:var(--moni-text-primary)]">
-                    {r.arquivado && <span className="mr-1 rounded border border-amber-200 bg-amber-50 px-1 text-[9px] text-amber-700">Arq</span>}
-                    {r.titulo ?? '(sem título)'}
-                  </td>
-                  <td className="px-3 py-1.5 text-[color:var(--moni-text-secondary)]">{r.aberto_por_nome ?? '—'}</td>
-                  <td className="px-3 py-1.5 text-[color:var(--moni-text-secondary)]">{new Date(r.criado_em).toLocaleDateString('pt-BR')}</td>
-                  <td className="px-3 py-1.5 text-right"><DiasBadge dias={r.dias_uteis} /></td>
+                  <td className="max-w-[200px] truncate px-3 py-1.5 text-[color:var(--moni-text-primary)]">{r.titulo ?? '(sem título)'}</td>
+                  <td className="px-3 py-1.5 text-[color:var(--moni-text-secondary)]">{r.responsavel_nome ?? '—'}</td>
+                  <td className="px-3 py-1.5 text-[color:var(--moni-text-secondary)]">{new Date(r.topico_criado_em).toLocaleDateString('pt-BR')}</td>
+                  <td className="px-3 py-1.5 text-right"><DiasBadge dias={r.dias_aguardando} /></td>
                 </tr>
               ))}
             </tbody>
@@ -1001,7 +984,9 @@ export function GraficosConteudo({
         <p className="pb-4 text-[11px] text-[color:var(--moni-text-tertiary)]">
           SLA calculado sobre tópicos com atribuição registrada · aceite sem timestamp conta como dentro do prazo ·
           finais de semana e feriados excluídos ·
-          Área via time_responsavel do tópico · Funil via kanban_atividades → kanban_cards → kanbans
+          Área via time_responsavel do tópico · Funil via kanban_atividades → kanban_cards → kanbans ·
+          &quot;Tópicos aguardando aceite&quot; = atribuicao_status pendente_aceite em chamados ativos ·
+          &quot;Total em aberto&quot; exclui registros sem identificação de abertura (legados)
         </p>
       </div>
 

@@ -21,10 +21,13 @@ export type SireneItem = {
   frank_nome: string | null;
   trava: boolean;
   te_trata: boolean;
+  /** Nome da pessoa que abriu o tópico (preenchido quando disponível). */
+  aberto_por_nome?: string | null;
 };
 
 export type AtividadeItem = {
   id: string;
+  acao_id: string | null;
   nome_acao: string | null;
   comportamento_chave: boolean;
   semana_ano_inicio: number | null;
@@ -49,6 +52,12 @@ export type UseBacklogResult = {
   atividades: AtividadeItem[];
   isLoading: boolean;
   error: string | null;
+  /** Força recarga completa do backlog (útil após exclusões). */
+  recarregar: () => void;
+  /** IDs de atividades ativas (para filtrar no Modal de Agendamento). */
+  ativoIds?: Set<string>;
+  /** Atividades já agendadas (incluídas no Modal de Agendamento). */
+  atividadesAgendadas?: { id: string; nome: string | null; prazo: string | null }[];
 };
 
 const ADMIN_EMAIL = 'danilo.n@moni.casa';
@@ -126,11 +135,15 @@ export function useBacklog(): UseBacklogResult {
           .eq('arquivado', false),
 
         // Janela: semana atual ±4 semanas. Atividades atrasadas além da janela são buscadas separadamente.
+        // Filtra apenas atividades vinculadas ao catálogo (acao_id IS NOT NULL) e sem horário (hora_inicio IS NULL).
+        // Itens com hora_inicio são eventos de agenda (criados via modal de calendário) — ficam apenas no calendário.
         supabase
           .from('gantt_planejamento')
-          .select('id, acao_id, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
+          .select('id, acao_id, titulo, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
           .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
           .is('data_conclusao_real', null)
+          .not('acao_id', 'is', null)
+          .is('hora_inicio', null)
           .overlaps('semanas_selecionadas', [
             semanaAtual - 4, semanaAtual - 3, semanaAtual - 2,
             semanaAtual - 1, semanaAtual, semanaAtual + 1, semanaAtual + 2,
@@ -145,12 +158,15 @@ export function useBacklog(): UseBacklogResult {
               .eq('reclassificado', false)
           : Promise.resolve({ data: [], error: null }),
 
-        // Atividades atrasadas além da janela de ±4 semanas (garante cobertura total)
+        // Atividades atrasadas além da janela de ±4 semanas (garante cobertura total).
+        // Mesmo critério: acao_id IS NOT NULL e hora_inicio IS NULL (não são eventos de agenda).
         supabase
           .from('gantt_planejamento')
-          .select('id, acao_id, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
+          .select('id, acao_id, titulo, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
           .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
           .is('data_conclusao_real', null)
+          .not('acao_id', 'is', null)
+          .is('hora_inicio', null)
           .lt('semana_ano_fim', semanaAtual - 4),
       ]);
 
@@ -223,6 +239,7 @@ export function useBacklog(): UseBacklogResult {
       type AtivRaw = {
         id: string;
         acao_id: string | null;
+        titulo: string | null;
         comportamento_chave: boolean;
         semana_ano_inicio: number | null;
         semana_ano_fim: number | null;
@@ -238,7 +255,8 @@ export function useBacklog(): UseBacklogResult {
         const acaoObj = Array.isArray(row.acoes) ? row.acoes[0] : row.acoes;
         return {
           id:                    row.id,
-          nome_acao:             acaoObj?.nome ?? null,
+          acao_id:               row.acao_id,
+          nome_acao:             acaoObj?.nome ?? row.titulo ?? null,
           comportamento_chave:   row.comportamento_chave ?? false,
           semana_ano_inicio:     row.semana_ano_inicio,
           semana_ano_fim:        row.semana_ano_fim,
@@ -290,5 +308,5 @@ export function useBacklog(): UseBacklogResult {
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  return { sirene, pastelaria, atividades, isLoading, error };
+  return { sirene, pastelaria, atividades, isLoading, error, recarregar: carregar };
 }

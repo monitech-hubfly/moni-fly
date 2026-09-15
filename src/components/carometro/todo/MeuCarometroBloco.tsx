@@ -11,11 +11,12 @@ export function MeuCarometroBloco() {
     indicadores,
     diasSirene,
     diasEngajamento,
-    diasIndicadores,
     semanaAtual,
     isLoading,
     error,
   } = useMeuCarometro();
+  // diasIndicadores: hook retorna semanasIndicadores; usar diasEngajamento como fallback visual
+  const diasIndicadores = diasEngajamento;
 
   return (
     <div className="bg-[#F8F7F5] rounded-xl p-4 flex flex-col gap-4">
@@ -73,14 +74,14 @@ export function MeuCarometroBloco() {
                     <span className="text-gray-500">Ativ. atrasadas</span>
                     <span
                       className="font-medium"
-                      style={{ color: engajamento.atividadesAtrasadas > 0 ? '#dc2626' : undefined }}
+                      style={{ color: engajamento.atividades.atrasadas > 0 ? '#dc2626' : undefined }}
                     >
-                      {engajamento.atividadesAtrasadas}
+                      {engajamento.atividades.atrasadas}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Ativ. planejadas</span>
-                    <span className="font-medium">{engajamento.acumuladoDias}</span>
+                    <span className="font-medium">{engajamento.atividades.agendadas}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Cards atrasados</span>
@@ -93,7 +94,7 @@ export function MeuCarometroBloco() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Cards abertos</span>
-                    <span className="font-medium">{engajamento.cards.abertos}</span>
+                    <span className="font-medium">{engajamento.cards.comSLA}</span>
                   </div>
                 </>
               )}

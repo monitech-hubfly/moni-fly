@@ -367,6 +367,8 @@ export type TopicoPainelLinha = {
   atribuicao_status?: string | null;
   atribuicao_recusado_por?: string | null;
   atribuicao_justificativa?: string | null;
+  criado_por?: string | null;
+  prazo_sla_original?: string | null;
 };
 
 type GetTopicosPainelResult =
@@ -2003,6 +2005,7 @@ export async function listAnexosChamado(chamadoId: number): Promise<
         id: number;
         chamado_id: number;
         topico_id: number | null;
+        uploader_id: string | null;
         uploader_nome: string | null;
         nome_original: string | null;
         origem: string | null;
@@ -2024,10 +2027,10 @@ export async function listAnexosChamado(chamadoId: number): Promise<
 
   const { data: rows, error } = await supabase
     .from('sirene_anexos')
-    .select('id, chamado_id, topico_id, uploader_nome, nome_original, origem, created_at')
+    .select('id, chamado_id, topico_id, uploader_id, uploader_nome, nome_original, origem, created_at')
     .eq('chamado_id', chamadoId)
     .order('created_at', { ascending: false });
-
+  
   if (error) return { ok: false, error: error.message };
   return { ok: true, anexos: rows ?? [] };
 }
@@ -2137,6 +2140,35 @@ export async function uploadAnexoChamado(
 }
 
 /** URL assinada para download de anexo (bucket privado). */
+export async function excluirAnexoChamado(
+  anexoId: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const me = await getSireneUserContext(supabase);
+  if (!me) return { ok: false, error: 'Faça login.' };
+
+  const { data: anexo, error: findErr } = await supabase
+    .from('sirene_anexos')
+    .select('chamado_id, storage_path')
+    .eq('id', anexoId)
+    .single();
+  if (findErr || !anexo) return { ok: false, error: 'Anexo não encontrado.' };
+
+  // Remover do storage
+  const { error: storageErr } = await supabase.storage
+    .from('sirene-attachments')
+    .remove([anexo.storage_path]);
+  if (storageErr) {
+    // Log mas não bloqueia — remove o registro mesmo assim
+    console.warn('[excluirAnexoChamado] storage error:', storageErr.message);
+  }
+
+  const { error: delErr } = await supabase.from('sirene_anexos').delete().eq('id', anexoId);
+  if (delErr) return { ok: false, error: delErr.message };
+
+  return { ok: true };
+}
+
 export async function getAnexoChamadoDownloadUrl(
   anexoId: number,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
@@ -3283,6 +3315,8 @@ export async function getDashboardData(
         responsavel_nome: string | null;
         dias_aberto: number;
         origem: string;
+        kanban_atividade_id: string | null;
+        arquivado: boolean;
       }>;
     }
   | { ok: false; error: string }
@@ -3556,6 +3590,8 @@ export async function getDashboardData(
             responsavel_nome: null,
             dias_aberto: diasAberto,
             origem: 'sirene',
+            kanban_atividade_id: null,
+            arquivado: false,
           };
         })
         .sort((a, b) => {

@@ -1,8 +1,11 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { X } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import { useBacklog, SireneItem, AtividadeItem, PastelariaItem } from '@/hooks/useBacklog';
 import { BacklogColunaCard, StatusPrazo } from './BacklogColuna';
 import { isoWeek } from '@/utils/periodos';
@@ -174,33 +177,167 @@ function DraggableSirene({ dragId, dragData, children }: { dragId: string; dragD
 type ColunaAtividadesProps = {
   items: AtividadeItem[];
   semanaAtual: number;
-  onAbrirModal?: (p: Partial<DadosAgendamento>) => void;
+  onNovaAtividade?: () => void;
+  onExcluirAtividade?: (id: string, nome: string | null) => Promise<void>;
 };
-function ColunaAtividades({ items, semanaAtual, onAbrirModal }: ColunaAtividadesProps) {
+function ColunaAtividades({ items, semanaAtual, onNovaAtividade, onExcluirAtividade }: ColunaAtividadesProps) {
   const comStatus = items.map(i => ({ item: i, status: statusAtividade(i, semanaAtual) }));
 
   return (
-    <div className={`flex flex-col gap-1.5 ${items.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
-      {items.length === 0 && <EmptyState />}
-      {comStatus.map(({ item, status }) => (
-        <DraggableAtividade key={item.id} id={String(item.id)}>
-          <BacklogColunaCard
-            tipo="atividade"
-            titulo={item.nome_acao ?? '(sem título)'}
-            prazo={semanaFimEfetiva(item) != null ? `S${semanaFimEfetiva(item)}` : null}
-            status={status}
-          />
-        </DraggableAtividade>
-      ))}
-      {onAbrirModal && (
+    <>
+      <div className={`flex flex-col gap-1.5 ${items.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
+        {items.length === 0 && <EmptyState />}
+        {comStatus.map(({ item, status }) => (
+          <DraggableAtividade key={item.id} id={String(item.id)}>
+            <div className="relative group">
+              <BacklogColunaCard
+                tipo="atividade"
+                titulo={item.nome_acao ?? '(sem título)'}
+                prazo={semanaFimEfetiva(item) != null ? `S${semanaFimEfetiva(item)}` : null}
+                status={status}
+              />
+              {onExcluirAtividade && (
+                <button
+                  type="button"
+                  title="Remover do backlog"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onExcluirAtividade(item.id, item.nome_acao);
+                  }}
+                  className="absolute top-1 right-1 hidden group-hover:flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-300 text-gray-400 hover:text-red-500 hover:border-red-300 transition-colors shadow-sm z-10"
+                  aria-label="Remover atividade do backlog"
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+          </DraggableAtividade>
+        ))}
+      </div>
+      {onNovaAtividade && (
         <button
           type="button"
-          onClick={() => onAbrirModal({})}
+          onClick={onNovaAtividade}
           className="mt-2 w-full text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 border border-dashed border-gray-300 hover:border-blue-300 rounded-md py-1.5 transition-colors"
         >
           + Nova atividade
         </button>
       )}
+    </>
+  );
+}
+
+// ── SireneChamadoBacklogWrapper ───────────────────────────────────────────────
+type SireneChamadoBacklogWrapperProps = {
+  chamadoId: number;
+  onClose: () => void;
+  onConcluido?: () => void;
+};
+
+type ChamadoBasico = {
+  id: number;
+  numero: number;
+  incendio: string;
+  status: string;
+};
+
+export function SireneChamadoBacklogWrapper({
+  chamadoId,
+  onClose,
+  onConcluido,
+}: SireneChamadoBacklogWrapperProps) {
+  const [chamado, setChamado] = useState<ChamadoBasico | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/sirene/chamado-basico?id=${chamadoId}`)
+      .then((r) => r.ok ? r.json() as Promise<ChamadoBasico> : null)
+      .then((d) => { setChamado(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [chamadoId]);
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: 'var(--moni-surface-0)',
+          borderRadius: 'var(--moni-radius-lg)',
+          border: 'var(--moni-border-width) solid var(--moni-border-default)',
+          boxShadow: 'var(--moni-shadow-card)',
+          width: '100%', maxWidth: 480, padding: 24, position: 'relative',
+          fontFamily: 'var(--moni-font-sans)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--moni-text-tertiary)' }}
+          aria-label="Fechar"
+        >
+          <X size={16} />
+        </button>
+
+        {loading ? (
+          <p style={{ color: 'var(--moni-text-tertiary)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
+            Carregando chamado…
+          </p>
+        ) : chamado ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 11, color: 'var(--moni-text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Sirene #{chamado.numero}
+            </p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-display)' }}>
+              {chamado.incendio}
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--moni-text-secondary)' }}>
+              Status: <strong>{chamado.status}</strong>
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <a
+                href={`/sirene/chamados?interacao=${chamadoId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  flex: 1, textAlign: 'center',
+                  padding: '8px 12px', borderRadius: 'var(--moni-radius-md)',
+                  background: 'var(--moni-navy-800)', color: '#fff',
+                  fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                }}
+              >
+                Abrir chamado completo
+              </a>
+              {onConcluido && (
+                <button
+                  type="button"
+                  onClick={onConcluido}
+                  style={{
+                    flex: 1, padding: '8px 12px',
+                    borderRadius: 'var(--moni-radius-md)',
+                    border: 'var(--moni-border-width) solid var(--moni-green-800)',
+                    background: 'var(--moni-kanban-portfolio-light)',
+                    color: 'var(--moni-green-800)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  Marcar concluído
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p style={{ color: 'var(--moni-text-tertiary)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
+            Chamado não encontrado.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -210,9 +347,27 @@ type BacklogBlocoProps = {
   onAbrirModal?: (preenchido: Partial<DadosAgendamento>) => void;
 };
 
-export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
-  const { sirene, pastelaria, atividades, isLoading, error } = useBacklog();
+// onAbrirModal mantido no tipo por compatibilidade com o pai (não é mais usado internamente)
+export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps = {}) {
+  const { sirene, pastelaria, atividades, isLoading, error, recarregar } = useBacklog();
   const semanaAtual = isoWeek(new Date());
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
+
+  async function handleExcluirAtividade(id: string, nome: string | null) {
+    const label = nome ? `"${nome}"` : 'esta atividade';
+    if (!confirm(`Remover ${label} do backlog? O registro de planejamento será excluído.`)) return;
+    const { error: err } = await supabase
+      .from('gantt_planejamento')
+      .delete()
+      .eq('id', id);
+    if (err) {
+      console.error('[BacklogBloco] erro ao excluir atividade:', err);
+      alert('Erro ao excluir. Tente novamente.');
+      return;
+    }
+    recarregar();
+  }
 
   // Contadores para dots de status
   const sireneAtrasados  = sirene.filter(i => statusSirene(i) === 'atrasado').length;
@@ -275,7 +430,8 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
             <ColunaAtividades
               items={atividades}
               semanaAtual={semanaAtual}
-              onAbrirModal={onAbrirModal}
+              onNovaAtividade={() => router.push('/carometro/comportamentos-e-atividades')}
+              onExcluirAtividade={handleExcluirAtividade}
             />
           </div>
 
