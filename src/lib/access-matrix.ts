@@ -157,12 +157,18 @@ export function isCalculadoraPublicLeituraPath(pathname: string): boolean {
   return /^\/calculadora\/[^/]+\/leitura\/?$/.test(pathname);
 }
 
+/** Página pública do corretor — QR /simulador/[token], sem login. */
+export function isSimuladorPublicoPath(pathname: string): boolean {
+  return pathname === '/simulador' || pathname.startsWith('/simulador/');
+}
+
 /**
  * Conteúdo do portal acessível sem login: guias em leitura + iframe do embed + calculadora pública.
  */
 export function isBcaPublicLeituraAccessPath(pathname: string): boolean {
   if (isPublicGuiaLeituraPagePath(pathname)) return true;
   if (isCalculadoraPublicLeituraPath(pathname)) return true;
+  if (isSimuladorPublicoPath(pathname)) return true;
   return pathname === '/embed' || pathname.startsWith('/embed/');
 }
 
@@ -174,6 +180,50 @@ export function isAuthFlowAccessPath(pathname: string): boolean {
     pathname === '/esqueci-senha' ||
     pathname === '/redefinir-senha'
   );
+}
+
+const HUB_HOME_PATH = '/hub-funis';
+
+function normalizeInternalPathname(raw: string): string {
+  const noHash = String(raw ?? '').trim().split('#')[0] ?? '';
+  const noQuery = noHash.split('?')[0] ?? noHash;
+  const lower = noQuery.toLowerCase();
+  if (lower.length > 1 && lower.endsWith('/')) return lower.slice(0, -1);
+  return lower;
+}
+
+/** Páginas públicas de leitura — nunca usar como destino após login. */
+function isPublicLeituraPostLoginPath(pathname: string): boolean {
+  if (isBcaPublicLeituraAccessPath(pathname)) return true;
+  if (pathname === '/carta-fianca/leitura' || pathname.startsWith('/carta-fianca/leitura/')) return true;
+  if (pathname === '/moni-capital/leitura' || pathname.startsWith('/moni-capital/leitura/')) return true;
+  return false;
+}
+
+/** `next` pós-login: só caminhos internos do Hub; nunca a página pública de leitura. */
+export function isSafePostLoginNextPath(raw: string | null | undefined): boolean {
+  const path = String(raw ?? '').trim();
+  if (!path.startsWith('/') || path.startsWith('//')) return false;
+  const pathname = normalizeInternalPathname(path);
+  if (!pathname.startsWith('/') || pathname.startsWith('//')) return false;
+  if (isPublicLeituraPostLoginPath(pathname)) return false;
+  if (isAuthFlowAccessPath(pathname)) return false;
+  if (isPortalFrankAuthAccessPath(pathname)) return false;
+  return true;
+}
+
+export function defaultHubHomeForRole(role: AccessRole): string {
+  if (role === 'frank') return '/portal-frank';
+  if (role === 'admin' || role === 'team') return HUB_HOME_PATH;
+  return '/rede-franqueados';
+}
+
+/** Destino após login/cadastro no Hub — nunca `/treinamento-bca/leitura`. */
+export function resolvePostLoginPath(role: AccessRole, nextPath?: string | null): string {
+  if (role === 'pending') return '/login?status=pending';
+  if (role === 'blocked') return '/login?status=blocked';
+  if (isSafePostLoginNextPath(nextPath)) return String(nextPath).trim();
+  return defaultHubHomeForRole(role);
 }
 
 export function isPortalFrankAuthAccessPath(pathname: string): boolean {

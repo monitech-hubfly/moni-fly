@@ -3,11 +3,11 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { MoniFooter } from '@/components/MoniFooter';
 import { getStatusLabel } from '@/app/juridico/constants';
+import { defaultHubHomeForRole } from '@/lib/access-matrix';
 import { normalizeAccessRole } from '@/lib/authz';
 export default async function HomePage() {
   let user: { id: string; email?: string } | null = null;
   let accessRole = 'pending' as ReturnType<typeof normalizeAccessRole>;
-  let redirectToTodoPlanning = false;
   let processos: {
     id: string;
     cidade: string;
@@ -27,13 +27,6 @@ export default async function HomePage() {
         .eq('id', user.id)
         .maybeSingle();
       accessRole = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
-
-      if (
-        user?.email?.endsWith('@moni.casa') &&
-        (accessRole === 'admin' || accessRole === 'team')
-      ) {
-        redirectToTodoPlanning = true;
-      }
 
       const [processosRes, ticketsRes] = await Promise.all([
         supabase
@@ -57,8 +50,8 @@ export default async function HomePage() {
     // Supabase não configurado ou indisponível
   }
 
-  if (redirectToTodoPlanning) {
-    redirect('/carometro/todo-planning');
+  if (user && (accessRole === 'admin' || accessRole === 'team')) {
+    redirect(defaultHubHomeForRole(accessRole));
   }
 
   if (!user) {

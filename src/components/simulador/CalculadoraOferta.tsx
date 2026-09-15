@@ -1,19 +1,29 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { criarSimuladorOfertaDoCard } from '@/lib/actions/loteamento-simulador-template';
+import { marcarSimuladorOfertaVinculada } from '@/lib/simulador/simulador-card-ui-state';
 import {
   fracaoParaPercentualUi,
   numeroParaInputBr,
 } from '@/lib/loteamento-simulador-template';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
+  CardResultado,
+  Secao,
+  TabelaFluxo,
+  TabelaSimples,
+} from '@/components/simulador/oferta-resultado-ui';
+import {
+  cardsTotaisResumo,
+  linhasComposicaoPreco,
+  type CardResultadoItem,
+} from '@/lib/simulador/oferta-resultado-helpers';
+import {
   calcularOferta,
   formatarMoeda,
   sugerirParcelaMensal,
-  type LinhaFluxo,
   type OfertaConfig,
   type ResultadoCalculo,
   type TemplateConfig,
@@ -27,13 +37,7 @@ type Props = {
   template: TemplateConfig;
   loteadorId: string;
   kanbanCardId?: string;
-};
-
-type CardResultadoItem = {
-  label: string;
-  valor: string;
-  sublabel?: string;
-  destaque?: boolean;
+  empreendimentoId?: string | null;
 };
 
 const fieldCls =
@@ -48,15 +52,27 @@ const labelCls = 'text-xs font-medium';
 const labelStyle = { color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' } as const;
 const hintStyle = { color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' } as const;
 
-const FASE_LABEL: Record<string, string> = {
-  mes0: 'Mês 0',
-  fase1: 'Fase 1',
-  parcela_unica: 'Parcela única',
-  fase2: 'Fase 2',
-  entrega: 'Entrega',
-};
+const dicaConfStyle = {
+  color: 'var(--moni-status-attention-text)',
+  fontFamily: 'var(--moni-font-sans)',
+} as const;
 
-export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props) {
+function calcularParcelaUnicaMinimaHint(
+  resultado: ResultadoCalculo,
+  entradaEfetiva: number,
+  mensalEfetiva: number,
+): number {
+  const entrada = entradaEfetiva > 0 ? entradaEfetiva : resultado.entrada_sugerida;
+  const mensal = mensalEfetiva > 0 ? mensalEfetiva : resultado.parcela_mensal_usada;
+  const deltaEntrada = entrada - resultado.entrada_sugerida;
+  const deltaMensais = (mensal - resultado.parcela_mensal_usada) * resultado.mes_parcela_unica;
+  return Math.max(
+    resultado.parcela_unica_detalhe.min_quitar_lote,
+    resultado.parcela_unica_sugerida - deltaEntrada - deltaMensais,
+  );
+}
+
+export function CalculadoraOferta({ template, loteadorId, kanbanCardId, empreendimentoId }: Props) {
   const router = useRouter();
   const cardId = kanbanCardId || loteadorId;
 
@@ -65,7 +81,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
   const [valorCasa, setValorCasa] = useState<number | null>(null);
   const [valorCustomizacao, setValorCustomizacao] = useState<number | null>(0);
   const [valorJaPago, setValorJaPago] = useState<number | null>(0);
-  const [prazoTotal, setPrazoTotal] = useState<number | null>(12 + prazoObraMeses);
+  const [prazoTotal, setPrazoTotal] = useState<number | null>(12);
   const [parcelaMensal, setParcelaMensal] = useState<number | null>(null);
   const [parcelaEditada, setParcelaEditada] = useState(false);
   const [rendaCliente, setRendaCliente] = useState<number | null>(null);
@@ -74,6 +90,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
     const ui = fracaoParaPercentualUi(template.taxa_juros_financiamento_anual);
     return ui ? parsearNumeroInput(ui) : 10;
   });
+  const [nomeOferta, setNomeOferta] = useState('');
 
   const [resultado, setResultado] = useState<ResultadoCalculo | null>(null);
   const [ultimaOferta, setUltimaOferta] = useState<OfertaConfig | null>(null);
@@ -173,22 +190,34 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
     }
     setEntradaConf(resultado.entrada_sugerida);
     setParcelaMensalConf(resultado.parcela_mensal_usada);
-    setParcelaUnicaConf(resultado.parcela_unica_sugerida);
+    setParcelaUnicaConf(
+      aplicarMinimoParcelaUnica(
+        resultado.entrada_sugerida,
+        resultado.parcela_mensal_usada,
+        resultado.parcela_unica_sugerida,
+      ),
+    );
     setFluxoFinalResultado(null);
     setDetalheFinalAberto(false);
   }, [resultado]);
 
   async function onSalvar() {
     if (!resultado || !ultimaOferta) return;
+    const nome = nomeOferta.trim();
+    if (!nome) {
+      setErro('Informe o nome da oferta.');
+      return;
+    }
     setSalvando(true);
     setErro(null);
     setMensagem(null);
     const res = await criarSimuladorOfertaDoCard(cardId, {
+      nome,
       valor_lote: numeroParaInputBr(ultimaOferta.valor_lote),
       valor_casa: numeroParaInputBr(ultimaOferta.valor_casa),
       valor_customizacao: numeroParaInputBr(ultimaOferta.valor_customizacao),
       valor_ja_pago: numeroParaInputBr(ultimaOferta.valor_ja_pago),
-      prazo_meses: String(ultimaOferta.prazo_meses),
+      prazo_meses: String(prazoTotal ?? ultimaOferta.prazo_meses + prazoObraMeses),
       parcela_mensal: numeroParaInputBr(parcelaMensalConf),
       renda_cliente: numeroParaInputBr(ultimaOferta.renda_cliente),
       prazo_financiamento_anos: String(ultimaOferta.prazo_financiamento_anos),
@@ -196,6 +225,13 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
         taxaFinanciamento == null ? '' : numeroParaInputBr(taxaFinanciamento),
       entrada_confirmada: numeroParaInputBr(entradaConf),
       parcela_unica_confirmada: numeroParaInputBr(parcelaUnicaConf),
+      parcela_mensal_confirmada: numeroParaInputBr(parcelaMensalConf),
+      empreendimento_id: empreendimentoId?.trim() || undefined,
+      vte_avista: resultado.vte_avista,
+      entrada_sugerida: resultado.entrada_sugerida,
+      parcela_mensal_sugerida: resultado.parcela_mensal_usada,
+      parcela_unica_sugerida: resultado.parcela_unica_sugerida,
+      prazo_total_meses: resultado.quantidade_parcelas_total,
     });
     setSalvando(false);
     if (!res.ok) {
@@ -203,39 +239,67 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       return;
     }
     setMensagem('Oferta salva como rascunho!');
-    router.refresh();
+    const empId = empreendimentoId?.trim() ?? '';
+    if (empId) {
+      marcarSimuladorOfertaVinculada(cardId, empId, res.oferta.id);
+    }
+    startTransition(() => {
+      router.refresh();
+      if (empId) {
+        router.push(`/loteadores/${cardId}/simulador-template/ofertas/${res.oferta.id}`);
+      }
+    });
   }
 
   function gerarFluxoFinal() {
     if (!resultado || !ultimaOferta) return;
-    const entrada_do_lote_conf = Math.max(0, entradaConf - resultado.comissao_amount);
     const ofertaConfirmada: OfertaConfig = {
       ...ultimaOferta,
-      parcela_mensal: parcelaMensalConf,
-      entrada_do_lote_override: entrada_do_lote_conf,
-      parcela_unica_override: parcelaUnicaConf,
+      entrada_confirmada: entradaConf,
+      mensal_confirmada: parcelaMensalConf,
+      parcela_unica_confirmada: parcelaUnicaConf,
     };
     setFluxoFinalResultado(calcularOferta(template, ofertaConfirmada));
   }
 
-  function onValorConfirmado(setter: (n: number) => void) {
-    return (n: number) => {
-      setter(n);
-      setFluxoFinalResultado(null);
-    };
+  function aplicarMinimoParcelaUnica(entrada: number, parcela: number, unicaAtual: number): number {
+    if (!resultado) return unicaAtual;
+    const parcelaUnicaMinima = calcularParcelaUnicaMinimaHint(resultado, entrada, parcela);
+    return unicaAtual < parcelaUnicaMinima ? parcelaUnicaMinima : unicaAtual;
   }
 
+  function onEntradaConfirmada(n: number) {
+    setEntradaConf(n);
+    setParcelaUnicaConf((u) => aplicarMinimoParcelaUnica(n, parcelaMensalConf, u));
+    setFluxoFinalResultado(null);
+  }
+
+  function onParcelaMensalConfirmada(n: number) {
+    setParcelaMensalConf(n);
+    if (resultado) {
+      setParcelaUnicaConf(calcularParcelaUnicaMinimaHint(resultado, entradaConf, n));
+    }
+    setFluxoFinalResultado(null);
+  }
+
+  function onParcelaUnicaConfirmada(n: number) {
+    setParcelaUnicaConf(n);
+    setFluxoFinalResultado(null);
+  }
+
+  const parcelaUnicaMinimaHint = useMemo(() => {
+    if (!resultado) return 0;
+    return calcularParcelaUnicaMinimaHint(resultado, entradaConf, parcelaMensalConf);
+  }, [entradaConf, parcelaMensalConf, resultado]);
+
   const avisosSalvar = useMemo(() => {
-    const vazio = { entrada: [] as string[], parcela: [] as string[], unica: [] as string[] };
+    const vazio = { entrada: [] as string[], parcela: [] as string[] };
     if (!resultado || !ultimaOferta) return vazio;
     const entrada: string[] = [];
     const parcela: string[] = [];
-    const unica: string[] = [];
 
     if (entradaConf < resultado.entrada_sugerida) {
-      entrada.push(
-        `⚠ Entrada abaixo do sugerido (${formatarMoeda(resultado.entrada_sugerida)}). A loteadora pode exigir o valor mínimo.`,
-      );
+      entrada.push('⚠ Entrada abaixo do mínimo sugerido. A loteadora pode exigir o valor mínimo.');
     }
     const entrada_do_lote_conf = Math.max(0, entradaConf - resultado.comissao_amount);
     if (entrada_do_lote_conf < resultado.entrada_do_lote) {
@@ -248,49 +312,12 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
       );
     }
 
-    const prazo_meses = ultimaOferta.prazo_meses;
-    let saldo = ultimaOferta.valor_lote - ultimaOferta.valor_ja_pago - entrada_do_lote_conf;
-    for (let m = 1; m < prazo_meses; m += 1) {
-      saldo = Math.max(0, saldo * (1 + template.taxa_juros_parcelado_mes) - parcelaMensalConf);
-    }
-    const saldo_ultimo = saldo * (1 + template.taxa_juros_parcelado_mes);
-    const min_quitar_conf = Math.max(0, saldo_ultimo - parcelaMensalConf);
-    if (parcelaUnicaConf < min_quitar_conf) {
-      unica.push(
-        `⚠ Parcela única insuficiente para quitar o lote (mínimo: ${formatarMoeda(min_quitar_conf)}).`,
-      );
-    } else if (parcelaUnicaConf < resultado.parcela_unica_sugerida) {
-      unica.push(
-        '⚠ Parcela única abaixo do sugerido. O cliente cobrirá menos de 30% do valor antes da obra.',
-      );
-    }
-
-    return { entrada, parcela, unica };
-  }, [
-    entradaConf,
-    parcelaMensalConf,
-    parcelaUnicaConf,
-    resultado,
-    template.taxa_juros_parcelado_mes,
-    ultimaOferta,
-  ]);
+    return { entrada, parcela };
+  }, [entradaConf, parcelaMensalConf, resultado, ultimaOferta]);
 
   const cardsTotais = useMemo((): CardResultadoItem[] => {
     if (!resultado) return [];
-    return [
-      {
-        label: 'Valor total à vista',
-        valor: formatarMoeda(resultado.vte_avista),
-        sublabel: 'sem juros do crédito-ponte',
-        destaque: true,
-      },
-      {
-        label: 'Valor total à prazo',
-        valor: formatarMoeda(resultado.vte),
-        sublabel: 'com financiamento da obra',
-        destaque: true,
-      },
-    ];
+    return cardsTotaisResumo(resultado);
   }, [resultado]);
 
   const cardsSugeridos = useMemo((): CardResultadoItem[] => {
@@ -319,24 +346,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
 
   const linhasCascata =
     resultado && ultimaOferta
-      ? [
-          {
-            label: 'Custo da casa + customização',
-            valor: ultimaOferta.valor_casa + ultimaOferta.valor_customizacao,
-          },
-          { label: 'Custo do lote', valor: ultimaOferta.valor_lote },
-          { label: 'ITBI', valor: resultado.itbi_amount },
-          { label: 'Taxa plataforma', valor: resultado.taxa_plataforma_amount },
-          { label: 'Taxa gestão', valor: resultado.taxa_gestao_amount },
-          { label: 'Lucro loteadora', valor: resultado.lucro_loteadora_amount },
-          { label: 'Lucro Moní', valor: resultado.lucro_moni_amount },
-          { label: 'Lucro franqueado', valor: resultado.lucro_franqueado_amount },
-          { label: 'Juros da obra (crédito-ponte)', valor: resultado.juros_obra_total },
-          { label: 'Impostos', valor: resultado.impostos_amount },
-          { label: 'Comissão corretor', valor: resultado.comissao_amount },
-          { label: '= VALOR TOTAL À VISTA', valor: resultado.vte_avista, destaque: true },
-          { label: '= VALOR TOTAL À PRAZO', valor: resultado.vte, destaque: true },
-        ]
+      ? linhasComposicaoPreco(resultado, ultimaOferta)
       : [];
 
   const saldoFinalDiferente = Boolean(
@@ -387,6 +397,20 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
         <p className="mt-1 text-sm" style={hintStyle}>
           O cálculo roda neste navegador, com as premissas do template.
         </p>
+        <label className="mt-4 block">
+          <span className={labelCls} style={labelStyle}>
+            Nome da oferta
+          </span>
+          <input
+            className={fieldCls}
+            style={fieldStyle}
+            type="text"
+            required
+            placeholder='Ex.: "Oferta João Silva — Lote 12"'
+            value={nomeOferta}
+            onChange={(e) => setNomeOferta(e.target.value)}
+          />
+        </label>
         <QuadroPremissasTemplate template={template} />
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Campo
@@ -437,7 +461,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
                 setPrazoTotal(n);
                 setResultado(null);
               }}
-              placeholder={String(12 + prazoObraMeses)}
+              placeholder="12"
               aria-invalid={prazoTotalInvalido}
               aria-describedby="prazo_total_contrato_hint"
             />
@@ -610,20 +634,27 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId }: Props)
               <CampoMoedaConfirmado
                 label="Entrada confirmada (R$)"
                 valor={entradaConf}
-                onValorChange={onValorConfirmado(setEntradaConf)}
+                onValorChange={onEntradaConfirmada}
+                dica={
+                  resultado
+                    ? `⚠ Mínimo sugerido: ${formatarMoeda(resultado.entrada_sugerida)}`
+                    : undefined
+                }
+                dicaValida={entradaConf >= resultado.entrada_sugerida}
                 avisos={avisosSalvar.entrada}
               />
               <CampoMoedaConfirmado
                 label="Parcela mensal confirmada (R$)"
                 valor={parcelaMensalConf}
-                onValorChange={onValorConfirmado(setParcelaMensalConf)}
+                onValorChange={onParcelaMensalConfirmada}
                 avisos={avisosSalvar.parcela}
               />
               <CampoMoedaConfirmado
                 label="Parcela única confirmada (R$)"
                 valor={parcelaUnicaConf}
-                onValorChange={onValorConfirmado(setParcelaUnicaConf)}
-                avisos={avisosSalvar.unica}
+                onValorChange={onParcelaUnicaConfirmada}
+                dica={`⚠ Mínimo sugerido: ${formatarMoeda(parcelaUnicaMinimaHint)}`}
+                dicaValida={parcelaUnicaConf >= parcelaUnicaMinimaHint}
               />
             </div>
             <div className="mt-6 flex flex-col gap-4">
@@ -778,13 +809,23 @@ function CampoMoedaConfirmado({
   label,
   valor,
   onValorChange,
+  dica,
+  dicaValida,
   avisos,
 }: {
   label: string;
   valor: number;
   onValorChange: (n: number) => void;
+  dica?: string;
+  dicaValida?: boolean;
   avisos?: string[];
 }) {
+  const dicaStyle =
+    dicaValida === true
+      ? { ...dicaConfStyle, color: 'var(--moni-status-done-text)' }
+      : dicaValida === false
+        ? { ...dicaConfStyle, color: 'var(--moni-status-overdue-text)' }
+        : dicaConfStyle;
   return (
     <label className="block">
       <span className={labelCls} style={labelStyle}>
@@ -796,6 +837,15 @@ function CampoMoedaConfirmado({
         valor={valor}
         onChange={(n) => onValorChange(n ?? 0)}
       />
+      {dica ? (
+        <span
+          className="mt-1 block text-[11px]"
+          style={dicaStyle}
+          role={dicaValida === false ? 'alert' : undefined}
+        >
+          {dica}
+        </span>
+      ) : null}
       {avisos?.map((a) => (
         <span
           key={a}
@@ -855,251 +905,5 @@ function Campo({
         </span>
       ))}
     </label>
-  );
-}
-
-function CardResultado({ label, valor, sublabel, destaque }: CardResultadoItem) {
-  return (
-    <div
-      className="rounded-[var(--moni-radius-lg)] p-4"
-      style={
-        destaque
-          ? {
-              border: 'var(--moni-border-width) solid var(--moni-gold-400)',
-              background: 'var(--moni-gold-50)',
-              boxShadow: 'var(--moni-shadow-card)',
-            }
-          : {
-              border: 'var(--moni-border-width) solid var(--moni-border-default)',
-              background: 'var(--moni-surface-0)',
-              boxShadow: 'var(--moni-shadow-card)',
-            }
-      }
-    >
-      <p
-        className="text-xs"
-        style={
-          destaque
-            ? {
-                ...hintStyle,
-                color: 'var(--moni-gold-800)',
-                letterSpacing: '0.04em',
-                textTransform: 'uppercase',
-                fontWeight: 600,
-              }
-            : hintStyle
-        }
-      >
-        {label}
-      </p>
-      <p
-        className="mt-1 text-base font-medium"
-        style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}
-      >
-        {valor}
-      </p>
-      {sublabel ? (
-        <p className="mt-1 text-xs" style={hintStyle}>
-          {sublabel}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function TabelaFluxo({
-  fluxo,
-  detalheAberto,
-  onToggleDetalhe,
-}: {
-  fluxo: LinhaFluxo[];
-  detalheAberto: boolean;
-  onToggleDetalhe: () => void;
-}) {
-  const celVisivel = { background: 'var(--moni-surface-50)' } as const;
-  const celDetalhe = { background: 'var(--moni-surface-0)' } as const;
-
-  return (
-    <div className="overflow-x-auto">
-      <table
-        className="min-w-full text-left text-xs sm:text-sm"
-        style={{ fontFamily: 'var(--moni-font-sans)' }}
-      >
-        <thead>
-          <tr style={{ color: 'var(--moni-text-tertiary)' }}>
-            <th className="whitespace-nowrap px-2 py-2 font-medium" style={celVisivel}>
-              Mês
-            </th>
-            <th className="whitespace-nowrap px-2 py-2 font-medium" style={celVisivel}>
-              Fase
-            </th>
-            <th className="whitespace-nowrap px-2 py-2 font-medium" style={celVisivel}>
-              Entradas do cliente
-            </th>
-            <th className="px-1 py-2" style={celVisivel}>
-              <button
-                type="button"
-                onClick={onToggleDetalhe}
-                className="flex min-h-[44px] min-w-[44px] items-center justify-center text-base transition-colors"
-                style={{ color: 'var(--moni-text-tertiary)' }}
-                title={detalheAberto ? 'Ocultar detalhes' : 'Mostrar detalhes'}
-                aria-expanded={detalheAberto}
-                aria-label={detalheAberto ? 'Ocultar detalhes' : 'Mostrar detalhes'}
-              >
-                {detalheAberto ? '−' : '+'}
-              </button>
-            </th>
-            {detalheAberto ? (
-              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
-                Pagamentos à loteadora
-              </th>
-            ) : null}
-            {detalheAberto ? (
-              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
-                Saldo do lote
-              </th>
-            ) : null}
-            {detalheAberto ? (
-              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
-                Juros do lote
-              </th>
-            ) : null}
-            {detalheAberto ? (
-              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
-                Desembolso de obra
-              </th>
-            ) : null}
-            {detalheAberto ? (
-              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
-                Juros de obra
-              </th>
-            ) : null}
-            {detalheAberto ? (
-              <th className="whitespace-nowrap px-2 py-2 font-medium" style={celDetalhe}>
-                Saldo CP
-              </th>
-            ) : null}
-            <th className="whitespace-nowrap px-2 py-2 font-medium" style={celVisivel}>
-              Saídas
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {fluxo.map((l) => (
-            <tr
-              key={`${l.mes}-${l.fase}-${l.etapa_obra ?? ''}`}
-              style={{
-                borderTop: 'var(--moni-border-width) solid var(--moni-border-default)',
-                color: 'var(--moni-text-secondary)',
-              }}
-            >
-              <td className="px-2 py-2" style={celVisivel}>
-                {l.mes}
-              </td>
-              <td className="whitespace-nowrap px-2 py-2" style={celVisivel}>
-                {FASE_LABEL[l.fase] ?? l.fase}
-              </td>
-              <td className="whitespace-nowrap px-2 py-2" style={celVisivel}>
-                {formatarMoeda(l.entrada_cliente)}
-              </td>
-              <td className="px-1 py-2" style={celVisivel} aria-hidden="true" />
-              {detalheAberto ? (
-                <td className="whitespace-nowrap px-2 py-2 text-right" style={celDetalhe}>
-                  {l.pagamento_loteadora > 0 ? formatarMoeda(l.pagamento_loteadora) : '—'}
-                </td>
-              ) : null}
-              {detalheAberto ? (
-                <td className="whitespace-nowrap px-2 py-2" style={celDetalhe}>
-                  {formatarMoeda(l.saldo_lote)}
-                </td>
-              ) : null}
-              {detalheAberto ? (
-                <td className="whitespace-nowrap px-2 py-2" style={celDetalhe}>
-                  {formatarMoeda(l.juros_lote_mes)}
-                </td>
-              ) : null}
-              {detalheAberto ? (
-                <td className="whitespace-nowrap px-2 py-2 text-right" style={celDetalhe}>
-                  {l.saidas_obra > 0 ? formatarMoeda(l.saidas_obra) : '—'}
-                </td>
-              ) : null}
-              {detalheAberto ? (
-                <td className="whitespace-nowrap px-2 py-2" style={celDetalhe}>
-                  {formatarMoeda(l.juros_obra_mes)}
-                </td>
-              ) : null}
-              {detalheAberto ? (
-                <td className="whitespace-nowrap px-2 py-2" style={celDetalhe}>
-                  {formatarMoeda(l.saldo_credito_ponte)}
-                </td>
-              ) : null}
-              <td className="whitespace-nowrap px-2 py-2" style={celVisivel}>
-                {formatarMoeda(l.saidas_total)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
-  return (
-    <section
-      className="rounded-[var(--moni-radius-lg)] p-4 sm:p-5"
-      style={{
-        border: 'var(--moni-border-width) solid var(--moni-border-default)',
-        background: 'var(--moni-surface-0)',
-        boxShadow: 'var(--moni-shadow-card)',
-      }}
-    >
-      <h3
-        className="mb-3 text-base"
-        style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
-      >
-        {titulo}
-      </h3>
-      {children}
-    </section>
-  );
-}
-
-function TabelaSimples({
-  linhas,
-}: {
-  linhas: Array<{ cols: string[]; destaque?: boolean; informativo?: boolean; sublabel?: string }>;
-}) {
-  return (
-    <table className="w-full text-left text-sm" style={{ fontFamily: 'var(--moni-font-sans)' }}>
-      <tbody>
-        {linhas.map((l) => (
-          <tr
-            key={l.cols[0]}
-            style={{
-              borderTop: 'var(--moni-border-width) solid var(--moni-border-default)',
-              color: l.informativo
-                ? 'var(--moni-text-tertiary)'
-                : l.destaque
-                  ? 'var(--moni-text-primary)'
-                  : 'var(--moni-text-secondary)',
-              fontWeight: l.destaque && !l.informativo ? 600 : 400,
-            }}
-          >
-            <td className={l.informativo ? 'py-1 pl-3 pr-3' : 'py-2 pr-3'}>
-              {l.cols[0]}
-              {l.sublabel ? (
-                <span className="ml-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  {l.sublabel}
-                </span>
-              ) : null}
-            </td>
-            <td className={`whitespace-nowrap text-right ${l.informativo ? 'py-1' : 'py-2'}`}>
-              {l.cols[1]}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   );
 }

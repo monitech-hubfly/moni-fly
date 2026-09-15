@@ -1,6 +1,7 @@
 import { parseDecimalInput } from '@/lib/condominios';
 import { parseMoneyText } from '@/lib/dashboard-novos-negocios/parseMoney';
 import type { TemplateConfig } from '@/lib/simulador/calcular-oferta';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type PremissaEntradaTipo = 'percentual' | 'valor_fixo';
 
@@ -14,11 +15,15 @@ export const JUROS_CREDITO_PONTE_PADRAO_FRACAO = 0.025;
 export const JUROS_CREDITO_PONTE_PADRAO_UI = '2,5';
 export const TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_FRACAO = 0.1;
 export const TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI = '10';
+export const PCT_ITBI_PADRAO_UI = '3';
+export const PCT_IMPOSTOS_PADRAO_UI = '4,4';
+export const PCT_TAXA_PLATAFORMA_PADRAO_UI = '8';
+export const PCT_TAXA_GESTAO_PADRAO_UI = '7';
+export const PCT_COMISSAO_CORRETOR_PADRAO_UI = '5';
 export const PRAZO_OBRA_MESES_PADRAO = 7;
 export const PRAZO_OBRA_MESES_MINIMO = 3;
 
-export const TOAST_TEMPLATE_SALVO =
-  'Template salvo! Em breve você poderá criar as ofertas aqui.';
+export const TOAST_TEMPLATE_SALVO = 'Template salvo!';
 
 export type LoteamentoSimuladorTemplateRow = {
   id: string;
@@ -67,8 +72,13 @@ export type LoteamentoSimuladorTemplateDraft = {
 };
 
 export const PCT_FIELDS = [
-  { key: 'pct_itbi', label: 'ITBI', hint: 'Sobre o valor do lote, pago na quitação.' },
-  { key: 'pct_impostos', label: 'Impostos', hint: 'Sobre o VTP (exceto corretagem); pago no último mês.' },
+  { key: 'pct_itbi', label: 'ITBI', hint: 'Sobre o valor do lote, pago na quitação.', placeholder: PCT_ITBI_PADRAO_UI },
+  {
+    key: 'pct_impostos',
+    label: 'Impostos',
+    hint: 'Sobre o VTP (exceto corretagem); pago no último mês.',
+    placeholder: PCT_IMPOSTOS_PADRAO_UI,
+  },
   {
     key: 'taxa_juros_credito_ponte',
     label: 'Juros do crédito-ponte',
@@ -86,11 +96,13 @@ export const PCT_FIELDS = [
     key: 'pct_taxa_plataforma',
     label: 'Taxa de plataforma',
     hint: 'Sobre custo da casa + lote; parcelas iguais na obra.',
+    placeholder: PCT_TAXA_PLATAFORMA_PADRAO_UI,
   },
   {
     key: 'pct_taxa_gestao',
     label: 'Taxa de gestão',
     hint: 'Sobre custo da casa + lote; parcelas iguais na obra.',
+    placeholder: PCT_TAXA_GESTAO_PADRAO_UI,
   },
   {
     key: 'pct_lucro_loteadora',
@@ -111,6 +123,7 @@ export const PCT_FIELDS = [
     key: 'pct_comissao_corretor',
     label: 'Comissão do corretor',
     hint: 'Sobre o VTP; paga na entrada.',
+    placeholder: PCT_COMISSAO_CORRETOR_PADRAO_UI,
   },
 ] as const satisfies ReadonlyArray<{
   key: keyof Pick<
@@ -135,16 +148,16 @@ export const PCT_FIELDS = [
 export function emptySimuladorTemplateDraft(): LoteamentoSimuladorTemplateDraft {
   return {
     nome: '',
-    pct_itbi: '',
-    pct_impostos: '',
+    pct_itbi: PCT_ITBI_PADRAO_UI,
+    pct_impostos: PCT_IMPOSTOS_PADRAO_UI,
     taxa_juros_credito_ponte: JUROS_CREDITO_PONTE_PADRAO_UI,
     taxa_juros_financiamento_anual: TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI,
-    pct_taxa_plataforma: '',
-    pct_taxa_gestao: '',
+    pct_taxa_plataforma: PCT_TAXA_PLATAFORMA_PADRAO_UI,
+    pct_taxa_gestao: PCT_TAXA_GESTAO_PADRAO_UI,
     pct_lucro_loteadora: '',
     pct_lucro_moni: '',
     pct_lucro_franqueado: '',
-    pct_comissao_corretor: '',
+    pct_comissao_corretor: PCT_COMISSAO_CORRETOR_PADRAO_UI,
     entrada_minima_tipo: 'percentual',
     entrada_minima_valor: '',
     taxa_juros_parcelado_mes: '',
@@ -236,6 +249,12 @@ function premissaParaDraft(p: PremissaEntrada | null): {
   };
 }
 
+function percentualUiOuSugestao(fracao: number | null | undefined, sugestao: string): string {
+  const ui = fracaoParaPercentualUi(fracao);
+  if (!ui || ui === '0') return sugestao;
+  return ui;
+}
+
 export function rowToSimuladorTemplateDraft(
   row: LoteamentoSimuladorTemplateRow | null,
 ): LoteamentoSimuladorTemplateDraft {
@@ -250,19 +269,25 @@ export function rowToSimuladorTemplateDraft(
   const jurosFracao = normalizarTaxaMensalFracao(row.taxa_juros_credito_ponte);
   return {
     nome: row.nome ?? '',
-    pct_itbi: fracaoParaPercentualUi(row.pct_itbi),
-    pct_impostos: fracaoParaPercentualUi(row.pct_impostos),
-    taxa_juros_credito_ponte: fracaoParaPercentualUi(jurosFracao),
+    pct_itbi: percentualUiOuSugestao(row.pct_itbi, PCT_ITBI_PADRAO_UI),
+    pct_impostos: percentualUiOuSugestao(row.pct_impostos, PCT_IMPOSTOS_PADRAO_UI),
+    taxa_juros_credito_ponte: percentualUiOuSugestao(jurosFracao, JUROS_CREDITO_PONTE_PADRAO_UI),
     taxa_juros_financiamento_anual:
       row.taxa_juros_financiamento_anual == null
         ? TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI
-        : fracaoParaPercentualUi(row.taxa_juros_financiamento_anual),
-    pct_taxa_plataforma: fracaoParaPercentualUi(row.pct_taxa_plataforma),
-    pct_taxa_gestao: fracaoParaPercentualUi(row.pct_taxa_gestao),
+        : percentualUiOuSugestao(
+            row.taxa_juros_financiamento_anual,
+            TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI,
+          ),
+    pct_taxa_plataforma: percentualUiOuSugestao(row.pct_taxa_plataforma, PCT_TAXA_PLATAFORMA_PADRAO_UI),
+    pct_taxa_gestao: percentualUiOuSugestao(row.pct_taxa_gestao, PCT_TAXA_GESTAO_PADRAO_UI),
     pct_lucro_loteadora: fracaoParaPercentualUi(row.pct_lucro_loteadora),
     pct_lucro_moni: fracaoParaPercentualUi(row.pct_lucro_moni),
     pct_lucro_franqueado: fracaoParaPercentualUi(row.pct_lucro_franqueado),
-    pct_comissao_corretor: fracaoParaPercentualUi(row.pct_comissao_corretor),
+    pct_comissao_corretor: percentualUiOuSugestao(
+      row.pct_comissao_corretor,
+      PCT_COMISSAO_CORRETOR_PADRAO_UI,
+    ),
     entrada_minima_tipo: entradaDraft.tipo,
     entrada_minima_valor: entradaDraft.valor,
     taxa_juros_parcelado_mes: fracaoParaPercentualUi(row.taxa_juros_parcelado_mes),
@@ -326,9 +351,31 @@ export function pathSimuladorPublico(token: string | null | undefined): string |
 }
 
 export function isTabelaSimuladorAusente(message: string | undefined): boolean {
-  return /loteamento_simulador_templates|simulacoes_pagamento|schema cache|does not exist/i.test(
-    message ?? '',
-  );
+  // Detecta apenas erros reais de tabela ausente no schema do banco.
+  // NÃO inclui o nome da tabela isolado para evitar falso positivo com PGRST116
+  // ("The result contains 0 rows" que o PostgREST emite ao retornar 0 linhas com maybeSingle).
+  return /schema cache|relation .* does not exist|table .* does not exist/i.test(message ?? '');
+}
+
+/** Leitura no cliente (sem Server Action) — o accordion do card não pode depender do cache do Next. */
+export async function existeSimuladorTemplateDoCard(
+  supabase: SupabaseClient,
+  cardId: string,
+): Promise<boolean> {
+  const id = String(cardId ?? '').trim();
+  if (!id) return false;
+  const { data, error } = await supabase
+    .from('loteamento_simulador_templates')
+    .select('id')
+    .eq('kanban_card_id', id)
+    .limit(1);
+  if (error) {
+    if (error.code === 'PGRST116') return false;
+    if (isTabelaSimuladorAusente(error.message)) return false;
+    console.error('[existeSimuladorTemplateDoCard]', error.message);
+    return false;
+  }
+  return Array.isArray(data) ? data.length > 0 : Boolean(data);
 }
 
 export function isColunaSimuladorAjusteAusente(message: string | undefined): boolean {
@@ -343,6 +390,12 @@ export function isColunaSimulador546Ausente(message: string | undefined): boolea
 
 export function isColunaSimulador547Ausente(message: string | undefined): boolean {
   return /parcela_mensal/i.test(message ?? '');
+}
+
+export function isColunaSimulador548Ausente(message: string | undefined): boolean {
+  return /'nome' column of 'simulacoes_pagamento'|simulacoes_pagamento\.nome|column "nome" of relation "simulacoes_pagamento"/i.test(
+    message ?? '',
+  );
 }
 
 function numOrNull(raw: unknown): number | null {
@@ -361,7 +414,35 @@ export function formatarMoedaBr(n: number | null | undefined): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+/**
+ * `simulacoes_pagamento.prazo_meses` é o prazo total do contrato.
+ * Ofertas antigas gravaram a Fase 1 (menor ou igual ao prazo de obra).
+ */
+export function prazoTotalDePrazoSalvo(
+  prazoSalvo: number | null | undefined,
+  prazoObraMeses: number,
+): number | null {
+  if (prazoSalvo == null || !Number.isFinite(prazoSalvo)) return null;
+  const salvo = Math.round(prazoSalvo);
+  const obra = Math.max(0, Math.round(prazoObraMeses));
+  if (salvo <= 0) return null;
+  return salvo > obra ? salvo : salvo + obra;
+}
+
+/** Converte o prazo persistido no total para os meses de Fase 1 do motor. */
+export function prazoFase1DePrazoSalvo(
+  prazoSalvo: number | null | undefined,
+  prazoObraMeses: number,
+): number {
+  if (prazoSalvo == null || !Number.isFinite(prazoSalvo)) return 1;
+  const salvo = Math.round(prazoSalvo);
+  const obra = Math.max(0, Math.round(prazoObraMeses));
+  if (salvo > obra) return Math.max(1, salvo - obra);
+  return Math.max(1, salvo);
+}
+
 export type SimuladorOfertaDraft = {
+  nome: string;
   valor_lote: string;
   valor_casa: string;
   valor_customizacao: string;
@@ -373,10 +454,18 @@ export type SimuladorOfertaDraft = {
   taxa_financiamento_anual: string;
   entrada_confirmada?: string;
   parcela_unica_confirmada?: string;
+  parcela_mensal_confirmada?: string;
+  empreendimento_id?: string;
+  vte_avista?: number;
+  entrada_sugerida?: number;
+  parcela_mensal_sugerida?: number;
+  parcela_unica_sugerida?: number;
+  prazo_total_meses?: number;
 };
 
 export function emptySimuladorOfertaDraft(taxaAnualUi?: string): SimuladorOfertaDraft {
   return {
+    nome: '',
     valor_lote: '',
     valor_casa: '',
     valor_customizacao: '',
@@ -439,6 +528,7 @@ export const STATUS_SIMULACAO_LABEL: Record<string, string> = {
 
 export type SimulacaoPagamentoResumo = {
   id: string;
+  nome: string | null;
   condicao_lote: string;
   status: string;
   renda_informada_cliente: number | null;
@@ -452,6 +542,15 @@ export type SimulacaoPagamentoResumo = {
   prazo_financiamento_anos: number | null;
   taxa_financiamento_anual: number | null;
   parcela_mensal: number | null;
+  entrada_confirmada: number | null;
+  parcela_unica_confirmada: number | null;
+  parcela_mensal_confirmada: number | null;
+  entrada_sugerida: number | null;
+  parcela_unica_sugerida: number | null;
+  parcela_mensal_sugerida: number | null;
+  vte_avista: number | null;
+  prazo_total_meses: number | null;
+  template_id: string | null;
 };
 
 function inputsDaSimulacao(raw: unknown): Record<string, unknown> {
@@ -471,13 +570,32 @@ function inputsDaSimulacao(raw: unknown): Record<string, unknown> {
   return {};
 }
 
+function textoOuNulo(raw: unknown): string | null {
+  const s = String(raw ?? '').trim();
+  return s || null;
+}
+
+function resultadoDaSimulacao(raw: unknown): Record<string, unknown> {
+  return inputsDaSimulacao(raw);
+}
+
 export function mapSimulacaoRow(raw: Record<string, unknown>): SimulacaoPagamentoResumo {
   const inp = inputsDaSimulacao(raw.inputs);
+  const res = resultadoDaSimulacao(raw.resultado);
   const pick = (key: string) => numOrNull(raw[key]) ?? numOrNull(inp[key]);
   const rendaCliente = pick('renda_cliente');
   const rendaInformada = numOrNull(raw.renda_informada_cliente);
+  const parcelaMensal = pick('parcela_mensal');
+  const entradaSugerida = numOrNull(res.entrada_sugerida) ?? numOrNull(inp.entrada_sugerida);
+  const parcelaUnicaSugerida =
+    numOrNull(res.parcela_unica_sugerida) ?? numOrNull(inp.parcela_unica_sugerida);
+  const parcelaMensalSugerida =
+    numOrNull(res.parcela_mensal_usada) ??
+    numOrNull(res.parcela_mensal_sugerida) ??
+    numOrNull(inp.parcela_mensal_sugerida);
   return {
     id: String(raw.id),
+    nome: textoOuNulo(raw.nome) ?? textoOuNulo(inp.nome),
     condicao_lote: String(raw.condicao_lote ?? ''),
     status: String(raw.status ?? ''),
     renda_informada_cliente: rendaCliente ?? rendaInformada,
@@ -490,6 +608,56 @@ export function mapSimulacaoRow(raw: Record<string, unknown>): SimulacaoPagament
     renda_cliente: rendaCliente ?? rendaInformada,
     prazo_financiamento_anos: pick('prazo_financiamento_anos'),
     taxa_financiamento_anual: pick('taxa_financiamento_anual'),
-    parcela_mensal: pick('parcela_mensal'),
+    parcela_mensal: parcelaMensal,
+    entrada_confirmada:
+      numOrNull(inp.entrada_confirmada) ??
+      numOrNull(raw.entrada_confirmada) ??
+      numOrNull(raw.entrada_conf),
+    parcela_unica_confirmada:
+      numOrNull(inp.parcela_unica_confirmada) ??
+      numOrNull(raw.parcela_unica_confirmada) ??
+      numOrNull(raw.parcela_unica_conf),
+    parcela_mensal_confirmada:
+      numOrNull(inp.parcela_mensal_confirmada) ??
+      numOrNull(raw.parcela_mensal_confirmada) ??
+      numOrNull(raw.parcela_mensal_conf) ??
+      parcelaMensal,
+    entrada_sugerida: entradaSugerida,
+    parcela_unica_sugerida: parcelaUnicaSugerida,
+    parcela_mensal_sugerida: parcelaMensalSugerida,
+    vte_avista:
+      numOrNull(res.vte_avista) ??
+      numOrNull(inp.vte_avista) ??
+      numOrNull(raw.vte_avista) ??
+      numOrNull(res.valor_total_vista),
+    prazo_total_meses:
+      numOrNull(res.quantidade_parcelas_total) ??
+      numOrNull(inp.prazo_total_meses) ??
+      numOrNull(raw.prazo_total_meses),
+    template_id: raw.template_id != null ? String(raw.template_id) : null,
+  };
+}
+
+/** Valores IMOB a partir da oferta Helena: confirmado ?? sugerido. */
+export function valoresImobDaSimulacao(oferta: SimulacaoPagamentoResumo): {
+  valor_avista: number | null;
+  entrada: number | null;
+  parcelas_mensais: number | null;
+  prazo_total_meses: number | null;
+  parcela_unica: number | null;
+} {
+  const prazoTotal =
+    oferta.prazo_total_meses != null && Number.isFinite(oferta.prazo_total_meses)
+      ? Math.round(oferta.prazo_total_meses)
+      : oferta.prazo_meses != null && Number.isFinite(oferta.prazo_meses)
+        ? Math.round(oferta.prazo_meses)
+        : null;
+  return {
+    valor_avista: oferta.vte_avista,
+    entrada: oferta.entrada_confirmada ?? oferta.entrada_sugerida,
+    parcelas_mensais:
+      oferta.parcela_mensal_confirmada ?? oferta.parcela_mensal_sugerida ?? oferta.parcela_mensal,
+    prazo_total_meses: prazoTotal != null && prazoTotal > 0 ? prazoTotal : null,
+    parcela_unica: oferta.parcela_unica_confirmada ?? oferta.parcela_unica_sugerida,
   };
 }

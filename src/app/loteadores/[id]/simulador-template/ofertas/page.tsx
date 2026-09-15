@@ -2,10 +2,13 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { createClient } from '@/lib/supabase/server';
-import { isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
+import { isRedeStaffRole } from '@/lib/authz';
+import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { carregarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
 import { rowToTemplateConfig } from '@/lib/loteamento-simulador-template';
 import { CalculadoraOferta } from '@/components/simulador/CalculadoraOferta';
+import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
+import { rotuloEmpreendimentoOrigem } from '@/lib/kanban/imob-simulacoes-card';
 import { SimuladorOfertasClient } from './SimuladorOfertasClient';
 
 export const dynamic = 'force-dynamic';
@@ -13,10 +16,39 @@ export const dynamic = 'force-dynamic';
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type Props = { params: Promise<{ id: string }> };
+const linkVoltaStyle = {
+  color: 'var(--moni-navy-800)',
+  fontFamily: 'var(--moni-font-sans)',
+} as const;
 
-export default async function SimuladorOfertasPage({ params }: Props) {
+function LinksVoltaOfertas({ cardId }: { cardId: string }) {
+  return (
+    <nav className="flex flex-col items-start gap-1" aria-label="Voltar">
+      <Link
+        href={`/loteadores/${cardId}/simulador-template`}
+        className="inline-flex min-h-[44px] items-center text-sm sm:min-h-0"
+        style={linkVoltaStyle}
+      >
+        ← Voltar ao template
+      </Link>
+      <Link
+        href={`/loteadores?card=${cardId}`}
+        className="inline-flex min-h-[44px] items-center text-sm sm:min-h-0"
+        style={linkVoltaStyle}
+      >
+        ← Voltar ao card
+      </Link>
+    </nav>
+  );
+}
+
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ empreendimento?: string }> };
+
+export default async function SimuladorOfertasPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const qs = await searchParams;
+  const empreendimentoId = String(qs.empreendimento ?? '').trim();
+  const criandoParaEmpreendimento = UUID_RE.test(empreendimentoId);
   if (!UUID_RE.test(id)) notFound();
 
   const supabase = await createClient();
@@ -26,7 +58,11 @@ export default async function SimuladorOfertasPage({ params }: Props) {
   guardLoginRequired(user);
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  const access = normalizeAccessRole((profile as { role?: string } | null)?.role);
+  const access = await persistSeededStaffRoleIfNeeded(
+    supabase,
+    { id: user.id, email: user.email },
+    (profile as { role?: string } | null)?.role,
+  );
   if (!isRedeStaffRole(access)) {
     redirect('/loteadores');
   }
@@ -39,13 +75,7 @@ export default async function SimuladorOfertasPage({ params }: Props) {
         className="mx-auto max-w-5xl px-4 py-8 sm:px-6"
         style={{ background: 'var(--moni-surface-50)', minHeight: '100%' }}
       >
-        <Link
-          href={`/loteadores/${id}/simulador-template`}
-          className="text-sm"
-          style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
-        >
-          ← Voltar ao template
-        </Link>
+        <LinksVoltaOfertas cardId={id} />
         <div
           className="moni-tag-atrasado mt-6 px-4 py-3 text-sm"
           style={{ borderRadius: 'var(--moni-radius-md)' }}
@@ -56,18 +86,24 @@ export default async function SimuladorOfertasPage({ params }: Props) {
     );
   }
 
+  let empreendimentoLabel: string | null = null;
+  if (criandoParaEmpreendimento) {
+    const imob = await carregarImobSimulacoesCard(supabase, id);
+    if (imob.ok) {
+      const empreendimentos = imob.itens.filter((it) => (it.tipo ?? 'empreendimento') !== 'showroom');
+      const idx = empreendimentos.findIndex((it) => it.id === empreendimentoId);
+      if (idx >= 0) {
+        empreendimentoLabel = rotuloEmpreendimentoOrigem(empreendimentos[idx], idx + 1);
+      }
+    }
+  }
+
   return (
     <main
         className="mx-auto max-w-5xl px-4 py-8 sm:px-6"
         style={{ background: 'var(--moni-surface-50)', minHeight: '100%' }}
       >
-        <Link
-          href={`/loteadores/${id}/simulador-template`}
-          className="text-sm"
-          style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
-        >
-          ← Voltar ao template
-        </Link>
+        <LinksVoltaOfertas cardId={id} />
         <h1
           className="mt-4 text-3xl sm:text-4xl"
           style={{
@@ -81,18 +117,33 @@ export default async function SimuladorOfertasPage({ params }: Props) {
           {loaded.cardTitulo}
           {loaded.loteadorNome ? ` · ${loaded.loteadorNome}` : ''}
         </p>
+        {empreendimentoLabel ? (
+          <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+            Empreendimento: {empreendimentoLabel}
+          </p>
+        ) : null}
         <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Uma oferta por lote ou modelo de casa. O template traz as premissas da loteadora.
+          {criandoParaEmpreendimento
+            ? 'Preencha a calculadora da Helena para vincular a oferta a este empreendimento.'
+            : 'Uma oferta por empreendimento. Crie a oferta a partir do card (Modelo e Simulações IMOB).'}
         </p>
         <div className="mt-8 flex flex-col gap-10">
           {loaded.template ? (
             <>
-              <SimuladorOfertasClient ofertas={loaded.simulacoes} />
-              <CalculadoraOferta
-                template={rowToTemplateConfig(loaded.template)}
-                loteadorId={id}
-                kanbanCardId={id}
-              />
+              {criandoParaEmpreendimento ? (
+                <CalculadoraOferta
+                  template={rowToTemplateConfig(loaded.template)}
+                  loteadorId={id}
+                  kanbanCardId={id}
+                  empreendimentoId={empreendimentoId}
+                />
+              ) : (
+                <SimuladorOfertasClient
+                  cardId={id}
+                  ofertas={loaded.simulacoes}
+                  prazoObraMeses={rowToTemplateConfig(loaded.template).prazo_obra_meses}
+                />
+              )}
             </>
           ) : (
           <div
