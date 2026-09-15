@@ -1,9 +1,11 @@
 'use client';
 
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import { useBacklog, SireneItem, AtividadeItem, PastelariaItem } from '@/hooks/useBacklog';
 import { BacklogColunaCard, StatusPrazo } from './BacklogColuna';
 import { isoWeek } from '@/utils/periodos';
@@ -175,9 +177,10 @@ function DraggableSirene({ dragId, dragData, children }: { dragId: string; dragD
 type ColunaAtividadesProps = {
   items: AtividadeItem[];
   semanaAtual: number;
-  onAbrirModal?: (p: Partial<DadosAgendamento>) => void;
+  onNovaAtividade?: () => void;
+  onExcluirAtividade?: (id: string, nome: string | null) => Promise<void>;
 };
-function ColunaAtividades({ items, semanaAtual, onAbrirModal }: ColunaAtividadesProps) {
+function ColunaAtividades({ items, semanaAtual, onNovaAtividade, onExcluirAtividade }: ColunaAtividadesProps) {
   const comStatus = items.map(i => ({ item: i, status: statusAtividade(i, semanaAtual) }));
 
   return (
@@ -186,19 +189,35 @@ function ColunaAtividades({ items, semanaAtual, onAbrirModal }: ColunaAtividades
         {items.length === 0 && <EmptyState />}
         {comStatus.map(({ item, status }) => (
           <DraggableAtividade key={item.id} id={String(item.id)}>
-            <BacklogColunaCard
-              tipo="atividade"
-              titulo={item.nome_acao ?? '(sem título)'}
-              prazo={semanaFimEfetiva(item) != null ? `S${semanaFimEfetiva(item)}` : null}
-              status={status}
-            />
+            <div className="relative group">
+              <BacklogColunaCard
+                tipo="atividade"
+                titulo={item.nome_acao ?? '(sem título)'}
+                prazo={semanaFimEfetiva(item) != null ? `S${semanaFimEfetiva(item)}` : null}
+                status={status}
+              />
+              {onExcluirAtividade && (
+                <button
+                  type="button"
+                  title="Remover do backlog"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onExcluirAtividade(item.id, item.nome_acao);
+                  }}
+                  className="absolute top-1 right-1 hidden group-hover:flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-300 text-gray-400 hover:text-red-500 hover:border-red-300 transition-colors shadow-sm z-10"
+                  aria-label="Remover atividade do backlog"
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
           </DraggableAtividade>
         ))}
       </div>
-      {onAbrirModal && (
+      {onNovaAtividade && (
         <button
           type="button"
-          onClick={() => onAbrirModal({ origem_tipo: 'atividades' })}
+          onClick={onNovaAtividade}
           className="mt-2 w-full text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 border border-dashed border-gray-300 hover:border-blue-300 rounded-md py-1.5 transition-colors"
         >
           + Nova atividade
@@ -328,9 +347,27 @@ type BacklogBlocoProps = {
   onAbrirModal?: (preenchido: Partial<DadosAgendamento>) => void;
 };
 
-export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
-  const { sirene, pastelaria, atividades, isLoading, error } = useBacklog();
+// onAbrirModal mantido no tipo por compatibilidade com o pai (não é mais usado internamente)
+export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps = {}) {
+  const { sirene, pastelaria, atividades, isLoading, error, recarregar } = useBacklog();
   const semanaAtual = isoWeek(new Date());
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
+
+  async function handleExcluirAtividade(id: string, nome: string | null) {
+    const label = nome ? `"${nome}"` : 'esta atividade';
+    if (!confirm(`Remover ${label} do backlog? O registro de planejamento será excluído.`)) return;
+    const { error: err } = await supabase
+      .from('gantt_planejamento')
+      .delete()
+      .eq('id', id);
+    if (err) {
+      console.error('[BacklogBloco] erro ao excluir atividade:', err);
+      alert('Erro ao excluir. Tente novamente.');
+      return;
+    }
+    recarregar();
+  }
 
   // Contadores para dots de status
   const sireneAtrasados  = sirene.filter(i => statusSirene(i) === 'atrasado').length;
@@ -393,7 +430,8 @@ export function BacklogBloco({ onAbrirModal }: BacklogBlocoProps = {}) {
             <ColunaAtividades
               items={atividades}
               semanaAtual={semanaAtual}
-              onAbrirModal={onAbrirModal}
+              onNovaAtividade={() => router.push('/carometro/comportamentos-e-atividades')}
+              onExcluirAtividade={handleExcluirAtividade}
             />
           </div>
 
