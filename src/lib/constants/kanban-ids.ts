@@ -71,13 +71,16 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
 export const FASE_IDS = {
   // Portfolio — gatilhos de bastão de IDA
   PORTFOLIO_STEP_3:          '6d019704-95f7-42ee-8a85-973ffafc236b', // Enviar Opção (ex-Opção)
+  PORTFOLIO_REVISAO_HIPOTESE: 'dcbb0e82-d436-4858-a124-00c97b2a5eb1',
   PORTFOLIO_JURIDICO_OPCAO:  'f977b1f8-9946-4707-8e7c-78eabb621dbb',
   PORTFOLIO_ASSINATURAS_OPCAO: 'da0f9628-e3a5-4481-b49b-a22d30175e0f',
   PORTFOLIO_OPCAO_ASSINADA:  '32234ccf-6fa1-4f58-a9f8-418b02c22ef0',
   PORTFOLIO_STEP_4:          'fd05dc4a-b44a-470e-993f-5df79c223488',
   PORTFOLIO_PRE_COMITE:      'a4489f12-71a1-49f3-99ca-c500c58f799b',
+  PORTFOLIO_REVISOES_PRE_COMITE: '7892bfcc-c737-422d-bfb1-d3d8db77fe05',
   PORTFOLIO_STEP_5:          '9e1c76ba-ce84-4dbd-ae40-e434dc068a81', // Comitê
   PORTFOLIO_REVISOES_COMITE: '1c6ab47e-9b18-421b-8869-6c9ce2ab4c3a',
+  /** Demais Comitês (ex-2º Comitê); slug permanece segundo_comite. */
   PORTFOLIO_SEGUNDO_COMITE:  'a292ed7e-0c5c-4b23-9c09-82986c102b79',
   PORTFOLIO_JURIDICO_CTO_PRECEDENTES: '7d035a10-5403-44b5-819f-104786b48150',
   PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES: '27bc415f-4b70-4873-9cfc-5f51e7d925c8',
@@ -122,11 +125,13 @@ export const FASE_SLUGS = {
   /** Funil Portfólio — Enviar Opção (legado `step_3`; checklist/instruções da antiga Opção). */
   STEP_3:             'step_3',
   PORTFOLIO_ENVIAR_OPCAO: 'step_3',
+  PORTFOLIO_REVISAO_HIPOTESE: 'revisao_hipotese',
   PORTFOLIO_JURIDICO_OPCAO: 'juridico_opcao',
   PORTFOLIO_ASSINATURAS_OPCAO: 'assinaturas_opcao',
   PORTFOLIO_OPCAO_ASSINADA: 'opcao_assinada',
   STEP_4:             'step_4',
   PORTFOLIO_PRE_COMITE: 'pre_comite',
+  PORTFOLIO_REVISOES_PRE_COMITE: 'revisoes_pre_comite',
   STEP_7:             'step_7', // Enviar Contrato s/ Precedentes
   PORTFOLIO_ENVIAR_CONTRATO: 'step_7',
   PORTFOLIO_JURIDICO_CONTRATO: 'juridico_contrato',
@@ -137,6 +142,7 @@ export const FASE_SLUGS = {
   PASSAGEM_WAYSER:    'passagem_wayser',
   PORTFOLIO_CONVERTIDOS: 'convertidos',
   PORTFOLIO_REVISOES_COMITE: 'revisoes_comite',
+  /** Demais Comitês — slug legado segundo_comite. */
   PORTFOLIO_SEGUNDO_COMITE: 'segundo_comite',
   PORTFOLIO_JURIDICO_CTO_PRECEDENTES: 'juridico_cto_precedentes',
   PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES: 'assinaturas_cto_precedentes',
@@ -467,7 +473,7 @@ export const CORRETORES_FASES_CONFIRMACAO_SAIDA = {
 export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
   /** «A opção foi assinada?» — ao sair de Assinaturas Opção → Opção Assinada. */
   opcao: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO],
-  /** «O card foi aprovado em Comitê?» — ao sair de Comitê ou 2º Comitê. */
+  /** «O card foi aprovado em Comitê?» — ao sair de Comitê ou Demais Comitês. */
   comite: [FASE_SLUGS.STEP_5, FASE_SLUGS.PORTFOLIO_SEGUNDO_COMITE],
   /** «O Cto c/ Precedentes foi assinado?» — ao sair de Assinaturas Cto c/ Precedentes → Cto c/ Precedentes Assinado.
    *  Incrementa diag_contratos_12m na rede do franqueado. */

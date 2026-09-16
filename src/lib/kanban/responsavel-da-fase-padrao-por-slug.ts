@@ -21,18 +21,20 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   hipoteses: 'franqueado',
 
   // Funil Portfólio
-  step_2: 'moni',
-  aprovacao_moni_novo_negocio: 'moni',
+  step_2: 'moni', // Nova Hipótese
+  aprovacao_moni_novo_negocio: 'moni', // Análise de Nova Hipótese
+  revisao_hipotese: 'moni',
   step_3: 'franqueado', // Enviar Opção
   juridico_opcao: 'moni',
   assinaturas_opcao: 'franqueado',
   opcao_assinada: 'moni',
   step_4: 'franqueado',
   pre_comite: 'moni',
+  revisoes_pre_comite: 'moni',
   acoplamento: 'moni',
   step_5: 'moni',
   revisoes_comite: 'moni',
-  segundo_comite: 'moni',
+  segundo_comite: 'moni', // Demais Comitês
   cto_condicoes_precedentes: 'franqueado', // Enviar Cto c/ Precedentes
   juridico_cto_precedentes: 'moni',
   assinaturas_cto_precedentes: 'franqueado',

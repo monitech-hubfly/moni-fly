@@ -17,10 +17,14 @@ export type FunilMesEtapaFaseRegra = {
  * Fonte única de mapeamento coluna → funil + slugs de fase.
  */
 export const FUNIL_MES_ETAPA_FASES: Record<PipelineFunilMesEtapaKey, FunilMesEtapaFaseRegra> = {
-  /** Funil Portfólio — Análise de Novo Negócio */
+  /** Funil Portfólio — Nova Hipótese / Análise / Revisão de Hipótese */
   hipoteses: {
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
-    slugs: ['aprovacao_moni_novo_negocio'],
+    slugs: [
+      'step_2',
+      'aprovacao_moni_novo_negocio',
+      FASE_SLUGS.PORTFOLIO_REVISAO_HIPOTESE,
+    ],
   },
   /** Funil Portfólio — Enviar / Jurídico / Assinaturas / Opção Assinada */
   opcoes: {
@@ -33,12 +37,13 @@ export const FUNIL_MES_ETAPA_FASES: Record<PipelineFunilMesEtapaKey, FunilMesEta
       FASE_SLUGS.PORTFOLIO_OPCAO_ASSINADA,
     ],
   },
-  /** Funil Portfólio — Check Legal + Pré Comitê + Acoplamento + Comitê / Revisões / 2º Comitê */
+  /** Funil Portfólio — Check Legal + Pré Comitê / Revisões + Acoplamento + Comitê / Revisões / Demais Comitês */
   comites: {
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
     slugs: [
       FASE_SLUGS.STEP_4,
       FASE_SLUGS.PORTFOLIO_PRE_COMITE,
+      FASE_SLUGS.PORTFOLIO_REVISOES_PRE_COMITE,
       FASE_SLUGS.ACOPLAMENTO,
       FASE_SLUGS.STEP_5,
       FASE_SLUGS.PORTFOLIO_REVISOES_COMITE,
