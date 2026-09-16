@@ -1,8 +1,7 @@
 'use client';
 
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { createClient } from '@/lib/supabase/client';
@@ -13,6 +12,14 @@ import type { DadosAgendamento } from './ModalAgendamento';
 import { BacklogKanbanColuna } from './BacklogKanbanColuna';
 import { NovaAtividadeDrawer } from './NovaAtividadeDrawer';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { SireneChamadoDetalheModal } from '@/app/sirene/chamados/SireneChamadoDetalheModal';
+import { SireneModalHoras } from '@/app/sirene/chamados/SireneModalHoras';
+import { ClassificacaoConclusaoModal } from '@/app/sirene/chamados/ClassificacaoConclusaoModal';
+import { buscarDadosModalChamado, atualizarStatusInteracaoSirene, type StatusInteracaoDb } from '@/app/sirene/chamados/actions';
+import { getTopicosChamado, type TopicoPainelLinha } from '@/app/sirene/actions';
+import { atualizarStatusSubInteracao, type SubInteracaoStatusDb } from '@/lib/actions/card-actions';
+import { ATIVIDADE_FORM_DRAFT_VAZIO, type AtividadeFormDraft } from '@/components/kanban-shared/KanbanAtividadeFormFields';
+import type { InteracaoSireneRow } from '@/app/sirene/chamados/InteracoesLista';
 
 const STATUS_ORDER: Record<StatusPrazo, number> = {
   atrasado: 0, esta_semana: 1, sem_prazo: 2, futuro: 3,
@@ -204,128 +211,168 @@ function ColunaAtividades({ items, semanaAtual, onNovaAtividade, onExcluirAtivid
   );
 }
 
+// ── Helpers para modal Sirene ─────────────────────────────────────────────────
+function statusDbParaSelect(s: string): StatusInteracaoDb {
+  const x = String(s ?? '').trim().toLowerCase();
+  if (x === 'concluida' || x === 'concluída') return 'concluida';
+  if (x === 'em_andamento') return 'em_andamento';
+  return 'pendente';
+}
+
+function badgeTipoHelper(tipo: string): { label: string; className: string } {
+  const t = String(tipo ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (t === 'duvida') return { label: 'Dúvida', className: 'border-blue-200 bg-blue-50 text-blue-800' };
+  if (t === 'reclamacao') return { label: 'Reclamação', className: 'border-red-200 bg-red-50 text-red-800' };
+  if (t === 'sugestao') return { label: 'Sugestão', className: 'border-green-200 bg-green-50 text-green-800' };
+  return { label: tipo || 'Chamado', className: 'border-gray-200 bg-gray-50 text-gray-700' };
+}
+
 // ── SireneChamadoBacklogWrapper ───────────────────────────────────────────────
 type SireneChamadoBacklogWrapperProps = {
   chamadoId: number;
-  /** UUID de kanban_atividades — usado para montar o link "Abrir chamado completo". */
   interacaoId?: string | null;
   onClose: () => void;
+  /** Callback acionado quando o status do chamado é marcado como concluído. */
   onConcluido?: () => void;
-};
-
-type ChamadoBasico = {
-  id: number;
-  numero: number;
-  incendio: string;
-  status: string;
 };
 
 export function SireneChamadoBacklogWrapper({
   chamadoId,
-  interacaoId,
   onClose,
   onConcluido,
 }: SireneChamadoBacklogWrapperProps) {
   const supabase = useMemo(() => createClient(), []);
-  const [chamado, setChamado] = useState<ChamadoBasico | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [row, setRow] = useState<InteracaoSireneRow | null>(null);
+  const [topicos, setTopicos] = useState<TopicoPainelLinha[]>([]);
+  const [topicosLoading, setTopicosLoading] = useState(true);
+  const [novaAtivDraft, setNovaAtivDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [podeArquivar, setPodeArquivar] = useState(false);
+  const [sessionRole, setSessionRole] = useState('');
+  const [pending, setPending] = useState(false);
+  const [horasModal, setHorasModal] = useState<{ chamadoId: number; titulo: string } | null>(null);
+  const [classificacaoPendente, setClassificacaoPendente] = useState<{ topicoId: number } | null>(null);
+  const [subStatusPendente, setSubStatusPendente] = useState<{ topicoId: number; status: SubInteracaoStatusDb } | null>(null);
+  const skipHorasRef = useRef(false);
 
   useEffect(() => {
-    setLoading(true);
-    setChamado(null);
-    void supabase
-      .from('sirene_chamados')
-      .select('id, numero, incendio, status')
-      .eq('id', chamadoId)
-      .maybeSingle()
-      .then(({ data }) => {
-        setChamado(data as ChamadoBasico | null);
-        setLoading(false);
-      });
+    setRow(null);
+    setTopicos([]);
+    void buscarDadosModalChamado(chamadoId).then(r => { if (r.ok) setRow(r.row); });
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setCurrentUserId(user.id);
+      const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      const role = String((prof as { role?: string | null } | null)?.role ?? '').toLowerCase();
+      setPodeArquivar(role === 'admin' || role === 'team');
+      setSessionRole(role);
+    })();
   }, [chamadoId, supabase]);
 
-  return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0,0,0,0.45)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: 'var(--moni-surface-0)',
-          borderRadius: 'var(--moni-radius-lg)',
-          border: 'var(--moni-border-width) solid var(--moni-border-default)',
-          boxShadow: 'var(--moni-shadow-card)',
-          width: '100%', maxWidth: 480, padding: 24, position: 'relative',
-          fontFamily: 'var(--moni-font-sans)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--moni-text-tertiary)' }}
-          aria-label="Fechar"
-        >
-          <X size={16} />
-        </button>
+  const reloadTopicos = useCallback(async () => {
+    setTopicosLoading(true);
+    const res = await getTopicosChamado(chamadoId);
+    if (res.ok) setTopicos(res.topicos);
+    setTopicosLoading(false);
+  }, [chamadoId]);
 
-        {loading ? (
-          <p style={{ color: 'var(--moni-text-tertiary)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
-            Carregando chamado…
-          </p>
-        ) : chamado ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ fontSize: 11, color: 'var(--moni-text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Sirene #{chamado.numero}
-            </p>
-            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-display)' }}>
-              {chamado.incendio}
-            </p>
-            <p style={{ fontSize: 12, color: 'var(--moni-text-secondary)' }}>
-              Status: <strong>{chamado.status}</strong>
-            </p>
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <a
-                href={interacaoId ? `/sirene/chamados?interacao=${interacaoId}` : `/sirene/chamados`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  flex: 1, textAlign: 'center',
-                  padding: '8px 12px', borderRadius: 'var(--moni-radius-md)',
-                  background: 'var(--moni-navy-800)', color: '#fff',
-                  fontSize: 12, fontWeight: 600, textDecoration: 'none',
-                }}
-              >
-                Abrir chamado completo
-              </a>
-              {onConcluido && (
-                <button
-                  type="button"
-                  onClick={onConcluido}
-                  style={{
-                    flex: 1, padding: '8px 12px',
-                    borderRadius: 'var(--moni-radius-md)',
-                    border: 'var(--moni-border-width) solid var(--moni-green-800)',
-                    background: 'var(--moni-kanban-portfolio-light)',
-                    color: 'var(--moni-green-800)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  Marcar concluído
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <p style={{ color: 'var(--moni-text-tertiary)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
-            Chamado não encontrado.
-          </p>
-        )}
-      </div>
-    </div>
+  useEffect(() => { void reloadTopicos(); }, [reloadTopicos]);
+
+  async function handleSubStatus(topicoId: number, status: SubInteracaoStatusDb) {
+    if (status === 'concluido' && !skipHorasRef.current && row?.sirene_chamado_id != null) {
+      setHorasModal({ chamadoId: row.sirene_chamado_id, titulo: row.titulo });
+      setSubStatusPendente({ topicoId, status });
+      return;
+    }
+    if (status === 'concluido') {
+      setClassificacaoPendente({ topicoId });
+      return;
+    }
+    setPending(true);
+    await atualizarStatusSubInteracao(String(topicoId), status, '/carometro/todo-planning', true);
+    setPending(false);
+    void reloadTopicos();
+    window.dispatchEvent(new CustomEvent('backlog-reload'));
+  }
+
+  async function concluirComClassificacao(classificacao: 'pontual' | 'recorrente') {
+    if (!classificacaoPendente) return;
+    setPending(true);
+    await atualizarStatusSubInteracao(
+      String(classificacaoPendente.topicoId), 'concluido', '/carometro/todo-planning', true, classificacao,
+    );
+    setPending(false);
+    setClassificacaoPendente(null);
+    void reloadTopicos();
+    window.dispatchEvent(new CustomEvent('backlog-reload'));
+  }
+
+  if (!row) return null;
+
+  return (
+    <>
+      <SireneChamadoDetalheModal
+        row={row}
+        onClose={onClose}
+        topicos={topicos}
+        topicosLoading={topicosLoading}
+        nomePorUserId={new Map()}
+        textoResponsavel={row.responsavel_nome ?? row.responsavel_nome_texto ?? ''}
+        parseTimesNomes={(raw) => Array.isArray(raw) ? raw.map(x => String(x)) : []}
+        statusSelect={statusDbParaSelect(row.atividade_status)}
+        temSubAberta={topicos.some(t => t.status !== 'concluido' && t.status !== 'aprovado')}
+        pending={pending}
+        onStatusChange={async (id, status) => {
+          setPending(true);
+          await atualizarStatusInteracaoSirene(id, status);
+          setPending(false);
+          if (status === 'concluida') onConcluido?.();
+          window.dispatchEvent(new CustomEvent('backlog-reload'));
+        }}
+        onSubStatusChange={(topicoId, status) => void handleSubStatus(topicoId, status)}
+        podeArquivar={podeArquivar}
+        badgeTipo={badgeTipoHelper(row.tipo)}
+        times={[]}
+        responsaveis={[]}
+        novaAtivDraft={novaAtivDraft}
+        setNovaAtivDraft={setNovaAtivDraft}
+        onAdicionarAtividade={() => { /* não implementado no backlog */ }}
+        salvandoNovaAtividade={false}
+        currentUserId={currentUserId}
+        sessionEhAdmin={podeArquivar}
+        sessionRole={sessionRole}
+        onRecarregarTopicos={reloadTopicos}
+      />
+      {horasModal && (
+        <SireneModalHoras
+          chamadoId={horasModal.chamadoId}
+          titulo={horasModal.titulo}
+          onClose={() => { setHorasModal(null); setSubStatusPendente(null); }}
+          onSaved={() => {
+            setHorasModal(null);
+            if (subStatusPendente) {
+              skipHorasRef.current = true;
+              void handleSubStatus(subStatusPendente.topicoId, subStatusPendente.status).finally(() => {
+                skipHorasRef.current = false;
+              });
+              setSubStatusPendente(null);
+            }
+          }}
+        />
+      )}
+      {classificacaoPendente && (
+        <ClassificacaoConclusaoModal
+          nomeAtividade={
+            topicos.find(t => t.id === classificacaoPendente.topicoId)?.descricao ??
+            `Tópico #${classificacaoPendente.topicoId}`
+          }
+          onEscolher={concluirComClassificacao}
+          pending={pending}
+          chamadoId={chamadoId}
+        />
+      )}
+    </>
   );
 }
 
