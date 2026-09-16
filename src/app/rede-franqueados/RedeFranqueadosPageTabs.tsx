@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
@@ -17,9 +17,6 @@ import { buildCadastrosEmpresasLinhasComSpe, type FranqueadoSpeRow } from '@/lib
 import type { CondominioRow } from '@/lib/condominios';
 import type { MoniCapitalCadastroRow } from '@/lib/moni-capital-cadastros';
 import type { ImobEmpreendimentoRow } from '@/lib/imob-empreendimentos';
-import { PipelineAnalisesView } from '@/components/pipeline/PipelineAnalisesView';
-import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoading';
-import { usePipelineDatasetLazy } from '@/components/pipeline/usePipelineDatasetLazy';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
 import { ImportarEntidadeCSVButton } from './ImportarEntidadeCSVButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
@@ -45,7 +42,6 @@ import {
 import { NovoCadastroMoniCapitalModal } from './NovoCadastroMoniCapitalModal';
 
 type TabId =
-  | 'analises'
   | 'franqueados'
   | 'loteadores'
   | 'corretores'
@@ -62,14 +58,16 @@ const TAB_ALIASES: Record<string, TabId> = {
   corretor: 'corretores',
 };
 
-const TAB_ANALISES: { id: TabId; label: string } = { id: 'analises', label: 'Análises' };
 const TAB_FRANQ: { id: TabId; label: string } = { id: 'franqueados', label: 'Rede de Franqueados' };
 const TAB_LOTE: { id: TabId; label: string } = { id: 'loteadores', label: 'Rede de Loteadores' };
 const TAB_CORR: { id: TabId; label: string } = { id: 'corretores', label: 'Cadastro de Corretor' };
 const TAB_EMP: { id: TabId; label: string } = { id: 'empresas', label: 'Cadastros de Empresas' };
 const TAB_MC: { id: TabId; label: string } = { id: 'moni-capital', label: 'Cadastros Moní Capital' };
 const TAB_COND: { id: TabId; label: string } = { id: 'condominios', label: 'Condomínios' };
-const TAB_IMOB: { id: TabId; label: string } = { id: 'imob-empreendimentos', label: 'Cadastro de Empreendimentos' };
+const TAB_IMOB: { id: TabId; label: string } = {
+  id: 'imob-empreendimentos',
+  label: 'Cadastro de Empreendimentos',
+};
 
 type Props = {
   rows: RedeFranqueadoRowDb[];
@@ -109,10 +107,7 @@ export function RedeFranqueadosPageTabs({
   canManageFranqueados,
   maskSensitiveColumns,
 }: Props) {
-  const showAnalisesTab = showStaffTabs;
-
   const tabs = [
-    ...(showAnalisesTab ? [TAB_ANALISES] : []),
     TAB_FRANQ,
     ...(showStaffTabs ? [TAB_LOTE, TAB_CORR, TAB_EMP, TAB_MC, TAB_IMOB] : []),
     ...(showCondominiosTab ? [TAB_COND] : []),
@@ -137,12 +132,6 @@ export function RedeFranqueadosPageTabs({
     tabCandidate && tabs.some((t) => t.id === tabCandidate)
       ? (tabCandidate as TabId)
       : defaultTab;
-
-  const pipelineTabAtivo = resolvedTab === 'analises';
-  const { dataset: pipelineDataset, loading: pipelineLoading, error: pipelineError } = usePipelineDatasetLazy({
-    mode: 'franqueadora',
-    enabled: showStaffTabs && pipelineTabAtivo,
-  });
 
   function handleTabClick(tabId: TabId) {
     const params = new URLSearchParams(searchParams.toString());
@@ -190,31 +179,6 @@ export function RedeFranqueadosPageTabs({
       </div>
 
       <div className="mt-8" role="tabpanel">
-        {resolvedTab === 'analises' && showAnalisesTab ? (
-          <section className="space-y-4">
-            <div>
-              <h2
-                className="text-xl font-semibold tracking-tight"
-                style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
-              >
-                Análises
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-                Travamentos, gargalos de fase, benchmark por unidade, conversão e Sirene.
-              </p>
-            </div>
-            {pipelineLoading ? (
-              <PipelineDatasetLoading label="Carregando análises…" />
-            ) : pipelineError ? (
-              <p className="text-sm" style={{ color: 'var(--moni-status-overdue-text)' }}>
-                {pipelineError}
-              </p>
-            ) : pipelineDataset ? (
-              <PipelineAnalisesView dataset={pipelineDataset} />
-            ) : null}
-          </section>
-        ) : null}
-
         {resolvedTab === 'franqueados' ? (
           <section className="space-y-4">
             <RedeFranqueadosTabelaComBusca
