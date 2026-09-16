@@ -12,23 +12,16 @@ import { TabelaRedeFranqueadosEditavel } from '@/components/TabelaRedeFranqueado
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
 import { DiagnosticoRedeSumario } from '@/components/diagnostico-rede/DiagnosticoRedeSumario';
 import {
-  calcPriority,
   calcRelacao,
   calcIndicador,
   calcEngajamento,
-  calcGrupo,
   isAdormecido,
   isStatusNC,
-  type DiagPriority,
-  type DiagGrupo,
 } from '@/lib/rede-diagnostico-engine';
 
 // ─── Tipos de filtro ─────────────────────────────────────────────────────────
 
 const TODOS = 'TODOS' as const;
-
-const PRIORITIES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'AD', 'NC'] as const;
-type PrioFilter = (typeof PRIORITIES)[number] | typeof TODOS;
 
 type Filtros = {
   // Operacionais
@@ -37,9 +30,7 @@ type Filtros = {
   uf: string;
   adimplencia: 'ok' | 'inad' | 'na' | typeof TODOS;
   proximaAcao: 'sim' | 'nao' | typeof TODOS;
-  // Prioridade
-  prioridade: PrioFilter;
-  // Diagnóstico
+  // Diagnóstico — dimensões
   score: 'alta' | 'desenv' | 'evolucao' | 'estrut' | 'na' | typeof TODOS;
   dimD: '2' | '1' | '0' | 'na' | typeof TODOS;
   dimC: '2' | '1' | '0' | 'na' | typeof TODOS;
@@ -49,7 +40,6 @@ type Filtros = {
   tendEng: '↑' | '→' | '↓' | typeof TODOS;
   tendRel: '↑' | '→' | '↓' | typeof TODOS;
   tendInd: '↑' | '→' | '↓' | typeof TODOS;
-  grupo: DiagGrupo | typeof TODOS;
   avaliadoEm: '30' | '60' | '90' | 'sem' | typeof TODOS;
 };
 
@@ -59,7 +49,6 @@ const FILTROS_INICIAIS: Filtros = {
   uf: TODOS,
   adimplencia: TODOS,
   proximaAcao: TODOS,
-  prioridade: TODOS,
   score: TODOS,
   dimD: TODOS,
   dimC: TODOS,
@@ -69,7 +58,6 @@ const FILTROS_INICIAIS: Filtros = {
   tendEng: TODOS,
   tendRel: TODOS,
   tendInd: TODOS,
-  grupo: TODOS,
   avaliadoEm: TODOS,
 };
 
@@ -124,9 +112,6 @@ function aplicarFiltros(rows: RedeFranqueadoRowDb[], f: Filtros): RedeFranqueado
       if (f.proximaAcao === 'nao' && tem) return false;
     }
 
-    // Prioridade
-    if (f.prioridade !== TODOS && calcPriority(r) !== f.prioridade) return false;
-
     // Score faixa
     if (f.score !== TODOS) {
       const eng = calcEngajamento(r);
@@ -167,9 +152,6 @@ function aplicarFiltros(rows: RedeFranqueadoRowDb[], f: Filtros): RedeFranqueado
     if (f.tendEng !== TODOS && r.diag_tend_eng !== f.tendEng) return false;
     if (f.tendRel !== TODOS && r.diag_tend_rel !== f.tendRel) return false;
     if (f.tendInd !== TODOS && r.diag_tend_ind !== f.tendInd) return false;
-
-    // Grupo de ação
-    if (f.grupo !== TODOS && calcGrupo(r) !== f.grupo) return false;
 
     // Avaliado nos últimos X dias
     if (f.avaliadoEm !== TODOS) {
@@ -235,9 +217,9 @@ const TEND_OPTS = [
 
 const DIM_OPTS = [
   TODOS_OPT,
-  { value: '2' as const, label: '2 · Tem' },
-  { value: '1' as const, label: '1 · Moderado' },
-  { value: '0' as const, label: '0 · Não tem' },
+  { value: '2' as const, label: 'Saudável (2)' },
+  { value: '1' as const, label: 'Atenção (1)' },
+  { value: '0' as const, label: 'Crítico (0)' },
   NA_OPT,
 ];
 
@@ -333,24 +315,6 @@ export function RedeFranqueadosTabelaComBusca({
             </span>
           ) : null}
         </button>
-
-        {/* Chips de prioridade */}
-        <div className="flex flex-wrap gap-1">
-          {([TODOS, ...PRIORITIES] as const).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setFiltro('prioridade', p)}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                filtros.prioridade === p
-                  ? 'bg-stone-700 text-white'
-                  : 'border border-stone-300 bg-white text-stone-600 hover:bg-stone-50'
-              }`}
-            >
-              {p === TODOS ? 'Todas' : p}
-            </button>
-          ))}
-        </div>
 
         {buscaAtiva ? (
           <button
@@ -474,26 +438,11 @@ export function RedeFranqueadosTabelaComBusca({
                 onChange={(v) => setFiltro('indicador', v)}
                 options={[
                   TODOS_OPT,
-                  { value: 'ritmo', label: 'No ritmo' },
-                  { value: 'proximo', label: 'Próximo' },
-                  { value: 'regular', label: 'Regular' },
-                  { value: 'abaixo', label: 'Abaixo' },
+                  { value: 'ritmo', label: 'Saudável — No ritmo' },
+                  { value: 'proximo', label: 'Atenção — Próximo' },
+                  { value: 'regular', label: 'Atenção — Regular' },
+                  { value: 'abaixo', label: 'Crítico — Abaixo' },
                   NA_OPT,
-                ]}
-              />
-              <FilterSelect
-                label="Grupo de Ação"
-                value={filtros.grupo}
-                onChange={(v) => setFiltro('grupo', v)}
-                options={[
-                  TODOS_OPT,
-                  { value: 'GA1', label: 'GA1 · Estruturação Financeira' },
-                  { value: 'GA2', label: 'GA2 · Ativação e Execução' },
-                  { value: 'GA3', label: 'GA3 · Recuperação da Relação' },
-                  { value: 'GA4', label: 'GA4 · Desenvolvimento e Capacitação' },
-                  { value: 'GA5', label: 'GA5 · Conversão e Resultado' },
-                  { value: 'GA6', label: 'GA6 · Aceleração' },
-                  { value: 'GA7', label: 'GA7 · Gestão de Adormecidos' },
                 ]}
               />
               <FilterSelect

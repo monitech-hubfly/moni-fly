@@ -72,7 +72,8 @@ export function npsCategoria(nps: number | null | undefined): NpsCategoria | nul
 
 // ─── ENGAJAMENTO ─────────────────────────────────────────────────────────────
 
-/** Pesos: D×40% + C×35% + K×25%, normalizado de 0–2 para 0–100%. */
+/** Pesos: D×40% + K×35% + C×25%, normalizado de 0–2 para 0–100%.
+ *  K = Conhecimento (35%) · C = Comportamento (25%) */
 export function calcEngajamento(
   row: Pick<RedeFranqueadoRowDb, 'status_franquia' | 'diag_adormecido' | 'diag_d' | 'diag_c' | 'diag_k'>,
 ): number | null {
@@ -82,7 +83,8 @@ export function calcEngajamento(
   if (diag_c === null || diag_c === undefined) return null;
   if (diag_k === null || diag_k === undefined) return null;
   // Escala 0–2: 0=Não tem, 1=Moderado, 2=Tem
-  const raw = (Number(diag_d) * 0.4 + Number(diag_c) * 0.35 + Number(diag_k) * 0.25) / 2;
+  // K = Conhecimento × 35%  |  C = Comportamento × 25%
+  const raw = (Number(diag_d) * 0.4 + Number(diag_k) * 0.35 + Number(diag_c) * 0.25) / 2;
   return Math.round(raw * 1000) / 10;
 }
 
@@ -141,8 +143,12 @@ export function calcIndicador(
   return 'abaixo';
 }
 
-// ─── PRIORIDADE ──────────────────────────────────────────────────────────────
+// ─── PRIORIDADE E GRUPO — DEPRECIADOS ────────────────────────────────────────
+// O sistema migrou para filtros por dimensão (D, K, C, relação, indicador).
+// Estas funções são mantidas apenas para retrocompatibilidade com componentes
+// que ainda as importam. Não usar em código novo.
 
+/** @deprecated Usar filtros por dimensão. */
 export function calcPriority(
   row: Pick<
     RedeFranqueadoRowDb,
@@ -171,8 +177,7 @@ export function calcPriority(
   return 'P6';
 }
 
-// ─── GRUPO DE AÇÃO ───────────────────────────────────────────────────────────
-
+/** @deprecated Usar filtros por dimensão. */
 export function calcGrupo(
   row: Pick<
     RedeFranqueadoRowDb,
