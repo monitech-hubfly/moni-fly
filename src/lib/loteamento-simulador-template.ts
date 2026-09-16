@@ -250,9 +250,8 @@ function premissaParaDraft(p: PremissaEntrada | null): {
 }
 
 function percentualUiOuSugestao(fracao: number | null | undefined, sugestao: string): string {
-  const ui = fracaoParaPercentualUi(fracao);
-  if (!ui || ui === '0') return sugestao;
-  return ui;
+  if (fracao == null) return sugestao;
+  return fracaoParaPercentualUi(fracao);
 }
 
 export function rowToSimuladorTemplateDraft(
