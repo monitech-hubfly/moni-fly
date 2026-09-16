@@ -256,6 +256,7 @@ function rowAsDiagSource(r: RedeFranqueadoRowDb, statusOverride?: string | null)
     diag_adormecido: r.diag_adormecido === true,
     diag_adimplente:
       r.diag_adimplente === true ? true : r.diag_adimplente === false ? false : null,
+    diag_adimplencia: r.diag_adimplencia ?? null,
     diag_ultimo_contato: r.diag_ultimo_contato ?? null,
     diag_ultima_aval: r.diag_ultima_aval ?? null,
     diag_avaliado_por: r.diag_avaliado_por ?? null,
@@ -861,7 +862,7 @@ export function TabelaRedeFranqueadosEditavel({
                     {isEditing ? (
                       <DiagnosticoInlineAdimplencia draft={diagDraft} setDraft={setDiagDraft} />
                     ) : (
-                      <AdimplenciaCell adimplente={r.diag_adimplente ?? null} />
+                      <AdimplenciaCell value={r.diag_adimplencia ?? null} />
                     )}
                   </td>
 

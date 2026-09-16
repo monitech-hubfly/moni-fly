@@ -28,7 +28,11 @@ type Filtros = {
   status: string;
   modalidade: string;
   uf: string;
-  adimplencia: 'ok' | 'inad' | 'na' | typeof TODOS;
+  regional: string;
+  areaAtuacao: string;
+  dataContrato: string;   // 'YYYY-MM' | TODOS
+  dataExpiracao: string;  // 'YYYY-MM' | TODOS
+  adimplencia: 'ok' | 'inad' | 'em_transferencia' | 'na' | typeof TODOS;
   proximaAcao: 'sim' | 'nao' | typeof TODOS;
   // Diagnóstico — dimensões
   score: 'alta' | 'desenv' | 'evolucao' | 'estrut' | 'na' | typeof TODOS;
@@ -47,6 +51,10 @@ const FILTROS_INICIAIS: Filtros = {
   status: TODOS,
   modalidade: TODOS,
   uf: TODOS,
+  regional: TODOS,
+  areaAtuacao: TODOS,
+  dataContrato: TODOS,
+  dataExpiracao: TODOS,
   adimplencia: TODOS,
   proximaAcao: TODOS,
   score: TODOS,
@@ -98,11 +106,34 @@ function aplicarFiltros(rows: RedeFranqueadoRowDb[], f: Filtros): RedeFranqueado
       if (estado !== f.uf) return false;
     }
 
+    // Regional
+    if (f.regional !== TODOS) {
+      if (String((r as unknown as { regional?: string | null }).regional ?? '').trim() !== f.regional) return false;
+    }
+
+    // Área de Atuação
+    if (f.areaAtuacao !== TODOS) {
+      if (String((r as unknown as { area_atuacao?: string | null }).area_atuacao ?? '').trim() !== f.areaAtuacao) return false;
+    }
+
+    // Data de Ass. Contrato (mês/ano)
+    if (f.dataContrato !== TODOS) {
+      const d = (r as unknown as { data_ass_contrato?: string | null }).data_ass_contrato;
+      if (!d || !String(d).startsWith(f.dataContrato)) return false;
+    }
+
+    // Data de Expiração da Franquia (mês/ano)
+    if (f.dataExpiracao !== TODOS) {
+      const d = (r as unknown as { data_expiracao_franquia?: string | null }).data_expiracao_franquia;
+      if (!d || !String(d).startsWith(f.dataExpiracao)) return false;
+    }
+
     // Adimplência
     if (f.adimplencia !== TODOS) {
-      if (f.adimplencia === 'ok' && r.diag_adimplente !== true) return false;
-      if (f.adimplencia === 'inad' && r.diag_adimplente !== false) return false;
-      if (f.adimplencia === 'na' && r.diag_adimplente !== null && r.diag_adimplente !== undefined) return false;
+      if (f.adimplencia === 'ok' && r.diag_adimplencia !== 'ok') return false;
+      if (f.adimplencia === 'inad' && r.diag_adimplencia !== 'inad') return false;
+      if (f.adimplencia === 'em_transferencia' && r.diag_adimplencia !== 'em_transferencia') return false;
+      if (f.adimplencia === 'na' && r.diag_adimplencia !== null && r.diag_adimplencia !== undefined) return false;
     }
 
     // Próxima ação
@@ -255,21 +286,50 @@ export function RedeFranqueadosTabelaComBusca({
   const rowsComCadastro = useMemo(() => filtrarLinhasEmBrancoRedeFranqueados(rows), [rows]);
 
   // Opções dinâmicas derivadas dos dados
-  const { modalidades, ufs, statusOptions } = useMemo(() => {
+  const { modalidades, ufs, regionais, areasAtuacao, datasContrato, datasExpiracao, statusOptions } = useMemo(() => {
     const modSet = new Set<string>();
     const ufSet = new Set<string>();
+    const regSet = new Set<string>();
+    const areaSet = new Set<string>();
+    const ctSet = new Set<string>();
+    const expSet = new Set<string>();
     const statusSet = new Set<string>();
+
+    const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    function yyyymmLabel(val: string): string {
+      const [y, m] = val.split('-');
+      const mes = MESES_PT[parseInt(m, 10) - 1] ?? m;
+      return `${mes}/${y}`;
+    }
+
     rowsComCadastro.forEach((r) => {
-      const mod = String((r as unknown as { modalidade?: string | null }).modalidade ?? '').trim();
+      const rr = r as unknown as Record<string, string | null | undefined>;
+      const mod = String(rr.modalidade ?? '').trim();
       if (mod) modSet.add(mod);
-      const uf = String(r.estado_casa_frank ?? (r as unknown as { estado?: string | null }).estado ?? '').trim();
+      const uf = String(r.estado_casa_frank ?? rr.estado ?? '').trim();
       if (uf) ufSet.add(uf);
+      const reg = String(rr.regional ?? '').trim();
+      if (reg) regSet.add(reg);
+      const area = String(rr.area_atuacao ?? '').trim();
+      if (area) areaSet.add(area);
+      const ct = String(rr.data_ass_contrato ?? '').slice(0, 7); // YYYY-MM
+      if (ct.length === 7) ctSet.add(ct);
+      const exp = String(rr.data_expiracao_franquia ?? '').slice(0, 7);
+      if (exp.length === 7) expSet.add(exp);
       const st = String(r.status_franquia ?? '').trim();
       if (st) statusSet.add(st);
     });
+
+    const sortedDates = (s: Set<string>) =>
+      [TODOS_OPT, ...[...s].sort().map((v) => ({ value: v, label: yyyymmLabel(v) }))];
+
     return {
       modalidades: [TODOS_OPT, ...[...modSet].sort().map((m) => ({ value: m, label: m }))],
       ufs: [TODOS_OPT, ...[...ufSet].sort().map((u) => ({ value: u, label: u }))],
+      regionais: [TODOS_OPT, ...[...regSet].sort().map((v) => ({ value: v, label: v }))],
+      areasAtuacao: [TODOS_OPT, ...[...areaSet].sort().map((v) => ({ value: v, label: v }))],
+      datasContrato: sortedDates(ctSet),
+      datasExpiracao: sortedDates(expSet),
       statusOptions: statusSet,
     };
   }, [rowsComCadastro]);
@@ -377,6 +437,30 @@ export function RedeFranqueadosTabelaComBusca({
                 options={ufs}
               />
               <FilterSelect
+                label="Regional"
+                value={filtros.regional}
+                onChange={(v) => setFiltro('regional', v)}
+                options={regionais}
+              />
+              <FilterSelect
+                label="Área de Atuação"
+                value={filtros.areaAtuacao}
+                onChange={(v) => setFiltro('areaAtuacao', v)}
+                options={areasAtuacao}
+              />
+              <FilterSelect
+                label="Ass. Contrato"
+                value={filtros.dataContrato}
+                onChange={(v) => setFiltro('dataContrato', v)}
+                options={datasContrato}
+              />
+              <FilterSelect
+                label="Expiração Franquia"
+                value={filtros.dataExpiracao}
+                onChange={(v) => setFiltro('dataExpiracao', v)}
+                options={datasExpiracao}
+              />
+              <FilterSelect
                 label="Adimplência"
                 value={filtros.adimplencia}
                 onChange={(v) => setFiltro('adimplencia', v)}
@@ -384,6 +468,7 @@ export function RedeFranqueadosTabelaComBusca({
                   TODOS_OPT,
                   { value: 'ok', label: 'OK — Adimplente' },
                   { value: 'inad', label: 'Inadimplente' },
+                  { value: 'em_transferencia', label: 'Em Transferência' },
                   NA_OPT,
                 ]}
               />

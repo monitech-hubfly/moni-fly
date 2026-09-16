@@ -101,12 +101,21 @@ export function CsatCell({ csat }: { csat: number | null | undefined }) {
 
 // ─── AdimplenciaCell ─────────────────────────────────────────────────────────
 
-export function AdimplenciaCell({ adimplente }: { adimplente: boolean | null | undefined }) {
-  if (adimplente === null || adimplente === undefined) return NA;
-  if (adimplente === true) {
+export function AdimplenciaCell({ adimplente, value }: { adimplente?: boolean | null; value?: string | null }) {
+  // Preferir o novo campo texto; fallback para o booleano legado
+  const v = value !== undefined ? value : adimplente === true ? 'ok' : adimplente === false ? 'inad' : null;
+  if (!v) return NA;
+  if (v === 'ok') {
     return (
       <span className="inline-flex items-center gap-1 rounded-md bg-[color:var(--moni-green-50,#eef4f0)] px-1.5 py-0.5 text-xs font-semibold text-[color:var(--moni-green-800,#2F4A3A)]">
         OK
+      </span>
+    );
+  }
+  if (v === 'em_transferencia') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-semibold text-blue-700">
+        Em Transf.
       </span>
     );
   }
