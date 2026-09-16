@@ -281,6 +281,8 @@ export type RedeMetricas = {
   emTransferencia: number;
   adormecidas: number;
   p1Count: number;
+  totalDiagBase: number;
+  aferidos: number;
 };
 
 export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
@@ -358,5 +360,7 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
     }).length,
     adormecidas: contabilizaveis.filter((r) => isAdormecido(r)).length,
     p1Count: contabilizaveis.filter((r) => calcPriority(r) === 'P1').length,
+    totalDiagBase: ativas.length,
+    aferidos: ativas.filter((r) => r.diag_d !== null && r.diag_d !== undefined).length,
   };
 }

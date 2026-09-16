@@ -57,7 +57,6 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
   if (!rows || rows.length === 0) return null;
 
   const m = calcRedeMetricas(rows);
-  const aferidos = rows.filter((r) => r.diag_d !== null && r.diag_d !== undefined).length;
 
   const engValue = m.avgEng !== null ? `${m.avgEng}%` : '—';
   const engColor = m.avgEng !== null ? engajamentoHex(m.avgEng) : undefined;
@@ -127,8 +126,8 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
 
       <Card
         label="Diagnóstico"
-        value={aferidos}
-        sub={`de ${rows.length} aferidos`}
+        value={m.aferidos}
+        sub={`de ${m.totalDiagBase} aferidos`}
       />
     </div>
   );
