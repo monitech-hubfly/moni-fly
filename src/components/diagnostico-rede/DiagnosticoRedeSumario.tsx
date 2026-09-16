@@ -88,17 +88,22 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
         value={engValue}
         sub={m.avgEng !== null ? m.engLabel : 'Sem dados'}
         color={engColor}
+        mini={[
+          { label: 'Dinheiro', value: m.avgD !== null ? `${m.avgD}%` : '—' },
+          { label: 'Conhecimento', value: m.avgK !== null ? `${m.avgK}%` : '—' },
+          { label: 'Comportamento', value: m.avgC !== null ? `${m.avgC}%` : '—' },
+        ]}
       />
 
       <Card
         label="Saúde da Relação"
         value={m.relStatus}
-        sub={
-          m.avgNps !== null || m.avgCsat !== null
-            ? `NPS ${m.avgNps?.toFixed(1) ?? '—'} · CSAT ${m.avgCsat?.toFixed(1) ?? '—'}`
-            : 'Sem dados'
-        }
+        sub="NPS · CSAT"
         color={m.relColor}
+        mini={[
+          { label: 'NPS', value: m.avgNps !== null ? m.avgNps.toFixed(1) : '—' },
+          { label: 'CSAT', value: m.avgCsat !== null ? m.avgCsat.toFixed(1) : '—' },
+        ]}
       />
 
       <Card

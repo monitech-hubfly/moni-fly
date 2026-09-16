@@ -268,6 +268,9 @@ export type RedeMetricas = {
   avgEng: number | null;
   engLabel: string;
   engColor: DiagEngColor | null;
+  avgD: number | null;
+  avgK: number | null;
+  avgC: number | null;
   relStatus: 'Saudável' | 'Atenção' | 'Crítica' | 'Não aferida';
   relColor: string;
   avgNps: number | null;
@@ -316,6 +319,15 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
     }
   }
 
+  const dRows = ativas.filter((r) => r.diag_d !== null && r.diag_d !== undefined);
+  const avgD = dRows.length > 0 ? Math.round((dRows.reduce((a, r) => a + Number(r.diag_d), 0) / dRows.length / 2) * 100) : null;
+
+  const kRows = ativas.filter((r) => r.diag_k !== null && r.diag_k !== undefined);
+  const avgK = kRows.length > 0 ? Math.round((kRows.reduce((a, r) => a + Number(r.diag_k), 0) / kRows.length / 2) * 100) : null;
+
+  const cRows = ativas.filter((r) => r.diag_c !== null && r.diag_c !== undefined);
+  const avgC = cRows.length > 0 ? Math.round((cRows.reduce((a, r) => a + Number(r.diag_c), 0) / cRows.length / 2) * 100) : null;
+
   const ctRows = ativas.filter((r) => r.diag_contratos_12m !== null && r.diag_contratos_12m !== undefined);
   const totalContratos = ctRows.reduce((a, r) => a + Number(r.diag_contratos_12m), 0);
   const totalMeta = ctRows.length * 4;
@@ -325,6 +337,9 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
     avgEng,
     engLabel: avgEng !== null ? engajamentoLabel(avgEng, true) : '—',
     engColor: avgEng !== null ? engajamentoColor(avgEng) : null,
+    avgD,
+    avgK,
+    avgC,
     relStatus,
     relColor,
     avgNps,
