@@ -177,7 +177,7 @@ function KpisSection({
   onDrilldown: (filtro: DrilldownFiltro) => void;
 }) {
   const diff = data.concluidosHoje - data.abriosHoje;
-  const diffLabel = diff > 0 ? `+${diff} resolvidos` : diff < 0 ? `${diff} acumulados` : 'Neutro';
+  const diffLabel = diff > 0 ? `+${diff} resolvidos` : diff < 0 ? `+${Math.abs(diff)} acumulados` : 'Neutro';
   const diffColor = diff > 0 ? 'text-green-700' : diff < 0 ? 'text-red-600' : 'text-amber-600';
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
