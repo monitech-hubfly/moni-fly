@@ -660,6 +660,10 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
   }, [atividades, onAbrirParaEditar]);
 
   // ── Drag de eventos ───────────────────────────────────────────────────────
+  // Os listeners de mousemove/mouseup são registrados POR DRAG (dentro do handleDragStart),
+  // não via useEffect global. Isso evita o race condition onde um re-render de dados
+  // (que muda handleAbrirParaEditar) faz o useEffect remover os listeners entre
+  // mousedown e mousemove, deixando isDragging = false e abrindo o modal de edição.
   const handleDragStart = useCallback((atv: AtividadeAgenda, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -686,24 +690,26 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
     };
     dragStateRef.current = state;
     setDragState(state);
-  }, []);
 
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    // Registrar listeners sincronicamente no mousedown, antes de qualquer re-render
+    const onMove = (ev: MouseEvent) => {
       const ds = dragStateRef.current;
       if (!ds) return;
-      const dx = e.clientX - ds.startX;
-      const dy = e.clientY - ds.startY;
+      const dx = ev.clientX - ds.startX;
+      const dy = ev.clientY - ds.startY;
       const updated: DragState = {
         ...ds,
-        currentX: e.clientX, currentY: e.clientY,
+        currentX: ev.clientX, currentY: ev.clientY,
         isDragging: ds.isDragging || Math.hypot(dx, dy) > 8,
       };
       dragStateRef.current = updated;
       setDragState({ ...updated });
     };
 
-    const onUp = async (e: MouseEvent) => {
+    const onUp = async (ev: MouseEvent) => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+
       const ds = dragStateRef.current;
       dragStateRef.current = null;
       setDragState(null);
@@ -716,14 +722,14 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
       }
 
       // Calcular nova data/hora a partir da posição do mouse
-      const grade = gradeRef.current;
-      if (!grade) return;
-      const rect = grade.getBoundingClientRect();
-      const scrollTop = grade.scrollTop;
-      const relX = e.clientX - rect.left - LARGURA_HORAS;
+      const gradeEl = gradeRef.current;
+      if (!gradeEl) return;
+      const rect = gradeEl.getBoundingClientRect();
+      const scrollTop = gradeEl.scrollTop;
+      const relX = ev.clientX - rect.left - LARGURA_HORAS;
       // Desconta offsetInCard para que o ponto onde o usuário clicou no card
       // fique alinhado com a hora calculada (não o topo do card)
-      const relY = e.clientY - rect.top + scrollTop - ds.offsetInCard;
+      const relY = ev.clientY - rect.top + scrollTop - ds.offsetInCard;
 
       const colWidth = (rect.width - LARGURA_HORAS) / diasDaSemana.length;
       const colIdx = Math.max(0, Math.min(diasDaSemana.length - 1, Math.floor(relX / colWidth)));
@@ -745,10 +751,6 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-    return () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
   }, [diasDaSemana, handleAbrirParaEditar, moverEvento]);
 
   const handleEscopoSelecionado = useCallback((escopo: RecorrenciaEscopo) => {
