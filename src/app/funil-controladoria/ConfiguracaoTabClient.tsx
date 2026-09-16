@@ -11,24 +11,23 @@ type Entidade = {
   ativo: boolean;
 };
 
-type Props = {
-  entidades: Entidade[];
-  isAdmin: boolean;
+type ProfileFiscal = {
+  id: string;
+  nome: string;
+  email: string;
 };
 
-const GRUPOS: { label: string; tipos: string[] }[] = [
-  { label: 'Gestora',             tipos: ['Gestora'] },
-  { label: 'Empresas adicionais', tipos: ['Empresa adicional'] },
-  { label: 'SPEs por projeto',    tipos: ['SPE'] },
-  { label: 'Funcionários',        tipos: ['Funcionário'] },
-  { label: 'Obras',               tipos: ['Obra'] },
-];
+type Props = {
+  entidades: Entidade[];
+  profilesFiscal: ProfileFiscal[];
+  isAdmin: boolean;
+};
 
 function contarAtivos(entidades: Entidade[], tipos: string[]): number {
   return entidades.filter((e) => tipos.includes(e.tipo) && e.ativo).length;
 }
 
-export function ConfiguracaoTabClient({ entidades, isAdmin }: Props) {
+export function ConfiguracaoTabClient({ entidades, profilesFiscal, isAdmin }: Props) {
   const [pending, startTransition] = useTransition();
 
   function handleToggle(id: string, novoAtivo: boolean) {
@@ -51,15 +50,25 @@ export function ConfiguracaoTabClient({ entidades, isAdmin }: Props) {
     });
   }
 
-  // Mês atual formatado "MMM/AA"
-  const mesAtual = (() => {
+  // Mês atual formatado "MMM/AAAA" para input type="month"
+  const mesAtualInput = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  })();
+
+  // Mês atual formatado "MMM/AA" para exibição
+  const mesAtualLabel = (() => {
     const d = new Date();
     const meses = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
     return `${meses[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`;
   })();
 
   const totalContabilAtivos = contarAtivos(entidades, ['Gestora', 'Empresa adicional', 'SPE']);
-  const totalFiscalAtivos   = contarAtivos(entidades, ['Funcionário', 'Obra']);
+  // Fiscal: todos os profiles @moni.casa (sempre ativos) + obras ativas da entidades_cfg
+  const totalObrasAtivas   = contarAtivos(entidades, ['Obra']);
+  const totalFiscalAtivos  = profilesFiscal.length + totalObrasAtivas;
+
+  const obrasEntidades = entidades.filter((e) => e.tipo === 'Obra');
 
   return (
     <main className="mx-auto w-full min-w-0 max-w-[1200px] px-6 py-8">
@@ -74,7 +83,7 @@ export function ConfiguracaoTabClient({ entidades, isAdmin }: Props) {
           </h1>
           <p className="text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
             Entidades ativas geram cards automaticamente no 1º dia útil de cada mês.
-            Fonte:{' '}
+            Fonte Contábil:{' '}
             <a
               href="/rede-franqueados/c4dbc081-5a45-45f8-b0ed-bfb9269d5113#empresas"
               className="underline underline-offset-2"
@@ -82,6 +91,7 @@ export function ConfiguracaoTabClient({ entidades, isAdmin }: Props) {
             >
               Rede de Franqueados → Empresas
             </a>
+            . Fonte Fiscal Funcionários: profiles @moni.casa.
           </p>
         </div>
 
@@ -89,19 +99,19 @@ export function ConfiguracaoTabClient({ entidades, isAdmin }: Props) {
           <div className="flex flex-wrap gap-3">
             <button
               disabled={pending}
-              onClick={() => handleDisparar(mesAtual, 'contabil')}
+              onClick={() => handleDisparar(mesAtualInput, 'contabil')}
               className="flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50"
               style={{ background: '#2d3d4a', color: '#D4EDAA' }}
             >
-              ▶ Disparar Contábil — {mesAtual}
+              ▶ Disparar Contábil — {mesAtualLabel}
             </button>
             <button
               disabled={pending}
-              onClick={() => handleDisparar(mesAtual, 'fiscal')}
+              onClick={() => handleDisparar(mesAtualInput, 'fiscal')}
               className="flex items-center gap-2 rounded-lg border px-5 py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50"
               style={{ borderColor: '#2d3d4a', color: '#2d3d4a', background: 'transparent' }}
             >
-              ▶ Disparar Fiscal — {mesAtual}
+              ▶ Disparar Fiscal — {mesAtualLabel}
             </button>
           </div>
         )}
@@ -109,7 +119,7 @@ export function ConfiguracaoTabClient({ entidades, isAdmin }: Props) {
 
       {/* Cards por grupo */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Contábil */}
+        {/* ── Contábil ─────────────────────────────────────────────────── */}
         <div
           className="rounded-xl border p-5"
           style={{
@@ -119,7 +129,10 @@ export function ConfiguracaoTabClient({ entidades, isAdmin }: Props) {
             borderRadius: 'var(--moni-radius-lg)',
           }}
         >
-          <div className="mb-4 flex items-start justify-between border-b pb-3" style={{ borderColor: 'var(--moni-border-default)', borderWidth: '0.5px' }}>
+          <div
+            className="mb-4 flex items-start justify-between border-b pb-3"
+            style={{ borderColor: 'var(--moni-border-default)', borderWidth: '0.5px' }}
+          >
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
                 🏦 Rotina Contábil
@@ -136,13 +149,13 @@ export function ConfiguracaoTabClient({ entidades, isAdmin }: Props) {
             </span>
           </div>
 
-          {GRUPOS.filter((g) => ['Gestora', 'Empresa adicional', 'SPE'].some((t) => g.tipos.includes(t))).map((grupo) => {
-            const itens = entidades.filter((e) => grupo.tipos.includes(e.tipo));
+          {(['Gestora', 'Empresa adicional', 'SPE'] as const).map((tipo) => {
+            const itens = entidades.filter((e) => e.tipo === tipo);
             if (!itens.length) return null;
             return (
-              <div key={grupo.label} className="mb-4">
+              <div key={tipo} className="mb-4">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  {grupo.label}
+                  {tipo === 'Empresa adicional' ? 'Empresas adicionais' : tipo === 'SPE' ? 'SPEs por projeto' : tipo}
                 </div>
                 <div className="overflow-hidden rounded-lg border" style={{ borderWidth: '0.5px', borderColor: 'var(--moni-border-default)' }}>
                   {itens.map((e) => (
@@ -164,7 +177,7 @@ export function ConfiguracaoTabClient({ entidades, isAdmin }: Props) {
           </div>
         </div>
 
-        {/* Fiscal */}
+        {/* ── Fiscal ──────────────────────────────────────────────────────── */}
         <div
           className="rounded-xl border p-5"
           style={{
@@ -174,13 +187,16 @@ export function ConfiguracaoTabClient({ entidades, isAdmin }: Props) {
             borderRadius: 'var(--moni-radius-lg)',
           }}
         >
-          <div className="mb-4 flex items-start justify-between border-b pb-3" style={{ borderColor: 'var(--moni-border-default)', borderWidth: '0.5px' }}>
+          <div
+            className="mb-4 flex items-start justify-between border-b pb-3"
+            style={{ borderColor: 'var(--moni-border-default)', borderWidth: '0.5px' }}
+          >
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
                 🧾 Rotina Fiscal
               </div>
               <div className="mt-0.5 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                1 card por funcionário + 1 por obra ativa
+                1 card por funcionário @moni.casa + 1 por obra ativa
               </div>
             </div>
             <span
@@ -191,28 +207,74 @@ export function ConfiguracaoTabClient({ entidades, isAdmin }: Props) {
             </span>
           </div>
 
-          {GRUPOS.filter((g) => ['Funcionário', 'Obra'].some((t) => g.tipos.includes(t))).map((grupo) => {
-            const itens = entidades.filter((e) => grupo.tipos.includes(e.tipo));
-            if (!itens.length) return null;
-            return (
-              <div key={grupo.label} className="mb-4">
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  {grupo.label}
-                </div>
-                <div className="overflow-hidden rounded-lg border" style={{ borderWidth: '0.5px', borderColor: 'var(--moni-border-default)' }}>
-                  {itens.map((e) => (
-                    <EntidadeRow key={e.id} entidade={e} isAdmin={isAdmin} onToggle={handleToggle} disabled={pending} />
-                  ))}
-                </div>
+          {/* Funcionários — todos os profiles @moni.casa (somente leitura) */}
+          {profilesFiscal.length > 0 ? (
+            <div className="mb-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--moni-text-tertiary)' }}>
+                  Funcionários ({profilesFiscal.length})
+                </span>
+                <span className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                  Fonte: @moni.casa
+                </span>
               </div>
-            );
-          })}
+              <div
+                className="overflow-hidden rounded-lg border"
+                style={{ borderWidth: '0.5px', borderColor: 'var(--moni-border-default)' }}
+              >
+                {profilesFiscal.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0"
+                    style={{ borderColor: 'var(--moni-border-default)', borderWidth: '0.5px' }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                        {p.nome}
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+                        {p.email}
+                      </div>
+                    </div>
+                    {/* Indicador sempre ativo (somente leitura) */}
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                      style={{ background: 'rgba(47,74,58,.1)', color: '#2F4A3A' }}
+                    >
+                      ativo
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Obras — toggleable */}
+          {obrasEntidades.length > 0 ? (
+            <div className="mb-4">
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Obras ({totalObrasAtivas} ativa{totalObrasAtivas !== 1 ? 's' : ''})
+              </div>
+              <div className="overflow-hidden rounded-lg border" style={{ borderWidth: '0.5px', borderColor: 'var(--moni-border-default)' }}>
+                {obrasEntidades.map((e) => (
+                  <EntidadeRow key={e.id} entidade={e} isAdmin={isAdmin} onToggle={handleToggle} disabled={pending} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {obrasEntidades.length === 0 && profilesFiscal.length === 0 ? (
+            <p className="py-4 text-center text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Nenhuma entidade fiscal cadastrada.
+            </p>
+          ) : null}
 
           <div
-            className="mt-3 flex items-start gap-2 rounded-lg p-3 text-xs"
-            style={{ background: '#FFF3E0', border: '0.5px solid #FFB74D', color: '#7C4A00' }}
+            className="mt-3 rounded-lg p-3 text-xs"
+            style={{ background: 'rgba(45,61,74,.04)', border: '0.5px solid rgba(45,61,74,.14)', color: 'var(--moni-text-secondary)' }}
           >
-            ⚠️ Fonte a confirmar com Fe (Pastelaria/RH). Nomes acima são placeholders.
+            👤 Funcionários puxados automaticamente de todos os perfis com e-mail @moni.casa.
+            Para obras, use o botão <strong>+ Adicionar Card</strong> na aba Rotina Fiscal.
           </div>
         </div>
       </div>

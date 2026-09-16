@@ -7,9 +7,15 @@ import { NovoCardModal } from '@/app/funil-stepone/NovoCardModal';
 import { NovoCardFundingModal } from '@/app/funil-funding/NovoCardFundingModal';
 import { NovoCardMarketingModal } from '@/app/marketing/NovoCardMarketingModal';
 import { NovoCardMoniCareModal } from '@/app/manutencoes/NovoCardMoniCareModal';
+import { NovoCardControladoriaModal } from '@/app/funil-controladoria/NovoCardControladoriaModal';
 import { hrefAbrirCardNaRota } from '@/lib/kanban/kanban-card-href';
 import { isMarketingKanbanId } from '@/lib/kanban/funis-marketing';
 import { isMoniCareKanbanId } from '@/lib/kanban/funil-moni-care';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+
+function isControladoriaKanbanId(id: string): boolean {
+  return id === KANBAN_IDS.CONTROLADORIA_CONTABIL || id === KANBAN_IDS.CONTROLADORIA_FISCAL;
+}
 import type { CamposPorFaseMap, KanbanFase, KanbanNomeDisplay } from './types';
 
 /** Modal pesado — carrega só quando há `?card=` (code-split + sem SSR). */
@@ -194,6 +200,12 @@ function KanbanModals({
           <NovoCardMarketingModal
             kanbanId={kanbanId}
             kanbanNome={kanbanNome}
+            basePath={basePath}
+            onClose={onCloseModals}
+          />
+        ) : isControladoriaKanbanId(kanbanId) ? (
+          <NovoCardControladoriaModal
+            kanbanId={kanbanId}
             basePath={basePath}
             onClose={onCloseModals}
           />

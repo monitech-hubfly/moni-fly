@@ -62,18 +62,43 @@ export default async function FunilControladoriaPage({
 
   // ─── Aba Configuração ────────────────────────────────────────────────────────
   if (aba === 'config') {
-    const { data: entidades } = await supabase
-      .from('controladoria_entidades_cfg')
-      .select('id, nome, subtipo, tipo, ativo')
-      .order('tipo')
-      .order('nome');
+    const [{ data: entidades }, { data: profilesRaw }] = await Promise.all([
+      supabase
+        .from('controladoria_entidades_cfg')
+        .select('id, nome, subtipo, tipo, ativo')
+        .order('tipo')
+        .order('nome'),
+      supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .ilike('email', '%@moni.casa')
+        .order('full_name'),
+    ]);
+
+    // Deduplica por email
+    const emailsVistos = new Set<string>();
+    const profilesFiscal: { id: string; nome: string; email: string }[] = [];
+    for (const p of profilesRaw ?? []) {
+      const email = ((p.email as string | null) ?? '').toLowerCase().trim();
+      if (!email || emailsVistos.has(email)) continue;
+      emailsVistos.add(email);
+      profilesFiscal.push({
+        id: p.id as string,
+        nome: ((p.full_name as string | null) ?? email),
+        email,
+      });
+    }
 
     return (
       <div className="min-h-0 min-w-0 bg-[var(--moni-surface-50)]">
         <Suspense fallback={null}>
           <ControladoriaTabsNav aba={aba} />
         </Suspense>
-        <ConfiguracaoTabClient entidades={entidades ?? []} isAdmin={isAdmin} />
+        <ConfiguracaoTabClient
+          entidades={entidades ?? []}
+          profilesFiscal={profilesFiscal}
+          isAdmin={isAdmin}
+        />
       </div>
     );
   }
