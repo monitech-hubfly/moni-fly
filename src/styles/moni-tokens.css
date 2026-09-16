@@ -2413,32 +2413,44 @@
   overflow-y: visible;
 }
 
-/* Kanban board — scroll horizontal com colunas largas */
+/* Kanban board — scroll horizontal sempre visível (evita overlay do SO esconder a barra) */
 .moni-kanban-board-scroll {
-  overflow-x: auto;
+  overflow-x: scroll;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: var(--moni-navy-200) var(--moni-surface-100);
-  padding-bottom: 4px;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: var(--moni-navy-400) var(--moni-surface-100);
+  padding-bottom: 6px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  /* Mantém a barra horizontal dentro do viewport (header + toolbar) */
+  max-height: calc(100dvh - 10.5rem);
 }
 
 .moni-kanban-board-scroll::-webkit-scrollbar {
-  display: block;
-  height: 10px;
+  display: block !important;
+  height: 14px;
+  -webkit-appearance: none;
+  background: var(--moni-surface-100);
 }
 
 .moni-kanban-board-scroll::-webkit-scrollbar-track {
   background: var(--moni-surface-100);
   border-radius: var(--moni-radius-md);
+  border: 0.5px solid var(--moni-border-default);
 }
 
 .moni-kanban-board-scroll::-webkit-scrollbar-thumb {
-  background: var(--moni-navy-200);
+  background: var(--moni-navy-400);
   border-radius: var(--moni-radius-md);
+  border: 2px solid var(--moni-surface-100);
+  min-width: 48px;
+}
+
+.moni-kanban-board-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--moni-navy-600);
 }
 
 .moni-kanban-board-scroll-hint {
@@ -2700,15 +2712,22 @@
 .moni-kanban-column-body {
   box-sizing: border-box;
   flex: 1;
-  max-height: 70vh;
+  /* Cabe no board-scroll (max-height) sem empurrar a barra horizontal para fora da tela */
+  max-height: min(70vh, calc(100dvh - 14rem));
   padding: 8px;
   overflow-y: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--moni-navy-200) transparent;
 }
 
 .moni-kanban-column-body::-webkit-scrollbar {
-  display: none;
-  width: 0;
+  display: block;
+  width: 8px;
+}
+
+.moni-kanban-column-body::-webkit-scrollbar-thumb {
+  background: var(--moni-navy-200);
+  border-radius: var(--moni-radius-md);
 }
 
 /* Scroll invisível — reutilizável em painéis legados */
@@ -4594,6 +4613,7 @@
   .moni-kanban-board-scroll {
     overflow-x: hidden !important;
     overflow-y: visible !important;
+    max-height: none !important;
   }
 
   .moni-kanban-board-scroll-hint {
