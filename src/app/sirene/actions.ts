@@ -1861,12 +1861,10 @@ export async function concluirChamadoCriador(
   if (!me) return { ok: false, error: 'Faça login.' };
 
   const textoTrim = texto?.trim();
-  if (!textoTrim) {
+  if (!suficiente && !textoTrim) {
     return {
       ok: false,
-      error: suficiente
-        ? 'Informe as informações da conclusão.'
-        : 'Informe o motivo da insuficiência para reabrir.',
+      error: 'Informe o motivo da insuficiência para reabrir.',
     };
   }
 
@@ -1908,7 +1906,7 @@ export async function concluirChamadoCriador(
       .update({
         resolucao_suficiente: true,
         motivo_insuficiente: null,
-        info_conclusao_criador: textoTrim,
+        info_conclusao_criador: textoTrim || null,
         status: 'concluido',
         data_conclusao: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -1921,7 +1919,7 @@ export async function concluirChamadoCriador(
       .update({
         status: 'concluida',
         concluida_em: new Date().toISOString(),
-        info_conclusao_criador: textoTrim,
+        info_conclusao_criador: textoTrim || null,
         updated_at: new Date().toISOString(),
       })
       .eq('sirene_chamado_id', chamadoId);
