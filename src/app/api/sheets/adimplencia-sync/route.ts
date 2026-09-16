@@ -5,11 +5,20 @@
 //
 // Variável de ambiente necessária:
 //   SHEETS_SYNC_SECRET=<string aleatória longa — mesma no Apps Script e aqui>
+//   SUPABASE_SERVICE_ROLE_KEY=<chave de serviço do Supabase>
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
 const SYNC_SECRET = process.env.SHEETS_SYNC_SECRET
+
+// Usa o service role para contornar o RLS (este endpoint é protegido por SHEETS_SYNC_SECRET)
+function createServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
 
 const STATUS_MAP: Record<string, string> = {
   'em dia':           'ok',
@@ -40,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const registros: Registro[] = Array.isArray(body) ? body : [body as Registro]
 
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const resultados: Resultado[] = []
 
   for (const { fk, status } of registros) {
