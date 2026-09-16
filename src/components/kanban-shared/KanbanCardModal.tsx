@@ -243,7 +243,6 @@ import { KanbanCardSlaBolinha } from './KanbanCardPrazoIndicadores';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, augmentKanbanFasesComFasesDosCards, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal, loadHistoricoCalculadoraEsteira, buildVisitsCalculadoraEsteiraSyncGroup } from '@/lib/kanban/kanban-card-historico';
-import {
 import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
 import { existeSimuladorTemplateDoCard } from '@/lib/loteamento-simulador-template';
 import {
