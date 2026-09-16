@@ -104,7 +104,7 @@ function AgendaCard({
   onDesconcluir: (id: string) => void;
   onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
   onAtualizarHorarioInicio: (id: string, hora_inicio: string) => Promise<void>;
-  onDragStart: (atv: AtividadeAgenda, e: React.MouseEvent) => void;
+  onDragStart: (atv: AtividadeAgenda, e: React.PointerEvent) => void;
   isBeingDragged?: boolean;
 })
 // Nota: eventos isFromGCal são somente leitura — sem drag, sem resize
@@ -260,16 +260,23 @@ function AgendaCard({
         border: isPendente ? '1.5px dashed #9ca3af' : undefined,
         borderTop: !isPendente && isVencido ? '3px solid rgba(239,159,39,0.9)' : undefined,
         cursor: isPendente ? 'pointer' : undefined,
+        // Necessário para que o browser não inicie scroll/zoom no trackpad durante o drag
+        touchAction: isPendente || atv.isFromGCal ? undefined : 'none',
       }}
       onMouseEnter={handleTooltipEnter}
       onMouseMove={handleTooltipMove}
       onMouseLeave={handleTooltipLeave}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         handleTooltipLeave();
         if ((e.target as HTMLElement).closest('[data-action]')) return;
         // Eventos importados do GCal são somente leitura — sem drag
         if (atv.isFromGCal) return;
-        if (!isPendente) onDragStart(atv, e);
+        if (!isPendente) {
+          // setPointerCapture garante que pointermove/pointerup continuem chegando
+          // ao document mesmo que o ponteiro saia do card — e isola do DndContext do dnd-kit
+          e.currentTarget.setPointerCapture(e.pointerId);
+          onDragStart(atv, e);
+        }
       }}
       onClick={(e) => {
         if (resizingRef.current) return;
@@ -398,7 +405,7 @@ function ColunaDia({
   onDesconcluir: (id: string) => void;
   onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
   onAtualizarHorarioInicio: (id: string, hora_inicio: string) => Promise<void>;
-  onDragStart: (atv: AtividadeAgenda, e: React.MouseEvent) => void;
+  onDragStart: (atv: AtividadeAgenda, e: React.PointerEvent) => void;
   draggingId?: string | null;
 }) {
   const horas = Array.from({ length: TOTAL_HORAS }, (_, i) => HORA_INICIO + i);
@@ -664,7 +671,7 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
   // não via useEffect global. Isso evita o race condition onde um re-render de dados
   // (que muda handleAbrirParaEditar) faz o useEffect remover os listeners entre
   // mousedown e mousemove, deixando isDragging = false e abrindo o modal de edição.
-  const handleDragStart = useCallback((atv: AtividadeAgenda, e: React.MouseEvent) => {
+  const handleDragStart = useCallback((atv: AtividadeAgenda, e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const [hi, mi] = atv.hora_inicio.split(':').map(Number);
@@ -691,8 +698,10 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
     dragStateRef.current = state;
     setDragState(state);
 
-    // Registrar listeners sincronicamente no mousedown, antes de qualquer re-render
-    const onMove = (ev: MouseEvent) => {
+    // Registrar listeners de POINTER (não mouse) — imunes à interferência do DndContext do dnd-kit.
+    // setPointerCapture (chamado no onPointerDown do card) garante que esses eventos
+    // chegam mesmo que o cursor saia do card durante o arrasto.
+    const onMove = (ev: PointerEvent) => {
       const ds = dragStateRef.current;
       if (!ds) return;
       const dx = ev.clientX - ds.startX;
@@ -706,9 +715,9 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
       setDragState({ ...updated });
     };
 
-    const onUp = async (ev: MouseEvent) => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+    const onUp = async (ev: PointerEvent) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
 
       const ds = dragStateRef.current;
       dragStateRef.current = null;
@@ -749,8 +758,8 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
       await moverEvento(ds.atv.id, novaData, novaHoraInicio, novaHoraFim);
     };
 
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
   }, [diasDaSemana, handleAbrirParaEditar, moverEvento]);
 
   const handleEscopoSelecionado = useCallback((escopo: RecorrenciaEscopo) => {
