@@ -142,6 +142,9 @@ function isOperacoesNavActive(pathname: string) {
 function isSireneNavActive(pathname: string) {
   return pathname.startsWith('/sirene');
 }
+function isDashboardsGeraisActive(pathname: string) {
+  return pathname.startsWith('/dashboards-gerais');
+}
 function isCarometroNavActive(pathname: string) {
   return pathname.startsWith('/carometro');
 }
@@ -205,6 +208,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const [internoOpen, setInternoOpen] = useState(() => isInternoNavActive(pathname ?? ''));
   const [operacoesOpen, setOperacoesOpen] = useState(() => isOperacoesNavActive(pathname ?? ''));
   const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
+  const [dashboardsGeraisOpen] = useState(false); // sem expansão — link direto
   const [carometroOpen, setCarometroOpen] = useState(() => isCarometroNavActive(pathname ?? ''));
   /** Franqueado não acessa `/rede-franqueados` (middleware); visão consolidada em `/portal-frank/rede`. */
   const redeFranqueadosNavSubitens = useMemo((): NavItem[] => {
@@ -451,6 +455,15 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
             SIRENE_SUBITENS,
             (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
           )}
+
+        {!limitedRelease && (isAdmin || resolvedRole === 'team') && (
+          <Link
+            href="/dashboards-gerais"
+            className={linkClassPrincipal(isDashboardsGeraisActive(pathname ?? ''))}
+          >
+            Dashboards Gerais Moní
+          </Link>
+        )}
 
         {isFrank && (
           <Link

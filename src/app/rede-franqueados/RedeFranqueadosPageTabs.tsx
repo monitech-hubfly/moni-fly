@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
 import type { RedeCorretorRow } from '@/lib/rede-corretores';
-import { RedeDashboard } from './RedeDashboard';
 import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
 import { RedeLoteadoresTabelaComBusca } from './RedeLoteadoresTabelaComBusca';
 import { RedeCorretoresTabelaComBusca } from './RedeCorretoresTabelaComBusca';
@@ -18,7 +17,6 @@ import { buildCadastrosEmpresasLinhasComSpe, type FranqueadoSpeRow } from '@/lib
 import type { CondominioRow } from '@/lib/condominios';
 import type { MoniCapitalCadastroRow } from '@/lib/moni-capital-cadastros';
 import type { ImobEmpreendimentoRow } from '@/lib/imob-empreendimentos';
-import { PipelineCardsView } from '@/components/pipeline/PipelineCardsView';
 import { PipelineAnalisesView } from '@/components/pipeline/PipelineAnalisesView';
 import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoading';
 import { usePipelineDatasetLazy } from '@/components/pipeline/usePipelineDatasetLazy';
@@ -47,8 +45,6 @@ import {
 import { NovoCadastroMoniCapitalModal } from './NovoCadastroMoniCapitalModal';
 
 type TabId =
-  | 'visao'
-  | 'pipeline'
   | 'analises'
   | 'franqueados'
   | 'loteadores'
@@ -66,8 +62,6 @@ const TAB_ALIASES: Record<string, TabId> = {
   corretor: 'corretores',
 };
 
-const TAB_VISAO: { id: TabId; label: string } = { id: 'visao', label: 'Visão geral' };
-const TAB_PIPELINE: { id: TabId; label: string } = { id: 'pipeline', label: 'Pipeline da rede' };
 const TAB_ANALISES: { id: TabId; label: string } = { id: 'analises', label: 'Análises' };
 const TAB_FRANQ: { id: TabId; label: string } = { id: 'franqueados', label: 'Rede de Franqueados' };
 const TAB_LOTE: { id: TabId; label: string } = { id: 'loteadores', label: 'Rede de Loteadores' };
@@ -94,7 +88,7 @@ type Props = {
   canManageCondominios: boolean;
   canManageFranqueados: boolean;
   maskSensitiveColumns: boolean;
-  showDashboard: boolean;
+  showDashboard?: boolean; // mantido por compatibilidade, não usado
 };
 
 export function RedeFranqueadosPageTabs({
@@ -114,21 +108,17 @@ export function RedeFranqueadosPageTabs({
   canManageCondominios,
   canManageFranqueados,
   maskSensitiveColumns,
-  showDashboard,
 }: Props) {
-  const showPipelineTab = showStaffTabs;
   const showAnalisesTab = showStaffTabs;
 
   const tabs = [
-    ...(showDashboard ? [TAB_VISAO] : []),
-    ...(showPipelineTab ? [TAB_PIPELINE] : []),
     ...(showAnalisesTab ? [TAB_ANALISES] : []),
     TAB_FRANQ,
     ...(showStaffTabs ? [TAB_LOTE, TAB_CORR, TAB_EMP, TAB_MC, TAB_IMOB] : []),
     ...(showCondominiosTab ? [TAB_COND] : []),
   ];
 
-  const defaultTab: TabId = showDashboard ? 'visao' : 'franqueados';
+  const defaultTab: TabId = 'franqueados';
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loteadorCreateTick, setLoteadorCreateTick] = useState(0);
@@ -148,7 +138,7 @@ export function RedeFranqueadosPageTabs({
       ? (tabCandidate as TabId)
       : defaultTab;
 
-  const pipelineTabAtivo = resolvedTab === 'pipeline' || resolvedTab === 'analises';
+  const pipelineTabAtivo = resolvedTab === 'analises';
   const { dataset: pipelineDataset, loading: pipelineLoading, error: pipelineError } = usePipelineDatasetLazy({
     mode: 'franqueadora',
     enabled: showStaffTabs && pipelineTabAtivo,
@@ -200,33 +190,6 @@ export function RedeFranqueadosPageTabs({
       </div>
 
       <div className="mt-8" role="tabpanel">
-        {resolvedTab === 'visao' && showDashboard ? <RedeDashboard rows={rows} /> : null}
-
-        {resolvedTab === 'pipeline' && showPipelineTab ? (
-          <section className="space-y-4">
-            <div>
-              <h2
-                className="text-xl font-semibold tracking-tight"
-                style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
-              >
-                Pipeline da rede
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-                Cards ativos em todos os funis, consolidados por unidade de franquia.
-              </p>
-            </div>
-            {pipelineLoading ? (
-              <PipelineDatasetLoading />
-            ) : pipelineError ? (
-              <p className="text-sm" style={{ color: 'var(--moni-status-overdue-text)' }}>
-                {pipelineError}
-              </p>
-            ) : pipelineDataset ? (
-              <PipelineCardsView mode="rede" dataset={pipelineDataset} defaultGroupBy="franquia" />
-            ) : null}
-          </section>
-        ) : null}
-
         {resolvedTab === 'analises' && showAnalisesTab ? (
           <section className="space-y-4">
             <div>
