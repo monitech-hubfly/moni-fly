@@ -15,7 +15,11 @@ export type SireneItem = {
   prazo_proposto: string | null;
   status: string;
   chamado_id: string | null;
+  /** ID interno (inteiro) do sirene_chamados — usado para abrir o modal inline. */
+  chamado_interno_id: number | null;
   chamado_numero: string | null;
+  /** UUID de kanban_atividades quando o tópico chega via interacao_id (sem chamado_id direto). */
+  interacao_id: string | null;
   prioridade: string | null;
   frank_id: string | null;
   frank_nome: string | null;
@@ -125,9 +129,9 @@ export function useBacklog(): UseBacklogResult {
             chamado_id,
             interacao_id,
             trava,
-            sirene_chamados(numero, frank_id, frank_nome, te_trata),
+            sirene_chamados(id, numero, frank_id, frank_nome, te_trata),
             kanban_atividades!sirene_topicos_interacao_id_fkey(
-              sirene_chamados(numero, frank_id, frank_nome, te_trata)
+              sirene_chamados(id, numero, frank_id, frank_nome, te_trata)
             )
           `)
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
@@ -167,7 +171,7 @@ export function useBacklog(): UseBacklogResult {
 
       if (sireneRes.error) throw sireneRes.error;
 
-      type ChamadoRaw = { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null } | { numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null }[] | null;
+      type ChamadoRaw = { id: number; numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null } | { id: number; numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null }[] | null;
       type SireneRaw = {
         id: string;
         tipo: string;
@@ -208,16 +212,18 @@ export function useBacklog(): UseBacklogResult {
           atividade_status: row.status,
         });
         return {
-          id:             row.id,
-          tipo:           row.tipo,
-          descricao:      row.descricao,
-          chamado_titulo: null,
-          data_fim:       row.data_fim,
-          prazo_proposto: row.prazo_proposto,
-          status:         row.status,
-          chamado_id:     row.chamado_id,
-          chamado_numero: chamado?.numero ?? null,
-          prioridade:     prioridade_label,
+          id:                 row.id,
+          tipo:               row.tipo,
+          descricao:          row.descricao,
+          chamado_titulo:     null,
+          data_fim:           row.data_fim,
+          prazo_proposto:     row.prazo_proposto,
+          status:             row.status,
+          chamado_id:         row.chamado_id,
+          chamado_interno_id: chamado?.id ?? null,
+          chamado_numero:     chamado?.numero ?? null,
+          interacao_id:       row.interacao_id,
+          prioridade:         prioridade_label,
           frank_id,
           frank_nome,
           trava,

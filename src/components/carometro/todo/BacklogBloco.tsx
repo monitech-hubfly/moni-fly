@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
@@ -72,8 +73,8 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
 }
 
 // ── Sirene ────────────────────────────────────────────────────────────────────
-type ColunaSireneProps = { items: SireneItem[] };
-function ColunaSirene({ items }: ColunaSireneProps) {
+type ColunaSireneProps = { items: SireneItem[]; onAbrirChamado: (id: number) => void };
+function ColunaSirene({ items, onAbrirChamado }: ColunaSireneProps) {
   const comStatus = items
     .map(i => ({ item: i, status: statusSirene(i) }))
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
@@ -97,7 +98,16 @@ function ColunaSirene({ items }: ColunaSireneProps) {
               numeroChamado={item.chamado_numero}
               status={status}
               origemBadge="Sirene"
-              href={item.chamado_id ? `/sirene/chamados?id=${item.chamado_id}` : undefined}
+              onClickExternal={
+                item.chamado_interno_id != null
+                  ? () => onAbrirChamado(item.chamado_interno_id!)
+                  : undefined
+              }
+              href={
+                item.chamado_interno_id == null && item.interacao_id
+                  ? `/sirene/chamados?interacao=${item.interacao_id}`
+                  : undefined
+              }
             />
           </DraggableSirene>
         );
@@ -321,6 +331,7 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
   const supabase = useMemo(() => createClient(), []);
   const [drawerAberto, setDrawerAberto] = useState(false);
   const [confirmExcluir, setConfirmExcluir] = useState<{ id: string; nome: string | null } | null>(null);
+  const [chamadoModalId, setChamadoModalId] = useState<number | null>(null);
 
   function handleExcluirAtividade(id: string, nome: string | null) {
     setConfirmExcluir({ id, nome });
@@ -380,7 +391,7 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
                 </span>
               </div>
             </div>
-            <ColunaSirene items={sirene} />
+            <ColunaSirene items={sirene} onAbrirChamado={(id) => setChamadoModalId(id)} />
           </div>
 
           {/* Coluna 2 — Atividades Planejadas */}
@@ -430,6 +441,15 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
         onConfirm={handleConfirmarExclusao}
         onClose={() => setConfirmExcluir(null)}
       />
+
+      {/* Modal inline do chamado Sirene — renderizado via portal para evitar clipping */}
+      {chamadoModalId != null && typeof document !== 'undefined' && createPortal(
+        <SireneChamadoBacklogWrapper
+          chamadoId={chamadoModalId}
+          onClose={() => setChamadoModalId(null)}
+        />,
+        document.body,
+      )}
     </section>
   );
 }

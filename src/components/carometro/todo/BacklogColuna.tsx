@@ -13,6 +13,8 @@ type BacklogColunaProps = {
   status: StatusPrazo;
   origemBadge?: string;
   href?: string;
+  /** Quando presente, renderiza o ExternalLink como botão que abre o chamado inline (sem navegar). */
+  onClickExternal?: () => void;
   /** Callback de exclusão. Quando presente, exibe botão ✕ ao lado do dot de status. */
   onExcluir?: () => void;
 };
@@ -76,6 +78,7 @@ export function BacklogColunaCard({
   status,
   origemBadge,
   href,
+  onClickExternal,
   onExcluir,
 }: BacklogColunaProps) {
   const borderColor = BORDER_COLOR[status];
@@ -104,7 +107,18 @@ export function BacklogColunaCard({
         </div>
         <div className="flex items-center gap-1 shrink-0 mt-1">
           <span className={`h-2 w-2 rounded-full ${DOT_COR[status]}`} />
-          {href && (
+          {onClickExternal ? (
+            <button
+              type="button"
+              title="Abrir chamado"
+              onClick={(e) => { e.stopPropagation(); onClickExternal(); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="text-gray-300 hover:text-gray-500 transition-colors"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center' }}
+            >
+              <ExternalLink className="h-3 w-3" />
+            </button>
+          ) : href ? (
             <a
               href={href}
               title="Abrir origem"
@@ -113,7 +127,7 @@ export function BacklogColunaCard({
             >
               <ExternalLink className="h-3 w-3" />
             </a>
-          )}
+          ) : null}
           {onExcluir && (
             <button
               type="button"
