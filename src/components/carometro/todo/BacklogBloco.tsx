@@ -5,7 +5,7 @@ import { X } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { createClient } from '@/lib/supabase/client';
-import { useBacklog, SireneItem, AtividadeItem, PastelariaItem } from '@/hooks/useBacklog';
+import { useBacklog, SireneItem, AtividadeItem } from '@/hooks/useBacklog';
 import { BacklogColunaCard, StatusPrazo } from './BacklogColuna';
 import { isoWeek } from '@/utils/periodos';
 import type { DadosAgendamento } from './ModalAgendamento';
@@ -51,10 +51,6 @@ function statusAtividade(item: AtividadeItem, semanaAtual: number): StatusPrazo 
   return 'futuro';
 }
 
-function statusPastelaria(item: PastelariaItem): StatusPrazo {
-  if (item.coluna === 'doing') return 'esta_semana';
-  return 'sem_prazo';
-}
 
 function EmptyState() {
   return (
@@ -76,17 +72,15 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
 }
 
 // ── Sirene ────────────────────────────────────────────────────────────────────
-type ColunaSireneProps = { items: SireneItem[]; pastelariaItems?: PastelariaItem[] };
-function ColunaSirene({ items, pastelariaItems = [] }: ColunaSireneProps) {
+type ColunaSireneProps = { items: SireneItem[] };
+function ColunaSirene({ items }: ColunaSireneProps) {
   const comStatus = items
     .map(i => ({ item: i, status: statusSirene(i) }))
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
 
-  const total = comStatus.length + pastelariaItems.length;
-
   return (
-    <div className={`flex flex-col gap-1.5 ${total > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
-      {total === 0 && <EmptyState />}
+    <div className={`flex flex-col gap-1.5 ${comStatus.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
+      {comStatus.length === 0 && <EmptyState />}
       {comStatus.map(({ item, status }) => {
         const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
         return (
@@ -108,21 +102,6 @@ function ColunaSirene({ items, pastelariaItems = [] }: ColunaSireneProps) {
           </DraggableSirene>
         );
       })}
-      {pastelariaItems.map(item => (
-        <DraggableSirene
-          key={item.id}
-          dragId={`pastelaria::${item.id}`}
-          dragData={{ type: 'pastelaria', id: item.id, titulo: item.nome }}
-        >
-          <BacklogColunaCard
-            tipo="sirene"
-            titulo={item.nome}
-            prazo={null}
-            status={statusPastelaria(item)}
-            origemBadge="Pastelaria"
-          />
-        </DraggableSirene>
-      ))}
     </div>
   );
 }
@@ -150,8 +129,7 @@ function DraggableAtividade({ id, children }: { id: string; children: ReactNode 
 }
 
 type DragSireneData =
-  | { type: 'sirene';    id: string; titulo: string; chamado_id: string | null }
-  | { type: 'pastelaria'; id: string; titulo: string };
+  | { type: 'sirene'; id: string; titulo: string; chamado_id: string | null };
 
 function DraggableSirene({ dragId, dragData, children }: { dragId: string; dragData: DragSireneData; children: ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -338,7 +316,7 @@ type BacklogBlocoProps = {
 
 // onAbrirModal mantido no tipo por compatibilidade com o pai (não é mais usado internamente)
 export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps = {}) {
-  const { sirene, pastelaria, atividades, isLoading, error, recarregar } = useBacklog();
+  const { sirene, atividades, isLoading, error, recarregar } = useBacklog();
   const semanaAtual = isoWeek(new Date());
   const supabase = useMemo(() => createClient(), []);
   const [drawerAberto, setDrawerAberto] = useState(false);
@@ -387,10 +365,10 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-4">
-          {/* Coluna 1 — Sirene / Pastelaria */}
+          {/* Coluna 1 — Sirene */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-600">Sirene / Pastelaria</span>
+              <span className="text-sm font-medium text-gray-600">Sirene</span>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5">
                   <StatusDot cor="bg-red-500"   count={sireneAtrasados} />
@@ -398,11 +376,11 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
                   <StatusDot cor="bg-gray-400"  count={sireneFuturos} />
                 </div>
                 <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
-                  {sirene.length + pastelaria.length}
+                  {sirene.length}
                 </span>
               </div>
             </div>
-            <ColunaSirene items={sirene} pastelariaItems={pastelaria} />
+            <ColunaSirene items={sirene} />
           </div>
 
           {/* Coluna 2 — Atividades Planejadas */}

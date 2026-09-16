@@ -149,14 +149,9 @@ export function useBacklog(): UseBacklogResult {
             semanaAtual - 1, semanaAtual, semanaAtual + 1, semanaAtual + 2,
           ]),
 
-        areaPessoaId
-          ? supabase
-              .from('pastelaria_cards')
-              .select('id, nome, coluna, semana_origem')
-              .eq('responsavel_id', areaPessoaId)
-              .in('coluna', ['inbox', 'mapped', 'doing'])
-              .eq('reclassificado', false)
-          : Promise.resolve({ data: [], error: null }),
+        // Pastelaria removida do Backlog (set/2026): itens da pastelaria
+        // não são mais exibidos nesta coluna para evitar duplicação com Sirene.
+        Promise.resolve({ data: [], error: null }),
 
         // Atividades atrasadas além da janela de ±4 semanas (garante cobertura total).
         // Mesmo critério: acao_id IS NOT NULL e hora_inicio IS NULL (não são eventos de agenda).
