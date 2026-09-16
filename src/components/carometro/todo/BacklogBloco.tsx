@@ -73,7 +73,7 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
 }
 
 // ── Sirene ────────────────────────────────────────────────────────────────────
-type ColunaSireneProps = { items: SireneItem[]; onAbrirChamado: (id: number) => void };
+type ColunaSireneProps = { items: SireneItem[]; onAbrirChamado: (chamadoId: number, interacaoId: string | null) => void };
 function ColunaSirene({ items, onAbrirChamado }: ColunaSireneProps) {
   const comStatus = items
     .map(i => ({ item: i, status: statusSirene(i) }))
@@ -100,7 +100,7 @@ function ColunaSirene({ items, onAbrirChamado }: ColunaSireneProps) {
               origemBadge="Sirene"
               onClickExternal={
                 item.chamado_interno_id != null
-                  ? () => onAbrirChamado(item.chamado_interno_id!)
+                  ? () => onAbrirChamado(item.chamado_interno_id!, item.interacao_id ?? null)
                   : undefined
               }
               href={
@@ -207,6 +207,8 @@ function ColunaAtividades({ items, semanaAtual, onNovaAtividade, onExcluirAtivid
 // ── SireneChamadoBacklogWrapper ───────────────────────────────────────────────
 type SireneChamadoBacklogWrapperProps = {
   chamadoId: number;
+  /** UUID de kanban_atividades — usado para montar o link "Abrir chamado completo". */
+  interacaoId?: string | null;
   onClose: () => void;
   onConcluido?: () => void;
 };
@@ -220,19 +222,27 @@ type ChamadoBasico = {
 
 export function SireneChamadoBacklogWrapper({
   chamadoId,
+  interacaoId,
   onClose,
   onConcluido,
 }: SireneChamadoBacklogWrapperProps) {
+  const supabase = useMemo(() => createClient(), []);
   const [chamado, setChamado] = useState<ChamadoBasico | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/sirene/chamado-basico?id=${chamadoId}`)
-      .then((r) => r.ok ? r.json() as Promise<ChamadoBasico> : null)
-      .then((d) => { setChamado(d); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [chamadoId]);
+    setChamado(null);
+    void supabase
+      .from('sirene_chamados')
+      .select('id, numero, incendio, status')
+      .eq('id', chamadoId)
+      .maybeSingle()
+      .then(({ data }) => {
+        setChamado(data as ChamadoBasico | null);
+        setLoading(false);
+      });
+  }, [chamadoId, supabase]);
 
   return (
     <div
@@ -280,7 +290,7 @@ export function SireneChamadoBacklogWrapper({
             </p>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <a
-                href={`/sirene/chamados?interacao=${chamadoId}`}
+                href={interacaoId ? `/sirene/chamados?interacao=${interacaoId}` : `/sirene/chamados`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -331,7 +341,7 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
   const supabase = useMemo(() => createClient(), []);
   const [drawerAberto, setDrawerAberto] = useState(false);
   const [confirmExcluir, setConfirmExcluir] = useState<{ id: string; nome: string | null } | null>(null);
-  const [chamadoModalId, setChamadoModalId] = useState<number | null>(null);
+  const [chamadoModal, setChamadoModal] = useState<{ chamadoId: number; interacaoId: string | null } | null>(null);
 
   function handleExcluirAtividade(id: string, nome: string | null) {
     setConfirmExcluir({ id, nome });
@@ -391,7 +401,7 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
                 </span>
               </div>
             </div>
-            <ColunaSirene items={sirene} onAbrirChamado={(id) => setChamadoModalId(id)} />
+            <ColunaSirene items={sirene} onAbrirChamado={(chamadoId, interacaoId) => setChamadoModal({ chamadoId, interacaoId })} />
           </div>
 
           {/* Coluna 2 — Atividades Planejadas */}
@@ -443,10 +453,11 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
       />
 
       {/* Modal inline do chamado Sirene — renderizado via portal para evitar clipping */}
-      {chamadoModalId != null && typeof document !== 'undefined' && createPortal(
+      {chamadoModal != null && typeof document !== 'undefined' && createPortal(
         <SireneChamadoBacklogWrapper
-          chamadoId={chamadoModalId}
-          onClose={() => setChamadoModalId(null)}
+          chamadoId={chamadoModal.chamadoId}
+          interacaoId={chamadoModal.interacaoId}
+          onClose={() => setChamadoModal(null)}
         />,
         document.body,
       )}
