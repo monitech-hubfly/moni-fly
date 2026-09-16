@@ -295,8 +295,18 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
   // Base para métricas (Engajamento, Relação, Contratos, Alertas): exclui só encerrados e em transferência
   const contabilizaveis = rows.filter((r) => !isStatusNC(r));
 
-  const engs = contabilizaveis.map(calcEngajamento).filter((e): e is number => e !== null);
-  const avgEng = engs.length > 0 ? Math.round(engs.reduce((a, b) => a + b, 0) / engs.length) : null;
+  // avgEng calculado direto dos campos D/K/C para incluir adormecidos (mesma base dos percentuais)
+  const engRows = contabilizaveis.filter(
+    (r) => r.diag_d !== null && r.diag_d !== undefined &&
+           r.diag_k !== null && r.diag_k !== undefined &&
+           r.diag_c !== null && r.diag_c !== undefined,
+  );
+  const avgEng = engRows.length > 0
+    ? Math.round(
+        engRows.reduce((a, r) => a + (Number(r.diag_d) * 0.4 + Number(r.diag_k) * 0.35 + Number(r.diag_c) * 0.25) / 2, 0)
+        / engRows.length * 100,
+      )
+    : null;
 
   const npsRows = contabilizaveis.filter((r) => r.diag_nps !== null && r.diag_nps !== undefined);
   const avgNps =
