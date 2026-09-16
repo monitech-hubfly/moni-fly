@@ -111,9 +111,11 @@ function aplicarFiltros(rows: RedeFranqueadoRowDb[], f: Filtros): RedeFranqueado
       if (String((r as unknown as { regional?: string | null }).regional ?? '').trim() !== f.regional) return false;
     }
 
-    // Área de Atuação
+    // Área de Atuação — verifica se a cidade selecionada está em qualquer parte do campo
     if (f.areaAtuacao !== TODOS) {
-      if (String((r as unknown as { area_atuacao?: string | null }).area_atuacao ?? '').trim() !== f.areaAtuacao) return false;
+      const cidades = String((r as unknown as { area_atuacao?: string | null }).area_atuacao ?? '')
+        .split(';').map((c) => c.trim());
+      if (!cidades.includes(f.areaAtuacao)) return false;
     }
 
     // Data de Ass. Contrato (mês/ano)
@@ -310,8 +312,11 @@ export function RedeFranqueadosTabelaComBusca({
       if (uf) ufSet.add(uf);
       const reg = String(rr.regional ?? '').trim();
       if (reg) regSet.add(reg);
-      const area = String(rr.area_atuacao ?? '').trim();
-      if (area) areaSet.add(area);
+      // Explodir por cidade individual (separadas por ";")
+      String(rr.area_atuacao ?? '').split(';').forEach((c) => {
+        const cidade = c.trim();
+        if (cidade) areaSet.add(cidade);
+      });
       const ct = String(rr.data_ass_contrato ?? '').slice(0, 7); // YYYY-MM
       if (ct.length === 7) ctSet.add(ct);
       const exp = String(rr.data_expiracao_franquia ?? '').slice(0, 7);
