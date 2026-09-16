@@ -330,7 +330,7 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
 
   const ctRows = ativas.filter((r) => r.diag_contratos_12m !== null && r.diag_contratos_12m !== undefined);
   const totalContratos = ctRows.reduce((a, r) => a + Number(r.diag_contratos_12m), 0);
-  const totalMeta = ctRows.length * 4;
+  const totalMeta = ctRows.reduce((a, r) => a + Number(r.diag_ano_meta ?? 4), 0);
 
   return {
     totalAtiva: ativas.length,
@@ -349,7 +349,10 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
     // diag_adimplencia (string) é gravado pelo sync da planilha Google Sheets.
     // diag_adimplente (boolean legado) não é mais atualizado — ignorar.
     inadimplentes: rows.filter((r) => (r as unknown as { diag_adimplencia?: string | null }).diag_adimplencia === 'inad').length,
-    emTransferencia: rows.filter((r) => isStatusNC(r)).length,
+    emTransferencia: rows.filter((r) => {
+      const n = normStatusFranquia(r.status_franquia);
+      return n.includes('transferencia');
+    }).length,
     adormecidas: rows.filter((r) => isAdormecido(r)).length,
     p1Count: rows.filter((r) => calcPriority(r) === 'P1').length,
   };
