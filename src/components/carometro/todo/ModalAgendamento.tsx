@@ -625,8 +625,53 @@ export function ModalAgendamento({
   useEffect(() => {
     if (!aberto || abaAtiva !== 'atividades' || selItem || !form.acao_id) return;
     const match = atividItems.find(item => item.acoId === form.acao_id);
-    if (match) setSelItem(match);
-  }, [aberto, abaAtiva, selItem, form.acao_id, atividItems]);
+    if (match) {
+      setSelItem(match);
+    } else if (!backlog.isLoading) {
+      // Atividade não está mais na lista ativa (evento passado / atividade concluída)
+      // Exibe item sintético com o título salvo no evento
+      setSelItem({
+        id: form.acao_id,
+        label: form.titulo ?? '(atividade planejada)',
+        sub: '—',
+        acoId: form.acao_id,
+        objetivoId: form.objetivo_id ?? null,
+      });
+    }
+  }, [aberto, abaAtiva, selItem, form.acao_id, form.titulo, form.objetivo_id, atividItems, backlog.isLoading]);
+
+  // ── Auto-seleciona chamado Sirene quando modal abre com sirene_chamado_id preenchido ──
+  useEffect(() => {
+    if (!aberto || abaAtiva !== 'sirene' || selItem || !form.sirene_chamado_id) return;
+    const match = sireneItems.find(item => Number(item.chamadoId) === form.sirene_chamado_id);
+    if (match) {
+      setSelItem(match);
+    } else if (!backlog.isLoading) {
+      // Chamado não está mais na lista ativa (ex: já foi concluído/fechado)
+      setSelItem({
+        id: String(form.sirene_chamado_id),
+        label: form.titulo ?? '(chamado Sirene)',
+        sub: `Sirene #${form.sirene_chamado_id}`,
+        chamadoId: String(form.sirene_chamado_id),
+      });
+    }
+  }, [aberto, abaAtiva, selItem, form.sirene_chamado_id, form.titulo, sireneItems, backlog.isLoading]);
+
+  // ── Auto-seleciona card Kanban quando modal abre com card_id preenchido ──
+  useEffect(() => {
+    if (!aberto || abaAtiva !== 'kanban' || selItem || !form.card_id) return;
+    const match = kanbanItems.find(item => item.id === form.card_id);
+    if (match) {
+      setSelItem(match);
+    } else if (!kanbanData.isLoading) {
+      // Card não está mais na lista ativa (ex: foi arquivado ou concluído)
+      setSelItem({
+        id: form.card_id,
+        label: form.titulo ?? '(card Kanban)',
+        sub: 'Card Kanban',
+      });
+    }
+  }, [aberto, abaAtiva, selItem, form.card_id, form.titulo, kanbanItems, kanbanData.isLoading]);
 
   // ── Disponibilidade ───────────────────────────────────────────────────────
   useEffect(() => {
