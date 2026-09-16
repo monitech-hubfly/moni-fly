@@ -463,13 +463,17 @@ export const CORRETORES_FASES_CONFIRMACAO_SAIDA = {
   forecast: [FASE_SLUGS.COR_FORECAST],
 } as const;
 
-/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migrations 389 / 559 / 560). */
+/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migrations 389 / 559 / 560 / 569). */
 export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
   /** «A opção foi assinada?» — ao sair de Assinaturas Opção → Opção Assinada. */
   opcao: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO],
   /** «O card foi aprovado em Comitê?» — ao sair de Comitê ou 2º Comitê. */
   comite: [FASE_SLUGS.STEP_5, FASE_SLUGS.PORTFOLIO_SEGUNDO_COMITE],
-  /** «O contrato foi assinado?» — ao sair de Assinaturas Contrato → Contrato Assinado. */
+  /** «O Cto c/ Precedentes foi assinado?» — ao sair de Assinaturas Cto c/ Precedentes → Cto c/ Precedentes Assinado.
+   *  Incrementa diag_contratos_12m na rede do franqueado. */
+  cto_precedentes: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES],
+  /** «O contrato foi assinado?» — ao sair de Assinaturas Contrato → Contrato s/ Precedentes Assinado.
+   *  Incrementa diag_contratos_12m na rede do franqueado. */
   contrato: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CONTRATO],
 } as const;
 

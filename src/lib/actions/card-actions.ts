@@ -4034,19 +4034,21 @@ export async function registrarConfirmacaoFasePortfolio(input: {
 
   const { data: cardRow, error: cardErr } = await supabase
     .from('kanban_cards')
-    .select('kanban_id')
+    .select('kanban_id, rede_franqueado_id')
     .eq('id', cardId)
     .maybeSingle();
   if (cardErr) return { ok: false, error: cardErr.message };
-  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.PORTFOLIO) {
+  const typedCard = cardRow as { kanban_id?: string | null; rede_franqueado_id?: string | null } | null;
+  if (String(typedCard?.kanban_id ?? '') !== KANBAN_IDS.PORTFOLIO) {
     return { ok: false, error: 'Confirmação aplicável apenas ao Funil Portfólio.' };
   }
 
   const now = new Date().toISOString();
   const patchByTipo = {
-    opcao: { opcao_assinada: true, opcao_assinada_em: now },
-    comite: { comite_aprovado: true, comite_aprovado_em: now },
-    contrato: { contrato_assinado: true, contrato_assinado_em: now },
+    opcao:           { opcao_assinada: true,                    opcao_assinada_em: now },
+    comite:          { comite_aprovado: true,                   comite_aprovado_em: now },
+    cto_precedentes: { portfolio_cto_precedentes_assinado: true, portfolio_cto_precedentes_assinado_em: now },
+    contrato:        { contrato_assinado: true,                 contrato_assinado_em: now },
   } as const;
 
   const { error: updErr } = await supabase
@@ -4055,6 +4057,14 @@ export async function registrarConfirmacaoFasePortfolio(input: {
     .eq('id', cardId);
 
   if (updErr) return { ok: false, error: updErr.message };
+
+  // Tipos que representam assinatura de contrato → incrementa contratos_12m na rede
+  if ((tipo === 'contrato' || tipo === 'cto_precedentes') && typedCard?.rede_franqueado_id) {
+    await supabase.rpc('incrementar_contratos_12m_rede', {
+      p_rede_id: typedCard.rede_franqueado_id,
+    });
+    // Erro silencioso: o card já foi atualizado; o diagnóstico pode ser corrigido manualmente
+  }
 
   const base = String(input.basePath ?? '/').trim() || '/';
   revalidatePath(base);

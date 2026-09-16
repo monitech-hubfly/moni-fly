@@ -22,18 +22,13 @@ import {
   ScoreCell,
   IndCell,
   AdimplenciaCell,
-  GrupoCell,
-  PriorityBadge,
-  PerfilCell,
   TendCell,
   PmaCell,
 } from '@/components/diagnostico-rede/cells';
 import { DiagnosticoHeaderTh } from '@/components/diagnostico-rede/DiagnosticoHeaderTh';
 import {
-  DiagnosticoInlineComputed,
   DiagnosticoInlineCsat,
   DiagnosticoInlineDim,
-  DiagnosticoInlineExtras,
   DiagnosticoInlineIndicador,
   DiagnosticoInlineAdimplencia,
   DiagnosticoInlineNps,
@@ -628,27 +623,6 @@ export function TabelaRedeFranqueadosEditavel({
 
               {/* ── Diagnóstico: Gestão ── */}
               <DiagnosticoHeaderTh
-                tooltipKey="prio"
-                className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
-                style={{ minWidth: 60 }}
-              >
-                Prio.
-              </DiagnosticoHeaderTh>
-              <DiagnosticoHeaderTh
-                tooltipKey="perfil"
-                className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
-                style={{ minWidth: 140 }}
-              >
-                Perfil
-              </DiagnosticoHeaderTh>
-              <DiagnosticoHeaderTh
-                tooltipKey="grupo"
-                className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
-                style={{ minWidth: 155 }}
-              >
-                Grupo
-              </DiagnosticoHeaderTh>
-              <DiagnosticoHeaderTh
                 tooltipKey="tendencia"
                 className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
                 style={{ minWidth: 70 }}
@@ -892,30 +866,6 @@ export function TabelaRedeFranqueadosEditavel({
                   </td>
 
                   {/* ── Diagnóstico: Gestão ── */}
-                  <td className="px-3 py-2.5 align-top">
-                    {isEditing ? (
-                      <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="prio" />
-                    ) : (
-                      <PriorityBadge row={r} />
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 align-top">
-                    {isEditing ? (
-                      <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="perfil" internalView={internalView} />
-                    ) : (
-                      <PerfilCell row={r} internalView={internalView} />
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 align-top">
-                    {isEditing ? (
-                      <div>
-                        <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="grupo" />
-                        <DiagnosticoInlineExtras draft={diagDraft} setDraft={setDiagDraft} />
-                      </div>
-                    ) : (
-                      <GrupoCell row={r} />
-                    )}
-                  </td>
                   <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineTendencias draft={diagDraft} setDraft={setDiagDraft} />
