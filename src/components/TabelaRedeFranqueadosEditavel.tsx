@@ -809,7 +809,7 @@ export function TabelaRedeFranqueadosEditavel({
                     {isEditing ? (
                       <DiagnosticoInlineScore row={diagSource} draft={diagDraft} internalView={internalView} />
                     ) : (
-                      <ScoreCell score={calcEngajamento(r)} internalView={internalView} />
+                      <ScoreCell score={calcEngajamento(r)} internalView={internalView} adormecido={isAdormecido(r)} />
                     )}
                   </td>
                   <td className="px-3 py-2.5 align-top">

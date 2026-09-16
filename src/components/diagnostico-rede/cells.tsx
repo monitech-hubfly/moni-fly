@@ -138,10 +138,19 @@ const SCORE_TEXT: Record<string, string> = {
 export function ScoreCell({
   score,
   internalView,
+  adormecido,
 }: {
   score: number | null;
   internalView: boolean;
+  adormecido?: boolean;
 }) {
+  if (adormecido) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[9px] font-semibold uppercase tracking-wide text-stone-400">Adormecido</span>
+      </div>
+    );
+  }
   if (score === null) return NA;
   const color = engajamentoColor(score);
   const label = engajamentoLabel(score, internalView);
