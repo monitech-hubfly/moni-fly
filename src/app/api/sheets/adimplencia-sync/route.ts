@@ -16,6 +16,8 @@ const STATUS_MAP: Record<string, string> = {
   'em atraso':        'inad',
   'em transferência': 'em_transferencia',
   'em transferencia': 'em_transferencia',
+  'transferência':    'em_transferencia', // planilha: "Transferência"
+  'transferencia':    'em_transferencia',
 }
 
 type Registro = { fk: string; status: string }
