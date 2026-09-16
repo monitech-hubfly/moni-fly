@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
   const registros: Registro[] = Array.isArray(body) ? body : [body as Registro]
 
-  const supabase = createClient()
+  const supabase = await createClient()
   const resultados: Resultado[] = []
 
   for (const { fk, status } of registros) {
