@@ -284,25 +284,28 @@ export type RedeMetricas = {
 };
 
 export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
+  // Base para Rede Ativa: exclui encerrados, em transferência e adormecidos
   const ativas = rows.filter((r) => !isStatusNC(r) && !isAdormecido(r));
+  // Base para métricas (Engajamento, Relação, Contratos, Alertas): exclui só encerrados e em transferência
+  const contabilizaveis = rows.filter((r) => !isStatusNC(r));
 
-  const engs = ativas.map(calcEngajamento).filter((e): e is number => e !== null);
+  const engs = contabilizaveis.map(calcEngajamento).filter((e): e is number => e !== null);
   const avgEng = engs.length > 0 ? Math.round(engs.reduce((a, b) => a + b, 0) / engs.length) : null;
 
-  const npsRows = ativas.filter((r) => r.diag_nps !== null && r.diag_nps !== undefined);
+  const npsRows = contabilizaveis.filter((r) => r.diag_nps !== null && r.diag_nps !== undefined);
   const avgNps =
     npsRows.length > 0
       ? parseFloat((npsRows.reduce((a, r) => a + Number(r.diag_nps), 0) / npsRows.length).toFixed(1))
       : null;
 
-  const csatRows = ativas.filter((r) => r.diag_csat !== null && r.diag_csat !== undefined);
+  const csatRows = contabilizaveis.filter((r) => r.diag_csat !== null && r.diag_csat !== undefined);
   const avgCsat =
     csatRows.length > 0
       ? parseFloat((csatRows.reduce((a, r) => a + Number(r.diag_csat), 0) / csatRows.length).toFixed(1))
       : null;
 
   const relCounts = { saudavel: 0, atencao: 0, critica: 0 };
-  ativas.forEach((r) => {
+  contabilizaveis.forEach((r) => {
     const rel = calcRelacao(r);
     if (rel in relCounts) relCounts[rel as keyof typeof relCounts]++;
   });
@@ -319,16 +322,16 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
     }
   }
 
-  const dRows = ativas.filter((r) => r.diag_d !== null && r.diag_d !== undefined);
+  const dRows = contabilizaveis.filter((r) => r.diag_d !== null && r.diag_d !== undefined);
   const avgD = dRows.length > 0 ? Math.round((dRows.reduce((a, r) => a + Number(r.diag_d), 0) / dRows.length / 2) * 100) : null;
 
-  const kRows = ativas.filter((r) => r.diag_k !== null && r.diag_k !== undefined);
+  const kRows = contabilizaveis.filter((r) => r.diag_k !== null && r.diag_k !== undefined);
   const avgK = kRows.length > 0 ? Math.round((kRows.reduce((a, r) => a + Number(r.diag_k), 0) / kRows.length / 2) * 100) : null;
 
-  const cRows = ativas.filter((r) => r.diag_c !== null && r.diag_c !== undefined);
+  const cRows = contabilizaveis.filter((r) => r.diag_c !== null && r.diag_c !== undefined);
   const avgC = cRows.length > 0 ? Math.round((cRows.reduce((a, r) => a + Number(r.diag_c), 0) / cRows.length / 2) * 100) : null;
 
-  const ctRows = ativas.filter((r) => r.diag_contratos_12m !== null && r.diag_contratos_12m !== undefined);
+  const ctRows = contabilizaveis.filter((r) => r.diag_contratos_12m !== null && r.diag_contratos_12m !== undefined);
   const totalContratos = ctRows.reduce((a, r) => a + Number(r.diag_contratos_12m), 0);
   const totalMeta = ctRows.reduce((a, r) => a + Number(r.diag_ano_meta ?? 4), 0);
 
@@ -348,12 +351,12 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
     totalMeta,
     // diag_adimplencia (string) é gravado pelo sync da planilha Google Sheets.
     // diag_adimplente (boolean legado) não é mais atualizado — ignorar.
-    inadimplentes: rows.filter((r) => (r as unknown as { diag_adimplencia?: string | null }).diag_adimplencia === 'inad').length,
+    inadimplentes: contabilizaveis.filter((r) => (r as unknown as { diag_adimplencia?: string | null }).diag_adimplencia === 'inad').length,
     emTransferencia: rows.filter((r) => {
       const n = normStatusFranquia(r.status_franquia);
       return n.includes('transferencia');
     }).length,
-    adormecidas: rows.filter((r) => isAdormecido(r)).length,
-    p1Count: rows.filter((r) => calcPriority(r) === 'P1').length,
+    adormecidas: contabilizaveis.filter((r) => isAdormecido(r)).length,
+    p1Count: contabilizaveis.filter((r) => calcPriority(r) === 'P1').length,
   };
 }
