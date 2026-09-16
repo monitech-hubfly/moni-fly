@@ -266,13 +266,13 @@ export function rowToSimuladorTemplateDraft(
     row.premissa_entrada_lote_parcial;
   const entradaDraft = premissaParaDraft(entrada);
   const prazo = row.prazo_obra_meses || row.prazo_desembolso_sugerido || PRAZO_OBRA_MESES_PADRAO;
-  const jurosFracao = normalizarTaxaMensalFracao(row.taxa_juros_credito_ponte);
   return {
     nome: row.nome ?? '',
     pct_itbi: percentualUiOuSugestao(row.pct_itbi, PCT_ITBI_PADRAO_UI),
     pct_impostos: percentualUiOuSugestao(row.pct_impostos, PCT_IMPOSTOS_PADRAO_UI),
-    taxa_juros_credito_ponte: percentualUiOuSugestao(jurosFracao, JUROS_CREDITO_PONTE_PADRAO_UI),
-    taxa_juros_financiamento_anual:
+    taxa_juros_credito_ponte: row.taxa_juros_credito_ponte == null
+      ? JUROS_CREDITO_PONTE_PADRAO_UI
+      : fracaoParaPercentualUi(normalizarTaxaMensalFracao(row.taxa_juros_credito_ponte)),    taxa_juros_financiamento_anual:
       row.taxa_juros_financiamento_anual == null
         ? TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI
         : percentualUiOuSugestao(
