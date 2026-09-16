@@ -283,6 +283,10 @@ export type RedeMetricas = {
   p1Count: number;
   totalDiagBase: number;
   aferidos: number;
+  indRitmo: number;
+  indProximo: number;
+  indRegular: number;
+  indAbaixo: number;
 };
 
 export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
@@ -362,5 +366,9 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
     p1Count: contabilizaveis.filter((r) => calcPriority(r) === 'P1').length,
     totalDiagBase: ativas.length,
     aferidos: ativas.filter((r) => r.diag_d !== null && r.diag_d !== undefined).length,
+    indRitmo: contabilizaveis.filter((r) => calcIndicador(r) === 'ritmo').length,
+    indProximo: contabilizaveis.filter((r) => calcIndicador(r) === 'proximo').length,
+    indRegular: contabilizaveis.filter((r) => calcIndicador(r) === 'regular').length,
+    indAbaixo: contabilizaveis.filter((r) => calcIndicador(r) === 'abaixo').length,
   };
 }

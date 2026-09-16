@@ -120,6 +120,12 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
         value={`${m.totalContratos}/${m.totalMeta}`}
         sub={`${indPct} da meta agregada`}
         color={m.totalMeta > 0 ? indColor : undefined}
+        mini={[
+          { label: 'No ritmo', value: m.indRitmo },
+          { label: 'Próximo', value: m.indProximo },
+          { label: 'Regular', value: m.indRegular },
+          { label: 'Abaixo', value: m.indAbaixo, highlight: m.indAbaixo > 0 },
+        ]}
         tooltip="Soma dos contratos nos últimos 12 meses vs. soma das metas individuais. Inclui adormecidos. Exclui encerrados e em transferência."
       />
 
