@@ -331,7 +331,9 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
     avgCsat,
     totalContratos,
     totalMeta,
-    inadimplentes: rows.filter((r) => r.diag_adimplente === false).length,
+    // diag_adimplencia (string) é gravado pelo sync da planilha Google Sheets.
+    // diag_adimplente (boolean legado) não é mais atualizado — ignorar.
+    inadimplentes: rows.filter((r) => (r as unknown as { diag_adimplencia?: string | null }).diag_adimplencia === 'inad').length,
     emTransferencia: rows.filter((r) => isStatusNC(r)).length,
     adormecidas: rows.filter((r) => isAdormecido(r)).length,
     p1Count: rows.filter((r) => calcPriority(r) === 'P1').length,
