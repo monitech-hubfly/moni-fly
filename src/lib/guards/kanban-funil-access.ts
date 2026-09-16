@@ -18,3 +18,12 @@ export async function requireFunilContratacoesAccess(): Promise<void> {
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
 }
+
+/** Garante sessão autenticada em `/funil-controladoria` (acesso liberado por papel via middleware/RLS). */
+export async function requireFunilControladoriaAccess(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  guardLoginRequired(user);
+}

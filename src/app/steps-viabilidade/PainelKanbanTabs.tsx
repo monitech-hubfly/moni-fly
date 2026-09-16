@@ -12,7 +12,8 @@ export type PainelKanbanTabsVariant =
   | 'operacoes'
   | 'credito'
   | 'contabilidade'
-  | 'stepone';
+  | 'stepone'
+  | 'controladoria';
 
 /** Mesma cor de destaque do Funil Step One em todos os painéis. */
 const KANBAN_TAB_ACCENT = 'var(--moni-kanban-stepone)';
@@ -28,6 +29,7 @@ const ACCENT: Record<PainelKanbanTabsVariant, string> = {
   credito: KANBAN_TAB_ACCENT,
   contabilidade: KANBAN_TAB_ACCENT,
   stepone: KANBAN_TAB_ACCENT,
+  controladoria: KANBAN_TAB_ACCENT,
 };
 
 const TABS = [

@@ -68,6 +68,12 @@ export const HUB_FUNIS_GRUPOS: GrupoDef[] = [
     funis: [
       { id: KANBAN_IDS.CONTRATACOES, label: 'Contratações', href: '/funil-contratacoes' },
       { id: KANBAN_IDS.CONTABILIDADE, label: 'Contabilidade', href: '/painel-contabilidade' },
+      {
+        id: KANBAN_IDS.CONTROLADORIA_CONTABIL,
+        label: 'Controladoria',
+        href: '/funil-controladoria',
+        descricao: 'Rotina Contábil · Rotina Fiscal',
+      },
     ],
   },
   {

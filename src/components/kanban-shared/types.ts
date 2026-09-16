@@ -24,7 +24,9 @@ export type KanbanNomeDisplay =
   | 'Funil Gravação de Vídeos Externos'
   | 'Funil Programação de Conteúdo Semanal'
   | 'Funil Série Inc. to Fly'
-  | 'Funil Moní Care';
+  | 'Funil Moní Care'
+  | 'Funil Controladoria — Rotina Contábil'
+  | 'Funil Controladoria — Rotina Fiscal';
 
 export type KanbanFaseMaterialTipo = 'link' | 'documento' | 'video';
 

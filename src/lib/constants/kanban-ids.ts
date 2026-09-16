@@ -24,6 +24,10 @@ export const KANBAN_IDS = {
   MONI_CARE:             'b3d47f5e-0a86-4c24-89f3-5e2b8a1c4d70',
   /** Funil Corretores — migration 548 */
   CORRETORES: '1e23c356-9993-4f8e-9d09-e17995e8a5c6',
+  /** Funil Controladoria — Rotina Contábil (migration 567) */
+  CONTROLADORIA_CONTABIL: 'c7ada001-0000-0000-0000-000000000001',
+  /** Funil Controladoria — Rotina Fiscal (migration 567) */
+  CONTROLADORIA_FISCAL: 'c7ada002-0000-0000-0000-000000000002',
 } as const
 
 /** Nome canônico em `kanbans.nome` — Funil Crédito Obra. */
@@ -60,6 +64,8 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Série Inc. to Fly': KANBAN_IDS.MARKETING_INC_TO_FLY,
   'Funil Moní Care': KANBAN_IDS.MONI_CARE,
   'Funil Corretores': KANBAN_IDS.CORRETORES,
+  'Funil Controladoria — Rotina Contábil': KANBAN_IDS.CONTROLADORIA_CONTABIL,
+  'Funil Controladoria — Rotina Fiscal':   KANBAN_IDS.CONTROLADORIA_FISCAL,
 };
 
 export const FASE_IDS = {
