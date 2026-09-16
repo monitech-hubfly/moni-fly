@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { DndContext, DragEndEvent } from '@dnd-kit/core';
 import type { OrigemInfo } from '@/components/carometro/todo/ModalAgendamento';
 import { MeuCarometroBloco } from '@/components/carometro/todo/MeuCarometroBloco';
@@ -11,7 +11,32 @@ import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import { useModalAgendamento } from '@/hooks/useModalAgendamento';
 import { MetasIndicadoresBloco } from '@/components/carometro/todo/MetasIndicadoresBloco';
 
-export default function TodoPlanningPage() {
+function SecaoColapsavel({ titulo, children, defaultOpen = true }: {
+  titulo: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [aberta, setAberta] = useState(defaultOpen);
+  return (
+    <section className="rounded-xl border border-gray-200 bg-gray-50 shadow-sm overflow-hidden">
+      <button
+        type="button"
+        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 transition-colors"
+        onClick={() => setAberta(v => !v)}
+      >
+        <span className="text-sm font-semibold text-gray-700">{titulo}</span>
+        <span className="text-gray-400 text-xs">{aberta ? '▲' : '▼'}</span>
+      </button>
+      {aberta && (
+        <div className="border-t border-gray-200">
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function TodoPlanningPageContent() {
   const { effectiveProfileId, areaId } = useEffectiveUser();
 
   // Chave de refresh: incrementar força re-fetch da Agenda
@@ -49,7 +74,11 @@ export default function TodoPlanningPage() {
       modal.abrirParaCriar({ ...base, acao_id: drag.id ?? null, origem_tipo: 'atividades' });
     } else if (drag.type === 'sirene') {
       setOrigemInfo({ titulo: drag.titulo ?? '', tipo: 'sirene' });
-      modal.abrirParaCriar(base);
+      modal.abrirParaCriar({
+        ...base,
+        sirene_chamado_id: drag.chamado_id ? Number(drag.chamado_id) : null,
+        origem_tipo: 'sirene',
+      });
     } else if (drag.type === 'pastelaria') {
       setOrigemInfo({ titulo: drag.titulo ?? '', tipo: 'pastelaria' });
       modal.abrirParaCriar(base);
@@ -63,29 +92,47 @@ export default function TodoPlanningPage() {
     <DndContext onDragEnd={handleDragEnd}>
       <div className="flex flex-col gap-6 p-6">
         <h1 className="text-xl font-bold text-gray-800">TO DO &amp; Planning</h1>
-        <MeuCarometroBloco />
-        <BacklogBloco onAbrirModal={modal.abrirParaCriar} />
-        <AgendaBloco
-          onAbrirModal={modal.abrirParaCriar}
-          onAbrirParaEditar={modal.abrirParaEditar}
-          refreshKey={agendaRefreshKey}
-        />
+
+        <SecaoColapsavel titulo="Meu Carômetro">
+          <MeuCarometroBloco />
+        </SecaoColapsavel>
+
+        <SecaoColapsavel titulo="Backlog">
+          <BacklogBloco onAbrirModal={modal.abrirParaCriar} />
+        </SecaoColapsavel>
+
+        <SecaoColapsavel titulo="Agenda">
+          <AgendaBloco
+            onAbrirModal={modal.abrirParaCriar}
+            onAbrirParaEditar={modal.abrirParaEditar}
+            refreshKey={agendaRefreshKey}
+          />
+        </SecaoColapsavel>
+
         <MetasIndicadoresBloco />
       </div>
 
       {effectiveProfileId && (
         <ModalAgendamento
+          key={effectiveProfileId}
           aberto={modal.aberto}
           onFechar={fecharModal}
           onSalvar={modal.salvar}
+          onExcluir={modal.excluir}
           preenchido={modal.preenchido}
           modo={modal.modo}
           profileId={effectiveProfileId}
           areaId={areaId}
           isSaving={modal.isSaving}
+          erroSalvar={modal.erroSalvar}
           origemInfo={origemInfo}
+          editandoId={modal.editandoId}
         />
       )}
     </DndContext>
   );
+}
+
+export default function TodoPlanningPage() {
+  return <TodoPlanningPageContent />;
 }
