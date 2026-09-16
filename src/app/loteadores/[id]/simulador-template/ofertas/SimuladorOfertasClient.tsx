@@ -2,12 +2,14 @@
 
 import {
   formatarMoedaBr,
-  STATUS_SIMULACAO_LABEL,
+  prazoTotalDePrazoSalvo,
   type SimulacaoPagamentoResumo,
 } from '@/lib/loteamento-simulador-template';
 
 type Props = {
+  cardId: string;
   ofertas: SimulacaoPagamentoResumo[];
+  prazoObraMeses: number;
 };
 
 function formatarQuando(iso: string | null): string {
@@ -17,7 +19,7 @@ function formatarQuando(iso: string | null): string {
   return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-export function SimuladorOfertasClient({ ofertas }: Props) {
+export function SimuladorOfertasClient({ cardId, ofertas, prazoObraMeses }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <h2
@@ -48,17 +50,18 @@ export function SimuladorOfertasClient({ ofertas }: Props) {
           <table className="min-w-full text-left text-sm" style={{ fontFamily: 'var(--moni-font-sans)' }}>
             <thead>
               <tr style={{ color: 'var(--moni-text-tertiary)' }}>
+                <th className="px-3 py-2 font-medium">Nome</th>
                 <th className="px-3 py-2 font-medium">Quando</th>
                 <th className="px-3 py-2 font-medium">Lote</th>
                 <th className="px-3 py-2 font-medium">Casa</th>
                 <th className="px-3 py-2 font-medium">Prazo</th>
-                <th className="px-3 py-2 font-medium">Parcela</th>
-                <th className="px-3 py-2 font-medium">Renda</th>
-                <th className="px-3 py-2 font-medium">Status</th>
+                <th className="px-3 py-2 font-medium">Acessar</th>
               </tr>
             </thead>
             <tbody>
-              {ofertas.map((o) => (
+              {ofertas.map((o) => {
+                const prazo = prazoTotalDePrazoSalvo(o.prazo_meses, prazoObraMeses);
+                return (
                 <tr
                   key={o.id}
                   style={{
@@ -66,19 +69,25 @@ export function SimuladorOfertasClient({ ofertas }: Props) {
                     color: 'var(--moni-text-secondary)',
                   }}
                 >
+                  <td className="px-3 py-2">{o.nome?.trim() || 'Sem nome'}</td>
                   <td className="whitespace-nowrap px-3 py-2">{formatarQuando(o.created_at)}</td>
                   <td className="whitespace-nowrap px-3 py-2">{formatarMoedaBr(o.valor_lote)}</td>
                   <td className="whitespace-nowrap px-3 py-2">{formatarMoedaBr(o.valor_casa)}</td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    {o.prazo_meses != null ? `${o.prazo_meses} meses` : '—'}
+                    {prazo != null ? `${prazo} meses` : '—'}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2">{formatarMoedaBr(o.parcela_mensal)}</td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    {formatarMoedaBr(o.renda_cliente ?? o.renda_informada_cliente)}
+                  <td className="px-3 py-2">
+                    <a
+                      href={`/loteadores/${cardId}/simulador-template/ofertas/${o.id}`}
+                      style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
+                      className="text-xs underline hover:opacity-70"
+                    >
+                      Abrir
+                    </a>
                   </td>
-                  <td className="px-3 py-2">{STATUS_SIMULACAO_LABEL[o.status] ?? o.status}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

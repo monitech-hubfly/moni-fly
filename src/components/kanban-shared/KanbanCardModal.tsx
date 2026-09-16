@@ -80,7 +80,8 @@ import {
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
 import { deletarChamado, listAnexosPorChamados, uploadAnexoChamado, getAnexoChamadoDownloadUrl } from '@/app/sirene/actions';
 import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
-import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
+import { isFrankOrFranqueadoRole, isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
+import { useAdmin } from '@/context/AdminContext';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   autorizarAberturaCreditoObra,
@@ -91,6 +92,10 @@ import { garantirBastaoPassagemWayser } from '@/lib/actions/kanban-bastoes';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
 import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
+import {
+  resolverFonteDadosLateraisCard,
+  type FonteDadosLaterais,
+} from '@/lib/kanban/card-dados-laterais-pai';
 import {
   deveConfirmarSaidaFasePortfolio,
   portfolioConfirmacaoPergunta,
@@ -137,6 +142,9 @@ import {
 import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoField';
 import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociacaoLinhasField';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
+import { KanbanCardModalSimulacoesImob } from './KanbanCardModalSimulacoesImob';
+import { KanbanCardModalListaLotes } from './KanbanCardModalListaLotes';
+import { KanbanCardModalSimuladorPagamentos } from './KanbanCardModalSimuladorPagamentos';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
   faseLabelFromOpcoes,
@@ -235,6 +243,13 @@ import { KanbanCardSlaBolinha } from './KanbanCardPrazoIndicadores';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, augmentKanbanFasesComFasesDosCards, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal, loadHistoricoCalculadoraEsteira, buildVisitsCalculadoraEsteiraSyncGroup } from '@/lib/kanban/kanban-card-historico';
+import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
+import { existeSimuladorTemplateDoCard } from '@/lib/loteamento-simulador-template';
+import {
+  emptyImobCardModeloDraft,
+  type ImobCardEmpreendimentoDraft,
+  type ImobCardModeloDraft,
+} from '@/lib/kanban/imob-simulacoes-card';
 import {
   listarComentariosKanbanCard,
   publicarComentarioKanbanCard,
@@ -568,6 +583,8 @@ export function KanbanCardModal({
 }: KanbanCardModalProps) {
   const router = useRouter();
   const { pode } = usePermissoes();
+  const { isAdmin: ctxIsAdmin, accessRole: ctxAccessRole } = useAdmin();
+  const staffPeloContexto = ctxIsAdmin || isRedeStaffRole(ctxAccessRole) || isAdmin;
   const suprimirFecharBackdropAteRef = useRef(0);
   const ocultarGestaoCard = portalFrank === true;
   const [loading, setLoading] = useState(true);
@@ -589,11 +606,13 @@ export function KanbanCardModal({
     () => new Map(),
   );
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
+  const [fonteDadosLaterais, setFonteDadosLaterais] = useState<FonteDadosLaterais | null>(null);
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
     calculadora: false,
     cronologia: false,
     franqueado: false,
     loteador: false,
+    listaLotes: false,
     simulacoesImob: false,
     simuladorPagamentos: false,
     moniCapital: false,
@@ -611,6 +630,13 @@ export function KanbanCardModal({
     chamados: false,
     historico: false,
   });
+  const [imobSimulacoesPrefetch, setImobSimulacoesPrefetch] = useState<{
+    cardId: string;
+    itens: ImobCardEmpreendimentoDraft[];
+    modelo: ImobCardModeloDraft;
+    error: string | null;
+    templateSalvo?: boolean;
+  } | null>(null);
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [historicoCalculadora, setHistoricoCalculadora] = useState<HistoricoItem[]>([]);
@@ -677,7 +703,7 @@ export function KanbanCardModal({
     ehAdminOuTeam: boolean;
     roleNorm: string;
     cargoNorm: string;
-  }>({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
+  }>({ userId: null, uploaderNome: '—', ehAdminOuTeam: staffPeloContexto, roleNorm: String(ctxAccessRole ?? ''), cargoNorm: '' });
   const podeCriarChamados = useMemo(
     () =>
       podeComFallbackStaff(pode, 'criar_chamados', {
@@ -1053,7 +1079,11 @@ export function KanbanCardModal({
 
   async function loadCard(opts?: { silencioso?: boolean }) {
     const silencioso = Boolean(opts?.silencioso && card);
-    if (!silencioso) setLoading(true);
+    if (!silencioso) {
+      setLoading(true);
+      setFonteDadosLaterais(null);
+      setImobSimulacoesPrefetch(null);
+    }
     try {
       const supabase = createClient();
 
@@ -1074,7 +1104,11 @@ export function KanbanCardModal({
           const fn = String((me as { full_name?: string | null } | null)?.full_name ?? '').trim();
           unome = fn || '—';
           const rl = String((me as { role?: string | null } | null)?.role ?? '').toLowerCase();
-          admTeam = rl === 'admin' || rl === 'team' || rl === 'consultor' || rl === 'supervisor';
+          admTeam =
+            isRedeStaffRole(rl) ||
+            rl === 'consultor' ||
+            rl === 'supervisor' ||
+            staffPeloContexto;
           const cg = String((me as { cargo?: string | null } | null)?.cargo ?? '')
             .trim()
             .toLowerCase();
@@ -1599,6 +1633,44 @@ export function KanbanCardModal({
         setFaseAtual(fasesResolved.find((f) => f.id === loaded.fase_id) ?? null);
       }
 
+      const fonteFallback: FonteDadosLaterais = isLoteadoresKanbanRef(
+        cardParaEstado.kanban_id,
+        String(kanbanNome),
+      )
+        ? { tipo: 'loteador', cardIdFonte: cardParaEstado.id }
+        : { tipo: 'franqueado', cardIdFonte: cardParaEstado.id };
+      void (origem === 'legado'
+        ? Promise.resolve(null as FonteDadosLaterais | null)
+        : resolverFonteDadosLateraisCard(supabase, cardParaEstado.id, '', String(kanbanNome)))
+        .then((fonte) => {
+          setFonteDadosLaterais(fonte ?? fonteFallback);
+        })
+        .catch(() => {
+          setFonteDadosLaterais(fonteFallback);
+        });
+      void Promise.all([
+        carregarImobSimulacoesCard(supabase, cardParaEstado.id),
+        existeSimuladorTemplateDoCard(supabase, cardParaEstado.id),
+      ])
+        .then(([r, temTemplate]) => {
+          setImobSimulacoesPrefetch({
+            cardId: cardParaEstado.id,
+            itens: r.ok ? r.itens : [],
+            modelo: r.ok ? r.modelo : emptyImobCardModeloDraft(),
+            error: r.ok ? null : r.error,
+            templateSalvo: temTemplate,
+          });
+        })
+        .catch((err) => {
+          console.error('[KanbanCardModal] prefetch IMOB', err);
+          setImobSimulacoesPrefetch({
+            cardId: cardParaEstado.id,
+            itens: [],
+            modelo: emptyImobCardModeloDraft(),
+            error: err instanceof Error ? err.message : 'Falha ao carregar Modelo e Simulações IMOB.',
+            templateSalvo: false,
+          });
+        });
       let cacheKanbanTimes: KanbanTimeRow[] = [];
       try {
         const { data: kt } = await supabase.from('kanban_times').select('id, nome').order('nome');
@@ -4087,7 +4159,13 @@ export function KanbanCardModal({
     sla_tipo: faseAtual?.sla_tipo,
   });
   const exibirDadosLoteadorPersistente =
-    !isLegado && isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome));
+    !isLegado &&
+    (fonteDadosLaterais?.tipo === 'loteador' ||
+      (!fonteDadosLaterais && isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))));
+  const cardIdDadosLoteador =
+    fonteDadosLaterais?.tipo === 'loteador' && fonteDadosLaterais.cardIdFonte
+      ? fonteDadosLaterais.cardIdFonte
+      : card.id;
   const exibirSecaoDocumentacaoCreditoObra =
     !isLegado &&
     kanbanNome === 'Funil Cash Me' &&
@@ -6986,7 +7064,7 @@ export function KanbanCardModal({
                   'loteador',
                   'Dados do Loteador',
                   <DadosLoteadorPersistentPanel
-                    cardId={card.id}
+                    cardId={cardIdDadosLoteador}
                     variant="sidebar"
                     onSalvo={() => {
                       void loadCard({ silencioso: true });
@@ -6994,20 +7072,22 @@ export function KanbanCardModal({
                     }}
                   />,
                 )
-              : ehFunilFunding && !isLegado
+              : null}
+            {ehFunilFunding && !isLegado
+              ? secaoHead(
+                  'moniCapital',
+                  'Dados do Investidor/Broker',
+                  <DadosMoniCapitalPersistentPanel
+                    cardId={card.id}
+                    podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                    onSalvo={() => {
+                      void loadCard({ silencioso: true });
+                      router.refresh();
+                    }}
+                  />,
+                )
+              : !exibirDadosLoteadorPersistente
                 ? secaoHead(
-                    'moniCapital',
-                    'Dados do Investidor/Broker',
-                    <DadosMoniCapitalPersistentPanel
-                      cardId={card.id}
-                      podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                      onSalvo={() => {
-                        void loadCard({ silencioso: true });
-                        router.refresh();
-                      }}
-                    />,
-                  )
-                : secaoHead(
               'franqueado',
               'Dados do Franqueado',
               <div className="space-y-2">
@@ -7178,7 +7258,8 @@ export function KanbanCardModal({
                   </div>
                 </div>
               </div>,
-            )}
+            )
+              : null}
             {exibirSecaoCondominioSidebar &&
               secaoHead(
                 'condominio',
@@ -7391,6 +7472,38 @@ export function KanbanCardModal({
               </div>
               ),
             )}
+            {exibirDadosLoteadorPersistente
+              ? secaoHead(
+                  'listaLotes',
+                  'Lista de Lotes',
+                  <KanbanCardModalListaLotes cardId={card.id} />,
+                )
+              : null}
+            {secaoHead(
+              'simulacoesImob',
+              'Modelo e Simulações IMOB',
+              <KanbanCardModalSimulacoesImob
+                cardId={card.id}
+                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                mostrarTemplate={exibirDadosLoteadorPersistente}
+                prefetch={
+                  imobSimulacoesPrefetch?.cardId === card.id ? imobSimulacoesPrefetch : null
+                }
+                esperarPrefetch={imobSimulacoesPrefetch?.cardId !== card.id}
+                legadoProdutoModeloCasa={
+                  negocioDraft.produto_modelo_casa || proc?.produto_modelo_casa || ''
+                }
+              />,
+            )}
+            {/* Entrada do template/ofertas moveu para Modelo e Simulações IMOB. Código preservado. */}
+            {false &&
+            exibirDadosLoteadorPersistente && (modalSessao.ehAdminOuTeam || staffPeloContexto)
+              ? secaoHead(
+                  'simuladorPagamentos',
+                  'Simulador de Pagamentos',
+                  <KanbanCardModalSimuladorPagamentos cardId={cardIdDadosLoteador} />,
+                )
+              : null}
             {!exibirDadosLoteadorPersistente && secaoHead(
               'dadosEmpresas',
               'Dados das Empresas',

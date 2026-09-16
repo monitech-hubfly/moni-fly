@@ -3,8 +3,7 @@
 import { Suspense } from 'react';
 import { usePathname } from 'next/navigation';
 import { AdminProvider } from '@/context/AdminContext';
-import { normalizeAccessRole } from '@/lib/authz';
-import { isCalculadoraPublicLeituraPath, isExternalTokenAccessPath, isPublicGuiaLeituraPagePath } from '@/lib/access-matrix';
+import { isCalculadoraPublicLeituraPath, isExternalTokenAccessPath, isPublicGuiaLeituraPagePath, isSimuladorPublicoPath } from '@/lib/access-matrix';
 import { PortalSidebar } from './PortalSidebar';
 import { AppStickyHeader } from './AppStickyHeader';
 
@@ -52,13 +51,13 @@ const MAIN_STYLE: React.CSSProperties = {
 export function AppShell({ user, userRole, children }: AppShellProps) {
   const pathname = usePathname() ?? '';
   const hideGlobalHeader = pathname.startsWith('/sirene');
-  const pendingOnly = Boolean(user) && normalizeAccessRole(userRole) === 'pending';
   const publicStandalone =
     isPublicGuiaLeituraPagePath(pathname) ||
     isCalculadoraPublicLeituraPath(pathname) ||
+    isSimuladorPublicoPath(pathname) ||
     isExternalTokenAccessPath(pathname);
 
-  if (!user || pendingOnly || publicStandalone) {
+  if (!user || publicStandalone) {
     return (
       <div
         className={

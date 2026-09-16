@@ -5,6 +5,7 @@ const nextConfig = {
   poweredByHeader: false,
   experimental: {
     optimizePackageImports: ['lucide-react', 'date-fns'],
+    serverComponentsExternalPackages: ['@react-pdf/renderer'],
     serverActions: {
       /** Etapas ZAP / uploads podem enviar payloads maiores que 1 MB (default). */
       bodySizeLimit: '10mb',

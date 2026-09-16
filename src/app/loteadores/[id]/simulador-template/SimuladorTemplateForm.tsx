@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   regenerarLinkSimuladorTemplate,
@@ -8,16 +8,14 @@ import {
 } from '@/lib/actions/loteamento-simulador-template';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
-  CONDICAO_LOTE_LABEL,
   PCT_FIELDS,
   PRAZO_OBRA_MESES_MINIMO,
   PRAZO_OBRA_MESES_PADRAO,
-  STATUS_SIMULACAO_LABEL,
   TOAST_TEMPLATE_SALVO,
   type LoteamentoSimuladorTemplateDraft,
   type PremissaEntradaTipo,
-  type SimulacaoPagamentoResumo,
 } from '@/lib/loteamento-simulador-template';
+import { marcarSimuladorTemplateSalvo } from '@/lib/simulador/simulador-card-ui-state';
 import {
   formatarNumeroInput,
   parsearNumeroInput,
@@ -28,7 +26,6 @@ type Props = {
   cardTitulo: string;
   draftInicial: LoteamentoSimuladorTemplateDraft;
   linkInicial: string | null;
-  simulacoes: SimulacaoPagamentoResumo[];
 };
 
 const fieldCls =
@@ -47,28 +44,17 @@ function qrUrl(link: string): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(link)}`;
 }
 
-function formatarQuando(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function formatarRenda(n: number | null): string {
-  if (n == null || !Number.isFinite(n)) return '—';
-  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
 export function SimuladorTemplateForm({
   cardId,
   cardTitulo,
   draftInicial,
   linkInicial,
-  simulacoes: simulacoesInicial,
 }: Props) {
   const router = useRouter();
   const [draft, setDraft] = useState(draftInicial);
   const [link, setLink] = useState(linkInicial);
+  const [rascunhoBase, setRascunhoBase] = useState(() => JSON.stringify(draftInicial));
+  const [jaSalvo, setJaSalvo] = useState(() => Boolean(linkInicial));
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -94,21 +80,31 @@ export function SimuladorTemplateForm({
     [draft.prazo_obra_meses],
   );
 
+  const temAlteracoes = JSON.stringify(draft) !== rascunhoBase;
+  const podeSalvar = !salvando && (!jaSalvo || temAlteracoes);
+
   async function onSalvar() {
+    if (!podeSalvar) return;
     setSalvando(true);
     setErro(null);
     setMensagem(null);
-    const res = await salvarSimuladorTemplateDoCard(cardId, draft);
-    if (!res.ok) {
-      setErro(res.error);
-      setSalvando(false);
-      return;
-    }
-    setLink(res.link);
-    setMensagem(TOAST_TEMPLATE_SALVO);
-    setSalvando(false);
-    router.refresh();
-    router.push(`/loteadores/${cardId}/simulador-template/ofertas`);
+    startTransition(() => {
+      void (async () => {
+        const res = await salvarSimuladorTemplateDoCard(cardId, draft);
+        if (!res.ok) {
+          setErro(res.error);
+          setSalvando(false);
+          return;
+        }
+        marcarSimuladorTemplateSalvo(cardId);
+        setLink(res.link);
+        setJaSalvo(true);
+        setRascunhoBase(JSON.stringify(draft));
+        setMensagem(TOAST_TEMPLATE_SALVO);
+        setSalvando(false);
+        router.refresh();
+      })();
+    });
   }
 
   async function onNovoLink() {
@@ -127,6 +123,7 @@ export function SimuladorTemplateForm({
     setLink(res.link);
     setMensagem(res.mensagem);
     setSalvando(false);
+    router.refresh();
   }
 
   async function copiarLink() {
@@ -368,53 +365,8 @@ export function SimuladorTemplateForm({
         )}
       </section>
 
-      {simulacoesInicial.length > 0 ? (
-        <section>
-          <h2
-            className="text-lg"
-            style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
-          >
-            Simulações salvas
-          </h2>
-          <p className="mt-1 text-sm" style={hintStyle}>
-            Inclui leads do QR (corretor sem login) e simulações do time.
-          </p>
-          <div
-            className="mt-3 overflow-x-auto rounded-[var(--moni-radius-lg)]"
-            style={{ border: 'var(--moni-border-width) solid var(--moni-border-default)' }}
-          >
-            <table className="min-w-full text-left text-sm" style={{ fontFamily: 'var(--moni-font-sans)' }}>
-              <thead>
-                <tr style={{ color: 'var(--moni-text-tertiary)' }}>
-                  <th className="px-3 py-2 font-medium">Quando</th>
-                  <th className="px-3 py-2 font-medium">Condição</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 font-medium">Renda</th>
-                </tr>
-              </thead>
-              <tbody>
-                {simulacoesInicial.map((s) => (
-                  <tr
-                    key={s.id}
-                    style={{
-                      borderTop: 'var(--moni-border-width) solid var(--moni-border-default)',
-                      color: 'var(--moni-text-secondary)',
-                    }}
-                  >
-                    <td className="whitespace-nowrap px-3 py-2">{formatarQuando(s.created_at)}</td>
-                    <td className="px-3 py-2">{CONDICAO_LOTE_LABEL[s.condicao_lote] ?? s.condicao_lote}</td>
-                    <td className="px-3 py-2">{STATUS_SIMULACAO_LABEL[s.status] ?? s.status}</td>
-                    <td className="whitespace-nowrap px-3 py-2">{formatarRenda(s.renda_informada_cliente)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
-
       <div
-        className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t px-4 py-3 sm:-mx-0 sm:static sm:flex-row sm:border-0 sm:px-0 sm:py-0"
+        className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t px-4 py-3 sm:-mx-0 sm:static sm:flex-row sm:flex-wrap sm:border-0 sm:px-0 sm:py-0"
         style={{
           borderColor: 'var(--moni-border-default)',
           background: 'var(--moni-surface-50)',
@@ -422,11 +374,15 @@ export function SimuladorTemplateForm({
       >
         <button
           type="submit"
-          disabled={salvando}
-          className="min-h-[44px] rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:opacity-50"
-          style={{ background: 'var(--moni-navy-800)' }}
+          disabled={!podeSalvar}
+          className="min-h-[44px] rounded-[var(--moni-radius-md)] px-5 text-sm font-medium disabled:cursor-not-allowed"
+          style={{
+            background: podeSalvar ? 'var(--moni-navy-800)' : 'var(--moni-surface-200)',
+            color: podeSalvar ? 'var(--moni-text-inverse)' : 'var(--moni-text-tertiary)',
+            fontFamily: 'var(--moni-font-sans)',
+          }}
         >
-          {salvando ? 'Salvando…' : link ? 'Salvar template' : 'Salvar e gerar link'}
+          {salvando ? 'Salvando…' : jaSalvo ? 'Salvar template' : 'Salvar e gerar link'}
         </button>
       </div>
     </form>
@@ -477,10 +433,7 @@ function PremissaFields({
   onValor: (v: string) => void;
 }) {
   return (
-    <div
-      className="rounded-[var(--moni-radius-lg)] p-4"
-      style={{ border: 'var(--moni-border-width) solid var(--moni-border-default)' }}
-    >
+    <div>
       <p className={labelCls} style={labelStyle}>
         {titulo}
       </p>
