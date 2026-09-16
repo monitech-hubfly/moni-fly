@@ -53,6 +53,17 @@ export type RedeLoteadorRow = {
   criado_por?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  /** Diagnóstico */
+  diag_d: number | null;
+  diag_nps: number | null;
+  diag_csat: number | null;
+  diag_adormecido: boolean;
+  diag_proxima_acao: string | null;
+  diag_ultimo_contato: string | null;
+  diag_ultima_aval: string | null;
+  diag_avaliado_por: string | null;
+  diag_tend_rel: string | null;
+  diag_grupo_sec: string | null;
 };
 
 export const REDE_LOTEADOR_STATUS_LABEL: Record<RedeLoteadorStatus, string> = {
@@ -203,6 +214,16 @@ function mapRow(r: Record<string, unknown>): RedeLoteadorRow {
     criado_por: (r.criado_por as string | null) ?? null,
     created_at: (r.created_at as string | null) ?? null,
     updated_at: (r.updated_at as string | null) ?? null,
+    diag_d: r.diag_d !== undefined && r.diag_d !== null ? Number(r.diag_d) : null,
+    diag_nps: r.diag_nps !== undefined && r.diag_nps !== null ? Number(r.diag_nps) : null,
+    diag_csat: r.diag_csat !== undefined && r.diag_csat !== null ? Number(r.diag_csat) : null,
+    diag_adormecido: r.diag_adormecido === true,
+    diag_proxima_acao: (r.diag_proxima_acao as string | null) ?? null,
+    diag_ultimo_contato: parseDateOrNull(r.diag_ultimo_contato),
+    diag_ultima_aval: parseDateOrNull(r.diag_ultima_aval),
+    diag_avaliado_por: (r.diag_avaliado_por as string | null) ?? null,
+    diag_tend_rel: (r.diag_tend_rel as string | null) ?? null,
+    diag_grupo_sec: (r.diag_grupo_sec as string | null) ?? null,
   };
 }
 
@@ -301,4 +322,17 @@ export type RedeLoteadorPatch = {
   campo_livre?: string | null;
   anexo_material_extra?: string | null;
   ultima_atualizacao_por?: string | null;
+};
+
+export type RedeLoteadorDiagPatch = {
+  diag_d?: number | null;
+  diag_nps?: number | null;
+  diag_csat?: number | null;
+  diag_adormecido?: boolean;
+  diag_proxima_acao?: string | null;
+  diag_ultimo_contato?: string | null;
+  diag_ultima_aval?: string | null;
+  diag_avaliado_por?: string | null;
+  diag_tend_rel?: string | null;
+  diag_grupo_sec?: string | null;
 };
