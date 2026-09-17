@@ -4048,7 +4048,6 @@ export async function registrarConfirmacaoFasePortfolio(input: {
     opcao:           { opcao_assinada: true,                    opcao_assinada_em: now },
     comite:          { comite_aprovado: true,                   comite_aprovado_em: now },
     cto_precedentes: { portfolio_cto_precedentes_assinado: true, portfolio_cto_precedentes_assinado_em: now },
-    contrato:        { contrato_assinado: true,                 contrato_assinado_em: now },
   } as const;
 
   const { error: updErr } = await supabase
@@ -4058,8 +4057,8 @@ export async function registrarConfirmacaoFasePortfolio(input: {
 
   if (updErr) return { ok: false, error: updErr.message };
 
-  // Tipos que representam assinatura de contrato → incrementa contratos_12m na rede
-  if ((tipo === 'contrato' || tipo === 'cto_precedentes') && typedCard?.rede_franqueado_id) {
+  // Assinatura de Cto c/ Precedentes → incrementa contratos_12m na rede
+  if (tipo === 'cto_precedentes' && typedCard?.rede_franqueado_id) {
     await supabase.rpc('incrementar_contratos_12m_rede', {
       p_rede_id: typedCard.rede_franqueado_id,
     });
