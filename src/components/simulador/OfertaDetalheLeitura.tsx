@@ -105,13 +105,6 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
         })
       : null;
 
-  const detalheUnica = fluxoFinal ?? sugerido;
-  const parcelaUnicaMostrada =
-    temConfirmados && parcelaUnicaConf != null ? parcelaUnicaConf : sugerido.parcela_unica_sugerida;
-  const excessoMoni = Math.max(
-    0,
-    parcelaUnicaMostrada - detalheUnica.parcela_unica_detalhe.min_quitar_lote,
-  );
   const composicao = linhasComposicaoPreco(sugerido, cfg);
 
   return (
@@ -132,36 +125,10 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
       </Secao>
 
       <Secao titulo="Detalhamento da parcela única" className="print-no-break">
-        <p className="mb-3 text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
-          A parcela única de {formatarMoeda(sugerido.parcela_unica_sugerida)} é o maior entre o mínimo
-          para quitar o lote ({formatarMoeda(sugerido.parcela_unica_detalhe.min_quitar_lote)}) e o
-          mínimo para atingir 30% do VTE (
-          {formatarMoeda(sugerido.parcela_unica_detalhe.min_atingir_30pct)}). Isso cobre{' '}
-          {sugerido.parcela_unica_detalhe.pct_vte_antes_obra.toLocaleString('pt-BR', {
-            maximumFractionDigits: 1,
-          })}
-          % do valor total antes do início da obra.
-        </p>
         <TabelaSimples
           linhas={[
             {
               cols: ['Parcela única calculada', formatarMoeda(sugerido.parcela_unica_sugerida)],
-            },
-            {
-              cols: [
-                'Mínimo para quitar o lote',
-                formatarMoeda(detalheUnica.parcela_unica_detalhe.min_quitar_lote),
-              ],
-            },
-            {
-              cols: [
-                'Threshold 30% do VTE',
-                formatarMoeda(detalheUnica.parcela_unica_detalhe.min_atingir_30pct),
-              ],
-            },
-            {
-              cols: ['Excesso retido pela Moní', formatarMoeda(excessoMoni)],
-              destaque: true,
             },
           ]}
         />
