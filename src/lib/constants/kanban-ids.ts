@@ -469,18 +469,18 @@ export const CORRETORES_FASES_CONFIRMACAO_SAIDA = {
   forecast: [FASE_SLUGS.COR_FORECAST],
 } as const;
 
-/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migrations 389 / 559 / 560 / 569). */
+/** Funil Portfólio — slugs que disparam confirmação ao sair da fase. */
 export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
-  /** «A opção foi assinada?» — ao sair de Assinaturas Opção → Opção Assinada. */
-  opcao: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO],
+  /** «A opção foi assinada com o terrenista?» — ao sair de Opção Assinada. */
+  opcao: [FASE_SLUGS.PORTFOLIO_OPCAO_ASSINADA],
   /** «O card foi aprovado em Comitê?» — ao sair de Comitê ou Demais Comitês. */
   comite: [FASE_SLUGS.STEP_5, FASE_SLUGS.PORTFOLIO_SEGUNDO_COMITE],
-  /** «O Cto c/ Precedentes foi assinado?» — ao sair de Assinaturas Cto c/ Precedentes → Cto c/ Precedentes Assinado.
+  /** «O Cto c/ Precedentes foi assinado?» — ao sair de Cto c/ Precedentes Assinado.
    *  Incrementa diag_contratos_12m na rede do franqueado. */
-  cto_precedentes: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES],
-  /** «O contrato foi assinado?» — ao sair de Assinaturas Contrato → Contrato s/ Precedentes Assinado.
+  cto_precedentes: [FASE_SLUGS.PORTFOLIO_CTO_PRECEDENTES_ASSINADO],
+  /** «O Cto s/ Precedentes foi assinado?» — ao sair de Contrato s/ Precedentes Assinado.
    *  Incrementa diag_contratos_12m na rede do franqueado. */
-  contrato: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CONTRATO],
+  contrato: [FASE_SLUGS.PORTFOLIO_CONTRATO_ASSINADO],
 } as const;
 
 /** Funil Loteadores — slugs que disparam popup ao sair da fase (Assinou? / Comitê). */
