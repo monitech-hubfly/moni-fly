@@ -16,7 +16,6 @@ const PERGUNTA_POR_TIPO: Record<PortfolioConfirmacaoFaseTipo, string> = {
   opcao: 'A opção foi assinada com o terrenista?',
   comite: 'O card foi aprovado em Comitê?',
   cto_precedentes: 'O Cto c/ Precedentes foi assinado?',
-  contrato: 'O Cto s/ Precedentes foi assinado?',
 };
 
 const PERGUNTA_CHAIN: Record<PortfolioConfirmacaoChainTipo, string> = {

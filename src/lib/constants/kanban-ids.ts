@@ -478,9 +478,6 @@ export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
   /** «O Cto c/ Precedentes foi assinado?» — ao sair de Cto c/ Precedentes Assinado.
    *  Incrementa diag_contratos_12m na rede do franqueado. */
   cto_precedentes: [FASE_SLUGS.PORTFOLIO_CTO_PRECEDENTES_ASSINADO],
-  /** «O Cto s/ Precedentes foi assinado?» — ao sair de Contrato s/ Precedentes Assinado.
-   *  Incrementa diag_contratos_12m na rede do franqueado. */
-  contrato: [FASE_SLUGS.PORTFOLIO_CONTRATO_ASSINADO],
 } as const;
 
 /** Funil Loteadores — slugs que disparam popup ao sair da fase (Assinou? / Comitê). */
