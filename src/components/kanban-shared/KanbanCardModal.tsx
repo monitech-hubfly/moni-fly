@@ -1023,6 +1023,11 @@ export function KanbanCardModal({
       setFasesEsteiraCalculadoraCarregado(false);
       return;
     }
+    if (isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))) {
+      setFasesEsteiraCalculadora(new Map());
+      setFasesEsteiraCalculadoraCarregado(true);
+      return;
+    }
     let cancelled = false;
     setFasesEsteiraCalculadoraCarregado(false);
     (async () => {
@@ -1036,7 +1041,7 @@ export function KanbanCardModal({
     return () => {
       cancelled = true;
     };
-  }, [card?.id]);
+  }, [card?.id, card?.kanban_id, kanbanNome]);
 
   useEffect(() => {
     if (!editingComentarioId) return;
@@ -1427,82 +1432,6 @@ export function KanbanCardModal({
         profiles,
       };
 
-      if (origem !== 'legado' && cardParaEstado.kanban_id) {
-        const brief: KanbanCardBrief = {
-          id: cardParaEstado.id,
-          titulo: cardParaEstado.titulo,
-          status: cardParaEstado.status,
-          created_at: cardParaEstado.created_at,
-          fase_id: cardParaEstado.fase_id,
-          franqueado_id: cardParaEstado.franqueado_id,
-          kanban_id: cardParaEstado.kanban_id,
-          projeto_id: cardParaEstado.projeto_id,
-          acoplamento_concluido: cardParaEstado.acoplamento_concluido,
-          acoplamento_filho_fase_nome: cardParaEstado.acoplamento_filho_fase_nome,
-          acoplamento_filho_fase_slug: cardParaEstado.acoplamento_filho_fase_slug,
-          credito_terreno_ok: cardParaEstado.credito_terreno_ok,
-          contabilidade_ok: cardParaEstado.contabilidade_ok,
-          capital_ok: cardParaEstado.capital_ok,
-          juridico_ok: cardParaEstado.juridico_ok,
-          credito_obra_ok: cardParaEstado.credito_obra_ok,
-        };
-        const enrichedList = await enrichCardsParalelasContext(supabase, cardParaEstado.kanban_id, [brief]);
-        const enrichedRow = enrichedList[0];
-        if (enrichedRow) {
-          cardParaEstado = {
-            ...cardParaEstado,
-            portfolio_vinculo_rotulo: enrichedRow.portfolio_vinculo_rotulo,
-            tem_filho_juridico: enrichedRow.tem_filho_juridico,
-            tem_filho_acoplamento: enrichedRow.tem_filho_acoplamento,
-            filho_acoplamento_arquivado: enrichedRow.filho_acoplamento_arquivado,
-            tem_filho_operacoes: enrichedRow.tem_filho_operacoes,
-            filho_operacoes_arquivado: enrichedRow.filho_operacoes_arquivado,
-            operacoes_filho_fase_rotulo: enrichedRow.operacoes_filho_fase_rotulo,
-            operacoes_filho_concluido: enrichedRow.operacoes_filho_concluido,
-            juridico_filho_fase_nome: enrichedRow.juridico_filho_fase_nome,
-            acoplamento_filho_fase_nome: enrichedRow.filho_acoplamento_arquivado
-              ? enrichedRow.acoplamento_filho_fase_nome ?? null
-              : enrichedRow.acoplamento_filho_fase_nome ?? cardParaEstado.acoplamento_filho_fase_nome,
-            acoplamento_filho_fase_slug: enrichedRow.filho_acoplamento_arquivado
-              ? enrichedRow.acoplamento_filho_fase_slug ?? null
-              : enrichedRow.acoplamento_filho_fase_slug ?? cardParaEstado.acoplamento_filho_fase_slug,
-          };
-        }
-      }
-
-      try {
-        const syncInfo = await obterInfoSyncGrupoCard(cardParaEstado.id);
-        if (syncInfo.ok) {
-          setTotalCardsSyncGrupo(syncInfo.totalVinculados);
-          const c = syncInfo.camposCanonicos;
-          if (c) {
-            if (c.titulo) cardParaEstado = { ...cardParaEstado, titulo: c.titulo };
-            if (c.rede_franqueado_id) {
-              cardParaEstado = { ...cardParaEstado, rede_franqueado_id: c.rede_franqueado_id };
-            }
-            if (c.nome_condominio !== undefined) {
-              cardParaEstado = { ...cardParaEstado, nome_condominio: c.nome_condominio };
-            }
-            if (c.condominio_id !== undefined) {
-              cardParaEstado = { ...cardParaEstado, condominio_id: c.condominio_id };
-            }
-            if (c.quadra !== undefined) cardParaEstado = { ...cardParaEstado, quadra: c.quadra };
-            if (c.lote !== undefined) cardParaEstado = { ...cardParaEstado, lote: c.lote };
-            if (c.data_reuniao !== undefined) {
-              const drCanon = c.data_reuniao ? String(c.data_reuniao).slice(0, 10) : '';
-              if (drCanon && dataIsoInputValida(drCanon)) {
-                loaded = { ...loaded, data_reuniao: c.data_reuniao };
-              }
-            }
-            if (c.hora_reuniao !== undefined) {
-              loaded = { ...loaded, hora_reuniao: c.hora_reuniao };
-            }
-          }
-        }
-      } catch {
-        setTotalCardsSyncGrupo(0);
-      }
-
       if (origem === 'legado') {
         try {
           const { data: procRow } = await supabase
@@ -1547,6 +1476,87 @@ export function KanbanCardModal({
       );
       setDataFollowup(loaded.data_followup ? String(loaded.data_followup).slice(0, 10) : '');
 
+      const cardIdAberto = cardParaEstado.id;
+      if (origem !== 'legado' && cardParaEstado.kanban_id) {
+        const brief: KanbanCardBrief = {
+          id: cardParaEstado.id,
+          titulo: cardParaEstado.titulo,
+          status: cardParaEstado.status,
+          created_at: cardParaEstado.created_at,
+          fase_id: cardParaEstado.fase_id,
+          franqueado_id: cardParaEstado.franqueado_id,
+          kanban_id: cardParaEstado.kanban_id,
+          projeto_id: cardParaEstado.projeto_id,
+          acoplamento_concluido: cardParaEstado.acoplamento_concluido,
+          acoplamento_filho_fase_nome: cardParaEstado.acoplamento_filho_fase_nome,
+          acoplamento_filho_fase_slug: cardParaEstado.acoplamento_filho_fase_slug,
+          credito_terreno_ok: cardParaEstado.credito_terreno_ok,
+          contabilidade_ok: cardParaEstado.contabilidade_ok,
+          capital_ok: cardParaEstado.capital_ok,
+          juridico_ok: cardParaEstado.juridico_ok,
+          credito_obra_ok: cardParaEstado.credito_obra_ok,
+        };
+        void enrichCardsParalelasContext(supabase, cardParaEstado.kanban_id, [brief])
+          .then((enrichedList) => {
+          const enrichedRow = enrichedList[0];
+          if (!enrichedRow) return;
+          setCard((prev) => {
+            if (!prev || prev.id !== cardIdAberto) return prev;
+            return {
+              ...prev,
+              portfolio_vinculo_rotulo: enrichedRow.portfolio_vinculo_rotulo,
+              tem_filho_juridico: enrichedRow.tem_filho_juridico,
+              tem_filho_acoplamento: enrichedRow.tem_filho_acoplamento,
+              filho_acoplamento_arquivado: enrichedRow.filho_acoplamento_arquivado,
+              tem_filho_operacoes: enrichedRow.tem_filho_operacoes,
+              filho_operacoes_arquivado: enrichedRow.filho_operacoes_arquivado,
+              operacoes_filho_fase_rotulo: enrichedRow.operacoes_filho_fase_rotulo,
+              operacoes_filho_concluido: enrichedRow.operacoes_filho_concluido,
+              juridico_filho_fase_nome: enrichedRow.juridico_filho_fase_nome,
+              acoplamento_filho_fase_nome: enrichedRow.filho_acoplamento_arquivado
+                ? enrichedRow.acoplamento_filho_fase_nome ?? null
+                : enrichedRow.acoplamento_filho_fase_nome ?? prev.acoplamento_filho_fase_nome,
+              acoplamento_filho_fase_slug: enrichedRow.filho_acoplamento_arquivado
+                ? enrichedRow.acoplamento_filho_fase_slug ?? null
+                : enrichedRow.acoplamento_filho_fase_slug ?? prev.acoplamento_filho_fase_slug,
+            };
+          });
+        })
+        .catch(() => {
+          /* chips paralelos não bloqueiam a abertura do card */
+        });
+      }
+
+      void obterInfoSyncGrupoCard(cardIdAberto)
+        .then((syncInfo) => {
+          if (!syncInfo.ok) return;
+          setTotalCardsSyncGrupo(syncInfo.totalVinculados);
+          const c = syncInfo.camposCanonicos;
+          if (!c) return;
+          setCard((prev) => {
+            if (!prev || prev.id !== cardIdAberto) return prev;
+            return {
+              ...prev,
+              titulo: c.titulo || prev.titulo,
+              rede_franqueado_id: c.rede_franqueado_id ?? prev.rede_franqueado_id,
+              nome_condominio: c.nome_condominio !== undefined ? c.nome_condominio : prev.nome_condominio,
+              condominio_id: c.condominio_id !== undefined ? c.condominio_id : prev.condominio_id,
+              quadra: c.quadra !== undefined ? c.quadra : prev.quadra,
+              lote: c.lote !== undefined ? c.lote : prev.lote,
+            };
+          });
+          if (c.data_reuniao !== undefined) {
+            const drCanon = c.data_reuniao ? String(c.data_reuniao).slice(0, 10) : '';
+            if (drCanon && dataIsoInputValida(drCanon)) setDataReuniao(drCanon);
+          }
+          if (c.hora_reuniao !== undefined) {
+            setHoraReuniao(c.hora_reuniao ? String(c.hora_reuniao).trim().slice(0, 5) : '');
+          }
+        })
+        .catch(() => {
+          setTotalCardsSyncGrupo(0);
+        });
+
       // Carregar tags
       if (loaded.kanban_id) {
         const [tk, tc] = await Promise.all([listarTagsKanban(loaded.kanban_id), listarTagsCard(loaded.id)]);
@@ -1566,7 +1576,7 @@ export function KanbanCardModal({
           cardProjetoId: loaded.projeto_id ?? null,
           cardProcessoStepOneId: loaded.processo_step_one_id ?? null,
         });
-        if (origem === 'nativo' && det.processo?.id) {
+        if (origem === 'nativo' && det.processo?.id && loaded.kanban_id === KANBAN_IDS.STEP_ONE) {
           const syncLinks = await reconciliarGboxPlanilhaMapaChecklist({
             cardId: loaded.id,
             processoId: det.processo.id,
@@ -1721,7 +1731,8 @@ export function KanbanCardModal({
           loaded.kanban_id,
         );
         setHistorico(hist);
-        if (origem !== 'legado') {
+        const pularCalculadoraEsteira = isLoteadoresKanbanRef(loaded.kanban_id, String(kanbanNome));
+        if (origem !== 'legado' && !pularCalculadoraEsteira) {
           const histCalc = await loadHistoricoCalculadoraEsteira(
             supabase,
             cardId,
@@ -3736,6 +3747,11 @@ export function KanbanCardModal({
       setContextoCalculadoraCarregado(false);
       return;
     }
+    if (isLoteadoresKanbanRef(card?.kanban_id, String(kanbanNome))) {
+      setContextoCalculadoraSyncGroup(null);
+      setContextoCalculadoraCarregado(true);
+      return;
+    }
 
     let cancelado = false;
     setContextoCalculadoraCarregado(false);
@@ -3751,7 +3767,7 @@ export function KanbanCardModal({
     return () => {
       cancelado = true;
     };
-  }, [card?.id]);
+  }, [card?.id, card?.kanban_id, kanbanNome]);
 
   useEffect(() => {
     const cardId = card?.id?.trim();
