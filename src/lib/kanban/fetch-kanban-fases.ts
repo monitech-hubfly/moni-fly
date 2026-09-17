@@ -58,8 +58,6 @@ async function fetchKanbanFasesAtivasUncached(kanbanId: string): Promise<KanbanF
   return fetchKanbanFasesAtivas(admin, kanbanId);
 }
 
-const kanbanFasesCacheById = new Map<string, Promise<KanbanFase[]>>();
-
 /** Fases ativas com `unstable_cache` (revalidate 60s). Fallback: query direta com o client do caller. */
 export async function fetchKanbanFasesAtivasCached(
   supabase: SupabaseClient,
@@ -68,17 +66,11 @@ export async function fetchKanbanFasesAtivasCached(
   const kid = String(kanbanId ?? '').trim();
   if (!kid) return [];
 
-  let cachedPromise = kanbanFasesCacheById.get(kid);
-  if (!cachedPromise) {
-    cachedPromise = unstable_cache(
-      () => fetchKanbanFasesAtivasUncached(kid),
-      ['kanban-fases-ativas', kid],
-      { revalidate: 60, tags: [`kanban-fases-${kid}`] },
-    )();
-    kanbanFasesCacheById.set(kid, cachedPromise);
-  }
-
-  const cached = await cachedPromise;
+  const cached = await unstable_cache(
+    () => fetchKanbanFasesAtivasUncached(kid),
+    ['kanban-fases-ativas', kid],
+    { revalidate: 60, tags: [`kanban-fases-${kid}`] },
+  )();
   if (cached.length > 0) return cached;
   return fetchKanbanFasesAtivas(supabase, kid);
 }
