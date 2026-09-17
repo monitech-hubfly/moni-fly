@@ -137,10 +137,9 @@ export async function executarForkJuridicoDemandaConcluida(cardId: string): Prom
   }
 
   try {
-    const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
+    const { aplicarResponsaveisPadraoTodasFasesJuridico } =
       await import('@/lib/kanban/responsavel-fase-checklist');
-    await aplicarResponsavelFasePadraoAoCard(db, cid, faseDestId, KANBAN_IDS.JURIDICO, null);
-    await aplicarResponsavelDaFasePadraoSeVazio(db, cid, faseDestId, null);
+    await aplicarResponsaveisPadraoTodasFasesJuridico(db, cid, null);
   } catch (e) {
     console.error('[forkJuridico] responsavel fase:', e);
   }

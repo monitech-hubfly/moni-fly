@@ -475,10 +475,17 @@ export async function criarCardFilho(
       criadoPor,
     );
 
-    const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
-      await import('@/lib/kanban/responsavel-fase-checklist');
-    await aplicarResponsavelFasePadraoAoCard(db, filhoId, faseId, kanbanDestinoId, criadoPor);
-    await aplicarResponsavelDaFasePadraoSeVazio(db, filhoId, faseId, criadoPor);
+    const {
+      aplicarResponsavelFasePadraoAoCard,
+      aplicarResponsavelDaFasePadraoSeVazio,
+      aplicarResponsaveisPadraoTodasFasesJuridico,
+    } = await import('@/lib/kanban/responsavel-fase-checklist');
+    if (kanbanDestinoId === KANBAN_IDS.JURIDICO) {
+      await aplicarResponsaveisPadraoTodasFasesJuridico(db, filhoId, criadoPor);
+    } else {
+      await aplicarResponsavelFasePadraoAoCard(db, filhoId, faseId, kanbanDestinoId, criadoPor);
+      await aplicarResponsavelDaFasePadraoSeVazio(db, filhoId, faseId, criadoPor);
+    }
 
     const syncCalc = await sincronizarCamposCalculadoraBastaoFilho(db, cardPaiId, filhoId, {
       faseDestinoId: faseId,
@@ -576,11 +583,18 @@ export async function criarCardFilho(
     criadoPor,
   );
 
-  const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
-    await import('@/lib/kanban/responsavel-fase-checklist');
+  const {
+    aplicarResponsavelFasePadraoAoCard,
+    aplicarResponsavelDaFasePadraoSeVazio,
+    aplicarResponsaveisPadraoTodasFasesJuridico,
+  } = await import('@/lib/kanban/responsavel-fase-checklist');
   try {
-    await aplicarResponsavelFasePadraoAoCard(db, cardFilhoId, faseId, kanbanDestinoId, criadoPor);
-    await aplicarResponsavelDaFasePadraoSeVazio(db, cardFilhoId, faseId, criadoPor);
+    if (kanbanDestinoId === KANBAN_IDS.JURIDICO) {
+      await aplicarResponsaveisPadraoTodasFasesJuridico(db, cardFilhoId, criadoPor);
+    } else {
+      await aplicarResponsavelFasePadraoAoCard(db, cardFilhoId, faseId, kanbanDestinoId, criadoPor);
+      await aplicarResponsavelDaFasePadraoSeVazio(db, cardFilhoId, faseId, criadoPor);
+    }
   } catch (e) {
     console.error('[bastao] responsavel fase padrao:', e);
   }

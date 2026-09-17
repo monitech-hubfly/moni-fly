@@ -862,6 +862,33 @@ export async function propagarResponsavelDaFaseAoEntrarFase(
   await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, novaFaseId, preenchidoPor);
 }
 
+/**
+ * Funil Jurídico: preenche responsável do card (Isabela) e da fase (Moní)
+ * em todas as fases ativas — não só na fase atual.
+ */
+export async function aplicarResponsaveisPadraoTodasFasesJuridico(
+  supabase: SupabaseClient,
+  cardId: string,
+  preenchidoPor?: string | null,
+): Promise<void> {
+  const cid = cardId.trim();
+  if (!cid) return;
+  const kid = KANBAN_IDS.JURIDICO;
+
+  const { data: fases } = await supabase
+    .from('kanban_fases')
+    .select('id')
+    .eq('kanban_id', kid)
+    .eq('ativo', true);
+
+  for (const fase of fases ?? []) {
+    const fid = String((fase as { id?: string }).id ?? '').trim();
+    if (!fid) continue;
+    await aplicarResponsavelFasePadraoAoCard(supabase, cid, fid, kid, preenchidoPor);
+    await aplicarResponsavelDaFasePadraoSeVazio(supabase, cid, fid, preenchidoPor);
+  }
+}
+
 /** Valores salvos de «Responsável da fase» por fase (batch — calculadora). */
 export async function buscarResponsavelDaFaseSalvoPorFases(
   supabase: SupabaseClient,
