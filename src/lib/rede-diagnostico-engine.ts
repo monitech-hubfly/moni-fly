@@ -85,7 +85,7 @@ export function calcEngajamento(
   // Escala 0–2: 0=Não tem, 1=Moderado, 2=Tem
   // K = Conhecimento × 35%  |  C = Comportamento × 25%
   const raw = (Number(diag_d) * 0.4 + Number(diag_k) * 0.35 + Number(diag_c) * 0.25) / 2;
-  return Math.round(raw * 1000) / 10;
+  return Math.round(raw * 100);
 }
 
 export function engajamentoColor(score: number): DiagEngColor {
@@ -376,9 +376,23 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
     p1Count: contabilizaveis.filter((r) => calcPriority(r) === 'P1').length,
     totalDiagBase: ativas.length,
     aferidos: ativas.filter((r) => r.diag_d !== null && r.diag_d !== undefined).length,
-    indRitmo: contabilizaveis.filter((r) => calcIndicador(r) === 'ritmo').length,
-    indProximo: contabilizaveis.filter((r) => calcIndicador(r) === 'proximo').length,
-    indRegular: contabilizaveis.filter((r) => calcIndicador(r) === 'regular').length,
-    indAbaixo: contabilizaveis.filter((r) => calcIndicador(r) === 'abaixo').length,
+    // calcIndicador exclui adormecidos via isExcluido — calculamos direto para incluí-los
+    ...(() => {
+      const toInd = (r: RedeFranqueadoRowDb) => {
+        if (r.diag_contratos_12m === null || r.diag_contratos_12m === undefined) return null;
+        const meta = Number(r.diag_ano_meta ?? 4);
+        const pct = (Number(r.diag_contratos_12m) / meta) * 100;
+        if (pct >= 100) return 'ritmo';
+        if (pct >= 75) return 'proximo';
+        if (pct >= 50) return 'regular';
+        return 'abaixo';
+      };
+      return {
+        indRitmo: contabilizaveis.filter((r) => toInd(r) === 'ritmo').length,
+        indProximo: contabilizaveis.filter((r) => toInd(r) === 'proximo').length,
+        indRegular: contabilizaveis.filter((r) => toInd(r) === 'regular').length,
+        indAbaixo: contabilizaveis.filter((r) => toInd(r) === 'abaixo').length,
+      };
+    })(),
   };
 }

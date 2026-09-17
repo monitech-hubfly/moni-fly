@@ -25,22 +25,22 @@ export const REDE_DIAG_HEADER_TOOLTIPS: Record<DiagnosticoHeaderKey, Diagnostico
   score: {
     title: 'Score',
     subtitle: 'Engajamento %',
-    description: 'Percentual calculado: D×40% + C×35% + K×25%, de 0 a 100%.',
+    description: 'Percentual calculado: D×40% + K×35% + C×25%, de 0 a 100%.',
   },
   d: {
     title: 'D — Dinheiro / Capital',
     subtitle: 'Consegue?',
-    description: 'Dimensão financeira: o franqueado tem capital e viabilidade para operar? (0 = não, 2 = moderado, 3 = sim).',
+    description: 'Dimensão financeira: o franqueado tem capital e viabilidade para operar? (0 = não, 1 = moderado, 2 = sim).',
   },
   c: {
     title: 'C — Comportamento',
     subtitle: 'Faz?',
-    description: 'Dimensão de execução: o franqueado ativa e executa as ações esperadas? (0 = não, 2 = moderado, 3 = sim).',
+    description: 'Dimensão de execução: o franqueado ativa e executa as ações esperadas? (0 = não, 1 = moderado, 2 = sim).',
   },
   k: {
     title: 'K — Conhecimento',
     subtitle: 'Sabe?',
-    description: 'Dimensão de capacitação: domina processos e ferramentas? (0 = gap, 2 = moderado, 3 = sim).',
+    description: 'Dimensão de capacitação: domina processos e ferramentas? (0 = gap, 1 = moderado, 2 = sim).',
   },
   nps: {
     title: 'NPS',

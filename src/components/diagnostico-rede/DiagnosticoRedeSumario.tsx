@@ -145,7 +145,7 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
       <Card
         label="Diagnóstico"
         value={m.aferidos}
-        sub={`de ${m.totalDiagBase} aferidos`}
+        sub={`de ${m.totalDiagBase} elegíveis`}
         tooltip="Franqueados com diagnóstico preenchido (campo Dinheiro aferido). Exclui encerrados, em transferência e adormecidos."
       />
     </div>
