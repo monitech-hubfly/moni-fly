@@ -941,6 +941,60 @@ async function dispararBastao(
 }
 
 /**
+ * Garante card filho no Funil Jurídico (Recebimento + tag) para cards Portfólio
+ * já nas fases Jurídico / Assinaturas / Assinado sem bastão disparado.
+ * Idempotente por tag.
+ */
+export async function garantirBastaoJuridicoPortfolio(cardId: string): Promise<boolean> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return false;
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    console.error('[garantirBastaoJuridicoPortfolio] admin client:', e);
+    return false;
+  }
+
+  const { data: cardRow, error: errCard } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, fase_id, arquivado, concluido')
+    .eq('id', cid)
+    .maybeSingle();
+
+  if (errCard || !cardRow?.id) return false;
+  if (String(cardRow.kanban_id ?? '') !== KANBAN_IDS.PORTFOLIO) return false;
+  if (Boolean((cardRow as { arquivado?: boolean | null }).arquivado)) return false;
+  if (Boolean((cardRow as { concluido?: boolean | null }).concluido)) return false;
+
+  const { data: faseRow } = await db
+    .from('kanban_fases')
+    .select('slug')
+    .eq('id', String((cardRow as { fase_id?: string | null }).fase_id ?? ''))
+    .maybeSingle();
+
+  const slug = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim();
+  const triggerPorFaseAtual: Record<string, string> = {
+    [FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO]: FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO,
+    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO]: FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO,
+    [FASE_SLUGS.PORTFOLIO_OPCAO_ASSINADA]: FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO,
+    [FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES]: FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES,
+    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES]: FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES,
+    [FASE_SLUGS.PORTFOLIO_CTO_PRECEDENTES_ASSINADO]: FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES,
+    [FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO]: FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO,
+    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CONTRATO]: FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO,
+    [FASE_SLUGS.PORTFOLIO_CONTRATO_ASSINADO]: FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO,
+  };
+
+  const trigger = triggerPorFaseAtual[slug];
+  if (!trigger) return false;
+
+  await executarBastoes(cid, trigger);
+  return true;
+}
+
+/**
  * Garante card filho em Operações/planialtimetrico para cards Portfolio já em passagem_wayser.
  * Idempotente — repara cards que entraram na fase antes do bastão disparar.
  */
@@ -1146,6 +1200,21 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         juridicoTagNome: 'Opção',
       },
     ],
+    /** Heal: se o card já passou de Jurídico Opção sem bastão, cria ao entrar nas fases seguintes. */
+    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Opção',
+      },
+    ],
+    [FASE_SLUGS.PORTFOLIO_OPCAO_ASSINADA]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Opção',
+      },
+    ],
     /** Funil Portfólio — Jurídico Cto c/ Precedentes → Funil Jurídico. */
     [FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES]: [
       {
@@ -1154,8 +1223,36 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         juridicoTagNome: 'Cto c/ Precedentes',
       },
     ],
+    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Cto c/ Precedentes',
+      },
+    ],
+    [FASE_SLUGS.PORTFOLIO_CTO_PRECEDENTES_ASSINADO]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Cto c/ Precedentes',
+      },
+    ],
     /** Funil Portfólio — Jurídico Contrato s/ Precedentes → Funil Jurídico. */
     [FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Cto s/ Precedentes',
+      },
+    ],
+    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CONTRATO]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Cto s/ Precedentes',
+      },
+    ],
+    [FASE_SLUGS.PORTFOLIO_CONTRATO_ASSINADO]: [
       {
         kanbanDestinoId: KANBAN_IDS.JURIDICO,
         faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,

@@ -65,6 +65,7 @@ import {
   executarBastaoDeVolta,
   executarBastoes,
   garantirBastaoPassagemWayser,
+  garantirBastaoJuridicoPortfolio,
 } from '@/lib/actions/kanban-bastoes';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
@@ -5202,6 +5203,19 @@ export async function upsertFaseChecklistResposta(input: {
   const faseIdItem = String((itemRow as { fase_id?: string | null } | null)?.fase_id ?? '').trim();
   if (faseIdItem === FASE_IDS.PORTFOLIO_PASSAGEM_WAYSER) {
     void garantirBastaoPassagemWayser(input.card_id);
+  }
+  if (
+    faseIdItem === FASE_IDS.PORTFOLIO_JURIDICO_OPCAO ||
+    faseIdItem === FASE_IDS.PORTFOLIO_ASSINATURAS_OPCAO ||
+    faseIdItem === FASE_IDS.PORTFOLIO_OPCAO_ASSINADA ||
+    faseIdItem === FASE_IDS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES ||
+    faseIdItem === FASE_IDS.PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES ||
+    faseIdItem === FASE_IDS.PORTFOLIO_CTO_PRECEDENTES_ASSINADO ||
+    faseIdItem === FASE_IDS.PORTFOLIO_JURIDICO_CONTRATO ||
+    faseIdItem === FASE_IDS.PORTFOLIO_ASSINATURAS_CONTRATO ||
+    faseIdItem === FASE_IDS.PORTFOLIO_CONTRATO_ASSINADO
+  ) {
+    void garantirBastaoJuridicoPortfolio(input.card_id);
   }
 
   const campoSlug = String((itemRow as { campo_slug?: string | null } | null)?.campo_slug ?? '').trim();
