@@ -404,6 +404,10 @@ type Card = {
   funding_tipo?: 'Investidor' | 'Broker' | null;
   funding_localizacao?: string | null;
   funding_descritivo?: string | null;
+  juridico_nome_candidato?: string | null;
+  juridico_estado?: string | null;
+  juridico_cidade?: string | null;
+  juridico_observacoes?: string | null;
   proxima_atividade?: string | null;
   prazo_atividade?: string | null;
   portfolio_vinculo_rotulo?: string | null;
@@ -621,6 +625,7 @@ export function KanbanCardModal({
     novoNegocio: false,
     dadosEmpresas: false,
     dadosFunding: false,
+    dadosCandidato: true,
     dadosMaterial: false,
     preObra: false,
     obra: false,
@@ -1173,6 +1178,10 @@ export function KanbanCardModal({
         funding_tipo?: 'Investidor' | 'Broker' | null;
         funding_localizacao?: string | null;
         funding_descritivo?: string | null;
+        juridico_nome_candidato?: string | null;
+        juridico_estado?: string | null;
+        juridico_cidade?: string | null;
+        juridico_observacoes?: string | null;
         proxima_atividade?: string | null;
         prazo_atividade?: string | null;
       };
@@ -1268,7 +1277,9 @@ export function KanbanCardModal({
           'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra';
         const cardSelectFunding =
           'funding_tipo, funding_localizacao, funding_descritivo';
-        const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}`;
+        const cardSelectJuridicoCandidato =
+          'juridico_nome_candidato, juridico_estado, juridico_cidade, juridico_observacoes';
+        const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}, ${cardSelectJuridicoCandidato}`;
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at`;
         let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).single();
         if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
@@ -1375,6 +1386,14 @@ export function KanbanCardModal({
             (cardData as { funding_localizacao?: string | null }).funding_localizacao ?? null,
           funding_descritivo:
             (cardData as { funding_descritivo?: string | null }).funding_descritivo ?? null,
+          juridico_nome_candidato:
+            (cardData as { juridico_nome_candidato?: string | null }).juridico_nome_candidato ?? null,
+          juridico_estado:
+            (cardData as { juridico_estado?: string | null }).juridico_estado ?? null,
+          juridico_cidade:
+            (cardData as { juridico_cidade?: string | null }).juridico_cidade ?? null,
+          juridico_observacoes:
+            (cardData as { juridico_observacoes?: string | null }).juridico_observacoes ?? null,
           proxima_atividade:
             (cardData as { proxima_atividade?: string | null }).proxima_atividade ?? null,
           prazo_atividade:
@@ -1430,6 +1449,10 @@ export function KanbanCardModal({
         credito_obra_ok: loaded.credito_obra_ok,
         processo_meta: loaded.processo_meta ?? null,
         profiles,
+        juridico_nome_candidato: loaded.juridico_nome_candidato ?? null,
+        juridico_estado: loaded.juridico_estado ?? null,
+        juridico_cidade: loaded.juridico_cidade ?? null,
+        juridico_observacoes: loaded.juridico_observacoes ?? null,
       };
 
       if (origem === 'legado') {
@@ -7090,6 +7113,38 @@ export function KanbanCardModal({
                       router.refresh();
                     }}
                   />,
+                )
+              : null}
+            {kanbanNome === 'Funil Jurídico' &&
+            (card.juridico_nome_candidato ||
+              card.juridico_cidade ||
+              card.juridico_estado ||
+              card.juridico_observacoes)
+              ? secaoHead(
+                  'dadosCandidato',
+                  'Dados do Candidato',
+                  <div className="space-y-2">
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Nome do Candidato</div>
+                      <div className="text-xs text-stone-800">{displayOrDash(card.juridico_nome_candidato)}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Estado</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(card.juridico_estado)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Cidade</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(card.juridico_cidade)}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Observações/solicitações</div>
+                      <div className="whitespace-pre-wrap text-xs text-stone-800">
+                        {displayOrDash(card.juridico_observacoes)}
+                      </div>
+                    </div>
+                  </div>,
                 )
               : null}
             {ehFunilFunding && !isLegado

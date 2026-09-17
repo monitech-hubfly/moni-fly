@@ -1843,6 +1843,11 @@ export type CriarCardKanbanInput = {
   lote?: string;
   redeFranqueadoId?: string;
   origemTipo?: 'hipotese_direta';
+  /** Funil Jurídico: abertura sem franqueado (candidato). */
+  juridicoNomeCandidato?: string;
+  juridicoEstado?: string;
+  juridicoCidade?: string;
+  juridicoObservacoes?: string;
 };
 
 export type CriarCardFundingInput = {
@@ -1945,6 +1950,16 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   if (redeId) insertPayload.rede_franqueado_id = redeId;
   if (input.origemTipo === 'hipotese_direta') {
     insertPayload.origem_tipo = 'hipotese_direta';
+  }
+  if (kanbanId === KANBAN_IDS.JURIDICO) {
+    insertPayload.juridico_origem = 'comercial';
+    const nomeCandidato = (input.juridicoNomeCandidato ?? '').trim();
+    if (nomeCandidato) {
+      insertPayload.juridico_nome_candidato = nomeCandidato;
+      insertPayload.juridico_estado = (input.juridicoEstado ?? '').trim() || null;
+      insertPayload.juridico_cidade = (input.juridicoCidade ?? '').trim() || null;
+      insertPayload.juridico_observacoes = (input.juridicoObservacoes ?? '').trim() || null;
+    }
   }
 
   const { data: cardRow, error } = await supabase.from('kanban_cards').insert(insertPayload as never).select('id').single();

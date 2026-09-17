@@ -157,6 +157,11 @@ export type KanbanCardBrief = {
   /** Responsável preenchido no checklist da fase atual (`responsavel_fase`). */
   responsavel_fase_id?: string | null;
   responsavel_fase_nome?: string | null;
+  /** Funil Jurídico: abertura por candidato (sem franqueado). */
+  juridico_nome_candidato?: string | null;
+  juridico_estado?: string | null;
+  juridico_cidade?: string | null;
+  juridico_observacoes?: string | null;
   /** Funil Funding */
   funding_tipo?: 'Investidor' | 'Broker' | null;
   funding_localizacao?: string | null;
