@@ -1169,9 +1169,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
       },
     ],
-    [FASE_SLUGS.CAPTACAO_CAPITAL]: [
-      { kanbanDestinoId: KANBAN_IDS.MONI_CAPITAL, faseDestinoSlug: 'capital_recebimento' },
-    ],
     [FASE_SLUGS.PASSAGEM_WAYSER]: [
       { kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' },
     ],
