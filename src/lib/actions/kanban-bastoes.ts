@@ -75,6 +75,8 @@ export interface CriarCardFilhoParams {
   origemKanbanId?: string | null;
   /** Funil Jurídico: origem do chamado (`portfolio` | `loteadores` | `comercial`). */
   juridicoOrigem?: 'portfolio' | 'loteadores' | 'comercial' | null;
+  /** Funil Jurídico (bastão Portfólio): tag da demanda — permite múltiplos filhos. */
+  juridicoTagNome?: 'Opção' | 'Cto c/ Precedentes' | 'Cto s/ Precedentes' | null;
   /** Funil Crédito Obra: tranche da tag (1ª automática; 2ª–6ª cria card adicional). */
   creditoObraTranche?: 1 | 2 | 3 | 4 | 5 | 6;
 }
@@ -321,7 +323,24 @@ export async function criarCardFilho(
     params.creditoObraTranche != null &&
     params.creditoObraTranche > 1
       ? null
-      : await buscarCardFilhoExistente(db, cardPaiId, kanbanDestinoId);
+      : kanbanDestinoId === KANBAN_IDS.JURIDICO && params.juridicoTagNome
+        ? await (async () => {
+            const { buscarCardFilhoJuridicoPorTag } = await import(
+              '@/lib/kanban/juridico-portfolio-tag'
+            );
+            const row = await buscarCardFilhoJuridicoPorTag(
+              db,
+              cardPaiId,
+              params.juridicoTagNome!,
+              kanbanDestinoId,
+            );
+            if (!row?.id) return null;
+            return {
+              id: row.id,
+              arquivado: row.arquivado,
+            } as CardFilhoExistenteRow;
+          })()
+        : await buscarCardFilhoExistente(db, cardPaiId, kanbanDestinoId);
 
   if (existente?.id && !Boolean(existente.arquivado)) {
     if (kanbanDestinoId === KANBAN_IDS.OPERACOES) {
@@ -474,6 +493,11 @@ export async function criarCardFilho(
       await aplicarTagTrancheCreditoObra(db, filhoId, tranche, kanbanDestinoId);
     }
 
+    if (kanbanDestinoId === KANBAN_IDS.JURIDICO && params.juridicoTagNome) {
+      const { aplicarTagJuridicoPortfolio } = await import('@/lib/kanban/juridico-portfolio-tag');
+      await aplicarTagJuridicoPortfolio(db, filhoId, params.juridicoTagNome, kanbanDestinoId);
+    }
+
     return filhoReativado as KanbanCardFilhoCriado;
   }
 
@@ -577,6 +601,15 @@ export async function criarCardFilho(
       await aplicarTagTrancheCreditoObra(db, cardFilhoId, tranche, kanbanDestinoId);
     } catch (e) {
       console.error('[bastao] tag tranche credito obra:', e);
+    }
+  }
+
+  if (kanbanDestinoId === KANBAN_IDS.JURIDICO && params.juridicoTagNome) {
+    try {
+      const { aplicarTagJuridicoPortfolio } = await import('@/lib/kanban/juridico-portfolio-tag');
+      await aplicarTagJuridicoPortfolio(db, cardFilhoId, params.juridicoTagNome, kanbanDestinoId);
+    } catch (e) {
+      console.error('[bastao] tag juridico portfolio:', e);
     }
   }
 
@@ -704,6 +737,8 @@ type BastaoDestino = {
   kanbanDestinoId: string;
   faseDestinoSlug: string;
   flag?: null;
+  /** Tag aplicada no card filho (Funil Jurídico — bastões Portfólio). */
+  juridicoTagNome?: 'Opção' | 'Cto c/ Precedentes' | 'Cto s/ Precedentes';
 };
 
 type CardPaiBastao = {
@@ -891,6 +926,7 @@ async function dispararBastao(
         destino.kanbanDestinoId === KANBAN_IDS.JURIDICO
           ? juridicoOrigemPorKanbanPai(pai.kanban_id)
           : undefined,
+      juridicoTagNome: destino.juridicoTagNome,
     });
     if (
       filho?.id &&
@@ -1102,14 +1138,28 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     [FASE_SLUGS.LOTEADORES_ACOPLAMENTO_GBOX]: [
       { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
     ],
-    [FASE_SLUGS.STEP_7]: [
-      { kanbanDestinoId: KANBAN_IDS.CONTABILIDADE, faseDestinoSlug: 'contabilidade_spe' },
-    ],
-    /** Funil Portfólio — Enviar Opção → Funil Jurídico. */
-    [FASE_SLUGS.STEP_3]: [
+    /** Funil Portfólio — Jurídico Opção → Funil Jurídico (tag Opção). */
+    [FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO]: [
       {
         kanbanDestinoId: KANBAN_IDS.JURIDICO,
         faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Opção',
+      },
+    ],
+    /** Funil Portfólio — Jurídico Cto c/ Precedentes → Funil Jurídico. */
+    [FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Cto c/ Precedentes',
+      },
+    ],
+    /** Funil Portfólio — Jurídico Contrato s/ Precedentes → Funil Jurídico. */
+    [FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Cto s/ Precedentes',
       },
     ],
     /** Funil Loteadores — Jurídico → Funil Jurídico. */

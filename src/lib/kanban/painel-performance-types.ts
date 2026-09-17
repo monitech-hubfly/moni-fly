@@ -39,6 +39,9 @@ export type PainelCardDTO = {
   comite_aprovado_em?: string | null;
   contrato_assinado?: boolean | null;
   contrato_assinado_em?: string | null;
+  /** Pop-up Portfólio «Cto c/ Precedentes» — alimenta metas de contrato assinado. */
+  portfolio_cto_precedentes_assinado?: boolean | null;
+  portfolio_cto_precedentes_assinado_em?: string | null;
   origem_kanban_id?: string | null;
   origem_kanban_nome?: string | null;
   /** Funil Step One — identificação do lote no card. */
