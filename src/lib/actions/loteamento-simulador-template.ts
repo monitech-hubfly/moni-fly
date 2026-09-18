@@ -499,6 +499,7 @@ export async function criarSimuladorOfertaDoCard(
 
   const inputs = {
     nome,
+    empreendimento_id: String(draft.empreendimento_id ?? '').trim() || null,
     valor_lote: valorLote.valor,
     valor_casa: valorCasa.valor,
     valor_customizacao: valorCustom.valor,
