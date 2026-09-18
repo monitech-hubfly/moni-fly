@@ -698,3 +698,33 @@ export async function carregarSimuladorOfertaDoCard(
   const template = tplData ? mapTemplateRow(tplData as Record<string, unknown>) : null;
   return { ok: true, oferta, template, loteadorNome: card.loteadorNome };
 }
+
+export async function excluirOfertaSimulacao(
+  ofertaId: string,
+  cardId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const oid = String(ofertaId ?? '').trim();
+  const cid = String(cardId ?? '').trim();
+  if (!oid || !cid) return { ok: false, error: 'IDs inválidos.' };
+
+  const auth = await requireStaff();
+  if (!auth.ok) return auth;
+  const { supabase } = auth;
+
+  // Limpar FK em imob_card_empreendimentos antes de deletar
+  await supabase
+    .from('imob_card_empreendimentos')
+    .update({ simulacao_pagamento_id: null })
+    .eq('simulacao_pagamento_id', oid);
+
+  const { error } = await supabase
+    .from('simulacoes_pagamento')
+    .delete()
+    .eq('id', oid)
+    .eq('kanban_card_id', cid); // segurança: só deleta se pertence ao card
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidateAposMutacaoSimulador(cid);
+  return { ok: true };
+}

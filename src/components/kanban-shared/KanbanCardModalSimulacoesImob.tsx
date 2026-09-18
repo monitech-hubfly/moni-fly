@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import {
   criarImobSimulacaoEmpreendimento,
@@ -16,6 +16,7 @@ import {
 } from '@/lib/actions/imob-simulacoes-card';
 import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
 import { existeSimuladorTemplateDoCard } from '@/lib/loteamento-simulador-template';
+import { excluirOfertaSimulacao } from '@/lib/actions/loteamento-simulador-template';
 import {
   aplicarOfertasMarcadasNoCliente,
   simuladorTemplateMarcadoNoCliente,
@@ -26,7 +27,6 @@ import {
   IMOB_STATUS_IMOVEL,
   emptyImobCardModeloDraft,
   formatImobMoedaExibicao,
-  formatImobPrazoTotalExibicao,
   labelStatusImovel,
   opcoesProdutoModeloComValorAtual,
   type ImobCardEmpreendimentoDraft,
@@ -171,32 +171,6 @@ function CampoMoeda({
   );
 }
 
-function CampoMoedaLeitura({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span className={labelCls} style={labelStyle}>
-        {label}
-      </span>
-      <div className="mt-0.5 text-xs tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
-        {formatImobMoedaExibicao(value)}
-      </div>
-    </div>
-  );
-}
-
-function CampoPrazoLeitura({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span className={labelCls} style={labelStyle}>
-        {label}
-      </span>
-      <div className="mt-0.5 text-xs tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
-        {formatImobPrazoTotalExibicao(value)}
-      </div>
-    </div>
-  );
-}
-
 function AnexoImagem({
   label,
   path,
@@ -316,6 +290,9 @@ function EmpreendimentoBloco({
   onSalvar,
   onExcluir,
   onUploadOferta,
+  ofertasExistentes,
+  excluindoOfertaId,
+  onExcluirOferta,
 }: {
   item: ImobCardEmpreendimentoDraft;
   index: number;
@@ -331,11 +308,13 @@ function EmpreendimentoBloco({
   onSalvar: () => void;
   onExcluir: () => void;
   onUploadOferta: (file: File) => void;
+  ofertasExistentes: { id: string; nome: string }[];
+  excluindoOfertaId: string | null;
+  onExcluirOferta: (ofertaId: string) => void;
 }) {
   const setMoney = (key: ImobMoneyKey, value: string) => onChange(key, value);
   const produtoOpcoes = opcoesProdutoModeloComValorAtual(item.produto_modelo);
   const isShowroom = kind === 'showroom';
-  const ofertaId = String(item.simulacao_pagamento_id ?? '').trim();
   const tituloFinal = isShowroom
     ? total > 1
       ? `Showroom ${index + 1} de ${total}`
@@ -475,37 +454,53 @@ function EmpreendimentoBloco({
 
       {!isShowroom ? (
         <div className="space-y-2">
-          {ofertaId ? (
-            <Link
-              href={`/loteadores/${cardId}/simulador-template/ofertas/${ofertaId}`}
-              className={btnOutlineCls}
-              style={btnOutlineStyle}
-            >
-              Ver detalhes da oferta
-            </Link>
-          ) : podeEditar ? (
+          {ofertasExistentes.length > 0 ? (
+            <ul className="flex flex-col gap-1">
+              {ofertasExistentes.map((o) => (
+                <li key={o.id} className="flex items-center gap-1">
+                  <Link
+                    href={`/loteadores/${cardId}/simulador-template/ofertas/${o.id}`}
+                    className={btnOutlineCls}
+                    style={{ ...btnOutlineStyle, flex: 1 }}
+                  >
+                    <Pencil className="mr-1 h-3 w-3 shrink-0" aria-hidden />
+                    {o.nome}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => onExcluirOferta(o.id)}
+                    disabled={excluindoOfertaId === o.id}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-md px-2 sm:min-h-0"
+                    style={{
+                      border: '0.5px solid var(--moni-border-default)',
+                      color: 'var(--moni-text-secondary)',
+                    }}
+                    aria-label={`Apagar oferta ${o.nome}`}
+                  >
+                    {excluindoOfertaId === o.id ? (
+                      <span className="text-[10px]">...</span>
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {podeEditar ? (
             templateSalvo ? (
               <Link
                 href={`/loteadores/${cardId}/simulador-template/ofertas?empreendimento=${item.id}`}
                 className={btnOutlineCls}
                 style={btnOutlineStyle}
               >
-                Criar Oferta
+                {ofertasExistentes.length > 0 ? 'Criar nova oferta' : 'Criar Oferta'}
               </Link>
             ) : (
               <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                 Crie o template do loteador acima antes de gerar a oferta.
               </p>
             )
-          ) : null}
-          {ofertaId ? (
-            <div className="grid grid-cols-1 gap-2">
-              <CampoMoedaLeitura label="Valor do imóvel à vista (R$)" value={item.valor_avista ?? ''} />
-              <CampoMoedaLeitura label="Entrada (R$)" value={item.entrada ?? ''} />
-              <CampoMoedaLeitura label="Parcelas mensais (R$)" value={item.parcelas_mensais ?? ''} />
-              <CampoPrazoLeitura label="Prazo total" value={item.prazo_total_meses ?? ''} />
-              <CampoMoedaLeitura label="Parcela única (R$)" value={item.parcela_unica ?? ''} />
-            </div>
           ) : null}
         </div>
       ) : (
@@ -601,6 +596,49 @@ export function KanbanCardModalSimulacoesImob({
   );
   const [erroUploadPrincipal, setErroUploadPrincipal] = useState<string | null>(null);
   const [erroUploadOferta, setErroUploadOferta] = useState<{ id: string; msg: string } | null>(null);
+  const [ofertasPorEmp, setOfertasPorEmp] = useState<Map<string, { id: string; nome: string }[]>>(
+    new Map(),
+  );
+  const [excluindoOfertaId, setExcluindoOfertaId] = useState<string | null>(null);
+
+  const carregarOfertas = useCallback(async () => {
+    if (!mostrarTemplate) return;
+    const { data } = await createClient()
+      .from('simulacoes_pagamento')
+      .select('id, nome, inputs')
+      .eq('kanban_card_id', cardId)
+      .not('nome', 'is', null)
+      .limit(200);
+    const map = new Map<string, { id: string; nome: string }[]>();
+    for (const row of data ?? []) {
+      const inputs =
+        row.inputs && typeof row.inputs === 'object' && !Array.isArray(row.inputs)
+          ? (row.inputs as Record<string, unknown>)
+          : {};
+      const empId = String(inputs.empreendimento_id ?? '').trim();
+      if (!empId) continue;
+      const nome = String(row.nome ?? '').trim();
+      if (!nome) continue;
+      const list = map.get(empId) ?? [];
+      list.push({ id: row.id as string, nome });
+      map.set(empId, list);
+    }
+    setOfertasPorEmp(map);
+  }, [cardId, mostrarTemplate]);
+
+  const handleExcluirOferta = useCallback(
+    async (ofertaId: string) => {
+      setExcluindoOfertaId(ofertaId);
+      const r = await excluirOfertaSimulacao(ofertaId, cardId);
+      setExcluindoOfertaId(null);
+      if (!r.ok) {
+        setMsg(`Erro ao apagar oferta: ${r.error}`);
+        return;
+      }
+      await carregarOfertas();
+    },
+    [cardId, carregarOfertas],
+  );
 
   const showrooms = itens.filter((it) => (it.tipo ?? 'empreendimento') === 'showroom');
   const empreendimentos = itens.filter((it) => (it.tipo ?? 'empreendimento') !== 'showroom');
@@ -621,7 +659,8 @@ export function KanbanCardModalSimulacoesImob({
       ),
     );
     setModelo(r.modelo);
-  }, [cardId, legadoProdutoModeloCasa]);
+    void carregarOfertas();
+  }, [cardId, legadoProdutoModeloCasa, carregarOfertas]);
 
   useEffect(() => {
     if (!mostrarTemplate) {
@@ -646,11 +685,13 @@ export function KanbanCardModalSimulacoesImob({
         });
     };
     carregarTemplate();
+    void carregarOfertas();
     const unsub = subscribeSimuladorCardUi(cardId, aplicarLocal);
     const onVisivel = () => {
       if (document.visibilityState === 'hidden') return;
       aplicarLocal();
       carregarTemplate();
+      void carregarOfertas();
     };
     window.addEventListener('focus', onVisivel);
     window.addEventListener('pageshow', onVisivel);
@@ -662,7 +703,7 @@ export function KanbanCardModalSimulacoesImob({
       window.removeEventListener('pageshow', onVisivel);
       document.removeEventListener('visibilitychange', onVisivel);
     };
-  }, [cardId, mostrarTemplate, pathname]);
+  }, [cardId, mostrarTemplate, pathname, carregarOfertas]);
 
   useEffect(() => {
     if (prefetch?.cardId === cardId) {
@@ -1006,6 +1047,9 @@ export function KanbanCardModalSimulacoesImob({
                 onSalvar={() => void handleSalvar(item)}
                 onExcluir={() => void handleExcluir(item.id, 'showroom')}
                 onUploadOferta={(f) => void handleUploadOferta(item.id, f)}
+                ofertasExistentes={[]}
+                excluindoOfertaId={null}
+                onExcluirOferta={() => {}}
               />
             ))}
           </div>
@@ -1056,6 +1100,9 @@ export function KanbanCardModalSimulacoesImob({
               onSalvar={() => void handleSalvar(item)}
               onExcluir={() => void handleExcluir(item.id, 'empreendimento')}
               onUploadOferta={(f) => void handleUploadOferta(item.id, f)}
+              ofertasExistentes={ofertasPorEmp.get(item.id) ?? []}
+              excluindoOfertaId={excluindoOfertaId}
+              onExcluirOferta={handleExcluirOferta}
             />
           ))}
         </div>
