@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import {
   criarImobSimulacaoEmpreendimento,
@@ -293,6 +293,7 @@ function EmpreendimentoBloco({
   ofertasExistentes,
   excluindoOfertaId,
   onExcluirOferta,
+  isDirty,
 }: {
   item: ImobCardEmpreendimentoDraft;
   index: number;
@@ -311,6 +312,7 @@ function EmpreendimentoBloco({
   ofertasExistentes: { id: string; nome: string }[];
   excluindoOfertaId: string | null;
   onExcluirOferta: (ofertaId: string) => void;
+  isDirty: boolean;
 }) {
   const setMoney = (key: ImobMoneyKey, value: string) => onChange(key, value);
   const produtoOpcoes = opcoesProdutoModeloComValorAtual(item.produto_modelo);
@@ -452,6 +454,21 @@ function EmpreendimentoBloco({
         </div>
       </div>
 
+      {podeEditar ? (
+        <button
+          type="button"
+          onClick={onSalvar}
+          disabled={salvandoId === item.id}
+          className="min-h-[44px] w-full rounded-md px-3 py-1.5 text-xs font-medium sm:min-h-0"
+          style={{
+            background: 'var(--moni-navy-800)',
+            color: 'var(--moni-text-inverse, #fff)',
+          }}
+        >
+          {salvandoId === item.id ? 'Salvando…' : isShowroom ? 'Salvar showroom' : 'Salvar empreendimento'}
+        </button>
+      ) : null}
+
       {!isShowroom ? (
         <div className="space-y-2">
           {ofertasExistentes.length > 0 ? (
@@ -460,10 +477,9 @@ function EmpreendimentoBloco({
                 <li key={o.id} className="flex items-center gap-1">
                   <Link
                     href={`/loteadores/${cardId}/simulador-template/ofertas/${o.id}`}
-                    className={btnOutlineCls}
-                    style={{ ...btnOutlineStyle, flex: 1 }}
+                    className="flex-1 text-xs underline"
+                    style={{ color: 'var(--moni-text-primary)' }}
                   >
-                    <Pencil className="mr-1 h-3 w-3 shrink-0" aria-hidden />
                     {o.nome}
                   </Link>
                   <button
@@ -488,7 +504,7 @@ function EmpreendimentoBloco({
             </ul>
           ) : null}
           {podeEditar ? (
-            templateSalvo ? (
+            templateSalvo && !isDirty ? (
               <Link
                 href={`/loteadores/${cardId}/simulador-template/ofertas?empreendimento=${item.id}`}
                 className={btnOutlineCls}
@@ -498,7 +514,9 @@ function EmpreendimentoBloco({
               </Link>
             ) : (
               <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Crie o template do loteador acima antes de gerar a oferta.
+                {isDirty
+                  ? 'Salve o empreendimento acima para criar uma oferta.'
+                  : 'Crie o template do loteador acima antes de gerar a oferta.'}
               </p>
             )
           ) : null}
@@ -531,20 +549,6 @@ function EmpreendimentoBloco({
       </div>
       )}
 
-      {podeEditar ? (
-        <button
-          type="button"
-          onClick={onSalvar}
-          disabled={salvandoId === item.id}
-          className="min-h-[44px] w-full rounded-md px-3 py-1.5 text-xs font-medium sm:min-h-0"
-          style={{
-            background: 'var(--moni-navy-800)',
-            color: 'var(--moni-text-inverse, #fff)',
-          }}
-        >
-          {salvandoId === item.id ? 'Salvando…' : isShowroom ? 'Salvar showroom' : 'Salvar empreendimento'}
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -600,6 +604,7 @@ export function KanbanCardModalSimulacoesImob({
     new Map(),
   );
   const [excluindoOfertaId, setExcluindoOfertaId] = useState<string | null>(null);
+  const [dirtyEmpIds, setDirtyEmpIds] = useState<Set<string>>(new Set());
 
   const carregarOfertas = useCallback(async () => {
     if (!mostrarTemplate) return;
@@ -794,6 +799,7 @@ export function KanbanCardModalSimulacoesImob({
       setErro(r.error);
       return;
     }
+    setDirtyEmpIds((prev) => { const n = new Set(prev); n.delete(item.id); return n; });
     setMsg(item.tipo === 'showroom' ? 'Showroom salvo.' : 'Empreendimento salvo.');
   }
 
@@ -1096,13 +1102,17 @@ export function KanbanCardModalSimulacoesImob({
               salvandoId={salvandoId}
               uploadingOferta={uploadingOfertaId === item.id}
               erroUpload={erroUploadOferta?.id === item.id ? erroUploadOferta.msg : null}
-              onChange={(key, value) => patchDraft(setItens, item.id, key, value)}
+              onChange={(key, value) => {
+                patchDraft(setItens, item.id, key, value);
+                setDirtyEmpIds((prev) => new Set([...prev, item.id]));
+              }}
               onSalvar={() => void handleSalvar(item)}
               onExcluir={() => void handleExcluir(item.id, 'empreendimento')}
               onUploadOferta={(f) => void handleUploadOferta(item.id, f)}
               ofertasExistentes={ofertasPorEmp.get(item.id) ?? []}
               excluindoOfertaId={excluindoOfertaId}
               onExcluirOferta={handleExcluirOferta}
+              isDirty={dirtyEmpIds.has(item.id)}
             />
           ))}
         </div>
