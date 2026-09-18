@@ -1056,6 +1056,7 @@ export function KanbanCardModalSimulacoesImob({
                 ofertasExistentes={[]}
                 excluindoOfertaId={null}
                 onExcluirOferta={() => {}}
+                isDirty={false}
               />
             ))}
           </div>
