@@ -819,7 +819,9 @@ export async function atualizarSimuladorOferta(
     quantidade_parcelas_total: draft.prazo_total_meses ?? prazoMeses.valor,
   };
 
-  const updateData: Record<string, unknown> = {
+  // Mesma estrutura do criarSimuladorOfertaDoCard: colunas mais antigas no topo,
+  // dados extras apenas em `inputs` para compatibilidade com bancos sem migrations.
+  const rowCheio = {
     nome,
     condicao_lote: inferirCondicaoLote(valorPago.valor),
     renda_informada_cliente: renda.valor || null,
@@ -832,30 +834,61 @@ export async function atualizarSimuladorOferta(
     renda_cliente: renda.valor || null,
     prazo_financiamento_anos: prazoFin.valor,
     taxa_financiamento_anual: taxaFin,
-    entrada_confirmada: draft.entrada_confirmada?.trim() ? entradaConfirmada.valor : null,
-    parcela_unica_confirmada: draft.parcela_unica_confirmada?.trim() ? parcelaUnicaConfirmada.valor : null,
-    parcela_mensal_confirmada: parcelaMensalConfirmada.valor,
-    vte_avista: draft.vte_avista ?? null,
-    entrada_sugerida: draft.entrada_sugerida ?? null,
-    parcela_mensal_sugerida: draft.parcela_mensal_sugerida ?? null,
-    parcela_unica_sugerida: draft.parcela_unica_sugerida ?? null,
-    prazo_total_meses: draft.prazo_total_meses ?? prazoMeses.valor,
     inputs,
     resultado: resultadoSnapshot,
   };
 
-  const { data, error } = await supabase
-    .from('simulacoes_pagamento')
-    .update(updateData as never)
-    .eq('id', oid)
-    .eq('kanban_card_id', cid)
-    .select('*')
-    .single();
+  const doUpdate = (payload: Record<string, unknown>) =>
+    supabase
+      .from('simulacoes_pagamento')
+      .update(payload as never)
+      .eq('id', oid)
+      .eq('kanban_card_id', cid)
+      .select('*')
+      .single();
 
-  if (error) return erroBancoSimulador(error.message);
-  if (!data) return { ok: false, error: 'Oferta não encontrada ou sem permissão.' };
+  const { data, error } = await doUpdate(rowCheio);
 
-  const oferta = mapSimulacaoRow(data as Record<string, unknown>);
+  let saved = data as Record<string, unknown> | null;
+
+  if (error && isColunaSimulador547Ausente(error.message)) {
+    const { parcela_mensal, ...sem547 } = rowCheio;
+    void parcela_mensal;
+    const retry547 = await doUpdate(sem547);
+    if (retry547.error && isColunaSimulador546Ausente(retry547.error.message)) {
+      const {
+        valor_lote, valor_casa, valor_customizacao, valor_ja_pago,
+        prazo_meses, renda_cliente, prazo_financiamento_anos, taxa_financiamento_anual,
+        ...semNovas
+      } = sem547;
+      void valor_lote; void valor_casa; void valor_customizacao; void valor_ja_pago;
+      void prazo_meses; void renda_cliente; void prazo_financiamento_anos; void taxa_financiamento_anual;
+      const retry546 = await doUpdate(semNovas);
+      if (retry546.error) return erroBancoSimulador(retry546.error.message);
+      saved = retry546.data as Record<string, unknown>;
+    } else if (retry547.error) {
+      return erroBancoSimulador(retry547.error.message);
+    } else {
+      saved = retry547.data as Record<string, unknown>;
+    }
+  } else if (error && isColunaSimulador546Ausente(error.message)) {
+    const {
+      valor_lote, valor_casa, valor_customizacao, valor_ja_pago,
+      prazo_meses, parcela_mensal, renda_cliente, prazo_financiamento_anos, taxa_financiamento_anual,
+      ...semNovas
+    } = rowCheio;
+    void valor_lote; void valor_casa; void valor_customizacao; void valor_ja_pago;
+    void prazo_meses; void parcela_mensal; void renda_cliente; void prazo_financiamento_anos; void taxa_financiamento_anual;
+    const retry = await doUpdate(semNovas);
+    if (retry.error) return erroBancoSimulador(retry.error.message);
+    saved = retry.data as Record<string, unknown>;
+  } else if (error) {
+    return erroBancoSimulador(error.message);
+  }
+
+  if (!saved) return { ok: false, error: 'Oferta não encontrada ou sem permissão.' };
+
+  const oferta = mapSimulacaoRow(saved);
 
   revalidateAposMutacaoSimulador(cid);
   revalidatePath(`/loteadores/${cid}/simulador-template/ofertas/${oid}`);
