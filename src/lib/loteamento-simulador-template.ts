@@ -551,6 +551,7 @@ export type SimulacaoPagamentoResumo = {
   vte_avista: number | null;
   prazo_total_meses: number | null;
   template_id: string | null;
+  empreendimento_id: string | null;
 };
 
 function inputsDaSimulacao(raw: unknown): Record<string, unknown> {
@@ -635,6 +636,7 @@ export function mapSimulacaoRow(raw: Record<string, unknown>): SimulacaoPagament
       numOrNull(inp.prazo_total_meses) ??
       numOrNull(raw.prazo_total_meses),
     template_id: raw.template_id != null ? String(raw.template_id) : null,
+    empreendimento_id: raw.empreendimento_id != null ? String(raw.empreendimento_id) : null,
   };
 }
 
