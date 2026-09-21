@@ -474,7 +474,14 @@ async function resolveProcessoNativo(
     const byProjeto = await fetchProcessoById(supabase, projetoId);
     if (byProjeto) return byProjeto;
   }
-  const { resolverProcessoIdCanonicosSyncGroup } = await import('@/lib/kanban/card-sync-group');
+  const { resolverProcessoNegocioDoCard, resolverProcessoIdCanonicosSyncGroup } = await import('@/lib/kanban/card-sync-group');
+
+  // Fast path: tenta resolver diretamente no card antes da expansão do sync group (BFS).
+  // Cobre o caso mais comum (rede_franqueados.processo_id ou condomínio-query) sem múltiplas queries de travessia.
+  const directId = await resolverProcessoNegocioDoCard(supabase, cardId);
+  if (directId) return fetchProcessoById(supabase, directId);
+
+  // Slow path: só executa se o card não tem vínculo direto — busca no card primário do grupo.
   const processoId = await resolverProcessoIdCanonicosSyncGroup(supabase, cardId);
   if (!processoId) return null;
   return fetchProcessoById(supabase, processoId);
