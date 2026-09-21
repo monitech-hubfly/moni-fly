@@ -7,7 +7,7 @@ import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { carregarSimuladorOfertaDoCard } from '@/lib/actions/loteamento-simulador-template';
 import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
 import { rotuloEmpreendimentoOrigem } from '@/lib/kanban/imob-simulacoes-card';
-import { OfertaDetalheCliente } from './OfertaDetalheCliente';
+import { OfertaDetalheCliente } from '@/components/simulador/OfertaDetalheCliente';
 
 export const dynamic = 'force-dynamic';
 
