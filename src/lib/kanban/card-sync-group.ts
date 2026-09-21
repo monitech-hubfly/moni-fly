@@ -364,7 +364,8 @@ export async function resolverProcessoNegocioDoCard(db: SyncDb, cardId: string):
     .limit(1)
     .maybeSingle();
   const foundPid = String((byCondominio as { id?: string } | null)?.id ?? '').trim();
-  if (foundPid && foundPid !== redeProcessoId) return foundPid;
+  if (foundPid) return foundPid;
+  if (redeProcessoId) return redeProcessoId;
 
   return null;
 }
