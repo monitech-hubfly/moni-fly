@@ -145,7 +145,7 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
       </Secao>
 
       {fluxoFinal ? (
-        <Secao titulo="Fluxo de pagamentos final">
+        <Secao titulo="Fluxo de pagamentos final" className="print-fluxo-pagamentos">
           <TabelaFluxo fluxo={fluxoFinal.fluxo} detalheAberto />
           <div
             className="mt-4 flex flex-col gap-1 text-sm"
