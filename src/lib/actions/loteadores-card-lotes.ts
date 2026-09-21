@@ -222,3 +222,23 @@ export async function urlDownloadPlanilhaLotesDoCard(
   }
   return { ok: true, url: data.signedUrl, nome: listed.anexo.nome };
 }
+
+/** Gera uma URL temporária (1h) para visualização em nova aba.
+ *  Para .xlsx abre pelo Office Online; para .csv abre direto. */
+export async function urlVisualizarPlanilhaLotesDoCard(
+  cardId: string,
+): Promise<{ ok: true; url: string; nome: string } | Err> {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  const listed = await listarPlanilhaLotesDoCard(cardId);
+  if (!listed.ok) return listed;
+  if (!listed.anexo) return { ok: false, error: 'Nenhuma planilha foi anexada a este card.' };
+
+  const { data, error } = await auth.supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(listed.anexo.path, 3600);
+  if (error || !data?.signedUrl) {
+    return { ok: false, error: error?.message ?? 'Erro ao gerar o link de visualização.' };
+  }
+  return { ok: true, url: data.signedUrl, nome: listed.anexo.nome };
+}
