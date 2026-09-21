@@ -1,11 +1,15 @@
 'use client';
 
-import { startTransition, useEffect, useMemo, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   criarSimuladorOfertaDoCard,
   atualizarSimuladorOferta,
 } from '@/lib/actions/loteamento-simulador-template';
+import {
+  listarPlanilhaLotesDoCard,
+  urlVisualizarPlanilhaLotesDoCard,
+} from '@/lib/actions/loteadores-card-lotes';
 import { marcarSimuladorOfertaVinculada } from '@/lib/simulador/simulador-card-ui-state';
 import {
   fracaoParaPercentualUi,
@@ -154,6 +158,37 @@ export function CalculadoraOferta({
   );
   const [fluxoFinalResultado, setFluxoFinalResultado] = useState<ResultadoCalculo | null>(null);
   const [detalheFinalAberto, setDetalheFinalAberto] = useState(false);
+
+  // Planilha de lotes disponíveis
+  const [temPlanilha, setTemPlanilha] = useState(false);
+  const [carregandoLotes, setCarregandoLotes] = useState(false);
+
+  useEffect(() => {
+    listarPlanilhaLotesDoCard(cardId)
+      .then((r) => { setTemPlanilha(r.ok && r.anexo != null); })
+      .catch(() => {});
+  }, [cardId]);
+
+  const handleVerLotes = useCallback(async () => {
+    setCarregandoLotes(true);
+    try {
+      const r = await urlVisualizarPlanilhaLotesDoCard(cardId);
+      if (!r.ok) { setErro(r.error); return; }
+      if (r.nome.toLowerCase().endsWith('.xlsx')) {
+        window.open(
+          `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(r.url)}`,
+          '_blank',
+          'noopener',
+        );
+      } else {
+        window.open(r.url, '_blank', 'noopener');
+      }
+    } catch {
+      setErro('Não foi possível abrir a planilha.');
+    } finally {
+      setCarregandoLotes(false);
+    }
+  }, [cardId]);
 
   const loteAtual = valorLote ?? 0;
   const sugestaoParcela = sugerirParcelaMensal(loteAtual);
@@ -479,12 +514,29 @@ export function CalculadoraOferta({
         </label>
         <QuadroPremissasTemplate template={template} />
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Campo
-            label="Valor do lote à vista (R$)"
-            value={valorLote}
-            onChange={onValorLoteChange}
-            placeholder="180.000"
-          />
+          <div className="flex flex-col gap-1">
+            <Campo
+              label="Valor do lote à vista (R$)"
+              value={valorLote}
+              onChange={onValorLoteChange}
+              placeholder="180.000"
+            />
+            {temPlanilha ? (
+              <button
+                type="button"
+                onClick={() => { void handleVerLotes(); }}
+                disabled={carregandoLotes}
+                className="self-start text-xs underline decoration-dotted disabled:opacity-50"
+                style={{
+                  color: 'var(--moni-navy-600)',
+                  fontFamily: 'var(--moni-font-sans)',
+                  lineHeight: '1.4',
+                }}
+              >
+                {carregandoLotes ? 'Carregando…' : '↗ Ver lista de lotes disponíveis'}
+              </button>
+            ) : null}
+          </div>
           <Campo
             label="Valor da casa (R$)"
             value={valorCasa}
