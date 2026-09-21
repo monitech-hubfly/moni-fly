@@ -729,3 +729,139 @@ export async function excluirOfertaSimulacao(
   revalidateAposMutacaoSimulador(cid);
   return { ok: true };
 }
+
+export async function atualizarSimuladorOferta(
+  cardId: string,
+  ofertaId: string,
+  draft: SimuladorOfertaDraft,
+): Promise<{ ok: true; mensagem: string; oferta: SimulacaoPagamentoResumo } | Err> {
+  const oid = String(ofertaId ?? '').trim();
+  const cid = String(cardId ?? '').trim();
+  if (!oid || !cid) return { ok: false, error: 'IDs inválidos.' };
+
+  const auth = await requireStaff();
+  if (!auth.ok) return auth;
+  const { supabase } = auth;
+
+  const { data: tplData, error: errTpl } = await supabase
+    .from(TABELA)
+    .select('id, taxa_juros_financiamento_anual')
+    .eq('kanban_card_id', cid)
+    .maybeSingle();
+  const tpl = tplData as { id: string; taxa_juros_financiamento_anual?: number | null } | null;
+  if (errTpl && errTpl.code !== 'PGRST116') return erroBancoSimulador(errTpl.message);
+
+  const nome = String(draft.nome ?? '').trim();
+  if (!nome) return { ok: false, error: 'Informe o nome da oferta.' };
+
+  const valorLote = parseMoedaCampo(draft.valor_lote, 'o valor do lote à vista', { obrigatorio: true });
+  if (!valorLote.ok) return valorLote;
+  if (valorLote.valor <= 0) return { ok: false, error: 'Valor do lote à vista deve ser maior que zero.' };
+  const valorCasa = parseMoedaCampo(draft.valor_casa, 'o valor da casa', { obrigatorio: true });
+  if (!valorCasa.ok) return valorCasa;
+  const valorCustom = parseMoedaCampo(draft.valor_customizacao, 'o valor da customização', { padrao: 0 });
+  if (!valorCustom.ok) return valorCustom;
+  const valorPago = parseMoedaCampo(draft.valor_ja_pago, 'o valor já pago à loteadora', { padrao: 0 });
+  if (!valorPago.ok) return valorPago;
+  const prazoMeses = parseInteiroCampo(draft.prazo_meses, 'o prazo total do contrato', { obrigatorio: true });
+  if (!prazoMeses.ok) return prazoMeses;
+  const parcelaMensal = parseMoedaCampo(draft.parcela_mensal, 'a parcela mensal', { obrigatorio: true });
+  if (!parcelaMensal.ok) return parcelaMensal;
+  const renda = parseMoedaCampo(draft.renda_cliente, 'a renda do cliente');
+  if (!renda.ok) return renda;
+  const prazoFin = parseInteiroCampo(draft.prazo_financiamento_anos, 'o prazo de financiamento');
+  if (!prazoFin.ok) return prazoFin;
+  const taxaFin = draft.taxa_financiamento_anual.trim()
+    ? percentualUiParaFracao(draft.taxa_financiamento_anual)
+    : Number(tpl?.taxa_juros_financiamento_anual) || TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_FRACAO;
+  if (taxaFin < 0) return { ok: false, error: 'Taxa do financiamento inválida.' };
+
+  const entradaConfirmada = draft.entrada_confirmada?.trim()
+    ? parseMoedaCampo(draft.entrada_confirmada, 'a entrada confirmada')
+    : { ok: true as const, valor: 0 };
+  if (!entradaConfirmada.ok) return entradaConfirmada;
+  const parcelaUnicaConfirmada = draft.parcela_unica_confirmada?.trim()
+    ? parseMoedaCampo(draft.parcela_unica_confirmada, 'a parcela única confirmada')
+    : { ok: true as const, valor: 0 };
+  if (!parcelaUnicaConfirmada.ok) return parcelaUnicaConfirmada;
+  const parcelaMensalConfirmada = draft.parcela_mensal_confirmada?.trim()
+    ? parseMoedaCampo(draft.parcela_mensal_confirmada, 'a parcela mensal confirmada')
+    : { ok: true as const, valor: parcelaMensal.valor };
+  if (!parcelaMensalConfirmada.ok) return parcelaMensalConfirmada;
+
+  const inputs = {
+    nome,
+    empreendimento_id: String(draft.empreendimento_id ?? '').trim() || null,
+    valor_lote: valorLote.valor,
+    valor_casa: valorCasa.valor,
+    valor_customizacao: valorCustom.valor,
+    valor_ja_pago: valorPago.valor,
+    prazo_meses: prazoMeses.valor,
+    parcela_mensal: parcelaMensal.valor,
+    renda_cliente: renda.valor || null,
+    prazo_financiamento_anos: prazoFin.valor,
+    taxa_financiamento_anual: taxaFin,
+    entrada_confirmada: draft.entrada_confirmada?.trim() ? entradaConfirmada.valor : null,
+    parcela_unica_confirmada: draft.parcela_unica_confirmada?.trim() ? parcelaUnicaConfirmada.valor : null,
+    parcela_mensal_confirmada: parcelaMensalConfirmada.valor,
+    vte_avista: draft.vte_avista ?? null,
+    entrada_sugerida: draft.entrada_sugerida ?? null,
+    parcela_mensal_sugerida: draft.parcela_mensal_sugerida ?? null,
+    parcela_unica_sugerida: draft.parcela_unica_sugerida ?? null,
+    prazo_total_meses: draft.prazo_total_meses ?? prazoMeses.valor,
+  };
+
+  const resultadoSnapshot = {
+    vte_avista: draft.vte_avista ?? null,
+    entrada_sugerida: draft.entrada_sugerida ?? null,
+    parcela_mensal_usada: draft.parcela_mensal_sugerida ?? null,
+    parcela_unica_sugerida: draft.parcela_unica_sugerida ?? null,
+    quantidade_parcelas_total: draft.prazo_total_meses ?? prazoMeses.valor,
+  };
+
+  const updateData: Record<string, unknown> = {
+    nome,
+    condicao_lote: inferirCondicaoLote(valorPago.valor),
+    renda_informada_cliente: renda.valor || null,
+    valor_lote: valorLote.valor,
+    valor_casa: valorCasa.valor,
+    valor_customizacao: valorCustom.valor,
+    valor_ja_pago: valorPago.valor,
+    prazo_meses: prazoMeses.valor,
+    parcela_mensal: parcelaMensal.valor,
+    renda_cliente: renda.valor || null,
+    prazo_financiamento_anos: prazoFin.valor,
+    taxa_financiamento_anual: taxaFin,
+    entrada_confirmada: draft.entrada_confirmada?.trim() ? entradaConfirmada.valor : null,
+    parcela_unica_confirmada: draft.parcela_unica_confirmada?.trim() ? parcelaUnicaConfirmada.valor : null,
+    parcela_mensal_confirmada: parcelaMensalConfirmada.valor,
+    vte_avista: draft.vte_avista ?? null,
+    entrada_sugerida: draft.entrada_sugerida ?? null,
+    parcela_mensal_sugerida: draft.parcela_mensal_sugerida ?? null,
+    parcela_unica_sugerida: draft.parcela_unica_sugerida ?? null,
+    prazo_total_meses: draft.prazo_total_meses ?? prazoMeses.valor,
+    inputs,
+    resultado: resultadoSnapshot,
+  };
+
+  const { data, error } = await supabase
+    .from('simulacoes_pagamento')
+    .update(updateData as never)
+    .eq('id', oid)
+    .eq('kanban_card_id', cid)
+    .select('*')
+    .single();
+
+  if (error) return erroBancoSimulador(error.message);
+  if (!data) return { ok: false, error: 'Oferta não encontrada ou sem permissão.' };
+
+  const oferta = mapSimulacaoRow(data as Record<string, unknown>);
+
+  revalidateAposMutacaoSimulador(cid);
+  revalidatePath(`/loteadores/${cid}/simulador-template/ofertas/${oid}`);
+  return {
+    ok: true,
+    mensagem: 'Oferta atualizada com sucesso!',
+    oferta,
+  };
+}

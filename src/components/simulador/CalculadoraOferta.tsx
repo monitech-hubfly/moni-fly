@@ -2,11 +2,15 @@
 
 import { startTransition, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { criarSimuladorOfertaDoCard } from '@/lib/actions/loteamento-simulador-template';
+import {
+  criarSimuladorOfertaDoCard,
+  atualizarSimuladorOferta,
+} from '@/lib/actions/loteamento-simulador-template';
 import { marcarSimuladorOfertaVinculada } from '@/lib/simulador/simulador-card-ui-state';
 import {
   fracaoParaPercentualUi,
   numeroParaInputBr,
+  type SimulacaoPagamentoResumo,
 } from '@/lib/loteamento-simulador-template';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
@@ -38,6 +42,10 @@ type Props = {
   loteadorId: string;
   kanbanCardId?: string;
   empreendimentoId?: string | null;
+  /** Quando fornecido, a calculadora entra em modo de edição da oferta existente */
+  ofertaId?: string;
+  /** Dados da oferta existente para pré-preencher os campos */
+  ofertaInicial?: SimulacaoPagamentoResumo;
 };
 
 const fieldCls =
@@ -72,25 +80,57 @@ function calcularParcelaUnicaMinimaHint(
   );
 }
 
-export function CalculadoraOferta({ template, loteadorId, kanbanCardId, empreendimentoId }: Props) {
+export function CalculadoraOferta({
+  template,
+  loteadorId,
+  kanbanCardId,
+  empreendimentoId,
+  ofertaId,
+  ofertaInicial,
+}: Props) {
   const router = useRouter();
   const cardId = kanbanCardId || loteadorId;
+  const modoEdicao = Boolean(ofertaId);
 
   const prazoObraMeses = Math.max(0, Math.round(template.prazo_obra_meses));
-  const [valorLote, setValorLote] = useState<number | null>(null);
-  const [valorCasa, setValorCasa] = useState<number | null>(null);
-  const [valorCustomizacao, setValorCustomizacao] = useState<number | null>(0);
-  const [valorJaPago, setValorJaPago] = useState<number | null>(0);
-  const [prazoTotal, setPrazoTotal] = useState<number | null>(12);
-  const [parcelaMensal, setParcelaMensal] = useState<number | null>(null);
-  const [parcelaEditada, setParcelaEditada] = useState(false);
-  const [rendaCliente, setRendaCliente] = useState<number | null>(null);
-  const [prazoFinanciamentoAnos, setPrazoFinanciamentoAnos] = useState<number | null>(30);
+
+  // Inicializa os campos a partir da oferta existente (modo edição) ou com defaults
+  const [valorLote, setValorLote] = useState<number | null>(
+    () => ofertaInicial?.valor_lote ?? null,
+  );
+  const [valorCasa, setValorCasa] = useState<number | null>(
+    () => ofertaInicial?.valor_casa ?? null,
+  );
+  const [valorCustomizacao, setValorCustomizacao] = useState<number | null>(
+    () => ofertaInicial?.valor_customizacao ?? 0,
+  );
+  const [valorJaPago, setValorJaPago] = useState<number | null>(
+    () => ofertaInicial?.valor_ja_pago ?? 0,
+  );
+  // prazo_meses na DB = fase1 (sem obra); prazo total = fase1 + prazoObraMeses
+  const [prazoTotal, setPrazoTotal] = useState<number | null>(() => {
+    if (ofertaInicial?.prazo_meses != null) {
+      return ofertaInicial.prazo_meses + prazoObraMeses;
+    }
+    return 12;
+  });
+  const [parcelaMensal, setParcelaMensal] = useState<number | null>(
+    () => ofertaInicial?.parcela_mensal ?? null,
+  );
+  const [parcelaEditada, setParcelaEditada] = useState(() => ofertaInicial != null);
+  const [rendaCliente, setRendaCliente] = useState<number | null>(
+    () => ofertaInicial?.renda_cliente ?? ofertaInicial?.renda_informada_cliente ?? null,
+  );
+  const [prazoFinanciamentoAnos, setPrazoFinanciamentoAnos] = useState<number | null>(
+    () => ofertaInicial?.prazo_financiamento_anos ?? 30,
+  );
   const [taxaFinanciamento, setTaxaFinanciamento] = useState<number | null>(() => {
-    const ui = fracaoParaPercentualUi(template.taxa_juros_financiamento_anual);
+    const taxa =
+      ofertaInicial?.taxa_financiamento_anual ?? template.taxa_juros_financiamento_anual;
+    const ui = fracaoParaPercentualUi(taxa);
     return ui ? parsearNumeroInput(ui) : 10;
   });
-  const [nomeOferta, setNomeOferta] = useState('');
+  const [nomeOferta, setNomeOferta] = useState(() => ofertaInicial?.nome ?? '');
 
   const [resultado, setResultado] = useState<ResultadoCalculo | null>(null);
   const [ultimaOferta, setUltimaOferta] = useState<OfertaConfig | null>(null);
@@ -100,9 +140,18 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId, empreend
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  const [entradaConf, setEntradaConf] = useState(0);
-  const [parcelaMensalConf, setParcelaMensalConf] = useState(0);
-  const [parcelaUnicaConf, setParcelaUnicaConf] = useState(0);
+  const [entradaConf, setEntradaConf] = useState(
+    () => ofertaInicial?.entrada_confirmada ?? 0,
+  );
+  const [parcelaMensalConf, setParcelaMensalConf] = useState(
+    () =>
+      ofertaInicial?.parcela_mensal_confirmada ??
+      ofertaInicial?.parcela_mensal ??
+      0,
+  );
+  const [parcelaUnicaConf, setParcelaUnicaConf] = useState(
+    () => ofertaInicial?.parcela_unica_confirmada ?? 0,
+  );
   const [fluxoFinalResultado, setFluxoFinalResultado] = useState<ResultadoCalculo | null>(null);
   const [detalheFinalAberto, setDetalheFinalAberto] = useState(false);
 
@@ -211,7 +260,8 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId, empreend
     setSalvando(true);
     setErro(null);
     setMensagem(null);
-    const res = await criarSimuladorOfertaDoCard(cardId, {
+
+    const draftPayload = {
       nome,
       valor_lote: numeroParaInputBr(ultimaOferta.valor_lote),
       valor_casa: numeroParaInputBr(ultimaOferta.valor_casa),
@@ -232,23 +282,39 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId, empreend
       parcela_mensal_sugerida: resultado.parcela_mensal_usada,
       parcela_unica_sugerida: resultado.parcela_unica_sugerida,
       prazo_total_meses: resultado.quantidade_parcelas_total,
-    });
+    };
+
+    let res;
+    if (modoEdicao && ofertaId) {
+      res = await atualizarSimuladorOferta(cardId, ofertaId, draftPayload);
+    } else {
+      res = await criarSimuladorOfertaDoCard(cardId, draftPayload);
+    }
+
     setSalvando(false);
     if (!res.ok) {
       setErro(res.error);
       return;
     }
-    setMensagem('Oferta salva como rascunho!');
-    const empId = empreendimentoId?.trim() ?? '';
-    if (empId) {
-      marcarSimuladorOfertaVinculada(cardId, empId, res.oferta.id);
-    }
-    startTransition(() => {
-      router.refresh();
+
+    if (modoEdicao) {
+      setMensagem('Oferta atualizada com sucesso!');
+      startTransition(() => {
+        router.refresh();
+      });
+    } else {
+      setMensagem('Oferta salva como rascunho!');
+      const empId = empreendimentoId?.trim() ?? '';
       if (empId) {
-        router.push(`/loteadores/${cardId}/simulador-template/ofertas/${res.oferta.id}`);
+        marcarSimuladorOfertaVinculada(cardId, empId, res.oferta.id);
       }
-    });
+      startTransition(() => {
+        router.refresh();
+        if (empId) {
+          router.push(`/loteadores/${cardId}/simulador-template/ofertas/${res.oferta.id}`);
+        }
+      });
+    }
   }
 
   function gerarFluxoFinal() {
@@ -392,7 +458,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId, empreend
           className="text-lg"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
         >
-          Calculadora da oferta
+          {modoEdicao ? 'Editar oferta' : 'Calculadora da oferta'}
         </h2>
         <p className="mt-1 text-sm" style={hintStyle}>
           O cálculo roda neste navegador, com as premissas do template.
@@ -625,7 +691,7 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId, empreend
               className="text-lg"
               style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
             >
-              Salvar oferta
+              {modoEdicao ? 'Salvar alterações' : 'Salvar oferta'}
             </h3>
             <p className="mt-1 text-sm" style={hintStyle}>
               Ajuste o que vai constar no contrato e grave como rascunho.
@@ -721,7 +787,11 @@ export function CalculadoraOferta({ template, loteadorId, kanbanCardId, empreend
               className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:opacity-50"
               style={{ background: 'var(--moni-navy-800)' }}
             >
-              {salvando ? 'Salvando…' : 'Salvar oferta'}
+              {salvando
+                ? 'Salvando…'
+                : modoEdicao
+                  ? 'Salvar alterações'
+                  : 'Salvar oferta'}
             </button>
             </div>
           </div>
