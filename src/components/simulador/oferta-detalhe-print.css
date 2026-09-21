@@ -18,8 +18,8 @@
   }
 
   @page {
-    size: A4 portrait;
-    margin: 18mm 16mm 18mm 16mm;
+    size: A4 landscape;
+    margin: 12mm 14mm;
   }
 
   html,
@@ -55,16 +55,28 @@
     margin-bottom: 16pt;
   }
 
+  /* Impede que o wrapper overflow-x corte a tabela na impressão */
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+
   table {
     border-collapse: collapse;
     width: 100%;
-    font-size: 8pt;
+    font-size: 7.5pt;
+    table-layout: auto;
   }
 
   th,
   td {
     border: 0.5pt solid #ddd;
-    padding: 3pt 5pt;
+    padding: 2pt 4pt;
+    /* Permite que o texto dos headers quebre linha */
+    white-space: normal !important;
+  }
+
+  th {
+    font-size: 7pt;
   }
 
   thead {
@@ -73,5 +85,10 @@
 
   .print-no-break {
     page-break-inside: avoid;
+  }
+
+  /* Seção do fluxo começa em nova página para aproveitar a folha inteira */
+  .print-fluxo-pagamentos {
+    page-break-before: always;
   }
 }
