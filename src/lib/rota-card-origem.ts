@@ -1,6 +1,7 @@
 /**
- * Abre o card no funil correto (legados com `origem=legado` na URL).
+ * Abre o card no funil correto a partir de um card_id nativo (kanban_cards).
  * Chamados Sirene / externos sem `card_id` usam rotas de fallback.
+ * Nota: `origem=legado` foi removido — esta função é chamada somente com IDs de kanban_cards (nativos).
  */
 export function rotaCardOrigem(kanbanNome: string, cardId: string | null | undefined): string {
   const nome = (kanbanNome ?? '').trim();
@@ -41,14 +42,15 @@ export function rotaCardOrigem(kanbanNome: string, cardId: string | null | undef
       return `/projetos-locais?card=${q}`;
     case 'Funil Projetos Legais':
       return `/projetos-legais?card=${q}`;
+    case 'Funil Pré Obra e Obra':
     case 'Funil Operações':
-      return `/operacoes?card=${q}&origem=legado`;
+      return `/operacoes?card=${q}`;
     case 'Funil Contabilidade':
-      return `/painel-contabilidade?card=${q}&origem=legado`;
+      return `/painel-contabilidade?card=${q}`;
     case 'Funil Crédito Obra':
     case 'Funil Cash Me':
     case 'Funil Crédito':
-      return `/funil-credito-obra?card=${q}&origem=legado`;
+      return `/funil-credito-obra?card=${q}`;
     case 'Funil Gravação de Vídeos Externos':
       return `/marketing/gravacao-videos-externos?card=${q}`;
     case 'Funil Programação de Conteúdo Semanal':

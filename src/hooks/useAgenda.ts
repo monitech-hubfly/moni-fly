@@ -309,7 +309,9 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
       .eq('id', id);
     if (error) throw error;
 
-    // Atividade Planejada: se não há mais sessões pendentes, remove do backlog_atividades_usuario
+    // Atividade Planejada: ao concluir um evento da agenda, conclui também o item de backlog
+    // vinculado (mesmo acao_id, sem horário — hora_inicio IS NULL) para que ele desapareça do backlog.
+    // Também remove da tabela auxiliar backlog_atividades_usuario se não restar sessão pendente.
     if (user) {
       const { data: ganttRow } = await supabase
         .from('gantt_planejamento')
@@ -318,6 +320,16 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
         .maybeSingle();
       const acaoId = (ganttRow as { acao_id?: string | null } | null)?.acao_id ?? null;
       if (acaoId) {
+        // Conclui o item de backlog original (sem horário) com o mesmo acao_id
+        await supabase
+          .from('gantt_planejamento')
+          .update({ data_conclusao_real: new Date().toISOString() })
+          .eq('acao_id', acaoId)
+          .eq('profile_id', user.id)
+          .is('hora_inicio', null)
+          .is('data_conclusao_real', null);
+
+        // Remove da tabela auxiliar se não restar nenhuma sessão sem conclusão
         const { data: pendentes } = await supabase
           .from('gantt_planejamento')
           .select('id')

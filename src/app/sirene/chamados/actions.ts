@@ -519,7 +519,7 @@ export async function buscarDadosModalChamado(
 
   const { data: chamado, error: chamadoErr } = await supabase
     .from('sirene_chamados')
-    .select('id, numero, incendio, status, created_at, aberto_por, frank_id, frank_nome, te_trata, trava, arquivado, prioridade')
+    .select('id, numero, incendio, status, created_at, aberto_por, frank_id, frank_nome, te_trata, trava, arquivado, prioridade, abertura_responsavel_nome')
     .eq('id', chamadoId)
     .maybeSingle();
 
@@ -530,6 +530,7 @@ export async function buscarDadosModalChamado(
     created_at: string; aberto_por: string | null; frank_id: string | null;
     frank_nome: string | null; te_trata: boolean | null; trava: boolean | null;
     arquivado: boolean | null; prioridade: string | null;
+    abertura_responsavel_nome: string | null;
   };
 
   // Usa admin client para evitar bloqueio de RLS na leitura de kanban_atividades
@@ -546,6 +547,22 @@ export async function buscarDadosModalChamado(
     responsaveis_ids: string[] | null; times_ids: string[] | null; responsavel_nome_texto: string | null;
     criado_por: string | null; origem: string | null;
   } | null;
+
+  // Resolve o nome de quem abriu o chamado:
+  // 1) usa abertura_responsavel_nome se preenchido
+  // 2) caso nulo, busca full_name/email em profiles via aberto_por (UUID)
+  let abertoPorNome: string | null = c.abertura_responsavel_nome?.trim() || null;
+  if (!abertoPorNome && c.aberto_por) {
+    const { data: perfil } = await admin
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', c.aberto_por)
+      .maybeSingle();
+    if (perfil) {
+      const p = perfil as { full_name?: string | null; email?: string | null };
+      abertoPorNome = p.full_name?.trim() || p.email?.trim() || null;
+    }
+  }
 
   const row: import('./InteracoesLista').InteracaoSireneRow = {
     id:                     kaRow?.id ?? `chamado-${chamadoId}`,
@@ -580,6 +597,7 @@ export async function buscarDadosModalChamado(
     sirene_arquivado:       Boolean(c.arquivado),
     criado_por:             kaRow?.criado_por ?? c.aberto_por ?? null,
     sirene_prioridade:      c.prioridade ?? null,
+    sirene_abertura_responsavel_nome: abertoPorNome,
   };
 
   return { ok: true, row };

@@ -110,6 +110,43 @@ export type InteracaoSireneRow = {
 };
 type TimeOpt = { id: string; nome: string };
 type RespOpt = { id: string; nome: string; email?: string | null };
+// ---------------------------------------------------------------------------
+// Componente local para garantir que cada campo de comentário tenha seu
+// próprio ref — o ref é necessário para que MencaoContentEditable saiba em
+// qual elemento posicionar o dropdown e inserir o texto da menção.
+// clearSinal: incrementar para limpar o editor visualmente após publicar.
+// ---------------------------------------------------------------------------
+type ComentarioEditorProps = {
+  onInput: (html: string) => void;
+  onFocus: () => void;
+  placeholder?: string;
+  clearSinal?: number;
+};
+function ComentarioEditor({ onInput, onFocus, placeholder, clearSinal }: ComentarioEditorProps) {
+  const localEditorRef = useRef<HTMLDivElement>(null);
+  const prevClearSinalRef = useRef(clearSinal ?? 0);
+  useEffect(() => {
+    if ((clearSinal ?? 0) > prevClearSinalRef.current) {
+      if (localEditorRef.current) localEditorRef.current.innerHTML = '';
+    }
+    prevClearSinalRef.current = clearSinal ?? 0;
+  }, [clearSinal]);
+  return (
+    <div
+      className="overflow-visible rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]"
+      onFocus={onFocus}
+    >
+      <MencaoContentEditable
+        editorRef={localEditorRef}
+        onInput={onInput}
+        className="min-h-[72px] w-full p-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none empty:before:text-[color:var(--moni-text-tertiary)] empty:before:content-[attr(data-placeholder)]"
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
+
 
 type TopicoChamadoLinha = TopicoPainelLinha;
 
@@ -408,6 +445,8 @@ export function InteracoesLista({
   const [commentsBySireneId, setCommentsBySireneId] = useState<Record<string, ComentarioCardSireneRow[]>>({});
   const [commentsLoading, setCommentsLoading] = useState<Record<string, boolean>>({});
   const [novoComentarioPorCard, setNovoComentarioPorCard] = useState<Record<string, string>>({});
+  // Sinal de limpeza: incrementar após publicar para que ComentarioEditor limpe o DOM
+  const [clearSinalPorCard, setClearSinalPorCard] = useState<Record<string, number>>({});
   const [salvandoComentario, setSalvandoComentario] = useState<Record<string, boolean>>({});
   const comentarioEditorRef = useRef<HTMLDivElement>(null);
   const comentarioAtivoCardIdRef = useRef<string | null>(null);
@@ -1121,7 +1160,7 @@ export function InteracoesLista({
         return;
       }
       setNovoComentarioPorCard((m) => ({ ...m, [commentKey]: '' }));
-      if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
+      setClearSinalPorCard((s) => ({ ...s, [commentKey]: (s[commentKey] ?? 0) + 1 }));
       setCountPatch((c) => ({ ...c, [commentKey]: (c[commentKey] ?? comentariosCount(commentKey)) + 1 }));
       // Recarrega comentários direto sem fechar o painel
       setCommentsLoading((l) => ({ ...l, [commentKey]: true }));
@@ -1232,7 +1271,7 @@ export function InteracoesLista({
                           {detalheExpandido[row.id] ? (<div className="mt-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2 text-[11px] text-[color:var(--moni-text-secondary)]"><div className="flex flex-wrap gap-x-4 gap-y-1">{row.criado_em ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Aberto em</span> {new Date(row.criado_em).toLocaleDateString('pt-BR')}</span>) : null}{row.card_titulo ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Card</span> {row.card_titulo.trim()}</span>) : null}{row.kanban_nome ? (<span><span className="font-medium text-[color:var(--moni-text-primary)]">Funil</span> {row.kanban_nome}</span>) : null}</div>{row.descricao ? (<p className="mt-1.5 leading-relaxed text-[color:var(--moni-text-secondary)]">{row.descricao}</p>) : null}</div>) : null}
                           {atividadesExpandido[row.id] && subs.length > 0 ? (<div className="mt-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-1">{subs.map((s) => (<div key={s.id ?? (s as { topico_id?: number }).topico_id} className="flex items-center gap-2 border-b border-[color:var(--moni-border-default)] py-1.5 last:border-b-0 text-[11px]"><span className={`h-2 w-2 shrink-0 rounded-full ${s.status === 'concluido' || s.status === 'aprovado' ? 'bg-green-500' : s.status === 'em_andamento' ? 'bg-amber-500' : 'bg-stone-400'}`} /><span className="min-w-0 flex-1 truncate text-[color:var(--moni-text-primary)]">{(s as { titulo?: string }).titulo ?? (s as { tema?: string }).tema ?? s.descricao ?? '—'}</span>{(s as { responsavel_nome?: string }).responsavel_nome ? (<span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[8px] font-semibold text-[color:var(--moni-text-primary)]" title={(s as { responsavel_nome?: string }).responsavel_nome}>{iniciaisNome((s as { responsavel_nome?: string }).responsavel_nome ?? '')}</span>) : null}{(s as { prazo?: string }).prazo ?? s.data_fim ? (<span className="shrink-0 text-[10px] text-[color:var(--moni-text-tertiary)]">{new Date(((s as { prazo?: string }).prazo ?? s.data_fim)!).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>) : null}</div>))}</div>) : null}
                         </div>
-                      {commentsOpenByRow[row.id] && (() => { const ck2 = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null); return ck2 ? (<div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3"><p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">Comentários</p>{commentsLoading[ck2] ? (<p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>) : (<>{(commentsByCardId[ck2] ?? []).length > 0 && (<><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do card</p><ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">{[...(commentsByCardId[ck2] ?? [])].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()).map((c)=>(<li key={c.id} className="flex gap-2 rounded bg-white p-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-200 text-xs font-medium text-stone-600">{iniciaisNome(c.autor_nome??'')}</span><div><p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p><p className="mt-0.5 text-stone-700">{c.texto}</p></div></li>))}</ul></>)}{(commentsBySireneId[ck2] ?? []).length > 0 && (<><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do chamado</p><ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">{[...(commentsBySireneId[ck2] ?? [])].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()).map((c)=>(<li key={`sirene-${c.id}`} className="flex gap-2 rounded bg-white p-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">{iniciaisNome(c.autor_nome??'')}</span><div><p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p><p className="mt-0.5 text-stone-700">{c.texto}</p></div></li>))}</ul></>)}{(commentsByCardId[ck2]??[]).length===0&&(commentsBySireneId[ck2]??[]).length===0&&(<p className="mb-3 text-xs text-stone-400">Nenhum comentário ainda.</p>)}<div className="flex flex-col gap-2"><div className="overflow-visible rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]" onFocus={() => { comentarioAtivoCardIdRef.current = ck2; }}><MencaoContentEditable editorRef={comentarioEditorRef} onInput={(html) => setNovoComentarioPorCard((m) => ({ ...m, [ck2]: html }))} className="min-h-[72px] w-full p-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none empty:before:text-[color:var(--moni-text-tertiary)] empty:before:content-[attr(data-placeholder)]" placeholder="Escreva um comentário… Use @ para mencionar" /></div><button type="button" disabled={Boolean(salvandoComentario[ck2])} onClick={() => void publicarComentario(ck2, row)} className="self-end shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50">{salvandoComentario[ck2] ? '…' : 'Publicar'}</button></div></>) }</div>) : null; })()}
+                      {commentsOpenByRow[row.id] && (() => { const ck2 = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null); return ck2 ? (<div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3"><p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">Comentários</p>{commentsLoading[ck2] ? (<p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>) : (<>{(commentsByCardId[ck2] ?? []).length > 0 && (<><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do card</p><ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">{[...(commentsByCardId[ck2] ?? [])].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()).map((c)=>(<li key={c.id} className="flex gap-2 rounded bg-white p-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-200 text-xs font-medium text-stone-600">{iniciaisNome(c.autor_nome??'')}</span><div><p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p><p className="mt-0.5 text-stone-700">{c.texto}</p></div></li>))}</ul></>)}{(commentsBySireneId[ck2] ?? []).length > 0 && (<><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-400">Comentários do chamado</p><ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">{[...(commentsBySireneId[ck2] ?? [])].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()).map((c)=>(<li key={`sirene-${c.id}`} className="flex gap-2 rounded bg-white p-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">{iniciaisNome(c.autor_nome??'')}</span><div><p className="text-xs"><span className="font-medium">{c.autor_nome}</span>{' '}<span className="text-stone-400">{new Date(c.created_at).toLocaleString('pt-BR')}</span></p><p className="mt-0.5 text-stone-700">{c.texto}</p></div></li>))}</ul></>)}{(commentsByCardId[ck2]??[]).length===0&&(commentsBySireneId[ck2]??[]).length===0&&(<p className="mb-3 text-xs text-stone-400">Nenhum comentário ainda.</p>)}<div className="flex flex-col gap-2"><ComentarioEditor onInput={(html) => setNovoComentarioPorCard((m) => ({ ...m, [ck2]: html }))} onFocus={() => { comentarioAtivoCardIdRef.current = ck2; }} placeholder="Escreva um comentário… Use @ para mencionar" clearSinal={clearSinalPorCard[ck2] ?? 0} /><button type="button" disabled={Boolean(salvandoComentario[ck2])} onClick={() => void publicarComentario(ck2, row)} className="self-end shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50">{salvandoComentario[ck2] ? '…' : 'Publicar'}</button></div></>) }</div>) : null; })()}
                     </li>
                   );
   }
@@ -1920,21 +1959,16 @@ export function InteracoesLista({
                             </>
                           )}
                           <div className="flex flex-col gap-2">
-                            <div
-                              className="overflow-visible rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]"
+                            <ComentarioEditor
+                              onInput={(html) =>
+                                setNovoComentarioPorCard((m) => ({ ...m, [commentKey]: html }))
+                              }
                               onFocus={() => {
                                 comentarioAtivoCardIdRef.current = commentKey;
                               }}
-                            >
-                              <MencaoContentEditable
-                                editorRef={comentarioEditorRef}
-                                onInput={(html) =>
-                                  setNovoComentarioPorCard((m) => ({ ...m, [commentKey]: html }))
-                                }
-                                className="min-h-[72px] w-full p-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none empty:before:text-[color:var(--moni-text-tertiary)] empty:before:content-[attr(data-placeholder)]"
-                                placeholder="Escreva um comentário… Use @ para mencionar"
-                              />
-                            </div>
+                              placeholder="Escreva um comentário… Use @ para mencionar"
+                              clearSinal={clearSinalPorCard[commentKey] ?? 0}
+                            />
                             <button
                               type="button"
                               disabled={Boolean(salvandoComentario[commentKey])}

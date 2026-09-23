@@ -6,6 +6,7 @@ import { useBacklog }        from '@/hooks/useBacklog';
 import { useBacklogKanban }  from '@/hooks/useBacklogKanban';
 import { AgendaComentarios } from './AgendaComentarios';
 import { buscarStatusParticipantes, aceitarPropostaHorario, type ParticipanteStatus } from '@/lib/actions/agenda-participantes';
+import { useContatosExternos, type ContatoExterno } from '@/hooks/useContatosExternos';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -335,6 +336,7 @@ export function ModalAgendamento({
   aberto, onFechar, onSalvar, onExcluir, preenchido, modo, profileId, areaId, isSaving, erroSalvar, origemInfo, editandoId,
 }: ModalAgendamentoProps) {
   const supabase = useMemo(() => createClient(), []);
+  const contatosHook = useContatosExternos();
 
   // ── Hooks do backlog (mesma fonte que os blocos da página) ────────────────
   const backlog    = useBacklog();
@@ -367,6 +369,14 @@ export function ModalAgendamento({
   const [confirmarExcluir, setConfirmarExcluir] = useState(false);
   const [externEmail,      setExternEmail]      = useState('');
   const [gerandoMeet,      setGerandoMeet]      = useState(false);
+  // ── Autocomplete de contatos externos ────────────────────────────────────
+  const [sugestoesExterno, setSugestoesExterno] = useState<ContatoExterno[]>([]);
+  const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
+  // id do contato em edição inline { id, nome, empresa }
+  const [editandoContato, setEditandoContato]   = useState<{ id: string; nome: string; empresa: string } | null>(null);
+  // contatos salvos localmente para enriquecer a exibição (nome/empresa)
+  const [contatosSalvos, setContatosSalvos]     = useState<Map<string, ContatoExterno>>(new Map());
+  const sugestaoTimeoutRef                       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rsvpStatus,       setRsvpStatus]       = useState<Map<string, string>>(new Map());
   const [enviandoConvite,  setEnviandoConvite]  = useState(false);
   const [partStatus,       setPartStatus]       = useState<Map<string, ParticipanteStatus>>(new Map());
@@ -448,7 +458,10 @@ export function ModalAgendamento({
           badge:     s.label,
           badgeBg:   s.bg,
           badgeText: s.text,
-          chamadoId: t.chamado_id,
+          // Usa chamado_interno_id (ID inteiro real de sirene_chamados) como referência primária.
+          // chamado_id pode ser null para tópicos que chegam via interacao_id — nesses casos
+          // chamado_interno_id ainda contém o ID correto para gravação em gantt_planejamento.sirene_chamado_id.
+          chamadoId: t.chamado_interno_id != null ? String(t.chamado_interno_id) : t.chamado_id,
         };
       });
 
@@ -609,6 +622,26 @@ export function ModalAgendamento({
     setAbertas([true, false, false, false, false, false]);
     setPartAbertas([true, (base.participantes_externos?.length ?? 0) > 0]);
     setMetaDefinida(modo === 'editar');
+    setEditandoContato(null);
+    setSugestoesExterno([]);
+    setMostrarSugestoes(false);
+    // Carrega dados salvos dos e-mails externos já vinculados (modo editar)
+    if (base.participantes_externos?.length) {
+      void (async () => {
+        const supabaseLocal = createClient();
+        const { data } = await supabaseLocal
+          .from('agenda_contatos_externos')
+          .select('id, email, nome, empresa, ultimo_uso')
+          .in('email', base.participantes_externos!);
+        if (data?.length) {
+          const m = new Map<string, ContatoExterno>();
+          for (const c of data as ContatoExterno[]) m.set(c.email, c);
+          setContatosSalvos(m);
+        }
+      })();
+    } else {
+      setContatosSalvos(new Map());
+    }
 
     // Aba inicial
     const origemInicial: AbaAtiva | null =
@@ -731,12 +764,56 @@ export function ModalAgendamento({
         : [...prev.participantes, pid],
     }));
 
-  const addExterno = () => {
-    const email = externEmail.trim().toLowerCase();
+  const addExterno = (emailParam?: string) => {
+    const email = (emailParam ?? externEmail).trim().toLowerCase();
     if (!email || !email.includes('@')) return;
-    if (form.participantes_externos.includes(email)) return;
+    if (form.participantes_externos.includes(email)) { setExternEmail(''); setMostrarSugestoes(false); return; }
     set('participantes_externos', [...form.participantes_externos, email]);
     setExternEmail('');
+    setMostrarSugestoes(false);
+    setSugestoesExterno([]);
+    // Salva no banco em background (sem bloquear o fluxo)
+    void contatosHook.salvarOuAtualizar(email);
+  };
+
+  const addExternoFromSugestao = (contato: ContatoExterno) => {
+    const email = contato.email.toLowerCase();
+    if (!form.participantes_externos.includes(email)) {
+      set('participantes_externos', [...form.participantes_externos, email]);
+      // Enriquece o mapa local com nome/empresa para exibição
+      setContatosSalvos(prev => new Map(prev).set(email, contato));
+      void contatosHook.salvarOuAtualizar(email, contato.nome, contato.empresa);
+    }
+    setExternEmail('');
+    setMostrarSugestoes(false);
+    setSugestoesExterno([]);
+  };
+
+  const handleExternEmailChange = (valor: string) => {
+    setExternEmail(valor);
+    if (sugestaoTimeoutRef.current) clearTimeout(sugestaoTimeoutRef.current);
+    if (valor.trim().length < 2) { setSugestoesExterno([]); setMostrarSugestoes(false); return; }
+    sugestaoTimeoutRef.current = setTimeout(async () => {
+      const sugs = await contatosHook.buscarSugestoes(valor);
+      setSugestoesExterno(sugs);
+      setMostrarSugestoes(sugs.length > 0);
+    }, 250);
+  };
+
+  const salvarEdicaoContato = async () => {
+    if (!editandoContato) return;
+    await contatosHook.atualizar(editandoContato.id, editandoContato.nome, editandoContato.empresa);
+    // Atualiza mapa local
+    setContatosSalvos(prev => {
+      const novo = new Map(prev);
+      for (const [k, v] of novo) {
+        if (v.id === editandoContato.id) {
+          novo.set(k, { ...v, nome: editandoContato.nome, empresa: editandoContato.empresa });
+        }
+      }
+      return novo;
+    });
+    setEditandoContato(null);
   };
 
   const removeExterno = (email: string) =>
@@ -1010,20 +1087,17 @@ export function ModalAgendamento({
               Origem e atividade
             </p>
 
-            {/* 3 abas */}
-            {!origemInfo && (
-              <div className="flex gap-2 mb-3">
-                <TabBtn aba="sirene"     icon="🔔" label="Sirene / Pastelaria" />
-                <TabBtn aba="atividades" icon="📋" label="Atividades planejadas" />
-                <TabBtn aba="kanban"     icon="🗂" label="Cards / Kanban" />
-              </div>
-            )}
+            {/* 3 abas — sempre visíveis, mesmo quando origemInfo está ativo */}
+            <div className="flex gap-2 mb-3">
+              <TabBtn aba="sirene"     icon="🔔" label="Sirene / Pastelaria" />
+              <TabBtn aba="atividades" icon="📋" label="Atividades planejadas" />
+              <TabBtn aba="kanban"     icon="🗂" label="Cards / Kanban" />
+            </div>
 
-            {/* Conteúdo da aba */}
+            {/* Conteúdo da aba — sempre visível para permitir trocar/vincular outro item */}
             {abaAtiva ? (
-              origemInfo ? null : (
-                <div>
-                  <input type="text"
+              <div>
+                <input type="text"
                     className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
                     placeholder={
                       abaAtiva === 'sirene' ? 'Buscar tópico Sirene...'
@@ -1068,7 +1142,6 @@ export function ModalAgendamento({
                     </div>
                   )}
                 </div>
-              )
             ) : (
               <p className="text-xs text-gray-400 py-1">Selecione uma categoria acima.</p>
             )}
@@ -1374,44 +1447,172 @@ export function ModalAgendamento({
               </button>
               {partAbertas[1] && (
                 <div className="px-3 pb-3 pt-1 border-t border-gray-100">
-                  <div className="flex gap-1.5 mt-1">
-                    <input
-                      type="email"
-                      placeholder="nome@empresa.com"
-                      className="flex-1 text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                      value={externEmail}
-                      onChange={e => setExternEmail(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addExterno())}
-                    />
-                    <button type="button" onClick={addExterno}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors">
-                      Adicionar
-                    </button>
-                  </div>
-                  {form.participantes_externos.length > 0 && (
-                    <div className="mt-2">
-                      <div className="flex flex-wrap gap-1.5">
-                        {form.participantes_externos.map(email => {
-                          const st = rsvpStatus.get(email);
-                          const badge = st === 'aceito' ? { icon: '✓', cls: 'text-green-600 bg-green-50 border-green-200' }
-                                      : st === 'recusado' ? { icon: '✗', cls: 'text-red-500 bg-red-50 border-red-200' }
-                                      : st === 'pendente' ? { icon: '?', cls: 'text-amber-600 bg-amber-50 border-amber-200' }
-                                      : null;
-                          return (
-                            <span key={email} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
-                              {badge && (
-                                <span className={`text-[10px] px-1 rounded font-semibold border ${badge.cls}`}>{badge.icon}</span>
-                              )}
-                              {email}
-                              <button type="button" onClick={() => removeExterno(email)}
-                                className="text-gray-400 hover:text-red-500 leading-none">×</button>
+                  {/* ── Campo e-mail com autocomplete ── */}
+                  <div className="relative mt-1">
+                    <div className="flex gap-1.5">
+                      <input
+                        type="email"
+                        placeholder="nome@empresa.com"
+                        className="flex-1 text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        value={externEmail}
+                        onChange={e => handleExternEmailChange(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.preventDefault(); addExterno(); }
+                          if (e.key === 'Escape') { setMostrarSugestoes(false); setSugestoesExterno([]); }
+                        }}
+                        onBlur={() => setTimeout(() => setMostrarSugestoes(false), 150)}
+                        onFocus={() => sugestoesExterno.length > 0 && setMostrarSugestoes(true)}
+                        autoComplete="off"
+                      />
+                      <button type="button" onClick={() => addExterno()}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors">
+                        Adicionar
+                      </button>
+                    </div>
+                    {/* Dropdown de sugestões */}
+                    {mostrarSugestoes && sugestoesExterno.length > 0 && (
+                      <div className="absolute z-10 left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden">
+                        <div className="px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                          Contatos salvos
+                        </div>
+                        {sugestoesExterno.map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            className="w-full text-left flex flex-col px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                            onMouseDown={() => addExternoFromSugestao(c)}
+                          >
+                            <span className="text-xs font-medium text-gray-800">{c.nome ?? c.email}</span>
+                            <span className="text-[10px] text-gray-400">
+                              {c.nome ? c.email : ''}{c.nome && c.empresa ? ' · ' : ''}{c.empresa ?? ''}
                             </span>
-                          );
-                        })}
+                          </button>
+                        ))}
                       </div>
+                    )}
+                  </div>
+
+                  {/* ── Lista de e-mails já adicionados nesta reunião ── */}
+                  {form.participantes_externos.length > 0 && (
+                    <div className="mt-2 flex flex-col gap-1.5">
+                      {form.participantes_externos.map(email => {
+                        const st = rsvpStatus.get(email);
+                        const badge = st === 'aceito'   ? { icon: '✓', cls: 'text-green-600 bg-green-50 border-green-200' }
+                                    : st === 'recusado' ? { icon: '✗', cls: 'text-red-500 bg-red-50 border-red-200' }
+                                    : st === 'pendente' ? { icon: '?', cls: 'text-amber-600 bg-amber-50 border-amber-200' }
+                                    : null;
+                        const salvo = contatosSalvos.get(email);
+                        const esteEditando = editandoContato?.id === salvo?.id;
+
+                        return (
+                          <div key={email} className="border border-gray-200 rounded-lg overflow-hidden">
+                            {/* Linha principal */}
+                            <div className="flex items-center gap-1.5 px-2.5 py-2">
+                              {badge && (
+                                <span className={`text-[10px] px-1 py-0.5 rounded font-semibold border shrink-0 ${badge.cls}`}>{badge.icon}</span>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                {salvo?.nome ? (
+                                  <p className="text-xs font-medium text-gray-800 truncate">{salvo.nome}</p>
+                                ) : null}
+                                <p className="text-[11px] text-gray-500 truncate">{email}{salvo?.empresa ? ` · ${salvo.empresa}` : ''}</p>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {/* Botão editar nome/empresa */}
+                                {salvo ? (
+                                  <button
+                                    type="button"
+                                    title="Editar nome e empresa"
+                                    className="text-[10px] text-gray-400 hover:text-blue-500 transition-colors px-1"
+                                    onClick={() => setEditandoContato(
+                                      esteEditando ? null : { id: salvo.id, nome: salvo.nome ?? '', empresa: salvo.empresa ?? '' }
+                                    )}
+                                  >
+                                    {esteEditando ? '▲' : '✏'}
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    title="Salvar nome e empresa"
+                                    className="text-[10px] text-gray-400 hover:text-blue-500 transition-colors px-1"
+                                    onClick={async () => {
+                                      await contatosHook.salvarOuAtualizar(email);
+                                      // Recarrega id após salvar
+                                      const supabaseLocal = createClient();
+                                      const { data } = await supabaseLocal
+                                        .from('agenda_contatos_externos')
+                                        .select('id, email, nome, empresa, ultimo_uso')
+                                        .eq('email', email)
+                                        .maybeSingle();
+                                      if (data) {
+                                        setContatosSalvos(prev => new Map(prev).set(email, data as ContatoExterno));
+                                        setEditandoContato({ id: (data as ContatoExterno).id, nome: '', empresa: '' });
+                                      }
+                                    }}
+                                  >
+                                    ✏
+                                  </button>
+                                )}
+                                {/* Botão remover da reunião */}
+                                <button type="button" onClick={() => removeExterno(email)}
+                                  className="text-gray-400 hover:text-red-500 leading-none text-sm px-1">
+                                  ×
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Painel inline de edição de nome/empresa */}
+                            {esteEditando && editandoContato && (
+                              <div className="px-2.5 pb-2.5 pt-0 border-t border-gray-100 bg-gray-50">
+                                <div className="flex flex-col gap-1.5 mt-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Nome completo"
+                                    className="w-full text-xs border border-gray-300 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                    value={editandoContato.nome}
+                                    onChange={e => setEditandoContato(prev => prev ? { ...prev, nome: e.target.value } : null)}
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="Empresa"
+                                    className="w-full text-xs border border-gray-300 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                    value={editandoContato.empresa}
+                                    onChange={e => setEditandoContato(prev => prev ? { ...prev, empresa: e.target.value } : null)}
+                                  />
+                                  <div className="flex gap-2">
+                                    <button type="button" onClick={salvarEdicaoContato}
+                                      className="text-xs px-3 py-1 rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors">
+                                      Salvar
+                                    </button>
+                                    <button type="button" onClick={() => setEditandoContato(null)}
+                                      className="text-xs text-gray-500 hover:text-gray-700">
+                                      Cancelar
+                                    </button>
+                                    {salvo && (
+                                      <button
+                                        type="button"
+                                        className="text-xs text-red-400 hover:text-red-600 ml-auto"
+                                        onClick={async () => {
+                                          await contatosHook.excluir(salvo.id);
+                                          setContatosSalvos(prev => { const m = new Map(prev); m.delete(email); return m; });
+                                          setEditandoContato(null);
+                                        }}
+                                      >
+                                        Excluir da agenda
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Reenviar convites (só em modo editar) */}
                       {modo === 'editar' && editandoId && (
                         <button type="button" onClick={reenviarConvites} disabled={enviandoConvite}
-                          className="mt-2 text-[11px] text-blue-600 hover:text-blue-800 disabled:opacity-50 transition-colors">
+                          className="mt-1 text-[11px] text-blue-600 hover:text-blue-800 disabled:opacity-50 transition-colors self-start">
                           {enviandoConvite ? 'Enviando…' : '📧 Reenviar convites'}
                         </button>
                       )}

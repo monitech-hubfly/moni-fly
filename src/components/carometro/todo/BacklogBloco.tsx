@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { createClient } from '@/lib/supabase/client';
-import { useBacklog, SireneItem, AtividadeItem } from '@/hooks/useBacklog';
+import { useBacklog, SireneItem, AtividadeItem, ItemAgendado } from '@/hooks/useBacklog';
 import { BacklogColunaCard, StatusPrazo } from './BacklogColuna';
 import { isoWeek } from '@/utils/periodos';
 import type { DadosAgendamento } from './ModalAgendamento';
@@ -69,6 +69,64 @@ function EmptyState() {
   );
 }
 
+/** Formata badge de data/hora para a seção recolhível de agendados. Ex: "Qui 14:00 (+2)" */
+function formatAgendaBadge(data: string, hora_inicio: string, count: number): string {
+  const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const d = new Date(`${data}T00:00:00`);
+  const dia = DIAS[d.getDay()] ?? '';
+  const hora = hora_inicio.slice(0, 5);
+  const base = `${dia} ${hora}`;
+  return count > 1 ? `${base} (+${count - 1})` : base;
+}
+
+/** Seção recolhível de itens agendados, exibida no final de cada coluna do backlog. */
+function SecaoAgendados({ agendados }: { agendados: ItemAgendado[] }) {
+  const [expandido, setExpandido] = useState(false);
+  if (agendados.length === 0) return null;
+
+  // Agrupa por item (mesmo acao_id / sirene_chamado_id / card_id) — conta sessões
+  // mas exibe apenas a próxima (já vêm ordenados por data ASC do useBacklog)
+  const vistos = new Set<string>();
+  const primeiros: ItemAgendado[] = [];
+  const contagemPorChave = new Map<string, number>();
+  for (const a of agendados) {
+    const chave = a.acao_id ?? (a.sirene_chamado_id != null ? `s${a.sirene_chamado_id}` : a.card_id ?? a.id);
+    contagemPorChave.set(chave, (contagemPorChave.get(chave) ?? 0) + 1);
+    if (!vistos.has(chave)) { vistos.add(chave); primeiros.push(a); }
+  }
+
+  return (
+    <div className="border-t border-gray-100 pt-1.5 mt-0.5">
+      <button
+        type="button"
+        onClick={() => setExpandido(v => !v)}
+        className="w-full text-left text-[10px] text-blue-500 hover:text-blue-700 flex items-center justify-between py-0.5"
+      >
+        <span>📅 {primeiros.length} já agendado{primeiros.length > 1 ? 's' : ''}</span>
+        <span>{expandido ? '▲' : '▼'}</span>
+      </button>
+      {expandido && (
+        <div className="flex flex-col gap-1 mt-1.5">
+          {primeiros.map(item => {
+            const chave = item.acao_id ?? (item.sirene_chamado_id != null ? `s${item.sirene_chamado_id}` : item.card_id ?? item.id);
+            const count = contagemPorChave.get(chave) ?? 1;
+            const badge = formatAgendaBadge(item.data, item.hora_inicio, count);
+            return (
+              <div
+                key={item.id}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-blue-100 bg-blue-50/50 text-xs text-gray-600"
+              >
+                <span className="flex-1 truncate">{item.titulo}</span>
+                <span className="text-[9px] text-blue-500 shrink-0 whitespace-nowrap">📅 {badge}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StatusDot({ cor, count }: { cor: string; count: number }) {
   if (count === 0) return null;
   return (
@@ -124,10 +182,12 @@ function ColunaSirene({ items, onAbrirChamado }: ColunaSireneProps) {
 }
 
 // ── Wrapper draggável ─────────────────────────────────────────────────────────
-function DraggableAtividade({ id, children }: { id: string; children: ReactNode }) {
+function DraggableAtividade({ id, acoId, children }: { id: string; acoId: string | null; children: ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `atividade::${id}`,
-    data: { type: 'atividade', id },
+    // id = gantt_planejamento.id (registro de backlog)
+    // acao_id = acoes.id (FK real para o catálogo de atividades — usado no novo evento da agenda)
+    data: { type: 'atividade', id, acao_id: acoId },
   });
   return (
     <div
@@ -184,7 +244,7 @@ function ColunaAtividades({ items, semanaAtual, onNovaAtividade, onExcluirAtivid
       <div className={`flex flex-col gap-1.5 ${items.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
         {items.length === 0 && <EmptyState />}
         {comStatus.map(({ item, status }) => (
-          <DraggableAtividade key={item.id} id={String(item.id)}>
+          <DraggableAtividade key={item.id} id={String(item.id)} acoId={item.acao_id}>
             <BacklogColunaCard
               tipo="atividade"
               titulo={item.nome_acao ?? '(sem título)'}
@@ -270,14 +330,31 @@ export function SireneChamadoBacklogWrapper({
     })();
   }, [chamadoId, supabase]);
 
-  const reloadTopicos = useCallback(async () => {
+  const reloadTopicos = useCallback(async (): Promise<TopicoPainelLinha[]> => {
     setTopicosLoading(true);
     const res = await getTopicosChamado(chamadoId);
-    if (res.ok) setTopicos(res.topicos);
+    const lista = res.ok ? res.topicos : [];
+    if (res.ok) setTopicos(lista);
     setTopicosLoading(false);
+    return lista;
   }, [chamadoId]);
 
   useEffect(() => { void reloadTopicos(); }, [reloadTopicos]);
+
+  /** Verifica se todos os tópicos atribuídos ao usuário atual foram concluídos/aprovados.
+   *  Se sim, aciona onConcluido para fechar o evento na Agenda automaticamente. */
+  function verificarAutoConcluirAgenda(topicosAtualizados: TopicoPainelLinha[]) {
+    if (!currentUserId) return;
+    const topicosDoUsuario = topicosAtualizados.filter(t =>
+      t.responsaveis_ids?.includes(currentUserId) || t.responsavel_id === currentUserId,
+    );
+    if (
+      topicosDoUsuario.length > 0 &&
+      topicosDoUsuario.every(t => t.status === 'concluido' || t.status === 'aprovado')
+    ) {
+      onConcluido?.();
+    }
+  }
 
   async function handleSubStatus(topicoId: number, status: SubInteracaoStatusDb) {
     if (status === 'concluido' && !skipHorasRef.current && row?.sirene_chamado_id != null) {
@@ -292,7 +369,8 @@ export function SireneChamadoBacklogWrapper({
     setPending(true);
     await atualizarStatusSubInteracao(String(topicoId), status, '/carometro/todo-planning', true);
     setPending(false);
-    void reloadTopicos();
+    const topicosAtualizados = await reloadTopicos();
+    verificarAutoConcluirAgenda(topicosAtualizados);
     window.dispatchEvent(new CustomEvent('backlog-reload'));
   }
 
@@ -304,7 +382,8 @@ export function SireneChamadoBacklogWrapper({
     );
     setPending(false);
     setClassificacaoPendente(null);
-    void reloadTopicos();
+    const topicosAtualizados = await reloadTopicos();
+    verificarAutoConcluirAgenda(topicosAtualizados);
     window.dispatchEvent(new CustomEvent('backlog-reload'));
   }
 
@@ -318,7 +397,7 @@ export function SireneChamadoBacklogWrapper({
         topicos={topicos}
         topicosLoading={topicosLoading}
         nomePorUserId={new Map()}
-        textoResponsavel={row.responsavel_nome ?? row.responsavel_nome_texto ?? ''}
+        textoResponsavel={row.sirene_abertura_responsavel_nome ?? row.responsavel_nome ?? row.responsavel_nome_texto ?? ''}
         parseTimesNomes={(raw) => Array.isArray(raw) ? raw.map(x => String(x)) : []}
         statusSelect={statusDbParaSelect(row.atividade_status)}
         temSubAberta={topicos.some(t => t.status !== 'concluido' && t.status !== 'aprovado')}
@@ -383,7 +462,7 @@ type BacklogBlocoProps = {
 
 // onAbrirModal mantido no tipo por compatibilidade com o pai (não é mais usado internamente)
 export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps = {}) {
-  const { sirene, atividades, isLoading, error, recarregar } = useBacklog();
+  const { sirene, atividades, agendados, isLoading, error, recarregar } = useBacklog();
   const semanaAtual = isoWeek(new Date());
   const supabase = useMemo(() => createClient(), []);
   const [drawerAberto, setDrawerAberto] = useState(false);
@@ -449,6 +528,7 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
               </div>
             </div>
             <ColunaSirene items={sirene} onAbrirChamado={(chamadoId, interacaoId) => setChamadoModal({ chamadoId, interacaoId })} />
+            <SecaoAgendados agendados={agendados.filter(a => a.sirene_chamado_id != null)} />
           </div>
 
           {/* Coluna 2 — Atividades Planejadas */}
@@ -472,10 +552,14 @@ export function BacklogBloco({ onAbrirModal: _onAbrirModal }: BacklogBlocoProps 
               onNovaAtividade={() => setDrawerAberto(true)}
               onExcluirAtividade={handleExcluirAtividade}
             />
+            <SecaoAgendados agendados={agendados.filter(a => !!a.acao_id && a.sirene_chamado_id == null && !a.card_id)} />
           </div>
 
           {/* Coluna 3 — Cards / Kanban */}
-          <BacklogKanbanColuna />
+          <div>
+            <BacklogKanbanColuna />
+            <SecaoAgendados agendados={agendados.filter(a => !!a.card_id)} />
+          </div>
         </div>
       )}
 

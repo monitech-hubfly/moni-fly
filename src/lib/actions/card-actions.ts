@@ -1718,7 +1718,34 @@ export async function arquivarInteracao(
         })
         .eq('id', sid);
       if (scErr) return { ok: false, error: scErr.message };
+
+      // Cascata: arquiva tópicos Sirene vinculados ao chamado pelo chamado_id.
+      // Sem isso, tópicos órfãos continuam aparecendo no Backlog do TO DO & Planning
+      // mesmo após o chamado-pai ser arquivado (o módulo Sirene os oculta, mas o
+      // Backlog consulta apenas o status do próprio tópico).
+      await supabase
+        .from('sirene_topicos')
+        .update({
+          arquivado: true,
+          arquivado_em: new Date().toISOString(),
+          arquivado_por: user.id,
+          status: 'concluido',
+        })
+        .eq('chamado_id', sid)
+        .eq('arquivado', false);
     }
+
+    // Cascata: arquiva tópicos Sirene vinculados pela interacao_id (sem chamado_id direto).
+    await supabase
+      .from('sirene_topicos')
+      .update({
+        arquivado: true,
+        arquivado_em: new Date().toISOString(),
+        arquivado_por: user.id,
+        status: 'concluido',
+      })
+      .eq('interacao_id', interacaoId)
+      .eq('arquivado', false);
 
     const bp = basePath?.trim() || '/';
     revalidatePath(bp);

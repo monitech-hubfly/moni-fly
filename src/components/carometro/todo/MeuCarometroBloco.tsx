@@ -11,12 +11,11 @@ export function MeuCarometroBloco() {
     indicadores,
     diasSirene,
     diasEngajamento,
+    semanasIndicadores,
     semanaAtual,
     isLoading,
     error,
   } = useMeuCarometro();
-  // diasIndicadores: hook retorna semanasIndicadores; usar diasEngajamento como fallback visual
-  const diasIndicadores = diasEngajamento;
 
   return (
     <div className="bg-[#F8F7F5] rounded-xl p-4 flex flex-col gap-4">
@@ -104,34 +103,27 @@ export function MeuCarometroBloco() {
             <MeuCarometroCard
               titulo="Indicadores"
               score={indicadores?.media ?? null}
-              diasDaSemana={diasIndicadores}
+              semanasIndicadores={semanasIndicadores}
               tipo="indicadores"
-            >
-              {indicadores && indicadores.porIndicador.length > 0 ? (
-                indicadores.porIndicador.map(ind => (
-                  <div key={ind.nome} className="flex justify-between gap-2">
-                    <span className="text-gray-500 truncate flex-1">{ind.nome}</span>
-                    <span className="font-medium whitespace-nowrap tabular-nums">{ind.percentual}%</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-400 text-center py-1">Sem lançamentos esta semana</p>
-              )}
-            </MeuCarometroCard>
+            />
           </div>
 
           <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-gray-500">
             <span className="flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-600" />
-              &lt;35% Vermelho
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-700" />
+              ≥75% Verde escuro
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />
+              60–74% Verde claro
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-600" />
-              35–65% Amarelo
+              30–59% Amarelo
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-700" />
-              &gt;65% Verde
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-600" />
+              &lt;30% Vermelho
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300" />
