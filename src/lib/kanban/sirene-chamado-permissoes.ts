@@ -1,12 +1,19 @@
-/** Chamado editável na UI da Sirene (sem vínculo com card de funil). */
+/**
+ * Chamado editável na UI da Sirene.
+ * Chamados com `origem = 'sirene'` são gerenciáveis tanto pela Sirene quanto
+ * pelo card vinculado — ambas as telas leem e gravam na mesma tabela.
+ */
 export function chamadoEditavelNaSirene(row: {
   origem: string;
   card_id: string | null | undefined;
 }): boolean {
-  return row.origem === 'sirene' && (row.card_id == null || row.card_id === '');
+  return row.origem === 'sirene';
 }
 
-/** Chamado originado em card de funil — somente leitura na Sirene. */
+/**
+ * @deprecated — use `chamadoEditavelNaSirene` negado.
+ * Mantido para compatibilidade; chamados sirene são sempre editáveis em qualquer tela.
+ */
 export function chamadoSomenteLeituraNaSirene(row: {
   origem: string;
   card_id: string | null | undefined;
