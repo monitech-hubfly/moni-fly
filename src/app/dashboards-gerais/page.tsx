@@ -10,6 +10,7 @@ import { DashboardSirene } from '@/app/sirene/DashboardSirene';
 import { GraficosConteudo } from '@/app/sirene/graficos/GraficosConteudo';
 import { DashboardsGeraisTabBar, type DashboardsGeraisTabId } from './DashboardsGeraisTabBar';
 import { DashboardsGeraisPipelineTab } from './DashboardsGeraisPipelineTab';
+import { PainelGeraisFunis } from './PainelGeraisFunis';
 
 export const dynamic = 'force-dynamic';
 
@@ -144,7 +145,7 @@ export default async function DashboardsGeraisPage({
             <EmConstrucao titulo="Pipeline da Rede de Loteadores" />
           )}
           {activeTab === 'painel-funis' && (
-            <EmConstrucao titulo="Painel Geral Funis" />
+            <PainelGeraisFunis />
           )}
           {activeTab === 'kpis' && (
             <EmConstrucao titulo="KPI's" />
