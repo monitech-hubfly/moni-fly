@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAQ Moní — Central de Ajuda</title>
+<style>
+:root {
+  --navy: #0C2633;
+  --navy-dim: #1a3d52;
+  --green: #2F4A3A;
+  --gold: #D4AD68;
+  --earth: #4A3929;
+  --bg: #F5F3EF;
+  --card-bg: #ffffff;
+  --border: #E8E4DC;
+  --text: #1a2730;
+  --text-mid: #4B5563;
+  --text-muted: #9CA3AF;
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
+  --shadow: 0 4px 16px rgba(12,38,51,.09);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* HERO */
+.hero {
+  background: linear-gradient(160deg, #EAE6DE 0%, #F5F3EF 60%);
+  padding: 64px 24px 52px;
+  text-align: center;
+}
+.logo {
+  font-size: .75rem;
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--navy);
+  opacity: .5;
+  margin-bottom: 28px;
+  display: block;
+}
+.hero h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 800;
+  color: var(--navy);
+  letter-spacing: -.03em;
+  line-height: 1.1;
+  margin-bottom: 28px;
+}
+.search-wrap {
+  position: relative;
+  max-width: 540px;
+  margin: 0 auto 18px;
+}
+.search-icon {
+  position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); font-size: 1rem; pointer-events: none;
+}
+#searchInput {
+  width: 100%;
+  padding: 15px 80px 15px 48px;
+  border: 1.5px solid var(--border);
+  border-radius: 50px;
+  font-size: 1rem;
+  background: white;
+  color: var(--text);
+  outline: none;
+  box-shadow: var(--shadow);
+  transition: border-color .15s, box-shadow .15s;
+}
+#searchInput:focus {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(12,38,51,.1);
+}
+#searchInput::placeholder { color: var(--text-muted); }
+.kbd-hint {
+  position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; gap: 3px;
+}
+.kbd {
+  background: #F3F0EA;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: .7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  font-family: inherit;
+}
+.common-searches {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; flex-wrap: wrap;
+  font-size: .82rem;
+  color: var(--text-mid);
+}
+.common-label { font-weight: 600; white-space: nowrap; }
+.chip {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 13px;
+  font-size: .8rem;
+  color: var(--navy);
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.chip:hover { background: var(--navy); color: white; border-color: var(--navy); }
+
+/* MAIN GRID */
+.main { max-width: 1080px; margin: 0 auto; padding: 44px 20px 80px; }
+
+.section-label {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+
+/* CATEGORY CARD */
+.cat-card {
+  background: var(--card-bg);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column;
+  transition: box-shadow .15s, border-color .15s;
+}
+.cat-card:hover { box-shadow: var(--shadow); border-color: #D1CAC0; }
+
+.cat-header {
+  padding: 18px 18px 14px;
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer;
+  border-bottom: 1.5px solid var(--border);
+  text-decoration: none;
+}
+.cat-icon-wrap {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  background: #F0EDE7;
+  flex-shrink: 0;
+}
+.cat-card.revised .cat-icon-wrap { background: #FEF3E0; }
+.cat-title-block { flex: 1; min-width: 0; }
+.cat-name {
+  font-size: .92rem;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1.25;
+}
+.cat-meta {
+  font-size: .72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.cat-arrow {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: #F0EDE7;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--navy);
+  font-size: .85rem;
+  flex-shrink: 0;
+  transition: background .12s, transform .12s;
+}
+.cat-card:hover .cat-arrow { background: var(--navy); color: white; transform: translateX(2px); }
+
+.cat-questions { padding: 10px 0 6px; flex: 1; }
+.q-link {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 18px;
+  cursor: pointer;
+  transition: background .12s;
+  text-decoration: none;
+}
+.q-link:hover { background: #F8F6F1; }
+.q-text {
+  font-size: .82rem;
+  color: var(--text-mid);
+  line-height: 1.4;
+  flex: 1;
+}
+.q-link:hover .q-text { color: var(--navy); }
+.q-arr {
+  color: var(--text-muted);
+  font-size: .8rem;
+  margin-top: 1px;
+  flex-shrink: 0;
+  transition: color .12s, transform .12s;
+}
+.q-link:hover .q-arr { color: var(--navy); transform: translateX(3px); }
+
+.see-all {
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 18px;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  transition: color .12s;
+}
+.see-all:hover { color: var(--navy); }
+
+/* CTA CARD */
+.cta-card {
+  background: var(--navy);
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 28px 22px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  box-shadow: var(--shadow);
+}
+.cta-card h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: white;
+  line-height: 1.3;
+  margin-bottom: 8px;
+}
+.cta-card p {
+  font-size: .82rem;
+  color: rgba(255,255,255,.6);
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+.cta-btn {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: white;
+  color: var(--navy);
+  font-size: .87rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: background .12s;
+}
+.cta-btn:hover { background: var(--gold); }
+
+/* REVISED BADGE */
+.badge-revised {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #FEF3E0;
+  color: #92600A;
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid #F6D78A;
+  margin-top: 3px;
+}
+
+/* PANEL */
+.overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(12,38,51,.35);
+  z-index: 200;
+  backdrop-filter: blur(2px);
+}
+.overlay.open { display: block; }
+.panel {
+  position: fixed;
+  top: 0; right: 0;
+  width: min(560px, 100vw);
+  height: 100vh;
+  background: white;
+  box-shadow: -8px 0 40px rgba(0,0,0,.15);
+  z-index: 300;
+  transform: translateX(100%);
+  transition: transform .25s cubic-bezier(.4,0,.2,1);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.panel.open { transform: translateX(0); }
+.panel-top {
+  padding: 20px 24px;
+  border-bottom: 1.5px solid var(--border);
+  display: flex; align-items: center; gap: 14px;
+}
+.panel-close {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: none;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: background .12s;
+}
+.panel-close:hover { background: var(--bg); color: var(--navy); }
+.panel-cat-badge {
+  font-size: .73rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.panel-body { padding: 28px 24px; overflow-y: auto; flex: 1; }
+.panel-q {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--navy);
+  line-height: 1.25;
+  margin-bottom: 12px;
+  letter-spacing: -.02em;
+}
+.panel-resumida {
+  font-size: .9rem;
+  color: var(--text-mid);
+  line-height: 1.6;
+  background: #F8F6F1;
+  border-left: 3px solid var(--gold);
+  border-radius: 0 8px 8px 0;
+  padding: 12px 14px;
+  margin-bottom: 24px;
+}
+.panel-completa { font-size: .875rem; color: var(--text); line-height: 1.7; }
+.panel-completa h2 { font-size: 1rem; font-weight: 700; color: var(--navy); margin: 20px 0 10px; }
+.panel-completa h3 { font-size: .9rem; font-weight: 700; color: var(--navy); margin: 16px 0 8px; }
+.panel-completa table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: .82rem; }
+.panel-completa th { background: #F0EDE7; text-align: left; padding: 8px 10px; font-weight: 700; color: var(--navy); }
+.panel-completa td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-mid); vertical-align: top; }
+.panel-completa ul, .panel-completa ol { margin: 8px 0 12px 18px; }
+.panel-completa li { margin-bottom: 4px; }
+.panel-completa strong { color: var(--navy); font-weight: 700; }
+.panel-completa blockquote { border-left: 3px solid var(--gold); padding: 8px 12px; background: #FEFCF6; margin: 12px 0; border-radius: 0 6px 6px 0; color: var(--earth); font-style: italic; font-size: .85rem; }
+.panel-completa code { background: #F0EDE7; padding: 2px 6px; border-radius: 4px; font-size: .82rem; }
+.panel-footer {
+  padding: 16px 24px;
+  border-top: 1.5px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
+.area-badge {
+  font-size: .72rem; font-weight: 700;
+  padding: 4px 10px; border-radius: 20px;
+  background: #EEF2FF; color: #3730A3;
+}
+.area-badge.juridico { background: #FFF7ED; color: #9A3412; }
+.area-badge.operacoes { background: #ECFDF5; color: #065F46; }
+.area-badge.tecnologia { background: #EFF6FF; color: #1E40AF; }
+.area-badge.marketing { background: #FDF4FF; color: #7E22CE; }
+
+/* SEARCH RESULTS */
+.search-results {
+  display: none;
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 28px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.search-results.open { display: block; }
+.sr-header {
+  padding: 14px 18px;
+  border-bottom: 1.5px solid var(--border);
+  font-size: .82rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.sr-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 13px 18px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background .12s;
+}
+.sr-item:last-child { border-bottom: none; }
+.sr-item:hover { background: #F8F6F1; }
+.sr-cat-label {
+  font-size: .7rem; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .06em;
+  white-space: nowrap; margin-top: 2px;
+  min-width: 80px;
+}
+.sr-q { font-size: .87rem; color: var(--navy); font-weight: 600; flex: 1; }
+.sr-q mark { background: #FEF3C7; color: var(--earth); border-radius: 2px; }
+.sr-resume { font-size: .78rem; color: var(--text-muted); margin-top: 2px; }
+.no-results { padding: 28px; text-align: center; color: var(--text-muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <span class="logo">Moní · Central de Ajuda</span>
+  <h1>Como podemos ajudar?</h1>
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input type="text" id="searchInput" placeholder="Buscar uma pergunta..." autocomplete="off" />
+    <div class="kbd-hint">
+      <kbd class="kbd">⌘</kbd><kbd class="kbd">K</kbd>
+    </div>
+  </div>
+  <div class="common-searches">
+    <span class="common-label">Buscas comuns:</span>
+    <span class="chip" onclick="setSearch('carta fiança')">Carta Fiança</span>
+    <span class="chip" onclick="setSearch('Hub Fly')">Hub Fly</span>
+    <span class="chip" onclick="setSearch('alvará')">Alvará</span>
+    <span class="chip" onclick="setSearch('terrenista')">Terrenista</span>
+    <span class="chip" onclick="setSearch('sirene')">Sirene</span>
+    <span class="chip" onclick="setSearch('habite-se')">Habite-se</span>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closePanel()"></div>
+<aside class="panel" id="panel">
+  <div class="panel-top">
+    <button class="panel-close" onclick="closePanel()">✕</button>
+    <span class="panel-cat-badge" id="panelCat"></span>
+  </div>
+  <div class="panel-body">
+    <p class="panel-q" id="panelQ"></p>
+    <div class="panel-resumida" id="panelResumida"></div>
+    <div class="panel-completa" id="panelCompleta"></div>
+  </div>
+  <div class="panel-footer">
+    <span class="area-badge" id="panelArea"></span>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="search-results" id="searchResults"></div>
+  <div class="section-label">Categorias</div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+const data = [
+  {
+    id: "terrenos",
+    nome: "Terrenos",
+    icon: "🏗️",
+    tipo: "new",
+    artigos: [
+      {
+        pergunta: "Quais são os critérios mínimos para um terreno ser considerado elegível pela Moní?",
+        resumida: "O terreno deve estar em área urbana consolidada, ter acesso a rua pavimentada, frente mínima de 12m, área a partir de 300m², topografia viável para construção e documentação regularizada (matrícula limpa ou sanável).",
+        completa: `## Critérios mínimos de elegibilidade de terreno
+
+A Moní utiliza uma matriz de elegibilidade técnica e jurídica para avaliar se um terreno pode entrar no processo de permuta. Os critérios abaixo são verificados na fase de **Pré-Batalha** (Step One).
+
+### Critérios técnicos
+
+| Critério | Mínimo exigido |
+|----------|----------------|
+| Área total | ≥ 300 m² |
+| Frente para logradouro | ≥ 12 m |
+| Acesso | Rua pavimentada ou com pavimentação prevista |
+| Topografia | Sem corte excessivo (declividade até 15%) |
+| Zoneamento | Residencial unifamiliar ou multifamiliar de baixa densidade |
+
+### Critérios jurídicos
+
+- Matrícula atualizada no Cartório de Registro de Imóveis
+- Ausência de ônus reais impeditivos (hipoteca, usufruto ativo, penhora não sanável)
+- Proprietário capaz e com poder de disposição
+- IPTU em dia (ou acordo formalizado)
+
+### Sobre a documentação
+
+Pendências jurídicas **não eliminam automaticamente** o terreno — o Jurídico Moní avalia caso a caso a viabilidade de saneamento.
+
+> **Importante:** a elegibilidade definitiva é validada após o BCA e a aprovação do Comitê interno.`,
+        area: "Operações",
+        destaque: true,
+        palavras: ["critérios terreno","elegibilidade terreno","área mínima","frente mínima","documentação terreno","matrícula"]
+      },
+      {
+        pergunta: "Como funciona a prospecção de terrenos no modelo Moní?",
+        resumida: "O franqueado é o responsável pela prospecção ativa de terrenos em seu território. Ele identifica oportunidades, apresenta ao terrenista o modelo Moní e, se houver interesse, cadastra o lead no Hub Fly para iniciar o funil Step One.",
+        completa: `## Prospecção de terrenos — papel do franqueado
+
+No modelo Moní, a **prospecção de terrenos** é responsabilidade do franqueado.
+
+### Fluxo de prospecção
+
+1. **Identificação:** franqueado mapeia terrenos no seu território por zoneamento, visitas, indicações e pesquisa imobiliária
+2. **Abordagem:** apresenta o modelo de permuta Moní ao terrenista
+3. **Qualificação:** verifica critérios básicos de elegibilidade (área, frente, documentação)
+4. **Cadastro no Hub Fly:** abre card no Funil Step One com dados do terreno e terrenista
+5. **Análise Moní:** time interno valida viabilidade técnica, jurídica e financeira
+6. **Apresentação formal:** BCA e reunião com o terrenista
+
+### Ferramentas de apoio
+
+- **Mapa de Competidores** (etapa Step One): levantamento de oferta residencial na região
+- **Configurador de Casas**: simulação de viabilidade antes da proposta
+- **Material de apresentação Moní**: disponível no Hub Fly > Repositório
+
+> **Dúvidas sobre abordagem ao terrenista?** Consulte o material de Sales Enablement no Repositório ou abra chamado no Sirene.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["prospecção terreno","funil step one","terrenista","território franqueado","mapa competidores","lead terreno"]
+      },
+      {
+        pergunta: "O que é o BCA e como ele avalia a viabilidade do terreno?",
+        resumida: "O BCA (Business Case Analysis) é o documento técnico-financeiro que valida se a permuta é viável para todos os lados. Ele considera VGV, custo de obra, parcela de permuta, margem da Moní e retorno ao terrenista. É gerado no Step One e apresentado no Comitê.",
+        completa: `## BCA — Business Case Analysis
+
+O BCA é o **documento de viabilidade econômica** que resume se um negócio Moní deve avançar para contrato.
+
+### O que o BCA calcula
+
+| Componente | Descrição |
+|------------|----------|
+| **VGV (Valor Geral de Vendas)** | Receita total estimada com a venda das casas |
+| **Custo de obra** | Estimativa de construção por m² × unidades |
+| **Permuta ao terrenista** | Número e tipologia de unidades que serão entregues |
+| **Margem operacional** | Retorno esperado para a Moní |
+| **Cronograma financeiro** | Estimativa de desembolso e retorno por fase |
+
+### Resultado do BCA
+
+- **BCA aprovado:** negócio avança para fase de contrato (Portfolio)
+- **BCA reprovado:** negócio encerrado ou renegociado
+- **BCA condicional:** aprovado com ajuste de número de casas ou formato de permuta
+
+> **Importante:** o BCA é uma estimativa; valores definitivos são validados no Acoplamento (modelagem financeira final com o Gbox).`,
+        area: "Operações",
+        destaque: true,
+        palavras: ["BCA","business case analysis","viabilidade terreno","VGV","permuta casas","comitê","modelo financeiro"]
+      },
+      {
+        pergunta: "Quais certidões e documentos o terrenista precisa apresentar?",
+        resumida: "O terrenista deve apresentar matrícula atualizada, IPTU quitado, certidões negativas de débito (Receita Federal, FGTS, Estadual, Municipal), certidão de ônus reais, documentos pessoais e, se pessoa jurídica, contrato social e CNPJ regularizado.",
+        completa: `## Documentação do terrenista — checklist completo
+
+### Documentos do imóvel
+- Matrícula atualizada (emitida há no máximo 30 dias)
+- Certidão de ônus reais
+- Certidão de propriedade e de transmissão
+- IPTU quitado (últimos 5 anos)
+
+### Certidões do proprietário (pessoa física)
+- RG e CPF
+- Comprovante de estado civil
+- Certidão negativa de débitos — Receita Federal (CPF)
+- Certidão negativa de débitos — FGTS
+- Certidões negativas estadual e municipal
+- Certidão de distribuição de ações cíveis
+
+### Certidões extras — pessoa jurídica
+- Contrato social ou estatuto atualizado
+- CNPJ regularizado na Receita Federal
+- Certidão de regularidade FGTS (CNPJ da empresa)
+
+> **Dúvida sobre documentação específica?** Abra um chamado no Sirene → área Jurídico.`,
+        area: "Jurídico",
+        destaque: false,
+        palavras: ["certidões terrenista","documentos terreno","matrícula","certidão negativa","checklist terrenista"]
+      },
+      {
+        pergunta: "O que pode desqualificar um terreno no processo Moní?",
+        resumida: "Terrenos em área de preservação permanente, com litigância judicial grave, localização fora do zoneamento residencial, topografia inviável, acesso exclusivo por servidão não regularizada ou com pendências jurídicas insanáveis no prazo do projeto são os principais motivos de desqualificação.",
+        completa: `## Fatores de desqualificação de terreno
+
+### Desqualificadores técnicos
+
+| Fator | Motivo |
+|-------|--------|
+| Área de Preservação Permanente (APP) | Não pode ser construído (Código Florestal) |
+| Zoneamento não residencial | Licença de obra residencial negada pela prefeitura |
+| Declividade > 25% | Inviabilidade construtiva e financeira |
+| Área < 300 m² ou frente < 10 m | Não comporta projeto-padrão Moní |
+
+### Desqualificadores jurídicos
+
+| Fator | Motivo |
+|-------|--------|
+| Litígio judicial em fase avançada (penhora, arresto) | Impede alienação ou oneração |
+| Inventário em curso sem prazo de conclusão | Bloqueia a assinatura do contrato |
+| Débitos com valor superior ao VGV previsto | Inviabilidade econômica |
+
+### Situações analisadas caso a caso
+- **Meação:** cônjuge pode ser incluído — não desqualifica, mas exige anuência
+- **Múltiplos proprietários:** possível com todas as assinaturas
+- **Hipoteca:** pode ser quitada com parte do negócio`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["desqualificação terreno","terreno inviável","app preservação permanente","zoneamento","litígio imóvel"]
+      },
+      {
+        pergunta: "O que é o Comunicado de Uso e como ele afeta a prospecção?",
+        resumida: "O Comunicado de Uso é o documento que define o território de atuação do franqueado, incluindo restrições de sobreposição com outras franquias. Prospectar fora do território ou em área com exclusividade de outro franqueado viola o COF e deve ser consultado antes de qualquer abordagem.",
+        completa: `## Comunicado de Uso — território e restrições
+
+O **Comunicado de Uso** faz parte da Circular de Oferta de Franquia (COF) e delimita onde o franqueado pode prospectar e operar sem conflito com outras unidades Moní.
+
+### O que ele define
+- **Território exclusivo:** área geográfica primária do franqueado
+- **Área de influência:** zona secundária onde a atuação é permitida mas sem exclusividade
+- **Restrições:** localizações onde outro franqueado tem prioridade
+
+### Como consultar
+- O mapa de territórios está disponível no Hub Fly > Repositório > COF e Contratos
+- Em caso de sobreposição, acione o Sirene → área Operações
+
+### Consequências do descumprimento
+Prospectar em território de outro franqueado caracteriza **infração contratual** e pode resultar em advertência, mediação obrigatória ou rescisão de contrato.
+
+> **Sempre consulte o mapa de territórios antes de iniciar uma prospecção nova.**`,
+        area: "Jurídico",
+        destaque: false,
+        palavras: ["comunicado de uso","território franqueado","COF","exclusividade territorio","sobreposição franquias"]
+      }
+    ]
+  },
+  {
+    id: "aprovacoes",
+    nome: "Aprovações e Pré-Obra",
+    icon: "📋",
+    tipo: "new",
+    artigos: [
+      {
+        pergunta: "O que é o Projeto Legal e qual é o papel do franqueado nessa etapa?",
+        resumida: "O Projeto Legal é o conjunto de documentos técnicos (planta, memorial descritivo, ART/RRT) submetido à prefeitura para aprovação da construção. O franqueado acompanha o andamento via Hub Fly; a execução técnica é responsabilidade do time de Projetos da Moní.",
+        completa: `## Projeto Legal — o que é e quem faz
+
+| Responsável | Atividade |
+|-------------|----------|
+| **Time Projetos Moní** | Elabora e assina o projeto (plantas, memorial, ART/RRT) |
+| **Prefeitura** | Analisa e aprova (ou solicita adequações) |
+| **Franqueado** | Acompanha status no Hub Fly |
+| **Condomínio** | Aprova internamente (em alguns casos) |
+
+### Fases do Projeto Legal no Hub Fly
+1. **Nova demanda** — projeto criado pelo time Operações
+2. **Em elaboração** — equipe prepara documentação
+3. **Aguardando aprovação condomínio** — síndico analisa
+4. **Submetido à prefeitura** — protocolo registrado
+5. **Em análise** — prazo varia por município (15–90 dias úteis)
+6. **Aprovado** — alvará de construção emitido
+
+> **Prazo médio:** 30–90 dias úteis dependendo do município.`,
+        area: "Operações",
+        destaque: true,
+        palavras: ["projeto legal","aprovação prefeitura","planta obra","ART","RRT","memorial descritivo","funil projeto legal"]
+      },
+      {
+        pergunta: "Como funciona a aprovação pelo condomínio e qual é o prazo típico?",
+        resumida: "A aprovação do condomínio é obtida junto ao síndico ou administradora antes da submissão à prefeitura. O franqueado é o responsável por facilitar essa comunicação. O prazo típico é de 15 a 30 dias.",
+        completa: `## Aprovação pelo condomínio
+
+### Processo típico
+1. Franqueado apresenta o projeto ao síndico ou administradora
+2. Assembleia ou reunião de diretoria analisa e vota
+3. Documento de anuência emitido pelo condomínio
+4. Time Projetos Moní inclui anuência no processo de aprovação municipal
+
+### Prazos
+
+| Situação | Prazo estimado |
+|----------|----------------|
+| Aprovação por reunião de diretoria | 7–15 dias |
+| Aprovação por assembleia convocada | 20–45 dias |
+| Condomínio com regras rígidas | 30–60 dias |
+
+> **Atenção:** qualquer compromisso de alteração no projeto com o condomínio deve ser comunicado ao time Projetos antes de ser firmado.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["aprovação condomínio","síndico","anuência condomínio","assembleia","padrão construtivo"]
+      },
+      {
+        pergunta: "Quanto tempo leva para obter o alvará de construção?",
+        resumida: "O prazo para emissão do alvará varia de 30 a 90 dias úteis, dependendo do município, da complexidade do projeto e da fila da prefeitura. O Hub Fly exibe o status em tempo real no card de Projeto Legal.",
+        completa: `## Alvará de construção — prazo e processo
+
+### Prazo médio por perfil de município
+
+| Perfil | Prazo estimado |
+|--------|---------------|
+| Município digital com processo ágil | 20–40 dias úteis |
+| Município médio porte | 40–70 dias úteis |
+| Município com alta demanda ou processo lento | 70–120 dias úteis |
+
+### O que acontece enquanto aguarda?
+- O card permanece na fase **"Submetido à prefeitura"** no Funil Projeto Legal
+- O time Projetos acompanha ativamente
+- A obra **não pode começar** antes da emissão do alvará
+
+> **Fique de olho:** não é necessário acionar a Moní antes de 45 dias sem resposta da prefeitura. Após esse prazo, abra chamado no Sirene.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["alvará construção","prazo aprovação","prefeitura","projeto legal aprovado","licença obra"]
+      },
+      {
+        pergunta: "O que é o Planialtimétrico e quando ele é necessário?",
+        resumida: "O Planialtimétrico é o levantamento topográfico do terreno — mede cotas, declividade, confrontações e limites. É obrigatório para projetos Moní e deve ser realizado por engenheiro ou geógrafo habilitado antes da elaboração do Projeto Legal.",
+        completa: `## Planialtimétrico — levantamento topográfico
+
+### Por que é obrigatório?
+- A prefeitura exige em projetos com área > 500 m² ou terrenos inclinados
+- Define movimentação de terra corretamente, evitando surpresas no custo de obra
+
+### O que o planialtimétrico mostra?
+- Limites e confrontações do terreno
+- Cotas de nível (elevação de cada ponto)
+- Declividade predominante
+- Posição de árvores, muros e edificações existentes
+- Afastamentos exigidos por lei
+
+### Quando é solicitado no Hub Fly?
+O planialtimétrico aparece como item de checklist na fase **Planialtimétrico** do Funil Operações.
+
+> **Custo:** geralmente entre R$ 800 e R$ 3.000 dependendo da área e município.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["planialtimétrico","levantamento topográfico","topografia terreno","cotas terreno","declividade"]
+      },
+      {
+        pergunta: "Quando a Moní aciona a garantidora e como o processo de crédito é liberado para início de obra?",
+        resumida: "A liberação do crédito de obra (Cash Me) é acionada após a aprovação do alvará de construção. O time de Crédito Moní analisa documentação, valida o BCA final e aciona a garantidora. A obra só começa após a liberação da primeira tranche.",
+        completa: `## Liberação do crédito para início de obra
+
+### Sequência de eventos
+1. **Alvará emitido** — Projeto Legal concluído
+2. **Abertura automática Cash Me** — Hub Fly cria card no Funil Crédito Obra
+3. **Documentação solicitada** — time Crédito solicita documentos
+4. **Análise de crédito** — parceiro financeiro analisa viabilidade
+5. **Aprovação de crédito** — negócio aprovado
+6. **Assinatura do contrato de crédito**
+7. **Primeira tranche liberada** — obra pode começar
+
+### O que pode atrasar a liberação?
+- Documentação incompleta do terreno ou processo
+- Inconsistências no BCA ou projeto
+- Pendências jurídicas identificadas na due diligence
+
+> **Acompanhe** o status do seu crédito no Funil Crédito Obra. Dúvidas sobre documentação: Sirene → área Crédito.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["crédito obra","cash me","tranche","liberação obra","financiamento obra","início de obra"]
+      }
+    ]
+  },
+  {
+    id: "obra",
+    nome: "Obra",
+    icon: "🏠",
+    tipo: "new",
+    artigos: [
+      {
+        pergunta: "Qual é o cronograma típico de uma obra Moní e quais são as etapas?",
+        resumida: "Uma obra Moní tem duração típica de 4 a 6 meses, dividida em: mobilização e fundação (mês 1), estrutura e alvenaria (meses 1-2), instalações e cobertura (meses 2-3), revestimento e acabamento (meses 3-4) e finalização e Habite-se (meses 4-5).",
+        completa: `## Cronograma de obra Moní
+
+### Fases da obra
+
+| Fase | Duração estimada | Atividades principais |
+|------|-----------------|----------------------|
+| **1. Mobilização e fundação** | Semanas 1–4 | Limpeza, terraplanagem, fundação |
+| **2. Estrutura e alvenaria** | Semanas 3–8 | Laje, pilares, paredes, cobertura |
+| **3. Instalações e cobertura** | Semanas 6–12 | Elétrica, hidráulica, telhado |
+| **4. Revestimento e acabamento** | Semanas 10–18 | Reboco, piso, pintura, esquadrias |
+| **5. Finalização e entrega** | Semanas 16–20 | Louças, ferragens, vistoria, Habite-se |
+
+### Como acompanhar no Hub Fly
+- O card do seu empreendimento no Funil Operações exibe a fase atual
+- Fotos de avanço são registradas periodicamente
+- O franqueado pode solicitar relatório de obra ao time Operações
+
+> **Atraso identificado?** Abra chamado no Sirene → área Operações com foto e descrição.`,
+        area: "Operações",
+        destaque: true,
+        palavras: ["cronograma obra","etapas obra","duração obra","fundação","alvenaria","acabamento"]
+      },
+      {
+        pergunta: "Quem contrata e gerencia os fornecedores durante a obra?",
+        resumida: "A contratação e o gerenciamento de fornecedores (empreiteiras, materiais) são responsabilidade do time de Operações da Moní (parceiro Wayser ou equipe própria). O franqueado não contrata diretamente — seu papel é acompanhar o andamento e comunicar problemas.",
+        completa: `## Fornecedores de obra — quem contrata?
+
+### Responsabilidades
+
+| Quem | O que faz |
+|------|-----------|
+| **Time Operações Moní** | Seleciona, contrata e gerencia empreiteira e fornecedores |
+| **Parceiro Wayser** | Gestão técnica de obra (quando aplicável) |
+| **Franqueado** | Acompanha, comunica e facilita acesso ao terreno |
+| **Franqueado NÃO faz** | Contratar empreiteiro diretamente, pagar fornecedores, alterar projeto |
+
+### Posso indicar um fornecedor local?
+Sim, mas como **sugestão** ao time Operações — não como contratação direta.
+
+> **Problema na obra?** Registre com foto no Sirene → área Operações. Não tente resolver diretamente com o empreiteiro sem alinhamento com a Moní.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["fornecedores obra","empreiteira","wayser","gestão de obra","contratação construção"]
+      },
+      {
+        pergunta: "O que acontece se a obra atrasar? Quais são os impactos e como é tratado?",
+        resumida: "Atrasos de obra são gerenciados pelo time de Operações. O franqueado deve comunicar qualquer paralisação ou problema imediatamente via Sirene. O prazo de entrega ao terrenista é protegido pela Carta Fiança.",
+        completa: `## Atrasos de obra — o que acontece?
+
+### Tipos de atraso
+
+| Tipo | Tratamento |
+|------|-----------|
+| **Técnico** | Replanejamento pelo time Operações |
+| **Financeiro** | Acionamento do parceiro Cash Me |
+| **Administrativo** | Acionamento do Jurídico |
+| **Logístico** | Substituição ou negociação pelo time Operações |
+
+### Impactos de atraso
+- **Para o terrenista:** a **Carta Fiança** garante indenização caso o prazo contratual não seja cumprido
+- **Para o crédito:** tranches podem ser bloqueadas até regularização do cronograma
+
+### O que o franqueado deve fazer ao identificar atraso?
+1. Fotografar e registrar a situação
+2. Abrir chamado no Sirene → área Operações
+3. Não comunicar prazo ao terrenista antes de alinhar com o time Operações
+
+> **Lembre-se:** comunicação precoce evita problemas maiores. Qualquer sinal de atraso deve ser reportado no mesmo dia.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["atraso de obra","paralisação obra","cronograma atrasado","carta fiança","impacto atraso"]
+      },
+      {
+        pergunta: "Como funciona o acompanhamento da obra pelo Hub Fly?",
+        resumida: "O franqueado acompanha sua obra pelo card no Funil Operações no Hub Fly. O card exibe a fase atual, checklist de etapas, histórico de movimentações e relatórios de avanço.",
+        completa: `## Acompanhamento de obra pelo Hub Fly
+
+### Onde encontrar no Hub Fly?
+- Menu lateral > **Operações**
+- Localize o card do seu empreendimento
+
+### O que o card de Operações mostra?
+
+| Campo | O que mostra |
+|-------|-------------|
+| **Fase atual** | Etapa de obra em andamento |
+| **Checklist** | Itens concluídos e pendentes para avançar de fase |
+| **Histórico** | Registro de todas as movimentações de fase |
+| **Comentários** | Atualizações do time Operações, fotos, relatórios |
+| **Paralelas** | Status de Crédito, Jurídico, Projeto Legal linkados |
+| **SLA** | Se o prazo da fase está dentro ou fora do limite |
+
+> **Para suporte urgente** (paralisação, embargo, acidente), use o Sirene em vez de comentário no card.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["acompanhamento obra","hub fly obra","funil operações","card operações","status obra"]
+      },
+      {
+        pergunta: "O que é o Habite-se e como ele é obtido?",
+        resumida: "O Habite-se é o documento emitido pela prefeitura que certifica que a obra foi concluída conforme o projeto aprovado e que o imóvel está apto para ser habitado. É obrigatório para registrar e transferir as unidades ao terrenista.",
+        completa: `## Habite-se — o que é e por que importa
+
+### Por que o Habite-se é fundamental?
+- **Sem Habite-se**, o imóvel não pode ser registrado, vendido ou financiado
+- É necessário para **averbação das unidades** no Cartório de Imóveis
+- É exigido pelos bancos em qualquer financiamento imobiliário
+
+### Processo para obtenção
+1. **Conclusão da obra** — todas as etapas físicas concluídas
+2. **Solicitação do Habite-se** pelo responsável técnico Moní
+3. **Vistoria da prefeitura** — fiscal verifica conformidade
+4. **Adequações (se houver)**
+5. **Emissão do Habite-se**
+6. **Averbação no cartório**
+
+### Prazo típico
+- Solicitação + vistoria: 15 a 45 dias úteis
+- Emissão após vistoria aprovada: 5–15 dias úteis
+
+> **O Habite-se é o marco de conclusão da obra.** A partir dele, as unidades podem ser entregues e registradas.`,
+        area: "Operações",
+        destaque: true,
+        palavras: ["habite-se","conclusão de obra","certificado obra","averbação","prefeitura habite-se","registro imóvel"]
+      }
+    ]
+  },
+  {
+    id: "tecnologia",
+    nome: "Tecnologia e Hub Fly",
+    icon: "💻",
+    tipo: "new",
+    artigos: [
+      {
+        pergunta: "Como faço para acessar o Hub Fly pela primeira vez?",
+        resumida: "O acesso ao Hub Fly é feito pelo link enviado por e-mail pela equipe Moní após a assinatura do contrato de franquia. Você cria sua senha no primeiro acesso.",
+        completa: `## Primeiro acesso ao Hub Fly
+
+### Como receber o acesso
+1. Após assinatura do contrato, o time Moní cria seu perfil
+2. Você recebe um e-mail com o link de convite
+3. Clique no link e defina sua senha (mínimo 8 caracteres)
+4. Acesse pelo Hub Fly — salve nos favoritos
+
+### Dúvidas mais comuns no primeiro acesso
+
+| Problema | Solução |
+|----------|--------|
+| Senha esquecida | Clique em "Esqueci minha senha" na tela de login |
+| Acesso negado | Perfil pode estar como *pending* — aguarde aprovação Moní |
+| Não encontra o menu | Verifique se está logado com o e-mail correto |
+| Tela em branco | Limpe o cache ou use aba anônima |
+
+> **Ainda sem acesso?** Abra chamado no Sirene ou envie e-mail para o seu executivo de expansão.`,
+        area: "Tecnologia",
+        destaque: true,
+        palavras: ["primeiro acesso hub fly","login hub fly","convite hub fly","senha hub fly"]
+      },
+      {
+        pergunta: "Como funciona o Kanban no Hub Fly e o que os cards representam?",
+        resumida: "O Kanban é o sistema de gestão de negócios do Hub Fly. Cada card representa um empreendimento em andamento. As colunas representam as etapas do processo.",
+        completa: `## Kanban — seu painel de negócios
+
+### Conceitos básicos
+
+| Elemento | O que é |
+|----------|---------|
+| **Card** | Um empreendimento ou processo específico |
+| **Coluna (fase)** | A etapa atual do processo |
+| **Checklist** | Itens que precisam ser concluídos antes de avançar |
+| **SLA** | Prazo para essa fase (indicado pela bolinha de cor) |
+
+### Indicadores de SLA (bolinhas)
+- 🟢 **Verde:** dentro do prazo
+- 🟡 **Amarelo:** atenção — prazo próximo
+- 🔴 **Vermelho:** SLA vencido — ação necessária
+
+### Principais funis disponíveis
+
+| Funil | O que mostra |
+|-------|-------------|
+| **Step One** | Prospecção e viabilidade de terrenos |
+| **Portfólio** | Negócios aprovados em andamento |
+| **Operações** | Empreendimentos em obra |
+| **Crédito Obra** | Status do financiamento de obra |`,
+        area: "Tecnologia",
+        destaque: false,
+        palavras: ["kanban hub fly","card negócio","funil","fase kanban","sla kanban","checklist fase"]
+      },
+      {
+        pergunta: "O que é o Sirene e quando devo usá-lo?",
+        resumida: "O Sirene é o sistema de chamados do Hub Fly — a central de suporte e comunicação oficial com o time Moní. Use o Sirene para dúvidas, solicitações, problemas técnicos e qualquer demanda que precise de resposta formal.",
+        completa: `## Sirene — central de chamados e suporte
+
+### Quando usar o Sirene?
+- Dúvidas jurídicas, operacionais ou financeiras
+- Problemas na plataforma Hub Fly
+- Relato de problemas na obra
+- Questionamentos sobre contratos ou cláusulas
+
+### Como abrir um chamado
+1. Acesse Hub Fly → **Sirene** no menu lateral
+2. Clique em **Novo chamado**
+3. Selecione a **área responsável**
+4. Escreva o assunto e a descrição detalhada
+5. Anexe documentos ou fotos se necessário
+
+### SLA de resposta por área
+
+| Área | Tempo esperado |
+|------|--------------|
+| Operações | Até 48 horas úteis |
+| Jurídico | Até 72 horas úteis |
+| Crédito | Até 48 horas úteis |
+| Tecnologia/Suporte | Até 24 horas úteis |
+
+> **Urgente?** Marque o chamado como alta prioridade.`,
+        area: "Tecnologia",
+        destaque: true,
+        palavras: ["sirene","chamado","suporte hub fly","central de atendimento","abrir chamado","comunicação moní"]
+      },
+      {
+        pergunta: "Como atualizo meus dados de perfil no Hub Fly?",
+        resumida: "Você pode atualizar nome, foto e telefone diretamente em Perfil no menu do Hub Fly. Para alterar e-mail ou papel/acesso, é necessário solicitar via Sirene ao time de Tecnologia.",
+        completa: `## Atualizar perfil no Hub Fly
+
+### O que você pode alterar sozinho
+- Nome de exibição
+- Foto de perfil
+- Telefone de contato
+- Preferências de notificação
+
+### Como acessar o perfil
+1. Clique no seu **avatar** no canto superior direito
+2. Selecione **Meu Perfil** ou **Configurações**
+3. Edite os campos disponíveis
+4. Salve as alterações
+
+### O que precisa de solicitação via Sirene
+
+| Dado | Por quê precisa de Sirene? |
+|------|--------------------------|
+| **E-mail de login** | Vinculado ao contrato e autenticação |
+| **Papel (role)** | Apenas administradores Moní podem alterar |
+| **Acesso a funis específicos** | Controlado pela equipe de T.I. |`,
+        area: "Tecnologia",
+        destaque: false,
+        palavras: ["perfil hub fly","atualizar dados","foto perfil","email login","configurações hub fly"]
+      },
+      {
+        pergunta: "Não consigo acessar um funil ou card no Hub Fly — o que fazer?",
+        resumida: "Problemas de acesso a funis ou cards geralmente indicam que seu perfil não tem permissão para aquela seção, ou que o card está vinculado a outra unidade. Verifique se está logado com o e-mail correto e, se o problema persistir, abra chamado no Sirene → Tecnologia.",
+        completa: `## Problemas de acesso no Hub Fly
+
+### Possíveis causas
+
+| Sintoma | Causa mais provável |
+|---------|-------------------|
+| Funil não aparece no menu | Seu perfil não tem acesso àquele funil |
+| Card não encontrado | Card arquivado, concluído ou de outra unidade |
+| Erro "Sem permissão" | Tentativa de acessar área restrita |
+| Tela em branco | Cache desatualizado ou problema de sessão |
+
+### Soluções rápidas
+1. **Faça logout e login novamente** — resolve 80% dos casos de cache
+2. **Limpe o cache do navegador** (Ctrl+Shift+Delete)
+3. **Use aba anônima** para testar sem cache
+
+### O card sumiu — o que aconteceu?
+- Cards **arquivados** ficam ocultos por padrão — use o filtro "Arquivados" no Kanban
+- Cards **concluídos** ficam no histórico
+
+> **Detalhes úteis no chamado:** informe o navegador usado, captura de tela do erro e o que você estava tentando fazer.`,
+        area: "Tecnologia",
+        destaque: false,
+        palavras: ["acesso hub fly","erro hub fly","funil não aparece","card sumiu","permissão hub fly","bug hub fly"]
+      }
+    ]
+  },
+  {
+    id: "entrega",
+    nome: "Entrega e Pós-Obra",
+    icon: "🔑",
+    tipo: "new",
+    artigos: [
+      {
+        pergunta: "Como funciona o protocolo de entrega das unidades ao terrenista?",
+        resumida: "A entrega das unidades ao terrenista segue um protocolo formal: vistoria técnica com laudo, assinatura do Termo de Recebimento, entrega das chaves e início do período de garantia.",
+        completa: `## Protocolo de entrega ao terrenista
+
+### Etapas do protocolo de entrega
+1. **Conclusão da obra** — Habite-se emitido e averbação em andamento
+2. **Agendamento da vistoria** — time Operações agenda com o terrenista
+3. **Vistoria técnica** — engenheiro Moní e terrenista percorrem as unidades
+4. **Laudo de vistoria** — documento formal com itens verificados
+5. **Resolução de pendências** — itens sanados pelo time Operações
+6. **Assinatura do Termo de Recebimento**
+7. **Entrega das chaves**
+8. **Início da garantia** — a partir da assinatura do termo
+
+> **Importante:** a entrega formal com Termo assinado protege a Moní e o franqueado de disputas futuras.`,
+        area: "Operações",
+        destaque: true,
+        palavras: ["entrega unidades","protocolo entrega","vistoria entrega","termo de recebimento","chave terrenista"]
+      },
+      {
+        pergunta: "O que é averbação e por que é necessária antes da venda das unidades?",
+        resumida: "Averbação é o registro da conclusão da obra na matrícula do imóvel no Cartório de Registro de Imóveis. Sem averbação, as unidades não podem ser vendidas ou financiadas.",
+        completa: `## Averbação — o que é e por que importa
+
+### Por que a averbação é obrigatória?
+- Sem averbação, o imóvel não pode ser vendido com escritura
+- Bancos não financiam imóveis sem averbação atualizada
+- O terrenista não pode transferir legalmente sua unidade
+
+### Processo de averbação
+1. **Habite-se emitido** — documento base para a averbação
+2. **Cálculo de ITBI** — imposto municipal
+3. **Solicitação ao Cartório** — pelo engenheiro responsável ou advogado Moní
+4. **Análise cartorial**
+5. **Emissão da matrícula atualizada**
+
+### Prazo típico
+- Protocolo + análise: 15–45 dias úteis
+- Emissão: 5–15 dias após aprovação`,
+        area: "Jurídico",
+        destaque: false,
+        palavras: ["averbação","matrícula atualizada","cartório","habite-se","venda unidade","registro obra"]
+      },
+      {
+        pergunta: "Quais são os prazos de garantia das casas entregues?",
+        resumida: "As casas Moní seguem os prazos legais do CDC e da NBR 15575: 5 anos para estrutura, 3 anos para impermeabilização, 1 a 2 anos para instalações e acabamento, e 90 dias para vícios aparentes.",
+        completa: `## Garantias das unidades Moní
+
+### Prazos de garantia por sistema
+
+| Sistema construtivo | Prazo | Base legal |
+|--------------------|-------|----------|
+| Estrutura e fundação | **5 anos** | NBR 15575 |
+| Impermeabilização (telhado, banheiro, laje) | **3 anos** | NBR 15575 |
+| Instalações elétricas e hidráulicas | **2 anos** | NBR 15575 |
+| Revestimentos, piso, pintura | **1 ano** | CDC |
+| Vícios aparentes (visíveis na entrega) | **90 dias** | CDC |
+
+### Como acionar a garantia?
+1. O terrenista abre chamado via Hub Fly ou contata o franqueado
+2. Franqueado registra a solicitação no Sirene → área Moní Care / Pós-Obra
+3. Equipe técnica Moní realiza vistoria
+4. Reparo realizado pela equipe responsável dentro do prazo
+
+> **Dica:** entregue ao terrenista o Manual do Proprietário com os prazos e os cuidados de manutenção.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["garantia casas","prazo garantia","NBR 15575","CDC","vícios construtivos","defeito obra"]
+      },
+      {
+        pergunta: "O que acontece com o acerto financeiro após a entrega das unidades?",
+        resumida: "Após a entrega, ocorre o acerto financeiro final: liquidação do crédito de obra, quitação de eventuais custos extras com o terrenista e fechamento contábil do empreendimento.",
+        completa: `## Acerto financeiro pós-entrega
+
+### O que compõe o acerto final?
+
+| Item | Responsável | Timing |
+|------|------------|-------|
+| Liquidação do saldo do crédito de obra | Time Crédito + Cash Me | Após Habite-se |
+| Apuração de custos excedentes de obra | Operações + Contabilidade | Após conclusão física |
+| Ajuste de unidades de permuta | Jurídico | Na entrega |
+| Fechamento da SPE (se aplicável) | Jurídico / Contabilidade | Após averbação |
+| Distribuição de resultados ao franqueado | Financeiro | Conforme contrato |
+
+> **Dúvidas sobre seu resultado financeiro?** Abra chamado no Sirene → área Financeiro / Contabilidade.`,
+        area: "Financeiro",
+        destaque: false,
+        palavras: ["acerto financeiro","resultado empreendimento","liquidação crédito","fechamento spe","retorno franqueado"]
+      },
+      {
+        pergunta: "O terrenista pode vender a unidade recebida antes do Habite-se?",
+        resumida: "Tecnicamente sim, por contrato particular (promessa de compra e venda), mas sem o Habite-se o comprador não consegue financiamento bancário e a escritura não pode ser lavrada.",
+        completa: `## Venda das unidades antes do Habite-se
+
+### Situações possíveis
+
+| Momento | O que é possível | Limitações |
+|---------|-----------------|----------|
+| **Antes do Habite-se** | Contrato de promessa de compra e venda | Sem escritura, sem financiamento bancário |
+| **Após Habite-se, antes da averbação** | Promessa + início de averbação | Financiamento limitado |
+| **Após averbação** | Escritura definitiva + qualquer financiamento | Situação ideal |
+
+### Riscos de vender antes do Habite-se
+- O comprador não consegue financiamento imobiliário convencional
+- Se a obra tiver problemas, o comprador está exposto
+- O ITBI não pode ser calculado definitivamente
+
+> **Dúvida jurídica específica?** Consulte o Jurídico Moní via Sirene.`,
+        area: "Jurídico",
+        destaque: false,
+        palavras: ["venda antes habite-se","terrenista vender casa","promessa compra venda","escritura imóvel"]
+      }
+    ]
+  },
+  {
+    id: "monicare",
+    nome: "Moní Care",
+    icon: "🛡️",
+    tipo: "new",
+    artigos: [
+      {
+        pergunta: "O que é o Moní Care e como ele funciona?",
+        resumida: "O Moní Care é o programa de pós-entrega e suporte ao terrenista da Moní. Ele garante que problemas pós-entrega sejam atendidos dentro dos prazos de garantia.",
+        completa: `## Moní Care — suporte pós-entrega
+
+### O que o Moní Care cobre?
+- Atendimento a manifestações patológicas (infiltrações, trincas, falhas de instalação)
+- Vistorias técnicas de garantia
+- Coordenação de reparos com a equipe de obra responsável
+- Orientação ao terrenista sobre uso correto e manutenção
+
+### Canal de acionamento
+- **Terrenista:** contata o franqueado
+- **Franqueado:** abre chamado no Sirene → área Moní Care
+- **Moní Care:** agenda vistoria e coordena o reparo
+
+### Prazos de atendimento
+
+| Tipo de problema | Prazo de primeiro atendimento |
+|------------------|-------------------------------|
+| Urgência (vazamento ativo, risco estrutural) | Até 48 horas |
+| Defeito grave (infiltração, fissura estrutural) | Até 5 dias úteis |
+| Defeito leve (pintura, acabamento) | Até 15 dias úteis |`,
+        area: "Operações",
+        destaque: true,
+        palavras: ["moní care","pós-entrega","garantia pós-obra","suporte terrenista","vistoria garantia"]
+      },
+      {
+        pergunta: "Como o terrenista deve acionar o Moní Care após problemas na unidade?",
+        resumida: "O terrenista deve contatar o franqueado, que abre o chamado no Sirene. Em casos de urgência (vazamento ativo, risco de segurança), o franqueado deve acionar imediatamente o time Operações por telefone.",
+        completa: `## Como o terrenista aciona o Moní Care
+
+### Fluxo padrão de acionamento
+1. **Terrenista identifica o problema** e contata o franqueado
+2. **Franqueado documenta** com fotos e descrição detalhada
+3. **Franqueado abre chamado** no Sirene → área Moní Care
+4. **Moní Care** faz triagem do chamado
+5. **Agendamento de vistoria técnica**
+6. **Laudo de vistoria** define se é garantia ou responsabilidade do terrenista
+7. **Reparo realizado** (se for garantia)
+
+### Informações essenciais no chamado
+- Nome do empreendimento e unidade afetada
+- Tipo de problema (infiltração, elétrico, estrutural, acabamento)
+- Fotos/vídeos do problema
+
+> **Guarde bem:** o Termo de Recebimento assinado na entrega define o início dos prazos de garantia.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["acionar garantia","como reclamar problema","chamado pós-entrega","vistoria garantia"]
+      },
+      {
+        pergunta: "O franqueado tem alguma responsabilidade no pós-entrega?",
+        resumida: "Sim. O franqueado é o ponto de contato do terrenista e responsável por registrar chamados de garantia no Sirene, facilitar o acesso para vistorias e acompanhar a resolução.",
+        completa: `## Responsabilidades do franqueado no pós-entrega
+
+### O que o franqueado deve fazer
+
+| Responsabilidade | Detalhe |
+|-----------------|---------|
+| **Ponto de contato** | Receber dúvidas e reclamações do terrenista |
+| **Registro de chamados** | Abrir chamado no Sirene para cada demanda pós-entrega |
+| **Facilitação de vistoria** | Articular acesso do técnico Moní à unidade |
+| **Acompanhamento** | Monitorar resolução e confirmar satisfação |
+
+### O que o franqueado NÃO deve fazer
+- Contratar empreiteiro por conta própria para reparos
+- Prometer prazos de reparo sem alinhar com a Moní
+- Ignorar reclamações do terrenista
+
+> **Dica:** visite o terrenista 30 e 90 dias após a entrega para uma vistoria preventiva.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["responsabilidade franqueado pós-entrega","papel franqueado garantia","relacionamento pós-obra"]
+      },
+      {
+        pergunta: "O Moní Care cobre problemas causados por inquilinos ou compradores das unidades?",
+        resumida: "Não. O Moní Care atende exclusivamente o terrenista (proprietário original das unidades na permuta). Problemas causados por inquilinos, compradores ou reformas realizadas após a entrega não são cobertos.",
+        completa: `## Moní Care — quem é coberto?
+
+### Casos NÃO cobertos
+
+| Situação | Por que não é coberto? |
+|----------|----------------------|
+| Dano causado por inquilino | Responsabilidade do inquilino ou do terrenista como locador |
+| Reforma não autorizada | Altera a construção original, invalida garantia para o trecho reformado |
+| Dano por mau uso | Ex.: entupimento por descarte inadequado, sobrecarga elétrica |
+| Desgaste natural | Pintura que desbota, dobradiças desgastadas |
+
+### E se o terrenista vendeu a unidade?
+A garantia construtiva legal segue o imóvel, mas o novo proprietário deve buscar o terrenista (vendedor) e/ou a construtora.
+
+> **Oriente o terrenista:** ao vender a unidade, recomende que inclua no contrato a transmissão dos direitos de garantia ao comprador.`,
+        area: "Jurídico",
+        destaque: false,
+        palavras: ["garantia inquilino","quem tem direito garantia","moní care quem pode usar","transferência garantia"]
+      }
+    ]
+  },
+  {
+    id: "marca",
+    nome: "Licenciamento e Marca",
+    icon: "®",
+    tipo: "new",
+    artigos: [
+      {
+        pergunta: "O franqueado pode usar a marca Moní em suas comunicações e materiais?",
+        resumida: "Sim, dentro das diretrizes do Manual de Marca Moní. O franqueado pode usar o logotipo, cores e templates aprovados para comunicações locais. O uso em outdoor, site próprio, redes sociais e materiais impressos deve seguir os padrões definidos.",
+        completa: `## Uso da marca Moní pelo franqueado
+
+### O que você pode usar
+- Logotipo Moní nas versões aprovadas
+- Paleta de cores oficial
+- Templates de apresentação, folder e proposta (disponíveis no Hub Fly)
+- Nome "Franqueado Moní" ou "Parceiro Moní" em cartão de visitas
+
+### O que exige aprovação prévia da Moní
+- Outdoor ou banner físico com a marca
+- Site ou landing page local com a marca Moní
+- Campanha de mídia paga (Google Ads, Meta) com identidade Moní
+
+### O que é proibido
+- Alterar o logotipo (cores, proporções, tipografia)
+- Usar a marca Moní para negócios não relacionados à franquia
+
+### Como acessar os materiais
+Hub Fly > Repositório > Manual de Marca e Templates`,
+        area: "Marketing",
+        destaque: true,
+        palavras: ["uso da marca moní","logotipo moní","identidade visual","manual de marca","material marketing"]
+      },
+      {
+        pergunta: "Como funciona o licenciamento da marca e o que diz o COF sobre isso?",
+        resumida: "O licenciamento da marca Moní é definido no Contrato de Franquia e na Circular de Oferta de Franquia (COF). O franqueado tem autorização temporária e territorial para usar a marca enquanto o contrato estiver ativo.",
+        completa: `## Licenciamento da marca Moní
+
+### O que o COF define sobre licenciamento
+- **Territorialidade:** a licença é válida apenas para o território definido no contrato
+- **Temporalidade:** vigente durante o contrato de franquia
+- **Sublicenciamento:** proibido — você não pode licenciar a marca para terceiros
+
+### O que acontece ao encerrar o contrato?
+- **Todo uso da marca deve cessar imediatamente**
+- Materiais físicos com a marca devem ser retirados de circulação
+- Sites e redes sociais com a marca Moní devem ser atualizados ou desativados
+
+### A marca Moní é registrada?
+Sim. A marca Moní está registrada no **INPI** (Instituto Nacional da Propriedade Industrial).`,
+        area: "Jurídico",
+        destaque: false,
+        palavras: ["licenciamento marca","COF franquia","contrato franquia marca","INPI","encerramento contrato marca"]
+      },
+      {
+        pergunta: "Posso criar redes sociais com a marca Moní para minha unidade?",
+        resumida: "Sim, com aprovação e seguindo as diretrizes do Manual de Marca. O perfil deve identificar claramente que é uma unidade franqueada (não a Moní nacional), usar os templates aprovados.",
+        completa: `## Redes sociais com a marca Moní
+
+### Regras para perfis locais
+
+| Item | Regra |
+|------|-------|
+| **Nome do perfil** | Ex.: "Moní [Cidade]" — nunca só "Moní" |
+| **Bio/descrição** | Identificar como unidade franqueada |
+| **Logotipo** | Usar versão aprovada do Manual de Marca |
+| **Posicionamento** | Não publicar sobre política, religião ou temas controversos |
+
+### O que publicar?
+- Lançamento de empreendimentos
+- Progresso de obras (com aprovação do time Operações para fotos)
+- Depoimentos de terrenistas (com autorização formal por escrito)
+
+### Como registrar o perfil com a Moní?
+Envie o handle (@ do perfil) via Sirene → área Marketing.
+
+> **Dica:** siga o perfil nacional da Moní e faça repost do conteúdo aprovado.`,
+        area: "Marketing",
+        destaque: false,
+        palavras: ["redes sociais moní","instagram moní franqueado","perfil local moní","marketing digital franquia"]
+      },
+      {
+        pergunta: "O franqueado pode fazer campanhas de mídia paga usando a marca Moní?",
+        resumida: "Sim, com aprovação prévia da Moní. Campanhas de Google Ads, Meta Ads ou qualquer mídia paga com a marca Moní devem seguir as diretrizes de copy e criativo aprovados.",
+        completa: `## Mídia paga com a marca Moní
+
+### O que precisa de aprovação prévia?
+- Textos dos anúncios (copy)
+- Criativos (imagens, vídeos, artes)
+- Página de destino (landing page) com a marca
+
+### Como solicitar aprovação?
+1. Crie o rascunho do criativo usando os templates do Hub Fly
+2. Abra chamado no Sirene → área Marketing com o material em anexo
+3. O time Marketing revisa e aprova ou solicita ajustes
+4. Após aprovação, o anúncio pode ir ao ar
+
+> **Atenção:** nunca veicule anúncios sem aprovação — anúncios fora das diretrizes de marca podem gerar notificação e obrigação de remoção imediata.`,
+        area: "Marketing",
+        destaque: false,
+        palavras: ["mídia paga moní","anúncio franqueado","google ads moní","meta ads franquia","campanha local"]
+      }
+    ]
+  },
+  {
+    id: "suporte",
+    nome: "Suporte e Comunidade",
+    icon: "🤝",
+    tipo: "new",
+    artigos: [
+      {
+        pergunta: "Quais são os canais oficiais de suporte da Moní para o franqueado?",
+        resumida: "Os canais oficiais são: Sirene (chamados formais no Hub Fly), WhatsApp do executivo responsável (urgências), e-mail institucional Moní e o Hub Fly (materiais, kanban e documentação).",
+        completa: `## Canais oficiais de suporte Moní
+
+### Canal principal — Sirene (Hub Fly)
+O **Sirene** é o canal oficial e prioritário para todas as solicitações.
+**SLA garantido:** respostas dentro de 24–72 horas úteis dependendo da área
+
+### Canais complementares
+
+| Canal | Quando usar | SLA |
+|-------|-------------|-----|
+| **WhatsApp do executivo** | Urgências que não podem esperar o Sirene | Sem SLA formal |
+| **E-mail institucional** | Comunicações formais documentadas | Variável |
+| **Hub Fly (comentários no card)** | Dúvidas ligadas a um negócio específico | Variável |
+
+### Por que usar o Sirene em vez de WhatsApp?
+1. **Histórico** — tudo fica registrado
+2. **SLA** — o Sirene tem prazo garantido; WhatsApp não
+3. **Redistribuição** — se o responsável estiver ausente, outra pessoa assume
+
+> **Dica de ouro:** comece sempre pelo Sirene. Use o WhatsApp só para sinalizar urgência de um chamado que já está aberto.`,
+        area: "Operações",
+        destaque: true,
+        palavras: ["canais suporte moní","sirene suporte","whatsapp moní","contato moní","como falar com a moní"]
+      },
+      {
+        pergunta: "Existe uma comunidade de franqueados Moní e como me engajo?",
+        resumida: "Sim. A Moní mantém comunidade no Hub Fly e canais de WhatsApp para troca entre franqueados. Há também encontros periódicos (convenções e webinars).",
+        completa: `## Comunidade Moní — rede de franqueados
+
+### Espaços de comunidade
+
+| Canal | O que acontece lá |
+|-------|-----------------|
+| **Hub Fly > Comunidade** | Fórum de discussão, dúvidas e compartilhamento de experiências |
+| **Grupos de WhatsApp** | Comunicação rápida entre franqueados de uma mesma região |
+| **Convenção Moní** | Encontro anual presencial — estratégia, treinamentos e networking |
+| **Webinars Moní** | Treinamentos online periódicos |
+
+### Como participar?
+1. **Hub Fly:** acesse o menu Comunidade diretamente pela plataforma
+2. **Grupos de WhatsApp:** solicite ao seu executivo o link dos grupos da sua região
+3. **Webinars:** acompanhe a agenda no Hub Fly > Universidade`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["comunidade franqueados","rede moní","grupos whatsapp moní","convenção moní","hub fly comunidade"]
+      },
+      {
+        pergunta: "Como reporto um bug ou sugestão de melhoria para o Hub Fly?",
+        resumida: "Bugs no Hub Fly devem ser reportados via Sirene → área Tecnologia, com descrição do problema, capturas de tela e passos para reproduzir.",
+        completa: `## Reportar bugs e sugestões no Hub Fly
+
+### Como reportar um bug
+1. **Abra o Sirene** → Novo chamado → área **Tecnologia**
+2. Assunto: "[Bug] [Nome da funcionalidade] — [Resumo do problema]"
+3. Descreva: o que você estava tentando fazer, o que aconteceu, o que esperava
+4. Anexe **capturas de tela ou gravação de tela**
+5. Informe se o bug ocorre sempre ou só às vezes
+
+### Como enviar sugestões de melhoria
+- **Sirene** → área Tecnologia ou Produto
+- Assunto: "[Sugestão] [Funcionalidade] — [Resumo da ideia]"
+- Descreva o problema que a melhoria resolveria
+
+> **Sua contribuição importa:** o Hub Fly é construído também com o feedback dos franqueados.`,
+        area: "Tecnologia",
+        destaque: false,
+        palavras: ["bug hub fly","reportar problema","sugestão hub fly","melhoria plataforma","erro hub fly","feedback hub fly"]
+      },
+      {
+        pergunta: "Qual é o SLA de resposta do time Moní para chamados no Sirene?",
+        resumida: "O SLA de resposta varia por área: Tecnologia responde em até 24h úteis, Operações e Crédito em até 48h úteis, e Jurídico em até 72h úteis. Chamados marcados como urgentes têm prioridade.",
+        completa: `## SLA de resposta — Sirene
+
+### SLA por área
+
+| Área | Primeiro contato | Resolução estimada |
+|------|-----------------|-------------------|
+| **Tecnologia / Suporte Hub Fly** | Até 24h úteis | 48–72h úteis |
+| **Operações** | Até 48h úteis | Variável por complexidade |
+| **Crédito** | Até 48h úteis | Variável por complexidade |
+| **Jurídico** | Até 72h úteis | Variável por complexidade |
+| **Marketing** | Até 48h úteis | Variável por complexidade |
+
+### O que fazer se o SLA for ultrapassado?
+1. **Adicione um comentário** no chamado pedindo atualização
+2. **Sinalize ao seu executivo** via WhatsApp com o número do chamado
+3. **Escale** — mencione que o SLA foi ultrapassado`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["SLA sirene","prazo resposta moní","tempo de atendimento","urgente sirene","escalar chamado"]
+      },
+      {
+        pergunta: "Posso indicar outro franqueado para a rede Moní e existe algum benefício por isso?",
+        resumida: "Sim. A Moní tem um programa de indicação de franqueados. Se o indicado assinar o contrato e concluir a integração, o indicador pode receber benefícios definidos no programa vigente.",
+        completa: `## Programa de indicação de franqueados
+
+### Como funciona a indicação?
+1. Você identifica alguém com perfil de franqueado Moní
+2. Apresenta o modelo e indica formalmente via Sirene → área Expansão
+3. O time de Expansão entra em contato e conduz o processo seletivo
+4. Se o indicado fechar o contrato, você é registrado como indicador
+
+### Quais são os benefícios para o indicador?
+Os benefícios variam conforme o programa vigente e podem incluir:
+- Redução de royalties por período determinado
+- Crédito em fundo de marketing
+- Benefício financeiro direto
+
+> **Importante:** a indicação só é válida se registrada **antes** do primeiro contato formal do indicado com a Moní.`,
+        area: "Operações",
+        destaque: false,
+        palavras: ["indicar franqueado","programa indicação","indicação moní","expansão franquia","benefício indicação"]
+      }
+    ]
+  },
+  {
+    id: "contratos",
+    nome: "Contratos e Garantias",
+    icon: "📝",
+    tipo: "revised",
+    artigos: [
+      {
+        pergunta: "A Moní ainda utiliza Seguro Garantia? Qual é a garantia atual entregue ao terrenista?",
+        resumida: "A Moní não utiliza mais Seguro Garantia. A garantia atual entregue ao terrenista é a Carta Fiança, contratada via Seven Garantias, LS Garantidora ou outra garantidora habilitada.",
+        completa: `## Qual é a garantia atual entregue ao terrenista?
+
+A Moní **não utiliza mais Seguro Garantia** como instrumento garantidor. Essa modalidade foi descontinuada.
+
+### Instrumento atual: Carta Fiança
+
+- **O que é:** Documento emitido por uma garantidora que assegura ao terrenista o recebimento das unidades previstas no contrato.
+- **Quem emite:** Garantidoras habilitadas parceiras da Moní — atualmente **Seven Garantias** e **LS Garantidora** são as indicadas.
+- **Quando é entregue:** junto com o Instrumento de Permuta, na fase de assinatura do contrato.
+- **Validade:** Cobre o período do contrato até a entrega das unidades permutadas.
+
+### Por que mudou?
+O Seguro Garantia na modalidade imobiliária apresentou limitações operacionais e foi descontinuado como solução padrão Moní. A Carta Fiança oferece maior solidez, liquidez e aceitação pelo mercado.
+
+> **Dúvidas?** Abra um chamado no Sirene ou envie uma mensagem para o time Jurídico via Hub Fly.`,
+        area: "Jurídico",
+        destaque: false,
+        revisado: true,
+        palavras: ["carta fiança","seguro garantia","garantia terrenista","seven garantias","ls garantidora"]
+      }
+    ]
+  },
+  {
+    id: "permuta",
+    nome: "Permuta",
+    icon: "🔄",
+    tipo: "revised",
+    artigos: [
+      {
+        pergunta: "Como explicar de forma simples a segurança do terrenista no negócio?",
+        resumida: "O terrenista recebe como garantia a Carta Fiança, um documento emitido por uma garantidora que assegura o recebimento das unidades mesmo que o empreendimento não seja concluído.",
+        completa: `## Como explicar de forma simples a segurança do terrenista?
+
+O terrenista é o dono do terreno que aceita receber **unidades do empreendimento** (casas prontas) em vez de dinheiro imediato. Para ele ter segurança nessa troca, a Moní entrega a **Carta Fiança** no momento da assinatura do contrato.
+
+### O que é a Carta Fiança?
+
+É um documento emitido por uma **garantidora** (ex.: Seven Garantias, LS Garantidora) que funciona como uma "fiança bancária":
+- Se o empreendimento não for entregue, **a garantidora indeniza** o terrenista.
+- Tem validade durante todo o período do contrato.
+
+### Argumento simples para o terrenista
+
+> *"Você não está apostando no sucesso do projeto — você tem uma garantia formal emitida por uma empresa especializada. Se algo der errado, você é indenizado. Funciona como uma fiança: alguém está comprometido a honrar o acordo com você."*
+
+### O que o terrenista assina?
+1. **Instrumento de Permuta** — o contrato principal
+2. **Carta Fiança** — o documento de garantia emitido pela garantidora parceira da Moní
+
+> **Lembre:** nunca prometa valores exatos de indenização sem consultar o Jurídico.`,
+        area: "Jurídico",
+        destaque: false,
+        revisado: true,
+        palavras: ["carta fiança","segurança terrenista","garantia permuta","seven garantias","argumento terrenista"]
+      }
+    ]
+  }
+];
+
+const MAX_Q = 4;
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  let t = text;
+  t = t.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // tables
+  t = t.replace(/^(\|.+)\n(\|[-|: ]+)\n((\|.+\n?)+)/gm, (m) => {
+    const rows = m.trim().split('\n');
+    const head = rows[0].split('|').filter(c=>c.trim()).map(c=>`<th>${c.trim()}</th>`).join('');
+    const body = rows.slice(2).map(r=>`<tr>${r.split('|').filter(c=>c.trim()).map(c=>`<td>${c.trim()}</td>`).join('')}</tr>`).join('');
+    return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  });
+  t = t.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  t = t.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  t = t.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+  t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/`(.+?)`/g, '<code>$1</code>');
+  t = t.replace(/^\d+\. (.+)$/gm, '<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g, s=>`<ol>${s}</ol>`);
+  t = t.replace(/^- (.+)$/gm, '<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g, s=>`<ul>${s}</ul>`);
+  t = t.replace(/\n{2,}/g, '</p><p>').replace(/^(?!<[hotubcl])/gm, '');
+  return '<p>' + t + '</p>';
+}
+
+function areaClass(area) {
+  if (!area) return '';
+  const a = area.toLowerCase();
+  if (a.includes('juríd')) return 'juridico';
+  if (a.includes('opera')) return 'operacoes';
+  if (a.includes('tecnol')) return 'tecnologia';
+  if (a.includes('market')) return 'marketing';
+  return '';
+}
+
+function openArticle(artigo, catNome) {
+  document.getElementById('panelCat').textContent = catNome;
+  document.getElementById('panelQ').textContent = artigo.pergunta;
+  document.getElementById('panelResumida').textContent = artigo.resumida;
+  document.getElementById('panelCompleta').innerHTML = renderMarkdown(artigo.completa || '');
+  const badge = document.getElementById('panelArea');
+  badge.textContent = artigo.area || 'Geral';
+  badge.className = 'area-badge ' + areaClass(artigo.area);
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+
+function closePanel() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.getElementById('searchInput').focus(); }
+  if (e.key === 'Escape') closePanel();
+});
+
+function setSearch(q) {
+  document.getElementById('searchInput').value = q;
+  filterContent(q);
+  document.getElementById('searchInput').focus();
+}
+
+function filterContent(q) {
+  const sr = document.getElementById('searchResults');
+  const grid = document.getElementById('grid');
+  const q2 = q.toLowerCase().trim();
+  if (!q2) {
+    sr.className = 'search-results';
+    grid.style.display = '';
+    document.querySelector('.section-label').style.display = '';
+    return;
+  }
+  grid.style.display = 'none';
+  document.querySelector('.section-label').style.display = 'none';
+  const matches = [];
+  data.forEach(cat => {
+    cat.artigos.forEach(a => {
+      const hay = (a.pergunta + ' ' + a.resumida + ' ' + (a.palavras||[]).join(' ')).toLowerCase();
+      if (hay.includes(q2)) matches.push({a, catNome: cat.nome});
+    });
+  });
+  if (matches.length === 0) {
+    sr.innerHTML = `<div class="sr-header">${matches.length} resultados para "${q}"</div><div class="no-results">Nenhum artigo encontrado. Tente outros termos ou <strong>abra um chamado no Sirene</strong>.</div>`;
+  } else {
+    const items = matches.map(({a, catNome}) => {
+      const hl = a.pergunta.replace(new RegExp(q2,'gi'), m=>`<mark>${m}</mark>`);
+      return `<div class="sr-item" onclick="openArticle(a, '${catNome.replace(/'/g,"\\'")}')">
+        <div class="sr-cat-label">${catNome}</div>
+        <div><div class="sr-q">${hl}</div><div class="sr-resume">${a.resumida.slice(0,90)}…</div></div>
+      </div>`;
+    }).join('');
+    sr.innerHTML = `<div class="sr-header">${matches.length} resultado${matches.length>1?'s':''} para "${q}"</div>${items}`;
+    // fix onclick refs — rebuild properly
+    renderSearch(matches, q);
+    return;
+  }
+  sr.className = 'search-results open';
+}
+
+function renderSearch(matches, q) {
+  const sr = document.getElementById('searchResults');
+  sr.innerHTML = `<div class="sr-header">${matches.length} resultado${matches.length>1?'s':''} para "${q}"</div>`;
+  matches.forEach(({a, catNome}) => {
+    const div = document.createElement('div');
+    div.className = 'sr-item';
+    const hl = a.pergunta.replace(new RegExp(q.toLowerCase(),'gi'), m=>`<mark>${m}</mark>`);
+    div.innerHTML = `<div class="sr-cat-label">${catNome}</div>
+      <div><div class="sr-q">${hl}</div><div class="sr-resume">${a.resumida.slice(0,90)}…</div></div>`;
+    div.onclick = () => openArticle(a, catNome);
+    sr.appendChild(div);
+  });
+  sr.className = 'search-results open';
+}
+
+document.getElementById('searchInput').addEventListener('input', e => filterContent(e.target.value));
+
+// Render grid
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  data.forEach(cat => {
+    const card = document.createElement('div');
+    card.className = 'cat-card' + (cat.tipo === 'revised' ? ' revised' : '');
+    const preview = cat.artigos.slice(0, MAX_Q);
+    const extraCount = cat.artigos.length - MAX_Q;
+    const qs = preview.map(a => `<div class="q-link" data-catid="${cat.id}" data-idx="${cat.artigos.indexOf(a)}">
+      <span class="q-text">${a.pergunta}</span>
+      <span class="q-arr">→</span>
+    </div>`).join('');
+    const extra = extraCount > 0 ? `<div class="see-all" data-catid="${cat.id}">Ver mais ${extraCount} artigo${extraCount>1?'s':''} →</div>` : '';
+    const badge = cat.tipo === 'revised' ? '<span class="badge-revised">🔄 Revisado</span>' : '';
+    card.innerHTML = `<div class="cat-header">
+      <div class="cat-icon-wrap">${cat.icon}</div>
+      <div class="cat-title-block">
+        <div class="cat-name">${cat.nome}</div>
+        <div class="cat-meta">${cat.artigos.length} artigo${cat.artigos.length>1?'s':''}${badge}</div>
+      </div>
+      <div class="cat-arrow">→</div>
+    </div>
+    <div class="cat-questions">${qs}${extra}</div>`;
+    // events
+    card.querySelectorAll('.q-link').forEach(el => {
+      el.addEventListener('click', () => {
+        const idx = parseInt(el.dataset.idx);
+        openArticle(cat.artigos[idx], cat.nome);
+      });
+    });
+    const seeAll = card.querySelector('.see-all');
+    if (seeAll) seeAll.addEventListener('click', () => showAllCat(cat));
+    grid.appendChild(card);
+  });
+
+  // CTA card
+  const cta = document.createElement('div');
+  cta.className = 'cta-card';
+  cta.innerHTML = `<div>
+    <h3>Não encontrou o que precisa?</h3>
+    <p>Fale com o time Moní — estamos prontos para ajudar.</p>
+  </div>
+  <button class="cta-btn" onclick="window.open('about:blank')">Abrir chamado no Sirene</button>`;
+  grid.appendChild(cta);
+}
+
+function showAllCat(cat) {
+  // expand panel with all articles listed
+  document.getElementById('panelCat').textContent = cat.nome;
+  document.getElementById('panelQ').textContent = cat.nome + ' — todos os artigos';
+  document.getElementById('panelResumida').textContent = cat.artigos.length + ' artigos nesta categoria.';
+  const list = cat.artigos.map((a,i) => `<div class="q-link" style="padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openArticle_idx('${cat.id}',${i})">
+    <span class="q-text" style="font-size:.9rem;color:var(--navy);font-weight:500">${a.pergunta}</span>
+    <span class="q-arr">→</span>
+  </div>`).join('');
+  document.getElementById('panelCompleta').innerHTML = `<div>${list}</div>`;
+  document.getElementById('panelArea').textContent = '';
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+  window._curCat = cat;
+}
+
+window.openArticle_idx = function(catId, idx) {
+  const cat = data.find(c => c.id === catId);
+  if (cat) openArticle(cat.artigos[idx], cat.nome);
+};
+
+renderGrid();
+</script>
+</body>
+</html>

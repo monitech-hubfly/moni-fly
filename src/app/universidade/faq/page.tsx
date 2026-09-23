@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { getFaqArtigosPublicados, getFaqCategorias } from '@/lib/faq/queries';
-import { UniversidadeSecondaryNav } from '@/components/universidade/UniversidadeSecondaryNav';
+import { getFaqAllPublished } from '@/lib/actions/faq-actions';
+import type { FaqArticle, FaqCategory } from '@/types/faq';
 import { FaqClient } from './FaqClient';
 
 export const dynamic = 'force-dynamic';
@@ -13,22 +13,16 @@ export default async function FaqPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login?next=/universidade/faq');
 
+  let categories: FaqCategory[] = [];
+  let articles: FaqArticle[] = [];
   let erro = false;
-  let categorias: Awaited<ReturnType<typeof getFaqCategorias>> = [];
-  let artigos: Awaited<ReturnType<typeof getFaqArtigosPublicados>> = [];
   try {
-    [categorias, artigos] = await Promise.all([
-      getFaqCategorias(supabase),
-      getFaqArtigosPublicados(supabase),
-    ]);
+    const publicado = await getFaqAllPublished();
+    categories = publicado.categories;
+    articles = publicado.articles;
   } catch {
     erro = true;
   }
 
-  return (
-    <>
-      <UniversidadeSecondaryNav />
-      <FaqClient categorias={categorias} artigos={artigos} erro={erro} />
-    </>
-  );
+  return <FaqClient categories={categories} articles={articles} erro={erro} />;
 }

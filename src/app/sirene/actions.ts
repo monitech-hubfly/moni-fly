@@ -800,6 +800,43 @@ async function notificacaoAtrasoJaEnviada(
   return (data?.length ?? 0) > 0;
 }
 
+function chaveNotificacaoAtraso(userId: string, topicoId: number, tipo: string): string {
+  return `${userId}|${topicoId}|${tipo}`;
+}
+
+/** Uma leitura das notificações das últimas 24h, em vez de uma consulta por usuário/tópico. */
+async function carregarNotificacoesAtrasoRecentes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  topicoIds: number[],
+  tipos: string[],
+): Promise<Set<string> | null> {
+  if (topicoIds.length === 0) return new Set();
+  const desde = new Date();
+  desde.setHours(desde.getHours() - 24);
+  const seen = new Set<string>();
+  const pageSize = 1000;
+  for (let from = 0; from < 20000; from += pageSize) {
+    const { data, error } = await supabase
+      .from('sirene_notificacoes')
+      .select('user_id, topico_id, tipo')
+      .in('topico_id', topicoIds)
+      .in('tipo', tipos)
+      .gte('created_at', desde.toISOString())
+      .range(from, from + pageSize - 1);
+    if (error) return null;
+    const rows = data ?? [];
+    for (const row of rows) {
+      const uid = String((row as { user_id?: string }).user_id ?? '');
+      const tid = Number((row as { topico_id?: number | null }).topico_id);
+      const tipo = String((row as { tipo?: string }).tipo ?? '');
+      if (!uid || !Number.isFinite(tid) || !tipo) continue;
+      seen.add(chaveNotificacaoAtraso(uid, tid, tipo));
+    }
+    if (rows.length < pageSize) break;
+  }
+  return seen;
+}
+
 /** Sinaliza aos times: tarefas > 2 dias úteis atrasadas e TOP 10 mais atrasadas. Evita duplicata nas últimas 24h. */
 export async function enviarNotificacoesAtrasoTopicos(): Promise<SireneActionResult> {
   const supabase = await createClient();
@@ -807,37 +844,50 @@ export async function enviarNotificacoesAtrasoTopicos(): Promise<SireneActionRes
   if (lista.length === 0) return { ok: true };
 
   const top10Ids = new Set(lista.slice(0, 10).map((t) => t.id));
+  const recentes = await carregarNotificacoesAtrasoRecentes(
+    supabase,
+    lista.map((t) => t.id),
+    ['atraso_2d', 'atraso_top10'],
+  );
+  const timesCache = new Map<string, string[]>();
 
   for (const t of lista) {
-    const userIds = await getUserIdsTimeTopicoTodos(
-      supabase,
-      t.time_responsavel,
-      t.responsavel_id,
-    );
-    if (userIds.length === 0) continue;
+    let idsDoTime = timesCache.get(t.time_responsavel);
+    if (!idsDoTime) {
+      const { data } = await supabase.from('profiles').select('id').eq('time', t.time_responsavel);
+      idsDoTime = (data ?? []).map((r) => r.id);
+      timesCache.set(t.time_responsavel, idsDoTime);
+    }
+    const userIds = new Set(idsDoTime);
+    if (t.responsavel_id) userIds.add(t.responsavel_id);
+    if (userIds.size === 0) continue;
 
     const textoBase = `Chamado #${t.numero}: ${t.descricao.slice(0, 60)}${t.descricao.length > 60 ? '…' : ''}`;
 
-    if (t.dias_atraso > 2) {
-      const tipo = 'atraso_2d';
-      const texto = `Tarefa com mais de 2 dias úteis de atraso — ${textoBase}`;
+    const avisar = async (tipo: string, texto: string) => {
       for (const uid of userIds) {
-        const ja = await notificacaoAtrasoJaEnviada(supabase, uid, t.id, tipo);
-        if (!ja) {
-          await inserirNotificacao(supabase, uid, t.chamado_id, tipo, texto, t.id);
-        }
+        const chave = chaveNotificacaoAtraso(uid, t.id, tipo);
+        const ja = recentes
+          ? recentes.has(chave)
+          : await notificacaoAtrasoJaEnviada(supabase, uid, t.id, tipo);
+        if (ja) continue;
+        await inserirNotificacao(supabase, uid, t.chamado_id, tipo, texto, t.id);
+        recentes?.add(chave);
       }
+    };
+
+    if (t.dias_atraso > 2) {
+      await avisar(
+        'atraso_2d',
+        `Tarefa com mais de 2 dias úteis de atraso — ${textoBase}`,
+      );
     }
 
     if (top10Ids.has(t.id)) {
-      const tipo = 'atraso_top10';
-      const texto = `Tarefa entre as TOP 10 mais atrasadas — ${textoBase}`;
-      for (const uid of userIds) {
-        const ja = await notificacaoAtrasoJaEnviada(supabase, uid, t.id, tipo);
-        if (!ja) {
-          await inserirNotificacao(supabase, uid, t.chamado_id, tipo, texto, t.id);
-        }
-      }
+      await avisar(
+        'atraso_top10',
+        `Tarefa entre as TOP 10 mais atrasadas — ${textoBase}`,
+      );
     }
   }
 

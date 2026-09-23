@@ -5,13 +5,13 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Building2, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { AlertasBellLink } from '@/components/AlertasBellLink';
-import { createClient } from '@/lib/supabase/client';
 import { canAccessFunilContratacoes, isAdminRole, normalizeAccessRole } from '@/lib/authz';
 import { isLiveLimitedRelease, showDevOnlySidebarNav } from '@/lib/release-scope';
 import { SidebarUniversidadeLinks } from '@/components/universidade/SidebarUniversidadeLinks';
 type PortalSidebarProps = {
   user: { id: string; email?: string; full_name?: string | null } | null;
   userRole: string;
+  userCargo?: string | null;
 };
 
 function getInicialNome(fullName: string | null | undefined): string {
@@ -145,11 +145,11 @@ function isStepsActive(pathname: string) {
     pathname.startsWith('/acoplamento-pl')
   );
 }
-export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
+export function PortalSidebar({ user, userRole, userCargo = null }: PortalSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [resolvedRole, setResolvedRole] = useState(userRole);
-  const [resolvedCargo, setResolvedCargo] = useState<string | null>(null);
+  const [resolvedCargo, setResolvedCargo] = useState<string | null>(userCargo);
   const isAdmin = isAdminRole(resolvedRole);
   const showInternoNav = canAccessFunilContratacoes(resolvedRole, resolvedCargo);
   const limitedRelease = isLiveLimitedRelease();
@@ -166,22 +166,8 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   }, [userRole]);
 
   useEffect(() => {
-    if (!user?.id) return;
-    const supabase = createClient();
-    void supabase
-      .from('profiles')
-      .select('role, cargo')
-      .eq('id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.role != null) {
-          setResolvedRole(normalizeAccessRole(String(data.role)));
-        }
-        if (data?.cargo != null) {
-          setResolvedCargo(String(data.cargo));
-        }
-      });
-  }, [user?.id]);
+    setResolvedCargo(userCargo);
+  }, [userCargo]);
   const [perfilOpen, setPerfilOpen] = useState(() => (pathname ?? '') === '/perfil');
   const [redeFranqueadosOpen, setRedeFranqueadosOpen] = useState(() => isRedeFranqueadosActive(pathname ?? ''));
   const [catalogoOpen, setCatalogoOpen] = useState(() => isCatalogoActive(pathname ?? ''));

@@ -1,0 +1,44 @@
+{
+  "meta": {
+    "gerado_em": "2026-09-17",
+    "descricao": "Artigos revisados pelo B3 Audit — Substituir/atualizar no banco faq_articles. Aplicar só após confirmação.",
+    "total_artigos": 2
+  },
+  "artigos_revisados": [
+    {
+      "acao": "REESCREVER",
+      "prioridade": "URGENTE",
+      "categoria": "Contratos e Garantias",
+      "motivo_revisao": "Artigo menciona Seguro Garantia via corretor Sidinei (071) 8646-2164 e Porto Seguro — produto descontinuado. Informação falsa e potencialmente prejudicial ao franqueado.",
+      "pergunta_original": "Como funciona o Seguro Garantia Moní e quem contrato?",
+      "pergunta_nova": "A Moní ainda utiliza Seguro Garantia? Qual é a garantia atual entregue ao terrenista?",
+      "resposta_resumida": "A Moní não utiliza mais Seguro Garantia. A garantia atual entregue ao terrenista é a Carta Fiança, contratada via Seven Garantias, LS Garantidora ou outra garantidora habilitada.",
+      "resposta_completa": "## Qual é a garantia atual entregue ao terrenista?\n\nA Moní **não utiliza mais Seguro Garantia** como instrumento garantidor. Essa modalidade foi descontinuada.\n\n### Instrumento atual: Carta Fiança\n\nA garantia atualmente adotada é a **Carta Fiança Bancária** (ou equivalente emitida por garantidora), que funciona da seguinte forma:\n\n- **O que é:** Documento emitido por uma instituição financeira ou garantidora que assegura ao terrenista o recebimento das unidades previstas no contrato, mesmo que o empreendimento não seja concluído.\n- **Quem emite:** Garantidoras habilitadas parceiras da Moní — atualmente **Seven Garantias** e **LS Garantidora** são as indicadas.\n- **Quando é entregue:** A Carta Fiança é entregue ao terrenista junto com o Instrumento de Permuta, na fase de assinatura do contrato.\n- **Validade:** Cobre o período do contrato até a entrega das unidades permutadas.\n\n### Por que mudou?\n\nO Seguro Garantia na modalidade imobiliária apresentou limitações operacionais e foi descontinuado como solução padrão Moní. A Carta Fiança oferece maior solidez, liquidez e aceitação pelo mercado.\n\n### Como contratar\n\nO time Moní orientará o franqueado sobre o contato com a garantidora no momento oportuno do funil (fase de assinatura de contratos no Portfólio). Não é necessário contratar de forma independente — o processo é coordenado centralmente.\n\n> **Dúvidas?** Abra um chamado no Sirene ou envie uma mensagem para o time Jurídico via Hub Fly.",
+      "palavras_chave": ["carta fiança", "seguro garantia", "garantia terrenista", "seven garantias", "ls garantidora", "instrumento garantidor", "permuta garantia"],
+      "sinonimos": ["garantia para o dono do terreno", "seguro do terreno", "proteção terrenista"],
+      "area_responsavel": "Jurídico",
+      "visibilidade": "frank",
+      "destaque": false,
+      "status": "published"
+    },
+    {
+      "acao": "ATUALIZAR_TRECHO",
+      "prioridade": "MEDIO",
+      "categoria": "Permuta",
+      "motivo_revisao": "Artigo menciona 'seguro garantia imobiliária' como opção ao lado da Carta Fiança. Essa modalidade está descontinuada — remover referência.",
+      "pergunta_original": "Como explicar de forma simples a segurança do terrenista no negócio?",
+      "pergunta_nova": "Como explicar de forma simples a segurança do terrenista no negócio?",
+      "nota": "Pergunta mantida — apenas o corpo do artigo muda para remover 'seguro garantia imobiliária'",
+      "trecho_a_remover": "Carta Fiança ou seguro garantia imobiliária",
+      "trecho_substituto": "Carta Fiança",
+      "resposta_resumida": "O terrenista recebe como garantia a Carta Fiança, um documento emitido por uma garantidora que assegura o recebimento das unidades mesmo que o empreendimento não seja concluído. É a proteção mais sólida disponível no mercado.",
+      "resposta_completa": "## Como explicar de forma simples a segurança do terrenista?\n\nO terrenista é o dono do terreno que aceita receber **unidades do empreendimento** (casas prontas) em vez de dinheiro imediato. Para ele ter segurança nessa troca, a Moní entrega um instrumento de garantia no momento da assinatura do contrato.\n\n### O que é a Carta Fiança?\n\nÉ um documento emitido por uma **garantidora** (ex.: Seven Garantias, LS Garantidora) que funciona como uma \"fiança bancária\":\n\n- Se o empreendimento não for entregue, **a garantidora indeniza** o terrenista.\n- É aceita como garantia sólida no mercado imobiliário.\n- Tem validade durante todo o período do contrato.\n\n### Argumento simples para o terrenista\n\n> *\"Você não está apostando no sucesso do projeto — você tem uma garantia formal emitida por uma empresa especializada. Se algo der errado, você é indenizado. Funciona como uma fiança: alguém está comprometido a honrar o acordo com você.\"*\n\n### O que o terrenista assina?\n\n1. **Instrumento de Permuta** — o contrato principal que descreve as unidades que receberá.\n2. **Carta Fiança** — o documento de garantia emitido pela garantidora parceira da Moní.\n\n### Pontos importantes\n\n- A Carta Fiança é entregue simultaneamente ao contrato — não é prometida para depois.\n- O custo da garantia é da operação Moní, não do terrenista.\n- Dúvidas técnicas do terrenista podem ser encaminhadas ao time Jurídico via Sirene.\n\n> **Lembre:** nunca prometa valores exatos de indenização sem consultar o Jurídico — cada contrato tem suas especificidades.",
+      "palavras_chave": ["carta fiança", "segurança terrenista", "garantia permuta", "seven garantias", "instrumento garantidor", "argumento terrenista"],
+      "sinonimos": ["proteção do dono do terreno", "garantia ao proprietário", "fiança imobiliária"],
+      "area_responsavel": "Jurídico",
+      "visibilidade": "frank",
+      "destaque": false,
+      "status": "published"
+    }
+  ]
+}

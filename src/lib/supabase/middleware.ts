@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { profileCacheRoleNeedsRefresh } from '@/lib/authz';
+import { readFreshSessionUser } from '@/lib/supabase/session-from-cookies';
 import { effectiveAccessRoleFromEmail } from '@/lib/seeded-staff-role';
 import { seedEntryForEmail } from '@/lib/team-seed-signup';
 import {
@@ -39,7 +40,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
-  const response = NextResponse.next({ request });
+  let response = NextResponse.next({ request });
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -53,6 +54,10 @@ export async function updateSession(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+        cookiesToSet.forEach(({ name, value }) => {
+          request.cookies.set(name, value);
+        });
+        response = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) =>
           response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]),
         );
@@ -60,15 +65,21 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const getUserWithTimeout = Promise.race([
-    supabase.auth.getUser(),
-    new Promise<{ data: { user: null } }>((resolve) =>
-      setTimeout(() => resolve({ data: { user: null } }), 3000),
-    ),
-  ]);
-  const {
-    data: { user },
-  } = await getUserWithTimeout;
+  // Sessão ainda válida: não espera o Auth. Renova só perto do vencimento.
+  let user: { id: string; email?: string | null } | null = readFreshSessionUser(
+    request.cookies.getAll(),
+    supabaseUrl,
+  );
+  if (!user && hasSupabaseAuthCookie(request)) {
+    const getUserWithTimeout = Promise.race([
+      supabase.auth.getUser(),
+      new Promise<{ data: { user: null } }>((resolve) =>
+        setTimeout(() => resolve({ data: { user: null } }), 3000),
+      ),
+    ]);
+    const { data } = await getUserWithTimeout;
+    user = data.user;
+  }
 
   // APIs: só renova cookies de sessão; autorização fica nos handlers / RLS.
   if (pathname.startsWith('/api')) {

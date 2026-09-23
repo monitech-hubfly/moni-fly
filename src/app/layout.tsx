@@ -24,6 +24,7 @@ export default async function RootLayout({
 }>) {
   let user: { id: string; email?: string; full_name?: string | null } | null = null;
   let userRole = 'pending';
+  let userCargo: string | null = null;
   try {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
@@ -32,7 +33,7 @@ export default async function RootLayout({
       // Tenta usar o cache de perfil gravado pelo middleware (evita round-trip ao banco).
       const cookieStore = await cookies();
       const cachedRaw = cookieStore.get(PROFILE_CACHE_COOKIE)?.value;
-      let profile: { role?: string | null; full_name?: string | null } | null = null;
+      let profile: { role?: string | null; cargo?: string | null; full_name?: string | null } | null = null;
       if (cachedRaw) {
         try { profile = JSON.parse(cachedRaw); } catch { /* ignore */ }
       }
@@ -51,7 +52,7 @@ export default async function RootLayout({
       if (!profile) {
         const { data: dbProfile } = await supabase
           .from('profiles')
-          .select('role, full_name')
+          .select('role, cargo, full_name')
           .eq('id', user.id)
           .maybeSingle();
         profile = dbProfile;
@@ -61,6 +62,7 @@ export default async function RootLayout({
         { id: user.id, email: user.email },
         (profile?.role as string) ?? null,
       );
+      userCargo = profile?.cargo?.trim() ? profile.cargo : null;
       (user as { full_name?: string | null }).full_name = profile?.full_name ?? null;
     }
   } catch {
@@ -70,7 +72,7 @@ export default async function RootLayout({
   return (
     <html lang="pt-BR">
       <body className="font-sans antialiased">
-        <AppShell user={user} userRole={userRole}>
+        <AppShell user={user} userRole={userRole} userCargo={userCargo}>
           {children}
         </AppShell>
       </body>
