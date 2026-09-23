@@ -330,14 +330,31 @@ export function SireneChamadoBacklogWrapper({
     })();
   }, [chamadoId, supabase]);
 
-  const reloadTopicos = useCallback(async () => {
+  const reloadTopicos = useCallback(async (): Promise<TopicoPainelLinha[]> => {
     setTopicosLoading(true);
     const res = await getTopicosChamado(chamadoId);
-    if (res.ok) setTopicos(res.topicos);
+    const lista = res.ok ? res.topicos : [];
+    if (res.ok) setTopicos(lista);
     setTopicosLoading(false);
+    return lista;
   }, [chamadoId]);
 
   useEffect(() => { void reloadTopicos(); }, [reloadTopicos]);
+
+  /** Verifica se todos os tópicos atribuídos ao usuário atual foram concluídos/aprovados.
+   *  Se sim, aciona onConcluido para fechar o evento na Agenda automaticamente. */
+  function verificarAutoConcluirAgenda(topicosAtualizados: TopicoPainelLinha[]) {
+    if (!currentUserId) return;
+    const topicosDoUsuario = topicosAtualizados.filter(t =>
+      t.responsaveis_ids?.includes(currentUserId) || t.responsavel_id === currentUserId,
+    );
+    if (
+      topicosDoUsuario.length > 0 &&
+      topicosDoUsuario.every(t => t.status === 'concluido' || t.status === 'aprovado')
+    ) {
+      onConcluido?.();
+    }
+  }
 
   async function handleSubStatus(topicoId: number, status: SubInteracaoStatusDb) {
     if (status === 'concluido' && !skipHorasRef.current && row?.sirene_chamado_id != null) {
@@ -352,7 +369,8 @@ export function SireneChamadoBacklogWrapper({
     setPending(true);
     await atualizarStatusSubInteracao(String(topicoId), status, '/carometro/todo-planning', true);
     setPending(false);
-    void reloadTopicos();
+    const topicosAtualizados = await reloadTopicos();
+    verificarAutoConcluirAgenda(topicosAtualizados);
     window.dispatchEvent(new CustomEvent('backlog-reload'));
   }
 
@@ -364,7 +382,8 @@ export function SireneChamadoBacklogWrapper({
     );
     setPending(false);
     setClassificacaoPendente(null);
-    void reloadTopicos();
+    const topicosAtualizados = await reloadTopicos();
+    verificarAutoConcluirAgenda(topicosAtualizados);
     window.dispatchEvent(new CustomEvent('backlog-reload'));
   }
 
