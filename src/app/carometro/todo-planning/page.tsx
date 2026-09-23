@@ -51,7 +51,7 @@ function TodoPlanningPageContent() {
 
   const fecharModal = () => { modal.fechar(); setOrigemInfo(undefined); };
 
-  type DragData = { type?: string; id?: string; titulo?: string; subtitulo?: string; chamado_id?: string | null };
+  type DragData = { type?: string; id?: string; acao_id?: string | null; titulo?: string; subtitulo?: string; chamado_id?: string | null };
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -71,7 +71,8 @@ function TodoPlanningPageContent() {
 
     if (drag.type === 'atividade') {
       setOrigemInfo(undefined);
-      modal.abrirParaCriar({ ...base, acao_id: drag.id ?? null, origem_tipo: 'atividades' });
+      // drag.acao_id = acoes.id (FK real); drag.id = gantt_planejamento.id do backlog
+      modal.abrirParaCriar({ ...base, acao_id: drag.acao_id ?? null, origem_tipo: 'atividades' });
     } else if (drag.type === 'sirene') {
       setOrigemInfo({ titulo: drag.titulo ?? '', tipo: 'sirene' });
       modal.abrirParaCriar({
