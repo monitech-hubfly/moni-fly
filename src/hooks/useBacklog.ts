@@ -128,9 +128,9 @@ export function useBacklog(): UseBacklogResult {
             chamado_id,
             interacao_id,
             trava,
-            sirene_chamados(id, numero, frank_id, frank_nome, te_trata),
+            sirene_chamados(id, numero, frank_id, frank_nome, te_trata, arquivado, status),
             kanban_atividades!sirene_topicos_interacao_id_fkey(
-              sirene_chamados(id, numero, frank_id, frank_nome, te_trata)
+              sirene_chamados(id, numero, frank_id, frank_nome, te_trata, arquivado, status)
             )
           `)
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
@@ -184,7 +184,7 @@ export function useBacklog(): UseBacklogResult {
 
       if (sireneRes.error) throw sireneRes.error;
 
-      type ChamadoRaw = { id: number; numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null } | { id: number; numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null }[] | null;
+      type ChamadoRaw = { id: number; numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; arquivado: boolean | null; status: string | null } | { id: number; numero: string; frank_id: string | null; frank_nome: string | null; te_trata: boolean | null; arquivado: boolean | null; status: string | null }[] | null;
       type SireneRaw = {
         id: string;
         tipo: string;
@@ -199,7 +199,7 @@ export function useBacklog(): UseBacklogResult {
         kanban_atividades: { sirene_chamados: ChamadoRaw } | { sirene_chamados: ChamadoRaw }[] | null;
       };
 
-      const sireneArr: SireneItem[] = ((sireneRes.data ?? []) as unknown as SireneRaw[]).map(row => {
+      const sireneArr: SireneItem[] = ((sireneRes.data ?? []) as unknown as SireneRaw[]).flatMap(row => {
         const chamadoDireto = Array.isArray(row.sirene_chamados)
           ? row.sirene_chamados[0] ?? null
           : row.sirene_chamados;
@@ -212,6 +212,8 @@ export function useBacklog(): UseBacklogResult {
               : interacaoRaw.sirene_chamados)
           : null;
         const chamado = chamadoDireto ?? chamadoViaInteracao;
+        // Não exibir tópicos cujo chamado pai já foi arquivado — evita itens "fantasma" no Backlog.
+        if (chamado?.arquivado === true) return [];
         const trava    = Boolean(row.trava);
         const te_trata = Boolean(chamado?.te_trata);
         const frank_id   = chamado?.frank_id   ?? null;
@@ -224,7 +226,7 @@ export function useBacklog(): UseBacklogResult {
           data_vencimento:  row.data_fim ?? row.prazo_proposto,
           atividade_status: row.status,
         });
-        return {
+        return [{
           id:                 row.id,
           tipo:               row.tipo,
           descricao:          row.descricao,
@@ -241,7 +243,7 @@ export function useBacklog(): UseBacklogResult {
           frank_nome,
           trava,
           te_trata,
-        };
+        }];
       });
 
       // Ordenação: grupo P1-P6 → prazo → criação (via compareChamadosPainelRank)
