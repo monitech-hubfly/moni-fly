@@ -76,9 +76,7 @@ export function useBacklog(): UseBacklogResult {
   const callIdRef = useRef(0);
 
   const { simulacao } = useSimulacaoUsuario();
-  const simProfileId  = simulacao?.profileId   ?? null;
-  const simAreaId     = simulacao?.areaId      ?? null;
-  const simNome       = simulacao?.nomeUsuario ?? null;
+  const simProfileId  = simulacao?.profileId ?? null;
 
   const carregar = useCallback(async () => {
     const callId = ++callIdRef.current;
@@ -93,26 +91,9 @@ export function useBacklog(): UseBacklogResult {
       const semanaAtual = isoWeek(hoje);
 
       let effectiveProfileId = user.id;
-      let nomeUsuario: string | null = null;
-      let areaPessoaId: string | null = null;
 
       if (isAdmin && simProfileId) {
         effectiveProfileId = simProfileId;
-        nomeUsuario = simNome;
-        const { data: simAP } = await supabase
-          .from('area_pessoas')
-          .select('id')
-          .eq('profile_id', simProfileId)
-          .maybeSingle();
-        areaPessoaId = (simAP as { id?: string } | null)?.id ?? null;
-      } else {
-        const { data: areaPessoa } = await supabase
-          .from('area_pessoas')
-          .select('id, nome')
-          .eq('profile_id', user.id)
-          .maybeSingle();
-        nomeUsuario = (areaPessoa?.nome as string | null) ?? null;
-        areaPessoaId = (areaPessoa?.id as string | null) ?? null;
       }
 
       // Busca Sirene, Atividades, Pastelaria e Atividades Atrasadas fora da janela em paralelo
@@ -141,10 +122,12 @@ export function useBacklog(): UseBacklogResult {
         // Janela: semana atual ±4 semanas. Atividades atrasadas além da janela são buscadas separadamente.
         // Filtra apenas atividades vinculadas ao catálogo (acao_id IS NOT NULL) e sem horário (hora_inicio IS NULL).
         // Itens com hora_inicio são eventos de agenda (criados via modal de calendário) — ficam apenas no calendário.
+        // Usa somente profile_id (UUID) para garantir que apenas atividades criadas pelo próprio usuário apareçam.
+        // O filtro por responsavel.ilike foi removido pois puxava indevidamente atividades do Gantt de toda a equipe.
         supabase
           .from('gantt_planejamento')
           .select('id, acao_id, titulo, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
-          .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
+          .eq('profile_id', effectiveProfileId)
           .is('data_conclusao_real', null)
           .not('acao_id', 'is', null)
           .is('hora_inicio', null)
@@ -159,10 +142,11 @@ export function useBacklog(): UseBacklogResult {
 
         // Atividades atrasadas além da janela de ±4 semanas (garante cobertura total).
         // Mesmo critério: acao_id IS NOT NULL e hora_inicio IS NULL (não são eventos de agenda).
+        // Usa somente profile_id (UUID) — mesmo motivo da query principal acima.
         supabase
           .from('gantt_planejamento')
           .select('id, acao_id, titulo, comportamento_chave, semana_ano_inicio, semana_ano_fim, semanas_selecionadas, origem, objetivo_id, hora_inicio, hora_fim, acoes(nome)')
-          .or(`profile_id.eq.${effectiveProfileId}${nomeUsuario ? `,responsavel.ilike.%${nomeUsuario}%` : ''}`)
+          .eq('profile_id', effectiveProfileId)
           .is('data_conclusao_real', null)
           .not('acao_id', 'is', null)
           .is('hora_inicio', null)
@@ -305,7 +289,7 @@ export function useBacklog(): UseBacklogResult {
     } finally {
       if (callId === callIdRef.current) setIsLoading(false);
     }
-  }, [supabase, simProfileId, simAreaId, simNome]);
+  }, [supabase, simProfileId]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
