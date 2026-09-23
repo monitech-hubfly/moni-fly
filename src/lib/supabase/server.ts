@@ -1,7 +1,7 @@
 import { cache } from 'react';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import type { User } from '@supabase/supabase-js';
+import type { User, UserResponse } from '@supabase/supabase-js';
 import { readFreshSessionUser } from '@/lib/supabase/session-from-cookies';
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
@@ -46,7 +46,7 @@ export async function createClient() {
   const supabase = createRawServerClient(cookieStore, supabaseUrl, supabaseAnonKey);
   const originalGetUser = supabase.auth.getUser.bind(supabase.auth);
 
-  supabase.auth.getUser = async (jwt?: string) => {
+  supabase.auth.getUser = async (jwt?: string): Promise<UserResponse> => {
     if (typeof jwt === 'string' && jwt.length > 0) return originalGetUser(jwt);
 
     const all = cookieStore.getAll();
@@ -56,7 +56,7 @@ export async function createClient() {
     }
 
     const hasSession = all.some((cookie) => cookie.name.includes('-auth-token'));
-    if (!hasSession) return { data: { user: null }, error: null };
+    if (!hasSession) return { data: { user: null }, error: null } as unknown as UserResponse;
 
     const cookieKey = all
       .filter((cookie) => cookie.name.includes('-auth-token'))

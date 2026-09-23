@@ -82,12 +82,13 @@ export function readFreshSessionUser(cookies: CookieLike[], supabaseUrl: string)
     }
   }
 
-  let session: {
+  type StoredSession = {
     access_token?: string;
     user?: FreshSessionUser & { id?: string };
-  } | null = null;
+  };
+  let session: StoredSession | null = null;
   try {
-    session = JSON.parse(decoded) as typeof session;
+    session = JSON.parse(decoded) as StoredSession;
   } catch {
     return null;
   }
