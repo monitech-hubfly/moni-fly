@@ -519,7 +519,7 @@ export async function buscarDadosModalChamado(
 
   const { data: chamado, error: chamadoErr } = await supabase
     .from('sirene_chamados')
-    .select('id, numero, incendio, status, created_at, aberto_por, frank_id, frank_nome, te_trata, trava, arquivado, prioridade')
+    .select('id, numero, incendio, status, created_at, aberto_por, frank_id, frank_nome, te_trata, trava, arquivado, prioridade, abertura_responsavel_nome')
     .eq('id', chamadoId)
     .maybeSingle();
 
@@ -530,6 +530,7 @@ export async function buscarDadosModalChamado(
     created_at: string; aberto_por: string | null; frank_id: string | null;
     frank_nome: string | null; te_trata: boolean | null; trava: boolean | null;
     arquivado: boolean | null; prioridade: string | null;
+    abertura_responsavel_nome: string | null;
   };
 
   // Usa admin client para evitar bloqueio de RLS na leitura de kanban_atividades
@@ -580,6 +581,7 @@ export async function buscarDadosModalChamado(
     sirene_arquivado:       Boolean(c.arquivado),
     criado_por:             kaRow?.criado_por ?? c.aberto_por ?? null,
     sirene_prioridade:      c.prioridade ?? null,
+    sirene_abertura_responsavel_nome: c.abertura_responsavel_nome ?? null,
   };
 
   return { ok: true, row };

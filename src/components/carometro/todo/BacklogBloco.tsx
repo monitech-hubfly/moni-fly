@@ -318,7 +318,7 @@ export function SireneChamadoBacklogWrapper({
         topicos={topicos}
         topicosLoading={topicosLoading}
         nomePorUserId={new Map()}
-        textoResponsavel={row.responsavel_nome ?? row.responsavel_nome_texto ?? ''}
+        textoResponsavel={row.sirene_abertura_responsavel_nome ?? row.responsavel_nome ?? row.responsavel_nome_texto ?? ''}
         parseTimesNomes={(raw) => Array.isArray(raw) ? raw.map(x => String(x)) : []}
         statusSelect={statusDbParaSelect(row.atividade_status)}
         temSubAberta={topicos.some(t => t.status !== 'concluido' && t.status !== 'aprovado')}
