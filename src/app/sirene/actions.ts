@@ -3314,6 +3314,7 @@ export async function getDashboardData(
         dias_aberto: number;
         origem: string;
         kanban_atividade_id: string | null;
+        card_kanban_nome: string | null;
         arquivado: boolean;
       }>;
     }
@@ -3330,7 +3331,7 @@ export async function getDashboardData(
   let query = queryClient
     .from('sirene_chamados')
     .select(
-      'id, numero, status, trava, te_trata, data_abertura, data_vencimento, data_inicio_atendimento, resolucao_suficiente, incendio, tema, frank_nome, card_id, time_abertura, tipo, updated_at, prioridade',
+      'id, numero, status, trava, te_trata, data_abertura, data_vencimento, data_inicio_atendimento, resolucao_suficiente, incendio, tema, frank_nome, card_id, card_kanban_nome, time_abertura, tipo, updated_at, prioridade, arquivado',
     );
   if (filtroTipo === 'pasteis') {
     const ids = [...(pastelChamadoIds ?? [])];
@@ -3570,7 +3571,6 @@ export async function getDashboardData(
       }
 
       return list
-        .filter((c) => c.status === 'nao_iniciado' || c.status === 'em_andamento')
         .map((c) => {
           const dataAbertura = c.data_abertura ? new Date(String(c.data_abertura)) : null;
           const diasAberto =
@@ -3588,8 +3588,9 @@ export async function getDashboardData(
             responsavel_nome: null,
             dias_aberto: diasAberto,
             origem: 'sirene',
-            kanban_atividade_id: null,
-            arquivado: false,
+            kanban_atividade_id: c.card_id != null ? String(c.card_id) : null,
+            card_kanban_nome: (c as { card_kanban_nome?: string | null }).card_kanban_nome ?? null,
+            arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
           };
         })
         .sort((a, b) => {
