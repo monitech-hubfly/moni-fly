@@ -309,5 +309,13 @@ export function useBacklog(): UseBacklogResult {
 
   useEffect(() => { carregar(); }, [carregar]);
 
+  // Recarrega o backlog quando qualquer parte do sistema sinaliza mudança
+  // (ex: atividade concluída na Agenda, agendamento salvo, chamado Sirene concluído)
+  useEffect(() => {
+    const handler = () => void carregar();
+    window.addEventListener('backlog-reload', handler);
+    return () => window.removeEventListener('backlog-reload', handler);
+  }, [carregar]);
+
   return { sirene, pastelaria, atividades, isLoading, error, recarregar: carregar };
 }
