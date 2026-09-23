@@ -542,10 +542,8 @@ function ChamadosDestaqueSection({
       ) : (
         <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]">
           {filtered.map((c, i) => {
-            const href = c.kanban_atividade_id
-              ? `/sirene/chamados?interacao=${encodeURIComponent(c.kanban_atividade_id)}`
-              : null;
-            const rowClass = `flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm ${i < filtered.length - 1 ? 'border-b border-[color:var(--moni-border-default)]' : ''} ${href ? 'cursor-pointer hover:bg-[var(--moni-surface-50)]' : ''}`;
+            const href = `/sirene/${c.id}`;
+            const rowClass = `flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm ${i < filtered.length - 1 ? 'border-b border-[color:var(--moni-border-default)]' : ''} cursor-pointer hover:bg-[var(--moni-surface-50)]`;
             const inner = (
               <>
                 {c.trava ? (
@@ -576,10 +574,8 @@ function ChamadosDestaqueSection({
                 ) : null}
               </>
             );
-            return href ? (
+            return (
               <Link key={c.id} href={href} className={rowClass}>{inner}</Link>
-            ) : (
-              <div key={c.id} className={rowClass}>{inner}</div>
             );
           })}
         </div>
