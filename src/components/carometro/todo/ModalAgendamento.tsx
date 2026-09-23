@@ -458,7 +458,10 @@ export function ModalAgendamento({
           badge:     s.label,
           badgeBg:   s.bg,
           badgeText: s.text,
-          chamadoId: t.chamado_id,
+          // Usa chamado_interno_id (ID inteiro real de sirene_chamados) como referência primária.
+          // chamado_id pode ser null para tópicos que chegam via interacao_id — nesses casos
+          // chamado_interno_id ainda contém o ID correto para gravação em gantt_planejamento.sirene_chamado_id.
+          chamadoId: t.chamado_interno_id != null ? String(t.chamado_interno_id) : t.chamado_id,
         };
       });
 
@@ -1084,20 +1087,17 @@ export function ModalAgendamento({
               Origem e atividade
             </p>
 
-            {/* 3 abas */}
-            {!origemInfo && (
-              <div className="flex gap-2 mb-3">
-                <TabBtn aba="sirene"     icon="🔔" label="Sirene / Pastelaria" />
-                <TabBtn aba="atividades" icon="📋" label="Atividades planejadas" />
-                <TabBtn aba="kanban"     icon="🗂" label="Cards / Kanban" />
-              </div>
-            )}
+            {/* 3 abas — sempre visíveis, mesmo quando origemInfo está ativo */}
+            <div className="flex gap-2 mb-3">
+              <TabBtn aba="sirene"     icon="🔔" label="Sirene / Pastelaria" />
+              <TabBtn aba="atividades" icon="📋" label="Atividades planejadas" />
+              <TabBtn aba="kanban"     icon="🗂" label="Cards / Kanban" />
+            </div>
 
-            {/* Conteúdo da aba */}
+            {/* Conteúdo da aba — sempre visível para permitir trocar/vincular outro item */}
             {abaAtiva ? (
-              origemInfo ? null : (
-                <div>
-                  <input type="text"
+              <div>
+                <input type="text"
                     className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
                     placeholder={
                       abaAtiva === 'sirene' ? 'Buscar tópico Sirene...'
@@ -1142,7 +1142,6 @@ export function ModalAgendamento({
                     </div>
                   )}
                 </div>
-              )
             ) : (
               <p className="text-xs text-gray-400 py-1">Selecione uma categoria acima.</p>
             )}

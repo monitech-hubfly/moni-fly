@@ -50,10 +50,24 @@ export type PastelariaItem = {
   semana_origem: string;
 };
 
+/** Evento futuro da agenda vinculado a um item do backlog — exibido nas seções recolhíveis. */
+export type ItemAgendado = {
+  id: string;               // gantt_planejamento.id
+  acao_id: string | null;
+  sirene_chamado_id: number | null;
+  card_id: string | null;
+  data: string;             // ISO YYYY-MM-DD
+  hora_inicio: string;
+  hora_fim: string | null;
+  titulo: string;           // nome da ação ou título livre
+};
+
 export type UseBacklogResult = {
   sirene: SireneItem[];
   pastelaria: PastelariaItem[];
   atividades: AtividadeItem[];
+  /** Eventos futuros da agenda por categoria (para seções recolhíveis no backlog). */
+  agendados: ItemAgendado[];
   isLoading: boolean;
   error: string | null;
   /** Força recarga completa do backlog (útil após exclusões). */
@@ -73,6 +87,7 @@ export function useBacklog(): UseBacklogResult {
   const [sirene, setSirene] = useState<SireneItem[]>([]);
   const [pastelaria, setPastelaria] = useState<PastelariaItem[]>([]);
   const [atividades, setAtividades] = useState<AtividadeItem[]>([]);
+  const [agendados, setAgendados] = useState<ItemAgendado[]>([]);
   const callIdRef = useRef(0);
 
   const { simulacao } = useSimulacaoUsuario();
@@ -96,8 +111,11 @@ export function useBacklog(): UseBacklogResult {
         effectiveProfileId = simProfileId;
       }
 
-      // Busca Sirene, Atividades, Pastelaria e Atividades Atrasadas fora da janela em paralelo
-      const [sireneRes, atividadesRes, pastelariaRes, atividadesAtrasadasRes] = await Promise.all([
+      // String da data de hoje para filtrar agendados futuros
+      const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+
+      // Busca Sirene, Atividades, Pastelaria, Atividades Atrasadas e Eventos Agendados em paralelo
+      const [sireneRes, atividadesRes, pastelariaRes, atividadesAtrasadasRes, agendadosRes] = await Promise.all([
         supabase
           .from('sirene_topicos')
           .select(`
@@ -151,6 +169,17 @@ export function useBacklog(): UseBacklogResult {
           .not('acao_id', 'is', null)
           .is('hora_inicio', null)
           .lt('semana_ano_fim', semanaAtual - 4),
+
+        // Eventos de agenda futuros ainda não concluídos — usados nas seções recolhíveis do backlog.
+        // Busca todos os tipos: atividades (acao_id), Sirene (sirene_chamado_id) e Kanban (card_id).
+        supabase
+          .from('gantt_planejamento')
+          .select('id, acao_id, sirene_chamado_id, card_id, data, hora_inicio, hora_fim, titulo, acoes(nome)')
+          .eq('profile_id', effectiveProfileId)
+          .not('hora_inicio', 'is', null)
+          .gte('data', hojeStr)
+          .is('data_conclusao_real', null)
+          .order('data', { ascending: true }),
       ]);
 
       if (sireneRes.error) throw sireneRes.error;
@@ -278,10 +307,37 @@ export function useBacklog(): UseBacklogResult {
         semana_origem: row.semana_origem,
       }));
 
+      // Processar eventos agendados futuros para as seções recolhíveis do backlog
+      type AgendadoRaw = {
+        id: string;
+        acao_id: string | null;
+        sirene_chamado_id: number | null;
+        card_id: string | null;
+        data: string;
+        hora_inicio: string;
+        hora_fim: string | null;
+        titulo: string | null;
+        acoes: { nome: string } | { nome: string }[] | null;
+      };
+      const agendadosArr: ItemAgendado[] = ((agendadosRes.data ?? []) as AgendadoRaw[]).map(row => {
+        const acaoObj = Array.isArray(row.acoes) ? row.acoes[0] : row.acoes;
+        return {
+          id:                 row.id,
+          acao_id:            row.acao_id,
+          sirene_chamado_id:  row.sirene_chamado_id,
+          card_id:            row.card_id,
+          data:               row.data,
+          hora_inicio:        row.hora_inicio,
+          hora_fim:           row.hora_fim,
+          titulo:             acaoObj?.nome ?? row.titulo ?? '(sem título)',
+        };
+      });
+
       if (callId !== callIdRef.current) return;
       setSirene(sireneArr);
       setPastelaria(pastelariaArr);
       setAtividades(atividadesArr);
+      setAgendados(agendadosArr);
     } catch (e) {
       if (callId !== callIdRef.current) return;
       console.error('[useBacklog] erro:', e);
@@ -301,5 +357,5 @@ export function useBacklog(): UseBacklogResult {
     return () => window.removeEventListener('backlog-reload', handler);
   }, [carregar]);
 
-  return { sirene, pastelaria, atividades, isLoading, error, recarregar: carregar };
+  return { sirene, pastelaria, atividades, agendados, isLoading, error, recarregar: carregar };
 }
