@@ -548,6 +548,22 @@ export async function buscarDadosModalChamado(
     criado_por: string | null; origem: string | null;
   } | null;
 
+  // Resolve o nome de quem abriu o chamado:
+  // 1) usa abertura_responsavel_nome se preenchido
+  // 2) caso nulo, busca full_name/email em profiles via aberto_por (UUID)
+  let abertoPorNome: string | null = c.abertura_responsavel_nome?.trim() || null;
+  if (!abertoPorNome && c.aberto_por) {
+    const { data: perfil } = await admin
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', c.aberto_por)
+      .maybeSingle();
+    if (perfil) {
+      const p = perfil as { full_name?: string | null; email?: string | null };
+      abertoPorNome = p.full_name?.trim() || p.email?.trim() || null;
+    }
+  }
+
   const row: import('./InteracoesLista').InteracaoSireneRow = {
     id:                     kaRow?.id ?? `chamado-${chamadoId}`,
     card_id:                kaRow?.card_id ?? null,
@@ -581,7 +597,7 @@ export async function buscarDadosModalChamado(
     sirene_arquivado:       Boolean(c.arquivado),
     criado_por:             kaRow?.criado_por ?? c.aberto_por ?? null,
     sirene_prioridade:      c.prioridade ?? null,
-    sirene_abertura_responsavel_nome: c.abertura_responsavel_nome ?? null,
+    sirene_abertura_responsavel_nome: abertoPorNome,
   };
 
   return { ok: true, row };
