@@ -124,10 +124,12 @@ function ColunaSirene({ items, onAbrirChamado }: ColunaSireneProps) {
 }
 
 // ── Wrapper draggável ─────────────────────────────────────────────────────────
-function DraggableAtividade({ id, children }: { id: string; children: ReactNode }) {
+function DraggableAtividade({ id, acoId, children }: { id: string; acoId: string | null; children: ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `atividade::${id}`,
-    data: { type: 'atividade', id },
+    // id = gantt_planejamento.id (registro de backlog)
+    // acao_id = acoes.id (FK real para o catálogo de atividades — usado no novo evento da agenda)
+    data: { type: 'atividade', id, acao_id: acoId },
   });
   return (
     <div
@@ -184,7 +186,7 @@ function ColunaAtividades({ items, semanaAtual, onNovaAtividade, onExcluirAtivid
       <div className={`flex flex-col gap-1.5 ${items.length > 0 ? 'max-h-[22rem] overflow-y-auto pr-0.5' : ''}`}>
         {items.length === 0 && <EmptyState />}
         {comStatus.map(({ item, status }) => (
-          <DraggableAtividade key={item.id} id={String(item.id)}>
+          <DraggableAtividade key={item.id} id={String(item.id)} acoId={item.acao_id}>
             <BacklogColunaCard
               tipo="atividade"
               titulo={item.nome_acao ?? '(sem título)'}
