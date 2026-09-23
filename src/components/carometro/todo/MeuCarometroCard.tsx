@@ -5,22 +5,25 @@ import type { DiaStatus } from '@/hooks/useMeuCarometro';
 
 function getCarinhaImg(score: number | null): string {
   if (score === null) return '/carometro/carometro-emoji-branco.png';
-  if (score > 65)  return '/carometro/carometro-emoji-verde-escuro.png';
-  if (score >= 35) return '/carometro/carometro-emoji-amarelo.png';
+  if (score >= 75) return '/carometro/carometro-emoji-verde-escuro.png';
+  if (score >= 60) return '/carometro/carometro-emoji-verde-claro.png';
+  if (score >= 30) return '/carometro/carometro-emoji-amarelo.png';
   return '/carometro/carometro-emoji-vermelho.png';
 }
 
 function scoreColor(score: number | null): string {
   if (score === null) return 'text-gray-400';
-  if (score > 65)  return 'text-green-700';
-  if (score >= 35) return 'text-yellow-600';
+  if (score >= 75) return 'text-green-700';
+  if (score >= 60) return 'text-green-500';
+  if (score >= 30) return 'text-yellow-600';
   return 'text-red-600';
 }
 
 function dotColor(score: number | null): string {
   if (score === null) return '#d1d5db';
-  if (score > 65) return '#16a34a';
-  if (score >= 35) return '#ca8a04';
+  if (score >= 75) return '#15803d';
+  if (score >= 60) return '#22c55e';
+  if (score >= 30) return '#ca8a04';
   return '#dc2626';
 }
 
