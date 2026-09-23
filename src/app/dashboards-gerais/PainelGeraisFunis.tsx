@@ -69,26 +69,107 @@ const PP_FASES = [
   { fase: 'Lotes Disponíveis',    funil: 'Step One',     avgAtraso: 14, total: 12, semPP: 4 },
 ];
 
-const PIPELINE_REDE = [
-  { fase: 'Hipóteses',     funil: 'Step One',  cards: 85, atrasados: 63, slaOk: 22, taxaConv: 61 },
-  { fase: 'Opção',         funil: 'Portfólio', cards: 52, atrasados: 33, slaOk: 19, taxaConv: 35 },
-  { fase: 'Comitê',        funil: 'Portfólio', cards: 18, atrasados: 10, slaOk:  8, taxaConv: 78 },
-  { fase: 'Contrato',      funil: 'Portfólio', cards: 14, atrasados:  6, slaOk:  8, taxaConv: 86 },
-  { fase: 'Pass. Wayser',  funil: 'Portfólio', cards: 12, atrasados:  4, slaOk:  8, taxaConv: 83 },
-  { fase: 'Planialt.',     funil: 'Operações', cards: 10, atrasados:  3, slaOk:  7, taxaConv: 80 },
-  { fase: 'Aguard. Créd.', funil: 'Operações', cards:  8, atrasados:  2, slaOk:  6, taxaConv: 75 },
-  { fase: 'Em Obra',       funil: 'Pré Obra',  cards: 18, atrasados:  2, slaOk: 16, taxaConv: 17 },
-  { fase: 'Entregue',      funil: 'Pré Obra',  cards:  3, atrasados:  0, slaOk:  3, taxaConv:  0 },
-];
-const PIPELINE_LOTEADORES = [
-  { fase: '1º Contato',  funil: 'Loteadores', cards: 6, atrasados: 2, slaOk: 4, taxaConv: 67 },
-  { fase: 'Reunião R1',  funil: 'Loteadores', cards: 5, atrasados: 2, slaOk: 3, taxaConv: 60 },
-  { fase: 'NDA',         funil: 'Loteadores', cards: 4, atrasados: 2, slaOk: 2, taxaConv: 75 },
-  { fase: 'Opção',       funil: 'Loteadores', cards: 4, atrasados: 2, slaOk: 2, taxaConv: 75 },
-  { fase: 'Viabilidade', funil: 'Loteadores', cards: 3, atrasados: 1, slaOk: 2, taxaConv: 67 },
-  { fase: 'Comitê',      funil: 'Loteadores', cards: 2, atrasados: 1, slaOk: 1, taxaConv: 50 },
-  { fase: 'Contrato',    funil: 'Loteadores', cards: 2, atrasados: 1, slaOk: 1, taxaConv: 100 },
-  { fase: 'Assinado',    funil: 'Loteadores', cards: 2, atrasados: 0, slaOk: 2, taxaConv: 0 },
+// Esteira de todos os funis — agrupada por área
+// Dados mockados; integração com Supabase prevista em sprint futura
+const PIPELINES_TODOS = [
+  {
+    funil: 'Step One', area: 'Novos Negócios',
+    fases: [
+      { fase: 'Hipóteses / 1º Cont.', cards: 85, atrasados: 63, slaOk: 22, taxaConv: 61 },
+      { fase: 'Lotes Disponíveis',    cards: 42, atrasados: 28, slaOk: 14, taxaConv: 72 },
+      { fase: 'Mapa Competidores',    cards: 31, atrasados: 18, slaOk: 13, taxaConv: 68 },
+      { fase: 'Dados Condomínios',    cards: 27, atrasados: 27, slaOk:  0, taxaConv: 55 },
+      { fase: 'BCA / Pré-Batalha',   cards: 15, atrasados:  8, slaOk:  7, taxaConv: 80 },
+      { fase: 'Batalha',             cards: 12, atrasados:  5, slaOk:  7, taxaConv:  0 },
+    ],
+  },
+  {
+    funil: 'Portfólio', area: 'Novos Negócios',
+    fases: [
+      { fase: 'Opção',         cards: 52, atrasados: 33, slaOk: 19, taxaConv: 35 },
+      { fase: 'Comitê',        cards: 18, atrasados: 10, slaOk:  8, taxaConv: 78 },
+      { fase: 'Contrato',      cards: 14, atrasados:  6, slaOk:  8, taxaConv: 86 },
+      { fase: 'Pass. Wayser',  cards: 12, atrasados:  4, slaOk:  8, taxaConv: 83 },
+      { fase: 'Acoplamento',   cards: 10, atrasados:  5, slaOk:  5, taxaConv: 80 },
+      { fase: 'Jurídico',      cards:  7, atrasados:  7, slaOk:  0, taxaConv:  0 },
+    ],
+  },
+  {
+    funil: 'Loteadores', area: 'Novos Negócios',
+    fases: [
+      { fase: '1º Contato',  cards: 6, atrasados: 2, slaOk: 4, taxaConv: 67 },
+      { fase: 'Reunião R1',  cards: 5, atrasados: 2, slaOk: 3, taxaConv: 60 },
+      { fase: 'NDA',         cards: 4, atrasados: 2, slaOk: 2, taxaConv: 75 },
+      { fase: 'Opção',       cards: 4, atrasados: 2, slaOk: 2, taxaConv: 75 },
+      { fase: 'Viabilidade', cards: 3, atrasados: 1, slaOk: 2, taxaConv: 67 },
+      { fase: 'Comitê',      cards: 2, atrasados: 1, slaOk: 1, taxaConv: 50 },
+      { fase: 'Contrato',    cards: 2, atrasados: 1, slaOk: 1, taxaConv: 100 },
+      { fase: 'Assinado',    cards: 2, atrasados: 0, slaOk: 2, taxaConv: 0 },
+    ],
+  },
+  {
+    funil: 'Funding', area: 'Moní Capital',
+    fases: [
+      { fase: 'Prospecção',   cards: 14, atrasados: 10, slaOk:  4, taxaConv: 71 },
+      { fase: 'Análise',      cards: 10, atrasados:  7, slaOk:  3, taxaConv: 60 },
+      { fase: 'Proposta',     cards:  6, atrasados:  4, slaOk:  2, taxaConv: 67 },
+      { fase: 'Qualificação', cards:  4, atrasados:  4, slaOk:  0, taxaConv: 75 },
+      { fase: 'Negociação',   cards:  3, atrasados:  2, slaOk:  1, taxaConv: 67 },
+      { fase: 'Contrato',     cards:  2, atrasados:  1, slaOk:  1, taxaConv:  0 },
+    ],
+  },
+  {
+    funil: 'Crédito Obra', area: 'Moní Capital',
+    fases: [
+      { fase: 'Proposta',     cards: 22, atrasados:  8, slaOk: 14, taxaConv: 82 },
+      { fase: 'Análise Créd.',cards: 18, atrasados:  6, slaOk: 12, taxaConv: 78 },
+      { fase: 'Doc. / Alvará',cards:  7, atrasados:  0, slaOk:  7, taxaConv: 71 },
+      { fase: 'Aprovação',    cards:  5, atrasados:  2, slaOk:  3, taxaConv: 80 },
+      { fase: 'Liberação',    cards:  4, atrasados:  1, slaOk:  3, taxaConv:  0 },
+    ],
+  },
+  {
+    funil: 'Divify', area: 'Moní Capital',
+    fases: [
+      { fase: 'Cadastro',      cards: 8, atrasados: 1, slaOk: 7, taxaConv: 75 },
+      { fase: 'Conta Bancária',cards: 6, atrasados: 0, slaOk: 6, taxaConv: 83 },
+      { fase: 'Checklist',     cards: 5, atrasados: 0, slaOk: 5, taxaConv: 80 },
+      { fase: 'Aprovado',      cards: 4, atrasados: 0, slaOk: 4, taxaConv:  0 },
+    ],
+  },
+  {
+    funil: 'Operações', area: 'Operações',
+    fases: [
+      { fase: 'Planejamento',  cards: 10, atrasados: 3, slaOk:  7, taxaConv: 80 },
+      { fase: 'Aguard. Créd.', cards:  8, atrasados: 2, slaOk:  6, taxaConv: 75 },
+      { fase: 'Proj. Legais',  cards:  6, atrasados: 2, slaOk:  4, taxaConv: 67 },
+      { fase: 'Pré-Obra',      cards:  5, atrasados: 1, slaOk:  4, taxaConv:  0 },
+    ],
+  },
+  {
+    funil: 'Contabilidade', area: 'Operações',
+    fases: [
+      { fase: 'Abertura SPE',   cards: 14, atrasados: 4, slaOk: 10, taxaConv: 86 },
+      { fase: 'Contab. SPE',    cards: 12, atrasados: 4, slaOk:  8, taxaConv: 75 },
+      { fase: 'Balanço Anual',  cards:  9, atrasados: 3, slaOk:  6, taxaConv: 78 },
+      { fase: 'Encerramento',   cards:  7, atrasados: 2, slaOk:  5, taxaConv:  0 },
+    ],
+  },
+  {
+    funil: 'Proj. Locais', area: 'Operações',
+    fases: [
+      { fase: 'Aprovação Pref.', cards: 12, atrasados: 8, slaOk:  4, taxaConv: 67 },
+      { fase: 'Licença Obras',   cards:  8, atrasados: 5, slaOk:  3, taxaConv: 75 },
+      { fase: 'Emissão Alvará',  cards:  6, atrasados: 3, slaOk:  3, taxaConv:  0 },
+    ],
+  },
+  {
+    funil: 'Pré Obra', area: 'Operações',
+    fases: [
+      { fase: 'Em Obra',  cards: 18, atrasados:  2, slaOk: 16, taxaConv: 17 },
+      { fase: 'Entregue', cards:  3, atrasados:  0, slaOk:  3, taxaConv:  0 },
+    ],
+  },
 ];
 
 const CONVERSAO = [
@@ -332,7 +413,6 @@ function FaseBlock({
 
 export function PainelGeraisFunis() {
   const [grupo, setGrupo]                 = useState('Todos');
-  const [pipeline, setPipeline]           = useState<'rede' | 'loteadores'>('rede');
   const [showEsteira, setShowEsteira]     = useState(false);
   const [showTodasFases, setShowTodasFases] = useState(false);
   const [abaAtividade, setAbaAtividade]   = useState<'chamados' | 'pp'>('chamados');
@@ -341,7 +421,6 @@ export function PainelGeraisFunis() {
   const totalCards     = funisFiltrados.reduce((s, f) => s + f.cards,     0);
   const totalVencidos  = funisFiltrados.reduce((s, f) => s + f.slaVencido, 0);
   const fasesVisiveis  = showTodasFases ? FASES : FASES.slice(0, 6);
-  const pipelineData   = pipeline === 'rede' ? PIPELINE_REDE : PIPELINE_LOTEADORES;
 
   const grupos = ['Todos', 'Novos Negócios', 'Moní Capital', 'Operações'];
 
@@ -784,67 +863,92 @@ export function PainelGeraisFunis() {
       <hr style={{ borderColor: 'var(--moni-border-default)', borderWidth: '0.5px' }} />
 
       {/* ══════════════════════════════════════════════════════════════════════
-          BLOCO 4 — VISÃO DA ESTEIRA (colapsável)
+          BLOCO 4 — VISÃO DA ESTEIRA (colapsável, todos os funis)
       ══════════════════════════════════════════════════════════════════════ */}
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h2 className="text-lg font-semibold tracking-tight" style={secaoTitle}>Visão da Esteira</h2>
-            <p className="text-xs mt-0.5" style={secaoDesc}>Jornada completa dos projetos — volume por fase, SLA e taxa de conversão</p>
+            <p className="text-xs mt-0.5" style={secaoDesc}>
+              Todos os funis — volume por fase, SLA (verde=ok / vermelho=atrasado) e taxa de conversão para próxima fase
+            </p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap shrink-0">
-            {showEsteira && (
-              <div className="flex gap-1 rounded-lg overflow-hidden" style={{ border: '0.5px solid var(--moni-border-default)' }}>
-                {(['rede', 'loteadores'] as const).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPipeline(p)}
-                    className="px-3 py-1.5 text-xs font-medium transition-colors"
-                    style={{
-                      background: pipeline === p ? 'var(--moni-navy-800)' : 'var(--moni-surface-0)',
-                      color:      pipeline === p ? '#fff' : 'var(--moni-text-secondary)',
-                    }}
-                  >
-                    {p === 'rede' ? 'Portfólio / Rede' : 'Loteadores'}
-                  </button>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowEsteira((v) => !v)}
-              className="text-xs px-3 py-1.5 rounded-lg transition-colors"
-              style={{
-                background: 'var(--moni-surface-100)',
-                border: '0.5px solid var(--moni-border-default)',
-                color: 'var(--moni-text-secondary)',
-              }}
-            >
-              {showEsteira ? 'Ocultar esteira ▲' : 'Ver esteira ▼'}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowEsteira((v) => !v)}
+            className="text-xs px-3 py-1.5 rounded-lg transition-colors shrink-0"
+            style={{
+              background: 'var(--moni-surface-100)',
+              border: '0.5px solid var(--moni-border-default)',
+              color: 'var(--moni-text-secondary)',
+            }}
+          >
+            {showEsteira ? 'Ocultar esteira ▲' : 'Ver esteira ▼'}
+          </button>
         </div>
 
-        {showEsteira && (
-          <div
-            className="rounded-xl p-4 overflow-x-auto"
-            style={{ background: 'var(--moni-surface-0)', border: '0.5px solid var(--moni-border-default)' }}
-          >
-            <div
-              className="flex items-stretch"
-              style={{ minWidth: pipeline === 'rede' ? 900 : 720 }}
-            >
-              {pipelineData.map((item, i) => (
-                <FaseBlock
-                  key={item.fase}
-                  {...item}
-                  isLast={i === pipelineData.length - 1}
-                />
+        {showEsteira && (() => {
+          // Agrupar por área mantendo a ordem de inserção
+          const areas = Array.from(new Set(PIPELINES_TODOS.map((p) => p.area)));
+          return (
+            <div className="space-y-6">
+              {areas.map((area) => (
+                <div key={area} className="space-y-3">
+                  {/* Label de área */}
+                  <div className="flex items-center gap-3">
+                    <span
+                      className="text-[11px] font-semibold tracking-widest uppercase shrink-0"
+                      style={{ color: 'var(--moni-text-tertiary)' }}
+                    >
+                      {area}
+                    </span>
+                    <div className="flex-1" style={{ height: '0.5px', background: 'var(--moni-border-default)' }} />
+                  </div>
+
+                  {/* Funis da área */}
+                  <div className="space-y-3">
+                    {PIPELINES_TODOS.filter((p) => p.area === area).map((pipeline) => (
+                      <div
+                        key={pipeline.funil}
+                        className="rounded-xl overflow-hidden"
+                        style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
+                      >
+                        {/* Nome do funil */}
+                        <div
+                          className="px-4 py-2 text-xs font-semibold"
+                          style={{
+                            background: 'var(--moni-surface-50)',
+                            borderBottom: '0.5px solid var(--moni-border-default)',
+                            color: 'var(--moni-navy-800)',
+                          }}
+                        >
+                          {pipeline.funil}
+                        </div>
+                        {/* Fases em scroll horizontal */}
+                        <div className="overflow-x-auto p-3">
+                          <div className="flex items-stretch" style={{ minWidth: pipeline.fases.length * 110 }}>
+                            {pipeline.fases.map((item, i) => (
+                              <FaseBlock
+                                key={item.fase}
+                                fase={item.fase}
+                                funil={pipeline.funil}
+                                cards={item.cards}
+                                atrasados={item.atrasados}
+                                slaOk={item.slaOk}
+                                taxaConv={item.taxaConv}
+                                isLast={i === pipeline.fases.length - 1}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       <hr style={{ borderColor: 'var(--moni-border-default)', borderWidth: '0.5px' }} />
