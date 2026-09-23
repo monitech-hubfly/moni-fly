@@ -17,7 +17,7 @@ import { SireneModalHoras } from '@/app/sirene/chamados/SireneModalHoras';
 import { ClassificacaoConclusaoModal } from '@/app/sirene/chamados/ClassificacaoConclusaoModal';
 import { buscarDadosModalChamado, atualizarStatusInteracaoSirene, type StatusInteracaoDb } from '@/app/sirene/chamados/actions';
 import { getTopicosChamado, type TopicoPainelLinha } from '@/app/sirene/actions';
-import { atualizarStatusSubInteracao, type SubInteracaoStatusDb } from '@/lib/actions/card-actions';
+import { atualizarStatusSubInteracao, criarSubInteracao, type SubInteracaoStatusDb } from '@/lib/actions/card-actions';
 import { ATIVIDADE_FORM_DRAFT_VAZIO, type AtividadeFormDraft } from '@/components/kanban-shared/KanbanAtividadeFormFields';
 import type { InteracaoSireneRow } from '@/app/sirene/chamados/InteracoesLista';
 
@@ -310,6 +310,10 @@ export function SireneChamadoBacklogWrapper({
   const [podeArquivar, setPodeArquivar] = useState(false);
   const [sessionRole, setSessionRole] = useState('');
   const [pending, setPending] = useState(false);
+  const [times, setTimes] = useState<{ id: string; nome: string }[]>([]);
+  const [responsaveis, setResponsaveis] = useState<{ id: string; nome: string; email?: string | null }[]>([]);
+  const [salvandoNovaAtividade, setSalvandoNovaAtividade] = useState(false);
+  const [erroNovaAtividade, setErroNovaAtividade] = useState<string | null>(null);
   const [horasModal, setHorasModal] = useState<{ chamadoId: number; titulo: string } | null>(null);
   const [classificacaoPendente, setClassificacaoPendente] = useState<{ topicoId: number } | null>(null);
   const [subStatusPendente, setSubStatusPendente] = useState<{ topicoId: number; status: SubInteracaoStatusDb } | null>(null);
@@ -327,6 +331,32 @@ export function SireneChamadoBacklogWrapper({
       const role = String((prof as { role?: string | null } | null)?.role ?? '').toLowerCase();
       setPodeArquivar(role === 'admin' || role === 'team');
       setSessionRole(role);
+
+      // Carrega times e responsáveis para o formulário de nova atividade
+      const [timesRes, profsRes] = await Promise.all([
+        supabase.from('kanban_times').select('id, nome').order('nome'),
+        supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .order('full_name', { ascending: true, nullsFirst: false })
+          .limit(500),
+      ]);
+      setTimes(
+        (timesRes.data ?? []).map((t) => ({
+          id: String((t as { id: string }).id),
+          nome: String((t as { nome: string }).nome),
+        })),
+      );
+      setResponsaveis(
+        (profsRes.data ?? []).map((p) => {
+          const pr = p as { id: string; full_name?: string | null; email?: string | null };
+          return {
+            id: String(pr.id),
+            nome: String(pr.full_name ?? '').trim() || String(pr.email ?? pr.id),
+            email: pr.email ? String(pr.email).trim().toLowerCase() : null,
+          };
+        }),
+      );
     })();
   }, [chamadoId, supabase]);
 
@@ -412,12 +442,39 @@ export function SireneChamadoBacklogWrapper({
         onSubStatusChange={(topicoId, status) => void handleSubStatus(topicoId, status)}
         podeArquivar={podeArquivar}
         badgeTipo={badgeTipoHelper(row.tipo)}
-        times={[]}
-        responsaveis={[]}
+        times={times}
+        responsaveis={responsaveis}
         novaAtivDraft={novaAtivDraft}
         setNovaAtivDraft={setNovaAtivDraft}
-        onAdicionarAtividade={() => { /* não implementado no backlog */ }}
-        salvandoNovaAtividade={false}
+        onAdicionarAtividade={async () => {
+          if (!row) return;
+          const d = novaAtivDraft;
+          if (!d.nome.trim() || d.timesIds.length === 0 || d.responsaveisIds.length === 0) return;
+          setSalvandoNovaAtividade(true);
+          setErroNovaAtividade(null);
+          const res = await criarSubInteracao({
+            interacao_id: row.id,
+            nome: d.nome.trim(),
+            descricao_detalhe: d.descricaoDetalhe.trim() || null,
+            times_ids: d.timesIds,
+            responsaveis_ids: d.responsaveisIds,
+            data_fim: d.data.trim() || null,
+            status: 'nao_iniciado',
+            pastel: d.pastel,
+            basePath: '/carometro/todo-planning',
+            viaSirene: true,
+          });
+          setSalvandoNovaAtividade(false);
+          if (!res.ok) {
+            setErroNovaAtividade(res.error);
+            return;
+          }
+          setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+          void reloadTopicos();
+          window.dispatchEvent(new CustomEvent('backlog-reload'));
+        }}
+        salvandoNovaAtividade={salvandoNovaAtividade}
+        erroNovaAtividade={erroNovaAtividade}
         currentUserId={currentUserId}
         sessionEhAdmin={podeArquivar}
         sessionRole={sessionRole}
