@@ -537,7 +537,7 @@ export async function buscarDadosModalChamado(
   const admin = createAdminClient();
   const { data: ka } = await admin
     .from('kanban_atividades')
-    .select('id, card_id, responsavel_id, responsavel_nome, responsaveis_ids, times_ids, responsavel_nome_texto, criado_por, origem')
+    .select('id, card_id, responsavel_id, responsaveis_ids, times_ids, responsavel_nome_texto, criado_por, origem')
     .eq('sirene_chamado_id', chamadoId)
     .limit(1)
     .maybeSingle();

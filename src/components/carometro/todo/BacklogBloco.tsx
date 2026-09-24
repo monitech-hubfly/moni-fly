@@ -298,6 +298,7 @@ type SireneChamadoBacklogWrapperProps = {
 
 export function SireneChamadoBacklogWrapper({
   chamadoId,
+  interacaoId,
   onClose,
   onConcluido,
 }: SireneChamadoBacklogWrapperProps) {
@@ -370,7 +371,7 @@ export function SireneChamadoBacklogWrapper({
     setSalvandoNovaAtividade(true);
     setErroNovaAtividade(null);
     const res = await criarSubInteracao({
-      interacao_id: row.id,
+      interacao_id: interacaoId || row.id,
       sirene_chamado_id: row.sirene_chamado_id ?? chamadoId,
       nome: d.nome.trim(),
       descricao_detalhe: d.descricaoDetalhe.trim() || null,
