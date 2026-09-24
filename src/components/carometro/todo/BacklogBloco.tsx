@@ -318,10 +318,6 @@ export function SireneChamadoBacklogWrapper({
   const [horasModal, setHorasModal] = useState<{ chamadoId: number; titulo: string } | null>(null);
   const [classificacaoPendente, setClassificacaoPendente] = useState<{ topicoId: number } | null>(null);
   const [subStatusPendente, setSubStatusPendente] = useState<{ topicoId: number; status: SubInteracaoStatusDb } | null>(null);
-  const [erroNovaAtividade, setErroNovaAtividade] = useState<string | null>(null);
-  const [salvandoNovaAtividade, setSalvandoNovaAtividade] = useState(false);
-  const [times, setTimes] = useState<{ id: string; nome: string }[]>([]);
-  const [responsaveis, setResponsaveis] = useState<{ id: string; nome: string; email?: string | null }[]>([]);
   const skipHorasRef = useRef(false);
 
   useEffect(() => {
