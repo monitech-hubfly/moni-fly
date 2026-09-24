@@ -257,8 +257,9 @@ export function usePlanoBoneDay(
           concluido: boolean | null; concluido_em: string | null;
           data_inicio: string | null; data_fim: string | null; dias_uteis: number | null;
         };
+        const orRows = ((orData ?? []) as ORRow[]);
         setObjetivoResponsaveis(
-          ((orData ?? []) as ORRow[]).map(r => ({
+          orRows.map(r => ({
             objetivo_id: r.objetivo_id,
             profile_id:  r.profile_id,
             concluido:   Boolean(r.concluido),
@@ -268,6 +269,22 @@ export function usePlanoBoneDay(
             dias_uteis:  r.dias_uteis ?? null,
           }))
         );
+
+        // Enriquecer responsaveis com quem assumiu mas não está em area_pessoas
+        // Isso evita o avatar "?" para usuários fora da área que assumiram metas
+        const respIdsSet = new Set(respArr.map(r => r.profile_id));
+        const orProfileIds = [...new Set(orRows.map(r => r.profile_id))].filter(id => !respIdsSet.has(id));
+        if (orProfileIds.length > 0) {
+          const { data: extraProfiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', orProfileIds);
+          for (const p of ((extraProfiles ?? []) as { id: string; full_name: string | null }[])) {
+            respArr.push({ profile_id: p.id, nome: p.full_name ?? p.id });
+          }
+          respArr.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+          setResponsaveis(respArr);
+        }
       } else {
         setObjetivoResponsaveis([]);
       }
