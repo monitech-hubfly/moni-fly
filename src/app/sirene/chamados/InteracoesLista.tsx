@@ -936,6 +936,7 @@ export function InteracoesLista({
     setMsgErro(null);
     const res = await criarSubInteracao({
       interacao_id: row.id,
+      sirene_chamado_id: row.sirene_chamado_id ?? null,
       nome: d.nome.trim(),
       descricao_detalhe: d.descricaoDetalhe.trim() || null,
       times_ids: d.timesIds,
@@ -2070,6 +2071,7 @@ export function InteracoesLista({
           setNovaAtivDraft={setNovaAtivDraft}
           onAdicionarAtividade={() => void handleAdicionarAtividadeModal(detalheRowEff)}
           salvandoNovaAtividade={Boolean(salvandoTopico[topicosAlvoKey(detalheRowEff)])}
+          erroNovaAtividade={msgErro}
           currentUserId={currentUserId}
           onArquivarTopico={(topicoId) => {
             setModalArquivarTopico({

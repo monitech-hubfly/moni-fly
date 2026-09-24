@@ -264,6 +264,8 @@ export type CriarSubInteracaoInput = {
   origem?: 'nativo' | 'legado';
   /** Quando true, rejeita se chamado não for editável na Sirene. */
   viaSirene?: boolean;
+  /** Fallback quando `interacao_id` é sintético (`chamado-<id>`) ou a RLS esconde `kanban_atividades`. */
+  sirene_chamado_id?: number | null;
 };
 
 export type ChamadoCategoriaDb = 'chamado' | 'melhoria';
@@ -466,6 +468,87 @@ async function todosResponsaveisDoChamado(
     }
   }
   return [...set];
+}
+
+function idChamadoSintetico(interacaoId: string): number | null {
+  const m = /^chamado-(\d+)$/.exec(interacaoId.trim());
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? n : null;
+}
+
+type AtividadeChamadoRow = {
+  id: string;
+  titulo: string | null;
+  card_id: string | null;
+  categoria: string | null;
+  origem: string | null;
+  sirene_chamado_id: number | null;
+};
+
+/** Lê a interação do chamado. Se a RLS esconder a linha, usa o client admin e, se faltar, cria o espelho. */
+async function resolverKanbanAtividadeDoChamado(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  interacaoId: string,
+  sireneChamadoId: number | null | undefined,
+  criadoPor: string,
+): Promise<AtividadeChamadoRow | null> {
+  const select = 'id, titulo, card_id, categoria, origem, sirene_chamado_id';
+  const sintetico = idChamadoSintetico(interacaoId);
+  if (!sintetico) {
+    const { data } = await supabase
+      .from('kanban_atividades')
+      .select(select)
+      .eq('id', interacaoId)
+      .maybeSingle();
+    if (data) return data as AtividadeChamadoRow;
+  }
+
+  const admin = createAdminClient();
+  if (!sintetico) {
+    const { data } = await admin.from('kanban_atividades').select(select).eq('id', interacaoId).maybeSingle();
+    if (data) return data as AtividadeChamadoRow;
+  }
+
+  const sid = sireneChamadoId ?? sintetico;
+  if (sid == null) return null;
+
+  const { data: porChamado } = await admin
+    .from('kanban_atividades')
+    .select(select)
+    .eq('sirene_chamado_id', sid)
+    .limit(1)
+    .maybeSingle();
+  if (porChamado) return porChamado as AtividadeChamadoRow;
+
+  const { data: sc } = await admin
+    .from('sirene_chamados')
+    .select('id, incendio, created_at')
+    .eq('id', sid)
+    .maybeSingle();
+  if (!sc) return null;
+  const chamado = sc as { id: number; incendio?: string | null; created_at?: string | null };
+  const agora = new Date().toISOString();
+  const { data: criada, error } = await admin
+    .from('kanban_atividades')
+    .insert({
+      card_id: null,
+      titulo: (chamado.incendio ?? '').trim() || `Chamado #${chamado.id}`,
+      descricao: null,
+      tipo: 'chamado_padrao',
+      status: 'pendente',
+      trava: false,
+      origem: 'sirene',
+      criado_por: criadoPor,
+      created_at: chamado.created_at ?? agora,
+      updated_at: agora,
+      times_ids: [],
+      sirene_chamado_id: chamado.id,
+    } as never)
+    .select(select)
+    .single();
+  if (error || !criada) return null;
+  return criada as AtividadeChamadoRow;
 }
 
 async function assertEditableFromSirene(
@@ -972,18 +1055,27 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login para criar uma atividade.' };
 
-  const bloqueio = await assertEditableFromSirene(supabase, input.interacao_id, input.viaSirene);
-  if (bloqueio) return bloqueio;
-
   const nome = (input.nome ?? input.descricao ?? '').trim();
   if (!nome) return { ok: false, error: 'Informe o nome da atividade.' };
 
-  const { data: interacaoRow } = await supabase
-    .from('kanban_atividades')
-    .select('titulo, card_id, categoria, origem, sirene_chamado_id')
-    .eq('id', input.interacao_id)
-    .maybeSingle();
+  const interacaoRow = await resolverKanbanAtividadeDoChamado(
+    supabase,
+    input.interacao_id,
+    input.sirene_chamado_id,
+    user.id,
+  );
   if (!interacaoRow) return { ok: false, error: 'Chamado não encontrado.' };
+  const interacaoId = interacaoRow.id;
+
+  if (
+    input.viaSirene &&
+    !chamadoEditavelNaSirene({
+      origem: String(interacaoRow.origem ?? ''),
+      card_id: interacaoRow.card_id,
+    })
+  ) {
+    return { ok: false, error: 'Este chamado só pode ser alterado no card vinculado.' };
+  }
 
   const categoria = ((interacaoRow as { categoria?: ChamadoCategoriaDb }).categoria ?? 'chamado') as ChamadoCategoriaDb;
   const admin = createAdminClient();
@@ -1006,13 +1098,13 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   if (!val.ok) return val;
 
   const timeLabel = nomesTimes[0] ?? '—';
-  const existentes = await todosResponsaveisDoChamado(supabase, input.interacao_id);
+  const existentes = await todosResponsaveisDoChamado(supabase, interacaoId);
   const novosResp = respIds.filter((id) => !existentes.includes(id));
 
   const { data: maxRow } = await supabase
     .from('sirene_topicos')
     .select('ordem')
-    .eq('interacao_id', input.interacao_id)
+    .eq('interacao_id', interacaoId)
     .order('ordem', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -1024,7 +1116,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   const prazoNovaSub = dataCampoCalendarioIso(input.data_fim);
   const row = {
     chamado_id: (interacaoRow as { sirene_chamado_id?: number | null }).sirene_chamado_id ?? null,
-    interacao_id: input.interacao_id,
+    interacao_id: interacaoId,
     ordem: proxOrdem,
     nome,
     descricao: nome,
@@ -1045,18 +1137,18 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   if (error) return { ok: false, error: error.message };
 
   if (statusAtiv === 'em_andamento') {
-    await supabase.from('kanban_atividades').update({ status: 'em_andamento' }).eq('id', input.interacao_id);
+    await supabase.from('kanban_atividades').update({ status: 'em_andamento' }).eq('id', interacaoId);
   }
 
   const cardId = String((interacaoRow as { card_id?: string }).card_id ?? '');
   if (novosResp.length > 0) {
     const tituloChamado = String((interacaoRow as { titulo?: string }).titulo ?? 'Chamado').trim();
-    await notificarEventoChamado(input.interacao_id, {
+    await notificarEventoChamado(interacaoId, {
       userIds: novosResp,
       tipo: 'kanban_atividade_criada',
       mensagem: `Nova Atividade Criada — ${tituloChamado || 'Chamado'}`,
       excluirUserId: user.id,
-      basePath: input.basePath?.trim() || (cardId ? undefined : `/sirene/chamados?interacao=${encodeURIComponent(input.interacao_id)}`),
+      basePath: input.basePath?.trim() || (cardId ? undefined : `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`),
     });
   }
 
