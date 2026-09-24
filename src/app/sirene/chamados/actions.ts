@@ -338,6 +338,7 @@ export type ComentarioCardSireneRow = {
   texto: string;
   created_at: string;
   autor_nome: string | null;
+  autor_id: string | null;
 };
 
 export async function listarComentariosCardSirene(
@@ -379,6 +380,7 @@ export async function listarComentariosCardSirene(
     texto: htmlComentarioParaTextoPlano(String((r as { conteudo?: string }).conteudo ?? '')),
     created_at: String((r as { created_at?: string }).created_at ?? ''),
     autor_nome: r.autor_id ? nomes.get(String(r.autor_id)) ?? null : null,
+    autor_id: r.autor_id ? String(r.autor_id) : null,
   }));
 
   return { ok: true, items };
@@ -458,9 +460,40 @@ export async function listarComentariosSireneChamado(
     texto: htmlComentarioParaTextoPlano(String((r as { conteudo?: string }).conteudo ?? '')),
     created_at: String((r as { created_at?: string }).created_at ?? ''),
     autor_nome: r.autor_id ? nomes.get(String(r.autor_id)) ?? null : null,
+    autor_id: r.autor_id ? String(r.autor_id) : null,
   }));
 
   return { ok: true, items };
+}
+
+export async function excluirComentarioChamado(
+  comentarioId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const id = String(comentarioId ?? '').trim();
+  if (!id) return { ok: false, error: 'Comentário inválido.' };
+
+  const { data: row, error: fetchErr } = await supabase
+    .from('kanban_card_comentarios')
+    .select('id, autor_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (fetchErr) return { ok: false, error: fetchErr.message };
+  if (!row) return { ok: false, error: 'Comentário não encontrado.' };
+  if (String((row as { autor_id?: string | null }).autor_id ?? '') !== user.id) {
+    return { ok: false, error: 'Só quem escreveu o comentário pode excluí-lo.' };
+  }
+
+  const { error } = await supabase
+    .from('kanban_card_comentarios')
+    .delete()
+    .eq('id', id)
+    .eq('autor_id', user.id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 export async function publicarComentarioSireneChamado(

@@ -30,6 +30,7 @@ import { PrazoNegociacaoPanel } from '@/components/kanban-shared/PrazoNegociacao
 import { AtribuicaoAceitePanel } from '@/components/sirene/AtribuicaoAceitePanel';
 import {
   buscarResolucaoChamado,
+  excluirComentarioChamado,
   listarComentariosCardSirene,
   listarComentariosSireneChamado,
   publicarComentarioCardSirene,
@@ -333,6 +334,17 @@ export function SireneChamadoDetalheModal({
         });
       }
     }
+  }
+
+  async function excluirComentarioModal(comentarioId: string) {
+    if (!window.confirm('Excluir este comentário?')) return;
+    setErroComentario(null);
+    const res = await excluirComentarioChamado(comentarioId);
+    if (!res.ok) {
+      setErroComentario(res.error);
+      return;
+    }
+    setComentarios((prev) => prev.filter((c) => c.id !== comentarioId));
   }
 
   async function publicarComentarioModal() {
@@ -747,6 +759,15 @@ export function SireneChamadoDetalheModal({
                                 {c.created_at ? <span className="ml-1 tabular-nums text-[color:var(--moni-text-tertiary)]">{new Date(c.created_at).toLocaleString('pt-BR')}</span> : null}
                               </p>
                               <p className="mt-1 whitespace-pre-wrap text-sm text-[color:var(--moni-text-primary)]">{c.texto}</p>
+                              {c.autor_id && c.autor_id === currentUserId ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void excluirComentarioModal(c.id)}
+                                  className="mt-1 rounded border border-red-200 px-2 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
+                                >
+                                  Excluir
+                                </button>
+                              ) : null}
                             </div>
                           </li>
                         ))}
