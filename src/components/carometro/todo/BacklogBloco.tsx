@@ -310,6 +310,10 @@ export function SireneChamadoBacklogWrapper({
   const [podeArquivar, setPodeArquivar] = useState(false);
   const [sessionRole, setSessionRole] = useState('');
   const [pending, setPending] = useState(false);
+  const [times, setTimes] = useState<{ id: string; nome: string }[]>([]);
+  const [responsaveis, setResponsaveis] = useState<{ id: string; nome: string; email?: string | null }[]>([]);
+  const [salvandoNovaAtividade, setSalvandoNovaAtividade] = useState(false);
+  const [erroNovaAtividade, setErroNovaAtividade] = useState<string | null>(null);
   const [horasModal, setHorasModal] = useState<{ chamadoId: number; titulo: string } | null>(null);
   const [classificacaoPendente, setClassificacaoPendente] = useState<{ topicoId: number } | null>(null);
   const [subStatusPendente, setSubStatusPendente] = useState<{ topicoId: number; status: SubInteracaoStatusDb } | null>(null);
@@ -331,24 +335,28 @@ export function SireneChamadoBacklogWrapper({
       const role = String((prof as { role?: string | null } | null)?.role ?? '').toLowerCase();
       setPodeArquivar(role === 'admin' || role === 'team');
       setSessionRole(role);
-      const [{ data: timesRows }, { data: profs }] = await Promise.all([
+
+      const [timesRes, profsRes] = await Promise.all([
         supabase.from('kanban_times').select('id, nome').order('nome'),
-        supabase.from('profiles').select('id, full_name, email').order('full_name').limit(500),
+        supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .order('full_name', { ascending: true, nullsFirst: false })
+          .limit(500),
       ]);
       setTimes(
-        (timesRows ?? []).map((t) => ({
+        (timesRes.data ?? []).map((t) => ({
           id: String((t as { id: string }).id),
-          nome: String((t as { nome?: string }).nome ?? ''),
+          nome: String((t as { nome: string }).nome),
         })),
       );
       setResponsaveis(
-        (profs ?? []).map((p) => {
-          const row = p as { id: string; full_name?: string | null; email?: string | null };
-          const email = String(row.email ?? '').trim().toLowerCase() || null;
+        (profsRes.data ?? []).map((p) => {
+          const pr = p as { id: string; full_name?: string | null; email?: string | null };
           return {
-            id: String(row.id),
-            nome: String(row.full_name ?? '').trim() || email || String(row.id).slice(0, 8),
-            email,
+            id: String(pr.id),
+            nome: String(pr.full_name ?? '').trim() || String(pr.email ?? pr.id),
+            email: pr.email ? String(pr.email).trim().toLowerCase() : null,
           };
         }),
       );
@@ -381,6 +389,7 @@ export function SireneChamadoBacklogWrapper({
     }
     setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
     await reloadTopicos();
+    window.dispatchEvent(new CustomEvent('backlog-reload'));
   }
 
   const reloadTopicos = useCallback(async (): Promise<TopicoPainelLinha[]> => {

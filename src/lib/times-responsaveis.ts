@@ -110,7 +110,6 @@ export const HDM_RESPONSAVEIS: Record<HdmTime, { nome: string; email: string }[]
   ],
   Produto: [
     { nome: 'Vinícius França', email: 'vinicius.fr@moni.casa' },
-    { nome: 'Mateus Palma', email: 'mateus.palma@moni.casa' },
     { nome: 'Fábio Siano', email: 'fabio.siano@moni.casa' },
   ],
   'Executivo Local': [{ nome: 'Larissa Lima', email: 'larissa.lima@moni.casa' }],
