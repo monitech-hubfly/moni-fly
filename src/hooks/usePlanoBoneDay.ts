@@ -136,7 +136,7 @@ export function usePlanoBoneDay(
           .from('objetivos')
           .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
           .eq('area_id', areaId)
-          .eq('status', 'ativo')
+          .in('status', ['ativo', 'arquivado'])
           .eq('mes', mes)
           .is('objetivo_pai_id', null)
           .order('is_chave', { ascending: false })

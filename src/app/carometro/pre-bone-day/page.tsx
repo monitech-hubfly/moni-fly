@@ -885,10 +885,14 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
       <div className="flex items-start gap-2 px-3 py-2.5 flex-wrap border-b border-gray-100">
         {meta.is_chave && <span className="text-sm">🔑</span>}
         <TipoBadge tipo={meta.tipo} />
-        <span className={`text-sm font-medium text-gray-800 flex-1 leading-snug ${meta.status === 'concluido' ? 'line-through text-gray-400' : ''}`}>
+        {meta.status === 'arquivado' && (
+          <span className="moni-tag-arquivado text-[10px] px-1.5 py-0.5 rounded flex-shrink-0">Arquivada</span>
+        )}
+        <span className={`text-sm font-medium flex-1 leading-snug ${meta.status === 'concluido' ? 'line-through text-gray-400' : meta.status === 'arquivado' ? 'text-gray-400' : 'text-gray-800'}`}>
           {meta.descricao}
         </span>
         {(() => {
+          if (meta.status === 'arquivado') return null;
           const isProjeto = meta.tipo?.toLowerCase() === 'atingivel - projeto';
           const resps = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id);
           const ismine = resps.some(r => r.profile_id === currentUserId);
@@ -930,6 +934,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
         <div className="flex items-center gap-1 flex-shrink-0">
           {/* Botão individual: qualquer um que assumiu pode concluir sua parte */}
           {(() => {
+            if (meta.status === 'arquivado') return null;
             const resps = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id);
             const minhaEntrada = resps.find(r => r.profile_id === currentUserId);
             if (!minhaEntrada) return null;
@@ -949,11 +954,11 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
               </button>
             );
           })()}
-          {podeEditarMeta && (
+          {podeEditarMeta && meta.status !== 'arquivado' && (
             <button type="button" onClick={() => setEditandoMeta(v => !v)} title="Editar meta"
               className={`text-sm transition-colors ${editandoMeta ? 'text-blue-600' : 'text-blue-400 hover:text-blue-600'}`}>✎</button>
           )}
-          {isAdmin && (
+          {isAdmin && meta.status !== 'arquivado' && (
             <>
               {meta.status !== 'concluido' && meta.tipo?.toLowerCase() !== 'recorrente' && (
                 <button type="button" onClick={() => setConfirmConc(true)} title="Encerrar meta globalmente"
@@ -1864,9 +1869,24 @@ function PreBoneDayPageContent() {
     const { error: e } = await supabase.from('objetivos')
       .update({ status: 'concluido', concluido_em: new Date().toISOString() }).eq('id', id);
     if (e) { console.error('[ConcluirMeta]', e); return; }
+    // Auto-fill 100% nos indicadores ativos da meta ao concluir (admin)
+    if (currentUserId) {
+      const semana = isoWeek(new Date());
+      const anoAtual = new Date().getFullYear();
+      const { data: indsParaFill } = await supabase
+        .from('indicadores').select('id').eq('objetivo_id', id).eq('ativo', true);
+      for (const ind of (indsParaFill ?? []) as { id: string }[]) {
+        const { data: existing } = await supabase.from('indicador_lancamentos').select('id')
+          .eq('indicador_id', ind.id).eq('semana', semana).eq('semana_ano', anoAtual).maybeSingle();
+        if (!existing) {
+          await supabase.from('indicador_lancamentos')
+            .insert({ indicador_id: ind.id, semana, semana_ano: anoAtual, valor: '100', profile_id: currentUserId });
+        }
+      }
+    }
     LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id, operacao: 'UPDATE', descricao: 'Meta encerrada globalmente' });
     recarregar();
-  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, recarregar, currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Conclusão individual (per-user): marca/desmarca a própria participação
   const handleConcluirMetaIndividual = useCallback(async (id: string, reabrir = false) => {
@@ -1876,6 +1896,21 @@ function PreBoneDayPageContent() {
       .update({ concluido: !reabrir, concluido_em: reabrir ? null : new Date().toISOString() })
       .eq('objetivo_id', id).eq('profile_id', user.id);
     if (e) { console.error('[ConcluirMetaIndividual]', e); return; }
+    // Auto-fill 100% nos indicadores ao concluir individualmente
+    if (!reabrir) {
+      const semana = isoWeek(new Date());
+      const anoAtual = new Date().getFullYear();
+      const { data: indsParaFill } = await supabase
+        .from('indicadores').select('id').eq('objetivo_id', id).eq('ativo', true);
+      for (const ind of (indsParaFill ?? []) as { id: string }[]) {
+        const { data: existing } = await supabase.from('indicador_lancamentos').select('id')
+          .eq('indicador_id', ind.id).eq('semana', semana).eq('semana_ano', anoAtual).maybeSingle();
+        if (!existing) {
+          await supabase.from('indicador_lancamentos')
+            .insert({ indicador_id: ind.id, semana, semana_ano: anoAtual, valor: '100', profile_id: user.id });
+        }
+      }
+    }
     LOG({ modulo: 'Planejamento', entidade: 'objetivo_responsaveis', entidade_id: id,
       operacao: 'UPDATE', descricao: reabrir ? 'Meta reaberta (individual)' : 'Meta concluída (individual)' });
     recarregar();

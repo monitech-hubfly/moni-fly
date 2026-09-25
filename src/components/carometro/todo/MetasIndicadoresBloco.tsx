@@ -10,6 +10,7 @@ import {
 import { registrarLog } from '@/hooks/useAuditLog';
 import { getMonthOptions } from '@/hooks/usePlanoBoneDay';
 import { statusSemaforoPorValor } from '@/utils/semaforoFaixas';
+import { isoWeek } from '@/utils/periodos';
 
 // ── Utilitários ────────────────────────────────────────────────────────────────
 const TIPO_BADGE: Record<string, string> = {
@@ -1268,6 +1269,19 @@ export function MetasIndicadoresBloco() {
       .update({ status: 'concluido' })
       .eq('id', metaId);
     if (e2) { console.error('[ConcluirMeta Global]', e2); return; }
+    // Auto-fill 100% nos indicadores ativos da meta ao concluir
+    const semana = isoWeek(new Date());
+    const anoAtual = new Date().getFullYear();
+    const { data: indsParaFill } = await supabase
+      .from('indicadores').select('id').eq('objetivo_id', metaId).eq('ativo', true);
+    for (const ind of (indsParaFill ?? []) as { id: string }[]) {
+      const { data: existing } = await supabase.from('indicador_lancamentos').select('id')
+        .eq('indicador_id', ind.id).eq('semana', semana).eq('semana_ano', anoAtual).maybeSingle();
+      if (!existing) {
+        await supabase.from('indicador_lancamentos')
+          .insert({ indicador_id: ind.id, semana, semana_ano: anoAtual, valor: '100', profile_id: uid });
+      }
+    }
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta concluída' });
     recarregar();
   }, [supabase, currentUserId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
