@@ -1179,7 +1179,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
   objetivoResponsaveis: ObjetivoResponsavel[];
   atividades: AgendaMacroItem[]; semanas: number[]; isAdmin: boolean; currentUserId: string | null; mes: string; areaId: string;
   onAdd: (profileId: string, acoId: string, semana: number, horas: number, objetivoId: string | null) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  onDelete: (id: string, grupoId: string | null) => Promise<void>;
   onAddLivre: (profileId: string, nome: string, semanas: number[], horasPorSemana: Record<number, number>, objetivoId: string | null) => Promise<void>;
 }) {
   // Pode editar: admin pode qualquer card; usuário comum pode apenas o próprio
@@ -1531,7 +1531,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
                               {atv.tempo_estimado_horas ? `${atv.tempo_estimado_horas}h` : '—'}
                             </span>
                             {podeEditar && (
-                              <button type="button" onClick={() => onDelete(atv.id)}
+                              <button type="button" onClick={() => onDelete(atv.id, atv.recorrencia_grupo_id ?? null)}
                                 className="text-red-400 hover:text-red-600 text-[10px]">✕</button>
                             )}
                           </div>
@@ -1604,7 +1604,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
                               {atv.tempo_estimado_horas ? `${atv.tempo_estimado_horas}h` : '—'}
                             </span>
                             {podeEditar && (
-                              <button type="button" onClick={() => onDelete(atv.id)}
+                              <button type="button" onClick={() => onDelete(atv.id, atv.recorrencia_grupo_id ?? null)}
                                 className="text-red-400 hover:text-red-600 text-[10px]">✕</button>
                             )}
                           </div>
@@ -1955,9 +1955,15 @@ function PreBoneDayPageContent() {
     recarregar();
   }, [supabase, areaId, effectiveProfileId, mes, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleDeleteAtividade = useCallback(async (id: string) => {
-    const { error: e } = await supabase.from('gantt_planejamento').delete().eq('id', id);
-    if (e) { console.error('[DeleteAtividade]', e); return; }
+  const handleDeleteAtividade = useCallback(async (id: string, grupoId: string | null) => {
+    if (grupoId) {
+      // Recorrente: apaga todas as semanas do mesmo grupo de uma vez
+      const { error: e } = await supabase.from('gantt_planejamento').delete().eq('recorrencia_grupo_id', grupoId);
+      if (e) { console.error('[DeleteAtividade grupo]', e); return; }
+    } else {
+      const { error: e } = await supabase.from('gantt_planejamento').delete().eq('id', id);
+      if (e) { console.error('[DeleteAtividade]', e); return; }
+    }
     recarregar();
   }, [supabase, recarregar]);
 
