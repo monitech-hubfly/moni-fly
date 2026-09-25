@@ -126,7 +126,19 @@ export function usePlanoBoneDay(
   const [error,              setError]              = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
-    if (!areaId) { setIsLoading(false); return; }
+    if (!areaId) {
+      // Limpa estado antigo para evitar UI enganosa com dados de outra área
+      setResponsaveis([]);
+      setMetas([]);
+      setMetasConcluidas([]);
+      setMetasNaoConcluidas([]);
+      setAgendaMacro([]);
+      setComportamentos([]);
+      setIndicadores([]);
+      setObjetivoResponsaveis([]);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {

@@ -1962,7 +1962,15 @@ function PreBoneDayPageContent() {
   }, [supabase, recarregar]);
 
   const handleAddAtividadeLivre = useCallback(async (profileId: string, nome: string, semanas: number[], horasPorSemana: Record<number, number>, objetivoId: string | null) => {
-    if (!areaId || semanas.length === 0) return;
+    if (!areaId) {
+      console.error('[AddLivre] areaId nulo ao salvar — área não carregada', { semanas, nome });
+      alert('Área não carregada. Aguarde alguns segundos e tente novamente, ou recarregue a página.');
+      return;
+    }
+    if (semanas.length === 0) {
+      alert('Nenhuma semana selecionada.');
+      return;
+    }
     const pidValido = effectiveProfileId ?? profileId;
     const isRecorrente = semanas.length > 1;
     const grupoId = isRecorrente ? crypto.randomUUID() : null;
@@ -1984,6 +1992,11 @@ function PreBoneDayPageContent() {
 
     const { data: ins, error: e } = await supabase.from('gantt_planejamento').insert(rows).select('id');
     if (e) { console.error('[AddLivre] gantt:', e); alert('Não foi possível salvar a atividade. Tente novamente em instantes.'); return; }
+    if (!ins || (ins as unknown[]).length === 0) {
+      console.error('[AddLivre] INSERT retornou 0 linhas sem erro', { rows });
+      alert('Atividade não foi salva. Verifique sua conexão e tente novamente.');
+      return;
+    }
     const ids = (ins as { id: unknown }[]).map(r => String(r.id)).join(', ');
     LOG({ modulo: 'Planejamento', entidade: 'gantt_planejamento',
       entidade_id: ids, operacao: 'INSERT',
