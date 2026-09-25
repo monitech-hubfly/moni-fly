@@ -1948,7 +1948,7 @@ function PreBoneDayPageContent() {
         tempo_estimado_horas: horas, origem: 'pre_bone_day', pre_bone_day_mes: mes,
         comportamento_chave: false, objetivo_id: objetivoId })
       .select('id').single();
-    if (e) { console.error('[AddAtividade] Falha no INSERT gantt_planejamento:', e); return; }
+    if (e) { console.error('[AddAtividade] Falha no INSERT gantt_planejamento:', e); alert('Não foi possível salvar a atividade. Tente novamente em instantes.'); return; }
     LOG({ modulo: 'Planejamento', entidade: 'gantt_planejamento',
       entidade_id: String((ins as { id: unknown }).id), operacao: 'INSERT',
       descricao: `Atividade Boné Day inserida S${semana}` });
@@ -1983,7 +1983,7 @@ function PreBoneDayPageContent() {
     }));
 
     const { data: ins, error: e } = await supabase.from('gantt_planejamento').insert(rows).select('id');
-    if (e) { console.error('[AddLivre] gantt:', e); return; }
+    if (e) { console.error('[AddLivre] gantt:', e); alert('Não foi possível salvar a atividade. Tente novamente em instantes.'); return; }
     const ids = (ins as { id: unknown }[]).map(r => String(r.id)).join(', ');
     LOG({ modulo: 'Planejamento', entidade: 'gantt_planejamento',
       entidade_id: ids, operacao: 'INSERT',
