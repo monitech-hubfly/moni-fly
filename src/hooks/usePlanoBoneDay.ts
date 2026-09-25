@@ -413,8 +413,12 @@ export function semanasDoMes(mesStr: string): number[] {
     const dow = d.getDay(); // 0=Dom
     const monday = new Date(d);
     monday.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
-    // Só inclui a semana se sua segunda-feira cair no mês alvo
-    if (monday.getFullYear() === year && monday.getMonth() === month - 1) {
+    // Inclui a semana se sua quinta-feira (padrão ISO 8601) cair no mês alvo.
+    // Isso garante que semanas parciais do início do mês sejam exibidas corretamente
+    // (ex: S40 em outubro quando o mês começa numa quinta-feira).
+    const thursday = new Date(monday);
+    thursday.setDate(monday.getDate() + 3);
+    if (thursday.getFullYear() === year && thursday.getMonth() === month - 1) {
       const w = isoWeek(d);
       if (!semanas.includes(w)) semanas.push(w);
     }
