@@ -589,6 +589,13 @@ export function TabelaRedeFranqueadosEditavel({
               >
                 K
               </DiagnosticoHeaderTh>
+              <th
+                className={`${redeTh} border-t-[3px] border-t-purple-600 bg-purple-50`}
+                style={{ minWidth: 110 }}
+                scope="col"
+              >
+                Qualificação
+              </th>
 
               {/* ── Diagnóstico: Relação ── */}
               <DiagnosticoHeaderTh
@@ -832,6 +839,15 @@ export function TabelaRedeFranqueadosEditavel({
                     ) : (
                       <DimCell val={r.diag_k} desc={r.diag_k_desc} />
                     )}
+                  </td>
+                  <td className="px-3 py-2.5 align-top">
+                    <Link
+                      href={`/rede-franqueados/${r.id}/formulario-qualificacao`}
+                      className="inline-flex items-center gap-1 text-xs text-purple-700 underline underline-offset-2 hover:text-purple-900"
+                    >
+                      <FileText size={12} />
+                      Formulário
+                    </Link>
                   </td>
 
                   {/* ── Diagnóstico: Relação ── */}
