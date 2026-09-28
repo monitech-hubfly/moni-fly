@@ -41,7 +41,7 @@ export default async function FormularioQualificacaoPage({
 
   const { data: rede, error: redeErr } = await supabase
     .from('rede_franqueados')
-    .select('id, n_franquia, nome_completo')
+    .select('id, n_franquia, nome_completo, cidade_casa_frank, estado_casa_frank')
     .eq('id', id)
     .single();
 
@@ -51,6 +51,8 @@ export default async function FormularioQualificacaoPage({
 
   const nFranquia = String(rede.n_franquia ?? '');
   const nomeCompleto = String(rede.nome_completo ?? '');
+  const cidadeInicial = String(rede.cidade_casa_frank ?? '');
+  const estadoInicial = String(rede.estado_casa_frank ?? '');
 
   return (
     <div>
@@ -69,6 +71,8 @@ export default async function FormularioQualificacaoPage({
         redeId={id}
         nFranquia={nFranquia}
         nomeCompleto={nomeCompleto}
+        cidadeInicial={cidadeInicial}
+        estadoInicial={estadoInicial}
         historico={historico ?? []}
       />
     </div>

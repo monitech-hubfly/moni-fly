@@ -93,16 +93,18 @@ function QuestionGroup({ label, required, children }: { label: string; required?
 }
 
 type Props = {
+  cidadeInicial?: string;
+  estadoInicial?: string;
   redeId: string;
   nFranquia: string;
   nomeCompleto: string;
   historico: FormularioQualificacaoRow[];
 };
 
-export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeCompleto, historico }: Props) {
+export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeCompleto, cidadeInicial = '', estadoInicial = '', historico }: Props) {
   const [nome, setNome]                   = useState(nomeCompleto || '');
-  const [cidade, setCidade]               = useState('');
-  const [estado, setEstado]               = useState('');
+  const [cidade, setCidade]               = useState(cidadeInicial);
+  const [estado, setEstado]               = useState(estadoInicial);
   const [capitalGate, setCapitalGate]     = useState('');
   const [capitalFaixa, setCapitalFaixa]   = useState('');
   const [capitalTiming, setCapitalTiming] = useState('');
