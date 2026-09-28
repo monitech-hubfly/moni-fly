@@ -4,7 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeAccessRole } from '@/lib/authz';
 import { buscarHistoricoFormularios } from '@/lib/actions/formulario-qualificacao';
-import { FormularioQualificacaoForm } from './FormularioQualificacaoForm';
+import FormularioQualificacaoForm from './FormularioQualificacaoForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +30,7 @@ export default async function FormularioQualificacaoPage({
 
   const accessRole = normalizeAccessRole(prof?.role ?? '');
 
-  // Frank: só pode ver a própria rede
+  // Frank: so pode ver a propria rede
   if (accessRole === 'frank') {
     if (!prof?.rede_franqueado_id || prof.rede_franqueado_id !== id) {
       redirect('/portal-frank');
@@ -39,7 +39,6 @@ export default async function FormularioQualificacaoPage({
     redirect('/rede-franqueados');
   }
 
-  // Buscar dados do franqueado
   const { data: rede, error: redeErr } = await supabase
     .from('rede_franqueados')
     .select('id, n_franquia, nome_completo')
@@ -48,35 +47,23 @@ export default async function FormularioQualificacaoPage({
 
   if (redeErr || !rede) notFound();
 
-  // Buscar histórico
   const { data: historico } = await buscarHistoricoFormularios(id);
 
   const nFranquia = String(rede.n_franquia ?? '');
   const nomeCompleto = String(rede.nome_completo ?? '');
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
+    <div>
       {/* Breadcrumb */}
-      <nav className="mb-6">
+      <nav style={{ padding: '12px 24px', background: '#0F1E33' }}>
         <Link
           href={`/rede-franqueados/${id}`}
-          className="inline-flex items-center gap-1 text-xs text-stone-500 hover:text-stone-800"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#94A3B8', textDecoration: 'none' }}
         >
           <ChevronLeft size={13} />
           Voltar ao cadastro
         </Link>
       </nav>
-
-      {/* Cabeçalho */}
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold text-stone-900">Formulário de Qualificação</h1>
-        {nomeCompleto && (
-          <p className="mt-1 text-sm text-stone-500">
-            {nomeCompleto}
-            {nFranquia ? <> &middot; <span className="font-medium">{nFranquia}</span></> : null}
-          </p>
-        )}
-      </div>
 
       <FormularioQualificacaoForm
         redeId={id}

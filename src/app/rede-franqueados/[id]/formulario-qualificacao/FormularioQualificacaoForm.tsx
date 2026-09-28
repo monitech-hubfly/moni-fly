@@ -1,34 +1,96 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { AlertCircle, CheckCircle2, ClipboardList, Info, Loader2 } from 'lucide-react';
-import {
-  salvarFormularioQualificacao,
-  type FormularioQualificacaoRow,
-} from '@/lib/actions/formulario-qualificacao';
+import { salvarFormularioEni, type FormularioQualificacaoRow } from '@/lib/actions/formulario-qualificacao';
 
-const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-];
+// Design tokens
+const NAVY  = '#0F1E33';
+const GOLD  = '#B8965A';
+const CREAM = '#F7F3EE';
+const CREAM2 = '#EDE8E1';
+const GREEN = '#2F6B4A';
+const RED   = '#8B2020';
 
-const anoAtual = new Date().getFullYear();
-const ANOS = Array.from({ length: 6 }, (_, i) => anoAtual - i);
+// Scoring map
+const SCORE_MAP: Record<string, Record<string, number>> = {
+  capital_timing:       { disponivel: 2, '3meses': 2, '6meses': 1 },
+  conhecimento_mercado: { alto: 2, medio: 1, baixo: 0 },
+  conhecimento_imob:    { sim_inc: 2, sim_compra: 1, nao: 0 },
+  conhecimento_moni:    { fluente: 2, basico: 1, pouco: 0 },
+  tempo_horas:          { '10+': 2, '5-10': 2, '2-5': 1, '<2': 0 },
+  tempo_resposta:       { mesmo_dia: 2, '24h': 2, '2-3d': 1, semana: 0 },
+  tempo_agenda:         { sim_tudo: 2, sim_online: 2, parcial: 0 },
+  workshops:            { sim_ja: 2, sim_pode: 1, nao: 0 },
+};
 
-function formatarPeriodo(mes: number, ano: number) {
-  return `${MESES[mes - 1]} / ${ano}`;
+function RadioOption({ name, value, label, selected, onChange, sub }: {
+  name: string; value: string; label: string; selected: boolean;
+  onChange: (v: string) => void; sub?: string;
+}) {
+  return (
+    <label
+      onClick={() => onChange(value)}
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px',
+        borderRadius: 8, cursor: 'pointer',
+        background: selected ? NAVY : 'white',
+        border: `1.5px solid ${selected ? GOLD : '#D5CFC8'}`,
+        transition: 'all .15s',
+      }}
+    >
+      <span style={{
+        flexShrink: 0, marginTop: 2, width: 16, height: 16, borderRadius: '50%',
+        border: `2px solid ${selected ? GOLD : '#999'}`,
+        background: selected ? GOLD : 'white',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {selected && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'white' }} />}
+      </span>
+      <span>
+        <span style={{ display: 'block', fontSize: 13.5, color: selected ? 'white' : '#222', fontWeight: selected ? 600 : 400 }}>{label}</span>
+        {sub && <span style={{ display: 'block', fontSize: 11.5, color: selected ? '#C8B88A' : '#888', marginTop: 2 }}>{sub}</span>}
+      </span>
+    </label>
+  );
 }
 
-function formatarData(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+function SectionHeader({ number, title, icon }: { number: number; title: string; icon: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+      <div style={{
+        width: 36, height: 36, borderRadius: '50%', background: GOLD,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: 'white', fontWeight: 700, fontSize: 15, flexShrink: 0,
+      }}>{number}</div>
+      <div>
+        <div style={{ fontSize: 11, color: GOLD, letterSpacing: 1.5, fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>{icon}</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: NAVY }}>{title}</div>
+      </div>
+    </div>
+  );
 }
 
-const inputCls =
-  'w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-800 placeholder-stone-400 focus:border-[color:var(--moni-navy-800,#0C2633)] focus:outline-none focus:ring-1 focus:ring-[color:var(--moni-navy-800,#0C2633)]';
+function SectionCard({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      background: 'white', borderRadius: 12, padding: '24px 28px',
+      border: `1px solid ${CREAM2}`, marginBottom: 20, ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
 
-const labelCls = 'mb-1.5 block text-xs font-medium text-stone-600';
+function QuestionGroup({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 600, color: '#333', marginBottom: 10 }}>
+        {label}{required && <span style={{ color: RED, marginLeft: 4 }}>*</span>}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{children}</div>
+    </div>
+  );
+}
 
 type Props = {
   redeId: string;
@@ -37,474 +99,558 @@ type Props = {
   historico: FormularioQualificacaoRow[];
 };
 
-export function FormularioQualificacaoForm({ redeId, nFranquia, nomeCompleto, historico }: Props) {
-  const router = useRouter();
+export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeCompleto, historico }: Props) {
+  const [nome, setNome]                   = useState(nomeCompleto || '');
+  const [cidade, setCidade]               = useState('');
+  const [estado, setEstado]               = useState('');
+  const [capitalGate, setCapitalGate]     = useState('');
+  const [capitalFaixa, setCapitalFaixa]   = useState('');
+  const [capitalTiming, setCapitalTiming] = useState('');
+  const [conhecMercado, setConhecMercado] = useState('');
+  const [conhecImob, setConhecImob]       = useState('');
+  const [conhecMoni, setConhecMoni]       = useState('');
+  const [tempoHoras, setTempoHoras]       = useState('');
+  const [tempoResposta, setTempoResposta] = useState('');
+  const [tempoAgenda, setTempoAgenda]     = useState('');
+  const [workshops, setWorkshops]         = useState('');
+  const [motivacao, setMotivacao]         = useState('');
 
-  const mesAtual = new Date().getMonth() + 1;
-  const [periodoMes, setPeriodoMes] = useState(mesAtual);
-  const [periodoAno, setPeriodoAno] = useState(anoAtual);
-  const [nomeConfirmado, setNomeConfirmado] = useState('');
-  const [temPonto, setTemPonto] = useState<string>('');
-  const [enderecoPonto, setEnderecoPonto] = useState('');
-  const [colaboradores, setColaboradores] = useState('');
-  const [contratosRealizados, setContratosRealizados] = useState('');
-  const [contratosMeta, setContratosMeta] = useState('');
-  const [desafios, setDesafios] = useState('');
-  const [apoio, setApoio] = useState('');
-  const [observacoes, setObservacoes] = useState('');
+  const [resultado, setResultado] = useState<null | {
+    tipo: string; capPct: number; conhecPct: number; tempoPct: number;
+    totalPct: number; texto: string;
+  }>(null);
+  const [erroForm, setErroForm]     = useState('');
+  const [salvando, setSalvando]     = useState(false);
+  const [salvoId, setSalvoId]       = useState('');
+  const [erroSalvar, setErroSalvar] = useState('');
+  const [copiado, setCopiado]       = useState(false);
 
-  const [enviando, setEnviando] = useState(false);
-  const [sucesso, setSucesso] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+  const answered = [
+    capitalGate, conhecMercado, conhecImob, conhecMoni,
+    tempoHoras, tempoResposta, tempoAgenda, workshops, motivacao,
+  ].filter(Boolean).length
+    + (capitalGate === 'sim' || capitalGate === 'sim_plus'
+      ? (capitalFaixa ? 1 : 0) + (capitalTiming ? 1 : 0) : 0);
+  const totalQ = 11;
+  const progress = Math.min(100, Math.round((answered / totalQ) * 100));
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErro(null);
+  function score(field: string, val: string | null): number {
+    if (!val) return 0;
+    return SCORE_MAP[field]?.[val] ?? 0;
+  }
 
-    if (!nomeConfirmado.trim()) {
-      setErro('Confirme seu nome completo antes de enviar.');
-      return;
+  function formatarData(iso: string) {
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  function buildTexto(tipo: string, capPct: number, conhecPct: number, tempoPct: number, totalPct: number): string {
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    if (capitalGate === 'nao') {
+      return (
+        `QUALIFICACAO MONI: ${nome.toUpperCase()}\n` +
+        `Data: ${hoje}\n\n` +
+        `Nome: ${nome}\n` +
+        `Cidade(s): ${cidade}${estado ? ` - ${estado}` : ''}\n\n` +
+        `RESULTADO: Pre-requisito nao atendido\n` +
+        `Capital disponivel: Abaixo de R$ 260.000\n\n` +
+        `Ainda nao tenho o aporte minimo disponivel para iniciar uma operacao Moni.\n` +
+        `Posso retomar o processo quando o capital estiver disponivel.`
+      );
     }
-    if (!temPonto) {
-      setErro('Informe se possui ponto comercial ativo.');
-      return;
+    const faixaLabel: Record<string, string> = {
+      '260-400': 'R$ 260.000 a R$ 400.000', '400-600': 'R$ 400.000 a R$ 600.000', '600+': 'Acima de R$ 600.000',
+    };
+    const timingLabel: Record<string, string> = {
+      disponivel: 'Disponivel agora', '3meses': 'Disponivel em ate 3 meses', '6meses': 'Disponivel em ate 6 meses',
+    };
+    const mercadoLabel: Record<string, string> = { alto: 'Alto', medio: 'Medio', baixo: 'Baixo ou nenhum' };
+    const imobLabel: Record<string, string> = { sim_inc: 'Sim, com incorporacao', sim_compra: 'Sim, compra e venda', nao: 'Nao tenho experiencia' };
+    const moniLabel: Record<string, string> = { fluente: 'Fluente no modelo', basico: 'Conhecimento basico', pouco: 'Pouco conhecimento' };
+    const horasLabel: Record<string, string> = { '10+': 'Mais de 10h/sem', '5-10': '5 a 10h/sem', '2-5': '2 a 5h/sem', '<2': 'Menos de 2h/sem' };
+    const respostaLabel: Record<string, string> = { mesmo_dia: 'Mesmo dia', '24h': 'Em ate 24h', '2-3d': 'Em 2 a 3 dias', semana: 'Em uma semana ou mais' };
+    const agendaLabel: Record<string, string> = { sim_tudo: 'Sim, tudo presencial', sim_online: 'Sim, formato hibrido', parcial: 'Parcialmente' };
+    const workshopsLabel: Record<string, string> = { sim_ja: 'Sim, ja participei', sim_pode: 'Sim, posso participar', nao: 'Nao tenho disponibilidade' };
+    const tipoLabel = tipo === 'qualificado' ? 'QUALIFICADO' : tipo === 'parcial' ? 'QUALIFICACAO PARCIAL' : 'NAO QUALIFICADO';
+
+    return (
+      `QUALIFICACAO MONI: ${nome.toUpperCase()}\n` +
+      `Data: ${hoje}\n\n` +
+      `Nome: ${nome}\n` +
+      `Cidade(s): ${cidade}${estado ? ` - ${estado}` : ''}\n\n` +
+      `--- CAPITAL ---\n` +
+      `Faixa de capital: ${faixaLabel[capitalFaixa || ''] || capitalFaixa}\n` +
+      `Timing: ${timingLabel[capitalTiming || ''] || capitalTiming}\n` +
+      `Score: ${capPct}%\n\n` +
+      `--- CONHECIMENTO ---\n` +
+      `Mercado imobiliario: ${mercadoLabel[conhecMercado || ''] || conhecMercado}\n` +
+      `Experiencia imobiliaria: ${imobLabel[conhecImob || ''] || conhecImob}\n` +
+      `Modelo Moni: ${moniLabel[conhecMoni || ''] || conhecMoni}\n` +
+      `Score: ${conhecPct}%\n\n` +
+      `--- DISPONIBILIDADE ---\n` +
+      `Horas por semana: ${horasLabel[tempoHoras || ''] || tempoHoras}\n` +
+      `Tempo de resposta: ${respostaLabel[tempoResposta || ''] || tempoResposta}\n` +
+      `Agenda presencial: ${agendaLabel[tempoAgenda || ''] || tempoAgenda}\n` +
+      `Workshops: ${workshopsLabel[workshops || ''] || workshops}\n` +
+      `Score: ${tempoPct}%\n\n` +
+      `--- RESULTADO: ${tipoLabel} (${totalPct}%) ---\n\n` +
+      `--- CONTEXTO ---\n` +
+      `${motivacao || '(sem resposta)'}`
+    );
+  }
+
+  async function gerarResultado() {
+    setErroForm('');
+    if (!nome.trim()) return setErroForm('Informe seu nome completo.');
+    if (!cidade.trim()) return setErroForm('Informe a cidade de atuacao.');
+    if (!estado.trim()) return setErroForm('Informe o estado.');
+    if (!capitalGate) return setErroForm('Responda a pergunta sobre o capital minimo.');
+    if (capitalGate === 'sim' || capitalGate === 'sim_plus') {
+      if (!capitalFaixa) return setErroForm('Selecione a faixa de capital disponivel.');
+      if (!capitalTiming) return setErroForm('Selecione o timing de disponibilidade do capital.');
     }
-    if (temPonto === 'sim' && !enderecoPonto.trim()) {
-      setErro('Informe o endereço do ponto comercial.');
-      return;
-    }
-    if (colaboradores === '') {
-      setErro('Informe o número de colaboradores ativos.');
-      return;
-    }
-    if (contratosRealizados === '') {
-      setErro('Informe o número de contratos realizados no trimestre.');
-      return;
-    }
-    if (contratosMeta === '') {
-      setErro('Informe a meta de contratos do trimestre.');
-      return;
-    }
-    if (!desafios.trim()) {
-      setErro('Descreva os principais desafios enfrentados no período.');
-      return;
-    }
-    if (!apoio.trim()) {
-      setErro('Informe o apoio necessário da equipe.');
-      return;
-    }
-    if (!observacoes.trim()) {
-      setErro('Preencha o campo de observações adicionais.');
-      return;
+    if (!conhecMercado) return setErroForm('Responda sobre conhecimento do mercado imobiliario.');
+    if (!conhecImob) return setErroForm('Responda sobre experiencia imobiliaria.');
+    if (!conhecMoni) return setErroForm('Responda sobre conhecimento do modelo Moni.');
+    if (!tempoHoras) return setErroForm('Responda sobre horas disponiveis por semana.');
+    if (!tempoResposta) return setErroForm('Responda sobre tempo de resposta a demandas.');
+    if (!tempoAgenda) return setErroForm('Responda sobre disponibilidade de agenda presencial.');
+    if (!workshops) return setErroForm('Responda sobre participacao em workshops.');
+    if (!motivacao.trim()) return setErroForm('Preencha o campo de contexto / motivacao.');
+
+    const capRaw = capitalGate === 'nao' ? 0 : score('capital_timing', capitalTiming);
+    const capPct = capitalGate === 'nao' ? 0 : Math.round((capRaw / 2) * 100);
+
+    const conhecRaw = score('conhecimento_mercado', conhecMercado)
+      + score('conhecimento_imob', conhecImob)
+      + score('conhecimento_moni', conhecMoni);
+    const conhecPct = Math.round((conhecRaw / 6) * 100);
+
+    const tempoRaw = score('tempo_horas', tempoHoras)
+      + score('tempo_resposta', tempoResposta)
+      + score('tempo_agenda', tempoAgenda)
+      + score('workshops', workshops);
+    const tempoPct = Math.round((tempoRaw / 8) * 100);
+
+    const totalRaw = capRaw + conhecRaw + tempoRaw;
+    const totalPct = capitalGate === 'nao' ? 0 : Math.round((totalRaw / 16) * 100);
+
+    const lowFlags = (capPct < 50 ? 1 : 0) + (conhecPct < 34 ? 1 : 0) + (tempoPct < 34 ? 1 : 0);
+    let tipo: string;
+    if (capitalGate === 'nao') {
+      tipo = 'nao_qualificado';
+    } else if (totalPct >= 70 && lowFlags === 0) {
+      tipo = 'qualificado';
+    } else if (totalPct >= 45 && lowFlags <= 1) {
+      tipo = 'parcial';
+    } else {
+      tipo = 'nao_qualificado';
     }
 
-    setEnviando(true);
+    const texto = buildTexto(tipo, capPct, conhecPct, tempoPct, totalPct);
+
+    setSalvando(true);
+    const res = await salvarFormularioEni({
+      rede_franqueado_id: redeId,
+      n_franquia: nFranquia,
+      nome_franqueado_confirmado: nome,
+      cidade_atuacao: cidade,
+      estado_atuacao: estado,
+      capital_gate: capitalGate,
+      capital_faixa: capitalGate === 'nao' ? null : capitalFaixa || null,
+      capital_timing: capitalGate === 'nao' ? null : capitalTiming || null,
+      conhecimento_mercado: conhecMercado || null,
+      conhecimento_imob: conhecImob || null,
+      conhecimento_moni: conhecMoni || null,
+      tempo_horas: tempoHoras || null,
+      tempo_resposta: tempoResposta || null,
+      tempo_agenda: tempoAgenda || null,
+      workshops: workshops || null,
+      motivacao: motivacao || null,
+      score_capital_pct: capPct,
+      score_conhecimento_pct: conhecPct,
+      score_tempo_pct: tempoPct,
+      resultado_tipo: tipo,
+      texto_gerado: texto,
+    });
+    setSalvando(false);
+
+    if (!res.ok) {
+      setErroSalvar(res.error || 'Erro ao salvar.');
+    } else {
+      setSalvoId(res.id || '');
+    }
+
+    setResultado({ tipo, capPct, conhecPct, tempoPct, totalPct, texto });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function copiarTexto() {
+    if (!resultado) return;
     try {
-      const result = await salvarFormularioQualificacao({
-        rede_franqueado_id: redeId,
-        n_franquia: nFranquia,
-        nome_franqueado_confirmado: nomeConfirmado.trim(),
-        periodo_mes: periodoMes,
-        periodo_ano: periodoAno,
-        tem_ponto_comercial: temPonto === 'sim',
-        endereco_ponto_comercial: temPonto === 'sim' ? enderecoPonto.trim() : null,
-        numero_colaboradores: Number(colaboradores),
-        contratos_realizados_trimestre: Number(contratosRealizados),
-        meta_contratos_trimestre: Number(contratosMeta),
-        principais_desafios: desafios.trim(),
-        apoio_necessario: apoio.trim(),
-        observacoes_adicionais: observacoes.trim(),
-      });
-
-      if (!result.ok) {
-        setErro(result.error ?? 'Erro desconhecido.');
-      } else {
-        setSucesso(true);
-        router.refresh();
-      }
+      await navigator.clipboard.writeText(resultado.texto);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
     } catch {
-      setErro('Erro inesperado. Tente novamente.');
-    } finally {
-      setEnviando(false);
+      const ta = document.createElement('textarea');
+      ta.value = resultado.texto;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
     }
   }
 
-  function resetForm() {
-    setSucesso(false);
-    setNomeConfirmado('');
-    setTemPonto('');
-    setEnderecoPonto('');
-    setColaboradores('');
-    setContratosRealizados('');
-    setContratosMeta('');
-    setDesafios('');
-    setApoio('');
-    setObservacoes('');
-    setErro(null);
-  }
+  const tipoConfig = resultado ? ({
+    qualificado:     { label: 'Qualificado',           color: GREEN,   icon: '✓' },
+    parcial:         { label: 'Qualificacao Parcial',  color: '#7A6020', icon: '~' },
+    nao_qualificado: { label: 'Nao Qualificado',       color: RED,     icon: '✗' },
+  } as Record<string, { label: string; color: string; icon: string }>)[resultado.tipo] : null;
 
   return (
-    <div className="space-y-10">
-      {/* Aviso sobre número de franquia */}
-      <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        <Info size={16} className="mt-0.5 shrink-0 text-amber-600" />
-        <span>
-          Caso não saiba o número da sua franquia, entre em contato com seu consultor antes de
-          preencher este formulário.
-        </span>
-      </div>
-
-      {/* Formulário */}
-      {!sucesso ? (
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Identificação */}
-          <div className="rounded-xl border border-stone-200 bg-white shadow-sm">
-            <div className="border-b border-stone-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-stone-700">Identificação</h2>
-            </div>
-            <div className="grid gap-5 p-5 sm:grid-cols-2">
-              <div>
-                <label className={labelCls}>Número de franquia</label>
-                <input
-                  type="text"
-                  value={nFranquia}
-                  readOnly
-                  className="w-full cursor-not-allowed rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="nome-confirmado" className={labelCls}>
-                  Confirme seu nome completo <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="nome-confirmado"
-                  type="text"
-                  value={nomeConfirmado}
-                  onChange={(e) => setNomeConfirmado(e.target.value)}
-                  placeholder={nomeCompleto || 'Seu nome completo'}
-                  required
-                  className={inputCls}
-                />
-              </div>
-            </div>
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: CREAM, minHeight: '100vh', paddingBottom: 60 }}>
+      {/* Header */}
+      <div style={{ background: NAVY, padding: '28px 24px 24px', marginBottom: 24 }}>
+        <div style={{ maxWidth: 680, margin: '0 auto' }}>
+          <div style={{ fontSize: 11, color: GOLD, letterSpacing: 2, fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>
+            Plano Permuteiro
           </div>
-
-          {/* Período de referência */}
-          <div className="rounded-xl border border-stone-200 bg-white shadow-sm">
-            <div className="border-b border-stone-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-stone-700">Período de referência</h2>
-            </div>
-            <div className="grid gap-5 p-5 sm:grid-cols-2">
-              <div>
-                <label htmlFor="periodo-mes" className={labelCls}>
-                  Mês <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="periodo-mes"
-                  value={periodoMes}
-                  onChange={(e) => setPeriodoMes(Number(e.target.value))}
-                  required
-                  className={inputCls}
-                >
-                  {MESES.map((m, i) => (
-                    <option key={i + 1} value={i + 1}>{m}</option>
-                  ))}
-                </select>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'white', margin: 0, lineHeight: 1.3 }}>
+            Formulario de Qualificacao
+          </h1>
+          <p style={{ fontSize: 13, color: '#94A3B8', margin: '6px 0 0', lineHeight: 1.5 }}>
+            Avaliacao em 3 eixos: Capital, Conhecimento e Disponibilidade
+          </p>
+          {!resultado && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                <span style={{ fontSize: 11, color: '#94A3B8' }}>Progresso</span>
+                <span style={{ fontSize: 11, color: GOLD, fontWeight: 600 }}>{progress}%</span>
               </div>
-              <div>
-                <label htmlFor="periodo-ano" className={labelCls}>
-                  Ano <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="periodo-ano"
-                  value={periodoAno}
-                  onChange={(e) => setPeriodoAno(Number(e.target.value))}
-                  required
-                  className={inputCls}
-                >
-                  {ANOS.map((a) => (
-                    <option key={a} value={a}>{a}</option>
-                  ))}
-                </select>
+              <div style={{ height: 4, background: 'rgba(255,255,255,.1)', borderRadius: 2 }}>
+                <div style={{ height: '100%', width: `${progress}%`, background: GOLD, borderRadius: 2, transition: 'width .3s' }} />
               </div>
-            </div>
-          </div>
-
-          {/* Situação operacional */}
-          <div className="rounded-xl border border-stone-200 bg-white shadow-sm">
-            <div className="border-b border-stone-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-stone-700">Situação operacional</h2>
-            </div>
-            <div className="space-y-5 p-5">
-              <div>
-                <p className="mb-2 text-xs font-medium text-stone-600">
-                  Possui ponto comercial ativo? <span className="text-red-500">*</span>
-                </p>
-                <div className="flex gap-4">
-                  {[
-                    { value: 'sim', label: 'Sim' },
-                    { value: 'nao', label: 'Não' },
-                  ].map((opt) => (
-                    <label key={opt.value} className="flex cursor-pointer items-center gap-2 text-sm text-stone-700">
-                      <input
-                        type="radio"
-                        name="tem-ponto"
-                        value={opt.value}
-                        checked={temPonto === opt.value}
-                        onChange={(e) => setTemPonto(e.target.value)}
-                        className="accent-[color:var(--moni-navy-800,#0C2633)]"
-                      />
-                      {opt.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {temPonto === 'sim' && (
-                <div>
-                  <label htmlFor="endereco-ponto" className={labelCls}>
-                    Endereço do ponto comercial <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="endereco-ponto"
-                    type="text"
-                    value={enderecoPonto}
-                    onChange={(e) => setEnderecoPonto(e.target.value)}
-                    placeholder="Rua, número, bairro, cidade, estado"
-                    required
-                    className={inputCls}
-                  />
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="colaboradores" className={labelCls}>
-                  Número de colaboradores ativos <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="colaboradores"
-                  type="number"
-                  min="0"
-                  value={colaboradores}
-                  onChange={(e) => setColaboradores(e.target.value)}
-                  placeholder="0"
-                  required
-                  className="w-full max-w-[160px] rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-800 placeholder-stone-400 focus:border-[color:var(--moni-navy-800,#0C2633)] focus:outline-none focus:ring-1 focus:ring-[color:var(--moni-navy-800,#0C2633)]"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Indicadores de negócio */}
-          <div className="rounded-xl border border-stone-200 bg-white shadow-sm">
-            <div className="border-b border-stone-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-stone-700">Indicadores de negócio</h2>
-            </div>
-            <div className="grid gap-5 p-5 sm:grid-cols-2">
-              <div>
-                <label htmlFor="contratos-realizados" className={labelCls}>
-                  Contratos realizados no trimestre <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="contratos-realizados"
-                  type="number"
-                  min="0"
-                  value={contratosRealizados}
-                  onChange={(e) => setContratosRealizados(e.target.value)}
-                  placeholder="0"
-                  required
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label htmlFor="contratos-meta" className={labelCls}>
-                  Meta de contratos do trimestre <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="contratos-meta"
-                  type="number"
-                  min="0"
-                  value={contratosMeta}
-                  onChange={(e) => setContratosMeta(e.target.value)}
-                  placeholder="0"
-                  required
-                  className={inputCls}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Avaliação qualitativa */}
-          <div className="rounded-xl border border-stone-200 bg-white shadow-sm">
-            <div className="border-b border-stone-100 px-5 py-4">
-              <h2 className="text-sm font-semibold text-stone-700">Avaliação qualitativa</h2>
-            </div>
-            <div className="space-y-5 p-5">
-              <div>
-                <label htmlFor="desafios" className={labelCls}>
-                  Principais desafios enfrentados no período <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  id="desafios"
-                  value={desafios}
-                  onChange={(e) => setDesafios(e.target.value)}
-                  rows={3}
-                  required
-                  placeholder="Descreva os principais obstáculos ou dificuldades..."
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label htmlFor="apoio" className={labelCls}>
-                  Apoio necessário da equipe <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  id="apoio"
-                  value={apoio}
-                  onChange={(e) => setApoio(e.target.value)}
-                  rows={3}
-                  required
-                  placeholder="Que tipo de suporte ou recurso seria mais útil agora?"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label htmlFor="observacoes" className={labelCls}>
-                  Observações adicionais <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  id="observacoes"
-                  value={observacoes}
-                  onChange={(e) => setObservacoes(e.target.value)}
-                  rows={3}
-                  required
-                  placeholder="Qualquer outra informação relevante..."
-                  className={inputCls}
-                />
-              </div>
-            </div>
-          </div>
-
-          {erro && (
-            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-              <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-500" />
-              {erro}
             </div>
           )}
-
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={enviando}
-              className="inline-flex items-center gap-2 rounded-lg bg-[color:var(--moni-navy-800,#0C2633)] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#163d4d] disabled:opacity-50"
-            >
-              {enviando && <Loader2 size={14} className="animate-spin" />}
-              {enviando ? 'Enviando...' : 'Enviar formulário'}
-            </button>
-          </div>
-        </form>
-      ) : (
-        <div className="flex flex-col items-center gap-4 rounded-xl border border-green-200 bg-green-50 px-6 py-10 text-center">
-          <CheckCircle2 size={40} className="text-green-600" />
-          <div>
-            <p className="text-base font-semibold text-green-800">Formulário enviado com sucesso!</p>
-            <p className="mt-1 text-sm text-green-700">
-              Seu formulário de qualificação referente a{' '}
-              <strong>{formatarPeriodo(periodoMes, periodoAno)}</strong> foi registrado.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={resetForm}
-            className="mt-2 rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-medium text-green-800 hover:bg-green-50"
-          >
-            Preencher novo formulário
-          </button>
         </div>
-      )}
+      </div>
 
-      {/* Histórico */}
-      <section>
-        <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-stone-700">
-          <ClipboardList size={15} className="text-stone-400" />
-          Histórico de formulários preenchidos
-        </h2>
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
 
-        {historico.length === 0 ? (
-          <div className="rounded-xl border border-stone-200 bg-stone-50 px-5 py-8 text-center text-sm text-stone-400">
-            Nenhum formulário preenchido ainda.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {historico.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-xl border border-stone-200 bg-white px-5 py-4 shadow-sm"
-              >
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-stone-800">
-                    {formatarPeriodo(item.periodo_mes, item.periodo_ano)}
-                  </span>
-                  <span className="text-[11px] text-stone-400">
-                    Enviado em {formatarData(item.criado_em)}
-                  </span>
+        {/* Result panel */}
+        {resultado && tipoConfig && (
+          <div style={{
+            background: 'white', borderRadius: 14, padding: '24px 28px', marginBottom: 24,
+            border: `2px solid ${tipoConfig.color}`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: '50%', background: tipoConfig.color,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'white', fontWeight: 700, fontSize: 18,
+              }}>{tipoConfig.icon}</div>
+              <div>
+                <div style={{ fontSize: 12, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Resultado</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: tipoConfig.color }}>{tipoConfig.label}</div>
+              </div>
+              <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: NAVY }}>{resultado.totalPct}%</div>
+                <div style={{ fontSize: 11, color: '#888' }}>Score total</div>
+              </div>
+            </div>
+
+            {[
+              { label: 'Capital', pct: resultado.capPct },
+              { label: 'Conhecimento', pct: resultado.conhecPct },
+              { label: 'Disponibilidade', pct: resultado.tempoPct },
+            ].map(({ label, pct }) => (
+              <div key={label} style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>{label}</span>
+                  <span style={{ fontSize: 12, color: NAVY, fontWeight: 600 }}>{pct}%</span>
                 </div>
+                <div style={{ height: 6, background: CREAM2, borderRadius: 3 }}>
+                  <div style={{
+                    height: '100%', width: `${pct}%`, borderRadius: 3,
+                    background: pct >= 70 ? GREEN : pct >= 40 ? GOLD : RED,
+                    transition: 'width .4s',
+                  }} />
+                </div>
+              </div>
+            ))}
 
-                <dl className="grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
-                  {item.tem_ponto_comercial !== null && (
-                    <div>
-                      <dt className="font-medium text-stone-500">Ponto comercial</dt>
-                      <dd className="text-stone-700">{item.tem_ponto_comercial ? 'Sim' : 'Não'}</dd>
-                    </div>
-                  )}
-                  {item.endereco_ponto_comercial && (
-                    <div>
-                      <dt className="font-medium text-stone-500">Endereço</dt>
-                      <dd className="text-stone-700">{item.endereco_ponto_comercial}</dd>
-                    </div>
-                  )}
-                  {item.numero_colaboradores !== null && (
-                    <div>
-                      <dt className="font-medium text-stone-500">Colaboradores</dt>
-                      <dd className="text-stone-700">{item.numero_colaboradores}</dd>
-                    </div>
-                  )}
-                  {item.contratos_realizados_trimestre !== null && (
-                    <div>
-                      <dt className="font-medium text-stone-500">Contratos realizados</dt>
-                      <dd className="text-stone-700">{item.contratos_realizados_trimestre}</dd>
-                    </div>
-                  )}
-                  {item.meta_contratos_trimestre !== null && (
-                    <div>
-                      <dt className="font-medium text-stone-500">Meta de contratos</dt>
-                      <dd className="text-stone-700">{item.meta_contratos_trimestre}</dd>
-                    </div>
-                  )}
-                  {item.principais_desafios && (
-                    <div className="sm:col-span-2">
-                      <dt className="font-medium text-stone-500">Principais desafios</dt>
-                      <dd className="whitespace-pre-wrap text-stone-700">{item.principais_desafios}</dd>
-                    </div>
-                  )}
-                  {item.apoio_necessario && (
-                    <div className="sm:col-span-2">
-                      <dt className="font-medium text-stone-500">Apoio necessário</dt>
-                      <dd className="whitespace-pre-wrap text-stone-700">{item.apoio_necessario}</dd>
-                    </div>
-                  )}
-                  {item.observacoes_adicionais && (
-                    <div className="sm:col-span-2">
-                      <dt className="font-medium text-stone-500">Observações</dt>
-                      <dd className="whitespace-pre-wrap text-stone-700">{item.observacoes_adicionais}</dd>
-                    </div>
-                  )}
-                </dl>
+            <div style={{ marginTop: 20 }}>
+              <div style={{ fontSize: 12, color: '#888', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>
+                Texto gerado
+              </div>
+              <pre style={{
+                background: CREAM, borderRadius: 8, padding: '14px 16px', fontSize: 12,
+                color: '#333', whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0,
+                border: `1px solid ${CREAM2}`, maxHeight: 280, overflowY: 'auto',
+              }}>{resultado.texto}</pre>
+              <button
+                onClick={copiarTexto}
+                style={{
+                  marginTop: 10, padding: '8px 18px', borderRadius: 8, cursor: 'pointer',
+                  background: copiado ? GREEN : NAVY, color: 'white', border: 'none',
+                  fontSize: 13, fontWeight: 600, transition: 'background .2s',
+                }}
+              >
+                {copiado ? '✓ Copiado!' : 'Copiar texto'}
+              </button>
+              {salvoId && <span style={{ marginLeft: 12, fontSize: 12, color: GREEN }}>Salvo com sucesso</span>}
+              {erroSalvar && <span style={{ marginLeft: 12, fontSize: 12, color: RED }}>{erroSalvar}</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Sec 0: Identificacao */}
+        <SectionCard>
+          <SectionHeader number={0} title="Identificacao" icon="Contexto" />
+          <QuestionGroup label="Nome completo" required>
+            <input
+              value={nome} onChange={e => setNome(e.target.value)}
+              placeholder="Nome completo"
+              style={{
+                width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
+                padding: '9px 12px', fontSize: 13.5, color: '#222',
+                outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+          </QuestionGroup>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <QuestionGroup label="Cidade(s) de atuacao" required>
+              <input
+                value={cidade} onChange={e => setCidade(e.target.value)}
+                placeholder="Ex: Sao Paulo, Campinas"
+                style={{
+                  width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
+                  padding: '9px 12px', fontSize: 13.5, color: '#222',
+                  outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </QuestionGroup>
+            <QuestionGroup label="Estado" required>
+              <input
+                value={estado} onChange={e => setEstado(e.target.value)}
+                placeholder="Ex: SP"
+                style={{
+                  width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
+                  padding: '9px 12px', fontSize: 13.5, color: '#222',
+                  outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </QuestionGroup>
+          </div>
+        </SectionCard>
+
+        {/* Sec 1: Capital */}
+        <SectionCard>
+          <SectionHeader number={1} title="Capital" icon="Eixo 1 de 3" />
+          <QuestionGroup label="Voce tem ao menos R$ 260.000 de capital proprio disponivel para investir?" required>
+            {[
+              { value: 'nao',      label: 'Nao',                      sub: 'Abaixo de R$ 260.000' },
+              { value: 'sim',      label: 'Sim',                      sub: 'R$ 260.000 a R$ 600.000' },
+              { value: 'sim_plus', label: 'Sim, acima de R$ 600.000', sub: '' },
+            ].map(o => (
+              <RadioOption key={o.value} name="capital_gate" value={o.value} label={o.label} sub={o.sub}
+                selected={capitalGate === o.value} onChange={setCapitalGate} />
+            ))}
+          </QuestionGroup>
+
+          {(capitalGate === 'sim' || capitalGate === 'sim_plus') && (
+            <>
+              <QuestionGroup label="Qual a faixa de capital disponivel?" required>
+                {[
+                  { value: '260-400', label: 'R$ 260.000 a R$ 400.000' },
+                  { value: '400-600', label: 'R$ 400.000 a R$ 600.000' },
+                  { value: '600+',    label: 'Acima de R$ 600.000' },
+                ].map(o => (
+                  <RadioOption key={o.value} name="capital_faixa" value={o.value} label={o.label}
+                    selected={capitalFaixa === o.value} onChange={setCapitalFaixa} />
+                ))}
+              </QuestionGroup>
+              <QuestionGroup label="Quando esse capital estara disponivel?" required>
+                {[
+                  { value: 'disponivel', label: 'Disponivel agora' },
+                  { value: '3meses',     label: 'Disponivel em ate 3 meses' },
+                  { value: '6meses',     label: 'Disponivel em ate 6 meses' },
+                ].map(o => (
+                  <RadioOption key={o.value} name="capital_timing" value={o.value} label={o.label}
+                    selected={capitalTiming === o.value} onChange={setCapitalTiming} />
+                ))}
+              </QuestionGroup>
+            </>
+          )}
+
+          {capitalGate === 'nao' && (
+            <div style={{
+              background: '#FFF8F0', border: '1px solid #F0C080', borderRadius: 8,
+              padding: '12px 14px', fontSize: 13, color: '#7A5020', marginTop: 4,
+            }}>
+              O capital minimo para iniciar uma operacao Moni e R$ 260.000. Voce pode preencher e enviar o formulario para registro, e retomar quando o capital estiver disponivel.
+            </div>
+          )}
+        </SectionCard>
+
+        {/* Sec 2: Conhecimento */}
+        <SectionCard>
+          <SectionHeader number={2} title="Conhecimento" icon="Eixo 2 de 3" />
+          <QuestionGroup label="Como voce avalia seu conhecimento sobre o mercado imobiliario?" required>
+            {[
+              { value: 'alto',  label: 'Alto',            sub: 'Acompanho tendencias, sei avaliar terrenos e projetos' },
+              { value: 'medio', label: 'Medio',           sub: 'Conheco o basico, ja pesquisei sobre o setor' },
+              { value: 'baixo', label: 'Baixo ou nenhum', sub: 'Sou iniciante nesse mercado' },
+            ].map(o => (
+              <RadioOption key={o.value} name="conhec_mercado" value={o.value} label={o.label} sub={o.sub}
+                selected={conhecMercado === o.value} onChange={setConhecMercado} />
+            ))}
+          </QuestionGroup>
+          <QuestionGroup label="Voce tem experiencia com incorporacao imobiliaria?" required>
+            {[
+              { value: 'sim_inc',    label: 'Sim, com incorporacao',   sub: 'Ja participei de projetos de incorporacao' },
+              { value: 'sim_compra', label: 'Sim, compra e venda',     sub: 'Ja atuei com compra, venda ou locacao' },
+              { value: 'nao',        label: 'Nao tenho experiencia',   sub: '' },
+            ].map(o => (
+              <RadioOption key={o.value} name="conhec_imob" value={o.value} label={o.label} sub={o.sub}
+                selected={conhecImob === o.value} onChange={setConhecImob} />
+            ))}
+          </QuestionGroup>
+          <QuestionGroup label="Como voce avalia seu conhecimento sobre o modelo de negocios Moni?" required>
+            {[
+              { value: 'fluente', label: 'Fluente no modelo',   sub: 'Entendo a operacao, os numeros e os processos' },
+              { value: 'basico',  label: 'Conhecimento basico', sub: 'Ja li materiais e assisti apresentacoes' },
+              { value: 'pouco',   label: 'Pouco conhecimento',  sub: 'Ainda estou descobrindo como funciona' },
+            ].map(o => (
+              <RadioOption key={o.value} name="conhec_moni" value={o.value} label={o.label} sub={o.sub}
+                selected={conhecMoni === o.value} onChange={setConhecMoni} />
+            ))}
+          </QuestionGroup>
+        </SectionCard>
+
+        {/* Sec 3: Disponibilidade */}
+        <SectionCard>
+          <SectionHeader number={3} title="Disponibilidade" icon="Eixo 3 de 3" />
+          <QuestionGroup label="Quantas horas por semana voce pode dedicar ao projeto Moni?" required>
+            {[
+              { value: '10+',  label: 'Mais de 10 horas por semana' },
+              { value: '5-10', label: 'De 5 a 10 horas por semana' },
+              { value: '2-5',  label: 'De 2 a 5 horas por semana' },
+              { value: '<2',   label: 'Menos de 2 horas por semana' },
+            ].map(o => (
+              <RadioOption key={o.value} name="tempo_horas" value={o.value} label={o.label}
+                selected={tempoHoras === o.value} onChange={setTempoHoras} />
+            ))}
+          </QuestionGroup>
+          <QuestionGroup label="Com qual velocidade voce consegue responder a demandas do projeto?" required>
+            {[
+              { value: 'mesmo_dia', label: 'Mesmo dia',             sub: 'Respondo em horas' },
+              { value: '24h',       label: 'Em ate 24 horas',       sub: '' },
+              { value: '2-3d',      label: 'Em 2 a 3 dias',         sub: '' },
+              { value: 'semana',    label: 'Em uma semana ou mais', sub: '' },
+            ].map(o => (
+              <RadioOption key={o.value} name="tempo_resposta" value={o.value} label={o.label} sub={o.sub}
+                selected={tempoResposta === o.value} onChange={setTempoResposta} />
+            ))}
+          </QuestionGroup>
+          <QuestionGroup label="Voce tem disponibilidade de agenda para reunioes presenciais?" required>
+            {[
+              { value: 'sim_tudo',   label: 'Sim, tudo presencial',   sub: 'Posso me deslocar para reunioes e visitas de obra' },
+              { value: 'sim_online', label: 'Sim, formato hibrido',   sub: 'Presencial quando necessario, online no dia a dia' },
+              { value: 'parcial',    label: 'Parcialmente',            sub: 'Tenho restricoes de agenda que podem afetar o projeto' },
+            ].map(o => (
+              <RadioOption key={o.value} name="tempo_agenda" value={o.value} label={o.label} sub={o.sub}
+                selected={tempoAgenda === o.value} onChange={setTempoAgenda} />
+            ))}
+          </QuestionGroup>
+          <QuestionGroup label="Voce tem disponibilidade para participar dos workshops de formacao Moni?" required>
+            {[
+              { value: 'sim_ja',   label: 'Sim, ja participei',         sub: 'Ja fiz pelo menos um workshop Moni' },
+              { value: 'sim_pode', label: 'Sim, posso participar',      sub: 'Tenho disponibilidade para os treinamentos' },
+              { value: 'nao',      label: 'Nao tenho disponibilidade',  sub: 'Nao consigo participar dos workshops no momento' },
+            ].map(o => (
+              <RadioOption key={o.value} name="workshops" value={o.value} label={o.label} sub={o.sub}
+                selected={workshops === o.value} onChange={setWorkshops} />
+            ))}
+          </QuestionGroup>
+        </SectionCard>
+
+        {/* Sec 4: Contexto */}
+        <SectionCard>
+          <SectionHeader number={4} title="Contexto" icon="Informacoes adicionais" />
+          <QuestionGroup label="Conte um pouco sobre sua motivacao e contexto atual" required>
+            <textarea
+              value={motivacao} onChange={e => setMotivacao(e.target.value)}
+              placeholder="Ex: Sou investidor com experiencia em imoveis comerciais, busco diversificar meu portfolio com incorporacao residencial..."
+              rows={5}
+              style={{
+                width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
+                padding: '10px 12px', fontSize: 13.5, color: '#222', resize: 'vertical',
+                outline: 'none', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box',
+              }}
+            />
+          </QuestionGroup>
+        </SectionCard>
+
+        {erroForm && (
+          <div style={{
+            background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8,
+            padding: '12px 14px', fontSize: 13, color: RED, marginBottom: 16,
+          }}>
+            {erroForm}
+          </div>
+        )}
+
+        {!resultado && (
+          <button
+            onClick={gerarResultado}
+            disabled={salvando}
+            style={{
+              width: '100%', padding: '14px 0', borderRadius: 10, border: 'none',
+              background: salvando ? '#888' : GOLD, color: 'white', fontSize: 15,
+              fontWeight: 700, cursor: salvando ? 'not-allowed' : 'pointer',
+              letterSpacing: .5, marginBottom: 24,
+            }}
+          >
+            {salvando ? 'Salvando...' : 'Gerar Resultado'}
+          </button>
+        )}
+
+        {historico && historico.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+              Historico de respostas
+            </div>
+            {historico.filter(h => h.resultado_tipo).map(h => (
+              <div key={h.id} style={{
+                background: 'white', borderRadius: 10, padding: '14px 18px', marginBottom: 10,
+                border: `1px solid ${CREAM2}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>
+                    {h.resultado_tipo === 'qualificado' ? 'Qualificado'
+                      : h.resultado_tipo === 'parcial' ? 'Qualificacao Parcial'
+                      : 'Nao Qualificado'}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                    {formatarData(h.criado_em)}
+                    {h.score_capital_pct != null && (
+                      <span> &middot; Cap {h.score_capital_pct}% / Con {h.score_conhecimento_pct}% / Dis {h.score_tempo_pct}%</span>
+                    )}
+                  </div>
+                </div>
+                <div style={{
+                  fontSize: 18, fontWeight: 700,
+                  color: h.resultado_tipo === 'qualificado' ? GREEN : h.resultado_tipo === 'parcial' ? GOLD : RED,
+                }}>
+                  {h.resultado_tipo === 'qualificado' ? '✓' : h.resultado_tipo === 'parcial' ? '~' : '✗'}
+                </div>
               </div>
             ))}
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }

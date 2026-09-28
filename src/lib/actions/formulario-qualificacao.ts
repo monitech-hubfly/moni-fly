@@ -7,9 +7,9 @@ export type FormularioQualificacaoRow = {
   id: string;
   rede_franqueado_id: string;
   n_franquia: string;
-  nome_franqueado_confirmado: string;
-  periodo_mes: number;
-  periodo_ano: number;
+  nome_franqueado_confirmado: string | null;
+  periodo_mes: number | null;
+  periodo_ano: number | null;
   tem_ponto_comercial: boolean | null;
   endereco_ponto_comercial: string | null;
   numero_colaboradores: number | null;
@@ -20,67 +20,59 @@ export type FormularioQualificacaoRow = {
   observacoes_adicionais: string | null;
   preenchido_por_user_id: string | null;
   criado_em: string;
+  // ENI columns
+  cidade_atuacao: string | null;
+  estado_atuacao: string | null;
+  capital_gate: string | null;
+  capital_faixa: string | null;
+  capital_timing: string | null;
+  conhecimento_mercado: string | null;
+  conhecimento_imob: string | null;
+  conhecimento_moni: string | null;
+  tempo_horas: string | null;
+  tempo_resposta: string | null;
+  tempo_agenda: string | null;
+  workshops: string | null;
+  motivacao: string | null;
+  score_capital_pct: number | null;
+  score_conhecimento_pct: number | null;
+  score_tempo_pct: number | null;
+  resultado_tipo: string | null;
+  texto_gerado: string | null;
 };
 
-export type FormularioQualificacaoInput = {
+export type FormularioEniInput = {
   rede_franqueado_id: string;
   n_franquia: string;
   nome_franqueado_confirmado: string;
-  periodo_mes: number;
-  periodo_ano: number;
-  tem_ponto_comercial: boolean | null;
-  endereco_ponto_comercial: string | null;
-  numero_colaboradores: number | null;
-  contratos_realizados_trimestre: number | null;
-  meta_contratos_trimestre: number | null;
-  principais_desafios: string | null;
-  apoio_necessario: string | null;
-  observacoes_adicionais: string | null;
+  cidade_atuacao: string;
+  estado_atuacao: string;
+  capital_gate: string;
+  capital_faixa: string | null;
+  capital_timing: string | null;
+  conhecimento_mercado: string | null;
+  conhecimento_imob: string | null;
+  conhecimento_moni: string | null;
+  tempo_horas: string | null;
+  tempo_resposta: string | null;
+  tempo_agenda: string | null;
+  workshops: string | null;
+  motivacao: string | null;
+  score_capital_pct: number;
+  score_conhecimento_pct: number;
+  score_tempo_pct: number;
+  resultado_tipo: string;
+  texto_gerado: string;
 };
 
-export async function salvarFormularioQualificacao(
-  input: FormularioQualificacaoInput,
+export async function salvarFormularioEni(
+  input: FormularioEniInput,
 ): Promise<{ ok: boolean; error?: string; id?: string }> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Sessão expirada. Faça login novamente.' };
-
-  // Verificar que o n_franquia bate com a rede_franqueado_id informada
-  const { data: rede, error: redeErr } = await supabase
-    .from('rede_franqueados')
-    .select('id, n_franquia, nome_completo')
-    .eq('id', input.rede_franqueado_id)
-    .single();
-
-  if (redeErr || !rede) {
-    return { ok: false, error: 'Franqueado não encontrado.' };
-  }
-
-  // Verificar correspondência do número de franquia
-  if (String(rede.n_franquia ?? '').trim() !== String(input.n_franquia ?? '').trim()) {
-    return { ok: false, error: 'O número de franquia informado não corresponde ao cadastro.' };
-  }
-
-  // Verificar correspondência do nome (normaliza para lowercase sem acentos para comparação flexível)
-  const normalize = (s: string) =>
-    s
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .trim();
-
-  const nomeInformado = normalize(input.nome_franqueado_confirmado ?? '');
-  const nomeCadastrado = normalize(rede.nome_completo ?? '');
-
-  if (nomeInformado.length < 3 || !nomeCadastrado.includes(nomeInformado.split(' ')[0])) {
-    return {
-      ok: false,
-      error:
-        'O nome informado não corresponde ao cadastro deste número de franquia. Verifique e tente novamente.',
-    };
-  }
 
   const { data: inserted, error: insertErr } = await supabase
     .from('formularios_qualificacao')
@@ -122,3 +114,7 @@ export async function buscarHistoricoFormularios(
 
   return { data: data as FormularioQualificacaoRow[] };
 }
+
+// Legacy function kept for backward compatibility
+export type FormularioQualificacaoInput = FormularioEniInput;
+export const salvarFormularioQualificacao = salvarFormularioEni;
