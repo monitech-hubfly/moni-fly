@@ -1,5 +1,6 @@
-import { memo } from 'react';
 'use client';
+
+import { memo } from 'react';
 
 type PastelariaToastProps = {
   message: string | null;

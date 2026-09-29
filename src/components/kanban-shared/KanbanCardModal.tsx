@@ -142,7 +142,6 @@ import {
 import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoField';
 import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociacaoLinhasField';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
-const KanbanCardModalSimulacoesImob = dynamic(() => import('./KanbanCardModalSimulacoesImob').then(m => ({ default: m.KanbanCardModalSimulacoesImob })), { ssr: false });
 import { KanbanCardModalListaLotes } from './KanbanCardModalListaLotes';
 import { KanbanCardModalSimuladorPagamentos } from './KanbanCardModalSimuladorPagamentos';
 import {
@@ -174,7 +173,6 @@ import {
 } from '@/lib/kanban/calculadora-negociacao';
 import { montarTimelineCalculadoraComMarcos } from '@/lib/kanban/calculadora-fases-marcos';
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
-const KanbanCardModalCalculadoraFases = dynamic(() => import('./KanbanCardModalCalculadoraFases').then(m => ({ default: m.KanbanCardModalCalculadoraFases })), { ssr: false });
 import {
   operacoesPreObraDraftFromCard,
   OPERACOES_PRE_OBRA_DRAFT_EMPTY,
@@ -322,6 +320,14 @@ import { ChecklistCard } from './ChecklistCard';
 import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
 import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
 import dynamic from 'next/dynamic';
+const KanbanCardModalSimulacoesImob = dynamic(
+  () => import('./KanbanCardModalSimulacoesImob').then((m) => ({ default: m.KanbanCardModalSimulacoesImob })),
+  { ssr: false },
+);
+const KanbanCardModalCalculadoraFases = dynamic(
+  () => import('./KanbanCardModalCalculadoraFases').then((m) => ({ default: m.KanbanCardModalCalculadoraFases })),
+  { ssr: false },
+);
 const FaseChecklistCard = dynamic(
   () => import('./FaseChecklistCard').then(m => m.FaseChecklistCard),
   { ssr: false }

@@ -1,5 +1,6 @@
-import { memo } from 'react';
 'use client'
+
+import { memo } from 'react';
 
 // components/sirene/pericias/PericiaCard.tsx
 

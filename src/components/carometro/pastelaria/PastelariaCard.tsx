@@ -1,5 +1,6 @@
-import { memo } from 'react';
 'use client';
+
+import { memo } from 'react';
 
 import type { DragEvent } from 'react';
 import type { PastelariaCardView } from '@/lib/pastelaria/api-client';
