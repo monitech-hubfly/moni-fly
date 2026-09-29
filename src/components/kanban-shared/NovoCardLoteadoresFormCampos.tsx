@@ -1,13 +1,21 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
+import { listarCondominiosCadastro } from '@/lib/actions/kanban-card-condominio';
+import { listarCondominiosIntakePublico } from '@/lib/actions/loteador-externo-actions';
+import { normalizarParaBuscaCondominio } from '@/lib/condominios';
 import type { NovoCardLoteadoresFormulario } from '@/lib/kanban/loteadores-novo-card-form';
 import { UFS_BRASIL } from '@/lib/uf';
+
+type OpcaoCondominio = { id: string; nome: string; cidade: string | null; estado: string | null };
 
 type Props = {
   value: NovoCardLoteadoresFormulario;
   onChange: (patch: Partial<NovoCardLoteadoresFormulario>) => void;
   disabled?: boolean;
   idPrefix?: string;
+  /** Preenchimento externo: lista o cadastro depois de validar o link. */
+  tokenPublico?: string;
 };
 
 const inputCls = 'mt-1 w-full px-3 py-2 text-sm focus:outline-none disabled:opacity-60';
@@ -48,13 +56,47 @@ export function NovoCardLoteadoresFormCampos({
   onChange,
   disabled = false,
   idPrefix = 'novo-loteador',
+  tokenPublico,
 }: Props) {
+  const [listaCondominios, setListaCondominios] = useState<OpcaoCondominio[]>([]);
+  const [buscaCondo, setBuscaCondo] = useState('');
+
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      if (tokenPublico) {
+        const res = await listarCondominiosIntakePublico(tokenPublico);
+        if (!cancelado && res.ok) setListaCondominios(res.opcoes);
+        return;
+      }
+      const rows = await listarCondominiosCadastro();
+      if (!cancelado) {
+        setListaCondominios(
+          rows.map((r) => ({ id: r.id, nome: r.nome, cidade: r.cidade, estado: r.estado })),
+        );
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [tokenPublico]);
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
   const set =
     (key: keyof NovoCardLoteadoresFormulario) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       onChange({ [key]: e.target.value });
     };
+
+  const escolhido = listaCondominios.find((c) => c.id === value.condominioId) ?? null;
+  const resultadosCondo = useMemo(() => {
+    const q = normalizarParaBuscaCondominio(buscaCondo);
+    if (!q) return [];
+    return listaCondominios
+      .filter((c) =>
+        normalizarParaBuscaCondominio([c.nome, c.cidade, c.estado].filter(Boolean).join(' ')).includes(q),
+      )
+      .slice(0, 12);
+  }, [buscaCondo, listaCondominios]);
 
   return (
     <div className="space-y-4">
@@ -133,6 +175,102 @@ export function NovoCardLoteadoresFormCampos({
       </div>
 
       <Secao titulo="Cadastro Condomínios" />
+      <div className="space-y-2">
+        <label htmlFor={id('busca-condo')} className={labelCls} style={labelStyle}>
+          Buscar condomínio
+        </label>
+        <input
+          id={id('busca-condo')}
+          type="search"
+          value={buscaCondo}
+          onChange={(e) => setBuscaCondo(e.target.value)}
+          disabled={disabled}
+          className={inputCls}
+          style={inputStyle}
+          placeholder="Digite para ver os condomínios já cadastrados"
+          autoComplete="off"
+        />
+        {buscaCondo.trim() ? (
+          <div
+            className="max-h-40 overflow-y-auto"
+            style={{
+              border: '0.5px solid var(--moni-border-default)',
+              borderRadius: 'var(--moni-radius-md)',
+              background: 'var(--moni-surface-0)',
+            }}
+          >
+            {resultadosCondo.length === 0 ? (
+              <p className="px-3 py-2 text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Nenhum condomínio encontrado.
+              </p>
+            ) : (
+              <ul>
+                {resultadosCondo.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        onChange({
+                          condominioId: c.id,
+                          nomeCondominio: c.nome,
+                          cadastrarCondominioNovo: false,
+                        });
+                        setBuscaCondo('');
+                      }}
+                      className="min-h-[44px] w-full px-3 py-2 text-left text-sm hover:bg-[var(--moni-surface-50)]"
+                      style={{
+                        color: 'var(--moni-text-primary)',
+                        fontFamily: 'var(--moni-font-sans)',
+                        background:
+                          value.condominioId === c.id && !value.cadastrarCondominioNovo
+                            ? 'var(--moni-surface-50)'
+                            : 'transparent',
+                      }}
+                    >
+                      {c.nome}
+                      {c.cidade || c.estado ? (
+                        <span style={{ color: 'var(--moni-text-tertiary)' }}>
+                          {' '}
+                          · {[c.cidade, c.estado].filter(Boolean).join('/')}
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : null}
+        {escolhido && !value.cadastrarCondominioNovo ? (
+          <p className="text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+            Selecionado: {escolhido.nome}
+            {escolhido.cidade || escolhido.estado
+              ? ` · ${[escolhido.cidade, escolhido.estado].filter(Boolean).join('/')}`
+              : ''}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() =>
+            onChange({
+              cadastrarCondominioNovo: true,
+              condominioId: '',
+            })
+          }
+          className="min-h-[44px] px-3 py-2 text-sm font-medium"
+          style={{
+            border: '0.5px solid var(--moni-border-default)',
+            borderRadius: 'var(--moni-radius-md)',
+            background: value.cadastrarCondominioNovo ? 'var(--moni-navy-800)' : 'var(--moni-surface-0)',
+            color: value.cadastrarCondominioNovo ? 'var(--moni-surface-0)' : 'var(--moni-text-primary)',
+          }}
+        >
+          Não encontrei
+        </button>
+      </div>
+      {value.cadastrarCondominioNovo ? (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label htmlFor={id('nome-condo')} className={labelCls} style={labelStyle}>
@@ -376,6 +514,7 @@ export function NovoCardLoteadoresFormCampos({
           />
         </div>
       </div>
+      ) : null}
 
       <Secao titulo="Cadastro Loteadores" />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

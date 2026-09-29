@@ -79,6 +79,7 @@ export function FormularioIntakeLoteadorForm({ token }: Props) {
 
       <NovoCardLoteadoresFormCampos
         idPrefix="intake"
+        tokenPublico={token}
         value={form}
         onChange={(patch) => setForm((atual) => ({ ...atual, ...patch }))}
         disabled={saving}

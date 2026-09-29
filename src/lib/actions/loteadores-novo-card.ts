@@ -235,50 +235,73 @@ async function inserirCondominioELoteador(
     }
   | { ok: false; error: string }
 > {
-  const nomeCondominio = String(form.nomeCondominio ?? '').trim();
-  try {
-    if (await nomeCondominioOcupado(db, nomeCondominio)) {
-      return { ok: false, error: 'Já existe um condomínio cadastrado com este nome.' };
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: msg };
-  }
-
   const now = new Date().toISOString();
-  const { data: condoIns, error: condoErr } = await db
-    .from('condominios')
-    .insert({
-      nome: nomeCondominio,
-      endereco: textoOuNull(form.endereco),
-      numero: textoOuNull(form.numero),
-      cep: textoOuNull(form.cep),
-      cidade: textoOuNull(form.cidadeCondominio),
-      estado: textoOuNull(form.estadoCondominio)?.toUpperCase() ?? null,
-      descricao_breve: textoOuNull(form.descricaoBreve),
-      ticket_medio_lote: textoOuNull(form.ticketMedioLote),
-      ticket_medio_casas: textoOuNull(form.ticketMedioCasas),
-      data_lancamento_vendas: textoOuNull(form.dataLancamentoVendas),
-      data_liberacao_tvo: textoOuNull(form.dataLiberacaoTvo),
-      metragem_lotes: textoOuNull(form.metragemLotes),
-      metragem_casas: textoOuNull(form.metragemCasas),
-      planta_cadastral: textoOuNull(form.plantaCadastral),
-      manual_obras: textoOuNull(form.manualObras),
-      criado_por: userId,
-      updated_at: now,
-    } as never)
-    .select('id')
-    .single();
-  if (condoErr) {
-    const msg = condoErr.message.toLowerCase();
-    if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('idx_condominios_nome')) {
-      return { ok: false, error: 'Já existe um condomínio cadastrado com este nome.' };
-    }
-    return { ok: false, error: condoErr.message };
-  }
-  const condominioId = String((condoIns as { id: string }).id);
+  let condominioId = '';
+  let nomeCondominio = '';
+  let cidadeCondominio: string | null = null;
+  let estadoCondominio: string | null = null;
 
-  const draft = draftFromParceiro(form, condominioId);
+  const idExistente = String(form.condominioId ?? '').trim();
+  const vincularExistente = Boolean(idExistente) && !form.cadastrarCondominioNovo;
+  if (vincularExistente) {
+    const { data, error } = await db
+      .from('condominios')
+      .select('id, nome, cidade, estado')
+      .eq('id', idExistente)
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (!data) return { ok: false, error: 'Condomínio não encontrado.' };
+    const row = data as { id: string; nome?: string | null; cidade?: string | null; estado?: string | null };
+    condominioId = String(row.id);
+    nomeCondominio = String(row.nome ?? '').trim();
+    cidadeCondominio = textoOuNull(row.cidade ?? null);
+    estadoCondominio = textoOuNull(row.estado ?? null)?.toUpperCase() ?? null;
+  } else {
+    nomeCondominio = String(form.nomeCondominio ?? '').trim();
+    try {
+      if (await nomeCondominioOcupado(db, nomeCondominio)) {
+        return { ok: false, error: 'Já existe um condomínio cadastrado com este nome.' };
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
+    }
+    const { data: condoIns, error: condoErr } = await db
+      .from('condominios')
+      .insert({
+        nome: nomeCondominio,
+        endereco: textoOuNull(form.endereco),
+        numero: textoOuNull(form.numero),
+        cep: textoOuNull(form.cep),
+        cidade: textoOuNull(form.cidadeCondominio),
+        estado: textoOuNull(form.estadoCondominio)?.toUpperCase() ?? null,
+        descricao_breve: textoOuNull(form.descricaoBreve),
+        ticket_medio_lote: textoOuNull(form.ticketMedioLote),
+        ticket_medio_casas: textoOuNull(form.ticketMedioCasas),
+        data_lancamento_vendas: textoOuNull(form.dataLancamentoVendas),
+        data_liberacao_tvo: textoOuNull(form.dataLiberacaoTvo),
+        metragem_lotes: textoOuNull(form.metragemLotes),
+        metragem_casas: textoOuNull(form.metragemCasas),
+        planta_cadastral: textoOuNull(form.plantaCadastral),
+        manual_obras: textoOuNull(form.manualObras),
+        criado_por: userId,
+        updated_at: now,
+      } as never)
+      .select('id')
+      .single();
+    if (condoErr) {
+      const msg = condoErr.message.toLowerCase();
+      if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('idx_condominios_nome')) {
+        return { ok: false, error: 'Já existe um condomínio cadastrado com este nome.' };
+      }
+      return { ok: false, error: condoErr.message };
+    }
+    condominioId = String((condoIns as { id: string }).id);
+    cidadeCondominio = textoOuNull(form.cidadeCondominio);
+    estadoCondominio = textoOuNull(form.estadoCondominio)?.toUpperCase() ?? null;
+  }
+
+  const draft = draftFromParceiro({ ...form, nomeCondominio }, condominioId);
   const patch = redeLoteadorFichaDraftToPatch(draft);
   const alocado = await alocarNLoteador(db as never, null);
   const { data: inserted, error: insErr } = await db
@@ -291,8 +314,8 @@ async function inserirCondominioELoteador(
       status: 'em_analise',
       condominio_id: condominioId,
       condominio_nome: nomeCondominio,
-      condominio_cidade: textoOuNull(form.cidadeCondominio),
-      condominio_estado: textoOuNull(form.estadoCondominio)?.toUpperCase() ?? null,
+      condominio_cidade: cidadeCondominio,
+      condominio_estado: estadoCondominio,
       criado_por: userId,
       ultima_atualizacao_por: userId,
       updated_at: now,
@@ -300,7 +323,7 @@ async function inserirCondominioELoteador(
     .select('id')
     .single();
   if (insErr) {
-    await db.from('condominios').delete().eq('id', condominioId);
+    if (!vincularExistente) await db.from('condominios').delete().eq('id', condominioId);
     return { ok: false, error: insErr.message };
   }
 
