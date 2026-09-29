@@ -104,3 +104,29 @@ export async function buscarHistoricoPublico(
   if (error) return { data: null, error: 'Erro ao carregar historico.' };
   return { data: data ?? [] };
 }
+
+/** Retorna os campos completos de uma resposta especifica (valida que pertence ao token). */
+export async function buscarRespostaPublicaDetalhe(
+  token: string,
+  formularioId: string,
+): Promise<{ data: import('./formulario-qualificacao').FormularioQualificacaoRow | null; error?: string }> {
+  const supabase = createAdminClient();
+
+  const { data: rede } = await supabase
+    .from('rede_franqueados')
+    .select('id')
+    .eq('formulario_public_token', token)
+    .single();
+
+  if (!rede) return { data: null, error: 'Link invalido.' };
+
+  const { data, error } = await supabase
+    .from('formularios_qualificacao')
+    .select('*')
+    .eq('id', formularioId)
+    .eq('rede_franqueado_id', rede.id)
+    .single();
+
+  if (error || !data) return { data: null, error: 'Resposta nao encontrada.' };
+  return { data: data as import('./formulario-qualificacao').FormularioQualificacaoRow };
+}

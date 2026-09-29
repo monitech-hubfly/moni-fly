@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { salvarFormularioEni, type FormularioQualificacaoRow } from '@/lib/actions/formulario-qualificacao';
-import { salvarFormularioPublico } from '@/lib/actions/formulario-publico';
+import { salvarFormularioPublico, buscarRespostaPublicaDetalhe } from '@/lib/actions/formulario-publico';
+import type { FormularioQualificacaoRow } from '@/lib/actions/formulario-qualificacao';
 
 // Design tokens
 const NAVY  = '#0F1E33';
@@ -106,9 +107,19 @@ type Props = {
   redeId: string;
   nFranquia: string;
   nomeCompleto: string;
-  historico: Pick<FormularioQualificacaoRow, 'id' | 'criado_em'>[];
+  historico: Pick<FormularioQualificacaoRow, 'id' | 'criado_em' | 'resultado_tipo'>[];
   publicToken?: string;
 };
+
+function DetalheRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
+  return (
+    <div style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 13 }}>
+      <span style={{ color: '#888', flexShrink: 0, minWidth: 160 }}>{label}:</span>
+      <span style={{ color: '#222', fontWeight: 500 }}>{value}</span>
+    </div>
+  );
+}
 
 export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeCompleto, cidadeInicial = '', estadoInicial = '', historico, publicToken }: Props) {
   const [nome, setNome]                               = useState(nomeCompleto || '');
@@ -129,6 +140,9 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
   const [erroForm, setErroForm]     = useState('');
   const [salvando, setSalvando]     = useState(false);
   const [erroSalvar, setErroSalvar] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detalhes, setDetalhes] = useState<Record<string, FormularioQualificacaoRow | null>>({});
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const totalQ = capitalFaixa === 'abaixo_260k' ? 10 : 9;
   const answered = [
@@ -145,6 +159,73 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
 
   function formatarData(iso: string) {
     return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  async function toggleDetalhe(id: string) {
+    if (expandedId === id) { setExpandedId(null); return; }
+    setExpandedId(id);
+    if (detalhes[id] !== undefined) return; // ja carregado
+    setLoadingId(id);
+    const res = await buscarRespostaPublicaDetalhe(publicToken!, id);
+    setDetalhes(prev => ({ ...prev, [id]: res.data }));
+    setLoadingId(null);
+  }
+
+  const LABEL_MAP: Record<string, Record<string, string>> = {
+    capital_faixa: {
+      nao_tenho:   'Nao tenho capital para aporte inicial',
+      abaixo_260k: 'Abaixo de R$ 260.000',
+      '260_400k':  'R$ 260.000 a R$ 400.000',
+      '400_600k':  'R$ 400.000 a R$ 600.000',
+      acima_600k:  'Acima de R$ 600.000',
+    },
+    conhecimento_mercado: {
+      alto:  'Alto: conheco corretores, loteadoras e precos praticados',
+      medio: 'Medio: conheco a cidade, mas nao tenho rede no mercado',
+      baixo: 'Baixo: sou novo no mercado',
+    },
+    conhecimento_imob: {
+      sim_inc:    'Sim: ja participei de incorporacao ou desenvolvimento',
+      sim_compra: 'Sim: ja comprei/vendi imoveis ou acompanhei obras',
+      nao:        'Nao: meu background e em outra area',
+    },
+    conhecimento_moni: {
+      fluente: 'Fluente: uso as ferramentas regularmente',
+      basico:  'Basico: tenho os links mas nao opero sozinho',
+      pouco:   'Pouco: ainda nao abri os links na Area do Franqueado',
+    },
+    tempo_horas: {
+      '10+':  '10h ou mais por semana',
+      '5-10': '5 a 10h por semana',
+      '2-5':  '2 a 5h por semana',
+      '<2':   'Menos de 2h por semana',
+    },
+    tempo_resposta: {
+      mesmo_dia: 'No mesmo dia, sempre',
+      '24h':     'Em ate 24h na maioria das vezes',
+      '2-3d':    'Em 2 a 3 dias',
+      semana:    'Depende: as vezes demoro mais de 3 dias',
+    },
+    tempo_agenda: {
+      sim_tudo:   'Sim: agenda disponivel para reunioes e visitas de campo',
+      sim_online: 'Reunioes sim, visita ao terreno com aviso previo de 3+ dias',
+      parcial:    'Agenda apertada: 1 semana de antecedencia',
+    },
+    workshops: {
+      sim_ja:   'Sim: ja participei de workshops',
+      sim_pode: 'Ainda nao, mas tenho como participar',
+      nao:      'Nao tenho como participar no momento',
+    },
+    resultado_tipo: {
+      qualificado:     'Qualificado',
+      parcial:         'Qualificado parcial',
+      nao_qualificado: 'Nao qualificado',
+    },
+  };
+
+  function lbl(field: string, val: string | null): string {
+    if (!val) return '-';
+    return LABEL_MAP[field]?.[val] ?? val;
   }
 
   async function enviarRespostas() {
@@ -515,22 +596,104 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
         {historico && historico.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-              Histórico de respostas
+              Historico de respostas
             </div>
-            {historico.map(h => (
-              <div key={h.id} style={{
-                background: 'white', borderRadius: 10, padding: '14px 18px', marginBottom: 10,
-                border: `1px solid ${CREAM2}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>Respondido</div>
-                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-                    {formatarData(h.criado_em)}
-                  </div>
+            {historico.map(h => {
+              const isOpen = expandedId === h.id;
+              const det = detalhes[h.id];
+              const isLoading = loadingId === h.id;
+              const tipoLabel = lbl('resultado_tipo', h.resultado_tipo ?? null);
+              const tipoColor = h.resultado_tipo === 'qualificado' ? GREEN : h.resultado_tipo === 'parcial' ? '#A07820' : RED;
+              return (
+                <div key={h.id} style={{
+                  background: 'white', borderRadius: 10, marginBottom: 10,
+                  border: `1px solid ${isOpen ? GOLD : CREAM2}`,
+                  overflow: 'hidden', transition: 'border-color .15s',
+                }}>
+                  {/* Row header - clickable */}
+                  <button
+                    onClick={() => publicToken && toggleDetalhe(h.id)}
+                    style={{
+                      width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '14px 18px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>Respondido</span>
+                        <span style={{ fontSize: 11, color: tipoColor, fontWeight: 600, background: tipoColor + '18', borderRadius: 4, padding: '1px 7px' }}>
+                          {tipoLabel}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{formatarData(h.criado_em)}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 18, fontWeight: 700, color: GREEN }}>&#10003;</span>
+                      <span style={{
+                        fontSize: 12, color: '#888', transform: isOpen ? 'rotate(180deg)' : 'none',
+                        transition: 'transform .2s', display: 'inline-block', lineHeight: 1,
+                      }}>&#9660;</span>
+                    </div>
+                  </button>
+
+                  {/* Expanded details */}
+                  {isOpen && (
+                    <div style={{ borderTop: `1px solid ${CREAM2}`, padding: '18px 18px 20px' }}>
+                      {isLoading && (
+                        <div style={{ fontSize: 13, color: '#888', textAlign: 'center', padding: '12px 0' }}>Carregando...</div>
+                      )}
+                      {!isLoading && !det && (
+                        <div style={{ fontSize: 13, color: RED }}>Nao foi possivel carregar os detalhes.</div>
+                      )}
+                      {!isLoading && det && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                          {/* Identificacao */}
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Identificacao</div>
+                            <DetalheRow label="Nome" value={det.nome_franqueado_confirmado} />
+                            <DetalheRow label="Cidade" value={det.cidade_atuacao} />
+                            <DetalheRow label="Estado" value={det.estado_atuacao} />
+                          </div>
+                          {/* Capital */}
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Capital</div>
+                            <DetalheRow label="Faixa de capital" value={lbl('capital_faixa', det.capital_faixa)} />
+                            {det.capital_valor_declarado && <DetalheRow label="Valor declarado" value={det.capital_valor_declarado} />}
+                            {det.score_capital_pct !== null && <DetalheRow label="Score capital" value={`${det.score_capital_pct}%`} />}
+                          </div>
+                          {/* Conhecimento */}
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Conhecimento</div>
+                            <DetalheRow label="Mercado imobiliario" value={lbl('conhecimento_mercado', det.conhecimento_mercado)} />
+                            <DetalheRow label="Experiencia imobiliaria" value={lbl('conhecimento_imob', det.conhecimento_imob)} />
+                            <DetalheRow label="Familiaridade Moni" value={lbl('conhecimento_moni', det.conhecimento_moni)} />
+                            {det.score_conhecimento_pct !== null && <DetalheRow label="Score conhecimento" value={`${det.score_conhecimento_pct}%`} />}
+                          </div>
+                          {/* Disponibilidade */}
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Disponibilidade</div>
+                            <DetalheRow label="Horas por semana" value={lbl('tempo_horas', det.tempo_horas)} />
+                            <DetalheRow label="Tempo de resposta" value={lbl('tempo_resposta', det.tempo_resposta)} />
+                            <DetalheRow label="Agenda presencial" value={lbl('tempo_agenda', det.tempo_agenda)} />
+                            <DetalheRow label="Workshops" value={lbl('workshops', det.workshops)} />
+                            {det.score_tempo_pct !== null && <DetalheRow label="Score disponibilidade" value={`${det.score_tempo_pct}%`} />}
+                          </div>
+                          {/* Contexto */}
+                          {det.motivacao && (
+                            <div>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Contexto / Motivacao</div>
+                              <div style={{ fontSize: 13, color: '#444', lineHeight: 1.6, background: CREAM, borderRadius: 8, padding: '10px 12px' }}>
+                                {det.motivacao}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: GREEN }}>&#10003;</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
