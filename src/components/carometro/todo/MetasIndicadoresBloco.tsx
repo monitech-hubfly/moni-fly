@@ -1088,11 +1088,12 @@ export function MetasIndicadoresBloco() {
   const supabase = useMemo(() => createClient(), []);
   const { effectiveProfileId, areaId } = useEffectiveUser();
 
-  // Hydration fix: inicializa com mes atual (igual no servidor), depois sincroniza do localStorage
+  // Hydration fix: inicializa com mes atual (igual no servidor), depois sincroniza do localStorage.
+  // Só restaura o mês salvo se ele for >= mês atual — evita mostrar mês anterior após virada do mês.
   const [mes, setMesState] = useState(mesAtual);
   useEffect(() => {
     const saved = localStorage.getItem(LS_MES_KEY);
-    if (saved && /^\d{4}-\d{2}$/.test(saved)) setMesState(saved);
+    if (saved && /^\d{4}-\d{2}$/.test(saved) && saved >= mesAtual()) setMesState(saved);
   }, []);
   const setMes = (m: string) => { localStorage.setItem(LS_MES_KEY, m); setMesState(m); };
   const mesOptions = useMemo(() => getMonthOptions(), []);
