@@ -58,6 +58,7 @@ export function CondominioCamposForm({
         <FieldView label="Descrição breve" value={row.descricao_breve ?? ''} />
         <FieldView label="Ticket médio lote" value={formatTicketCadastro(row.ticket_medio_lote)} />
         <FieldView label="Ticket médio casas" value={formatTicketCadastro(row.ticket_medio_casas)} />
+        <FieldView label="Valor Tx Condomínio" value={formatTicketCadastro(row.valor_tx_condominio)} />
         <FieldView
           label="Est. casas vendidas/ano"
           value={formatCondominioInteiro(row.estimativa_casas_vendidas_ano)}
@@ -183,6 +184,16 @@ export function CondominioCamposForm({
           type="text"
           value={draft.ticket_medio_casas}
           onChange={(e) => onChange({ ticket_medio_casas: e.target.value })}
+          className={inputCls}
+          placeholder="Valor ou faixa"
+        />
+      </label>
+      <label className="block">
+        <span className="text-[11px] font-medium text-stone-500">Valor Tx Condomínio</span>
+        <input
+          type="text"
+          value={draft.valor_tx_condominio}
+          onChange={(e) => onChange({ valor_tx_condominio: e.target.value })}
           className={inputCls}
           placeholder="Valor ou faixa"
         />

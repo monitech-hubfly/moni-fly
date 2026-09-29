@@ -14,6 +14,7 @@ export type CondominioRow = {
   descricao_breve: string | null;
   ticket_medio_lote: string | null;
   ticket_medio_casas: string | null;
+  valor_tx_condominio: string | null;
   ticket_medio_casas_rsm2: number | null;
   estimativa_casas_vendidas_ano: number | null;
   extrato_como_eram_casas: string | null;
@@ -107,6 +108,7 @@ export function condominioRowMatchesBusca(row: CondominioRow, busca: string): bo
     row.descricao_breve,
     row.ticket_medio_lote,
     row.ticket_medio_casas,
+    row.valor_tx_condominio,
     numToSearch(row.ticket_medio_casas_rsm2),
     numToSearch(row.estimativa_casas_vendidas_ano),
     row.extrato_como_eram_casas,
@@ -121,6 +123,7 @@ export function condominioRowMatchesBusca(row: CondominioRow, busca: string): bo
     row.casas_concorrentes,
     formatTicketCadastro(row.ticket_medio_lote),
     formatTicketCadastro(row.ticket_medio_casas),
+    formatTicketCadastro(row.valor_tx_condominio),
     formatCondominioMoeda(row.ticket_medio_casas_rsm2),
   ];
   return parts.some((p) => normalizarParaBuscaCondominio(p ?? '').includes(q));
@@ -184,6 +187,9 @@ function mapRow(r: Record<string, unknown>): CondominioRow {
     ticket_medio_casas: ((r.ticket_medio_casas as string | number | null) ?? null) == null
       ? null
       : String(r.ticket_medio_casas).trim() || null,
+    valor_tx_condominio: ((r.valor_tx_condominio as string | number | null) ?? null) == null
+      ? null
+      : String(r.valor_tx_condominio).trim() || null,
     ticket_medio_casas_rsm2: parseNumericField(r.ticket_medio_casas_rsm2),
     estimativa_casas_vendidas_ano: parseIntegerField(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: ((r.extrato_como_eram_casas as string | null) ?? null)?.trim() || null,
@@ -261,6 +267,7 @@ export type CondominioPatch = {
   descricao_breve?: string | null;
   ticket_medio_lote?: string | null;
   ticket_medio_casas?: string | null;
+  valor_tx_condominio?: string | null;
   ticket_medio_casas_rsm2?: number | null;
   estimativa_casas_vendidas_ano?: number | null;
   extrato_como_eram_casas?: string | null;

@@ -14,27 +14,17 @@ import {
   type RedeLoteadorFichaDraft,
 } from '@/lib/rede-loteador-ficha-draft';
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
+import { normalizarParaBuscaCondominio } from '@/lib/condominios';
 import { normalizarParaBuscaLoteador } from '@/lib/rede-loteadores';
+import {
+  validarNovoCardLoteadoresFormulario,
+  type NovoCardLoteadoresFormulario,
+} from '@/lib/kanban/loteadores-novo-card-form';
 
 export type CriarCardLoteadoresCadastroModo = 'novo' | 'existente';
 
-/** Dados mínimos do parceiro no form de criação (Prompt 10). */
-export type CriarCardLoteadoresParceiroInput = {
-  /** Nome da empresa / loteador. */
-  nomeLoteador: string;
-  /** N do Loteador (LOxxxx). Vazio → gera o próximo. */
-  nLoteador?: string;
-  /** Spec: nome_responsavel → interlocutor_nome */
-  nomeResponsavel: string;
-  /** Spec: cargo_funcao → interlocutor_cargo */
-  cargoFuncao: string;
-  /** Spec: telefone → interlocutor_telefone */
-  telefone: string;
-  /** Spec: email → interlocutor_email */
-  email: string;
-  cnpj?: string;
-  condominioNome?: string;
-};
+/** Formulário de novo card / link externo. */
+export type CriarCardLoteadoresParceiroInput = NovoCardLoteadoresFormulario;
 
 export type CriarCardLoteadoresComCadastroInput = {
   faseId: string;
@@ -109,29 +99,30 @@ async function requireStaffLoteadores() {
 }
 
 function validarParceiro(p: CriarCardLoteadoresParceiroInput): string | null {
-  if (!String(p.nomeLoteador ?? '').trim()) return 'Informe o nome do loteador.';
-  if (!String(p.nomeResponsavel ?? '').trim()) return 'Informe o nome do responsável.';
-  if (!String(p.cargoFuncao ?? '').trim()) return 'Informe o cargo / função.';
-  if (!String(p.telefone ?? '').trim()) return 'Informe o telefone.';
-  if (!String(p.email ?? '').trim()) return 'Informe o e-mail.';
-  return null;
+  return validarNovoCardLoteadoresFormulario(p);
 }
 
-function draftFromParceiro(p: CriarCardLoteadoresParceiroInput): RedeLoteadorFichaDraft {
+function textoOuNull(v: string | null | undefined): string | null {
+  const s = String(v ?? '').trim();
+  return s || null;
+}
+
+function draftFromParceiro(
+  p: CriarCardLoteadoresParceiroInput,
+  condominioId: string,
+): RedeLoteadorFichaDraft {
   const base = emptyRedeLoteadorFichaDraft('em_analise');
   return {
     ...base,
-    nome: String(p.nomeLoteador ?? '').trim(),
-    cnpj: String(p.cnpj ?? '').trim(),
-    interlocutor_nome: String(p.nomeResponsavel ?? '').trim(),
-    interlocutor_cargo: String(p.cargoFuncao ?? '').trim(),
-    interlocutor_telefone: String(p.telefone ?? '').trim(),
-    interlocutor_email: String(p.email ?? '').trim(),
-    condominio_nome: String(p.condominioNome ?? '').trim(),
-    // Espelha no contato legado quando vazio
-    contato_nome: String(p.nomeResponsavel ?? '').trim(),
-    contato_telefone: String(p.telefone ?? '').trim(),
-    contato_email: String(p.email ?? '').trim(),
+    nome: String(p.nomeLoteadora ?? '').trim(),
+    cnpj: String(p.cnpjLoteadora ?? '').trim(),
+    cidade: String(p.cidadeLoteadora ?? '').trim(),
+    estado: String(p.estadoLoteadora ?? '').trim().toUpperCase(),
+    condominio_id: condominioId,
+    condominio_nome: String(p.nomeCondominio ?? '').trim(),
+    condominio_cidade: String(p.cidadeCondominio ?? '').trim(),
+    carteira_lotes_disponiveis: String(p.lotesDisponiveis ?? '').trim(),
+    campo_livre: String(p.informacoesAdicionais ?? '').trim(),
   };
 }
 
@@ -215,6 +206,114 @@ export async function carregarRedeLoteadorParaNovoCard(
   return { ok: true, draft: redeLoteadorRowToFichaDraft(row), row };
 }
 
+type DbCliente = Awaited<ReturnType<typeof createClient>>;
+
+async function nomeCondominioOcupado(db: DbCliente, nome: string): Promise<boolean> {
+  const alvo = normalizarParaBuscaCondominio(nome);
+  if (!alvo) return false;
+  const { data, error } = await db.from('condominios').select('id, nome');
+  if (error) throw new Error(error.message);
+  for (const r of data ?? []) {
+    const n = String((r as { nome?: string }).nome ?? '');
+    if (normalizarParaBuscaCondominio(n) === alvo) return true;
+  }
+  return false;
+}
+
+async function inserirCondominioELoteador(
+  db: DbCliente,
+  userId: string,
+  form: NovoCardLoteadoresFormulario,
+): Promise<
+  | {
+      ok: true;
+      condominioId: string;
+      redeLoteadorId: string;
+      nLoteador: string;
+      nomeCondominio: string;
+      nomeLoteadora: string;
+    }
+  | { ok: false; error: string }
+> {
+  const nomeCondominio = String(form.nomeCondominio ?? '').trim();
+  try {
+    if (await nomeCondominioOcupado(db, nomeCondominio)) {
+      return { ok: false, error: 'Já existe um condomínio cadastrado com este nome.' };
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
+  const now = new Date().toISOString();
+  const { data: condoIns, error: condoErr } = await db
+    .from('condominios')
+    .insert({
+      nome: nomeCondominio,
+      endereco: textoOuNull(form.endereco),
+      numero: textoOuNull(form.numero),
+      cep: textoOuNull(form.cep),
+      cidade: textoOuNull(form.cidadeCondominio),
+      estado: textoOuNull(form.estadoCondominio)?.toUpperCase() ?? null,
+      descricao_breve: textoOuNull(form.descricaoBreve),
+      ticket_medio_lote: textoOuNull(form.ticketMedioLote),
+      ticket_medio_casas: textoOuNull(form.ticketMedioCasas),
+      data_lancamento_vendas: textoOuNull(form.dataLancamentoVendas),
+      data_liberacao_tvo: textoOuNull(form.dataLiberacaoTvo),
+      metragem_lotes: textoOuNull(form.metragemLotes),
+      metragem_casas: textoOuNull(form.metragemCasas),
+      planta_cadastral: textoOuNull(form.plantaCadastral),
+      manual_obras: textoOuNull(form.manualObras),
+      criado_por: userId,
+      updated_at: now,
+    } as never)
+    .select('id')
+    .single();
+  if (condoErr) {
+    const msg = condoErr.message.toLowerCase();
+    if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('idx_condominios_nome')) {
+      return { ok: false, error: 'Já existe um condomínio cadastrado com este nome.' };
+    }
+    return { ok: false, error: condoErr.message };
+  }
+  const condominioId = String((condoIns as { id: string }).id);
+
+  const draft = draftFromParceiro(form, condominioId);
+  const patch = redeLoteadorFichaDraftToPatch(draft);
+  const alocado = await alocarNLoteador(db as never, null);
+  const { data: inserted, error: insErr } = await db
+    .from('rede_loteadores')
+    .insert({
+      ...patch,
+      n_loteador: alocado.n_loteador,
+      ordem: alocado.ordem,
+      codigo: alocado.n_loteador,
+      status: 'em_analise',
+      condominio_id: condominioId,
+      condominio_nome: nomeCondominio,
+      condominio_cidade: textoOuNull(form.cidadeCondominio),
+      condominio_estado: textoOuNull(form.estadoCondominio)?.toUpperCase() ?? null,
+      criado_por: userId,
+      ultima_atualizacao_por: userId,
+      updated_at: now,
+    } as never)
+    .select('id')
+    .single();
+  if (insErr) {
+    await db.from('condominios').delete().eq('id', condominioId);
+    return { ok: false, error: insErr.message };
+  }
+
+  return {
+    ok: true,
+    condominioId,
+    redeLoteadorId: String((inserted as { id: string }).id),
+    nLoteador: alocado.n_loteador,
+    nomeCondominio,
+    nomeLoteadora: draft.nome,
+  };
+}
+
 export async function criarCardLoteadoresComCadastro(
   input: CriarCardLoteadoresComCadastroInput,
 ): Promise<CriarCardLoteadoresComCadastroResult> {
@@ -227,69 +326,10 @@ export async function criarCardLoteadoresComCadastro(
   const errParceiro = validarParceiro(input.parceiro);
   if (errParceiro) return { ok: false, error: errParceiro };
 
-  const draft = draftFromParceiro(input.parceiro);
-  const patch = redeLoteadorFichaDraftToPatch(draft);
-  const now = new Date().toISOString();
-  let redeLoteadorId = String(input.redeLoteadorId ?? '').trim();
-  let nLoteadorFinal = String(input.parceiro.nLoteador ?? '').trim();
-
-  if (input.modo === 'existente') {
-    if (!redeLoteadorId) return { ok: false, error: 'Selecione um cadastro existente.' };
-    const { data: existente, error: errExist } = await gate.supabase
-      .from('rede_loteadores')
-      .select('n_loteador, codigo')
-      .eq('id', redeLoteadorId)
-      .maybeSingle();
-    if (errExist) return { ok: false, error: errExist.message };
-    nLoteadorFinal =
-      String((existente as { n_loteador?: string | null } | null)?.n_loteador ?? '').trim() ||
-      String((existente as { codigo?: string | null } | null)?.codigo ?? '').trim() ||
-      nLoteadorFinal;
-    if (!parseLOValue(nLoteadorFinal)) {
-      const alocado = await alocarNLoteador(gate.supabase as never, nLoteadorFinal);
-      nLoteadorFinal = alocado.n_loteador;
-      const { error: updLo } = await gate.supabase
-        .from('rede_loteadores')
-        .update({
-          n_loteador: alocado.n_loteador,
-          ordem: alocado.ordem,
-          ultima_atualizacao_por: gate.userId,
-          updated_at: now,
-        } as never)
-        .eq('id', redeLoteadorId);
-      if (updLo) return { ok: false, error: updLo.message };
-    }
-    const { error: updErr } = await gate.supabase
-      .from('rede_loteadores')
-      .update({
-        ...patch,
-        condominio_estado: patch.estado ?? null,
-        ultima_atualizacao_por: gate.userId,
-        updated_at: now,
-      } as never)
-      .eq('id', redeLoteadorId);
-    if (updErr) return { ok: false, error: updErr.message };
-  } else {
-    const alocado = await alocarNLoteador(gate.supabase as never, nLoteadorFinal);
-    nLoteadorFinal = alocado.n_loteador;
-    const { data: inserted, error: insErr } = await gate.supabase
-      .from('rede_loteadores')
-      .insert({
-        ...patch,
-        n_loteador: alocado.n_loteador,
-        ordem: alocado.ordem,
-        codigo: alocado.n_loteador,
-        status: 'em_analise',
-        condominio_estado: patch.estado ?? null,
-        criado_por: gate.userId,
-        ultima_atualizacao_por: gate.userId,
-        updated_at: now,
-      } as never)
-      .select('id')
-      .single();
-    if (insErr) return { ok: false, error: insErr.message };
-    redeLoteadorId = String((inserted as { id: string }).id);
-  }
+  const criados = await inserirCondominioELoteador(gate.supabase, gate.userId, input.parceiro);
+  if (!criados.ok) return criados;
+  const redeLoteadorId = criados.redeLoteadorId;
+  const nLoteadorFinal = criados.nLoteador;
 
   const { data: kb, error: kbErr } = await gate.supabase
     .from('kanbans')
@@ -309,15 +349,13 @@ export async function criarCardLoteadoresComCadastro(
   if (faseErr) return { ok: false, error: faseErr.message };
   if (!faseRow) return { ok: false, error: 'Fase não pertence ao Funil Loteadores.' };
 
-  const nomeCondominio = String(input.parceiro.condominioNome ?? '').trim() || null;
-  const quadra = String(input.quadra ?? '').trim() || null;
-  const lote = String(input.lote ?? '').trim() || null;
+  const nomeCondominio = criados.nomeCondominio;
   const titulo =
     montarTituloCardLoteadoresSync({
       nLoteador: nLoteadorFinal,
       nomeCondominio,
-      tituloFallback: draft.nome,
-    }) ?? draft.nome;
+      tituloFallback: criados.nomeLoteadora,
+    }) ?? criados.nomeLoteadora;
 
   const { data: cardRow, error: cardErr } = await gate.supabase
     .from('kanban_cards')
@@ -328,8 +366,7 @@ export async function criarCardLoteadoresComCadastro(
       titulo,
       status: 'ativo',
       nome_condominio: nomeCondominio,
-      quadra,
-      lote,
+      condominio_id: criados.condominioId,
       rede_loteador_id: redeLoteadorId,
     } as never)
     .select('id')
@@ -355,8 +392,6 @@ export async function criarCardLoteadoresComCadastro(
     userId: gate.userId,
     titulo,
     nomeCondominio,
-    quadra,
-    lote,
   });
   if (!processoRes.ok) {
     console.warn('[loteadores-novo-card] Falha ao vincular processo (dados do negócio):', processoRes.error);
@@ -366,6 +401,7 @@ export async function criarCardLoteadoresComCadastro(
   revalidatePath(bp);
   revalidatePath('/');
   revalidatePath('/funil-moni-inc');
+  revalidatePath('/rede-franqueados');
   void KANBAN_NOME_FUNIL_LOTEADORES;
 
   return { ok: true, cardId, redeLoteadorId };
@@ -423,37 +459,16 @@ export async function criarCardLoteadoresNovoCadastroAdmin(
   );
   if (!faseId) return { ok: false, error: 'Fase inicial do Funil Loteadores não configurada.' };
 
-  const draft = draftFromParceiro(parceiro);
-  const patch = redeLoteadorFichaDraftToPatch(draft);
-  const now = new Date().toISOString();
-  const alocado = await alocarNLoteador(admin as never, parceiro.nLoteador);
-  const nLoteadorFinal = alocado.n_loteador;
-
-  const { data: inserted, error: insErr } = await admin
-    .from('rede_loteadores')
-    .insert({
-      ...patch,
-      n_loteador: alocado.n_loteador,
-      ordem: alocado.ordem,
-      codigo: alocado.n_loteador,
-      status: 'em_analise',
-      condominio_estado: patch.estado ?? null,
-      criado_por: ownerUserId,
-      ultima_atualizacao_por: ownerUserId,
-      updated_at: now,
-    } as never)
-    .select('id')
-    .single();
-  if (insErr) return { ok: false, error: insErr.message };
-  const redeLoteadorId = String((inserted as { id: string }).id);
-
-  const nomeCondominio = String(parceiro.condominioNome ?? '').trim() || null;
+  const criados = await inserirCondominioELoteador(admin as DbCliente, ownerUserId, parceiro);
+  if (!criados.ok) return criados;
+  const redeLoteadorId = criados.redeLoteadorId;
+  const nomeCondominio = criados.nomeCondominio;
   const titulo =
     montarTituloCardLoteadoresSync({
-      nLoteador: nLoteadorFinal,
+      nLoteador: criados.nLoteador,
       nomeCondominio,
-      tituloFallback: draft.nome,
-    }) ?? draft.nome;
+      tituloFallback: criados.nomeLoteadora,
+    }) ?? criados.nomeLoteadora;
 
   const { data: cardRow, error: cardErr } = await admin
     .from('kanban_cards')
@@ -464,6 +479,7 @@ export async function criarCardLoteadoresNovoCadastroAdmin(
       titulo,
       status: 'ativo',
       nome_condominio: nomeCondominio,
+      condominio_id: criados.condominioId,
       rede_loteador_id: redeLoteadorId,
     } as never)
     .select('id')

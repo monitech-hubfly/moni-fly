@@ -24,6 +24,7 @@ export type CondominioFormDraft = {
   descricao_breve: string;
   ticket_medio_lote: string;
   ticket_medio_casas: string;
+  valor_tx_condominio: string;
   estimativa_casas_vendidas_ano: string;
   extrato_como_eram_casas: string;
   extrato_tempo_venda: string;
@@ -52,6 +53,7 @@ export function emptyCondominioFormDraft(): CondominioFormDraft {
     descricao_breve: '',
     ticket_medio_lote: '',
     ticket_medio_casas: '',
+    valor_tx_condominio: '',
     estimativa_casas_vendidas_ano: '',
     extrato_como_eram_casas: '',
     extrato_tempo_venda: '',
@@ -78,6 +80,7 @@ export function condominioRowToFormDraft(r: CondominioRow): CondominioFormDraft 
     descricao_breve: r.descricao_breve ?? '',
     ticket_medio_lote: r.ticket_medio_lote ?? '',
     ticket_medio_casas: r.ticket_medio_casas ?? '',
+    valor_tx_condominio: r.valor_tx_condominio ?? '',
     estimativa_casas_vendidas_ano: integerInputFromValue(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: r.extrato_como_eram_casas ?? '',
     extrato_tempo_venda: r.extrato_tempo_venda ?? '',
@@ -104,6 +107,7 @@ export function condominioFormDraftToPatch(d: CondominioFormDraft): CondominioPa
     descricao_breve: d.descricao_breve.trim() || null,
     ticket_medio_lote: d.ticket_medio_lote.trim() || null,
     ticket_medio_casas: d.ticket_medio_casas.trim() || null,
+    valor_tx_condominio: d.valor_tx_condominio.trim() || null,
     estimativa_casas_vendidas_ano: parseIntegerInput(d.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: d.extrato_como_eram_casas.trim() || null,
     extrato_tempo_venda: d.extrato_tempo_venda.trim() || null,

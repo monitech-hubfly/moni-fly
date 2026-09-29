@@ -35,6 +35,7 @@ export const CAMPOS_EXIBICAO_CONDOMINIO: CampoExibicaoCondominio[] = [
   { key: 'descricao_breve', label: 'Descrição breve', valor: (r) => texto(r.descricao_breve) },
   { key: 'ticket_medio_lote', label: 'Ticket médio lote', valor: (r) => formatTicketCadastro(r.ticket_medio_lote) },
   { key: 'ticket_medio_casas', label: 'Ticket médio casas', valor: (r) => formatTicketCadastro(r.ticket_medio_casas) },
+  { key: 'valor_tx_condominio', label: 'Valor Tx Condomínio', valor: (r) => formatTicketCadastro(r.valor_tx_condominio) },
   {
     key: 'estimativa_casas_vendidas_ano',
     label: 'Est. casas vendidas/ano',

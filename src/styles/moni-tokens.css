@@ -3971,13 +3971,18 @@
   background-color: var(--moni-surface-50);
 }
 
-/* Rede de Loteadores — fundo homogêneo (mesmo tom da página, inclusive no scroll horizontal) */
+/* Cadastro de Loteadores — mesmo branco da Rede de Franqueados, inclusive no scroll horizontal. */
+.moni-tabela-loteadores,
+.moni-tabela-scroll-wrap:has(.moni-tabela-loteadores) {
+  background-color: var(--moni-surface-0);
+}
+
 .moni-tabela-loteadores tbody td {
-  background-color: var(--moni-surface-50);
+  background-color: var(--moni-surface-0);
 }
 
 .moni-tabela-loteadores tbody tr:hover td {
-  background-color: var(--moni-surface-100);
+  background-color: var(--moni-surface-50);
 }
 
 /* Rede de Franqueados — fundo homogêneo por linha (colunas fixas + roláveis) */

@@ -154,6 +154,7 @@ function rowCondominioFromCsv(row: Record<string, string>): Record<string, unkno
     'estado',
     'ticket_medio_lote',
     'ticket_medio_casas',
+    'valor_tx_condominio',
     'extrato_como_eram_casas',
     'extrato_tempo_venda',
     'data_lancamento_vendas',

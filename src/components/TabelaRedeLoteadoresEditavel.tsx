@@ -458,8 +458,8 @@ export function TabelaRedeLoteadoresEditavel({
         Edição pela ficha completa. Role horizontalmente para ver todas as seções.
       </p>
 
-      <MoniTabelaScrollSync className="rounded-xl border border-[color:var(--moni-border-default)] bg-[color:var(--moni-surface-50)] shadow-sm">
-        <table className="moni-tabela-loteadores w-full min-w-[2200px] border-collapse bg-[color:var(--moni-surface-50)] text-left text-sm">
+      <MoniTabelaScrollSync className="rounded-xl border border-[color:var(--moni-border-default)] bg-[color:var(--moni-surface-0)] shadow-sm">
+        <table className="moni-tabela-loteadores w-full min-w-[2200px] border-collapse bg-[color:var(--moni-surface-0)] text-left text-sm">
           <thead>
             <tr className="border-b border-[color:var(--moni-border-default)]">
               {secoes.map((secao, idx) => (

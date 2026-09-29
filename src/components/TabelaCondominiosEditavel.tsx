@@ -42,6 +42,7 @@ type Draft = {
   descricao_breve: string;
   ticket_medio_lote: string;
   ticket_medio_casas: string;
+  valor_tx_condominio: string;
   estimativa_casas_vendidas_ano: string;
   extrato_como_eram_casas: string;
   extrato_tempo_venda: string;
@@ -70,6 +71,7 @@ function emptyDraft(): Draft {
     descricao_breve: '',
     ticket_medio_lote: '',
     ticket_medio_casas: '',
+    valor_tx_condominio: '',
     estimativa_casas_vendidas_ano: '',
     extrato_como_eram_casas: '',
     extrato_tempo_venda: '',
@@ -96,6 +98,7 @@ function rowToDraft(r: CondominioRow): Draft {
     descricao_breve: r.descricao_breve ?? '',
     ticket_medio_lote: r.ticket_medio_lote ?? '',
     ticket_medio_casas: r.ticket_medio_casas ?? '',
+    valor_tx_condominio: r.valor_tx_condominio ?? '',
     estimativa_casas_vendidas_ano: integerInputFromValue(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: r.extrato_como_eram_casas ?? '',
     extrato_tempo_venda: r.extrato_tempo_venda ?? '',
@@ -122,6 +125,7 @@ function draftToPatch(d: Draft) {
     descricao_breve: d.descricao_breve.trim() || null,
     ticket_medio_lote: d.ticket_medio_lote.trim() || null,
     ticket_medio_casas: d.ticket_medio_casas.trim() || null,
+    valor_tx_condominio: d.valor_tx_condominio.trim() || null,
     estimativa_casas_vendidas_ano: parseIntegerInput(d.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: d.extrato_como_eram_casas.trim() || null,
     extrato_tempo_venda: d.extrato_tempo_venda.trim() || null,
@@ -313,6 +317,9 @@ export function TabelaCondominiosEditavel({
                 Ticket Médio Casas
               </th>
               <th className={redeTh} scope="col">
+                Valor Tx Condomínio
+              </th>
+              <th className={redeTh} scope="col">
                 Est. casas vendidas/ano
               </th>
               <th className={redeTh} scope="col">
@@ -406,6 +413,11 @@ export function TabelaCondominiosEditavel({
                   <td className="max-w-[16rem] px-3 py-2.5 text-stone-700">
                     <span className="line-clamp-3 text-xs" title={r.ticket_medio_casas ?? ''}>
                       {formatTicketCadastro(r.ticket_medio_casas)}
+                    </span>
+                  </td>
+                  <td className="max-w-[16rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-3 text-xs" title={r.valor_tx_condominio ?? ''}>
+                      {formatTicketCadastro(r.valor_tx_condominio)}
                     </span>
                   </td>
                   <td className="px-3 py-2.5 tabular-nums text-stone-700">
@@ -643,6 +655,16 @@ function CondominioEditRow({
           type="text"
           value={draft.ticket_medio_casas}
           onChange={(e) => setDraft((d) => ({ ...d, ticket_medio_casas: e.target.value }))}
+          className={`${inputCls} min-w-[12rem]`}
+          style={inputStyle}
+          placeholder="Valor ou faixa"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="text"
+          value={draft.valor_tx_condominio}
+          onChange={(e) => setDraft((d) => ({ ...d, valor_tx_condominio: e.target.value }))}
           className={`${inputCls} min-w-[12rem]`}
           style={inputStyle}
           placeholder="Valor ou faixa"
