@@ -19,6 +19,7 @@ export type LoteadoresFaseCanon = {
  * Migration 584: uma só «Entrar em contato»; remove R1, Opção, Acoplamento,
  * Executar Material, Cto c/ Precedentes, Diligência e Cto Showroom;
  * «Passagem para Waysers» passa a se chamar «Passagem IMOB».
+ * Migration 585: «Cto de Parceria» fica antes de «Passagem IMOB».
  */
 export const LOTEADORES_FASES_CANONICAS: readonly LoteadoresFaseCanon[] = [
   { ordem: 1, slug: FASE_SLUGS.LOTEADORES_PRIMEIRO_CONTATO, nome: 'Entrar em contato', slaDias: 1 },
@@ -32,8 +33,8 @@ export const LOTEADORES_FASES_CANONICAS: readonly LoteadoresFaseCanon[] = [
   { ordem: 9, slug: FASE_SLUGS.ACOPLAMENTO_GBOX_MONI_INC, nome: 'Acoplamento + Gbox', slaDias: 5 },
   { ordem: 10, slug: FASE_SLUGS.LOTEADORES_COMITE, nome: 'Comitê', slaDias: 3 },
   { ordem: 11, slug: FASE_SLUGS.REVISOES_POS_COMITE_MONI_INC, nome: 'Revisões', slaDias: 2 },
-  { ordem: 12, slug: FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC, nome: 'Passagem IMOB', slaDias: 1 },
-  { ordem: 13, slug: FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA, nome: 'Cto de Parceria', slaDias: 3 },
+  { ordem: 12, slug: FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA, nome: 'Cto de Parceria', slaDias: 3 },
+  { ordem: 13, slug: FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC, nome: 'Passagem IMOB', slaDias: 1 },
   { ordem: 14, slug: FASE_SLUGS.LOTEADORES_ASSINADOS, nome: 'Assinados', slaDias: null },
 ] as const;
 
