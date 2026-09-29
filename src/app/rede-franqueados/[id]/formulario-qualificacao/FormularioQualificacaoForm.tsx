@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { salvarFormularioEni, type FormularioQualificacaoRow } from '@/lib/actions/formulario-qualificacao';
 import { salvarFormularioPublico, buscarRespostaPublicaDetalhe } from '@/lib/actions/formulario-publico';
-import type { FormularioQualificacaoRow } from '@/lib/actions/formulario-qualificacao';
 
 // Design tokens
 const NAVY  = '#0F1E33';
