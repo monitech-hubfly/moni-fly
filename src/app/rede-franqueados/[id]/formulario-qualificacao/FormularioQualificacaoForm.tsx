@@ -13,7 +13,7 @@ const RED   = '#8B2020';
 
 // Scoring map - used only for internal DB save, not displayed to Frank
 const SCORE_MAP: Record<string, Record<string, number>> = {
-  capital_timing:       { disponivel: 2, '3meses': 2, '6meses': 1 },
+  capital_faixa:        { nao_tenho: 0, abaixo_260k: 0, '260_400k': 1, '400_600k': 2, acima_600k: 2 },
   conhecimento_mercado: { alto: 2, medio: 1, baixo: 0 },
   conhecimento_imob:    { sim_inc: 2, sim_compra: 1, nao: 0 },
   conhecimento_moni:    { fluente: 2, basico: 1, pouco: 0 },
@@ -22,6 +22,13 @@ const SCORE_MAP: Record<string, Record<string, number>> = {
   tempo_agenda:         { sim_tudo: 2, sim_online: 2, parcial: 0 },
   workshops:            { sim_ja: 2, sim_pode: 1, nao: 0 },
 };
+
+// Derive capital_gate from capital_faixa for backward compat with DB column
+function derivarCapitalGate(faixa: string): string {
+  if (faixa === 'nao_tenho' || faixa === 'abaixo_260k') return 'nao';
+  if (faixa === 'acima_600k') return 'sim_plus';
+  return 'sim';
+}
 
 function RadioOption({ name, value, label, selected, onChange, sub }: {
   name: string; value: string; label: string; selected: boolean;
@@ -102,33 +109,31 @@ type Props = {
 };
 
 export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeCompleto, cidadeInicial = '', estadoInicial = '', historico }: Props) {
-  const [nome, setNome]                   = useState(nomeCompleto || '');
-  const [cidade, setCidade]               = useState(cidadeInicial);
-  const [estado, setEstado]               = useState(estadoInicial);
-  const [capitalGate, setCapitalGate]     = useState('');
-  const [capitalFaixa, setCapitalFaixa]   = useState('');
-  const [capitalTiming, setCapitalTiming] = useState('');
-  const [conhecMercado, setConhecMercado] = useState('');
-  const [conhecImob, setConhecImob]       = useState('');
-  const [conhecMoni, setConhecMoni]       = useState('');
-  const [tempoHoras, setTempoHoras]       = useState('');
-  const [tempoResposta, setTempoResposta] = useState('');
-  const [tempoAgenda, setTempoAgenda]     = useState('');
-  const [workshops, setWorkshops]         = useState('');
-  const [motivacao, setMotivacao]         = useState('');
+  const [nome, setNome]                               = useState(nomeCompleto || '');
+  const [cidade, setCidade]                           = useState(cidadeInicial);
+  const [estado, setEstado]                           = useState(estadoInicial);
+  const [capitalFaixa, setCapitalFaixa]               = useState('');
+  const [capitalValorDeclarado, setCapitalValorDeclarado] = useState('');
+  const [conhecMercado, setConhecMercado]             = useState('');
+  const [conhecImob, setConhecImob]                   = useState('');
+  const [conhecMoni, setConhecMoni]                   = useState('');
+  const [tempoHoras, setTempoHoras]                   = useState('');
+  const [tempoResposta, setTempoResposta]             = useState('');
+  const [tempoAgenda, setTempoAgenda]                 = useState('');
+  const [workshops, setWorkshops]                     = useState('');
+  const [motivacao, setMotivacao]                     = useState('');
 
   const [enviado, setEnviado]       = useState(false);
   const [erroForm, setErroForm]     = useState('');
   const [salvando, setSalvando]     = useState(false);
   const [erroSalvar, setErroSalvar] = useState('');
 
+  const totalQ = capitalFaixa === 'abaixo_260k' ? 10 : 9;
   const answered = [
-    capitalGate, conhecMercado, conhecImob, conhecMoni,
+    capitalFaixa, conhecMercado, conhecImob, conhecMoni,
     tempoHoras, tempoResposta, tempoAgenda, workshops, motivacao,
   ].filter(Boolean).length
-    + (capitalGate === 'sim' || capitalGate === 'sim_plus'
-      ? (capitalFaixa ? 1 : 0) + (capitalTiming ? 1 : 0) : 0);
-  const totalQ = 11;
+    + (capitalFaixa === 'abaixo_260k' && capitalValorDeclarado.trim() ? 1 : 0);
   const progress = Math.min(100, Math.round((answered / totalQ) * 100));
 
   function score(field: string, val: string | null): number {
@@ -145,11 +150,9 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
     if (!nome.trim()) return setErroForm('Informe seu nome completo.');
     if (!cidade.trim()) return setErroForm('Informe a cidade de atuacao.');
     if (!estado.trim()) return setErroForm('Informe o estado.');
-    if (!capitalGate) return setErroForm('Responda a pergunta sobre o capital minimo.');
-    if (capitalGate === 'sim' || capitalGate === 'sim_plus') {
-      if (!capitalFaixa) return setErroForm('Selecione a faixa de capital disponivel.');
-      if (!capitalTiming) return setErroForm('Selecione o timing de disponibilidade do capital.');
-    }
+    if (!capitalFaixa) return setErroForm('Selecione a faixa de capital disponivel.');
+    if (capitalFaixa === 'abaixo_260k' && !capitalValorDeclarado.trim())
+      return setErroForm('Informe o valor de capital disponivel.');
     if (!conhecMercado) return setErroForm('Responda sobre conhecimento do mercado imobiliario.');
     if (!conhecImob) return setErroForm('Responda sobre experiencia imobiliaria.');
     if (!conhecMoni) return setErroForm('Responda sobre conhecimento do modelo Moni.');
@@ -160,14 +163,17 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
     if (!motivacao.trim()) return setErroForm('Preencha o campo de contexto / motivacao.');
 
     // Internal scoring - saved to DB only, not shown to Frank
-    const capRaw = capitalGate === 'nao' ? 0 : score('capital_timing', capitalTiming);
-    const capPct = capitalGate === 'nao' ? 0 : Math.round((capRaw / 2) * 100);
+    // Capital: direct map from capital_faixa (max 2)
+    const capRaw = score('capital_faixa', capitalFaixa);
+    const capPct = Math.round((capRaw / 2) * 100);
 
+    // Conhecimento: 3 questions x max 2 = max 6; normalize to 0-2
     const conhecRaw = score('conhecimento_mercado', conhecMercado)
       + score('conhecimento_imob', conhecImob)
       + score('conhecimento_moni', conhecMoni);
     const conhecPct = Math.round((conhecRaw / 6) * 100);
 
+    // Disponibilidade: 4 questions x max 2 = max 8; normalize to 0-2
     const tempoRaw = score('tempo_horas', tempoHoras)
       + score('tempo_resposta', tempoResposta)
       + score('tempo_agenda', tempoAgenda)
@@ -175,16 +181,17 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
     const tempoPct = Math.round((tempoRaw / 8) * 100);
 
     const totalRaw = capRaw + conhecRaw + tempoRaw;
-    const totalPct = capitalGate === 'nao' ? 0 : Math.round((totalRaw / 16) * 100);
+    const totalPct = Math.round((totalRaw / 16) * 100);
 
     // Normalized scores for rede_franqueados (0-2 scale)
-    const diagD = capRaw; // capital max 2, already in range
-    const diagK = Math.round((conhecRaw / 6) * 2); // conhecimento max 6
-    const diagC = Math.round((tempoRaw / 8) * 2);  // tempo max 8
+    const diagD = capRaw;                               // capital max 2, already in range
+    const diagK = Math.round((conhecRaw / 6) * 2);     // conhecimento max 6
+    const diagC = Math.round((tempoRaw / 8) * 2);      // disponibilidade max 8
 
+    const semCapital = capitalFaixa === 'nao_tenho' || capitalFaixa === 'abaixo_260k';
     const lowFlags = (capPct < 50 ? 1 : 0) + (conhecPct < 34 ? 1 : 0) + (tempoPct < 34 ? 1 : 0);
     let tipo: string;
-    if (capitalGate === 'nao') {
+    if (semCapital) {
       tipo = 'nao_qualificado';
     } else if (totalPct >= 70 && lowFlags === 0) {
       tipo = 'qualificado';
@@ -201,9 +208,10 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
       nome_franqueado_confirmado: nome,
       cidade_atuacao: cidade,
       estado_atuacao: estado,
-      capital_gate: capitalGate,
-      capital_faixa: capitalGate === 'nao' ? null : capitalFaixa || null,
-      capital_timing: capitalGate === 'nao' ? null : capitalTiming || null,
+      capital_gate: derivarCapitalGate(capitalFaixa),
+      capital_faixa: capitalFaixa || null,
+      capital_timing: null,
+      capital_valor_declarado: capitalFaixa === 'abaixo_260k' ? capitalValorDeclarado.trim() || null : null,
       conhecimento_mercado: conhecMercado || null,
       conhecimento_imob: conhecImob || null,
       conhecimento_moni: conhecMoni || null,
@@ -216,10 +224,10 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
       score_conhecimento_pct: conhecPct,
       score_tempo_pct: tempoPct,
       resultado_tipo: tipo,
-      texto_gerado: null,
       diag_d: diagD,
       diag_k: diagK,
       diag_c: diagC,
+      texto_gerado: null,
     });
     setSalvando(false);
 
@@ -330,43 +338,35 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
             {/* Sec 1: Capital */}
             <SectionCard>
               <SectionHeader number={1} title="Capital" icon="Eixo 1 de 3" />
-              <QuestionGroup label="Voce tem ao menos R$ 260.000 de capital proprio disponivel para investir?" required>
+              <QuestionGroup label="Qual a faixa de capital proprio disponivel para investir?" required>
                 {[
-                  { value: 'nao',      label: 'Nao',                      sub: 'Abaixo de R$ 260.000' },
-                  { value: 'sim',      label: 'Sim',                      sub: 'R$ 260.000 a R$ 600.000' },
-                  { value: 'sim_plus', label: 'Sim, acima de R$ 600.000', sub: '' },
+                  { value: 'nao_tenho',    label: 'Nao tenho Capital para Aporte Inicial',  sub: '' },
+                  { value: 'abaixo_260k',  label: 'Abaixo de R$ 260.000',                   sub: 'Abaixo do aporte minimo' },
+                  { value: '260_400k',     label: 'R$ 260.000 a R$ 400.000',                sub: '' },
+                  { value: '400_600k',     label: 'R$ 400.000 a R$ 600.000',                sub: '' },
+                  { value: 'acima_600k',   label: 'Acima de R$ 600.000',                    sub: '' },
                 ].map(o => (
-                  <RadioOption key={o.value} name="capital_gate" value={o.value} label={o.label} sub={o.sub}
-                    selected={capitalGate === o.value} onChange={setCapitalGate} />
+                  <RadioOption key={o.value} name="capital_faixa" value={o.value} label={o.label} sub={o.sub || undefined}
+                    selected={capitalFaixa === o.value} onChange={v => { setCapitalFaixa(v); setCapitalValorDeclarado(''); }} />
                 ))}
               </QuestionGroup>
 
-              {(capitalGate === 'sim' || capitalGate === 'sim_plus') && (
-                <>
-                  <QuestionGroup label="Qual a faixa de capital disponivel?" required>
-                    {[
-                      { value: '260-400', label: 'R$ 260.000 a R$ 400.000' },
-                      { value: '400-600', label: 'R$ 400.000 a R$ 600.000' },
-                      { value: '600+',    label: 'Acima de R$ 600.000' },
-                    ].map(o => (
-                      <RadioOption key={o.value} name="capital_faixa" value={o.value} label={o.label}
-                        selected={capitalFaixa === o.value} onChange={setCapitalFaixa} />
-                    ))}
-                  </QuestionGroup>
-                  <QuestionGroup label="Quando esse capital estara disponivel?" required>
-                    {[
-                      { value: 'disponivel', label: 'Disponivel agora' },
-                      { value: '3meses',     label: 'Disponivel em ate 3 meses' },
-                      { value: '6meses',     label: 'Disponivel em ate 6 meses' },
-                    ].map(o => (
-                      <RadioOption key={o.value} name="capital_timing" value={o.value} label={o.label}
-                        selected={capitalTiming === o.value} onChange={setCapitalTiming} />
-                    ))}
-                  </QuestionGroup>
-                </>
+              {capitalFaixa === 'abaixo_260k' && (
+                <QuestionGroup label="Qual o valor aproximado disponivel para investimento?" required>
+                  <input
+                    value={capitalValorDeclarado}
+                    onChange={e => setCapitalValorDeclarado(e.target.value)}
+                    placeholder="Ex: R$ 150.000"
+                    style={{
+                      width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
+                      padding: '9px 12px', fontSize: 13.5, color: '#222',
+                      outline: 'none', boxSizing: 'border-box',
+                    }}
+                  />
+                </QuestionGroup>
               )}
 
-              {capitalGate === 'nao' && (
+              {(capitalFaixa === 'nao_tenho' || capitalFaixa === 'abaixo_260k') && (
                 <div style={{
                   background: '#FFF8F0', border: '1px solid #F0C080', borderRadius: 8,
                   padding: '12px 14px', fontSize: 13, color: '#7A5020', marginTop: 4,

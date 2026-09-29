@@ -26,6 +26,7 @@ export type FormularioQualificacaoRow = {
   capital_gate: string | null;
   capital_faixa: string | null;
   capital_timing: string | null;
+  capital_valor_declarado: string | null;
   conhecimento_mercado: string | null;
   conhecimento_imob: string | null;
   conhecimento_moni: string | null;
@@ -47,9 +48,11 @@ export type FormularioEniInput = {
   nome_franqueado_confirmado: string;
   cidade_atuacao: string;
   estado_atuacao: string;
+  // capital_gate: derived from capital_faixa for backward compat
   capital_gate: string;
   capital_faixa: string | null;
   capital_timing: string | null;
+  capital_valor_declarado: string | null;
   conhecimento_mercado: string | null;
   conhecimento_imob: string | null;
   conhecimento_moni: string | null;
