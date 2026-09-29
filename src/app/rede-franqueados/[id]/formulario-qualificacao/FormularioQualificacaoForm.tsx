@@ -106,7 +106,7 @@ type Props = {
   redeId: string;
   nFranquia: string;
   nomeCompleto: string;
-  historico: FormularioQualificacaoRow[];
+  historico: Pick<FormularioQualificacaoRow, 'id' | 'criado_em'>[];
   publicToken?: string;
 };
 
