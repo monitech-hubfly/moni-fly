@@ -1801,13 +1801,15 @@ export function KanbanCardModal({
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
-          .then(({ data: tokRow }) => {
-            const emailTok = (tokRow as { email_candidato?: string | null } | null)?.email_candidato;
-            if (emailTok) setEmailPara(emailTok);
-          })
-          .catch(() => {
-            // sem token — mantém campo vazio
-          }),
+          .then(
+            ({ data: tokRow }) => {
+              const emailTok = (tokRow as { email_candidato?: string | null } | null)?.email_candidato;
+              if (emailTok) setEmailPara(emailTok);
+            },
+            () => {
+              // sem token — mantém campo vazio
+            },
+          ),
       ]);
 
       try {
