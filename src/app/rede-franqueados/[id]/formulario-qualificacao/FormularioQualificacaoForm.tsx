@@ -150,19 +150,19 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
   async function enviarRespostas() {
     setErroForm('');
     if (!nome.trim()) return setErroForm('Informe seu nome completo.');
-    if (!cidade.trim()) return setErroForm('Informe a cidade de atuacao.');
+    if (!cidade.trim()) return setErroForm('Informe a cidade de atuação.');
     if (!estado.trim()) return setErroForm('Informe o estado.');
-    if (!capitalFaixa) return setErroForm('Selecione a faixa de capital disponivel.');
+    if (!capitalFaixa) return setErroForm('Selecione a faixa de capital disponível.');
     if (capitalFaixa === 'abaixo_260k' && !capitalValorDeclarado.trim())
-      return setErroForm('Informe o valor de capital disponivel.');
-    if (!conhecMercado) return setErroForm('Responda sobre conhecimento do mercado imobiliario.');
-    if (!conhecImob) return setErroForm('Responda sobre experiencia imobiliaria.');
-    if (!conhecMoni) return setErroForm('Responda sobre conhecimento do modelo Moni.');
-    if (!tempoHoras) return setErroForm('Responda sobre horas disponiveis por semana.');
+      return setErroForm('Informe o valor de capital disponível.');
+    if (!conhecMercado) return setErroForm('Responda sobre conhecimento do mercado imobiliário.');
+    if (!conhecImob) return setErroForm('Responda sobre experiência imobiliária.');
+    if (!conhecMoni) return setErroForm('Responda sobre conhecimento do modelo Moní.');
+    if (!tempoHoras) return setErroForm('Responda sobre horas disponíveis por semana.');
     if (!tempoResposta) return setErroForm('Responda sobre tempo de resposta a demandas.');
     if (!tempoAgenda) return setErroForm('Responda sobre disponibilidade de agenda presencial.');
-    if (!workshops) return setErroForm('Responda sobre participacao em workshops.');
-    if (!motivacao.trim()) return setErroForm('Preencha o campo de contexto / motivacao.');
+    if (!workshops) return setErroForm('Responda sobre participação em workshops.');
+    if (!motivacao.trim()) return setErroForm('Preencha o campo de contexto / motivação.');
 
     // Internal scoring - saved to DB only, not shown to Frank
     // Capital: direct map from capital_faixa (max 2)
@@ -253,10 +253,10 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
             Plano Permuteiro
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: 'white', margin: 0, lineHeight: 1.3 }}>
-            Formulario de Qualificacao
+            Formulário de Qualificação
           </h1>
           <p style={{ fontSize: 13, color: '#94A3B8', margin: '6px 0 0', lineHeight: 1.5 }}>
-            Avaliacao em 3 eixos: Capital, Conhecimento e Disponibilidade
+            Avaliação em 3 eixos: Capital, Conhecimento e Disponibilidade
           </p>
           {!enviado && (
             <div style={{ marginTop: 16 }}>
@@ -291,7 +291,7 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
               Respostas enviadas com sucesso!
             </div>
             <div style={{ fontSize: 14, color: '#666', lineHeight: 1.6 }}>
-              Obrigado pelo preenchimento. Suas respostas foram registradas e serao analisadas pela equipe Moni.
+              Obrigado pelo preenchimento. Suas respostas foram registradas e serão analisadas pela equipe Moní.
             </div>
           </div>
         )}
@@ -299,9 +299,9 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
         {/* Form sections - hidden after submission */}
         {!enviado && (
           <>
-            {/* Sec 0: Identificacao */}
+            {/* Sec 0: Identificação */}
             <SectionCard>
-              <SectionHeader number={0} title="Identificacao" icon="Contexto" />
+              <SectionHeader number={0} title="Identificação" icon="Contexto" />
               <QuestionGroup label="Nome completo" required>
                 <input
                   value={nome} onChange={e => setNome(e.target.value)}
@@ -314,10 +314,10 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
                 />
               </QuestionGroup>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <QuestionGroup label="Cidade(s) de atuacao" required>
+                <QuestionGroup label="Cidade(s) de atuação" required>
                   <input
                     value={cidade} onChange={e => setCidade(e.target.value)}
-                    placeholder="Ex: Sao Paulo, Campinas"
+                    placeholder="Ex: São Paulo, Campinas"
                     style={{
                       width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
                       padding: '9px 12px', fontSize: 13.5, color: '#222',
@@ -342,10 +342,10 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
             {/* Sec 1: Capital */}
             <SectionCard>
               <SectionHeader number={1} title="Capital" icon="Eixo 1 de 3" />
-              <QuestionGroup label="Qual a faixa de capital proprio disponivel para investir?" required>
+              <QuestionGroup label="Qual a faixa de capital próprio disponível para investir?" required>
                 {[
-                  { value: 'nao_tenho',    label: 'Nao tenho Capital para Aporte Inicial',  sub: '' },
-                  { value: 'abaixo_260k',  label: 'Abaixo de R$ 260.000',                   sub: 'Abaixo do aporte minimo' },
+                  { value: 'nao_tenho',    label: 'Não tenho Capital para Aporte Inicial',  sub: '' },
+                  { value: 'abaixo_260k',  label: 'Abaixo de R$ 260.000',                   sub: 'Abaixo do aporte mínimo' },
                   { value: '260_400k',     label: 'R$ 260.000 a R$ 400.000',                sub: '' },
                   { value: '400_600k',     label: 'R$ 400.000 a R$ 600.000',                sub: '' },
                   { value: 'acima_600k',   label: 'Acima de R$ 600.000',                    sub: '' },
@@ -356,7 +356,7 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
               </QuestionGroup>
 
               {capitalFaixa === 'abaixo_260k' && (
-                <QuestionGroup label="Qual o valor aproximado disponivel para investimento?" required>
+                <QuestionGroup label="Qual o valor aproximado disponível para investimento?" required>
                   <input
                     value={capitalValorDeclarado}
                     onChange={e => setCapitalValorDeclarado(e.target.value)}
@@ -375,7 +375,7 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
                   background: '#FFF8F0', border: '1px solid #F0C080', borderRadius: 8,
                   padding: '12px 14px', fontSize: 13, color: '#7A5020', marginTop: 4,
                 }}>
-                  O capital minimo para iniciar uma operacao Moni e R$ 260.000. Voce pode preencher e enviar o formulario para registro, e retomar quando o capital estiver disponivel.
+                  O capital mínimo para iniciar uma operação Moní é R$ 260.000. Você pode preencher e enviar o formulário para registro, e retomar quando o capital estiver disponível.
                 </div>
               )}
             </SectionCard>
@@ -383,33 +383,33 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
             {/* Sec 2: Conhecimento */}
             <SectionCard>
               <SectionHeader number={2} title="Conhecimento" icon="Eixo 2 de 3" />
-              <QuestionGroup label="Como voce avalia seu conhecimento sobre o mercado imobiliario?" required>
+              <QuestionGroup label="Como você classifica seu conhecimento do mercado imobiliário da sua cidade?" required>
                 {[
-                  { value: 'alto',  label: 'Alto',            sub: 'Acompanho tendencias, sei avaliar terrenos e projetos' },
-                  { value: 'medio', label: 'Medio',           sub: 'Conheco o basico, ja pesquisei sobre o setor' },
-                  { value: 'baixo', label: 'Baixo ou nenhum', sub: 'Sou iniciante nesse mercado' },
+                  { value: 'alto',  label: 'Alto: conheço corretores, loteadoras e preços praticados' },
+                  { value: 'medio', label: 'Médio: conheço a cidade, mas não tenho rede no mercado imobiliário' },
+                  { value: 'baixo', label: 'Baixo: sou novo no mercado' },
                 ].map(o => (
-                  <RadioOption key={o.value} name="conhec_mercado" value={o.value} label={o.label} sub={o.sub}
+                  <RadioOption key={o.value} name="conhec_mercado" value={o.value} label={o.label}
                     selected={conhecMercado === o.value} onChange={setConhecMercado} />
                 ))}
               </QuestionGroup>
-              <QuestionGroup label="Voce tem experiencia com incorporacao imobiliaria?" required>
+              <QuestionGroup label="Você já fez ou acompanhou algum negócio imobiliário (compra, venda, incorporação)?" required>
                 {[
-                  { value: 'sim_inc',    label: 'Sim, com incorporacao',   sub: 'Ja participei de projetos de incorporacao' },
-                  { value: 'sim_compra', label: 'Sim, compra e venda',     sub: 'Ja atuei com compra, venda ou locacao' },
-                  { value: 'nao',        label: 'Nao tenho experiencia',   sub: '' },
+                  { value: 'sim_inc',    label: 'Sim: já participei de incorporação ou desenvolvimento' },
+                  { value: 'sim_compra', label: 'Sim: já comprei/vendi imóveis ou acompanhei obras' },
+                  { value: 'nao',        label: 'Não: meu background é em outra área' },
                 ].map(o => (
-                  <RadioOption key={o.value} name="conhec_imob" value={o.value} label={o.label} sub={o.sub}
+                  <RadioOption key={o.value} name="conhec_imob" value={o.value} label={o.label}
                     selected={conhecImob === o.value} onChange={setConhecImob} />
                 ))}
               </QuestionGroup>
-              <QuestionGroup label="Como voce avalia seu conhecimento sobre o modelo de negocios Moni?" required>
+              <QuestionGroup label="Qual é o seu grau de familiaridade com o processo Moní (Step One, BCA, funil de negócios)?" required>
                 {[
-                  { value: 'fluente', label: 'Fluente no modelo',   sub: 'Entendo a operacao, os numeros e os processos' },
-                  { value: 'basico',  label: 'Conhecimento basico', sub: 'Ja li materiais e assisti apresentacoes' },
-                  { value: 'pouco',   label: 'Pouco conhecimento',  sub: 'Ainda estou descobrindo como funciona' },
+                  { value: 'fluente', label: 'Fluente: uso as ferramentas regularmente, negocio terrenos e consigo ser autônoma' },
+                  { value: 'basico',  label: 'Básico: tenho todos os links, porém não consigo operar sozinho ou ainda não passei por muitas etapas ainda.' },
+                  { value: 'pouco',   label: 'Pouco: ainda não abri os links na Área do Franqueado e não leio o Canal dos Franqueados no Whatsapp' },
                 ].map(o => (
-                  <RadioOption key={o.value} name="conhec_moni" value={o.value} label={o.label} sub={o.sub}
+                  <RadioOption key={o.value} name="conhec_moni" value={o.value} label={o.label}
                     selected={conhecMoni === o.value} onChange={setConhecMoni} />
                 ))}
               </QuestionGroup>
@@ -418,45 +418,45 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
             {/* Sec 3: Disponibilidade */}
             <SectionCard>
               <SectionHeader number={3} title="Disponibilidade" icon="Eixo 3 de 3" />
-              <QuestionGroup label="Quantas horas por semana voce pode dedicar ao projeto Moni?" required>
+              <QuestionGroup label="Quantas horas por semana você consegue dedicar ao negócio Moní (reuniões, análise, decisões)?" required>
                 {[
-                  { value: '10+',  label: 'Mais de 10 horas por semana' },
-                  { value: '5-10', label: 'De 5 a 10 horas por semana' },
-                  { value: '2-5',  label: 'De 2 a 5 horas por semana' },
-                  { value: '<2',   label: 'Menos de 2 horas por semana' },
+                  { value: '10+',  label: '10h ou mais por semana',   sub: 'Operação como prioridade principal.' },
+                  { value: '5-10', label: '5 a 10h por semana',       sub: 'Operação como foco secundário mas consistente.' },
+                  { value: '2-5',  label: '2 a 5h por semana',        sub: 'Suficiente para checkpoints e decisões rápidas.' },
+                  { value: '<2',   label: 'Menos de 2h por semana',   sub: 'Pode comprometer resposta ágil nos checkpoints.' },
                 ].map(o => (
-                  <RadioOption key={o.value} name="tempo_horas" value={o.value} label={o.label}
+                  <RadioOption key={o.value} name="tempo_horas" value={o.value} label={o.label} sub={o.sub}
                     selected={tempoHoras === o.value} onChange={setTempoHoras} />
                 ))}
               </QuestionGroup>
-              <QuestionGroup label="Com qual velocidade voce consegue responder a demandas do projeto?" required>
+              <QuestionGroup label="Como você responde a documentos e decisões urgentes (e-mail, WhatsApp)?" required>
                 {[
-                  { value: 'mesmo_dia', label: 'Mesmo dia',             sub: 'Respondo em horas' },
-                  { value: '24h',       label: 'Em ate 24 horas',       sub: '' },
-                  { value: '2-3d',      label: 'Em 2 a 3 dias',         sub: '' },
-                  { value: 'semana',    label: 'Em uma semana ou mais', sub: '' },
+                  { value: 'mesmo_dia', label: 'No mesmo dia, sempre' },
+                  { value: '24h',       label: 'Em até 24h na maioria das vezes' },
+                  { value: '2-3d',      label: 'Em 2 a 3 dias' },
+                  { value: 'semana',    label: 'Depende: às vezes demoro mais de 3 dias' },
                 ].map(o => (
-                  <RadioOption key={o.value} name="tempo_resposta" value={o.value} label={o.label} sub={o.sub}
+                  <RadioOption key={o.value} name="tempo_resposta" value={o.value} label={o.label}
                     selected={tempoResposta === o.value} onChange={setTempoResposta} />
                 ))}
               </QuestionGroup>
-              <QuestionGroup label="Voce tem disponibilidade de agenda para reunioes presenciais?" required>
+              <QuestionGroup label="Você tem agenda para reuniões de 30 minutos com terrenistas (online) e disponibilidade para ir ao terreno quando necessário?" required>
                 {[
-                  { value: 'sim_tudo',   label: 'Sim, tudo presencial',   sub: 'Posso me deslocar para reunioes e visitas de obra' },
-                  { value: 'sim_online', label: 'Sim, formato hibrido',   sub: 'Presencial quando necessario, online no dia a dia' },
-                  { value: 'parcial',    label: 'Parcialmente',            sub: 'Tenho restricoes de agenda que podem afetar o projeto' },
+                  { value: 'sim_tudo',   label: 'Sim: agenda disponível para reuniões com terrenistas e visitas de campo' },
+                  { value: 'sim_online', label: 'Reuniões com terrenistas sim, visita ao terreno com aviso prévio de 3+ dias' },
+                  { value: 'parcial',    label: 'Agenda apertada: precisaria planejar com pelo menos 1 semana de antecedência' },
                 ].map(o => (
-                  <RadioOption key={o.value} name="tempo_agenda" value={o.value} label={o.label} sub={o.sub}
+                  <RadioOption key={o.value} name="tempo_agenda" value={o.value} label={o.label}
                     selected={tempoAgenda === o.value} onChange={setTempoAgenda} />
                 ))}
               </QuestionGroup>
-              <QuestionGroup label="Voce tem disponibilidade para participar dos workshops de formacao Moni?" required>
+              <QuestionGroup label="Você já participou ou tem como participar dos Workshops da Companhia?" required>
                 {[
-                  { value: 'sim_ja',   label: 'Sim, ja participei',         sub: 'Ja fiz pelo menos um workshop Moni' },
-                  { value: 'sim_pode', label: 'Sim, posso participar',      sub: 'Tenho disponibilidade para os treinamentos' },
-                  { value: 'nao',      label: 'Nao tenho disponibilidade',  sub: 'Nao consigo participar dos workshops no momento' },
+                  { value: 'sim_ja',   label: 'Sim: já participei de workshops da Companhia' },
+                  { value: 'sim_pode', label: 'Ainda não, mas tenho como participar' },
+                  { value: 'nao',      label: 'Não tenho como participar no momento' },
                 ].map(o => (
-                  <RadioOption key={o.value} name="workshops" value={o.value} label={o.label} sub={o.sub}
+                  <RadioOption key={o.value} name="workshops" value={o.value} label={o.label}
                     selected={workshops === o.value} onChange={setWorkshops} />
                 ))}
               </QuestionGroup>
@@ -464,11 +464,11 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
 
             {/* Sec 4: Contexto */}
             <SectionCard>
-              <SectionHeader number={4} title="Contexto" icon="Informacoes adicionais" />
-              <QuestionGroup label="Conte um pouco sobre sua motivacao e contexto atual" required>
+              <SectionHeader number={4} title="Contexto" icon="Informações adicionais" />
+              <QuestionGroup label="Algo mais que queira compartilhar?" required>
                 <textarea
                   value={motivacao} onChange={e => setMotivacao(e.target.value)}
-                  placeholder="Ex: Sou investidor com experiencia em imoveis comerciais, busco diversificar meu portfolio com incorporacao residencial..."
+                  placeholder="Ex: Sobre meu aporte, ainda preciso de 2 meses para fechar o valor. Em relação ao tempo, consigo dedicar umas 8h por semana e minha agenda com terrenistas é bastante flexível..."
                   rows={5}
                   style={{
                     width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
@@ -515,7 +515,7 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
         {historico && historico.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-              Historico de respostas
+              Histórico de respostas
             </div>
             {historico.map(h => (
               <div key={h.id} style={{
