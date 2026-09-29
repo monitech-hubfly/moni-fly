@@ -153,13 +153,14 @@ export const FASE_SLUGS = {
   /** Fase do Funil Portfólio — dispara bastão para Funil Acoplamento. */
   ACOPLAMENTO: 'acoplamento',
 
-  // ─── Funil Loteadores (esteira v1 — 21 fases ativas) ───────────────────────
+  // ─── Funil Loteadores (esteira ativa — ver LOTEADORES_FASES_CANONICAS) ─────
   LOTEADORES_PRIMEIRO_CONTATO: 'primeiro_contato_moni_inc',
+  /** @deprecated Fase inativa desde migration 584. */
   LOTEADORES_R1_CONCEITO: 'r1_conceito_moni_inc',
   /** Alias pedido — NDA. */
   NDA_MONI_INC: 'nda_moni_inc',
   LOTEADORES_NDA: 'nda_moni_inc',
-  /** Alias pedido — Opção. */
+  /** @deprecated Fase inativa desde migration 584. */
   OPCAO_MONI_INC: 'opcao_moni_inc',
   LOTEADORES_OPCAO: 'opcao_moni_inc',
   /** Alias pedido — Aguardando Ficha. */
@@ -171,7 +172,9 @@ export const FASE_SLUGS = {
   LOTEADORES_VIABILIDADE: 'viabilidade_moni_inc',
   /** Funil Loteadores — Dados do Loteador (legado; preferir VIABILIDADE). */
   LOTEADORES_DADOS_LOTEADOR: 'dados_loteador_moni_inc',
+  /** @deprecated Fase inativa desde migration 584. Cards foram para Viabilidade. */
   LOTEADORES_ACOPLAMENTO: 'acoplamento_moni_inc',
+  /** @deprecated Fase inativa desde migration 584. */
   LOTEADORES_EXECUCAO_MATERIAL: 'execucao_material_moni_inc',
   /** Alias pedido — Validação. */
   VALIDACAO_MONI_INC: 'validacao_moni_inc',
@@ -185,13 +188,14 @@ export const FASE_SLUGS = {
   /** Alias pedido — Revisões pós-Comitê. */
   REVISOES_POS_COMITE_MONI_INC: 'revisoes_pos_comite_moni_inc',
   LOTEADORES_REVISOES_POS_COMITE: 'revisoes_pos_comite_moni_inc',
-  /** Alias pedido — Cto c/ Precedentes. */
+  /** @deprecated Fase inativa desde migration 584. */
   CTO_PRECEDENTES_MONI_INC: 'cto_precedentes_moni_inc',
   LOTEADORES_CTO_PRECEDENTES: 'cto_precedentes_moni_inc',
+  /** @deprecated Fase inativa desde migration 584. */
   LOTEADORES_DILIGENCIA: 'diligencia_moni_inc',
-  /** Cto Showroom (ex-fechar_contrato_moni_inc). */
+  /** @deprecated Fase inativa desde migration 584 (ex-fechar_contrato_moni_inc). */
   LOTEADORES_CTO_SHOWROOM: 'cto_showroom_moni_inc',
-  /** Alias pedido — Passagem para Waysers. */
+  /** Passagem IMOB (ex-Passagem para Waysers). Slug estável. */
   PASSAGEM_WAYSERS_MONI_INC: 'passagem_waysers_moni_inc',
   LOTEADORES_PASSAGEM_WAYSERS: 'passagem_waysers_moni_inc',
   LOTEADORES_CONTRATO_PARCERIA: 'contrato_parceria_moni_inc',

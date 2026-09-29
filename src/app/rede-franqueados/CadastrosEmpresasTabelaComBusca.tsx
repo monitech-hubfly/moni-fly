@@ -14,6 +14,7 @@ import {
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
 import { CadastrosEmpresasTabela } from './CadastrosEmpresasTabela';
+import { useDebounce } from '@/hooks/useDebounce';
 
 type Props = {
   redeRows: RedeFranqueadoRowDb[];
@@ -33,6 +34,7 @@ export function CadastrosEmpresasTabelaComBusca({
   children,
 }: Props) {
   const [busca, setBusca] = useState('');
+  const debouncedBusca = useDebounce(busca);
 
   const baseLinhas = useMemo(
     () => buildCadastrosEmpresasLinhas(redeRows, empresasRows),
@@ -45,12 +47,12 @@ export function CadastrosEmpresasTabelaComBusca({
   );
 
   const linhasFiltradas = useMemo(() => {
-    const q = busca.trim();
+    const q = debouncedBusca.trim();
     if (!q) return todasLinhas;
     return todasLinhas.filter(
       (l) => cadastroEmpresasLinhaMatchesBusca(l, q) || l.spes.some((s) => speMatchesBusca(s, q)),
     );
-  }, [todasLinhas, busca]);
+  }, [todasLinhas, debouncedBusca]);
 
   if (empresasLoadError || spesLoadError) {
     return (

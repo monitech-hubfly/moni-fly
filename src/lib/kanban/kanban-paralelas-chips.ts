@@ -206,7 +206,7 @@ function chipOperacoesParalela(
 /**
  * Funil Loteadores — 5 bolinhas:
  * 1 Acoplamento (Fase 13 / Acoplamento + Gbox)
- * 2 Pré Obra e Obra (Fase 19 / Passagem para Waysers)
+ * 2 Pré Obra e Obra (Passagem IMOB)
  * 3 Jurídico
  * 4–5 placeholders até mapear as esteiras.
  */

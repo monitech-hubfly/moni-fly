@@ -10,6 +10,7 @@ import { RedeCorretorFichaModal } from '@/components/RedeCorretorFichaModal'
 import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync'
 import { labelBanco } from '@/lib/bancos-br'
 import {
+import { useDebounce } from '@/hooks/useDebounce';
   ordenarRedeCorretoresPorCodigo,
   filtrarLinhasEmBrancoRedeCorretores,
   redeCorretorRowMatchesBusca,
@@ -51,6 +52,7 @@ function labelCidades(row: RedeCorretorRow): string {
 
 export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao = 0 }: Props) {
   const [busca, setBusca] = useState('')
+  const debouncedBusca = useDebounce(busca);
   const [modalRow, setModalRow] = useState<RedeCorretorRow | null | undefined>(undefined)
   const [aprovandoId, setAprovandoId] = useState<string | null>(null)
   const router = useRouter()
@@ -62,10 +64,10 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
   const rowsComCadastro = useMemo(() => filtrarLinhasEmBrancoRedeCorretores(rows), [rows])
 
   const rowsFiltradas = useMemo(() => {
-    const q = busca.trim()
+    const q = debouncedBusca.trim()
     const base = q ? rowsComCadastro.filter((r) => redeCorretorRowMatchesBusca(r, q)) : rowsComCadastro
     return ordenarRedeCorretoresPorCodigo(base)
-  }, [rowsComCadastro, busca])
+  }, [rowsComCadastro, debouncedBusca])
 
   async function aprovar(id: string) {
     setAprovandoId(id)

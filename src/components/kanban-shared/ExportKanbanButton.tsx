@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+
 import { exportKanbanCardsForTable } from '@/lib/actions/kanban-export';
 import { linhasParaCsv } from '@/lib/csv-tabela-rede';
 import { ExportKanbanModal, type KanbanExportFormat } from './ExportKanbanModal';
@@ -37,7 +37,8 @@ function baixarCsv(headers: readonly string[], rows: Record<string, string>[], f
   URL.revokeObjectURL(url);
 }
 
-function baixarXlsx(headers: readonly string[], rows: Record<string, string>[], filename: string) {
+async function baixarXlsx(headers: readonly string[], rows: Record<string, string>[], filename: string) {
+  const XLSX = await import('xlsx');
   const aoa: string[][] = [headers.slice(), ...rows.map((row) => headers.map((h) => row[h] ?? ''))];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const wb = XLSX.utils.book_new();
@@ -80,7 +81,7 @@ export function ExportKanbanButton({
       if (format === 'csv') {
         baixarCsv(res.headers, res.rows, filename);
       } else {
-        baixarXlsx(res.headers, res.rows, filename);
+        await baixarXlsx(res.headers, res.rows, filename);
       }
       setOpen(false);
     } catch (e) {

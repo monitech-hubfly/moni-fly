@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import type { CSSProperties } from 'react';
 import type {
   ConversionFunnelTreeNode,
@@ -31,7 +32,7 @@ export function funnelBarToneColor(tone: FunnelBarTone): string {
   return 'var(--moni-navy-400)';
 }
 
-export function FunnelVolumeBar({
+function FunnelVolumeBarInner({
   value,
   max,
   tone,
@@ -55,6 +56,7 @@ export function FunnelVolumeBar({
     </div>
   );
 }
+export const FunnelVolumeBar = memo(FunnelVolumeBarInner);
 
 export function gargaloScoreBarColor(score: number): string {
   if (score >= 70) return 'var(--moni-status-overdue-border)';
@@ -62,7 +64,7 @@ export function gargaloScoreBarColor(score: number): string {
   return 'var(--moni-green-800)';
 }
 
-export function GargaloScoreBar({ score }: { score: number }) {
+function GargaloScoreBarInner({ score }: { score: number }) {
   const clamped = Math.max(0, Math.min(100, score));
   return (
     <div className="flex min-w-[72px] items-center gap-2">
@@ -84,6 +86,7 @@ export function GargaloScoreBar({ score }: { score: number }) {
     </div>
   );
 }
+export const GargaloScoreBar = memo(GargaloScoreBarInner);
 
 const GARGALO_MOTIVO_ICON: Partial<Record<GargaloMotivoTipo, string>> = {
   atraso: 'ti-clock-pause',
@@ -95,7 +98,7 @@ const GARGALO_MOTIVO_ICON: Partial<Record<GargaloMotivoTipo, string>> = {
   volume: 'ti-stack-2',
 };
 
-export function GargaloMotivoIcon({
+function GargaloMotivoIconInner({
   tipo,
   title,
 }: {
@@ -112,8 +115,9 @@ export function GargaloMotivoIcon({
     />
   );
 }
+export const GargaloMotivoIcon = memo(GargaloMotivoIconInner);
 
-export function GargaloPrincipalFactor({ g }: { g: GargaloScoreFase }) {
+function GargaloPrincipalFactorInner({ g }: { g: GargaloScoreFase }) {
   const label = g.principalMotivoTexto || g.principalMotivo;
   return (
     <div className="mb-2 flex items-center gap-2">
@@ -122,6 +126,7 @@ export function GargaloPrincipalFactor({ g }: { g: GargaloScoreFase }) {
     </div>
   );
 }
+export const GargaloPrincipalFactor = memo(GargaloPrincipalFactorInner);
 
 export function slaPctBarColor(pct: number): string {
   if (pct > 60) return 'var(--moni-green-800)';
@@ -129,7 +134,7 @@ export function slaPctBarColor(pct: number): string {
   return 'var(--moni-status-overdue-border)';
 }
 
-export function SlaProgressBar({ pct }: { pct: number | null }) {
+function SlaProgressBarInner({ pct }: { pct: number | null }) {
   if (pct == null || !Number.isFinite(pct)) return null;
   const fill = Math.max(0, Math.min(100, pct));
   return (
@@ -146,6 +151,7 @@ export function SlaProgressBar({ pct }: { pct: number | null }) {
     </div>
   );
 }
+export const SlaProgressBar = memo(SlaProgressBarInner);
 
 export function insightSeverityAccent(sev: ReturnType<typeof insightSeveridade>): string {
   if (sev === 'critico') return 'var(--moni-status-overdue-border)';

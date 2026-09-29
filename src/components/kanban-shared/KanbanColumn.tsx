@@ -9,6 +9,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  memo,
   type CSSProperties,
   type DragEvent,
 } from 'react';
@@ -211,7 +212,7 @@ function parseDragPayload(raw: string): DragPayload | null {
   }
 }
 
-export function KanbanColumn({
+const KanbanColumnInner = function KanbanColumn({
   fase,
   cards,
   listaVaziaPorFiltro = false,
@@ -1129,3 +1130,5 @@ export function KanbanColumn({
     </>
   );
 }
+
+export const KanbanColumn = memo(KanbanColumnInner);

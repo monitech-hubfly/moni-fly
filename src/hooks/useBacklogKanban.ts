@@ -94,8 +94,9 @@ export function useBacklogKanban(refreshKey = 0) {
             proxima_atividade, prazo_atividade,
             fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome),
-            rede_franqueado:rede_franqueados(id, user_id)
+            rede_franqueado:rede_franqueados!inner(id, user_id)
           `)
+          .eq('rede_franqueado.user_id', effectiveProfileId)
           .eq('arquivado', false)
           .eq('concluido', false),
 

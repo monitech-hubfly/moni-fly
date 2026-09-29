@@ -1283,7 +1283,7 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     [FASE_SLUGS.PASSAGEM_WAYSER]: [
       { kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' },
     ],
-    /** Funil Loteadores — Fase 19 Passagem para Waysers → Pré Obra e Obra. */
+    /** Funil Loteadores — Passagem IMOB → Pré Obra e Obra. */
     [FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC]: [
       { kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' },
     ],

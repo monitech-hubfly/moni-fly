@@ -31,7 +31,11 @@ import { sincronizarLoteChecklistComCadastro } from '@/lib/actions/kanban-lotes-
 import { CondominioLotesAnexados } from '@/components/kanban-shared/CondominioLotesAnexados';
 import { DadosCidadeIbgeChecklist } from '@/components/kanban-shared/DadosCidadeIbgeChecklist';
 import { MapaPracaChecklist } from '@/components/kanban-shared/MapaPracaChecklist';
-import { MapaCompetidoresChecklist } from '@/components/kanban-shared/MapaCompetidoresChecklist';
+import dynamic from 'next/dynamic';
+const MapaCompetidoresChecklist = dynamic(
+  () => import('@/components/kanban-shared/MapaCompetidoresChecklist').then(m => m.MapaCompetidoresChecklist),
+  { ssr: false }
+);
 import { ChecklistAreaAtuacaoSelect } from '@/components/kanban-shared/ChecklistAreaAtuacaoSelect';
 import { DadosCidadePracaTabs } from '@/components/kanban-shared/DadosCidadePracaTabs';
 import { PracaAtivaChip } from '@/components/kanban-shared/PracaAtivaChip';

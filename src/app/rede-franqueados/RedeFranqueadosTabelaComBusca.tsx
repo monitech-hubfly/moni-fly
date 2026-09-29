@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
 import { SlidersHorizontal, X } from 'lucide-react';
 import {
   ordenarRedePorNFranquia,
@@ -274,6 +275,7 @@ export function RedeFranqueadosTabelaComBusca({
   children,
 }: Props) {
   const [busca, setBusca] = useState('');
+  const debouncedBusca = useDebounce(busca);
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_INICIAIS);
   const [painelAberto, setPainelAberto] = useState(false);
 
@@ -340,15 +342,15 @@ export function RedeFranqueadosTabelaComBusca({
   }, [rowsComCadastro]);
 
   const rowsFiltradas = useMemo(() => {
-    const q = busca.trim();
+    const q = debouncedBusca.trim();
     let base = q
       ? rowsComCadastro.filter((r) => redeFranqueadoRowMatchesBusca(r, q))
       : rowsComCadastro;
     base = aplicarFiltros(base, filtros);
     return ordenarRedePorNFranquia(base);
-  }, [rowsComCadastro, busca, filtros]);
+  }, [rowsComCadastro, debouncedBusca, filtros]);
 
-  const nAtivos = filtrosAtivos(filtros) + (busca.trim() ? 1 : 0);
+  const nAtivos = filtrosAtivos(filtros) + (debouncedBusca.trim() ? 1 : 0);
   const buscaAtiva = nAtivos > 0;
 
   return (

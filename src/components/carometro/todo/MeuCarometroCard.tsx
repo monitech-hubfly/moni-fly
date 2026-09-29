@@ -1,6 +1,7 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import Image from 'next/image';
+import { memo, ReactNode, useState } from 'react';
 import type { DiaStatus, SemanaStatusInd } from '@/hooks/useMeuCarometro';
 
 function getCarinhaImg(score: number | null): string {
@@ -171,7 +172,7 @@ type MeuCarometroCardProps = {
   children?: ReactNode;
 };
 
-export function MeuCarometroCard({
+function MeuCarometroCardInner({
   titulo,
   score,
   diasDaSemana,
@@ -188,7 +189,7 @@ export function MeuCarometroCard({
       <p className="text-center text-sm font-semibold text-gray-700">{titulo}</p>
 
       <div className="flex flex-col items-center justify-center gap-1 py-1">
-        <img src={carinhaImg} alt="carinha" className="w-20 h-20 object-contain"
+        <Image src={carinhaImg} alt="carinha" width={80} height={80} className="object-contain"
           style={{ background: 'transparent' }}
           title={score !== null ? `${score}%` : 'Sem dados'} />
         <span className={`text-3xl font-bold tabular-nums ${scoreCls}`}>
@@ -228,3 +229,5 @@ export function MeuCarometroCard({
     </div>
   );
 }
+
+export const MeuCarometroCard = memo(MeuCarometroCardInner);

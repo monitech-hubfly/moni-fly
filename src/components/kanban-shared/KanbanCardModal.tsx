@@ -321,7 +321,11 @@ import { AnexosSubchamado } from './AnexosSubchamado';
 import { ChecklistCard } from './ChecklistCard';
 import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
 import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
-import { FaseChecklistCard } from './FaseChecklistCard';
+import dynamic from 'next/dynamic';
+const FaseChecklistCard = dynamic(
+  () => import('./FaseChecklistCard').then(m => m.FaseChecklistCard),
+  { ssr: false }
+);
 import { ResponsavelFaseSidebar } from './ResponsavelFaseSidebar';
 import { ResponsavelDaFaseSidebar } from './ResponsavelDaFaseSidebar';
 import {
@@ -1704,26 +1708,27 @@ export function KanbanCardModal({
             templateSalvo: false,
           });
         });
+      // kanban_times + profiles (independentes — carregam em paralelo)
+      const emailsMoni = [...MONI_TODOS_EMAILS];
       let cacheKanbanTimes: KanbanTimeRow[] = [];
-      try {
-        const { data: kt } = await supabase.from('kanban_times').select('id, nome').order('nome');
-        cacheKanbanTimes = (kt ?? []).map((r) => ({ id: String(r.id), nome: String(r.nome) }));
-        setKanbanTimes(cacheKanbanTimes);
-      } catch {
-        setKanbanTimes([]);
+      const [ktSettled, hdmProfSettled, profOptsSettled] = await Promise.allSettled([
+        supabase.from('kanban_times').select('id, nome').order('nome'),
+        supabase.from('profiles').select('id, full_name, email').in('email', emailsMoni),
+        supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .order('full_name', { ascending: true, nullsFirst: false })
+          .limit(500),
+      ]);
+      if (ktSettled.status === 'fulfilled') {
+        cacheKanbanTimes = (ktSettled.value.data ?? []).map((r) => ({ id: String(r.id), nome: String(r.nome) }));
       }
+      setKanbanTimes(cacheKanbanTimes);
       const nomePorTimeId = new Map(cacheKanbanTimes.map((t) => [t.id, t.nome]));
-
       try {
-        const emailsMoni = [...MONI_TODOS_EMAILS];
-        const [hdmProfRes, profOptsRes] = await Promise.all([
-          supabase.from('profiles').select('id, full_name, email').in('email', emailsMoni),
-          supabase
-            .from('profiles')
-            .select('id, full_name, email')
-            .order('full_name', { ascending: true, nullsFirst: false })
-            .limit(500),
-        ]);
+        if (hdmProfSettled.status !== 'fulfilled' || profOptsSettled.status !== 'fulfilled') throw new Error('profiles fetch failed');
+        const hdmProfRes = hdmProfSettled.value;
+        const profOptsRes = profOptsSettled.value;
         const profOptsErr = profOptsRes.error;
         if (profOptsErr) throw profOptsErr;
         const byId = new Map<string, { id: string; nome: string; email: string | null }>();
@@ -1783,26 +1788,27 @@ export function KanbanCardModal({
         setVisitsCalculadoraCarregado(false);
       }
 
-      try {
-        setComentariosCard(await carregarComentariosCardModal(cardId));
-      } catch {
-        setComentariosCard([]);
-      }
-
-      try {
-        const { data: tokRow } = await supabase
+      // Comentários + token de formulário (independentes — carregam em paralelo)
+      await Promise.allSettled([
+        carregarComentariosCardModal(cardId)
+          .then((c) => setComentariosCard(c))
+          .catch(() => setComentariosCard([])),
+        supabase
           .from('kanban_card_form_tokens')
           .select('email_candidato')
           .eq('card_id', cardId)
           .not('email_candidato', 'is', null)
           .order('created_at', { ascending: false })
           .limit(1)
-          .maybeSingle();
-        const emailTok = (tokRow as { email_candidato?: string | null } | null)?.email_candidato;
-        if (emailTok) setEmailPara(emailTok);
-      } catch {
-        // sem token — mantém campo vazio
-      }
+          .maybeSingle()
+          .then(({ data: tokRow }) => {
+            const emailTok = (tokRow as { email_candidato?: string | null } | null)?.email_candidato;
+            if (emailTok) setEmailPara(emailTok);
+          })
+          .catch(() => {
+            // sem token — mantém campo vazio
+          }),
+      ]);
 
       try {
         const interacoesSelect =

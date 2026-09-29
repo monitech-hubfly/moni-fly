@@ -11,6 +11,7 @@ import {
   type RedeLoteadorRow,
 } from '@/lib/rede-loteadores';
 import {
+import { useDebounce } from '@/hooks/useDebounce';
   calcLoteadorPriority,
   calcLoteadorRelacao,
   calcLoteadorGrupo,
@@ -222,6 +223,7 @@ type Props = {
 
 export function RedeLoteadoresTabelaComBusca({ rows, children, solicitarCriacao = 0 }: Props) {
   const [busca, setBusca] = useState('');
+  const debouncedBusca = useDebounce(busca);
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_INICIAIS);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
@@ -238,11 +240,11 @@ export function RedeLoteadoresTabelaComBusca({ rows, children, solicitarCriacao 
   }, [rowsComCadastro]);
 
   const rowsFiltradas = useMemo(() => {
-    const q = busca.trim();
+    const q = debouncedBusca.trim();
     let base = q ? rowsComCadastro.filter((r) => redeLoteadorRowMatchesBusca(r, q)) : rowsComCadastro;
     base = aplicarFiltros(base, filtros);
     return ordenarRedeLoteadoresPorCodigo(base);
-  }, [rowsComCadastro, busca, filtros]);
+  }, [rowsComCadastro, debouncedBusca, filtros]);
 
   const nAtivos = filtrosAtivos(filtros);
   const limpar = () => { setFiltros(FILTROS_INICIAIS); setBusca(''); };
