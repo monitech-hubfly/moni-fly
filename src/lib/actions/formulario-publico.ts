@@ -48,11 +48,14 @@ export async function salvarFormularioPublico(
     return { ok: false, error: 'Link invalido ou expirado.' };
   }
 
+  // Separate diag fields - they belong in rede_franqueados, not formularios_qualificacao
+  const { diag_d, diag_k, diag_c, ...formularioData } = input;
+
   // Inserir formulario
   const { data: inserted, error: insertErr } = await supabase
     .from('formularios_qualificacao')
     .insert({
-      ...input,
+      ...formularioData,
       rede_franqueado_id: rede.id,
       n_franquia: String(rede.n_franquia ?? ''),
       preenchido_por_user_id: null,

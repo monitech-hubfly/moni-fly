@@ -80,10 +80,13 @@ export async function salvarFormularioEni(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Sessão expirada. Faça login novamente.' };
 
+  // Separate diag fields - they belong in rede_franqueados, not formularios_qualificacao
+  const { diag_d, diag_k, diag_c, ...formularioData } = input;
+
   const { data: inserted, error: insertErr } = await supabase
     .from('formularios_qualificacao')
     .insert({
-      ...input,
+      ...formularioData,
       preenchido_por_user_id: user.id,
     })
     .select('id')
