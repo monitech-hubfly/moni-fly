@@ -10,8 +10,8 @@ import {
   redeLoteadorRowMatchesBusca,
   type RedeLoteadorRow,
 } from '@/lib/rede-loteadores';
-import {
 import { useDebounce } from '@/hooks/useDebounce';
+import {
   calcLoteadorPriority,
   calcLoteadorRelacao,
   calcLoteadorGrupo,

@@ -3,8 +3,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { TabelaCondominiosEditavel } from '@/components/TabelaCondominiosEditavel';
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
-import {
 import { useDebounce } from '@/hooks/useDebounce';
+import {
   condominioRowMatchesBusca,
   filtrarLinhasEmBrancoCondominios,
   ordenarCondominiosPorNome,

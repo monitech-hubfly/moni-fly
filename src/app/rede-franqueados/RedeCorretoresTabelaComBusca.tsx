@@ -9,8 +9,8 @@ import { aprovarRedeCorretor } from '@/app/rede-franqueados/rede-corretores-acti
 import { RedeCorretorFichaModal } from '@/components/RedeCorretorFichaModal'
 import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync'
 import { labelBanco } from '@/lib/bancos-br'
+import { useDebounce } from '@/hooks/useDebounce'
 import {
-import { useDebounce } from '@/hooks/useDebounce';
   ordenarRedeCorretoresPorCodigo,
   filtrarLinhasEmBrancoRedeCorretores,
   redeCorretorRowMatchesBusca,
