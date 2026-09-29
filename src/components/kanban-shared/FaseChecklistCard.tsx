@@ -14,8 +14,8 @@ import { listarCondominiosCadastro } from '@/lib/actions/kanban-card-condominio'
 import {
   formatCidadeEstadoCondominio,
   formatCondominioInteiro,
-  formatCondominioMoeda,
   formatEnderecoNumero,
+  formatTicketCadastro,
   ordenarCondominiosPorNome,
   type CondominioRow,
 } from '@/lib/condominios';
@@ -2012,7 +2012,6 @@ const COLUNAS_TABELA_CONDOMINIOS = [
   { key: 'descricao_breve', header: 'Descrição breve' },
   { key: 'ticket_medio_lote', header: 'Ticket Médio Lote' },
   { key: 'ticket_medio_casas', header: 'Ticket Médio Casas' },
-  { key: 'ticket_medio_casas_rsm2', header: 'Ticket Médio Casas (R$/m²)' },
   { key: 'estimativa_casas_vendidas_ano', header: 'Est. casas vendidas/ano' },
   { key: 'extrato_como_eram_casas', header: 'Extrato — Como eram' },
   { key: 'extrato_tempo_venda', header: 'Extrato — Tempo venda' },
@@ -2038,7 +2037,6 @@ function condominioRowToSnapshot(r: CondominioRow) {
     descricao_breve: r.descricao_breve,
     ticket_medio_lote: r.ticket_medio_lote,
     ticket_medio_casas: r.ticket_medio_casas,
-    ticket_medio_casas_rsm2: r.ticket_medio_casas_rsm2,
     estimativa_casas_vendidas_ano: r.estimativa_casas_vendidas_ano,
     extrato_como_eram_casas: r.extrato_como_eram_casas,
     extrato_tempo_venda: r.extrato_tempo_venda,
@@ -2079,11 +2077,9 @@ function celulaCondominio(row: CondominioRow, key: (typeof COLUNAS_TABELA_CONDOM
     case 'descricao_breve':
       return row.descricao_breve?.trim() || '—';
     case 'ticket_medio_lote':
-      return formatCondominioMoeda(row.ticket_medio_lote);
+      return formatTicketCadastro(row.ticket_medio_lote);
     case 'ticket_medio_casas':
-      return formatCondominioMoeda(row.ticket_medio_casas);
-    case 'ticket_medio_casas_rsm2':
-      return formatCondominioMoeda(row.ticket_medio_casas_rsm2);
+      return formatTicketCadastro(row.ticket_medio_casas);
     case 'estimativa_casas_vendidas_ano':
       return formatCondominioInteiro(row.estimativa_casas_vendidas_ano);
     case 'extrato_como_eram_casas':

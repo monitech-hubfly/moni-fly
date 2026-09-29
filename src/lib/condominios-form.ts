@@ -2,9 +2,7 @@
 
 import type { SlaTipo } from '@/lib/dias-uteis';
 import {
-  decimalInputFromValue,
   integerInputFromValue,
-  parseDecimalInput,
   parseIntegerInput,
   type CondominioPatch,
   type CondominioRow,
@@ -26,7 +24,6 @@ export type CondominioFormDraft = {
   descricao_breve: string;
   ticket_medio_lote: string;
   ticket_medio_casas: string;
-  ticket_medio_casas_rsm2: string;
   estimativa_casas_vendidas_ano: string;
   extrato_como_eram_casas: string;
   extrato_tempo_venda: string;
@@ -55,7 +52,6 @@ export function emptyCondominioFormDraft(): CondominioFormDraft {
     descricao_breve: '',
     ticket_medio_lote: '',
     ticket_medio_casas: '',
-    ticket_medio_casas_rsm2: '',
     estimativa_casas_vendidas_ano: '',
     extrato_como_eram_casas: '',
     extrato_tempo_venda: '',
@@ -80,9 +76,8 @@ export function condominioRowToFormDraft(r: CondominioRow): CondominioFormDraft 
     cidade: r.cidade ?? '',
     estado: r.estado ?? '',
     descricao_breve: r.descricao_breve ?? '',
-    ticket_medio_lote: decimalInputFromValue(r.ticket_medio_lote),
-    ticket_medio_casas: decimalInputFromValue(r.ticket_medio_casas),
-    ticket_medio_casas_rsm2: decimalInputFromValue(r.ticket_medio_casas_rsm2),
+    ticket_medio_lote: r.ticket_medio_lote ?? '',
+    ticket_medio_casas: r.ticket_medio_casas ?? '',
     estimativa_casas_vendidas_ano: integerInputFromValue(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: r.extrato_como_eram_casas ?? '',
     extrato_tempo_venda: r.extrato_tempo_venda ?? '',
@@ -107,9 +102,8 @@ export function condominioFormDraftToPatch(d: CondominioFormDraft): CondominioPa
     cidade: d.cidade.trim() || null,
     estado: d.estado.trim() || null,
     descricao_breve: d.descricao_breve.trim() || null,
-    ticket_medio_lote: parseDecimalInput(d.ticket_medio_lote),
-    ticket_medio_casas: parseDecimalInput(d.ticket_medio_casas),
-    ticket_medio_casas_rsm2: parseDecimalInput(d.ticket_medio_casas_rsm2),
+    ticket_medio_lote: d.ticket_medio_lote.trim() || null,
+    ticket_medio_casas: d.ticket_medio_casas.trim() || null,
     estimativa_casas_vendidas_ano: parseIntegerInput(d.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: d.extrato_como_eram_casas.trim() || null,
     extrato_tempo_venda: d.extrato_tempo_venda.trim() || null,

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 'use client';
 
 import type { DragEvent } from 'react';
@@ -53,7 +54,7 @@ function formatHorasTotal(total: number): string {
   return `${Number(total.toFixed(2))}h`;
 }
 
-export function PastelariaCard({
+function PastelariaCardInner({
   card,
   coluna,
   loggedUserName,
@@ -185,3 +186,4 @@ export function PastelariaCard({
     </article>
   );
 }
+export const PastelariaCard = memo(PastelariaCardInner);

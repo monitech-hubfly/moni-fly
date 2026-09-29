@@ -12,8 +12,8 @@ export type CondominioRow = {
   cidade: string | null;
   estado: string | null;
   descricao_breve: string | null;
-  ticket_medio_lote: number | null;
-  ticket_medio_casas: number | null;
+  ticket_medio_lote: string | null;
+  ticket_medio_casas: string | null;
   ticket_medio_casas_rsm2: number | null;
   estimativa_casas_vendidas_ano: number | null;
   extrato_como_eram_casas: string | null;
@@ -56,6 +56,26 @@ export function formatCondominioMoeda(value: number | null | undefined): string 
   return CONDOMINIO_CURRENCY_FMT.format(value);
 }
 
+/** Número puro gravado em ticket (ex.: "250000"). Faixas em texto devolvem null. */
+export function ticketCadastroNumero(value: string | number | null | undefined): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (value == null) return null;
+  const s = String(value).trim();
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Moeda quando o ticket é numérico; o texto da faixa quando veio do loteador. */
+export function formatTicketCadastro(value: string | number | null | undefined): string {
+  if (value == null) return '—';
+  const s = String(value).trim();
+  if (!s) return '—';
+  const n = ticketCadastroNumero(s);
+  if (n != null) return formatCondominioMoeda(n);
+  return s;
+}
+
 export function formatCondominioInteiro(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return '—';
   return String(Math.trunc(value));
@@ -85,8 +105,8 @@ export function condominioRowMatchesBusca(row: CondominioRow, busca: string): bo
     row.cidade,
     row.estado,
     row.descricao_breve,
-    numToSearch(row.ticket_medio_lote),
-    numToSearch(row.ticket_medio_casas),
+    row.ticket_medio_lote,
+    row.ticket_medio_casas,
     numToSearch(row.ticket_medio_casas_rsm2),
     numToSearch(row.estimativa_casas_vendidas_ano),
     row.extrato_como_eram_casas,
@@ -99,8 +119,8 @@ export function condominioRowMatchesBusca(row: CondominioRow, busca: string): bo
     row.planta_cadastral,
     row.manual_obras,
     row.casas_concorrentes,
-    formatCondominioMoeda(row.ticket_medio_lote),
-    formatCondominioMoeda(row.ticket_medio_casas),
+    formatTicketCadastro(row.ticket_medio_lote),
+    formatTicketCadastro(row.ticket_medio_casas),
     formatCondominioMoeda(row.ticket_medio_casas_rsm2),
   ];
   return parts.some((p) => normalizarParaBuscaCondominio(p ?? '').includes(q));
@@ -158,8 +178,12 @@ function mapRow(r: Record<string, unknown>): CondominioRow {
     cidade: (r.cidade as string | null) ?? null,
     estado: (r.estado as string | null) ?? null,
     descricao_breve: ((r.descricao_breve as string | null) ?? null)?.trim() || null,
-    ticket_medio_lote: parseNumericField(r.ticket_medio_lote),
-    ticket_medio_casas: parseNumericField(r.ticket_medio_casas),
+    ticket_medio_lote: ((r.ticket_medio_lote as string | number | null) ?? null) == null
+      ? null
+      : String(r.ticket_medio_lote).trim() || null,
+    ticket_medio_casas: ((r.ticket_medio_casas as string | number | null) ?? null) == null
+      ? null
+      : String(r.ticket_medio_casas).trim() || null,
     ticket_medio_casas_rsm2: parseNumericField(r.ticket_medio_casas_rsm2),
     estimativa_casas_vendidas_ano: parseIntegerField(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: ((r.extrato_como_eram_casas as string | null) ?? null)?.trim() || null,
@@ -202,6 +226,10 @@ export async function condominioNomeJaExiste(
   return false;
 }
 
+export function condominiosFromUnknown(data: unknown[] | null | undefined): CondominioRow[] {
+  return (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
+}
+
 export async function fetchCondominiosRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<CondominioRow[] | null> {
@@ -231,8 +259,8 @@ export type CondominioPatch = {
   cidade?: string | null;
   estado?: string | null;
   descricao_breve?: string | null;
-  ticket_medio_lote?: number | null;
-  ticket_medio_casas?: number | null;
+  ticket_medio_lote?: string | null;
+  ticket_medio_casas?: string | null;
   ticket_medio_casas_rsm2?: number | null;
   estimativa_casas_vendidas_ano?: number | null;
   extrato_como_eram_casas?: string | null;

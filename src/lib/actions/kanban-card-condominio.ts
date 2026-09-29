@@ -43,6 +43,12 @@ async function requireCondominiosStaff(): Promise<
   return { ok: true, supabase, userId: user.id };
 }
 
+function textoTicketDeNumero(n: number | null): string | null {
+  if (n == null || Number.isNaN(n)) return null;
+  if (n === Math.trunc(n)) return String(Math.trunc(n));
+  return String(n);
+}
+
 /** Cria ou atualiza condomínio no cadastro a partir de uma linha da Tabela de Condomínios. */
 export async function sincronizarProspectComCadastro(input: {
   condominioId?: string | null;
@@ -66,8 +72,8 @@ export async function sincronizarProspectComCadastro(input: {
   const patch = {
     nome,
     descricao_breve: String(input.descricao_breve ?? '').trim() || null,
-    ticket_medio_lote: parseTicketMedioFaixaParaCadastro(input.ticket_lote),
-    ticket_medio_casas: parseTicketMedioFaixaParaCadastro(input.ticket_casas),
+    ticket_medio_lote: textoTicketDeNumero(parseTicketMedioFaixaParaCadastro(input.ticket_lote)),
+    ticket_medio_casas: textoTicketDeNumero(parseTicketMedioFaixaParaCadastro(input.ticket_casas)),
     ticket_medio_casas_rsm2: parseTicketMedioFaixaParaCadastro(input.ticket_m2),
     estimativa_casas_vendidas_ano: parseIntegerInput(input.estimativa_giro ?? ''),
   };
@@ -273,7 +279,6 @@ export async function cadastrarCondominioEVincularCard(input: {
     estado: patch.estado ?? null,
     ticket_medio_lote: patch.ticket_medio_lote ?? null,
     ticket_medio_casas: patch.ticket_medio_casas ?? null,
-    ticket_medio_casas_rsm2: patch.ticket_medio_casas_rsm2 ?? null,
     estimativa_casas_vendidas_ano: patch.estimativa_casas_vendidas_ano ?? null,
     extrato_como_eram_casas: patch.extrato_como_eram_casas ?? null,
     extrato_tempo_venda: patch.extrato_tempo_venda ?? null,

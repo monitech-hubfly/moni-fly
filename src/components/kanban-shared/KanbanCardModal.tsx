@@ -142,7 +142,7 @@ import {
 import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoField';
 import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociacaoLinhasField';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
-import { KanbanCardModalSimulacoesImob } from './KanbanCardModalSimulacoesImob';
+const KanbanCardModalSimulacoesImob = dynamic(() => import('./KanbanCardModalSimulacoesImob').then(m => ({ default: m.KanbanCardModalSimulacoesImob })), { ssr: false });
 import { KanbanCardModalListaLotes } from './KanbanCardModalListaLotes';
 import { KanbanCardModalSimuladorPagamentos } from './KanbanCardModalSimuladorPagamentos';
 import {
@@ -174,7 +174,7 @@ import {
 } from '@/lib/kanban/calculadora-negociacao';
 import { montarTimelineCalculadoraComMarcos } from '@/lib/kanban/calculadora-fases-marcos';
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
-import { KanbanCardModalCalculadoraFases } from './KanbanCardModalCalculadoraFases';
+const KanbanCardModalCalculadoraFases = dynamic(() => import('./KanbanCardModalCalculadoraFases').then(m => ({ default: m.KanbanCardModalCalculadoraFases })), { ssr: false });
 import {
   operacoesPreObraDraftFromCard,
   OPERACOES_PRE_OBRA_DRAFT_EMPTY,

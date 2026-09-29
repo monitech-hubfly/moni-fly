@@ -44,9 +44,8 @@ function cleanPatch(patch: CondominioPatch): Record<string, unknown> {
   setText('cidade', patch.cidade);
   setText('estado', patch.estado);
   setText('descricao_breve', patch.descricao_breve);
-  setNum('ticket_medio_lote', patch.ticket_medio_lote);
-  setNum('ticket_medio_casas', patch.ticket_medio_casas);
-  setNum('ticket_medio_casas_rsm2', patch.ticket_medio_casas_rsm2);
+  setText('ticket_medio_lote', patch.ticket_medio_lote);
+  setText('ticket_medio_casas', patch.ticket_medio_casas);
   setNum('estimativa_casas_vendidas_ano', patch.estimativa_casas_vendidas_ano);
   setText('extrato_como_eram_casas', patch.extrato_como_eram_casas);
   setText('extrato_tempo_venda', patch.extrato_tempo_venda);

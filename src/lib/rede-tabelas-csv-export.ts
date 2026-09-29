@@ -8,8 +8,8 @@ import type { CondominioRow } from '@/lib/condominios';
 import {
   formatCidadeEstadoCondominio,
   formatCondominioInteiro,
-  formatCondominioMoeda,
   formatEnderecoNumero,
+  formatTicketCadastro,
 } from '@/lib/condominios';
 import { type RedeLoteadorRow } from '@/lib/rede-loteadores';
 import type { MoniCapitalCadastroRow } from '@/lib/moni-capital-cadastros';
@@ -70,7 +70,6 @@ export const CONDOMINIO_CSV_HEADERS = [
   'estado',
   'ticket_medio_lote',
   'ticket_medio_casas',
-  'ticket_medio_casas_rsm2',
   'estimativa_casas_vendidas_ano',
   'extrato_como_eram_casas',
   'extrato_tempo_venda',
@@ -160,9 +159,8 @@ export function csvCondominios(rows: CondominioRow[]): string {
     cep: r.cep ?? '',
     cidade: r.cidade ?? '',
     estado: r.estado ?? '',
-    ticket_medio_lote: r.ticket_medio_lote != null ? String(r.ticket_medio_lote) : '',
-    ticket_medio_casas: r.ticket_medio_casas != null ? String(r.ticket_medio_casas) : '',
-    ticket_medio_casas_rsm2: r.ticket_medio_casas_rsm2 != null ? String(r.ticket_medio_casas_rsm2) : '',
+    ticket_medio_lote: r.ticket_medio_lote ?? '',
+    ticket_medio_casas: r.ticket_medio_casas ?? '',
     estimativa_casas_vendidas_ano:
       r.estimativa_casas_vendidas_ano != null ? String(r.estimativa_casas_vendidas_ano) : '',
     extrato_como_eram_casas: r.extrato_como_eram_casas ?? '',
@@ -241,7 +239,6 @@ export function csvCondominiosTabela(rows: CondominioRow[]): string {
     'cidade_estado',
     'ticket_medio_lote',
     'ticket_medio_casas',
-    'ticket_medio_casas_rsm2',
     'estimativa_casas_vendidas_ano',
     'extrato_como_eram_casas',
     'extrato_tempo_venda',
@@ -259,9 +256,8 @@ export function csvCondominiosTabela(rows: CondominioRow[]): string {
     endereco_numero: formatEnderecoNumero(r.endereco, r.numero),
     cep: r.cep ?? '',
     cidade_estado: formatCidadeEstadoCondominio(r.cidade, r.estado),
-    ticket_medio_lote: formatCondominioMoeda(r.ticket_medio_lote),
-    ticket_medio_casas: formatCondominioMoeda(r.ticket_medio_casas),
-    ticket_medio_casas_rsm2: formatCondominioMoeda(r.ticket_medio_casas_rsm2),
+    ticket_medio_lote: formatTicketCadastro(r.ticket_medio_lote),
+    ticket_medio_casas: formatTicketCadastro(r.ticket_medio_casas),
     estimativa_casas_vendidas_ano: formatCondominioInteiro(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: r.extrato_como_eram_casas ?? '',
     extrato_tempo_venda: r.extrato_tempo_venda ?? '',

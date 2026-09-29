@@ -18,6 +18,7 @@ import {
   redeLoteadorRowToFichaDraft,
   type RedeLoteadorFichaDraft,
 } from '@/lib/rede-loteador-ficha-draft';
+import { condominiosFromUnknown, ordenarCondominiosPorNome, type CondominioRow } from '@/lib/condominios';
 import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
 import { formatLOValue, getNextLOFromRedeLoteadores, parseLOValue } from '@/lib/next-lo-loteador';
 import { criarRedeLoteador, atualizarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
@@ -250,6 +251,20 @@ export async function carregarFichaLoteadorExterna(token: string): Promise<
     redeLoteadorId: rid,
     updatedAt: loteador.updated_at ?? null,
   };
+}
+
+export async function listarCondominiosFichaExterna(token: string): Promise<CondominioRow[]> {
+  const info = await buscarLoteadorExternoTokenInfo(token);
+  if (!info.ok) return [];
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return [];
+  }
+  const { data, error } = await admin.from('condominios').select('*');
+  if (error) return [];
+  return ordenarCondominiosPorNome(condominiosFromUnknown(data ?? []));
 }
 
 export async function salvarFichaLoteadorExterna(input: {

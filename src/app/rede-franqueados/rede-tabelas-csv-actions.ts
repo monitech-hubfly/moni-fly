@@ -152,6 +152,8 @@ function rowCondominioFromCsv(row: Record<string, string>): Record<string, unkno
     'cep',
     'cidade',
     'estado',
+    'ticket_medio_lote',
+    'ticket_medio_casas',
     'extrato_como_eram_casas',
     'extrato_tempo_venda',
     'data_lancamento_vendas',
@@ -172,9 +174,6 @@ function rowCondominioFromCsv(row: Record<string, string>): Record<string, unkno
     out[k] = v;
   }
   for (const k of [
-    'ticket_medio_lote',
-    'ticket_medio_casas',
-    'ticket_medio_casas_rsm2',
     'estimativa_casas_vendidas_ano',
     'quantidade_lotes',
     'recuo_frontal_m',

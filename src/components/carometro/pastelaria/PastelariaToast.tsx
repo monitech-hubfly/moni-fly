@@ -1,3 +1,4 @@
+import { memo } from 'react';
 'use client';
 
 type PastelariaToastProps = {
@@ -5,7 +6,7 @@ type PastelariaToastProps = {
   type?: 'ok' | 'err';
 };
 
-export function PastelariaToast({ message, type = 'ok' }: PastelariaToastProps) {
+function PastelariaToastInner({ message, type = 'ok' }: PastelariaToastProps) {
   if (!message) return null;
   return (
     <div
@@ -17,3 +18,4 @@ export function PastelariaToast({ message, type = 'ok' }: PastelariaToastProps) 
     </div>
   );
 }
+export const PastelariaToast = memo(PastelariaToastInner);

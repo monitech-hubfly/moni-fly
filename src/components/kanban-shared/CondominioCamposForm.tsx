@@ -3,8 +3,8 @@
 import {
   formatCidadeEstadoCondominio,
   formatCondominioInteiro,
-  formatCondominioMoeda,
   formatEnderecoNumero,
+  formatTicketCadastro,
   type CondominioRow,
 } from '@/lib/condominios';
 import type { CondominioFormDraft } from '@/lib/condominios-form';
@@ -56,12 +56,8 @@ export function CondominioCamposForm({
         <FieldView label="Endereço + Nº" value={formatEnderecoNumero(row.endereco, row.numero)} />
         <FieldView label="Cidade / Estado" value={formatCidadeEstadoCondominio(row.cidade, row.estado)} />
         <FieldView label="Descrição breve" value={row.descricao_breve ?? ''} />
-        <FieldView label="Ticket médio lote" value={formatCondominioMoeda(row.ticket_medio_lote)} />
-        <FieldView label="Ticket médio casas" value={formatCondominioMoeda(row.ticket_medio_casas)} />
-        <FieldView
-          label="Ticket médio casas (R$/m²)"
-          value={formatCondominioMoeda(row.ticket_medio_casas_rsm2)}
-        />
+        <FieldView label="Ticket médio lote" value={formatTicketCadastro(row.ticket_medio_lote)} />
+        <FieldView label="Ticket médio casas" value={formatTicketCadastro(row.ticket_medio_casas)} />
         <FieldView
           label="Est. casas vendidas/ano"
           value={formatCondominioInteiro(row.estimativa_casas_vendidas_ano)}
@@ -175,33 +171,20 @@ export function CondominioCamposForm({
         <span className="text-[11px] font-medium text-stone-500">Ticket médio lote</span>
         <input
           type="text"
-          inputMode="decimal"
           value={draft.ticket_medio_lote}
           onChange={(e) => onChange({ ticket_medio_lote: e.target.value })}
           className={inputCls}
-          placeholder="R$"
+          placeholder="Valor ou faixa"
         />
       </label>
       <label className="block">
         <span className="text-[11px] font-medium text-stone-500">Ticket médio casas</span>
         <input
           type="text"
-          inputMode="decimal"
           value={draft.ticket_medio_casas}
           onChange={(e) => onChange({ ticket_medio_casas: e.target.value })}
           className={inputCls}
-          placeholder="R$"
-        />
-      </label>
-      <label className="block">
-        <span className="text-[11px] font-medium text-stone-500">Ticket médio casas (R$/m²)</span>
-        <input
-          type="text"
-          inputMode="decimal"
-          value={draft.ticket_medio_casas_rsm2}
-          onChange={(e) => onChange({ ticket_medio_casas_rsm2: e.target.value })}
-          className={inputCls}
-          placeholder="R$/m²"
+          placeholder="Valor ou faixa"
         />
       </label>
       <label className="block">

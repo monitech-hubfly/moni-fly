@@ -1,3 +1,4 @@
+import { memo } from 'react';
 'use client';
 
 import Link from 'next/link';
@@ -9,7 +10,7 @@ const TABS = [
   { href: '/carometro/fechamento-bone-day', label: 'Fechamento Boné Day' },
 ] as const;
 
-export function BoneDayTabs() {
+function BoneDayTabsInner() {
   const pathname = usePathname();
   return (
     <div className="border-b border-gray-200 bg-white sticky top-0 z-20">
@@ -28,3 +29,4 @@ export function BoneDayTabs() {
     </div>
   );
 }
+export const BoneDayTabs = memo(BoneDayTabsInner);

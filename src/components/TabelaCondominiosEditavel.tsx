@@ -5,14 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Check, Loader2, Pencil, Trash2, X } from 'lucide-react';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import {
-  decimalInputFromValue,
   formatCidadeEstadoCondominio,
   formatCondominioInteiro,
-  formatCondominioMoeda,
   formatEnderecoNumero,
+  formatTicketCadastro,
   integerInputFromValue,
   ordenarCondominiosPorNome,
-  parseDecimalInput,
   parseIntegerInput,
   type CondominioRow,
 } from '@/lib/condominios';
@@ -44,7 +42,6 @@ type Draft = {
   descricao_breve: string;
   ticket_medio_lote: string;
   ticket_medio_casas: string;
-  ticket_medio_casas_rsm2: string;
   estimativa_casas_vendidas_ano: string;
   extrato_como_eram_casas: string;
   extrato_tempo_venda: string;
@@ -73,7 +70,6 @@ function emptyDraft(): Draft {
     descricao_breve: '',
     ticket_medio_lote: '',
     ticket_medio_casas: '',
-    ticket_medio_casas_rsm2: '',
     estimativa_casas_vendidas_ano: '',
     extrato_como_eram_casas: '',
     extrato_tempo_venda: '',
@@ -98,9 +94,8 @@ function rowToDraft(r: CondominioRow): Draft {
     cidade: r.cidade ?? '',
     estado: r.estado ?? '',
     descricao_breve: r.descricao_breve ?? '',
-    ticket_medio_lote: decimalInputFromValue(r.ticket_medio_lote),
-    ticket_medio_casas: decimalInputFromValue(r.ticket_medio_casas),
-    ticket_medio_casas_rsm2: decimalInputFromValue(r.ticket_medio_casas_rsm2),
+    ticket_medio_lote: r.ticket_medio_lote ?? '',
+    ticket_medio_casas: r.ticket_medio_casas ?? '',
     estimativa_casas_vendidas_ano: integerInputFromValue(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: r.extrato_como_eram_casas ?? '',
     extrato_tempo_venda: r.extrato_tempo_venda ?? '',
@@ -125,9 +120,8 @@ function draftToPatch(d: Draft) {
     cidade: d.cidade.trim() || null,
     estado: d.estado.trim() || null,
     descricao_breve: d.descricao_breve.trim() || null,
-    ticket_medio_lote: parseDecimalInput(d.ticket_medio_lote),
-    ticket_medio_casas: parseDecimalInput(d.ticket_medio_casas),
-    ticket_medio_casas_rsm2: parseDecimalInput(d.ticket_medio_casas_rsm2),
+    ticket_medio_lote: d.ticket_medio_lote.trim() || null,
+    ticket_medio_casas: d.ticket_medio_casas.trim() || null,
     estimativa_casas_vendidas_ano: parseIntegerInput(d.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: d.extrato_como_eram_casas.trim() || null,
     extrato_tempo_venda: d.extrato_tempo_venda.trim() || null,
@@ -319,9 +313,6 @@ export function TabelaCondominiosEditavel({
                 Ticket Médio Casas
               </th>
               <th className={redeTh} scope="col">
-                Ticket Médio Casas (R$/m²)
-              </th>
-              <th className={redeTh} scope="col">
                 Est. casas vendidas/ano
               </th>
               <th className={redeTh} scope="col">
@@ -407,14 +398,15 @@ export function TabelaCondominiosEditavel({
                       {r.descricao_breve?.trim() || '—'}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 tabular-nums text-stone-700">
-                    {formatCondominioMoeda(r.ticket_medio_lote)}
+                  <td className="max-w-[16rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-3 text-xs" title={r.ticket_medio_lote ?? ''}>
+                      {formatTicketCadastro(r.ticket_medio_lote)}
+                    </span>
                   </td>
-                  <td className="px-3 py-2.5 tabular-nums text-stone-700">
-                    {formatCondominioMoeda(r.ticket_medio_casas)}
-                  </td>
-                  <td className="px-3 py-2.5 tabular-nums text-stone-700">
-                    {formatCondominioMoeda(r.ticket_medio_casas_rsm2)}
+                  <td className="max-w-[16rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-3 text-xs" title={r.ticket_medio_casas ?? ''}>
+                      {formatTicketCadastro(r.ticket_medio_casas)}
+                    </span>
                   </td>
                   <td className="px-3 py-2.5 tabular-nums text-stone-700">
                     {formatCondominioInteiro(r.estimativa_casas_vendidas_ano)}
@@ -639,31 +631,21 @@ function CondominioEditRow({
       <td className="px-3 py-2">
         <input
           type="text"
-          inputMode="decimal"
           value={draft.ticket_medio_lote}
           onChange={(e) => setDraft((d) => ({ ...d, ticket_medio_lote: e.target.value }))}
-          className={inputCls}
-          placeholder="R$"
+          className={`${inputCls} min-w-[12rem]`}
+          style={inputStyle}
+          placeholder="Valor ou faixa"
         />
       </td>
       <td className="px-3 py-2">
         <input
           type="text"
-          inputMode="decimal"
           value={draft.ticket_medio_casas}
           onChange={(e) => setDraft((d) => ({ ...d, ticket_medio_casas: e.target.value }))}
-          className={inputCls}
-          placeholder="R$"
-        />
-      </td>
-      <td className="px-3 py-2">
-        <input
-          type="text"
-          inputMode="decimal"
-          value={draft.ticket_medio_casas_rsm2}
-          onChange={(e) => setDraft((d) => ({ ...d, ticket_medio_casas_rsm2: e.target.value }))}
-          className={inputCls}
-          placeholder="R$/m²"
+          className={`${inputCls} min-w-[12rem]`}
+          style={inputStyle}
+          placeholder="Valor ou faixa"
         />
       </td>
       <td className="px-3 py-2">

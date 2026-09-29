@@ -25,7 +25,9 @@ export type RedeLoteadorRow = {
   interlocutor_cargo: string | null;
   interlocutor_telefone: string | null;
   interlocutor_email: string | null;
-  /** Condomínio prospectado (Grupo 2) */
+  /** Condomínio do cadastro central */
+  condominio_id: string | null;
+  /** Condomínio prospectado (Grupo 2) — texto legado; o vínculo vigente é condominio_id */
   condominio_nome: string | null;
   condominio_data_lancamento: string | null;
   condominio_cidade: string | null;
@@ -188,6 +190,7 @@ function mapRow(r: Record<string, unknown>): RedeLoteadorRow {
     interlocutor_cargo: (r.interlocutor_cargo as string | null) ?? null,
     interlocutor_telefone: (r.interlocutor_telefone as string | null) ?? null,
     interlocutor_email: (r.interlocutor_email as string | null) ?? null,
+    condominio_id: (r.condominio_id as string | null) ?? null,
     condominio_nome: (r.condominio_nome as string | null) ?? null,
     condominio_data_lancamento: parseDateOrNull(r.condominio_data_lancamento),
     condominio_cidade: (r.condominio_cidade as string | null) ?? null,
@@ -301,6 +304,7 @@ export type RedeLoteadorPatch = {
   interlocutor_cargo?: string | null;
   interlocutor_telefone?: string | null;
   interlocutor_email?: string | null;
+  condominio_id?: string | null;
   condominio_nome?: string | null;
   condominio_data_lancamento?: string | null;
   condominio_cidade?: string | null;
