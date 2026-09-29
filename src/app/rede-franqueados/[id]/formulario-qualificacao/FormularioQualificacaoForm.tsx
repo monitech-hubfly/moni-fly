@@ -177,6 +177,11 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
     const totalRaw = capRaw + conhecRaw + tempoRaw;
     const totalPct = capitalGate === 'nao' ? 0 : Math.round((totalRaw / 16) * 100);
 
+    // Normalized scores for rede_franqueados (0-2 scale)
+    const diagD = capRaw; // capital max 2, already in range
+    const diagK = Math.round((conhecRaw / 6) * 2); // conhecimento max 6
+    const diagC = Math.round((tempoRaw / 8) * 2);  // tempo max 8
+
     const lowFlags = (capPct < 50 ? 1 : 0) + (conhecPct < 34 ? 1 : 0) + (tempoPct < 34 ? 1 : 0);
     let tipo: string;
     if (capitalGate === 'nao') {
@@ -212,6 +217,9 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
       score_tempo_pct: tempoPct,
       resultado_tipo: tipo,
       texto_gerado: null,
+      diag_d: diagD,
+      diag_k: diagK,
+      diag_c: diagC,
     });
     setSalvando(false);
 

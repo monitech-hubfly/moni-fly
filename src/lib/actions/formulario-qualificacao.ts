@@ -62,7 +62,10 @@ export type FormularioEniInput = {
   score_conhecimento_pct: number;
   score_tempo_pct: number;
   resultado_tipo: string;
-  texto_gerado: string;
+  diag_d: number;
+  diag_k: number;
+  diag_c: number;
+  texto_gerado: string | null;
 };
 
 export async function salvarFormularioEni(
@@ -86,6 +89,17 @@ export async function salvarFormularioEni(
   if (insertErr) {
     console.error('[formulario-qualificacao] insert error', insertErr);
     return { ok: false, error: 'Erro ao salvar formulário. Tente novamente.' };
+  }
+
+  // Update diag scores on rede_franqueados
+  const { error: updateErr } = await supabase
+    .from('rede_franqueados')
+    .update({ diag_d: input.diag_d, diag_k: input.diag_k, diag_c: input.diag_c })
+    .eq('id', input.rede_franqueado_id);
+
+  if (updateErr) {
+    console.error('[formulario-qualificacao] update rede_franqueados error', updateErr);
+    // Non-fatal: form was saved, just log the error
   }
 
   revalidatePath(`/rede-franqueados/${input.rede_franqueado_id}/formulario-qualificacao`);
