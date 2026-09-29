@@ -116,6 +116,8 @@ type Props = {
   layout?: 'default' | 'sidebar';
   /** Lista já carregada (formulário externo). Sem isso, busca o cadastro da sessão. */
   condominiosIniciais?: CondominioRow[];
+  /** No card, o condomínio fica em «Dados do Condomínio». */
+  ocultarCondominio?: boolean;
 };
 
 export function RedeLoteadorFichaForm({
@@ -125,6 +127,7 @@ export function RedeLoteadorFichaForm({
   sectionIdPrefix = 'loteador',
   layout = 'default',
   condominiosIniciais,
+  ocultarCondominio = false,
 }: Props) {
   const sidebar = layout === 'sidebar';
   const inputCls = sidebar ? sidebarInputCls : redeLoteadorInputCls;
@@ -132,7 +135,7 @@ export function RedeLoteadorFichaForm({
   const [condominios, setCondominios] = useState<CondominioRow[]>(condominiosIniciais ?? []);
 
   useEffect(() => {
-    if (condominiosIniciais) return;
+    if (condominiosIniciais || ocultarCondominio) return;
     let cancelado = false;
     void listarCondominiosCadastro().then((rows) => {
       if (!cancelado) setCondominios(rows);
@@ -140,7 +143,7 @@ export function RedeLoteadorFichaForm({
     return () => {
       cancelado = true;
     };
-  }, [condominiosIniciais]);
+  }, [condominiosIniciais, ocultarCondominio]);
 
   const condominioVinculado = condominios.find((c) => c.id === draft.condominio_id) ?? null;
 
@@ -229,6 +232,7 @@ export function RedeLoteadorFichaForm({
         </div>
       </RedeDocsSecaoColapsavel>
 
+      {ocultarCondominio ? null : (
       <RedeDocsSecaoColapsavel
         titulo="Informações do Condomínio"
         sectionId={`${sectionIdPrefix}-condominio`}
@@ -264,6 +268,7 @@ export function RedeLoteadorFichaForm({
           </p>
         ) : null}
       </RedeDocsSecaoColapsavel>
+      )}
 
       <RedeDocsSecaoColapsavel
         titulo="Informações de venda e carteira"

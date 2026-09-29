@@ -621,6 +621,10 @@ export function KanbanCardModal({
   );
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
   const [fonteDadosLaterais, setFonteDadosLaterais] = useState<FonteDadosLaterais | null>(null);
+  const [condominioIdDoLoteador, setCondominioIdDoLoteador] = useState<string | null>(null);
+  const informarCondominioDoLoteador = useCallback((id: string | null) => {
+    setCondominioIdDoLoteador(id);
+  }, []);
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
     calculadora: false,
     cronologia: false,
@@ -1102,6 +1106,7 @@ export function KanbanCardModal({
     if (!silencioso) {
       setLoading(true);
       setFonteDadosLaterais(null);
+      setCondominioIdDoLoteador(null);
       setImobSimulacoesPrefetch(null);
     }
     try {
@@ -4357,7 +4362,8 @@ export function KanbanCardModal({
   const proc = modalDetalhes.processo;
   const podeEditarNegocio =
     !ocultarGestaoCard && Boolean(proc) && !(ehFunilFunding && !isLegado);
-  const condominioIdSidebar = card.condominio_id ?? proc?.condominio_id ?? null;
+  const condominioIdSidebar =
+    card.condominio_id ?? proc?.condominio_id ?? condominioIdDoLoteador ?? null;
   const condominioIdChecklistLegal =
     card.condominio_id?.trim() || proc?.condominio_id?.trim() || null;
   const exibirChecklistLegalCondominio =
@@ -7141,6 +7147,7 @@ export function KanbanCardModal({
                   <DadosLoteadorPersistentPanel
                     cardId={cardIdDadosLoteador}
                     variant="sidebar"
+                    onCondominioVinculado={informarCondominioDoLoteador}
                     onSalvo={() => {
                       void loadCard({ silencioso: true });
                       router.refresh();
