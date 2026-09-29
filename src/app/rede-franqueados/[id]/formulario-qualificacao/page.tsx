@@ -41,7 +41,7 @@ export default async function FormularioQualificacaoPage({
 
   const { data: rede, error: redeErr } = await supabase
     .from('rede_franqueados')
-    .select('id, n_franquia, nome_completo, cidade_casa_frank, estado_casa_frank')
+    .select('id, n_franquia, nome_completo, cidade_casa_frank, estado_casa_frank, formulario_public_token')
     .eq('id', id)
     .single();
 
@@ -53,6 +53,7 @@ export default async function FormularioQualificacaoPage({
   const nomeCompleto = String(rede.nome_completo ?? '');
   const cidadeInicial = String(rede.cidade_casa_frank ?? '');
   const estadoInicial = String(rede.estado_casa_frank ?? '');
+  const publicToken = String((rede as unknown as Record<string, unknown>).formulario_public_token ?? '');
 
   return (
     <div>
@@ -67,6 +68,16 @@ export default async function FormularioQualificacaoPage({
         </Link>
       </nav>
 
+      {/* Public link for staff */}
+      <div style={{ background: '#F0F4FF', borderBottom: '1px solid #C7D2FE', padding: '12px 24px' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Link publico do formulario:</span>
+          <code style={{ fontSize: 11, background: 'white', border: '1px solid #C7D2FE', borderRadius: 4, padding: '3px 8px', color: '#1E40AF', wordBreak: 'break-all' }}>
+            {`${process.env.NEXT_PUBLIC_APP_URL || ''}/f/${publicToken}`}
+          </code>
+        </div>
+      </div>
+
       <FormularioQualificacaoForm
         redeId={id}
         nFranquia={nFranquia}
@@ -74,6 +85,7 @@ export default async function FormularioQualificacaoPage({
         cidadeInicial={cidadeInicial}
         estadoInicial={estadoInicial}
         historico={historico ?? []}
+        publicToken={publicToken}
       />
     </div>
   );

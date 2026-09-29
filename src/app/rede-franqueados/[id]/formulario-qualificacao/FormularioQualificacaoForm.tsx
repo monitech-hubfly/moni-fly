@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { salvarFormularioEni, type FormularioQualificacaoRow } from '@/lib/actions/formulario-qualificacao';
+import { salvarFormularioPublico } from '@/lib/actions/formulario-publico';
 
 // Design tokens
 const NAVY  = '#0F1E33';
@@ -106,9 +107,10 @@ type Props = {
   nFranquia: string;
   nomeCompleto: string;
   historico: FormularioQualificacaoRow[];
+  publicToken?: string;
 };
 
-export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeCompleto, cidadeInicial = '', estadoInicial = '', historico }: Props) {
+export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeCompleto, cidadeInicial = '', estadoInicial = '', historico, publicToken }: Props) {
   const [nome, setNome]                               = useState(nomeCompleto || '');
   const [cidade, setCidade]                           = useState(cidadeInicial);
   const [estado, setEstado]                           = useState(estadoInicial);
@@ -202,9 +204,7 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
     }
 
     setSalvando(true);
-    const res = await salvarFormularioEni({
-      rede_franqueado_id: redeId,
-      n_franquia: nFranquia,
+    const formData = {
       nome_franqueado_confirmado: nome,
       cidade_atuacao: cidade,
       estado_atuacao: estado,
@@ -228,7 +228,10 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
       diag_k: diagK,
       diag_c: diagC,
       texto_gerado: null,
-    });
+    };
+    const res = publicToken
+      ? await salvarFormularioPublico(publicToken, formData)
+      : await salvarFormularioEni({ rede_franqueado_id: redeId, n_franquia: nFranquia, ...formData });
     setSalvando(false);
 
     if (!res.ok) {
@@ -238,6 +241,7 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
 
     setEnviado(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => window.location.reload(), 1500);
   }
 
   return (
