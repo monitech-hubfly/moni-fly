@@ -11,7 +11,7 @@ const CREAM2 = '#EDE8E1';
 const GREEN = '#2F6B4A';
 const RED   = '#8B2020';
 
-// Scoring map
+// Scoring map - used only for internal DB save, not displayed to Frank
 const SCORE_MAP: Record<string, Record<string, number>> = {
   capital_timing:       { disponivel: 2, '3meses': 2, '6meses': 1 },
   conhecimento_mercado: { alto: 2, medio: 1, baixo: 0 },
@@ -117,15 +117,10 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
   const [workshops, setWorkshops]         = useState('');
   const [motivacao, setMotivacao]         = useState('');
 
-  const [resultado, setResultado] = useState<null | {
-    tipo: string; capPct: number; conhecPct: number; tempoPct: number;
-    totalPct: number; texto: string;
-  }>(null);
+  const [enviado, setEnviado]       = useState(false);
   const [erroForm, setErroForm]     = useState('');
   const [salvando, setSalvando]     = useState(false);
-  const [salvoId, setSalvoId]       = useState('');
   const [erroSalvar, setErroSalvar] = useState('');
-  const [copiado, setCopiado]       = useState(false);
 
   const answered = [
     capitalGate, conhecMercado, conhecImob, conhecMoni,
@@ -145,62 +140,7 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
     return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  function buildTexto(tipo: string, capPct: number, conhecPct: number, tempoPct: number, totalPct: number): string {
-    const hoje = new Date().toLocaleDateString('pt-BR');
-    if (capitalGate === 'nao') {
-      return (
-        `QUALIFICACAO MONI: ${nome.toUpperCase()}\n` +
-        `Data: ${hoje}\n\n` +
-        `Nome: ${nome}\n` +
-        `Cidade(s): ${cidade}${estado ? ` - ${estado}` : ''}\n\n` +
-        `RESULTADO: Pre-requisito nao atendido\n` +
-        `Capital disponivel: Abaixo de R$ 260.000\n\n` +
-        `Ainda nao tenho o aporte minimo disponivel para iniciar uma operacao Moni.\n` +
-        `Posso retomar o processo quando o capital estiver disponivel.`
-      );
-    }
-    const faixaLabel: Record<string, string> = {
-      '260-400': 'R$ 260.000 a R$ 400.000', '400-600': 'R$ 400.000 a R$ 600.000', '600+': 'Acima de R$ 600.000',
-    };
-    const timingLabel: Record<string, string> = {
-      disponivel: 'Disponivel agora', '3meses': 'Disponivel em ate 3 meses', '6meses': 'Disponivel em ate 6 meses',
-    };
-    const mercadoLabel: Record<string, string> = { alto: 'Alto', medio: 'Medio', baixo: 'Baixo ou nenhum' };
-    const imobLabel: Record<string, string> = { sim_inc: 'Sim, com incorporacao', sim_compra: 'Sim, compra e venda', nao: 'Nao tenho experiencia' };
-    const moniLabel: Record<string, string> = { fluente: 'Fluente no modelo', basico: 'Conhecimento basico', pouco: 'Pouco conhecimento' };
-    const horasLabel: Record<string, string> = { '10+': 'Mais de 10h/sem', '5-10': '5 a 10h/sem', '2-5': '2 a 5h/sem', '<2': 'Menos de 2h/sem' };
-    const respostaLabel: Record<string, string> = { mesmo_dia: 'Mesmo dia', '24h': 'Em ate 24h', '2-3d': 'Em 2 a 3 dias', semana: 'Em uma semana ou mais' };
-    const agendaLabel: Record<string, string> = { sim_tudo: 'Sim, tudo presencial', sim_online: 'Sim, formato hibrido', parcial: 'Parcialmente' };
-    const workshopsLabel: Record<string, string> = { sim_ja: 'Sim, ja participei', sim_pode: 'Sim, posso participar', nao: 'Nao tenho disponibilidade' };
-    const tipoLabel = tipo === 'qualificado' ? 'QUALIFICADO' : tipo === 'parcial' ? 'QUALIFICACAO PARCIAL' : 'NAO QUALIFICADO';
-
-    return (
-      `QUALIFICACAO MONI: ${nome.toUpperCase()}\n` +
-      `Data: ${hoje}\n\n` +
-      `Nome: ${nome}\n` +
-      `Cidade(s): ${cidade}${estado ? ` - ${estado}` : ''}\n\n` +
-      `--- CAPITAL ---\n` +
-      `Faixa de capital: ${faixaLabel[capitalFaixa || ''] || capitalFaixa}\n` +
-      `Timing: ${timingLabel[capitalTiming || ''] || capitalTiming}\n` +
-      `Score: ${capPct}%\n\n` +
-      `--- CONHECIMENTO ---\n` +
-      `Mercado imobiliario: ${mercadoLabel[conhecMercado || ''] || conhecMercado}\n` +
-      `Experiencia imobiliaria: ${imobLabel[conhecImob || ''] || conhecImob}\n` +
-      `Modelo Moni: ${moniLabel[conhecMoni || ''] || conhecMoni}\n` +
-      `Score: ${conhecPct}%\n\n` +
-      `--- DISPONIBILIDADE ---\n` +
-      `Horas por semana: ${horasLabel[tempoHoras || ''] || tempoHoras}\n` +
-      `Tempo de resposta: ${respostaLabel[tempoResposta || ''] || tempoResposta}\n` +
-      `Agenda presencial: ${agendaLabel[tempoAgenda || ''] || tempoAgenda}\n` +
-      `Workshops: ${workshopsLabel[workshops || ''] || workshops}\n` +
-      `Score: ${tempoPct}%\n\n` +
-      `--- RESULTADO: ${tipoLabel} (${totalPct}%) ---\n\n` +
-      `--- CONTEXTO ---\n` +
-      `${motivacao || '(sem resposta)'}`
-    );
-  }
-
-  async function gerarResultado() {
+  async function enviarRespostas() {
     setErroForm('');
     if (!nome.trim()) return setErroForm('Informe seu nome completo.');
     if (!cidade.trim()) return setErroForm('Informe a cidade de atuacao.');
@@ -219,6 +159,7 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
     if (!workshops) return setErroForm('Responda sobre participacao em workshops.');
     if (!motivacao.trim()) return setErroForm('Preencha o campo de contexto / motivacao.');
 
+    // Internal scoring - saved to DB only, not shown to Frank
     const capRaw = capitalGate === 'nao' ? 0 : score('capital_timing', capitalTiming);
     const capPct = capitalGate === 'nao' ? 0 : Math.round((capRaw / 2) * 100);
 
@@ -248,8 +189,6 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
       tipo = 'nao_qualificado';
     }
 
-    const texto = buildTexto(tipo, capPct, conhecPct, tempoPct, totalPct);
-
     setSalvando(true);
     const res = await salvarFormularioEni({
       rede_franqueado_id: redeId,
@@ -272,43 +211,18 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
       score_conhecimento_pct: conhecPct,
       score_tempo_pct: tempoPct,
       resultado_tipo: tipo,
-      texto_gerado: texto,
+      texto_gerado: null,
     });
     setSalvando(false);
 
     if (!res.ok) {
-      setErroSalvar(res.error || 'Erro ao salvar.');
-    } else {
-      setSalvoId(res.id || '');
+      setErroSalvar(res.error || 'Erro ao salvar. Tente novamente.');
+      return;
     }
 
-    setResultado({ tipo, capPct, conhecPct, tempoPct, totalPct, texto });
+    setEnviado(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-
-  async function copiarTexto() {
-    if (!resultado) return;
-    try {
-      await navigator.clipboard.writeText(resultado.texto);
-      setCopiado(true);
-      setTimeout(() => setCopiado(false), 2500);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = resultado.texto;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      setCopiado(true);
-      setTimeout(() => setCopiado(false), 2500);
-    }
-  }
-
-  const tipoConfig = resultado ? ({
-    qualificado:     { label: 'Qualificado',           color: GREEN,   icon: '✓' },
-    parcial:         { label: 'Qualificacao Parcial',  color: '#7A6020', icon: '~' },
-    nao_qualificado: { label: 'Nao Qualificado',       color: RED,     icon: '✗' },
-  } as Record<string, { label: string; color: string; icon: string }>)[resultado.tipo] : null;
 
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: CREAM, minHeight: '100vh', paddingBottom: 60 }}>
@@ -324,7 +238,7 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
           <p style={{ fontSize: 13, color: '#94A3B8', margin: '6px 0 0', lineHeight: 1.5 }}>
             Avaliacao em 3 eixos: Capital, Conhecimento e Disponibilidade
           </p>
-          {!resultado && (
+          {!enviado && (
             <div style={{ marginTop: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                 <span style={{ fontSize: 11, color: '#94A3B8' }}>Progresso</span>
@@ -340,283 +254,250 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
 
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
 
-        {/* Result panel */}
-        {resultado && tipoConfig && (
+        {/* Confirmation panel - shown after submission */}
+        {enviado && (
           <div style={{
-            background: 'white', borderRadius: 14, padding: '24px 28px', marginBottom: 24,
-            border: `2px solid ${tipoConfig.color}`,
+            background: 'white', borderRadius: 14, padding: '36px 28px', marginBottom: 24,
+            border: `2px solid ${GREEN}`, textAlign: 'center',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: '50%', background: tipoConfig.color,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'white', fontWeight: 700, fontSize: 18,
-              }}>{tipoConfig.icon}</div>
-              <div>
-                <div style={{ fontSize: 12, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Resultado</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: tipoConfig.color }}>{tipoConfig.label}</div>
-              </div>
-              <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-                <div style={{ fontSize: 24, fontWeight: 700, color: NAVY }}>{resultado.totalPct}%</div>
-                <div style={{ fontSize: 11, color: '#888' }}>Score total</div>
-              </div>
-            </div>
-
-            {[
-              { label: 'Capital', pct: resultado.capPct },
-              { label: 'Conhecimento', pct: resultado.conhecPct },
-              { label: 'Disponibilidade', pct: resultado.tempoPct },
-            ].map(({ label, pct }) => (
-              <div key={label} style={{ marginBottom: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>{label}</span>
-                  <span style={{ fontSize: 12, color: NAVY, fontWeight: 600 }}>{pct}%</span>
-                </div>
-                <div style={{ height: 6, background: CREAM2, borderRadius: 3 }}>
-                  <div style={{
-                    height: '100%', width: `${pct}%`, borderRadius: 3,
-                    background: pct >= 70 ? GREEN : pct >= 40 ? GOLD : RED,
-                    transition: 'width .4s',
-                  }} />
-                </div>
-              </div>
-            ))}
-
-            <div style={{ marginTop: 20 }}>
-              <div style={{ fontSize: 12, color: '#888', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>
-                Texto gerado
-              </div>
-              <pre style={{
-                background: CREAM, borderRadius: 8, padding: '14px 16px', fontSize: 12,
-                color: '#333', whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0,
-                border: `1px solid ${CREAM2}`, maxHeight: 280, overflowY: 'auto',
-              }}>{resultado.texto}</pre>
-              <button
-                onClick={copiarTexto}
-                style={{
-                  marginTop: 10, padding: '8px 18px', borderRadius: 8, cursor: 'pointer',
-                  background: copiado ? GREEN : NAVY, color: 'white', border: 'none',
-                  fontSize: 13, fontWeight: 600, transition: 'background .2s',
-                }}
-              >
-                {copiado ? '✓ Copiado!' : 'Copiar texto'}
-              </button>
-              {salvoId && <span style={{ marginLeft: 12, fontSize: 12, color: GREEN }}>Salvo com sucesso</span>}
-              {erroSalvar && <span style={{ marginLeft: 12, fontSize: 12, color: RED }}>{erroSalvar}</span>}
-            </div>
-          </div>
-        )}
-
-        {/* Sec 0: Identificacao */}
-        <SectionCard>
-          <SectionHeader number={0} title="Identificacao" icon="Contexto" />
-          <QuestionGroup label="Nome completo" required>
-            <input
-              value={nome} onChange={e => setNome(e.target.value)}
-              placeholder="Nome completo"
-              style={{
-                width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
-                padding: '9px 12px', fontSize: 13.5, color: '#222',
-                outline: 'none', boxSizing: 'border-box',
-              }}
-            />
-          </QuestionGroup>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <QuestionGroup label="Cidade(s) de atuacao" required>
-              <input
-                value={cidade} onChange={e => setCidade(e.target.value)}
-                placeholder="Ex: Sao Paulo, Campinas"
-                style={{
-                  width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
-                  padding: '9px 12px', fontSize: 13.5, color: '#222',
-                  outline: 'none', boxSizing: 'border-box',
-                }}
-              />
-            </QuestionGroup>
-            <QuestionGroup label="Estado" required>
-              <input
-                value={estado} onChange={e => setEstado(e.target.value)}
-                placeholder="Ex: SP"
-                style={{
-                  width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
-                  padding: '9px 12px', fontSize: 13.5, color: '#222',
-                  outline: 'none', boxSizing: 'border-box',
-                }}
-              />
-            </QuestionGroup>
-          </div>
-        </SectionCard>
-
-        {/* Sec 1: Capital */}
-        <SectionCard>
-          <SectionHeader number={1} title="Capital" icon="Eixo 1 de 3" />
-          <QuestionGroup label="Voce tem ao menos R$ 260.000 de capital proprio disponivel para investir?" required>
-            {[
-              { value: 'nao',      label: 'Nao',                      sub: 'Abaixo de R$ 260.000' },
-              { value: 'sim',      label: 'Sim',                      sub: 'R$ 260.000 a R$ 600.000' },
-              { value: 'sim_plus', label: 'Sim, acima de R$ 600.000', sub: '' },
-            ].map(o => (
-              <RadioOption key={o.value} name="capital_gate" value={o.value} label={o.label} sub={o.sub}
-                selected={capitalGate === o.value} onChange={setCapitalGate} />
-            ))}
-          </QuestionGroup>
-
-          {(capitalGate === 'sim' || capitalGate === 'sim_plus') && (
-            <>
-              <QuestionGroup label="Qual a faixa de capital disponivel?" required>
-                {[
-                  { value: '260-400', label: 'R$ 260.000 a R$ 400.000' },
-                  { value: '400-600', label: 'R$ 400.000 a R$ 600.000' },
-                  { value: '600+',    label: 'Acima de R$ 600.000' },
-                ].map(o => (
-                  <RadioOption key={o.value} name="capital_faixa" value={o.value} label={o.label}
-                    selected={capitalFaixa === o.value} onChange={setCapitalFaixa} />
-                ))}
-              </QuestionGroup>
-              <QuestionGroup label="Quando esse capital estara disponivel?" required>
-                {[
-                  { value: 'disponivel', label: 'Disponivel agora' },
-                  { value: '3meses',     label: 'Disponivel em ate 3 meses' },
-                  { value: '6meses',     label: 'Disponivel em ate 6 meses' },
-                ].map(o => (
-                  <RadioOption key={o.value} name="capital_timing" value={o.value} label={o.label}
-                    selected={capitalTiming === o.value} onChange={setCapitalTiming} />
-                ))}
-              </QuestionGroup>
-            </>
-          )}
-
-          {capitalGate === 'nao' && (
             <div style={{
-              background: '#FFF8F0', border: '1px solid #F0C080', borderRadius: 8,
-              padding: '12px 14px', fontSize: 13, color: '#7A5020', marginTop: 4,
+              width: 56, height: 56, borderRadius: '50%', background: GREEN,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'white', fontWeight: 700, fontSize: 26, margin: '0 auto 16px',
             }}>
-              O capital minimo para iniciar uma operacao Moni e R$ 260.000. Voce pode preencher e enviar o formulario para registro, e retomar quando o capital estiver disponivel.
+              &#10003;
             </div>
-          )}
-        </SectionCard>
-
-        {/* Sec 2: Conhecimento */}
-        <SectionCard>
-          <SectionHeader number={2} title="Conhecimento" icon="Eixo 2 de 3" />
-          <QuestionGroup label="Como voce avalia seu conhecimento sobre o mercado imobiliario?" required>
-            {[
-              { value: 'alto',  label: 'Alto',            sub: 'Acompanho tendencias, sei avaliar terrenos e projetos' },
-              { value: 'medio', label: 'Medio',           sub: 'Conheco o basico, ja pesquisei sobre o setor' },
-              { value: 'baixo', label: 'Baixo ou nenhum', sub: 'Sou iniciante nesse mercado' },
-            ].map(o => (
-              <RadioOption key={o.value} name="conhec_mercado" value={o.value} label={o.label} sub={o.sub}
-                selected={conhecMercado === o.value} onChange={setConhecMercado} />
-            ))}
-          </QuestionGroup>
-          <QuestionGroup label="Voce tem experiencia com incorporacao imobiliaria?" required>
-            {[
-              { value: 'sim_inc',    label: 'Sim, com incorporacao',   sub: 'Ja participei de projetos de incorporacao' },
-              { value: 'sim_compra', label: 'Sim, compra e venda',     sub: 'Ja atuei com compra, venda ou locacao' },
-              { value: 'nao',        label: 'Nao tenho experiencia',   sub: '' },
-            ].map(o => (
-              <RadioOption key={o.value} name="conhec_imob" value={o.value} label={o.label} sub={o.sub}
-                selected={conhecImob === o.value} onChange={setConhecImob} />
-            ))}
-          </QuestionGroup>
-          <QuestionGroup label="Como voce avalia seu conhecimento sobre o modelo de negocios Moni?" required>
-            {[
-              { value: 'fluente', label: 'Fluente no modelo',   sub: 'Entendo a operacao, os numeros e os processos' },
-              { value: 'basico',  label: 'Conhecimento basico', sub: 'Ja li materiais e assisti apresentacoes' },
-              { value: 'pouco',   label: 'Pouco conhecimento',  sub: 'Ainda estou descobrindo como funciona' },
-            ].map(o => (
-              <RadioOption key={o.value} name="conhec_moni" value={o.value} label={o.label} sub={o.sub}
-                selected={conhecMoni === o.value} onChange={setConhecMoni} />
-            ))}
-          </QuestionGroup>
-        </SectionCard>
-
-        {/* Sec 3: Disponibilidade */}
-        <SectionCard>
-          <SectionHeader number={3} title="Disponibilidade" icon="Eixo 3 de 3" />
-          <QuestionGroup label="Quantas horas por semana voce pode dedicar ao projeto Moni?" required>
-            {[
-              { value: '10+',  label: 'Mais de 10 horas por semana' },
-              { value: '5-10', label: 'De 5 a 10 horas por semana' },
-              { value: '2-5',  label: 'De 2 a 5 horas por semana' },
-              { value: '<2',   label: 'Menos de 2 horas por semana' },
-            ].map(o => (
-              <RadioOption key={o.value} name="tempo_horas" value={o.value} label={o.label}
-                selected={tempoHoras === o.value} onChange={setTempoHoras} />
-            ))}
-          </QuestionGroup>
-          <QuestionGroup label="Com qual velocidade voce consegue responder a demandas do projeto?" required>
-            {[
-              { value: 'mesmo_dia', label: 'Mesmo dia',             sub: 'Respondo em horas' },
-              { value: '24h',       label: 'Em ate 24 horas',       sub: '' },
-              { value: '2-3d',      label: 'Em 2 a 3 dias',         sub: '' },
-              { value: 'semana',    label: 'Em uma semana ou mais', sub: '' },
-            ].map(o => (
-              <RadioOption key={o.value} name="tempo_resposta" value={o.value} label={o.label} sub={o.sub}
-                selected={tempoResposta === o.value} onChange={setTempoResposta} />
-            ))}
-          </QuestionGroup>
-          <QuestionGroup label="Voce tem disponibilidade de agenda para reunioes presenciais?" required>
-            {[
-              { value: 'sim_tudo',   label: 'Sim, tudo presencial',   sub: 'Posso me deslocar para reunioes e visitas de obra' },
-              { value: 'sim_online', label: 'Sim, formato hibrido',   sub: 'Presencial quando necessario, online no dia a dia' },
-              { value: 'parcial',    label: 'Parcialmente',            sub: 'Tenho restricoes de agenda que podem afetar o projeto' },
-            ].map(o => (
-              <RadioOption key={o.value} name="tempo_agenda" value={o.value} label={o.label} sub={o.sub}
-                selected={tempoAgenda === o.value} onChange={setTempoAgenda} />
-            ))}
-          </QuestionGroup>
-          <QuestionGroup label="Voce tem disponibilidade para participar dos workshops de formacao Moni?" required>
-            {[
-              { value: 'sim_ja',   label: 'Sim, ja participei',         sub: 'Ja fiz pelo menos um workshop Moni' },
-              { value: 'sim_pode', label: 'Sim, posso participar',      sub: 'Tenho disponibilidade para os treinamentos' },
-              { value: 'nao',      label: 'Nao tenho disponibilidade',  sub: 'Nao consigo participar dos workshops no momento' },
-            ].map(o => (
-              <RadioOption key={o.value} name="workshops" value={o.value} label={o.label} sub={o.sub}
-                selected={workshops === o.value} onChange={setWorkshops} />
-            ))}
-          </QuestionGroup>
-        </SectionCard>
-
-        {/* Sec 4: Contexto */}
-        <SectionCard>
-          <SectionHeader number={4} title="Contexto" icon="Informacoes adicionais" />
-          <QuestionGroup label="Conte um pouco sobre sua motivacao e contexto atual" required>
-            <textarea
-              value={motivacao} onChange={e => setMotivacao(e.target.value)}
-              placeholder="Ex: Sou investidor com experiencia em imoveis comerciais, busco diversificar meu portfolio com incorporacao residencial..."
-              rows={5}
-              style={{
-                width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
-                padding: '10px 12px', fontSize: 13.5, color: '#222', resize: 'vertical',
-                outline: 'none', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box',
-              }}
-            />
-          </QuestionGroup>
-        </SectionCard>
-
-        {erroForm && (
-          <div style={{
-            background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8,
-            padding: '12px 14px', fontSize: 13, color: RED, marginBottom: 16,
-          }}>
-            {erroForm}
+            <div style={{ fontSize: 20, fontWeight: 700, color: NAVY, marginBottom: 8 }}>
+              Respostas enviadas com sucesso!
+            </div>
+            <div style={{ fontSize: 14, color: '#666', lineHeight: 1.6 }}>
+              Obrigado pelo preenchimento. Suas respostas foram registradas e serao analisadas pela equipe Moni.
+            </div>
           </div>
         )}
 
-        {!resultado && (
-          <button
-            onClick={gerarResultado}
-            disabled={salvando}
-            style={{
-              width: '100%', padding: '14px 0', borderRadius: 10, border: 'none',
-              background: salvando ? '#888' : GOLD, color: 'white', fontSize: 15,
-              fontWeight: 700, cursor: salvando ? 'not-allowed' : 'pointer',
-              letterSpacing: .5, marginBottom: 24,
-            }}
-          >
-            {salvando ? 'Salvando...' : 'Gerar Resultado'}
-          </button>
+        {/* Form sections - hidden after submission */}
+        {!enviado && (
+          <>
+            {/* Sec 0: Identificacao */}
+            <SectionCard>
+              <SectionHeader number={0} title="Identificacao" icon="Contexto" />
+              <QuestionGroup label="Nome completo" required>
+                <input
+                  value={nome} onChange={e => setNome(e.target.value)}
+                  placeholder="Nome completo"
+                  style={{
+                    width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
+                    padding: '9px 12px', fontSize: 13.5, color: '#222',
+                    outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+              </QuestionGroup>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <QuestionGroup label="Cidade(s) de atuacao" required>
+                  <input
+                    value={cidade} onChange={e => setCidade(e.target.value)}
+                    placeholder="Ex: Sao Paulo, Campinas"
+                    style={{
+                      width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
+                      padding: '9px 12px', fontSize: 13.5, color: '#222',
+                      outline: 'none', boxSizing: 'border-box',
+                    }}
+                  />
+                </QuestionGroup>
+                <QuestionGroup label="Estado" required>
+                  <input
+                    value={estado} onChange={e => setEstado(e.target.value)}
+                    placeholder="Ex: SP"
+                    style={{
+                      width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
+                      padding: '9px 12px', fontSize: 13.5, color: '#222',
+                      outline: 'none', boxSizing: 'border-box',
+                    }}
+                  />
+                </QuestionGroup>
+              </div>
+            </SectionCard>
+
+            {/* Sec 1: Capital */}
+            <SectionCard>
+              <SectionHeader number={1} title="Capital" icon="Eixo 1 de 3" />
+              <QuestionGroup label="Voce tem ao menos R$ 260.000 de capital proprio disponivel para investir?" required>
+                {[
+                  { value: 'nao',      label: 'Nao',                      sub: 'Abaixo de R$ 260.000' },
+                  { value: 'sim',      label: 'Sim',                      sub: 'R$ 260.000 a R$ 600.000' },
+                  { value: 'sim_plus', label: 'Sim, acima de R$ 600.000', sub: '' },
+                ].map(o => (
+                  <RadioOption key={o.value} name="capital_gate" value={o.value} label={o.label} sub={o.sub}
+                    selected={capitalGate === o.value} onChange={setCapitalGate} />
+                ))}
+              </QuestionGroup>
+
+              {(capitalGate === 'sim' || capitalGate === 'sim_plus') && (
+                <>
+                  <QuestionGroup label="Qual a faixa de capital disponivel?" required>
+                    {[
+                      { value: '260-400', label: 'R$ 260.000 a R$ 400.000' },
+                      { value: '400-600', label: 'R$ 400.000 a R$ 600.000' },
+                      { value: '600+',    label: 'Acima de R$ 600.000' },
+                    ].map(o => (
+                      <RadioOption key={o.value} name="capital_faixa" value={o.value} label={o.label}
+                        selected={capitalFaixa === o.value} onChange={setCapitalFaixa} />
+                    ))}
+                  </QuestionGroup>
+                  <QuestionGroup label="Quando esse capital estara disponivel?" required>
+                    {[
+                      { value: 'disponivel', label: 'Disponivel agora' },
+                      { value: '3meses',     label: 'Disponivel em ate 3 meses' },
+                      { value: '6meses',     label: 'Disponivel em ate 6 meses' },
+                    ].map(o => (
+                      <RadioOption key={o.value} name="capital_timing" value={o.value} label={o.label}
+                        selected={capitalTiming === o.value} onChange={setCapitalTiming} />
+                    ))}
+                  </QuestionGroup>
+                </>
+              )}
+
+              {capitalGate === 'nao' && (
+                <div style={{
+                  background: '#FFF8F0', border: '1px solid #F0C080', borderRadius: 8,
+                  padding: '12px 14px', fontSize: 13, color: '#7A5020', marginTop: 4,
+                }}>
+                  O capital minimo para iniciar uma operacao Moni e R$ 260.000. Voce pode preencher e enviar o formulario para registro, e retomar quando o capital estiver disponivel.
+                </div>
+              )}
+            </SectionCard>
+
+            {/* Sec 2: Conhecimento */}
+            <SectionCard>
+              <SectionHeader number={2} title="Conhecimento" icon="Eixo 2 de 3" />
+              <QuestionGroup label="Como voce avalia seu conhecimento sobre o mercado imobiliario?" required>
+                {[
+                  { value: 'alto',  label: 'Alto',            sub: 'Acompanho tendencias, sei avaliar terrenos e projetos' },
+                  { value: 'medio', label: 'Medio',           sub: 'Conheco o basico, ja pesquisei sobre o setor' },
+                  { value: 'baixo', label: 'Baixo ou nenhum', sub: 'Sou iniciante nesse mercado' },
+                ].map(o => (
+                  <RadioOption key={o.value} name="conhec_mercado" value={o.value} label={o.label} sub={o.sub}
+                    selected={conhecMercado === o.value} onChange={setConhecMercado} />
+                ))}
+              </QuestionGroup>
+              <QuestionGroup label="Voce tem experiencia com incorporacao imobiliaria?" required>
+                {[
+                  { value: 'sim_inc',    label: 'Sim, com incorporacao',   sub: 'Ja participei de projetos de incorporacao' },
+                  { value: 'sim_compra', label: 'Sim, compra e venda',     sub: 'Ja atuei com compra, venda ou locacao' },
+                  { value: 'nao',        label: 'Nao tenho experiencia',   sub: '' },
+                ].map(o => (
+                  <RadioOption key={o.value} name="conhec_imob" value={o.value} label={o.label} sub={o.sub}
+                    selected={conhecImob === o.value} onChange={setConhecImob} />
+                ))}
+              </QuestionGroup>
+              <QuestionGroup label="Como voce avalia seu conhecimento sobre o modelo de negocios Moni?" required>
+                {[
+                  { value: 'fluente', label: 'Fluente no modelo',   sub: 'Entendo a operacao, os numeros e os processos' },
+                  { value: 'basico',  label: 'Conhecimento basico', sub: 'Ja li materiais e assisti apresentacoes' },
+                  { value: 'pouco',   label: 'Pouco conhecimento',  sub: 'Ainda estou descobrindo como funciona' },
+                ].map(o => (
+                  <RadioOption key={o.value} name="conhec_moni" value={o.value} label={o.label} sub={o.sub}
+                    selected={conhecMoni === o.value} onChange={setConhecMoni} />
+                ))}
+              </QuestionGroup>
+            </SectionCard>
+
+            {/* Sec 3: Disponibilidade */}
+            <SectionCard>
+              <SectionHeader number={3} title="Disponibilidade" icon="Eixo 3 de 3" />
+              <QuestionGroup label="Quantas horas por semana voce pode dedicar ao projeto Moni?" required>
+                {[
+                  { value: '10+',  label: 'Mais de 10 horas por semana' },
+                  { value: '5-10', label: 'De 5 a 10 horas por semana' },
+                  { value: '2-5',  label: 'De 2 a 5 horas por semana' },
+                  { value: '<2',   label: 'Menos de 2 horas por semana' },
+                ].map(o => (
+                  <RadioOption key={o.value} name="tempo_horas" value={o.value} label={o.label}
+                    selected={tempoHoras === o.value} onChange={setTempoHoras} />
+                ))}
+              </QuestionGroup>
+              <QuestionGroup label="Com qual velocidade voce consegue responder a demandas do projeto?" required>
+                {[
+                  { value: 'mesmo_dia', label: 'Mesmo dia',             sub: 'Respondo em horas' },
+                  { value: '24h',       label: 'Em ate 24 horas',       sub: '' },
+                  { value: '2-3d',      label: 'Em 2 a 3 dias',         sub: '' },
+                  { value: 'semana',    label: 'Em uma semana ou mais', sub: '' },
+                ].map(o => (
+                  <RadioOption key={o.value} name="tempo_resposta" value={o.value} label={o.label} sub={o.sub}
+                    selected={tempoResposta === o.value} onChange={setTempoResposta} />
+                ))}
+              </QuestionGroup>
+              <QuestionGroup label="Voce tem disponibilidade de agenda para reunioes presenciais?" required>
+                {[
+                  { value: 'sim_tudo',   label: 'Sim, tudo presencial',   sub: 'Posso me deslocar para reunioes e visitas de obra' },
+                  { value: 'sim_online', label: 'Sim, formato hibrido',   sub: 'Presencial quando necessario, online no dia a dia' },
+                  { value: 'parcial',    label: 'Parcialmente',            sub: 'Tenho restricoes de agenda que podem afetar o projeto' },
+                ].map(o => (
+                  <RadioOption key={o.value} name="tempo_agenda" value={o.value} label={o.label} sub={o.sub}
+                    selected={tempoAgenda === o.value} onChange={setTempoAgenda} />
+                ))}
+              </QuestionGroup>
+              <QuestionGroup label="Voce tem disponibilidade para participar dos workshops de formacao Moni?" required>
+                {[
+                  { value: 'sim_ja',   label: 'Sim, ja participei',         sub: 'Ja fiz pelo menos um workshop Moni' },
+                  { value: 'sim_pode', label: 'Sim, posso participar',      sub: 'Tenho disponibilidade para os treinamentos' },
+                  { value: 'nao',      label: 'Nao tenho disponibilidade',  sub: 'Nao consigo participar dos workshops no momento' },
+                ].map(o => (
+                  <RadioOption key={o.value} name="workshops" value={o.value} label={o.label} sub={o.sub}
+                    selected={workshops === o.value} onChange={setWorkshops} />
+                ))}
+              </QuestionGroup>
+            </SectionCard>
+
+            {/* Sec 4: Contexto */}
+            <SectionCard>
+              <SectionHeader number={4} title="Contexto" icon="Informacoes adicionais" />
+              <QuestionGroup label="Conte um pouco sobre sua motivacao e contexto atual" required>
+                <textarea
+                  value={motivacao} onChange={e => setMotivacao(e.target.value)}
+                  placeholder="Ex: Sou investidor com experiencia em imoveis comerciais, busco diversificar meu portfolio com incorporacao residencial..."
+                  rows={5}
+                  style={{
+                    width: '100%', borderRadius: 8, border: `1.5px solid ${CREAM2}`,
+                    padding: '10px 12px', fontSize: 13.5, color: '#222', resize: 'vertical',
+                    outline: 'none', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box',
+                  }}
+                />
+              </QuestionGroup>
+            </SectionCard>
+
+            {erroForm && (
+              <div style={{
+                background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8,
+                padding: '12px 14px', fontSize: 13, color: RED, marginBottom: 16,
+              }}>
+                {erroForm}
+              </div>
+            )}
+
+            {erroSalvar && (
+              <div style={{
+                background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8,
+                padding: '12px 14px', fontSize: 13, color: RED, marginBottom: 16,
+              }}>
+                {erroSalvar}
+              </div>
+            )}
+
+            <button
+              onClick={enviarRespostas}
+              disabled={salvando}
+              style={{
+                width: '100%', padding: '14px 0', borderRadius: 10, border: 'none',
+                background: salvando ? '#888' : GOLD, color: 'white', fontSize: 15,
+                fontWeight: 700, cursor: salvando ? 'not-allowed' : 'pointer',
+                letterSpacing: .5, marginBottom: 24,
+              }}
+            >
+              {salvando ? 'Enviando...' : 'Enviar Respostas'}
+            </button>
+          </>
         )}
 
         {historico && historico.length > 0 && (
@@ -624,30 +505,18 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
             <div style={{ fontSize: 13, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
               Historico de respostas
             </div>
-            {historico.filter(h => h.resultado_tipo).map(h => (
+            {historico.map(h => (
               <div key={h.id} style={{
                 background: 'white', borderRadius: 10, padding: '14px 18px', marginBottom: 10,
                 border: `1px solid ${CREAM2}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>
-                    {h.resultado_tipo === 'qualificado' ? 'Qualificado'
-                      : h.resultado_tipo === 'parcial' ? 'Qualificacao Parcial'
-                      : 'Nao Qualificado'}
-                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>Respondido</div>
                   <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
                     {formatarData(h.criado_em)}
-                    {h.score_capital_pct != null && (
-                      <span> &middot; Cap {h.score_capital_pct}% / Con {h.score_conhecimento_pct}% / Dis {h.score_tempo_pct}%</span>
-                    )}
                   </div>
                 </div>
-                <div style={{
-                  fontSize: 18, fontWeight: 700,
-                  color: h.resultado_tipo === 'qualificado' ? GREEN : h.resultado_tipo === 'parcial' ? GOLD : RED,
-                }}>
-                  {h.resultado_tipo === 'qualificado' ? '✓' : h.resultado_tipo === 'parcial' ? '~' : '✗'}
-                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: GREEN }}>&#10003;</div>
               </div>
             ))}
           </div>
