@@ -3957,6 +3957,20 @@
   box-shadow: 4px 0 8px -4px rgba(12, 38, 51, 0.08);
 }
 
+/* Cadastro de Condomínios — o scroll só pintava o branco na área visível; o restante mostrava a página. */
+.moni-tabela-condominios,
+.moni-tabela-scroll-wrap:has(.moni-tabela-condominios) {
+  background-color: var(--moni-surface-0);
+}
+
+.moni-tabela-condominios tbody tr.moni-condominio-row > td {
+  background-color: var(--moni-surface-0);
+}
+
+.moni-tabela-condominios tbody tr.moni-condominio-row:hover > td {
+  background-color: var(--moni-surface-50);
+}
+
 /* Rede de Loteadores — fundo homogêneo (mesmo tom da página, inclusive no scroll horizontal) */
 .moni-tabela-loteadores tbody td {
   background-color: var(--moni-surface-50);

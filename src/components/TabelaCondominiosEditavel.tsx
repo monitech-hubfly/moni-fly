@@ -288,7 +288,7 @@ export function TabelaCondominiosEditavel({
       ) : null}
 
       <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
-        <table className="w-full min-w-[2400px] border-collapse text-left text-sm">
+        <table className="moni-tabela-condominios w-full min-w-[2400px] border-collapse bg-[var(--moni-surface-0)] text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50/95">
               <th className={redeTh} scope="col">
@@ -386,7 +386,7 @@ export function TabelaCondominiosEditavel({
                 );
               }
               return (
-                <tr key={r.id} className="group border-b border-stone-100 align-top hover:bg-stone-50/70">
+                <tr key={r.id} className="moni-condominio-row group border-b border-stone-100 align-top">
                   <td className="px-3 py-2.5 font-medium text-stone-900">{r.nome}</td>
                   <td className="px-3 py-2.5 text-stone-700">{formatEnderecoNumero(r.endereco, r.numero)}</td>
                   <td className="px-3 py-2.5 text-stone-700">{r.cep?.trim() || '—'}</td>

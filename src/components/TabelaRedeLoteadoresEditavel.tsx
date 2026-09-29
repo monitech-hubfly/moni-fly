@@ -12,6 +12,9 @@ import {
   type RedeLoteadorStatus,
   type RedeLoteadorDiagPatch,
 } from '@/lib/rede-loteadores';
+import { listarCondominiosCadastro } from '@/lib/actions/kanban-card-condominio';
+import { CAMPOS_EXIBICAO_CONDOMINIO } from '@/lib/condominio-campos-exibicao';
+import type { CondominioRow } from '@/lib/condominios';
 import { arquivarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
 import { salvarDiagnosticoLoteador } from '@/app/rede-franqueados/rede-loteadores-diagnostico-actions';
 import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
@@ -205,14 +208,7 @@ const SECOES: Secao[] = [
   {
     id: 'condominio',
     titulo: 'Condomínio',
-    colunas: [
-      {
-        key: 'condominio_nome',
-        label: 'Condomínio',
-        minWidth: '12rem',
-        render: (r) => cellText(r.condominio_nome),
-      },
-    ],
+    colunas: [],
   },
   {
     id: 'carteira',
@@ -334,7 +330,25 @@ const SECOES: Secao[] = [
   },
 ];
 
-const TOTAL_DATA_COLS = SECOES.reduce((acc, s) => acc + s.colunas.length, 0);
+const CAMPOS_CONDOMINIO_ANEXO = new Set(['planta_cadastral', 'manual_obras', 'casas_concorrentes']);
+
+function colunasCondominioVinculado(porId: Map<string, CondominioRow>): SecaoColuna[] {
+  return CAMPOS_EXIBICAO_CONDOMINIO.map((campo) => ({
+    key: `condominio_${campo.key}`,
+    label: campo.label,
+    minWidth: campo.label.length > 28 ? '16rem' : '9rem',
+    render: (r) => {
+      const vinculado = r.condominio_id ? porId.get(r.condominio_id) : undefined;
+      if (!vinculado) {
+        if (campo.key === 'nome') return cellText(r.condominio_nome);
+        return '—';
+      }
+      const valor = campo.valor(vinculado);
+      if (CAMPOS_CONDOMINIO_ANEXO.has(campo.key)) return cellAnexo(valor === '—' ? null : valor);
+      return cellText(valor, 64);
+    },
+  }));
+}
 
 type Props = {
   rows: RedeLoteadorRow[];
@@ -361,8 +375,31 @@ export function TabelaRedeLoteadoresEditavel({
   const [savingDiag, setSavingDiag] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [ficha, setFicha] = useState<FichaState>(null);
+  const [condominiosPorId, setCondominiosPorId] = useState<Map<string, CondominioRow>>(() => new Map());
   const [editingDiag, setEditingDiag] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DiagDraft>>({});
+
+  useEffect(() => {
+    let cancelado = false;
+    void listarCondominiosCadastro().then((lista) => {
+      if (cancelado) return;
+      setCondominiosPorId(new Map(lista.map((c) => [c.id, c])));
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  const secoes = useMemo(
+    () =>
+      SECOES.map((secao) =>
+        secao.id === 'condominio'
+          ? { ...secao, colunas: colunasCondominioVinculado(condominiosPorId) }
+          : secao,
+      ),
+    [condominiosPorId],
+  );
+  const totalDataCols = secoes.reduce((acc, s) => acc + s.colunas.length, 0);
 
   const rowsOrdenadas = useMemo(() => ordenarRedeLoteadoresPorCodigo(rows), [rows]);
   const totalGeral = totalSemBusca ?? rows.length;
@@ -425,7 +462,7 @@ export function TabelaRedeLoteadoresEditavel({
         <table className="moni-tabela-loteadores w-full min-w-[2200px] border-collapse bg-[color:var(--moni-surface-50)] text-left text-sm">
           <thead>
             <tr className="border-b border-[color:var(--moni-border-default)]">
-              {SECOES.map((secao, idx) => (
+              {secoes.map((secao, idx) => (
                 <th
                   key={secao.id}
                   colSpan={secao.colunas.length}
@@ -445,7 +482,7 @@ export function TabelaRedeLoteadoresEditavel({
               </th>
             </tr>
             <tr className="border-b border-[color:var(--moni-border-default)]">
-              {SECOES.map((secao, idx) =>
+              {secoes.map((secao, idx) =>
                 secao.colunas.map((col, colIdx) => (
                   <th
                     key={col.key}
@@ -470,7 +507,7 @@ export function TabelaRedeLoteadoresEditavel({
           <tbody>
             {semLinhas ? (
               <tr>
-                <td colSpan={TOTAL_DATA_COLS + 1} className="px-3 py-10 text-center text-sm text-[color:var(--moni-text-tertiary)]">
+                <td colSpan={totalDataCols + 1} className="px-3 py-10 text-center text-sm text-[color:var(--moni-text-tertiary)]">
                   {buscaAtiva && totalGeral > 0
                     ? 'Nenhum loteador encontrado para esta pesquisa.'
                     : 'Nenhum loteador cadastrado ainda. Clique em “Novo Loteador” para adicionar o primeiro.'}
@@ -487,7 +524,7 @@ export function TabelaRedeLoteadoresEditavel({
 
                 return (
                   <tr key={r.id} className={`group border-b border-[color:var(--moni-border-default)] align-top ${rowCls}`}>
-                    {SECOES.map((secao, idx) =>
+                    {secoes.map((secao, idx) =>
                       secao.colunas.map((col, colIdx) => (
                         <td
                           key={`${r.id}-${col.key}`}

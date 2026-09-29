@@ -5,11 +5,8 @@ import { ExternalLink, Paperclip } from 'lucide-react';
 import { RedeDocsSecaoColapsavel } from '@/app/rede-franqueados/[id]/rede-docs-secao-colapsavel';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { listarCondominiosCadastro } from '@/lib/actions/kanban-card-condominio';
-import {
-  formatCondominioInteiro,
-  formatTicketCadastro,
-  type CondominioRow,
-} from '@/lib/condominios';
+import { CAMPOS_EXIBICAO_CONDOMINIO } from '@/lib/condominio-campos-exibicao';
+import type { CondominioRow } from '@/lib/condominios';
 import type { RedeLoteadorFichaDraft } from '@/lib/rede-loteador-ficha-draft';
 import { UFS_BRASIL } from '@/lib/uf';
 
@@ -97,41 +94,13 @@ function AnexoField({
   );
 }
 
-function formatDateBr(iso: string | null | undefined): string {
-  const s = (iso ?? '').trim().slice(0, 10);
-  if (!s) return '—';
-  const [y, m, d] = s.split('-');
-  if (!y || !m || !d) return s;
-  return `${d}/${m}/${y}`;
-}
-
-function textoOuTraco(value: string | null | undefined): string {
-  const s = (value ?? '').trim();
-  return s || '—';
-}
-
 function ResumoCondominioVinculado({ row, sidebar }: { row: CondominioRow; sidebar: boolean }) {
-  const itens: Array<{ label: string; value: string }> = [
-    { label: 'Nome', value: row.nome },
-    { label: 'Cidade', value: textoOuTraco(row.cidade) },
-    { label: 'Estado', value: textoOuTraco(row.estado) },
-    { label: 'Data de lançamento (vendas de lote)', value: formatDateBr(row.data_lancamento_vendas) },
-    { label: 'Data liberação TVO (permissão de construir casas)', value: formatDateBr(row.data_liberacao_tvo) },
-    { label: 'Quantidade de lotes', value: formatCondominioInteiro(row.quantidade_lotes) },
-    { label: 'Metragem dos lotes (média ou faixas)', value: textoOuTraco(row.metragem_lotes) },
-    { label: 'Metragem / tipologia média das casas (média ou faixas)', value: textoOuTraco(row.metragem_casas) },
-    { label: 'Ticket médio lote', value: formatTicketCadastro(row.ticket_medio_lote) },
-    { label: 'Ticket médio casas', value: formatTicketCadastro(row.ticket_medio_casas) },
-    { label: 'Planta cadastral do condomínio / lotes com medidas (frente e lateral)', value: textoOuTraco(row.planta_cadastral) },
-    { label: 'Manual de obras', value: textoOuTraco(row.manual_obras) },
-    { label: 'Exemplo / links de casas concorrentes', value: textoOuTraco(row.casas_concorrentes) },
-  ];
   return (
     <dl className={sidebar ? 'mt-2 space-y-1.5' : 'mt-3 grid gap-2 sm:grid-cols-2'}>
-      {itens.map((item) => (
-        <div key={item.label}>
-          <dt className={sidebar ? sidebarLabelCls : labelCls}>{item.label}</dt>
-          <dd className={sidebar ? 'text-[11px] text-stone-800' : 'text-sm text-stone-800'}>{item.value}</dd>
+      {CAMPOS_EXIBICAO_CONDOMINIO.map((campo) => (
+        <div key={campo.key}>
+          <dt className={sidebar ? sidebarLabelCls : labelCls}>{campo.label}</dt>
+          <dd className={sidebar ? 'text-[11px] text-stone-800' : 'text-sm text-stone-800'}>{campo.valor(row)}</dd>
         </div>
       ))}
     </dl>
