@@ -18,6 +18,14 @@ export type CondominioRow = {
   estimativa_casas_vendidas_ano: number | null;
   extrato_como_eram_casas: string | null;
   extrato_tempo_venda: string | null;
+  data_lancamento_vendas: string | null;
+  data_liberacao_tvo: string | null;
+  quantidade_lotes: number | null;
+  metragem_lotes: string | null;
+  metragem_casas: string | null;
+  planta_cadastral: string | null;
+  manual_obras: string | null;
+  casas_concorrentes: string | null;
   recuo_frontal_m: number | null;
   recuo_fundo_m: number | null;
   recuo_lateral_m: number | null;
@@ -83,6 +91,14 @@ export function condominioRowMatchesBusca(row: CondominioRow, busca: string): bo
     numToSearch(row.estimativa_casas_vendidas_ano),
     row.extrato_como_eram_casas,
     row.extrato_tempo_venda,
+    row.data_lancamento_vendas,
+    row.data_liberacao_tvo,
+    numToSearch(row.quantidade_lotes),
+    row.metragem_lotes,
+    row.metragem_casas,
+    row.planta_cadastral,
+    row.manual_obras,
+    row.casas_concorrentes,
     formatCondominioMoeda(row.ticket_medio_lote),
     formatCondominioMoeda(row.ticket_medio_casas),
     formatCondominioMoeda(row.ticket_medio_casas_rsm2),
@@ -120,6 +136,12 @@ function parseNumericField(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function parseDateField(v: unknown): string | null {
+  if (v == null || v === '') return null;
+  const s = String(v).trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
 function parseIntegerField(v: unknown): number | null {
   if (v == null || v === '') return null;
   const n = typeof v === 'number' ? v : parseInt(String(v), 10);
@@ -142,6 +164,14 @@ function mapRow(r: Record<string, unknown>): CondominioRow {
     estimativa_casas_vendidas_ano: parseIntegerField(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: ((r.extrato_como_eram_casas as string | null) ?? null)?.trim() || null,
     extrato_tempo_venda: ((r.extrato_tempo_venda as string | null) ?? null)?.trim() || null,
+    data_lancamento_vendas: parseDateField(r.data_lancamento_vendas),
+    data_liberacao_tvo: parseDateField(r.data_liberacao_tvo),
+    quantidade_lotes: parseIntegerField(r.quantidade_lotes),
+    metragem_lotes: ((r.metragem_lotes as string | null) ?? null)?.trim() || null,
+    metragem_casas: ((r.metragem_casas as string | null) ?? null)?.trim() || null,
+    planta_cadastral: ((r.planta_cadastral as string | null) ?? null)?.trim() || null,
+    manual_obras: ((r.manual_obras as string | null) ?? null)?.trim() || null,
+    casas_concorrentes: ((r.casas_concorrentes as string | null) ?? null)?.trim() || null,
     recuo_frontal_m: parseNumericField(r.recuo_frontal_m),
     recuo_fundo_m: parseNumericField(r.recuo_fundo_m),
     recuo_lateral_m: parseNumericField(r.recuo_lateral_m),
@@ -207,6 +237,14 @@ export type CondominioPatch = {
   estimativa_casas_vendidas_ano?: number | null;
   extrato_como_eram_casas?: string | null;
   extrato_tempo_venda?: string | null;
+  data_lancamento_vendas?: string | null;
+  data_liberacao_tvo?: string | null;
+  quantidade_lotes?: number | null;
+  metragem_lotes?: string | null;
+  metragem_casas?: string | null;
+  planta_cadastral?: string | null;
+  manual_obras?: string | null;
+  casas_concorrentes?: string | null;
   prazo_aprovacao_condominio_dias?: number | null;
   prazo_aprovacao_condominio_sla_tipo?: string | null;
   prazo_aprovacao_prefeitura_dias?: number | null;

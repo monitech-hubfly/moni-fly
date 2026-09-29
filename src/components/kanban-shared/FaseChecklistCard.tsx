@@ -2016,6 +2016,14 @@ const COLUNAS_TABELA_CONDOMINIOS = [
   { key: 'estimativa_casas_vendidas_ano', header: 'Est. casas vendidas/ano' },
   { key: 'extrato_como_eram_casas', header: 'Extrato — Como eram' },
   { key: 'extrato_tempo_venda', header: 'Extrato — Tempo venda' },
+  { key: 'data_lancamento_vendas', header: 'Data de lançamento (vendas de lote)' },
+  { key: 'data_liberacao_tvo', header: 'Data liberação TVO (permissão de construir casas)' },
+  { key: 'quantidade_lotes', header: 'Quantidade de lotes' },
+  { key: 'metragem_lotes', header: 'Metragem dos lotes (média ou faixas)' },
+  { key: 'metragem_casas', header: 'Metragem / tipologia média das casas (média ou faixas)' },
+  { key: 'planta_cadastral', header: 'Planta cadastral do condomínio / lotes com medidas (frente e lateral)' },
+  { key: 'manual_obras', header: 'Manual de obras' },
+  { key: 'casas_concorrentes', header: 'Exemplo / links de casas concorrentes' },
 ] as const;
 
 function condominioRowToSnapshot(r: CondominioRow) {
@@ -2034,12 +2042,28 @@ function condominioRowToSnapshot(r: CondominioRow) {
     estimativa_casas_vendidas_ano: r.estimativa_casas_vendidas_ano,
     extrato_como_eram_casas: r.extrato_como_eram_casas,
     extrato_tempo_venda: r.extrato_tempo_venda,
+    data_lancamento_vendas: r.data_lancamento_vendas,
+    data_liberacao_tvo: r.data_liberacao_tvo,
+    quantidade_lotes: r.quantidade_lotes,
+    metragem_lotes: r.metragem_lotes,
+    metragem_casas: r.metragem_casas,
+    planta_cadastral: r.planta_cadastral,
+    manual_obras: r.manual_obras,
+    casas_concorrentes: r.casas_concorrentes,
   };
 }
 
 function valorJsonCondominios(rows: CondominioRow[]): string {
   const comNome = rows.filter((r) => r.nome?.trim());
   return JSON.stringify(comNome.map(condominioRowToSnapshot));
+}
+
+function formatDateBr(iso: string | null | undefined): string {
+  const s = (iso ?? '').trim().slice(0, 10);
+  if (!s) return '—';
+  const [y, m, d] = s.split('-');
+  if (!y || !m || !d) return s;
+  return `${d}/${m}/${y}`;
 }
 
 function celulaCondominio(row: CondominioRow, key: (typeof COLUNAS_TABELA_CONDOMINIOS)[number]['key']): string {
@@ -2066,6 +2090,22 @@ function celulaCondominio(row: CondominioRow, key: (typeof COLUNAS_TABELA_CONDOM
       return row.extrato_como_eram_casas?.trim() || '—';
     case 'extrato_tempo_venda':
       return row.extrato_tempo_venda?.trim() || '—';
+    case 'data_lancamento_vendas':
+      return formatDateBr(row.data_lancamento_vendas);
+    case 'data_liberacao_tvo':
+      return formatDateBr(row.data_liberacao_tvo);
+    case 'quantidade_lotes':
+      return formatCondominioInteiro(row.quantidade_lotes);
+    case 'metragem_lotes':
+      return row.metragem_lotes?.trim() || '—';
+    case 'metragem_casas':
+      return row.metragem_casas?.trim() || '—';
+    case 'planta_cadastral':
+      return row.planta_cadastral?.trim() || '—';
+    case 'manual_obras':
+      return row.manual_obras?.trim() || '—';
+    case 'casas_concorrentes':
+      return row.casas_concorrentes?.trim() || '—';
     default:
       return '—';
   }
