@@ -130,38 +130,6 @@ export function NovoCardLoteadoresFormCampos({
             ))}
           </select>
         </div>
-        <div>
-          <label htmlFor={id('lotes-disp')} className={labelCls} style={labelStyle}>
-            Quantos lotes tem disponíveis para venda
-            <Opcional />
-          </label>
-          <input
-            id={id('lotes-disp')}
-            type="number"
-            min={0}
-            step={1}
-            value={value.lotesDisponiveis}
-            onChange={set('lotesDisponiveis')}
-            disabled={disabled}
-            className={inputCls}
-            style={inputStyle}
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label htmlFor={id('info')} className={labelCls} style={labelStyle}>
-            Informações adicionais
-            <Opcional />
-          </label>
-          <textarea
-            id={id('info')}
-            rows={3}
-            value={value.informacoesAdicionais}
-            onChange={set('informacoesAdicionais')}
-            disabled={disabled}
-            className={inputCls}
-            style={inputStyle}
-          />
-        </div>
       </div>
 
       <Secao titulo="Cadastro Condomínios" />
@@ -405,6 +373,42 @@ export function NovoCardLoteadoresFormCampos({
             className={inputCls}
             style={inputStyle}
             placeholder="Link ou referência"
+          />
+        </div>
+      </div>
+
+      <Secao titulo="Cadastro Loteadores" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor={id('lotes-disp')} className={labelCls} style={labelStyle}>
+            Quantos lotes tem disponíveis para venda
+            <Opcional />
+          </label>
+          <input
+            id={id('lotes-disp')}
+            type="number"
+            min={0}
+            step={1}
+            value={value.lotesDisponiveis}
+            onChange={set('lotesDisponiveis')}
+            disabled={disabled}
+            className={inputCls}
+            style={inputStyle}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label htmlFor={id('info')} className={labelCls} style={labelStyle}>
+            Informações adicionais
+            <Opcional />
+          </label>
+          <textarea
+            id={id('info')}
+            rows={3}
+            value={value.informacoesAdicionais}
+            onChange={set('informacoesAdicionais')}
+            disabled={disabled}
+            className={inputCls}
+            style={inputStyle}
           />
         </div>
       </div>
