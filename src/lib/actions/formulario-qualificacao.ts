@@ -112,6 +112,37 @@ export async function salvarFormularioEni(
   return { ok: true, id: inserted.id };
 }
 
+function formatarDataUltimoPreenchimento(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '';
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(d);
+}
+
+/** Data (dd/mm/aaaa) do formulário mais recente de cada franqueado. */
+export async function mapearUltimoPreenchimentoQualificacao(): Promise<Record<string, string>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('formularios_qualificacao')
+    .select('rede_franqueado_id, criado_em')
+    .order('criado_em', { ascending: false });
+
+  if (error || !data) return {};
+
+  const map: Record<string, string> = {};
+  for (const row of data as { rede_franqueado_id?: string | null; criado_em?: string | null }[]) {
+    const id = String(row.rede_franqueado_id ?? '').trim();
+    if (!id || map[id]) continue;
+    const dataFmt = formatarDataUltimoPreenchimento(String(row.criado_em ?? ''));
+    if (dataFmt) map[id] = dataFmt;
+  }
+  return map;
+}
+
 export async function buscarHistoricoFormularios(
   rede_franqueado_id: string,
 ): Promise<{ data: FormularioQualificacaoRow[] | null; error?: string }> {

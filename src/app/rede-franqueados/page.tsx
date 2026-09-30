@@ -12,6 +12,7 @@ import { fetchFranqueadoSpeRows } from '@/lib/franqueado-spe';
 import { fetchMoniCapitalCadastrosRows } from '@/lib/moni-capital-cadastros';
 
 import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
+import { mapearUltimoPreenchimentoQualificacao } from '@/lib/actions/formulario-qualificacao';
 
 import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
 import { fetchRedeCorretoresRows } from '@/lib/rede-corretores';
@@ -78,8 +79,9 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const [rows, loteadoresRows, corretoresRows, empresasResult, spesResult, moniCapitalResult, condominiosRows, imobEmpreendimentosRows] = await Promise.all([
+  const [rows, ultimoPreenchimentoQualificacao, loteadoresRows, corretoresRows, empresasResult, spesResult, moniCapitalResult, condominiosRows, imobEmpreendimentosRows] = await Promise.all([
     fetchRedeFranqueadosRows(supabase),
+    mapearUltimoPreenchimentoQualificacao(),
     showStaffTabs ? fetchRedeLoteadoresRows(supabase) : Promise.resolve(null),
     showStaffTabs ? fetchRedeCorretoresRows(supabase) : Promise.resolve(null),
     showStaffTabs ? fetchFranqueadoEmpresasRows(supabase) : Promise.resolve(null),
@@ -124,6 +126,8 @@ export default async function RedeFranqueadosPage() {
           <RedeFranqueadosPageTabs
 
             rows={rows}
+
+            ultimoPreenchimentoQualificacao={ultimoPreenchimentoQualificacao}
 
             loteadoresRows={loteadoresRows}
 

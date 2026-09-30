@@ -330,6 +330,8 @@ type Props = {
   buscaResetKey?: string;
   /** Exibe labels internos no diagnóstico (ex.: "Alta Prontidão" em vez de "Alta Capacidade"). */
   internalView?: boolean;
+  /** Data do último formulário de qualificação, por id da rede. */
+  ultimoPreenchimentoQualificacao?: Record<string, string>;
 };
 
 function toInputDate(val: string | null | undefined): string {
@@ -358,6 +360,7 @@ export function TabelaRedeFranqueadosEditavel({
   buscaAtiva = false,
   buscaResetKey = '',
   internalView = false,
+  ultimoPreenchimentoQualificacao = {},
 }: Props) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -841,13 +844,26 @@ export function TabelaRedeFranqueadosEditavel({
                     )}
                   </td>
                   <td className="px-3 py-2.5 align-top">
-                    <Link
-                      href={`/rede-franqueados/${r.id}/formulario-qualificacao`}
-                      className="inline-flex items-center gap-1 text-xs text-purple-700 underline underline-offset-2 hover:text-purple-900"
-                    >
-                      <FileText size={12} />
-                      Formulário
-                    </Link>
+                    <div className="flex flex-col items-start gap-1">
+                      <Link
+                        href={`/rede-franqueados/${r.id}/formulario-qualificacao`}
+                        className="inline-flex items-center gap-1 text-xs text-purple-700 underline underline-offset-2 hover:text-purple-900"
+                      >
+                        <FileText size={12} />
+                        Formulário
+                      </Link>
+                      {ultimoPreenchimentoQualificacao[r.id] ? (
+                        <span
+                          className="text-[11px] leading-none"
+                          style={{
+                            color: 'var(--moni-text-tertiary)',
+                            fontFamily: 'var(--moni-font-sans)',
+                          }}
+                        >
+                          {ultimoPreenchimentoQualificacao[r.id]}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
 
                   {/* ── Diagnóstico: Relação ── */}

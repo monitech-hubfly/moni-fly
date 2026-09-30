@@ -71,6 +71,7 @@ const TAB_IMOB: { id: TabId; label: string } = {
 
 type Props = {
   rows: RedeFranqueadoRowDb[];
+  ultimoPreenchimentoQualificacao?: Record<string, string>;
   loteadoresRows: RedeLoteadorRow[] | null;
   corretoresRows: RedeCorretorRow[] | null;
   showStaffTabs: boolean;
@@ -91,6 +92,7 @@ type Props = {
 
 export function RedeFranqueadosPageTabs({
   rows,
+  ultimoPreenchimentoQualificacao = {},
   loteadoresRows,
   corretoresRows,
   showStaffTabs,
@@ -185,6 +187,7 @@ export function RedeFranqueadosPageTabs({
               rows={rows}
               canEditRows={canManageFranqueados}
               maskSensitiveColumns={maskSensitiveColumns}
+              ultimoPreenchimentoQualificacao={ultimoPreenchimentoQualificacao}
             >
               {canManageFranqueados ? (
                 <>

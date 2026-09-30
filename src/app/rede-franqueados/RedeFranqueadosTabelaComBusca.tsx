@@ -264,6 +264,7 @@ type Props = {
   canEditRows?: boolean;
   maskSensitiveColumns?: boolean;
   internalView?: boolean;
+  ultimoPreenchimentoQualificacao?: Record<string, string>;
   children?: ReactNode;
 };
 
@@ -272,6 +273,7 @@ export function RedeFranqueadosTabelaComBusca({
   canEditRows,
   maskSensitiveColumns,
   internalView = false,
+  ultimoPreenchimentoQualificacao = {},
   children,
 }: Props) {
   const [busca, setBusca] = useState('');
@@ -565,6 +567,7 @@ export function RedeFranqueadosTabelaComBusca({
         buscaAtiva={buscaAtiva}
         buscaResetKey={JSON.stringify(filtros) + busca}
         internalView={internalView}
+        ultimoPreenchimentoQualificacao={ultimoPreenchimentoQualificacao}
       />
     </div>
   );
