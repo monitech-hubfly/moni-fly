@@ -206,6 +206,7 @@ export const FASE_SLUGS = {
   /** Passagem IMOB (ex-Passagem para Waysers). Slug estável. */
   PASSAGEM_WAYSERS_MONI_INC: 'passagem_waysers_moni_inc',
   LOTEADORES_PASSAGEM_WAYSERS: 'passagem_waysers_moni_inc',
+  LOTEADORES_ENVIAR_CTO_PARCERIA: 'enviar_cto_parceria_moni_inc',
   LOTEADORES_CONTRATO_PARCERIA: 'contrato_parceria_moni_inc',
   LOTEADORES_CTO_PARCERIA_ASSINATURAS: 'assinaturas_cto_parceria_moni_inc',
   LOTEADORES_CTO_PARCERIA_ASSINADO: 'cto_parceria_assinado_moni_inc',

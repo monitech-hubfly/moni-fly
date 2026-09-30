@@ -121,6 +121,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   diligencia_moni_inc: 'moni',
   cto_showroom_moni_inc: 'moni',
   passagem_waysers_moni_inc: 'moni',
+  enviar_cto_parceria_moni_inc: 'moni',
   contrato_parceria_moni_inc: 'moni',
   assinaturas_cto_parceria_moni_inc: 'moni',
   cto_parceria_assinado_moni_inc: 'moni',
