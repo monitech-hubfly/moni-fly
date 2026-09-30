@@ -78,6 +78,7 @@ export const FASE_IDS = {
   PORTFOLIO_STEP_4:          'fd05dc4a-b44a-470e-993f-5df79c223488',
   PORTFOLIO_PRE_COMITE:      'a4489f12-71a1-49f3-99ca-c500c58f799b',
   PORTFOLIO_REVISOES_PRE_COMITE: '7892bfcc-c737-422d-bfb1-d3d8db77fe05',
+  PORTFOLIO_ENVIAR_ACOPLAMENTO_FRANK: '6b4f573d-74d5-40cf-b084-c3969af1a90b',
   PORTFOLIO_STEP_5:          '9e1c76ba-ce84-4dbd-ae40-e434dc068a81', // Comitê
   PORTFOLIO_REVISOES_COMITE: '1c6ab47e-9b18-421b-8869-6c9ce2ab4c3a',
   /** Demais Comitês (ex-2º Comitê); slug permanece segundo_comite. */
@@ -85,6 +86,7 @@ export const FASE_IDS = {
   PORTFOLIO_JURIDICO_CTO_PRECEDENTES: '7d035a10-5403-44b5-819f-104786b48150', // → Jurídico (tag Cto c/)
   PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES: '27bc415f-4b70-4873-9cfc-5f51e7d925c8',
   PORTFOLIO_CTO_PRECEDENTES_ASSINADO: 'ee0e3aa9-6a18-410a-87a2-5f6210c4573f',
+  PORTFOLIO_INICIAR_ABERTURA_EMPRESAS: '3cc52e93-b7ff-498b-a76a-97aa62bce058',
   PORTFOLIO_STEP_7:          'd78771cb-f79d-4650-a056-f3e2dbc3f3a6', // Enviar Contrato s/ Precedentes
   PORTFOLIO_JURIDICO_CONTRATO: 'e35fffc4-ddd9-412d-861b-3118697ae0b8', // → Jurídico (tag Cto s/)
   PORTFOLIO_ASSINATURAS_CONTRATO: '28601c1e-cd5a-4956-8eb6-9ba432588e60',
@@ -152,6 +154,8 @@ export const FASE_SLUGS = {
   APROVACAO_CONDOMINIO: 'aprovacao_condominio',
   /** Fase do Funil Portfólio — dispara bastão para Funil Acoplamento. */
   ACOPLAMENTO: 'acoplamento',
+  PORTFOLIO_ENVIAR_ACOPLAMENTO_FRANK: 'enviar_acoplamento_frank',
+  PORTFOLIO_INICIAR_ABERTURA_EMPRESAS: 'iniciar_abertura_empresas',
 
   // ─── Funil Loteadores (esteira ativa — ver LOTEADORES_FASES_CANONICAS) ─────
   LOTEADORES_PRIMEIRO_CONTATO: 'primeiro_contato_moni_inc',

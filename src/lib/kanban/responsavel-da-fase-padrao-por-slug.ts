@@ -32,6 +32,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   pre_comite: 'moni',
   revisoes_pre_comite: 'franqueado',
   acoplamento: 'moni',
+  enviar_acoplamento_frank: 'moni',
   step_5: 'moni',
   revisoes_comite: 'franqueado',
   segundo_comite: 'moni', // Demais Comitês
@@ -39,6 +40,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   juridico_cto_precedentes: 'moni',
   assinaturas_cto_precedentes: 'franqueado',
   cto_precedentes_assinado: 'moni',
+  iniciar_abertura_empresas: 'moni',
   step_6: 'moni',
   step_7: 'moni', // Enviar Contrato s/ Precedentes
   juridico_contrato: 'moni',
