@@ -39,8 +39,11 @@ export type ProcessoModalNegocioPreObra = {
   id: string;
   tipo_aquisicao_terreno: string | null;
   valor_terreno: string | null;
+  divida_terreno: string | null;
   vgv_pretendido: string | null;
   produto_modelo_casa: string | null;
+  custo_obra: string | null;
+  divida_obra: string | null;
   link_pasta_drive: string | null;
   link_bca: string | null;
   link_gbox: string | null;
@@ -145,6 +148,9 @@ const PROCESSO_SELECT_LEGACY = [
 
 /** Links/anexos novos (185 + 186) — opcionais até rodar migration no Supabase. */
 const PROCESSO_SELECT_EXTENDED = [
+  'divida_terreno',
+  'custo_obra',
+  'divida_obra',
   'link_bca',
   'link_gbox',
   'link_mapa_competidores',
@@ -197,8 +203,11 @@ function isMissingColumnError(error: { code?: string; message?: string } | null)
 export type ProcessoNegocioUpdatePayload = {
   tipo_aquisicao_terreno?: string | null;
   valor_terreno?: string | null;
+  divida_terreno?: string | null;
   vgv_pretendido?: string | null;
   produto_modelo_casa?: string | null;
+  custo_obra?: string | null;
+  divida_obra?: string | null;
   link_pasta_drive?: string | null;
   link_bca?: string | null;
   link_gbox?: string | null;
@@ -238,6 +247,9 @@ const PROCESSO_UPDATE_LEGACY_KEYS = [
 ] as const;
 
 const PROCESSO_UPDATE_EXTENDED_KEYS = [
+  'divida_terreno',
+  'custo_obra',
+  'divida_obra',
   'link_bca',
   'link_gbox',
   'link_mapa_competidores',
@@ -376,8 +388,11 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     id: String(r.id),
     tipo_aquisicao_terreno: g('tipo_aquisicao_terreno'),
     valor_terreno: g('valor_terreno'),
+    divida_terreno: g('divida_terreno'),
     vgv_pretendido: g('vgv_pretendido'),
     produto_modelo_casa: g('produto_modelo_casa'),
+    custo_obra: g('custo_obra'),
+    divida_obra: g('divida_obra'),
     link_pasta_drive: g('link_pasta_drive'),
     link_bca: g('link_bca'),
     link_gbox: g('link_gbox'),

@@ -395,8 +395,11 @@ export type KanbanCardCamposSync = Partial<
 export const PROCESSO_CAMPOS_SYNC = [
   'tipo_aquisicao_terreno',
   'valor_terreno',
+  'divida_terreno',
   'vgv_pretendido',
   'produto_modelo_casa',
+  'custo_obra',
+  'divida_obra',
   'link_pasta_drive',
   'link_bca',
   'link_gbox',

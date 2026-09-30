@@ -249,8 +249,11 @@ const ALL_KANBAN_EXPORT_FIELDS: KanbanExportFieldDef[] = [
   // —— Negócio (processo) ——
   field('novoNegocio.tipo_negociacao', 'Tipo de negociação', 'novoNegocio', 10, (ctx) => displayOrDash(ctx.detalhes.processo?.tipo_aquisicao_terreno), (v) => !v.isFunding),
   field('novoNegocio.valor_terreno', 'Valor do Terreno', 'novoNegocio', 11, (ctx) => fmtMoedaKanban(ctx.detalhes.processo?.valor_terreno), (v) => !v.isFunding),
+  field('novoNegocio.divida_terreno', 'Dívida terreno', 'novoNegocio', 11.2, (ctx) => fmtMoedaKanban(ctx.detalhes.processo?.divida_terreno), (v) => !v.isFunding),
   field('novoNegocio.vgv', 'VGV pretendido', 'novoNegocio', 12, (ctx) => fmtMoedaKanban(ctx.detalhes.processo?.vgv_pretendido), (v) => !v.isFunding),
   field('novoNegocio.produto', 'Produto / Modelo', 'novoNegocio', 13, (ctx) => displayOrDash(ctx.detalhes.processo?.produto_modelo_casa), (v) => !v.isFunding),
+  field('novoNegocio.custo_obra', 'Custo da Obra', 'novoNegocio', 13.2, (ctx) => fmtMoedaKanban(ctx.detalhes.processo?.custo_obra), (v) => !v.isFunding),
+  field('novoNegocio.divida_obra', 'Dívida Obra', 'novoNegocio', 13.4, (ctx) => fmtMoedaKanban(ctx.detalhes.processo?.divida_obra), (v) => !v.isFunding),
   field('novoNegocio.link_drive', 'Link pasta no Drive', 'novoNegocio', 14, (ctx) => negocioLinks(ctx.detalhes.processo, 'link_pasta_drive'), (v) => !v.isFunding),
   field('novoNegocio.prazo_opcao', 'Prazo Opção', 'novoNegocio', 15, (ctx) => {
     const proc = ctx.detalhes.processo;

@@ -2738,16 +2738,26 @@ export function KanbanCardModal({
     }
   }
 
-  async function handleAvancarFase() {
+  async function handleAvancarFase(destinoExplicito?: KanbanFase) {
     if (!card || !faseAtual) return;
     if (!podeMoverFaseCard) {
       alert('Sem permissão para mover de fase.');
       return;
     }
     const idxAtual = fases.findIndex((f) => f.id === faseAtual.id);
-    const proximaFase = idxAtual >= 0 && idxAtual < fases.length - 1 ? fases[idxAtual + 1] : undefined;
+    const proximaSequencial =
+      idxAtual >= 0 && idxAtual < fases.length - 1 ? fases[idxAtual + 1] : undefined;
+    const proximaFase = destinoExplicito ?? proximaSequencial;
     if (!proximaFase) {
       alert('Esta é a última fase do funil.');
+      return;
+    }
+    if (proximaFase.id === faseAtual.id) return;
+
+    const idxDestino = fases.findIndex((f) => f.id === proximaFase.id);
+    if (destinoExplicito && idxDestino >= 0 && idxAtual >= 0 && idxDestino < idxAtual) {
+      if (!confirm(`Enviar o card para a fase "${proximaFase.nome}"?`)) return;
+      await iniciarMovimentoFasePortfolio(proximaFase, 'retroceder');
       return;
     }
     if (
@@ -2817,7 +2827,10 @@ export function KanbanCardModal({
       return;
     }
 
-    if (!confirm(`Avançar para a fase "${proximaFase.nome}"?`)) return;
+    const pergunta = destinoExplicito
+      ? `Enviar o card para a fase "${proximaFase.nome}"?`
+      : `Avançar para a fase "${proximaFase.nome}"?`;
+    if (!confirm(pergunta)) return;
 
     const checklist = await verificarChecklistParaFase(card.id);
     if (checklist.bloqueado) {
@@ -3287,8 +3300,11 @@ export function KanbanCardModal({
         payload: {
           tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
           valor_terreno: negocioDraft.valor_terreno || null,
+          divida_terreno: negocioDraft.divida_terreno || null,
           vgv_pretendido: negocioDraft.vgv_pretendido || null,
           produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
+          custo_obra: negocioDraft.custo_obra || null,
+          divida_obra: negocioDraft.divida_obra || null,
           link_pasta_drive: negocioDraft.link_pasta_drive || null,
           link_bca: negocioDraft.link_bca?.trim() || null,
           link_gbox: negocioDraft.link_gbox?.trim() || null,
@@ -6971,6 +6987,36 @@ export function KanbanCardModal({
                   </div>
                 ) : !modalAprovacaoFase ? (
                   <div className="moni-kanban-drawer-footer">
+                  <div className="moni-card-modal-movimentacao-stack">
+                  <div className="moni-card-modal-movimentacao-fase-select-wrap">
+                    <label
+                      className="moni-card-modal-movimentacao-fase-select-label"
+                      htmlFor="movimentacao-fase-kanban"
+                    >
+                      Ir para a fase
+                    </label>
+                    <select
+                      id="movimentacao-fase-kanban"
+                      className="moni-card-modal-movimentacao-fase-select"
+                      value={faseAtual?.id ?? ''}
+                      disabled={movendoFase || !podeMoverFaseCard || fases.length === 0}
+                      onChange={(e) => {
+                        const destino = fases.find((f) => f.id === e.target.value);
+                        if (destino) void handleAvancarFase(destino);
+                      }}
+                    >
+                      {faseAtual && !fases.some((f) => f.id === faseAtual.id) ? (
+                        <option value={faseAtual.id}>{faseAtual.nome}</option>
+                      ) : null}
+                      {[...fases]
+                        .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
+                        .map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.nome}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                   <div className="moni-card-modal-movimentacao-grid">
                     <button
                       type="button"
@@ -7002,6 +7048,7 @@ export function KanbanCardModal({
                       </span>
                       <ChevronRight className="moni-card-modal-movimentacao-btn-icon" aria-hidden />
                     </button>
+                  </div>
                   </div>
                   </div>
                 ) : (
@@ -7438,6 +7485,13 @@ export function KanbanCardModal({
                         />
                       </label>
                       <label className="block">
+                        <span className="text-[11px] font-medium text-stone-500">Dívida terreno</span>
+                        <KanbanCardModalMoedaField
+                          value={negocioDraft.divida_terreno}
+                          onChange={(divida_terreno) => setNegocioDraft((d) => ({ ...d, divida_terreno }))}
+                        />
+                      </label>
+                      <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">VGV pretendido</span>
                         <input
                           type="text"
@@ -7453,6 +7507,20 @@ export function KanbanCardModal({
                           value={negocioDraft.produto_modelo_casa}
                           onChange={(e) => setNegocioDraft((d) => ({ ...d, produto_modelo_casa: e.target.value }))}
                           className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-stone-500">Custo da Obra</span>
+                        <KanbanCardModalMoedaField
+                          value={negocioDraft.custo_obra}
+                          onChange={(custo_obra) => setNegocioDraft((d) => ({ ...d, custo_obra }))}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-stone-500">Dívida Obra</span>
+                        <KanbanCardModalMoedaField
+                          value={negocioDraft.divida_obra}
+                          onChange={(divida_obra) => setNegocioDraft((d) => ({ ...d, divida_obra }))}
                         />
                       </label>
                     </div>
@@ -7524,12 +7592,24 @@ export function KanbanCardModal({
                         <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.valor_terreno)}</div>
                       </div>
                       <div>
+                        <div className="text-[11px] font-medium text-stone-500">Dívida terreno</div>
+                        <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.divida_terreno)}</div>
+                      </div>
+                      <div>
                         <div className="text-[11px] font-medium text-stone-500">VGV pretendido</div>
                         <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.vgv_pretendido)}</div>
                       </div>
                       <div>
                         <div className="text-[11px] font-medium text-stone-500">Produto / Modelo</div>
                         <div className="text-xs text-stone-800">{displayOrDash(proc.produto_modelo_casa)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Custo da Obra</div>
+                        <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.custo_obra)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Dívida Obra</div>
+                        <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.divida_obra)}</div>
                       </div>
                       <div className="min-w-0">
                         <div className="text-[11px] font-medium text-stone-500">Link pasta no Drive</div>
