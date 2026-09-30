@@ -215,11 +215,6 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
       sim_pode: 'Ainda nao, mas tenho como participar',
       nao:      'Nao tenho como participar no momento',
     },
-    resultado_tipo: {
-      qualificado:     'Qualificado',
-      parcial:         'Qualificado parcial',
-      nao_qualificado: 'Nao qualificado',
-    },
   };
 
   function lbl(field: string, val: string | null): string {
@@ -601,8 +596,6 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
               const isOpen = expandedId === h.id;
               const det = detalhes[h.id];
               const isLoading = loadingId === h.id;
-              const tipoLabel = lbl('resultado_tipo', h.resultado_tipo ?? null);
-              const tipoColor = h.resultado_tipo === 'qualificado' ? GREEN : h.resultado_tipo === 'parcial' ? '#A07820' : RED;
               return (
                 <div key={h.id} style={{
                   background: 'white', borderRadius: 10, marginBottom: 10,
@@ -618,12 +611,7 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
                     }}
                   >
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>Respondido</span>
-                        <span style={{ fontSize: 11, color: tipoColor, fontWeight: 600, background: tipoColor + '18', borderRadius: 4, padding: '1px 7px' }}>
-                          {tipoLabel}
-                        </span>
-                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>Respondido</div>
                       <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{formatarData(h.criado_em)}</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -658,7 +646,6 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
                             <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Capital</div>
                             <DetalheRow label="Faixa de capital" value={lbl('capital_faixa', det.capital_faixa)} />
                             {det.capital_valor_declarado && <DetalheRow label="Valor declarado" value={det.capital_valor_declarado} />}
-                            {det.score_capital_pct !== null && <DetalheRow label="Score capital" value={`${det.score_capital_pct}%`} />}
                           </div>
                           {/* Conhecimento */}
                           <div>
@@ -666,7 +653,6 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
                             <DetalheRow label="Mercado imobiliario" value={lbl('conhecimento_mercado', det.conhecimento_mercado)} />
                             <DetalheRow label="Experiencia imobiliaria" value={lbl('conhecimento_imob', det.conhecimento_imob)} />
                             <DetalheRow label="Familiaridade Moni" value={lbl('conhecimento_moni', det.conhecimento_moni)} />
-                            {det.score_conhecimento_pct !== null && <DetalheRow label="Score conhecimento" value={`${det.score_conhecimento_pct}%`} />}
                           </div>
                           {/* Disponibilidade */}
                           <div>
@@ -675,7 +661,6 @@ export default function FormularioQualificacaoForm({ redeId, nFranquia, nomeComp
                             <DetalheRow label="Tempo de resposta" value={lbl('tempo_resposta', det.tempo_resposta)} />
                             <DetalheRow label="Agenda presencial" value={lbl('tempo_agenda', det.tempo_agenda)} />
                             <DetalheRow label="Workshops" value={lbl('workshops', det.workshops)} />
-                            {det.score_tempo_pct !== null && <DetalheRow label="Score disponibilidade" value={`${det.score_tempo_pct}%`} />}
                           </div>
                           {/* Contexto */}
                           {det.motivacao && (
