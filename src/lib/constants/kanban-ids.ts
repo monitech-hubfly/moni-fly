@@ -161,9 +161,11 @@ export const FASE_SLUGS = {
   LOTEADORES_PRIMEIRO_CONTATO: 'primeiro_contato_moni_inc',
   /** @deprecated Fase inativa desde migration 584. */
   LOTEADORES_R1_CONCEITO: 'r1_conceito_moni_inc',
-  /** Alias pedido — NDA. */
+  /** Alias pedido — Jurídico NDA (slug estável). */
   NDA_MONI_INC: 'nda_moni_inc',
   LOTEADORES_NDA: 'nda_moni_inc',
+  LOTEADORES_NDA_ASSINATURAS: 'assinaturas_nda_moni_inc',
+  LOTEADORES_NDA_ASSINADO: 'nda_assinado_moni_inc',
   /** @deprecated Fase inativa desde migration 584. */
   OPCAO_MONI_INC: 'opcao_moni_inc',
   LOTEADORES_OPCAO: 'opcao_moni_inc',
@@ -188,10 +190,12 @@ export const FASE_SLUGS = {
   /** Alias pedido — Acoplamento + Gbox. */
   ACOPLAMENTO_GBOX_MONI_INC: 'acoplamento_gbox_moni_inc',
   LOTEADORES_ACOPLAMENTO_GBOX: 'acoplamento_gbox_moni_inc',
+  LOTEADORES_ENVIAR_ACOPLAMENTO: 'enviar_acoplamento_loteador',
   LOTEADORES_COMITE: 'comite_moni_inc',
   /** Alias pedido — Revisões pós-Comitê. */
   REVISOES_POS_COMITE_MONI_INC: 'revisoes_pos_comite_moni_inc',
   LOTEADORES_REVISOES_POS_COMITE: 'revisoes_pos_comite_moni_inc',
+  LOTEADORES_DEMAIS_COMITES: 'demais_comites_moni_inc',
   /** @deprecated Fase inativa desde migration 584. */
   CTO_PRECEDENTES_MONI_INC: 'cto_precedentes_moni_inc',
   LOTEADORES_CTO_PRECEDENTES: 'cto_precedentes_moni_inc',
@@ -203,6 +207,8 @@ export const FASE_SLUGS = {
   PASSAGEM_WAYSERS_MONI_INC: 'passagem_waysers_moni_inc',
   LOTEADORES_PASSAGEM_WAYSERS: 'passagem_waysers_moni_inc',
   LOTEADORES_CONTRATO_PARCERIA: 'contrato_parceria_moni_inc',
+  LOTEADORES_CTO_PARCERIA_ASSINATURAS: 'assinaturas_cto_parceria_moni_inc',
+  LOTEADORES_CTO_PARCERIA_ASSINADO: 'cto_parceria_assinado_moni_inc',
   /** Fase terminal de conclusão. */
   ASSINADOS_MONI_INC: 'assinados_moni_inc',
   LOTEADORES_ASSINADOS: 'assinados_moni_inc',
@@ -241,7 +247,9 @@ export const FASE_SLUGS = {
   CO_ENVIO_CASHME:            'co_envio_cashme',
   /** @deprecated legado — fase inativa (migration 491) */
   CO_OUTRO_PARCEIRO:          'co_outro_parceiro',
+  /** @deprecated Fase inativa desde migration 592. Cards foram para Aguardando Alvará e Transferência. */
   CO_DOCUMENTACAO_ALVARA:     'co_documentacao_alvara',
+  CO_AGUARDANDO_ALVARA_TRANSFERENCIA: 'co_aguardando_alvara_transferencia',
   CO_VALIDACAO_CONTRATO:      'co_validacao_contrato',
   CO_CONTRATO_ASSINATURAS:    'co_contrato_assinaturas',
   CO_FOLLOWUP_CARTORIO:       'co_followup_cartorio',
@@ -494,7 +502,7 @@ export const LOTEADORES_FASES_CONFIRMACAO_SAIDA = {
   comite: [FASE_SLUGS.LOTEADORES_COMITE],
   cto_precedentes: [FASE_SLUGS.LOTEADORES_CTO_PRECEDENTES],
   cto_showroom: [FASE_SLUGS.LOTEADORES_CTO_SHOWROOM],
-  cto_parceria: [FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA],
+  cto_parceria: [FASE_SLUGS.LOTEADORES_CTO_PARCERIA_ASSINADO],
 } as const;
 
 /** Set Up (Step One), Portfólio, Loteadores e Pré Obra e Obra — vínculo manual para qualquer funil destino.

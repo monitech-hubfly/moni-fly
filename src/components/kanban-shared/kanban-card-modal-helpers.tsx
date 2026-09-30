@@ -625,13 +625,22 @@ export function rotuloUsuarioHistorico(nome: string | null | undefined): string 
   return 'Usuário';
 }
 
+function sufixoAtrasoFaseAnterior(d: Record<string, unknown>): string {
+  if (d.sla_fase_anterior_atrasou !== true) return '';
+  const dias = Number(d.sla_fase_anterior_dias_atraso ?? 0);
+  if (!Number.isFinite(dias) || dias <= 0) return '';
+  const nome = String(d.fase_anterior_nome ?? '').trim();
+  const label = dias === 1 ? '1 dia' : `${dias} dias`;
+  return nome ? ` (${nome} atrasou ${label})` : ` (atrasou ${label})`;
+}
+
 export function textoResumidoAcaoHistorico(acao: string, detalhe: Record<string, unknown> | null): string {
   const d = detalhe ?? {};
   switch (acao) {
     case 'fase_avancada':
-      return `Fase avançada para ${String(d.fase_nova_nome ?? '—')}`;
+      return `Fase avançada para ${String(d.fase_nova_nome ?? '—')}${sufixoAtrasoFaseAnterior(d)}`;
     case 'fase_retrocedida':
-      return `Fase retrocedida para ${String(d.fase_nova_nome ?? '—')}`;
+      return `Fase retrocedida para ${String(d.fase_nova_nome ?? '—')}${sufixoAtrasoFaseAnterior(d)}`;
     case 'card_criado':
       return 'Card criado';
     case 'card_arquivado':

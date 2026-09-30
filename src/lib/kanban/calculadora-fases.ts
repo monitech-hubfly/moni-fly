@@ -736,14 +736,11 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
         dataInicioReal = reconciliarInicioComFimReal(dataInicioReal, dataFimReal, entrouVisita);
       }
 
-      // Fase atual: entered_fase_at prevalece sobre encadeamento antigo (histórico incompleto).
+      // Fase atual: o relógio visível começa em entered_fase_at. Trocar de fase zera o atraso.
       if (fase.id === card.fase_id) {
         const enteredFase = toYmd(card.entered_fase_at);
         if (enteredFase) {
-          const inicioEntered = primeiroDiaUtilDe(enteredFase);
-          if (dataInicioReal && inicioEntered > dataInicioReal) {
-            dataInicioReal = inicioEntered;
-          }
+          dataInicioReal = primeiroDiaUtilDe(enteredFase);
         }
       }
 

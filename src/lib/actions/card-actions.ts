@@ -5487,9 +5487,9 @@ export async function registrarConfirmacaoFaseLoteadores(input: {
   const patchByTipo: Record<LoteadoresConfirmacaoFaseTipo, Record<string, boolean | string>> = {
     opcao:          { opcao_assinada: true,            opcao_assinada_em: now },
     comite:         { comite_aprovado: true,            comite_aprovado_em: now },
-    cto_precedentes: { cto_precedentes_assinado: true, cto_precedentes_assinado_em: now },
-    cto_showroom:   { cto_showroom_assinado: true,      cto_showroom_assinado_em: now },
-    cto_parceria:   { cto_parceria_assinado: true,      cto_parceria_assinado_em: now },
+    cto_precedentes: { loteadores_cto_precedentes_assinado: true, loteadores_cto_precedentes_assinado_em: now },
+    cto_showroom:   { loteadores_cto_showroom_assinado: true, loteadores_cto_showroom_assinado_em: now },
+    cto_parceria:   { loteadores_cto_parceria_assinado: true, loteadores_cto_parceria_assinado_em: now },
   };
 
   const patch = patchByTipo[tipo];

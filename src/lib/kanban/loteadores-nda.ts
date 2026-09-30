@@ -1,4 +1,4 @@
-/** Checklist da fase «NDA» — Funil Loteadores. */
+/** Checklist da fase «Jurídico NDA» — Funil Loteadores. */
 
 import { isLoteadoresChecklistCampoVisivel } from '@/lib/kanban/loteadores-checklist-visibilidade';
 
