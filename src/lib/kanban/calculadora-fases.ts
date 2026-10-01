@@ -9,6 +9,7 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { custoPadraoPorSlug } from '@/lib/kanban/custo-padrao-por-slug';
 import { resolverSlaCalculadoraFase } from '@/lib/kanban/sla-fallback-calculadora-por-slug';
+import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
 import type { CondominioPrazosAprovacaoSla } from '@/lib/kanban/condominio-prazos-aprovacao';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { calcularDataEmissaoAlvara } from '@/lib/pre-obra/emissao-alvara-data';
@@ -745,12 +746,19 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
       }
 
       const slug = String(fase.slug ?? '').trim();
-      const slaResolvido = resolverSlaCalculadoraFase(
-        slug,
-        fase.sla_dias,
-        fase.sla_tipo,
-        input.slaCondominio,
-      );
+      const faseConclusao = isFaseConclusaoKanban({ slug, nome: fase.nome });
+      const slaResolvido = faseConclusao
+        ? {
+            slaDias: null,
+            slaTipo: normalizarSlaTipo(fase.sla_tipo),
+            slaPrazoNaoDefinido: false,
+          }
+        : resolverSlaCalculadoraFase(
+            slug,
+            fase.sla_dias,
+            fase.sla_tipo,
+            input.slaCondominio,
+          );
       const { slaDias, slaTipo, slaPrazoNaoDefinido } = slaResolvido;
       const dataFimEstimada = dataInicioReal
         ? fimEstimadaPorSla(dataInicioReal, slaDias, slaTipo)

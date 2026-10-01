@@ -4237,6 +4237,7 @@ export function KanbanCardModal({
     entered_fase_at: card.entered_fase_at,
     sla_iniciado_em: card.sla_iniciado_em,
     faseSlug: faseSlugAtual,
+    faseNome: faseAtual?.nome,
     alvara_url: card.alvara_url,
     docs_terreno_url: card.docs_terreno_url,
     sla_dias: faseAtual?.sla_dias,

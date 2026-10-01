@@ -95,6 +95,7 @@ function calcularSlaFaseCard(card: CardSlaGateRow, fase: FaseSlaGateRow) {
     entered_fase_at: card.entered_fase_at,
     sla_iniciado_em: card.sla_iniciado_em,
     faseSlug: fase.slug,
+    faseNome: fase.nome,
     alvara_url: card.alvara_url,
     docs_terreno_url: card.docs_terreno_url,
     sla_dias: fase.sla_dias,

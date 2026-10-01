@@ -37,6 +37,7 @@ function computeSla(
     sla_dias: fase?.sla_dias ?? null,
     sla_tipo: fase?.sla_tipo ?? null,
     faseSlug: fase?.slug ?? null,
+    faseNome: fase?.nome ?? null,
   });
 }
 

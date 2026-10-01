@@ -1,5 +1,7 @@
 import { calcularStatusSLAPorTipo, normalizarSlaTipo, rotuloUnidadeSla, type SlaTipo } from '@/lib/dias-uteis';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
+import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
 
 export const TAG_AGUARDANDO_DOCUMENTACAO = 'Aguardando Documentação';
 export const CLASSE_TAG_AGUARDANDO_DOCUMENTACAO = 'moni-tag-atencao';
@@ -127,11 +129,15 @@ export function calcularSlaKanbanCard(input: {
   /** Preenchido quando há chamado Sirene com trava ativa — congela o SLA. */
   sla_pausado_em?: string | null;
   faseSlug?: string | null;
+  faseNome?: string | null;
   alvara_url?: string | null;
   docs_terreno_url?: string | null;
   sla_dias?: number | null;
   sla_tipo?: SlaTipo | string | null;
 }): SlaKanbanResult {
+  if (isFaseConclusaoKanban({ slug: input.faseSlug, nome: input.faseNome })) {
+    return { status: 'ok', label: '', classe: '', pausado: false, semSla: true };
+  }
   // Trava ativa → SLA congelado: não penaliza o responsável enquanto aguarda resolução.
   if (input.sla_pausado_em) {
     return { status: 'ok', label: '', classe: '', pausado: true };
