@@ -502,7 +502,8 @@ function faseUltrapassouSla(
   slaDias: number | null,
   slaTipo: SlaTipo,
 ): boolean {
-  if (dataInicioReal && dataFimReal && slaDias != null && slaDias > 0) {
+  if (slaDias == null || slaDias <= 0) return false;
+  if (dataInicioReal && dataFimReal) {
     return diasDecorridosPorSla(dataInicioReal, dataFimReal, slaTipo) > slaDias;
   }
   return Boolean(dataFimReal && dataFimEstimada && dataFimReal > dataFimEstimada);
@@ -515,7 +516,8 @@ function faseEmAtrasoPorSlaAberta(
   slaDias: number | null,
   slaTipo: SlaTipo,
 ): boolean {
-  if (dataInicioReal && slaDias != null && slaDias > 0) {
+  if (slaDias == null || slaDias <= 0) return false;
+  if (dataInicioReal) {
     return diasDecorridosPorSla(dataInicioReal, hoje, slaTipo) > slaDias;
   }
   return Boolean(dataFimEstimada && hoje > dataFimEstimada);

@@ -1,7 +1,6 @@
 import { calcularStatusSLAPorTipo, normalizarSlaTipo, rotuloUnidadeSla, type SlaTipo } from '@/lib/dias-uteis';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
-import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
 
 export const TAG_AGUARDANDO_DOCUMENTACAO = 'Aguardando Documentação';
 export const CLASSE_TAG_AGUARDANDO_DOCUMENTACAO = 'moni-tag-atencao';
