@@ -675,12 +675,13 @@ const KanbanColumnInner = function KanbanColumn({
           });
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
-          // Faixa lateral vermelha: só a fase atual, e nunca em fase de conclusão.
+          // Faixa vermelha só quando o SLA desta fase estourou (entrada na fase + prazo da coluna).
+          // A calculadora encadeada não pinta o card: trocar de fase zera o atraso visível.
           const slaAtrasado =
             !faseConclusao &&
             !arquivado &&
             !concluido &&
-            (sla.status === 'atrasado' || card.calculadora_sla_estourado === true);
+            sla.status === 'atrasado';
           const statusLateral = slaAtrasado ? 'vermelho' : 'cinza';
           const motivo = (card.motivo_arquivamento ?? '').trim();
           const resultado = card.resultado ?? null;
