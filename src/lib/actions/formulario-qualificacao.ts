@@ -123,6 +123,48 @@ function formatarDataUltimoPreenchimento(iso: string): string {
   }).format(d);
 }
 
+const PAGINA_FORMULARIOS = 1000;
+
+/** Uma linha por franqueado: somente o envio mais recente. */
+export async function listarUltimasRespostasQualificacao(): Promise<{
+  data: FormularioQualificacaoRow[];
+  error?: string;
+}> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: [], error: 'Sessão expirada.' };
+
+  const todas: FormularioQualificacaoRow[] = [];
+  for (let from = 0; from < 20000; from += PAGINA_FORMULARIOS) {
+    const { data, error } = await supabase
+      .from('formularios_qualificacao')
+      .select('*')
+      .order('criado_em', { ascending: false })
+      .range(from, from + PAGINA_FORMULARIOS - 1);
+
+    if (error) {
+      console.error('[formulario-qualificacao] listar ultimas error', error);
+      return { data: [], error: 'Erro ao carregar respostas de qualificação.' };
+    }
+
+    const lote = (data ?? []) as FormularioQualificacaoRow[];
+    todas.push(...lote);
+    if (lote.length < PAGINA_FORMULARIOS) break;
+  }
+
+  const vistas = new Set<string>();
+  const ultimas: FormularioQualificacaoRow[] = [];
+  for (const row of todas) {
+    const id = String(row.rede_franqueado_id ?? '').trim();
+    if (!id || vistas.has(id)) continue;
+    vistas.add(id);
+    ultimas.push(row);
+  }
+  return { data: ultimas };
+}
+
 /** Data (dd/mm/aaaa) do formulário mais recente de cada franqueado. */
 export async function mapearUltimoPreenchimentoQualificacao(): Promise<Record<string, string>> {
   const supabase = await createClient();

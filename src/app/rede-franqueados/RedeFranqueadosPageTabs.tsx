@@ -12,6 +12,10 @@ import { CadastrosEmpresasTabelaComBusca } from './CadastrosEmpresasTabelaComBus
 import { CadastrosMoniCapitalTabelaComBusca } from './CadastrosMoniCapitalTabelaComBusca';
 import { CondominiosTabelaComBusca } from './CondominiosTabelaComBusca';
 import { ImobEmpreendimentosTabelaComBusca } from './ImobEmpreendimentosTabelaComBusca';
+import {
+  QualificacaoRespostasTabela,
+} from './QualificacaoRespostasTabela';
+import type { QualificacaoTabelaLinha } from '@/lib/qualificacao-tabela';
 import { buildCadastrosEmpresasLinhas, type FranqueadoEmpresaRow } from '@/lib/franqueado-empresas';
 import { buildCadastrosEmpresasLinhasComSpe, type FranqueadoSpeRow } from '@/lib/franqueado-spe';
 import type { CondominioRow } from '@/lib/condominios';
@@ -43,6 +47,7 @@ import { NovoCadastroMoniCapitalModal } from './NovoCadastroMoniCapitalModal';
 
 type TabId =
   | 'franqueados'
+  | 'qualificacao'
   | 'loteadores'
   | 'corretores'
   | 'empresas'
@@ -59,6 +64,7 @@ const TAB_ALIASES: Record<string, TabId> = {
 };
 
 const TAB_FRANQ: { id: TabId; label: string } = { id: 'franqueados', label: 'Rede de Franqueados' };
+const TAB_QUAL: { id: TabId; label: string } = { id: 'qualificacao', label: 'Qualificação' };
 const TAB_LOTE: { id: TabId; label: string } = { id: 'loteadores', label: 'Rede de Loteadores' };
 const TAB_CORR: { id: TabId; label: string } = { id: 'corretores', label: 'Cadastro de Corretor' };
 const TAB_EMP: { id: TabId; label: string } = { id: 'empresas', label: 'Cadastros de Empresas' };
@@ -72,6 +78,8 @@ const TAB_IMOB: { id: TabId; label: string } = {
 type Props = {
   rows: RedeFranqueadoRowDb[];
   ultimoPreenchimentoQualificacao?: Record<string, string>;
+  linhasQualificacao?: QualificacaoTabelaLinha[];
+  qualificacaoLoadError?: boolean;
   loteadoresRows: RedeLoteadorRow[] | null;
   corretoresRows: RedeCorretorRow[] | null;
   showStaffTabs: boolean;
@@ -93,6 +101,8 @@ type Props = {
 export function RedeFranqueadosPageTabs({
   rows,
   ultimoPreenchimentoQualificacao = {},
+  linhasQualificacao = [],
+  qualificacaoLoadError = false,
   loteadoresRows,
   corretoresRows,
   showStaffTabs,
@@ -111,7 +121,7 @@ export function RedeFranqueadosPageTabs({
 }: Props) {
   const tabs = [
     TAB_FRANQ,
-    ...(showStaffTabs ? [TAB_LOTE, TAB_CORR, TAB_EMP, TAB_MC, TAB_IMOB] : []),
+    ...(showStaffTabs ? [TAB_QUAL, TAB_LOTE, TAB_CORR, TAB_EMP, TAB_MC, TAB_IMOB] : []),
     ...(showCondominiosTab ? [TAB_COND] : []),
   ];
 
@@ -197,6 +207,15 @@ export function RedeFranqueadosPageTabs({
               ) : null}
               <ExportarRedeCSVButton rows={rows} maskSensitiveColumns={maskSensitiveColumns} />
             </RedeFranqueadosTabelaComBusca>
+          </section>
+        ) : null}
+
+        {resolvedTab === 'qualificacao' && showStaffTabs ? (
+          <section className="space-y-4">
+            <QualificacaoRespostasTabela
+              linhas={linhasQualificacao}
+              loadError={qualificacaoLoadError}
+            />
           </section>
         ) : null}
 
