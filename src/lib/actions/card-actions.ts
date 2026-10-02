@@ -4960,6 +4960,14 @@ export async function aprovarPassagemFase(aprovacaoId: string): Promise<ActionRe
   const gate = await obterGateComiteLoteadores(admin, aprovRow.card_id, novaFaseSlug);
   if (!gate.ok) return gate;
 
+  if (movimentoExigeGateConclusaoAtendimentoJuridico(novaFaseSlug)) {
+    const { verificarGateConclusaoAtendimentoJuridico } = await import(
+      '@/lib/actions/juridico-pontos-actions'
+    );
+    const gateConclusao = await verificarGateConclusaoAtendimentoJuridico(aprovRow.card_id);
+    if (!gateConclusao.ok) return gateConclusao;
+  }
+
   if (movimentoExigeGatePontosRodadaJuridico(novaFaseSlug)) {
     const { verificarGatePontosRodadaEnvioParceiro } = await import(
       '@/lib/actions/juridico-pontos-actions'
