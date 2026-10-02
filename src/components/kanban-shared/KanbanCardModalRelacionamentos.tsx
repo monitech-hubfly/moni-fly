@@ -28,6 +28,11 @@ import { kanbanPermiteAbrirFunilAcoplamentoManual } from '@/lib/kanban/portfolio
 import { fetchCardsProjetoEsteiras } from '@/lib/kanban/fetch-cards-projeto-esteiras';
 import { createClient } from '@/lib/supabase/client';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
+import {
+  JURIDICO_TIPOS_DOCUMENTO,
+  JURIDICO_TIPO_DOCUMENTO_LABEL,
+  type JuridicoTipoDocumento,
+} from '@/lib/kanban/juridico-tipo-documento';
 import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
 import { KanbanCardVinculosSection } from './KanbanCardVinculosSection';
 import { agruparItensVinculoPorKanban } from '@/lib/kanban/kanban-vinculos-display';
@@ -123,6 +128,8 @@ export function KanbanCardModalRelacionamentos({
   const [modoVincular, setModoVincular] = useState(false);
   const [tipoVinculo, setTipoVinculo] = useState<TipoVinculoKanbanCard>('relacionado');
   const [disparando, setDisparando] = useState(false);
+  const [pedirTipoJuridico, setPedirTipoJuridico] = useState(false);
+  const [tipoJuridicoSelecionado, setTipoJuridicoSelecionado] = useState<JuridicoTipoDocumento | ''>('');
   const [buscaVinculo, setBuscaVinculo] = useState('');
   const [resultadosBusca, setResultadosBusca] = useState<BuscaCardVinculoRow[]>([]);
   const [buscando, setBuscando] = useState(false);
@@ -267,13 +274,24 @@ export function KanbanCardModalRelacionamentos({
     });
   }
 
-  async function handleDispararEsteira(destinoKey: DestinoEsteiraManualKey) {
+  async function handleDispararEsteira(
+    destinoKey: DestinoEsteiraManualKey,
+    juridicoTipoContrato?: JuridicoTipoDocumento,
+  ) {
+    if (destinoKey === 'juridico' && !juridicoTipoContrato) {
+      setPedirTipoJuridico(true);
+      return;
+    }
     setDisparando(true);
     setToast(null);
     try {
-      const res = await dispararEsteiraManualDoCard(cardId, destinoKey, basePath);
+      const res = await dispararEsteiraManualDoCard(cardId, destinoKey, basePath, juridicoTipoContrato);
       if (!res.ok) {
-        setToast({ tipo: 'erro', msg: res.error });
+        const href =
+          res.jaExiste && res.cardFilhoId
+            ? hrefAbrirCardKanban('Funil Jurídico', res.cardFilhoId)
+            : undefined;
+        setToast({ tipo: 'erro', msg: res.error, href });
         return;
       }
       const href = hrefAbrirCardKanban(res.kanbanNome, res.cardFilhoId);
@@ -284,6 +302,8 @@ export function KanbanCardModalRelacionamentos({
           : `Card criado em ${DESTINOS_ESTEIRA_MANUAL[destinoKey].label}.`,
         href,
       });
+      setPedirTipoJuridico(false);
+      setTipoJuridicoSelecionado('');
       fecharFormularioVincular();
       await recarregar();
     } catch {
@@ -454,20 +474,68 @@ export function KanbanCardModalRelacionamentos({
           ) : null}
           {botoesAbrirFunil.length > 0 && !disabled
             ? botoesAbrirFunil.map((botao) => (
-                <button
-                  key={botao.key}
-                  type="button"
-                  onClick={() =>
-                    void (botao.tipo === 'acoplamento'
-                      ? handleAbrirFunilAcoplamento()
-                      : handleDispararEsteira(botao.destinoKey!))
-                  }
-                  disabled={disparando || cardDesabilitado}
-                  className={BOTAO_ABRIR_FUNIL_CLASS}
-                  title={`Criar card filho no funil ${botao.label}`}
-                >
-                  {disparando ? 'Abrindo…' : `+ ${botao.label}`}
-                </button>
+                <div key={botao.key} className="min-w-0 space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void (botao.tipo === 'acoplamento'
+                        ? handleAbrirFunilAcoplamento()
+                        : handleDispararEsteira(botao.destinoKey!))
+                    }
+                    disabled={disparando || cardDesabilitado}
+                    className={BOTAO_ABRIR_FUNIL_CLASS}
+                    title={`Criar card filho no funil ${botao.label}`}
+                  >
+                    {disparando ? 'Abrindo…' : `+ ${botao.label}`}
+                  </button>
+                  {botao.destinoKey === 'juridico' && pedirTipoJuridico ? (
+                    <div className="space-y-1.5">
+                      <label
+                        className="block text-[10px]"
+                        style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}
+                      >
+                        Tipo documental
+                        <select
+                          value={tipoJuridicoSelecionado}
+                          onChange={(e) => setTipoJuridicoSelecionado(e.target.value as JuridicoTipoDocumento | '')}
+                          className="mt-1 w-full px-2 text-[12px]"
+                          style={{
+                            minHeight: 44,
+                            borderRadius: 'var(--moni-radius-md)',
+                            border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                            background: 'var(--moni-surface-0)',
+                            color: 'var(--moni-text-primary)',
+                            fontFamily: 'var(--moni-font-sans)',
+                          }}
+                        >
+                          <option value="">Selecione</option>
+                          {JURIDICO_TIPOS_DOCUMENTO.map((tipo) => (
+                            <option key={tipo} value={tipo}>
+                              {JURIDICO_TIPO_DOCUMENTO_LABEL[tipo]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={disparando || cardDesabilitado || !tipoJuridicoSelecionado}
+                        onClick={() => {
+                          if (!tipoJuridicoSelecionado) return;
+                          void handleDispararEsteira('juridico', tipoJuridicoSelecionado);
+                        }}
+                        className="w-full text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        style={{
+                          minHeight: 44,
+                          borderRadius: 'var(--moni-radius-md)',
+                          background: 'var(--moni-navy-800)',
+                          fontFamily: 'var(--moni-font-sans)',
+                        }}
+                      >
+                        Abrir atendimento
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               ))
             : null}
         </section>

@@ -901,12 +901,12 @@ const KanbanColumnInner = function KanbanColumn({
                     >
                       {tituloLimpo}
                     </span>
-                    {Number(card.juridico_bolinha_count ?? 0) > 0 ? (
+                    {kanbanId === KANBAN_IDS.JURIDICO && Number(card.juridico_bolinha_count ?? 0) >= 1 ? (
                       <span
                         className="moni-juridico-bolinha-badge"
-                        title={`Contrato revisado ${Number(card.juridico_bolinha_count)} vez(es)`}
+                        title={`Rodada ${Number(card.juridico_bolinha_count)} do atendimento jurídico`}
                       >
-                        ↺ {Number(card.juridico_bolinha_count)}x
+                        Rodada {Number(card.juridico_bolinha_count)}
                       </span>
                     ) : null}
                   </div>
@@ -1060,7 +1060,7 @@ const KanbanColumnInner = function KanbanColumn({
         ) : null}
         {exibirAdicionarCard && novoCardHref ? (
           <Link href={novoCardHref} className="moni-kanban-add-card">
-            + Adicionar card
+            {kanbanId === KANBAN_IDS.JURIDICO ? '+ Nova solicitação jurídica' : '+ Adicionar card'}
           </Link>
         ) : null}
       </div>

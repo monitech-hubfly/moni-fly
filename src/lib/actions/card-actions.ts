@@ -38,6 +38,10 @@ import {
   limparTagAcoplamentoPaiDoFilhoArquivado,
 } from '@/lib/kanban/acoplamento-tag-pai';
 import { createClient } from '@/lib/supabase/server';
+import {
+  movimentoExigeGateConclusaoAtendimentoJuridico,
+  movimentoExigeGatePontosRodadaJuridico,
+} from '@/lib/kanban/juridico-atendimento-pendencias';
 import { usuarioConcluiuCasasUniversidade012 } from '@/lib/universidade/queries';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
 import {
@@ -65,7 +69,6 @@ import {
   executarBastaoDeVolta,
   executarBastoes,
   garantirBastaoPassagemWayser,
-  garantirBastaoJuridicoPortfolio,
 } from '@/lib/actions/kanban-bastoes';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
@@ -2071,7 +2074,7 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
     insertPayload.origem_tipo = 'hipotese_direta';
   }
   if (kanbanId === KANBAN_IDS.JURIDICO) {
-    insertPayload.juridico_origem = 'comercial';
+    insertPayload.juridico_bolinha_count = 1;
     const nomeCandidato = (input.juridicoNomeCandidato ?? '').trim();
     if (nomeCandidato) {
       insertPayload.juridico_nome_candidato = nomeCandidato;
@@ -4601,6 +4604,22 @@ export async function moverCardParaFase(input: {
   );
   if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
 
+  if (movimentoExigeGateConclusaoAtendimentoJuridico(novaFaseSlug)) {
+    const { verificarGateConclusaoAtendimentoJuridico } = await import(
+      '@/lib/actions/juridico-pontos-actions'
+    );
+    const gateConclusao = await verificarGateConclusaoAtendimentoJuridico(cardId);
+    if (!gateConclusao.ok) return gateConclusao;
+  }
+
+  if (movimentoExigeGatePontosRodadaJuridico(novaFaseSlug)) {
+    const { verificarGatePontosRodadaEnvioParceiro } = await import(
+      '@/lib/actions/juridico-pontos-actions'
+    );
+    const gateRodada = await verificarGatePontosRodadaEnvioParceiro(cardId);
+    if (!gateRodada.ok) return gateRodada;
+  }
+
   const { data: cardKanban } = await supabase
     .from('kanban_cards')
     .select('kanban_id')
@@ -4621,6 +4640,20 @@ export async function moverCardParaFase(input: {
       .update({ motivo_reprovacao_acoplamento: motivo } as never)
       .eq('id', cardId);
     if (errMot) return { ok: false, error: errMot.message };
+  }
+
+  let faseAnteriorBastao: string | null = null;
+  if (
+    novaFaseSlug === FASE_SLUGS.JURIDICO_SUBIR_ASSINATURA ||
+    novaFaseSlug === FASE_SLUGS.JURIDICO_POS_ASSINATURA ||
+    novaFaseSlug === FASE_SLUGS.JURIDICO_ATENDIMENTOS_CONCLUIDOS
+  ) {
+    const { data: antesBastao } = await supabase
+      .from('kanban_cards')
+      .select('fase_id')
+      .eq('id', cardId)
+      .maybeSingle();
+    faseAnteriorBastao = String((antesBastao as { fase_id?: string | null } | null)?.fase_id ?? '').trim() || null;
   }
 
   const { error: updErr } = await supabase
@@ -4648,7 +4681,11 @@ export async function moverCardParaFase(input: {
   await aplicarSlaInicioDocumentacaoAoMoverFase(supabase, cardId, novaFaseSlug);
 
   await executarBastoes(cardId, novaFaseSlug);
-  await executarBastaoDeVolta(cardId, novaFaseSlug);
+  const bastaoVolta = await executarBastaoDeVolta(cardId, novaFaseSlug, {
+    faseAnteriorId: faseAnteriorBastao,
+    userId: user.id,
+  });
+  if (!bastaoVolta.ok) return bastaoVolta;
   await sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug);
 
   const {
@@ -4923,6 +4960,29 @@ export async function aprovarPassagemFase(aprovacaoId: string): Promise<ActionRe
   const gate = await obterGateComiteLoteadores(admin, aprovRow.card_id, novaFaseSlug);
   if (!gate.ok) return gate;
 
+  if (movimentoExigeGatePontosRodadaJuridico(novaFaseSlug)) {
+    const { verificarGatePontosRodadaEnvioParceiro } = await import(
+      '@/lib/actions/juridico-pontos-actions'
+    );
+    const gateRodada = await verificarGatePontosRodadaEnvioParceiro(aprovRow.card_id);
+    if (!gateRodada.ok) return gateRodada;
+  }
+
+  let faseAnteriorAprovacao: string | null = null;
+  if (
+    novaFaseSlug === FASE_SLUGS.JURIDICO_SUBIR_ASSINATURA ||
+    novaFaseSlug === FASE_SLUGS.JURIDICO_POS_ASSINATURA ||
+    novaFaseSlug === FASE_SLUGS.JURIDICO_ATENDIMENTOS_CONCLUIDOS
+  ) {
+    const { data: antesAprov } = await admin
+      .from('kanban_cards')
+      .select('fase_id')
+      .eq('id', aprovRow.card_id)
+      .maybeSingle();
+    faseAnteriorAprovacao =
+      String((antesAprov as { fase_id?: string | null } | null)?.fase_id ?? '').trim() || null;
+  }
+
   const now = new Date().toISOString();
   const { error: cErr } = await admin
     .from('kanban_cards')
@@ -4930,7 +4990,11 @@ export async function aprovarPassagemFase(aprovacaoId: string): Promise<ActionRe
     .eq('id', aprovRow.card_id);
   if (cErr) return { ok: false, error: cErr.message };
   await executarBastoes(aprovRow.card_id, novaFaseSlug);
-  await executarBastaoDeVolta(aprovRow.card_id, novaFaseSlug);
+  const bastaoAprovacao = await executarBastaoDeVolta(aprovRow.card_id, novaFaseSlug, {
+    faseAnteriorId: faseAnteriorAprovacao,
+    userId: user.id,
+  });
+  if (!bastaoAprovacao.ok) return bastaoAprovacao;
   await sincronizarTagAcoplamentoPaiDoFilho(aprovRow.card_id, novaFaseSlug);
 
   const { data: kbNome } = await admin
@@ -5357,21 +5421,17 @@ export async function upsertFaseChecklistResposta(input: {
   if (faseIdItem === FASE_IDS.PORTFOLIO_PASSAGEM_WAYSER) {
     void garantirBastaoPassagemWayser(input.card_id);
   }
-  if (
-    faseIdItem === FASE_IDS.PORTFOLIO_JURIDICO_OPCAO ||
-    faseIdItem === FASE_IDS.PORTFOLIO_ASSINATURAS_OPCAO ||
-    faseIdItem === FASE_IDS.PORTFOLIO_OPCAO_ASSINADA ||
-    faseIdItem === FASE_IDS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES ||
-    faseIdItem === FASE_IDS.PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES ||
-    faseIdItem === FASE_IDS.PORTFOLIO_CTO_PRECEDENTES_ASSINADO ||
-    faseIdItem === FASE_IDS.PORTFOLIO_JURIDICO_CONTRATO ||
-    faseIdItem === FASE_IDS.PORTFOLIO_ASSINATURAS_CONTRATO ||
-    faseIdItem === FASE_IDS.PORTFOLIO_CONTRATO_ASSINADO
-  ) {
-    void garantirBastaoJuridicoPortfolio(input.card_id);
-  }
 
   const campoSlug = String((itemRow as { campo_slug?: string | null } | null)?.campo_slug ?? '').trim();
+  if (campoSlug === 'juridico_tipo_contrato_confirmado') {
+    const { isJuridicoTipoDocumento } = await import('@/lib/kanban/juridico-tipo-documento');
+    const tipoDoc = isJuridicoTipoDocumento(nextValor) ? String(nextValor).trim() : null;
+    const { error: tipoErr } = await supabase
+      .from('kanban_cards')
+      .update({ juridico_tipo_contrato: tipoDoc } as never)
+      .eq('id', input.card_id);
+    if (tipoErr) return { ok: false, error: tipoErr.message };
+  }
   if (campoSlug && ['preco_atratividade', 'produto_atratividade', 'showroom_interesse', 'linhas_receita'].includes(campoSlug)) {
     const { atualizarScoreLoteadorR1 } = await import('@/lib/actions/loteador-externo-actions');
     await atualizarScoreLoteadorR1(input.card_id);

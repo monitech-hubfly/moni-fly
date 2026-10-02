@@ -5,7 +5,6 @@ import { KANBANS_COM_CHAMADO_JURIDICO, FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '
 import { isFrankOrFranqueadoRole } from '@/lib/authz';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
 import {
   DESTINOS_ESTEIRA_MANUAL,
   destinosEsteiraManualParaKanban,
@@ -13,6 +12,7 @@ import {
   type DestinoEsteiraManualKey,
 } from '@/lib/kanban/esteira-manual-destinos';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
+import type { JuridicoPortfolioTagNome } from '@/lib/kanban/juridico-portfolio-tag';
 import { garantirShadowKanbanCardLegadoPorId } from '@/lib/kanban/kanban-card-vinculos';
 import { notificarTimeAcoplamentoNovoProjeto } from '@/lib/kanban/acoplamento-notificacoes';
 import { registrarAvisoHomologacaoConcluida } from '@/lib/actions/fornecedores-rede';
@@ -28,6 +28,9 @@ import {
 } from '@/lib/kanban/card-sync-group';
 import { tipoKanbanHistoricoFromAcao } from '@/lib/kanban/kanban-historico-tipo';
 import { resolveUsuarioNomeHistorico } from '@/lib/kanban/kanban-historico-actor';
+import { executarBastaoJuridicoParaPortfolio } from '@/lib/kanban/juridico-portfolio-bastao-exec';
+import { notificarConclusaoSolicitacaoComercial } from '@/lib/kanban/juridico-solicitacao-comercial-exec';
+import { TIPO_NOTIFICACAO_SOLICITACAO_COMERCIAL } from '@/lib/kanban/juridico-solicitacao-comercial';
 
 /** Verifica se já existe card filho no Funil Jurídico para o card pai. */
 export async function existeChamadoJuridicoParaCard(cardPaiId: string): Promise<boolean> {
@@ -60,7 +63,7 @@ export async function existeChamadoJuridicoParaCard(cardPaiId: string): Promise<
 
 export type AbrirChamadoJuridicoResult =
   | { ok: true; cardFilhoId: string }
-  | { ok: false; error: string; jaExiste?: boolean };
+  | { ok: false; error: string; jaExiste?: boolean; cardFilhoId?: string };
 
 export interface CriarCardFilhoParams {
   cardPaiId: string;
@@ -75,8 +78,10 @@ export interface CriarCardFilhoParams {
   origemKanbanId?: string | null;
   /** Funil Jurídico: origem do chamado (`portfolio` | `loteadores` | `comercial`). */
   juridicoOrigem?: 'portfolio' | 'loteadores' | 'comercial' | null;
-  /** Funil Jurídico (bastão Portfólio): tag da demanda — permite múltiplos filhos. */
-  juridicoTagNome?: 'Opção' | 'Cto c/ Precedentes' | 'Cto s/ Precedentes' | null;
+  /** Funil Jurídico: tag da demanda. O tipo documental é a identidade do ciclo. */
+  juridicoTagNome?: JuridicoPortfolioTagNome | null;
+  /** Funil Jurídico: tipo documental do atendimento. Tem prioridade sobre a tag. */
+  juridicoTipoContrato?: import('@/lib/kanban/juridico-tipo-documento').JuridicoTipoDocumento | null;
   /** Funil Crédito Obra: tranche da tag (1ª automática; 2ª–6ª cria card adicional). */
   creditoObraTranche?: 1 | 2 | 3 | 4 | 5 | 6;
 }
@@ -273,12 +278,15 @@ async function resolverCamposOrigemKanbanBastao(
 
 function juridicoOrigemPorKanbanPai(
   kanbanId: string | null | undefined,
-): 'portfolio' | 'loteadores' | 'comercial' | null {
+): 'portfolio' | 'loteadores' | null {
   const kid = String(kanbanId ?? '').trim();
   if (kid === KANBAN_IDS.PORTFOLIO) return 'portfolio';
   if (kid === KANBAN_IDS.LOTEADORES) return 'loteadores';
-  /** Manual / Operações → comercial (migration 565). */
-  if (kid === KANBAN_IDS.OPERACOES) return 'comercial';
+  /**
+   * Pré Obra e Obra não grava juridico_origem.
+   * A origem real fica em origem_kanban_id / origem_kanban_nome.
+   * "comercial" é a solicitação do Comercial (COF / Cto de Franquia), sem card pai no Hub Fly.
+   */
   return null;
 }
 
@@ -292,6 +300,7 @@ function destinoPrecisaOrigemKanbanId(kanbanDestinoId: string): boolean {
  * Cria card filho no kanban de destino (bastão) com vínculo e atividade de auditoria.
  * Idempotente: se já existir filho ativo com `origem_card_id` = pai no mesmo kanban, retorna null.
  * Se existir filho arquivado, desarquiva e reposiciona na fase de destino.
+ * Funil Jurídico não usa essa reabertura: ciclo novo é outro card, por pai + tipo documental.
  */
 export async function criarCardFilho(
   params: CriarCardFilhoParams,
@@ -305,10 +314,14 @@ export async function criarCardFilho(
     throw new Error('Parâmetros inválidos para criar card filho.');
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: { id: string } | null = null;
+  try {
+    const supabase = await createClient();
+    const got = await supabase.auth.getUser();
+    user = got.data.user;
+  } catch {
+    user = null;
+  }
 
   let db: ReturnType<typeof createAdminClient>;
   try {
@@ -318,29 +331,39 @@ export async function criarCardFilho(
     throw new Error(`Serviço indisponível: ${msg}`);
   }
 
-  const existente =
-    kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA &&
-    params.creditoObraTranche != null &&
-    params.creditoObraTranche > 1
+  const ehJuridico = kanbanDestinoId === KANBAN_IDS.JURIDICO;
+  let tipoJuridicoResolvido: import('@/lib/kanban/juridico-tipo-documento').JuridicoTipoDocumento | null =
+    null;
+  if (ehJuridico) {
+    const { isJuridicoTipoDocumento, tipoDocumentoPorTagJuridico } = await import(
+      '@/lib/kanban/juridico-tipo-documento'
+    );
+    tipoJuridicoResolvido = isJuridicoTipoDocumento(params.juridicoTipoContrato)
+      ? params.juridicoTipoContrato
+      : tipoDocumentoPorTagJuridico(params.juridicoTagNome);
+    if (tipoJuridicoResolvido) {
+      const { buscarAtendimentoJuridicoAberto } = await import(
+        '@/lib/kanban/juridico-atendimento-ciclo'
+      );
+      const aberto = await buscarAtendimentoJuridicoAberto(db, cardPaiId, tipoJuridicoResolvido);
+      if (aberto?.id) {
+        const { data: row } = await db
+          .from('kanban_cards')
+          .select(CARD_FILHO_SELECT)
+          .eq('id', aberto.id)
+          .maybeSingle();
+        if (row?.id) return row as KanbanCardFilhoCriado;
+      }
+    }
+  }
+
+  const existente = ehJuridico
+    ? null
+    : kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA &&
+        params.creditoObraTranche != null &&
+        params.creditoObraTranche > 1
       ? null
-      : kanbanDestinoId === KANBAN_IDS.JURIDICO && params.juridicoTagNome
-        ? await (async () => {
-            const { buscarCardFilhoJuridicoPorTag } = await import(
-              '@/lib/kanban/juridico-portfolio-tag'
-            );
-            const row = await buscarCardFilhoJuridicoPorTag(
-              db,
-              cardPaiId,
-              params.juridicoTagNome!,
-              kanbanDestinoId,
-            );
-            if (!row?.id) return null;
-            return {
-              id: row.id,
-              arquivado: row.arquivado,
-            } as CardFilhoExistenteRow;
-          })()
-        : await buscarCardFilhoExistente(db, cardPaiId, kanbanDestinoId);
+      : await buscarCardFilhoExistente(db, cardPaiId, kanbanDestinoId);
 
   if (existente?.id && !Boolean(existente.arquivado)) {
     if (kanbanDestinoId === KANBAN_IDS.OPERACOES) {
@@ -417,7 +440,7 @@ export async function criarCardFilho(
   const origemLabel = `${params.kanbanOrigemSlug} / ${params.faseOrigemSlug}`;
   const destinoLabel = faseDestinoSlug;
 
-  if (existente?.id) {
+  if (existente?.id && !ehJuridico) {
     const filhoId = String(existente.id);
     const reativarPayload: Record<string, unknown> = {
       fase_id: faseId,
@@ -444,6 +467,11 @@ export async function criarCardFilho(
     }
     if (kanbanDestinoId === KANBAN_IDS.JURIDICO && params.juridicoOrigem) {
       reativarPayload.juridico_origem = params.juridicoOrigem;
+    }
+    if (kanbanDestinoId === KANBAN_IDS.JURIDICO && params.juridicoTagNome) {
+      const { tipoDocumentoPorTagJuridico } = await import('@/lib/kanban/juridico-tipo-documento');
+      const tipoDoc = tipoDocumentoPorTagJuridico(params.juridicoTagNome);
+      if (tipoDoc) reativarPayload.juridico_tipo_contrato = tipoDoc;
     }
     const { data: filhoReativado, error: errReativar } = await db
       .from('kanban_cards')
@@ -530,8 +558,10 @@ export async function criarCardFilho(
     insertPayload.origem_kanban_nome = origemKanban.origem_kanban_nome;
   }
 
-  if (kanbanDestinoId === KANBAN_IDS.JURIDICO && params.juridicoOrigem) {
-    insertPayload.juridico_origem = params.juridicoOrigem;
+  if (kanbanDestinoId === KANBAN_IDS.JURIDICO) {
+    insertPayload.juridico_bolinha_count = 1;
+    if (params.juridicoOrigem) insertPayload.juridico_origem = params.juridicoOrigem;
+    if (tipoJuridicoResolvido) insertPayload.juridico_tipo_contrato = tipoJuridicoResolvido;
   }
 
   const { data: filho, error: errInsert } = await db
@@ -635,6 +665,7 @@ export async function criarCardFilho(
  */
 export async function abrirChamadoJuridicoDoCard(
   cardPaiId: string,
+  juridicoTipoContrato: string,
   basePath?: string,
 ): Promise<AbrirChamadoJuridicoResult> {
   const paiId = String(cardPaiId ?? '').trim();
@@ -682,16 +713,21 @@ export async function abrirChamadoJuridicoDoCard(
     return { ok: false, error: 'Este funil não permite abrir chamado jurídico manualmente.' };
   }
 
-  const { data: existente } = await db
-    .from('kanban_cards')
-    .select('id')
-    .eq('origem_card_id', paiId)
-    .eq('kanban_id', KANBAN_IDS.JURIDICO)
-    .limit(1)
-    .maybeSingle();
-
-  if (existente?.id) {
-    return { ok: false, error: MSG_CHAMADO_JURIDICO_JA_EXISTE, jaExiste: true };
+  const { isJuridicoTipoDocumento } = await import('@/lib/kanban/juridico-tipo-documento');
+  if (!isJuridicoTipoDocumento(juridicoTipoContrato)) {
+    return { ok: false, error: 'Informe o tipo documental antes de abrir o atendimento jurídico.' };
+  }
+  const { buscarAtendimentoJuridicoAberto, MSG_ATENDIMENTO_JURIDICO_EM_ANDAMENTO } = await import(
+    '@/lib/kanban/juridico-atendimento-ciclo'
+  );
+  const aberto = await buscarAtendimentoJuridicoAberto(db, paiId, juridicoTipoContrato);
+  if (aberto?.id) {
+    return {
+      ok: false,
+      error: MSG_ATENDIMENTO_JURIDICO_EM_ANDAMENTO,
+      jaExiste: true,
+      cardFilhoId: aberto.id,
+    };
   }
 
   const faseId = String(pai.fase_id ?? '').trim();
@@ -713,10 +749,11 @@ export async function abrirChamadoJuridicoDoCard(
       faseOrigemSlug,
       origemKanbanId: kanbanId,
       juridicoOrigem: juridicoOrigemPorKanbanPai(kanbanId),
+      juridicoTipoContrato,
     });
 
     if (!filho?.id) {
-      return { ok: false, error: MSG_CHAMADO_JURIDICO_JA_EXISTE, jaExiste: true };
+      return { ok: false, error: MSG_ATENDIMENTO_JURIDICO_EM_ANDAMENTO, jaExiste: true };
     }
 
     revalidatePath(basePath?.trim() || '/');
@@ -751,8 +788,8 @@ type BastaoDestino = {
   kanbanDestinoId: string;
   faseDestinoSlug: string;
   flag?: null;
-  /** Tag aplicada no card filho (Funil Jurídico — bastões Portfólio). */
-  juridicoTagNome?: 'Opção' | 'Cto c/ Precedentes' | 'Cto s/ Precedentes';
+  /** Tag aplicada no card filho do Funil Jurídico. */
+  juridicoTagNome?: JuridicoPortfolioTagNome;
 };
 
 type CardPaiBastao = {
@@ -955,57 +992,13 @@ async function dispararBastao(
 }
 
 /**
- * Garante card filho no Funil Jurídico (Recebimento + tag) para cards Portfólio
- * já nas fases Jurídico / Assinaturas / Assinado sem bastão disparado.
- * Idempotente por tag.
+ * Fallback antigo: ao abrir o card ou salvar checklist em Assinaturas/Assinado,
+ * criava o atendimento jurídico como se a entrada tivesse sido na fase Jurídico.
+ * A criação passou a ocorrer só em `executarBastoes`, na entrada de
+ * juridico_opcao, juridico_cto_precedentes ou juridico_contrato.
  */
-export async function garantirBastaoJuridicoPortfolio(cardId: string): Promise<boolean> {
-  const cid = String(cardId ?? '').trim();
-  if (!cid) return false;
-
-  let db: ReturnType<typeof createAdminClient>;
-  try {
-    db = createAdminClient();
-  } catch (e) {
-    console.error('[garantirBastaoJuridicoPortfolio] admin client:', e);
-    return false;
-  }
-
-  const { data: cardRow, error: errCard } = await db
-    .from('kanban_cards')
-    .select('id, kanban_id, fase_id, arquivado, concluido')
-    .eq('id', cid)
-    .maybeSingle();
-
-  if (errCard || !cardRow?.id) return false;
-  if (String(cardRow.kanban_id ?? '') !== KANBAN_IDS.PORTFOLIO) return false;
-  if (Boolean((cardRow as { arquivado?: boolean | null }).arquivado)) return false;
-  if (Boolean((cardRow as { concluido?: boolean | null }).concluido)) return false;
-
-  const { data: faseRow } = await db
-    .from('kanban_fases')
-    .select('slug')
-    .eq('id', String((cardRow as { fase_id?: string | null }).fase_id ?? ''))
-    .maybeSingle();
-
-  const slug = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim();
-  const triggerPorFaseAtual: Record<string, string> = {
-    [FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO]: FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO,
-    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO]: FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO,
-    [FASE_SLUGS.PORTFOLIO_OPCAO_ASSINADA]: FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO,
-    [FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES]: FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES,
-    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES]: FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES,
-    [FASE_SLUGS.PORTFOLIO_CTO_PRECEDENTES_ASSINADO]: FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES,
-    [FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO]: FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO,
-    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CONTRATO]: FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO,
-    [FASE_SLUGS.PORTFOLIO_CONTRATO_ASSINADO]: FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO,
-  };
-
-  const trigger = triggerPorFaseAtual[slug];
-  if (!trigger) return false;
-
-  await executarBastoes(cid, trigger);
-  return true;
+export async function garantirBastaoJuridicoPortfolio(_cardId: string): Promise<boolean> {
+  return false;
 }
 
 /**
@@ -1186,15 +1179,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
   const pai = paiRow as CardPaiBastao;
   const titulo = String(pai.titulo ?? '').trim() || 'Card';
 
-  /** Funil Jurídico — fork automático ao entrar em Demanda Concluída (08). */
-  if (
-    slug === FASE_SLUGS.JURIDICO_DEMANDA_CONCLUIDA &&
-    String(pai.kanban_id ?? '') === KANBAN_IDS.JURIDICO
-  ) {
-    const { executarForkJuridicoDemandaConcluida } = await import('@/lib/kanban/juridico-gates');
-    await executarForkJuridicoDemandaConcluida(cardPaiId);
-  }
-
   const BASTOES_DE_IDA: Partial<Record<string, BastaoDestino[]>> = {
     [FASE_SLUGS.ACOPLAMENTO]: [
       { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
@@ -1206,7 +1190,7 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     [FASE_SLUGS.LOTEADORES_ACOPLAMENTO_GBOX]: [
       { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
     ],
-    /** Funil Portfólio — Jurídico Opção → Funil Jurídico (tag Opção). */
+    /** Portfólio → Jurídico só na entrada da fase Jurídico. Assinaturas e Assinado não criam. */
     [FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO]: [
       {
         kanbanDestinoId: KANBAN_IDS.JURIDICO,
@@ -1214,22 +1198,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         juridicoTagNome: 'Opção',
       },
     ],
-    /** Heal: se o card já passou de Jurídico Opção sem bastão, cria ao entrar nas fases seguintes. */
-    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO]: [
-      {
-        kanbanDestinoId: KANBAN_IDS.JURIDICO,
-        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
-        juridicoTagNome: 'Opção',
-      },
-    ],
-    [FASE_SLUGS.PORTFOLIO_OPCAO_ASSINADA]: [
-      {
-        kanbanDestinoId: KANBAN_IDS.JURIDICO,
-        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
-        juridicoTagNome: 'Opção',
-      },
-    ],
-    /** Funil Portfólio — Jurídico Cto c/ Precedentes → Funil Jurídico. */
     [FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES]: [
       {
         kanbanDestinoId: KANBAN_IDS.JURIDICO,
@@ -1237,21 +1205,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         juridicoTagNome: 'Cto c/ Precedentes',
       },
     ],
-    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES]: [
-      {
-        kanbanDestinoId: KANBAN_IDS.JURIDICO,
-        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
-        juridicoTagNome: 'Cto c/ Precedentes',
-      },
-    ],
-    [FASE_SLUGS.PORTFOLIO_CTO_PRECEDENTES_ASSINADO]: [
-      {
-        kanbanDestinoId: KANBAN_IDS.JURIDICO,
-        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
-        juridicoTagNome: 'Cto c/ Precedentes',
-      },
-    ],
-    /** Funil Portfólio — Jurídico Contrato s/ Precedentes → Funil Jurídico. */
     [FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO]: [
       {
         kanbanDestinoId: KANBAN_IDS.JURIDICO,
@@ -1259,25 +1212,19 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         juridicoTagNome: 'Cto s/ Precedentes',
       },
     ],
-    [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CONTRATO]: [
+    /** Loteadores → Jurídico só na entrada de Jurídico NDA e Jurídico Cto de Parceria. */
+    [FASE_SLUGS.LOTEADORES_NDA]: [
       {
         kanbanDestinoId: KANBAN_IDS.JURIDICO,
         faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
-        juridicoTagNome: 'Cto s/ Precedentes',
+        juridicoTagNome: 'NDA',
       },
     ],
-    [FASE_SLUGS.PORTFOLIO_CONTRATO_ASSINADO]: [
+    [FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA]: [
       {
         kanbanDestinoId: KANBAN_IDS.JURIDICO,
         faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
-        juridicoTagNome: 'Cto s/ Precedentes',
-      },
-    ],
-    /** Funil Loteadores — Jurídico → Funil Jurídico. */
-    [FASE_SLUGS.LOTEADOR_JURIDICO]: [
-      {
-        kanbanDestinoId: KANBAN_IDS.JURIDICO,
-        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Cto de Parceria',
       },
     ],
     [FASE_SLUGS.PASSAGEM_WAYSER]: [
@@ -1595,29 +1542,83 @@ async function executarBastaoDeVoltaMoverPaiPorFaseFilho(
   revalidatePath('/funil-projeto-legal');
 }
 
+export type ResultadoBastaoDeVolta = { ok: true } | { ok: false; error: string };
+
 /**
  * Quando card filho entra em fase de desfecho, marca flag no card pai (`origem_card_id`).
+ * Jurídico fases 5 e 7 também avançam o card de origem do Portfólio ou de Loteadores.
+ * Solicitação Comercial não tem card pai: na fase 8 notifica quem abriu o formulário.
+ * Se esse avanço falhar, o card jurídico volta para `faseAnteriorId`.
  */
-export async function executarBastaoDeVolta(cardId: string, novaFaseSlug: string): Promise<void> {
+export async function executarBastaoDeVolta(
+  cardId: string,
+  novaFaseSlug: string,
+  opts?: { faseAnteriorId?: string | null; userId?: string | null },
+): Promise<ResultadoBastaoDeVolta> {
   const slug = String(novaFaseSlug ?? '').trim();
   const cardFilhoId = String(cardId ?? '').trim();
-  if (!cardFilhoId || !slug) return;
+  if (!cardFilhoId || !slug) return { ok: true };
 
-  // Movimento de fase do pai: somente Projeto Legal → aprovacao_condominio.
-  // Projetos Locais (e demais desfechos só-flag) nunca propagam fase ao pai Operações.
+  // Projeto Legal → Operações (aprovacao_condominio). Não mexe no Portfólio.
   if (slug === FASE_SLUGS.PL_C_PROTOCOLO_ANDAMENTO) {
     await executarBastaoDeVoltaMoverPaiPorFaseFilho(cardFilhoId, slug);
   }
 
+  if (slug === FASE_SLUGS.JURIDICO_ATENDIMENTOS_CONCLUIDOS) {
+    const supabaseUser = await createClient();
+    const conclusao = await notificarConclusaoSolicitacaoComercial({
+      cardId: cardFilhoId,
+      faseAnteriorId: opts?.faseAnteriorId ?? null,
+      jaNotificou: async (userId) => {
+        const { data, error } = await supabaseUser
+          .from('sirene_notificacoes')
+          .select('id')
+          .eq('tipo', TIPO_NOTIFICACAO_SOLICITACAO_COMERCIAL)
+          .eq('referencia_card_id', cardFilhoId)
+          .eq('user_id', userId)
+          .limit(1);
+        if (error) throw new Error(error.message);
+        return (data ?? []).length > 0;
+      },
+      inserirNotificacao: async (row) => {
+        const { error } = await supabaseUser.from('sirene_notificacoes').insert(row as never);
+        return error?.message ?? null;
+      },
+    });
+    if (!conclusao.ok) return conclusao;
+  }
+
+  let pularHistoricoFlag = false;
+  const momentoPortfolio = slug === FASE_SLUGS.JURIDICO_SUBIR_ASSINATURA || slug === FASE_SLUGS.JURIDICO_POS_ASSINATURA;
+  if (momentoPortfolio) {
+    const supabaseUser = await createClient();
+    const portfolio = await executarBastaoJuridicoParaPortfolio({
+      cardFilhoId,
+      novaFaseSlug: slug,
+      userId: opts?.userId ?? null,
+      faseAnteriorFilhoId: opts?.faseAnteriorId ?? null,
+      inserirHistorico: async (row) => {
+        const { error } = await supabaseUser.from('kanban_historico').insert(row as never);
+        return error?.message ?? null;
+      },
+      inserirNotificacao: async (row) => {
+        const { error } = await supabaseUser.from('sirene_notificacoes').insert(row as never);
+        return error?.message ?? null;
+      },
+    });
+    if (!portfolio.ok) return portfolio;
+    pularHistoricoFlag = portfolio.pularHistoricoFlag;
+  }
+
   const flagCol = DESFECHO_FLAG_POR_FASE[slug];
-  if (!flagCol) return;
+  if (!flagCol) return { ok: true };
 
   let db: ReturnType<typeof createAdminClient>;
   try {
     db = createAdminClient();
   } catch (e) {
     console.error('[executarBastaoDeVolta] admin client:', e);
-    return;
+    return { ok: true };
   }
 
   const { data: filhoRow, error: errFilho } = await db
@@ -1628,19 +1629,21 @@ export async function executarBastaoDeVolta(cardId: string, novaFaseSlug: string
 
   if (errFilho) {
     console.error('[executarBastaoDeVolta] card filho:', errFilho.message);
-    return;
+    return { ok: true };
   }
 
   const origemCardId = String((filhoRow as { origem_card_id?: string | null } | null)?.origem_card_id ?? '').trim();
-  if (!origemCardId) return;
+  if (!origemCardId) return { ok: true };
 
   const patch = { [flagCol]: true } as Partial<Record<BastaoRetornoFlagCol, boolean>>;
 
   const { error: errUpd } = await db.from('kanban_cards').update(patch).eq('id', origemCardId);
   if (errUpd) {
     console.error('[executarBastaoDeVolta] update pai:', errUpd.message);
-    return;
+    return { ok: true };
   }
+
+  if (pularHistoricoFlag) return { ok: true };
 
   const supabase = await createClient();
   const {
@@ -1679,17 +1682,19 @@ export async function executarBastaoDeVolta(cardId: string, novaFaseSlug: string
   if (errHist) {
     console.error('[executarBastaoDeVolta] historico:', errHist.message);
   }
+  return { ok: true };
 }
 
 export type DispararEsteiraManualResult =
   | { ok: true; cardFilhoId: string; kanbanNome: string; jaExistia: boolean }
-  | { ok: false; error: string };
+  | { ok: false; error: string; cardFilhoId?: string; jaExiste?: boolean };
 
 /** Dispara card filho manualmente (mesma lógica do bastão automático). */
 export async function dispararEsteiraManualDoCard(
   cardPaiId: string,
   destinoKey: string,
   basePath?: string,
+  juridicoTipoContrato?: string | null,
 ): Promise<DispararEsteiraManualResult> {
   const paiId = String(cardPaiId ?? '').trim();
   const key = String(destinoKey ?? '').trim() as DestinoEsteiraManualKey;
@@ -1807,16 +1812,39 @@ export async function dispararEsteiraManualDoCard(
     faseOrigemSlug = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim() || faseOrigemSlug;
   }
 
-  const existente = await buscarCardFilhoExistente(db, paiId, destino.kanbanDestinoId);
+  const ehJuridico = destino.kanbanDestinoId === KANBAN_IDS.JURIDICO;
+  let tipoJuridicoManual: import('@/lib/kanban/juridico-tipo-documento').JuridicoTipoDocumento | null =
+    null;
+  if (ehJuridico) {
+    const { isJuridicoTipoDocumento } = await import('@/lib/kanban/juridico-tipo-documento');
+    if (!isJuridicoTipoDocumento(juridicoTipoContrato)) {
+      return { ok: false, error: 'Informe o tipo documental antes de abrir o atendimento jurídico.' };
+    }
+    tipoJuridicoManual = juridicoTipoContrato;
+    const { buscarAtendimentoJuridicoAberto, MSG_ATENDIMENTO_JURIDICO_EM_ANDAMENTO } = await import(
+      '@/lib/kanban/juridico-atendimento-ciclo'
+    );
+    const aberto = await buscarAtendimentoJuridicoAberto(db, paiId, tipoJuridicoManual);
+    if (aberto?.id) {
+      return {
+        ok: false,
+        error: MSG_ATENDIMENTO_JURIDICO_EM_ANDAMENTO,
+        jaExiste: true,
+        cardFilhoId: aberto.id,
+      };
+    }
+  } else {
+    const existente = await buscarCardFilhoExistente(db, paiId, destino.kanbanDestinoId);
 
-  if (existente?.id && !Boolean(existente.arquivado)) {
-    const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
-    return {
-      ok: true,
-      cardFilhoId: String(existente.id),
-      kanbanNome: String((kb as { nome?: string | null } | null)?.nome ?? destino.label),
-      jaExistia: true,
-    };
+    if (existente?.id && !Boolean(existente.arquivado)) {
+      const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
+      return {
+        ok: true,
+        cardFilhoId: String(existente.id),
+        kanbanNome: String((kb as { nome?: string | null } | null)?.nome ?? destino.label),
+        jaExistia: true,
+      };
+    }
   }
 
   try {
@@ -1836,6 +1864,7 @@ export async function dispararEsteiraManualDoCard(
         destino.kanbanDestinoId === KANBAN_IDS.JURIDICO
           ? juridicoOrigemPorKanbanPai(kanbanId)
           : undefined,
+      juridicoTipoContrato: tipoJuridicoManual,
       ...(destino.kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA
         ? { creditoObraTranche: 1 as const }
         : {}),
