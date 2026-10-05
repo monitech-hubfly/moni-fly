@@ -11,7 +11,6 @@ import {
   type DashboardChamadoBreakdownRow,
   type DashboardFiltroTipo,
 } from './dashboard-breakdown';
-import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 
 type PorStatus = { status: string; count: number; pct: number };
 type PorTipo = { tipo: string; count: number; pct: number };
@@ -545,10 +544,7 @@ function ChamadosDestaqueSection({
       ) : (
         <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]">
           {filtered.map((c, i) => {
-            const href =
-              c.kanban_atividade_id && c.card_kanban_nome
-                ? hrefAbrirCardKanban(c.card_kanban_nome, c.kanban_atividade_id)
-                : `/sirene/${c.id}`;
+            const href = `/sirene/chamados?id=${c.id}`;
             const rowClass = `flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm ${i < filtered.length - 1 ? 'border-b border-[color:var(--moni-border-default)]' : ''} cursor-pointer hover:bg-[var(--moni-surface-50)]`;
             const inner = (
               <>
@@ -764,7 +760,7 @@ export function DashboardSirene({
                 listaTravaCard.map((c) => (
                   <li key={c.id}>
                     <Link
-                      href={`/sirene/${c.id}`}
+                      href={`/sirene/chamados?id=${c.id}`}
                       className="flex items-start justify-between gap-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3 transition hover:border-red-400 hover:bg-[var(--moni-surface-100)]"
                     >
                       <div className="min-w-0 flex-1">
@@ -801,7 +797,7 @@ export function DashboardSirene({
               aguardando_julgamento_lista.map((c) => (
                 <li key={c.id}>
                   <Link
-                    href={`/sirene/${c.id}`}
+                    href={`/sirene/chamados?id=${c.id}`}
                     className="block rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3 transition hover:border-amber-400 hover:bg-[var(--moni-surface-100)]"
                   >
                     <div className="flex items-start justify-between gap-2">
