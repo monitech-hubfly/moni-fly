@@ -279,8 +279,8 @@ export function calcularOferta(template: TemplateConfig, oferta: OfertaConfig): 
   const custo_obra = valor_casa + valor_customizacao;
 
   const itbi_amount = n0(template.percentual_itbi) * valor_lote;
-  const taxa_plataforma_amount = n0(template.percentual_taxa_plataforma) * base_calc;
-  const taxa_gestao_amount = n0(template.percentual_taxa_gestao) * base_calc;
+  const taxa_plataforma_amount = n0(template.percentual_taxa_plataforma) * custo_obra;
+  const taxa_gestao_amount = n0(template.percentual_taxa_gestao) * custo_obra;
   const lucro_loteadora_amount = n0(template.percentual_lucro_loteadora) * base_calc;
   const lucro_moni_amount = n0(template.percentual_lucro_moni) * base_calc;
   const lucro_franqueado_amount = n0(template.percentual_lucro_franqueado) * base_calc;
