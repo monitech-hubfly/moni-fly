@@ -14,6 +14,7 @@ import { marcarSimuladorOfertaVinculada } from '@/lib/simulador/simulador-card-u
 import {
   fracaoParaPercentualUi,
   numeroParaInputBr,
+  prazoTotalDePrazoSalvo,
   type SimulacaoPagamentoResumo,
 } from '@/lib/loteamento-simulador-template';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
@@ -114,7 +115,7 @@ export function CalculadoraOferta({
   // prazo_meses na DB = fase1 (sem obra); prazo total = fase1 + prazoObraMeses
   const [prazoTotal, setPrazoTotal] = useState<number | null>(() => {
     if (ofertaInicial?.prazo_meses != null) {
-      return ofertaInicial.prazo_meses + prazoObraMeses;
+      return prazoTotalDePrazoSalvo(ofertaInicial.prazo_meses, prazoObraMeses);
     }
     return 12;
   });
