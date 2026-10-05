@@ -1,11 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { criarCard } from '@/lib/actions/card-actions';
+import { criarSolicitacaoJuridicaComercial } from '@/lib/actions/juridico-solicitacao-comercial';
+import {
+  tituloSolicitacaoComercial,
+  type TipoSolicitacaoComercial,
+} from '@/lib/kanban/juridico-solicitacao-comercial';
 import { fetchMunicipiosPorUfs } from '@/lib/ibge';
 import { UFS_BRASIL } from '@/lib/uf';
 import type { KanbanNomeDisplay } from '@/components/kanban-shared/types';
@@ -16,7 +21,7 @@ type Fase = {
   ordem: number;
 };
 
-type ModoAbertura = 'franqueado' | 'candidato';
+type ModoAbertura = 'comercial' | 'franqueado' | 'candidato';
 
 const inputCls = 'mt-1 w-full px-3 py-2 text-sm';
 const inputStyle = {
@@ -45,7 +50,9 @@ export function NovoCardJuridicoModal({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [modo, setModo] = useState<ModoAbertura>('franqueado');
+  const [modo, setModo] = useState<ModoAbertura>('comercial');
+  const [tipoComercial, setTipoComercial] = useState<TipoSolicitacaoComercial | ''>('');
+  const enviandoRef = useRef(false);
 
   const [franqueados, setFranqueados] = useState<
     { id: string; n_franquia: string; nome_completo: string }[]
@@ -118,6 +125,11 @@ export function NovoCardJuridicoModal({
   }, [estado]);
 
   const tituloPreview = useMemo(() => {
+    if (modo === 'comercial') {
+      const nome = nomeCandidato.trim();
+      if (!tipoComercial || !nome) return '';
+      return tituloSolicitacaoComercial(tipoComercial, nome);
+    }
     if (modo === 'candidato') {
       const nome = nomeCandidato.trim();
       if (!nome) return '';
@@ -131,6 +143,7 @@ export function NovoCardJuridicoModal({
     nomeCandidato,
     cidade,
     estado,
+    tipoComercial,
     franqueados,
     franqueadoRedeId,
     nomeCondominio,
@@ -139,18 +152,73 @@ export function NovoCardJuridicoModal({
   ]);
 
   const podeEnviar = useMemo(() => {
-    if (!faseId || loading) return false;
+    if (loading) return false;
+    if (modo === 'comercial') {
+      return Boolean(tipoComercial && nomeCandidato.trim() && observacoes.trim());
+    }
+    if (!faseId) return false;
     if (modo === 'candidato') {
       return Boolean(nomeCandidato.trim() && estado.trim() && cidade.trim());
     }
     return Boolean(
       franqueadoRedeId || nomeCondominio.trim() || quadra.trim() || lote.trim(),
     );
-  }, [faseId, loading, modo, nomeCandidato, estado, cidade, franqueadoRedeId, nomeCondominio, quadra, lote]);
+  }, [
+    faseId,
+    loading,
+    modo,
+    tipoComercial,
+    nomeCandidato,
+    observacoes,
+    estado,
+    cidade,
+    franqueadoRedeId,
+    nomeCondominio,
+    quadra,
+    lote,
+  ]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
+    if (enviandoRef.current) return;
+
+    if (modo === 'comercial') {
+      if (!tipoComercial) {
+        setErro('Selecione COF ou Cto de Franquia.');
+        return;
+      }
+      if (!nomeCandidato.trim()) {
+        setErro('Informe o candidato.');
+        return;
+      }
+      if (!observacoes.trim()) {
+        setErro('Descreva a solicitação.');
+        return;
+      }
+      enviandoRef.current = true;
+      setLoading(true);
+      try {
+        const res = await criarSolicitacaoJuridicaComercial({
+          tipo: tipoComercial,
+          candidato: nomeCandidato.trim(),
+          observacao: observacoes.trim(),
+          estado: estado.trim() || undefined,
+          cidade: cidade.trim() || undefined,
+        });
+        if (!res.ok) throw new Error(res.error);
+        router.refresh();
+        onClose();
+      } catch (err) {
+        console.error('Erro ao criar solicitação jurídica:', err);
+        setErro(err instanceof Error ? err.message : 'Erro ao criar a solicitação. Tente novamente.');
+      } finally {
+        enviandoRef.current = false;
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!faseId) {
       setErro('Selecione a fase inicial.');
       return;
@@ -244,7 +312,7 @@ export function NovoCardJuridicoModal({
             className="text-lg font-bold"
             style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-display)' }}
           >
-            Novo Card
+            {modo === 'comercial' ? 'Nova solicitação jurídica' : 'Novo Card'}
           </h2>
           <button
             type="button"
@@ -263,9 +331,10 @@ export function NovoCardJuridicoModal({
               <p className="mb-2 text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
                 Como abrir o card
               </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {(
                   [
+                    { id: 'comercial' as const, label: 'Comercial' },
                     { id: 'franqueado' as const, label: 'Com franqueado' },
                     { id: 'candidato' as const, label: 'Candidato' },
                   ] as const
@@ -294,11 +363,123 @@ export function NovoCardJuridicoModal({
                 })}
               </div>
               <p className="mt-1.5 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Franqueado, condomínio, quadra e lote são opcionais neste funil.
+                {modo === 'comercial'
+                  ? 'A solicitação entra em Recebimento. Não cria card no Comercial.'
+                  : 'Franqueado, condomínio, quadra e lote são opcionais neste funil.'}
               </p>
             </div>
 
-            {modo === 'franqueado' ? (
+            {modo === 'comercial' ? (
+              <>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                    Origem
+                  </p>
+                  <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+                    Comercial
+                  </p>
+                </div>
+                <div>
+                  <p className="mb-2 text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                    Tipo <span style={{ color: 'var(--moni-status-overdue-text)' }}>*</span>
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {(
+                      [
+                        { id: 'cof' as const, label: 'COF' },
+                        { id: 'franquia' as const, label: 'Cto de Franquia' },
+                      ] as const
+                    ).map((op) => {
+                      const ativo = tipoComercial === op.id;
+                      return (
+                        <button
+                          key={op.id}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => setTipoComercial(op.id)}
+                          className="px-3 py-2 text-sm font-medium transition"
+                          style={{
+                            minHeight: '44px',
+                            borderRadius: 'var(--moni-radius-md)',
+                            border: '0.5px solid var(--moni-border-default)',
+                            background: ativo ? 'var(--moni-navy-800)' : 'transparent',
+                            color: ativo ? '#fff' : 'var(--moni-text-secondary)',
+                          }}
+                        >
+                          {op.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                    Candidato <span style={{ color: 'var(--moni-status-overdue-text)' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={nomeCandidato}
+                    onChange={(e) => setNomeCandidato(e.target.value)}
+                    placeholder="Nome do candidato"
+                    className={inputCls}
+                    style={inputStyle}
+                    disabled={loading}
+                    maxLength={120}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                    Solicitação <span style={{ color: 'var(--moni-status-overdue-text)' }}>*</span>
+                  </label>
+                  <textarea
+                    value={observacoes}
+                    onChange={(e) => setObservacoes(e.target.value)}
+                    placeholder="Ex.: Necessário emitir COF para o candidato."
+                    className="mt-1 w-full px-3 py-2 text-sm"
+                    style={{ ...inputStyle, minHeight: '96px', resize: 'vertical' }}
+                    disabled={loading}
+                    rows={4}
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                      Estado <span className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>(opcional)</span>
+                    </label>
+                    <SearchableSelect
+                      value={estado}
+                      onChange={setEstado}
+                      disabled={loading}
+                      placeholder="UF"
+                      searchPlaceholder="Buscar estado"
+                      size="md"
+                      className="mt-1"
+                      triggerClassName={triggerCls}
+                      options={UFS_BRASIL.map((uf) => ({
+                        value: uf.sigla,
+                        label: `${uf.sigla} — ${uf.nome}`,
+                      }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                      Cidade <span className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>(opcional)</span>
+                    </label>
+                    <SearchableSelect
+                      value={cidade}
+                      onChange={setCidade}
+                      disabled={loading || !estado || carregandoCidades}
+                      placeholder={!estado ? 'UF primeiro' : carregandoCidades ? 'Carregando…' : 'Cidade'}
+                      searchPlaceholder="Buscar cidade"
+                      size="md"
+                      className="mt-1"
+                      triggerClassName={triggerCls}
+                      options={cidades.map((c) => ({ value: c.nome, label: c.nome }))}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : modo === 'franqueado' ? (
               <>
                 <div>
                   <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
@@ -445,6 +626,11 @@ export function NovoCardJuridicoModal({
               </>
             )}
 
+            {modo === 'comercial' ? (
+              <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Fase inicial: Recebimento. Rodada 1.
+              </p>
+            ) : (
             <div>
               <label htmlFor="fase-juridico" className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
                 Fase inicial <span style={{ color: 'var(--moni-status-overdue-text)' }}>*</span>
@@ -462,6 +648,7 @@ export function NovoCardJuridicoModal({
                 options={fases.map((fase) => ({ value: fase.id, label: fase.nome }))}
               />
             </div>
+            )}
 
             <div
               className="rounded-lg p-4"
@@ -499,7 +686,7 @@ export function NovoCardJuridicoModal({
                   minHeight: '44px',
                 }}
               >
-                {loading ? 'Criando...' : 'Criar Card'}
+                {loading ? 'Criando...' : modo === 'comercial' ? 'Enviar solicitação' : 'Criar Card'}
               </button>
               <button
                 type="button"

@@ -1668,9 +1668,20 @@ function ItemField({
   }
 
   if (item.tipo === 'select') {
-    const opcoes = Array.isArray(item.config_json?.opcoes)
-      ? (item.config_json!.opcoes as string[])
-      : [];
+    const opcoes = (Array.isArray(item.config_json?.opcoes) ? item.config_json.opcoes : [])
+      .map((opcao) => {
+        if (typeof opcao === 'string') {
+          const texto = opcao.trim();
+          return texto ? { value: texto, label: texto } : null;
+        }
+        if (opcao && typeof opcao === 'object' && 'value' in opcao) {
+          const value = String((opcao as { value?: unknown }).value ?? '').trim();
+          const label = String((opcao as { label?: unknown }).label ?? value).trim();
+          return value ? { value, label: label || value } : null;
+        }
+        return null;
+      })
+      .filter((opcao): opcao is { value: string; label: string } => opcao != null);
     return (
       <div>
         {labelEl}
@@ -1684,8 +1695,8 @@ function ItemField({
         >
           <option value="">Selecione…</option>
           {opcoes.map((o) => (
-            <option key={o} value={o}>
-              {o}
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
           ))}
         </select>

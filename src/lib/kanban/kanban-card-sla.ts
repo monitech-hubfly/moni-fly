@@ -1,7 +1,6 @@
 import { calcularStatusSLAPorTipo, normalizarSlaTipo, rotuloUnidadeSla, type SlaTipo } from '@/lib/dias-uteis';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
-import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
 
 export const TAG_AGUARDANDO_DOCUMENTACAO = 'Aguardando Documentação';
 export const CLASSE_TAG_AGUARDANDO_DOCUMENTACAO = 'moni-tag-atencao';
@@ -25,13 +24,14 @@ export function tagSlaKanbanParaExibicao(
 ): { texto: string; variante: 'ok' | 'atencao' | 'atrasado' } | null {
   if (sla.pausado || sla.status === 'ok') return null;
   const unidade = rotuloUnidadeSla(sla.slaTipo);
-  const n =
-    sla.status === 'atrasado'
-      ? Math.max(1, sla.diasAtraso ?? 1)
-      : sla.diasRestantes ?? 0;
+  if (sla.status === 'atrasado') {
+    const n = Math.max(1, sla.diasAtraso ?? 1);
+    return { texto: `${n} ${unidade}`, variante: 'atrasado' };
+  }
+  const restantes = sla.diasRestantes ?? 0;
   return {
-    texto: `${n} ${unidade}`,
-    variante: sla.status,
+    texto: restantes === 0 ? 'vence hoje' : `vence em ${restantes} ${unidade}`,
+    variante: 'atencao',
   };
 }
 

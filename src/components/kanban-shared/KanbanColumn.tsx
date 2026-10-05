@@ -675,12 +675,13 @@ const KanbanColumnInner = function KanbanColumn({
           });
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
-          // Faixa lateral vermelha: só a fase atual, e nunca em fase de conclusão.
+          // Faixa vermelha só quando o SLA desta fase estourou (entrada na fase + prazo da coluna).
+          // A calculadora encadeada não pinta o card: trocar de fase zera o atraso visível.
           const slaAtrasado =
             !faseConclusao &&
             !arquivado &&
             !concluido &&
-            (sla.status === 'atrasado' || card.calculadora_sla_estourado === true);
+            sla.status === 'atrasado';
           const statusLateral = slaAtrasado ? 'vermelho' : 'cinza';
           const motivo = (card.motivo_arquivamento ?? '').trim();
           const resultado = card.resultado ?? null;
@@ -900,12 +901,12 @@ const KanbanColumnInner = function KanbanColumn({
                     >
                       {tituloLimpo}
                     </span>
-                    {Number(card.juridico_bolinha_count ?? 0) > 0 ? (
+                    {kanbanId === KANBAN_IDS.JURIDICO && Number(card.juridico_bolinha_count ?? 0) >= 1 ? (
                       <span
                         className="moni-juridico-bolinha-badge"
-                        title={`Contrato revisado ${Number(card.juridico_bolinha_count)} vez(es)`}
+                        title={`Rodada ${Number(card.juridico_bolinha_count)} do atendimento jurídico`}
                       >
-                        ↺ {Number(card.juridico_bolinha_count)}x
+                        Rodada {Number(card.juridico_bolinha_count)}
                       </span>
                     ) : null}
                   </div>
@@ -1059,7 +1060,7 @@ const KanbanColumnInner = function KanbanColumn({
         ) : null}
         {exibirAdicionarCard && novoCardHref ? (
           <Link href={novoCardHref} className="moni-kanban-add-card">
-            + Adicionar card
+            {kanbanId === KANBAN_IDS.JURIDICO ? '+ Nova solicitação jurídica' : '+ Adicionar card'}
           </Link>
         ) : null}
       </div>

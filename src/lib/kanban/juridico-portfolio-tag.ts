@@ -1,15 +1,23 @@
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import type { createAdminClient } from '@/lib/supabase/admin';
 
-/** Tags do Funil Jurídico disparadas pelos bastões do Portfólio. */
+/** Tags do Funil Jurídico disparadas pelos bastões do Portfólio e de Loteadores. */
 export const JURIDICO_PORTFOLIO_TAG_OPCAO = 'Opção';
 export const JURIDICO_PORTFOLIO_TAG_CTO_PRECEDENTES = 'Cto c/ Precedentes';
 export const JURIDICO_PORTFOLIO_TAG_CTO_SEM_PRECEDENTES = 'Cto s/ Precedentes';
+export const JURIDICO_TAG_NDA = 'NDA';
+export const JURIDICO_TAG_CTO_PARCERIA = 'Cto de Parceria';
+export const JURIDICO_TAG_COF = 'COF';
+export const JURIDICO_TAG_CTO_FRANQUIA = 'Cto de Franquia';
 
 export const JURIDICO_PORTFOLIO_TAGS = [
-  { nome: JURIDICO_PORTFOLIO_TAG_OPCAO, cor: '#3e7490' },
-  { nome: JURIDICO_PORTFOLIO_TAG_CTO_PRECEDENTES, cor: '#2f4a3a' },
-  { nome: JURIDICO_PORTFOLIO_TAG_CTO_SEM_PRECEDENTES, cor: '#4a3929' },
+  { nome: JURIDICO_PORTFOLIO_TAG_OPCAO, cor: '#3e7490', preservarSeExistir: false },
+  { nome: JURIDICO_PORTFOLIO_TAG_CTO_PRECEDENTES, cor: '#2f4a3a', preservarSeExistir: false },
+  { nome: JURIDICO_PORTFOLIO_TAG_CTO_SEM_PRECEDENTES, cor: '#4a3929', preservarSeExistir: false },
+  { nome: JURIDICO_TAG_NDA, cor: '#3e7490', preservarSeExistir: true },
+  { nome: JURIDICO_TAG_CTO_PARCERIA, cor: '#2f4a3a', preservarSeExistir: true },
+  { nome: JURIDICO_TAG_COF, cor: '#3e7490', preservarSeExistir: true },
+  { nome: JURIDICO_TAG_CTO_FRANQUIA, cor: '#4a3929', preservarSeExistir: true },
 ] as const;
 
 export type JuridicoPortfolioTagNome = (typeof JURIDICO_PORTFOLIO_TAGS)[number]['nome'];
@@ -39,7 +47,7 @@ export async function garantirTagsJuridicoPortfolio(
       .maybeSingle();
 
     if (existing?.id) {
-      if (String((existing as { cor?: string }).cor ?? '') !== tag.cor) {
+      if (!tag.preservarSeExistir && String((existing as { cor?: string }).cor ?? '') !== tag.cor) {
         await db
           .from('kanban_tags')
           .update({ cor: tag.cor } as never)

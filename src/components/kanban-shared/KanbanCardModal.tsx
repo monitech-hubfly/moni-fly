@@ -83,12 +83,14 @@ import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
 import { useAdmin } from '@/context/AdminContext';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { JuridicoPontosSecao } from './JuridicoPontosSecao';
+import { JuridicoRetroalimentacaoSecao } from './JuridicoRetroalimentacaoSecao';
 import {
   autorizarAberturaCreditoObra,
   consultarAberturaCreditoObraPendente,
   recusarAberturaCreditoObra,
 } from '@/lib/actions/credito-obra-abertura-automatica';
-import { garantirBastaoPassagemWayser, garantirBastaoJuridicoPortfolio } from '@/lib/actions/kanban-bastoes';
+import { garantirBastaoPassagemWayser } from '@/lib/actions/kanban-bastoes';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
 import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
@@ -2045,9 +2047,6 @@ export function KanbanCardModal({
           slugAbertura === FASE_SLUGS.PASSAGEM_WAYSER
         ) {
           void garantirBastaoPassagemWayser(loaded.id);
-        }
-        if (loaded.kanban_id === KANBAN_IDS.PORTFOLIO) {
-          void garantirBastaoJuridicoPortfolio(loaded.id);
         }
       }
     } catch {
@@ -6266,6 +6265,25 @@ export function KanbanCardModal({
                   </div>
                 )}
               </div>
+              {card.kanban_id === KANBAN_IDS.JURIDICO &&
+              !portalFrank &&
+              (modalSessao.roleNorm.toLowerCase() === 'admin' || modalSessao.roleNorm.toLowerCase() === 'team') &&
+              (faseSlugAtual === FASE_SLUGS.JURIDICO_ALTERACOES_RESPOSTAS ||
+                faseSlugAtual === FASE_SLUGS.JURIDICO_POS_ASSINATURA) ? (
+                <>
+                  {faseSlugAtual === FASE_SLUGS.JURIDICO_POS_ASSINATURA ? (
+                    <JuridicoRetroalimentacaoSecao
+                      cardId={card.id}
+                      podeEditar={!ocultarGestaoCard && !card.arquivado}
+                    />
+                  ) : null}
+                  <JuridicoPontosSecao
+                    cardId={card.id}
+                    podeEditar={!ocultarGestaoCard && !card.arquivado}
+                    exibirGerarResposta={faseSlugAtual === FASE_SLUGS.JURIDICO_ALTERACOES_RESPOSTAS}
+                  />
+                </>
+              ) : null}
               {exibirEnviarHipotesePortfolio ? (
                 <div className="mt-4 space-y-2">
                   <button
@@ -7684,7 +7702,7 @@ export function KanbanCardModal({
                 prefetch={
                   imobSimulacoesPrefetch?.cardId === card.id ? imobSimulacoesPrefetch : null
                 }
-                esperarPrefetch={imobSimulacoesPrefetch?.cardId !== card.id}
+                esperarPrefetch={false}
                 legadoProdutoModeloCasa={
                   negocioDraft.produto_modelo_casa || proc?.produto_modelo_casa || ''
                 }

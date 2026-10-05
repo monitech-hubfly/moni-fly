@@ -502,7 +502,8 @@ function faseUltrapassouSla(
   slaDias: number | null,
   slaTipo: SlaTipo,
 ): boolean {
-  if (dataInicioReal && dataFimReal && slaDias != null && slaDias > 0) {
+  if (slaDias == null || slaDias <= 0) return false;
+  if (dataInicioReal && dataFimReal) {
     return diasDecorridosPorSla(dataInicioReal, dataFimReal, slaTipo) > slaDias;
   }
   return Boolean(dataFimReal && dataFimEstimada && dataFimReal > dataFimEstimada);
@@ -515,7 +516,8 @@ function faseEmAtrasoPorSlaAberta(
   slaDias: number | null,
   slaTipo: SlaTipo,
 ): boolean {
-  if (dataInicioReal && slaDias != null && slaDias > 0) {
+  if (slaDias == null || slaDias <= 0) return false;
+  if (dataInicioReal) {
     return diasDecorridosPorSla(dataInicioReal, hoje, slaTipo) > slaDias;
   }
   return Boolean(dataFimEstimada && hoje > dataFimEstimada);
@@ -605,6 +607,71 @@ function ordemAtualCalculadoraLinhas(
     linhas.find((l) => l.status === 'futura')?.ordem ??
     Number.MAX_SAFE_INTEGER
   );
+}
+
+/**
+ * Fase em andamento: o atraso visível conta só a partir da entrada nesta fase.
+ * O encadeamento das fases anteriores não pode pintar o card atual como atrasado
+ * enquanto o SLA da coluna (entered_fase_at + sla_dias) ainda não estourou.
+ */
+export function aplicarRelogioFaseAtualPorEntrada(
+  linhas: CalculadoraFaseLinha[],
+  card: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+  overrides?: Map<string, CalculadoraFaseDataManualOverride>,
+): CalculadoraFaseLinha[] {
+  if (linhas.length === 0 || card.concluido) return linhas;
+  const entered = toYmd(card.entered_fase_at);
+  if (!entered) return linhas;
+
+  const idx = linhas.findIndex((l) => l.faseId === card.fase_id);
+  if (idx < 0) return linhas;
+
+  const row = linhas[idx]!;
+  const ov = overrides?.get(row.faseId);
+  if (ov && ('dataInicio' in ov || 'dataFim' in ov)) return linhas;
+
+  const inicio = primeiroDiaUtilDe(entered);
+  const dataFimEstimada =
+    row.slaDias != null && row.slaDias > 0
+      ? fimEstimadaPorSla(inicio, row.slaDias, row.slaTipo)
+      : null;
+  const hoje = hojeYmd(hojeRef);
+  const ordemAtual = ordemAtualCalculadoraLinhas(linhas, card);
+  const status = resolveStatus(
+    row.faseId,
+    card,
+    inicio,
+    null,
+    dataFimEstimada,
+    row.ordem,
+    ordemAtual,
+    hoje,
+    row.slaDias,
+    row.slaTipo,
+  );
+  const atrasoDias = resolveAtraso(
+    status,
+    inicio,
+    dataFimEstimada,
+    null,
+    hoje,
+    row.slaTipo,
+    row.slaDias,
+  );
+
+  let out = linhas.map((l) => ({ ...l }));
+  out[idx] = {
+    ...row,
+    dataInicioReal: inicio,
+    dataFimReal: null,
+    dataFimEstimada,
+    status,
+    atrasoDias,
+  };
+
+  out = propagarLinhasCalculadoraForward(out, idx, card, ordemAtual, hoje, overrides);
+  return recomputarStatusAtrasoLinhasCalculadora(out, card, hojeRef);
 }
 
 /** Reaplica status e atraso em todas as linhas após alterações de datas. */
