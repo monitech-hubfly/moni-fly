@@ -749,27 +749,37 @@ async function getTopicosAtrasados(
     .select('id, chamado_id, descricao, time_responsavel, responsavel_id, data_fim')
     .in('status', ['nao_iniciado', 'em_andamento'])
     .not('data_fim', 'is', null)
-    .lt('data_fim', hoje);
+    .lt('data_fim', hoje)
+    .not('arquivado', 'is', true); // ignora tópicos arquivados
 
   if (error || !topicos?.length) return [];
 
   const chamadoIds = [...new Set(topicos.map((t) => t.chamado_id))];
   const { data: chamados } = await supabase
     .from('sirene_chamados')
-    .select('id, numero')
+    .select('id, numero, status, arquivado')
     .in('id', chamadoIds);
-  const numeroByChamado = new Map(
-    (chamados ?? []).map((c) => [c.id, (c as { numero?: number }).numero ?? c.id]),
+
+  // Apenas chamados ainda em aberto (não concluídos e não arquivados)
+  const chamadosAtivos = new Map(
+    (chamados ?? [])
+      .filter(
+        (c) =>
+          (c as { status?: string }).status !== 'concluido' &&
+          !(c as { arquivado?: boolean }).arquivado,
+      )
+      .map((c) => [c.id, (c as { numero?: number }).numero ?? c.id]),
   );
 
   return topicos
+    .filter((t) => chamadosAtivos.has(t.chamado_id)) // exclui tópicos de chamados encerrados
     .map((t) => {
       const dataFim = (t.data_fim as string) ?? '';
       const dias_atraso = diasUteisAtraso(dataFim);
       return {
         id: t.id,
         chamado_id: t.chamado_id,
-        numero: numeroByChamado.get(t.chamado_id) ?? t.chamado_id,
+        numero: chamadosAtivos.get(t.chamado_id) ?? t.chamado_id,
         descricao: t.descricao ?? '',
         time_responsavel: t.time_responsavel ?? '',
         responsavel_id: t.responsavel_id ?? null,
