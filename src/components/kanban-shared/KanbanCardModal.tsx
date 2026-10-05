@@ -7702,7 +7702,7 @@ export function KanbanCardModal({
                 prefetch={
                   imobSimulacoesPrefetch?.cardId === card.id ? imobSimulacoesPrefetch : null
                 }
-                esperarPrefetch={imobSimulacoesPrefetch?.cardId !== card.id}
+                esperarPrefetch={false}
                 legadoProdutoModeloCasa={
                   negocioDraft.produto_modelo_casa || proc?.produto_modelo_casa || ''
                 }
