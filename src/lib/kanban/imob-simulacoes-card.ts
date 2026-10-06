@@ -17,14 +17,13 @@ export const IMOB_STATUS_IMOVEL = [
 ] as const;
 
 export const IMOB_PRODUTOS_MODELO = [
-  'Moní Gal™',
-  'Moní Cissa™',
-  'Moní Eva™',
-  'Moní Ivy™',
-  'Moní Lena™',
-  'Moní Liz™',
-  'Moní Mia™',
-  'Moní Sol™',
+  'Moní Gal L™',
+  'Moní Cissa L™',
+  'Moní Val™',
+  'Moní Lu™',
+  'Moní Isa™',
+  'Moní Duda™',
+  'Moní Ale™',
 ] as const;
 
 export type ImobSituacaoId = (typeof IMOB_SITUACOES)[number]['id'];
