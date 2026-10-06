@@ -237,6 +237,7 @@ import {
   KanbanCardModalOperacoesTrancheVinculosSidebar,
 } from './KanbanCardModalOperacoesTrancheVinculos';
 import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
+import CardFormulariosSecao from '@/components/formularios/CardFormulariosSecao';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
 import { KanbanCardSlaBolinha } from './KanbanCardPrazoIndicadores';
@@ -647,6 +648,7 @@ export function KanbanCardModal({
     obra: false,
     documentacaoCreditoObra: true,
     relacionamentos: false,
+    formularios: true,
     atasReuniao: false,
     chamados: false,
     historico: false,
@@ -7922,6 +7924,16 @@ export function KanbanCardModal({
                 />
               </div>,
             )}
+            {card?.id && !portalFrank
+              ? secaoHead(
+                  'formularios',
+                  'Formulários',
+                  <CardFormulariosSecao
+                    cardId={card.id}
+                    redeFranqueadoId={card.rede_franqueado_id ?? null}
+                  />,
+                )
+              : null}
             {card && (
               <ChecklistCard
                 cardId={card.id}

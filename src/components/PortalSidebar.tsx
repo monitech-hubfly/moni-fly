@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
 import { Building2, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { AlertasBellLink } from '@/components/AlertasBellLink';
 import { canAccessFunilContratacoes, isAdminRole, normalizeAccessRole } from '@/lib/authz';
@@ -394,6 +395,16 @@ export function PortalSidebar({ user, userRole, userCargo = null }: PortalSideba
             className={linkClassPrincipal(Boolean(pathname?.startsWith('/repositorio')))}
           >
             Repositório
+          </Link>
+        )}
+
+        {!limitedRelease && !isFrank && (isAdmin || resolvedRole === 'team') && (
+          <Link
+            href="/formularios"
+            className={`${linkClassPrincipal(Boolean(pathname?.startsWith('/formularios')))} flex items-center gap-2`}
+          >
+            <ClipboardDocumentListIcon className="h-4 w-4 shrink-0" aria-hidden />
+            Formulários
           </Link>
         )}
 

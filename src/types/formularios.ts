@@ -1,94 +1,112 @@
-export const FORMULARIO_CAMPO_TIPOS = [
-  'texto_curto',
-  'texto_longo',
-  'email',
-  'telefone',
-  'moeda',
-  'numero',
-  'data',
-  'link',
-  'arquivo_multiplo',
-  'link_ou_arquivo',
-  'select',
-  'checkbox',
-] as const;
+export type FormularioCampoTipo =
+  | 'texto'
+  | 'texto_curto'
+  | 'texto_longo'
+  | 'email'
+  | 'telefone'
+  | 'moeda'
+  | 'numero'
+  | 'data'
+  | 'link'
+  | 'select'
+  | 'checkbox'
+  | 'arquivo_multiplo'
+  | 'link_ou_arquivo';
 
-export type FormularioCampoTipo = (typeof FORMULARIO_CAMPO_TIPOS)[number];
-
-export type FormularioStatusResposta = 'rascunho' | 'enviado';
-
-export type FormularioOpcao = {
-  valor: string;
-  rotulo: string;
-};
-
-export type FormularioCampo = {
+export interface FormularioCampo {
   id: string;
   secao_id: string;
-  nome: string;
+  label: string;
   tipo: FormularioCampoTipo;
-  ordem: number;
   obrigatorio: boolean;
-  opcoes: FormularioOpcao[];
+  ordem: number;
+  placeholder: string | null;
+  descricao: string | null;
+  opcoes: string[];
   condicional_campo_id: string | null;
   condicional_valor: string | null;
-};
+  ativo: boolean;
+}
 
-export type FormularioSecao = {
+export interface FormularioSecao {
   id: string;
   formulario_id: string;
-  nome: string;
+  titulo: string;
+  descricao: string | null;
   ordem: number;
   condicional_campo_id: string | null;
   condicional_valor: string | null;
   campos: FormularioCampo[];
-};
+}
 
-export type FormularioListaItem = {
+export interface Formulario {
   id: string;
   nome: string;
   descricao: string | null;
-};
+  ativo: boolean;
+  criado_em: string;
+  secoes: FormularioSecao[];
+}
 
-export type FormularioRespostaListaItem = {
+export interface FormularioToken {
+  id: string;
+  formulario_id: string;
+  token: string;
+  card_id: string | null;
+  rede_franqueado_id: string | null;
+  usado: boolean;
+  criado_em: string;
+  criado_por: string | null;
+  expira_em: string | null;
+}
+
+export type FormularioRespostaStatus = 'rascunho' | 'iniciado' | 'em_preenchimento' | 'enviado' | 'arquivado';
+
+export interface FormularioRespostaCampo {
+  campo_id: string;
+  valor: string | string[] | null;
+  arquivos?: FormularioArquivo[];
+}
+
+export interface FormularioArquivo {
+  nome: string;
+  url: string;
+  tamanho: number;
+  tipo: string;
+}
+
+export interface FormularioResposta {
+  id: string;
+  formulario_id: string;
+  token_id: string | null;
+  card_id: string | null;
+  kanban_id: string | null;
+  rede_franqueado_id: string | null;
+  nome_franqueado: string | null;
+  numero_franquia: string | null;
+  status: FormularioRespostaStatus;
+  enviado_em: string | null;
+  criado_em: string;
+  dados: Record<string, FormularioRespostaCampo>;
+}
+
+export interface FormularioRespostaListaItem {
   id: string;
   formulario_id: string;
   formulario_nome: string;
-  status: FormularioStatusResposta;
-  created_at: string;
+  status: FormularioRespostaStatus;
   enviado_em: string | null;
+  criado_em: string;
+  nome_franqueado: string | null;
+  numero_franquia: string | null;
   card_id: string | null;
   rede_franqueado_id: string | null;
-  numero_franquia: string | null;
-  nome_franqueado: string | null;
-};
+}
 
-export type FormularioValorGravado = {
-  campo_id: string;
-  campo_nome: string;
-  tipo: FormularioCampoTipo;
-  valor_texto: string | null;
-  valor_numero: number | null;
-  valor_data: string | null;
-  valor_json: unknown;
-};
+export interface RespostaLocal {
+  [campoId: string]: string | string[];
+}
 
-export type FormularioArquivoGravado = {
-  id: string;
-  campo_id: string;
-  nome_arquivo: string;
-  url: string | null;
-};
-
-export type FormularioRespostaDetalhe = FormularioRespostaListaItem & {
-  valores: FormularioValorGravado[];
-  arquivos: FormularioArquivoGravado[];
-};
-
-export type FormularioValorSubmit = {
-  campoId: string;
-  valorTexto?: string | null;
-  valorNumero?: number | null;
-  valorData?: string | null;
-  valorJson?: unknown;
-};
+export interface ArquivoLocal {
+  [campoId: string]: File[];
+}

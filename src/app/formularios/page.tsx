@@ -19,7 +19,7 @@ export default async function FormulariosPage() {
   if (role === 'frank') redirect('/portal-frank');
   if (!isAdminRole(role) && role !== 'team') redirect('/rede-franqueados');
 
-  const data = await listarFormulariosAtivos();
+  const formularios = await listarFormulariosAtivos();
 
   return (
     <div className="min-h-0 bg-[var(--moni-surface-50)]">
@@ -30,13 +30,8 @@ export default async function FormulariosPage() {
         <p className="mt-2 text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
           Modelos enviados por link público. O franqueado preenche sem entrar no Hub.
         </p>
-        {!data.ok ? (
-          <p className="mt-6 text-sm" style={{ color: 'var(--moni-status-overdue-text)' }}>
-            {data.error}
-          </p>
-        ) : (
           <ul className="mt-8 space-y-4">
-            {data.formularios.map((formulario) => (
+            {formularios.map((formulario) => (
               <li
                 key={formulario.id}
                 className="space-y-3 p-5"
@@ -73,7 +68,6 @@ export default async function FormulariosPage() {
               </li>
             ))}
           </ul>
-        )}
       </main>
     </div>
   );

@@ -35,6 +35,7 @@ export function GerarLinkFormularioButton({
   compacto = false,
 }: {
   formularioId: string;
+  formularioNome?: string;
   cardId?: string | null;
   redeFranqueadoId?: string | null;
   rotulo?: string;
@@ -50,13 +51,17 @@ export function GerarLinkFormularioButton({
   async function gerar() {
     setGerando(true);
     setErro(null);
-    const res = await gerarTokenFormulario(formularioId, card.trim() || null, rede.trim() || null);
+    const res = await gerarTokenFormulario({
+      formularioId,
+      cardId: card.trim() || null,
+      redeFranqueadoId: rede.trim() || null,
+    });
     setGerando(false);
-    if (!res.ok) {
-      setErro(res.error);
+    if (!res.token) {
+      setErro(res.error ?? 'Erro ao gerar link.');
       return;
     }
-    setUrl(res.url);
+    setUrl(`${window.location.origin}/f/${res.token}`);
   }
 
   return (
@@ -140,3 +145,5 @@ export function GerarLinkFormularioButton({
     </>
   );
 }
+
+export default GerarLinkFormularioButton;

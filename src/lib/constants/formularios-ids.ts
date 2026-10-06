@@ -3,4 +3,3 @@ export const FORMULARIO_IDS = {
 } as const;
 
 export const FORMULARIOS_BUCKET = 'formularios-anexos';
-export const FORMULARIOS_ARQUIVO_MAX_BYTES = 50 * 1024 * 1024;

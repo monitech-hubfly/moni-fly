@@ -7,14 +7,14 @@ import {
   moedaParaNumero,
   normalizarCondicional,
 } from '@/lib/formularios/apresentacao';
-import type { FormularioCampo, FormularioListaItem, FormularioSecao, FormularioValorSubmit } from '@/types/formularios';
+import type { Formulario, FormularioCampo, FormularioSecao } from '@/types/formularios';
 
 type Props = {
+  formulario: Formulario;
   token: string;
-  tokenId: string;
+  cardId?: string | null;
+  redeFranqueadoId?: string | null;
   avulso: boolean;
-  formulario: FormularioListaItem;
-  secoes: FormularioSecao[];
 };
 
 const campoStyle: React.CSSProperties = {
@@ -69,7 +69,8 @@ function condicaoOk(
   return atual.some((item) => normalizarCondicional(item) === alvo);
 }
 
-export function FormularioPublicoClient({ token, tokenId, avulso, formulario, secoes }: Props) {
+export function FormularioPublicoClient({ token, avulso, formulario }: Props) {
+  const secoes = formulario.secoes;
   const campos = useMemo(() => secoes.flatMap((secao) => secao.campos), [secoes]);
   const [textos, setTextos] = useState<Record<string, string>>({});
   const [listas, setListas] = useState<Record<string, string[]>>({});
@@ -118,15 +119,15 @@ export function FormularioPublicoClient({ token, tokenId, avulso, formulario, se
     if (!secao) return null;
     for (const campo of secao.campos) {
       if (!campo.obrigatorio || !visiveis.has(campo.id)) continue;
-      if (campo.tipo === 'checkbox' && (listas[campo.id] ?? []).length === 0) return `Preencha: ${campo.nome}`;
-      if (campo.tipo === 'arquivo_multiplo' && (arquivos[campo.id] ?? []).length === 0) return `Anexe: ${campo.nome}`;
+      if (campo.tipo === 'checkbox' && (listas[campo.id] ?? []).length === 0) return `Preencha: ${campo.label}`;
+      if (campo.tipo === 'arquivo_multiplo' && (arquivos[campo.id] ?? []).length === 0) return `Anexe: ${campo.label}`;
       if (campo.tipo === 'link_ou_arquivo') {
         const temUrl = Boolean((textos[campo.id] ?? '').trim());
         const temArquivo = (arquivos[campo.id] ?? []).length > 0;
-        if (!temUrl && !temArquivo) return `Informe o link ou o arquivo: ${campo.nome}`;
+        if (!temUrl && !temArquivo) return `Informe o link ou o arquivo: ${campo.label}`;
         continue;
       }
-      if (!(textos[campo.id] ?? '').trim()) return `Preencha: ${campo.nome}`;
+      if (!(textos[campo.id] ?? '').trim()) return `Preencha: ${campo.label}`;
     }
     return null;
   }
@@ -180,7 +181,7 @@ export function FormularioPublicoClient({ token, tokenId, avulso, formulario, se
           }
         }
       }
-      const valores: FormularioValorSubmit[] = campos
+      const valores = campos
         .filter((campo) => visiveis.has(campo.id))
         .filter((campo) => campo.tipo !== 'arquivo_multiplo')
         .map((campo) => {
@@ -203,7 +204,7 @@ export function FormularioPublicoClient({ token, tokenId, avulso, formulario, se
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token,
-          tokenId: aberto.tokenId ?? tokenId,
+          tokenId: aberto.tokenId,
           respostaId: aberto.respostaId,
           numeroFranquia: numero,
           nomeFranqueado: nome,
@@ -286,7 +287,7 @@ export function FormularioPublicoClient({ token, tokenId, avulso, formulario, se
         {secaoAtual ? (
           <div className="space-y-4">
             <h2 className="text-lg" style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}>
-              {secaoAtual.nome}
+              {secaoAtual.titulo}
             </h2>
             {secaoAtual.campos.filter((campo) => visiveis.has(campo.id)).map((campo) => (
               <CampoPublico
@@ -354,7 +355,7 @@ function CampoPublico({
 }) {
   const label = (
     <span className="mb-1 block text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
-      {campo.nome}
+      {campo.label}
       {campo.obrigatorio ? ' *' : ''}
     </span>
   );
@@ -422,8 +423,8 @@ function CampoPublico({
         <select value={texto} onChange={(e) => onTexto(e.target.value)} style={campoStyle}>
           <option value="">Selecione</option>
           {campo.opcoes.map((opcao) => (
-            <option key={opcao.valor} value={opcao.valor}>
-              {opcao.rotulo}
+            <option key={opcao} value={opcao}>
+              {opcao}
             </option>
           ))}
         </select>
@@ -441,17 +442,15 @@ function CampoPublico({
         ) : (
           <div className="space-y-2">
             {campo.opcoes.map((opcao) => {
-              const marcado = lista.includes(opcao.valor);
+              const marcado = lista.includes(opcao);
               return (
-                <label key={opcao.valor} className="flex min-h-[44px] items-center gap-2 text-sm" style={{ fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-primary)' }}>
+                <label key={opcao} className="flex min-h-[44px] items-center gap-2 text-sm" style={{ fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-primary)' }}>
                   <input
                     type="checkbox"
                     checked={marcado}
-                    onChange={() =>
-                      onLista(marcado ? lista.filter((item) => item !== opcao.valor) : [...lista, opcao.valor])
-                    }
+                    onChange={() => onLista(marcado ? lista.filter((item) => item !== opcao) : [...lista, opcao])}
                   />
-                  {opcao.rotulo}
+                  {opcao}
                 </label>
               );
             })}
@@ -494,3 +493,5 @@ function CampoPublico({
     </label>
   );
 }
+
+export default FormularioPublicoClient;

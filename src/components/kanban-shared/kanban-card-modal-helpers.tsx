@@ -449,6 +449,7 @@ export type SecaoEsquerdaId =
   | 'obra'
   | 'documentacaoCreditoObra'
   | 'relacionamentos'
+  | 'formularios'
   | 'atasReuniao'
   | 'chamados'
   | 'historico';

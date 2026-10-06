@@ -15,17 +15,12 @@ export function FranqueadoFormulariosPainel({
   podeGerar: boolean;
 }) {
   const [respostas, setRespostas] = useState<FormularioRespostaListaItem[]>([]);
-  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
     let ativo = true;
     void listarRespostasDoFranqueado(redeFranqueadoId).then((res) => {
       if (!ativo) return;
-      if (!res.ok) {
-        setErro(res.error);
-        return;
-      }
-      setRespostas(res.respostas);
+      setRespostas(res);
     });
     return () => {
       ativo = false;
@@ -41,13 +36,7 @@ export function FranqueadoFormulariosPainel({
           rotulo="Gerar link do formulário de crédito"
         />
       ) : null}
-      {erro ? (
-        <p className="text-sm" style={{ color: 'var(--moni-status-overdue-text)', fontFamily: 'var(--moni-font-sans)' }}>
-          {erro}
-        </p>
-      ) : (
-        <RespostasFormularioLista respostas={respostas} />
-      )}
+      <RespostasFormularioLista respostas={respostas} />
     </div>
   );
 }

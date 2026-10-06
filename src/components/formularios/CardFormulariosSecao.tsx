@@ -7,7 +7,7 @@ import type { FormularioRespostaListaItem } from '@/types/formularios';
 import { GerarLinkFormularioButton } from './GerarLinkFormularioButton';
 import { RespostasFormularioLista } from './RespostasFormularioLista';
 
-export function CardFormulariosSecao({
+export default function CardFormulariosSecao({
   cardId,
   redeFranqueadoId,
 }: {
@@ -15,17 +15,12 @@ export function CardFormulariosSecao({
   redeFranqueadoId?: string | null;
 }) {
   const [respostas, setRespostas] = useState<FormularioRespostaListaItem[]>([]);
-  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
     let ativo = true;
     void listarRespostasDoCard(cardId).then((res) => {
       if (!ativo) return;
-      if (!res.ok) {
-        setErro(res.error);
-        return;
-      }
-      setRespostas(res.respostas);
+      setRespostas(res);
     });
     return () => {
       ativo = false;
@@ -34,13 +29,7 @@ export function CardFormulariosSecao({
 
   return (
     <div className="space-y-2">
-      {erro ? (
-        <p className="text-[10px]" style={{ color: 'var(--moni-status-overdue-text)' }}>
-          {erro}
-        </p>
-      ) : (
-        <RespostasFormularioLista respostas={respostas} compacto vazio="Nenhum formulário neste card." />
-      )}
+      <RespostasFormularioLista respostas={respostas} compacto vazio="Nenhum formulário neste card." />
       <GerarLinkFormularioButton
         formularioId={FORMULARIO_IDS.CHECKLIST_CREDITO_PRELIMINAR}
         cardId={cardId}
