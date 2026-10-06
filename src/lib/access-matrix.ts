@@ -36,6 +36,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/perfil',
   '/alertas',
   '/sirene',
+  '/formularios',
   '/universidade',
   '/admin/universidade',
   '/carometro',
@@ -239,6 +240,7 @@ export function isPortalFrankAuthAccessPath(pathname: string): boolean {
 export function isExternalTokenAccessPath(pathname: string): boolean {
   return (
     pathname.startsWith('/f/') ||
+    pathname.startsWith('/api/formularios/') ||
     pathname.startsWith('/formulario-candidato/') ||
     pathname.startsWith('/formulario-corretor/') ||
     pathname.startsWith('/loteador/') ||

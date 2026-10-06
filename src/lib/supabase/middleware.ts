@@ -125,6 +125,7 @@ export async function updateSession(request: NextRequest) {
     '/repositorio',
     '/perfil',
     '/sirene',
+    '/formularios',
     '/universidade',
     '/casa0',
     '/casa1',
