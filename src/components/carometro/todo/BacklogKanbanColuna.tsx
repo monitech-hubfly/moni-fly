@@ -177,8 +177,9 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
 }
 
 export function BacklogKanbanColuna() {
-  const { cards, sndCards, isLoading, error, isAdmin } = useBacklogKanban();
-  const [sndAberto, setSndAberto] = useState(false);
+  const { cards, ssdCards, srdCards, isLoading, error, isAdmin } = useBacklogKanban();
+  const [ssdAberto, setSsdAberto] = useState(false);
+  const [srdAberto, setSrdAberto] = useState(false);
 
   const atrasados  = cards.filter(c => c.sla?.status === 'atrasado').length;
   const atencao    = cards.filter(c => c.sla?.status === 'atencao').length;
@@ -212,30 +213,53 @@ export function BacklogKanbanColuna() {
         </div>
       ) : error ? (
         <p className="text-xs text-red-500 break-all">{error}</p>
-      ) : cards.length === 0 ? (
-        <EmptyState />
       ) : (
         <>
-          <div className="flex flex-col gap-1.5 max-h-[22rem] overflow-y-auto pr-0.5">
-            {cards.map(card => (
-              <DraggableKanbanCard key={card.id} card={card}>
-                <KanbanCard card={card} />
-              </DraggableKanbanCard>
-            ))}
-          </div>
-          {isAdmin && sndCards.length > 0 && (
+          {cards.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="flex flex-col gap-1.5 max-h-[22rem] overflow-y-auto pr-0.5">
+              {cards.map(card => (
+                <DraggableKanbanCard key={card.id} card={card}>
+                  <KanbanCard card={card} />
+                </DraggableKanbanCard>
+              ))}
+            </div>
+          )}
+          {isAdmin && ssdCards.length > 0 && (
             <div className="mt-2 border-t border-gray-200 pt-2">
               <button
                 type="button"
-                onClick={() => setSndAberto(v => !v)}
+                onClick={() => setSsdAberto(v => !v)}
                 className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 w-full text-left"
               >
-                <span>{sndAberto ? '▾' : '▸'}</span>
-                <span>SSD — Sem SLA Definido ({sndCards.length})</span>
+                <span>{ssdAberto ? '▾' : '▸'}</span>
+                <span>SSD — Sem SLA Definido ({ssdCards.length})</span>
               </button>
-              {sndAberto && (
+              {ssdAberto && (
                 <div className="flex flex-col gap-1.5 mt-1.5 max-h-[12rem] overflow-y-auto">
-                  {sndCards.map(card => (
+                  {ssdCards.map(card => (
+                    <DraggableKanbanCard key={card.id} card={card}>
+                      <KanbanCard card={card} />
+                    </DraggableKanbanCard>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {isAdmin && srdCards.length > 0 && (
+            <div className="mt-2 border-t border-gray-200 pt-2">
+              <button
+                type="button"
+                onClick={() => setSrdAberto(v => !v)}
+                className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 w-full text-left"
+              >
+                <span>{srdAberto ? '▾' : '▸'}</span>
+                <span>SRD — Sem Responsável Definido ({srdCards.length})</span>
+              </button>
+              {srdAberto && (
+                <div className="flex flex-col gap-1.5 mt-1.5 max-h-[12rem] overflow-y-auto">
+                  {srdCards.map(card => (
                     <DraggableKanbanCard key={card.id} card={card}>
                       <KanbanCard card={card} />
                     </DraggableKanbanCard>

@@ -485,7 +485,7 @@ export function ModalAgendamento({
   }, [backlog.atividades]);
 
   const kanbanItems = useMemo<BacklogItem[]>(() =>
-    [...kanbanData.cards, ...kanbanData.sndCards].map(c => {
+    kanbanData.cards.map(c => {
       const parts = [c.kanban_nome, c.fase_nome].filter(Boolean);
       const prio  = c.prioridade ?? null;
       const pb    = prio ? (PRIO_BADGE[prio] ?? PRIO_BADGE.P6) : { bg: '#f3f4f6', text: '#6b7280' };
@@ -499,7 +499,7 @@ export function ModalAgendamento({
         badgeText: pb.text,
       };
     }),
-  [kanbanData.cards, kanbanData.sndCards]);
+  [kanbanData.cards]);
 
   const listLoading =
     (abaAtiva === 'sirene'     && backlog.isLoading) ||
