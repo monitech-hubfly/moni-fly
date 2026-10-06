@@ -2756,7 +2756,9 @@ export function KanbanCardModal({
     if (proximaFase.id === faseAtual.id) return;
 
     const idxDestino = fases.findIndex((f) => f.id === proximaFase.id);
-    if (destinoExplicito && idxDestino >= 0 && idxAtual >= 0 && idxDestino < idxAtual) {
+    const ordemAtual = faseAtual.ordem ?? (idxAtual >= 0 ? idxAtual : 0);
+    const ordemDestino = proximaFase.ordem ?? (idxDestino >= 0 ? idxDestino : ordemAtual);
+    if (destinoExplicito && ordemDestino < ordemAtual) {
       if (!confirm(`Enviar o card para a fase "${proximaFase.nome}"?`)) return;
       await iniciarMovimentoFasePortfolio(proximaFase, 'retroceder');
       return;
@@ -7022,8 +7024,14 @@ export function KanbanCardModal({
                       value={faseAtual?.id ?? ''}
                       disabled={movendoFase || !podeMoverFaseCard || fases.length === 0}
                       onChange={(e) => {
-                        const destino = fases.find((f) => f.id === e.target.value);
-                        if (destino) void handleAvancarFase(destino);
+                        const select = e.currentTarget;
+                        const destino = fases.find((f) => f.id === select.value);
+                        select.value = faseAtual?.id ?? '';
+                        if (!destino || destino.id === faseAtual?.id) return;
+                        // O popup nativo do select cancela um confirm() aberto no mesmo evento.
+                        window.setTimeout(() => {
+                          void handleAvancarFase(destino);
+                        }, 50);
                       }}
                     >
                       {faseAtual && !fases.some((f) => f.id === faseAtual.id) ? (
