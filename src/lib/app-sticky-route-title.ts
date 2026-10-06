@@ -63,7 +63,7 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/step-5', title: 'Comitê' },
   { prefix: '/step-6', title: 'Diligência' },
   { prefix: '/step-7', title: 'Contrato' },
-  { prefix: '/painel', title: 'Check Legal e Crédito' },
+  { prefix: '/painel', title: 'Checks Legal, Diligência e Revisões' },
   { prefix: '/rede', title: 'Rede de Contatos' },
   { prefix: '/juridico', title: 'Dúvidas jurídicas' },
   { prefix: '/iniciar-processo', title: 'Iniciar processo' },

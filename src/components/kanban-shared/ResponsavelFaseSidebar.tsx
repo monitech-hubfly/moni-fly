@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { upsertFaseChecklistResposta } from '@/lib/actions/card-actions';
 import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioChecklistSelect';
 import {
+  aplicarResponsavelFasePadraoAoCard,
   buscarItemIdResponsavelFaseEdicao,
   buscarValorResponsavelFaseAnterior,
   isKanbanFunilLoteadoresId,
@@ -138,6 +139,17 @@ export function ResponsavelFaseSidebar({
             card_id: cardId,
             valor: herdado,
           });
+        } else if (kanbanId) {
+          await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, null);
+          const { data: respPadrao } = await supabase
+            .from('kanban_fase_checklist_respostas')
+            .select('valor')
+            .eq('card_id', cardId)
+            .eq('item_id', iid)
+            .maybeSingle();
+          valorAtual = normalizarValorUsuario(
+            (respPadrao as { valor?: string | null } | null)?.valor,
+          );
         }
       }
 

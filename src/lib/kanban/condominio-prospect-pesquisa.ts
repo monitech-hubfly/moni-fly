@@ -2,6 +2,7 @@ import {
   decimalInputFromValue,
   integerInputFromValue,
   parseDecimalInput,
+  ticketCadastroNumero,
   type CondominioRow,
 } from '@/lib/condominios';
 import {
@@ -675,8 +676,8 @@ export function linhaProspectDeCondominioRow(
     condominio_id: row.id,
     condominio: row.nome,
     descricao_breve: row.descricao_breve ?? '',
-    ticket_lote: formatTicketMedioFaixaFromValor(row.ticket_medio_lote),
-    ticket_casas: formatTicketMedioFaixaFromValor(row.ticket_medio_casas),
+    ticket_lote: formatTicketMedioFaixaFromValor(ticketCadastroNumero(row.ticket_medio_lote)),
+    ticket_casas: formatTicketMedioFaixaFromValor(ticketCadastroNumero(row.ticket_medio_casas)),
     ticket_m2: formatTicketMedioFaixaFromValor(row.ticket_medio_casas_rsm2),
     estimativa_giro: integerInputFromValue(row.estimativa_casas_vendidas_ano),
     recuo_frontal_m: decimalInputFromValue(row.recuo_frontal_m),

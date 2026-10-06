@@ -9,6 +9,7 @@ import {
 } from '@/lib/moni-capital-cadastros';
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
 import { CadastrosMoniCapitalTabela } from './CadastrosMoniCapitalTabela';
+import { useDebounce } from '@/hooks/useDebounce';
 
 type Props = {
   rows: MoniCapitalCadastroRow[];
@@ -18,6 +19,7 @@ type Props = {
 
 export function CadastrosMoniCapitalTabelaComBusca({ rows, loadError, children }: Props) {
   const [busca, setBusca] = useState('');
+  const debouncedBusca = useDebounce(busca);
 
   const todasLinhas = useMemo(
     () => filtrarLinhasEmBrancoMoniCapital(ordenarMoniCapitalCadastros(rows)),
@@ -25,10 +27,10 @@ export function CadastrosMoniCapitalTabelaComBusca({ rows, loadError, children }
   );
 
   const linhasFiltradas = useMemo(() => {
-    const q = busca.trim();
+    const q = debouncedBusca.trim();
     if (!q) return todasLinhas;
     return todasLinhas.filter((r) => moniCapitalCadastroMatchesBusca(r, q));
-  }, [todasLinhas, busca]);
+  }, [todasLinhas, debouncedBusca]);
 
   if (loadError) {
     return (

@@ -18,6 +18,7 @@ import {
   redeLoteadorRowToFichaDraft,
   type RedeLoteadorFichaDraft,
 } from '@/lib/rede-loteador-ficha-draft';
+import { condominiosFromUnknown, ordenarCondominiosPorNome, type CondominioRow } from '@/lib/condominios';
 import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
 import { formatLOValue, getNextLOFromRedeLoteadores, parseLOValue } from '@/lib/next-lo-loteador';
 import { criarRedeLoteador, atualizarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
@@ -103,6 +104,41 @@ export async function validarTokenIntakePublicoLoteador(
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: 'Link inválido.' };
   return { ok: true };
+}
+
+/** Lista enxuta para a busca do formulário público de novo card. */
+export async function listarCondominiosIntakePublico(token: string): Promise<
+  | { ok: true; opcoes: { id: string; nome: string; cidade: string | null; estado: string | null }[] }
+  | { ok: false; error: string }
+> {
+  const valid = await validarTokenIntakePublicoLoteador(token);
+  if (!valid.ok) return valid;
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço indisponível.' };
+  }
+
+  const { data, error } = await admin
+    .from('condominios')
+    .select('id, nome, cidade, estado')
+    .order('nome', { ascending: true });
+  if (error) return { ok: false, error: error.message };
+
+  const opcoes = (data ?? [])
+    .map((r) => {
+      const row = r as { id?: string; nome?: string | null; cidade?: string | null; estado?: string | null };
+      return {
+        id: String(row.id ?? ''),
+        nome: String(row.nome ?? '').trim(),
+        cidade: row.cidade ?? null,
+        estado: row.estado ?? null,
+      };
+    })
+    .filter((r) => r.id && r.nome);
+  return { ok: true, opcoes };
 }
 
 /** Link estável de captação — gerado uma vez, nunca rotaciona. */
@@ -250,6 +286,20 @@ export async function carregarFichaLoteadorExterna(token: string): Promise<
     redeLoteadorId: rid,
     updatedAt: loteador.updated_at ?? null,
   };
+}
+
+export async function listarCondominiosFichaExterna(token: string): Promise<CondominioRow[]> {
+  const info = await buscarLoteadorExternoTokenInfo(token);
+  if (!info.ok) return [];
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return [];
+  }
+  const { data, error } = await admin.from('condominios').select('*');
+  if (error) return [];
+  return ordenarCondominiosPorNome(condominiosFromUnknown(data ?? []));
 }
 
 export async function salvarFichaLoteadorExterna(input: {

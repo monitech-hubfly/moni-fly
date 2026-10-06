@@ -101,12 +101,21 @@ export function CsatCell({ csat }: { csat: number | null | undefined }) {
 
 // ─── AdimplenciaCell ─────────────────────────────────────────────────────────
 
-export function AdimplenciaCell({ adimplente }: { adimplente: boolean | null | undefined }) {
-  if (adimplente === null || adimplente === undefined) return NA;
-  if (adimplente === true) {
+export function AdimplenciaCell({ adimplente, value }: { adimplente?: boolean | null; value?: string | null }) {
+  // Preferir o novo campo texto; fallback para o booleano legado
+  const v = value !== undefined ? value : adimplente === true ? 'ok' : adimplente === false ? 'inad' : null;
+  if (!v) return NA;
+  if (v === 'ok') {
     return (
       <span className="inline-flex items-center gap-1 rounded-md bg-[color:var(--moni-green-50,#eef4f0)] px-1.5 py-0.5 text-xs font-semibold text-[color:var(--moni-green-800,#2F4A3A)]">
         OK
+      </span>
+    );
+  }
+  if (v === 'em_transferencia') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-semibold text-blue-700">
+        Em Transf.
       </span>
     );
   }
@@ -129,16 +138,19 @@ const SCORE_TEXT: Record<string, string> = {
 export function ScoreCell({
   score,
   internalView,
+  adormecido,
 }: {
   score: number | null;
   internalView: boolean;
+  adormecido?: boolean;
 }) {
-  if (score === null) return NA;
-  const color = engajamentoColor(score);
-  const label = engajamentoLabel(score, internalView);
+  if (score === null && !adormecido) return NA;
+  const displayScore = adormecido ? 0 : score!;
+  const color = engajamentoColor(displayScore);
+  const label = adormecido ? 'Adormecido' : engajamentoLabel(displayScore, internalView);
   return (
     <div className="flex flex-col gap-0.5">
-      <span className={`text-sm font-extrabold leading-none ${SCORE_TEXT[color]}`}>{score}%</span>
+      <span className={`text-sm font-extrabold leading-none ${SCORE_TEXT[color]}`}>{displayScore}%</span>
       <span className={`text-[9px] font-medium ${SCORE_TEXT[color]} opacity-80`}>
         {label}
       </span>

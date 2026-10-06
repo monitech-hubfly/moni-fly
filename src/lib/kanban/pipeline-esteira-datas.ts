@@ -21,7 +21,7 @@ export const ESTEIRA_COLUNAS: readonly EsteiraColuna[] = [
   { slug: 'bca', label: 'BCA', sla: 1, tipo: 'uteis', ordemGlobal: 2, faseId: '8fda525c-720d-4db7-821d-52625867a000' },
   { slug: 'hipoteses', label: 'Hipóteses', sla: 1, tipo: 'uteis', ordemGlobal: 3, faseId: 'bf21d44c-e1d3-49cc-861d-7b39356e0bb8' },
   { slug: 'step_2', label: 'Novo Neg.', sla: 2, tipo: 'uteis', ordemGlobal: 4, faseId: '66815477-092e-433b-a6e7-e0ea59c8cb5e' },
-  { slug: 'step_4', label: 'Check Legal', sla: 3, tipo: 'uteis', ordemGlobal: 5, faseId: 'fd05dc4a-b44a-470e-993f-5df79c223488' },
+  { slug: 'step_4', label: 'Checks Legal', sla: 3, tipo: 'uteis', ordemGlobal: 5, faseId: 'fd05dc4a-b44a-470e-993f-5df79c223488' },
   { slug: 'step_5', label: 'Comitê', sla: 5, tipo: 'uteis', ordemGlobal: 6, faseId: '9e1c76ba-ce84-4dbd-ae40-e434dc068a81' },
   { slug: 'cto_condicoes_precedentes', label: 'Enviar CTO', sla: 7, tipo: 'uteis', ordemGlobal: 7, faseId: '' },
   { slug: 'step_6', label: 'Diligência', sla: 10, tipo: 'uteis', ordemGlobal: 8, faseId: '3a66243f-1d11-42e2-a159-60a857057fbc' },

@@ -25,6 +25,13 @@ export const IMOB_PRODUTOS_MODELO = [
   'Moní Liz™',
   'Moní Mia™',
   'Moní Sol™',
+  'Moní Gal L™',
+  'Moní Cissa L™',
+  'Moní Val™',
+  'Moní Lu™',
+  'Moní Isa™',
+  'Moní Duda™',
+  'Moní Ale™',
 ] as const;
 
 export type ImobSituacaoId = (typeof IMOB_SITUACOES)[number]['id'];

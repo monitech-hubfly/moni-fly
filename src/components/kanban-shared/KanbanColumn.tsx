@@ -9,6 +9,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  memo,
   type CSSProperties,
   type DragEvent,
 } from 'react';
@@ -23,6 +24,7 @@ import {
   tagSlaKanbanParaExibicao,
 } from '@/lib/kanban/kanban-card-sla';
 import { hrefAbrirCardNaRota } from '@/lib/kanban/kanban-card-href';
+import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
 import { useKanbanOpenCard } from '@/components/kanban-shared/KanbanWrapper';
 import {
   aplicarDnDKanbanCard,
@@ -211,7 +213,7 @@ function parseDragPayload(raw: string): DragPayload | null {
   }
 }
 
-export function KanbanColumn({
+const KanbanColumnInner = function KanbanColumn({
   fase,
   cards,
   listaVaziaPorFiltro = false,
@@ -626,7 +628,7 @@ export function KanbanColumn({
             </h2>
           </div>
           <div className="moni-kanban-column-hd-actions">
-            {fase.sla_dias ? (
+            {fase.sla_dias && !isFaseConclusaoKanban(fase) ? (
               <span className="moni-kanban-col-sla">
                 {fase.sla_dias}d {rotuloUnidadeSla(fase.sla_tipo)}
               </span>
@@ -659,23 +661,27 @@ export function KanbanColumn({
               alvara_url: card.alvara_url,
               docs_terreno_url: card.docs_terreno_url,
             });
+          const faseConclusao = isFaseConclusaoKanban(fase);
           const sla = calcularSlaKanbanCard({
             created_at: card.created_at,
             entered_fase_at: card.entered_fase_at,
             sla_iniciado_em: card.sla_iniciado_em,
             faseSlug: faseSlugCard,
+            faseNome: fase.nome,
             alvara_url: card.alvara_url,
             docs_terreno_url: card.docs_terreno_url,
-            sla_dias: fase.sla_dias,
+            sla_dias: faseConclusao ? null : fase.sla_dias,
             sla_tipo: fase.sla_tipo,
           });
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
-          // Faixa lateral vermelha: SLA da fase atrasado ou Calculadora estourada na fase atual.
+          // Faixa vermelha só quando o SLA desta fase estourou (entrada na fase + prazo da coluna).
+          // A calculadora encadeada não pinta o card: trocar de fase zera o atraso visível.
           const slaAtrasado =
+            !faseConclusao &&
             !arquivado &&
             !concluido &&
-            (sla.status === 'atrasado' || card.calculadora_sla_estourado === true);
+            sla.status === 'atrasado';
           const statusLateral = slaAtrasado ? 'vermelho' : 'cinza';
           const motivo = (card.motivo_arquivamento ?? '').trim();
           const resultado = card.resultado ?? null;
@@ -895,12 +901,12 @@ export function KanbanColumn({
                     >
                       {tituloLimpo}
                     </span>
-                    {Number(card.juridico_bolinha_count ?? 0) > 0 ? (
+                    {kanbanId === KANBAN_IDS.JURIDICO && Number(card.juridico_bolinha_count ?? 0) >= 1 ? (
                       <span
                         className="moni-juridico-bolinha-badge"
-                        title={`Contrato revisado ${Number(card.juridico_bolinha_count)} vez(es)`}
+                        title={`Rodada ${Number(card.juridico_bolinha_count)} do atendimento jurídico`}
                       >
-                        ↺ {Number(card.juridico_bolinha_count)}x
+                        Rodada {Number(card.juridico_bolinha_count)}
                       </span>
                     ) : null}
                   </div>
@@ -1054,7 +1060,7 @@ export function KanbanColumn({
         ) : null}
         {exibirAdicionarCard && novoCardHref ? (
           <Link href={novoCardHref} className="moni-kanban-add-card">
-            + Adicionar card
+            {kanbanId === KANBAN_IDS.JURIDICO ? '+ Nova solicitação jurídica' : '+ Adicionar card'}
           </Link>
         ) : null}
       </div>
@@ -1129,3 +1135,5 @@ export function KanbanColumn({
     </>
   );
 }
+
+export const KanbanColumn = memo(KanbanColumnInner);

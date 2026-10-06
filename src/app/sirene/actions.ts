@@ -749,27 +749,37 @@ async function getTopicosAtrasados(
     .select('id, chamado_id, descricao, time_responsavel, responsavel_id, data_fim')
     .in('status', ['nao_iniciado', 'em_andamento'])
     .not('data_fim', 'is', null)
-    .lt('data_fim', hoje);
+    .lt('data_fim', hoje)
+    .not('arquivado', 'is', true); // ignora tópicos arquivados
 
   if (error || !topicos?.length) return [];
 
   const chamadoIds = [...new Set(topicos.map((t) => t.chamado_id))];
   const { data: chamados } = await supabase
     .from('sirene_chamados')
-    .select('id, numero')
+    .select('id, numero, status, arquivado')
     .in('id', chamadoIds);
-  const numeroByChamado = new Map(
-    (chamados ?? []).map((c) => [c.id, (c as { numero?: number }).numero ?? c.id]),
+
+  // Apenas chamados ainda em aberto (não concluídos e não arquivados)
+  const chamadosAtivos = new Map(
+    (chamados ?? [])
+      .filter(
+        (c) =>
+          (c as { status?: string }).status !== 'concluido' &&
+          !(c as { arquivado?: boolean }).arquivado,
+      )
+      .map((c) => [c.id, (c as { numero?: number }).numero ?? c.id]),
   );
 
   return topicos
+    .filter((t) => chamadosAtivos.has(t.chamado_id)) // exclui tópicos de chamados encerrados
     .map((t) => {
       const dataFim = (t.data_fim as string) ?? '';
       const dias_atraso = diasUteisAtraso(dataFim);
       return {
         id: t.id,
         chamado_id: t.chamado_id,
-        numero: numeroByChamado.get(t.chamado_id) ?? t.chamado_id,
+        numero: chamadosAtivos.get(t.chamado_id) ?? t.chamado_id,
         descricao: t.descricao ?? '',
         time_responsavel: t.time_responsavel ?? '',
         responsavel_id: t.responsavel_id ?? null,
@@ -800,6 +810,43 @@ async function notificacaoAtrasoJaEnviada(
   return (data?.length ?? 0) > 0;
 }
 
+function chaveNotificacaoAtraso(userId: string, topicoId: number, tipo: string): string {
+  return `${userId}|${topicoId}|${tipo}`;
+}
+
+/** Uma leitura das notificações das últimas 24h, em vez de uma consulta por usuário/tópico. */
+async function carregarNotificacoesAtrasoRecentes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  topicoIds: number[],
+  tipos: string[],
+): Promise<Set<string> | null> {
+  if (topicoIds.length === 0) return new Set();
+  const desde = new Date();
+  desde.setHours(desde.getHours() - 24);
+  const seen = new Set<string>();
+  const pageSize = 1000;
+  for (let from = 0; from < 20000; from += pageSize) {
+    const { data, error } = await supabase
+      .from('sirene_notificacoes')
+      .select('user_id, topico_id, tipo')
+      .in('topico_id', topicoIds)
+      .in('tipo', tipos)
+      .gte('created_at', desde.toISOString())
+      .range(from, from + pageSize - 1);
+    if (error) return null;
+    const rows = data ?? [];
+    for (const row of rows) {
+      const uid = String((row as { user_id?: string }).user_id ?? '');
+      const tid = Number((row as { topico_id?: number | null }).topico_id);
+      const tipo = String((row as { tipo?: string }).tipo ?? '');
+      if (!uid || !Number.isFinite(tid) || !tipo) continue;
+      seen.add(chaveNotificacaoAtraso(uid, tid, tipo));
+    }
+    if (rows.length < pageSize) break;
+  }
+  return seen;
+}
+
 /** Sinaliza aos times: tarefas > 2 dias úteis atrasadas e TOP 10 mais atrasadas. Evita duplicata nas últimas 24h. */
 export async function enviarNotificacoesAtrasoTopicos(): Promise<SireneActionResult> {
   const supabase = await createClient();
@@ -807,37 +854,50 @@ export async function enviarNotificacoesAtrasoTopicos(): Promise<SireneActionRes
   if (lista.length === 0) return { ok: true };
 
   const top10Ids = new Set(lista.slice(0, 10).map((t) => t.id));
+  const recentes = await carregarNotificacoesAtrasoRecentes(
+    supabase,
+    lista.map((t) => t.id),
+    ['atraso_2d', 'atraso_top10'],
+  );
+  const timesCache = new Map<string, string[]>();
 
   for (const t of lista) {
-    const userIds = await getUserIdsTimeTopicoTodos(
-      supabase,
-      t.time_responsavel,
-      t.responsavel_id,
-    );
-    if (userIds.length === 0) continue;
+    let idsDoTime = timesCache.get(t.time_responsavel);
+    if (!idsDoTime) {
+      const { data } = await supabase.from('profiles').select('id').eq('time', t.time_responsavel);
+      idsDoTime = (data ?? []).map((r) => r.id);
+      timesCache.set(t.time_responsavel, idsDoTime);
+    }
+    const userIds = new Set(idsDoTime);
+    if (t.responsavel_id) userIds.add(t.responsavel_id);
+    if (userIds.size === 0) continue;
 
     const textoBase = `Chamado #${t.numero}: ${t.descricao.slice(0, 60)}${t.descricao.length > 60 ? '…' : ''}`;
 
-    if (t.dias_atraso > 2) {
-      const tipo = 'atraso_2d';
-      const texto = `Tarefa com mais de 2 dias úteis de atraso — ${textoBase}`;
+    const avisar = async (tipo: string, texto: string) => {
       for (const uid of userIds) {
-        const ja = await notificacaoAtrasoJaEnviada(supabase, uid, t.id, tipo);
-        if (!ja) {
-          await inserirNotificacao(supabase, uid, t.chamado_id, tipo, texto, t.id);
-        }
+        const chave = chaveNotificacaoAtraso(uid, t.id, tipo);
+        const ja = recentes
+          ? recentes.has(chave)
+          : await notificacaoAtrasoJaEnviada(supabase, uid, t.id, tipo);
+        if (ja) continue;
+        await inserirNotificacao(supabase, uid, t.chamado_id, tipo, texto, t.id);
+        recentes?.add(chave);
       }
+    };
+
+    if (t.dias_atraso > 2) {
+      await avisar(
+        'atraso_2d',
+        `Tarefa com mais de 2 dias úteis de atraso — ${textoBase}`,
+      );
     }
 
     if (top10Ids.has(t.id)) {
-      const tipo = 'atraso_top10';
-      const texto = `Tarefa entre as TOP 10 mais atrasadas — ${textoBase}`;
-      for (const uid of userIds) {
-        const ja = await notificacaoAtrasoJaEnviada(supabase, uid, t.id, tipo);
-        if (!ja) {
-          await inserirNotificacao(supabase, uid, t.chamado_id, tipo, texto, t.id);
-        }
-      }
+      await avisar(
+        'atraso_top10',
+        `Tarefa entre as TOP 10 mais atrasadas — ${textoBase}`,
+      );
     }
   }
 
@@ -1861,12 +1921,10 @@ export async function concluirChamadoCriador(
   if (!me) return { ok: false, error: 'Faça login.' };
 
   const textoTrim = texto?.trim();
-  if (!textoTrim) {
+  if (!suficiente && !textoTrim) {
     return {
       ok: false,
-      error: suficiente
-        ? 'Informe as informações da conclusão.'
-        : 'Informe o motivo da insuficiência para reabrir.',
+      error: 'Informe o motivo da insuficiência para reabrir.',
     };
   }
 
@@ -1908,7 +1966,7 @@ export async function concluirChamadoCriador(
       .update({
         resolucao_suficiente: true,
         motivo_insuficiente: null,
-        info_conclusao_criador: textoTrim,
+        info_conclusao_criador: textoTrim || null,
         status: 'concluido',
         data_conclusao: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -1921,7 +1979,7 @@ export async function concluirChamadoCriador(
       .update({
         status: 'concluida',
         concluida_em: new Date().toISOString(),
-        info_conclusao_criador: textoTrim,
+        info_conclusao_criador: textoTrim || null,
         updated_at: new Date().toISOString(),
       })
       .eq('sirene_chamado_id', chamadoId);
@@ -3316,6 +3374,7 @@ export async function getDashboardData(
         dias_aberto: number;
         origem: string;
         kanban_atividade_id: string | null;
+        card_kanban_nome: string | null;
         arquivado: boolean;
       }>;
     }
@@ -3332,7 +3391,7 @@ export async function getDashboardData(
   let query = queryClient
     .from('sirene_chamados')
     .select(
-      'id, numero, status, trava, te_trata, data_abertura, data_vencimento, data_inicio_atendimento, resolucao_suficiente, incendio, tema, frank_nome, card_id, time_abertura, tipo, updated_at, prioridade',
+      'id, numero, status, trava, te_trata, data_abertura, data_vencimento, data_inicio_atendimento, resolucao_suficiente, incendio, tema, frank_nome, card_id, card_kanban_nome, time_abertura, tipo, updated_at, prioridade, arquivado',
     );
   if (filtroTipo === 'pasteis') {
     const ids = [...(pastelChamadoIds ?? [])];
@@ -3572,7 +3631,6 @@ export async function getDashboardData(
       }
 
       return list
-        .filter((c) => c.status === 'nao_iniciado' || c.status === 'em_andamento')
         .map((c) => {
           const dataAbertura = c.data_abertura ? new Date(String(c.data_abertura)) : null;
           const diasAberto =
@@ -3590,8 +3648,9 @@ export async function getDashboardData(
             responsavel_nome: null,
             dias_aberto: diasAberto,
             origem: 'sirene',
-            kanban_atividade_id: null,
-            arquivado: false,
+            kanban_atividade_id: c.card_id != null ? String(c.card_id) : null,
+            card_kanban_nome: (c as { card_kanban_nome?: string | null }).card_kanban_nome ?? null,
+            arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
           };
         })
         .sort((a, b) => {

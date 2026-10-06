@@ -104,6 +104,8 @@ function mapCardRow(c: {
   comite_aprovado_em?: string | null;
   contrato_assinado?: boolean | null;
   contrato_assinado_em?: string | null;
+  portfolio_cto_precedentes_assinado?: boolean | null;
+  portfolio_cto_precedentes_assinado_em?: string | null;
   origem_kanban_id?: string | null;
   origem_kanban_nome?: string | null;
   nome_condominio?: string | null;
@@ -188,6 +190,8 @@ function mapCardRow(c: {
     comite_aprovado_em: c.comite_aprovado_em ?? null,
     contrato_assinado: c.contrato_assinado ?? null,
     contrato_assinado_em: c.contrato_assinado_em ?? null,
+    portfolio_cto_precedentes_assinado: c.portfolio_cto_precedentes_assinado ?? null,
+    portfolio_cto_precedentes_assinado_em: c.portfolio_cto_precedentes_assinado_em ?? null,
     origem_kanban_id: c.origem_kanban_id != null ? String(c.origem_kanban_id) : null,
     origem_kanban_nome: c.origem_kanban_nome ?? null,
     nome_condominio: c.nome_condominio ?? null,
@@ -212,7 +216,7 @@ const CARD_SELECT_NATIVO = `
 
 const CARD_SELECT_CAROMETRO = `
   id,titulo,fase_id,created_at,updated_at,entered_fase_at,franqueado_id,arquivado,arquivado_em,concluido,concluido_em,status,motivo_arquivamento,rede_franqueado_id,
-  opcao_assinada,opcao_assinada_em,comite_aprovado,comite_aprovado_em,contrato_assinado,contrato_assinado_em,origem_kanban_id,origem_kanban_nome,
+  opcao_assinada,opcao_assinada_em,comite_aprovado,comite_aprovado_em,contrato_assinado,contrato_assinado_em,portfolio_cto_precedentes_assinado,portfolio_cto_precedentes_assinado_em,origem_kanban_id,origem_kanban_nome,
   rede_franqueados ( n_franquia, nome_completo ),
   projeto_negocio ( franqueado_id, rede_franqueados ( n_franquia, nome_completo ) )
 `;

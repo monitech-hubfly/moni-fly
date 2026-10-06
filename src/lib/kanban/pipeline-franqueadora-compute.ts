@@ -1,4 +1,3 @@
-import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { computeGargaloScoreRanking } from '@/lib/kanban/painel-gargalo-score-compute';
 import type {
   GargaloScoreFase,
@@ -26,7 +25,6 @@ import {
 } from '@/lib/kanban/pipeline-cards-utils';
 import {
   cardVinculadoAoCadastroRedeFranqueados,
-  cardsVinculadosAoCadastroRedeFranqueados,
   excluirFranquiaDosGraficosVisaoGeral,
 } from '@/lib/rede-visibilidade-franqueado';
 import { indiceEsteiraTresEtapas } from '@/lib/kanban/pipeline-esteira-tres-etapas';
@@ -36,7 +34,6 @@ import { isCardBlocoPrincipalUnidade } from '@/lib/kanban/pipeline-unidade-visua
 export const PARADO_DIAS = 20;
 const META_ENTRADAS_MES = 5;
 const META_CONTRATOS_MES = 1;
-const SIRENE_SILENCIO_DIAS = 30;
 
 export function cardsElegiveisFranqueadora(cards: PipelineCardDisplay[]): PipelineCardDisplay[] {
   return cards.filter(cardVinculadoAoCadastroRedeFranqueados);
@@ -341,187 +338,4 @@ export function montarBlocosUnidadePipeline(
       a.label.localeCompare(b.label, 'pt-BR'),
   );
   return blocos;
-}
-
-export type PipelineFranquiaTravadaRow = {
-  unidade: string;
-  cardId: string;
-  titulo: string;
-  fase: string;
-  diasParado: number;
-};
-
-export type PipelineFaseAtrasoRow = {
-  fase: string;
-  funil: string;
-  totalAtrasados: number;
-  pctTotalAtrasos: number;
-};
-
-export function insightFaseAtrasosRede(rows: PipelineFaseAtrasoRow[]): string | null {
-  if (rows.length === 0) return null;
-  const top = rows[0];
-  const pct = top.pctTotalAtrasos;
-  const pctFmt = pct.toFixed(0).replace('.', ',');
-  if (pct >= 40) {
-    return `${top.fase} (${top.funil}) concentra ${pctFmt}% dos atrasos — provável gargalo de processo.`;
-  }
-  const top3Pct = rows.slice(0, 3).reduce((s, r) => s + r.pctTotalAtrasos, 0);
-  if (rows.length >= 3 && top3Pct >= 60) {
-    return 'Atrasos espalhados em várias fases — revisar capacidade e SLAs da rede.';
-  }
-  return `${top.fase} lidera o volume de atrasos na rede (${pctFmt}% do total).`;
-}
-
-export type PipelineBenchmarkUnidadeRow = {
-  unidade: string;
-  redeId: string;
-  cardsAtivos: number;
-  atrasados: number;
-  taxaAtraso: number;
-  score: number;
-  badge: 'verde' | 'ambar' | 'vermelho';
-};
-
-export type PipelineVolumeConversaoRow = {
-  unidade: string;
-  stepOne: number;
-  portfolio: number;
-  operacoes: number;
-  conversoes: number;
-};
-
-export type PipelineSireneSilencioRow = {
-  unidade: string;
-  redeId: string;
-  ativo: boolean;
-  ultimoChamadoEm: string | null;
-};
-
-export type PipelineAnalisesData = {
-  franquiasTravadas: PipelineFranquiaTravadaRow[];
-  fasesComAtrasos: PipelineFaseAtrasoRow[];
-  benchmarkUnidades: PipelineBenchmarkUnidadeRow[];
-  volumeConversao: PipelineVolumeConversaoRow[];
-  sireneSilencio: PipelineSireneSilencioRow[];
-};
-
-export function computePipelineAnalises(
-  franqueados: PipelineFranqueadoUnidade[],
-  cardsRaw: PipelineCardDisplay[],
-  enrichment: PipelineFranqueadoraEnrichment | null | undefined,
-): PipelineAnalisesData {
-  const cards = cardsVinculadosAoCadastroRedeFranqueados(cardsRaw, franqueados);
-  const chamados = enrichment?.chamados ?? [];
-  const limiteSilencio = Date.now() - SIRENE_SILENCIO_DIAS * 86400000;
-
-  const franquiasTravadas: PipelineFranquiaTravadaRow[] = [];
-  for (const c of cards) {
-    if (!cardParado(c)) continue;
-    const fk = String(c.n_franquia ?? '').trim();
-    const nome = String(c.franqueado_nome ?? '').trim();
-    franquiasTravadas.push({
-      unidade: fk && nome ? `${fk} — ${nome}` : fk || nome || '—',
-      cardId: c.id,
-      titulo: c.titulo,
-      fase: c.fase_nome,
-      diasParado: calcularDiasNaFase(c),
-    });
-  }
-  franquiasTravadas.sort((a, b) => b.diasParado - a.diasParado);
-
-  const atrasados = cards
-    .filter(cardElegivelMetricasSlaPipeline)
-    .filter((c) => slaCategoriaPipeline(c) === 'atrasado');
-  const totalAtrasos = atrasados.length;
-  const porFase = new Map<string, { fase: string; funil: string; n: number }>();
-  for (const c of atrasados) {
-    const cur = porFase.get(c.fase_id) ?? { fase: c.fase_nome, funil: c.kanban_nome, n: 0 };
-    cur.n += 1;
-    porFase.set(c.fase_id, cur);
-  }
-  const fasesComAtrasos: PipelineFaseAtrasoRow[] = [...porFase.values()]
-    .map((v) => ({
-      fase: v.fase,
-      funil: v.funil,
-      totalAtrasados: v.n,
-      pctTotalAtrasos: totalAtrasos === 0 ? 0 : (v.n / totalAtrasos) * 100,
-    }))
-    .sort((a, b) => b.totalAtrasados - a.totalAtrasados);
-
-  const porRedeCards = new Map<string, PipelineCardDisplay[]>();
-  for (const c of cards) {
-    const rid = String(c.rede_franqueado_id ?? '').trim();
-    if (!rid) continue;
-    const list = porRedeCards.get(rid) ?? [];
-    list.push(c);
-    porRedeCards.set(rid, list);
-  }
-
-  const benchmarkUnidades: PipelineBenchmarkUnidadeRow[] = [];
-  const volumeConversao: PipelineVolumeConversaoRow[] = [];
-  const sireneSilencio: PipelineSireneSilencioRow[] = [];
-
-  for (const f of franqueados) {
-    if (excluirFranquiaDosGraficosVisaoGeral(f.n_franquia)) continue;
-    const unitCards = porRedeCards.get(f.rede_franqueado_id) ?? [];
-    const label = labelFranqueadoPipeline(f);
-    const ativos = unitCards.length;
-    const atras = unitCards
-      .filter(cardElegivelMetricasSlaPipeline)
-      .filter((c) => slaCategoriaPipeline(c) === 'atrasado').length;
-    const parados = unitCards.filter((c) => cardParado(c)).length;
-    const taxaAtraso = ativos === 0 ? 0 : (atras / ativos) * 100;
-    const pctParados = ativos === 0 ? 0 : (parados / ativos) * 100;
-    const score = Math.round(100 - taxaAtraso * 0.6 - pctParados * 0.4);
-    const badge: PipelineBenchmarkUnidadeRow['badge'] =
-      score >= 70 ? 'verde' : score >= 40 ? 'ambar' : 'vermelho';
-    benchmarkUnidades.push({
-      unidade: label,
-      redeId: f.rede_franqueado_id,
-      cardsAtivos: ativos,
-      atrasados: atras,
-      taxaAtraso,
-      score,
-      badge,
-    });
-
-    volumeConversao.push({
-      unidade: label,
-      stepOne: unitCards.filter((c) => c.kanban_id === KANBAN_IDS.STEP_ONE).length,
-      portfolio: unitCards.filter((c) => c.kanban_id === KANBAN_IDS.PORTFOLIO).length,
-      operacoes: unitCards.filter((c) => c.kanban_id === KANBAN_IDS.OPERACOES).length,
-      conversoes: unitCards.filter((c) => c.contrato_assinado).length,
-    });
-
-    const cardIds = new Set(unitCards.map((c) => c.id));
-    let ultimoMs = 0;
-    let temRecente = false;
-    for (const ch of chamados) {
-      if (!cardIds.has(ch.cardId)) continue;
-      const t = new Date(ch.created_at).getTime();
-      if (Number.isFinite(t) && t > ultimoMs) ultimoMs = t;
-      if (Number.isFinite(t) && t >= limiteSilencio) temRecente = true;
-    }
-    sireneSilencio.push({
-      unidade: label,
-      redeId: f.rede_franqueado_id,
-      ativo: temRecente,
-      ultimoChamadoEm: ultimoMs ? new Date(ultimoMs).toISOString() : null,
-    });
-  }
-
-  benchmarkUnidades.sort((a, b) => b.score - a.score);
-  volumeConversao.sort(
-    (a, b) => b.stepOne - a.stepOne || a.portfolio - b.portfolio,
-  );
-  sireneSilencio.sort((a, b) => Number(a.ativo) - Number(b.ativo) || a.unidade.localeCompare(b.unidade, 'pt-BR'));
-
-  return {
-    franquiasTravadas,
-    fasesComAtrasos,
-    benchmarkUnidades,
-    volumeConversao,
-    sireneSilencio,
-  };
 }

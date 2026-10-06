@@ -37,6 +37,7 @@ function computeSla(
     sla_dias: fase?.sla_dias ?? null,
     sla_tipo: fase?.sla_tipo ?? null,
     faseSlug: fase?.slug ?? null,
+    faseNome: fase?.nome ?? null,
   });
 }
 
@@ -85,6 +86,7 @@ export function useBacklogKanban(refreshKey = 0) {
         : user.id;
 
       // 5 fontes + tag Especial em paralelo
+      // Nota: usar !fase_id para disambiguar FK dupla (fase_id e data_reuniao_fase_id → kanban_fases)
       const [fonte1, fonte2, fonte3, fonte4, fonte5, tagEspecialRes] = await Promise.all([
         supabase
           .from('kanban_cards')
@@ -92,10 +94,10 @@ export function useBacklogKanban(refreshKey = 0) {
             id, titulo, arquivado, concluido,
             created_at, entered_fase_at, sla_iniciado_em,
             proxima_atividade, prazo_atividade,
-            fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
-            kanban:kanbans(nome),
-            rede_franqueado:rede_franqueados(id, user_id)
+            fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
+            kanban:kanbans(nome)
           `)
+          .eq('franqueado_id', effectiveProfileId)
           .eq('arquivado', false)
           .eq('concluido', false),
 
@@ -107,7 +109,7 @@ export function useBacklogKanban(refreshKey = 0) {
               id, titulo, arquivado, concluido,
               created_at, entered_fase_at, sla_iniciado_em,
               proxima_atividade, prazo_atividade,
-              fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+              fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
               kanban:kanbans(nome)
             )
           `)
@@ -123,7 +125,7 @@ export function useBacklogKanban(refreshKey = 0) {
               id, titulo, arquivado, concluido,
               created_at, entered_fase_at, sla_iniciado_em,
               proxima_atividade, prazo_atividade,
-              fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+              fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
               kanban:kanbans(nome)
             )
           `)
@@ -135,7 +137,7 @@ export function useBacklogKanban(refreshKey = 0) {
             id, titulo, arquivado, concluido,
             created_at, entered_fase_at, sla_iniciado_em,
             proxima_atividade, prazo_atividade,
-            fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+            fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
           .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
@@ -149,7 +151,7 @@ export function useBacklogKanban(refreshKey = 0) {
             id, titulo, arquivado, concluido,
             created_at, entered_fase_at, sla_iniciado_em,
             proxima_atividade, prazo_atividade,
-            fase:kanban_fases(nome, sla_dias, sla_tipo, slug),
+            fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
           .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
@@ -176,7 +178,7 @@ export function useBacklogKanban(refreshKey = 0) {
 
       const mapa = new Map<string, KanbanCardItem>();
 
-      // Processar fonte 1 — filtrar pelo user_id do franqueado
+      // Processar fonte 1 — cards onde o usuário é o franqueado (via franqueado_id)
       type FaseRel  = FaseRelSla;
       type KanbanRel = { nome: string };
       type CardBase = {
@@ -187,14 +189,10 @@ export function useBacklogKanban(refreshKey = 0) {
         fase: FaseRel | FaseRel[] | null;
         kanban: KanbanRel | KanbanRel[] | null;
       };
-      type CardF1 = CardBase & {
-        rede_franqueado: { id: string; user_id: string | null } | { id: string; user_id: string | null }[] | null;
-      };
+      type CardF1 = CardBase;
 
       ((fonte1.data ?? []) as unknown as CardF1[]).forEach(card => {
         if (card.arquivado || card.concluido) return;
-        const rf     = Array.isArray(card.rede_franqueado) ? card.rede_franqueado[0] : card.rede_franqueado;
-        if (rf?.user_id !== effectiveProfileId) return;
         const fase   = Array.isArray(card.fase)   ? card.fase[0]   : card.fase;
         const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
         mapa.set(card.id, {

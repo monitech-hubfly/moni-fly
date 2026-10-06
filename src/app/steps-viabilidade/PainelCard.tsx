@@ -6,7 +6,11 @@ import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import { calcularStatusSLA } from '@/lib/dias-uteis';
 import { KanbanCardSlaBolinha } from '@/components/kanban-shared/KanbanCardPrazoIndicadores';
 import { getPainelColumnSlaDiasUteis, type PainelColumnKey } from './painelColumns';
-import { CardDetalheModal } from './CardDetalheModal';
+import dynamic from 'next/dynamic';
+const CardDetalheModal = dynamic(
+  () => import('./CardDetalheModal').then(m => m.CardDetalheModal),
+  { ssr: false }
+);
 import type { ProcessoCard } from './StepsKanbanColumn';
 import { reordenarCardNaColunaPainel } from './actions';
 

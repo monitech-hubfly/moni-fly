@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
 import { Search } from 'lucide-react';
 import type { CardStatusFilter, CardTagFilter, ProcessoCard } from '@/app/steps-viabilidade/StepsKanbanColumn';
 import { StepsKanbanColumn } from '@/app/steps-viabilidade/StepsKanbanColumn';
@@ -34,16 +35,17 @@ function cardCumpreBusca(p: ProcessoCard, buscaNorm: string): boolean {
 
 export function PainelCreditoClient({ byEtapa, initialOpenProcessId }: Props) {
   const [busca, setBusca] = useState('');
+  const debouncedBusca = useDebounce(busca);
   const [statusFilter, setStatusFilter] = useState<CardStatusFilter>('ativos');
   const [tagFilter, setTagFilter] = useState<CardTagFilter>('todas');
 
   const filtered = useMemo(() => {
-    const buscaNorm = normalizarParaBusca(busca);
+    const buscaNorm = normalizarParaBusca(debouncedBusca);
     return {
       credito_terreno: (byEtapa.credito_terreno ?? []).filter((p) => cardCumpreBusca(p, buscaNorm)),
       credito_obra: (byEtapa.credito_obra ?? []).filter((p) => cardCumpreBusca(p, buscaNorm)),
     };
-  }, [busca, byEtapa]);
+  }, [debouncedBusca, byEtapa]);
 
   const colCreditoTerreno = PAINEL_COLUMNS.find((c) => c.key === 'credito_terreno');
   const colCreditoObra = PAINEL_COLUMNS.find((c) => c.key === 'credito_obra');

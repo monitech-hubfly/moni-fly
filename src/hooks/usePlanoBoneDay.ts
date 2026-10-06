@@ -126,7 +126,19 @@ export function usePlanoBoneDay(
   const [error,              setError]              = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
-    if (!areaId) { setIsLoading(false); return; }
+    if (!areaId) {
+      // Limpa estado antigo para evitar UI enganosa com dados de outra área
+      setResponsaveis([]);
+      setMetas([]);
+      setMetasConcluidas([]);
+      setMetasNaoConcluidas([]);
+      setAgendaMacro([]);
+      setComportamentos([]);
+      setIndicadores([]);
+      setObjetivoResponsaveis([]);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -136,7 +148,7 @@ export function usePlanoBoneDay(
           .from('objetivos')
           .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
           .eq('area_id', areaId)
-          .eq('status', 'ativo')
+          .in('status', ['ativo', 'arquivado'])
           .eq('mes', mes)
           .is('objetivo_pai_id', null)
           .order('is_chave', { ascending: false })
@@ -257,8 +269,9 @@ export function usePlanoBoneDay(
           concluido: boolean | null; concluido_em: string | null;
           data_inicio: string | null; data_fim: string | null; dias_uteis: number | null;
         };
+        const orRows = ((orData ?? []) as ORRow[]);
         setObjetivoResponsaveis(
-          ((orData ?? []) as ORRow[]).map(r => ({
+          orRows.map(r => ({
             objetivo_id: r.objetivo_id,
             profile_id:  r.profile_id,
             concluido:   Boolean(r.concluido),
@@ -268,6 +281,22 @@ export function usePlanoBoneDay(
             dias_uteis:  r.dias_uteis ?? null,
           }))
         );
+
+        // Enriquecer responsaveis com quem assumiu mas não está em area_pessoas
+        // Isso evita o avatar "?" para usuários fora da área que assumiram metas
+        const respIdsSet = new Set(respArr.map(r => r.profile_id));
+        const orProfileIds = [...new Set(orRows.map(r => r.profile_id))].filter(id => !respIdsSet.has(id));
+        if (orProfileIds.length > 0) {
+          const { data: extraProfiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', orProfileIds);
+          for (const p of ((extraProfiles ?? []) as { id: string; full_name: string | null }[])) {
+            respArr.push({ profile_id: p.id, nome: p.full_name ?? p.id });
+          }
+          respArr.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+          setResponsaveis(respArr);
+        }
       } else {
         setObjetivoResponsaveis([]);
       }
@@ -326,7 +355,7 @@ export function usePlanoBoneDay(
         // gantt do Boné Day (sem area_id na tabela — filtra por profiles da área)
         ganttProfileIds.length > 0
           ? supabase.from('gantt_planejamento')
-              .select('id, acao_id, tarefa_id, profile_id, semana_ano_inicio, semana_ano_fim, tempo_estimado_horas, objetivo_id, descricao_livre, recorrente, recorrencia_grupo_id')
+              .select('id, acao_id, profile_id, semana_ano_inicio, semana_ano_fim, tempo_estimado_horas, objetivo_id, descricao_livre, recorrente, recorrencia_grupo_id')
               .in('profile_id', ganttProfileIds)
               .eq('origem', 'pre_bone_day')
               .eq('pre_bone_day_mes', mes)
@@ -338,8 +367,12 @@ export function usePlanoBoneDay(
         id: t.id, nome: t.nome,
       })));
 
+      if (ganttRes.error) {
+        console.error('[usePlanoBoneDay] Falha ao buscar gantt_planejamento:', ganttRes.error);
+      }
+
       type GanttRow = {
-        id: string; acao_id: string | null; tarefa_id: string | null; profile_id: string | null;
+        id: string; acao_id: string | null; profile_id: string | null;
         semana_ano_inicio: number | null; semana_ano_fim: number | null;
         tempo_estimado_horas: number | null; objetivo_id: string | null;
         descricao_livre: string | null; recorrente: boolean | null;
@@ -396,8 +429,12 @@ export function semanasDoMes(mesStr: string): number[] {
     const dow = d.getDay(); // 0=Dom
     const monday = new Date(d);
     monday.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
-    // Só inclui a semana se sua segunda-feira cair no mês alvo
-    if (monday.getFullYear() === year && monday.getMonth() === month - 1) {
+    // Inclui a semana se sua quinta-feira (padrão ISO 8601) cair no mês alvo.
+    // Isso garante que semanas parciais do início do mês sejam exibidas corretamente
+    // (ex: S40 em outubro quando o mês começa numa quinta-feira).
+    const thursday = new Date(monday);
+    thursday.setDate(monday.getDate() + 3);
+    if (thursday.getFullYear() === year && thursday.getMonth() === month - 1) {
       const w = isoWeek(d);
       if (!semanas.includes(w)) semanas.push(w);
     }

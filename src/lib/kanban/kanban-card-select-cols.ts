@@ -50,7 +50,11 @@ export const KANBAN_CARD_SELECT_BASE = `
       email_lead,
       mensagem_lead,
       proxima_atividade,
-      prazo_atividade
+      prazo_atividade,
+      juridico_nome_candidato,
+      juridico_estado,
+      juridico_cidade,
+      juridico_observacoes
     `;
 
 export const KANBAN_CARD_SELECT_WITH_SLA = `${KANBAN_CARD_SELECT_BASE.trim()},
@@ -105,6 +109,10 @@ const KANBAN_CARD_SELECT_LEAD_OPTIONAL = [
   'probabilidade_fechamento',
   'orcamento_lead',
   'cidade_interesse',
+  'juridico_nome_candidato',
+  'juridico_estado',
+  'juridico_cidade',
+  'juridico_observacoes',
 ] as const;
 
 function stripOptionalLeadColumns(select: string): string {

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
 import { faseAtualCalculadoraAtraso, faseAtualCalculadoraSlaEstourada } from '@/lib/kanban/calculadora-fases';
+import { isFaseConclusaoKanban } from '@/lib/kanban/kanban-fase-conclusao';
 import { segmentoEsteiraCardCalculadora } from '@/lib/kanban/calculadora-fases-esteira';
 import {
   montarCalculadoraPack,
@@ -224,8 +225,18 @@ export async function enrichCardsComCalculadoraSlaEstourado(
     }
   }
 
+  const fasePorId = new Map(fases.map((f) => [f.id, f]));
   return cards.map((card) => {
     if (!estouradoPorId.has(card.id)) return card;
+    const faseAtual = fasePorId.get(card.fase_id);
+    if (faseAtual && isFaseConclusaoKanban(faseAtual)) {
+      return {
+        ...card,
+        calculadora_sla_estourado: false,
+        calculadora_atraso_dias: null,
+        calculadora_atraso_tipo: null,
+      };
+    }
     const atraso = atrasoPorId.get(card.id);
     return {
       ...card,

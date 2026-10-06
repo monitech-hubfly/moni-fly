@@ -14,8 +14,8 @@ import { listarCondominiosCadastro } from '@/lib/actions/kanban-card-condominio'
 import {
   formatCidadeEstadoCondominio,
   formatCondominioInteiro,
-  formatCondominioMoeda,
   formatEnderecoNumero,
+  formatTicketCadastro,
   ordenarCondominiosPorNome,
   type CondominioRow,
 } from '@/lib/condominios';
@@ -31,7 +31,11 @@ import { sincronizarLoteChecklistComCadastro } from '@/lib/actions/kanban-lotes-
 import { CondominioLotesAnexados } from '@/components/kanban-shared/CondominioLotesAnexados';
 import { DadosCidadeIbgeChecklist } from '@/components/kanban-shared/DadosCidadeIbgeChecklist';
 import { MapaPracaChecklist } from '@/components/kanban-shared/MapaPracaChecklist';
-import { MapaCompetidoresChecklist } from '@/components/kanban-shared/MapaCompetidoresChecklist';
+import dynamic from 'next/dynamic';
+const MapaCompetidoresChecklist = dynamic(
+  () => import('@/components/kanban-shared/MapaCompetidoresChecklist').then(m => m.MapaCompetidoresChecklist),
+  { ssr: false }
+);
 import { ChecklistAreaAtuacaoSelect } from '@/components/kanban-shared/ChecklistAreaAtuacaoSelect';
 import { DadosCidadePracaTabs } from '@/components/kanban-shared/DadosCidadePracaTabs';
 import { PracaAtivaChip } from '@/components/kanban-shared/PracaAtivaChip';
@@ -1664,9 +1668,20 @@ function ItemField({
   }
 
   if (item.tipo === 'select') {
-    const opcoes = Array.isArray(item.config_json?.opcoes)
-      ? (item.config_json!.opcoes as string[])
-      : [];
+    const opcoes = (Array.isArray(item.config_json?.opcoes) ? item.config_json.opcoes : [])
+      .map((opcao) => {
+        if (typeof opcao === 'string') {
+          const texto = opcao.trim();
+          return texto ? { value: texto, label: texto } : null;
+        }
+        if (opcao && typeof opcao === 'object' && 'value' in opcao) {
+          const value = String((opcao as { value?: unknown }).value ?? '').trim();
+          const label = String((opcao as { label?: unknown }).label ?? value).trim();
+          return value ? { value, label: label || value } : null;
+        }
+        return null;
+      })
+      .filter((opcao): opcao is { value: string; label: string } => opcao != null);
     return (
       <div>
         {labelEl}
@@ -1680,8 +1695,8 @@ function ItemField({
         >
           <option value="">Selecione…</option>
           {opcoes.map((o) => (
-            <option key={o} value={o}>
-              {o}
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
           ))}
         </select>
@@ -2008,10 +2023,18 @@ const COLUNAS_TABELA_CONDOMINIOS = [
   { key: 'descricao_breve', header: 'Descrição breve' },
   { key: 'ticket_medio_lote', header: 'Ticket Médio Lote' },
   { key: 'ticket_medio_casas', header: 'Ticket Médio Casas' },
-  { key: 'ticket_medio_casas_rsm2', header: 'Ticket Médio Casas (R$/m²)' },
+  { key: 'valor_tx_condominio', header: 'Valor Tx Condomínio' },
   { key: 'estimativa_casas_vendidas_ano', header: 'Est. casas vendidas/ano' },
   { key: 'extrato_como_eram_casas', header: 'Extrato — Como eram' },
   { key: 'extrato_tempo_venda', header: 'Extrato — Tempo venda' },
+  { key: 'data_lancamento_vendas', header: 'Data de lançamento (vendas de lote)' },
+  { key: 'data_liberacao_tvo', header: 'Data liberação TVO (permissão de construir casas)' },
+  { key: 'quantidade_lotes', header: 'Quantidade de lotes' },
+  { key: 'metragem_lotes', header: 'Metragem dos lotes (média ou faixas)' },
+  { key: 'metragem_casas', header: 'Metragem / tipologia média das casas (média ou faixas)' },
+  { key: 'planta_cadastral', header: 'Planta cadastral do condomínio / lotes com medidas (frente e lateral)' },
+  { key: 'manual_obras', header: 'Manual de obras' },
+  { key: 'casas_concorrentes', header: 'Exemplo / links de casas concorrentes' },
 ] as const;
 
 function condominioRowToSnapshot(r: CondominioRow) {
@@ -2026,16 +2049,32 @@ function condominioRowToSnapshot(r: CondominioRow) {
     descricao_breve: r.descricao_breve,
     ticket_medio_lote: r.ticket_medio_lote,
     ticket_medio_casas: r.ticket_medio_casas,
-    ticket_medio_casas_rsm2: r.ticket_medio_casas_rsm2,
+    valor_tx_condominio: r.valor_tx_condominio,
     estimativa_casas_vendidas_ano: r.estimativa_casas_vendidas_ano,
     extrato_como_eram_casas: r.extrato_como_eram_casas,
     extrato_tempo_venda: r.extrato_tempo_venda,
+    data_lancamento_vendas: r.data_lancamento_vendas,
+    data_liberacao_tvo: r.data_liberacao_tvo,
+    quantidade_lotes: r.quantidade_lotes,
+    metragem_lotes: r.metragem_lotes,
+    metragem_casas: r.metragem_casas,
+    planta_cadastral: r.planta_cadastral,
+    manual_obras: r.manual_obras,
+    casas_concorrentes: r.casas_concorrentes,
   };
 }
 
 function valorJsonCondominios(rows: CondominioRow[]): string {
   const comNome = rows.filter((r) => r.nome?.trim());
   return JSON.stringify(comNome.map(condominioRowToSnapshot));
+}
+
+function formatDateBr(iso: string | null | undefined): string {
+  const s = (iso ?? '').trim().slice(0, 10);
+  if (!s) return '—';
+  const [y, m, d] = s.split('-');
+  if (!y || !m || !d) return s;
+  return `${d}/${m}/${y}`;
 }
 
 function celulaCondominio(row: CondominioRow, key: (typeof COLUNAS_TABELA_CONDOMINIOS)[number]['key']): string {
@@ -2051,17 +2090,33 @@ function celulaCondominio(row: CondominioRow, key: (typeof COLUNAS_TABELA_CONDOM
     case 'descricao_breve':
       return row.descricao_breve?.trim() || '—';
     case 'ticket_medio_lote':
-      return formatCondominioMoeda(row.ticket_medio_lote);
+      return formatTicketCadastro(row.ticket_medio_lote);
     case 'ticket_medio_casas':
-      return formatCondominioMoeda(row.ticket_medio_casas);
-    case 'ticket_medio_casas_rsm2':
-      return formatCondominioMoeda(row.ticket_medio_casas_rsm2);
+      return formatTicketCadastro(row.ticket_medio_casas);
+    case 'valor_tx_condominio':
+      return formatTicketCadastro(row.valor_tx_condominio);
     case 'estimativa_casas_vendidas_ano':
       return formatCondominioInteiro(row.estimativa_casas_vendidas_ano);
     case 'extrato_como_eram_casas':
       return row.extrato_como_eram_casas?.trim() || '—';
     case 'extrato_tempo_venda':
       return row.extrato_tempo_venda?.trim() || '—';
+    case 'data_lancamento_vendas':
+      return formatDateBr(row.data_lancamento_vendas);
+    case 'data_liberacao_tvo':
+      return formatDateBr(row.data_liberacao_tvo);
+    case 'quantidade_lotes':
+      return formatCondominioInteiro(row.quantidade_lotes);
+    case 'metragem_lotes':
+      return row.metragem_lotes?.trim() || '—';
+    case 'metragem_casas':
+      return row.metragem_casas?.trim() || '—';
+    case 'planta_cadastral':
+      return row.planta_cadastral?.trim() || '—';
+    case 'manual_obras':
+      return row.manual_obras?.trim() || '—';
+    case 'casas_concorrentes':
+      return row.casas_concorrentes?.trim() || '—';
     default:
       return '—';
   }

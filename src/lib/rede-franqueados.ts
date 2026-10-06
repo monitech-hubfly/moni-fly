@@ -222,6 +222,7 @@ export type RedeFranqueadoRowDb = Record<RedeFranqueadoDbKey, string | null> & {
   diag_adormecido?: boolean;
   /** true=adimplente | false=inadimplente | null=não aferido */
   diag_adimplente?: boolean | null;
+  diag_adimplencia?: 'ok' | 'inad' | 'em_transferencia' | null;
   diag_ultimo_contato?: string | null;
   diag_ultima_aval?: string | null;
   diag_avaliado_por?: string | null;

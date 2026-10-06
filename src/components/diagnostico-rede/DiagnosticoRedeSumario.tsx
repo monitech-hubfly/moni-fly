@@ -17,15 +17,22 @@ function Card({
   sub,
   color,
   mini,
+  tooltip,
 }: {
   label: string;
   value: string | number;
   sub?: string;
   color?: string;
   mini?: { label: string; value: string | number; highlight?: boolean }[];
+  tooltip?: string;
 }) {
   return (
-    <div className="min-w-[130px] flex-1 rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm">
+    <div className="group relative min-w-[130px] flex-1 rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm">
+      {tooltip ? (
+        <div className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-56 rounded-lg border border-stone-200 bg-white p-2.5 text-[10px] leading-relaxed text-stone-600 shadow-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+          {tooltip}
+        </div>
+      ) : null}
       <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">{label}</p>
       <p
         className="text-[22px] font-extrabold leading-none"
@@ -57,7 +64,6 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
   if (!rows || rows.length === 0) return null;
 
   const m = calcRedeMetricas(rows);
-  const aferidos = rows.filter((r) => r.diag_d !== null && r.diag_d !== undefined).length;
 
   const engValue = m.avgEng !== null ? `${m.avgEng}%` : '—';
   const engColor = m.avgEng !== null ? engajamentoHex(m.avgEng) : undefined;
@@ -81,6 +87,7 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
         label="Rede Ativa"
         value={m.totalAtiva}
         sub={`de ${rows.length} total`}
+        tooltip="Conta todos os franqueados, exceto os com operação encerrada, em transferência e adormecidos."
       />
 
       <Card
@@ -88,17 +95,24 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
         value={engValue}
         sub={m.avgEng !== null ? m.engLabel : 'Sem dados'}
         color={engColor}
+        mini={[
+          { label: 'Dinheiro', value: m.avgD !== null ? `${m.avgD}%` : '—' },
+          { label: 'Conhecimento', value: m.avgK !== null ? `${m.avgK}%` : '—' },
+          { label: 'Comportamento', value: m.avgC !== null ? `${m.avgC}%` : '—' },
+        ]}
+        tooltip="Média do score de engajamento (D×40% + K×35% + C×25%). Inclui adormecidos. Exclui encerrados e em transferência."
       />
 
       <Card
         label="Saúde da Relação"
         value={m.relStatus}
-        sub={
-          m.avgNps !== null || m.avgCsat !== null
-            ? `NPS ${m.avgNps?.toFixed(1) ?? '—'} · CSAT ${m.avgCsat?.toFixed(1) ?? '—'}`
-            : 'Sem dados'
-        }
+        sub="NPS · CSAT"
         color={m.relColor}
+        mini={[
+          { label: 'NPS', value: m.avgNps !== null ? m.avgNps.toFixed(1) : '—' },
+          { label: 'CSAT', value: m.avgCsat !== null ? m.avgCsat.toFixed(1) : '—' },
+        ]}
+        tooltip="Baseado em NPS e CSAT dos franqueados. Inclui adormecidos. Exclui encerrados e em transferência."
       />
 
       <Card
@@ -106,6 +120,13 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
         value={`${m.totalContratos}/${m.totalMeta}`}
         sub={`${indPct} da meta agregada`}
         color={m.totalMeta > 0 ? indColor : undefined}
+        mini={[
+          { label: 'No ritmo', value: m.indRitmo },
+          { label: 'Próximo', value: m.indProximo },
+          { label: 'Regular', value: m.indRegular },
+          { label: 'Abaixo', value: m.indAbaixo, highlight: m.indAbaixo > 0 },
+        ]}
+        tooltip="Soma dos contratos nos últimos 12 meses vs. soma das metas individuais. Inclui adormecidos. Exclui encerrados e em transferência."
       />
 
       <Card
@@ -118,12 +139,14 @@ export function DiagnosticoRedeSumario({ rows }: Props) {
           { label: 'adormecidas', value: m.adormecidas },
           { label: 'P1', value: m.p1Count, highlight: m.p1Count > 0 },
         ]}
+        tooltip="Inadimplentes: franqueados com diag_adimplencia = 'inad'. Inclui adormecidos. Exclui encerrados e em transferência."
       />
 
       <Card
         label="Diagnóstico"
-        value={aferidos}
-        sub={`de ${rows.length} aferidos`}
+        value={m.aferidos}
+        sub={`de ${m.totalDiagBase} elegíveis`}
+        tooltip="Franqueados com diagnóstico preenchido (campo Dinheiro aferido). Exclui encerrados, em transferência e adormecidos."
       />
     </div>
   );

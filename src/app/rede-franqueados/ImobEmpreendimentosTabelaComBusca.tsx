@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode, type FormEvent } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
 import { useRouter } from 'next/navigation';
 import { Pencil, X, ChevronDown, ChevronRight, Link2, Check, Printer } from 'lucide-react';
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
@@ -452,6 +453,7 @@ export function ImobEmpreendimentosTabelaComBusca({
   solicitarCriacao = 0,
 }: Props) {
   const [busca, setBusca] = useState('');
+  const debouncedBusca = useDebounce(busca);
   const [modalRow, setModalRow] = useState<ImobEmpreendimentoRow | null | undefined>(undefined);
   const [flyerEmpId, setFlyerEmpId] = useState<string | null>(null);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
@@ -461,12 +463,12 @@ export function ImobEmpreendimentosTabelaComBusca({
   }, [solicitarCriacao]);
 
   const rowsFiltradas = useMemo(() => {
-    const q = busca.trim();
+    const q = debouncedBusca.trim();
     const base = q
       ? rows.filter((r) => imobEmpreendimentoRowMatchesBusca(r, q))
       : rows;
     return ordenarImobEmpreendimentosPorNome(base);
-  }, [rows, busca]);
+  }, [rows, debouncedBusca]);
 
   const grupos = useMemo(() => agruparPorCondominio(rowsFiltradas), [rowsFiltradas]);
 

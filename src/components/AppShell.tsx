@@ -10,6 +10,7 @@ import { AppStickyHeader } from './AppStickyHeader';
 type AppShellProps = {
   user: { id: string; email?: string; full_name?: string | null } | null;
   userRole: string;
+  userCargo?: string | null;
   children: React.ReactNode;
 };
 
@@ -48,7 +49,7 @@ const MAIN_STYLE: React.CSSProperties = {
   flexDirection: 'column',
 };
 
-export function AppShell({ user, userRole, children }: AppShellProps) {
+export function AppShell({ user, userRole, userCargo = null, children }: AppShellProps) {
   const pathname = usePathname() ?? '';
   const hideGlobalHeader = pathname.startsWith('/sirene');
   const publicStandalone =
@@ -77,7 +78,7 @@ export function AppShell({ user, userRole, children }: AppShellProps) {
       <div className="moni-app-shell bg-stone-50" style={SHELL_STYLE} data-moni-shell="app">
         <aside className="moni-app-sidebar" style={SIDEBAR_STYLE} data-moni-shell="sidebar">
           <Suspense fallback={null}>
-            <PortalSidebar user={user} userRole={userRole} />
+            <PortalSidebar user={user} userRole={userRole} userCargo={userCargo} />
           </Suspense>
         </aside>
         <div className="moni-app-main" style={MAIN_STYLE} data-moni-shell="main">

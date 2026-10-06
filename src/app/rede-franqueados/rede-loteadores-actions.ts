@@ -54,6 +54,7 @@ function cleanPatch(patch: RedeLoteadorPatch): Record<string, unknown> {
   set('interlocutor_telefone', patch.interlocutor_telefone);
   set('interlocutor_email', patch.interlocutor_email);
 
+  set('condominio_id', patch.condominio_id);
   set('condominio_nome', patch.condominio_nome);
   set('condominio_data_lancamento', patch.condominio_data_lancamento);
   set('condominio_cidade', patch.condominio_cidade);

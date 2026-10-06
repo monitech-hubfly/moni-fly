@@ -27,12 +27,15 @@ type Props = {
   /** `sidebar`: corpo para a coluna esquerda do card (sem accordion próprio). */
   variant?: 'standalone' | 'sidebar';
   onSalvo?: (redeLoteadorId: string) => void;
+  /** Id do condomínio vinculado ao loteador, para a seção Dados do Condomínio. */
+  onCondominioVinculado?: (condominioId: string | null) => void;
 };
 
 export function DadosLoteadorPersistentPanel({
   cardId,
   variant = 'standalone',
   onSalvo,
+  onCondominioVinculado,
 }: Props) {
   const isSidebar = variant === 'sidebar';
   const [expanded, setExpanded] = useState(false);
@@ -70,6 +73,7 @@ export function DadosLoteadorPersistentPanel({
     setSelecionadoId(r.cardRedeLoteadorId ?? '');
     setOpcoes(r.opcoes);
     setDraft(r.draftInicial);
+    onCondominioVinculado?.(r.draftInicial.condominio_id.trim() || null);
 
     if (r.loteador?.updated_at) setUltimaAtualizacao(r.loteador.updated_at);
 
@@ -90,7 +94,7 @@ export function DadosLoteadorPersistentPanel({
           );
         });
     }
-  }, [cardId]);
+  }, [cardId, onCondominioVinculado]);
 
   useEffect(() => {
     void recarregar();
@@ -320,6 +324,7 @@ export function DadosLoteadorPersistentPanel({
         onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
         showStatus={false}
         layout={isSidebar ? 'sidebar' : 'default'}
+        ocultarCondominio={isSidebar}
         sectionIdPrefix={`loteador-${cardId}`}
       />
 

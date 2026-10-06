@@ -104,7 +104,7 @@ function AgendaCard({
   onDesconcluir: (id: string) => void;
   onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
   onAtualizarHorarioInicio: (id: string, hora_inicio: string) => Promise<void>;
-  onDragStart: (atv: AtividadeAgenda, e: React.MouseEvent) => void;
+  onDragStart: (atv: AtividadeAgenda, e: React.PointerEvent) => void;
   isBeingDragged?: boolean;
 })
 // Nota: eventos isFromGCal são somente leitura — sem drag, sem resize
@@ -260,16 +260,23 @@ function AgendaCard({
         border: isPendente ? '1.5px dashed #9ca3af' : undefined,
         borderTop: !isPendente && isVencido ? '3px solid rgba(239,159,39,0.9)' : undefined,
         cursor: isPendente ? 'pointer' : undefined,
+        // Necessário para que o browser não inicie scroll/zoom no trackpad durante o drag
+        touchAction: isPendente || atv.isFromGCal ? undefined : 'none',
       }}
       onMouseEnter={handleTooltipEnter}
       onMouseMove={handleTooltipMove}
       onMouseLeave={handleTooltipLeave}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         handleTooltipLeave();
         if ((e.target as HTMLElement).closest('[data-action]')) return;
         // Eventos importados do GCal são somente leitura — sem drag
         if (atv.isFromGCal) return;
-        if (!isPendente) onDragStart(atv, e);
+        if (!isPendente) {
+          // setPointerCapture garante que pointermove/pointerup continuem chegando
+          // ao document mesmo que o ponteiro saia do card — e isola do DndContext do dnd-kit
+          e.currentTarget.setPointerCapture(e.pointerId);
+          onDragStart(atv, e);
+        }
       }}
       onClick={(e) => {
         if (resizingRef.current) return;
@@ -398,7 +405,7 @@ function ColunaDia({
   onDesconcluir: (id: string) => void;
   onAtualizarHorario: (id: string, hora_fim: string) => Promise<void>;
   onAtualizarHorarioInicio: (id: string, hora_inicio: string) => Promise<void>;
-  onDragStart: (atv: AtividadeAgenda, e: React.MouseEvent) => void;
+  onDragStart: (atv: AtividadeAgenda, e: React.PointerEvent) => void;
   draggingId?: string | null;
 }) {
   const horas = Array.from({ length: TOTAL_HORAS }, (_, i) => HORA_INICIO + i);
@@ -660,7 +667,11 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
   }, [atividades, onAbrirParaEditar]);
 
   // ── Drag de eventos ───────────────────────────────────────────────────────
-  const handleDragStart = useCallback((atv: AtividadeAgenda, e: React.MouseEvent) => {
+  // Os listeners de mousemove/mouseup são registrados POR DRAG (dentro do handleDragStart),
+  // não via useEffect global. Isso evita o race condition onde um re-render de dados
+  // (que muda handleAbrirParaEditar) faz o useEffect remover os listeners entre
+  // mousedown e mousemove, deixando isDragging = false e abrindo o modal de edição.
+  const handleDragStart = useCallback((atv: AtividadeAgenda, e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const [hi, mi] = atv.hora_inicio.split(':').map(Number);
@@ -686,24 +697,28 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
     };
     dragStateRef.current = state;
     setDragState(state);
-  }, []);
 
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    // Registrar listeners de POINTER (não mouse) — imunes à interferência do DndContext do dnd-kit.
+    // setPointerCapture (chamado no onPointerDown do card) garante que esses eventos
+    // chegam mesmo que o cursor saia do card durante o arrasto.
+    const onMove = (ev: PointerEvent) => {
       const ds = dragStateRef.current;
       if (!ds) return;
-      const dx = e.clientX - ds.startX;
-      const dy = e.clientY - ds.startY;
+      const dx = ev.clientX - ds.startX;
+      const dy = ev.clientY - ds.startY;
       const updated: DragState = {
         ...ds,
-        currentX: e.clientX, currentY: e.clientY,
+        currentX: ev.clientX, currentY: ev.clientY,
         isDragging: ds.isDragging || Math.hypot(dx, dy) > 8,
       };
       dragStateRef.current = updated;
       setDragState({ ...updated });
     };
 
-    const onUp = async (e: MouseEvent) => {
+    const onUp = async (ev: PointerEvent) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+
       const ds = dragStateRef.current;
       dragStateRef.current = null;
       setDragState(null);
@@ -716,14 +731,14 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
       }
 
       // Calcular nova data/hora a partir da posição do mouse
-      const grade = gradeRef.current;
-      if (!grade) return;
-      const rect = grade.getBoundingClientRect();
-      const scrollTop = grade.scrollTop;
-      const relX = e.clientX - rect.left - LARGURA_HORAS;
+      const gradeEl = gradeRef.current;
+      if (!gradeEl) return;
+      const rect = gradeEl.getBoundingClientRect();
+      const scrollTop = gradeEl.scrollTop;
+      const relX = ev.clientX - rect.left - LARGURA_HORAS;
       // Desconta offsetInCard para que o ponto onde o usuário clicou no card
       // fique alinhado com a hora calculada (não o topo do card)
-      const relY = e.clientY - rect.top + scrollTop - ds.offsetInCard;
+      const relY = ev.clientY - rect.top + scrollTop - ds.offsetInCard;
 
       const colWidth = (rect.width - LARGURA_HORAS) / diasDaSemana.length;
       const colIdx = Math.max(0, Math.min(diasDaSemana.length - 1, Math.floor(relX / colWidth)));
@@ -743,12 +758,8 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
       await moverEvento(ds.atv.id, novaData, novaHoraInicio, novaHoraFim);
     };
 
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    return () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
   }, [diasDaSemana, handleAbrirParaEditar, moverEvento]);
 
   const handleEscopoSelecionado = useCallback((escopo: RecorrenciaEscopo) => {
@@ -766,23 +777,11 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
       return;
     }
 
-    // Sirene / Pastelaria → se todas atividades do chamado estão concluídas, marca direto
+    // Sirene / Pastelaria → sempre abrir o modal do chamado para o usuário concluir lá
     if (tipo === 'sirene' || tipo === 'pastelaria') {
       if (atv.sirene_chamado_id) {
-        // Verificar se há tópicos ainda pendentes neste chamado
-        const { count } = await supabase
-          .from('sirene_topicos')
-          .select('id', { count: 'exact', head: true })
-          .eq('chamado_id', atv.sirene_chamado_id)
-          .neq('status', 'concluido')
-          .or('arquivado.is.null,arquivado.eq.false');
-        if (count === 0) {
-          // Todas atividades concluídas → marcar agenda direto
-          await concluir(atv.id);
-        } else {
-          setChamadoModalId(atv.sirene_chamado_id);
-          setPendingConcluirId(atv.id);
-        }
+        setChamadoModalId(atv.sirene_chamado_id);
+        setPendingConcluirId(atv.id);
       } else {
         await concluir(atv.id);
       }

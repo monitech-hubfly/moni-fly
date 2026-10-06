@@ -4,14 +4,16 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { RedeLoteadorFichaForm } from '@/components/RedeLoteadorFichaForm';
 import { salvarFichaLoteadorExterna } from '@/lib/actions/loteador-externo-actions';
+import type { CondominioRow } from '@/lib/condominios';
 import type { RedeLoteadorFichaDraft } from '@/lib/rede-loteador-ficha-draft';
 
 type Props = {
   token: string;
   draftInicial: RedeLoteadorFichaDraft;
+  condominios?: CondominioRow[];
 };
 
-export function FormularioLoteadorExternoForm({ token, draftInicial }: Props) {
+export function FormularioLoteadorExternoForm({ token, draftInicial, condominios = [] }: Props) {
   const [draft, setDraft] = useState(draftInicial);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export function FormularioLoteadorExternoForm({ token, draftInicial }: Props) {
         onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
         showStatus={false}
         sectionIdPrefix="loteador-ext"
+        condominiosIniciais={condominios}
       />
 
       <button

@@ -93,6 +93,12 @@ body:has(.moni-app-shell) {
   align-items: stretch !important;
 }
 
+/* Reforço: barra horizontal do board sempre presente no desktop */
+.moni-kanban-board-scroll {
+  overflow-x: scroll !important;
+  scrollbar-gutter: stable;
+}
+
 @media (max-width: 640px) {
   .moni-kanban-shell .moni-kanban-board,
   .moni-kanban-board-scroll.flex,
@@ -101,6 +107,13 @@ body:has(.moni-app-shell) {
     flex-wrap: nowrap !important;
     min-width: 0 !important;
     max-width: 100% !important;
+  }
+
+  .moni-kanban-board-scroll {
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    max-height: none !important;
+    scrollbar-gutter: auto;
   }
 }
 

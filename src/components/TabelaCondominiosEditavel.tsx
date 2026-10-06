@@ -5,14 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Check, Loader2, Pencil, Trash2, X } from 'lucide-react';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import {
-  decimalInputFromValue,
   formatCidadeEstadoCondominio,
   formatCondominioInteiro,
-  formatCondominioMoeda,
   formatEnderecoNumero,
+  formatTicketCadastro,
   integerInputFromValue,
   ordenarCondominiosPorNome,
-  parseDecimalInput,
   parseIntegerInput,
   type CondominioRow,
 } from '@/lib/condominios';
@@ -44,10 +42,18 @@ type Draft = {
   descricao_breve: string;
   ticket_medio_lote: string;
   ticket_medio_casas: string;
-  ticket_medio_casas_rsm2: string;
+  valor_tx_condominio: string;
   estimativa_casas_vendidas_ano: string;
   extrato_como_eram_casas: string;
   extrato_tempo_venda: string;
+  data_lancamento_vendas: string;
+  data_liberacao_tvo: string;
+  quantidade_lotes: string;
+  metragem_lotes: string;
+  metragem_casas: string;
+  planta_cadastral: string;
+  manual_obras: string;
+  casas_concorrentes: string;
   prazo_aprovacao_condominio_dias: string;
   prazo_aprovacao_condominio_sla_tipo: SlaTipo;
   prazo_aprovacao_prefeitura_dias: string;
@@ -65,10 +71,18 @@ function emptyDraft(): Draft {
     descricao_breve: '',
     ticket_medio_lote: '',
     ticket_medio_casas: '',
-    ticket_medio_casas_rsm2: '',
+    valor_tx_condominio: '',
     estimativa_casas_vendidas_ano: '',
     extrato_como_eram_casas: '',
     extrato_tempo_venda: '',
+    data_lancamento_vendas: '',
+    data_liberacao_tvo: '',
+    quantidade_lotes: '',
+    metragem_lotes: '',
+    metragem_casas: '',
+    planta_cadastral: '',
+    manual_obras: '',
+    casas_concorrentes: '',
     ...emptyCondominioPrazosAprovacaoDraft(),
   };
 }
@@ -82,12 +96,20 @@ function rowToDraft(r: CondominioRow): Draft {
     cidade: r.cidade ?? '',
     estado: r.estado ?? '',
     descricao_breve: r.descricao_breve ?? '',
-    ticket_medio_lote: decimalInputFromValue(r.ticket_medio_lote),
-    ticket_medio_casas: decimalInputFromValue(r.ticket_medio_casas),
-    ticket_medio_casas_rsm2: decimalInputFromValue(r.ticket_medio_casas_rsm2),
+    ticket_medio_lote: r.ticket_medio_lote ?? '',
+    ticket_medio_casas: r.ticket_medio_casas ?? '',
+    valor_tx_condominio: r.valor_tx_condominio ?? '',
     estimativa_casas_vendidas_ano: integerInputFromValue(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: r.extrato_como_eram_casas ?? '',
     extrato_tempo_venda: r.extrato_tempo_venda ?? '',
+    data_lancamento_vendas: r.data_lancamento_vendas ?? '',
+    data_liberacao_tvo: r.data_liberacao_tvo ?? '',
+    quantidade_lotes: integerInputFromValue(r.quantidade_lotes),
+    metragem_lotes: r.metragem_lotes ?? '',
+    metragem_casas: r.metragem_casas ?? '',
+    planta_cadastral: r.planta_cadastral ?? '',
+    manual_obras: r.manual_obras ?? '',
+    casas_concorrentes: r.casas_concorrentes ?? '',
     ...prazosAprovacaoDraftFromRow(r),
   };
 }
@@ -101,12 +123,20 @@ function draftToPatch(d: Draft) {
     cidade: d.cidade.trim() || null,
     estado: d.estado.trim() || null,
     descricao_breve: d.descricao_breve.trim() || null,
-    ticket_medio_lote: parseDecimalInput(d.ticket_medio_lote),
-    ticket_medio_casas: parseDecimalInput(d.ticket_medio_casas),
-    ticket_medio_casas_rsm2: parseDecimalInput(d.ticket_medio_casas_rsm2),
+    ticket_medio_lote: d.ticket_medio_lote.trim() || null,
+    ticket_medio_casas: d.ticket_medio_casas.trim() || null,
+    valor_tx_condominio: d.valor_tx_condominio.trim() || null,
     estimativa_casas_vendidas_ano: parseIntegerInput(d.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: d.extrato_como_eram_casas.trim() || null,
     extrato_tempo_venda: d.extrato_tempo_venda.trim() || null,
+    data_lancamento_vendas: d.data_lancamento_vendas.trim() || null,
+    data_liberacao_tvo: d.data_liberacao_tvo.trim() || null,
+    quantidade_lotes: parseIntegerInput(d.quantidade_lotes),
+    metragem_lotes: d.metragem_lotes.trim() || null,
+    metragem_casas: d.metragem_casas.trim() || null,
+    planta_cadastral: d.planta_cadastral.trim() || null,
+    manual_obras: d.manual_obras.trim() || null,
+    casas_concorrentes: d.casas_concorrentes.trim() || null,
     ...prazosAprovacaoPatchFromDraft({
       prazo_aprovacao_condominio_dias: d.prazo_aprovacao_condominio_dias,
       prazo_aprovacao_condominio_sla_tipo: d.prazo_aprovacao_condominio_sla_tipo,
@@ -114,6 +144,23 @@ function draftToPatch(d: Draft) {
       prazo_aprovacao_prefeitura_sla_tipo: d.prazo_aprovacao_prefeitura_sla_tipo,
     }),
   };
+}
+
+const LABEL_DATA_LANCAMENTO = 'Data de lançamento (vendas de lote)';
+const LABEL_DATA_TVO = 'Data liberação TVO (permissão de construir casas)';
+const LABEL_QTD_LOTES = 'Quantidade de lotes';
+const LABEL_METRAGEM_LOTES = 'Metragem dos lotes (média ou faixas)';
+const LABEL_METRAGEM_CASAS = 'Metragem / tipologia média das casas (média ou faixas)';
+const LABEL_PLANTA = 'Planta cadastral do condomínio / lotes com medidas (frente e lateral)';
+const LABEL_MANUAL = 'Manual de obras';
+const LABEL_CONCORRENTES = 'Exemplo / links de casas concorrentes';
+
+function formatDateBr(iso: string | null | undefined): string {
+  const s = (iso ?? '').trim().slice(0, 10);
+  if (!s) return '—';
+  const [y, m, d] = s.split('-');
+  if (!y || !m || !d) return s;
+  return `${d}/${m}/${y}`;
 }
 
 const inputCls =
@@ -245,7 +292,7 @@ export function TabelaCondominiosEditavel({
       ) : null}
 
       <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
-        <table className="w-full min-w-[1280px] border-collapse text-left text-sm">
+        <table className="moni-tabela-condominios w-full min-w-[2400px] border-collapse bg-[var(--moni-surface-0)] text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50/95">
               <th className={redeTh} scope="col">
@@ -270,7 +317,7 @@ export function TabelaCondominiosEditavel({
                 Ticket Médio Casas
               </th>
               <th className={redeTh} scope="col">
-                Ticket Médio Casas (R$/m²)
+                Valor Tx Condomínio
               </th>
               <th className={redeTh} scope="col">
                 Est. casas vendidas/ano
@@ -280,6 +327,30 @@ export function TabelaCondominiosEditavel({
               </th>
               <th className={redeTh} scope="col">
                 Extrato — Tempo venda
+              </th>
+              <th className={redeTh} scope="col">
+                {LABEL_DATA_LANCAMENTO}
+              </th>
+              <th className={`${redeTh} normal-case`} scope="col" title={LABEL_DATA_TVO}>
+                {LABEL_DATA_TVO}
+              </th>
+              <th className={redeTh} scope="col">
+                {LABEL_QTD_LOTES}
+              </th>
+              <th className={redeTh} scope="col">
+                {LABEL_METRAGEM_LOTES}
+              </th>
+              <th className={redeTh} scope="col">
+                {LABEL_METRAGEM_CASAS}
+              </th>
+              <th className={redeTh} scope="col">
+                {LABEL_PLANTA}
+              </th>
+              <th className={redeTh} scope="col">
+                {LABEL_MANUAL}
+              </th>
+              <th className={redeTh} scope="col">
+                {LABEL_CONCORRENTES}
               </th>
               <th className={redeTh} scope="col">
                 Prazo Aprov. Condomínio
@@ -322,7 +393,7 @@ export function TabelaCondominiosEditavel({
                 );
               }
               return (
-                <tr key={r.id} className="group border-b border-stone-100 align-top hover:bg-stone-50/70">
+                <tr key={r.id} className="moni-condominio-row group border-b border-stone-100 align-top">
                   <td className="px-3 py-2.5 font-medium text-stone-900">{r.nome}</td>
                   <td className="px-3 py-2.5 text-stone-700">{formatEnderecoNumero(r.endereco, r.numero)}</td>
                   <td className="px-3 py-2.5 text-stone-700">{r.cep?.trim() || '—'}</td>
@@ -334,14 +405,20 @@ export function TabelaCondominiosEditavel({
                       {r.descricao_breve?.trim() || '—'}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 tabular-nums text-stone-700">
-                    {formatCondominioMoeda(r.ticket_medio_lote)}
+                  <td className="max-w-[16rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-3 text-xs" title={r.ticket_medio_lote ?? ''}>
+                      {formatTicketCadastro(r.ticket_medio_lote)}
+                    </span>
                   </td>
-                  <td className="px-3 py-2.5 tabular-nums text-stone-700">
-                    {formatCondominioMoeda(r.ticket_medio_casas)}
+                  <td className="max-w-[16rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-3 text-xs" title={r.ticket_medio_casas ?? ''}>
+                      {formatTicketCadastro(r.ticket_medio_casas)}
+                    </span>
                   </td>
-                  <td className="px-3 py-2.5 tabular-nums text-stone-700">
-                    {formatCondominioMoeda(r.ticket_medio_casas_rsm2)}
+                  <td className="max-w-[16rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-3 text-xs" title={r.valor_tx_condominio ?? ''}>
+                      {formatTicketCadastro(r.valor_tx_condominio)}
+                    </span>
                   </td>
                   <td className="px-3 py-2.5 tabular-nums text-stone-700">
                     {formatCondominioInteiro(r.estimativa_casas_vendidas_ano)}
@@ -354,6 +431,40 @@ export function TabelaCondominiosEditavel({
                   <td className="max-w-[12rem] px-3 py-2.5 text-stone-700">
                     <span className="line-clamp-2 text-xs" title={r.extrato_tempo_venda ?? ''}>
                       {r.extrato_tempo_venda?.trim() || '—'}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-stone-700">
+                    {formatDateBr(r.data_lancamento_vendas)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-stone-700">
+                    {formatDateBr(r.data_liberacao_tvo)}
+                  </td>
+                  <td className="px-3 py-2.5 tabular-nums text-stone-700">
+                    {formatCondominioInteiro(r.quantidade_lotes)}
+                  </td>
+                  <td className="max-w-[14rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-2 text-xs" title={r.metragem_lotes ?? ''}>
+                      {r.metragem_lotes?.trim() || '—'}
+                    </span>
+                  </td>
+                  <td className="max-w-[14rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-2 text-xs" title={r.metragem_casas ?? ''}>
+                      {r.metragem_casas?.trim() || '—'}
+                    </span>
+                  </td>
+                  <td className="max-w-[14rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-2 text-xs" title={r.planta_cadastral ?? ''}>
+                      {r.planta_cadastral?.trim() || '—'}
+                    </span>
+                  </td>
+                  <td className="max-w-[14rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-2 text-xs" title={r.manual_obras ?? ''}>
+                      {r.manual_obras?.trim() || '—'}
+                    </span>
+                  </td>
+                  <td className="max-w-[14rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-2 text-xs" title={r.casas_concorrentes ?? ''}>
+                      {r.casas_concorrentes?.trim() || '—'}
                     </span>
                   </td>
                   <td className="px-3 py-2.5 tabular-nums text-stone-700">
@@ -532,31 +643,31 @@ function CondominioEditRow({
       <td className="px-3 py-2">
         <input
           type="text"
-          inputMode="decimal"
           value={draft.ticket_medio_lote}
           onChange={(e) => setDraft((d) => ({ ...d, ticket_medio_lote: e.target.value }))}
-          className={inputCls}
-          placeholder="R$"
+          className={`${inputCls} min-w-[12rem]`}
+          style={inputStyle}
+          placeholder="Valor ou faixa"
         />
       </td>
       <td className="px-3 py-2">
         <input
           type="text"
-          inputMode="decimal"
           value={draft.ticket_medio_casas}
           onChange={(e) => setDraft((d) => ({ ...d, ticket_medio_casas: e.target.value }))}
-          className={inputCls}
-          placeholder="R$"
+          className={`${inputCls} min-w-[12rem]`}
+          style={inputStyle}
+          placeholder="Valor ou faixa"
         />
       </td>
       <td className="px-3 py-2">
         <input
           type="text"
-          inputMode="decimal"
-          value={draft.ticket_medio_casas_rsm2}
-          onChange={(e) => setDraft((d) => ({ ...d, ticket_medio_casas_rsm2: e.target.value }))}
-          className={inputCls}
-          placeholder="R$/m²"
+          value={draft.valor_tx_condominio}
+          onChange={(e) => setDraft((d) => ({ ...d, valor_tx_condominio: e.target.value }))}
+          className={`${inputCls} min-w-[12rem]`}
+          style={inputStyle}
+          placeholder="Valor ou faixa"
         />
       </td>
       <td className="px-3 py-2">
@@ -586,6 +697,93 @@ function CondominioEditRow({
           className={`${inputCls} min-w-[10rem]`}
           style={inputStyle}
           placeholder="Tempo para vender"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="date"
+          value={draft.data_lancamento_vendas}
+          onChange={(e) => setDraft((d) => ({ ...d, data_lancamento_vendas: e.target.value }))}
+          className={inputCls}
+          style={inputStyle}
+          aria-label={LABEL_DATA_LANCAMENTO}
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="date"
+          value={draft.data_liberacao_tvo}
+          onChange={(e) => setDraft((d) => ({ ...d, data_liberacao_tvo: e.target.value }))}
+          className={inputCls}
+          style={inputStyle}
+          aria-label={LABEL_DATA_TVO}
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="text"
+          inputMode="numeric"
+          value={draft.quantidade_lotes}
+          onChange={(e) => setDraft((d) => ({ ...d, quantidade_lotes: e.target.value }))}
+          className={inputCls}
+          style={inputStyle}
+          placeholder="Qtd"
+          aria-label={LABEL_QTD_LOTES}
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="text"
+          value={draft.metragem_lotes}
+          onChange={(e) => setDraft((d) => ({ ...d, metragem_lotes: e.target.value }))}
+          className={`${inputCls} min-w-[10rem]`}
+          style={inputStyle}
+          placeholder="Média ou faixas"
+          aria-label={LABEL_METRAGEM_LOTES}
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="text"
+          value={draft.metragem_casas}
+          onChange={(e) => setDraft((d) => ({ ...d, metragem_casas: e.target.value }))}
+          className={`${inputCls} min-w-[10rem]`}
+          style={inputStyle}
+          placeholder="Média ou faixas"
+          aria-label={LABEL_METRAGEM_CASAS}
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="text"
+          value={draft.planta_cadastral}
+          onChange={(e) => setDraft((d) => ({ ...d, planta_cadastral: e.target.value }))}
+          className={`${inputCls} min-w-[10rem]`}
+          style={inputStyle}
+          placeholder="Link ou referência"
+          aria-label={LABEL_PLANTA}
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="text"
+          value={draft.manual_obras}
+          onChange={(e) => setDraft((d) => ({ ...d, manual_obras: e.target.value }))}
+          className={`${inputCls} min-w-[10rem]`}
+          style={inputStyle}
+          placeholder="Link ou referência"
+          aria-label={LABEL_MANUAL}
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="text"
+          value={draft.casas_concorrentes}
+          onChange={(e) => setDraft((d) => ({ ...d, casas_concorrentes: e.target.value }))}
+          className={`${inputCls} min-w-[10rem]`}
+          style={inputStyle}
+          placeholder="Links"
+          aria-label={LABEL_CONCORRENTES}
         />
       </td>
       <td className="px-3 py-2">

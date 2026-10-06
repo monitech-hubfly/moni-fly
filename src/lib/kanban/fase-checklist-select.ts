@@ -11,8 +11,37 @@ function isMissingChecklistMetaColumnError(message: string | undefined): boolean
   return Boolean(message && /does not exist/i.test(message));
 }
 
+const JURIDICO_ANALISE_INICIAL_FORA_DO_FLUXO = new Set([
+  'juridico_documento_correto',
+  'juridico_partes_identificadas',
+  'juridico_minuta_identificada',
+  'juridico_tipo_contrato_confirmado',
+]);
+
+/** Retroalimentação antiga da Pós-Assinatura. O item e as respostas ficam no banco. */
+export const CHECKLIST_JURIDICO_POS_ASSINATURA_LEGADO = new Set([
+  'juridico_retroalimentar_checklist',
+  'juridico_pontos_retroalimentar',
+  'juridico_template_atualizado',
+  'juridico_faq_atualizada',
+]);
+
+function itemJuridicoForaDoFluxo(row: Record<string, unknown>): boolean {
+  const slug = String(row.campo_slug ?? '').trim();
+  if (!JURIDICO_ANALISE_INICIAL_FORA_DO_FLUXO.has(slug)) return false;
+  const cfg = row.config_json;
+  if (!cfg || typeof cfg !== 'object') return false;
+  return (cfg as { oculto_ui?: unknown }).oculto_ui === true;
+}
+
+function itemJuridicoPosAssinaturaLegado(row: Record<string, unknown>): boolean {
+  return CHECKLIST_JURIDICO_POS_ASSINATURA_LEGADO.has(String(row.campo_slug ?? '').trim());
+}
+
 function normalizeChecklistItemRows(rows: Record<string, unknown>[]): FaseChecklistItem[] {
-  return rows.map((row) => ({
+  return rows
+    .filter((row) => !itemJuridicoForaDoFluxo(row) && !itemJuridicoPosAssinaturaLegado(row))
+    .map((row) => ({
     ...(row as FaseChecklistItem),
     campo_slug: (row.campo_slug as string | null | undefined) ?? null,
     config_json: (row.config_json as Record<string, unknown> | null | undefined) ?? {},

@@ -1201,7 +1201,7 @@ function PortfolioEspecificidadesSection({
             Funil de confirmações — Opção → Comitê → Contrato
           </h4>
           <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-            opcao_assinada, comite_aprovado e contrato_assinado no período, com taxa de conversão entre etapas.
+            opcao_assinada, comite_aprovado e portfolio_cto_precedentes_assinado no período, com taxa de conversão entre etapas.
           </p>
           <div className="mt-4">
             <MiniConfirmacaoFunnel
@@ -1288,7 +1288,7 @@ function PortfolioEspecificidadesSection({
               Taxa Comitê → Contrato
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              contrato_assinado ÷ comite_aprovado no período. Meta: 100%.
+              portfolio_cto_precedentes_assinado ÷ comite_aprovado no período. Meta: 100%.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <MiniKpi

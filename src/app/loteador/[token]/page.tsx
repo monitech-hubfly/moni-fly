@@ -1,4 +1,8 @@
-import { carregarFichaLoteadorExterna, buscarLoteadorExternoTokenInfo } from '@/lib/actions/loteador-externo-actions';
+import {
+  carregarFichaLoteadorExterna,
+  buscarLoteadorExternoTokenInfo,
+  listarCondominiosFichaExterna,
+} from '@/lib/actions/loteador-externo-actions';
 import { FormularioLoteadorExternoForm } from './FormularioLoteadorExternoForm';
 
 type Props = { params: { token: string } };
@@ -42,7 +46,11 @@ export default async function LoteadorExternoPage({ params }: Props) {
         </div>
 
         <div className="rounded-2xl bg-white p-8 shadow-sm">
-          <FormularioLoteadorExternoForm token={token} draftInicial={ficha.draft} />
+          <FormularioLoteadorExternoForm
+            token={token}
+            draftInicial={ficha.draft}
+            condominios={await listarCondominiosFichaExterna(token)}
+          />
         </div>
       </div>
     </main>

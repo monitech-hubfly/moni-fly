@@ -1,7 +1,7 @@
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { isPortfolioKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 
-/** Exibe Checklist Legal + Crédito apenas no Funil Portfólio, fase Check Legal e Crédito (step_4). */
+/** Exibe Checklist Legal + Crédito apenas no Funil Portfólio, fase Checks Legal, Diligência e Revisões (step_4). */
 function portfolioFaseStep4(
   kanbanId: string | null | undefined,
   faseSlug: string | null | undefined,

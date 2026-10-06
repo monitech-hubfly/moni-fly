@@ -17,35 +17,38 @@ export type FunilMesEtapaFaseRegra = {
  * Fonte única de mapeamento coluna → funil + slugs de fase.
  */
 export const FUNIL_MES_ETAPA_FASES: Record<PipelineFunilMesEtapaKey, FunilMesEtapaFaseRegra> = {
-  /** Funil Portfólio — Análise de Novo Negócio */
+  /** Funil Portfólio — Nova Hipótese + Análise + Revisão de Hipótese */
   hipoteses: {
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
-    slugs: ['aprovacao_moni_novo_negocio'],
+    slugs: [
+      'step_2',
+      'aprovacao_moni_novo_negocio',
+      FASE_SLUGS.PORTFOLIO_REVISAO_HIPOTESE,
+    ],
   },
-  /** Funil Portfólio — Enviar / Jurídico / Assinaturas / Opção Assinada */
+  /** Funil Portfólio — Enviar Opção + Jurídico + Assinaturas + Opção Assinada */
   opcoes: {
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
     slugs: [
       FASE_SLUGS.STEP_3,
-      FASE_SLUGS.OPCAO,
       FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO,
       FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO,
       FASE_SLUGS.PORTFOLIO_OPCAO_ASSINADA,
     ],
   },
-  /** Funil Portfólio — Check Legal + Pré Comitê + Acoplamento + Comitê / Revisões / 2º Comitê */
+  /** Funil Portfólio — Pré Comitê + Revisões + Acoplamento + Comitê + Revisões + Demais Comitês */
   comites: {
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
     slugs: [
-      FASE_SLUGS.STEP_4,
       FASE_SLUGS.PORTFOLIO_PRE_COMITE,
+      FASE_SLUGS.PORTFOLIO_REVISOES_PRE_COMITE,
       FASE_SLUGS.ACOPLAMENTO,
       FASE_SLUGS.STEP_5,
       FASE_SLUGS.PORTFOLIO_REVISOES_COMITE,
       FASE_SLUGS.PORTFOLIO_SEGUNDO_COMITE,
     ],
   },
-  /** Funil Portfólio — CTO c/ Precedentes + Diligência + Contrato s/ Precedentes + Passagem / Convertidos */
+  /** Funil Portfólio — Enviar Cto c/ Precedentes → Contrato s/ Precedentes Assinado (incl. Diligência) */
   contratos: {
     kanbanIds: [KANBAN_FUNIL_PORTFOLIO],
     slugs: [
@@ -58,8 +61,6 @@ export const FUNIL_MES_ETAPA_FASES: Record<PipelineFunilMesEtapaKey, FunilMesEta
       FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO,
       FASE_SLUGS.PORTFOLIO_ASSINATURAS_CONTRATO,
       FASE_SLUGS.PORTFOLIO_CONTRATO_ASSINADO,
-      FASE_SLUGS.PASSAGEM_WAYSER,
-      FASE_SLUGS.PORTFOLIO_CONVERTIDOS,
     ],
   },
   /** Funil Pré Obra e Obra — Planialtimétrico + Projeto Legal + Aprovação Condomínio + Prefeitura */

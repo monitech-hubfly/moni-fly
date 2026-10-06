@@ -1,5 +1,5 @@
-/** Checklist da fase «Cto de Parceria» — Funil Loteadores.
- * Pop-up «Assinou?» ao avançar — ver loteadores-confirmacao-fase.ts
+/** Checklist da fase «Jurídico Cto de Parceria» — Funil Loteadores.
+ * O pop-up «Assinou?» dispara ao sair de «Cto de Parceria Assinado».
  */
 
 import { isLoteadoresChecklistCampoVisivel } from '@/lib/kanban/loteadores-checklist-visibilidade';

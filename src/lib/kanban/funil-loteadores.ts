@@ -15,35 +15,87 @@ export type LoteadoresFaseCanon = {
 };
 
 /**
- * Esteira canônica v1 — 21 fases ativas (ordem 1–21).
- * Displays alinhados às migrations 513–517 + 521/533 (Novo Produto antes de Viabilidade) + 525 (Assinados).
+ * Esteira canônica — 21 fases ativas (ordem 1–21).
+ * Migration 584/585: esteira enxuta e Cto de Parceria antes de Passagem IMOB.
+ * Migration 592: NDA e Cto de Parceria em três fases; Revisões R02, Revisões Comitê,
+ * Demais Comitês e Enviar Acoplamento p/ Loteador.
+ * Migration 594: Enviar Cto de Parceria antes de Jurídico Cto de Parceria.
  */
 export const LOTEADORES_FASES_CANONICAS: readonly LoteadoresFaseCanon[] = [
   { ordem: 1, slug: FASE_SLUGS.LOTEADORES_PRIMEIRO_CONTATO, nome: 'Entrar em contato', slaDias: 1 },
-  { ordem: 2, slug: FASE_SLUGS.LOTEADORES_R1_CONCEITO, nome: 'R1 Conceito', slaDias: 5 },
-  { ordem: 3, slug: FASE_SLUGS.NDA_MONI_INC, nome: 'NDA', slaDias: 3 },
-  { ordem: 4, slug: FASE_SLUGS.OPCAO_MONI_INC, nome: 'Opção', slaDias: 3 },
+  { ordem: 2, slug: FASE_SLUGS.NDA_MONI_INC, nome: 'Jurídico NDA', slaDias: 3 },
+  { ordem: 3, slug: FASE_SLUGS.LOTEADORES_NDA_ASSINATURAS, nome: 'Assinaturas NDA', slaDias: 3 },
+  { ordem: 4, slug: FASE_SLUGS.LOTEADORES_NDA_ASSINADO, nome: 'NDA Assinado', slaDias: 3 },
   { ordem: 5, slug: FASE_SLUGS.AGUARDANDO_FICHA_MONI_INC, nome: 'Aguardando Ficha', slaDias: 3 },
   { ordem: 6, slug: FASE_SLUGS.LOTEADORES_NOVO_PRODUTO, nome: 'Novo Produto', slaDias: 20 },
   { ordem: 7, slug: FASE_SLUGS.LOTEADORES_VIABILIDADE, nome: 'Viabilidade / Premissas', slaDias: 1 },
-  { ordem: 8, slug: FASE_SLUGS.LOTEADORES_ACOPLAMENTO, nome: 'Acoplamento', slaDias: 1 },
-  { ordem: 9, slug: FASE_SLUGS.LOTEADORES_EXECUCAO_MATERIAL, nome: 'Executar Material', slaDias: 1 },
-  { ordem: 10, slug: FASE_SLUGS.VALIDACAO_MONI_INC, nome: 'Validação', slaDias: 1 },
-  { ordem: 11, slug: FASE_SLUGS.LOTEADORES_R2_PLANO_TEORICO, nome: 'R2 Apresentação', slaDias: 5 },
-  { ordem: 12, slug: FASE_SLUGS.LOTEADORES_REVISOES, nome: 'Revisões + Forma Pgto', slaDias: 2 },
-  { ordem: 13, slug: FASE_SLUGS.ACOPLAMENTO_GBOX_MONI_INC, nome: 'Acoplamento + Gbox', slaDias: 5 },
-  { ordem: 14, slug: FASE_SLUGS.LOTEADORES_COMITE, nome: 'Comitê', slaDias: 3 },
-  { ordem: 15, slug: FASE_SLUGS.REVISOES_POS_COMITE_MONI_INC, nome: 'Revisões', slaDias: 2 },
-  { ordem: 16, slug: FASE_SLUGS.CTO_PRECEDENTES_MONI_INC, nome: 'Cto c/ Precedentes', slaDias: 3 },
-  { ordem: 17, slug: FASE_SLUGS.LOTEADORES_DILIGENCIA, nome: 'Diligência', slaDias: 10 },
-  { ordem: 18, slug: FASE_SLUGS.LOTEADORES_CTO_SHOWROOM, nome: 'Cto Showroom', slaDias: 3 },
-  { ordem: 19, slug: FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC, nome: 'Passagem para Waysers', slaDias: 1 },
-  { ordem: 20, slug: FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA, nome: 'Cto de Parceria', slaDias: 3 },
+  { ordem: 8, slug: FASE_SLUGS.VALIDACAO_MONI_INC, nome: 'Validação', slaDias: 1 },
+  { ordem: 9, slug: FASE_SLUGS.LOTEADORES_R2_PLANO_TEORICO, nome: 'R2 Apresentação', slaDias: 5 },
+  { ordem: 10, slug: FASE_SLUGS.LOTEADORES_REVISOES, nome: 'Revisões R02', slaDias: 2 },
+  { ordem: 11, slug: FASE_SLUGS.ACOPLAMENTO_GBOX_MONI_INC, nome: 'Acoplamento + Gbox', slaDias: 5 },
+  { ordem: 12, slug: FASE_SLUGS.LOTEADORES_ENVIAR_ACOPLAMENTO, nome: 'Enviar Acoplamento p/ Loteador', slaDias: 3 },
+  { ordem: 13, slug: FASE_SLUGS.LOTEADORES_COMITE, nome: 'Comitê', slaDias: 3 },
+  { ordem: 14, slug: FASE_SLUGS.REVISOES_POS_COMITE_MONI_INC, nome: 'Revisões Comitê', slaDias: 2 },
+  { ordem: 15, slug: FASE_SLUGS.LOTEADORES_DEMAIS_COMITES, nome: 'Demais Comitês', slaDias: 3 },
+  { ordem: 16, slug: FASE_SLUGS.LOTEADORES_ENVIAR_CTO_PARCERIA, nome: 'Enviar Cto de Parceria', slaDias: 3 },
+  { ordem: 17, slug: FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA, nome: 'Jurídico Cto de Parceria', slaDias: 3 },
+  { ordem: 18, slug: FASE_SLUGS.LOTEADORES_CTO_PARCERIA_ASSINATURAS, nome: 'Assinaturas Cto de Parceria', slaDias: 3 },
+  { ordem: 19, slug: FASE_SLUGS.LOTEADORES_CTO_PARCERIA_ASSINADO, nome: 'Cto de Parceria Assinado', slaDias: 3 },
+  { ordem: 20, slug: FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC, nome: 'Passagem IMOB', slaDias: 1 },
   { ordem: 21, slug: FASE_SLUGS.LOTEADORES_ASSINADOS, nome: 'Assinados', slaDias: null },
 ] as const;
 
 /** Fases inativas no banco — mantidas no código para compat / histórico. */
 export const LOTEADORES_FASES_DEPRECATED: readonly LoteadoresFaseCanon[] = [
+  {
+    ordem: 80,
+    slug: FASE_SLUGS.LOTEADORES_R1_CONCEITO,
+    nome: 'R1 Conceito',
+    slaDias: null,
+    deprecated: true,
+  },
+  {
+    ordem: 81,
+    slug: FASE_SLUGS.LOTEADORES_OPCAO,
+    nome: 'Opção',
+    slaDias: null,
+    deprecated: true,
+  },
+  {
+    ordem: 82,
+    slug: FASE_SLUGS.LOTEADORES_ACOPLAMENTO,
+    nome: 'Acoplamento',
+    slaDias: null,
+    deprecated: true,
+  },
+  {
+    ordem: 83,
+    slug: FASE_SLUGS.LOTEADORES_EXECUCAO_MATERIAL,
+    nome: 'Executar Material',
+    slaDias: null,
+    deprecated: true,
+  },
+  {
+    ordem: 84,
+    slug: FASE_SLUGS.LOTEADORES_CTO_PRECEDENTES,
+    nome: 'Cto c/ Precedentes',
+    slaDias: null,
+    deprecated: true,
+  },
+  {
+    ordem: 85,
+    slug: FASE_SLUGS.LOTEADORES_DILIGENCIA,
+    nome: 'Diligência',
+    slaDias: null,
+    deprecated: true,
+  },
+  {
+    ordem: 86,
+    slug: FASE_SLUGS.LOTEADORES_CTO_SHOWROOM,
+    nome: 'Cto Showroom',
+    slaDias: null,
+    deprecated: true,
+  },
   {
     ordem: 90,
     slug: FASE_SLUGS.LOTEADORES_BATALHA_CASAS,
@@ -81,7 +133,7 @@ export const LOTEADORES_FASES_DEPRECATED: readonly LoteadoresFaseCanon[] = [
   },
 ] as const;
 
-/** Slugs na ordem canônica das 21 fases ativas. */
+/** Slugs na ordem canônica das fases ativas. */
 export const LOTEADORES_FASES_ORDEM_SLUGS: readonly string[] = LOTEADORES_FASES_CANONICAS.map(
   (f) => f.slug,
 );
@@ -127,7 +179,7 @@ export function ordenarFasesLoteadoresCanonicas<T extends { slug?: string | null
 /**
  * Fases elegíveis para KPIs / funil do Painel de Performance (Loteadores).
  * Exclui `ativo === false` e slugs deprecated (Batalha, R3, Moní Capital, SPE, fechar_contrato).
- * Ordena pela esteira canônica de 21 fases.
+ * Ordena pela esteira canônica das fases ativas.
  */
 export function fasesAtivasPainelLoteadores<
   T extends { slug?: string | null; ordem: number; ativo?: boolean },

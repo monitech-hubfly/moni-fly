@@ -12,7 +12,8 @@ export type PainelKanbanTabsVariant =
   | 'operacoes'
   | 'credito'
   | 'contabilidade'
-  | 'stepone';
+  | 'stepone'
+  | 'controladoria';
 
 /** Mesma cor de destaque do Funil Step One em todos os painéis. */
 const KANBAN_TAB_ACCENT = 'var(--moni-kanban-stepone)';
@@ -28,10 +29,17 @@ const ACCENT: Record<PainelKanbanTabsVariant, string> = {
   credito: KANBAN_TAB_ACCENT,
   contabilidade: KANBAN_TAB_ACCENT,
   stepone: KANBAN_TAB_ACCENT,
+  controladoria: KANBAN_TAB_ACCENT,
 };
 
 const TABS = [
   { id: 'kanban', label: 'Kanban' },
+  { id: 'painel', label: 'Painel' },
+] as const;
+
+const TABS_JURIDICO = [
+  { id: 'kanban', label: 'Kanban' },
+  { id: 'pontos', label: 'Pontos Jurídicos' },
   { id: 'painel', label: 'Painel' },
 ] as const;
 
@@ -48,20 +56,24 @@ export function PainelKanbanTabs({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = searchParams.get('tab') === 'painel' ? 'painel' : 'kanban';
+  const tabs = variant === 'juridico' ? TABS_JURIDICO : TABS;
+  const tabUrl = searchParams.get('tab');
+  const activeTab = tabUrl === 'painel' ? 'painel' : variant === 'juridico' && tabUrl === 'pontos' ? 'pontos' : 'kanban';
   const accent = ACCENT[variant];
 
-  function handleTabClick(tabId: (typeof TABS)[number]['id']) {
+  function handleTabClick(tabId: (typeof TABS_JURIDICO)[number]['id']) {
     const params = new URLSearchParams(searchParams.toString());
     if (tabId === 'kanban') {
       params.delete('tab');
+      params.delete('visao');
     } else {
-      params.set('tab', 'painel');
+      params.set('tab', tabId);
       params.delete('card');
       params.delete('abrir');
       params.delete('kanbanCard');
       params.delete('origem');
       params.delete('novo');
+      if (tabId !== 'pontos') params.delete('visao');
     }
     const q = params.toString();
     router.push(q ? `${basePath}?${q}` : basePath);
@@ -76,7 +88,7 @@ export function PainelKanbanTabs({
     >
       <div className="mx-auto max-w-[1600px] px-6">
         <nav className="flex gap-2" role="tablist">
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
@@ -87,6 +99,7 @@ export function PainelKanbanTabs({
                 onClick={() => handleTabClick(tab.id)}
                 className="relative px-4 py-3 text-sm font-medium transition-colors hover:bg-stone-50"
                 style={{
+                  minHeight: 44,
                   color: isActive ? 'var(--moni-navy-800)' : 'var(--moni-text-tertiary)',
                 }}
               >

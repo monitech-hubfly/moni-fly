@@ -3,6 +3,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { TabelaCondominiosEditavel } from '@/components/TabelaCondominiosEditavel';
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   condominioRowMatchesBusca,
   filtrarLinhasEmBrancoCondominios,
@@ -24,14 +25,15 @@ export function CondominiosTabelaComBusca({
   solicitarCriacao = 0,
 }: Props) {
   const [busca, setBusca] = useState('');
+  const debouncedBusca = useDebounce(busca);
 
   const rowsComCadastro = useMemo(() => filtrarLinhasEmBrancoCondominios(rows), [rows]);
 
   const rowsFiltradas = useMemo(() => {
-    const q = busca.trim();
+    const q = debouncedBusca.trim();
     const base = q ? rowsComCadastro.filter((r) => condominioRowMatchesBusca(r, q)) : rowsComCadastro;
     return ordenarCondominiosPorNome(base);
-  }, [rowsComCadastro, busca]);
+  }, [rowsComCadastro, debouncedBusca]);
 
   return (
     <div className="space-y-4">

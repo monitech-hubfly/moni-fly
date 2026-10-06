@@ -15,6 +15,7 @@ export type RedeLoteadorFichaDraft = {
   interlocutor_cargo: string;
   interlocutor_telefone: string;
   interlocutor_email: string;
+  condominio_id: string;
   condominio_nome: string;
   condominio_data_lancamento: string;
   condominio_cidade: string;
@@ -53,6 +54,7 @@ export function emptyRedeLoteadorFichaDraft(status: RedeLoteadorStatus = 'em_ana
     interlocutor_cargo: '',
     interlocutor_telefone: '',
     interlocutor_email: '',
+    condominio_id: '',
     condominio_nome: '',
     condominio_data_lancamento: '',
     condominio_cidade: '',
@@ -100,6 +102,7 @@ export function redeLoteadorRowToFichaDraft(r: RedeLoteadorRow): RedeLoteadorFic
     interlocutor_cargo: str(r.interlocutor_cargo),
     interlocutor_telefone: str(r.interlocutor_telefone),
     interlocutor_email: str(r.interlocutor_email),
+    condominio_id: str(r.condominio_id),
     condominio_nome: str(r.condominio_nome),
     condominio_data_lancamento: str(r.condominio_data_lancamento),
     condominio_cidade: str(r.condominio_cidade),
@@ -148,6 +151,7 @@ export function redeLoteadorFichaDraftToPatch(d: RedeLoteadorFichaDraft): RedeLo
     interlocutor_cargo: t(d.interlocutor_cargo),
     interlocutor_telefone: t(d.interlocutor_telefone),
     interlocutor_email: t(d.interlocutor_email),
+    condominio_id: t(d.condominio_id),
     condominio_nome: t(d.condominio_nome),
     condominio_data_lancamento: t(d.condominio_data_lancamento),
     condominio_cidade: t(d.condominio_cidade),

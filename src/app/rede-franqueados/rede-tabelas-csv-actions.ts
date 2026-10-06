@@ -135,17 +135,48 @@ function rowLoteadorFromCsv(row: Record<string, string>): Record<string, unknown
   return out;
 }
 
+function dataIsoCsv(raw: string): string | null {
+  const s = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
 function rowCondominioFromCsv(row: Record<string, string>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const k of ['nome', 'endereco', 'numero', 'cep', 'cidade', 'estado', 'extrato_como_eram_casas', 'extrato_tempo_venda']) {
-    const v = valorCsv(row, k);
-    if (v) out[k] = v;
-  }
   for (const k of [
+    'nome',
+    'endereco',
+    'numero',
+    'cep',
+    'cidade',
+    'estado',
     'ticket_medio_lote',
     'ticket_medio_casas',
-    'ticket_medio_casas_rsm2',
+    'valor_tx_condominio',
+    'extrato_como_eram_casas',
+    'extrato_tempo_venda',
+    'data_lancamento_vendas',
+    'data_liberacao_tvo',
+    'metragem_lotes',
+    'metragem_casas',
+    'planta_cadastral',
+    'manual_obras',
+    'casas_concorrentes',
+  ]) {
+    const v = valorCsv(row, k);
+    if (!v) continue;
+    if (k === 'data_lancamento_vendas' || k === 'data_liberacao_tvo') {
+      const iso = dataIsoCsv(v);
+      if (iso) out[k] = iso;
+      continue;
+    }
+    out[k] = v;
+  }
+  for (const k of [
     'estimativa_casas_vendidas_ano',
+    'quantidade_lotes',
     'recuo_frontal_m',
     'recuo_fundo_m',
     'recuo_lateral_m',

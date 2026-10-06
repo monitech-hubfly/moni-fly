@@ -1,333 +1,520 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
-import { Download, FileText, FolderOpen, Loader2, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState, useTransition } from 'react';
 import {
-  adicionarDocumento,
   adicionarSecao,
+  atualizarQuandoUtilizar,
   baixarDocumento,
-  deletarDocumento,
-  type SecaoComDocumentos,
+  criarTipo,
+  criarVariacao,
+  salvarChecklistTipo,
+  subirVersaoPadrao,
+  subirVersaoVariacao,
+  type SecaoRepositorio,
+  type VersaoDocumento,
 } from './actions';
 
-type Props = {
-  initialSecoes: SecaoComDocumentos[];
-  isAdmin: boolean;
-};
+const campo = {
+  width: '100%',
+  minHeight: 44,
+  borderRadius: 'var(--moni-radius-md)',
+  border: 'var(--moni-border-width) solid var(--moni-border-default)',
+  background: 'var(--moni-surface-0)',
+  color: 'var(--moni-text-primary)',
+  fontFamily: 'var(--moni-font-sans)',
+  fontSize: 13,
+  padding: '8px 10px',
+} as const;
 
-export function RepositorioClient({ initialSecoes, isAdmin }: Props) {
+const botao = {
+  minHeight: 44,
+  borderRadius: 'var(--moni-radius-md)',
+  background: 'var(--moni-navy-800)',
+  color: 'white',
+  fontFamily: 'var(--moni-font-sans)',
+  fontSize: 13,
+  fontWeight: 600,
+  padding: '0 14px',
+  border: 'none',
+} as const;
+
+const botaoSec = {
+  minHeight: 44,
+  borderRadius: 'var(--moni-radius-md)',
+  background: 'var(--moni-surface-0)',
+  color: 'var(--moni-text-primary)',
+  fontFamily: 'var(--moni-font-sans)',
+  fontSize: 12,
+  fontWeight: 600,
+  padding: '0 12px',
+  border: 'var(--moni-border-width) solid var(--moni-border-default)',
+} as const;
+
+function dataVersao(iso: string): string {
+  const data = new Date(iso);
+  if (Number.isNaN(data.getTime())) return iso;
+  return data.toLocaleString('pt-BR');
+}
+
+export function RepositorioClient({
+  initialSecoes,
+  podeEditar,
+}: {
+  initialSecoes: SecaoRepositorio[];
+  podeEditar: boolean;
+}) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-  const [novaSecaoNome, setNovaSecaoNome] = useState('');
-  const [mostrarNovaSecao, setMostrarNovaSecao] = useState(false);
-  const [docSecaoId, setDocSecaoId] = useState<string | null>(null);
-  const [docNome, setDocNome] = useState('');
-  const [docDescricao, setDocDescricao] = useState('');
-  const [docArquivo, setDocArquivo] = useState<File | null>(null);
-  const [baixandoId, setBaixandoId] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+  const [msg, setMsg] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [aberto, setAberto] = useState<string | null>(null);
 
-  function feedback(ok: boolean, text: string) {
-    setMsg({ type: ok ? 'ok' : 'err', text });
-    if (ok) setTimeout(() => setMsg(null), 4000);
-  }
+  useEffect(() => {
+    const id = window.location.hash.replace(/^#tipo-/, '');
+    if (id && id !== window.location.hash) setAberto(id);
+  }, []);
+  const [historico, setHistorico] = useState<string | null>(null);
+  const [baixando, setBaixando] = useState<string | null>(null);
 
   function refresh() {
-    startTransition(() => {
-      router.refresh();
-    });
+    startTransition(() => router.refresh());
   }
 
-  async function handleNovaSecao(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg(null);
-    const res = await adicionarSecao(novaSecaoNome);
+  function avisar(res: { ok: boolean; error?: string }, ok: string) {
     if (!res.ok) {
-      feedback(false, res.error);
+      setErro(res.error ?? 'Não foi possível salvar.');
+      setMsg(null);
       return;
     }
-    setNovaSecaoNome('');
-    setMostrarNovaSecao(false);
-    feedback(true, 'Seção criada.');
+    setErro(null);
+    setMsg(ok);
     refresh();
   }
 
-  async function handleNovoDocumento(e: React.FormEvent) {
-    e.preventDefault();
-    if (!docSecaoId || !docArquivo) return;
-    setMsg(null);
-    const fd = new FormData();
-    fd.append('secao_id', docSecaoId);
-    fd.append('nome', docNome);
-    fd.append('descricao', docDescricao);
-    fd.append('arquivo', docArquivo);
-    const res = await adicionarDocumento(fd);
-    if (!res.ok) {
-      feedback(false, res.error);
-      return;
-    }
-    setDocSecaoId(null);
-    setDocNome('');
-    setDocDescricao('');
-    setDocArquivo(null);
-    feedback(true, 'Documento adicionado.');
-    refresh();
-  }
-
-  async function handleBaixar(id: string) {
-    setBaixandoId(id);
-    setMsg(null);
+  async function baixar(id: string) {
+    setBaixando(id);
     const res = await baixarDocumento(id);
-    setBaixandoId(null);
+    setBaixando(null);
     if (!res.ok) {
-      feedback(false, res.error);
+      setErro(res.error);
       return;
     }
     window.open(res.url, '_blank', 'noopener,noreferrer');
   }
 
-  async function handleDeletar(id: string) {
-    if (!confirm('Remover este documento do repositório?')) return;
-    setMsg(null);
-    const res = await deletarDocumento(id);
-    if (!res.ok) {
-      feedback(false, res.error);
-      return;
-    }
-    feedback(true, 'Documento removido.');
-    refresh();
-  }
-
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mx-auto max-w-3xl px-4 py-8" style={{ fontFamily: 'var(--moni-font-sans)' }}>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">Repositório de documentos</h1>
-          <p className="mt-1 text-sm text-stone-600">
-            Modelos e arquivos de apoio organizados por seção. Use <strong>Baixar</strong> para obter o
-            ficheiro.
+          <h1 className="text-2xl" style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}>
+            Repositório
+          </h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+            Documentos oficiais por seção, com padrão, variações e versão vigente.
           </p>
         </div>
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={() => {
-              setMostrarNovaSecao((v) => !v);
-              setMsg(null);
-            }}
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-moni-primary shadow-sm hover:bg-stone-50"
-          >
-            <Plus className="h-4 w-4" />
-            Adicionar seção
-          </button>
-        )}
+        {podeEditar ? <NovaSecao onCriada={() => avisar({ ok: true }, 'Seção criada.')} onErro={setErro} /> : null}
       </div>
+      {msg ? <p className="mb-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>{msg}</p> : null}
+      {erro ? <p className="mb-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>{erro}</p> : null}
 
-      {msg && (
-        <div
-          className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
-            msg.type === 'ok'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-              : 'border-red-200 bg-red-50 text-red-800'
-          }`}
-        >
-          {msg.text}
-        </div>
-      )}
-
-      {isAdmin && mostrarNovaSecao && (
-        <form
-          onSubmit={handleNovaSecao}
-          className="mb-8 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
-        >
-          <h2 className="text-sm font-semibold text-stone-800">Nova seção</h2>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <label className="min-w-0 flex-1 text-xs text-stone-600">
-              Nome
-              <input
-                value={novaSecaoNome}
-                onChange={(e) => setNovaSecaoNome(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2 text-sm text-stone-900"
-                placeholder="Ex.: Contratos"
-                required
-              />
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={pending}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-60"
-              >
-                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Guardar
-              </button>
-              <button
-                type="button"
-                onClick={() => setMostrarNovaSecao(false)}
-                className="rounded-lg border border-stone-200 px-4 py-2 text-sm text-stone-700 hover:bg-stone-50"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </form>
-      )}
-
-      {docSecaoId !== null && isAdmin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog">
-          <form
-            onSubmit={handleNovoDocumento}
-            className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-xl"
+      <div className="space-y-4">
+        {initialSecoes.map((secao) => (
+          <section
+            key={secao.id}
+            className="p-4"
+            style={{
+              background: 'var(--moni-surface-0)',
+              border: 'var(--moni-border-width) solid var(--moni-border-default)',
+              borderRadius: 'var(--moni-radius-lg)',
+            }}
           >
-            <h2 className="text-lg font-semibold text-stone-900">Adicionar documento</h2>
-            <label className="mt-4 block text-xs font-medium text-stone-600">
-              Nome
-              <input
-                value={docNome}
-                onChange={(e) => setDocNome(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2 text-sm"
-                required
-              />
-            </label>
-            <label className="mt-3 block text-xs font-medium text-stone-600">
-              Descrição (opcional)
-              <textarea
-                value={docDescricao}
-                onChange={(e) => setDocDescricao(e.target.value)}
-                rows={2}
-                className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="mt-3 block text-xs font-medium text-stone-600">
-              Ficheiro
-              <input
-                type="file"
-                onChange={(e) => setDocArquivo(e.target.files?.[0] ?? null)}
-                className="mt-1 w-full text-sm text-stone-700"
-                required
-              />
-            </label>
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setDocSecaoId(null);
-                  setDocNome('');
-                  setDocDescricao('');
-                  setDocArquivo(null);
-                }}
-                className="rounded-lg border border-stone-200 px-4 py-2 text-sm"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={pending || !docArquivo}
-                className="inline-flex items-center gap-2 rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-60"
-              >
-                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Enviar
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {initialSecoes.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/80 p-10 text-center text-stone-600">
-          <FolderOpen className="mx-auto mb-3 h-10 w-10 text-stone-400" />
-          <p className="text-sm">Ainda não há seções no repositório.</p>
-          {isAdmin && (
-            <p className="mt-2 text-xs text-stone-500">Use &quot;Adicionar seção&quot; para começar.</p>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {initialSecoes.map((secao) => (
-            <section
-              key={secao.id}
-              className="rounded-2xl border border-stone-200/90 bg-white p-5 shadow-sm"
-            >
-              <div className="mb-4 flex flex-col gap-3 border-b border-stone-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-moni-light/80 text-moni-primary">
-                    <FolderOpen className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <h2 className="text-lg font-semibold text-stone-900">{secao.nome}</h2>
-                    <p className="text-xs text-stone-500">
-                      {secao.documentos.length === 0
-                        ? 'Nenhum documento nesta seção.'
-                        : `${secao.documentos.length} documento(s)`}
-                    </p>
-                  </div>
-                </div>
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDocSecaoId(secao.id);
-                      setDocNome('');
-                      setDocDescricao('');
-                      setDocArquivo(null);
-                      setMsg(null);
-                    }}
-                    className="inline-flex items-center gap-2 self-start rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold text-moni-primary hover:bg-white"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Adicionar documento
-                  </button>
-                )}
-              </div>
-
-              <ul className="space-y-3">
-                {secao.documentos.map((doc) => (
-                  <li
-                    key={doc.id}
-                    className="flex flex-col gap-3 rounded-xl border border-stone-100 bg-stone-50/50 p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="flex min-w-0 flex-1 gap-3">
-                      <FileText className="mt-0.5 h-5 w-5 shrink-0 text-stone-400" />
-                      <div className="min-w-0">
-                        <p className="font-medium text-stone-900">{doc.nome}</p>
-                        {doc.descricao ? (
-                          <p className="mt-1 text-xs leading-relaxed text-stone-600">{doc.descricao}</p>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+              {secao.nome}
+            </h2>
+            {secao.tipos.length === 0 ? (
+              <p className="mt-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Nenhum tipo de documento nesta seção.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {secao.tipos.map((tipo) => {
+                  const abertoTipo = aberto === tipo.id;
+                  return (
+                    <li
+                      key={tipo.id}
+                      id={`tipo-${tipo.id}`}
+                      style={{
+                        border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                        borderRadius: 'var(--moni-radius-md)',
+                      }}
+                    >
                       <button
                         type="button"
-                        onClick={() => void handleBaixar(doc.id)}
-                        disabled={baixandoId === doc.id}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-moni-primary px-3 py-2 text-xs font-semibold text-white hover:bg-moni-secondary disabled:opacity-60"
+                        className="flex w-full items-center justify-between px-3 text-left"
+                        style={{ minHeight: 44 }}
+                        aria-expanded={abertoTipo}
+                        onClick={() => setAberto(abertoTipo ? null : tipo.id)}
                       >
-                        {baixandoId === doc.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Download className="h-3.5 w-3.5" />
-                        )}
-                        Baixar
+                        <span className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+                          {tipo.nome}
+                        </span>
+                        <span className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+                          Padrão {tipo.padrao ? 'com arquivo' : 'sem arquivo'} · {tipo.variacoes.length}{' '}
+                          {tipo.variacoes.length === 1 ? 'variação' : 'variações'}
+                        </span>
                       </button>
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => void handleDeletar(doc.id)}
-                          disabled={pending}
-                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
-                          title="Remover"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                      {abertoTipo ? (
+                        <div className="space-y-4 px-3 pb-3">
+                          <BlocoArquivo
+                            titulo="Documento padrão"
+                            vigente={tipo.padrao}
+                            anteriores={tipo.anterioresPadrao}
+                            historicoAberto={historico === `padrao-${tipo.id}`}
+                            baixando={baixando}
+                            onHistorico={() =>
+                              setHistorico(historico === `padrao-${tipo.id}` ? null : `padrao-${tipo.id}`)
+                            }
+                            onBaixar={(id) => void baixar(id)}
+                          />
+                          {podeEditar ? (
+                            <form
+                              className="flex flex-wrap items-end gap-2"
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                const form = e.currentTarget;
+                                const fd = new FormData(form);
+                                fd.set('tipo_id', tipo.id);
+                                void subirVersaoPadrao(fd).then((res) => {
+                                  avisar(res, 'Nova versão do padrão publicada.');
+                                  if (res.ok) form.reset();
+                                });
+                              }}
+                            >
+                              <input name="arquivo" type="file" required className="text-xs" />
+                              <button type="submit" style={botao}>
+                                {tipo.padrao ? '+ Nova versão' : 'Subir arquivo padrão'}
+                              </button>
+                            </form>
+                          ) : null}
+
+                          <Checklist tipoId={tipo.id} itens={tipo.checklist} podeEditar={podeEditar} onSalvo={avisar} />
+
+                          <div>
+                            <h3 className="text-xs font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
+                              Variações
+                            </h3>
+                            <ul className="mt-2 space-y-3">
+                              {tipo.variacoes.map((variacao) => (
+                                <li
+                                  key={variacao.id}
+                                  className="space-y-2 p-3"
+                                  style={{
+                                    background: 'var(--moni-surface-50)',
+                                    borderRadius: 'var(--moni-radius-md)',
+                                  }}
+                                >
+                                  <p className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+                                    {variacao.nome}
+                                  </p>
+                                  <QuandoUtilizar
+                                    variacaoId={variacao.id}
+                                    texto={variacao.quando_utilizar ?? ''}
+                                    podeEditar={podeEditar}
+                                    onSalvo={avisar}
+                                  />
+                                  <BlocoArquivo
+                                    titulo="Arquivo vigente"
+                                    vigente={variacao.vigente}
+                                    anteriores={variacao.anteriores}
+                                    historicoAberto={historico === variacao.id}
+                                    baixando={baixando}
+                                    onHistorico={() => setHistorico(historico === variacao.id ? null : variacao.id)}
+                                    onBaixar={(id) => void baixar(id)}
+                                  />
+                                  {podeEditar ? (
+                                    <form
+                                      className="flex flex-wrap items-end gap-2"
+                                      onSubmit={(e) => {
+                                        e.preventDefault();
+                                        const form = e.currentTarget;
+                                        const fd = new FormData(form);
+                                        fd.set('variacao_id', variacao.id);
+                                        void subirVersaoVariacao(fd).then((res) => {
+                                          avisar(res, 'Nova versão da variação publicada.');
+                                          if (res.ok) form.reset();
+                                        });
+                                      }}
+                                    >
+                                      <input name="arquivo" type="file" required className="text-xs" />
+                                      <button type="submit" style={botaoSec}>
+                                        + Nova versão
+                                      </button>
+                                    </form>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                            {podeEditar ? (
+                              <form
+                                className="mt-3 space-y-2"
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const form = e.currentTarget;
+                                  const fd = new FormData(form);
+                                  fd.set('tipo_id', tipo.id);
+                                  void criarVariacao(fd).then((res) => {
+                                    avisar(res, 'Variação criada.');
+                                    if (res.ok) form.reset();
+                                  });
+                                }}
+                              >
+                                <input name="nome" required placeholder="Nome da variação" style={campo} />
+                                <textarea
+                                  name="quando_utilizar"
+                                  required
+                                  placeholder="Quando utilizar"
+                                  style={{ ...campo, minHeight: 72 }}
+                                />
+                                <input name="arquivo" type="file" required className="text-xs" />
+                                <button type="submit" style={botao}>
+                                  + Nova variação
+                                </button>
+                              </form>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
-            </section>
-          ))}
+            )}
+            {podeEditar ? <NovoTipo secaoId={secao.id} onCriado={avisar} /> : null}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BlocoArquivo({
+  titulo,
+  vigente,
+  anteriores,
+  historicoAberto,
+  baixando,
+  onHistorico,
+  onBaixar,
+}: {
+  titulo: string;
+  vigente: VersaoDocumento | null;
+  anteriores: VersaoDocumento[];
+  historicoAberto: boolean;
+  baixando: string | null;
+  onHistorico: () => void;
+  onBaixar: (id: string) => void;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
+        {titulo}
+      </p>
+      {vigente ? (
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <span className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Vigente · {dataVersao(vigente.created_at)}
+          </span>
+          <button type="button" style={botaoSec} disabled={baixando === vigente.id} onClick={() => onBaixar(vigente.id)}>
+            {baixando === vigente.id ? 'Abrindo…' : 'Baixar'}
+          </button>
         </div>
+      ) : (
+        <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Sem arquivo vigente.
+        </p>
+      )}
+      {anteriores.length > 0 ? (
+        <div className="mt-1">
+          <button type="button" className="text-xs font-semibold" style={{ minHeight: 44, color: 'var(--moni-navy-800)' }} onClick={onHistorico}>
+            {historicoAberto ? 'Ocultar versões anteriores' : 'Ver versões anteriores'}
+          </button>
+          {historicoAberto ? (
+            <ul className="space-y-1">
+              {anteriores.map((versao) => (
+                <li key={versao.id} className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+                    {dataVersao(versao.created_at)}
+                  </span>
+                  <button type="button" style={botaoSec} onClick={() => onBaixar(versao.id)}>
+                    Baixar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function NovaSecao({ onCriada, onErro }: { onCriada: () => void; onErro: (t: string) => void }) {
+  const [aberta, setAberta] = useState(false);
+  if (!aberta) {
+    return (
+      <button type="button" style={botao} onClick={() => setAberta(true)}>
+        + Seção
+      </button>
+    );
+  }
+  return (
+    <form
+      className="flex flex-wrap items-end gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const nome = String(new FormData(e.currentTarget).get('nome') ?? '');
+        void adicionarSecao(nome).then((res) => {
+          if (!res.ok) onErro(res.error);
+          else {
+            setAberta(false);
+            onCriada();
+          }
+        });
+      }}
+    >
+      <input name="nome" required placeholder="Nome da seção" style={{ ...campo, width: 220 }} />
+      <button type="submit" style={botao}>
+        Criar
+      </button>
+    </form>
+  );
+}
+
+function NovoTipo({
+  secaoId,
+  onCriado,
+}: {
+  secaoId: string;
+  onCriado: (res: { ok: boolean; error?: string }, ok: string) => void;
+}) {
+  return (
+    <form
+      className="mt-3 flex flex-wrap items-end gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const nome = String(new FormData(e.currentTarget).get('nome') ?? '');
+        void criarTipo(secaoId, nome).then((res) => {
+          onCriado(res, 'Tipo de documento criado.');
+          if (res.ok) e.currentTarget.reset();
+        });
+      }}
+    >
+      <input name="nome" required placeholder="Novo tipo de documento" style={{ ...campo, width: 260 }} />
+      <button type="submit" style={botaoSec}>
+        + Tipo
+      </button>
+    </form>
+  );
+}
+
+function Checklist({
+  tipoId,
+  itens,
+  podeEditar,
+  onSalvo,
+}: {
+  tipoId: string;
+  itens: string[];
+  podeEditar: boolean;
+  onSalvo: (res: { ok: boolean; error?: string }, ok: string) => void;
+}) {
+  const [lista, setLista] = useState(itens);
+  const [novo, setNovo] = useState('');
+  if (lista.length === 0 && !podeEditar) return null;
+  return (
+    <div>
+      <p className="text-xs font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
+        Checklist
+      </p>
+      <ul className="mt-1 space-y-1">
+        {lista.map((item) => (
+          <li key={item} className="flex items-center justify-between gap-2 text-xs" style={{ color: 'var(--moni-text-primary)' }}>
+            <span>{item}</span>
+            {podeEditar ? (
+              <button
+                type="button"
+                style={botaoSec}
+                onClick={() => {
+                  const proxima = lista.filter((atual) => atual !== item);
+                  setLista(proxima);
+                  void salvarChecklistTipo(tipoId, proxima).then((res) => onSalvo(res, 'Checklist atualizado.'));
+                }}
+              >
+                Remover
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {podeEditar ? (
+        <form
+          className="mt-2 flex flex-wrap gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const item = novo.trim();
+            if (!item || lista.includes(item)) return;
+            const proxima = [...lista, item];
+            setLista(proxima);
+            setNovo('');
+            void salvarChecklistTipo(tipoId, proxima).then((res) => onSalvo(res, 'Checklist atualizado.'));
+          }}
+        >
+          <input value={novo} onChange={(e) => setNovo(e.target.value)} placeholder="Item do checklist" style={{ ...campo, width: 220 }} />
+          <button type="submit" style={botaoSec}>
+            Adicionar
+          </button>
+        </form>
+      ) : null}
+    </div>
+  );
+}
+
+function QuandoUtilizar({
+  variacaoId,
+  texto,
+  podeEditar,
+  onSalvo,
+}: {
+  variacaoId: string;
+  texto: string;
+  podeEditar: boolean;
+  onSalvo: (res: { ok: boolean; error?: string }, ok: string) => void;
+}) {
+  const [valor, setValor] = useState(texto);
+  return (
+    <div>
+      <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+        Quando utilizar
+      </p>
+      {podeEditar ? (
+        <form
+          className="mt-1 space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void atualizarQuandoUtilizar(variacaoId, valor).then((res) => onSalvo(res, 'Quando utilizar atualizado.'));
+          }}
+        >
+          <textarea value={valor} onChange={(e) => setValor(e.target.value)} style={{ ...campo, minHeight: 72 }} />
+          <button type="submit" style={botaoSec}>
+            Salvar
+          </button>
+        </form>
+      ) : (
+        <p className="text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+          {texto || '—'}
+        </p>
       )}
     </div>
   );

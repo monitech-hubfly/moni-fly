@@ -18,6 +18,7 @@ export function categorizarAlerta(tipo: string): CategoriaAlerta {
     tipo === 'resposta_convite_agenda' ||
     tipo === 'status_preenchimento_lembrete'
   ) return 'planejamento';
+  if (tipo === 'novo_franqueado_rede') return 'gerais';
   return 'gerais';
 }
 
