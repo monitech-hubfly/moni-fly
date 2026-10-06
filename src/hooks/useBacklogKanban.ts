@@ -5,8 +5,6 @@ import { createClient } from '@/lib/supabase/client';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
 import { calcularSlaKanbanCard, type SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
 
-const ADMIN_EMAIL = 'danilo.n@moni.casa';
-
 export type PrioridadeGrupo = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6';
 
 export type KanbanCardItem = {
@@ -64,6 +62,7 @@ export function useBacklogKanban(refreshKey = 0) {
   const supabase   = useMemo(() => createClient(), []);
   const [cards,     setCards]     = useState<KanbanCardItem[]>([]);
   const [sndCards,  setSndCards]  = useState<KanbanCardItem[]>([]);
+  const [isAdmin,   setIsAdmin]   = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error,     setError]     = useState<string | null>(null);
   const callIdRef = useRef(0);
@@ -80,27 +79,24 @@ export function useBacklogKanban(refreshKey = 0) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      const isAdmin = user.email === ADMIN_EMAIL;
-      const effectiveProfileId = (isAdmin && simProfileId)
+      // Verifica role admin via profiles (conforme padrão do projeto)
+      const { data: perfil } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      const adminPorRole = (perfil as { role?: string | null } | null)?.role === 'admin';
+
+      const effectiveProfileId = (adminPorRole && simProfileId)
         ? simProfileId
         : user.id;
 
-      // 5 fontes + tag Especial em paralelo
+      // 4 fontes + tag Especial em paralelo
+      // Regra: o backlog mostra apenas cards onde o usuário é o RESPONSÁVEL DO CARD
+      // (responsavel_id ou responsaveis_ids). franqueado_id é o cliente/franqueado do
+      // negócio — não é critério de responsabilidade operacional.
       // Nota: usar !fase_id para disambiguar FK dupla (fase_id e data_reuniao_fase_id → kanban_fases)
-      const [fonte1, fonte2, fonte3, fonte4, fonte5, tagEspecialRes] = await Promise.all([
-        supabase
-          .from('kanban_cards')
-          .select(`
-            id, titulo, arquivado, concluido,
-            created_at, entered_fase_at, sla_iniciado_em,
-            proxima_atividade, prazo_atividade,
-            fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
-            kanban:kanbans(nome)
-          `)
-          .eq('franqueado_id', effectiveProfileId)
-          .eq('arquivado', false)
-          .eq('concluido', false),
-
+      const [fonte1, fonte2, fonte3, fonte4, tagEspecialRes] = await Promise.all([
         supabase
           .from('kanban_atividades')
           .select(`
@@ -140,7 +136,7 @@ export function useBacklogKanban(refreshKey = 0) {
             fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
-          .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .not('proxima_atividade', 'is', null)
           .eq('arquivado', false)
           .eq('concluido', false),
@@ -154,7 +150,7 @@ export function useBacklogKanban(refreshKey = 0) {
             fase:kanban_fases!fase_id(nome, sla_dias, sla_tipo, slug),
             kanban:kanbans(nome)
           `)
-          .or(`franqueado_id.eq.${effectiveProfileId},responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
+          .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .is('proxima_atividade', null)
           .eq('arquivado', false)
           .eq('concluido', false),
@@ -178,7 +174,7 @@ export function useBacklogKanban(refreshKey = 0) {
 
       const mapa = new Map<string, KanbanCardItem>();
 
-      // Processar fonte 1 — cards onde o usuário é o franqueado (via franqueado_id)
+      // Tipos compartilhados
       type FaseRel  = FaseRelSla;
       type KanbanRel = { nome: string };
       type CardBase = {
@@ -189,33 +185,15 @@ export function useBacklogKanban(refreshKey = 0) {
         fase: FaseRel | FaseRel[] | null;
         kanban: KanbanRel | KanbanRel[] | null;
       };
-      type CardF1 = CardBase;
 
-      ((fonte1.data ?? []) as unknown as CardF1[]).forEach(card => {
-        if (card.arquivado || card.concluido) return;
-        const fase   = Array.isArray(card.fase)   ? card.fase[0]   : card.fase;
-        const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
-        mapa.set(card.id, {
-          id: card.id, titulo: card.titulo,
-          fase_nome:         fase?.nome   ?? null,
-          kanban_nome:       kanban?.nome ?? null,
-          sla_dias:          fase?.sla_dias ?? null,
-          sla:               computeSla(card, fase ?? null),
-          origem:            'franqueado',
-          proxima_atividade: card.proxima_atividade,
-          prazo_atividade:   card.prazo_atividade,
-          especial:          especialSet.has(card.id),
-        });
-      });
-
-      // Processar fonte 2
+      // Processar fonte 1 — atividades atribuídas ao usuário
       type CardNested = CardBase;
-      type CardF2 = {
+      type CardF1 = {
         id: string; card_id: string; status: string;
         card: CardNested | CardNested[] | null;
       };
 
-      ((fonte2.data ?? []) as unknown as CardF2[]).forEach(atv => {
+      ((fonte1.data ?? []) as unknown as CardF1[]).forEach(atv => {
         const card = Array.isArray(atv.card) ? atv.card[0] : atv.card;
         if (!card || card.arquivado || card.concluido) return;
         const fase   = Array.isArray(card.fase)   ? card.fase[0]   : card.fase;
@@ -233,13 +211,13 @@ export function useBacklogKanban(refreshKey = 0) {
         });
       });
 
-      // Processar fonte 3 (não sobrescreve fonte 1/2)
-      type CardF3 = {
+      // Processar fonte 2 — checklist_respostas (não sobrescreve fonte 1)
+      type CardF2 = {
         card_id: string;
         card: CardNested | CardNested[] | null;
       };
 
-      ((fonte3.data ?? []) as unknown as CardF3[]).forEach(row => {
+      ((fonte2.data ?? []) as unknown as CardF2[]).forEach(row => {
         const card = Array.isArray(row.card) ? row.card[0] : row.card;
         if (!card || card.arquivado || card.concluido || mapa.has(card.id)) return;
         const fase   = Array.isArray(card.fase)   ? card.fase[0]   : card.fase;
@@ -257,13 +235,13 @@ export function useBacklogKanban(refreshKey = 0) {
         });
       });
 
-      // Processar fonte 4 — cards com proxima_atividade (não sobrescreve existentes)
-      type CardF4 = CardBase & {
+      // Processar fonte 3 — cards do responsável COM proxima_atividade (não sobrescreve existentes)
+      type CardF3 = CardBase & {
         proxima_atividade: string | null;
         prazo_atividade: string | null;
       };
 
-      ((fonte4.data ?? []) as unknown as CardF4[]).forEach(card => {
+      ((fonte3.data ?? []) as unknown as CardF3[]).forEach(card => {
         if (card.arquivado || card.concluido || mapa.has(card.id)) return;
         const fase   = Array.isArray(card.fase)   ? card.fase[0]   : card.fase;
         const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
@@ -280,10 +258,10 @@ export function useBacklogKanban(refreshKey = 0) {
         });
       });
 
-      // Processar fonte 5 — cards do usuário SEM proxima_atividade (não sobrescreve existentes)
-      type CardF5 = CardBase;
+      // Processar fonte 4 — cards do responsável SEM proxima_atividade (não sobrescreve existentes)
+      type CardF4 = CardBase;
 
-      ((fonte5.data ?? []) as unknown as CardF5[]).forEach(card => {
+      ((fonte4.data ?? []) as unknown as CardF4[]).forEach(card => {
         if (card.arquivado || card.concluido || mapa.has(card.id)) return;
         const fase   = Array.isArray(card.fase)   ? card.fase[0]   : card.fase;
         const kanban = Array.isArray(card.kanban) ? card.kanban[0] : card.kanban;
@@ -324,6 +302,7 @@ export function useBacklogKanban(refreshKey = 0) {
       if (callId !== callIdRef.current) return;
       setCards(resultado);
       setSndCards(sndResultado);
+      setIsAdmin(adminPorRole);
     } catch (e) {
       if (callId !== callIdRef.current) return;
       console.error('[useBacklogKanban]', e);
@@ -334,5 +313,5 @@ export function useBacklogKanban(refreshKey = 0) {
   }, [supabase, simProfileId, simAreaId, simNome, refreshKey]);
 
   useEffect(() => { carregar(); }, [carregar]);
-  return { cards, sndCards, isLoading, error };
+  return { cards, sndCards, isLoading, error, isAdmin };
 }

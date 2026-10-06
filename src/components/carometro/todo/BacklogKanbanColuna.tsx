@@ -177,7 +177,7 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
 }
 
 export function BacklogKanbanColuna() {
-  const { cards, sndCards, isLoading, error } = useBacklogKanban();
+  const { cards, sndCards, isLoading, error, isAdmin } = useBacklogKanban();
   const [sndAberto, setSndAberto] = useState(false);
 
   const atrasados  = cards.filter(c => c.sla?.status === 'atrasado').length;
@@ -223,7 +223,7 @@ export function BacklogKanbanColuna() {
               </DraggableKanbanCard>
             ))}
           </div>
-          {sndCards.length > 0 && (
+          {isAdmin && sndCards.length > 0 && (
             <div className="mt-2 border-t border-gray-200 pt-2">
               <button
                 type="button"
@@ -231,7 +231,7 @@ export function BacklogKanbanColuna() {
                 className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 w-full text-left"
               >
                 <span>{sndAberto ? '▾' : '▸'}</span>
-                <span>SND — SLA Não Definido ({sndCards.length})</span>
+                <span>SSD — Sem SLA Definido ({sndCards.length})</span>
               </button>
               {sndAberto && (
                 <div className="flex flex-col gap-1.5 mt-1.5 max-h-[12rem] overflow-y-auto">
