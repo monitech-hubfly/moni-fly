@@ -1,32 +1,36 @@
 import { notFound } from 'next/navigation';
-import { resolverTokenPublico, buscarHistoricoPublico } from '@/lib/actions/formulario-publico';
-import FormularioQualificacaoForm from '@/app/rede-franqueados/[id]/formulario-qualificacao/FormularioQualificacaoForm';
+import { carregarFormularioPublico } from '@/lib/actions/formulario-actions';
+import { FormularioPublicoClient } from '@/components/formularios/FormularioPublicoClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function FormularioPublicoPage({
-  params,
-}: {
-  params: Promise<{ token: string }>;
-}) {
+export default async function FormularioPublicoPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-
-  const result = await resolverTokenPublico(token);
-  if (!result.ok) notFound();
-
-  const { redeId, nFranquia, nomeCompleto, cidadeInicial, estadoInicial } = result;
-
-  const { data: historico } = await buscarHistoricoPublico(token);
+  const data = await carregarFormularioPublico(token);
+  if (!data.ok) {
+    if (data.error === 'Link inválido.') notFound();
+    return (
+      <main className="mx-auto max-w-xl px-4 py-16">
+        <p className="text-sm" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+          Casa Moní
+        </p>
+        <h1 className="mt-2 text-3xl" style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}>
+          Formulário indisponível
+        </h1>
+        <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+          {data.error}
+        </p>
+      </main>
+    );
+  }
 
   return (
-    <FormularioQualificacaoForm
-      redeId={redeId}
-      nFranquia={nFranquia}
-      nomeCompleto={nomeCompleto}
-      cidadeInicial={cidadeInicial}
-      estadoInicial={estadoInicial}
-      historico={historico ?? []}
-      publicToken={token}
+    <FormularioPublicoClient
+      token={token}
+      tokenId={data.tokenId}
+      avulso={data.avulso}
+      formulario={data.formulario}
+      secoes={data.secoes}
     />
   );
 }

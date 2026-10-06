@@ -1,0 +1,6 @@
+export const FORMULARIO_IDS = {
+  CHECKLIST_CREDITO_PRELIMINAR: 'f0rm0001-0000-0000-0000-000000000001',
+} as const;
+
+export const FORMULARIOS_BUCKET = 'formularios-anexos';
+export const FORMULARIOS_ARQUIVO_MAX_BYTES = 50 * 1024 * 1024;
