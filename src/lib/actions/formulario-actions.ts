@@ -353,3 +353,19 @@ async function _buscarFormularioComSecoes(formularioId: string): Promise<Formula
     secoes: secoesComCampos,
   };
 }
+
+export async function listarFranqueadosParaSelect(): Promise<
+  { id: string; numero_franquia: string | null; nome: string | null }[]
+> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('rede_franqueados')
+    .select('id, n_franquia, nome_completo')
+    .order('n_franquia', { ascending: true });
+  if (error || !data) return [];
+  return (data as { id: string; n_franquia: string | null; nome_completo: string | null }[]).map((row) => ({
+    id: row.id,
+    numero_franquia: row.n_franquia != null ? String(row.n_franquia) : null,
+    nome: row.nome_completo != null ? String(row.nome_completo) : null,
+  }));
+}
