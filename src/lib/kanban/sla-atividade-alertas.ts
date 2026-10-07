@@ -142,8 +142,19 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
       const interacaoId = String(row.interacao_id ?? '').trim();
       if (!interacaoId) continue;
 
-      if (row.chamado_id != null) {
-        const fechado = await chamadoSireneFechado(db, row.chamado_id);
+      // Determina o chamado a verificar: direto (chamado_id) ou via interacao_id → kanban_atividades
+      let chamadoIdParaCheck = row.chamado_id ?? null;
+      if (chamadoIdParaCheck == null) {
+        const { data: atv } = await db
+          .from('kanban_atividades')
+          .select('sirene_chamado_id')
+          .eq('id', interacaoId)
+          .maybeSingle();
+        chamadoIdParaCheck =
+          (atv as { sirene_chamado_id?: number | null } | null)?.sirene_chamado_id ?? null;
+      }
+      if (chamadoIdParaCheck != null) {
+        const fechado = await chamadoSireneFechado(db, chamadoIdParaCheck);
         if (fechado) continue;
       }
 
