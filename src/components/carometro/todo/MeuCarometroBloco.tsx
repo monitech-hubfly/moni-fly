@@ -13,6 +13,7 @@ export function MeuCarometroBloco() {
     diasEngajamento,
     semanasIndicadores,
     semanaAtual,
+    ciclo,
     isLoading,
     error,
   } = useMeuCarometro();
@@ -29,41 +30,50 @@ export function MeuCarometroBloco() {
       ) : (
         <>
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">
-            MEU CARÔMETRO — S{String(semanaAtual).padStart(2, '0')} · clique nos cards = detalhes
+            MEU CARÔMETRO — S{String(semanaAtual).padStart(2, '0')} · clique na Prévia = detalhes
           </h2>
 
           <div className="grid grid-cols-3 gap-4">
             {/* Sirene */}
             <MeuCarometroCard
-              titulo="Sirene"
+              titulo="🚨 Sirene"
               score={sirene?.score ?? null}
+              scoreCiclo={ciclo.sirene}
+              labelPrevia={`S${String(semanaAtual).padStart(2, '0')} — prévia`}
+              labelCiclo="Ciclo — resultado"
               diasDaSemana={diasSirene}
               tipo="sirene"
             >
               {sirene && (
                 <>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Atrasados</span>
+                    <span className="text-gray-500">Em aberto (atrasados)</span>
                     <span className="font-medium" style={{ color: sirene.atrasados > 0 ? '#dc2626' : undefined }}>
                       {sirene.atrasados}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Abertos</span>
+                    <span className="text-gray-500">Total abertos</span>
                     <span className="font-medium">{sirene.abertos}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Sem prazo</span>
                     <span className="font-medium text-gray-400">{sirene.semPrazo}</span>
                   </div>
+                  <p className="text-[10px] text-gray-400 pt-1 border-t border-gray-100">
+                    Sirene nunca reseta — acumulação contínua. Crédito parcial por Tier ao resolver com atraso.
+                  </p>
                 </>
               )}
             </MeuCarometroCard>
 
             {/* Engajamento */}
             <MeuCarometroCard
-              titulo="Engajamento"
+              titulo="⚡ Engajamento"
               score={engajamento?.score ?? null}
+              scoreCiclo={ciclo.engajamento}
+              labelPrevia={`S${String(semanaAtual).padStart(2, '0')} — prévia`}
+              labelCiclo="Ciclo — resultado"
               diasDaSemana={diasEngajamento}
               tipo="engajamento"
             >
@@ -95,14 +105,20 @@ export function MeuCarometroBloco() {
                     <span className="text-gray-500">Cards abertos</span>
                     <span className="font-medium">{engajamento.cards.comSLA}</span>
                   </div>
+                  <p className="text-[10px] text-gray-400 pt-1 border-t border-gray-100">
+                    Fecha toda sexta · zera a cada ciclo mensal.
+                  </p>
                 </>
               )}
             </MeuCarometroCard>
 
             {/* Indicadores */}
             <MeuCarometroCard
-              titulo="Indicadores"
+              titulo="📈 Indicadores"
               score={indicadores?.media ?? null}
+              scoreCiclo={ciclo.indicadores}
+              labelPrevia="Prévia — semana"
+              labelCiclo="Ciclo — resultado"
               semanasIndicadores={semanasIndicadores}
               tipo="indicadores"
             />
@@ -111,19 +127,19 @@ export function MeuCarometroBloco() {
           <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-gray-500">
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-700" />
-              ≥75% Verde escuro
+              😁 ≥90% Verde Escuro
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />
-              60–74% Verde claro
+              🙂 70–89% Verde Claro
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-600" />
-              30–59% Amarelo
+              😐 50–69% Amarelo
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-600" />
-              &lt;30% Vermelho
+              😟 &lt;50% Vermelho
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300" />

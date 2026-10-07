@@ -6,26 +6,34 @@ import type { DiaStatus, SemanaStatusInd } from '@/hooks/useMeuCarometro';
 
 function getCarinhaImg(score: number | null): string {
   if (score === null) return '/carometro/carometro-emoji-branco.png';
-  if (score >= 75) return '/carometro/carometro-emoji-verde-escuro.png';
-  if (score >= 60) return '/carometro/carometro-emoji-verde-claro.png';
-  if (score >= 30) return '/carometro/carometro-emoji-amarelo.png';
+  if (score >= 90) return '/carometro/carometro-emoji-verde-escuro.png';
+  if (score >= 70) return '/carometro/carometro-emoji-verde-claro.png';
+  if (score >= 50) return '/carometro/carometro-emoji-amarelo.png';
   return '/carometro/carometro-emoji-vermelho.png';
 }
 
 function scoreColor(score: number | null): string {
   if (score === null) return 'text-gray-400';
-  if (score >= 75) return 'text-green-700';
-  if (score >= 60) return 'text-green-500';
-  if (score >= 30) return 'text-yellow-600';
+  if (score >= 90) return 'text-green-700';
+  if (score >= 70) return 'text-green-500';
+  if (score >= 50) return 'text-yellow-600';
   return 'text-red-600';
 }
 
 function dotColor(score: number | null): string {
   if (score === null) return '#d1d5db';
-  if (score >= 75) return '#15803d';
-  if (score >= 60) return '#22c55e';
-  if (score >= 30) return '#ca8a04';
+  if (score >= 90) return '#15803d';
+  if (score >= 70) return '#22c55e';
+  if (score >= 50) return '#ca8a04';
   return '#dc2626';
+}
+
+function scoreEmoji(score: number | null): string {
+  if (score === null) return '—';
+  if (score >= 90) return '😁';
+  if (score >= 70) return '🙂';
+  if (score >= 50) return '😐';
+  return '😟';
 }
 
 function dayLabel(data: string): string {
@@ -165,7 +173,14 @@ function SemanaisCirculos({ semanas }: { semanas: SemanaStatusInd[] }) {
 // ── MeuCarometroCard ──────────────────────────────────────────────────────
 type MeuCarometroCardProps = {
   titulo: string;
+  /** Prévia: score da semana atual (bolinha esquerda, clicável) */
   score: number | null;
+  /** Resultado do ciclo: score acumulado do mês (bolinha direita, estática) */
+  scoreCiclo?: number | null;
+  /** Label da bolinha esquerda */
+  labelPrevia?: string;
+  /** Label da bolinha direita */
+  labelCiclo?: string;
   diasDaSemana?: DiaStatus[];
   semanasIndicadores?: SemanaStatusInd[];
   tipo: 'sirene' | 'engajamento' | 'indicadores';
@@ -175,52 +190,75 @@ type MeuCarometroCardProps = {
 function MeuCarometroCardInner({
   titulo,
   score,
+  scoreCiclo,
+  labelPrevia,
+  labelCiclo,
   diasDaSemana,
   semanasIndicadores,
   tipo,
   children,
 }: MeuCarometroCardProps) {
   const [expandido, setExpandido] = useState(false);
-  const carinhaImg = getCarinhaImg(score);
-  const scoreCls   = scoreColor(score);
+
+  // Bolinha esquerda: Prévia da semana
+  const previaImg  = getCarinhaImg(score);
+  const previaCls  = scoreColor(score);
+
+  // Bolinha direita: Resultado do ciclo
+  const cicloColor = dotColor(scoreCiclo ?? null);
+  const cicloEmoji = scoreEmoji(scoreCiclo ?? null);
+
+  const hasCiclo = scoreCiclo !== undefined && scoreCiclo !== null;
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 flex flex-col gap-3">
       <p className="text-center text-sm font-semibold text-gray-700">{titulo}</p>
 
-      <div className="flex flex-col items-center justify-center gap-1 py-1">
-        <Image src={carinhaImg} alt="carinha" width={80} height={80} className="object-contain"
-          style={{ background: 'transparent' }}
-          title={score !== null ? `${score}%` : 'Sem dados'} />
-        <span className={`text-3xl font-bold tabular-nums ${scoreCls}`}>
-          {score !== null ? `${score}%` : '—'}
-        </span>
+      {/* ── Duas bolinhas: Prévia (esq, clicável) + Resultado Ciclo (dir) ── */}
+      <div className="flex gap-2 items-stretch">
+        {/* ESQUERDA — Prévia semanal (abre accordion) */}
+        <button
+          type="button"
+          onClick={() => setExpandido(v => !v)}
+          className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+          title="Clique para ver detalhes"
+        >
+          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide leading-none">
+            {labelPrevia ?? (tipo === 'indicadores' ? 'Prévia' : 'Semana atual')}
+          </span>
+          <Image src={previaImg} alt="carinha" width={48} height={48} className="object-contain" style={{ background: 'transparent' }} />
+          <span className={`text-2xl font-bold tabular-nums leading-none ${previaCls}`}>
+            {score !== null ? `${score}%` : '—'}
+          </span>
+          <span className="text-[9px] text-gray-400 mt-0.5">{expandido ? '▲ fechar' : '▼ detalhes'}</span>
+        </button>
+
+        {/* DIREITA — Resultado do ciclo (estático) */}
+        {hasCiclo && (
+          <div className="flex flex-col items-center gap-1 py-2 px-3 rounded-lg border border-gray-100 bg-gray-50 min-w-[72px]">
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide leading-none">
+              {labelCiclo ?? 'Ciclo'}
+            </span>
+            <span className="text-2xl" style={{ lineHeight: 1.2 }}>{cicloEmoji}</span>
+            <span className="text-xl font-bold tabular-nums leading-none" style={{ color: cicloColor }}>
+              {scoreCiclo !== null ? `${scoreCiclo}%` : '—'}
+            </span>
+            <span className="text-[9px] text-gray-400 mt-0.5">resultado</span>
+          </div>
+        )}
       </div>
 
-      <hr className="border-gray-100" />
-
-      <button
-        type="button"
-        onClick={() => setExpandido(v => !v)}
-        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors select-none"
-      >
-        <span>{expandido ? '▲' : '▼'}</span>
-        <span>{tipo === 'indicadores' ? 'Ver por semana' : 'Ver por dia'}</span>
-      </button>
-
+      {/* ── Accordion de detalhes ── */}
       {expandido && (
-        <div className="flex flex-col gap-3">
-          {/* Resumo do card (children) para Sirene e Engajamento */}
+        <div className="flex flex-col gap-3 border-t border-gray-100 pt-2">
           {children && (
-            <div className="text-xs text-gray-600 flex flex-col gap-1 pt-1 border-t border-gray-50">
+            <div className="text-xs text-gray-600 flex flex-col gap-1">
               {children}
             </div>
           )}
-          {/* Bolinhas diárias (Sirene / Engajamento) */}
           {tipo !== 'indicadores' && diasDaSemana && diasDaSemana.length > 0 && (
             <DiariosCirculos dias={diasDaSemana} />
           )}
-          {/* Bolinhas semanais (Indicadores) */}
           {tipo === 'indicadores' && semanasIndicadores && semanasIndicadores.length > 0 && (
             <SemanaisCirculos semanas={semanasIndicadores} />
           )}

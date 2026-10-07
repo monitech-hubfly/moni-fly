@@ -137,6 +137,18 @@ function StatusDot({ cor, count }: { cor: string; count: number }) {
   );
 }
 
+// ── Tier badge para Sirene atrasada ───────────────────────────────────────────
+function calcTierInfo(prazo: string | null): { tier: string; dias: number; cor: string } | null {
+  if (!prazo) return null;
+  const prazoDate = new Date(`${prazo}T00:00:00`);
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const diasAtraso = Math.floor((hoje.getTime() - prazoDate.getTime()) / (1000 * 60 * 60 * 24));
+  if (diasAtraso <= 0) return null; // dentro do prazo
+  if (diasAtraso <= 6)  return { tier: 'T1', dias: diasAtraso, cor: '#b45309' }; // amarelo
+  if (diasAtraso <= 14) return { tier: 'T2', dias: diasAtraso, cor: '#dc2626' }; // vermelho
+  return { tier: 'T3', dias: diasAtraso, cor: '#7c3aed' }; // roxo (grave)
+}
+
 // ── Sirene ────────────────────────────────────────────────────────────────────
 type ColunaSireneProps = { items: SireneItem[]; onAbrirChamado: (chamadoId: number, interacaoId: string | null) => void };
 function ColunaSirene({ items, onAbrirChamado }: ColunaSireneProps) {
@@ -149,31 +161,45 @@ function ColunaSirene({ items, onAbrirChamado }: ColunaSireneProps) {
       {comStatus.length === 0 && <EmptyState />}
       {comStatus.map(({ item, status }) => {
         const tituloExibir = item.chamado_titulo ?? item.descricao ?? item.tipo;
+        const prazo = item.data_fim ?? item.prazo_proposto;
+        const tierInfo = status === 'atrasado' ? calcTierInfo(prazo ?? null) : null;
         return (
           <DraggableSirene
             key={item.id}
             dragId={`sirene::${item.id}`}
             dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
           >
-            <BacklogColunaCard
-              tipo="sirene"
-              titulo={tituloExibir}
-              prazo={item.data_fim ?? item.prazo_proposto}
-              prioridade={item.prioridade}
-              numeroChamado={item.chamado_numero}
-              status={status}
-              origemBadge="Sirene"
-              onClickExternal={
-                item.chamado_interno_id != null
-                  ? () => onAbrirChamado(item.chamado_interno_id!, item.interacao_id ?? null)
-                  : undefined
-              }
-              href={
-                item.chamado_interno_id == null && item.interacao_id
-                  ? `/sirene/chamados?interacao=${item.interacao_id}`
-                  : undefined
-              }
-            />
+            <div className="relative">
+              <BacklogColunaCard
+                tipo="sirene"
+                titulo={tituloExibir}
+                prazo={prazo}
+                prioridade={item.prioridade}
+                numeroChamado={item.chamado_numero}
+                status={status}
+                origemBadge="Sirene"
+                onClickExternal={
+                  item.chamado_interno_id != null
+                    ? () => onAbrirChamado(item.chamado_interno_id!, item.interacao_id ?? null)
+                    : undefined
+                }
+                href={
+                  item.chamado_interno_id == null && item.interacao_id
+                    ? `/sirene/chamados?interacao=${item.interacao_id}`
+                    : undefined
+                }
+              />
+              {/* Badge de Tier para chamados atrasados */}
+              {tierInfo && (
+                <span
+                  className="absolute top-1.5 right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
+                  style={{ backgroundColor: tierInfo.cor }}
+                  title={`${tierInfo.tier}: ${tierInfo.dias} dia(s) de atraso — crédito parcial ao concluir`}
+                >
+                  {tierInfo.tier} · {tierInfo.dias}d
+                </span>
+              )}
+            </div>
           </DraggableSirene>
         );
       })}

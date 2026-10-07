@@ -49,6 +49,13 @@ export type IndicadoresSnapshot = {
   media: number | null;
 };
 
+/** Score acumulado do ciclo (mês corrente) para cada dimensão, calculado a partir de carometro_status_diario */
+export type CicloScores = {
+  sirene: number | null;
+  engajamento: number | null;
+  indicadores: number | null;
+};
+
 export type UseMeuCarometroResult = {
   sirene: SireneSnapshot | null;
   engajamento: EngajamentoSnapshot | null;
@@ -57,6 +64,7 @@ export type UseMeuCarometroResult = {
   diasEngajamento: DiaStatus[];
   semanasIndicadores: SemanaStatusInd[];
   semanaAtual: number;
+  ciclo: CicloScores;
   isLoading: boolean;
   error: string | null;
   refetch: () => void;
@@ -156,6 +164,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
   const [diasEngajamento, setDiasEngajamento] = useState<DiaStatus[]>([]);
   const [semanasIndicadores, setSemanasIndicadores] = useState<SemanaStatusInd[]>([]);
   const [semanaAtual, setSemanaAtual] = useState<number>(() => isoWeek(new Date()));
+  const [ciclo, setCiclo] = useState<CicloScores>({ sirene: null, engajamento: null, indicadores: null });
   const callIdRef = useRef(0);
 
   const { simulacao } = useSimulacaoUsuario();
@@ -229,7 +238,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           .eq('arquivado', false),
         supabase
           .from('sirene_topicos')
-          .select('id, data_fim, prazo_proposto')
+          .select('id, data_fim, prazo_proposto, updated_at')
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['concluido', 'aprovado'])
           .eq('arquivado', false)
@@ -240,6 +249,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         id: unknown;
         data_fim: string | null;
         prazo_proposto: string | null;
+        updated_at?: string | null;
         chamado_id?: string | null;
         interacao_id?: string | null;
         sirene_chamados?: { arquivado: boolean | null } | { arquivado: boolean | null }[] | null;
@@ -326,12 +336,31 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         return prazo && prazo > hojeStr;
       }).length;
 
-      // Score: concluidos / (concluidos + atrasados + venceHoje). Futuras nunca entram.
-      // total = 0 → 100% (em dia, sem pendências)
+      // ── Score v2: Tier parcial (T1=75%, T2=50%, T3=20%) ─────────────────
+      // Crédito por chamado concluído baseado em dias de atraso após o prazo.
+      // Chamados concluídos no prazo ou antes = 100%. Em aberto = 0%.
+      function calcTierCredit(prazo: string | null, updatedAt: string | null): number {
+        if (!prazo || !updatedAt) return 100; // sem prazo ou sem data = crédito cheio
+        const prazoDate    = new Date(prazo    + 'T00:00:00');
+        const conclusaoDate = new Date(updatedAt.slice(0, 10) + 'T00:00:00');
+        const diasAtraso = Math.floor((conclusaoDate.getTime() - prazoDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (diasAtraso <= 0)  return 100; // no prazo
+        if (diasAtraso <= 6)  return 75;  // T1
+        if (diasAtraso <= 14) return 50;  // T2
+        return 20;                        // T3 (15+ dias)
+      }
+
+      const creditosConcluidos = topicosConcluidos.reduce((sum, t) => {
+        const prazo = t.data_fim || t.prazo_proposto;
+        return sum + calcTierCredit(prazo, t.updated_at ?? null);
+      }, 0);
+
+      // Chamados em aberto atrasados ou que vencem hoje = 0% de crédito
       const sireneTotal = topicosConcluidos.length + topicosAtrasados + topicosVenceHoje;
+      const creditoTotal = creditosConcluidos; // abertos/atrasados contribuem 0
       const sireneScore = sireneTotal === 0
         ? 100
-        : Math.max(0, Math.round((topicosConcluidos.length / sireneTotal) * 100));
+        : Math.max(0, Math.round((creditoTotal / (sireneTotal * 100)) * 100));
 
       const sireneRuntime: SireneSnapshot = {
         atrasados:  topicosAtrasados,
@@ -700,10 +729,41 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         });
       }
 
+      // ── Score do ciclo (mês corrente) — média dos snapshots do mês ──────────
+      // Início do mês corrente para buscar todos os snapshots salvos
+      const cicloInicio = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`;
+      const { data: cicloSnaps } = await supabase
+        .from('carometro_status_diario')
+        .select('data, sirene, engajamento, indicadores')
+        .eq('profile_id', effectiveProfileId)
+        .gte('data', cicloInicio)
+        .lte('data', hojeStr);
+
+      type SnapCicloRow = { data: string; sirene: unknown; engajamento: unknown; indicadores: unknown };
+      const cicloRows = (cicloSnaps ?? []) as SnapCicloRow[];
+
+      function mediaScoresCiclo(key: 'sirene' | 'engajamento' | 'indicadores'): number | null {
+        const scores = cicloRows
+          .map(r => {
+            const blob = r[key] as Record<string, unknown> | null;
+            return typeof blob?.score === 'number' ? (blob.score as number) : (typeof blob?.media === 'number' ? (blob.media as number) : null);
+          })
+          .filter((s): s is number => s !== null);
+        if (scores.length === 0) return null;
+        return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+      }
+
+      const cicloScores: CicloScores = {
+        sirene:      mediaScoresCiclo('sirene'),
+        engajamento: mediaScoresCiclo('engajamento'),
+        indicadores: mediaScoresCiclo('indicadores'),
+      };
+
       setSirene(sireneRuntime);
       setEngajamento(engajamentoRuntime);
       // Score principal: S-1 se pertence ao mês vigente; caso contrário, semana atual (primeira do mês)
       setIndicadores(semAnteriorNaMes ? indicadoresAnterior : indicadoresAtual);
+      setCiclo(cicloScores);
       setDiasSirene(buildDias('sirene', 'score', sireneScore, {
         concluidos: topicosConcluidos.length,
         atrasados:  topicosAtrasados,
@@ -781,6 +841,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
     diasEngajamento,
     semanasIndicadores,
     semanaAtual,
+    ciclo,
     isLoading,
     error,
     refetch: carregar,

@@ -1532,7 +1532,7 @@ export function MetasIndicadoresBloco() {
         className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 transition-colors"
         onClick={() => setExpandido(v => !v)}>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-semibold text-gray-700">Metas &amp; Indicadores</span>
+          <span className="text-sm font-semibold text-gray-700">Metas da Área</span>
           <button type="button" onClick={e => { e.stopPropagation(); setFiltroMinhas(v => !v); }}
             className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${filtroMinhas ? 'bg-blue-100 text-blue-700 border-blue-300' : 'text-gray-400 border-gray-200 hover:border-blue-300 hover:text-blue-500'}`}>
             {filtroMinhas ? '✓ minhas' : 'minhas'}
