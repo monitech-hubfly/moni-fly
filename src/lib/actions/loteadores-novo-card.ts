@@ -20,6 +20,7 @@ import {
   validarNovoCardLoteadoresFormulario,
   type NovoCardLoteadoresFormulario,
 } from '@/lib/kanban/loteadores-novo-card-form';
+import type { ActionResult } from '@/lib/actions/card-actions';
 
 export type CriarCardLoteadoresCadastroModo = 'novo' | 'existente';
 
@@ -529,4 +530,143 @@ export async function criarCardLoteadoresNovoCadastroAdmin(
   revalidatePath('/rede-franqueados');
 
   return { ok: true, cardId, redeLoteadorId };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Venda Casas Loteadores (VCL) — migration 605
+// Cards independentes: sem rede_loteadores, sem condominios vinculados.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type CriarCardVCLInput = {
+  kanban_nome: string;
+  fase_id: string;
+  basePath?: string;
+  nome_condominio: string;
+  vc_loteador: string;
+  vc_dono_terreno: string;
+  vc_cpf?: string;
+  vc_rg?: string;
+  vc_lote?: string;
+  vc_quadra?: string;
+  vc_metragem?: string;
+  vc_frente?: string;
+  vc_fundo?: string;
+  vc_terreno_quitado?: boolean;
+  vc_valor_terreno?: string;
+  vc_saldo_devedor?: string;
+  vc_valor_parcela?: string;
+  vc_qtd_parcelas?: string;
+  vc_juros?: string;
+  vc_email?: string;
+  vc_telefone?: string;
+  vc_observacao?: string;
+};
+
+function gerarTituloVCL(donoTerreno: string, nomeCondominio: string): string {
+  const d = donoTerreno.trim();
+  const c = nomeCondominio.trim();
+  if (d && c) return `${d} — ${c}`;
+  return d || c || 'Novo Card VCL';
+}
+
+export async function criarCardVCL(input: CriarCardVCLInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para criar o card.' };
+
+  const kanbanNome = input.kanban_nome.trim();
+  const faseId = input.fase_id.trim();
+  const nomeCondominio = input.nome_condominio.trim();
+  const loteador = (input.vc_loteador ?? '').trim();
+  const donoTerreno = (input.vc_dono_terreno ?? '').trim();
+
+  if (!kanbanNome) return { ok: false, error: 'Kanban inválido.' };
+  if (!faseId) return { ok: false, error: 'Fase inválida.' };
+  if (!nomeCondominio) return { ok: false, error: 'Nome do condomínio obrigatório.' };
+  if (!loteador) return { ok: false, error: 'Loteador obrigatório.' };
+  if (!donoTerreno) return { ok: false, error: 'Dono do terreno obrigatório.' };
+
+  const { data: kb, error: kbErr } = await supabase
+    .from('kanbans')
+    .select('id')
+    .eq('nome', kanbanNome)
+    .eq('ativo', true)
+    .maybeSingle();
+  if (kbErr) return { ok: false, error: kbErr.message };
+  const kanbanId = String((kb as { id?: string } | null)?.id ?? '').trim();
+  if (!kanbanId) return { ok: false, error: 'Kanban não encontrado no banco.' };
+
+  const { data: faseRow, error: faseErr } = await supabase
+    .from('kanban_fases')
+    .select('id')
+    .eq('id', faseId)
+    .eq('kanban_id', kanbanId)
+    .eq('ativo', true)
+    .maybeSingle();
+  if (faseErr) return { ok: false, error: faseErr.message };
+  if (!faseRow) return { ok: false, error: 'Fase não pertence a este kanban.' };
+
+  const titulo = gerarTituloVCL(donoTerreno, nomeCondominio);
+
+  const payload: Record<string, unknown> = {
+    titulo,
+    kanban_id: kanbanId,
+    fase_id: faseId,
+    franqueado_id: user.id,
+    status: 'ativo',
+    nome_condominio: nomeCondominio || null,
+    quadra: (input.vc_quadra ?? '').trim() || null,
+    lote: (input.vc_lote ?? '').trim() || null,
+    vc_loteador: loteador || null,
+    vc_dono_terreno: donoTerreno || null,
+    vc_cpf: (input.vc_cpf ?? '').trim() || null,
+    vc_rg: (input.vc_rg ?? '').trim() || null,
+    vc_lote: (input.vc_lote ?? '').trim() || null,
+    vc_quadra: (input.vc_quadra ?? '').trim() || null,
+    vc_metragem: (input.vc_metragem ?? '').trim() || null,
+    vc_frente: (input.vc_frente ?? '').trim() || null,
+    vc_fundo: (input.vc_fundo ?? '').trim() || null,
+    vc_terreno_quitado: Boolean(input.vc_terreno_quitado),
+    vc_valor_terreno: (input.vc_valor_terreno ?? '').trim() || null,
+    vc_saldo_devedor: (input.vc_saldo_devedor ?? '').trim() || null,
+    vc_valor_parcela: (input.vc_valor_parcela ?? '').trim() || null,
+    vc_qtd_parcelas: (input.vc_qtd_parcelas ?? '').trim() || null,
+    vc_juros: (input.vc_juros ?? '').trim() || null,
+    vc_email: (input.vc_email ?? '').trim() || null,
+    vc_telefone: (input.vc_telefone ?? '').trim() || null,
+    vc_observacao: (input.vc_observacao ?? '').trim() || null,
+  };
+
+  const { error: insErr } = await supabase.from('kanban_cards').insert(payload);
+  if (insErr) return { ok: false, error: insErr.message };
+
+  revalidatePath(input.basePath ?? '/venda-casas-loteadores');
+  return { ok: true };
+}
+
+export type ImportRowVCL = Omit<CriarCardVCLInput, 'basePath'>;
+
+export type ImportarCardsVCLResult = {
+  ok: boolean;
+  criados: number;
+  erros: string[];
+};
+
+export async function importarCardsVCL(
+  rows: ImportRowVCL[],
+  basePath?: string,
+): Promise<ImportarCardsVCLResult> {
+  const result: ImportarCardsVCLResult = { ok: true, criados: 0, erros: [] };
+  for (let i = 0; i < rows.length; i++) {
+    const res = await criarCardVCL({ ...rows[i], basePath });
+    if (res.ok) {
+      result.criados++;
+    } else {
+      result.erros.push(`Linha ${i + 2}: ${res.error}`);
+    }
+  }
+  if (result.criados === 0 && result.erros.length > 0) result.ok = false;
+  return result;
 }
