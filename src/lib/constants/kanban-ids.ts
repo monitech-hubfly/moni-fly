@@ -28,6 +28,14 @@ export const KANBAN_IDS = {
   CONTROLADORIA_CONTABIL: 'c7ada001-0000-0000-0000-000000000001',
   /** Funil Controladoria — Rotina Fiscal (migration 567) */
   CONTROLADORIA_FISCAL: 'c7ada002-0000-0000-0000-000000000002',
+  /** Venda Casas Frank's — tela Em Construção (migration 605) */
+  VENDA_CASAS_FRANKS:    'fc000001-0000-0000-0000-000000000001',
+  /** Venda Casas Loteadores — Lotes Não Vendidos (migration 605) */
+  VCL_NAO_VENDIDOS:      'fc000002-0000-0000-0000-000000000001',
+  /** Venda Casas Loteadores — Lotes Vendidos (migration 605) */
+  VCL_VENDIDOS:          'fc000003-0000-0000-0000-000000000001',
+  /** Venda Casas Loteadores — Showroom (migration 605) */
+  VCL_SHOWROOM:          'fc000004-0000-0000-0000-000000000001',
 } as const
 
 /** Nome canônico em `kanbans.nome` — Funil Crédito Obra. */
@@ -66,6 +74,9 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Corretores': KANBAN_IDS.CORRETORES,
   'Funil Controladoria — Rotina Contábil': KANBAN_IDS.CONTROLADORIA_CONTABIL,
   'Funil Controladoria — Rotina Fiscal':   KANBAN_IDS.CONTROLADORIA_FISCAL,
+  'Venda Casas Loteadores - Lotes Não Vendidos': KANBAN_IDS.VCL_NAO_VENDIDOS,
+  'Venda Casas Loteadores - Lotes Vendidos':     KANBAN_IDS.VCL_VENDIDOS,
+  'Venda Casas Loteadores - Showroom':           KANBAN_IDS.VCL_SHOWROOM,
 };
 
 export const FASE_IDS = {
@@ -479,6 +490,16 @@ export const FASE_SLUGS = {
   COR_CONVERTIDO: 'cor_convertido',
   /** Fase terminal de perda — motivo obrigatório */
   COR_PERDIDO: 'cor_perdido',
+
+  // ─── Venda Casas Loteadores (VCL) — migration 605 ────────────────────────
+  VCL_LEADS:              'vcl_leads',
+  VCL_1_CONTATO:          'vcl_1_contato',
+  VCL_QUALIFICADOS:       'vcl_qualificados',
+  VCL_R1_REALIZADA:       'vcl_r1_realizada',
+  VCL_PROPOSTA:           'vcl_proposta',
+  VCL_ASSINATURA_CONTRATO: 'vcl_assinatura_contrato',
+  /** Fase terminal — coluna de conclusão (verde). */
+  VCL_CONTRATO_ASSINADO:  'vcl_contrato_assinado',
 } as const
 
 /** Funil Corretores — confirmação ao sair de Forecast para Convertido. */

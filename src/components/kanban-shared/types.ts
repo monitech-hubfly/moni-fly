@@ -26,7 +26,8 @@ export type KanbanNomeDisplay =
   | 'Funil Série Inc. to Fly'
   | 'Funil Moní Care'
   | 'Funil Controladoria — Rotina Contábil'
-  | 'Funil Controladoria — Rotina Fiscal';
+  | 'Funil Controladoria — Rotina Fiscal'
+  | 'Venda Casas Loteadores';
 
 export type KanbanFaseMaterialTipo = 'link' | 'documento' | 'video';
 

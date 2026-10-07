@@ -9,6 +9,7 @@ import { NovoCardMarketingModal } from '@/app/marketing/NovoCardMarketingModal';
 import { NovoCardMoniCareModal } from '@/app/manutencoes/NovoCardMoniCareModal';
 import { NovoCardControladoriaModal } from '@/app/funil-controladoria/NovoCardControladoriaModal';
 import { NovoCardJuridicoModal } from '@/app/funil-juridico/NovoCardJuridicoModal';
+import { NovoCardVCLModal } from '@/components/venda-casas-loteadores/NovoCardVCLModal';
 import { hrefAbrirCardNaRota } from '@/lib/kanban/kanban-card-href';
 import { isMarketingKanbanId } from '@/lib/kanban/funis-marketing';
 import { isMoniCareKanbanId } from '@/lib/kanban/funil-moni-care';
@@ -16,6 +17,14 @@ import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 
 function isControladoriaKanbanId(id: string): boolean {
   return id === KANBAN_IDS.CONTROLADORIA_CONTABIL || id === KANBAN_IDS.CONTROLADORIA_FISCAL;
+}
+
+function isVCLKanbanId(id: string): boolean {
+  return (
+    id === KANBAN_IDS.VCL_NAO_VENDIDOS ||
+    id === KANBAN_IDS.VCL_VENDIDOS ||
+    id === KANBAN_IDS.VCL_SHOWROOM
+  );
 }
 import type { CamposPorFaseMap, KanbanFase, KanbanNomeDisplay } from './types';
 
@@ -212,6 +221,13 @@ function KanbanModals({
           />
         ) : kanbanId === KANBAN_IDS.JURIDICO || kanbanNome === 'Funil Jurídico' ? (
           <NovoCardJuridicoModal
+            kanbanId={kanbanId}
+            kanbanNome={kanbanNome}
+            basePath={basePath}
+            onClose={onCloseModals}
+          />
+        ) : isVCLKanbanId(kanbanId) ? (
+          <NovoCardVCLModal
             kanbanId={kanbanId}
             kanbanNome={kanbanNome}
             basePath={basePath}

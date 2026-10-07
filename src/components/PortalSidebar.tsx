@@ -114,7 +114,9 @@ function isHubFunisActive(pathname: string) {
     pathname.startsWith('/funil-modelo-virtual') ||
     pathname.startsWith('/funil-homologacoes') ||
     pathname.startsWith('/marketing') ||
-    pathname.startsWith('/manutencoes')
+    pathname.startsWith('/manutencoes') ||
+    pathname.startsWith('/venda-casas-franks') ||
+    pathname.startsWith('/venda-casas-loteadores')
   );
 }
 
