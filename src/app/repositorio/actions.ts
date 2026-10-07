@@ -3,8 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { isAdminRole, normalizeAccessRole } from '@/lib/authz';
+import { isAdminRole, isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { publicarVersaoRepositorio } from '@/lib/repositorio/publicar-versao';
+import { categoriaHubOuNull, type CategoriaHub } from '@/lib/constants/categorias-hub';
 
 const REPO_PATH = '/repositorio';
 
@@ -13,6 +14,8 @@ export type VersaoDocumento = {
   vigente: boolean;
   created_at: string;
   descricao: string | null;
+  categoria: CategoriaHub | null;
+  visivel_franqueado: boolean;
 };
 
 export type VariacaoRepositorio = {
@@ -75,10 +78,14 @@ export async function listarRepositorio(): Promise<
     supabase.from('repositorio_secoes').select('id, nome, ordem, created_at').order('ordem', { ascending: true }),
     supabase.from('repositorio_tipos').select('id, secao_id, nome, ordem, checklist').order('ordem', { ascending: true }),
     supabase.from('repositorio_variacoes').select('id, tipo_id, nome, quando_utilizar, ordem').order('ordem', { ascending: true }),
-    supabase
-      .from('repositorio_documentos')
-      .select('id, tipo_id, variacao_id, descricao, vigente, created_at')
-      .order('created_at', { ascending: false }),
+    (() => {
+      let q = supabase
+        .from('repositorio_documentos')
+        .select('id, tipo_id, variacao_id, descricao, vigente, created_at, categoria, visivel_franqueado')
+        .order('created_at', { ascending: false });
+      if (isFrankOrFranqueadoRole(ctx.raw)) q = q.eq('visivel_franqueado', true);
+      return q;
+    })(),
   ]);
   if (secoesRes.error) return { ok: false, error: secoesRes.error.message };
   if (tiposRes.error) return { ok: false, error: tiposRes.error.message };
@@ -92,6 +99,8 @@ export async function listarRepositorio(): Promise<
     descricao: string | null;
     vigente: boolean;
     created_at: string;
+    categoria: string | null;
+    visivel_franqueado: boolean | null;
   }>;
 
   const tipos = ((tiposRes.data ?? []) as Array<{
@@ -103,7 +112,14 @@ export async function listarRepositorio(): Promise<
   }>).map((tipo) => {
     const doPadrao = versoes
       .filter((v) => v.tipo_id === tipo.id && !v.variacao_id)
-      .map((v) => ({ id: v.id, vigente: v.vigente, created_at: v.created_at, descricao: v.descricao }));
+      .map((v) => ({
+        id: v.id,
+        vigente: v.vigente,
+        created_at: v.created_at,
+        descricao: v.descricao,
+        categoria: categoriaHubOuNull(v.categoria),
+        visivel_franqueado: v.visivel_franqueado !== false,
+      }));
     const partes = separarVersoes(doPadrao);
     const variacoes = ((variacoesRes.data ?? []) as Array<{
       id: string;
@@ -116,7 +132,14 @@ export async function listarRepositorio(): Promise<
       .map((variacao) => {
         const daVariacao = versoes
           .filter((v) => v.variacao_id === variacao.id)
-          .map((v) => ({ id: v.id, vigente: v.vigente, created_at: v.created_at, descricao: v.descricao }));
+          .map((v) => ({
+        id: v.id,
+        vigente: v.vigente,
+        created_at: v.created_at,
+        descricao: v.descricao,
+        categoria: categoriaHubOuNull(v.categoria),
+        visivel_franqueado: v.visivel_franqueado !== false,
+      }));
         const arquivos = separarVersoes(daVariacao);
         return {
           id: variacao.id,
@@ -199,12 +222,20 @@ export async function salvarChecklistTipo(
   return { ok: true };
 }
 
+function classificacaoDoForm(formData: FormData): { categoria: CategoriaHub | null; visivelFranqueado: boolean } {
+  return {
+    categoria: categoriaHubOuNull(String(formData.get('categoria') ?? '')),
+    visivelFranqueado: String(formData.get('visivel_franqueado') ?? '1') !== '0',
+  };
+}
+
 async function gravarArquivo(params: {
   secaoId: string;
   tipoId: string;
   arquivo: File;
   userId: string;
   tipoAlvo: { tipo_id: string } | { variacao_id: string };
+  classificacao?: { categoria: CategoriaHub | null; visivelFranqueado: boolean };
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const publicado = await publicarVersaoRepositorio(params);
   if (!publicado.ok) return publicado;
@@ -237,6 +268,7 @@ export async function subirVersaoPadrao(
     arquivo,
     userId: ctx.user.id,
     tipoAlvo: { tipo_id: tipoId },
+    classificacao: classificacaoDoForm(formData),
   });
   if (!gravado.ok) return gravado;
   revalidatePath(REPO_PATH);
@@ -280,6 +312,7 @@ export async function criarVariacao(
     arquivo,
     userId: ctx.user.id,
     tipoAlvo: { variacao_id: String(criada.id) },
+    classificacao: classificacaoDoForm(formData),
   });
   if (!gravado.ok) {
     await admin.from('repositorio_variacoes').delete().eq('id', criada.id);
@@ -335,25 +368,56 @@ export async function subirVersaoVariacao(
     arquivo,
     userId: ctx.user.id,
     tipoAlvo: { variacao_id: variacaoId },
+    classificacao: classificacaoDoForm(formData),
   });
   if (!gravado.ok) return gravado;
   revalidatePath(REPO_PATH);
   return { ok: true };
 }
 
+export async function atualizarClassificacaoDocumento(
+  documentoId: string,
+  categoria: string,
+  visivelFranqueado: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await sessionAndRole();
+  if (!ctx.ok) return { ok: false, error: ctx.error };
+  if (!podeEditar(ctx.role)) return { ok: false, error: 'Sem permissão para alterar o Repositório.' };
+  const id = documentoId.trim();
+  if (!id) return { ok: false, error: 'Documento inválido.' };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('repositorio_documentos')
+    .update({
+      categoria: categoriaHubOuNull(categoria),
+      visivel_franqueado: visivelFranqueado,
+    })
+    .eq('id', id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(REPO_PATH);
+  return { ok: true };
+}
+
 export async function baixarDocumento(
   id: string,
-): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; url: string } | { ok: false; error: string; status?: number }> {
   const ctx = await sessionAndRole();
   if (!ctx.ok) return { ok: false, error: ctx.error };
   const { data: row, error } = await ctx.supabase
     .from('repositorio_documentos')
-    .select('id, storage_path, bucket')
+    .select('id, storage_path, bucket, visivel_franqueado')
     .eq('id', id)
     .maybeSingle();
   if (error) return { ok: false, error: error.message };
-  if (!row) return { ok: false, error: 'Documento não encontrado.' };
-  const doc = row as { storage_path: string; bucket: string };
+  const frank = isFrankOrFranqueadoRole(ctx.raw);
+  if (!row) {
+    if (frank) return { ok: false, error: 'Sem permissão para baixar este documento.', status: 403 };
+    return { ok: false, error: 'Documento não encontrado.' };
+  }
+  const doc = row as { storage_path: string; bucket: string; visivel_franqueado: boolean | null };
+  if (frank && doc.visivel_franqueado === false) {
+    return { ok: false, error: 'Sem permissão para baixar este documento.', status: 403 };
+  }
   let admin;
   try {
     admin = createAdminClient();

@@ -5,6 +5,7 @@ import { isAdminRole, normalizeAccessRole } from '@/lib/authz';
 import { listarFormulariosAtivos } from '@/lib/actions/formulario-actions';
 import { createClient } from '@/lib/supabase/server';
 import { GerarLinkFormularioButton } from '@/components/formularios/GerarLinkFormularioButton';
+import { FormularioClassificacaoBarra } from '@/components/formularios/FormularioClassificacaoBarra';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,11 @@ export default async function FormulariosPage() {
                 <h2 className="text-xl" style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}>
                   {formulario.nome}
                 </h2>
+                <FormularioClassificacaoBarra
+                  formularioId={formulario.id}
+                  categoria={formulario.categoria}
+                  visivelFranqueado={formulario.visivel_franqueado}
+                />
                 {formulario.descricao ? (
                   <p className="text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
                     {formulario.descricao}

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
+import type { CategoriaHub } from '@/lib/constants/categorias-hub';
 
 const BUCKET = 'documentos-templates';
 
@@ -15,6 +16,7 @@ export async function publicarVersaoRepositorio(params: {
   userId: string;
   tipoAlvo: { tipo_id: string } | { variacao_id: string };
   juridicoPontoId?: string | null;
+  classificacao?: { categoria: CategoriaHub | null; visivelFranqueado: boolean };
 }): Promise<{ ok: true; id: string; jaExistia?: boolean } | { ok: false; error: string }> {
   const alvoTipo = 'tipo_id' in params.tipoAlvo ? params.tipoAlvo.tipo_id : null;
   const alvoVariacao = 'variacao_id' in params.tipoAlvo ? params.tipoAlvo.variacao_id : null;
@@ -54,5 +56,15 @@ export async function publicarVersaoRepositorio(params: {
     return { ok: false, error: error?.message ?? 'Não foi possível publicar a versão.' };
   }
 
-  return { ok: true, id: String(data) };
+  const id = String(data);
+  if (params.classificacao) {
+    await admin
+      .from('repositorio_documentos')
+      .update({
+        categoria: params.classificacao.categoria,
+        visivel_franqueado: params.classificacao.visivelFranqueado,
+      })
+      .eq('id', id);
+  }
+  return { ok: true, id };
 }

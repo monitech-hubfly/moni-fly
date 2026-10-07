@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { listarRespostasDoFranqueado } from '@/lib/actions/formulario-actions';
+import { listarFormulariosVisivelFranqueado, listarRespostasDoFranqueado } from '@/lib/actions/formulario-actions';
 import { FORMULARIO_IDS } from '@/lib/constants/formularios-ids';
-import type { FormularioRespostaListaItem } from '@/types/formularios';
+import type { Formulario, FormularioRespostaListaItem } from '@/types/formularios';
 import { GerarLinkFormularioButton } from './GerarLinkFormularioButton';
 import { RespostasFormularioLista } from './RespostasFormularioLista';
 
@@ -15,6 +15,7 @@ export function FranqueadoFormulariosPainel({
   podeGerar: boolean;
 }) {
   const [respostas, setRespostas] = useState<FormularioRespostaListaItem[]>([]);
+  const [formularios, setFormularios] = useState<Formulario[]>([]);
 
   useEffect(() => {
     let ativo = true;
@@ -22,13 +23,33 @@ export function FranqueadoFormulariosPainel({
       if (!ativo) return;
       setRespostas(res);
     });
+    if (!podeGerar) {
+      void listarFormulariosVisivelFranqueado().then((lista) => {
+        if (!ativo) return;
+        setFormularios(lista);
+      });
+    }
     return () => {
       ativo = false;
     };
-  }, [redeFranqueadoId]);
+  }, [redeFranqueadoId, podeGerar]);
 
   return (
     <div className="space-y-4">
+      {!podeGerar && formularios.length > 0 ? (
+        <ul className="space-y-2">
+          {formularios.map((formulario) => (
+            <li key={formulario.id} className="text-sm" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}>
+              <span className="font-medium">{formulario.nome}</span>
+              {formulario.categoria ? (
+                <span className="ml-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+                  {formulario.categoria}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {podeGerar ? (
         <GerarLinkFormularioButton
           formularioId={FORMULARIO_IDS.CHECKLIST_CREDITO_PRELIMINAR}

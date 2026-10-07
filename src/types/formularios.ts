@@ -1,3 +1,5 @@
+import type { CategoriaHub } from '@/lib/constants/categorias-hub';
+
 export type FormularioCampoTipo =
   | 'texto'
   | 'texto_curto'
@@ -45,6 +47,8 @@ export interface Formulario {
   descricao: string | null;
   ativo: boolean;
   criado_em: string;
+  categoria: CategoriaHub | null;
+  visivel_franqueado: boolean;
   secoes: FormularioSecao[];
 }
 
