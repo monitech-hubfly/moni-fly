@@ -1,13 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
 import { searchFaqArticles } from '@/lib/actions/faq-actions';
 import {
   enviarPontoParaCentralAjuda,
   excluirPontoJuridico,
   listarCatalogoFaqJuridico,
-  moverPontoJuridico,
+  reordenarPontosJuridicos,
   salvarPontoJuridico,
   type PontoJuridicoRow,
 } from '@/lib/actions/juridico-pontos-actions';
@@ -235,6 +246,22 @@ export function JuridicoPontosSecao({
     setPontos(res.pontos);
   }, [cardId]);
 
+  const ordemReq = useRef(0);
+  const reordenar = useCallback(
+    async (ids: string[]) => {
+      const ticket = ++ordemReq.current;
+      const ordem = new Map(ids.map((id, indice) => [id, indice + 1]));
+      setPontos((prev) => prev.map((ponto) => (ordem.has(ponto.id) ? { ...ponto, ordem: ordem.get(ponto.id) ?? ponto.ordem } : ponto)));
+      const res = await reordenarPontosJuridicos(cardId, ids);
+      if (ticket !== ordemReq.current) return;
+      if (!res.ok) {
+        setErro(res.error);
+        await carregar();
+      }
+    },
+    [cardId, carregar],
+  );
+
   useEffect(() => {
     let vivo = true;
     setCarregando(true);
@@ -420,43 +447,38 @@ export function JuridicoPontosSecao({
             Carregando pontos…
           </p>
         ) : (
-          atuais.map((ponto, indice) => (
-            <CardPonto
-              key={ponto.id}
-              ponto={ponto}
-              numero={indice + 1}
-              podeEditar={podeEditar}
-              podeSubir={indice > 0}
-              podeDescer={indice < atuais.length - 1}
-              editando={rascunho?.id === ponto.id}
-              rascunho={rascunho?.id === ponto.id ? rascunho : null}
-              artigos={artigos}
-              buscaFaq={buscaFaq}
-              salvando={salvando}
-              onEditar={() => {
-                setEscolhendo(false);
-                setRascunho(rascunhoDe(ponto));
-                setBuscaFaq('');
-                setArtigos([]);
-              }}
-              onChange={setRascunho}
-              onBuscaFaq={(termo) => void buscarFaq(termo)}
-              onSalvar={() => void salvar()}
-              onEnviarFaq={(dados) => void enviarFaq(dados)}
-              onCancelar={() => setRascunho(null)}
-              onResolvido={() => void carregar()}
-              onExcluir={async () => {
-                const res = await excluirPontoJuridico(cardId, ponto.id);
-                if (!res.ok) setErro(res.error);
-                else await carregar();
-              }}
-              onMover={async (direcao) => {
-                const res = await moverPontoJuridico(cardId, ponto.id, direcao);
-                if (!res.ok) setErro(res.error);
-                else await carregar();
-              }}
-            />
-          ))
+          <ListaPontosOrdenavel pontos={atuais} podeEditar={podeEditar} onReordenar={(ids) => void reordenar(ids)}>
+            {(ponto, indice) => (
+              <CardPonto
+                key={ponto.id}
+                ponto={ponto}
+                numero={indice + 1}
+                podeEditar={podeEditar}
+                editando={rascunho?.id === ponto.id}
+                rascunho={rascunho?.id === ponto.id ? rascunho : null}
+                artigos={artigos}
+                buscaFaq={buscaFaq}
+                salvando={salvando}
+                onEditar={() => {
+                  setEscolhendo(false);
+                  setRascunho(rascunhoDe(ponto));
+                  setBuscaFaq('');
+                  setArtigos([]);
+                }}
+                onChange={setRascunho}
+                onBuscaFaq={(termo) => void buscarFaq(termo)}
+                onSalvar={() => void salvar()}
+                onEnviarFaq={(dados) => void enviarFaq(dados)}
+                onCancelar={() => setRascunho(null)}
+                onResolvido={() => void carregar()}
+                onExcluir={async () => {
+                  const res = await excluirPontoJuridico(cardId, ponto.id);
+                  if (!res.ok) setErro(res.error);
+                  else await carregar();
+                }}
+              />
+            )}
+          </ListaPontosOrdenavel>
         )}
         {!carregando && atuais.length === 0 && !rascunho ? (
           <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
@@ -539,18 +561,18 @@ export function JuridicoPontosSecao({
               </span>
             </button>
             {aberta ? (
-              <div className="space-y-2 px-3 pb-3">
-                {lista
-                  .slice()
-                  .sort((a, b) => a.ordem - b.ordem)
-                  .map((ponto, indice) => (
+              <div className="px-3 pb-3">
+                <ListaPontosOrdenavel
+                  pontos={lista.slice().sort((a, b) => a.ordem - b.ordem)}
+                  podeEditar={podeEditar}
+                  onReordenar={(ids) => void reordenar(ids)}
+                >
+                  {(ponto, indice) => (
                     <CardPonto
                       key={ponto.id}
                       ponto={ponto}
                       numero={indice + 1}
                       podeEditar={podeEditar}
-                      podeSubir={indice > 0}
-                      podeDescer={indice < lista.length - 1}
                       editando={rascunho?.id === ponto.id}
                       rascunho={rascunho?.id === ponto.id ? rascunho : null}
                       artigos={artigos}
@@ -568,13 +590,9 @@ export function JuridicoPontosSecao({
                         if (!res.ok) setErro(res.error);
                         else await carregar();
                       }}
-                      onMover={async (direcao) => {
-                        const res = await moverPontoJuridico(cardId, ponto.id, direcao);
-                        if (!res.ok) setErro(res.error);
-                        else await carregar();
-                      }}
                     />
-                  ))}
+                  )}
+                </ListaPontosOrdenavel>
               </div>
             ) : null}
           </div>
@@ -734,12 +752,44 @@ function ModalRespostaRodada({
   );
 }
 
+function ListaPontosOrdenavel({
+  pontos,
+  podeEditar,
+  onReordenar,
+  children,
+}: {
+  pontos: PontoJuridicoRow[];
+  podeEditar: boolean;
+  onReordenar: (ids: string[]) => void;
+  children: (ponto: PontoJuridicoRow, indice: number) => ReactNode;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+  const ids = pontos.map((ponto) => ponto.id);
+
+  function aoSoltar(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!podeEditar || !over || active.id === over.id) return;
+    const antigo = ids.indexOf(String(active.id));
+    const novo = ids.indexOf(String(over.id));
+    if (antigo < 0 || novo < 0) return;
+    onReordenar(arrayMove(ids, antigo, novo));
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={aoSoltar}>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        <div className="space-y-2">{pontos.map((ponto, indice) => children(ponto, indice))}</div>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
 function CardPonto({
   ponto,
   numero,
   podeEditar,
-  podeSubir,
-  podeDescer,
   editando,
   rascunho,
   artigos,
@@ -753,13 +803,10 @@ function CardPonto({
   onCancelar,
   onResolvido,
   onExcluir,
-  onMover,
 }: {
   ponto: PontoJuridicoRow;
   numero: number;
   podeEditar: boolean;
-  podeSubir: boolean;
-  podeDescer: boolean;
   editando: boolean;
   rascunho: Rascunho | null;
   artigos: { id: string; question: string }[];
@@ -773,8 +820,11 @@ function CardPonto({
   onCancelar: () => void;
   onResolvido: () => void;
   onExcluir: () => Promise<void>;
-  onMover: (direcao: 'subir' | 'descer') => Promise<void>;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: ponto.id,
+    disabled: !podeEditar || editando,
+  });
   const [confirmando, setConfirmando] = useState(false);
   const [copiaEstado, setCopiaEstado] = useState<'idle' | 'ok' | 'erro'>('idle');
   const status = statusVisualPontoJuridico(conclusaoDoPonto(ponto));
@@ -786,35 +836,53 @@ function CardPonto({
       ? ponto.duvida_recebida || 'Dúvida sem texto'
       : ponto.clausula_trecho || ponto.solicitacao_alteracao || 'Alteração sem texto';
 
+  const estiloArraste = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.72 : 1,
+    zIndex: isDragging ? 2 : undefined,
+  };
+
   if (editando && rascunho) {
     return (
-      <FormularioPonto
-        rascunho={rascunho}
-        artigos={artigos}
-        buscaFaq={buscaFaq}
-        salvando={salvando}
-        onChange={onChange}
-        onBuscaFaq={onBuscaFaq}
-        onSalvar={onSalvar}
-        onEnviarFaq={onEnviarFaq}
-        onCancelar={onCancelar}
-        ponto={ponto}
-        onResolvido={onResolvido}
-      />
+      <div ref={setNodeRef} id={`juridico-ponto-${ponto.id}`} style={estiloArraste}>
+        <FormularioPonto
+          rascunho={rascunho}
+          artigos={artigos}
+          buscaFaq={buscaFaq}
+          salvando={salvando}
+          onChange={onChange}
+          onBuscaFaq={onBuscaFaq}
+          onSalvar={onSalvar}
+          onEnviarFaq={onEnviarFaq}
+          onCancelar={onCancelar}
+          ponto={ponto}
+          onResolvido={onResolvido}
+        />
+      </div>
     );
   }
 
   return (
     <article
+      ref={setNodeRef}
       id={`juridico-ponto-${ponto.id}`}
       className="space-y-1.5 p-3"
       style={{
+        ...estiloArraste,
         background: 'var(--moni-surface-0)',
         border: 'var(--moni-border-width) solid var(--moni-border-default)',
         borderRadius: 'var(--moni-radius-md)',
+        boxShadow: isDragging ? 'var(--moni-shadow-card)' : undefined,
+        cursor: podeEditar ? (isDragging ? 'grabbing' : 'grab') : undefined,
       }}
+      {...(podeEditar ? attributes : {})}
+      {...(podeEditar ? listeners : {})}
     >
       <div className="flex flex-wrap items-center gap-2">
+        {podeEditar ? (
+          <GripVertical size={14} aria-hidden style={{ color: 'var(--moni-text-tertiary)', flexShrink: 0 }} />
+        ) : null}
         <strong className="text-[11px] tracking-wide" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}>
           {titulo}
         </strong>
@@ -836,39 +904,31 @@ function CardPonto({
           {ponto.faq_pergunta ? ` · ${ponto.faq_pergunta}` : ''}
         </p>
       ) : null}
-      <ResolverRepositorioPonto
-        ponto={ponto}
-        podeEditar={podeEditar}
-        sujo={false}
-        nome={ponto.repositorio_nova_variacao_nome ?? ''}
-        quando={ponto.repositorio_nova_variacao_quando_utilizar ?? ''}
-        onResolvido={onResolvido}
-      />
-      {ponto.faq_slug && ponto.faq_article_id ? (
-        <a
-          href={`/universidade/faq/${encodeURIComponent(ponto.faq_slug)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center text-[12px] font-semibold"
-          style={{ minHeight: 44, color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
-        >
-          Ver na Central de Ajuda
-        </a>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+      <div onPointerDown={(e) => e.stopPropagation()}>
+        <ResolverRepositorioPonto
+          ponto={ponto}
+          podeEditar={podeEditar}
+          sujo={false}
+          nome={ponto.repositorio_nova_variacao_nome ?? ''}
+          quando={ponto.repositorio_nova_variacao_quando_utilizar ?? ''}
+          onResolvido={onResolvido}
+        />
+        {ponto.faq_slug && ponto.faq_article_id ? (
+          <a
+            href={`/universidade/faq/${encodeURIComponent(ponto.faq_slug)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center text-[12px] font-semibold"
+            style={{ minHeight: 44, color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
+          >
+            Ver na Central de Ajuda
+          </a>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 pt-1" onPointerDown={(e) => e.stopPropagation()}>
         {podeEditar ? (
           <button type="button" style={botaoAcao} onClick={onEditar}>
             Editar
-          </button>
-        ) : null}
-        {podeEditar && podeSubir ? (
-          <button type="button" style={botaoAcao} onClick={() => void onMover('subir')}>
-            Subir
-          </button>
-        ) : null}
-        {podeEditar && podeDescer ? (
-          <button type="button" style={botaoAcao} onClick={() => void onMover('descer')}>
-            Descer
           </button>
         ) : null}
         {rotulo && copia ? (

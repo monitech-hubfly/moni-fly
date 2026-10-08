@@ -546,6 +546,51 @@ export async function moverPontoJuridico(
   return { ok: true };
 }
 
+export async function reordenarPontosJuridicos(
+  cardId: string,
+  idsOrdenados: string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const acesso = await exigirStaffJuridico();
+  if (acesso.erro) return { ok: false, error: acesso.erro };
+  const card = await cardJuridico(acesso.supabase, cardId);
+  if (card.erro || !card.card) return { ok: false, error: card.erro ?? 'Card inválido.' };
+  if (card.card.arquivado) return { ok: false, error: 'Atendimento arquivado não recebe alteração de pontos.' };
+
+  const ids = idsOrdenados.map((id) => String(id).trim()).filter(Boolean);
+  if (ids.length === 0) return { ok: true };
+  if (new Set(ids).size !== ids.length) return { ok: false, error: 'Ordem inválida.' };
+
+  const { data, error } = await acesso.supabase
+    .from('juridico_pontos')
+    .select('id, rodada')
+    .eq('juridico_card_id', cardId);
+  if (error) return { ok: false, error: error.message };
+  const todos = (data ?? []) as Array<{ id: string; rodada: number }>;
+  const porId = new Map(todos.map((ponto) => [ponto.id, ponto]));
+  const selecionados = ids.map((id) => porId.get(id));
+  if (selecionados.some((ponto) => !ponto)) {
+    return { ok: false, error: 'Ponto não encontrado neste atendimento.' };
+  }
+  const rodada = selecionados[0]?.rodada;
+  if (selecionados.some((ponto) => ponto?.rodada !== rodada)) {
+    return { ok: false, error: 'A ordem vale só dentro da mesma rodada.' };
+  }
+  const daRodada = todos.filter((ponto) => ponto.rodada === rodada);
+  if (daRodada.length !== ids.length) {
+    return { ok: false, error: 'A ordem precisa incluir todos os pontos da rodada.' };
+  }
+
+  for (let i = 0; i < ids.length; i += 1) {
+    const { error: errOrd } = await acesso.supabase
+      .from('juridico_pontos')
+      .update({ ordem: i + 1 })
+      .eq('id', ids[i])
+      .eq('juridico_card_id', cardId);
+    if (errOrd) return { ok: false, error: errOrd.message };
+  }
+  return { ok: true };
+}
+
 export async function listarCatalogoFaqJuridico(): Promise<
   | { ok: true; categorias: { id: string; name: string }[]; areas: string[]; areaSugerida: string | null }
   | { ok: false; error: string }
