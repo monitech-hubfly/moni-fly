@@ -20,14 +20,19 @@ export type SemanaStatusInd = {
 };
 
 export type SireneSnapshot = {
-  atrasados:  number;
-  abertos:    number;
-  venceHoje:  number;
-  futuras:    number;
-  relevantes: number;
-  concluidos: number;
-  semPrazo:   number;
-  score:      number | null;
+  atrasados:            number;
+  abertos:              number;
+  venceHoje:            number;
+  futuras:              number;
+  relevantes:           number;
+  concluidos:           number;
+  semPrazo:             number;
+  score:                number | null;
+  // Tier breakdown (v2) — para exibição detalhada no accordion
+  concluidos_no_prazo?: number;
+  concluidos_t1?:       number;
+  concluidos_t2?:       number;
+  concluidos_t3?:       number;
 };
 
 export type EngajamentoSnapshot = {
@@ -49,14 +54,24 @@ export type IndicadoresSnapshot = {
   media: number | null;
 };
 
+/** Score acumulado do ciclo (mês corrente) para cada dimensão, calculado a partir de carometro_status_diario */
+export type CicloScores = {
+  sirene: number | null;
+  engajamento: number | null;
+  indicadores: number | null;
+};
+
 export type UseMeuCarometroResult = {
   sirene: SireneSnapshot | null;
   engajamento: EngajamentoSnapshot | null;
   indicadores: IndicadoresSnapshot | null;
+  /** Prévia de Indicadores: Atingível=100% no prazo/0% vencida, Recorrente=score semanal */
+  indicadoresPrevia: IndicadoresSnapshot | null;
   diasSirene: DiaStatus[];
   diasEngajamento: DiaStatus[];
   semanasIndicadores: SemanaStatusInd[];
   semanaAtual: number;
+  ciclo: CicloScores;
   isLoading: boolean;
   error: string | null;
   refetch: () => void;
@@ -152,10 +167,12 @@ export function useMeuCarometro(): UseMeuCarometroResult {
   const [sirene, setSirene] = useState<SireneSnapshot | null>(null);
   const [engajamento, setEngajamento] = useState<EngajamentoSnapshot | null>(null);
   const [indicadores, setIndicadores] = useState<IndicadoresSnapshot | null>(null);
+  const [indicadoresPrevia, setIndicadoresPrevia] = useState<IndicadoresSnapshot | null>(null);
   const [diasSirene, setDiasSirene] = useState<DiaStatus[]>([]);
   const [diasEngajamento, setDiasEngajamento] = useState<DiaStatus[]>([]);
   const [semanasIndicadores, setSemanasIndicadores] = useState<SemanaStatusInd[]>([]);
   const [semanaAtual, setSemanaAtual] = useState<number>(() => isoWeek(new Date()));
+  const [ciclo, setCiclo] = useState<CicloScores>({ sirene: null, engajamento: null, indicadores: null });
   const callIdRef = useRef(0);
 
   const { simulacao } = useSimulacaoUsuario();
@@ -229,7 +246,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           .eq('arquivado', false),
         supabase
           .from('sirene_topicos')
-          .select('id, data_fim, prazo_proposto')
+          .select('id, data_fim, prazo_proposto, updated_at')
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['concluido', 'aprovado'])
           .eq('arquivado', false)
@@ -240,6 +257,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         id: unknown;
         data_fim: string | null;
         prazo_proposto: string | null;
+        updated_at?: string | null;
         chamado_id?: string | null;
         interacao_id?: string | null;
         sirene_chamados?: { arquivado: boolean | null } | { arquivado: boolean | null }[] | null;
@@ -326,22 +344,49 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         return prazo && prazo > hojeStr;
       }).length;
 
-      // Score: concluidos / (concluidos + atrasados + venceHoje). Futuras nunca entram.
-      // total = 0 → 100% (em dia, sem pendências)
+      // ── Score v2: Tier parcial (T1=75%, T2=50%, T3=20%) ─────────────────
+      // Crédito por chamado concluído baseado em dias de atraso após o prazo.
+      // Chamados concluídos no prazo ou antes = 100%. Em aberto = 0%.
+      function calcTierCredit(prazo: string | null, updatedAt: string | null): number {
+        if (!prazo || !updatedAt) return 100; // sem prazo ou sem data = crédito cheio
+        const prazoDate    = new Date(prazo    + 'T00:00:00');
+        const conclusaoDate = new Date(updatedAt.slice(0, 10) + 'T00:00:00');
+        const diasAtraso = Math.floor((conclusaoDate.getTime() - prazoDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (diasAtraso <= 0)  return 100; // no prazo
+        if (diasAtraso <= 6)  return 75;  // T1
+        if (diasAtraso <= 14) return 50;  // T2
+        return 20;                        // T3 (15+ dias)
+      }
+
+      // Contagem por tier para exibição no accordion
+      let sireneNp = 0, sireneT1 = 0, sireneT2 = 0, sireneT3 = 0;
+      const creditosConcluidos = topicosConcluidos.reduce((sum, t) => {
+        const prazo = t.data_fim || t.prazo_proposto;
+        const c = calcTierCredit(prazo, t.updated_at ?? null);
+        if (c === 100) sireneNp++; else if (c === 75) sireneT1++; else if (c === 50) sireneT2++; else sireneT3++;
+        return sum + c;
+      }, 0);
+
+      // Chamados em aberto atrasados ou que vencem hoje = 0% de crédito
       const sireneTotal = topicosConcluidos.length + topicosAtrasados + topicosVenceHoje;
+      const creditoTotal = creditosConcluidos; // abertos/atrasados contribuem 0
       const sireneScore = sireneTotal === 0
         ? 100
-        : Math.max(0, Math.round((topicosConcluidos.length / sireneTotal) * 100));
+        : Math.max(0, Math.round((creditoTotal / (sireneTotal * 100)) * 100));
 
       const sireneRuntime: SireneSnapshot = {
-        atrasados:  topicosAtrasados,
-        abertos:    topicosAbertos.length,
-        venceHoje:  topicosVenceHoje,
-        futuras:    topicosFuturas,
-        relevantes: sireneTotal,
-        concluidos: topicosConcluidos.length,
-        semPrazo:   topicosSemPrazo,
-        score:      sireneScore,
+        atrasados:            topicosAtrasados,
+        abertos:              topicosAbertos.length,
+        venceHoje:            topicosVenceHoje,
+        futuras:              topicosFuturas,
+        relevantes:           sireneTotal,
+        concluidos:           topicosConcluidos.length,
+        semPrazo:             topicosSemPrazo,
+        score:                sireneScore,
+        concluidos_no_prazo:  sireneNp,
+        concluidos_t1:        sireneT1,
+        concluidos_t2:        sireneT2,
+        concluidos_t3:        sireneT3,
       };
 
       // ── Engajamento (3 sub-scores independentes) ────────────────────────────────
@@ -465,6 +510,80 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         };
       }
 
+      // ── Engajamento v2: Metas Filhas + Tier ─────────────────────────────────
+      // Substitui o score do Engajamento pelo score baseado em Metas Filhas.
+      // O snapshot (carometro_status_diario) mantém backward compat com os campos antigos.
+      let engFilhasDetalhe: Record<string, number | string | null> = {
+        filhas_total: 0, filhas_concluidas: 0, filhas_vencidas_abertas: 0, filhas_no_prazo: 0,
+      };
+      {
+        const mesAtualEng = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+        const { data: filhasData } = await supabase
+          .from('objetivos')
+          .select('id, descricao, status, data_fim, updated_at')
+          .eq('profile_id', effectiveProfileId)
+          .not('objetivo_pai_id', 'is', null)
+          .eq('mes', mesAtualEng);
+
+        type FilhaRow = { id: string; descricao: string; status: string; data_fim: string | null; updated_at: string | null };
+        const filhasArr = (filhasData ?? []) as FilhaRow[];
+
+        function calcTierCreditFilha(dataFim: string | null, updatedAt: string | null): number {
+          if (!dataFim || !updatedAt) return 100;
+          const prazo = new Date(dataFim + 'T00:00:00');
+          const conc  = new Date(updatedAt.slice(0, 10) + 'T00:00:00');
+          const dias  = Math.floor((conc.getTime() - prazo.getTime()) / (1000 * 60 * 60 * 24));
+          if (dias <= 0)  return 100;
+          if (dias <= 6)  return 75;
+          if (dias <= 14) return 50;
+          return 20;
+        }
+
+        const filhasConcluidas      = filhasArr.filter(f => f.status === 'concluido');
+        const filhasVencidasAbertas = filhasArr.filter(f =>
+          f.status !== 'concluido' && f.status !== 'arquivado' && f.status !== 'relancada' &&
+          !!f.data_fim && f.data_fim < hojeStr
+        );
+        const filhasNoPrazo = filhasArr.filter(f =>
+          f.status !== 'concluido' && f.status !== 'arquivado' && f.status !== 'relancada' &&
+          (!f.data_fim || f.data_fim >= hojeStr)
+        );
+        const engRelevantes = filhasConcluidas.length + filhasVencidasAbertas.length;
+
+        let novoScoreEng: number | null = null;
+        if (filhasArr.length === 0) {
+          // Sem filhas configuradas — mantém score atual (atividades/cards)
+          novoScoreEng = engajamentoRuntime.score;
+        } else if (engRelevantes === 0) {
+          // Tem filhas mas todas estão no prazo → 100% (sem penalidade ainda)
+          novoScoreEng = 100;
+        } else {
+          const totalCreditos = filhasConcluidas.reduce((sum, f) => sum + calcTierCreditFilha(f.data_fim, f.updated_at), 0);
+          novoScoreEng = Math.max(0, Math.round((totalCreditos / (engRelevantes * 100)) * 100));
+        }
+
+        engajamentoRuntime = { ...engajamentoRuntime, score: novoScoreEng };
+
+        // Contagem por tier para exibição no accordion
+        let engNp = 0, engT1 = 0, engT2 = 0, engT3 = 0;
+        for (const f of filhasConcluidas) {
+          const c = calcTierCreditFilha(f.data_fim, f.updated_at);
+          if (c === 100) engNp++; else if (c === 75) engT1++; else if (c === 50) engT2++; else engT3++;
+        }
+
+        engFilhasDetalhe = {
+          filhas_total:            filhasArr.length,
+          filhas_concluidas:       filhasConcluidas.length,
+          filhas_vencidas_abertas: filhasVencidasAbertas.length,
+          filhas_no_prazo:         filhasNoPrazo.length,
+          // Tier breakdown
+          filhas_np:               engNp,
+          filhas_t1:               engT1,
+          filhas_t2:               engT2,
+          filhas_t3:               engT3,
+        };
+      }
+
       // ── Indicadores (S-1 ao vivo + S-atual ao vivo) ─────────────────────────
       // Computa as duas semanas ao vivo a partir de indicador_lancamentos.
       // A semana anterior (S-1) é usada como score principal do card.
@@ -495,6 +614,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const semAnteriorInd = semana > 1 ? semana - 1 : 52;
       let indicadoresAnterior: IndicadoresSnapshot = { porIndicador: [], media: null };
       let indicadoresAtual: IndicadoresSnapshot    = { porIndicador: [], media: null };
+      let indicadoresPreviaLocal: IndicadoresSnapshot | null = null;
 
       {
         const { data: objRespData } = await supabase
@@ -644,6 +764,70 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
             indicadoresAnterior = calcIndicadores(lancMapAnterior, sextaAnterior);
             indicadoresAtual    = calcIndicadores(lancMapAtual, hojeRef);
+
+            // ── Prévia de Indicadores (v2): Atingível=100% no prazo/0% vencida ──
+            // Recorrente: mantém score semanal atual.
+            function calcPreviaIndicadores(): IndicadoresSnapshot {
+              const porIndicador: IndicadorItem[] = [];
+              const metaScoresMap = new Map<string, number[]>();
+              let todosAindaNaoIniciados = true;
+              for (const ind of indsTyped) {
+                const objNome    = ind.objetivo_id ? (objNomeMap.get(ind.objetivo_id) ?? '') : '';
+                const nomeDisplay = objNome ? `${objNome} — ${ind.nome}` : (ind.nome || ind.id);
+                const rawSf = ind.semaforo_faixas as SfRaw | null;
+                const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
+                const metaKey = ind.objetivo_id ?? ind.id;
+                // Não penaliza meta ainda não iniciada
+                const metaDataInicio = ind.objetivo_id ? (metaDataInicioMap.get(ind.objetivo_id) ?? null) : null;
+                if (metaDataInicio) {
+                  const metaInicio = new Date(metaDataInicio + 'T00:00:00');
+                  if (hojeRef < metaInicio) {
+                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
+                    continue; // "não iniciada" — não computa score mas também não conta como "dado presente"
+                  }
+                }
+                // Se chegou aqui, o indicador está ativo e deve ser contado
+                todosAindaNaoIniciados = false;
+                if (isProjeto) {
+                  // Atingível: 100% enquanto dentro do prazo, 0% ao vencer
+                  const dataFim = rawSf!.data_fim ?? '';
+                  if (!dataFim) {
+                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
+                    continue;
+                  }
+                  const prazoDate = new Date(dataFim + 'T23:59:59');
+                  const previa = hojeRef <= prazoDate ? 100 : 0;
+                  porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: previa });
+                  metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), previa]);
+                } else {
+                  // Recorrente: score semanal atual
+                  const valor  = lancMapAtual.get(ind.id);
+                  const valStr = valor != null ? String(valor).trim() : '';
+                  if (valStr === '' || valStr === '-') {
+                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: 0 });
+                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
+                  } else {
+                    const score = scoreDeValorESemaforo(valor, ind.semaforo_faixas);
+                    const n     = Number(valStr.replace(',', '.'));
+                    porIndicador.push({ nome: nomeDisplay, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
+                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
+                  }
+                }
+              }
+              const metaMedias: number[] = [];
+              for (const scores of metaScoresMap.values()) {
+                metaMedias.push(Math.round(scores.reduce((s, v) => s + v, 0) / scores.length));
+              }
+              // Se todos os indicadores ainda não iniciaram: mostrar 100% (não penalizar)
+              // Se metaScoresMap vazia mas há indicadores ativos: mostrar null (sem dados)
+              const media = metaMedias.length > 0
+                ? Math.round(metaMedias.reduce((s, v) => s + v, 0) / metaMedias.length)
+                : (todosAindaNaoIniciados && indsTyped.length > 0 ? 100 : null);
+              return { porIndicador, media };
+            }
+            const indPrevia = calcPreviaIndicadores();
+            indicadoresPreviaLocal = indPrevia;
+            setIndicadoresPrevia(indPrevia);
           }
           } // filteredObjIds.length > 0
         }
@@ -692,7 +876,10 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             data:        hojeStr,
             sirene:      sireneRuntime,
             engajamento: engajamentoRuntime,
+            // indicadores = resultado real (para ciclo histórico)
             indicadores: semAnteriorNaMes ? indicadoresAnterior : indicadoresAtual,
+            // indicadores_previa = simulação "se fechasse hoje" (para dashboard gestão)
+            indicadores_previa: indicadoresPreviaLocal ?? null,
           },
           { onConflict: 'area_id,profile_id,data' },
         ).then(({ error: snapErr }) => {
@@ -700,10 +887,50 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         });
       }
 
+      // ── Score do ciclo (mês corrente) — média dos snapshots do mês ──────────
+      // Início do mês corrente para buscar todos os snapshots salvos
+      const cicloInicio = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`;
+      const { data: cicloSnaps } = await supabase
+        .from('carometro_status_diario')
+        .select('data, sirene, engajamento, indicadores')
+        .eq('profile_id', effectiveProfileId)
+        .gte('data', cicloInicio)
+        .lte('data', hojeStr);
+
+      type SnapCicloRow = { data: string; sirene: unknown; engajamento: unknown; indicadores: unknown };
+      const cicloRows = (cicloSnaps ?? []) as SnapCicloRow[];
+
+      // Inclui o score runtime de hoje caso o upsert ainda não tenha completado
+      const hasTodaySnap = cicloRows.some(r => r.data === hojeStr);
+
+      function mediaScoresCiclo(
+        key: 'sirene' | 'engajamento' | 'indicadores',
+        runtimeScore: number | null,
+      ): number | null {
+        const scores = cicloRows
+          .map(r => {
+            const blob = r[key] as Record<string, unknown> | null;
+            return typeof blob?.score === 'number' ? (blob.score as number) : (typeof blob?.media === 'number' ? (blob.media as number) : null);
+          })
+          .filter((s): s is number => s !== null);
+        // Se hoje ainda não tem snapshot salvo, adiciona o score runtime
+        if (!hasTodaySnap && runtimeScore !== null) scores.push(runtimeScore);
+        if (scores.length === 0) return null;
+        return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+      }
+
+      const indScore = semAnteriorNaMes ? indicadoresAnterior.media : indicadoresAtual.media;
+      const cicloScores: CicloScores = {
+        sirene:      mediaScoresCiclo('sirene',      sireneScore),
+        engajamento: mediaScoresCiclo('engajamento', engajamentoRuntime.score),
+        indicadores: mediaScoresCiclo('indicadores', indScore),
+      };
+
       setSirene(sireneRuntime);
       setEngajamento(engajamentoRuntime);
       // Score principal: S-1 se pertence ao mês vigente; caso contrário, semana atual (primeira do mês)
       setIndicadores(semAnteriorNaMes ? indicadoresAnterior : indicadoresAtual);
+      setCiclo(cicloScores);
       setDiasSirene(buildDias('sirene', 'score', sireneScore, {
         concluidos: topicosConcluidos.length,
         atrasados:  topicosAtrasados,
@@ -712,17 +939,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         abertos:    topicosAbertos.length,
         semPrazo:   topicosSemPrazo,
       }));
-      setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score, {
-        atividades_agendadas:  engajamentoRuntime.atividades.agendadas,
-        atividades_realizadas: engajamentoRuntime.atividades.realizadas,
-        atividades_atrasadas:  engajamentoRuntime.atividades.atrasadas,
-        cards_emDia:           engajamentoRuntime.cards.emDia,
-        cards_atrasados:       engajamentoRuntime.cards.atrasados,
-        cards_bloqueados:      engajamentoRuntime.cards.bloqueados,
-        proximas_concluidos:   engajamentoRuntime.proximas.concluidos,
-        proximas_venceHoje:    engajamentoRuntime.proximas.venceHoje,
-        proximas_atrasadas:    engajamentoRuntime.proximas.atrasadas,
-      }));
+      setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score, engFilhasDetalhe));
       // Exibe apenas semanas que pertencem ao mês vigente (regra da quinta-feira)
       setSemanasIndicadores([
         ...(semAnteriorNaMes ? [{
@@ -777,10 +994,12 @@ export function useMeuCarometro(): UseMeuCarometroResult {
     sirene,
     engajamento,
     indicadores,
+    indicadoresPrevia,
     diasSirene,
     diasEngajamento,
     semanasIndicadores,
     semanaAtual,
+    ciclo,
     isLoading,
     error,
     refetch: carregar,

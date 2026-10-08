@@ -87,15 +87,26 @@ function mesInicial(): string {
   return mesAtualStr();
 }
 
+export type MetaFilhaItem = {
+  id: string;
+  descricao: string;
+  objetivo_pai_id: string;
+  profile_id: string | null;
+  status: string;
+  data_fim: string | null; // YYYY-MM-DD
+};
+
 export type UsePlanoBoneDayResult = {
   metas: MetaItem[];
   metasConcluidas: MetaItem[];
   metasNaoConcluidas: MetaItem[];
+  metasRelancadas: MetaItem[];
   indicadores: IndicadorBone[];
   responsaveis: ResponsavelItem[];
   comportamentos: ComportamentoItem[];
   agendaMacro: AgendaMacroItem[];
   objetivoResponsaveis: ObjetivoResponsavel[];
+  filhas: MetaFilhaItem[];
   mes: string;
   setMes: (m: string) => void;
   isLoading: boolean;
@@ -112,11 +123,13 @@ export function usePlanoBoneDay(
   const [metas,              setMetas]              = useState<MetaItem[]>([]);
   const [metasConcluidas,    setMetasConcluidas]    = useState<MetaItem[]>([]);
   const [metasNaoConcluidas, setMetasNaoConcluidas] = useState<MetaItem[]>([]);
+  const [metasRelancadas,    setMetasRelancadas]    = useState<MetaItem[]>([]);
   const [indicadores,        setIndicadores]        = useState<IndicadorBone[]>([]);
   const [responsaveis,       setResponsaveis]       = useState<ResponsavelItem[]>([]);
   const [comportamentos,     setComportamentos]     = useState<ComportamentoItem[]>([]);
   const [agendaMacro,        setAgendaMacro]        = useState<AgendaMacroItem[]>([]);
   const [objetivoResponsaveis, setObjetivoResponsaveis] = useState<ObjetivoResponsavel[]>([]);
+  const [filhas,             setFilhas]             = useState<MetaFilhaItem[]>([]);
   const [mes, setMesState] = useState(mesInicial);
   const setMes = useCallback((m: string) => {
     localStorage.setItem(LS_MES_KEY, m);
@@ -136,6 +149,8 @@ export function usePlanoBoneDay(
       setComportamentos([]);
       setIndicadores([]);
       setObjetivoResponsaveis([]);
+      setFilhas([]);
+      setMetasRelancadas([]);
       setIsLoading(false);
       return;
     }
@@ -257,6 +272,18 @@ export function usePlanoBoneDay(
       setMetas(metasArr);
       setMetasConcluidas(metasConclArr);
       setMetasNaoConcluidas(metasNaoConclArr);
+
+      // Metas relançadas do mês atual (status='relancada')
+      const { data: relancadasData } = await supabase
+        .from('objetivos')
+        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
+        .eq('area_id', areaId)
+        .eq('status', 'relancada')
+        .eq('mes', mes)
+        .is('objetivo_pai_id', null)
+        .order('is_chave', { ascending: false })
+        .order('ordem', { ascending: true });
+      setMetasRelancadas(((relancadasData ?? []) as ObjRow[]).map(toMeta));
 
       const objIds = metasArr.map(m => m.id);
       if (objIds.length > 0) {
@@ -396,6 +423,19 @@ export function usePlanoBoneDay(
         ganttArr.forEach(g => { g.tarefa_id = g.acao_id ? (acoTarefaMap.get(g.acao_id) ?? null) : null; });
       }
       setAgendaMacro(ganttArr);
+
+      // ── Filhas (metas com objetivo_pai_id) da área no mês ──────────────────
+      const { data: filhasData } = await supabase
+        .from('objetivos')
+        .select('id, descricao, objetivo_pai_id, profile_id, status, data_fim')
+        .eq('area_id', areaId)
+        .eq('mes', mes)
+        .not('objetivo_pai_id', 'is', null);
+      type FilhaRow = { id: string; descricao: string; objetivo_pai_id: string; profile_id: string | null; status: string; data_fim: string | null };
+      setFilhas(((filhasData ?? []) as FilhaRow[]).map(f => ({
+        id: f.id, descricao: f.descricao, objetivo_pai_id: f.objetivo_pai_id,
+        profile_id: f.profile_id ?? null, status: f.status, data_fim: f.data_fim ?? null,
+      })));
     } catch (e) {
       console.error('[usePlanoBoneDay]', e);
       setError(e instanceof Error ? e.message : JSON.stringify(e));
@@ -407,8 +447,8 @@ export function usePlanoBoneDay(
   useEffect(() => { carregar(); }, [carregar]);
 
   return {
-    metas, metasConcluidas, metasNaoConcluidas, indicadores, responsaveis,
-    comportamentos, agendaMacro, objetivoResponsaveis, mes, setMes,
+    metas, metasConcluidas, metasNaoConcluidas, metasRelancadas, indicadores, responsaveis,
+    comportamentos, agendaMacro, objetivoResponsaveis, filhas, mes, setMes,
     isLoading, error, recarregar: carregar,
     removerMetaNaoConcluida: (id: string) =>
       setMetasNaoConcluidas(prev => prev.filter(m => m.id !== id)),
