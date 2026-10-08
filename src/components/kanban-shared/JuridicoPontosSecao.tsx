@@ -150,10 +150,45 @@ function conclusaoDoPonto(ponto: {
 }
 
 function textoCopia(ponto: PontoJuridicoRow): string | null {
-  if (ponto.tipo === 'duvida') return ponto.resposta;
-  if (ponto.decisao === 'aceita' || ponto.decisao === 'aceita_parcialmente') return ponto.texto_final_aprovado;
-  if (ponto.decisao === 'nao_aceita') return ponto.motivo_resposta;
-  return null;
+  const bruto =
+    ponto.tipo === 'duvida'
+      ? ponto.resposta
+      : ponto.decisao === 'aceita' || ponto.decisao === 'aceita_parcialmente'
+        ? ponto.texto_final_aprovado
+        : ponto.decisao === 'nao_aceita'
+          ? ponto.motivo_resposta
+          : null;
+  const texto = String(bruto ?? '').trim();
+  return texto.length > 0 ? texto : null;
+}
+
+async function copiarTexto(texto: string): Promise<boolean> {
+  const valor = texto.trim();
+  if (!valor) return false;
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(valor);
+      return true;
+    }
+  } catch {
+    // Segue para o fallback quando a permissão da área de transferência falha.
+  }
+  try {
+    const area = document.createElement('textarea');
+    area.value = valor;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.top = '0';
+    area.style.left = '-9999px';
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
+    const ok = document.execCommand('copy');
+    area.remove();
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 function rotuloCopia(ponto: PontoJuridicoRow): string | null {
@@ -265,12 +300,8 @@ export function JuridicoPontosSecao({
   }
 
   async function copiar(texto: string, aviso: string) {
-    try {
-      await navigator.clipboard.writeText(texto);
-      setCopiaAviso(aviso);
-    } catch {
-      setCopiaAviso('Não foi possível copiar.');
-    }
+    const ok = await copiarTexto(texto);
+    setCopiaAviso(ok ? aviso : 'Não foi possível copiar.');
   }
 
   async function salvar() {
@@ -362,12 +393,12 @@ export function JuridicoPontosSecao({
           borderRadius: 'var(--moni-radius-lg)',
         }}
       >
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs font-semibold" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}>
             Rodada {rodadaAtual}
           </p>
           {exibirGerarResposta ? (
-            <button type="button" style={botaoSecundario} onClick={abrirResposta}>
+            <button type="button" style={{ ...botaoSecundario, width: '100%', maxWidth: 280 }} onClick={abrirResposta}>
               Gerar resposta da rodada
             </button>
           ) : null}
@@ -459,7 +490,7 @@ export function JuridicoPontosSecao({
               </button>
             </div>
           ) : (
-            <button type="button" style={botaoPrimario} onClick={() => setEscolhendo(true)}>
+            <button type="button" style={{ ...botaoPrimario, width: '100%' }} onClick={() => setEscolhendo(true)}>
               + Adicionar ponto
             </button>
           )
@@ -569,6 +600,18 @@ const botaoSecundario = {
   padding: '0 12px',
   border: 'var(--moni-border-width) solid var(--moni-border-default)',
 } as const;
+
+const botaoAcao = {
+  ...botaoSecundario,
+  width: '100%',
+  minWidth: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  textAlign: 'center' as const,
+  lineHeight: 1.2,
+  padding: '0 8px',
+};
 
 function ModalRespostaRodada({
   texto,
@@ -714,6 +757,7 @@ function CardPonto({
   onMover: (direcao: 'subir' | 'descer') => Promise<void>;
 }) {
   const [confirmando, setConfirmando] = useState(false);
+  const [copiaEstado, setCopiaEstado] = useState<'idle' | 'ok' | 'erro'>('idle');
   const status = statusVisualPontoJuridico(conclusaoDoPonto(ponto));
   const copia = textoCopia(ponto);
   const rotulo = rotuloCopia(ponto);
@@ -792,29 +836,39 @@ function CardPonto({
           Ver na Central de Ajuda
         </a>
       ) : null}
-      <div className="flex flex-wrap gap-2 pt-1">
+      <div className="grid grid-cols-2 gap-2 pt-1">
         {podeEditar ? (
-          <button type="button" style={botaoSecundario} onClick={onEditar}>
+          <button type="button" style={botaoAcao} onClick={onEditar}>
             Editar
           </button>
         ) : null}
         {podeEditar && podeSubir ? (
-          <button type="button" style={botaoSecundario} onClick={() => void onMover('subir')}>
+          <button type="button" style={botaoAcao} onClick={() => void onMover('subir')}>
             Subir
           </button>
         ) : null}
         {podeEditar && podeDescer ? (
-          <button type="button" style={botaoSecundario} onClick={() => void onMover('descer')}>
+          <button type="button" style={botaoAcao} onClick={() => void onMover('descer')}>
             Descer
           </button>
         ) : null}
         {rotulo && copia ? (
           <button
             type="button"
-            style={botaoSecundario}
-            onClick={() => void navigator.clipboard.writeText(copia)}
+            style={{
+              ...botaoAcao,
+              ...(copiaEstado === 'ok'
+                ? { background: 'var(--moni-green-50)', color: 'var(--moni-green-800)', border: 'var(--moni-border-width) solid var(--moni-green-400)' }
+                : null),
+            }}
+            onClick={() => {
+              void copiarTexto(copia).then((ok) => {
+                setCopiaEstado(ok ? 'ok' : 'erro');
+                window.setTimeout(() => setCopiaEstado('idle'), 2000);
+              });
+            }}
           >
-            {rotulo}
+            {copiaEstado === 'ok' ? 'Copiado' : copiaEstado === 'erro' ? 'Não copiou' : rotulo}
           </button>
         ) : null}
         {podeEditar ? (
@@ -822,7 +876,7 @@ function CardPonto({
             <>
               <button
                 type="button"
-                style={botaoSecundario}
+                style={botaoAcao}
                 onClick={() => {
                   setConfirmando(false);
                   void onExcluir();
@@ -830,12 +884,12 @@ function CardPonto({
               >
                 Confirmar exclusão
               </button>
-              <button type="button" style={botaoSecundario} onClick={() => setConfirmando(false)}>
+              <button type="button" style={botaoAcao} onClick={() => setConfirmando(false)}>
                 Manter
               </button>
             </>
           ) : (
-            <button type="button" style={botaoSecundario} onClick={() => setConfirmando(true)}>
+            <button type="button" style={botaoAcao} onClick={() => setConfirmando(true)}>
               Excluir
             </button>
           )
