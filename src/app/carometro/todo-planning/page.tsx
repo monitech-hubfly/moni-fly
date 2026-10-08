@@ -110,7 +110,9 @@ function TodoPlanningPageContent() {
           />
         </SecaoColapsavel>
 
-        <MetasIndicadoresBloco />
+        <SecaoColapsavel titulo="Metas & Indicadores da Área">
+          <MetasIndicadoresBloco />
+        </SecaoColapsavel>
       </div>
 
       {effectiveProfileId && (

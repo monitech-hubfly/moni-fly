@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import {
   usePlanoBoneDay, IndicadorBone, ComportamentoItem, AgendaMacroItem,
-  ObjetivoResponsavel, semanasDoMes, getMonthOptions,
+  ObjetivoResponsavel, MetaFilhaItem, semanasDoMes, getMonthOptions,
 } from '@/hooks/usePlanoBoneDay';
 import type { MetaItem, ResponsavelItem } from '@/hooks/useMetasIndicadores';
 import { SeletorUsuarioAdmin } from '@/components/carometro/todo/SeletorUsuarioAdmin';
@@ -794,6 +794,32 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
   const [salvando,      setSalvando]      = useState(false);
   const [editandoMeta,  setEditandoMeta]  = useState(false);
   const [salvandoMeta,  setSalvandoMeta]  = useState(false);
+  // Metas filhas
+  const [adicionandoFilha, setAdicionandoFilha] = useState(false);
+  const [novaFilhaDesc,    setNovaFilhaDesc]    = useState('');
+  const [novaFilhaPrazo,   setNovaFilhaPrazo]   = useState('');
+  const [salvandoFilha,    setSalvandoFilha]    = useState(false);
+  const [erroFilha,        setErroFilha]        = useState<string | null>(null);
+  const handleSalvarFilha = async () => {
+    if (!novaFilhaDesc.trim()) { setErroFilha('Informe a descrição da meta filha.'); return; }
+    if (!novaFilhaPrazo)        { setErroFilha('Informe o prazo da meta filha.'); return; }
+    setSalvandoFilha(true); setErroFilha(null);
+    try {
+      const mes = new Date().toISOString().slice(0, 7);
+      await supabase.from('objetivos').insert({
+        descricao: novaFilhaDesc.trim(),
+        objetivo_pai_id: meta.id,
+        area_id: areaId,
+        profile_id: currentUserId,
+        mes,
+        status: 'ativo',
+        tipo: 'atingivel',
+        data_fim: novaFilhaPrazo,
+      });
+      setNovaFilhaDesc(''); setNovaFilhaPrazo(''); setAdicionandoFilha(false);
+      onUpdate();
+    } finally { setSalvandoFilha(false); }
+  };
   // Modal de assumir Projeto
   const [modalAssumir,  setModalAssumir]  = useState(false);
   const [formDatas,     setFormDatas]     = useState({ inicio: '', fim: '' });
@@ -1156,6 +1182,51 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
             responsaveis={responsaveis} onSalvo={onUpdate} />
         </div>
       )}
+
+      {/* + Adicionar meta filha — disponível para quem assumiu a meta */}
+      {(() => {
+        const jaAssumiu = objetivoResponsaveis.some(r => r.objetivo_id === meta.id && r.profile_id === currentUserId);
+        if (!jaAssumiu && !isAdmin) return null;
+        if (meta.status === 'arquivado' || meta.status === 'concluido') return null;
+        return (
+          <div className="px-3 py-2 border-t border-gray-100">
+            {adicionandoFilha ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-[10px] font-semibold text-gray-600">Nova meta filha de: <em>{meta.descricao}</em></p>
+                <input
+                  className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                  placeholder="Descrição da meta filha *"
+                  value={novaFilhaDesc}
+                  onChange={e => setNovaFilhaDesc(e.target.value)}
+                  autoFocus
+                />
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] text-gray-500 whitespace-nowrap">Prazo *</label>
+                  <input type="date"
+                    className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 flex-1"
+                    value={novaFilhaPrazo}
+                    onChange={e => setNovaFilhaPrazo(e.target.value)}
+                  />
+                </div>
+                {erroFilha && <p className="text-[10px] text-red-500">{erroFilha}</p>}
+                <div className="flex gap-2 justify-end">
+                  <button type="button" onClick={() => { setAdicionandoFilha(false); setNovaFilhaDesc(''); setNovaFilhaPrazo(''); setErroFilha(null); }}
+                    className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+                  <button type="button" onClick={() => { void handleSalvarFilha(); }} disabled={salvandoFilha}
+                    className="text-xs px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600">
+                    {salvandoFilha ? 'Salvando...' : 'Salvar filha'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setAdicionandoFilha(true)}
+                className="text-[10px] text-blue-500 hover:text-blue-700 transition-colors">
+                + Adicionar meta filha
+              </button>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1174,9 +1245,10 @@ const META_CORES = [
   { bg: '#e0f2fe', border: '#7dd3fc', text: '#075985' },
 ];
 
-function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis, atividades, semanas, isAdmin, currentUserId, mes, areaId, onAdd, onDelete, onAddLivre }: {
+function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis, filhas, atividades, semanas, isAdmin, currentUserId, mes, areaId, onAdd, onDelete, onAddLivre }: {
   pessoa: ResponsavelItem; comportamentos: ComportamentoItem[]; metas: MetaItem[];
   objetivoResponsaveis: ObjetivoResponsavel[];
+  filhas: MetaFilhaItem[];
   atividades: AgendaMacroItem[]; semanas: number[]; isAdmin: boolean; currentUserId: string | null; mes: string; areaId: string;
   onAdd: (profileId: string, acoId: string, semana: number, horas: number, objetivoId: string | null) => Promise<void>;
   onDelete: (id: string, grupoId: string | null) => Promise<void>;
@@ -1629,6 +1701,79 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
                   ))}
                 </tr>
               )}
+
+              {/* ── Meta Mãe ────────────────────────────────────────────────── */}
+              {metasAssumidas.length > 0 && (
+                <>
+                  <tr className="border-t-2 border-amber-200 bg-amber-50/40">
+                    <td colSpan={semanas.length + 1} className="px-3 py-1 text-[9px] font-semibold text-amber-700 uppercase tracking-wide">
+                      Meta Mãe
+                    </td>
+                  </tr>
+                  {metasAssumidas.map(meta => (
+                    <tr key={meta.id} className="border-b border-amber-100 hover:bg-amber-50/50">
+                      <td className="sticky left-0 bg-white z-10 px-3 py-1.5 text-amber-800 border-r border-amber-100 max-w-[160px]">
+                        <span className="block truncate text-[11px]" title={meta.descricao}>{meta.descricao}</span>
+                      </td>
+                      {semanas.map(sem => (
+                        <td key={sem} className="px-2 py-1.5 text-center">
+                          <span className="inline-block w-3 h-3 rounded-full bg-amber-300 opacity-70" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </>
+              )}
+
+              {/* ── Filhas previstas ─────────────────────────────────────────── */}
+              {(() => {
+                const filhasPessoa = filhas.filter(f => f.profile_id === pessoa.profile_id && f.status !== 'arquivado');
+                if (filhasPessoa.length === 0) return null;
+                return (
+                  <>
+                    <tr className="border-t-2 border-blue-200 bg-blue-50/40">
+                      <td colSpan={semanas.length + 1} className="px-3 py-1 text-[9px] font-semibold text-blue-700 uppercase tracking-wide">
+                        Filhas previstas
+                      </td>
+                    </tr>
+                    {filhasPessoa.map(filha => {
+                      const semanaPrazo = filha.data_fim ? isoWeek(new Date(filha.data_fim + 'T12:00:00')) : null;
+                      const paiMeta = metas.find(m => m.id === filha.objetivo_pai_id);
+                      const hoje = new Date(); hoje.setHours(0,0,0,0);
+                      const diasRest = filha.data_fim
+                        ? Math.ceil((new Date(filha.data_fim + 'T00:00:00').getTime() - hoje.getTime()) / (1000*60*60*24))
+                        : null;
+                      return (
+                        <tr key={filha.id} className="border-b border-blue-100 hover:bg-blue-50/50">
+                          <td className="sticky left-0 bg-white z-10 px-3 py-1.5 border-r border-blue-100 max-w-[160px]">
+                            <div className="flex flex-col">
+                              <span className="block truncate text-[11px] text-blue-800" title={filha.descricao}>{filha.descricao}</span>
+                              {paiMeta && <span className="text-[9px] text-gray-400 truncate">↳ {paiMeta.descricao}</span>}
+                            </div>
+                          </td>
+                          {semanas.map(sem => {
+                            const isDeadline = semanaPrazo === sem;
+                            return (
+                              <td key={sem} className="px-2 py-1.5 text-center">
+                                {isDeadline && (
+                                  <span className={`inline-block text-[10px] font-bold px-1.5 rounded ${
+                                    filha.status === 'concluido' ? 'bg-green-100 text-green-700' :
+                                    diasRest !== null && diasRest <= 0 ? 'bg-red-100 text-red-700' :
+                                    diasRest !== null && diasRest <= 3 ? 'bg-red-50 text-red-600' :
+                                    'bg-blue-100 text-blue-700'
+                                  }`} title={filha.data_fim ?? ''}>
+                                    {filha.status === 'concluido' ? '✓' : (filha.data_fim?.slice(8) ?? '?')}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </>
+                );
+              })()}
             </tbody>
           </table>
         </div>
@@ -1780,12 +1925,15 @@ function PreBoneDayPageContent() {
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [bloco0Open, setBloco0Open] = useState(true);
   const [bloco1Open, setBloco1Open] = useState(false);
+  const [blocoRelOpen,  setBlocoRelOpen]  = useState(true);
+  const [blocoMinhasOpen, setBlocoMinhasOpen] = useState(true);
   const [bloco2Open, setBloco2Open] = useState(true);
   const [bloco3Open, setBloco3Open] = useState(true);
+  const [blocoIndOpen, setBlocoIndOpen] = useState(true);
 
   const {
-    metas, metasConcluidas, metasNaoConcluidas, indicadores, responsaveis, comportamentos, agendaMacro,
-    objetivoResponsaveis, mes, setMes, isLoading, error, recarregar, removerMetaNaoConcluida,
+    metas, metasConcluidas, metasNaoConcluidas, metasRelancadas, indicadores, responsaveis, comportamentos, agendaMacro,
+    objetivoResponsaveis, filhas, mes, setMes, isLoading, error, recarregar, removerMetaNaoConcluida,
   } = usePlanoBoneDay(areaId, effectiveProfileId);
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -2133,21 +2281,23 @@ function PreBoneDayPageContent() {
       ) : (
         <>
           {/* ── Bloco 0: Metas Concluídas do mês ─────────────────────────────── */}
-          {metasConcluidas.length > 0 && (
-            <section className="rounded-xl border border-green-200 bg-green-50 shadow-sm overflow-hidden">
-              <button type="button"
-                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-green-100 transition-colors"
-                onClick={() => setBloco0Open(v => !v)}>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-green-800">Metas Concluídas</span>
-                  <span className="text-xs text-green-700 bg-green-200 rounded-full px-2 py-0.5">
-                    {metasConcluidas.length}
-                  </span>
-                </div>
-                <span className="text-green-600 text-xs">{bloco0Open ? '▲' : '▼'}</span>
-              </button>
-              {bloco0Open && (
-                <div className="px-4 pb-4 border-t border-green-200 pt-3">
+          <section className="rounded-xl border border-green-200 bg-green-50 shadow-sm overflow-hidden">
+            <button type="button"
+              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-green-100 transition-colors"
+              onClick={() => setBloco0Open(v => !v)}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-green-800">Metas Concluídas</span>
+                <span className="text-xs text-green-700 bg-green-200 rounded-full px-2 py-0.5">
+                  {metasConcluidas.length}
+                </span>
+              </div>
+              <span className="text-green-600 text-xs">{bloco0Open ? '▲' : '▼'}</span>
+            </button>
+            {bloco0Open && (
+              <div className="px-4 pb-4 border-t border-green-200 pt-3">
+                {metasConcluidas.length === 0 ? (
+                  <p className="text-xs text-green-700">Nenhuma meta concluída neste mês ainda.</p>
+                ) : (
                   <div className="flex flex-col gap-2">
                     {metasConcluidas.map(meta => (
                       <div key={meta.id} className="flex items-center gap-3 py-1.5 px-2 rounded-lg bg-white border border-green-100">
@@ -2168,10 +2318,106 @@ function PreBoneDayPageContent() {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-            </section>
-          )}
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* ── Bloco Metas Relançadas ──────────────────────────────────────── */}
+          <section className="rounded-xl border border-blue-200 bg-blue-50 shadow-sm overflow-hidden">
+            <button type="button"
+              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-blue-100 transition-colors"
+              onClick={() => setBlocoRelOpen(v => !v)}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-blue-800">↩ Metas Relançadas</span>
+                <span className="text-xs text-blue-700 bg-blue-200 rounded-full px-2 py-0.5">
+                  {metasRelancadas.length}
+                </span>
+              </div>
+              <span className="text-blue-600 text-xs">{blocoRelOpen ? '▲' : '▼'}</span>
+            </button>
+            {blocoRelOpen && (
+              <div className="px-4 pb-4 border-t border-blue-200 pt-3">
+                {metasRelancadas.length === 0 ? (
+                  <p className="text-xs text-blue-700">Nenhuma meta foi relançada neste mês.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {metasRelancadas.map(meta => (
+                      <div key={meta.id} className="flex items-center gap-3 py-1.5 px-2 rounded-lg bg-white border border-blue-100">
+                        <span className="text-blue-500 text-sm font-semibold flex-shrink-0">↩</span>
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {meta.tipo && (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 whitespace-nowrap flex-shrink-0">
+                              {meta.tipo}
+                            </span>
+                          )}
+                          <span className="text-xs text-gray-600 truncate">{meta.descricao}</span>
+                        </div>
+                        <span className="text-[10px] text-blue-500 font-medium whitespace-nowrap flex-shrink-0">
+                          Relançada
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* ── Bloco Minhas Metas ─────────────────────────────────────────── */}
+          {(() => {
+            const minhasMetas = metas.filter(m =>
+              m.profile_id === effectiveProfileId ||
+              (objetivoResponsaveis.some(or => or.objetivo_id === m.id && or.profile_id === effectiveProfileId))
+            );
+            return (
+              <section className="rounded-xl border border-indigo-200 bg-indigo-50 shadow-sm overflow-hidden">
+                <button type="button"
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-indigo-100 transition-colors"
+                  onClick={() => setBlocoMinhasOpen(v => !v)}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-indigo-800">👤 Minhas Metas</span>
+                    <span className="text-xs text-indigo-700 bg-indigo-200 rounded-full px-2 py-0.5">
+                      {minhasMetas.length}
+                    </span>
+                  </div>
+                  <span className="text-indigo-600 text-xs">{blocoMinhasOpen ? '▲' : '▼'}</span>
+                </button>
+                {blocoMinhasOpen && (
+                  <div className="px-4 pb-4 border-t border-indigo-200 pt-3">
+                    {minhasMetas.length === 0 ? (
+                      <p className="text-xs text-indigo-700">Nenhuma meta atribuída a você neste mês.</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {minhasMetas.map(meta => (
+                          <div key={meta.id} className="flex items-center gap-3 py-1.5 px-2 rounded-lg bg-white border border-indigo-100">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              meta.status === 'concluido' ? 'bg-green-500' : 'bg-indigo-400'
+                            }`} />
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {meta.tipo && (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 whitespace-nowrap flex-shrink-0">
+                                  {meta.tipo}
+                                </span>
+                              )}
+                              <span className={`text-xs truncate ${meta.status === 'concluido' ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                                {meta.descricao}
+                              </span>
+                            </div>
+                            <span className={`text-[10px] font-medium whitespace-nowrap flex-shrink-0 ${
+                              meta.status === 'concluido' ? 'text-green-600' : 'text-indigo-600'
+                            }`}>
+                              {meta.status === 'concluido' ? 'Concluída' : 'Em andamento'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            );
+          })()}
 
           {/* ── Bloco 1: Metas não concluídas ──────────────────────────────── */}
           <section className="rounded-xl border border-amber-200 bg-amber-50 shadow-sm overflow-hidden">
@@ -2212,7 +2458,7 @@ function PreBoneDayPageContent() {
               className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 transition-colors"
               onClick={() => setBloco2Open(v => !v)}>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700">Metas &amp; Indicadores</span>
+                <span className="text-sm font-semibold text-gray-700">Metas da Área</span>
                 {metas.length > 0 && (
                   <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
                     {metas.length} metas · {indicadores.length} indicadores
@@ -2274,12 +2520,56 @@ function PreBoneDayPageContent() {
                     <AgendaMacroPessoa
                       key={p.profile_id} pessoa={p} comportamentos={comportamentos}
                       metas={metas} objetivoResponsaveis={objetivoResponsaveis}
+                      filhas={filhas}
                       atividades={agendaMacro} semanas={semanas}
                       isAdmin={Boolean(isAdmin)} currentUserId={currentUserId} mes={mes} areaId={areaId ?? ''}
                       onAdd={handleAddAtividade} onDelete={handleDeleteAtividade}
                       onAddLivre={handleAddAtividadeLivre}
                     />
                   ))
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* ── Bloco Indicadores da Área ───────────────────────────────────── */}
+          <section className="rounded-xl border border-gray-200 bg-gray-50 shadow-sm overflow-hidden">
+            <button type="button"
+              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 transition-colors"
+              onClick={() => setBlocoIndOpen(v => !v)}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-gray-700">📈 Indicadores da Área</span>
+                <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
+                  {indicadores.length}
+                </span>
+              </div>
+              <span className="text-gray-400 text-xs">{blocoIndOpen ? '▲' : '▼'}</span>
+            </button>
+            {blocoIndOpen && (
+              <div className="px-4 pb-4 border-t border-gray-200 pt-3">
+                {indicadores.length === 0 ? (
+                  <p className="text-xs text-gray-400">Nenhum indicador cadastrado para esta área.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {indicadores.map(ind => (
+                      <div key={ind.id} className="flex items-center gap-3 py-1.5 px-2 rounded-lg bg-white border border-gray-100">
+                        {ind.indicador_chave && (
+                          <span className="text-yellow-500 text-xs flex-shrink-0" title="Indicador chave">★</span>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs text-gray-700 truncate block">{ind.nome}</span>
+                          {ind.tipo && (
+                            <span className="text-[10px] text-gray-400">{ind.tipo}</span>
+                          )}
+                        </div>
+                        {ind.lancamento_valor !== null && (
+                          <span className="text-xs font-semibold text-gray-600 tabular-nums whitespace-nowrap">
+                            {ind.lancamento_valor} {ind.meta_unidade ?? ''}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
