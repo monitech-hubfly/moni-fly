@@ -1,4 +1,6 @@
 import type { PontoJuridicoRow } from '@/lib/actions/juridico-pontos-actions';
+import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { CAMPO_DOCUMENTO_FINAL_ASSINADO, documentoFinalAssinadoRegistrado } from '@/lib/kanban/juridico-atendimento-pendencias';
 import {
   JURIDICO_PONTO_APLICACOES,
   JURIDICO_PONTO_DECISOES,
@@ -153,4 +155,43 @@ export async function lerPontosJuridicosNoCard(
   }
 
   return { ok: true, pontos };
+}
+
+/** Confirmação do contrato assinado na Pós-Assinatura. Não espera os pontos. */
+export async function lerDocumentoFinalAssinadoNoCard(
+  cardId: string,
+): Promise<{ ok: true; registrado: boolean } | { ok: false; error: string }> {
+  const supabase = createClient();
+  const { data: fase, error: errFase } = await supabase
+    .from('kanban_fases')
+    .select('id')
+    .eq('kanban_id', KANBAN_IDS.JURIDICO)
+    .eq('slug', FASE_SLUGS.JURIDICO_POS_ASSINATURA)
+    .maybeSingle();
+  if (errFase) return { ok: false, error: errFase.message };
+  const faseId = texto((fase as { id?: string } | null)?.id);
+  if (!faseId) return { ok: true, registrado: false };
+
+  const { data: item, error: errItem } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('id')
+    .eq('fase_id', faseId)
+    .eq('campo_slug', CAMPO_DOCUMENTO_FINAL_ASSINADO)
+    .maybeSingle();
+  if (errItem) return { ok: false, error: errItem.message };
+  const itemId = texto((item as { id?: string } | null)?.id);
+  if (!itemId) return { ok: true, registrado: false };
+
+  const { data: resposta, error: errResp } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('valor, arquivo_path')
+    .eq('card_id', cardId)
+    .eq('item_id', itemId)
+    .maybeSingle();
+  if (errResp) return { ok: false, error: errResp.message };
+  const row = resposta as { valor?: string | null; arquivo_path?: string | null } | null;
+  return {
+    ok: true,
+    registrado: documentoFinalAssinadoRegistrado({ valor: row?.valor, arquivoPath: row?.arquivo_path }),
+  };
 }
