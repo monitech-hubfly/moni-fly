@@ -398,7 +398,7 @@ export function JuridicoPontosSecao({
             Rodada {rodadaAtual}
           </p>
           {exibirGerarResposta ? (
-            <button type="button" style={{ ...botaoSecundario, width: '100%', maxWidth: 280 }} onClick={abrirResposta}>
+            <button type="button" style={botaoAcao} onClick={abrirResposta}>
               Gerar resposta da rodada
             </button>
           ) : null}
@@ -490,7 +490,7 @@ export function JuridicoPontosSecao({
               </button>
             </div>
           ) : (
-            <button type="button" style={{ ...botaoPrimario, width: '100%' }} onClick={() => setEscolhendo(true)}>
+            <button type="button" style={botaoPrimarioCompacto} onClick={() => setEscolhendo(true)}>
               + Adicionar ponto
             </button>
           )
@@ -603,14 +603,26 @@ const botaoSecundario = {
 
 const botaoAcao = {
   ...botaoSecundario,
-  width: '100%',
-  minWidth: 0,
+  minHeight: 32,
+  height: 32,
+  width: 'auto',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  textAlign: 'center' as const,
-  lineHeight: 1.2,
-  padding: '0 8px',
+  fontSize: 12,
+  lineHeight: 1,
+  padding: '0 10px',
+  whiteSpace: 'nowrap' as const,
+};
+
+const botaoPrimarioCompacto = {
+  ...botaoPrimario,
+  minHeight: 32,
+  height: 32,
+  width: 'auto',
+  fontSize: 12,
+  lineHeight: 1,
+  padding: '0 12px',
 };
 
 function ModalRespostaRodada({
@@ -836,7 +848,7 @@ function CardPonto({
           Ver na Central de Ajuda
         </a>
       ) : null}
-      <div className="grid grid-cols-2 gap-2 pt-1">
+      <div className="flex flex-wrap items-center gap-1.5 pt-1">
         {podeEditar ? (
           <button type="button" style={botaoAcao} onClick={onEditar}>
             Editar
