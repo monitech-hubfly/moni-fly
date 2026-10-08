@@ -161,17 +161,31 @@ function conclusaoDoPonto(ponto: {
   };
 }
 
+function blocoCopia(rotulo: string, valor: string | null | undefined): string | null {
+  const texto = String(valor ?? '').trim();
+  if (!texto) return null;
+  return `${rotulo}:\n${texto}`;
+}
+
 function textoCopia(ponto: PontoJuridicoRow): string | null {
-  const bruto =
-    ponto.tipo === 'duvida'
-      ? ponto.resposta
-      : ponto.decisao === 'aceita' || ponto.decisao === 'aceita_parcialmente'
-        ? ponto.texto_final_aprovado
-        : ponto.decisao === 'nao_aceita'
-          ? ponto.motivo_resposta
-          : null;
-  const texto = String(bruto ?? '').trim();
-  return texto.length > 0 ? texto : null;
+  if (ponto.tipo === 'duvida') {
+    const partes = [blocoCopia('Pergunta', ponto.duvida_recebida), blocoCopia('Resposta', ponto.resposta)].filter(
+      (parte): parte is string => Boolean(parte),
+    );
+    return partes.length > 0 ? partes.join('\n\n') : null;
+  }
+  if (ponto.decisao === 'aceita' || ponto.decisao === 'aceita_parcialmente') {
+    const texto = String(ponto.texto_final_aprovado ?? '').trim();
+    return texto.length > 0 ? texto : null;
+  }
+  if (ponto.decisao === 'nao_aceita') {
+    const partes = [
+      blocoCopia('Pergunta', ponto.solicitacao_alteracao),
+      blocoCopia('Resposta', ponto.motivo_resposta),
+    ].filter((parte): parte is string => Boolean(parte));
+    return partes.length > 0 ? partes.join('\n\n') : null;
+  }
+  return null;
 }
 
 async function copiarTexto(texto: string): Promise<boolean> {
