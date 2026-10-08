@@ -6283,6 +6283,7 @@ export function KanbanCardModal({
                   ) : null}
                   <JuridicoPontosSecao
                     cardId={card.id}
+                    rodadaGravada={card.juridico_bolinha_count}
                     podeEditar={!ocultarGestaoCard && !card.arquivado}
                     exibirGerarResposta={faseSlugAtual === FASE_SLUGS.JURIDICO_ALTERACOES_RESPOSTAS}
                   />

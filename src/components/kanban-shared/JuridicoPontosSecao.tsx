@@ -7,7 +7,6 @@ import {
   enviarPontoParaCentralAjuda,
   excluirPontoJuridico,
   listarCatalogoFaqJuridico,
-  listarPontosJuridicos,
   moverPontoJuridico,
   salvarPontoJuridico,
   type PontoJuridicoRow,
@@ -21,10 +20,12 @@ import {
   JURIDICO_PONTO_FAQ_LABEL,
   JURIDICO_PONTO_FAQ_STATUS,
   pendenciasPontoJuridicoConcluido,
+  rodadaAtualJuridico,
   statusVisualPontoJuridico,
   type JuridicoPontoConclusao,
   type JuridicoPontoTipo,
 } from '@/lib/kanban/juridico-pontos';
+import { lerPontosJuridicosNoCard } from '@/lib/kanban/juridico-pontos-leitura';
 import { gerarRespostaRodada, textoCopiaFinais } from '@/lib/kanban/juridico-resposta-rodada';
 
 type Rascunho = {
@@ -203,12 +204,14 @@ export function JuridicoPontosSecao({
   cardId,
   podeEditar,
   exibirGerarResposta = false,
+  rodadaGravada = 1,
 }: {
   cardId: string;
   podeEditar: boolean;
   exibirGerarResposta?: boolean;
+  rodadaGravada?: number | null;
 }) {
-  const [rodadaAtual, setRodadaAtual] = useState(1);
+  const rodadaAtual = rodadaAtualJuridico(rodadaGravada);
   const [pontos, setPontos] = useState<PontoJuridicoRow[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -223,30 +226,34 @@ export function JuridicoPontosSecao({
   const [copiaAviso, setCopiaAviso] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
-    const res = await listarPontosJuridicos(cardId);
+    const res = await lerPontosJuridicosNoCard(cardId);
     if (!res.ok) {
       setErro(res.error);
-      setPontos([]);
       return;
     }
     setErro(null);
-    setRodadaAtual(res.rodadaAtual);
     setPontos(res.pontos);
   }, [cardId]);
 
   useEffect(() => {
     let vivo = true;
     setCarregando(true);
-    void listarPontosJuridicos(cardId).then((res) => {
-      if (!vivo) return;
-      if (!res.ok) setErro(res.error);
-      else {
-        setErro(null);
-        setRodadaAtual(res.rodadaAtual);
-        setPontos(res.pontos);
-      }
-      setCarregando(false);
-    });
+    void lerPontosJuridicosNoCard(cardId)
+      .then((res) => {
+        if (!vivo) return;
+        if (!res.ok) setErro(res.error);
+        else {
+          setErro(null);
+          setPontos(res.pontos);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!vivo) return;
+        setErro(e instanceof Error ? e.message : 'Não foi possível carregar os pontos.');
+      })
+      .finally(() => {
+        if (vivo) setCarregando(false);
+      });
     return () => {
       vivo = false;
     };
@@ -408,7 +415,7 @@ export function JuridicoPontosSecao({
             {avisoResposta}
           </p>
         ) : null}
-        {carregando ? (
+        {carregando && pontos.length === 0 ? (
           <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
             Carregando pontos…
           </p>
