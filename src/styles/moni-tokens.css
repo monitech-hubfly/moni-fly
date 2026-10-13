@@ -3731,6 +3731,24 @@
   color: var(--moni-kanban-drawer-header-text);
 }
 
+.moni-kanban-drawer-franqueado {
+  margin: 2px 0 0;
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--moni-kanban-drawer-header-text);
+}
+
+.moni-kanban-drawer--com-franqueado .moni-kanban-drawer-body {
+  padding-top: 94px;
+}
+
 .moni-kanban-drawer-badge {
   flex-shrink: 0;
   border-radius: var(--moni-radius-pill);

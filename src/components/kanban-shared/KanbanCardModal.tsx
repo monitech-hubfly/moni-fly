@@ -4410,6 +4410,7 @@ export function KanbanCardModal({
   const hipotesePortfolioEnviada = Boolean(hipotesePortfolioOk);
 
   const rede = modalDetalhes.rede;
+  const nomeFranqueadoHeader = String(rede?.nome_completo ?? '').trim();
   const proc = modalDetalhes.processo;
   const negocioEspelhoChecklist = useMemo(
     () => negocioEspelhoFromProcesso(proc as Record<string, unknown> | null),
@@ -4785,7 +4786,7 @@ export function KanbanCardModal({
       role="presentation"
     >
       <div
-        className="moni-kanban-drawer moni-card-modal-split relative flex h-[90vh] w-full flex-col overflow-hidden bg-white sm:flex-row"
+        className={`moni-kanban-drawer moni-card-modal-split relative flex h-[90vh] w-full flex-col overflow-hidden bg-white sm:flex-row${nomeFranqueadoHeader ? ' moni-kanban-drawer--com-franqueado' : ''}`}
         style={{
           maxWidth: 'var(--moni-card-modal-max)',
           borderRadius: 'var(--moni-radius-xl)',
@@ -4810,6 +4811,9 @@ export function KanbanCardModal({
               <span className="moni-kanban-drawer-badge">Concluído</span>
             ) : null}
             </div>
+            {nomeFranqueadoHeader ? (
+              <p className="moni-kanban-drawer-franqueado">{nomeFranqueadoHeader}</p>
+            ) : null}
           </div>
           <button
             type="button"
