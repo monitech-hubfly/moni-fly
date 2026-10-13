@@ -4451,13 +4451,6 @@ export function KanbanCardModal({
     if (!s) return '—';
     return formatIsoDateOnlyPtBr(s) ?? s;
   };
-  const driveHref = (() => {
-    const raw = proc?.link_pasta_drive?.trim();
-    if (!raw) return null;
-    if (/^https?:\/\//i.test(raw)) return raw;
-    return `https://${raw}`;
-  })();
-
   const linkHrefFromText = (raw: string | null | undefined) => {
     const t = String(raw ?? '').trim();
     if (!t) return null;
@@ -4619,74 +4612,6 @@ export function KanbanCardModal({
             <span className="text-[11px] text-stone-500">—</span>
           )}
         </div>
-      </div>
-    );
-  }
-
-  function renderDadosNegocioLinksEAnexos(editMode: boolean) {
-    if (!proc) return null;
-    return (
-      <div className="space-y-2 border-t border-stone-100 pt-2">
-        {renderNegocioLinkCampo(
-          'Contratos',
-          proc.link_opcao_permuta,
-          editMode
-            ? {
-                value: negocioDraft.link_opcao_permuta,
-                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_opcao_permuta: v })),
-              }
-            : undefined,
-        )}
-        {renderNegocioLinkCampo(
-          'BCA',
-          proc.link_bca,
-          editMode
-            ? {
-                value: negocioDraft.link_bca,
-                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_bca: v })),
-              }
-            : undefined,
-        )}
-        {renderNegocioLinkCampo(
-          'GBOX',
-          proc.link_gbox,
-          editMode
-            ? {
-                value: negocioDraft.link_gbox,
-                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_gbox: v })),
-              }
-            : undefined,
-        )}
-        {renderNegocioLinkCampo(
-          'Mapa de Competidores',
-          proc.link_mapa_competidores,
-          editMode
-            ? {
-                value: negocioDraft.link_mapa_competidores,
-                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_mapa_competidores: v })),
-              }
-            : undefined,
-        )}
-        {renderNegocioLinkCampo(
-          'Acoplamento',
-          proc.link_acoplamento,
-          editMode
-            ? {
-                value: negocioDraft.link_acoplamento,
-                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
-              }
-            : undefined,
-        )}
-        {renderNegocioLinkCampo(
-          'Apresentação Comitê',
-          proc.link_apresentacao_comite,
-          editMode
-            ? {
-                value: negocioDraft.link_apresentacao_comite,
-                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_apresentacao_comite: v })),
-              }
-            : undefined,
-        )}
       </div>
     );
   }
@@ -7512,150 +7437,87 @@ export function KanbanCardModal({
                   <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
                 ) : podeEditarNegocio ? (
                   <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Tipo de negócio</span>
+                      <SearchableSelect
+                        value={negocioDraft.tipo_aquisicao_terreno}
+                        onChange={(v) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: v }))}
+                        placeholder="Selecione"
+                        className="mt-0.5"
+                        options={opcoesTipoNegociacaoComValorAtual(negocioDraft.tipo_aquisicao_terreno)}
+                      />
+                    </label>
+                    {renderNegocioLinkCampo(
+                      'Pasta do Drive',
+                      proc.link_pasta_drive,
+                      {
+                        value: negocioDraft.link_pasta_drive,
+                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_pasta_drive: v })),
+                      },
+                    )}
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Valor do Terreno</span>
+                      <KanbanCardModalMoedaField
+                        value={negocioDraft.valor_terreno}
+                        onChange={(valor_terreno) => setNegocioDraft((d) => ({ ...d, valor_terreno }))}
+                      />
+                    </label>
+                    {isTipoPermutaParcial(negocioDraft.tipo_aquisicao_terreno) ? (
                       <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">Tipo de negócio</span>
-                        <SearchableSelect
-                          value={negocioDraft.tipo_aquisicao_terreno}
-                          onChange={(v) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: v }))}
-                          placeholder="Selecione"
-                          className="mt-0.5"
-                          options={opcoesTipoNegociacaoComValorAtual(negocioDraft.tipo_aquisicao_terreno)}
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">Valor do Terreno</span>
-                        <KanbanCardModalMoedaField
-                          value={negocioDraft.valor_terreno}
-                          onChange={(valor_terreno) => setNegocioDraft((d) => ({ ...d, valor_terreno }))}
-                        />
-                      </label>
-                      {isTipoDividaTerreno(negocioDraft.tipo_aquisicao_terreno) && (
-                        <label className="block">
-                          <span className="text-[11px] font-medium text-stone-500">Dívida Terreno</span>
-                          <KanbanCardModalMoedaField
-                            value={negocioDraft.divida_terreno}
-                            onChange={(divida_terreno) => setNegocioDraft((d) => ({ ...d, divida_terreno }))}
-                          />
-                        </label>
-                      )}
-                      <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">VGV pretendido</span>
-                        <KanbanCardModalMoedaField
-                          value={negocioDraft.vgv_pretendido}
-                          onChange={(vgv_pretendido) => setNegocioDraft((d) => ({ ...d, vgv_pretendido }))}
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">Valor Recompra</span>
-                        <KanbanCardModalMoedaField
-                          value={negocioDraft.valor_recompra}
-                          onChange={(valor_recompra) => setNegocioDraft((d) => ({ ...d, valor_recompra }))}
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">Produto / Modelo</span>
-                        <SearchableSelect
-                          value={negocioDraft.produto_modelo_casa}
-                          onChange={(v) => setNegocioDraft((d) => ({ ...d, produto_modelo_casa: v ?? '' }))}
-                          className="mt-0.5"
-                          options={opcoesProdutoModeloCasaComValorAtual(negocioDraft.produto_modelo_casa)}
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">Custo da Obra</span>
-                        <KanbanCardModalMoedaField
-                          value={negocioDraft.custo_obra}
-                          onChange={(custo_obra) => setNegocioDraft((d) => ({ ...d, custo_obra }))}
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">Dívida Obra</span>
-                        <KanbanCardModalMoedaField
-                          value={negocioDraft.divida_obra}
-                          onChange={(divida_obra) => setNegocioDraft((d) => ({ ...d, divida_obra }))}
-                        />
-                      </label>
-                      {isTipoPermutaParcial(negocioDraft.tipo_aquisicao_terreno) && (
-                        <label className="block">
-                          <span className="text-[11px] font-medium text-stone-500">% Compra Parcial Terreno</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="100"
-                            value={negocioDraft.pct_compra_parcial_terreno}
-                            onChange={(e) => setNegocioDraft((d) => ({ ...d, pct_compra_parcial_terreno: e.target.value }))}
-                            className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                          />
-                        </label>
-                      )}
-                      {isTipoPermutaVGV(negocioDraft.tipo_aquisicao_terreno) && (
-                        <label className="block">
-                          <span className="text-[11px] font-medium text-stone-500">% VGV Terrenista</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="100"
-                            value={negocioDraft.pct_vgv_terrenista}
-                            onChange={(e) => setNegocioDraft((d) => ({ ...d, pct_vgv_terrenista: e.target.value }))}
-                            className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                          />
-                        </label>
-                      )}
-                      <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">M² Terreno</span>
+                        <span className="text-[11px] font-medium text-stone-500">% Compra Parcial Terreno</span>
                         <input
                           type="number"
                           step="0.01"
                           min="0"
-                          value={negocioDraft.m2_terreno}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, m2_terreno: e.target.value }))}
+                          max="100"
+                          value={negocioDraft.pct_compra_parcial_terreno}
+                          onChange={(e) => setNegocioDraft((d) => ({ ...d, pct_compra_parcial_terreno: e.target.value }))}
                           className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                         />
                       </label>
+                    ) : null}
+                    {isTipoPermutaVGV(negocioDraft.tipo_aquisicao_terreno) ? (
                       <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">M² Casa</span>
+                        <span className="text-[11px] font-medium text-stone-500">% VGV Terrenista</span>
                         <input
                           type="number"
                           step="0.01"
                           min="0"
-                          value={negocioDraft.m2_casa}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, m2_casa: e.target.value }))}
+                          max="100"
+                          value={negocioDraft.pct_vgv_terrenista}
+                          onChange={(e) => setNegocioDraft((d) => ({ ...d, pct_vgv_terrenista: e.target.value }))}
                           className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                         />
                       </label>
-                    </div>
+                    ) : null}
+                    {isTipoDividaTerreno(negocioDraft.tipo_aquisicao_terreno) ? (
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-stone-500">Dívida Terreno</span>
+                        <KanbanCardModalMoedaField
+                          value={negocioDraft.divida_terreno}
+                          onChange={(divida_terreno) => setNegocioDraft((d) => ({ ...d, divida_terreno }))}
+                        />
+                      </label>
+                    ) : null}
                     <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Extrato Modelo Configurado</span>
+                      <span className="text-[11px] font-medium text-stone-500">M² Terreno</span>
                       <input
-                        type="url"
-                        placeholder="https://"
-                        value={negocioDraft.extrato_modelo_configurado}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, extrato_modelo_configurado: e.target.value }))}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={negocioDraft.m2_terreno}
+                        onChange={(e) => setNegocioDraft((d) => ({ ...d, m2_terreno: e.target.value }))}
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Data Aprovação Comitê</span>
-                      <input
-                        type="date"
-                        value={negocioDraft.data_aprovacao_comite}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, data_aprovacao_comite: e.target.value }))}
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Pasta do Drive</span>
-                      <input
-                        type="url"
-                        placeholder="https://"
-                        value={negocioDraft.link_pasta_drive}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, link_pasta_drive: e.target.value }))}
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      />
-                    </label>
+                    {renderNegocioLinkCampo(
+                      'Contratos',
+                      proc.link_opcao_permuta,
+                      {
+                        value: negocioDraft.link_opcao_permuta,
+                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_opcao_permuta: v })),
+                      },
+                    )}
                     <KanbanCardModalNegocioPrazoField
                       label="Prazo Opção"
                       draft={negocioDraft.prazo_opcao}
@@ -7678,6 +7540,111 @@ export function KanbanCardModal({
                         type="date"
                         value={negocioDraft.data_ass_opcao_terreno}
                         onChange={(e) => setNegocioDraft((d) => ({ ...d, data_ass_opcao_terreno: e.target.value }))}
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Produto / Modelo</span>
+                      <SearchableSelect
+                        value={negocioDraft.produto_modelo_casa}
+                        onChange={(v) => setNegocioDraft((d) => ({ ...d, produto_modelo_casa: v ?? '' }))}
+                        className="mt-0.5"
+                        options={opcoesProdutoModeloCasaComValorAtual(negocioDraft.produto_modelo_casa)}
+                      />
+                    </label>
+                    {renderNegocioLinkCampo(
+                      'Extrato Modelo Configurado',
+                      proc.extrato_modelo_configurado,
+                      {
+                        value: negocioDraft.extrato_modelo_configurado,
+                        onChange: (v) => setNegocioDraft((d) => ({ ...d, extrato_modelo_configurado: v })),
+                      },
+                    )}
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">M² Casa</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={negocioDraft.m2_casa}
+                        onChange={(e) => setNegocioDraft((d) => ({ ...d, m2_casa: e.target.value }))}
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Custo da Obra</span>
+                      <KanbanCardModalMoedaField
+                        value={negocioDraft.custo_obra}
+                        onChange={(custo_obra) => setNegocioDraft((d) => ({ ...d, custo_obra }))}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Dívida Obra</span>
+                      <KanbanCardModalMoedaField
+                        value={negocioDraft.divida_obra}
+                        onChange={(divida_obra) => setNegocioDraft((d) => ({ ...d, divida_obra }))}
+                      />
+                    </label>
+                    {renderNegocioLinkCampo(
+                      'BCA',
+                      proc.link_bca,
+                      {
+                        value: negocioDraft.link_bca,
+                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_bca: v })),
+                      },
+                    )}
+                    {renderNegocioLinkCampo(
+                      'Mapa de Competidores',
+                      proc.link_mapa_competidores,
+                      {
+                        value: negocioDraft.link_mapa_competidores,
+                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_mapa_competidores: v })),
+                      },
+                    )}
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">VGV pretendido</span>
+                      <KanbanCardModalMoedaField
+                        value={negocioDraft.vgv_pretendido}
+                        onChange={(vgv_pretendido) => setNegocioDraft((d) => ({ ...d, vgv_pretendido }))}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Valor Recompra</span>
+                      <KanbanCardModalMoedaField
+                        value={negocioDraft.valor_recompra}
+                        onChange={(valor_recompra) => setNegocioDraft((d) => ({ ...d, valor_recompra }))}
+                      />
+                    </label>
+                    {renderNegocioLinkCampo(
+                      'Acoplamento',
+                      proc.link_acoplamento,
+                      {
+                        value: negocioDraft.link_acoplamento,
+                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
+                      },
+                    )}
+                    {renderNegocioLinkCampo(
+                      'GBOX',
+                      proc.link_gbox,
+                      {
+                        value: negocioDraft.link_gbox,
+                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_gbox: v })),
+                      },
+                    )}
+                    {renderNegocioLinkCampo(
+                      'Apresentação Comitê',
+                      proc.link_apresentacao_comite,
+                      {
+                        value: negocioDraft.link_apresentacao_comite,
+                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_apresentacao_comite: v })),
+                      },
+                    )}
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Data Aprovação Comitê</span>
+                      <input
+                        type="date"
+                        value={negocioDraft.data_aprovacao_comite}
+                        onChange={(e) => setNegocioDraft((d) => ({ ...d, data_aprovacao_comite: e.target.value }))}
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
@@ -7717,7 +7684,6 @@ export function KanbanCardModal({
                       opcoesVinculo={calculadoraOpcoesVinculoNegociacao}
                       datasResolvidas={negociacaoDatasResolvidas}
                     />
-                    {renderDadosNegocioLinksEAnexos(true)}
                     <div className="flex flex-wrap gap-2 pt-1">
                       <button
                         type="button"
@@ -7740,157 +7706,123 @@ export function KanbanCardModal({
                     </div>
                   </div>
                 ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+                  <div className="space-y-2">
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Tipo de negócio</div>
+                      <div className="text-xs text-stone-800">{displayOrDash(proc.tipo_aquisicao_terreno)}</div>
+                    </div>
+                    {renderNegocioLinkCampo('Pasta do Drive', proc.link_pasta_drive)}
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Valor do Terreno</div>
+                      <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.valor_terreno)}</div>
+                    </div>
+                    {isTipoPermutaParcial(proc.tipo_aquisicao_terreno) ? (
                       <div>
-                        <div className="text-[11px] font-medium text-stone-500">Tipo de negócio</div>
-                        <div className="text-xs text-stone-800">{displayOrDash(proc.tipo_aquisicao_terreno)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-medium text-stone-500">Valor do Terreno</div>
-                        <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.valor_terreno)}</div>
-                      </div>
-                      {isTipoDividaTerreno(proc.tipo_aquisicao_terreno) && (
-                        <div>
-                          <div className="text-[11px] font-medium text-stone-500">Dívida Terreno</div>
-                          <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.divida_terreno)}</div>
-                        </div>
-                      )}
-                      <div>
-                        <div className="text-[11px] font-medium text-stone-500">VGV pretendido</div>
-                        <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.vgv_pretendido)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-medium text-stone-500">Valor Recompra</div>
-                        <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.valor_recompra)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-medium text-stone-500">Produto / Modelo</div>
-                        <div className="text-xs text-stone-800">{displayOrDash(proc.produto_modelo_casa)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-medium text-stone-500">Custo da Obra</div>
-                        <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.custo_obra)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-medium text-stone-500">Dívida Obra</div>
-                        <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.divida_obra)}</div>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[11px] font-medium text-stone-500">Pasta do Drive</div>
-                        <div className="text-xs">
-                          {driveHref ? (
-                            <a
-                              href={driveHref}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-moni-primary underline break-all"
-                            >
-                              {proc.link_pasta_drive?.trim()}
-                            </a>
-                          ) : (
-                            '—'
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-medium text-stone-500">Prazo Opção</div>
+                        <div className="text-[11px] font-medium text-stone-500">% Compra Parcial Terreno</div>
                         <div className="text-xs text-stone-800">
-                          {formatNegocioPrazoDisplay(
-                            negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_opcao,
-                            faseLabelFromOpcoes(
-                              negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_opcao.faseId,
-                              fasesNegocioPrazo,
-                            ),
-                          )}
+                          {proc.pct_compra_parcial_terreno != null ? `${proc.pct_compra_parcial_terreno}%` : '—'}
                         </div>
                       </div>
+                    ) : null}
+                    {isTipoPermutaVGV(proc.tipo_aquisicao_terreno) ? (
                       <div>
-                        <div className="text-[11px] font-medium text-stone-500">Prazo Instrumento Garantidor</div>
+                        <div className="text-[11px] font-medium text-stone-500">% VGV Terrenista</div>
                         <div className="text-xs text-stone-800">
-                          {formatNegocioPrazoDisplay(
-                            negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_instrumento_garantidor,
-                            faseLabelFromOpcoes(
-                              negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_instrumento_garantidor
-                                .faseId,
-                              fasesNegocioPrazo,
-                            ),
-                          )}
+                          {proc.pct_vgv_terrenista != null ? `${proc.pct_vgv_terrenista}%` : '—'}
                         </div>
                       </div>
-                      {isTipoPermutaParcial(proc.tipo_aquisicao_terreno) && proc.pct_compra_parcial_terreno != null && (
-                        <div>
-                          <div className="text-[11px] font-medium text-stone-500">% Compra Parcial Terreno</div>
-                          <div className="text-xs text-stone-800">{proc.pct_compra_parcial_terreno}%</div>
-                        </div>
-                      )}
-                      {isTipoPermutaVGV(proc.tipo_aquisicao_terreno) && proc.pct_vgv_terrenista != null && (
-                        <div>
-                          <div className="text-[11px] font-medium text-stone-500">% VGV Terrenista</div>
-                          <div className="text-xs text-stone-800">{proc.pct_vgv_terrenista}%</div>
-                        </div>
-                      )}
-                      {proc.m2_terreno != null && (
-                        <div>
-                          <div className="text-[11px] font-medium text-stone-500">M² Terreno</div>
-                          <div className="text-xs text-stone-800">{proc.m2_terreno} m²</div>
-                        </div>
-                      )}
-                      {proc.m2_casa != null && (
-                        <div>
-                          <div className="text-[11px] font-medium text-stone-500">M² Casa</div>
-                          <div className="text-xs text-stone-800">{proc.m2_casa} m²</div>
-                        </div>
-                      )}
-                      {proc.extrato_modelo_configurado && (
-                        <div className="col-span-2">
-                          <div className="text-[11px] font-medium text-stone-500">Extrato Modelo Configurado</div>
-                          <div className="text-xs">
-                            {/^https?:\/\//i.test(proc.extrato_modelo_configurado.trim()) ? (
-                              <a
-                                href={proc.extrato_modelo_configurado.trim()}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-moni-primary underline break-all"
-                              >
-                                {proc.extrato_modelo_configurado.trim()}
-                              </a>
-                            ) : (
-                              <span className="text-stone-800">{proc.extrato_modelo_configurado}</span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      {proc.data_aprovacao_comite && (
-                        <div>
-                          <div className="text-[11px] font-medium text-stone-500">Data Aprovação Comitê</div>
-                          <div className="text-xs text-stone-800">{proc.data_aprovacao_comite}</div>
-                        </div>
-                      )}
-                      {proc.obs_opcao && (
-                        <div className="col-span-2">
-                          <div className="text-[11px] font-medium text-stone-500">Obs. Opção</div>
-                          <div className="text-xs text-stone-800 whitespace-pre-wrap">{proc.obs_opcao}</div>
-                        </div>
-                      )}
-                      {proc.data_ass_opcao_terreno && (
-                        <div>
-                          <div className="text-[11px] font-medium text-stone-500">Data Ass. Opção Terreno</div>
-                          <div className="text-xs text-stone-800">{proc.data_ass_opcao_terreno}</div>
-                        </div>
-                      )}
-                      {proc.obs_instrumento_garantidor && (
-                        <div className="col-span-2">
-                          <div className="text-[11px] font-medium text-stone-500">Obs. Instrumento Garantidor</div>
-                          <div className="text-xs text-stone-800 whitespace-pre-wrap">{proc.obs_instrumento_garantidor}</div>
-                        </div>
-                      )}
-                      {proc.data_ass_contrato_terreno && (
-                        <div>
-                          <div className="text-[11px] font-medium text-stone-500">Data Ass. Contrato Terreno</div>
-                          <div className="text-xs text-stone-800">{proc.data_ass_contrato_terreno}</div>
-                        </div>
-                      )}
+                    ) : null}
+                    {isTipoDividaTerreno(proc.tipo_aquisicao_terreno) ? (
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Dívida Terreno</div>
+                        <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.divida_terreno)}</div>
+                      </div>
+                    ) : null}
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">M² Terreno</div>
+                      <div className="text-xs text-stone-800">
+                        {proc.m2_terreno != null ? `${proc.m2_terreno} m²` : '—'}
+                      </div>
+                    </div>
+                    {renderNegocioLinkCampo('Contratos', proc.link_opcao_permuta)}
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Prazo Opção</div>
+                      <div className="text-xs text-stone-800">
+                        {formatNegocioPrazoDisplay(
+                          negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_opcao,
+                          faseLabelFromOpcoes(
+                            negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_opcao.faseId,
+                            fasesNegocioPrazo,
+                          ),
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Obs. Opção</div>
+                      <div className="whitespace-pre-wrap text-xs text-stone-800">{displayOrDash(proc.obs_opcao)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Data Ass. Opção Terreno</div>
+                      <div className="text-xs text-stone-800">{fmtDataBr(proc.data_ass_opcao_terreno)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Produto / Modelo</div>
+                      <div className="text-xs text-stone-800">{displayOrDash(proc.produto_modelo_casa)}</div>
+                    </div>
+                    {renderNegocioLinkCampo('Extrato Modelo Configurado', proc.extrato_modelo_configurado)}
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">M² Casa</div>
+                      <div className="text-xs text-stone-800">
+                        {proc.m2_casa != null ? `${proc.m2_casa} m²` : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Custo da Obra</div>
+                      <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.custo_obra)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Dívida Obra</div>
+                      <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.divida_obra)}</div>
+                    </div>
+                    {renderNegocioLinkCampo('BCA', proc.link_bca)}
+                    {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores)}
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">VGV pretendido</div>
+                      <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.vgv_pretendido)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Valor Recompra</div>
+                      <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.valor_recompra)}</div>
+                    </div>
+                    {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento)}
+                    {renderNegocioLinkCampo('GBOX', proc.link_gbox)}
+                    {renderNegocioLinkCampo('Apresentação Comitê', proc.link_apresentacao_comite)}
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Data Aprovação Comitê</div>
+                      <div className="text-xs text-stone-800">{fmtDataBr(proc.data_aprovacao_comite)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Prazo Instrumento Garantidor</div>
+                      <div className="text-xs text-stone-800">
+                        {formatNegocioPrazoDisplay(
+                          negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_instrumento_garantidor,
+                          faseLabelFromOpcoes(
+                            negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_instrumento_garantidor
+                              .faseId,
+                            fasesNegocioPrazo,
+                          ),
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Obs. Instrumento Garantidor</div>
+                      <div className="whitespace-pre-wrap text-xs text-stone-800">
+                        {displayOrDash(proc.obs_instrumento_garantidor)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Data Ass. Contrato Terreno</div>
+                      <div className="text-xs text-stone-800">{fmtDataBr(proc.data_ass_contrato_terreno)}</div>
                     </div>
                     <KanbanCardModalNegociacaoLinhasField
                       modoLeitura
@@ -7898,8 +7830,7 @@ export function KanbanCardModal({
                       onChange={() => {}}
                       linhasLeitura={negociacaoLinhasLeituraResolvidas}
                     />
-                    {renderDadosNegocioLinksEAnexos(false)}
-                  </>
+                  </div>
                 )}
               </div>
               ),
