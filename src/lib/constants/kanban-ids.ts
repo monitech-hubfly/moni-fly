@@ -127,6 +127,7 @@ export const FASE_IDS = {
   OPERACOES_PLANIALTIMETRICO: 'c3bea524-aeae-4b87-ba1f-5c83943d4770',
   OPERACOES_COMUNIQUE_SE_CONDOMINIO: 'b7c4e2a1-6d30-4f8a-9c15-2d8e4f6a1c11',
   OPERACOES_COMUNIQUE_SE_PREFEITURA: 'b7c4e2a2-6d30-4f8a-9c15-2d8e4f6a1c12',
+  OPERACOES_INSTRUMENTO_GARANTIDOR: 'b7c4e2a3-6d30-4f8a-9c15-2d8e4f6a1c13',
   OPERACOES_AGUARDANDO_CREDITO: '8b83e671-ef0c-4028-8b52-8f56579e8df0',
   OPERACOES_ENTREGUE:        '5b85ac83-a546-4c1d-9bf0-e5e40cf3d937',
   // Loteadores
@@ -253,7 +254,10 @@ export const FASE_SLUGS = {
   PROCESSOS_CARTORARIOS: 'processos_cartorarios',
   /** Funil Operações — fase Em Obra. */
   EM_OBRA:            'em_obra',
+  /** Funil Pré Obra e Obra — Comitê Ops. Slug estável da antiga fase combinada. */
   REVISAO_BCA:        'revisao_bca',
+  /** Funil Pré Obra e Obra — logo após Comitê Ops. */
+  INSTRUMENTO_GARANTIDOR: 'instrumento_garantidor',
   PROJETO_LEGAL:      'projeto_legal',
   LOTEADOR_JURIDICO:  'loteador_juridico',
   // Gatilhos de VOLTA

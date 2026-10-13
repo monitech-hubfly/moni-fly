@@ -25,6 +25,7 @@ export type PainelColumnKey =
   | 'aprovacao_condominio'
   | 'aprovacao_prefeitura'
   | 'revisao_bca'
+  | 'instrumento_garantidor'
   | 'processos_cartorarios'
   | 'aguardando_credito'
   | 'em_obra'
@@ -83,7 +84,8 @@ export const PAINEL_COLUMNS: PainelColumnDef[] = [
   { key: 'projeto_legal', title: 'Projeto Legal' },
   { key: 'aprovacao_condominio', title: 'Aprovação no Condomínio' },
   { key: 'aprovacao_prefeitura', title: 'Aprovação na Prefeitura' },
-  { key: 'revisao_bca', title: 'Revisão BCA + Instrumento Garantidor' },
+  { key: 'revisao_bca', title: 'Comitê Ops' },
+  { key: 'instrumento_garantidor', title: 'Instrumento Garantidor' },
   { key: 'processos_cartorarios', title: 'Transferência do Terreno' },
   { key: 'aguardando_credito', title: 'Aguardando Crédito' },
   { key: 'em_obra', title: 'Em Obra' },
@@ -154,6 +156,7 @@ export const PAINEL_FLOW_ROWS: PainelFlowRow[] = [
   { type: 'sequential', keys: ['aprovacao_condominio'] },
   { type: 'sequential', keys: ['aprovacao_prefeitura'] },
   { type: 'sequential', keys: ['revisao_bca'] },
+  { type: 'sequential', keys: ['instrumento_garantidor'] },
   { type: 'sequential', keys: ['processos_cartorarios'] },
   { type: 'sequential', keys: ['aguardando_credito'] },
   { type: 'sequential', keys: ['em_obra'] },
@@ -220,6 +223,7 @@ export function getHrefForProcesso(etapaKey: PainelColumnKey, processoId: string
   if (col?.hrefBase === '/credito-obra') return `/credito-obra?processoId=${processoId}`;
   if (
     etapaKey === 'revisao_bca' ||
+    etapaKey === 'instrumento_garantidor' ||
     etapaKey === 'processos_cartorarios' ||
     etapaKey === 'aguardando_credito' ||
     etapaKey === 'em_obra'

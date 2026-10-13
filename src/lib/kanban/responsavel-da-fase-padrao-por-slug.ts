@@ -141,6 +141,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   aprovacao_prefeitura: 'franqueado',
   comunique_se_prefeitura: 'franqueado',
   revisao_bca: 'moni',
+  instrumento_garantidor: 'moni',
   processos_cartorarios: 'franqueado',
   aguardando_credito: 'moni',
   em_obra: 'franqueado',
