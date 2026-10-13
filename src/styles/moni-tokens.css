@@ -3763,7 +3763,7 @@
   background: var(--moni-surface-0);
 }
 
-/* Funil Jurídico — contador de revisões (Fase 5/6 → Fase 3) */
+/* Rodada do card: Jurídico, Portfólio e Pré Obra e Obra (juridico_bolinha_count) */
 .moni-juridico-bolinha-badge {
   flex-shrink: 0;
   display: inline-flex;
