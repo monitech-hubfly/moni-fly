@@ -516,7 +516,7 @@ export async function fetchImobEmpreendimentosRows(
     return null;
   }
 
-  const rows = (data ?? []).map((r) => mapRow(r as RawImobEmp));
+  const rows = ((data ?? []) as unknown as RawImobEmp[]).map((r) => mapRow(r));
 
   // Enrich with counts
   const { data: corretoresLinks } = await supabase

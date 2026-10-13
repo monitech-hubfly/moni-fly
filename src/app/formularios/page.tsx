@@ -19,7 +19,10 @@ function gruposPorCategoria(formularios: Formulario[]): { nome: string; itens: F
     if (formulario.categoria) porCategoria.get(formulario.categoria)?.push(formulario);
     else semCategoria.push(formulario);
   }
-  const grupos = CATEGORIAS_HUB.map((nome) => ({ nome, itens: porCategoria.get(nome) ?? [] }));
+  const grupos: { nome: string; itens: Formulario[] }[] = CATEGORIAS_HUB.map((nome) => ({
+    nome,
+    itens: porCategoria.get(nome) ?? [],
+  }));
   if (semCategoria.length > 0) grupos.push({ nome: 'Sem categoria', itens: semCategoria });
   return grupos;
 }

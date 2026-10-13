@@ -4245,6 +4245,14 @@ export function KanbanCardModal({
     }
   }
 
+  const negocioEspelhoChecklist = useMemo(
+    () => ({
+      ...negocioEspelhoFromProcesso(modalDetalhes.processo as Record<string, unknown> | null),
+      ...preobraEspelhoChecklist,
+    }),
+    [modalDetalhes.processo, preobraEspelhoChecklist],
+  );
+
   if (loading && !card) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -4424,13 +4432,6 @@ export function KanbanCardModal({
   const rede = modalDetalhes.rede;
   const nomeFranqueadoHeader = String(rede?.nome_completo ?? '').trim();
   const proc = modalDetalhes.processo;
-  const negocioEspelhoChecklist = useMemo(
-    () => ({
-      ...negocioEspelhoFromProcesso(proc as Record<string, unknown> | null),
-      ...preobraEspelhoChecklist,
-    }),
-    [proc, preobraEspelhoChecklist],
-  );
   const podeEditarNegocio =
     !ocultarGestaoCard && Boolean(proc) && !(ehFunilFunding && !isLegado);
   const condominioIdSidebar =

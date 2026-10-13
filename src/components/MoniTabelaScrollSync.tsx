@@ -40,9 +40,9 @@ function columnHeaderRow(thead: HTMLTableSectionElement): HTMLTableRowElement | 
 export function MoniTabelaScrollSync({ children, className = '' }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
-  const pinRef = useRef<HTMLDivElement>(null);
-  const pinScrollRef = useRef<HTMLDivElement>(null);
-  const pinTableRef = useRef<HTMLTableElement>(null);
+  const pinRef = useRef<HTMLDivElement | null>(null);
+  const pinScrollRef = useRef<HTMLDivElement | null>(null);
+  const pinTableRef = useRef<HTMLTableElement | null>(null);
   const pinSigRef = useRef('');
   const [pinMounted, setPinMounted] = useState(false);
 
