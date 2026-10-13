@@ -9,7 +9,9 @@ export const OPERACOES_TAG_INST_GARANTIDOR_COR = '#c24b3a';
 /** Fases do Funil Pré Obra e Obra que recebem a tag automaticamente. */
 export const OPERACOES_FASES_TAG_INST_GARANTIDOR: readonly string[] = [
   FASE_SLUGS.APROVACAO_CONDOMINIO,
+  FASE_SLUGS.COMUNIQUE_SE_CONDOMINIO,
   FASE_SLUGS.APROVACAO_PREFEITURA,
+  FASE_SLUGS.COMUNIQUE_SE_PREFEITURA,
   'revisao_bca',
   FASE_SLUGS.PROJETO_LEGAL,
   'planialtimetrico',

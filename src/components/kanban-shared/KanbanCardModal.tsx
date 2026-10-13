@@ -175,6 +175,7 @@ import {
   isTipoDividaTerreno,
 } from '@/lib/kanban/tipo-negociacao-terreno';
 import { negocioEspelhoFromProcesso } from '@/lib/kanban/negocio-checklist-sync';
+import { preobraEspelhoFromCard } from '@/lib/kanban/preobra-checklist-sync';
 import {
   buildOpcoesVinculoCalculadora,
   resolverDataPagamentoNegociacao,
@@ -821,6 +822,7 @@ export function KanbanCardModal({
   const [operacoesPreObraDraft, setOperacoesPreObraDraft] = useState<OperacoesPreObraDraft>(
     () => ({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY }),
   );
+  const [preobraEspelhoChecklist, setPreobraEspelhoChecklist] = useState<Record<string, string>>({});
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
   const [creditoObraAbertura, setCreditoObraAbertura] = useState<{
     tituloCard: string;
@@ -894,6 +896,7 @@ export function KanbanCardModal({
     setPreObraDraft(preObraDraftFromProcesso(null));
     setFundingDraft(fundingDraftVazio());
     setOperacoesPreObraDraft({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY });
+    setPreobraEspelhoChecklist({});
     setCreditoObraAbertura(null);
     setCreditoObraAberturaPending(false);
     setLegadoCronologiaMoves([]);
@@ -1312,7 +1315,7 @@ export function KanbanCardModal({
         const cardSelectCore =
           `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
         const cardSelectPreObra =
-          'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra';
+          'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra, docs_condominio, docs_lote, link_projeto_legal, data_envio_credito_obra, data_aprovacao_credito_obra, data_inicio_obra, datas_comunique_se_condominio, datas_comunique_se_prefeitura';
         const cardSelectFunding =
           'funding_tipo, funding_localizacao, funding_descritivo';
         const cardSelectJuridicoCandidato =
@@ -1440,6 +1443,7 @@ export function KanbanCardModal({
         nativeRedeFranqueadoId =
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
         setOperacoesPreObraDraft(operacoesPreObraDraftFromCard(cardData as Record<string, unknown>));
+        setPreobraEspelhoChecklist(preobraEspelhoFromCard(cardData as Record<string, unknown>));
         setFundingDraft(fundingDraftFromRow(cardData as Record<string, unknown>));
       }
 
@@ -3217,9 +3221,17 @@ export function KanbanCardModal({
     try {
       const res = await salvarDadosPreObraOperacoes({
         cardId: card.id,
+        docs_condominio: operacoesPreObraDraft.docs_condominio,
+        docs_lote: operacoesPreObraDraft.docs_lote,
+        link_projeto_legal: operacoesPreObraDraft.link_projeto_legal,
         condominio_aprovada_em: operacoesPreObraDraft.condominio_aprovada_em,
+        datas_comunique_se_condominio: operacoesPreObraDraft.datas_comunique_se_condominio,
         prefeitura_aprovada_em: operacoesPreObraDraft.prefeitura_aprovada_em,
+        datas_comunique_se_prefeitura: operacoesPreObraDraft.datas_comunique_se_prefeitura,
         alvara_emitido_em: operacoesPreObraDraft.alvara_emitido_em,
+        data_envio_credito_obra: operacoesPreObraDraft.data_envio_credito_obra,
+        data_aprovacao_credito_obra: operacoesPreObraDraft.data_aprovacao_credito_obra,
+        data_inicio_obra: operacoesPreObraDraft.data_inicio_obra,
         basePath,
       });
       if (!res.ok) {
@@ -4413,8 +4425,11 @@ export function KanbanCardModal({
   const nomeFranqueadoHeader = String(rede?.nome_completo ?? '').trim();
   const proc = modalDetalhes.processo;
   const negocioEspelhoChecklist = useMemo(
-    () => negocioEspelhoFromProcesso(proc as Record<string, unknown> | null),
-    [proc],
+    () => ({
+      ...negocioEspelhoFromProcesso(proc as Record<string, unknown> | null),
+      ...preobraEspelhoChecklist,
+    }),
+    [proc, preobraEspelhoChecklist],
   );
   const podeEditarNegocio =
     !ocultarGestaoCard && Boolean(proc) && !(ehFunilFunding && !isLegado);

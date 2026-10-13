@@ -1,6 +1,7 @@
 'use client';
 
-import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
+import { PreObraDatasMultiplasCampo } from '@/components/kanban-shared/PreObraDatasMultiplasCampo';
+import { datasPreObraFromValor, valorChecklistDatasPreObra } from '@/lib/kanban/preobra-checklist-sync';
 import type { OperacoesPreObraDraft } from '@/lib/kanban/previsibilidade-operacoes';
 
 type Props = {
@@ -11,19 +12,38 @@ type Props = {
   podeEditar: boolean;
 };
 
-/** Densidade alinhada a Dados do Negócio / demais campos da coluna esquerda. */
 const labelCls = 'text-[11px] font-medium';
 const inputCls =
   'mt-0.5 w-full rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-[var(--moni-border-default)] bg-white px-2 py-1 text-xs font-[family-name:var(--moni-font-sans)] text-[var(--moni-text-primary)] min-h-[44px] sm:min-h-0';
-const inputReadonlyCls =
-  'mt-0.5 w-full cursor-not-allowed rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-[var(--moni-border-default)] bg-[var(--moni-surface-100)] px-2 py-1 text-xs font-[family-name:var(--moni-font-sans)] text-[var(--moni-text-secondary)] min-h-[44px] sm:min-h-0';
-const hintCls = 'mt-0.5 block text-[10px] text-[var(--moni-text-tertiary)]';
-const sectionTitleCls =
-  'mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--moni-text-tertiary)]';
 
-function fmtPrev(iso: string): string {
-  if (!iso) return '—';
-  return formatIsoDateOnlyPtBr(iso) ?? iso;
+function CampoTexto({
+  label,
+  value,
+  type,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  type: 'url' | 'date';
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block min-w-0">
+      <span className={labelCls} style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+        {label}
+      </span>
+      <input
+        type={type}
+        value={value}
+        disabled={disabled}
+        placeholder={type === 'url' ? 'https://…' : undefined}
+        onChange={(e) => onChange(e.target.value)}
+        className={inputCls}
+      />
+    </label>
+  );
 }
 
 export function KanbanCardModalDadosPreObraOperacoes({
@@ -33,117 +53,86 @@ export function KanbanCardModalDadosPreObraOperacoes({
   salvando,
   podeEditar,
 }: Props) {
+  const travado = !podeEditar;
   return (
     <div className="space-y-3">
-      <div>
-        <p className={sectionTitleCls} style={{ fontFamily: 'var(--moni-font-sans)' }}>
-          Datas reais
-        </p>
-        <div className="grid grid-cols-1 gap-x-2 gap-y-2 sm:grid-cols-2">
-          <label className="block min-w-0">
-            <span className={labelCls} style={{ color: 'var(--moni-text-secondary)' }}>
-              Data Aprovação Condomínio
-            </span>
-            <input
-              type="date"
-              value={draft.condominio_aprovada_em}
-              disabled={!podeEditar}
-              onChange={(e) => onChange({ condominio_aprovada_em: e.target.value })}
-              className={inputCls}
-            />
-          </label>
-          <label className="block min-w-0">
-            <span className={labelCls} style={{ color: 'var(--moni-text-secondary)' }}>
-              Data Aprovação Prefeitura
-            </span>
-            <input
-              type="date"
-              value={draft.prefeitura_aprovada_em}
-              disabled={!podeEditar}
-              onChange={(e) => onChange({ prefeitura_aprovada_em: e.target.value })}
-              className={inputCls}
-            />
-          </label>
-          <label className="block min-w-0 sm:col-span-2">
-            <span className={labelCls} style={{ color: 'var(--moni-text-secondary)' }}>
-              Data Emissão Alvará
-            </span>
-            <input
-              type="date"
-              value={draft.alvara_emitido_em}
-              disabled={!podeEditar}
-              onChange={(e) => onChange({ alvara_emitido_em: e.target.value })}
-              className={inputCls}
-            />
-          </label>
-        </div>
-      </div>
-
-      <div>
-        <p className={sectionTitleCls} style={{ fontFamily: 'var(--moni-font-sans)' }}>
-          Previsões (calculadas automaticamente)
-        </p>
-        <div className="grid grid-cols-1 gap-x-2 gap-y-2 sm:grid-cols-2">
-          <label className="block min-w-0">
-            <span className={labelCls} style={{ color: 'var(--moni-text-secondary)' }}>
-              Prev. Aprovação Condomínio
-            </span>
-            <input
-              type="text"
-              readOnly
-              value={fmtPrev(draft.prev_aprovacao_condominio)}
-              className={inputReadonlyCls}
-              title={draft.prev_aprovacao_condominio || undefined}
-            />
-          </label>
-          <label className="block min-w-0">
-            <span className={labelCls} style={{ color: 'var(--moni-text-secondary)' }}>
-              Prev. Aprovação Prefeitura
-            </span>
-            <input
-              type="text"
-              readOnly
-              value={fmtPrev(draft.prev_aprovacao_prefeitura)}
-              className={inputReadonlyCls}
-            />
-          </label>
-          <label className="block min-w-0">
-            <span className={labelCls} style={{ color: 'var(--moni-text-secondary)' }}>
-              Prev. Emissão Alvará
-            </span>
-            <input
-              type="text"
-              readOnly
-              value={fmtPrev(draft.prev_emissao_alvara)}
-              className={inputReadonlyCls}
-            />
-          </label>
-          <label className="block min-w-0">
-            <span className={labelCls} style={{ color: 'var(--moni-text-secondary)' }}>
-              Prev. Envio Crédito Obra
-            </span>
-            <input
-              type="text"
-              readOnly
-              value={fmtPrev(draft.prev_envio_credito_obra)}
-              className={inputReadonlyCls}
-            />
-            <span className={hintCls}>30 dias corridos antes da previsão de prefeitura</span>
-          </label>
-          <label className="block min-w-0 sm:col-span-2">
-            <span className={labelCls} style={{ color: 'var(--moni-text-secondary)' }}>
-              Prev. Início Obra
-            </span>
-            <input
-              type="text"
-              readOnly
-              value={fmtPrev(draft.prev_inicio_obra)}
-              className={inputReadonlyCls}
-            />
-            <span className={hintCls}>30 dias corridos após emissão do alvará (real ou prevista)</span>
-          </label>
-        </div>
-      </div>
+      <CampoTexto
+        label="Docs Condomínio"
+        type="url"
+        value={draft.docs_condominio}
+        disabled={travado}
+        onChange={(docs_condominio) => onChange({ docs_condominio })}
+      />
+      <CampoTexto
+        label="Docs Lote"
+        type="url"
+        value={draft.docs_lote}
+        disabled={travado}
+        onChange={(docs_lote) => onChange({ docs_lote })}
+      />
+      <CampoTexto
+        label="Projeto Legal"
+        type="url"
+        value={draft.link_projeto_legal}
+        disabled={travado}
+        onChange={(link_projeto_legal) => onChange({ link_projeto_legal })}
+      />
+      <CampoTexto
+        label="Data Aprovação no Condomínio"
+        type="date"
+        value={draft.condominio_aprovada_em}
+        disabled={travado}
+        onChange={(condominio_aprovada_em) => onChange({ condominio_aprovada_em })}
+      />
+      <PreObraDatasMultiplasCampo
+        label="Data Comunique-se Condomínio"
+        valor={valorChecklistDatasPreObra(draft.datas_comunique_se_condominio)}
+        botao="+ Data Comunique-se Condomínio"
+        disabled={travado}
+        onCommit={(json) => onChange({ datas_comunique_se_condominio: datasPreObraFromValor(json) })}
+      />
+      <CampoTexto
+        label="Data Aprovação na Prefeitura"
+        type="date"
+        value={draft.prefeitura_aprovada_em}
+        disabled={travado}
+        onChange={(prefeitura_aprovada_em) => onChange({ prefeitura_aprovada_em })}
+      />
+      <PreObraDatasMultiplasCampo
+        label="Data Comunique-se Prefeitura"
+        valor={valorChecklistDatasPreObra(draft.datas_comunique_se_prefeitura)}
+        botao="+ Data Comunique-se Prefeitura"
+        disabled={travado}
+        onCommit={(json) => onChange({ datas_comunique_se_prefeitura: datasPreObraFromValor(json) })}
+      />
+      <CampoTexto
+        label="Data Emissão do Alvará"
+        type="date"
+        value={draft.alvara_emitido_em}
+        disabled={travado}
+        onChange={(alvara_emitido_em) => onChange({ alvara_emitido_em })}
+      />
+      <CampoTexto
+        label="Data Envio p/ Crédito Obra"
+        type="date"
+        value={draft.data_envio_credito_obra}
+        disabled={travado}
+        onChange={(data_envio_credito_obra) => onChange({ data_envio_credito_obra })}
+      />
+      <CampoTexto
+        label="Data Aprovação Crédito Obra"
+        type="date"
+        value={draft.data_aprovacao_credito_obra}
+        disabled={travado}
+        onChange={(data_aprovacao_credito_obra) => onChange({ data_aprovacao_credito_obra })}
+      />
+      <CampoTexto
+        label="Data Início de Obra"
+        type="date"
+        value={draft.data_inicio_obra}
+        disabled={travado}
+        onChange={(data_inicio_obra) => onChange({ data_inicio_obra })}
+      />
 
       {podeEditar ? (
         <button

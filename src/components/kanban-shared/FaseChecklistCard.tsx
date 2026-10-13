@@ -180,6 +180,8 @@ import { parseChecklistCompartilhadoValor } from '@/lib/kanban/checklist-compart
 import { KanbanCardModalNegocioPrazoField } from '@/components/kanban-shared/KanbanCardModalNegocioPrazoField';
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
 import type { FaseNegocioPrazoOpcao } from '@/lib/kanban/dados-negocio-prazo';
+import { PreObraDatasMultiplasCampo } from '@/components/kanban-shared/PreObraDatasMultiplasCampo';
+import { PREOBRA_CHECKLIST_PREFIX } from '@/lib/kanban/preobra-checklist-sync';
 import {
   NEGOCIO_CHECKLIST_PREFIX,
   prazoDraftFromChecklistValor,
@@ -376,7 +378,7 @@ export function FaseChecklistCard({
       const next = new Map(prev);
       for (const it of itens) {
         const chave = String(it.chave_compartilhada ?? '').trim();
-        if (!chave.startsWith(NEGOCIO_CHECKLIST_PREFIX)) continue;
+        if (!chave.startsWith(NEGOCIO_CHECKLIST_PREFIX) && !chave.startsWith(PREOBRA_CHECKLIST_PREFIX)) continue;
         const esp = negocioEspelho[chave];
         if (esp === undefined) continue;
         const atual = prev.get(it.id);
@@ -773,7 +775,8 @@ export function FaseChecklistCard({
       if (isChecklistItemLinkPlanilhaMapa(itemSalvo?.label)) {
         onLinkGboxEspelhado?.();
       }
-      if (String(itemSalvo?.chave_compartilhada ?? '').startsWith(NEGOCIO_CHECKLIST_PREFIX)) {
+      const chaveSalva = String(itemSalvo?.chave_compartilhada ?? '');
+      if (chaveSalva.startsWith(NEGOCIO_CHECKLIST_PREFIX) || chaveSalva.startsWith(PREOBRA_CHECKLIST_PREFIX)) {
         onNegocioEspelhado?.();
       }
     }
@@ -943,7 +946,8 @@ export function FaseChecklistCard({
         onCidadeComUfSelected={(cidade, uf) => void salvarCidadeComEstado(cidade, uf)}
         condominioContext={condominioContext}
         onChange={(valor) => {
-          if (String(item.chave_compartilhada ?? '').startsWith(NEGOCIO_CHECKLIST_PREFIX)) {
+          const chaveItem = String(item.chave_compartilhada ?? '');
+          if (chaveItem.startsWith(NEGOCIO_CHECKLIST_PREFIX) || chaveItem.startsWith(PREOBRA_CHECKLIST_PREFIX)) {
             negocioDirtyRef.current.add(item.id);
           }
           if (multiPracaAtivo && chave) {
@@ -980,7 +984,8 @@ export function FaseChecklistCard({
           if (res.ok && item.tipo === 'anexo_template') await compararAposAssinado(item.id);
         }}
         onChecklistValor={async (valor) => {
-          if (String(item.chave_compartilhada ?? '').startsWith(NEGOCIO_CHECKLIST_PREFIX)) {
+          const chaveItem = String(item.chave_compartilhada ?? '');
+          if (chaveItem.startsWith(NEGOCIO_CHECKLIST_PREFIX) || chaveItem.startsWith(PREOBRA_CHECKLIST_PREFIX)) {
             negocioDirtyRef.current.add(item.id);
           }
           if (multiPracaAtivo && chave) {
@@ -1221,6 +1226,30 @@ function ItemField({
     const payload = JSON.stringify(next);
     onChange(payload);
     await onChecklistValor(payload);
+  }
+
+  if (String(item.config_json?.widget ?? '') === 'preobra_datas') {
+    const botao = String(item.config_json?.botao ?? '').trim() || '+ Data';
+    return (
+      <div>
+        {estado.salvando ? (
+          <span className="mb-1 block text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+            <Loader2 size={10} className="mr-1 inline animate-spin" />
+          </span>
+        ) : null}
+        <PreObraDatasMultiplasCampo
+          label={obrigatorioItem ? `${item.label} *` : item.label}
+          valor={estado.valor}
+          botao={botao}
+          disabled={readonly}
+          onCommit={(json) => {
+            onChange(json);
+            void onBlur(json);
+          }}
+        />
+        {erroEl}
+      </div>
+    );
   }
 
   if (String(item.config_json?.widget ?? '') === 'negocio_prazo') {

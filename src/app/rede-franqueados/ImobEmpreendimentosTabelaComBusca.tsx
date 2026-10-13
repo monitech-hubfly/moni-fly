@@ -8,10 +8,15 @@ import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbar
 import { redeTh } from '@/app/rede-franqueados/rede-ui';
 import {
   agruparPorCondominio,
+  CAMPOS_NEGOCIO_EMPREENDIMENTO,
+  hrefColunaNegocio,
   imobEmpreendimentoRowMatchesBusca,
+  negocioInicialEmpreendimento,
   ordenarImobEmpreendimentosPorNome,
+  textoColunaNegocioEmpreendimento,
   type ImobEmpreendimentoRow,
 } from '@/lib/imob-empreendimentos';
+import { EmpreendimentoDadosNegocioCampos } from '@/app/rede-franqueados/EmpreendimentoDadosNegocioCampos';
 import {
   criarImobEmpreendimento,
   atualizarImobEmpreendimento,
@@ -63,6 +68,7 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
   const [specs, setSpecs] = useState(row?.specs ?? '');
   const [imagemUrl, setImagemUrl] = useState(row?.imagem_url ?? '');
   const [ativo, setAtivo] = useState(row?.ativo ?? true);
+  const [negocio, setNegocio] = useState(() => negocioInicialEmpreendimento(row));
 
   const [vinculados, setVinculados] = useState<Set<string>>(
     new Set(row?.corretor_ids ?? []),
@@ -81,6 +87,7 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
       specs: specs || null,
       imagem_url: imagemUrl || null,
       ativo,
+      ...negocio,
     };
     const res = isNovo
       ? await criarImobEmpreendimento(patch)
@@ -110,7 +117,7 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 py-10">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl ring-1 ring-stone-200 mx-4">
+      <div className="mx-4 w-full max-w-xl rounded-xl bg-white shadow-xl ring-1 ring-stone-200">
         <div className="flex items-center justify-between border-b border-stone-100 px-6 py-4">
           <h2 className="text-base font-semibold text-stone-900">
             {isNovo ? 'Novo empreendimento' : 'Editar empreendimento'}
@@ -195,6 +202,11 @@ function EmpreendimentoModal({ row, condominiosRows, corretoresRows, onClose }: 
               Empreendimento ativo
             </label>
           </div>
+
+          <EmpreendimentoDadosNegocioCampos
+            value={negocio}
+            onChange={(patch) => setNegocio((prev) => ({ ...prev, ...patch }))}
+          />
 
           {erro ? (
             <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>
@@ -542,6 +554,11 @@ export function ImobEmpreendimentosTabelaComBusca({
                       <thead>
                         <tr className="border-b border-stone-100 bg-stone-50/40">
                           <th className={redeTh}>Nome</th>
+                          {CAMPOS_NEGOCIO_EMPREENDIMENTO.map((campo) => (
+                            <th key={campo.key} className={redeTh}>
+                              {campo.label}
+                            </th>
+                          ))}
                           <th className={redeTh}>Card vinculado</th>
                           <th className={redeTh}>Especificações</th>
                           <th className={redeTh}>Corretores</th>
@@ -569,6 +586,26 @@ export function ImobEmpreendimentosTabelaComBusca({
                                   </span>
                                 ) : null}
                               </td>
+                              {CAMPOS_NEGOCIO_EMPREENDIMENTO.map((campo) => {
+                                const texto = textoColunaNegocioEmpreendimento(row, campo);
+                                const href = campo.kind === 'url' ? hrefColunaNegocio(String(row[campo.key] ?? '')) : null;
+                                return (
+                                  <td key={campo.key} className={`${td} min-w-[9rem] max-w-[16rem]`}>
+                                    {href && texto !== '—' ? (
+                                      <a
+                                        href={href}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="line-clamp-2 break-all text-xs text-[var(--moni-navy-800)] underline-offset-2 hover:underline"
+                                      >
+                                        {texto}
+                                      </a>
+                                    ) : (
+                                      <span className="line-clamp-2">{texto}</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
                               <td className={`${td} min-w-[10rem]`}>
                                 {dash(row.card_titulo)}
                               </td>

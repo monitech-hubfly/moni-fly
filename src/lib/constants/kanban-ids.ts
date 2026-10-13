@@ -125,6 +125,8 @@ export const FASE_IDS = {
   CAPITAL_NAO_ELEGIVEL:      '023e7fb8-c40e-479a-949e-126fa55de1a4',
   // Operações
   OPERACOES_PLANIALTIMETRICO: 'c3bea524-aeae-4b87-ba1f-5c83943d4770',
+  OPERACOES_COMUNIQUE_SE_CONDOMINIO: 'b7c4e2a1-6d30-4f8a-9c15-2d8e4f6a1c11',
+  OPERACOES_COMUNIQUE_SE_PREFEITURA: 'b7c4e2a2-6d30-4f8a-9c15-2d8e4f6a1c12',
   OPERACOES_AGUARDANDO_CREDITO: '8b83e671-ef0c-4028-8b52-8f56579e8df0',
   OPERACOES_ENTREGUE:        '5b85ac83-a546-4c1d-9bf0-e5e40cf3d937',
   // Loteadores
@@ -163,6 +165,8 @@ export const FASE_SLUGS = {
   AGUARDANDO_CREDITO: 'aguardando_credito',
   PROD_PUBLICADO: 'prod_publicado',
   APROVACAO_CONDOMINIO: 'aprovacao_condominio',
+  /** Funil Pré Obra e Obra — logo após Aprovação no Condomínio. */
+  COMUNIQUE_SE_CONDOMINIO: 'comunique_se_condominio',
   /** Fase do Funil Portfólio — dispara bastão para Funil Acoplamento. */
   ACOPLAMENTO: 'acoplamento',
   PORTFOLIO_ENVIAR_ACOPLAMENTO_FRANK: 'enviar_acoplamento_frank',
@@ -243,6 +247,8 @@ export const FASE_SLUGS = {
   /** Funil Acoplamento — entre Validação e Alterações. */
   ACOPLAMENTO_AGUARDANDO_COMITE: 'aguardando_comite_acoplamento',
   APROVACAO_PREFEITURA: 'aprovacao_prefeitura',
+  /** Funil Pré Obra e Obra — logo após Aprovação na Prefeitura. */
+  COMUNIQUE_SE_PREFEITURA: 'comunique_se_prefeitura',
   /** Funil Operações — Transferência do Terreno (slug legado: processos_cartorarios). */
   PROCESSOS_CARTORARIOS: 'processos_cartorarios',
   /** Funil Operações — fase Em Obra. */

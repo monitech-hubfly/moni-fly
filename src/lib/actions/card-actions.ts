@@ -4241,13 +4241,31 @@ function timestampCampoCalendarioIso(input: string | null | undefined): string |
 
 export type SalvarDadosPreObraOperacoesInput = {
   cardId: string;
+  docs_condominio?: string | null;
+  docs_lote?: string | null;
+  link_projeto_legal?: string | null;
   condominio_aprovada_em?: string | null;
   prefeitura_aprovada_em?: string | null;
   alvara_emitido_em?: string | null;
+  data_envio_credito_obra?: string | null;
+  data_aprovacao_credito_obra?: string | null;
+  data_inicio_obra?: string | null;
+  datas_comunique_se_condominio?: string[];
+  datas_comunique_se_prefeitura?: string[];
   basePath?: string;
 };
 
-/** Salva datas reais de pré-obra no card nativo do Funil Operações (prev_* recalculados pelo trigger). */
+function textoPreObraOuNull(valor: string | null | undefined): string | null {
+  const s = String(valor ?? '').trim();
+  return s || null;
+}
+
+function dataPreObraOuNull(valor: string | null | undefined): string | null {
+  const head = String(valor ?? '').trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : null;
+}
+
+/** Salva Dados Pré Obra no card do Funil Operações e espelha nas fases (`preobra:<campo>`). */
 export async function salvarDadosPreObraOperacoes(
   input: SalvarDadosPreObraOperacoesInput,
 ): Promise<ActionResult> {
@@ -4270,22 +4288,63 @@ export async function salvarDadosPreObraOperacoes(
     return { ok: false, error: 'Pré-obra aplicável apenas ao Funil Operações.' };
   }
 
-  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const espelhoRaw: Record<string, unknown> = {
+    docs_condominio: textoPreObraOuNull(input.docs_condominio),
+    docs_lote: textoPreObraOuNull(input.docs_lote),
+    link_projeto_legal: textoPreObraOuNull(input.link_projeto_legal),
+    condominio_aprovada_em: dataPreObraOuNull(input.condominio_aprovada_em),
+    prefeitura_aprovada_em: dataPreObraOuNull(input.prefeitura_aprovada_em),
+    alvara_emitido_em: dataPreObraOuNull(input.alvara_emitido_em),
+    data_envio_credito_obra: dataPreObraOuNull(input.data_envio_credito_obra),
+    data_aprovacao_credito_obra: dataPreObraOuNull(input.data_aprovacao_credito_obra),
+    data_inicio_obra: dataPreObraOuNull(input.data_inicio_obra),
+    datas_comunique_se_condominio: input.datas_comunique_se_condominio ?? [],
+    datas_comunique_se_prefeitura: input.datas_comunique_se_prefeitura ?? [],
+  };
 
-  if (input.condominio_aprovada_em !== undefined) {
-    update.condominio_aprovada_em = timestampCampoCalendarioIso(input.condominio_aprovada_em);
-  }
-  if (input.prefeitura_aprovada_em !== undefined) {
-    const ts = timestampCampoCalendarioIso(input.prefeitura_aprovada_em);
-    update.prefeitura_aprovada_em = ts;
-    update.prefeitura_aprovada = ts != null;
-  }
-  if (input.alvara_emitido_em !== undefined) {
-    update.alvara_emitido_em = timestampCampoCalendarioIso(input.alvara_emitido_em);
-  }
+  const update: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+    docs_condominio: espelhoRaw.docs_condominio,
+    docs_lote: espelhoRaw.docs_lote,
+    link_projeto_legal: espelhoRaw.link_projeto_legal,
+    condominio_aprovada_em: timestampCampoCalendarioIso(input.condominio_aprovada_em),
+    prefeitura_aprovada_em: timestampCampoCalendarioIso(input.prefeitura_aprovada_em),
+    prefeitura_aprovada: timestampCampoCalendarioIso(input.prefeitura_aprovada_em) != null,
+    alvara_emitido_em: timestampCampoCalendarioIso(input.alvara_emitido_em),
+    data_envio_credito_obra: espelhoRaw.data_envio_credito_obra,
+    data_aprovacao_credito_obra: espelhoRaw.data_aprovacao_credito_obra,
+    data_inicio_obra: espelhoRaw.data_inicio_obra,
+    datas_comunique_se_condominio:
+      Array.isArray(espelhoRaw.datas_comunique_se_condominio) &&
+      (espelhoRaw.datas_comunique_se_condominio as string[]).length > 0
+        ? espelhoRaw.datas_comunique_se_condominio
+        : null,
+    datas_comunique_se_prefeitura:
+      Array.isArray(espelhoRaw.datas_comunique_se_prefeitura) &&
+      (espelhoRaw.datas_comunique_se_prefeitura as string[]).length > 0
+        ? espelhoRaw.datas_comunique_se_prefeitura
+        : null,
+  };
 
   const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
   if (updErr) return { ok: false, error: updErr.message };
+
+  const { checklistLinhasFromPreObraCard } = await import('@/lib/kanban/preobra-checklist-sync');
+  const linhas = checklistLinhasFromPreObraCard(espelhoRaw);
+  if (linhas.length > 0) {
+    const agora = new Date().toISOString();
+    const { error: espelhoErr } = await supabase.from('kanban_card_checklist_compartilhado').upsert(
+      linhas.map((linha) => ({
+        card_id: cardId,
+        chave: linha.chave,
+        valor: linha.valor,
+        atualizado_por: user.id,
+        atualizado_em: agora,
+      })),
+      { onConflict: 'card_id,chave' },
+    );
+    if (espelhoErr) return { ok: false, error: espelhoErr.message };
+  }
 
   const base = String(input.basePath ?? '/').trim() || '/';
   revalidatePath(base);
@@ -5437,6 +5496,32 @@ export async function upsertFaseChecklistResposta(input: {
           const syncNegocio = await updateProcessoNegocioCampos(supabase, processoId, patch);
           if (!syncNegocio.ok) return { ok: false, error: syncNegocio.error };
         }
+      }
+    }
+
+    if (chaveCompartilhada.startsWith('preobra:')) {
+      const { preobraCardPatchFromChecklist, colunaDataPreObraEhTimestamp } = await import(
+        '@/lib/kanban/preobra-checklist-sync'
+      );
+      const patch = preobraCardPatchFromChecklist(chaveCompartilhada, nextValor);
+      if (patch) {
+        const updateCard: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        for (const [coluna, valor] of Object.entries(patch)) {
+          if (colunaDataPreObraEhTimestamp(coluna)) {
+            const ts = timestampCampoCalendarioIso(valor == null ? null : String(valor));
+            updateCard[coluna] = ts;
+            if (coluna === 'prefeitura_aprovada_em') updateCard.prefeitura_aprovada = ts != null;
+          } else if (Array.isArray(valor)) {
+            updateCard[coluna] = valor.length > 0 ? valor : null;
+          } else {
+            updateCard[coluna] = valor;
+          }
+        }
+        const { error: preobraErr } = await supabase
+          .from('kanban_cards')
+          .update(updateCard as never)
+          .eq('id', input.card_id);
+        if (preobraErr) return { ok: false, error: preobraErr.message };
       }
     }
 

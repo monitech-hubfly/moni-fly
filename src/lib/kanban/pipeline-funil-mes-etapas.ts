@@ -70,7 +70,9 @@ export const FUNIL_MES_ETAPA_FASES: Record<PipelineFunilMesEtapaKey, FunilMesEta
       'planialtimetrico',
       FASE_SLUGS.PROJETO_LEGAL,
       FASE_SLUGS.APROVACAO_CONDOMINIO,
+      FASE_SLUGS.COMUNIQUE_SE_CONDOMINIO,
       FASE_SLUGS.APROVACAO_PREFEITURA,
+      FASE_SLUGS.COMUNIQUE_SE_PREFEITURA,
     ],
   },
   /**

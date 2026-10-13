@@ -4061,6 +4061,42 @@
   }
 }
 
+/* Cabeçalho fixo quando o scroll da página tira o thead da área visível. */
+.moni-tabela-head-pin {
+  display: none;
+  position: fixed;
+  z-index: 35;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--moni-surface-50);
+  box-shadow: 0 2px 8px rgba(12, 38, 51, 0.1);
+}
+
+.moni-tabela-head-pin.is-on {
+  display: block;
+  pointer-events: auto;
+}
+
+.moni-tabela-scroll-wrap.moni-tabela-head-covered table thead {
+  visibility: hidden;
+}
+
+.moni-tabela-head-pin-scroll {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.moni-tabela-head-pin table {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.moni-tabela-head-pin table.border-collapse {
+  border-collapse: separate;
+}
+
 .moni-tabela-scroll-wrap::-webkit-scrollbar {
   display: block;
   height: 10px;
