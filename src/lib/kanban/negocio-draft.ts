@@ -40,6 +40,18 @@ export type NegocioDraftKanban = {
   prazo_opcao: NegocioPrazoDraft;
   prazo_instrumento_garantidor: NegocioPrazoDraft;
   negociacao_linhas: NegociacaoLinhaDraft[];
+  // Novos campos
+  pct_compra_parcial_terreno: string;
+  pct_vgv_terrenista: string;
+  m2_terreno: string;
+  m2_casa: string;
+  extrato_modelo_configurado: string;
+  data_aprovacao_comite: string;
+  obs_opcao: string;
+  data_ass_opcao_terreno: string;
+  obs_instrumento_garantidor: string;
+  data_ass_contrato_terreno: string;
+  valor_recompra: string;
 };
 
 export function negocioDraftVazio(): NegocioDraftKanban {
@@ -67,6 +79,17 @@ export function negocioDraftVazio(): NegocioDraftKanban {
     prazo_opcao: { ...NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO },
     prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO },
     negociacao_linhas: negociacaoLinhasDraftPadrao(),
+    pct_compra_parcial_terreno: '',
+    pct_vgv_terrenista: '',
+    m2_terreno: '',
+    m2_casa: '',
+    extrato_modelo_configurado: '',
+    data_aprovacao_comite: '',
+    obs_opcao: '',
+    data_ass_opcao_terreno: '',
+    obs_instrumento_garantidor: '',
+    data_ass_contrato_terreno: '',
+    valor_recompra: '',
   };
 }
 
@@ -104,5 +127,16 @@ export function negocioDraftFromProcesso(
       prazos100Cv?.prazo_instrumento_garantidor ??
       negocioPrazoInstrumentoDraftFromProcesso(proc, opcoes),
     negociacao_linhas: negociacaoLinhasDraftFromLinhas(proc.negociacao_linhas ?? []),
+    pct_compra_parcial_terreno: proc.pct_compra_parcial_terreno != null ? String(proc.pct_compra_parcial_terreno) : '',
+    pct_vgv_terrenista: proc.pct_vgv_terrenista != null ? String(proc.pct_vgv_terrenista) : '',
+    m2_terreno: proc.m2_terreno != null ? String(proc.m2_terreno) : '',
+    m2_casa: proc.m2_casa != null ? String(proc.m2_casa) : '',
+    extrato_modelo_configurado: proc.extrato_modelo_configurado ?? '',
+    data_aprovacao_comite: proc.data_aprovacao_comite ?? '',
+    obs_opcao: proc.obs_opcao ?? '',
+    data_ass_opcao_terreno: proc.data_ass_opcao_terreno ?? '',
+    obs_instrumento_garantidor: proc.obs_instrumento_garantidor ?? '',
+    data_ass_contrato_terreno: proc.data_ass_contrato_terreno ?? '',
+    valor_recompra: moedaCampoValorInicial(proc.valor_recompra),
   };
 }

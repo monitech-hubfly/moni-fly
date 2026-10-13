@@ -89,6 +89,18 @@ export type ProcessoModalNegocioPreObra = {
   calculadora_ancora_fase_slug: string | null;
   calculadora_ancora_data_fim: string | null;
   negociacao_linhas: NegociacaoLinha[];
+  // Novos campos
+  pct_compra_parcial_terreno: number | null;
+  pct_vgv_terrenista: number | null;
+  m2_terreno: number | null;
+  m2_casa: number | null;
+  extrato_modelo_configurado: string | null;
+  data_aprovacao_comite: string | null;
+  obs_opcao: string | null;
+  data_ass_opcao_terreno: string | null;
+  obs_instrumento_garantidor: string | null;
+  data_ass_contrato_terreno: string | null;
+  valor_recompra: string | null;
 };
 
 const REDE_SELECT = [
@@ -168,6 +180,21 @@ const PROCESSO_SELECT_EXTENDED = [
   'comentario_moni_capital_gastos_aporte_inicial',
 ].join(',');
 
+/** Campos adicionados na migration de novos campos de negócio. */
+const PROCESSO_SELECT_NEW = [
+  'pct_compra_parcial_terreno',
+  'pct_vgv_terrenista',
+  'm2_terreno',
+  'm2_casa',
+  'extrato_modelo_configurado',
+  'data_aprovacao_comite',
+  'obs_opcao',
+  'data_ass_opcao_terreno',
+  'obs_instrumento_garantidor',
+  'data_ass_contrato_terreno',
+  'valor_recompra',
+].join(',');
+
 const PROCESSO_SELECT_PRAZO = [
   'prazo_opcao_dias',
   'prazo_opcao_sla_tipo',
@@ -188,7 +215,7 @@ const PROCESSO_SELECT_CALCULADORA_ANCORA = [
 
 const PROCESSO_SELECT_NEGOCIACAO = ['negociacao_linhas'].join(',');
 
-const PROCESSO_SELECT = `${PROCESSO_SELECT_LEGACY},${PROCESSO_SELECT_EXTENDED},${PROCESSO_SELECT_PRAZO},${PROCESSO_SELECT_CALCULADORA_ANCORA},${PROCESSO_SELECT_NEGOCIACAO}`;
+const PROCESSO_SELECT = `${PROCESSO_SELECT_LEGACY},${PROCESSO_SELECT_EXTENDED},${PROCESSO_SELECT_NEW},${PROCESSO_SELECT_PRAZO},${PROCESSO_SELECT_CALCULADORA_ANCORA},${PROCESSO_SELECT_NEGOCIACAO}`;
 
 function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
@@ -232,6 +259,18 @@ export type ProcessoNegocioUpdatePayload = {
   prazo_instrumento_garantidor_fase_id?: string | null;
   prazo_instrumento_garantidor_data?: string | null;
   negociacao_linhas?: NegociacaoLinhaDb[] | null;
+  // Novos campos
+  pct_compra_parcial_terreno?: number | null;
+  pct_vgv_terrenista?: number | null;
+  m2_terreno?: number | null;
+  m2_casa?: number | null;
+  extrato_modelo_configurado?: string | null;
+  data_aprovacao_comite?: string | null;
+  obs_opcao?: string | null;
+  data_ass_opcao_terreno?: string | null;
+  obs_instrumento_garantidor?: string | null;
+  data_ass_contrato_terreno?: string | null;
+  valor_recompra?: string | null;
   /** Gerenciados pela seção Dados do Condomínio — omitir ao salvar negócio. */
   nome_condominio?: string | null;
   quadra?: string | null;
@@ -262,6 +301,20 @@ const PROCESSO_UPDATE_EXTENDED_KEYS = [
   'comentario_moni_capital_seguro_garantia',
   'link_moni_capital_gastos_aporte_inicial',
   'comentario_moni_capital_gastos_aporte_inicial',
+] as const;
+
+const PROCESSO_UPDATE_NEW_KEYS = [
+  'pct_compra_parcial_terreno',
+  'pct_vgv_terrenista',
+  'm2_terreno',
+  'm2_casa',
+  'extrato_modelo_configurado',
+  'data_aprovacao_comite',
+  'obs_opcao',
+  'data_ass_opcao_terreno',
+  'obs_instrumento_garantidor',
+  'data_ass_contrato_terreno',
+  'valor_recompra',
 ] as const;
 
 const PROCESSO_UPDATE_PRAZO_KEYS = [
@@ -305,12 +358,24 @@ export async function updateProcessoNegocioCampos(
   const full = {
     ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
     ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
+    ...pickPayload(payload, PROCESSO_UPDATE_NEW_KEYS),
     ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
     ...pickNegociacaoLinhas(payload),
   };
   const { error } = await supabase.from('processo_step_one').update(full as never).eq('id', processoId);
   if (!error) return { ok: true };
   if (!isMissingColumnError(error)) return { ok: false, error: error.message };
+
+  // Fallback: sem colunas novas
+  const semNovos = {
+    ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
+    ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
+    ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
+    ...pickNegociacaoLinhas(payload),
+  };
+  const { error: errSemNovos } = await supabase.from('processo_step_one').update(semNovos as never).eq('id', processoId);
+  if (!errSemNovos) return { ok: true };
+  if (!isMissingColumnError(errSemNovos)) return { ok: false, error: errSemNovos.message };
 
   const semPrazo = {
     ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
@@ -438,6 +503,18 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     calculadora_ancora_fase_slug: g('calculadora_ancora_fase_slug'),
     calculadora_ancora_data_fim: g('calculadora_ancora_data_fim')?.slice(0, 10) ?? null,
     negociacao_linhas: parseNegociacaoLinhasFromDb(r.negociacao_linhas),
+    // Novos campos
+    pct_compra_parcial_terreno: gi('pct_compra_parcial_terreno'),
+    pct_vgv_terrenista: gi('pct_vgv_terrenista'),
+    m2_terreno: gi('m2_terreno'),
+    m2_casa: gi('m2_casa'),
+    extrato_modelo_configurado: g('extrato_modelo_configurado'),
+    data_aprovacao_comite: g('data_aprovacao_comite')?.slice(0, 10) ?? null,
+    obs_opcao: g('obs_opcao'),
+    data_ass_opcao_terreno: g('data_ass_opcao_terreno')?.slice(0, 10) ?? null,
+    obs_instrumento_garantidor: g('obs_instrumento_garantidor'),
+    data_ass_contrato_terreno: g('data_ass_contrato_terreno')?.slice(0, 10) ?? null,
+    valor_recompra: g('valor_recompra'),
   };
 }
 

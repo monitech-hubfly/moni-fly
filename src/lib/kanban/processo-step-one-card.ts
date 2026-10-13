@@ -128,6 +128,17 @@ const NEGOCIO_COPY_FIELDS = [
   'prazo_instrumento_garantidor_fase_id',
   'prazo_instrumento_garantidor_data',
   'negociacao_linhas',
+  'pct_compra_parcial_terreno',
+  'pct_vgv_terrenista',
+  'm2_terreno',
+  'm2_casa',
+  'extrato_modelo_configurado',
+  'data_aprovacao_comite',
+  'obs_opcao',
+  'data_ass_opcao_terreno',
+  'obs_instrumento_garantidor',
+  'data_ass_contrato_terreno',
+  'valor_recompra',
 ] as const;
 
 /** Copia campos preenchidos de negócio de um processo para outro (split dedicado). */

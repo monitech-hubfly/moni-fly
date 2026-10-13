@@ -2551,6 +2551,23 @@ export async function salvarDadosNegocioKanban(input: {
   const upd = await updateProcessoNegocioCampos(supabase, dedicado.processoId, payloadNegocio);
   if (!upd.ok) return upd;
 
+  const { checklistLinhasFromNegocioPayload } = await import('@/lib/kanban/negocio-checklist-sync');
+  const linhasNegocio = checklistLinhasFromNegocioPayload(payloadNegocio);
+  if (linhasNegocio.length > 0) {
+    const agora = new Date().toISOString();
+    const { error: espelhoErr } = await supabase.from('kanban_card_checklist_compartilhado').upsert(
+      linhasNegocio.map((linha) => ({
+        card_id: cardId,
+        chave: linha.chave,
+        valor: linha.valor,
+        atualizado_por: user.id,
+        atualizado_em: agora,
+      })),
+      { onConflict: 'card_id,chave' },
+    );
+    if (espelhoErr) return { ok: false, error: espelhoErr.message };
+  }
+
   const linkPlanilhaMapa =
     payloadNegocio.link_gbox !== undefined
       ? payloadNegocio.link_gbox
@@ -3421,9 +3438,11 @@ export async function criarVinculoCard(input: {
     return { ok: false, error: msg };
   }
 
-  const shadowOrig = await garantirShadowKanbanCardLegadoPorId(db, orig);
+  const [shadowOrig, shadowDest] = await Promise.all([
+    garantirShadowKanbanCardLegadoPorId(db, orig),
+    garantirShadowKanbanCardLegadoPorId(db, dest),
+  ]);
   if (!shadowOrig.ok) return { ok: false, error: shadowOrig.error };
-  const shadowDest = await garantirShadowKanbanCardLegadoPorId(db, dest);
   if (!shadowDest.ok) return { ok: false, error: shadowDest.error };
 
   const { error } = await inserirKanbanCardVinculo(db, {
@@ -3438,19 +3457,15 @@ export async function criarVinculoCard(input: {
     return { ok: false, error: error.message };
   }
 
-  const healOrig = await reconciliarFranqueadoNoSyncGroup(db, orig);
-  if (!healOrig.ok) return { ok: false, error: healOrig.error };
-  const healDest = await reconciliarFranqueadoNoSyncGroup(db, dest);
-  if (!healDest.ok) return { ok: false, error: healDest.error };
+  const heal = await reconciliarFranqueadoNoSyncGroup(db, orig);
+  if (!heal.ok) return { ok: false, error: heal.error };
 
-  revalidatePath(input.basePath?.trim() || '/');
-  revalidatePath('/');
   return { ok: true };
 }
 
 export async function removerVinculoCard(
   vinculoId: string,
-  basePath?: string,
+  _basePath?: string,
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -3467,8 +3482,6 @@ export async function removerVinculoCard(
   const { error } = await supabase.from('kanban_card_vinculos').delete().eq('id', vid);
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath(basePath?.trim() || '/');
-  revalidatePath('/');
   return { ok: true };
 }
 
@@ -5398,6 +5411,26 @@ export async function upsertFaseChecklistResposta(input: {
         );
         if (clearErr) return { ok: false, error: clearErr.message };
         chavesDesmarcadas = chaves;
+      }
+    }
+
+    if (chaveCompartilhada.startsWith('negocio:')) {
+      const { processoPatchFromChecklistNegocio } = await import('@/lib/kanban/negocio-checklist-sync');
+      const { updateProcessoNegocioCampos } = await import('@/lib/kanban/kanban-card-modal-detalhes');
+      const patch = processoPatchFromChecklistNegocio(chaveCompartilhada, nextValor);
+      if (patch) {
+        const { data: cardNegocio } = await supabase
+          .from('kanban_cards')
+          .select('processo_step_one_id')
+          .eq('id', input.card_id)
+          .maybeSingle();
+        const processoId = String(
+          (cardNegocio as { processo_step_one_id?: string | null } | null)?.processo_step_one_id ?? '',
+        ).trim();
+        if (processoId) {
+          const syncNegocio = await updateProcessoNegocioCampos(supabase, processoId, patch);
+          if (!syncNegocio.ok) return { ok: false, error: syncNegocio.error };
+        }
       }
     }
 

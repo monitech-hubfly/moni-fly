@@ -177,6 +177,13 @@ import {
   isChecklistItemResponsavelDaFaseSidebar,
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { parseChecklistCompartilhadoValor } from '@/lib/kanban/checklist-compartilhado';
+import { KanbanCardModalNegocioPrazoField } from '@/components/kanban-shared/KanbanCardModalNegocioPrazoField';
+import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
+import type { FaseNegocioPrazoOpcao } from '@/lib/kanban/dados-negocio-prazo';
+import {
+  NEGOCIO_CHECKLIST_PREFIX,
+  prazoDraftFromChecklistValor,
+} from '@/lib/kanban/negocio-checklist-sync';
 
 export type CondominioChecklistContext = {
   origem: 'nativo' | 'legado';
@@ -205,6 +212,10 @@ type Props = {
   linkGboxProcesso?: string | null;
   /** Callback após espelhar Gbox a partir do checklist. */
   onLinkGboxEspelhado?: () => void;
+  /** Valores da lateral de Dados do Negócio, chave `negocio:<campo>`. */
+  negocioEspelho?: Record<string, string> | null;
+  /** Callback após um campo de negócio do checklist gravar na lateral. */
+  onNegocioEspelhado?: () => void;
   /** Área de atuação da rede vinculada ao card (`UF - Cidade; …`). */
   areaAtuacao?: string | null;
   /** Dados do franqueado na rede — auto-preenche Nome, E-mail, Telefone e Idade em Dados do Candidato. */
@@ -240,6 +251,8 @@ export function FaseChecklistCard({
   processoId = null,
   linkGboxProcesso = null,
   onLinkGboxEspelhado,
+  negocioEspelho = null,
+  onNegocioEspelhado,
   areaAtuacao = null,
   redeFranqueado = null,
   ocultarRedeLoteadorChecklist = false,
@@ -257,6 +270,8 @@ export function FaseChecklistCard({
   const acoplamentoSyncFeitoRef = useRef('');
   const execucaoMaterialSyncFeitoRef = useRef('');
   const gboxPlanilhaSyncFeitoRef = useRef('');
+  const negocioDirtyRef = useRef<Set<string>>(new Set());
+  const negocioEspelhoKey = JSON.stringify(negocioEspelho ?? null);
   const [preBatalhaGrupos, setPreBatalhaGrupos] = useState<RankingPorFaixaMercado[]>([]);
 
   const areasAtuacao = parseAreaAtuacao(areaAtuacao);
@@ -353,6 +368,30 @@ export function FaseChecklistCard({
       cancelado = true;
     };
   }, [faseId, cardId, faseSlug]);
+
+  useEffect(() => {
+    if (!negocioEspelho || !itens?.length) return;
+    setRespostas((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const it of itens) {
+        const chave = String(it.chave_compartilhada ?? '').trim();
+        if (!chave.startsWith(NEGOCIO_CHECKLIST_PREFIX)) continue;
+        const esp = negocioEspelho[chave];
+        if (esp === undefined) continue;
+        const atual = prev.get(it.id);
+        if (!atual || atual.salvando) continue;
+        if (negocioDirtyRef.current.has(it.id)) {
+          if (atual.valor === esp) negocioDirtyRef.current.delete(it.id);
+          continue;
+        }
+        if (atual.valor === esp) continue;
+        next.set(it.id, { ...atual, valor: esp, erro: null });
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [negocioEspelhoKey, negocioEspelho, itens]);
 
   useEffect(() => {
     if (carregando || !itens?.length) return;
@@ -730,9 +769,12 @@ export function FaseChecklistCard({
       }
     }
     if (res.ok && !erroFinal) {
-      const labelSalvo = itens?.find((i) => i.id === itemId)?.label;
-      if (isChecklistItemLinkPlanilhaMapa(labelSalvo)) {
+      const itemSalvo = itens?.find((i) => i.id === itemId);
+      if (isChecklistItemLinkPlanilhaMapa(itemSalvo?.label)) {
         onLinkGboxEspelhado?.();
+      }
+      if (String(itemSalvo?.chave_compartilhada ?? '').startsWith(NEGOCIO_CHECKLIST_PREFIX)) {
+        onNegocioEspelhado?.();
       }
     }
     if (res.ok && !erroFinal && processoId?.trim() && isFaseAberturaSpeSlug(faseSlug) && itens?.length) {
@@ -901,6 +943,9 @@ export function FaseChecklistCard({
         onCidadeComUfSelected={(cidade, uf) => void salvarCidadeComEstado(cidade, uf)}
         condominioContext={condominioContext}
         onChange={(valor) => {
+          if (String(item.chave_compartilhada ?? '').startsWith(NEGOCIO_CHECKLIST_PREFIX)) {
+            negocioDirtyRef.current.add(item.id);
+          }
           if (multiPracaAtivo && chave) {
             const raw = respostas.get(item.id)?.valor;
             setResposta(item.id, {
@@ -935,6 +980,9 @@ export function FaseChecklistCard({
           if (res.ok && item.tipo === 'anexo_template') await compararAposAssinado(item.id);
         }}
         onChecklistValor={async (valor) => {
+          if (String(item.chave_compartilhada ?? '').startsWith(NEGOCIO_CHECKLIST_PREFIX)) {
+            negocioDirtyRef.current.add(item.id);
+          }
           if (multiPracaAtivo && chave) {
             setResposta(item.id, {
               valor: mergeValorMultiPraca(respostas.get(item.id)?.valor, chave, valor, chaveLegadoPraca),
@@ -1054,6 +1102,33 @@ type ItemFieldProps = {
   readonly?: boolean;
 };
 
+function NegocioPrazoChecklistCampo({
+  label,
+  valor,
+  disabled,
+  onCommit,
+}: {
+  label: string;
+  valor: string;
+  disabled?: boolean;
+  onCommit: (json: string) => void;
+}) {
+  const [fases, setFases] = useState<FaseNegocioPrazoOpcao[]>([]);
+  useEffect(() => {
+    const supabase = createClient();
+    void fetchFasesNegocioPrazoOpcoes(supabase).then(setFases);
+  }, []);
+  return (
+    <KanbanCardModalNegocioPrazoField
+      label={label}
+      draft={prazoDraftFromChecklistValor(valor)}
+      faseOpcoes={fases}
+      disabled={disabled}
+      onChange={(next) => onCommit(JSON.stringify(next))}
+    />
+  );
+}
+
 function ItemField({
   item,
   faseSlug,
@@ -1146,6 +1221,28 @@ function ItemField({
     const payload = JSON.stringify(next);
     onChange(payload);
     await onChecklistValor(payload);
+  }
+
+  if (String(item.config_json?.widget ?? '') === 'negocio_prazo') {
+    return (
+      <div>
+        {estado.salvando ? (
+          <span className="mb-1 block text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+            <Loader2 size={10} className="mr-1 inline animate-spin" />
+          </span>
+        ) : null}
+        <NegocioPrazoChecklistCampo
+          label={obrigatorioItem ? `${item.label} *` : item.label}
+          valor={estado.valor}
+          disabled={readonly}
+          onCommit={(json) => {
+            onChange(json);
+            void onBlur(json);
+          }}
+        />
+        {erroEl}
+      </div>
+    );
   }
 
   if (item.tipo === 'checkbox') {
@@ -1678,6 +1775,9 @@ function ItemField({
           }}
         >
           <option value="">Selecione…</option>
+          {estado.valor && !opcoes.some((o) => o.value === estado.valor) ? (
+            <option value={estado.valor}>{estado.valor}</option>
+          ) : null}
           {opcoes.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
