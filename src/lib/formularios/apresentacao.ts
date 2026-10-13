@@ -35,6 +35,28 @@ export function formatarValorCampo(campo: FormularioCampo, valor: string | strin
     return valor.join(', ');
   }
 
+  if (campo.tipo === 'grupo_repetivel') {
+    try {
+      const rows = JSON.parse(String(valor)) as unknown;
+      if (!Array.isArray(rows) || rows.length === 0) return '—';
+      return rows
+        .map((row, index) => {
+          if (!row || typeof row !== 'object') return '';
+          const partes = Object.entries(row as Record<string, unknown>)
+            .map(([key, item]) => {
+              const texto = String(item ?? '').trim();
+              return texto ? `${key}: ${texto}` : '';
+            })
+            .filter(Boolean);
+          return partes.length > 0 ? `${index + 1}. ${partes.join(' · ')}` : '';
+        })
+        .filter(Boolean)
+        .join('\n');
+    } catch {
+      return String(valor);
+    }
+  }
+
   if (campo.tipo === 'data') {
     const [y, m, d] = String(valor).split('-');
     if (y && m && d) return `${d}/${m}/${y}`;

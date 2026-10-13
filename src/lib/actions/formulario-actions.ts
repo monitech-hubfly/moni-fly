@@ -10,6 +10,7 @@ import { opcoesParaLista } from '@/lib/formularios/apresentacao';
 import type {
   Formulario,
   FormularioCampo,
+  FormularioCampoConfig,
   FormularioCampoTipo,
   FormularioResposta,
   FormularioRespostaListaItem,
@@ -28,10 +29,18 @@ const TIPOS: FormularioCampoTipo[] = [
   'data',
   'link',
   'select',
+  'select_estado',
+  'select_cidade',
   'checkbox',
   'arquivo_multiplo',
   'link_ou_arquivo',
+  'grupo_repetivel',
 ];
+
+function configCampo(raw: unknown): FormularioCampoConfig | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  return raw as FormularioCampoConfig;
+}
 
 function tipoCampo(raw: string): FormularioCampoTipo {
   return TIPOS.includes(raw as FormularioCampoTipo) ? (raw as FormularioCampoTipo) : 'texto';
@@ -373,11 +382,23 @@ async function _buscarFormularioComSecoes(formularioId: string): Promise<Formula
         condicional_campo_id: string | null;
         condicional_valor: string | null;
       };
-      const { data: campos } = await supabase
+      const selectComConfig =
+        'id, secao_id, nome, tipo, obrigatorio, ordem, opcoes, config, condicional_campo_id, condicional_valor';
+      const selectSemConfig =
+        'id, secao_id, nome, tipo, obrigatorio, ordem, opcoes, condicional_campo_id, condicional_valor';
+      let camposRes = await supabase
         .from('formulario_campos')
-        .select('id, secao_id, nome, tipo, obrigatorio, ordem, opcoes, condicional_campo_id, condicional_valor')
+        .select(selectComConfig)
         .eq('secao_id', secaoRow.id)
         .order('ordem');
+      if (camposRes.error && /config/i.test(camposRes.error.message)) {
+        camposRes = await supabase
+          .from('formulario_campos')
+          .select(selectSemConfig)
+          .eq('secao_id', secaoRow.id)
+          .order('ordem');
+      }
+      const campos = camposRes.data;
 
       const camposMapeados: FormularioCampo[] = (campos ?? []).map((campo) => {
         const row = campo as {
@@ -388,6 +409,7 @@ async function _buscarFormularioComSecoes(formularioId: string): Promise<Formula
           obrigatorio: boolean;
           ordem: number;
           opcoes: unknown;
+          config: unknown;
           condicional_campo_id: string | null;
           condicional_valor: string | null;
         };
@@ -401,6 +423,7 @@ async function _buscarFormularioComSecoes(formularioId: string): Promise<Formula
           placeholder: null,
           descricao: null,
           opcoes: opcoesParaLista(row.opcoes),
+          config: configCampo(row.config),
           condicional_campo_id: row.condicional_campo_id,
           condicional_valor: row.condicional_valor,
           ativo: true,

@@ -23,9 +23,12 @@ const TIPOS: FormularioCampoTipo[] = [
   'data',
   'link',
   'select',
+  'select_estado',
+  'select_cidade',
   'checkbox',
   'arquivo_multiplo',
   'link_ou_arquivo',
+  'grupo_repetivel',
 ];
 
 export default async function RespostaDetalhadaPage({ params }: Props) {
@@ -73,6 +76,7 @@ export default async function RespostaDetalhadaPage({ params }: Props) {
           placeholder: null,
           descricao: null,
           opcoes: opcoesParaLista(campo.opcoes),
+          config: null,
           condicional_campo_id: (campo.condicional_campo_id as string | null) ?? null,
           condicional_valor: (campo.condicional_valor as string | null) ?? null,
           ativo: true,
