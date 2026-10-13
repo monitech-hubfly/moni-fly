@@ -432,6 +432,90 @@ function mapRede(r: Record<string, unknown> | null): RedeFranqueadoModalRow | nu
   };
 }
 
+/** Prefixo do título no padrão `FK0005 - ...`. Só aceita FK, para não casar título livre. */
+function numeroFranquiaDoTituloCard(titulo: string | null | undefined): string {
+  const t = String(titulo ?? '').trim();
+  if (!t) return '';
+  const i = t.indexOf(' - ');
+  const head = (i >= 0 ? t.slice(0, i) : t).trim().toUpperCase();
+  if (/^FK\d+$/.test(head)) return head;
+  return '';
+}
+
+function normalizarNumeroFranquiaLookup(raw: string | null | undefined): string {
+  const t = String(raw ?? '').trim().toUpperCase();
+  if (/^FK\d+$/.test(t)) return t;
+  if (/^\d{1,6}$/.test(t)) return `FK${t.padStart(4, '0')}`;
+  return '';
+}
+
+async function fetchRedePorId(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<RedeFranqueadoModalRow | null> {
+  const rid = id.trim();
+  if (!rid) return null;
+  const { data } = await supabase.from('rede_franqueados').select(REDE_SELECT).eq('id', rid).maybeSingle();
+  return mapRede((data as Record<string, unknown> | null) ?? null);
+}
+
+async function fetchRedePorNumero(
+  supabase: SupabaseClient,
+  numero: string,
+): Promise<RedeFranqueadoModalRow | null> {
+  const n = normalizarNumeroFranquiaLookup(numero);
+  if (!n) return null;
+  const { data } = await supabase
+    .from('rede_franqueados')
+    .select(REDE_SELECT)
+    .eq('n_franquia', n)
+    .order('ordem', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return mapRede((data as Record<string, unknown> | null) ?? null);
+}
+
+/** Rede do card para o cabeçalho e o painel Dados do Franqueado. */
+export async function buscarRedeFranqueadoModal(
+  supabase: SupabaseClient,
+  redeId: string,
+): Promise<RedeFranqueadoModalRow | null> {
+  return fetchRedePorId(supabase, redeId);
+}
+
+async function resolverRedeModal(
+  supabase: SupabaseClient,
+  opts: {
+    redeId?: string | null;
+    origemRedeId?: string | null;
+    numeroFranquia?: string | null;
+    cardTitulo?: string | null;
+  },
+): Promise<RedeFranqueadoModalRow | null> {
+  const ids = [opts.redeId, opts.origemRedeId]
+    .map((v) => String(v ?? '').trim())
+    .filter(Boolean);
+  const vistosId = new Set<string>();
+  for (const id of ids) {
+    if (vistosId.has(id)) continue;
+    vistosId.add(id);
+    const porId = await fetchRedePorId(supabase, id);
+    if (porId) return porId;
+  }
+
+  const numeros = [opts.numeroFranquia, numeroFranquiaDoTituloCard(opts.cardTitulo)]
+    .map((v) => normalizarNumeroFranquiaLookup(v))
+    .filter(Boolean);
+  const vistosNum = new Set<string>();
+  for (const numero of numeros) {
+    if (vistosNum.has(numero)) continue;
+    vistosNum.add(numero);
+    const porNumero = await fetchRedePorNumero(supabase, numero);
+    if (porNumero) return porNumero;
+  }
+  return null;
+}
+
 function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPreObra | null {
   if (!r) return null;
   const g = (k: string) => (r[k] != null ? String(r[k]) : null);
@@ -797,24 +881,11 @@ export async function fetchKanbanCardModalDetalhes(
 
   if (origem === 'legado') {
     const processo = await fetchProcessoById(supabase, cardId);
-    let rede: RedeFranqueadoModalRow | null = null;
-    if (processo?.origem_rede_franqueados_id) {
-      const { data } = await supabase
-        .from('rede_franqueados')
-        .select(REDE_SELECT)
-        .eq('id', processo.origem_rede_franqueados_id)
-        .maybeSingle();
-      rede = mapRede((data as Record<string, unknown> | null) ?? null);
-    } else if (processo?.numero_franquia?.trim()) {
-      const { data } = await supabase
-        .from('rede_franqueados')
-        .select(REDE_SELECT)
-        .eq('n_franquia', processo.numero_franquia.trim())
-        .order('ordem', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      rede = mapRede((data as Record<string, unknown> | null) ?? null);
-    }
+    const rede = await resolverRedeModal(supabase, {
+      origemRedeId: processo?.origem_rede_franqueados_id,
+      numeroFranquia: processo?.numero_franquia,
+      cardTitulo,
+    });
     const redeIdContrato = rede?.id ?? null;
     const empresas = await fetchEmpresasForCard(supabase, redeIdContrato, cardId);
     return { rede, processo, redeIdContrato, empresas };
@@ -835,7 +906,14 @@ export async function fetchKanbanCardModalDetalhes(
       ? fetchEmpresasForCard(supabase, redeFranqueadoId, cardId)
       : Promise.resolve(null as CardEmpresasModalDetalhe | null),
   ]);
-  const rede = redeRow;
+  let rede = redeRow;
+  if (!rede) {
+    rede = await resolverRedeModal(supabase, {
+      origemRedeId: processoRaw?.origem_rede_franqueados_id,
+      numeroFranquia: processoRaw?.numero_franquia,
+      cardTitulo,
+    });
+  }
   const processo = ocultarTipoNegociacaoHerdadoDoProcesso(processoRaw, {
     cardProcessoStepOneId,
     redeProcessoId: rede?.processo_id,

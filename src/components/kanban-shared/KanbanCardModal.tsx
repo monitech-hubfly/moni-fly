@@ -196,6 +196,7 @@ import {
 } from '@/lib/kanban/kanban-card-sla';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import {
+  buscarRedeFranqueadoModal,
   displayOrDash,
   fetchKanbanCardModalDetalhes,
   fmtMoedaKanban,
@@ -833,6 +834,7 @@ export function KanbanCardModal({
   const [uploadingNegocioAnexo, setUploadingNegocioAnexo] = useState<ProcessoNegocioAnexoCampo | null>(
     null,
   );
+  const modalLoadIdRef = useRef<string | null>(null);
   const comentarioEditorRef = useRef<HTMLDivElement>(null);
   const comentarioEdicaoRef = useRef<HTMLDivElement>(null);
   const [editandoInstrucoesFase, setEditandoInstrucoesFase] = useState(false);
@@ -1533,6 +1535,7 @@ export function KanbanCardModal({
         }
       }
 
+      modalLoadIdRef.current = cardParaEstado.id;
       setCard(cardParaEstado);
       const dr = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
       setDataReuniao(dr && dataIsoInputValida(dr) ? dr : '');
@@ -1617,6 +1620,21 @@ export function KanbanCardModal({
           if (c.hora_reuniao !== undefined) {
             setHoraReuniao(c.hora_reuniao ? String(c.hora_reuniao).trim().slice(0, 5) : '');
           }
+          const redeIdSync = String(c.rede_franqueado_id ?? '').trim();
+          if (redeIdSync) {
+            void buscarRedeFranqueadoModal(supabase, redeIdSync).then((redeSync) => {
+              if (modalLoadIdRef.current !== cardIdAberto) return;
+              if (!redeSync?.nome_completo?.trim()) return;
+              setModalDetalhes((prev) => {
+                if (prev.rede?.id === redeSync.id && prev.rede.nome_completo?.trim()) return prev;
+                return {
+                  ...prev,
+                  rede: redeSync,
+                  redeIdContrato: prev.redeIdContrato ?? redeSync.id,
+                };
+              });
+            });
+          }
         })
         .catch(() => {
           setTotalCardsSyncGrupo(0);
@@ -1658,7 +1676,18 @@ export function KanbanCardModal({
             });
           }
         }
-        setModalDetalhes(det);
+        if (modalLoadIdRef.current !== loaded.id) return;
+        setModalDetalhes((prev) => {
+          if (det.rede?.nome_completo?.trim()) return det;
+          if (prev.rede?.nome_completo?.trim()) {
+            return {
+              ...det,
+              rede: prev.rede,
+              redeIdContrato: det.redeIdContrato ?? prev.rede.id,
+            };
+          }
+          return det;
+        });
         const opcoesNegocioPrazo = await fetchFasesNegocioPrazoOpcoes(supabase);
         setFasesNegocioPrazo(opcoesNegocioPrazo);
         setPreObraDraft(preObraDraftFromProcesso(det.processo));
