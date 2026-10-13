@@ -117,7 +117,30 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_FASE_SLUG: Partial<Record<string, stri
   mkt_grav_aprovacao: 'rafael.abreu@moni.casa',
   mkt_grav_revisao: 'joao.paulo@moni.casa',
   mkt_grav_videos_concluidos: 'rafael.abreu@moni.casa',
+  /** Portfólio depois de Convertidos — Renata Bendassi, sem herdar a fase anterior. */
+  atualizacao_material: 'renata.silva@moni.casa',
+  comite_alvara: 'renata.silva@moni.casa',
+  revisoes_comite_alvara: 'renata.silva@moni.casa',
+  demais_comites_alvara: 'renata.silva@moni.casa',
+  enviar_termo_recompra: 'renata.silva@moni.casa',
+  juridico_termo_recompra: 'renata.silva@moni.casa',
+  assinaturas_termo_recompra: 'renata.silva@moni.casa',
+  termo_recompra_assinado: 'renata.silva@moni.casa',
+  portfolio_concluidos: 'renata.silva@moni.casa',
 };
+
+/** Nestas fases o responsável do card é o e-mail do slug, não o da fase anterior. */
+const SLUGS_RESPONSAVEL_CARD_FIXO = new Set<string>([
+  'atualizacao_material',
+  'comite_alvara',
+  'revisoes_comite_alvara',
+  'demais_comites_alvara',
+  'enviar_termo_recompra',
+  'juridico_termo_recompra',
+  'assinaturas_termo_recompra',
+  'termo_recompra_assinado',
+  'portfolio_concluidos',
+]);
 
 /** Fallback Moní quando o funil não tem e-mail mapeado. */
 const MONI_EMAIL_FALLBACK = 'renata.silva@moni.casa';
@@ -1211,13 +1234,19 @@ export async function propagarResponsavelFaseAoEntrarFase(
     return;
   } else {
     const valorAtualValido = valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor);
-    if (valorAtualValido) {
+    const responsavelFixo = SLUGS_RESPONSAVEL_CARD_FIXO.has(faseSlug);
+    if (responsavelFixo && kanbanId) {
+      valorDestino = await resolverResponsavelPadraoPorFase(supabase, kanbanId, faseSlug);
+    }
+    if (!valorDestino && valorAtualValido) {
       await espelharResponsavelCardProjetoLegal(supabase, cid, kanbanId, valorAtualValido);
       return;
     }
-    valorDestino = await buscarValorResponsavelFaseAnterior(supabase, cid, fid);
-    if (!valorDestino && kanbanId) {
-      valorDestino = await resolverResponsavelPadraoPorFase(supabase, kanbanId, faseSlug);
+    if (!valorDestino) {
+      valorDestino = await buscarValorResponsavelFaseAnterior(supabase, cid, fid);
+      if (!valorDestino && kanbanId) {
+        valorDestino = await resolverResponsavelPadraoPorFase(supabase, kanbanId, faseSlug);
+      }
     }
   }
 

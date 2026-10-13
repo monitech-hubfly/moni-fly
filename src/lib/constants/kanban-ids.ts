@@ -106,6 +106,15 @@ export const FASE_IDS = {
   PORTFOLIO_CAPTACAO_CAPITAL: 'd7e79cd4-a8ba-4239-b7b4-b82ad07acb11',
   PORTFOLIO_PASSAGEM_WAYSER: '5f48a367-699b-4dc4-a310-377fc7d0ff88', // → Operações
   PORTFOLIO_CONVERTIDOS:     'eda6139e-65f4-43d4-955f-026a488524be',
+  PORTFOLIO_ATUALIZACAO_MATERIAL: 'b8e1a001-6d30-4f8a-9c15-2d8e4f6a1c01',
+  PORTFOLIO_COMITE_ALVARA: 'b8e1a002-6d30-4f8a-9c15-2d8e4f6a1c02',
+  PORTFOLIO_REVISOES_COMITE_ALVARA: 'b8e1a003-6d30-4f8a-9c15-2d8e4f6a1c03',
+  PORTFOLIO_DEMAIS_COMITES_ALVARA: 'b8e1a004-6d30-4f8a-9c15-2d8e4f6a1c04',
+  PORTFOLIO_ENVIAR_TERMO_RECOMPRA: 'b8e1a005-6d30-4f8a-9c15-2d8e4f6a1c05',
+  PORTFOLIO_JURIDICO_TERMO_RECOMPRA: 'b8e1a006-6d30-4f8a-9c15-2d8e4f6a1c06',
+  PORTFOLIO_ASSINATURAS_TERMO_RECOMPRA: 'b8e1a007-6d30-4f8a-9c15-2d8e4f6a1c07',
+  PORTFOLIO_TERMO_RECOMPRA_ASSINADO: 'b8e1a008-6d30-4f8a-9c15-2d8e4f6a1c08',
+  PORTFOLIO_CONCLUIDOS: 'b8e1a009-6d30-4f8a-9c15-2d8e4f6a1c09',
   // Acoplamento — bastão de volta
   ACOPLAMENTO_APROVADO:      'b6a83104-e74f-4d0b-902b-2c4227227411',
   ACOPLAMENTO_REPROVADO:     '6d383485-9c9e-4f41-9d2a-c23c20b950c9',
@@ -157,6 +166,17 @@ export const FASE_SLUGS = {
   CAPTACAO_CAPITAL:   'captacao_moni_capital',
   PASSAGEM_WAYSER:    'passagem_wayser',
   PORTFOLIO_CONVERTIDOS: 'convertidos',
+  /** Funil Portfólio — depois de Convertidos. */
+  PORTFOLIO_ATUALIZACAO_MATERIAL: 'atualizacao_material',
+  PORTFOLIO_COMITE_ALVARA: 'comite_alvara',
+  PORTFOLIO_REVISOES_COMITE_ALVARA: 'revisoes_comite_alvara',
+  PORTFOLIO_DEMAIS_COMITES_ALVARA: 'demais_comites_alvara',
+  PORTFOLIO_ENVIAR_TERMO_RECOMPRA: 'enviar_termo_recompra',
+  PORTFOLIO_JURIDICO_TERMO_RECOMPRA: 'juridico_termo_recompra',
+  PORTFOLIO_ASSINATURAS_TERMO_RECOMPRA: 'assinaturas_termo_recompra',
+  PORTFOLIO_TERMO_RECOMPRA_ASSINADO: 'termo_recompra_assinado',
+  /** Funil Portfólio — fase de conclusão. */
+  PORTFOLIO_CONCLUIDOS: 'portfolio_concluidos',
   PORTFOLIO_REVISOES_COMITE: 'revisoes_comite',
   /** Demais Comitês — slug legado segundo_comite. */
   PORTFOLIO_SEGUNDO_COMITE: 'segundo_comite',

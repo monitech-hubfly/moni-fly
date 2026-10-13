@@ -50,6 +50,15 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   captacao_moni_capital: 'moni',
   passagem_wayser: 'moni',
   convertidos: 'moni',
+  atualizacao_material: 'moni',
+  comite_alvara: 'moni',
+  revisoes_comite_alvara: 'moni',
+  demais_comites_alvara: 'moni',
+  enviar_termo_recompra: 'moni',
+  juridico_termo_recompra: 'moni',
+  assinaturas_termo_recompra: 'moni',
+  termo_recompra_assinado: 'moni',
+  portfolio_concluidos: 'moni',
 
   // Funil Acoplamento
   novo_acoplamento: 'moni',
