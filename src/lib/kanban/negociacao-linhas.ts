@@ -100,6 +100,33 @@ export function negociacaoLinhasToDb(linhas: NegociacaoLinhaDraft[]): Negociacao
   return out.length > 0 ? out : null;
 }
 
+/** JSON estável gravado em `negocio:negociacao_linhas`. Vazio vira string vazia. */
+export function serializarNegociacaoChecklist(raw: unknown): string {
+  const parsed = parseNegociacaoLinhasFromDb(raw);
+  if (parsed.length === 0) return '';
+  return JSON.stringify(
+    parsed.map((l) => {
+      const vinculo = String(l.vinculoCalculadora ?? '').trim();
+      return {
+        condicao: l.condicao,
+        valor: l.valor,
+        data_pagamento: vinculo ? '' : l.dataPagamento.slice(0, 10),
+        vinculo_calculadora: vinculo || null,
+      };
+    }),
+  );
+}
+
+export function parseNegociacaoChecklistValor(raw: string | null | undefined): NegociacaoLinha[] {
+  const s = String(raw ?? '').trim();
+  if (!s) return [];
+  try {
+    return parseNegociacaoLinhasFromDb(JSON.parse(s) as unknown);
+  } catch {
+    return [];
+  }
+}
+
 export function negociacaoLinhaTemConteudo(
   l: Pick<NegociacaoLinha, 'condicao' | 'valor' | 'dataPagamento' | 'vinculoCalculadora'>,
 ): boolean {

@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, type CSSProperties, useEffect, useRef, useState } from 'react';
+import { Fragment, type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Upload, Loader2 } from 'lucide-react';
 import { prefetchChecklistFase } from '@/lib/kanban/fase-checklist-leitura';
 import { createClient } from '@/lib/supabase/client';
@@ -178,6 +178,14 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { parseChecklistCompartilhadoValor } from '@/lib/kanban/checklist-compartilhado';
 import { KanbanCardModalNegocioPrazoField } from '@/components/kanban-shared/KanbanCardModalNegocioPrazoField';
+import { KanbanCardModalNegociacaoLinhasField } from '@/components/kanban-shared/KanbanCardModalNegociacaoLinhasField';
+import type { OpcaoVinculoCalculadora } from '@/lib/kanban/calculadora-negociacao';
+import {
+  negociacaoLinhasDraftFromLinhas,
+  negociacaoLinhasToDb,
+  parseNegociacaoChecklistValor,
+  serializarNegociacaoChecklist,
+} from '@/lib/kanban/negociacao-linhas';
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
 import type { FaseNegocioPrazoOpcao } from '@/lib/kanban/dados-negocio-prazo';
 import { PreObraDatasMultiplasCampo } from '@/components/kanban-shared/PreObraDatasMultiplasCampo';
@@ -218,6 +226,10 @@ type Props = {
   negocioEspelho?: Record<string, string> | null;
   /** Callback após um campo de negócio do checklist gravar na lateral. */
   onNegocioEspelhado?: () => void;
+  /** Opções de “Atrelar à fase” do campo Negociação. */
+  negociacaoOpcoesVinculo?: OpcaoVinculoCalculadora[];
+  /** Data resolvida de um vínculo da calculadora (`fase:` / `marco:`). */
+  negociacaoResolverData?: (vinculo: string) => { data: string | null; prevista: boolean } | null;
   /** Área de atuação da rede vinculada ao card (`UF - Cidade; …`). */
   areaAtuacao?: string | null;
   /** Dados do franqueado na rede — auto-preenche Nome, E-mail, Telefone e Idade em Dados do Candidato. */
@@ -255,6 +267,8 @@ export function FaseChecklistCard({
   onLinkGboxEspelhado,
   negocioEspelho = null,
   onNegocioEspelhado,
+  negociacaoOpcoesVinculo,
+  negociacaoResolverData,
   areaAtuacao = null,
   redeFranqueado = null,
   ocultarRedeLoteadorChecklist = false,
@@ -925,7 +939,13 @@ export function FaseChecklistCard({
     return null;
   }
 
-  function renderItemField(item: FaseChecklistItem, chavePraca?: string) {
+  function campoNegocioChecklist(item: FaseChecklistItem): string {
+    const chave = String(item.chave_compartilhada ?? '').trim();
+    if (chave.startsWith('negocio:')) return chave.slice('negocio:'.length);
+    return String(item.campo_slug ?? '').trim();
+  }
+
+  function renderItemField(item: FaseChecklistItem, chavePraca?: string, conteudoInterno?: ReactNode) {
     const chave = chavePraca ?? abaPracaAtiva;
     const praca = resolverPracaSessao(chave);
     return (
@@ -983,6 +1003,9 @@ export function FaseChecklistCard({
           const res = await salvar(item.id, undefined, path);
           if (res.ok && item.tipo === 'anexo_template') await compararAposAssinado(item.id);
         }}
+        conteudoInterno={conteudoInterno}
+        negociacaoOpcoesVinculo={negociacaoOpcoesVinculo}
+        negociacaoResolverData={negociacaoResolverData}
         onChecklistValor={async (valor) => {
           const chaveItem = String(item.chave_compartilhada ?? '');
           if (chaveItem.startsWith(NEGOCIO_CHECKLIST_PREFIX) || chaveItem.startsWith(PREOBRA_CHECKLIST_PREFIX)) {
@@ -1003,7 +1026,19 @@ export function FaseChecklistCard({
   }
 
   function renderItensComGrupos(lista: FaseChecklistItem[], chavePraca?: string) {
+    const campos = new Set(lista.map((it) => campoNegocioChecklist(it)));
+    const obsNoPrazo: Record<string, string> = {
+      obs_opcao: 'prazo_opcao',
+      obs_instrumento_garantidor: 'prazo_instrumento_garantidor',
+    };
+    const prazoDaObs: Record<string, string> = {
+      prazo_opcao: 'obs_opcao',
+      prazo_instrumento_garantidor: 'obs_instrumento_garantidor',
+    };
     return lista.map((item, idx) => {
+      const campo = campoNegocioChecklist(item);
+      const prazoPai = obsNoPrazo[campo];
+      if (prazoPai && campos.has(prazoPai)) return null;
       const grupo = grupoChecklistItem(item);
       const prev = idx > 0 ? grupoChecklistItem(lista[idx - 1]!) : '';
       const showHeader = Boolean(grupo) && grupo !== prev;
@@ -1029,7 +1064,16 @@ export function FaseChecklistCard({
               {grupo}
             </div>
           ) : null}
-          {renderItemField(item, chavePraca)}
+          {renderItemField(
+            item,
+            chavePraca,
+            (() => {
+              const obsCampo = prazoDaObs[campo];
+              if (!obsCampo) return undefined;
+              const obs = lista.find((it) => campoNegocioChecklist(it) === obsCampo);
+              return obs ? <div className="mt-2">{renderItemField(obs, chavePraca)}</div> : undefined;
+            })(),
+          )}
         </Fragment>
       );
     });
@@ -1105,6 +1149,9 @@ type ItemFieldProps = {
   onArquivo: (path: string) => void | Promise<void>;
   onChecklistValor: (valor: string) => void | Promise<void>;
   readonly?: boolean;
+  conteudoInterno?: ReactNode;
+  negociacaoOpcoesVinculo?: OpcaoVinculoCalculadora[];
+  negociacaoResolverData?: (vinculo: string) => { data: string | null; prevista: boolean } | null;
 };
 
 function NegocioPrazoChecklistCampo({
@@ -1112,11 +1159,13 @@ function NegocioPrazoChecklistCampo({
   valor,
   disabled,
   onCommit,
+  children,
 }: {
   label: string;
   valor: string;
   disabled?: boolean;
   onCommit: (json: string) => void;
+  children?: ReactNode;
 }) {
   const [fases, setFases] = useState<FaseNegocioPrazoOpcao[]>([]);
   useEffect(() => {
@@ -1130,6 +1179,84 @@ function NegocioPrazoChecklistCampo({
       faseOpcoes={fases}
       disabled={disabled}
       onChange={(next) => onCommit(JSON.stringify(next))}
+    >
+      {children}
+    </KanbanCardModalNegocioPrazoField>
+  );
+}
+
+function NegociacaoChecklistCampo({
+  valor,
+  disabled,
+  obrigatorio,
+  opcoesVinculo,
+  resolverData,
+  onEdit,
+  onCommit,
+}: {
+  valor: string;
+  disabled?: boolean;
+  obrigatorio?: boolean;
+  opcoesVinculo?: OpcaoVinculoCalculadora[];
+  resolverData?: (vinculo: string) => { data: string | null; prevista: boolean } | null;
+  onEdit: (json: string) => void;
+  onCommit: (json: string) => void;
+}) {
+  const [linhas, setLinhas] = useState(() =>
+    negociacaoLinhasDraftFromLinhas(parseNegociacaoChecklistValor(valor)),
+  );
+  const valorExternoRef = useRef(valor);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendenteRef = useRef<string | null>(null);
+  const onCommitRef = useRef(onCommit);
+  onCommitRef.current = onCommit;
+
+  useEffect(() => {
+    if (valor === valorExternoRef.current) return;
+    valorExternoRef.current = valor;
+    setLinhas(negociacaoLinhasDraftFromLinhas(parseNegociacaoChecklistValor(valor)));
+  }, [valor]);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (pendenteRef.current != null) onCommitRef.current(pendenteRef.current);
+    },
+    [],
+  );
+
+  const datasResolvidas = useMemo(() => {
+    const map = new Map<string, { data: string | null; prevista: boolean }>();
+    if (!resolverData) return map;
+    for (const linha of linhas) {
+      const vinculo = String(linha.vinculoCalculadora ?? '').trim();
+      if (!vinculo) continue;
+      const resolvida = resolverData(vinculo);
+      if (resolvida) map.set(linha.id, resolvida);
+    }
+    return map;
+  }, [linhas, resolverData]);
+
+  return (
+    <KanbanCardModalNegociacaoLinhasField
+      linhas={linhas}
+      disabled={disabled}
+      marcarObrigatorio={obrigatorio}
+      opcoesVinculo={opcoesVinculo}
+      datasResolvidas={datasResolvidas}
+      onChange={(next) => {
+        setLinhas(next);
+        const json = serializarNegociacaoChecklist(negociacaoLinhasToDb(next) ?? []);
+        valorExternoRef.current = json;
+        pendenteRef.current = json;
+        onEdit(json);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+          timerRef.current = null;
+          pendenteRef.current = null;
+          onCommit(json);
+        }, 400);
+      }}
     />
   );
 }
@@ -1153,6 +1280,9 @@ function ItemField({
   onArquivo,
   onChecklistValor,
   readonly = false,
+  conteudoInterno,
+  negociacaoOpcoesVinculo,
+  negociacaoResolverData,
 }: ItemFieldProps) {
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -1266,6 +1396,32 @@ function ItemField({
           disabled={readonly}
           onCommit={(json) => {
             onChange(json);
+            void onBlur(json);
+          }}
+        >
+          {conteudoInterno}
+        </NegocioPrazoChecklistCampo>
+        {erroEl}
+      </div>
+    );
+  }
+
+  if (String(item.config_json?.widget ?? '') === 'negocio_negociacao') {
+    return (
+      <div>
+        {estado.salvando ? (
+          <span className="mb-1 block text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+            <Loader2 size={10} className="mr-1 inline animate-spin" />
+          </span>
+        ) : null}
+        <NegociacaoChecklistCampo
+          valor={estado.valor}
+          disabled={readonly}
+          obrigatorio={obrigatorioItem}
+          opcoesVinculo={negociacaoOpcoesVinculo}
+          resolverData={negociacaoResolverData}
+          onEdit={onChange}
+          onCommit={(json) => {
             void onBlur(json);
           }}
         />

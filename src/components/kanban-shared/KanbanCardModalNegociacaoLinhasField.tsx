@@ -24,6 +24,7 @@ type Props = {
   datasResolvidas?: Map<string, { data: string | null; prevista: boolean }>;
   /** Persiste linhas após alterar data manual (change/blur). */
   onPersistLinhas?: (linhas: NegociacaoLinhaDraft[]) => void | Promise<void>;
+  marcarObrigatorio?: boolean;
 };
 
 /** Mesma densidade de NegocioPrazoField / BCA/Gbox: py-1 + text-xs, min-h só no mobile. */
@@ -106,6 +107,7 @@ export function KanbanCardModalNegociacaoLinhasField({
   opcoesVinculo = [{ value: '', label: 'Data manual' }],
   datasResolvidas,
   onPersistLinhas,
+  marcarObrigatorio = false,
 }: Props) {
   const [expandidoIds, setExpandidoIds] = useState<Set<string>>(() => new Set());
   const [leituraExpandido, setLeituraExpandido] = useState<Set<number>>(() => new Set());
@@ -323,7 +325,10 @@ export function KanbanCardModalNegociacaoLinhasField({
       style={{ border: '0.5px solid var(--moni-border-subtle)' }}
       disabled={disabled}
     >
-      <legend className="px-1 text-[11px] font-medium text-[var(--moni-text-secondary)]">Negociação</legend>
+      <legend className="px-1 text-[11px] font-medium text-[var(--moni-text-secondary)]">
+        Negociação
+        {marcarObrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
+      </legend>
 
       <ul className="space-y-1.5">
         {linhasExibidas.map((linha) => {

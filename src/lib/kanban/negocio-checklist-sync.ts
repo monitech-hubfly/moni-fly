@@ -7,6 +7,10 @@ import {
   type NegocioPrazoDraft,
 } from '@/lib/kanban/dados-negocio-prazo';
 import type { ProcessoNegocioUpdatePayload } from '@/lib/kanban/kanban-card-modal-detalhes';
+import {
+  parseNegociacaoChecklistValor,
+  serializarNegociacaoChecklist,
+} from '@/lib/kanban/negociacao-linhas';
 
 export const NEGOCIO_CHECKLIST_PREFIX = 'negocio:';
 
@@ -92,6 +96,7 @@ export function negocioEspelhoFromProcesso(
     const draft = negocioPrazoDraftFromValores(negocioPrazoValoresFromProcessoRow(proc, prefix));
     out[chaveNegocioChecklist(prefix)] = draft.modo ? JSON.stringify(draft) : '';
   }
+  out[chaveNegocioChecklist('negociacao_linhas')] = serializarNegociacaoChecklist(proc.negociacao_linhas);
   return out;
 }
 
@@ -109,6 +114,14 @@ export function processoPatchFromChecklistNegocio(
   const campo = campoNegocioFromChave(chave);
   if (!campo) return null;
   const raw = String(valor ?? '').trim();
+  if (campo === 'negociacao_linhas') {
+    const serial = serializarNegociacaoChecklist(parseNegociacaoChecklistValor(raw));
+    return {
+      negociacao_linhas: serial
+        ? (JSON.parse(serial) as ProcessoNegocioUpdatePayload['negociacao_linhas'])
+        : null,
+    };
+  }
   if (campo === 'prazo_opcao' || campo === 'prazo_instrumento_garantidor') {
     const valores = negocioPrazoValoresFromDraft(prazoDraftFromChecklistValor(raw));
     return negocioPrazoDbPatchFromValores(valores, campo) as ProcessoNegocioUpdatePayload;
@@ -155,6 +168,13 @@ export function checklistLinhasFromNegocioPayload(
     linhas.push({
       chave: chaveNegocioChecklist(prefix),
       valor: draft.modo ? JSON.stringify(draft) : null,
+    });
+  }
+  if (rec.negociacao_linhas !== undefined) {
+    const serial = serializarNegociacaoChecklist(rec.negociacao_linhas);
+    linhas.push({
+      chave: chaveNegocioChecklist('negociacao_linhas'),
+      valor: serial || null,
     });
   }
   return linhas;

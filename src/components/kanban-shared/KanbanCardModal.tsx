@@ -4186,6 +4186,20 @@ export function KanbanCardModal({
     modalDetalhes.processo,
   ]);
 
+  const negociacaoResolverDataChecklist = useCallback(
+    (vinculo: string) => {
+      const parsed = parseVinculoCalculadoraNegociacao(vinculo);
+      if (!parsed) return null;
+      const resolvida = resolverDataPagamentoNegociacao(
+        parsed,
+        calculadoraLinhasEnriquecidas,
+        calculadoraTimelineNegociacao,
+      );
+      return { data: resolvida.data, prevista: resolvida.prevista };
+    },
+    [calculadoraLinhasEnriquecidas, calculadoraTimelineNegociacao],
+  );
+
   const negociacaoDatasResolvidas = useMemo(() => {
     const map = new Map<string, { data: string | null; prevista: boolean }>();
     for (const l of negocioDraft.negociacao_linhas) {
@@ -6206,6 +6220,8 @@ export function KanbanCardModal({
                       onLinkGboxEspelhado={() => void loadCard({ silencioso: true })}
                       negocioEspelho={negocioEspelhoChecklist}
                       onNegocioEspelhado={() => void loadCard({ silencioso: true })}
+                      negociacaoOpcoesVinculo={calculadoraOpcoesVinculoNegociacao}
+                      negociacaoResolverData={negociacaoResolverDataChecklist}
                       areaAtuacao={modalDetalhes.rede?.area_atuacao}
                       ocultarRedeLoteadorChecklist={exibirDadosLoteadorPersistente}
                       cardReuniaoSync={
@@ -7569,16 +7585,17 @@ export function KanbanCardModal({
                       onChange={(prazo_opcao) => setNegocioDraft((d) => ({ ...d, prazo_opcao }))}
                       faseOpcoes={fasesNegocioPrazo}
                       disabled={salvandoNegocio}
-                    />
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Obs. Opção</span>
-                      <textarea
-                        value={negocioDraft.obs_opcao}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, obs_opcao: e.target.value }))}
-                        rows={2}
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      />
-                    </label>
+                    >
+                      <label className="mt-2 block">
+                        <span className="text-[11px] font-medium text-stone-500">Obs. Opção</span>
+                        <textarea
+                          value={negocioDraft.obs_opcao}
+                          onChange={(e) => setNegocioDraft((d) => ({ ...d, obs_opcao: e.target.value }))}
+                          rows={2}
+                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                        />
+                      </label>
+                    </KanbanCardModalNegocioPrazoField>
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">Data Ass. Opção Terreno</span>
                       <input
@@ -7701,16 +7718,19 @@ export function KanbanCardModal({
                       }
                       faseOpcoes={fasesNegocioPrazo}
                       disabled={salvandoNegocio}
-                    />
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Obs. Instrumento Garantidor</span>
-                      <textarea
-                        value={negocioDraft.obs_instrumento_garantidor}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, obs_instrumento_garantidor: e.target.value }))}
-                        rows={2}
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      />
-                    </label>
+                    >
+                      <label className="mt-2 block">
+                        <span className="text-[11px] font-medium text-stone-500">Obs. Instrumento Garantidor</span>
+                        <textarea
+                          value={negocioDraft.obs_instrumento_garantidor}
+                          onChange={(e) =>
+                            setNegocioDraft((d) => ({ ...d, obs_instrumento_garantidor: e.target.value }))
+                          }
+                          rows={2}
+                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                        />
+                      </label>
+                    </KanbanCardModalNegocioPrazoField>
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">Data Ass. Contrato Terreno</span>
                       <input
@@ -7790,8 +7810,11 @@ export function KanbanCardModal({
                       </div>
                     </div>
                     {renderNegocioLinkCampo('Contratos', proc.link_opcao_permuta)}
-                    <div>
-                      <div className="text-[11px] font-medium text-stone-500">Prazo Opção</div>
+                    <fieldset
+                      className="rounded-lg p-2"
+                      style={{ border: '0.5px solid var(--moni-border-subtle)' }}
+                    >
+                      <legend className="px-1 text-[11px] font-medium text-stone-500">Prazo Opção</legend>
                       <div className="text-xs text-stone-800">
                         {formatNegocioPrazoDisplay(
                           negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_opcao,
@@ -7801,11 +7824,11 @@ export function KanbanCardModal({
                           ),
                         )}
                       </div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-medium text-stone-500">Obs. Opção</div>
-                      <div className="whitespace-pre-wrap text-xs text-stone-800">{displayOrDash(proc.obs_opcao)}</div>
-                    </div>
+                      <div className="mt-2">
+                        <div className="text-[11px] font-medium text-stone-500">Obs. Opção</div>
+                        <div className="whitespace-pre-wrap text-xs text-stone-800">{displayOrDash(proc.obs_opcao)}</div>
+                      </div>
+                    </fieldset>
                     <div>
                       <div className="text-[11px] font-medium text-stone-500">Data Ass. Opção Terreno</div>
                       <div className="text-xs text-stone-800">{fmtDataBr(proc.data_ass_opcao_terreno)}</div>
@@ -7846,8 +7869,13 @@ export function KanbanCardModal({
                       <div className="text-[11px] font-medium text-stone-500">Data Aprovação Comitê</div>
                       <div className="text-xs text-stone-800">{fmtDataBr(proc.data_aprovacao_comite)}</div>
                     </div>
-                    <div>
-                      <div className="text-[11px] font-medium text-stone-500">Prazo Instrumento Garantidor</div>
+                    <fieldset
+                      className="rounded-lg p-2"
+                      style={{ border: '0.5px solid var(--moni-border-subtle)' }}
+                    >
+                      <legend className="px-1 text-[11px] font-medium text-stone-500">
+                        Prazo Instrumento Garantidor
+                      </legend>
                       <div className="text-xs text-stone-800">
                         {formatNegocioPrazoDisplay(
                           negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_instrumento_garantidor,
@@ -7858,13 +7886,13 @@ export function KanbanCardModal({
                           ),
                         )}
                       </div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-medium text-stone-500">Obs. Instrumento Garantidor</div>
-                      <div className="whitespace-pre-wrap text-xs text-stone-800">
-                        {displayOrDash(proc.obs_instrumento_garantidor)}
+                      <div className="mt-2">
+                        <div className="text-[11px] font-medium text-stone-500">Obs. Instrumento Garantidor</div>
+                        <div className="whitespace-pre-wrap text-xs text-stone-800">
+                          {displayOrDash(proc.obs_instrumento_garantidor)}
+                        </div>
                       </div>
-                    </div>
+                    </fieldset>
                     <div>
                       <div className="text-[11px] font-medium text-stone-500">Data Ass. Contrato Terreno</div>
                       <div className="text-xs text-stone-800">{fmtDataBr(proc.data_ass_contrato_terreno)}</div>
