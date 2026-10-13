@@ -995,7 +995,7 @@ async function dispararBastao(
  * Fallback antigo: ao abrir o card ou salvar checklist em Assinaturas/Assinado,
  * criava o atendimento jurídico como se a entrada tivesse sido na fase Jurídico.
  * A criação passou a ocorrer só em `executarBastoes`, na entrada de
- * juridico_opcao, juridico_cto_precedentes ou juridico_contrato.
+ * juridico_opcao, juridico_cto_precedentes, juridico_contrato ou juridico_termo_recompra.
  */
 export async function garantirBastaoJuridicoPortfolio(_cardId: string): Promise<boolean> {
   return false;
@@ -1162,6 +1162,7 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO &&
     slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES &&
     slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO &&
+    slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_TERMO_RECOMPRA &&
     slug !== FASE_SLUGS.LOTEADORES_NDA &&
     slug !== FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA &&
     slug !== FASE_SLUGS.PASSAGEM_WAYSER &&
@@ -1231,6 +1232,13 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         kanbanDestinoId: KANBAN_IDS.JURIDICO,
         faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
         juridicoTagNome: 'Cto s/ Precedentes',
+      },
+    ],
+    [FASE_SLUGS.PORTFOLIO_JURIDICO_TERMO_RECOMPRA]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Termo Recompra',
       },
     ],
     /** Loteadores → Jurídico só na entrada de Jurídico NDA e Jurídico Cto de Parceria. */
