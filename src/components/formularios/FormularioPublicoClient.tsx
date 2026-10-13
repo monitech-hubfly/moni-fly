@@ -615,7 +615,7 @@ function SelectCidadeCampo({
 function GrupoRepetivelCampo({
   label,
   defs,
-  botao,
+  botao: rotuloAdicionar,
   valor,
   onTexto,
 }: {
@@ -687,7 +687,7 @@ function GrupoRepetivelCampo({
         </div>
       ))}
       <button type="button" onClick={() => gravar([...linhas, vazio()])} style={botao}>
-        {botao}
+        {rotuloAdicionar}
       </button>
     </fieldset>
   );

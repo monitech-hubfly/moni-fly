@@ -386,19 +386,22 @@ async function _buscarFormularioComSecoes(formularioId: string): Promise<Formula
         'id, secao_id, nome, tipo, obrigatorio, ordem, opcoes, config, condicional_campo_id, condicional_valor';
       const selectSemConfig =
         'id, secao_id, nome, tipo, obrigatorio, ordem, opcoes, condicional_campo_id, condicional_valor';
-      let camposRes = await supabase
+      const camposComConfig = await supabase
         .from('formulario_campos')
         .select(selectComConfig)
         .eq('secao_id', secaoRow.id)
         .order('ordem');
-      if (camposRes.error && /config/i.test(camposRes.error.message)) {
-        camposRes = await supabase
-          .from('formulario_campos')
-          .select(selectSemConfig)
-          .eq('secao_id', secaoRow.id)
-          .order('ordem');
-      }
-      const campos = camposRes.data;
+      const camposFallback =
+        camposComConfig.error && /config/i.test(camposComConfig.error.message)
+          ? await supabase
+              .from('formulario_campos')
+              .select(selectSemConfig)
+              .eq('secao_id', secaoRow.id)
+              .order('ordem')
+          : null;
+      const campos = camposFallback
+        ? (camposFallback.data ?? []).map((campo) => ({ ...campo, config: null }))
+        : camposComConfig.data;
 
       const camposMapeados: FormularioCampo[] = (campos ?? []).map((campo) => {
         const row = campo as {
