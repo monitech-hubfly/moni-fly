@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { atualizarClassificacaoFormulario } from '@/lib/actions/formulario-actions';
-import { ClassificacaoHubBarra } from '@/components/shared/ClassificacaoHubBarra';
+import { VisualizacaoFranqueadoToggle } from '@/components/shared/VisualizacaoFranqueadoToggle';
 import type { CategoriaHub } from '@/lib/constants/categorias-hub';
 
 export function FormularioClassificacaoBarra({
@@ -16,15 +16,15 @@ export function FormularioClassificacaoBarra({
   visivelFranqueado: boolean;
 }) {
   const router = useRouter();
-  const [categoriaLocal, setCategoriaLocal] = useState(categoria ?? '');
   const [visivel, setVisivel] = useState(visivelFranqueado);
   const [erro, setErro] = useState<string | null>(null);
 
-  async function salvar(proximaCategoria: string, proximaVisivel: boolean) {
+  async function salvar(proximaVisivel: boolean) {
     setErro(null);
-    const res = await atualizarClassificacaoFormulario(formularioId, proximaCategoria, proximaVisivel);
+    const res = await atualizarClassificacaoFormulario(formularioId, categoria ?? '', proximaVisivel);
     if (!res.ok) {
       setErro(res.error);
+      setVisivel(visivelFranqueado);
       return;
     }
     router.refresh();
@@ -32,16 +32,11 @@ export function FormularioClassificacaoBarra({
 
   return (
     <div className="space-y-1">
-      <ClassificacaoHubBarra
-        categoria={categoriaLocal}
-        visivelFranqueado={visivel}
-        onCategoria={(valor) => {
-          setCategoriaLocal(valor);
-          void salvar(valor, visivel);
-        }}
-        onVisivel={(valor) => {
+      <VisualizacaoFranqueadoToggle
+        value={visivel}
+        onChange={(valor) => {
           setVisivel(valor);
-          void salvar(categoriaLocal, valor);
+          void salvar(valor);
         }}
       />
       {erro ? (
