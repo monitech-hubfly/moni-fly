@@ -14,6 +14,7 @@ export const TIMES_MONI = [
   'Diretoria',
   'Executivo Local',
   'Homologações',
+  'Imob',
   'Jurídico',
   'Marketing',
   'Modelo Virtual',
@@ -61,6 +62,7 @@ export const MONI_EMAIL_POR_NOME: Record<string, string> = {
   'Diogo Chagas': 'diogo.chagas@moni.casa',
   'Paula Cruz': 'paula.cruz@moni.casa',
   'Thais Petri': 'thais.petri@moni.casa',
+  'Vinícius Melo': 'vinicius.melo@moni.casa',
 };
 
 export const MONI_TODOS_EMAILS: readonly string[] = [
@@ -267,6 +269,7 @@ export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
   Portfólio: ['Renata Silva'],
   'Moní Inc': ['Helenna Luz', 'Daniel Viotto'],
   Homologações: HDM_RESPONSAVEIS.Homologações.map((x) => x.nome),
+  Imob: ['Vinícius Melo'],
   Produto: HDM_RESPONSAVEIS.Produto.map((x) => x.nome),
   Marketing: ['Rafael Abreu', 'Rafael Negão', 'João Paulo', 'João Fernandes'],
   Administrativo: ['Isabella Seabra'],

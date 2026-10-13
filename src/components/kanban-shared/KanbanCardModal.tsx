@@ -319,6 +319,7 @@ import {
 } from '@/lib/times-responsaveis';
 import { AnexosChamado } from './AnexosChamado';
 import { AnexosSubchamado } from './AnexosSubchamado';
+import { prefetchChecklistFase } from '@/lib/kanban/fase-checklist-leitura';
 import { ChecklistCard } from './ChecklistCard';
 import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
 import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
@@ -331,8 +332,9 @@ const KanbanCardModalCalculadoraFases = dynamic(
   () => import('./KanbanCardModalCalculadoraFases').then((m) => ({ default: m.KanbanCardModalCalculadoraFases })),
   { ssr: false },
 );
+const faseChecklistModulo = import('./FaseChecklistCard');
 const FaseChecklistCard = dynamic(
-  () => import('./FaseChecklistCard').then(m => m.FaseChecklistCard),
+  () => faseChecklistModulo.then(m => m.FaseChecklistCard),
   { ssr: false }
 );
 import { ResponsavelFaseSidebar } from './ResponsavelFaseSidebar';
@@ -403,6 +405,8 @@ type Card = {
   contabilidade_ok?: boolean;
   capital_ok?: boolean;
   juridico_ok?: boolean;
+  /** Funil Jurídico: rodada atual do atendimento. */
+  juridico_bolinha_count?: number | null;
   credito_obra_ok?: boolean;
   projetos_legais_ok?: boolean | null;
   projetos_locais_ok?: boolean | null;
@@ -584,6 +588,14 @@ export type KanbanCardModalProps = {
   deepLinkInteracaoId?: string | null;
   deepLinkTopicoId?: string | null;
 };
+
+function ChecklistPrefetch({ cardId, faseId }: { cardId: string; faseId: string }) {
+  useEffect(() => {
+    if (!cardId || !faseId) return;
+    void prefetchChecklistFase(cardId, faseId);
+  }, [cardId, faseId]);
+  return null;
+}
 
 export function KanbanCardModal({
   cardId,
@@ -6205,6 +6217,7 @@ export function KanbanCardModal({
                       </p>
                     ) : null}
 
+                    <ChecklistPrefetch cardId={card.id} faseId={faseChecklistFaseId} />
                     <FaseChecklistCard
                       faseId={faseChecklistFaseId}
                       faseSlug={faseSlugAtual}
@@ -6283,6 +6296,7 @@ export function KanbanCardModal({
                   ) : null}
                   <JuridicoPontosSecao
                     cardId={card.id}
+                    rodadaGravada={card.juridico_bolinha_count}
                     podeEditar={!ocultarGestaoCard && !card.arquivado}
                     exibirGerarResposta={faseSlugAtual === FASE_SLUGS.JURIDICO_ALTERACOES_RESPOSTAS}
                   />

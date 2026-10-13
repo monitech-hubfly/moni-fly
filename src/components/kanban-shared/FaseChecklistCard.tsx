@@ -2,6 +2,7 @@
 
 import { Fragment, type CSSProperties, useEffect, useRef, useState } from 'react';
 import { Download, Upload, Loader2 } from 'lucide-react';
+import { prefetchChecklistFase } from '@/lib/kanban/fase-checklist-leitura';
 import { createClient } from '@/lib/supabase/client';
 import {
   upsertFaseChecklistResposta,
@@ -39,7 +40,6 @@ const MapaCompetidoresChecklist = dynamic(
 import { ChecklistAreaAtuacaoSelect } from '@/components/kanban-shared/ChecklistAreaAtuacaoSelect';
 import { DadosCidadePracaTabs } from '@/components/kanban-shared/DadosCidadePracaTabs';
 import { PracaAtivaChip } from '@/components/kanban-shared/PracaAtivaChip';
-import { fetchFaseChecklistItens } from '@/lib/kanban/fase-checklist-select';
 import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug, isMapaCompetidoresFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import {
   PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
@@ -293,31 +293,16 @@ export function FaseChecklistCard({
     let cancelado = false;
     void (async () => {
       try {
-        const supabase = createClient();
-        const checklistRespCols = 'id, item_id, card_id, valor, arquivo_path, preenchido_por, preenchido_em';
-
-        const [{ data: itensOrdenadosRaw, error: itensError }, { data: respostasData, error: respostasError }, { data: compartilhadoData, error: compartilhadoError }] =
-          await Promise.all([
-            fetchFaseChecklistItens(supabase, faseId),
-            supabase
-              .from('kanban_fase_checklist_respostas')
-              .select(checklistRespCols)
-              .eq('card_id', cardId),
-            supabase
-              .from('kanban_card_checklist_compartilhado')
-              .select('chave, valor')
-              .eq('card_id', cardId),
-          ]);
-
+        const carga = await prefetchChecklistFase(cardId, faseId);
         if (cancelado) return;
 
-        const itemRows = itensOrdenadosRaw;
+        const itemRows = carga.itens;
         const itensOrdenados = isDadosCidadeFaseSlug(faseSlug)
           ? ordenarItensChecklistDadosCidade(itemRows)
           : itemRows;
-        const respRows = (respostasData ?? []) as FaseChecklistResposta[];
+        const respRows = carga.respostas;
 
-        if (itensError || respostasError || compartilhadoError) {
+        if (carga.error) {
           setItens([]);
           setRespostas(new Map());
           setCarregando(false);
@@ -325,10 +310,9 @@ export function FaseChecklistCard({
         }
 
         const compartilhadoPorChave = new Map<string, unknown>();
-        for (const row of compartilhadoData ?? []) {
-          const r = row as { chave?: string; valor?: unknown };
-          const chave = String(r.chave ?? '').trim();
-          if (chave) compartilhadoPorChave.set(chave, r.valor);
+        for (const row of carga.compartilhado) {
+          const chave = String(row.chave ?? '').trim();
+          if (chave) compartilhadoPorChave.set(chave, row.valor);
         }
 
         setItens(itensOrdenados);

@@ -144,9 +144,10 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   em_obra: 'franqueado',
   operacoes_entregue: 'franqueado',
 
-  // Funil Jurídico — 8 fases canônicas (migration 565/566/572)
+  // Funil Jurídico — fases canônicas (migration 565/566/572/606)
   juridico_recebimento: 'moni',
   juridico_analise_inicial: 'moni',
+  juridico_criando_doc: 'moni',
   juridico_alteracoes_respostas: 'moni',
   juridico_enviado_parceiro: 'moni',
   juridico_subir_assinatura: 'moni',

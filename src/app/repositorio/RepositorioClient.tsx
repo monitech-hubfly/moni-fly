@@ -2,8 +2,10 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
+import { ClassificacaoHubBarra, ClassificacaoHubFormFields } from '@/components/shared/ClassificacaoHubBarra';
 import {
   adicionarSecao,
+  atualizarClassificacaoDocumento,
   atualizarQuandoUtilizar,
   baixarDocumento,
   criarTipo,
@@ -167,6 +169,7 @@ export function RepositorioClient({
                       </button>
                       {abertoTipo ? (
                         <div className="space-y-4 px-3 pb-3">
+                          <DocumentoClassificacao documento={tipo.padrao} podeEditar={podeEditar} onSalvo={avisar} />
                           <BlocoArquivo
                             titulo="Documento padrão"
                             vigente={tipo.padrao}
@@ -193,6 +196,10 @@ export function RepositorioClient({
                               }}
                             >
                               <input name="arquivo" type="file" required className="text-xs" />
+                              <ClassificacaoHubFormFields
+                                categoriaInicial={tipo.padrao?.categoria ?? ''}
+                                visivelInicial={tipo.padrao?.visivel_franqueado ?? true}
+                              />
                               <button type="submit" style={botao}>
                                 {tipo.padrao ? '+ Nova versão' : 'Subir arquivo padrão'}
                               </button>
@@ -218,6 +225,7 @@ export function RepositorioClient({
                                   <p className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
                                     {variacao.nome}
                                   </p>
+                                  <DocumentoClassificacao documento={variacao.vigente} podeEditar={podeEditar} onSalvo={avisar} />
                                   <QuandoUtilizar
                                     variacaoId={variacao.id}
                                     texto={variacao.quando_utilizar ?? ''}
@@ -248,6 +256,10 @@ export function RepositorioClient({
                                       }}
                                     >
                                       <input name="arquivo" type="file" required className="text-xs" />
+                                      <ClassificacaoHubFormFields
+                                        categoriaInicial={variacao.vigente?.categoria ?? ''}
+                                        visivelInicial={variacao.vigente?.visivel_franqueado ?? true}
+                                      />
                                       <button type="submit" style={botaoSec}>
                                         + Nova versão
                                       </button>
@@ -271,6 +283,7 @@ export function RepositorioClient({
                                 }}
                               >
                                 <input name="nome" required placeholder="Nome da variação" style={campo} />
+                                <ClassificacaoHubFormFields />
                                 <textarea
                                   name="quando_utilizar"
                                   required
@@ -296,6 +309,45 @@ export function RepositorioClient({
         ))}
       </div>
     </div>
+  );
+}
+
+function DocumentoClassificacao({
+  documento,
+  podeEditar,
+  onSalvo,
+}: {
+  documento: VersaoDocumento | null;
+  podeEditar: boolean;
+  onSalvo: (res: { ok: boolean; error?: string }, ok: string) => void;
+}) {
+  const [categoria, setCategoria] = useState(documento?.categoria ?? '');
+  const [visivel, setVisivel] = useState(documento?.visivel_franqueado ?? true);
+
+  useEffect(() => {
+    setCategoria(documento?.categoria ?? '');
+    setVisivel(documento?.visivel_franqueado ?? true);
+  }, [documento?.id, documento?.categoria, documento?.visivel_franqueado]);
+
+  if (!podeEditar || !documento) return null;
+
+  return (
+    <ClassificacaoHubBarra
+      categoria={categoria}
+      visivelFranqueado={visivel}
+      onCategoria={(valor) => {
+        setCategoria(valor);
+        void atualizarClassificacaoDocumento(documento.id, valor, visivel).then((res) =>
+          onSalvo(res, 'Classificação atualizada.'),
+        );
+      }}
+      onVisivel={(valor) => {
+        setVisivel(valor);
+        void atualizarClassificacaoDocumento(documento.id, categoria, valor).then((res) =>
+          onSalvo(res, 'Visibilidade atualizada.'),
+        );
+      }}
+    />
   );
 }
 

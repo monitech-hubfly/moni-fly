@@ -317,9 +317,10 @@ export const FASE_SLUGS = {
   CONTABILIDADE_SPE:           'contabilidade_spe',
   CONTABILIDADE_GESTORA:       'contabilidade_gestora',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',
-  // Funil Jurídico — 8 fases (migration 565) + slugs legados
+  // Funil Jurídico — 9 fases (migration 565 + 606) + slugs legados
   JURIDICO_RECEBIMENTO:            'juridico_recebimento',
   JURIDICO_ANALISE_INICIAL:        'juridico_analise_inicial',
+  JURIDICO_CRIANDO_DOC:            'juridico_criando_doc',
   JURIDICO_ALTERACOES_RESPOSTAS:   'juridico_alteracoes_respostas',
   JURIDICO_TRATATIVAS:             'juridico_tratativas',
   JURIDICO_ASSINATURA:             'juridico_assinatura',
