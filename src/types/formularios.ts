@@ -1,5 +1,19 @@
 import type { CategoriaHub } from '@/lib/constants/categorias-hub';
 
+export type FormularioCampoGrupoDef = {
+  key: string;
+  label: string;
+  tipo: string;
+  obrigatorio?: boolean;
+  opcoes?: string[];
+};
+
+export type FormularioCampoConfig = {
+  estado_campo_id?: string;
+  label_adicionar?: string;
+  campos?: FormularioCampoGrupoDef[];
+};
+
 export type FormularioCampoTipo =
   | 'texto'
   | 'texto_curto'
@@ -11,9 +25,12 @@ export type FormularioCampoTipo =
   | 'data'
   | 'link'
   | 'select'
+  | 'select_estado'
+  | 'select_cidade'
   | 'checkbox'
   | 'arquivo_multiplo'
-  | 'link_ou_arquivo';
+  | 'link_ou_arquivo'
+  | 'grupo_repetivel';
 
 export interface FormularioCampo {
   id: string;
@@ -25,6 +42,7 @@ export interface FormularioCampo {
   placeholder: string | null;
   descricao: string | null;
   opcoes: string[];
+  config: FormularioCampoConfig | null;
   condicional_campo_id: string | null;
   condicional_valor: string | null;
   ativo: boolean;
