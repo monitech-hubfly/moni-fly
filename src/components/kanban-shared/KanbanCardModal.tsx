@@ -2587,6 +2587,7 @@ export function KanbanCardModal({
           kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome),
           motivoReprovacaoAcoplamento: opts?.motivoReprovacaoAcoplamento,
           justificativaSlaQuebra: opts?.justificativaSlaQuebra,
+          skipRevalidate: true,
         });
         if (!res.ok) {
           const msg = res.error ?? 'Erro ao avançar fase.';

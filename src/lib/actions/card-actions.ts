@@ -4120,6 +4120,10 @@ async function obterGateComiteLoteadores(
   novaFaseSlug: string,
   kanbanNomeHint?: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (String(novaFaseSlug ?? '').trim() !== FASE_SLUGS.LOTEADORES_COMITE) {
+    return { ok: true };
+  }
+
   const { data: cardRow, error } = await supabase
     .from('kanban_cards')
     .select('kanban_id, acoplamento_concluido, kanbans ( nome )')
@@ -4600,21 +4604,30 @@ export async function moverCardParaFase(input: {
   if (!faseRow?.id) return { ok: false, error: 'Fase de destino não encontrada.' };
 
   const novaFaseSlug = String((faseRow as { slug?: string | null }).slug ?? '').trim();
-  const gate = await obterGateComiteLoteadores(supabase, cardId, novaFaseSlug, input.kanbanNome);
-  if (!gate.ok) return gate;
 
-  const gateAcoplamento = await verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId);
-  if (!gateAcoplamento.ok) return gateAcoplamento;
-
-  const gateChecklistLegal = await verificarGateChecklistLegalPortfolio(cardId, novaFaseId);
-  if (!gateChecklistLegal.ok) return gateChecklistLegal;
+  const { data: cardKanban } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id, fase_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  const kanbanIdMovimento = String(
+    (cardKanban as { kanban_id?: string } | null)?.kanban_id ?? '',
+  ).trim();
+  const faseAnteriorId =
+    String((cardKanban as { fase_id?: string | null } | null)?.fase_id ?? '').trim() || null;
 
   const { verificarGateJustificativaSla } = await import('@/lib/actions/kanban-sla-justificativa');
-  const gateSlaJustificativa = await verificarGateJustificativaSla(
-    cardId,
-    novaFaseId,
-    input.justificativaSlaQuebra,
-  );
+  const [gate, gateAcoplamento, gateChecklistLegal, gateSlaJustificativa] = await Promise.all([
+    obterGateComiteLoteadores(supabase, cardId, novaFaseSlug, input.kanbanNome),
+    kanbanIdMovimento === KANBAN_IDS.ACOPLAMENTO
+      ? verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId)
+      : Promise.resolve({ ok: true as const }),
+    verificarGateChecklistLegalPortfolio(cardId, novaFaseId),
+    verificarGateJustificativaSla(cardId, novaFaseId, input.justificativaSlaQuebra),
+  ]);
+  if (!gate.ok) return gate;
+  if (!gateAcoplamento.ok) return gateAcoplamento;
+  if (!gateChecklistLegal.ok) return gateChecklistLegal;
   if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
 
   if (movimentoExigeGateConclusaoAtendimentoJuridico(novaFaseSlug)) {
@@ -4633,15 +4646,9 @@ export async function moverCardParaFase(input: {
     if (!gateRodada.ok) return gateRodada;
   }
 
-  const { data: cardKanban } = await supabase
-    .from('kanban_cards')
-    .select('kanban_id')
-    .eq('id', cardId)
-    .maybeSingle();
-
   if (
     novaFaseSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO &&
-    String((cardKanban as { kanban_id?: string } | null)?.kanban_id ?? '') === KANBAN_IDS.ACOPLAMENTO
+    kanbanIdMovimento === KANBAN_IDS.ACOPLAMENTO
   ) {
     const motivo = String(input.motivoReprovacaoAcoplamento ?? '').trim();
     if (!motivo) {
@@ -4655,19 +4662,12 @@ export async function moverCardParaFase(input: {
     if (errMot) return { ok: false, error: errMot.message };
   }
 
-  let faseAnteriorBastao: string | null = null;
-  if (
+  const faseAnteriorBastao =
     novaFaseSlug === FASE_SLUGS.JURIDICO_SUBIR_ASSINATURA ||
     novaFaseSlug === FASE_SLUGS.JURIDICO_POS_ASSINATURA ||
     novaFaseSlug === FASE_SLUGS.JURIDICO_ATENDIMENTOS_CONCLUIDOS
-  ) {
-    const { data: antesBastao } = await supabase
-      .from('kanban_cards')
-      .select('fase_id')
-      .eq('id', cardId)
-      .maybeSingle();
-    faseAnteriorBastao = String((antesBastao as { fase_id?: string | null } | null)?.fase_id ?? '').trim() || null;
-  }
+      ? faseAnteriorId
+      : null;
 
   const { error: updErr } = await supabase
     .from('kanban_cards')
@@ -4676,7 +4676,7 @@ export async function moverCardParaFase(input: {
 
   if (updErr) return { ok: false, error: updErr.message };
 
-  if (novaFaseSlug) {
+  if (novaFaseSlug && kanbanIdMovimento === KANBAN_IDS.STEP_ONE) {
     const { data: procRow } = await supabase
       .from('processo_step_one')
       .select('id')
@@ -4690,8 +4690,12 @@ export async function moverCardParaFase(input: {
     }
   }
 
-  const { aplicarSlaInicioDocumentacaoAoMoverFase } = await import('@/lib/actions/kanban-credito-obra-docs');
-  await aplicarSlaInicioDocumentacaoAoMoverFase(supabase, cardId, novaFaseSlug);
+  if (novaFaseSlug === FASE_SLUGS.CO_DOCUMENTACAO_ALVARA) {
+    const { aplicarSlaInicioDocumentacaoAoMoverFase } = await import(
+      '@/lib/actions/kanban-credito-obra-docs'
+    );
+    await aplicarSlaInicioDocumentacaoAoMoverFase(supabase, cardId, novaFaseSlug);
+  }
 
   await executarBastoes(cardId, novaFaseSlug);
   const bastaoVolta = await executarBastaoDeVolta(cardId, novaFaseSlug, {
@@ -4699,23 +4703,22 @@ export async function moverCardParaFase(input: {
     userId: user.id,
   });
   if (!bastaoVolta.ok) return bastaoVolta;
-  await sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug);
+  if (kanbanIdMovimento === KANBAN_IDS.ACOPLAMENTO) {
+    await sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug);
+  }
 
   const {
     aplicarResponsaveisPadraoTodasFasesJuridico,
     propagarResponsavelFaseAoEntrarFase,
     propagarResponsavelDaFaseAoEntrarFase,
   } = await import('@/lib/kanban/responsavel-fase-checklist');
-  const { data: kanbanRow } = await supabase
-    .from('kanban_cards')
-    .select('kanban_id')
-    .eq('id', cardId)
-    .maybeSingle();
-  if (String((kanbanRow as { kanban_id?: string } | null)?.kanban_id ?? '') === KANBAN_IDS.JURIDICO) {
+  if (kanbanIdMovimento === KANBAN_IDS.JURIDICO) {
     await aplicarResponsaveisPadraoTodasFasesJuridico(supabase, cardId, user.id);
   } else {
-    await propagarResponsavelFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id);
-    await propagarResponsavelDaFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id);
+    await Promise.all([
+      propagarResponsavelFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id),
+      propagarResponsavelDaFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id),
+    ]);
   }
 
   void notificarUniversidadeSeAvancoStep2({
@@ -4724,7 +4727,10 @@ export async function moverCardParaFase(input: {
     kanbanNombre: String(input.kanbanNome ?? '').trim(),
   });
 
-  revalidatePath(input.basePath?.trim() || '/');
+  if (!input.skipRevalidate) {
+    const basePath = input.basePath?.trim();
+    if (basePath) revalidatePath(basePath);
+  }
   return { ok: true };
 }
 

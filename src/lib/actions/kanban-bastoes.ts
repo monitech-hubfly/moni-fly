@@ -1153,6 +1153,27 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
   const cardPaiId = String(cardId ?? '').trim();
   if (!cardPaiId) return;
 
+  if (
+    slug !== FASE_SLUGS.OPERACOES_ENTREGUE &&
+    slug !== FASE_SLUGS.HOMOLOG_CRIAR_PRODUTO_DATABASE &&
+    slug !== FASE_SLUGS.ACOPLAMENTO &&
+    slug !== FASE_SLUGS.LOTEADORES_ACOPLAMENTO &&
+    slug !== FASE_SLUGS.LOTEADORES_ACOPLAMENTO_GBOX &&
+    slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO &&
+    slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES &&
+    slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO &&
+    slug !== FASE_SLUGS.LOTEADORES_NDA &&
+    slug !== FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA &&
+    slug !== FASE_SLUGS.PASSAGEM_WAYSER &&
+    slug !== FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC &&
+    slug !== FASE_SLUGS.PROD_PUBLICADO &&
+    slug !== FASE_SLUGS.APROVACAO_CONDOMINIO &&
+    slug !== FASE_SLUGS.PROJETO_LEGAL &&
+    slug !== FASE_SLUGS.M1_PAGAMENTO_ENTRADA
+  ) {
+    return;
+  }
+
   let db: ReturnType<typeof createAdminClient>;
   try {
     db = createAdminClient();
@@ -1286,21 +1307,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     String(pai.kanban_id ?? '') === KANBAN_IDS.HDM_HOMOLOGACOES
   ) {
     await registrarAvisoHomologacaoConcluida({ cardId: cardPaiId });
-  }
-
-  // Funil Modelo Virtual — avisos manuais futuros (notificações Moní)
-  if (String(pai.kanban_id ?? '') === KANBAN_IDS.HDM_MODELO_VIRTUAL) {
-    if (slug === FASE_SLUGS.MV_MODELAGEM_CASA) {
-      // TODO: notificar Liz (Acoplamento) que o modelo está apto para acoplamento
-      // TODO: notificar Lari/Letícia (Projetos) que podem iniciar estudos do terreno
-    }
-    if (slug === FASE_SLUGS.MV_COMPAT_ESTRUTURA) {
-      // TODO: notificar Alef (exec local) que pode iniciar estudos de fundação
-    }
-    if (slug === FASE_SLUGS.MV_COMPAT_INFRA) {
-      // TODO: notificar Alef que pode validar compatibilidade com fundação projetada
-      // TODO: notificar Lari/Letícia que podem compatibilizar casa com ambientes do terreno
-    }
   }
 
   const destinos = BASTOES_DE_IDA[slug];
