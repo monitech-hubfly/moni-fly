@@ -553,7 +553,14 @@ export function ImobEmpreendimentosTabelaComBusca({
                     <table className="min-w-full border-collapse text-left text-sm">
                       <thead>
                         <tr className="border-b border-stone-100 bg-stone-50/40">
+                          <th className={redeTh}>Código</th>
                           <th className={redeTh}>Nome</th>
+                          <th className={redeTh}>Nome Condomínio</th>
+                          <th className={redeTh}>Quadra</th>
+                          <th className={redeTh}>Lote</th>
+                          <th className={redeTh}>Estado</th>
+                          <th className={redeTh}>Cidade</th>
+                          <th className={redeTh}>Fase atual</th>
                           {CAMPOS_NEGOCIO_EMPREENDIMENTO.map((campo) => (
                             <th key={campo.key} className={redeTh}>
                               {campo.label}
@@ -578,6 +585,9 @@ export function ImobEmpreendimentosTabelaComBusca({
                               key={row.id}
                               className="border-b border-stone-100 last:border-0 hover:bg-stone-50/60"
                             >
+                              <td className={`${tdNowrap} font-medium text-stone-900`}>
+                                {dash(row.codigo)}
+                              </td>
                               <td className={`${td} font-medium text-stone-900 min-w-[10rem]`}>
                                 {row.nome}
                                 {!row.ativo ? (
@@ -586,6 +596,12 @@ export function ImobEmpreendimentosTabelaComBusca({
                                   </span>
                                 ) : null}
                               </td>
+                              <td className={`${td} min-w-[10rem]`}>{dash(row.nome_condominio)}</td>
+                              <td className={tdNowrap}>{dash(row.quadra)}</td>
+                              <td className={tdNowrap}>{dash(row.lote)}</td>
+                              <td className={tdNowrap}>{dash(row.condominio_estado)}</td>
+                              <td className={`${td} min-w-[8rem]`}>{dash(row.condominio_cidade)}</td>
+                              <td className={`${td} min-w-[10rem]`}>{dash(row.fase_atual)}</td>
                               {CAMPOS_NEGOCIO_EMPREENDIMENTO.map((campo) => {
                                 const texto = textoColunaNegocioEmpreendimento(row, campo);
                                 const href = campo.kind === 'url' ? hrefColunaNegocio(String(row[campo.key] ?? '')) : null;

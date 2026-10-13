@@ -3,6 +3,7 @@
 import type { createClient } from '@/lib/supabase/server';
 import { isCadastroValorVazio } from '@/lib/cadastro-linha-em-branco';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
   formatNegocioPrazoDisplay,
@@ -23,10 +24,18 @@ export type ImobEmpreendimentoRow = {
   created_at: string | null;
   // joined via supabase
   condominio_nome: string | null;
+  /** Nome do condomínio na coluna (cadastro ou card), sem alterar o grupo. */
+  nome_condominio: string | null;
   condominio_cidade: string | null;
   condominio_estado: string | null;
   card_titulo: string | null;
   card_status: string | null;
+  /** FK do card (ex.: FK0005). */
+  codigo: string | null;
+  quadra: string | null;
+  lote: string | null;
+  /** Fase mais avançada entre Step One, Portfólio e Pré Obra e Obra. */
+  fase_atual: string | null;
   // computed counts (loaded separately or via rpc)
   corretores_count?: number;
   unidades_count?: number;
@@ -334,8 +343,13 @@ export function imobEmpreendimentoRowMatchesBusca(
     row.slug,
     row.specs,
     row.condominio_nome,
+    row.nome_condominio,
     row.condominio_cidade,
     row.condominio_estado,
+    row.codigo,
+    row.quadra,
+    row.lote,
+    row.fase_atual,
     row.card_titulo,
     row.tipo_negocio,
     row.produto_modelo,
@@ -461,10 +475,15 @@ function mapRow(r: RawImobEmp): ImobEmpreendimentoRow {
     condominio_id: (r.condominio_id as string | null) ?? null,
     created_at: (r.created_at as string | null) ?? null,
     condominio_nome: cond?.nome ?? null,
+    nome_condominio: cond?.nome ?? null,
     condominio_cidade: cond?.cidade ?? null,
     condominio_estado: cond?.estado ?? null,
     card_titulo: card?.titulo ?? null,
     card_status: card?.status ?? null,
+    codigo: null,
+    quadra: null,
+    lote: null,
+    fase_atual: null,
     tipo_negocio: txt(r.tipo_negocio),
     pasta_drive: txt(r.pasta_drive),
     valor_terreno: txt(r.valor_terreno),
@@ -499,6 +518,287 @@ function mapRow(r: RawImobEmp): ImobEmpreendimentoRow {
   };
 }
 
+/** Step One, depois Portfólio, depois Pré Obra e Obra (Operações). */
+const FUNIL_AVANCO_FASE: Record<string, number> = {
+  [KANBAN_IDS.STEP_ONE]: 1,
+  [KANBAN_IDS.PORTFOLIO]: 2,
+  [KANBAN_IDS.OPERACOES]: 3,
+};
+
+const CARD_FASE_SELECT =
+  'id, titulo, kanban_id, condominio_id, nome_condominio, quadra, lote, processo_step_one_id, projeto_id, origem_card_id, arquivado, kanban_fases!kanban_cards_fase_id_fkey(nome, ordem)';
+
+type CardFaseLite = {
+  id: string;
+  titulo: string;
+  kanban_id: string;
+  condominio_id: string | null;
+  nome_condominio: string | null;
+  quadra: string | null;
+  lote: string | null;
+  processo_id: string | null;
+  projeto_id: string | null;
+  origem_card_id: string | null;
+  arquivado: boolean;
+  fase_nome: string | null;
+  fase_ordem: number;
+};
+
+function codigoFranquiaDoTitulo(titulo: string): string | null {
+  const t = titulo.trim();
+  if (!t) return null;
+  const i = t.indexOf(' - ');
+  const head = (i >= 0 ? t.slice(0, i) : t).trim().toUpperCase();
+  return /^FK\d+$/.test(head) ? head : null;
+}
+
+function camposDoTituloCard(titulo: string): { nomeCondominio: string | null; quadra: string | null; lote: string | null } {
+  const parts = titulo
+    .split(' - ')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length < 2 || !/^FK\d+$/i.test(parts[0] ?? '')) {
+    return { nomeCondominio: null, quadra: null, lote: null };
+  }
+  let quadra: string | null = null;
+  let lote: string | null = null;
+  for (let i = 2; i < parts.length; i++) {
+    const seg = parts[i]!;
+    const q = /^Q:\s*(.+)$/i.exec(seg);
+    const l = /^L:\s*(.+)$/i.exec(seg);
+    if (q) quadra = q[1]!.trim() || null;
+    else if (l) lote = l[1]!.trim() || null;
+    else if (!quadra) quadra = seg;
+    else if (!lote) lote = seg;
+  }
+  return { nomeCondominio: parts[1] ?? null, quadra, lote };
+}
+
+function chaveLoteEmpreendimento(condominioId: string | null, quadra: string | null, lote: string | null): string {
+  const c = String(condominioId ?? '').trim();
+  const q = String(quadra ?? '').trim().toLowerCase();
+  const l = String(lote ?? '').trim().toLowerCase();
+  if (!c || !q || !l) return '';
+  return `${c}|${q}|${l}`;
+}
+
+function mapCardFase(raw: Record<string, unknown>): CardFaseLite | null {
+  const id = String(raw.id ?? '').trim();
+  if (!id) return null;
+  const faseRaw = raw.kanban_fases;
+  const fase = Array.isArray(faseRaw) ? faseRaw[0] : faseRaw;
+  const faseObj = fase && typeof fase === 'object' ? (fase as { nome?: string | null; ordem?: number | null }) : null;
+  const titulo = String(raw.titulo ?? '');
+  const doTitulo = camposDoTituloCard(titulo);
+  return {
+    id,
+    titulo,
+    kanban_id: String(raw.kanban_id ?? ''),
+    condominio_id: txt(raw.condominio_id),
+    nome_condominio: txt(raw.nome_condominio) ?? doTitulo.nomeCondominio,
+    quadra: txt(raw.quadra) ?? doTitulo.quadra,
+    lote: txt(raw.lote) ?? doTitulo.lote,
+    processo_id: txt(raw.processo_step_one_id),
+    projeto_id: txt(raw.projeto_id),
+    origem_card_id: txt(raw.origem_card_id),
+    arquivado: Boolean(raw.arquivado),
+    fase_nome: txt(faseObj?.nome),
+    fase_ordem: Number(faseObj?.ordem ?? 0) || 0,
+  };
+}
+
+function pontuacaoFase(card: CardFaseLite): number {
+  const funil = FUNIL_AVANCO_FASE[card.kanban_id] ?? 0;
+  if (!funil || !card.fase_nome) return -1;
+  return funil * 1_000_000 + card.fase_ordem;
+}
+
+function primeiroPreenchido(valores: Array<string | null | undefined>): string | null {
+  for (const v of valores) {
+    const s = String(v ?? '').trim();
+    if (s) return s;
+  }
+  return null;
+}
+
+async function enriquecerLocalizacaoFaseEmpreendimentos(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  rows: ImobEmpreendimentoRow[],
+): Promise<void> {
+  const cardIds = [...new Set(rows.map((r) => String(r.card_id ?? '').trim()).filter(Boolean))];
+  const kanbanIds = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES];
+
+  const { data: funilData, error: funilError } = await supabase
+    .from('kanban_cards')
+    .select(CARD_FASE_SELECT)
+    .in('kanban_id', kanbanIds);
+
+  if (funilError) {
+    console.error('[imob_empreendimentos] fase atual:', funilError.message);
+    return;
+  }
+
+  const funilCards: CardFaseLite[] = [];
+  for (const raw of (funilData ?? []) as unknown as Record<string, unknown>[]) {
+    const card = mapCardFase(raw);
+    if (card) funilCards.push(card);
+  }
+
+  const porId = new Map<string, CardFaseLite>();
+  const filhos = new Map<string, string[]>();
+  const porProcesso = new Map<string, CardFaseLite[]>();
+  const porProjeto = new Map<string, CardFaseLite[]>();
+  const porLote = new Map<string, CardFaseLite[]>();
+  for (const card of funilCards) {
+    porId.set(card.id, card);
+    if (card.origem_card_id) {
+      const lista = filhos.get(card.origem_card_id) ?? [];
+      lista.push(card.id);
+      filhos.set(card.origem_card_id, lista);
+    }
+    if (card.processo_id) {
+      const lista = porProcesso.get(card.processo_id) ?? [];
+      lista.push(card);
+      porProcesso.set(card.processo_id, lista);
+    }
+    if (card.projeto_id) {
+      const lista = porProjeto.get(card.projeto_id) ?? [];
+      lista.push(card);
+      porProjeto.set(card.projeto_id, lista);
+    }
+    const loteKey = chaveLoteEmpreendimento(card.condominio_id, card.quadra, card.lote);
+    if (loteKey) {
+      const lista = porLote.get(loteKey) ?? [];
+      lista.push(card);
+      porLote.set(loteKey, lista);
+    }
+  }
+
+  const sementes = new Map<string, CardFaseLite>();
+  const faltantes = cardIds.filter((id) => !porId.has(id));
+  for (let i = 0; i < faltantes.length; i += 150) {
+    const slice = faltantes.slice(i, i + 150);
+    const { data, error } = await supabase.from('kanban_cards').select(CARD_FASE_SELECT).in('id', slice);
+    if (error) {
+      console.error('[imob_empreendimentos] card vinculado:', error.message);
+      continue;
+    }
+    for (const raw of (data ?? []) as unknown as Record<string, unknown>[]) {
+      const card = mapCardFase(raw);
+      if (card) sementes.set(card.id, card);
+    }
+  }
+  for (const id of cardIds) {
+    const noFunil = porId.get(id);
+    if (noFunil) sementes.set(id, noFunil);
+  }
+
+  const condPorId = new Map<string, { nome: string | null; cidade: string | null; estado: string | null }>();
+  const condIdsExtra = new Set<string>();
+  for (const row of rows) {
+    if (row.condominio_estado && row.condominio_cidade) continue;
+    const seed = row.card_id ? sementes.get(row.card_id) : undefined;
+    const cid = String(seed?.condominio_id || row.condominio_id || '').trim();
+    if (cid) condIdsExtra.add(cid);
+  }
+  const condIds = [...condIdsExtra];
+  for (let i = 0; i < condIds.length; i += 150) {
+    const slice = condIds.slice(i, i + 150);
+    const { data, error } = await supabase.from('condominios').select('id, nome, cidade, estado').in('id', slice);
+    if (error) {
+      console.error('[imob_empreendimentos] condominio:', error.message);
+      continue;
+    }
+    for (const raw of data ?? []) {
+      const id = String((raw as { id?: string }).id ?? '').trim();
+      if (!id) continue;
+      condPorId.set(id, {
+        nome: txt((raw as { nome?: string | null }).nome),
+        cidade: txt((raw as { cidade?: string | null }).cidade),
+        estado: txt((raw as { estado?: string | null }).estado),
+      });
+    }
+  }
+
+  for (const row of rows) {
+    const seedId = String(row.card_id ?? '').trim();
+    const seed = seedId ? sementes.get(seedId) ?? null : null;
+    const relacionados = new Map<string, CardFaseLite>();
+    const incluir = (card: CardFaseLite | null | undefined) => {
+      if (!card || !FUNIL_AVANCO_FASE[card.kanban_id]) return;
+      relacionados.set(card.id, card);
+    };
+
+    if (seed) {
+      let cursorId: string | null = seed.id;
+      const vistosUp = new Set<string>();
+      for (let passo = 0; passo < 8 && cursorId; passo++) {
+        if (vistosUp.has(cursorId)) break;
+        vistosUp.add(cursorId);
+        const card: CardFaseLite | null =
+          cursorId === seed.id ? seed : porId.get(cursorId) ?? null;
+        if (!card) break;
+        incluir(card);
+        cursorId = card.origem_card_id;
+      }
+
+      const fila = [seed.id];
+      const vistosDown = new Set<string>();
+      while (fila.length > 0) {
+        const id = fila.pop()!;
+        if (vistosDown.has(id)) continue;
+        vistosDown.add(id);
+        incluir(porId.get(id) ?? (id === seed.id ? seed : null));
+        for (const filho of filhos.get(id) ?? []) fila.push(filho);
+      }
+
+      if (seed.processo_id) {
+        for (const card of porProcesso.get(seed.processo_id) ?? []) incluir(card);
+      }
+      if (seed.projeto_id) {
+        for (const card of porProjeto.get(seed.projeto_id) ?? []) incluir(card);
+      }
+      const loteKey = chaveLoteEmpreendimento(
+        seed.condominio_id ?? row.condominio_id,
+        seed.quadra,
+        seed.lote,
+      );
+      if (loteKey) {
+        for (const card of porLote.get(loteKey) ?? []) incluir(card);
+      }
+    }
+
+    const cards = [...relacionados.values()];
+    let melhor: CardFaseLite | null = null;
+    let melhorScore = -1;
+    const ativos = cards.filter((c) => !c.arquivado && pontuacaoFase(c) >= 0);
+    const pool = ativos.length > 0 ? ativos : cards;
+    for (const card of pool) {
+      const score = pontuacaoFase(card);
+      if (score > melhorScore) {
+        melhorScore = score;
+        melhor = card;
+      }
+    }
+
+    const fontes = [seed, melhor, ...cards].filter((c): c is CardFaseLite => Boolean(c));
+    row.codigo = primeiroPreenchido(fontes.map((c) => codigoFranquiaDoTitulo(c.titulo)));
+    row.quadra = primeiroPreenchido(fontes.map((c) => c.quadra));
+    row.lote = primeiroPreenchido(fontes.map((c) => c.lote));
+    const nomeCondominioCard = primeiroPreenchido(fontes.map((c) => c.nome_condominio));
+    if (row.condominio_id && !row.condominio_nome) row.condominio_nome = nomeCondominioCard;
+    row.nome_condominio = row.condominio_nome ?? nomeCondominioCard;
+    const condId = String(seed?.condominio_id || row.condominio_id || '').trim();
+    const cond = condId ? condPorId.get(condId) : undefined;
+    if (cond) {
+      if (!row.condominio_estado) row.condominio_estado = cond.estado;
+      if (!row.condominio_cidade) row.condominio_cidade = cond.cidade;
+      if (!row.nome_condominio) row.nome_condominio = cond.nome;
+    }
+    row.fase_atual = melhor?.fase_nome ?? null;
+  }
+}
+
 export async function fetchImobEmpreendimentosRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<ImobEmpreendimentoRow[] | null> {
@@ -517,6 +817,7 @@ export async function fetchImobEmpreendimentosRows(
   }
 
   const rows = ((data ?? []) as unknown as RawImobEmp[]).map((r) => mapRow(r));
+  await enriquecerLocalizacaoFaseEmpreendimentos(supabase, rows);
 
   // Enrich with counts
   const { data: corretoresLinks } = await supabase
