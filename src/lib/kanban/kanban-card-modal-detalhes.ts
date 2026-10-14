@@ -637,7 +637,7 @@ async function fetchProcessoById(supabase: SupabaseClient, id: string) {
       .eq('id', id)
       .maybeSingle();
     if (extra.error || !extra.data) return mapProcesso(base);
-    return mapProcesso({ ...base, ...(extra.data as Record<string, unknown>) });
+    return mapProcesso({ ...base, ...(extra.data as unknown as Record<string, unknown>) });
   }
 
   if (isMissingColumnError(error)) {

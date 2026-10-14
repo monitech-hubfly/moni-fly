@@ -119,6 +119,7 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_FASE_SLUG: Partial<Record<string, stri
   mkt_grav_videos_concluidos: 'rafael.abreu@moni.casa',
   /** Portfólio depois de Convertidos — Renata Bendassi, sem herdar a fase anterior. */
   atualizacao_material: 'renata.silva@moni.casa',
+  material_em_atualizacao: 'renata.silva@moni.casa',
   comite_alvara: 'renata.silva@moni.casa',
   revisoes_comite_alvara: 'renata.silva@moni.casa',
   demais_comites_alvara: 'renata.silva@moni.casa',
@@ -132,6 +133,7 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_FASE_SLUG: Partial<Record<string, stri
 /** Nestas fases o responsável do card é o e-mail do slug, não o da fase anterior. */
 const SLUGS_RESPONSAVEL_CARD_FIXO = new Set<string>([
   'atualizacao_material',
+  'material_em_atualizacao',
   'comite_alvara',
   'revisoes_comite_alvara',
   'demais_comites_alvara',

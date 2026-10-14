@@ -80,7 +80,7 @@ export const FUNIL_MES_ETAPA_FASES: Record<PipelineFunilMesEtapaKey, FunilMesEta
    */
   garantia_transferencia: {
     kanbanIds: [KANBAN_FUNIL_PRE_OBRA_OBRA],
-    slugs: ['revisao_bca', FASE_SLUGS.INSTRUMENTO_GARANTIDOR, FASE_SLUGS.PROCESSOS_CARTORARIOS],
+    slugs: ['revisao_bca', FASE_SLUGS.COMITE_OPS_APROVADO, FASE_SLUGS.INSTRUMENTO_GARANTIDOR, FASE_SLUGS.PROCESSOS_CARTORARIOS],
   },
   /** Funil Pré Obra e Obra — Aguardando Crédito */
   aguardando_credito: {

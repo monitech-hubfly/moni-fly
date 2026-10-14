@@ -18,7 +18,8 @@ const SLUGS_APROVADO_TERMINAL = new Set<string>([
 ]);
 
 const SLUGS_FASE_CONCLUSAO_EXPLICITOS = new Set<string>([
-  /** Convertidos deixou de ser o fim do Portfólio (migration 618). */
+  /** Convertidos continua fase final mesmo com a esteira depois dela (migration 622). */
+  FASE_SLUGS.PORTFOLIO_CONVERTIDOS,
   FASE_SLUGS.PORTFOLIO_CONCLUIDOS,
   FASE_SLUGS.LOTEADORES_ASSINADOS,
   FASE_SLUGS.OPERACOES_ENTREGUE,

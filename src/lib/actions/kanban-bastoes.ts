@@ -1573,6 +1573,17 @@ export async function executarBastaoDeVolta(
   const cardFilhoId = String(cardId ?? '').trim();
   if (!cardFilhoId || !slug) return { ok: true };
 
+  try {
+    const { executarBastaoPortfolioOperacoes } = await import('@/lib/kanban/portfolio-operacoes-bastao');
+    await executarBastaoPortfolioOperacoes({
+      cardId: cardFilhoId,
+      novaFaseSlug: slug,
+      userId: opts?.userId ?? null,
+    });
+  } catch (e) {
+    console.error('[executarBastaoDeVolta] portfolio/operacoes:', e);
+  }
+
   // Projeto Legal → Operações (aprovacao_condominio). Não mexe no Portfólio.
   if (slug === FASE_SLUGS.PL_C_PROTOCOLO_ANDAMENTO) {
     await executarBastaoDeVoltaMoverPaiPorFaseFilho(cardFilhoId, slug);

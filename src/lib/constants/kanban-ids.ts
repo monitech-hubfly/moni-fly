@@ -107,6 +107,7 @@ export const FASE_IDS = {
   PORTFOLIO_PASSAGEM_WAYSER: '5f48a367-699b-4dc4-a310-377fc7d0ff88', // → Operações
   PORTFOLIO_CONVERTIDOS:     'eda6139e-65f4-43d4-955f-026a488524be',
   PORTFOLIO_ATUALIZACAO_MATERIAL: 'b8e1a001-6d30-4f8a-9c15-2d8e4f6a1c01',
+  PORTFOLIO_MATERIAL_EM_ATUALIZACAO: 'b8e1a00a-6d30-4f8a-9c15-2d8e4f6a1c0a',
   PORTFOLIO_COMITE_ALVARA: 'b8e1a002-6d30-4f8a-9c15-2d8e4f6a1c02',
   PORTFOLIO_REVISOES_COMITE_ALVARA: 'b8e1a003-6d30-4f8a-9c15-2d8e4f6a1c03',
   PORTFOLIO_DEMAIS_COMITES_ALVARA: 'b8e1a004-6d30-4f8a-9c15-2d8e4f6a1c04',
@@ -136,6 +137,7 @@ export const FASE_IDS = {
   OPERACOES_PLANIALTIMETRICO: 'c3bea524-aeae-4b87-ba1f-5c83943d4770',
   OPERACOES_COMUNIQUE_SE_CONDOMINIO: 'b7c4e2a1-6d30-4f8a-9c15-2d8e4f6a1c11',
   OPERACOES_COMUNIQUE_SE_PREFEITURA: 'b7c4e2a2-6d30-4f8a-9c15-2d8e4f6a1c12',
+  OPERACOES_COMITE_OPS_APROVADO: 'b7c4e2a4-6d30-4f8a-9c15-2d8e4f6a1c14',
   OPERACOES_INSTRUMENTO_GARANTIDOR: 'b7c4e2a3-6d30-4f8a-9c15-2d8e4f6a1c13',
   OPERACOES_AGUARDANDO_CREDITO: '8b83e671-ef0c-4028-8b52-8f56579e8df0',
   OPERACOES_ENTREGUE:        '5b85ac83-a546-4c1d-9bf0-e5e40cf3d937',
@@ -166,8 +168,10 @@ export const FASE_SLUGS = {
   CAPTACAO_CAPITAL:   'captacao_moni_capital',
   PASSAGEM_WAYSER:    'passagem_wayser',
   PORTFOLIO_CONVERTIDOS: 'convertidos',
-  /** Funil Portfólio — depois de Convertidos. */
+  /** Funil Portfólio — depois de Convertidos. Nome: Atualizar Material. */
   PORTFOLIO_ATUALIZACAO_MATERIAL: 'atualizacao_material',
+  /** Funil Portfólio — logo após Atualizar Material. */
+  PORTFOLIO_MATERIAL_EM_ATUALIZACAO: 'material_em_atualizacao',
   PORTFOLIO_COMITE_ALVARA: 'comite_alvara',
   PORTFOLIO_REVISOES_COMITE_ALVARA: 'revisoes_comite_alvara',
   PORTFOLIO_DEMAIS_COMITES_ALVARA: 'demais_comites_alvara',
@@ -277,6 +281,8 @@ export const FASE_SLUGS = {
   /** Funil Pré Obra e Obra — Comitê Ops. Slug estável da antiga fase combinada. */
   REVISAO_BCA:        'revisao_bca',
   /** Funil Pré Obra e Obra — logo após Comitê Ops. */
+  COMITE_OPS_APROVADO: 'comite_ops_aprovado',
+  /** Funil Pré Obra e Obra — logo após Comitê Ops Aprovado. */
   INSTRUMENTO_GARANTIDOR: 'instrumento_garantidor',
   PROJETO_LEGAL:      'projeto_legal',
   LOTEADOR_JURIDICO:  'loteador_juridico',
