@@ -57,7 +57,6 @@ import {
   listarTagsCard,
   listarTagsKanban,
   salvarDadosNegocioKanban,
-  salvarDadosPreObra,
   salvarDadosPreObraOperacoes,
   salvarDadosFunding,
   salvarProximaAtividade,
@@ -91,7 +90,6 @@ import {
   recusarAberturaCreditoObra,
 } from '@/lib/actions/credito-obra-abertura-automatica';
 import { garantirBastaoPassagemWayser } from '@/lib/actions/kanban-bastoes';
-import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
 import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import {
@@ -200,9 +198,7 @@ import {
   displayOrDash,
   fetchKanbanCardModalDetalhes,
   fmtMoedaKanban,
-  preObraDraftFromProcesso,
   type KanbanCardModalDetalhes,
-  type PreObraDraftKanban,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
 import { KanbanCardModalEmpresas } from '@/components/kanban-shared/KanbanCardModalEmpresas';
 import {
@@ -817,7 +813,6 @@ export function KanbanCardModal({
     redeIdContrato: null,
     empresas: null,
   });
-  const [preObraDraft, setPreObraDraft] = useState<PreObraDraftKanban>(() => preObraDraftFromProcesso(null));
   const [fundingDraft, setFundingDraft] = useState<FundingCardDraft>(() => fundingDraftVazio());
   const [salvandoFunding, setSalvandoFunding] = useState(false);
   const [operacoesPreObraDraft, setOperacoesPreObraDraft] = useState<OperacoesPreObraDraft>(
@@ -895,7 +890,6 @@ export function KanbanCardModal({
     setFiltrosDraft(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
     setFiltrosOpen(false);
     setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
-    setPreObraDraft(preObraDraftFromProcesso(null));
     setFundingDraft(fundingDraftVazio());
     setOperacoesPreObraDraft({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY });
     setPreobraEspelhoChecklist({});
@@ -1690,11 +1684,9 @@ export function KanbanCardModal({
         });
         const opcoesNegocioPrazo = await fetchFasesNegocioPrazoOpcoes(supabase);
         setFasesNegocioPrazo(opcoesNegocioPrazo);
-        setPreObraDraft(preObraDraftFromProcesso(det.processo));
         setNegocioDraft(negocioDraftFromProcesso(det.processo, opcoesNegocioPrazo));
       } catch {
         setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
-        setPreObraDraft(preObraDraftFromProcesso(null));
         setNegocioDraft(negocioDraftVazio());
       }
 
@@ -3309,41 +3301,6 @@ export function KanbanCardModal({
       alert('Erro ao salvar dados Funding.');
     } finally {
       setSalvandoFunding(false);
-    }
-  }
-
-  async function handleSalvarPreObraKanban() {
-    const pid = modalDetalhes.processo?.id;
-    if (!pid) {
-      alert('Sem processo vinculado para salvar pré-obra.');
-      return;
-    }
-    setSalvandoPreObra(true);
-    try {
-      const res = await salvarDadosPreObra({
-        processoId: pid,
-        cardOrigemId: card?.id,
-        previsao_aprovacao_condominio: preObraDraft.previsao_aprovacao_condominio,
-        previsao_aprovacao_prefeitura: preObraDraft.previsao_aprovacao_prefeitura,
-        previsao_emissao_alvara: preObraDraft.previsao_emissao_alvara,
-        previsao_liberacao_credito_obra: preObraDraft.previsao_liberacao_credito_obra,
-        previsao_inicio_obra: preObraDraft.previsao_inicio_obra,
-        data_aprovacao_condominio: preObraDraft.data_aprovacao_condominio,
-        data_aprovacao_prefeitura: preObraDraft.data_aprovacao_prefeitura,
-        data_emissao_alvara: preObraDraft.data_emissao_alvara,
-        data_aprovacao_credito: preObraDraft.data_aprovacao_credito,
-        basePath,
-      });
-      if (!res.ok) {
-        alert(res.error);
-        return;
-      }
-      await loadCard();
-      router.refresh();
-    } catch {
-      alert('Erro ao salvar pré-obra.');
-    } finally {
-      setSalvandoPreObra(false);
     }
   }
 
@@ -7985,137 +7942,16 @@ export function KanbanCardModal({
                 onSalvo={() => void loadCard({ silencioso: true })}
               />,
             )}
-            {!exibirDadosLoteadorPersistente && secaoHead(
+            {secaoHead(
               'preObra',
               'Dados Pré Obra',
-              ehFunilOperacoes && !isLegado ? (
-                <KanbanCardModalDadosPreObraOperacoes
-                  draft={operacoesPreObraDraft}
-                  onChange={(patch) => setOperacoesPreObraDraft((d) => ({ ...d, ...patch }))}
-                  onSalvar={() => void handleSalvarPreObraOperacoes()}
-                  salvando={salvandoPreObra}
-                  podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                />
-              ) : !proc ? (
-                <p className="text-xs text-[var(--moni-text-tertiary)]">
-                  Sem processo vinculado — não é possível editar pré-obra neste card.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Previsão de Aprovação no Condomínio</span>
-                      <input
-                        type="date"
-                        value={preObraDraft.previsao_aprovacao_condominio}
-                        onChange={(e) =>
-                          setPreObraDraft((d) => ({ ...d, previsao_aprovacao_condominio: e.target.value }))
-                        }
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Previsão de Aprovação na Prefeitura</span>
-                      <input
-                        type="date"
-                        value={preObraDraft.previsao_aprovacao_prefeitura}
-                        onChange={(e) =>
-                          setPreObraDraft((d) =>
-                            aplicarDataEnvioCreditoObraNoPreObra({
-                              ...d,
-                              previsao_aprovacao_prefeitura: e.target.value,
-                            }),
-                          )
-                        }
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Previsão de Emissão do Alvará</span>
-                      <input
-                        type="date"
-                        value={preObraDraft.previsao_emissao_alvara}
-                        onChange={(e) => setPreObraDraft((d) => ({ ...d, previsao_emissao_alvara: e.target.value }))}
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Envio para Crédito Obra</span>
-                      <input
-                        type="date"
-                        value={preObraDraft.previsao_liberacao_credito_obra}
-                        readOnly
-                        title="Calculado automaticamente: previsão prefeitura − 30 dias corridos, próximo dia útil"
-                        className="mt-0.5 w-full cursor-not-allowed rounded border border-stone-200 bg-stone-50 px-2 py-1 text-xs text-stone-600"
-                      />
-                      <span className="mt-0.5 block text-[10px] text-stone-400">
-                        Automático (prefeitura − 30 dias corridos, próximo dia útil)
-                      </span>
-                    </label>
-                    <label className="col-span-2 block">
-                      <span className="text-[11px] font-medium text-stone-500">Previsão de Início de Obra</span>
-                      <input
-                        type="date"
-                        value={preObraDraft.previsao_inicio_obra}
-                        onChange={(e) => setPreObraDraft((d) => ({ ...d, previsao_inicio_obra: e.target.value }))}
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      />
-                    </label>
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-                    <label className="block min-w-0">
-                      <span className="text-[11px] font-medium text-stone-500">Data de Aprovação no Condomínio</span>
-                      <input
-                        type="date"
-                        value={preObraDraft.data_aprovacao_condominio}
-                        onChange={(e) =>
-                          setPreObraDraft((d) => ({ ...d, data_aprovacao_condominio: e.target.value }))
-                        }
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-1 py-1 text-[11px] text-stone-800"
-                      />
-                    </label>
-                    <label className="block min-w-0">
-                      <span className="text-[11px] font-medium text-stone-500">Data de Aprovação na Prefeitura</span>
-                      <input
-                        type="date"
-                        value={preObraDraft.data_aprovacao_prefeitura}
-                        onChange={(e) =>
-                          setPreObraDraft((d) => ({ ...d, data_aprovacao_prefeitura: e.target.value }))
-                        }
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-1 py-1 text-[11px] text-stone-800"
-                      />
-                    </label>
-                    <label className="block min-w-0">
-                      <span className="text-[11px] font-medium text-stone-500">Data de Emissão do Alvará</span>
-                      <input
-                        type="date"
-                        value={preObraDraft.data_emissao_alvara}
-                        onChange={(e) => setPreObraDraft((d) => ({ ...d, data_emissao_alvara: e.target.value }))}
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-1 py-1 text-[11px] text-stone-800"
-                      />
-                    </label>
-                    <label className="block min-w-0">
-                      <span className="text-[11px] font-medium text-stone-500">Data de aprovação do crédito</span>
-                      <input
-                        type="date"
-                        value={preObraDraft.data_aprovacao_credito}
-                        onChange={(e) =>
-                          setPreObraDraft((d) => ({ ...d, data_aprovacao_credito: e.target.value }))
-                        }
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-1 py-1 text-[11px] text-stone-800"
-                      />
-                    </label>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleSalvarPreObraKanban()}
-                    disabled={salvandoPreObra}
-                    className="w-full rounded-lg border border-moni-primary bg-moni-primary px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {salvandoPreObra ? 'Salvando…' : 'Salvar pré-obra'}
-                  </button>
-                </div>
-              ),
+              <KanbanCardModalDadosPreObraOperacoes
+                draft={operacoesPreObraDraft}
+                onChange={(patch) => setOperacoesPreObraDraft((d) => ({ ...d, ...patch }))}
+                onSalvar={() => void handleSalvarPreObraOperacoes()}
+                salvando={salvandoPreObra}
+                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam && !isLegado}
+              />,
             )}
             {!exibirDadosLoteadorPersistente && secaoHeadPainelCentroCalculadora()}
             {exibirSecaoDocumentacaoCreditoObra

@@ -4265,7 +4265,7 @@ function dataPreObraOuNull(valor: string | null | undefined): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : null;
 }
 
-/** Salva Dados Pré Obra no card do Funil Operações e espelha nas fases (`preobra:<campo>`). */
+/** Salva Dados Pré Obra no card e espelha nas fases (`preobra:<campo>`). Vale para todos os funis. */
 export async function salvarDadosPreObraOperacoes(
   input: SalvarDadosPreObraOperacoesInput,
 ): Promise<ActionResult> {
@@ -4280,13 +4280,11 @@ export async function salvarDadosPreObraOperacoes(
 
   const { data: cardRow, error: cardErr } = await supabase
     .from('kanban_cards')
-    .select('kanban_id')
+    .select('id')
     .eq('id', cardId)
     .maybeSingle();
   if (cardErr) return { ok: false, error: cardErr.message };
-  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.OPERACOES) {
-    return { ok: false, error: 'Pré-obra aplicável apenas ao Funil Operações.' };
-  }
+  if (!cardRow) return { ok: false, error: 'Card não encontrado.' };
 
   const espelhoRaw: Record<string, unknown> = {
     docs_condominio: textoPreObraOuNull(input.docs_condominio),
