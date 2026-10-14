@@ -26,10 +26,30 @@ export function creditoLateralVazio(): CreditoLateral {
   };
 }
 
+function arredondarNumeroTranche(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
+/** Aceita inteiro e decimal, com ponto ou vírgula. */
+export function parseNumeroTranche(raw: unknown): number | null {
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw) || raw <= 0) return null;
+    return arredondarNumeroTranche(raw);
+  }
+  const s = String(raw ?? '').trim().replace(/\s/g, '');
+  if (!s) return null;
+  const normalized = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
+  const n = Number(normalized);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return arredondarNumeroTranche(n);
+}
+
+export function rotuloNumeroTranche(numero: number): string {
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 }).format(numero);
+}
+
 function numeroTranche(raw: unknown): number | null {
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1) return null;
-  return n;
+  return parseNumeroTranche(raw);
 }
 
 function dataTranche(raw: unknown): string {
@@ -93,13 +113,14 @@ export function formatCreditoMoeda(valor: number): string {
 
 export function adicionarTranche(
   tranches: readonly CreditoTranche[],
-  numero: number,
+  raw: unknown,
 ): { ok: true; tranches: CreditoTranche[] } | { ok: false; error: string } {
-  if (!Number.isInteger(numero) || numero < 1) {
+  const numero = parseNumeroTranche(raw);
+  if (numero == null) {
     return { ok: false, error: 'Informe o número da tranche.' };
   }
   if (tranches.some((tranche) => tranche.numero === numero)) {
-    return { ok: false, error: `A tranche ${numero} já existe.` };
+    return { ok: false, error: `A tranche ${rotuloNumeroTranche(numero)} já existe.` };
   }
   return {
     ok: true,
