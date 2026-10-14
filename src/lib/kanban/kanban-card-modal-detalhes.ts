@@ -400,6 +400,7 @@ export async function updateProcessoNegocioCampos(
     ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
     ...pickNegociacaoLinhas(payload),
   };
+  if (Object.keys(full).length === 0) return aplicarBookCredito(supabase, processoId, payload);
   const { error } = await supabase.from('processo_step_one').update(full as never).eq('id', processoId);
   if (!error) return aplicarBookCredito(supabase, processoId, payload);
   if (!isMissingColumnError(error)) return { ok: false, error: error.message };

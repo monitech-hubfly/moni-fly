@@ -18,6 +18,10 @@ type Props = {
   onChange: (next: CreditoLateral) => void;
   valorTerreno: string;
   valorObra: string;
+  bookEmpreendimento: string;
+  checkAnaliseCredito: string;
+  onBookChange: (value: string) => void;
+  onCheckChange: (value: string) => void;
   onSalvar: () => void;
   salvando: boolean;
   podeEditar: boolean;
@@ -33,6 +37,34 @@ function rotuloMoeda(base: string, tranches: readonly CreditoTranche[]): string 
   const restante = restanteCredito(base, tranches);
   if (restante == null) return '';
   return fmtMoedaKanban(formatCreditoMoeda(restante));
+}
+
+function CampoLink({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block min-w-0">
+      <span className={labelCls} style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+        {label}
+      </span>
+      <input
+        type="url"
+        value={value}
+        readOnly={disabled}
+        placeholder="https://…"
+        onChange={(e) => onChange(e.target.value)}
+        className={inputCls}
+      />
+    </label>
+  );
 }
 
 function CampoLeitura({ label, valor }: { label: string; valor: string }) {
@@ -222,6 +254,10 @@ export function KanbanCardModalCreditoSessao({
   onChange,
   valorTerreno,
   valorObra,
+  bookEmpreendimento,
+  checkAnaliseCredito,
+  onBookChange,
+  onCheckChange,
   onSalvar,
   salvando,
   podeEditar,
@@ -235,6 +271,20 @@ export function KanbanCardModalCreditoSessao({
 
   return (
     <div className="space-y-1">
+      <div className="space-y-3 pb-2">
+        <CampoLink
+          label="Book do empreendimento"
+          value={bookEmpreendimento}
+          disabled={travado}
+          onChange={onBookChange}
+        />
+        <CampoLink
+          label="Check Análise de Crédito"
+          value={checkAnaliseCredito}
+          disabled={travado}
+          onChange={onCheckChange}
+        />
+      </div>
       <BlocoRecolhivel titulo="Terreno" aberto={abertos.terreno} onToggle={() => alternar('terreno')}>
       <CampoLeitura label="Valor do Terreno" valor={valorTerreno.trim() ? fmtMoedaKanban(valorTerreno) : ''} />
       <CampoLeitura label="Valor do Terreno em aberto" valor={rotuloMoeda(valorTerreno, draft.terreno_tranches)} />

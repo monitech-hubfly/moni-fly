@@ -335,6 +335,7 @@ export async function propagarLinksAcoplamentoVinculados(params: {
   linkAcoplamento?: string | null;
   linkGboxOzempic?: string | null;
   bookEmpreendimento?: string | null;
+  checkAnaliseCredito?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const cardId = String(params.cardId ?? '').trim();
   if (!cardId) return { ok: true };
@@ -344,6 +345,7 @@ export async function propagarLinksAcoplamentoVinculados(params: {
   if (params.linkAcoplamento !== undefined) patch.link_acoplamento = params.linkAcoplamento;
   if (params.linkGboxOzempic !== undefined) patch.link_gbox_ozempic = params.linkGboxOzempic;
   if (params.bookEmpreendimento !== undefined) patch.book_empreendimento = params.bookEmpreendimento;
+  if (params.checkAnaliseCredito !== undefined) patch.check_analise_credito = params.checkAnaliseCredito;
   if (Object.keys(patch).length === 0) return { ok: true };
 
   let db: ReturnType<typeof createAdminClient>;
@@ -399,6 +401,9 @@ export async function propagarLinksAcoplamentoVinculados(params: {
   }
   if (params.bookEmpreendimento !== undefined) {
     chaves.push({ chave: 'negocio:book_empreendimento', valor: params.bookEmpreendimento });
+  }
+  if (params.checkAnaliseCredito !== undefined) {
+    chaves.push({ chave: 'negocio:check_analise_credito', valor: params.checkAnaliseCredito });
   }
   const cardIds = await listarKanbanCardIdsSyncGroup(db, cardId);
   if (cardIds.length === 0 || chaves.length === 0) return { ok: true };

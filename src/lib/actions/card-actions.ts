@@ -2576,6 +2576,7 @@ export async function salvarDadosNegocioKanban(input: {
     linkAcoplamento: payloadNegocio.link_acoplamento,
     linkGboxOzempic: payloadNegocio.link_gbox_ozempic,
     bookEmpreendimento: payloadNegocio.book_empreendimento,
+    checkAnaliseCredito: payloadNegocio.check_analise_credito,
   });
   if (!propLinks.ok) return propLinks;
 
@@ -5707,6 +5708,7 @@ export async function upsertFaseChecklistResposta(input: {
             linkAcoplamento: patch.link_acoplamento,
             linkGboxOzempic: patch.link_gbox_ozempic,
             bookEmpreendimento: patch.book_empreendimento,
+            checkAnaliseCredito: patch.check_analise_credito,
           });
           if (!prop.ok) return prop;
         }

@@ -3316,6 +3316,22 @@ export function KanbanCardModal({
         alert(res.error);
         return;
       }
+      const processoId = modalDetalhes.processo?.id?.trim() ?? '';
+      if (processoId) {
+        const resLinks = await salvarDadosNegocioKanban({
+          cardId: card.id,
+          processoId,
+          basePath,
+          payload: {
+            book_empreendimento: negocioDraft.book_empreendimento?.trim() || null,
+            check_analise_credito: negocioDraft.check_analise_credito?.trim() || null,
+          },
+        });
+        if (!resLinks.ok) {
+          alert(resLinks.error);
+          return;
+        }
+      }
       await loadCard({ silencioso: true });
       router.refresh();
     } catch {
@@ -6230,6 +6246,14 @@ export function KanbanCardModal({
                         onChange={setCreditoDraft}
                         valorTerreno={negocioDraft.valor_terreno}
                         valorObra={negocioDraft.custo_obra}
+                        bookEmpreendimento={negocioDraft.book_empreendimento}
+                        checkAnaliseCredito={negocioDraft.check_analise_credito}
+                        onBookChange={(book_empreendimento) =>
+                          setNegocioDraft((d) => ({ ...d, book_empreendimento }))
+                        }
+                        onCheckChange={(check_analise_credito) =>
+                          setNegocioDraft((d) => ({ ...d, check_analise_credito }))
+                        }
                         onSalvar={() => void handleSalvarCredito()}
                         salvando={salvandoCredito}
                         podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam && !isLegado}
@@ -7784,22 +7808,6 @@ export function KanbanCardModal({
                       opcoesVinculo={calculadoraOpcoesVinculoNegociacao}
                       datasResolvidas={negociacaoDatasResolvidas}
                     />
-                    {renderNegocioLinkCampo(
-                      'Book do empreendimento',
-                      proc.book_empreendimento,
-                      {
-                        value: negocioDraft.book_empreendimento,
-                        onChange: (v) => setNegocioDraft((d) => ({ ...d, book_empreendimento: v })),
-                      },
-                    )}
-                    {renderNegocioLinkCampo(
-                      'Check Análise de Crédito',
-                      proc.check_analise_credito,
-                      {
-                        value: negocioDraft.check_analise_credito,
-                        onChange: (v) => setNegocioDraft((d) => ({ ...d, check_analise_credito: v })),
-                      },
-                    )}
                     <div className="flex flex-wrap gap-2 pt-1">
                       <button
                         type="button"
@@ -7812,7 +7820,11 @@ export function KanbanCardModal({
                       <button
                         type="button"
                         onClick={() =>
-                          setNegocioDraft(negocioDraftFromProcesso(proc, fasesNegocioPrazo))
+                          setNegocioDraft((atual) => ({
+                            ...negocioDraftFromProcesso(proc, fasesNegocioPrazo),
+                            book_empreendimento: atual.book_empreendimento,
+                            check_analise_credito: atual.check_analise_credito,
+                          }))
                         }
                         disabled={salvandoNegocio}
                         className="rounded-lg border border-stone-200 px-3 py-2 text-xs text-stone-600 hover:bg-stone-50 disabled:opacity-50"
@@ -7951,8 +7963,6 @@ export function KanbanCardModal({
                       onChange={() => {}}
                       linhasLeitura={negociacaoLinhasLeituraResolvidas}
                     />
-                    {renderNegocioLinkCampo('Book do empreendimento', proc.book_empreendimento)}
-                    {renderNegocioLinkCampo('Check Análise de Crédito', proc.check_analise_credito)}
                   </div>
                 )}
               </div>
@@ -8023,6 +8033,14 @@ export function KanbanCardModal({
                 onChange={setCreditoDraft}
                 valorTerreno={negocioDraft.valor_terreno}
                 valorObra={negocioDraft.custo_obra}
+                bookEmpreendimento={negocioDraft.book_empreendimento}
+                checkAnaliseCredito={negocioDraft.check_analise_credito}
+                onBookChange={(book_empreendimento) =>
+                  setNegocioDraft((d) => ({ ...d, book_empreendimento }))
+                }
+                onCheckChange={(check_analise_credito) =>
+                  setNegocioDraft((d) => ({ ...d, check_analise_credito }))
+                }
                 onSalvar={() => void handleSalvarCredito()}
                 salvando={salvandoCredito}
                 podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam && !isLegado}
