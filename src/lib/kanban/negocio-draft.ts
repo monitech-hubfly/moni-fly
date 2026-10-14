@@ -27,6 +27,7 @@ export type NegocioDraftKanban = {
   link_pasta_drive: string;
   link_bca: string;
   link_gbox: string;
+  link_gbox_ozempic: string;
   link_mapa_competidores: string;
   link_acoplamento: string;
   link_apresentacao_comite: string;
@@ -68,6 +69,7 @@ export function negocioDraftVazio(): NegocioDraftKanban {
     link_pasta_drive: '',
     link_bca: '',
     link_gbox: '',
+    link_gbox_ozempic: '',
     link_mapa_competidores: '',
     link_acoplamento: '',
     link_apresentacao_comite: '',
@@ -115,6 +117,7 @@ export function negocioDraftFromProcesso(
     link_pasta_drive: proc.link_pasta_drive ?? '',
     link_bca: proc.link_bca ?? '',
     link_gbox: proc.link_gbox ?? '',
+    link_gbox_ozempic: proc.link_gbox_ozempic ?? '',
     link_mapa_competidores: proc.link_mapa_competidores ?? '',
     link_acoplamento: proc.link_acoplamento ?? '',
     link_apresentacao_comite: proc.link_apresentacao_comite ?? '',

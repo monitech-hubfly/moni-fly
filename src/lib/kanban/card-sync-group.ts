@@ -403,6 +403,7 @@ export const PROCESSO_CAMPOS_SYNC = [
   'link_pasta_drive',
   'link_bca',
   'link_gbox',
+  'link_gbox_ozempic',
   'link_acoplamento',
   'link_mapa_competidores',
   'link_apresentacao_comite',

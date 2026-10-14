@@ -71,6 +71,7 @@ import {
   vincularTagCard,
   verificarChecklistParaFase,
   verificarGateAcoplamentoModelagemCasa,
+  verificarGateBookFaseCredito,
   verificarGateChecklistLegalPortfolio,
   gerarFormTokenCandidato,
   enviarEmailCard,
@@ -2854,8 +2855,22 @@ export function KanbanCardModal({
     setAcoplamentoGateToast(null);
     if (
       !isLegado &&
+      card.kanban_id === KANBAN_IDS.CREDITO_OBRA &&
+      (faseAtual.slug ?? '').trim() === FASE_SLUGS.CO_BOOK
+    ) {
+      const gateBook = await verificarGateBookFaseCredito(card.id, proximaFase.id);
+      if (!gateBook.ok) {
+        alert(gateBook.error);
+        return;
+      }
+    }
+    const slugFaseAcoplamento = (faseAtual.slug ?? '').trim();
+    if (
+      !isLegado &&
       card.kanban_id === KANBAN_IDS.ACOPLAMENTO &&
-      (faseAtual.slug ?? '').trim() === FASE_SLUGS.MODELAGEM_CASA_GBOX
+      (slugFaseAcoplamento === FASE_SLUGS.MODELAGEM_CASA_GBOX ||
+        slugFaseAcoplamento === FASE_SLUGS.GBOX_ACOPLAMENTO ||
+        slugFaseAcoplamento === FASE_SLUGS.ACOPLAMENTO_ALTERACOES)
     ) {
       const gateAcop = await verificarGateAcoplamentoModelagemCasa(card.id, proximaFase.id);
       if (!gateAcop.ok) {
@@ -3370,6 +3385,7 @@ export function KanbanCardModal({
           link_pasta_drive: negocioDraft.link_pasta_drive || null,
           link_bca: negocioDraft.link_bca?.trim() || null,
           link_gbox: negocioDraft.link_gbox?.trim() || null,
+          link_gbox_ozempic: negocioDraft.link_gbox_ozempic?.trim() || null,
           link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
           link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
           link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
@@ -4491,6 +4507,11 @@ export function KanbanCardModal({
   const exibirChecklistCredito =
     !isLegado &&
     deveExibirChecklistCreditoNaFase(card.kanban_id, faseAtual?.slug ?? card.etapa_slug);
+  const exibirCreditoNoChecklist =
+    !isLegado &&
+    card.kanban_id === KANBAN_IDS.CREDITO_OBRA &&
+    faseSlugAtual !== FASE_SLUGS.CO_NOVO_PROJETO &&
+    faseSlugAtual !== FASE_SLUGS.CO_SHAREPOINT_3A;
   const processoIdChecklists = proc?.id?.trim() || null;
   const enderecoCasaLinha = rede
     ? [
@@ -6202,6 +6223,18 @@ export function KanbanCardModal({
                       </p>
                     ) : null}
 
+                    {exibirCreditoNoChecklist ? (
+                      <KanbanCardModalCreditoSessao
+                        draft={creditoDraft}
+                        onChange={setCreditoDraft}
+                        valorTerreno={negocioDraft.valor_terreno}
+                        valorObra={negocioDraft.custo_obra}
+                        onSalvar={() => void handleSalvarCredito()}
+                        salvando={salvandoCredito}
+                        podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam && !isLegado}
+                      />
+                    ) : null}
+
                     <ChecklistPrefetch cardId={card.id} faseId={faseChecklistFaseId} />
                     <FaseChecklistCard
                       faseId={faseChecklistFaseId}
@@ -7687,6 +7720,14 @@ export function KanbanCardModal({
                       },
                     )}
                     {renderNegocioLinkCampo(
+                      'GBOX Ozempic',
+                      proc.link_gbox_ozempic,
+                      {
+                        value: negocioDraft.link_gbox_ozempic,
+                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_gbox_ozempic: v })),
+                      },
+                    )}
+                    {renderNegocioLinkCampo(
                       'Apresentação Comitê',
                       proc.link_apresentacao_comite,
                       {
@@ -7869,6 +7910,7 @@ export function KanbanCardModal({
                     </div>
                     {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento)}
                     {renderNegocioLinkCampo('GBOX', proc.link_gbox)}
+                    {renderNegocioLinkCampo('GBOX Ozempic', proc.link_gbox_ozempic)}
                     {renderNegocioLinkCampo('Apresentação Comitê', proc.link_apresentacao_comite)}
                     <div>
                       <div className="text-[11px] font-medium text-stone-500">Data Aprovação Comitê</div>

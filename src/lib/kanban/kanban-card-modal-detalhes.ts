@@ -47,6 +47,7 @@ export type ProcessoModalNegocioPreObra = {
   link_pasta_drive: string | null;
   link_bca: string | null;
   link_gbox: string | null;
+  link_gbox_ozempic: string | null;
   link_mapa_competidores: string | null;
   link_acoplamento: string | null;
   link_apresentacao_comite: string | null;
@@ -244,6 +245,7 @@ export type ProcessoNegocioUpdatePayload = {
   link_pasta_drive?: string | null;
   link_bca?: string | null;
   link_gbox?: string | null;
+  link_gbox_ozempic?: string | null;
   link_mapa_competidores?: string | null;
   link_acoplamento?: string | null;
   link_apresentacao_comite?: string | null;
@@ -327,6 +329,9 @@ const PROCESSO_UPDATE_NEW_KEYS = [
 
 const PROCESSO_UPDATE_BOOK_CREDITO_KEYS = ['book_empreendimento', 'check_analise_credito'] as const;
 
+const PROCESSO_SELECT_GBOX_OZEMPIC = 'link_gbox_ozempic';
+const PROCESSO_UPDATE_GBOX_OZEMPIC_KEYS = ['link_gbox_ozempic'] as const;
+
 const PROCESSO_UPDATE_PRAZO_KEYS = [
   'prazo_opcao_dias',
   'prazo_opcao_sla_tipo',
@@ -359,16 +364,27 @@ function pickNegociacaoLinhas(
   return { negociacao_linhas: payload.negociacao_linhas };
 }
 
+async function aplicarColunasOpcionais(
+  supabase: SupabaseClient,
+  processoId: string,
+  payload: ProcessoNegocioUpdatePayload,
+  keys: readonly string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const extra = pickPayload(payload, keys);
+  if (Object.keys(extra).length === 0) return { ok: true };
+  const { error } = await supabase.from('processo_step_one').update(extra as never).eq('id', processoId);
+  if (!error || isMissingColumnError(error)) return { ok: true };
+  return { ok: false, error: error.message };
+}
+
 async function aplicarBookCredito(
   supabase: SupabaseClient,
   processoId: string,
   payload: ProcessoNegocioUpdatePayload,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const extra = pickPayload(payload, PROCESSO_UPDATE_BOOK_CREDITO_KEYS);
-  if (Object.keys(extra).length === 0) return { ok: true };
-  const { error } = await supabase.from('processo_step_one').update(extra as never).eq('id', processoId);
-  if (!error || isMissingColumnError(error)) return { ok: true };
-  return { ok: false, error: error.message };
+  const book = await aplicarColunasOpcionais(supabase, processoId, payload, PROCESSO_UPDATE_BOOK_CREDITO_KEYS);
+  if (!book.ok) return book;
+  return aplicarColunasOpcionais(supabase, processoId, payload, PROCESSO_UPDATE_GBOX_OZEMPIC_KEYS);
 }
 
 /** Atualiza dados do negócio; faz fallback se colunas novas ainda não existirem no banco. */
@@ -567,6 +583,7 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     link_pasta_drive: g('link_pasta_drive'),
     link_bca: g('link_bca'),
     link_gbox: g('link_gbox'),
+    link_gbox_ozempic: g('link_gbox_ozempic'),
     link_mapa_competidores: g('link_mapa_competidores'),
     link_acoplamento: g('link_acoplamento'),
     link_apresentacao_comite: g('link_apresentacao_comite'),
@@ -636,8 +653,16 @@ async function fetchProcessoById(supabase: SupabaseClient, id: string) {
       .select(PROCESSO_SELECT_BOOK_CREDITO)
       .eq('id', id)
       .maybeSingle();
-    if (extra.error || !extra.data) return mapProcesso(base);
-    return mapProcesso({ ...base, ...(extra.data as unknown as Record<string, unknown>) });
+    const ozempic = await supabase
+      .from('processo_step_one')
+      .select(PROCESSO_SELECT_GBOX_OZEMPIC)
+      .eq('id', id)
+      .maybeSingle();
+    return mapProcesso({
+      ...base,
+      ...(extra.error || !extra.data ? {} : (extra.data as unknown as Record<string, unknown>)),
+      ...(ozempic.error || !ozempic.data ? {} : (ozempic.data as unknown as Record<string, unknown>)),
+    });
   }
 
   if (isMissingColumnError(error)) {

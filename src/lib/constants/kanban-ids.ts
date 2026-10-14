@@ -267,8 +267,12 @@ export const FASE_SLUGS = {
 
   /** Funil Acoplamento — primeira fase (entrada). */
   ACOPLAMENTO_NOVO: 'novo_acoplamento',
-  /** Funil Acoplamento — gate Gbox/Acoplamento antes de avançar. */
+  /** Funil Acoplamento — Modelagem da Casa. Slug estável da antiga fase Casa + GBox. */
   MODELAGEM_CASA_GBOX: 'modelagem_casa_gbox',
+  /** Funil Acoplamento — logo após Modelagem da Casa. */
+  GBOX_ACOPLAMENTO: 'gbox_acoplamento',
+  /** Funil Acoplamento — Alterações do Acoplamento. */
+  ACOPLAMENTO_ALTERACOES: 'alteracoes_acoplamento',
   /** Funil Acoplamento — entre Validação e Alterações. */
   ACOPLAMENTO_AGUARDANDO_COMITE: 'aguardando_comite_acoplamento',
   APROVACAO_PREFEITURA: 'aprovacao_prefeitura',

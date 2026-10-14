@@ -104,6 +104,7 @@ const NEGOCIO_COPY_FIELDS = [
   'link_pasta_drive',
   'link_bca',
   'link_gbox',
+  'link_gbox_ozempic',
   'link_mapa_competidores',
   'link_acoplamento',
   'link_apresentacao_comite',

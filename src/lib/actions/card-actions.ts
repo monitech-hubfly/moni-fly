@@ -2568,6 +2568,17 @@ export async function salvarDadosNegocioKanban(input: {
     if (espelhoErr) return { ok: false, error: espelhoErr.message };
   }
 
+  const { propagarLinksAcoplamentoVinculados } = await import('@/lib/kanban/links-bca-acoplamento-sync');
+  const propLinks = await propagarLinksAcoplamentoVinculados({
+    cardId,
+    usuarioId: user.id,
+    linkGbox: payloadNegocio.link_gbox,
+    linkAcoplamento: payloadNegocio.link_acoplamento,
+    linkGboxOzempic: payloadNegocio.link_gbox_ozempic,
+    bookEmpreendimento: payloadNegocio.book_empreendimento,
+  });
+  if (!propLinks.ok) return propLinks;
+
   const linkPlanilhaMapa =
     payloadNegocio.link_gbox !== undefined
       ? payloadNegocio.link_gbox
@@ -4416,6 +4427,63 @@ export async function salvarCreditoLateral(input: SalvarCreditoLateralInput): Pr
     }
   }
 
+  try {
+    const admin = createAdminClient();
+    const { listarKanbanCardIdsSyncGroup } = await import('@/lib/kanban/card-sync-group');
+    const ids = await listarKanbanCardIdsSyncGroup(admin, cardId);
+    const outros = ids.filter((id) => id !== cardId);
+    if (outros.length > 0) {
+      const { error: copyErr } = await admin
+        .from('kanban_cards')
+        .update({ credito_lateral: credito, updated_at: new Date().toISOString() } as never)
+        .in('id', outros);
+      if (copyErr && !/credito_lateral|does not exist|PGRST204|42703/i.test(copyErr.message)) {
+        return { ok: false, error: copyErr.message };
+      }
+      const { data: vinculados } = await admin
+        .from('kanban_cards')
+        .select('id, processo_step_one_id')
+        .in('id', outros);
+      const { updateProcessoNegocioCampos } = await import('@/lib/kanban/kanban-card-modal-detalhes');
+      const { checklistLinhasFromNegocioPayload } = await import('@/lib/kanban/negocio-checklist-sync');
+      const agora = new Date().toISOString();
+      for (const row of vinculados ?? []) {
+        const vinculadoId = String((row as { id?: string }).id ?? '').trim();
+        const pid = String((row as { processo_step_one_id?: string | null }).processo_step_one_id ?? '').trim();
+        if (!vinculadoId || !pid) continue;
+        const { data: procVinc } = await admin
+          .from('processo_step_one')
+          .select('custo_obra')
+          .eq('id', pid)
+          .maybeSingle();
+        const restanteVinc = restanteCredito(
+          (procVinc as { custo_obra?: string | null } | null)?.custo_obra,
+          credito.obra_tranches,
+        );
+        const dividaVinc = restanteVinc == null ? null : formatCreditoMoeda(restanteVinc);
+        const updVinc = await updateProcessoNegocioCampos(admin, pid, { divida_obra: dividaVinc });
+        if (!updVinc.ok) return updVinc;
+        const linhasVinc = checklistLinhasFromNegocioPayload({ divida_obra: dividaVinc });
+        if (linhasVinc.length > 0) {
+          const { error: espelhoVincErr } = await admin.from('kanban_card_checklist_compartilhado').upsert(
+            linhasVinc.map((linha) => ({
+              card_id: vinculadoId,
+              chave: linha.chave,
+              valor: linha.valor,
+              atualizado_por: user.id,
+              atualizado_em: agora,
+            })),
+            { onConflict: 'card_id,chave' },
+          );
+          if (espelhoVincErr) return { ok: false, error: espelhoVincErr.message };
+        }
+      }
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
   const base = String(input.basePath ?? '/').trim() || '/';
   revalidatePath(base);
   revalidatePath('/');
@@ -4746,18 +4814,22 @@ export async function moverCardParaFase(input: {
     String((cardKanban as { fase_id?: string | null } | null)?.fase_id ?? '').trim() || null;
 
   const { verificarGateJustificativaSla } = await import('@/lib/actions/kanban-sla-justificativa');
-  const [gate, gateAcoplamento, gateChecklistLegal, gateSlaJustificativa] = await Promise.all([
+  const [gate, gateAcoplamento, gateChecklistLegal, gateSlaJustificativa, gateBook] = await Promise.all([
     obterGateComiteLoteadores(supabase, cardId, novaFaseSlug, input.kanbanNome),
     kanbanIdMovimento === KANBAN_IDS.ACOPLAMENTO
       ? verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId)
       : Promise.resolve({ ok: true as const }),
     verificarGateChecklistLegalPortfolio(cardId, novaFaseId),
     verificarGateJustificativaSla(cardId, novaFaseId, input.justificativaSlaQuebra),
+    kanbanIdMovimento === KANBAN_IDS.CREDITO_OBRA
+      ? verificarGateBookFaseCredito(cardId, novaFaseId)
+      : Promise.resolve({ ok: true as const }),
   ]);
   if (!gate.ok) return gate;
   if (!gateAcoplamento.ok) return gateAcoplamento;
   if (!gateChecklistLegal.ok) return gateChecklistLegal;
   if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
+  if (!gateBook.ok) return gateBook;
 
   if (movimentoExigeGateConclusaoAtendimentoJuridico(novaFaseSlug)) {
     const { verificarGateConclusaoAtendimentoJuridico } = await import(
@@ -4861,6 +4933,66 @@ export async function moverCardParaFase(input: {
     if (basePath) revalidatePath(basePath);
   }
   return { ok: true };
+}
+
+function textoBookChecklist(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  return s || null;
+}
+
+/** Sair da fase Book do Funil Crédito exige o link do Book do empreendimento. */
+export async function verificarGateBookFaseCredito(
+  cardId: string,
+  novaFaseId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const cid = String(cardId ?? '').trim();
+  const fid = String(novaFaseId ?? '').trim();
+  if (!cid || !fid) return { ok: true };
+
+  const { data: card } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id, fase_id, processo_step_one_id')
+    .eq('id', cid)
+    .maybeSingle();
+  if (String((card as { kanban_id?: string } | null)?.kanban_id ?? '') !== KANBAN_IDS.CREDITO_OBRA) {
+    return { ok: true };
+  }
+
+  const faseAtualId = String((card as { fase_id?: string | null } | null)?.fase_id ?? '').trim();
+  const [{ data: faseAtual }, { data: faseDest }] = await Promise.all([
+    supabase.from('kanban_fases').select('slug, ordem').eq('id', faseAtualId).maybeSingle(),
+    supabase.from('kanban_fases').select('ordem').eq('id', fid).maybeSingle(),
+  ]);
+  if (String((faseAtual as { slug?: string } | null)?.slug ?? '') !== FASE_SLUGS.CO_BOOK) return { ok: true };
+  const ordemAtual = Number((faseAtual as { ordem?: number } | null)?.ordem ?? 0);
+  const ordemDest = Number((faseDest as { ordem?: number } | null)?.ordem ?? 0);
+  if (ordemDest <= ordemAtual) return { ok: true };
+
+  const { data: comp } = await supabase
+    .from('kanban_card_checklist_compartilhado')
+    .select('valor')
+    .eq('card_id', cid)
+    .eq('chave', 'negocio:book_empreendimento')
+    .maybeSingle();
+  if (textoBookChecklist((comp as { valor?: unknown } | null)?.valor)) return { ok: true };
+
+  const processoId = String(
+    (card as { processo_step_one_id?: string | null } | null)?.processo_step_one_id ?? '',
+  ).trim();
+  if (processoId) {
+    const { data: proc } = await supabase
+      .from('processo_step_one')
+      .select('book_empreendimento')
+      .eq('id', processoId)
+      .maybeSingle();
+    if (String((proc as { book_empreendimento?: string | null } | null)?.book_empreendimento ?? '').trim()) {
+      return { ok: true };
+    }
+  }
+
+  return { ok: false, error: 'Preencha o Book do empreendimento antes de avançar.' };
 }
 
 // ─── Aprovação de passagem de fase ───────────────────────────────────────────
@@ -5565,6 +5697,18 @@ export async function upsertFaseChecklistResposta(input: {
         if (processoId) {
           const syncNegocio = await updateProcessoNegocioCampos(supabase, processoId, patch);
           if (!syncNegocio.ok) return { ok: false, error: syncNegocio.error };
+          const { propagarLinksAcoplamentoVinculados } = await import(
+            '@/lib/kanban/links-bca-acoplamento-sync'
+          );
+          const prop = await propagarLinksAcoplamentoVinculados({
+            cardId: input.card_id,
+            usuarioId: user.id,
+            linkGbox: patch.link_gbox,
+            linkAcoplamento: patch.link_acoplamento,
+            linkGboxOzempic: patch.link_gbox_ozempic,
+            bookEmpreendimento: patch.book_empreendimento,
+          });
+          if (!prop.ok) return prop;
         }
       }
     }

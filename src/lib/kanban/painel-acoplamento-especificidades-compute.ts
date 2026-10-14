@@ -13,6 +13,7 @@ const FASES_TECNICAS_SLUGS = [
   'novo_acoplamento',
   'modelagem_terreno',
   FASE_SLUGS.MODELAGEM_CASA_GBOX,
+  FASE_SLUGS.GBOX_ACOPLAMENTO,
   'validacao_acoplamento',
   'aguardando_comite_acoplamento',
   'alteracoes_acoplamento',
