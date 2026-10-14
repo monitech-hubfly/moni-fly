@@ -102,7 +102,7 @@ export type ProcessoModalNegocioPreObra = {
   data_ass_contrato_terreno: string | null;
   valor_recompra: string | null;
   book_empreendimento: string | null;
-  /** 'true' ou 'false'. */
+  /** Link do Check Análise de Crédito. */
   check_analise_credito: string | null;
 };
 

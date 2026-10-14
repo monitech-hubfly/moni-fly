@@ -3370,7 +3370,7 @@ export function KanbanCardModal({
           obs_instrumento_garantidor: negocioDraft.obs_instrumento_garantidor?.trim() || null,
           data_ass_contrato_terreno: negocioDraft.data_ass_contrato_terreno || null,
           book_empreendimento: negocioDraft.book_empreendimento?.trim() || null,
-          check_analise_credito: negocioDraft.check_analise_credito === 'true' ? 'true' : 'false',
+          check_analise_credito: negocioDraft.check_analise_credito?.trim() || null,
         },
         basePath,
       });
@@ -7716,21 +7716,14 @@ export function KanbanCardModal({
                         onChange: (v) => setNegocioDraft((d) => ({ ...d, book_empreendimento: v })),
                       },
                     )}
-                    <label className="flex min-h-11 cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded"
-                        disabled={salvandoNegocio}
-                        checked={negocioDraft.check_analise_credito === 'true'}
-                        onChange={(e) =>
-                          setNegocioDraft((d) => ({
-                            ...d,
-                            check_analise_credito: e.target.checked ? 'true' : 'false',
-                          }))
-                        }
-                      />
-                      <span className="text-[11px] font-medium text-stone-500">Check Análise de Crédito</span>
-                    </label>
+                    {renderNegocioLinkCampo(
+                      'Check Análise de Crédito',
+                      proc.check_analise_credito,
+                      {
+                        value: negocioDraft.check_analise_credito,
+                        onChange: (v) => setNegocioDraft((d) => ({ ...d, check_analise_credito: v })),
+                      },
+                    )}
                     <div className="flex flex-wrap gap-2 pt-1">
                       <button
                         type="button"
@@ -7886,12 +7879,7 @@ export function KanbanCardModal({
                       linhasLeitura={negociacaoLinhasLeituraResolvidas}
                     />
                     {renderNegocioLinkCampo('Book do empreendimento', proc.book_empreendimento)}
-                    <div>
-                      <div className="text-[11px] font-medium text-stone-500">Check Análise de Crédito</div>
-                      <div className="text-xs text-stone-800">
-                        {proc.check_analise_credito === 'true' ? 'Sim' : proc.check_analise_credito === 'false' ? 'Não' : '—'}
-                      </div>
-                    </div>
+                    {renderNegocioLinkCampo('Check Análise de Crédito', proc.check_analise_credito)}
                   </div>
                 )}
               </div>

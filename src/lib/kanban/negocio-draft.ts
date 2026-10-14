@@ -93,7 +93,7 @@ export function negocioDraftVazio(): NegocioDraftKanban {
     data_ass_contrato_terreno: '',
     valor_recompra: '',
     book_empreendimento: '',
-    check_analise_credito: 'false',
+    check_analise_credito: '',
   };
 }
 
@@ -143,6 +143,9 @@ export function negocioDraftFromProcesso(
     data_ass_contrato_terreno: proc.data_ass_contrato_terreno ?? '',
     valor_recompra: moedaCampoValorInicial(proc.valor_recompra),
     book_empreendimento: proc.book_empreendimento ?? '',
-    check_analise_credito: proc.check_analise_credito === 'true' ? 'true' : 'false',
+    check_analise_credito:
+      proc.check_analise_credito === 'true' || proc.check_analise_credito === 'false'
+        ? ''
+        : (proc.check_analise_credito ?? ''),
   };
 }
