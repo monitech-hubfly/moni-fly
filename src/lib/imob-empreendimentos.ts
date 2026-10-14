@@ -518,10 +518,11 @@ function mapRow(r: RawImobEmp): ImobEmpreendimentoRow {
   };
 }
 
-/** Step One, depois Portfólio, depois Pré Obra e Obra (Operações). */
+/** Step One, depois Portfólio ou Loteadores, depois Pré Obra e Obra (Operações). */
 const FUNIL_AVANCO_FASE: Record<string, number> = {
   [KANBAN_IDS.STEP_ONE]: 1,
   [KANBAN_IDS.PORTFOLIO]: 2,
+  [KANBAN_IDS.LOTEADORES]: 2,
   [KANBAN_IDS.OPERACOES]: 3,
 };
 
@@ -626,7 +627,7 @@ async function enriquecerLocalizacaoFaseEmpreendimentos(
   rows: ImobEmpreendimentoRow[],
 ): Promise<void> {
   const cardIds = [...new Set(rows.map((r) => String(r.card_id ?? '').trim()).filter(Boolean))];
-  const kanbanIds = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES];
+  const kanbanIds = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.LOTEADORES, KANBAN_IDS.OPERACOES];
 
   const { data: funilData, error: funilError } = await supabase
     .from('kanban_cards')
