@@ -31,15 +31,12 @@ export default async function FormularioPublicoPage({ params }: Props) {
     );
   }
 
-  const avulso = !tokenData.card_id && !tokenData.rede_franqueado_id;
-
   return (
     <FormularioPublicoClient
       formulario={formulario}
       token={token}
       cardId={tokenData.card_id}
       redeFranqueadoId={tokenData.rede_franqueado_id}
-      avulso={avulso}
     />
   );
 }

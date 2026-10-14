@@ -16,7 +16,6 @@ type Props = {
   token: string;
   cardId?: string | null;
   redeFranqueadoId?: string | null;
-  avulso: boolean;
 };
 
 const campoStyle: React.CSSProperties = {
@@ -71,14 +70,12 @@ function condicaoOk(
   return atual.some((item) => normalizarCondicional(item) === alvo);
 }
 
-export function FormularioPublicoClient({ token, avulso, formulario }: Props) {
+export function FormularioPublicoClient({ token, formulario }: Props) {
   const secoes = formulario.secoes;
   const campos = useMemo(() => secoes.flatMap((secao) => secao.campos), [secoes]);
   const [textos, setTextos] = useState<Record<string, string>>({});
   const [listas, setListas] = useState<Record<string, string[]>>({});
   const [arquivos, setArquivos] = useState<Record<string, File[]>>({});
-  const [numero, setNumero] = useState('');
-  const [nome, setNome] = useState('');
   const [passo, setPasso] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -121,10 +118,7 @@ export function FormularioPublicoClient({ token, avulso, formulario }: Props) {
     });
   }
 
-  function faltando(secao: FormularioSecao | null, incluirAvulso: boolean): string | null {
-    if (incluirAvulso && avulso && !nome.trim()) {
-      return 'Informe o nome do franqueado.';
-    }
+  function faltando(secao: FormularioSecao | null): string | null {
     if (!secao) return null;
     for (const campo of secao.campos) {
       if (!campo.obrigatorio || !visiveis.has(campo.id)) continue;
@@ -156,7 +150,7 @@ export function FormularioPublicoClient({ token, avulso, formulario }: Props) {
   }
 
   function avancar() {
-    const msg = faltando(secaoAtual, passo === 0);
+    const msg = faltando(secaoAtual);
     if (msg) {
       setErro(msg);
       return;
@@ -167,7 +161,7 @@ export function FormularioPublicoClient({ token, avulso, formulario }: Props) {
 
   async function enviar() {
     for (const secao of secoesVisiveis) {
-      const msg = faltando(secao, true);
+      const msg = faltando(secao);
       if (msg) {
         setErro(msg);
         setPasso(secoesVisiveis.findIndex((item) => item.id === secao.id));
@@ -180,7 +174,7 @@ export function FormularioPublicoClient({ token, avulso, formulario }: Props) {
       const inicio = await fetch('/api/formularios/iniciar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, numeroFranquia: numero, nomeFranqueado: nome }),
+        body: JSON.stringify({ token }),
       });
       const aberto = (await inicio.json()) as { ok: boolean; error?: string; respostaId?: string; tokenId?: string };
       if (!inicio.ok || !aberto.ok || !aberto.respostaId) {
@@ -229,8 +223,6 @@ export function FormularioPublicoClient({ token, avulso, formulario }: Props) {
           token,
           tokenId: aberto.tokenId,
           respostaId: aberto.respostaId,
-          numeroFranquia: numero,
-          nomeFranqueado: nome,
           valores,
         }),
       });
@@ -294,15 +286,6 @@ export function FormularioPublicoClient({ token, avulso, formulario }: Props) {
           boxShadow: 'var(--moni-shadow-card)',
         }}
       >
-        {passo === 0 && avulso ? (
-          <div className="space-y-3">
-            <label className="block text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
-              Nome do Franqueado
-              <input value={nome} onChange={(e) => setNome(e.target.value)} required style={{ ...campoStyle, display: 'block', marginTop: 4 }} />
-            </label>
-          </div>
-        ) : null}
-
         {secaoAtual ? (
           <div className="space-y-4">
             <h2 className="text-lg" style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}>

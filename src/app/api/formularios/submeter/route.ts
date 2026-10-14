@@ -78,12 +78,12 @@ export async function POST(req: Request) {
     let redeId = (resposta.rede_franqueado_id as string | null) ?? null;
     if (!redeId && !resposta.card_id && numero) {
       redeId = await resolverRedeFranqueadoPorNumero(admin, numero);
-    }
-    if (!resposta.card_id && !redeId) {
-      return NextResponse.json(
-        { ok: false, error: 'Não encontramos a franquia informada. Confira o número e envie de novo.' },
-        { status: 422 },
-      );
+      if (!redeId) {
+        return NextResponse.json(
+          { ok: false, error: 'Não encontramos a franquia informada. Confira o número e envie de novo.' },
+          { status: 422 },
+        );
+      }
     }
 
     const { error: upErr } = await admin
