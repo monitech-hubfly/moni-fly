@@ -7,6 +7,7 @@ type Props = {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 };
 
 export function KanbanCardModalMoedaField({
@@ -14,6 +15,7 @@ export function KanbanCardModalMoedaField({
   onChange,
   placeholder = '0,00',
   className = 'mt-0.5 flex min-h-[44px] items-center rounded border border-stone-200 bg-white px-2 py-1 sm:min-h-0',
+  disabled = false,
 }: Props) {
   return (
     <div className={className}>
@@ -22,9 +24,10 @@ export function KanbanCardModalMoedaField({
         type="text"
         inputMode="numeric"
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(sanitizeMoedaCampoDigitos(e.target.value))}
         placeholder={placeholder}
-        className="w-full border-0 bg-transparent p-0 text-xs text-stone-800 placeholder:text-stone-400 focus:outline-none"
+        className="w-full border-0 bg-transparent p-0 text-xs text-stone-800 placeholder:text-stone-400 focus:outline-none disabled:cursor-not-allowed"
       />
     </div>
   );

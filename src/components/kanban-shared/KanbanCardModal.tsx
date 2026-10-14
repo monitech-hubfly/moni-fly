@@ -58,6 +58,7 @@ import {
   listarTagsKanban,
   salvarDadosNegocioKanban,
   salvarDadosPreObraOperacoes,
+  salvarCreditoLateral,
   salvarDadosFunding,
   salvarProximaAtividade,
   salvarFranqueadoCardVinculado,
@@ -133,6 +134,7 @@ import { estiloChipTagKanban } from '@/lib/kanban/kanban-tag-especial';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreObraOperacoes';
+import { KanbanCardModalCreditoSessao } from './KanbanCardModalCreditoSessao';
 import { KanbanCardModalDadosFunding } from './KanbanCardModalDadosFunding';
 import {
   fundingDraftFromRow,
@@ -174,6 +176,7 @@ import {
 } from '@/lib/kanban/tipo-negociacao-terreno';
 import { negocioEspelhoFromProcesso } from '@/lib/kanban/negocio-checklist-sync';
 import { preobraEspelhoFromCard } from '@/lib/kanban/preobra-checklist-sync';
+import { creditoLateralFromRaw, creditoLateralVazio, type CreditoLateral } from '@/lib/kanban/credito-lateral';
 import {
   buildOpcoesVinculoCalculadora,
   resolverDataPagamentoNegociacao,
@@ -662,6 +665,7 @@ export function KanbanCardModal({
     dadosCandidato: true,
     dadosMaterial: false,
     preObra: false,
+    credito: false,
     obra: false,
     documentacaoCreditoObra: true,
     relacionamentos: false,
@@ -820,6 +824,8 @@ export function KanbanCardModal({
   );
   const [preobraEspelhoChecklist, setPreobraEspelhoChecklist] = useState<Record<string, string>>({});
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
+  const [creditoDraft, setCreditoDraft] = useState<CreditoLateral>(() => creditoLateralVazio());
+  const [salvandoCredito, setSalvandoCredito] = useState(false);
   const [creditoObraAbertura, setCreditoObraAbertura] = useState<{
     tituloCard: string;
     dataEnvio: string | null;
@@ -892,6 +898,7 @@ export function KanbanCardModal({
     setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
     setFundingDraft(fundingDraftVazio());
     setOperacoesPreObraDraft({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY });
+    setCreditoDraft(creditoLateralVazio());
     setPreobraEspelhoChecklist({});
     setCreditoObraAbertura(null);
     setCreditoObraAberturaPending(false);
@@ -1440,6 +1447,18 @@ export function KanbanCardModal({
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
         setOperacoesPreObraDraft(operacoesPreObraDraftFromCard(cardData as Record<string, unknown>));
         setPreobraEspelhoChecklist(preobraEspelhoFromCard(cardData as Record<string, unknown>));
+        const creditoRes = await supabase
+          .from('kanban_cards')
+          .select('credito_lateral')
+          .eq('id', cardId)
+          .maybeSingle();
+        if (!creditoRes.error) {
+          setCreditoDraft(
+            creditoLateralFromRaw(
+              (creditoRes.data as { credito_lateral?: unknown } | null)?.credito_lateral,
+            ),
+          );
+        }
         setFundingDraft(fundingDraftFromRow(cardData as Record<string, unknown>));
       }
 
@@ -3268,6 +3287,29 @@ export function KanbanCardModal({
     }
   }
 
+  async function handleSalvarCredito() {
+    if (!card?.id) return;
+    setSalvandoCredito(true);
+    try {
+      const res = await salvarCreditoLateral({
+        cardId: card.id,
+        creditoLateral: creditoDraft,
+        processoId: modalDetalhes.processo?.id ?? null,
+        basePath,
+      });
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      await loadCard({ silencioso: true });
+      router.refresh();
+    } catch {
+      alert('Erro ao salvar crédito.');
+    } finally {
+      setSalvandoCredito(false);
+    }
+  }
+
   async function handleSalvarFunding() {
     if (!card?.id) return;
     setSalvandoFunding(true);
@@ -3325,7 +3367,6 @@ export function KanbanCardModal({
           vgv_pretendido: negocioDraft.vgv_pretendido || null,
           produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
           custo_obra: negocioDraft.custo_obra || null,
-          divida_obra: negocioDraft.divida_obra || null,
           link_pasta_drive: negocioDraft.link_pasta_drive || null,
           link_bca: negocioDraft.link_bca?.trim() || null,
           link_gbox: negocioDraft.link_gbox?.trim() || null,
@@ -7599,13 +7640,6 @@ export function KanbanCardModal({
                         onChange={(custo_obra) => setNegocioDraft((d) => ({ ...d, custo_obra }))}
                       />
                     </label>
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Dívida Obra</span>
-                      <KanbanCardModalMoedaField
-                        value={negocioDraft.divida_obra}
-                        onChange={(divida_obra) => setNegocioDraft((d) => ({ ...d, divida_obra }))}
-                      />
-                    </label>
                     {renderNegocioLinkCampo(
                       'BCA',
                       proc.link_bca,
@@ -7823,10 +7857,6 @@ export function KanbanCardModal({
                       <div className="text-[11px] font-medium text-stone-500">Custo da Obra</div>
                       <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.custo_obra)}</div>
                     </div>
-                    <div>
-                      <div className="text-[11px] font-medium text-stone-500">Dívida Obra</div>
-                      <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.divida_obra)}</div>
-                    </div>
                     {renderNegocioLinkCampo('BCA', proc.link_bca)}
                     {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores)}
                     <div>
@@ -7938,6 +7968,19 @@ export function KanbanCardModal({
                 onChange={(patch) => setOperacoesPreObraDraft((d) => ({ ...d, ...patch }))}
                 onSalvar={() => void handleSalvarPreObraOperacoes()}
                 salvando={salvandoPreObra}
+                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam && !isLegado}
+              />,
+            )}
+            {secaoHead(
+              'credito',
+              'Crédito',
+              <KanbanCardModalCreditoSessao
+                draft={creditoDraft}
+                onChange={setCreditoDraft}
+                valorTerreno={negocioDraft.valor_terreno}
+                valorObra={negocioDraft.custo_obra}
+                onSalvar={() => void handleSalvarCredito()}
+                salvando={salvandoCredito}
                 podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam && !isLegado}
               />,
             )}

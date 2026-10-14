@@ -4350,6 +4350,78 @@ export async function salvarDadosPreObraOperacoes(
   return { ok: true };
 }
 
+export type SalvarCreditoLateralInput = {
+  cardId: string;
+  creditoLateral: import('@/lib/kanban/credito-lateral').CreditoLateral;
+  processoId?: string | null;
+  basePath?: string;
+};
+
+/** Grava a seção Crédito no card e atualiza a dívida da obra no processo. */
+export async function salvarCreditoLateral(input: SalvarCreditoLateralInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { creditoLateralFromRaw, formatCreditoMoeda, restanteCredito } = await import(
+    '@/lib/kanban/credito-lateral'
+  );
+  const credito = creditoLateralFromRaw(input.creditoLateral);
+  const { error: updErr } = await supabase
+    .from('kanban_cards')
+    .update({ credito_lateral: credito, updated_at: new Date().toISOString() } as never)
+    .eq('id', cardId);
+  if (updErr) {
+    if (/credito_lateral|does not exist|PGRST204|42703/i.test(updErr.message)) {
+      return { ok: false, error: 'A seção Crédito ainda não está disponível neste banco.' };
+    }
+    return { ok: false, error: updErr.message };
+  }
+
+  const processoId = String(input.processoId ?? '').trim();
+  if (processoId) {
+    const { data: proc } = await supabase
+      .from('processo_step_one')
+      .select('custo_obra')
+      .eq('id', processoId)
+      .maybeSingle();
+    const restante = restanteCredito(
+      (proc as { custo_obra?: string | null } | null)?.custo_obra,
+      credito.obra_tranches,
+    );
+    const dividaObra = restante == null ? null : formatCreditoMoeda(restante);
+    const { updateProcessoNegocioCampos } = await import('@/lib/kanban/kanban-card-modal-detalhes');
+    const upd = await updateProcessoNegocioCampos(supabase, processoId, { divida_obra: dividaObra });
+    if (!upd.ok) return upd;
+    const { checklistLinhasFromNegocioPayload } = await import('@/lib/kanban/negocio-checklist-sync');
+    const linhas = checklistLinhasFromNegocioPayload({ divida_obra: dividaObra });
+    if (linhas.length > 0) {
+      const agora = new Date().toISOString();
+      const { error: espelhoErr } = await supabase.from('kanban_card_checklist_compartilhado').upsert(
+        linhas.map((linha) => ({
+          card_id: cardId,
+          chave: linha.chave,
+          valor: linha.valor,
+          atualizado_por: user.id,
+          atualizado_em: agora,
+        })),
+        { onConflict: 'card_id,chave' },
+      );
+      if (espelhoErr) return { ok: false, error: espelhoErr.message };
+    }
+  }
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
 export type SalvarDadosFundingInput = {
   cardId: string;
   funding_nome?: string | null;

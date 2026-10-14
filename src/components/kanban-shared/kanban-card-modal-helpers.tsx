@@ -446,6 +446,7 @@ export type SecaoEsquerdaId =
   | 'dadosCandidato'
   | 'dadosMaterial'
   | 'preObra'
+  | 'credito'
   | 'obra'
   | 'documentacaoCreditoObra'
   | 'relacionamentos'
