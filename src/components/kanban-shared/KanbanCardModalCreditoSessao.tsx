@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
 import { KanbanCardModalMoedaField } from '@/components/kanban-shared/KanbanCardModalMoedaField';
 import {
   adicionarTranche,
@@ -51,11 +52,37 @@ function CampoLeitura({ label, valor }: { label: string; valor: string }) {
   );
 }
 
-function TituloBloco({ children }: { children: string }) {
+function BlocoCredito({
+  titulo,
+  aberto,
+  onToggle,
+  children,
+}: {
+  titulo: string;
+  aberto: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
   return (
-    <p className="text-[11px] font-semibold" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}>
-      {children}
-    </p>
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={aberto}
+        className="flex w-full min-h-[44px] items-center gap-1.5 text-left sm:min-h-0"
+        style={{ fontFamily: 'var(--moni-font-sans)' }}
+      >
+        {aberto ? (
+          <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--moni-text-tertiary)' }} aria-hidden />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--moni-text-tertiary)' }} aria-hidden />
+        )}
+        <span className="text-[11px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+          {titulo}
+        </span>
+      </button>
+      {aberto ? <div className="space-y-3">{children}</div> : null}
+    </div>
   );
 }
 
@@ -202,9 +229,13 @@ export function KanbanCardModalCreditoSessao({
   podeEditar,
 }: Props) {
   const travado = !podeEditar;
+  const [abertos, setAbertos] = useState({ terreno: true, obra: true, alavancagem: true });
+  function alternar(bloco: keyof typeof abertos) {
+    setAbertos((atual) => ({ ...atual, [bloco]: !atual[bloco] }));
+  }
   return (
     <div className="space-y-3">
-      <TituloBloco>Terreno</TituloBloco>
+      <BlocoCredito titulo="Terreno" aberto={abertos.terreno} onToggle={() => alternar('terreno')}>
       <CampoLeitura label="Valor do Terreno" valor={valorTerreno.trim() ? fmtMoedaKanban(valorTerreno) : ''} />
       <CampoLeitura label="Valor do Terreno em aberto" valor={rotuloMoeda(valorTerreno, draft.terreno_tranches)} />
       <TranchesEditor
@@ -212,8 +243,9 @@ export function KanbanCardModalCreditoSessao({
         podeEditar={podeEditar}
         onChange={(terreno_tranches) => onChange({ ...draft, terreno_tranches })}
       />
+      </BlocoCredito>
 
-      <TituloBloco>Obra</TituloBloco>
+      <BlocoCredito titulo="Obra" aberto={abertos.obra} onToggle={() => alternar('obra')}>
       <CampoLeitura label="Valor da Obra" valor={valorObra.trim() ? fmtMoedaKanban(valorObra) : ''} />
       <CampoLeitura label="Valor da Obra em aberto" valor={rotuloMoeda(valorObra, draft.obra_tranches)} />
       <TranchesEditor
@@ -221,8 +253,9 @@ export function KanbanCardModalCreditoSessao({
         podeEditar={podeEditar}
         onChange={(obra_tranches) => onChange({ ...draft, obra_tranches })}
       />
+      </BlocoCredito>
 
-      <TituloBloco>Demais alavancagens</TituloBloco>
+      <BlocoCredito titulo="Demais alavancagens" aberto={abertos.alavancagem} onToggle={() => alternar('alavancagem')}>
       <label className="block min-w-0">
         <span className={labelCls} style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
           Valor da alavancagem
@@ -240,6 +273,7 @@ export function KanbanCardModalCreditoSessao({
         podeEditar={podeEditar}
         onChange={(alavancagem_tranches) => onChange({ ...draft, alavancagem_tranches })}
       />
+      </BlocoCredito>
 
       {podeEditar ? (
         <button
