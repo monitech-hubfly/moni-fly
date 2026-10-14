@@ -36,6 +36,8 @@ const CAMPOS_TEXTO = [
   'data_ass_opcao_terreno',
   'obs_instrumento_garantidor',
   'data_ass_contrato_terreno',
+  'book_empreendimento',
+  'check_analise_credito',
 ] as const;
 
 const CAMPOS_NUMERO = [

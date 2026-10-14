@@ -453,6 +453,8 @@ export const PROCESSO_CAMPOS_SYNC = [
   'obs_instrumento_garantidor',
   'data_ass_contrato_terreno',
   'valor_recompra',
+  'book_empreendimento',
+  'check_analise_credito',
 ] as const;
 
 export type ProcessoCamposSync = Partial<Record<(typeof PROCESSO_CAMPOS_SYNC)[number], string | null>>;

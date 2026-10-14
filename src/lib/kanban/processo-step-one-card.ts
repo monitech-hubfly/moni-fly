@@ -139,6 +139,8 @@ const NEGOCIO_COPY_FIELDS = [
   'obs_instrumento_garantidor',
   'data_ass_contrato_terreno',
   'valor_recompra',
+  'book_empreendimento',
+  'check_analise_credito',
 ] as const;
 
 /** Copia campos preenchidos de negócio de um processo para outro (split dedicado). */

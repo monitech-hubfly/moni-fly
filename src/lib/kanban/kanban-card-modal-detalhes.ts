@@ -101,6 +101,9 @@ export type ProcessoModalNegocioPreObra = {
   obs_instrumento_garantidor: string | null;
   data_ass_contrato_terreno: string | null;
   valor_recompra: string | null;
+  book_empreendimento: string | null;
+  /** 'true' ou 'false'. */
+  check_analise_credito: string | null;
 };
 
 const REDE_SELECT = [
@@ -195,6 +198,9 @@ const PROCESSO_SELECT_NEW = [
   'valor_recompra',
 ].join(',');
 
+/** 621 — opcional até a migration existir no banco. */
+const PROCESSO_SELECT_BOOK_CREDITO = ['book_empreendimento', 'check_analise_credito'].join(',');
+
 const PROCESSO_SELECT_PRAZO = [
   'prazo_opcao_dias',
   'prazo_opcao_sla_tipo',
@@ -271,6 +277,8 @@ export type ProcessoNegocioUpdatePayload = {
   obs_instrumento_garantidor?: string | null;
   data_ass_contrato_terreno?: string | null;
   valor_recompra?: string | null;
+  book_empreendimento?: string | null;
+  check_analise_credito?: string | null;
   /** Gerenciados pela seção Dados do Condomínio — omitir ao salvar negócio. */
   nome_condominio?: string | null;
   quadra?: string | null;
@@ -317,6 +325,8 @@ const PROCESSO_UPDATE_NEW_KEYS = [
   'valor_recompra',
 ] as const;
 
+const PROCESSO_UPDATE_BOOK_CREDITO_KEYS = ['book_empreendimento', 'check_analise_credito'] as const;
+
 const PROCESSO_UPDATE_PRAZO_KEYS = [
   'prazo_opcao_dias',
   'prazo_opcao_sla_tipo',
@@ -349,6 +359,18 @@ function pickNegociacaoLinhas(
   return { negociacao_linhas: payload.negociacao_linhas };
 }
 
+async function aplicarBookCredito(
+  supabase: SupabaseClient,
+  processoId: string,
+  payload: ProcessoNegocioUpdatePayload,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const extra = pickPayload(payload, PROCESSO_UPDATE_BOOK_CREDITO_KEYS);
+  if (Object.keys(extra).length === 0) return { ok: true };
+  const { error } = await supabase.from('processo_step_one').update(extra as never).eq('id', processoId);
+  if (!error || isMissingColumnError(error)) return { ok: true };
+  return { ok: false, error: error.message };
+}
+
 /** Atualiza dados do negócio; faz fallback se colunas novas ainda não existirem no banco. */
 export async function updateProcessoNegocioCampos(
   supabase: SupabaseClient,
@@ -363,7 +385,7 @@ export async function updateProcessoNegocioCampos(
     ...pickNegociacaoLinhas(payload),
   };
   const { error } = await supabase.from('processo_step_one').update(full as never).eq('id', processoId);
-  if (!error) return { ok: true };
+  if (!error) return aplicarBookCredito(supabase, processoId, payload);
   if (!isMissingColumnError(error)) return { ok: false, error: error.message };
 
   // Fallback: sem colunas novas
@@ -374,7 +396,7 @@ export async function updateProcessoNegocioCampos(
     ...pickNegociacaoLinhas(payload),
   };
   const { error: errSemNovos } = await supabase.from('processo_step_one').update(semNovos as never).eq('id', processoId);
-  if (!errSemNovos) return { ok: true };
+  if (!errSemNovos) return aplicarBookCredito(supabase, processoId, payload);
   if (!isMissingColumnError(errSemNovos)) return { ok: false, error: errSemNovos.message };
 
   const semPrazo = {
@@ -383,13 +405,13 @@ export async function updateProcessoNegocioCampos(
     ...pickNegociacaoLinhas(payload),
   };
   const { error: errSemPrazo } = await supabase.from('processo_step_one').update(semPrazo as never).eq('id', processoId);
-  if (!errSemPrazo) return { ok: true };
+  if (!errSemPrazo) return aplicarBookCredito(supabase, processoId, payload);
   if (!isMissingColumnError(errSemPrazo)) return { ok: false, error: errSemPrazo.message };
 
   const legacyOnly = pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS);
   const { error: errLegacy } = await supabase.from('processo_step_one').update(legacyOnly as never).eq('id', processoId);
   if (errLegacy) return { ok: false, error: errLegacy.message };
-  return { ok: true };
+  return aplicarBookCredito(supabase, processoId, payload);
 }
 
 function tituloParaNumeroFranquia(titulo: string): string {
@@ -599,12 +621,24 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     obs_instrumento_garantidor: g('obs_instrumento_garantidor'),
     data_ass_contrato_terreno: g('data_ass_contrato_terreno')?.slice(0, 10) ?? null,
     valor_recompra: g('valor_recompra'),
+    book_empreendimento: g('book_empreendimento'),
+    check_analise_credito: g('check_analise_credito'),
   };
 }
 
 async function fetchProcessoById(supabase: SupabaseClient, id: string) {
   const { data, error } = await supabase.from('processo_step_one').select(PROCESSO_SELECT).eq('id', id).maybeSingle();
-  if (!error) return mapProcesso((data as Record<string, unknown> | null) ?? null);
+  if (!error) {
+    const base = (data as Record<string, unknown> | null) ?? null;
+    if (!base) return null;
+    const extra = await supabase
+      .from('processo_step_one')
+      .select(PROCESSO_SELECT_BOOK_CREDITO)
+      .eq('id', id)
+      .maybeSingle();
+    if (extra.error || !extra.data) return mapProcesso(base);
+    return mapProcesso({ ...base, ...(extra.data as Record<string, unknown>) });
+  }
 
   if (isMissingColumnError(error)) {
     const { data: legacy, error: errLegacy } = await supabase

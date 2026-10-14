@@ -52,6 +52,8 @@ export type NegocioDraftKanban = {
   obs_instrumento_garantidor: string;
   data_ass_contrato_terreno: string;
   valor_recompra: string;
+  book_empreendimento: string;
+  check_analise_credito: string;
 };
 
 export function negocioDraftVazio(): NegocioDraftKanban {
@@ -90,6 +92,8 @@ export function negocioDraftVazio(): NegocioDraftKanban {
     obs_instrumento_garantidor: '',
     data_ass_contrato_terreno: '',
     valor_recompra: '',
+    book_empreendimento: '',
+    check_analise_credito: 'false',
   };
 }
 
@@ -138,5 +142,7 @@ export function negocioDraftFromProcesso(
     obs_instrumento_garantidor: proc.obs_instrumento_garantidor ?? '',
     data_ass_contrato_terreno: proc.data_ass_contrato_terreno ?? '',
     valor_recompra: moedaCampoValorInicial(proc.valor_recompra),
+    book_empreendimento: proc.book_empreendimento ?? '',
+    check_analise_credito: proc.check_analise_credito === 'true' ? 'true' : 'false',
   };
 }
