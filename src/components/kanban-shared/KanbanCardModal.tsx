@@ -6225,6 +6225,7 @@ export function KanbanCardModal({
 
                     {exibirCreditoNoChecklist ? (
                       <KanbanCardModalCreditoSessao
+                        key={card.id}
                         draft={creditoDraft}
                         onChange={setCreditoDraft}
                         valorTerreno={negocioDraft.valor_terreno}
@@ -8017,6 +8018,7 @@ export function KanbanCardModal({
               'credito',
               'Crédito',
               <KanbanCardModalCreditoSessao
+                key={card.id}
                 draft={creditoDraft}
                 onChange={setCreditoDraft}
                 valorTerreno={negocioDraft.valor_terreno}
