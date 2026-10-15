@@ -10,8 +10,9 @@ import {
 } from '@/hooks/usePlanoBoneDay';
 import type { MetaItem, ResponsavelItem } from '@/hooks/useMetasIndicadores';
 import { SeletorUsuarioAdmin } from '@/components/carometro/todo/SeletorUsuarioAdmin';
+import DatePickerComSemanas from '@/components/DatePickerComSemanas';
 import { registrarLog } from '@/hooks/useAuditLog';
-import { isoWeek } from '@/utils/periodos';
+import { isoWeek, segundaUtcIsoWeekStart } from '@/utils/periodos';
 import { listarAreas } from '@/utils/areasOrder';
 import { listarEscalasCustom, carregarEscalasCustom, salvarNovaEscalaCustom } from '@/utils/escalasCustom';
 
@@ -23,6 +24,21 @@ function formatarDataCurta(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Retorna apenas o número da semana ISO: "S44" */
+function semanaISO(dataISO: string | null): string {
+  if (!dataISO) return '';
+  return `S${isoWeek(new Date(dataISO + 'T12:00:00'))}`;
+}
+
+/** Formata data com dia, mês e semana ISO: "26/10 · S44" */
+function formatDataSemana(dataISO: string | null): string {
+  if (!dataISO) return '';
+  const d = new Date(dataISO + 'T12:00:00');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm} · S${isoWeek(d)}`;
 }
 
 // ── Conta dias úteis (seg-sex) entre duas datas, inclusive ──────────────────
@@ -300,10 +316,389 @@ function MetaNaoConcluida({ meta, podeRelançar, onRelançar, onArquivar }: {
   );
 }
 
+// ── Indicadores da Área (standalone, sem vinculo com metas) ──────────────────
+
+function LinhaIndicadorArea({ ind, responsaveisIds, responsaveis, isAdmin, currentUserId, onUpdate }: {
+  ind: IndicadorBone;
+  /** Lista de profile_ids que assumiram este indicador (pivot indicadores_responsaveis) */
+  responsaveisIds: string[];
+  responsaveis: ResponsavelItem[];
+  isAdmin: boolean; currentUserId: string | null; onUpdate: () => void;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [salvando,       setSalvando]       = useState(false);
+  const [editando,       setEditando]       = useState(false);
+  const [confirmArquivar, setConfirmArquivar] = useState(false);
+
+  // Admin: adicionar usuário como responsável via select
+  const handleAdminAdicionarResp = async (pid: string) => {
+    if (!pid || responsaveisIds.includes(pid)) return;
+    setSalvando(true);
+    await supabase.from('indicadores_responsaveis').insert({ indicador_id: ind.id, profile_id: pid });
+    setSalvando(false);
+    onUpdate();
+  };
+
+  // Admin: remover responsável
+  const handleAdminRemoverResp = async (pid: string) => {
+    setSalvando(true);
+    await supabase.from('indicadores_responsaveis').delete()
+      .eq('indicador_id', ind.id).eq('profile_id', pid);
+    setSalvando(false);
+    onUpdate();
+  };
+
+  // Admin: arquivar indicador (soft-delete — preserva histórico de lançamentos)
+  const handleArquivar = async () => {
+    setSalvando(true);
+    await supabase.from('indicadores').update({ ativo: false }).eq('id', ind.id);
+    setSalvando(false);
+    onUpdate();
+  };
+
+  if (editando) {
+    return (
+      <div className="py-2 px-3 bg-blue-50/40 rounded-lg border border-blue-100">
+        <FormEditarIndicador ind={ind} onSalvo={() => { setEditando(false); onUpdate(); }} onCancelar={() => setEditando(false)} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 py-2 px-3 rounded-lg bg-white border border-gray-100 flex-wrap">
+      {ind.indicador_chave && <span className="text-yellow-500 text-xs flex-shrink-0" title="Indicador chave">★</span>}
+      <span className="text-xs text-gray-700 flex-1 min-w-[120px]">{ind.nome}</span>
+      <SemaforoBadges semaforo_faixas={ind.semaforo_faixas} />
+
+      {/* Bolinhas de iniciais dos responsáveis */}
+      <div className="flex items-center gap-1 flex-wrap">
+        {responsaveisIds.map(pid => {
+          const nome = responsaveis.find(r => r.profile_id === pid)?.nome ?? '?';
+          const inicial = nome.charAt(0).toUpperCase();
+          return (
+            <span key={pid} className="flex items-center gap-0.5">
+              <span
+                title={nome}
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold border border-blue-200 flex-shrink-0 cursor-default">
+                {inicial}
+              </span>
+              {isAdmin && (
+                <button type="button" disabled={salvando}
+                  onClick={() => void handleAdminRemoverResp(pid)}
+                  className="text-[8px] text-gray-300 hover:text-red-500 leading-none">×</button>
+              )}
+            </span>
+          );
+        })}
+        {responsaveisIds.length === 0 && (
+          <span className="text-[10px] text-gray-300 italic">sem responsável</span>
+        )}
+      </div>
+
+      {/* Admin: adicionar responsável + Editar + Arquivar */}
+      {isAdmin && (
+        <span className="flex gap-1 items-center flex-shrink-0">
+          <select className="text-[10px] border border-gray-200 rounded px-1 py-0.5 max-w-[110px]"
+            value=""
+            onChange={e => { void handleAdminAdicionarResp(e.target.value); }}
+            disabled={salvando}>
+            <option value="">+ Responsável</option>
+            {responsaveis
+              .filter(r => !responsaveisIds.includes(r.profile_id))
+              .map(r => <option key={r.profile_id} value={r.profile_id}>{r.nome}</option>)}
+          </select>
+          {confirmArquivar ? (
+            <span className="flex gap-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-300 rounded px-1.5 py-0.5 items-center">
+              <span>Arquivar? Histórico preservado.</span>
+              <button type="button" onClick={handleArquivar} disabled={salvando}
+                className="font-medium hover:underline ml-1">Sim</button>
+              <button type="button" onClick={() => setConfirmArquivar(false)}
+                className="text-gray-400 ml-0.5">Não</button>
+            </span>
+          ) : (
+            <span className="flex gap-1 items-center">
+              <button type="button" onClick={() => setEditando(true)}
+                className="text-blue-400 hover:text-blue-600 text-xs" title="Editar">✎</button>
+              <button type="button" onClick={() => setConfirmArquivar(true)}
+                className="text-amber-400 hover:text-amber-600 text-xs" title="Arquivar (preserva histórico)">🗂</button>
+            </span>
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── GrupoIndicadores: header colapsável com menu de admin e botão + Indicador ─
+function GrupoIndicadores({
+  grupo, indsGrupo, indicadoresResponsaveis, responsaveis,
+  isAdmin, currentUserId, areaId, gruposExistentes, onUpdate,
+}: {
+  grupo: string;
+  indsGrupo: IndicadorBone[];
+  indicadoresResponsaveis: Record<string, string[]>;
+  responsaveis: ResponsavelItem[];
+  isAdmin: boolean;
+  currentUserId: string | null;
+  areaId: string;
+  gruposExistentes: string[];
+  onUpdate: () => void;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [confirmArquivarGrupo, setConfirmArquivarGrupo] = useState(false);
+  const [arquivando, setArquivando] = useState(false);
+  const [mostrarFormNovoInd, setMostrarFormNovoInd] = useState(false);
+
+  const handleArquivarGrupo = async () => {
+    setArquivando(true);
+    // Soft-delete em todos indicadores do grupo (preserva histórico de lançamentos)
+    const ids = indsGrupo.map(i => i.id);
+    if (ids.length > 0) {
+      await supabase.from('indicadores').update({ ativo: false }).in('id', ids);
+    }
+    setArquivando(false);
+    setConfirmArquivarGrupo(false);
+    onUpdate();
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {/* Cabeçalho do grupo */}
+      <div className="flex items-center gap-2 border-b border-purple-200 pb-1">
+        <p className="text-[10px] font-bold text-purple-600 uppercase tracking-widest flex-1">
+          {grupo}
+          <span className="ml-1.5 font-normal text-purple-400 normal-case tracking-normal">
+            ({indsGrupo.length} indicador{indsGrupo.length !== 1 ? 'es' : ''})
+          </span>
+        </p>
+        {/* Admin: botão + Indicador dentro do grupo */}
+        {isAdmin && !mostrarFormNovoInd && (
+          <button type="button"
+            onClick={() => setMostrarFormNovoInd(true)}
+            className="text-[10px] text-purple-500 hover:text-purple-700 border border-purple-300 hover:border-purple-500 rounded px-1.5 py-0.5 transition-colors flex-shrink-0">
+            + Indicador
+          </button>
+        )}
+        {/* Admin: menu de Arquivar grupo */}
+        {isAdmin && (
+          confirmArquivarGrupo ? (
+            <span className="flex gap-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-300 rounded px-1.5 py-0.5 items-center flex-shrink-0">
+              <span>Arquivar {indsGrupo.length} ind.?</span>
+              <button type="button" onClick={handleArquivarGrupo} disabled={arquivando}
+                className="font-medium hover:underline ml-1">{arquivando ? '...' : 'Sim'}</button>
+              <button type="button" onClick={() => setConfirmArquivarGrupo(false)}
+                className="text-gray-400 ml-0.5">Não</button>
+            </span>
+          ) : (
+            <button type="button"
+              onClick={() => setConfirmArquivarGrupo(true)}
+              className="text-[10px] text-amber-400 hover:text-amber-600 flex-shrink-0"
+              title={`Arquivar grupo "${grupo}" (preserva histórico)`}>
+              🗂 grupo
+            </button>
+          )
+        )}
+      </div>
+
+      {/* Form inline para novo indicador dentro deste grupo */}
+      {mostrarFormNovoInd && (
+        <div className="mb-2">
+          <FormNovoIndicadorArea
+            areaId={areaId}
+            onSalvo={() => { setMostrarFormNovoInd(false); onUpdate(); }}
+            gruposExistentes={gruposExistentes}
+            grupoPreSelecionado={grupo !== 'SEM GRUPO' ? grupo : undefined}
+          />
+          {!mostrarFormNovoInd || (
+            <button type="button" onClick={() => setMostrarFormNovoInd(false)}
+              className="text-[10px] text-gray-400 hover:text-gray-600 mt-1">Cancelar</button>
+          )}
+        </div>
+      )}
+
+      {/* Indicadores do grupo */}
+      {indsGrupo.map(ind => (
+        <LinhaIndicadorArea
+          key={ind.id} ind={ind}
+          responsaveisIds={indicadoresResponsaveis[ind.id] ?? []}
+          responsaveis={responsaveis}
+          isAdmin={isAdmin} currentUserId={currentUserId}
+          onUpdate={onUpdate}
+        />
+      ))}
+    </div>
+  );
+}
+
+// NOVO_GRUPO_SENTINEL: valor especial no select que indica que o usuário quer criar um grupo novo
+const NOVO_GRUPO_SENTINEL = '__NOVO_GRUPO__';
+
+function FormNovoIndicadorArea({
+  areaId, onSalvo, gruposExistentes = [], grupoPreSelecionado,
+}: {
+  areaId: string;
+  onSalvo: () => void;
+  /** Grupos já cadastrados nesta área (em UPPER_CASE) — vêm de indicadores.grupo */
+  gruposExistentes?: string[];
+  /** Se clicado dentro de um grupo, pré-seleciona */
+  grupoPreSelecionado?: string;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [aberto,   setAberto]   = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erroForm, setErroForm] = useState('');
+
+  // Grupo: seleção por lista ou criação inline
+  const [grupoSel,  setGrupoSel]  = useState(grupoPreSelecionado ?? (gruposExistentes[0] ?? NOVO_GRUPO_SENTINEL));
+  const [grupoNovo, setGrupoNovo] = useState('');
+  const grupoFinal = (grupoSel === NOVO_GRUPO_SENTINEL ? grupoNovo : grupoSel).trim().toUpperCase();
+
+  // Ao abrir, pré-seleciona o grupo se fornecido
+  useEffect(() => {
+    if (aberto) {
+      setGrupoSel(grupoPreSelecionado ?? (gruposExistentes[0] ?? NOVO_GRUPO_SENTINEL));
+      setGrupoNovo('');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aberto, grupoPreSelecionado]);
+
+  const [form, setForm] = useState({ nome: '', tipo: 'percentual', chave: false });
+  const [faixas, setFaixas] = useState<FaixaForm[]>(() => PRESET_FAIXAS_MAP.percentual.map(f => ({ ...f })));
+
+  const handleTipoChange = (v: string) => {
+    setForm(p => ({ ...p, tipo: v }));
+    setFaixas(presetFaixasParaTipo(v, []));
+  };
+
+  const updateFaixa = (i: number, k: keyof FaixaForm, v: string) =>
+    setFaixas(prev => prev.map((f, j) => j === i ? { ...f, [k]: v } : f));
+
+  const handleSalvar = async () => {
+    if (!form.nome.trim()) { setErroForm('Nome do indicador é obrigatório'); return; }
+    if (!grupoFinal) { setErroForm('Informe o nome do grupo'); return; }
+    setSalvando(true); setErroForm('');
+    try {
+      const tipo = form.tipo;
+      const sf = { escala_tipo: tipo, escala_custom_id: null, faixas };
+      const tipoDb = tipo === 'percentual' ? 'percentual' : 'quantidade';
+      const { error: e } = await supabase.from('indicadores').insert({
+        area_id: areaId,
+        objetivo_id: null,
+        nome: form.nome.trim(),
+        grupo: grupoFinal,
+        indicador_chave: form.chave,
+        tipo: tipoDb,
+        semaforo_faixas: sf,
+        profile_id: null,
+        ativo: true,
+      });
+      if (e) { setErroForm(e.message); return; }
+      setForm({ nome: '', tipo: 'percentual', chave: false });
+      setFaixas(PRESET_FAIXAS_MAP.percentual.map(f => ({ ...f })));
+      setAberto(false); onSalvo();
+    } finally { setSalvando(false); }
+  };
+
+  if (!aberto) {
+    return (
+      <button type="button" onClick={() => setAberto(true)}
+        className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors flex items-center gap-1.5">
+        + Novo Indicador
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col gap-2">
+      <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Novo Indicador da Área</p>
+
+      {/* Nome */}
+      <input
+        className={`w-full text-xs border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-300 ${erroForm ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+        placeholder="Nome do indicador *" value={form.nome}
+        onChange={e => { setForm(p => ({ ...p, nome: e.target.value })); setErroForm(''); }}
+        autoFocus />
+
+      {/* Grupo: select de existentes + opção Criar novo */}
+      <div className="flex flex-col gap-1">
+        <label className="text-[10px] text-gray-500">Grupo *</label>
+        <select
+          className="text-xs border border-gray-300 rounded px-2 py-1.5 w-full"
+          value={grupoSel}
+          onChange={e => setGrupoSel(e.target.value)}>
+          {gruposExistentes.map(g => <option key={g} value={g}>{g}</option>)}
+          <option value={NOVO_GRUPO_SENTINEL}>+ Criar novo grupo…</option>
+        </select>
+        {grupoSel === NOVO_GRUPO_SENTINEL && (
+          <input
+            className="text-xs border border-purple-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-300 bg-purple-50"
+            placeholder="Nome do novo grupo (ex: COMERCIAL)"
+            value={grupoNovo}
+            onChange={e => setGrupoNovo(e.target.value)}
+            autoFocus
+          />
+        )}
+      </div>
+
+      {/* Tipo: apenas % ou Nº */}
+      <div className="flex gap-2">
+        {TIPOS_SEMAFORO.map(t => (
+          <label key={t.value}
+            className={`flex-1 flex items-center justify-center gap-1.5 text-xs border rounded px-2 py-1.5 cursor-pointer transition-colors ${form.tipo === t.value ? 'bg-purple-100 border-purple-400 text-purple-800 font-medium' : 'border-gray-200 text-gray-500 hover:border-purple-200'}`}>
+            <input type="radio" name="tipo_ind" value={t.value} checked={form.tipo === t.value}
+              onChange={() => handleTipoChange(t.value)} className="sr-only" />
+            {t.label}
+          </label>
+        ))}
+      </div>
+
+      {/* Faixas do semáforo */}
+      <div className="flex flex-col gap-1 bg-white border border-gray-100 rounded px-2 py-1.5">
+        <p className="text-[9px] text-gray-400 uppercase tracking-wide mb-0.5">Faixas do Semáforo</p>
+        {faixas.map((f, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <label className="relative w-4 h-4 rounded-full cursor-pointer flex-shrink-0 overflow-hidden" style={{ backgroundColor: f.cor }}>
+              <input type="color" value={f.cor} onChange={e => updateFaixa(i, 'cor', e.target.value)}
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
+            </label>
+            <select className="text-[10px] border border-gray-200 rounded px-1 py-0.5 w-10"
+              value={f.comparacao} onChange={e => updateFaixa(i, 'comparacao', e.target.value as 'gte' | 'lte' | 'eq')}>
+              <option value="gte">≥</option><option value="lte">≤</option><option value="eq">=</option>
+            </select>
+            <input className="text-xs border border-gray-300 rounded px-2 py-0.5 flex-1 min-w-0"
+              value={f.limite} onChange={e => updateFaixa(i, 'limite', e.target.value)} placeholder="Valor" />
+            {faixas.length > 1 && (
+              <button type="button" onClick={() => setFaixas(prev => prev.filter((_, j) => j !== i))}
+                className="text-red-300 hover:text-red-500 text-xs flex-shrink-0">✕</button>
+            )}
+          </div>
+        ))}
+        <button type="button"
+          onClick={() => setFaixas(prev => [...prev, { cor: '#cccccc', limite: '', comparacao: 'gte' }])}
+          className="text-[10px] text-blue-500 hover:underline text-left mt-0.5">+ Adicionar faixa</button>
+      </div>
+
+      <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+        <input type="checkbox" checked={form.chave} onChange={e => setForm(p => ({ ...p, chave: e.target.checked }))} />
+        Indicador chave 🔑
+      </label>
+      {erroForm && <p className="text-[10px] text-red-500">{erroForm}</p>}
+      <div className="flex gap-2 justify-end">
+        <button type="button" onClick={() => setAberto(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+        <button type="button" onClick={handleSalvar} disabled={!form.nome.trim() || salvando}
+          className="text-xs px-3 py-1 bg-purple-600 text-white rounded disabled:opacity-50 hover:bg-purple-700">
+          {salvando ? 'Salvando...' : 'Criar indicador'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Bloco 2: Meta + seus indicadores ─────────────────────────────────────────
+// Apenas % e Nº — SIM/NÃO e OK/And./NãoOK removidos da área
 const TIPOS_SEMAFORO = [
-  { value: 'percentual', label: '%' }, { value: 'quantidade', label: 'Nº' },
-  { value: 'sim_nao', label: 'SIM/NÃO' }, { value: 'status_3', label: 'OK/And./NãoOK' },
+  { value: 'percentual', label: '%' },
+  { value: 'quantidade', label: 'Nº' },
 ];
 
 // Indicadores — responsável editável por admin; todos podem assumir.
@@ -775,9 +1170,10 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   );
 }
 
-function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, onUpdate, onConcluir, onConcluirIndividual, onExcluir, objetivoResponsaveis, currentUserId, currentUserEmail, podeEditarMeta, onToggleResponsavel, onAssumirProjeto }: {
+function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, mes, filhasDaMeta, onUpdate, onConcluir, onConcluirIndividual, onExcluir, objetivoResponsaveis, currentUserId, currentUserEmail, podeEditarMeta, onToggleResponsavel, onAssumirProjeto }: {
   meta: MetaItem; indicadores: IndicadorBone[]; responsaveis: ResponsavelItem[];
-  isAdmin: boolean; areaId: string; onUpdate: () => void;
+  isAdmin: boolean; areaId: string; mes: string; filhasDaMeta: MetaFilhaItem[];
+  onUpdate: () => void;
   onConcluir: (id: string) => Promise<void>;
   onConcluirIndividual: (id: string, reabrir?: boolean) => Promise<void>;
   onExcluir: (id: string) => Promise<void>;
@@ -794,29 +1190,37 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
   const [salvando,      setSalvando]      = useState(false);
   const [editandoMeta,  setEditandoMeta]  = useState(false);
   const [salvandoMeta,  setSalvandoMeta]  = useState(false);
+  // Editar meta filha
+  const [editandoFilhaId,  setEditandoFilhaId]  = useState<string | null>(null);
+  const [formFilhaEdit,    setFormFilhaEdit]    = useState({ descricao: '', dataInicio: '', dataFim: '' });
+  const [salvandoFilhaEdit, setSalvandoFilhaEdit] = useState(false);
   // Metas filhas
   const [adicionandoFilha, setAdicionandoFilha] = useState(false);
   const [novaFilhaDesc,    setNovaFilhaDesc]    = useState('');
+  const [novaFilhaInicio,  setNovaFilhaInicio]  = useState('');
   const [novaFilhaPrazo,   setNovaFilhaPrazo]   = useState('');
   const [salvandoFilha,    setSalvandoFilha]    = useState(false);
   const [erroFilha,        setErroFilha]        = useState<string | null>(null);
   const handleSalvarFilha = async () => {
     if (!novaFilhaDesc.trim()) { setErroFilha('Informe a descrição da meta filha.'); return; }
-    if (!novaFilhaPrazo)        { setErroFilha('Informe o prazo da meta filha.'); return; }
+    if (!novaFilhaInicio)      { setErroFilha('Informe a data de início.'); return; }
+    if (!novaFilhaPrazo)       { setErroFilha('Informe a data de fim.'); return; }
+    if (novaFilhaPrazo < novaFilhaInicio) { setErroFilha('Data de fim deve ser igual ou posterior ao início.'); return; }
     setSalvandoFilha(true); setErroFilha(null);
     try {
-      const mes = new Date().toISOString().slice(0, 7);
-      await supabase.from('objetivos').insert({
+      const { error } = await supabase.from('objetivos').insert({
         descricao: novaFilhaDesc.trim(),
         objetivo_pai_id: meta.id,
         area_id: areaId,
         profile_id: currentUserId,
-        mes,
+        mes, // usa o mês selecionado na página, não new Date()
         status: 'ativo',
-        tipo: 'atingivel',
+        tipo: 'atingivel - projeto',
+        data_inicio: novaFilhaInicio,
         data_fim: novaFilhaPrazo,
       });
-      setNovaFilhaDesc(''); setNovaFilhaPrazo(''); setAdicionandoFilha(false);
+      if (error) { setErroFilha(`Erro ao salvar: ${error.message}`); return; }
+      setNovaFilhaDesc(''); setNovaFilhaInicio(''); setNovaFilhaPrazo(''); setAdicionandoFilha(false);
       onUpdate();
     } finally { setSalvandoFilha(false); }
   };
@@ -826,12 +1230,14 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
   const [diasPreview,   setDiasPreview]   = useState<number | null>(null);
   const [calculando,    setCalculando]    = useState(false);
   const [salvandoDatas, setSalvandoDatas] = useState(false);
-  const [editandoDatas, setEditandoDatas] = useState(false);
-  const [msgAdmin,      setMsgAdmin]      = useState(false);
+  const [editandoDatas,           setEditandoDatas]           = useState(false);
+  const [msgAdmin,                setMsgAdmin]                = useState(false);
+  const [confirmandoDesassumir,   setConfirmandoDesassumir]   = useState(false);
   const [formMeta, setFormMeta] = useState({
     descricao: meta.descricao,
-    tipo: meta.tipo ?? 'atingivel',
-    metaUnidade: meta.meta_unidade ?? '',
+    tipo: (meta.tipo === 'atingivel' ? 'recorrente' : (meta.tipo ?? 'recorrente')),
+    dataInicio: meta.data_inicio ?? '',
+    dataFim: meta.data_fim ?? '',
     isChave: meta.is_chave,
   });
 
@@ -845,15 +1251,53 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
     if (!formMeta.descricao.trim()) return;
     setSalvandoMeta(true);
     try {
-      await supabase.from('objetivos').update({
+      const { error } = await supabase.from('objetivos').update({
         descricao: formMeta.descricao.trim(),
         tipo: formMeta.tipo,
-        meta_unidade: formMeta.metaUnidade || null,
+        data_inicio: formMeta.dataInicio || null,
+        data_fim: formMeta.dataFim || null,
         is_chave: formMeta.isChave,
       }).eq('id', meta.id);
+      if (error) { alert(`Erro ao salvar meta: ${error.message}`); return; }
+      // Para projeto: sincroniza datas em objetivo_responsaveis
+      // (é a fonte exibida no header — sem sincronizar, a edição fica invisível)
+      if (meta.tipo?.toLowerCase() === 'atingivel - projeto'
+          && formMeta.dataInicio && formMeta.dataFim) {
+        await supabase.from('objetivo_responsaveis').update({
+          data_inicio: formMeta.dataInicio,
+          data_fim: formMeta.dataFim,
+        }).eq('objetivo_id', meta.id);
+      }
       setEditandoMeta(false);
       onUpdate();
     } finally { setSalvandoMeta(false); }
+  };
+
+  // ── Editar / arquivar meta filha ──────────────────────────────────────────
+  const handleEditarFilha = (f: MetaFilhaItem) => {
+    setEditandoFilhaId(f.id);
+    setFormFilhaEdit({ descricao: f.descricao, dataInicio: f.data_inicio ?? '', dataFim: f.data_fim ?? '' });
+  };
+
+  const handleSalvarFilhaEdit = async () => {
+    if (!editandoFilhaId || !formFilhaEdit.descricao.trim()) return;
+    setSalvandoFilhaEdit(true);
+    try {
+      const { error } = await supabase.from('objetivos').update({
+        descricao:   formFilhaEdit.descricao.trim(),
+        data_inicio: formFilhaEdit.dataInicio || null,
+        data_fim:    formFilhaEdit.dataFim    || null,
+      }).eq('id', editandoFilhaId);
+      if (error) { alert(`Erro ao salvar: ${error.message}`); return; }
+      setEditandoFilhaId(null);
+      onUpdate();
+    } finally { setSalvandoFilhaEdit(false); }
+  };
+
+  const handleArquivarFilha = async (filhaId: string) => {
+    const { error } = await supabase.from('objetivos').update({ status: 'arquivado' }).eq('id', filhaId);
+    if (error) { alert(`Erro ao arquivar: ${error.message}`); return; }
+    onUpdate();
   };
 
   // ── Projeto: calcular dias úteis ao mudar datas ──────────────────────────
@@ -914,20 +1358,64 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
         {meta.status === 'arquivado' && (
           <span className="moni-tag-arquivado text-[10px] px-1.5 py-0.5 rounded flex-shrink-0">Arquivada</span>
         )}
-        <span className={`text-sm font-medium flex-1 leading-snug ${meta.status === 'concluido' ? 'line-through text-gray-400' : meta.status === 'arquivado' ? 'text-gray-400' : 'text-gray-800'}`}>
+        <span className={`text-sm font-medium leading-snug ${meta.status === 'concluido' ? 'line-through text-gray-400' : meta.status === 'arquivado' ? 'text-gray-400' : 'text-gray-800'}`}>
           {meta.descricao}
         </span>
+
+        {/* Datas inline ao lado do título */}
+        {(() => {
+          const isProjeto = meta.tipo?.toLowerCase() === 'atingivel - projeto';
+          const respComDatas = isProjeto
+            ? objetivoResponsaveis.find(r => r.objetivo_id === meta.id && r.data_inicio && r.data_fim)
+            : null;
+          const inicio = respComDatas?.data_inicio ?? meta.data_inicio;
+          const fim    = respComDatas?.data_fim    ?? meta.data_fim;
+          if (!inicio && !fim) return null;
+          return (
+            <div className="flex items-center gap-1.5 flex-shrink-0 text-[11px]">
+              {inicio && (
+                <>
+                  <span className="text-gray-400">Início</span>
+                  <span className="text-gray-500">{formatarDataCurta(inicio)}</span>
+                </>
+              )}
+              {inicio && fim && <span className="text-gray-300 mx-0.5">—</span>}
+              {fim && (
+                <>
+                  <span className="text-gray-400">Fim</span>
+                  <span className="font-semibold text-gray-800">{formatarDataCurta(fim)}</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md"
+                    style={{ background: 'var(--moni-navy-800)', color: '#fff', letterSpacing: '0.04em' }}>
+                    {semanaISO(fim)}
+                  </span>
+                </>
+              )}
+            </div>
+          );
+        })()}
         {(() => {
           if (meta.status === 'arquivado') return null;
           const isProjeto = meta.tipo?.toLowerCase() === 'atingivel - projeto';
           const resps = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id);
           const ismine = resps.some(r => r.profile_id === currentUserId);
           const handleAssumir = () => {
-            if (isProjeto) {
-              if (ismine) { void onToggleResponsavel(meta.id); } // remove assumption
-              else { setFormDatas({ inicio: '', fim: '' }); setDiasPreview(null); setModalAssumir(true); }
+            if (ismine) {
+              // Desassumindo: verificar se usuario tem filhas ativas para pedir confirmação
+              const temFilhasAtivas = filhasDaMeta.some(
+                f => f.profile_id === currentUserId && f.status !== 'arquivado'
+              );
+              if (temFilhasAtivas) {
+                setConfirmandoDesassumir(true);
+              } else {
+                void onToggleResponsavel(meta.id);
+              }
             } else {
-              void onToggleResponsavel(meta.id);
+              // Assumindo: projeto pede datas, outros direto
+              if (isProjeto) {
+                setFormDatas({ inicio: '', fim: '' }); setDiasPreview(null); setModalAssumir(true);
+              } else {
+                void onToggleResponsavel(meta.id);
+              }
             }
           };
           return (
@@ -952,46 +1440,19 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
         })()}
         <div className="flex items-center gap-1.5 text-xs text-gray-500 flex-shrink-0">
           {meta.responsavel_nome && <span>{meta.responsavel_nome}</span>}
-          {meta.meta_unidade && <span>· Prazo: {meta.meta_unidade}</span>}
           {meta.tipo?.toLowerCase() !== 'recorrente' && meta.criado_em && (
             <span className="text-gray-300">· aberta {formatarDataCurta(meta.criado_em)}</span>
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          {/* Botão individual: qualquer um que assumiu pode concluir sua parte */}
-          {(() => {
-            if (meta.status === 'arquivado') return null;
-            const resps = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id);
-            const minhaEntrada = resps.find(r => r.profile_id === currentUserId);
-            if (!minhaEntrada) return null;
-            return minhaEntrada.concluido ? (
-              <button type="button"
-                onClick={() => void onConcluirIndividual(meta.id, true)}
-                className="text-[10px] px-1.5 py-0.5 rounded border bg-green-100 text-green-700 border-green-300 flex-shrink-0"
-                title="Você concluiu sua parte — clique para reabrir">
-                ✓ Concluída
-              </button>
-            ) : (
-              <button type="button"
-                onClick={() => void onConcluirIndividual(meta.id, false)}
-                className="text-[10px] px-1.5 py-0.5 rounded border text-gray-400 border-gray-200 hover:border-green-300 hover:text-green-600 flex-shrink-0"
-                title="Marcar minha parte como concluída">
-                Concluir
-              </button>
-            );
-          })()}
           {podeEditarMeta && meta.status !== 'arquivado' && (
             <button type="button" onClick={() => setEditandoMeta(v => !v)} title="Editar meta"
               className={`text-sm transition-colors ${editandoMeta ? 'text-blue-600' : 'text-blue-400 hover:text-blue-600'}`}>✎</button>
           )}
           {isAdmin && meta.status !== 'arquivado' && (
             <>
-              {meta.status !== 'concluido' && meta.tipo?.toLowerCase() !== 'recorrente' && (
-                <button type="button" onClick={() => setConfirmConc(true)} title="Encerrar meta globalmente"
-                  className="text-[14px] text-green-500 hover:text-green-700 font-bold transition-colors">✓</button>
-              )}
-              <button type="button" onClick={() => setConfirmExcl(true)} title="Excluir"
-                className="text-red-400 hover:text-red-600 font-bold text-[12px] transition-colors">✕</button>
+              <button type="button" onClick={() => setConfirmExcl(true)} title="Arquivar meta"
+                className="text-amber-400 hover:text-amber-600 text-[13px] transition-colors">🗂</button>
             </>
           )}
         </div>
@@ -1010,6 +1471,27 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
           <span className="flex-1">Excluir esta meta?</span>
           <button type="button" onClick={handleExcluir} disabled={salvando} className="font-medium hover:underline disabled:opacity-50">{salvando ? '…' : 'Confirmar'}</button>
           <button type="button" onClick={() => setConfirmExcl(false)} className="text-gray-400">Cancelar</button>
+        </div>
+      )}
+
+      {/* Confirmação desassumir — arquiva filhas do usuário */}
+      {confirmandoDesassumir && (
+        <div className="flex items-center gap-2 px-3 py-2 text-xs bg-amber-50 border-b border-amber-100 flex-wrap">
+          <span className="flex-1 text-amber-800 font-medium">
+            Suas metas filhas serão arquivadas ao desassumir. Deseja continuar?
+          </span>
+          <button
+            type="button"
+            onClick={() => { setConfirmandoDesassumir(false); void onToggleResponsavel(meta.id); }}
+            className="font-semibold text-amber-800 hover:text-amber-900 transition-colors">
+            Sim, desassumir
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmandoDesassumir(false)}
+            className="text-gray-500 hover:text-gray-700 transition-colors">
+            Cancelar
+          </button>
         </div>
       )}
 
@@ -1045,60 +1527,102 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
         </div>
       )}
 
-      {/* Projeto: datas + progresso esperado */}
-      {meta.tipo?.toLowerCase() === 'atingivel - projeto' && (() => {
-        const resps = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id && r.data_inicio && r.data_fim);
-        if (resps.length === 0) return null;
-        return (
-          <div className="px-3 py-2 border-b border-gray-100 flex flex-col gap-1.5">
-            {resps.map(r => {
-              const nome = responsaveis.find(p => p.profile_id === r.profile_id)?.nome ?? '?';
-              const isAdminUser = isAdmin;
-              return (
-                <div key={r.profile_id} className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] text-gray-500 font-medium">{nome}</span>
-                    {isAdminUser && editandoDatas && r.profile_id === currentUserId ? (
-                      <div className="flex items-center gap-1.5 flex-1">
-                        <input type="date" className="text-[10px] border border-gray-300 rounded px-1.5 py-0.5"
-                          value={formDatas.inicio} onChange={e => handleFormDatasChange('inicio', e.target.value)} />
-                        <span className="text-gray-400 text-[10px]">→</span>
-                        <input type="date" className="text-[10px] border border-gray-300 rounded px-1.5 py-0.5"
-                          value={formDatas.fim} onChange={e => handleFormDatasChange('fim', e.target.value)} />
-                        {diasPreview !== null && <span className="text-[10px] text-purple-600">{diasPreview}du</span>}
-                        <button type="button" onClick={() => void handleSalvarDatasAdmin(r.profile_id)} disabled={salvandoDatas}
-                          className="text-[10px] px-2 py-0.5 bg-purple-600 text-white rounded disabled:opacity-50">{salvandoDatas ? '…' : 'Salvar'}</button>
-                        <button type="button" onClick={() => setEditandoDatas(false)} className="text-[10px] text-gray-400">✕</button>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="text-[10px] text-gray-500">{r.data_inicio} → {r.data_fim}</span>
-                        <span className="text-[10px] text-gray-400">({r.dias_uteis} dias úteis)</span>
-                        {isAdminUser ? (
-                          <button type="button" onClick={() => {
-                            setFormDatas({ inicio: r.data_inicio ?? '', fim: r.data_fim ?? '' });
-                            void calcularDiasUteis(r.data_inicio ?? '', r.data_fim ?? '');
-                            setEditandoDatas(true);
-                          }} className="text-[10px] text-blue-400 hover:text-blue-600">✎</button>
-                        ) : (
-                          <span className="text-[10px] text-gray-300" title="Acione o admin para alterar datas">🔒</span>
-                        )}
-                      </>
-                    )}
+      {/* Metas Filhas (sem linha de responsável) */}
+      {filhasDaMeta.filter(f => f.status !== 'arquivado').length > 0 && (
+        <div className="px-3 py-2 border-b border-gray-100">
+          <div className="flex flex-col gap-1">
+            <span className="text-[9px] uppercase tracking-widest text-gray-400 font-semibold">Metas Filhas</span>
+            {filhasDaMeta.filter(f => f.status !== 'arquivado').map(f => {
+              const respsComDatas = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id && r.data_inicio && r.data_fim);
+              const maeFim    = respsComDatas[0]?.data_fim    ?? meta.data_fim;
+              const maeInicio = respsComDatas[0]?.data_inicio ?? meta.data_inicio;
+              const filhaFimFora    = maeFim    && f.data_fim    && f.data_fim    > maeFim;
+              const filhaInicioFora = maeInicio && f.data_inicio && f.data_inicio < maeInicio;
+              const foraRange = filhaFimFora || filhaInicioFora;
+
+              return editandoFilhaId === f.id ? (
+                /* Form inline edição de filha */
+                <div key={f.id} className="flex flex-col gap-1.5 px-2 py-2 bg-blue-50 rounded border border-blue-100">
+                  <input className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                    value={formFilhaEdit.descricao}
+                    onChange={e => setFormFilhaEdit(p => ({ ...p, descricao: e.target.value }))}
+                    autoFocus />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[10px] text-gray-500">Início</label>
+                      <DatePickerComSemanas
+                        value={formFilhaEdit.dataInicio}
+                        onChange={(v: string) => setFormFilhaEdit(p => ({ ...p, dataInicio: v }))}
+                        placeholder="Início" />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[10px] text-gray-500">Fim</label>
+                      <DatePickerComSemanas
+                        value={formFilhaEdit.dataFim}
+                        onChange={(v: string) => setFormFilhaEdit(p => ({ ...p, dataFim: v }))}
+                        placeholder="Fim" />
+                    </div>
                   </div>
-                  {r.data_inicio && r.data_fim && (
-                    <ProjetoTimeline
-                      dataInicio={r.data_inicio}
-                      dataFim={r.data_fim}
-                      diasUteis={r.dias_uteis}
-                    />
+                  <div className="flex gap-2 justify-end">
+                    <button type="button" onClick={() => setEditandoFilhaId(null)}
+                      className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+                    <button type="button" onClick={() => void handleSalvarFilhaEdit()} disabled={salvandoFilhaEdit}
+                      className="text-xs px-2 py-0.5 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600">
+                      {salvandoFilhaEdit ? '...' : 'Salvar'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Row normal com botões */
+                <div key={f.id} className={`flex items-center gap-2 px-2 py-1 rounded text-[10px] flex-wrap ${foraRange ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50 border border-gray-100'}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${f.status === 'concluido' ? 'bg-green-500' : 'bg-blue-400'}`} />
+                  <span className={`flex-1 min-w-[80px] ${f.status === 'concluido' ? 'line-through text-gray-400' : 'text-gray-700'}`}>{f.descricao}</span>
+                  {f.data_inicio && (
+                    <span className="font-semibold text-gray-700 bg-white border border-gray-200 rounded px-1.5 py-0.5">
+                      {formatDataSemana(f.data_inicio)}
+                    </span>
+                  )}
+                  {f.data_fim && (
+                    <>
+                      <span className="text-gray-400">→</span>
+                      <span className="font-semibold text-gray-700 bg-white border border-gray-200 rounded px-1.5 py-0.5">
+                        {formatDataSemana(f.data_fim)}
+                      </span>
+                    </>
+                  )}
+                  {foraRange && (
+                    <span className="text-amber-600 font-medium text-[9px] flex-shrink-0">⚠ fora do período</span>
+                  )}
+                  {/* Responsável pela filha: avatar + primeiro nome */}
+                  {(() => {
+                    if (!f.profile_id) return null;
+                    const resp = responsaveis.find(r => r.profile_id === f.profile_id);
+                    if (!resp) return null;
+                    const primeiroNome = resp.nome.split(' ')[0];
+                    const inicial = primeiroNome.charAt(0).toUpperCase();
+                    return (
+                      <span className="flex items-center gap-1 flex-shrink-0" title={resp.nome}>
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-[8px] font-bold text-gray-600 border border-gray-300 flex-shrink-0">
+                          {inicial}
+                        </span>
+                        <span className="text-[10px] text-gray-500">{primeiroNome}</span>
+                      </span>
+                    );
+                  })()}
+                  {podeEditarMeta && (
+                    <>
+                      <button type="button" onClick={() => handleEditarFilha(f)} title="Editar filha"
+                        className="text-[11px] text-blue-400 hover:text-blue-600 flex-shrink-0 ml-1">✎</button>
+                      <button type="button" onClick={() => void handleArquivarFilha(f.id)} title="Arquivar filha"
+                        className="text-[12px] text-amber-400 hover:text-amber-600 flex-shrink-0">🗂</button>
+                    </>
                   )}
                 </div>
               );
             })}
           </div>
-        );
-      })()}
+        </div>
+      )}
 
       {/* Mensagem: acionar admin para datas */}
       {msgAdmin && (
@@ -1108,24 +1632,38 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
         </div>
       )}
 
-      {/* Form editar meta (Danilo only) */}
+      {/* Form editar meta (admin only) */}
       {editandoMeta && (
         <div className="px-3 py-2.5 bg-blue-50 border-b border-blue-100 flex flex-col gap-2">
           <p className="text-[10px] font-semibold text-blue-700">Editar meta</p>
           <input className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
             value={formMeta.descricao} onChange={e => setFormMeta(p => ({ ...p, descricao: e.target.value }))} autoFocus />
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={formMeta.tipo} onChange={e => setFormMeta(p => ({ ...p, tipo: e.target.value }))}>
-              <option value="atingivel">Atingível</option>
               <option value="recorrente">Recorrente</option>
               <option value="atingivel - projeto">Atingível - Projeto</option>
             </select>
-            <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5"
-              value={formMeta.metaUnidade} onChange={e => setFormMeta(p => ({ ...p, metaUnidade: e.target.value }))} />
             <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
               <input type="checkbox" checked={formMeta.isChave} onChange={e => setFormMeta(p => ({ ...p, isChave: e.target.checked }))} />
               Chave 🔑
             </label>
+          </div>
+          {/* Datas */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] text-gray-500">Início</label>
+              <DatePickerComSemanas
+                value={formMeta.dataInicio}
+                onChange={(v: string) => setFormMeta(p => ({ ...p, dataInicio: v }))}
+                placeholder="Início" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] text-gray-500">Fim</label>
+              <DatePickerComSemanas
+                value={formMeta.dataFim}
+                onChange={(v: string) => setFormMeta(p => ({ ...p, dataFim: v }))}
+                placeholder="Fim" />
+            </div>
           </div>
           <div className="flex gap-2 justify-end">
             <button type="button" onClick={() => setEditandoMeta(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
@@ -1175,14 +1713,6 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
         </div>
       )}
 
-      {/* + Adicionar indicador */}
-      {isAdmin && (
-        <div className="px-3 py-2 border-t border-gray-100">
-          <FormNovoIndicadorMeta metaId={meta.id} areaId={areaId}
-            responsaveis={responsaveis} onSalvo={onUpdate} />
-        </div>
-      )}
-
       {/* + Adicionar meta filha — disponível para quem assumiu a meta */}
       {(() => {
         const jaAssumiu = objetivoResponsaveis.some(r => r.objetivo_id === meta.id && r.profile_id === currentUserId);
@@ -1200,17 +1730,43 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                   onChange={e => setNovaFilhaDesc(e.target.value)}
                   autoFocus
                 />
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] text-gray-500 whitespace-nowrap">Prazo *</label>
-                  <input type="date"
-                    className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 flex-1"
-                    value={novaFilhaPrazo}
-                    onChange={e => setNovaFilhaPrazo(e.target.value)}
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] text-gray-500">Início *</label>
+                    <DatePickerComSemanas
+                      value={novaFilhaInicio}
+                      onChange={(v: string) => setNovaFilhaInicio(v)}
+                      placeholder="Início" />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] text-gray-500">Fim *</label>
+                    <DatePickerComSemanas
+                      value={novaFilhaPrazo}
+                      onChange={(v: string) => setNovaFilhaPrazo(v)}
+                      placeholder="Fim" />
+                  </div>
                 </div>
+                {/* Aviso se datas da filha estão fora do período da mãe */}
+                {(() => {
+                  const maeFimRef = objetivoResponsaveis.find(r => r.objetivo_id === meta.id && r.data_fim)?.data_fim ?? null;
+                  const maeInicioRef = objetivoResponsaveis.find(r => r.objetivo_id === meta.id && r.data_inicio)?.data_inicio ?? null;
+                  const fimFora = maeFimRef && novaFilhaPrazo && novaFilhaPrazo > maeFimRef;
+                  const inicioFora = maeInicioRef && novaFilhaInicio && novaFilhaInicio < maeInicioRef;
+                  if (!fimFora && !inicioFora) return null;
+                  return (
+                    <div className="flex items-start gap-1.5 px-2 py-1.5 rounded bg-amber-50 border border-amber-300">
+                      <span className="text-amber-600 text-[10px] flex-shrink-0">⚠</span>
+                      <p className="text-[10px] text-amber-700">
+                        {fimFora && `Fim (${formatDataSemana(novaFilhaPrazo)}) ultrapassa o prazo da meta mãe (${formatDataSemana(maeFimRef!)}). `}
+                        {inicioFora && `Início (${formatDataSemana(novaFilhaInicio)}) é anterior ao início da meta mãe (${formatDataSemana(maeInicioRef!)}). `}
+                        A meta filha pode ser salva assim mesmo.
+                      </p>
+                    </div>
+                  );
+                })()}
                 {erroFilha && <p className="text-[10px] text-red-500">{erroFilha}</p>}
                 <div className="flex gap-2 justify-end">
-                  <button type="button" onClick={() => { setAdicionandoFilha(false); setNovaFilhaDesc(''); setNovaFilhaPrazo(''); setErroFilha(null); }}
+                  <button type="button" onClick={() => { setAdicionandoFilha(false); setNovaFilhaDesc(''); setNovaFilhaInicio(''); setNovaFilhaPrazo(''); setErroFilha(null); }}
                     className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
                   <button type="button" onClick={() => { void handleSalvarFilha(); }} disabled={salvandoFilha}
                     className="text-xs px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600">
@@ -1267,6 +1823,8 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
   const [novoObjId,          setNovoObjId]          = useState('');
   const [novaHoras2,         setNovaHoras2]         = useState('1');
   const [salvandoNovo,       setSalvandoNovo]       = useState(false);
+  // Timeline de metas: expandida ou compacta (linha única)
+  const [timelineExpandida,  setTimelineExpandida]  = useState(false);
   // Recorrência
   const [novoRecorrente,     setNovoRecorrente]     = useState(false);
   const [novoSemanasChecked, setNovoSemanasChecked] = useState<Set<number>>(new Set());
@@ -1312,7 +1870,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
       .reduce((s, a) => s + (a.tempo_estimado_horas ?? 0), 0),
   [atividades, pessoa.profile_id]);
 
-  // Metas que essa pessoa assumiu (via objetivo_responsaveis)
+  // Metas que essa pessoa assumiu (via objetivo_responsaveis) — usado no grid
   const metasAssumidas = useMemo(() => {
     const ids = new Set(
       objetivoResponsaveis
@@ -1322,20 +1880,39 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
     return metas.filter(m => ids.has(m.id));
   }, [metas, objetivoResponsaveis, pessoa.profile_id]);
 
+  // Todas as Metas Mãe da área (para o dropdown de vincular atividade) — excluindo arquivadas
+  const todasMetasMae = useMemo(() =>
+    metas.filter(m => m.status !== 'arquivado'),
+  [metas]);
+  // Metas Filha desta pessoa (filhas onde é responsável) — excluindo arquivadas
+  const minhasFilhas = useMemo(() =>
+    filhas.filter(f => f.profile_id === pessoa.profile_id && f.status !== 'arquivado'),
+  [filhas, pessoa.profile_id]);
+
   const corDeMeta = useMemo(() => {
     const m = new Map<string, typeof META_CORES[0]>();
     metas.forEach((meta, i) => { m.set(meta.id, META_CORES[i % META_CORES.length]); });
+    // filhas herdam a cor da meta mãe
+    filhas.forEach(f => {
+      const corPai = f.objetivo_pai_id ? m.get(f.objetivo_pai_id) : undefined;
+      if (corPai) m.set(f.id, corPai);
+    });
     return m;
-  }, [metas]);
+  }, [metas, filhas]);
 
   const metasUsadasNaGrade = useMemo(() => {
     const ids = new Set(
       atividades
         .filter(a => a.profile_id === pessoa.profile_id && a.objetivo_id)
-        .map(a => a.objetivo_id as string)
+        .map(a => {
+          const objId = a.objetivo_id as string;
+          // Se o objetivo é uma filha, resolve para a meta mãe
+          const filha = filhas.find(f => f.id === objId);
+          return filha?.objetivo_pai_id ?? objId;
+        })
     );
     return metas.filter(m => ids.has(m.id));
-  }, [atividades, metas, pessoa.profile_id]);
+  }, [atividades, metas, filhas, pessoa.profile_id]);
 
   const handleAdd = async () => {
     if (!novaComportamentoId || !celAtiva) return;
@@ -1402,17 +1979,19 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
             {/* Meta vinculada */}
             <div>
               <label className="text-[10px] text-gray-500 mb-1 block">Meta vinculada</label>
-              {metasAssumidas.length > 0 ? (
-                <select className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2"
-                  value={novoObjId} onChange={e => setNovoObjId(e.target.value)}>
-                  <option value="">— opcional —</option>
-                  {metasAssumidas.map(m => <option key={m.id} value={m.id}>{m.descricao}</option>)}
-                </select>
-              ) : (
-                <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  Nenhuma meta assumida — assuma uma meta para vinculá-la à atividade.
-                </p>
-              )}
+              <select className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2"
+                value={novoObjId} onChange={e => setNovoObjId(e.target.value)}>
+                <option value="">— opcional —</option>
+                {todasMetasMae.map(mae => {
+                  const filhasDaMae = minhasFilhas.filter(f => f.objetivo_pai_id === mae.id);
+                  return [
+                    <option key={mae.id} value={mae.id}>📌 {mae.descricao}</option>,
+                    ...filhasDaMae.map(f => (
+                      <option key={f.id} value={f.id}>&nbsp;&nbsp;↳ {f.descricao}</option>
+                    ))
+                  ];
+                })}
+              </select>
             </div>
 
             {/* Horas padrão — visível apenas quando não recorrente */}
@@ -1571,21 +2150,267 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
       {expandido && (
         <>
         <div className="overflow-x-auto">
+          {/* ── Faixa mini-Gantt: Metas do período ── */}
+          {(() => {
+            // ── Constantes de proporção ────────────────────────────────────────────
+            const MIN_LBWT = 180;
+            const MIN_CLWT = 140;
+            const MIN_TOTAL = MIN_LBWT + semanas.length * MIN_CLWT;
+            // Posicionamento percentual — sincronizado com a tabela w-full
+            const lbwPct = (MIN_LBWT / MIN_TOTAL) * 100;
+            const clwPct = (MIN_CLWT / MIN_TOTAL) * 100;
+            const colXPct = (idx: number) => lbwPct + idx * clwPct;
+
+            const BAR_H = 18, BAR_GAP = 5, BAR_Y = 8;
+            const filhasPessoa = filhas.filter(f => f.profile_id === pessoa.profile_id && f.status !== 'arquivado');
+            const metasPessoa  = metasAssumidas;
+            if (filhasPessoa.length === 0 && metasPessoa.length === 0) return null;
+
+            // Altura: compacta = pills de metas mãe; expandida = barras filhas + pinos
+            const stripH = timelineExpandida
+              ? BAR_Y + Math.max(filhasPessoa.length, 1) * (BAR_H + BAR_GAP) + 24
+              : 44;
+
+            // Helper: posição percentual de cada barra das filhas
+            const barProps = (filha: typeof filhasPessoa[0], fIdx: number) => {
+              const cor = corDeMeta.get(filha.objetivo_pai_id ?? filha.id);
+              if (!cor) return null;
+              const semIni  = filha.data_inicio ? isoWeek(new Date(filha.data_inicio + 'T12:00:00')) : -1;
+              const semFimV = filha.data_fim    ? isoWeek(new Date(filha.data_fim    + 'T12:00:00')) : -1;
+              const startIdx = semanas.indexOf(semIni);
+              const endIdx   = semanas.indexOf(semFimV);
+
+              const isBeforeRange = semFimV > 0 && semFimV < semanas[0];
+              const isAfterRange  = semIni  > 0 && semIni  > semanas[semanas.length - 1];
+
+              let xPct: number, wPct: number;
+              if (isBeforeRange) {
+                xPct = lbwPct + 0.3; wPct = clwPct * 0.6;
+              } else if (isAfterRange) {
+                xPct = colXPct(semanas.length - 1) + clwPct * 0.35; wPct = clwPct * 0.6;
+              } else {
+                const si = startIdx >= 0 ? startIdx : 0;
+                const ei = endIdx   >= 0 ? endIdx   : semanas.length - 1;
+                xPct = colXPct(si) + clwPct * 0.07;
+                wPct = (ei - si + 1) * clwPct - clwPct * 0.14;
+              }
+
+              return {
+                cor, xPct, wPct,
+                y: BAR_Y + fIdx * (BAR_H + BAR_GAP),
+                isEdge: isBeforeRange || isAfterRange,
+                prefix: isBeforeRange ? '◁ ' : isAfterRange ? '▷ ' : '',
+                tooltip: `${filha.descricao}: ${formatarDataCurta(filha.data_inicio) || '?'} – ${formatarDataCurta(filha.data_fim) || '?'}`,
+              };
+            };
+
+            return (
+              <div style={{ position: 'relative', width: '100%', minWidth: MIN_TOTAL,
+                height: stripH, borderBottom: '1px solid #e5e7eb', background: '#fff',
+                overflow: 'hidden' }}>
+
+                {/* Label sticky + botão expandir/recolher */}
+                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${lbwPct}%`,
+                  borderRight: '0.5px solid #e5e7eb', display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', padding: '0 8px 0 12px', background: '#fff', zIndex: 2 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
+                    textTransform: 'uppercase', color: '#9ca3af' }}>Metas do período</span>
+                  <button
+                    type="button"
+                    onClick={() => setTimelineExpandida(v => !v)}
+                    title={timelineExpandida ? 'Recolher' : 'Expandir metas'}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 3,
+                      fontSize: 9, fontWeight: 600,
+                      color: timelineExpandida ? '#0C2633' : '#6b7280',
+                      background: timelineExpandida ? '#e8eef2' : '#f3f4f6',
+                      border: '0.5px solid ' + (timelineExpandida ? '#b6c7d1' : '#e5e7eb'),
+                      borderRadius: 5, cursor: 'pointer',
+                      padding: '3px 7px', lineHeight: 1, flexShrink: 0,
+                      transition: 'all 0.15s',
+                    }}>
+                    <span style={{ fontSize: 10 }}>{timelineExpandida ? '▲' : '▼'}</span>
+                    {timelineExpandida ? 'Recolher' : 'Expandir'}
+                  </button>
+                </div>
+
+                {/* Separadores de coluna */}
+                {semanas.map((_, idx) => (
+                  <div key={idx} style={{ position: 'absolute', left: `${colXPct(idx)}%`, top: 0, bottom: 0,
+                    width: `${clwPct}%`, borderLeft: '0.5px solid #f3f4f6' }} />
+                ))}
+
+                {/* ── MODO COMPACTO: pills nomeadas por Meta Mãe ── */}
+                {!timelineExpandida && (() => {
+                  // Rastrear quantas pills já foram colocadas em cada coluna (para evitar sobreposição)
+                  const contagemPorCol: Record<number, number> = {};
+                  return metasPessoa.map(meta => {
+                    const respComDatas = objetivoResponsaveis.find(r => r.objetivo_id === meta.id && r.data_fim);
+                    const dataFimStr = respComDatas?.data_fim ?? meta.data_fim;
+                    if (!dataFimStr) return null;
+                    const cor = corDeMeta.get(meta.id);
+                    if (!cor) return null;
+                    const semFim = isoWeek(new Date(dataFimStr + 'T12:00:00'));
+                    const idx = semanas.indexOf(semFim);
+                    const isBeforePin = semFim < semanas[0];
+                    const isAfterPin  = semFim > semanas[semanas.length - 1];
+                    const colKey = isBeforePin ? -1 : isAfterPin ? semanas.length : idx;
+                    const stackPos = contagemPorCol[colKey] ?? 0;
+                    contagemPorCol[colKey] = stackPos + 1;
+
+                    // Posição X: centro-direito da coluna de prazo
+                    const xPct = isBeforePin
+                      ? lbwPct + 0.5
+                      : isAfterPin
+                        ? colXPct(semanas.length - 1) + clwPct * 0.1
+                        : colXPct(idx) + clwPct * 0.08;
+                    const topPx = 5 + stackPos * 18; // offset vertical para metas no mesmo prazo
+
+                    const descAbrev = meta.descricao.length > 22
+                      ? meta.descricao.slice(0, 20) + '…'
+                      : meta.descricao;
+
+                    return (
+                      <div key={meta.id}
+                        title={`${meta.descricao} · prazo ${formatarDataCurta(dataFimStr)}`}
+                        style={{ position: 'absolute', left: `${xPct}%`, top: topPx,
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          background: cor.bg, border: `0.5px solid ${cor.border}`,
+                          borderLeft: `3px solid ${cor.border}`, borderRadius: '0 4px 4px 0',
+                          padding: '2px 6px 2px 4px', maxWidth: `${clwPct * 1.6}%`,
+                          opacity: (isBeforePin || isAfterPin) ? 0.6 : 1,
+                          cursor: (isBeforePin || isAfterPin) ? 'help' : 'default',
+                          overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: cor.text,
+                          overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                          {isBeforePin ? '◁ ' : isAfterPin ? '▷ ' : ''}{descAbrev}
+                        </span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: cor.border,
+                          flexShrink: 0, marginLeft: 2 }}>
+                          {formatarDataCurta(dataFimStr)}
+                        </span>
+                      </div>
+                    );
+                  });
+                })()}
+
+                {/* ── MODO EXPANDIDO: barras filhas ── */}
+                {timelineExpandida && filhasPessoa.map((filha, fIdx) => {
+                  const bp = barProps(filha, fIdx);
+                  if (!bp) return null;
+                  const { cor, xPct, wPct, y, isEdge, prefix, tooltip } = bp;
+                  return (
+                    <div key={filha.id} title={tooltip}
+                      style={{ position: 'absolute', left: `${xPct}%`, top: y, width: `${wPct}%`, height: BAR_H,
+                        background: cor.bg, border: `0.5px solid ${cor.border}`,
+                        borderLeft: `2px solid ${cor.border}`, borderRadius: '0 4px 4px 0',
+                        display: 'flex', alignItems: 'center', padding: '0 7px', gap: 4,
+                        overflow: 'hidden', opacity: isEdge ? 0.65 : 1,
+                        cursor: isEdge ? 'help' : 'default' }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: cor.text,
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                        {prefix}{filha.descricao}
+                      </span>
+                      {!isEdge && (
+                        <span style={{ fontSize: 8, color: cor.text, opacity: 0.7, flexShrink: 0 }}>
+                          {formatarDataCurta(filha.data_inicio)} – {formatarDataCurta(filha.data_fim)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* ── MODO EXPANDIDO: marcos de entrega das Metas Mãe ── */}
+                {timelineExpandida && metasPessoa.map((meta, mIdx) => {
+                  const respComDatas = objetivoResponsaveis.find(r => r.objetivo_id === meta.id && r.data_fim);
+                  const dataFimStr = respComDatas?.data_fim ?? meta.data_fim;
+                  if (!dataFimStr) return null;
+                  const cor = corDeMeta.get(meta.id);
+                  if (!cor) return null;
+                  const semFimMeta = isoWeek(new Date(dataFimStr + 'T12:00:00'));
+                  const idx = semanas.indexOf(semFimMeta);
+                  const isBeforePin = semFimMeta < semanas[0];
+                  const isAfterPin  = semFimMeta > semanas[semanas.length - 1];
+                  const pinOpacity = (isBeforePin || isAfterPin) ? 0.55 : 1;
+                  const pinLeftPct = isBeforePin
+                    ? lbwPct + 1
+                    : isAfterPin
+                      ? colXPct(semanas.length - 1) + clwPct - 2
+                      : colXPct(idx) + clwPct - 2;
+                  const pinTitle = `${meta.descricao}: prazo ${formatarDataCurta(dataFimStr)}`;
+                  // Labels empilhadas: cada meta sobe 34px para não sobrepor quando compartilham a mesma coluna
+                  const labelBottom = 4 + mIdx * 34;
+
+                  return (
+                    <div key={meta.id} title={pinTitle}
+                      style={{ position: 'absolute', left: `${pinLeftPct}%`, top: 0, bottom: 0, width: 0,
+                        opacity: pinOpacity, cursor: (isBeforePin || isAfterPin) ? 'help' : 'default' }}>
+
+                      {/* Linha vertical — marco de entrega */}
+                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0,
+                        width: 2, background: cor.border }} />
+
+                      {/* Losango no topo — símbolo de milestone */}
+                      <div style={{ position: 'absolute', left: -7, top: 3,
+                        width: 14, height: 14, background: cor.border,
+                        transform: 'rotate(45deg)', borderRadius: 2,
+                        boxShadow: `0 0 0 2px #fff` }} />
+
+                      {/* Labels à ESQUERDA do marco — sem vazar à direita */}
+                      <div style={{ position: 'absolute', left: 4, bottom: labelBottom,
+                        transform: 'translateX(-100%)',
+                        display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                        {/* Nome da meta (truncado) */}
+                        <div style={{ fontSize: 8, fontWeight: 600, color: cor.text,
+                          maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap', textAlign: 'right' }}>
+                          {meta.descricao}
+                        </div>
+                        {/* Badge de data */}
+                        <div style={{ fontSize: 9, fontWeight: 700, color: '#fff',
+                          background: cor.border, borderRadius: 3, padding: '1px 5px',
+                          whiteSpace: 'nowrap' }}>
+                          {isBeforePin ? '◁' : isAfterPin ? '▷' : formatarDataCurta(dataFimStr)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
           <table className="w-full text-xs" style={{ minWidth: `${180 + semanas.length * 140}px` }}>
+            <colgroup>
+              <col style={{ width: `${(180 / (180 + semanas.length * 140)) * 100}%` }} />
+              {semanas.map(s => <col key={s} style={{ width: `${(140 / (180 + semanas.length * 140)) * 100}%` }} />)}
+            </colgroup>
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100 text-[10px] text-gray-500 uppercase tracking-wide">
-                <th className="sticky left-0 bg-gray-50 z-10 px-3 py-2 text-left min-w-[160px] border-r border-gray-100">
+                <th className="sticky left-0 bg-gray-50 z-10 px-3 py-2 text-left border-r border-gray-100">
                   Comportamento
                 </th>
-                {semanas.map(s => (
-                  <th key={s} className="px-3 py-2 text-center min-w-[120px]">S{s}</th>
-                ))}
+                {semanas.map(s => {
+                  const year = parseInt(mes.split('-')[0], 10);
+                  const seg = segundaUtcIsoWeekStart(year, s);
+                  let rangeLabel = '';
+                  if (seg) {
+                    const dom = new Date(seg); dom.setUTCDate(seg.getUTCDate() + 6);
+                    const fmt = (d: Date) => `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+                    rangeLabel = `${fmt(seg)} – ${fmt(dom)}`;
+                  }
+                  return (
+                    <th key={s} className="px-3 py-2 text-center">
+                      <div className="font-semibold">S{s}</div>
+                      {rangeLabel && <div className="text-[9px] text-gray-400 normal-case tracking-normal font-normal">{rangeLabel}</div>}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {linhas.map(comportamento => (
                 <tr key={comportamento.id} className="border-b border-gray-100 hover:bg-gray-50/50">
-                  <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-700 border-r border-gray-100 font-medium max-w-[160px]"
+                  <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-700 border-r border-gray-100 font-medium max-w-[180px]"
                     title={comportamento.nome}>
                     <span className="block truncate">{comportamento.nome}</span>
                   </td>
@@ -1654,7 +2479,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
                 const isRecorrente = items.some(a => a.recorrente);
                 return (
                 <tr key={desc} className="border-b border-gray-100 hover:bg-gray-50/50">
-                  <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-600 border-r border-gray-100 text-[12px] italic max-w-[160px]"
+                  <td className="sticky left-0 bg-white z-10 px-3 py-2 text-gray-600 border-r border-gray-100 text-[12px] italic max-w-[180px]"
                     title={desc}>
                     <span className="flex items-center gap-1 truncate">
                       {isRecorrente && (
@@ -1702,78 +2527,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
                 </tr>
               )}
 
-              {/* ── Meta Mãe ────────────────────────────────────────────────── */}
-              {metasAssumidas.length > 0 && (
-                <>
-                  <tr className="border-t-2 border-amber-200 bg-amber-50/40">
-                    <td colSpan={semanas.length + 1} className="px-3 py-1 text-[9px] font-semibold text-amber-700 uppercase tracking-wide">
-                      Meta Mãe
-                    </td>
-                  </tr>
-                  {metasAssumidas.map(meta => (
-                    <tr key={meta.id} className="border-b border-amber-100 hover:bg-amber-50/50">
-                      <td className="sticky left-0 bg-white z-10 px-3 py-1.5 text-amber-800 border-r border-amber-100 max-w-[160px]">
-                        <span className="block truncate text-[11px]" title={meta.descricao}>{meta.descricao}</span>
-                      </td>
-                      {semanas.map(sem => (
-                        <td key={sem} className="px-2 py-1.5 text-center">
-                          <span className="inline-block w-3 h-3 rounded-full bg-amber-300 opacity-70" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </>
-              )}
-
-              {/* ── Filhas previstas ─────────────────────────────────────────── */}
-              {(() => {
-                const filhasPessoa = filhas.filter(f => f.profile_id === pessoa.profile_id && f.status !== 'arquivado');
-                if (filhasPessoa.length === 0) return null;
-                return (
-                  <>
-                    <tr className="border-t-2 border-blue-200 bg-blue-50/40">
-                      <td colSpan={semanas.length + 1} className="px-3 py-1 text-[9px] font-semibold text-blue-700 uppercase tracking-wide">
-                        Filhas previstas
-                      </td>
-                    </tr>
-                    {filhasPessoa.map(filha => {
-                      const semanaPrazo = filha.data_fim ? isoWeek(new Date(filha.data_fim + 'T12:00:00')) : null;
-                      const paiMeta = metas.find(m => m.id === filha.objetivo_pai_id);
-                      const hoje = new Date(); hoje.setHours(0,0,0,0);
-                      const diasRest = filha.data_fim
-                        ? Math.ceil((new Date(filha.data_fim + 'T00:00:00').getTime() - hoje.getTime()) / (1000*60*60*24))
-                        : null;
-                      return (
-                        <tr key={filha.id} className="border-b border-blue-100 hover:bg-blue-50/50">
-                          <td className="sticky left-0 bg-white z-10 px-3 py-1.5 border-r border-blue-100 max-w-[160px]">
-                            <div className="flex flex-col">
-                              <span className="block truncate text-[11px] text-blue-800" title={filha.descricao}>{filha.descricao}</span>
-                              {paiMeta && <span className="text-[9px] text-gray-400 truncate">↳ {paiMeta.descricao}</span>}
-                            </div>
-                          </td>
-                          {semanas.map(sem => {
-                            const isDeadline = semanaPrazo === sem;
-                            return (
-                              <td key={sem} className="px-2 py-1.5 text-center">
-                                {isDeadline && (
-                                  <span className={`inline-block text-[10px] font-bold px-1.5 rounded ${
-                                    filha.status === 'concluido' ? 'bg-green-100 text-green-700' :
-                                    diasRest !== null && diasRest <= 0 ? 'bg-red-100 text-red-700' :
-                                    diasRest !== null && diasRest <= 3 ? 'bg-red-50 text-red-600' :
-                                    'bg-blue-100 text-blue-700'
-                                  }`} title={filha.data_fim ?? ''}>
-                                    {filha.status === 'concluido' ? '✓' : (filha.data_fim?.slice(8) ?? '?')}
-                                  </span>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </>
-                );
-              })()}
+              {/* Meta Mãe e Filhas Previstas movidas para a faixa mini-Gantt acima da tabela */}
             </tbody>
           </table>
         </div>
@@ -1820,27 +2574,43 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
   const supabase = useMemo(() => createClient(), []);
   const [aberto,   setAberto]   = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [form, setForm] = useState({ descricao: '', tipo: 'atingivel', respId: '', metaUnidade: '' });
-  const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
-  const isProjeto = form.tipo === 'atingivel - projeto';
+  const [erroForm, setErroForm] = useState('');
+  // Tipos disponíveis: apenas Atingível - Projeto e Recorrente
+  const [form, setForm] = useState({
+    descricao: '',
+    tipo: 'recorrente',
+    respId: '',
+    dataInicio: '',
+    dataFim: '',
+    isChave: false,
+  });
+  const set = (k: string, v: string) => { setForm(p => ({ ...p, [k]: v })); setErroForm(''); };
 
   const handleSalvar = async () => {
-    if (!form.descricao.trim()) return;
+    if (!form.descricao.trim()) { setErroForm('Informe a descrição da meta.'); return; }
+    if (!form.dataInicio)        { setErroForm('Informe a data de início.'); return; }
+    if (!form.dataFim)           { setErroForm('Informe a data de fim.'); return; }
+    if (form.dataFim < form.dataInicio) { setErroForm('A data de fim deve ser igual ou posterior ao início.'); return; }
     setSalvando(true);
     try {
       const { data: ins, error: e } = await supabase.from('objetivos')
-        .insert({ area_id: areaId, descricao: form.descricao.trim(), tipo: form.tipo,
+        .insert({
+          area_id: areaId,
+          descricao: form.descricao.trim(),
+          tipo: form.tipo,
           profile_id: form.respId || null,
-          meta_unidade: isProjeto ? null : (form.metaUnidade || null),
-          status: 'ativo', mes })
+          status: 'ativo',
+          mes,
+          data_inicio: form.dataInicio,
+          data_fim: form.dataFim,
+          is_chave: form.isChave,
+        })
         .select('id').single();
-      if (e) { console.error('[NovaMeta]', e); return; }
+      if (e) { console.error('[NovaMeta]', e); setErroForm(e.message); return; }
       const metaId = (ins as { id: string }).id;
       LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId,
         operacao: 'INSERT', descricao: `Nova meta no Plano Boné Day: ${form.descricao}` });
-      // Indicador criado automaticamente quando executor assumir e definir as datas
-
-      setForm({ descricao: '', tipo: 'atingivel', respId: '', metaUnidade: '' });
+      setForm({ descricao: '', tipo: 'recorrente', respId: '', dataInicio: '', dataFim: '', isChave: false });
       setAberto(false); onSalvo();
     } finally { setSalvando(false); }
   };
@@ -1858,16 +2628,12 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
       <p className="text-xs font-medium text-gray-700">Nova meta</p>
       <input className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
         placeholder="Descrição *" value={form.descricao} onChange={e => set('descricao', e.target.value)} autoFocus />
-      <div className={`grid gap-2 ${isProjeto ? 'grid-cols-2' : 'grid-cols-3'}`}>
+      {/* Tipo + Responsável */}
+      <div className="grid grid-cols-2 gap-2">
         <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={form.tipo} onChange={e => set('tipo', e.target.value)}>
-          <option value="atingivel">Atingível</option>
           <option value="recorrente">Recorrente</option>
           <option value="atingivel - projeto">Atingível - Projeto</option>
         </select>
-        {!isProjeto && (
-          <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5"
-            value={form.metaUnidade} onChange={e => set('metaUnidade', e.target.value)} />
-        )}
         {responsaveis.length > 0 && (
           <select className="text-xs border border-gray-300 rounded px-2 py-1.5" value={form.respId} onChange={e => set('respId', e.target.value)}>
             <option value="">— Responsável —</option>
@@ -1875,13 +2641,29 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
           </select>
         )}
       </div>
-      {isProjeto && (
-        <p className="text-[10px] text-purple-600 bg-purple-50 rounded px-2 py-1">
-          Indicador &quot;Percentual de Evolução até Entrega (%)&quot; será criado automaticamente. Datas serão definidas por quem assumir.
-        </p>
-      )}
+      {/* Meta chave */}
+      <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+        <input type="checkbox" checked={form.isChave}
+          onChange={e => setForm(p => ({ ...p, isChave: e.target.checked }))} />
+        Meta Chave 🔑
+      </label>
+      {/* Datas: início e fim para todos os tipos */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-0.5">
+          <label className="text-[10px] text-gray-500">Início *</label>
+          <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            value={form.dataInicio} onChange={e => set('dataInicio', e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <label className="text-[10px] text-gray-500">Fim *</label>
+          <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            value={form.dataFim} onChange={e => set('dataFim', e.target.value)} />
+        </div>
+      </div>
+      {erroForm && <p className="text-[10px] text-red-500">{erroForm}</p>}
       <div className="flex gap-2 justify-end">
-        <button type="button" onClick={() => setAberto(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
+        <button type="button" onClick={() => { setAberto(false); setErroForm(''); }}
+          className="text-xs text-gray-500 hover:text-gray-700">Cancelar</button>
         <button type="button" onClick={handleSalvar} disabled={!form.descricao.trim() || salvando}
           className="text-xs px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600">
           {salvando ? 'Criando...' : 'Criar meta'}
@@ -1925,14 +2707,14 @@ function PreBoneDayPageContent() {
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [bloco0Open, setBloco0Open] = useState(true);
   const [bloco1Open, setBloco1Open] = useState(false);
-  const [blocoRelOpen,  setBlocoRelOpen]  = useState(true);
   const [blocoMinhasOpen, setBlocoMinhasOpen] = useState(true);
   const [bloco2Open, setBloco2Open] = useState(true);
   const [bloco3Open, setBloco3Open] = useState(true);
   const [blocoIndOpen, setBlocoIndOpen] = useState(true);
 
   const {
-    metas, metasConcluidas, metasNaoConcluidas, metasRelancadas, indicadores, responsaveis, comportamentos, agendaMacro,
+    metas, metasConcluidas, metasNaoConcluidas, indicadores, indicadoresResponsaveis,
+    responsaveis, comportamentos, agendaMacro,
     objetivoResponsaveis, filhas, mes, setMes, isLoading, error, recarregar, removerMetaNaoConcluida,
   } = usePlanoBoneDay(areaId, effectiveProfileId);
 
@@ -1971,33 +2753,11 @@ function PreBoneDayPageContent() {
     }).select('id').single();
     if (e || !novaMeta) { console.error('[Relançar]', e); return; }
 
-    const novaMetaId = (novaMeta as { id: string }).id;
-
-    // 2. Marcar original como relançada (remove de Metas não concluídas, mas mantém editável no mês original)
+    // 2. Marcar original como relançada (remove de Metas não concluídas)
     const { error: eUpdate } = await supabase.from('objetivos')
       .update({ status: 'relancada' })
       .eq('id', id);
     if (eUpdate) { console.error('[Relançar] update status falhou:', eUpdate); return; }
-
-    // 3. Copiar indicadores da meta original para a nova, sem responsável (zerado para novo ciclo)
-    const { data: indsOriginais } = await supabase.from('indicadores')
-      .select('nome, tipo, indicador_chave, semaforo_faixas')
-      .eq('objetivo_id', id);
-
-    if (indsOriginais && indsOriginais.length > 0) {
-      type IndRow = { nome: string; tipo: string | null; indicador_chave: boolean | null; semaforo_faixas: unknown };
-      await supabase.from('indicadores').insert(
-        (indsOriginais as IndRow[]).map(ind => ({
-          area_id: areaId,
-          nome: ind.nome,
-          tipo: ind.tipo,
-          indicador_chave: ind.indicador_chave ?? false,
-          semaforo_faixas: ind.semaforo_faixas,
-          profile_id: null,
-          objetivo_id: novaMetaId,
-        }))
-      );
-    }
 
     LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id,
       operacao: 'INSERT', descricao: `Meta relançada no mês ${mes}: ${metaOriginal.descricao}` });
@@ -2166,76 +2926,61 @@ function PreBoneDayPageContent() {
     const jaExiste = objetivoResponsaveis.some(r => r.objetivo_id === objetivoId && r.profile_id === user.id);
 
     if (jaExiste) {
-      // SAINDO: remover responsabilidade
+      // Remove responsabilidade
       await supabase.from('objetivo_responsaveis').delete()
         .eq('objetivo_id', objetivoId).eq('profile_id', user.id);
 
-      // Se for meta Projeto: apagar o indicador criado automaticamente ao assumir
-      const indsProjeto = indicadores.filter(i =>
-        i.objetivo_id === objetivoId &&
-        i.profile_id === user.id &&
-        (i.semaforo_faixas as { is_projeto_relativo?: boolean } | null)?.is_projeto_relativo
-      );
-      if (indsProjeto.length > 0) {
-        await supabase.from('indicadores').delete().in('id', indsProjeto.map(i => i.id));
-      } else {
-        // Comportamento existente para metas não-Projeto
-        const restantes = objetivoResponsaveis.filter(r => r.objetivo_id === objetivoId && r.profile_id !== user.id);
-        if (restantes.length === 1) {
-          const unico = restantes[0].profile_id;
-          const indsObj = indicadores.filter(i => i.objetivo_id === objetivoId && !i.profile_id);
-          if (indsObj.length > 0) {
-            await supabase.from('indicadores').update({ profile_id: unico }).in('id', indsObj.map(i => i.id));
-          }
-        } else if (restantes.length === 0) {
-          await (supabase.from('indicadores') as any).update({ profile_id: null }).eq('objetivo_id', objetivoId); // eslint-disable-line
+      // Arquiva filhas criadas por este usuário nesta meta (sem afetar outros usuários)
+      await supabase.from('objetivos')
+        .update({ status: 'arquivado' })
+        .eq('objetivo_pai_id', objetivoId)
+        .eq('profile_id', user.id)
+        .neq('status', 'arquivado');
+
+      const restantes = objetivoResponsaveis.filter(r => r.objetivo_id === objetivoId && r.profile_id !== user.id);
+      if (restantes.length === 0) {
+        await (supabase.from('indicadores') as any).update({ profile_id: null }).eq('objetivo_id', objetivoId); // eslint-disable-line
+      } else if (restantes.length === 1) {
+        const unico = restantes[0].profile_id;
+        const indsObj = indicadores.filter(i => i.objetivo_id === objetivoId && !i.profile_id);
+        if (indsObj.length > 0) {
+          await supabase.from('indicadores').update({ profile_id: unico }).in('id', indsObj.map(i => i.id));
         }
       }
     } else {
-      // ASSUMINDO
-      const totalAgora = objetivoResponsaveis.filter(r => r.objetivo_id === objetivoId).length + 1;
-      await supabase.from('objetivo_responsaveis').insert({ objetivo_id: objetivoId, profile_id: user.id });
+      // Restaura filhas arquivadas deste usuário nesta meta (criadas antes de desassumir)
+      await supabase.from('objetivos')
+        .update({ status: 'ativo' })
+        .eq('objetivo_pai_id', objetivoId)
+        .eq('profile_id', user.id)
+        .eq('status', 'arquivado');
 
-      if (totalAgora === 1) {
-        // Primeiro (e único) responsável → auto-assign todos os indicadores sem dono
-        const indsObj = indicadores.filter(i => i.objetivo_id === objetivoId && !i.profile_id);
-        if (indsObj.length > 0) {
-          await supabase.from('indicadores').update({ profile_id: user.id }).in('id', indsObj.map(i => i.id));
-        }
+      const { error } = await supabase.from('objetivo_responsaveis').insert({ objetivo_id: objetivoId, profile_id: user.id });
+      if (error) {
+        console.error('[Toggle Responsável]', error);
+        alert(`Erro ao assumir meta: ${error.message}`);
+        return;
       }
-      // 2+ responsáveis → cada um escolhe seus indicadores manualmente
     }
     recarregar();
   }, [supabase, objetivoResponsaveis, indicadores, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAssumirProjeto = useCallback(async (objetivoId: string, dataInicio: string, dataFim: string) => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !areaId) return;
+    if (!user) return;
     const { data: dias } = await supabase.rpc('calcular_dias_uteis', { data_inicio: dataInicio, data_fim: dataFim });
     const diasUteis = typeof dias === 'number' ? dias : null;
-    await supabase.from('objetivo_responsaveis').insert({
+    const { error } = await supabase.from('objetivo_responsaveis').insert({
       objetivo_id: objetivoId, profile_id: user.id,
       data_inicio: dataInicio, data_fim: dataFim, dias_uteis: diasUteis,
     });
-    // Criar indicador automático com semáforo relativo ao esperado
-    await supabase.from('indicadores').insert({
-      area_id: areaId,
-      objetivo_id: objetivoId,
-      nome: 'Percentual de Evolução até Entrega (%)',
-      indicador_chave: true,
-      tipo: 'percentual',
-      profile_id: user.id,
-      semaforo_faixas: {
-        is_projeto_relativo: true,
-        data_inicio: dataInicio,
-        data_fim: dataFim,
-        dias_uteis: diasUteis,
-        escala_tipo: 'percentual',
-        faixas: FAIXAS_PROJETO.faixas,
-      },
-    });
+    if (error) {
+      console.error('[Assumir Projeto]', error);
+      alert(`Erro ao assumir meta: ${error.message}`);
+      return;
+    }
     recarregar();
-  }, [supabase, areaId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const mesLabel = monthOptions.find(o => o.value === mes)?.label ?? mes;
 
@@ -2323,102 +3068,6 @@ function PreBoneDayPageContent() {
             )}
           </section>
 
-          {/* ── Bloco Metas Relançadas ──────────────────────────────────────── */}
-          <section className="rounded-xl border border-blue-200 bg-blue-50 shadow-sm overflow-hidden">
-            <button type="button"
-              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-blue-100 transition-colors"
-              onClick={() => setBlocoRelOpen(v => !v)}>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-blue-800">↩ Metas Relançadas</span>
-                <span className="text-xs text-blue-700 bg-blue-200 rounded-full px-2 py-0.5">
-                  {metasRelancadas.length}
-                </span>
-              </div>
-              <span className="text-blue-600 text-xs">{blocoRelOpen ? '▲' : '▼'}</span>
-            </button>
-            {blocoRelOpen && (
-              <div className="px-4 pb-4 border-t border-blue-200 pt-3">
-                {metasRelancadas.length === 0 ? (
-                  <p className="text-xs text-blue-700">Nenhuma meta foi relançada neste mês.</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {metasRelancadas.map(meta => (
-                      <div key={meta.id} className="flex items-center gap-3 py-1.5 px-2 rounded-lg bg-white border border-blue-100">
-                        <span className="text-blue-500 text-sm font-semibold flex-shrink-0">↩</span>
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {meta.tipo && (
-                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 whitespace-nowrap flex-shrink-0">
-                              {meta.tipo}
-                            </span>
-                          )}
-                          <span className="text-xs text-gray-600 truncate">{meta.descricao}</span>
-                        </div>
-                        <span className="text-[10px] text-blue-500 font-medium whitespace-nowrap flex-shrink-0">
-                          Relançada
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* ── Bloco Minhas Metas ─────────────────────────────────────────── */}
-          {(() => {
-            const minhasMetas = metas.filter(m =>
-              m.profile_id === effectiveProfileId ||
-              (objetivoResponsaveis.some(or => or.objetivo_id === m.id && or.profile_id === effectiveProfileId))
-            );
-            return (
-              <section className="rounded-xl border border-indigo-200 bg-indigo-50 shadow-sm overflow-hidden">
-                <button type="button"
-                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-indigo-100 transition-colors"
-                  onClick={() => setBlocoMinhasOpen(v => !v)}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-indigo-800">👤 Minhas Metas</span>
-                    <span className="text-xs text-indigo-700 bg-indigo-200 rounded-full px-2 py-0.5">
-                      {minhasMetas.length}
-                    </span>
-                  </div>
-                  <span className="text-indigo-600 text-xs">{blocoMinhasOpen ? '▲' : '▼'}</span>
-                </button>
-                {blocoMinhasOpen && (
-                  <div className="px-4 pb-4 border-t border-indigo-200 pt-3">
-                    {minhasMetas.length === 0 ? (
-                      <p className="text-xs text-indigo-700">Nenhuma meta atribuída a você neste mês.</p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {minhasMetas.map(meta => (
-                          <div key={meta.id} className="flex items-center gap-3 py-1.5 px-2 rounded-lg bg-white border border-indigo-100">
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                              meta.status === 'concluido' ? 'bg-green-500' : 'bg-indigo-400'
-                            }`} />
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              {meta.tipo && (
-                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 whitespace-nowrap flex-shrink-0">
-                                  {meta.tipo}
-                                </span>
-                              )}
-                              <span className={`text-xs truncate ${meta.status === 'concluido' ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                                {meta.descricao}
-                              </span>
-                            </div>
-                            <span className={`text-[10px] font-medium whitespace-nowrap flex-shrink-0 ${
-                              meta.status === 'concluido' ? 'text-green-600' : 'text-indigo-600'
-                            }`}>
-                              {meta.status === 'concluido' ? 'Concluída' : 'Em andamento'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </section>
-            );
-          })()}
-
           {/* ── Bloco 1: Metas não concluídas ──────────────────────────────── */}
           <section className="rounded-xl border border-amber-200 bg-amber-50 shadow-sm overflow-hidden">
             <button type="button"
@@ -2442,7 +3091,7 @@ function PreBoneDayPageContent() {
                   <div className="flex flex-col gap-2">
                     {metasNaoConcluidas.map(meta => (
                       <MetaNaoConcluida key={meta.id} meta={meta}
-                        podeRelançar={Boolean(isAdmin)}
+                        podeRelançar={Boolean(isAdmin) || Boolean(currentUserId)}
                         onRelançar={handleRelançar}
                         onArquivar={handleArquivarMeta} />
                     ))}
@@ -2478,6 +3127,8 @@ function PreBoneDayPageContent() {
                       indicadores={indicadores.filter(i => i.objetivo_id === meta.id)}
                       responsaveis={responsaveis}
                       isAdmin={Boolean(isAdmin)} areaId={areaId ?? ''}
+                      mes={mes}
+                      filhasDaMeta={filhas.filter(f => f.objetivo_pai_id === meta.id)}
                       onUpdate={recarregar}
                       onConcluir={handleConcluirMeta}
                       onConcluirIndividual={handleConcluirMetaIndividual}
@@ -2497,6 +3148,64 @@ function PreBoneDayPageContent() {
               </div>
             )}
           </section>
+
+          {/* ── Bloco Minhas Metas ─────────────────────────────────────────── */}
+          {(() => {
+            // Checa tanto effectiveProfileId (visualizar como) quanto currentUserId (auth real)
+            // para garantir que o assume sempre apareça, independente de qual foi usado no insert
+            const minhasMetas = metas.filter(m => {
+              const ids = [effectiveProfileId, currentUserId].filter(Boolean) as string[];
+              return ids.some(id =>
+                m.profile_id === id ||
+                objetivoResponsaveis.some(or => or.objetivo_id === m.id && or.profile_id === id)
+              );
+            });
+            return (
+              <section className="rounded-xl border border-indigo-200 bg-indigo-50 shadow-sm overflow-hidden">
+                <button type="button"
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-indigo-100 transition-colors"
+                  onClick={() => setBlocoMinhasOpen(v => !v)}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-indigo-800">👤 Minhas Metas</span>
+                    <span className="text-xs text-indigo-700 bg-indigo-200 rounded-full px-2 py-0.5">
+                      {minhasMetas.length}
+                    </span>
+                  </div>
+                  <span className="text-indigo-600 text-xs">{blocoMinhasOpen ? '▲' : '▼'}</span>
+                </button>
+                {blocoMinhasOpen && (
+                  <div className="px-4 pb-4 border-t border-indigo-200 pt-3">
+                    {minhasMetas.length === 0 ? (
+                      <p className="text-xs text-indigo-700">Nenhuma meta atribuída a você neste mês.</p>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {minhasMetas.map(meta => (
+                          <MetaComIndicadores
+                            key={meta.id} meta={meta}
+                            indicadores={indicadores.filter(i => i.objetivo_id === meta.id)}
+                            responsaveis={responsaveis}
+                            isAdmin={Boolean(isAdmin)} areaId={areaId ?? ''}
+                            mes={mes}
+                            filhasDaMeta={filhas.filter(f => f.objetivo_pai_id === meta.id)}
+                            onUpdate={recarregar}
+                            onConcluir={handleConcluirMeta}
+                            onConcluirIndividual={handleConcluirMetaIndividual}
+                            onExcluir={handleExcluirMeta}
+                            objetivoResponsaveis={objetivoResponsaveis}
+                            currentUserId={currentUserId}
+                            currentUserEmail={currentUserEmail}
+                            podeEditarMeta={Boolean(isAdmin)}
+                            onToggleResponsavel={handleToggleResponsavel}
+                            onAssumirProjeto={handleAssumirProjeto}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            );
+          })()}
 
           {/* ── Bloco 3: Agenda Macro ───────────────────────────────────────── */}
           <section className="rounded-xl border border-gray-200 bg-gray-50 shadow-sm overflow-hidden">
@@ -2532,48 +3241,68 @@ function PreBoneDayPageContent() {
             )}
           </section>
 
-          {/* ── Bloco Indicadores da Área ───────────────────────────────────── */}
-          <section className="rounded-xl border border-gray-200 bg-gray-50 shadow-sm overflow-hidden">
-            <button type="button"
-              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 transition-colors"
-              onClick={() => setBlocoIndOpen(v => !v)}>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700">📈 Indicadores da Área</span>
-                <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
-                  {indicadores.length}
-                </span>
-              </div>
-              <span className="text-gray-400 text-xs">{blocoIndOpen ? '▲' : '▼'}</span>
-            </button>
-            {blocoIndOpen && (
-              <div className="px-4 pb-4 border-t border-gray-200 pt-3">
-                {indicadores.length === 0 ? (
-                  <p className="text-xs text-gray-400">Nenhum indicador cadastrado para esta área.</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {indicadores.map(ind => (
-                      <div key={ind.id} className="flex items-center gap-3 py-1.5 px-2 rounded-lg bg-white border border-gray-100">
-                        {ind.indicador_chave && (
-                          <span className="text-yellow-500 text-xs flex-shrink-0" title="Indicador chave">★</span>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs text-gray-700 truncate block">{ind.nome}</span>
-                          {ind.tipo && (
-                            <span className="text-[10px] text-gray-400">{ind.tipo}</span>
-                          )}
-                        </div>
-                        {ind.lancamento_valor !== null && (
-                          <span className="text-xs font-semibold text-gray-600 tabular-nums whitespace-nowrap">
-                            {ind.lancamento_valor} {ind.meta_unidade ?? ''}
-                          </span>
-                        )}
+          {/* ── Bloco Indicadores da Área (standalone, sem vínculo com metas) ── */}
+          {(() => {
+            // Apenas indicadores sem vínculo com meta (objetivo_id === null)
+            const indsArea = indicadores.filter(i => i.objetivo_id === null);
+            // Grupos únicos na ordem em que aparecem
+            const grupos = Array.from(new Set(indsArea.map(i => i.grupo ?? 'SEM GRUPO')));
+            const totalGrupos = grupos.length;
+            return (
+              <section className="rounded-xl border border-purple-200 bg-purple-50 shadow-sm overflow-hidden">
+                <button type="button"
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-purple-100 transition-colors"
+                  onClick={() => setBlocoIndOpen(v => !v)}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-purple-900">📊 Indicadores da Área</span>
+                    <span className="text-xs text-purple-700 bg-purple-200 rounded-full px-2 py-0.5">
+                      {totalGrupos} grupo{totalGrupos !== 1 ? 's' : ''} · {indsArea.length} indicador{indsArea.length !== 1 ? 'es' : ''}
+                    </span>
+                  </div>
+                  <span className="text-purple-600 text-xs flex-shrink-0">{blocoIndOpen ? '▲' : '▼'}</span>
+                </button>
+                {blocoIndOpen && (
+                  <div className="px-4 pb-4 border-t border-purple-200 pt-3 flex flex-col gap-4">
+                    {indsArea.length === 0 && grupos.length === 0 ? (
+                      <p className="text-xs text-purple-600">Nenhum indicador cadastrado para esta área ainda.</p>
+                    ) : (
+                      <div className="flex flex-col gap-4">
+                        {grupos.map(grupo => {
+                          const indsGrupo = indsArea.filter(i => (i.grupo ?? 'SEM GRUPO') === grupo);
+                          return (
+                            <GrupoIndicadores
+                              key={grupo}
+                              grupo={grupo}
+                              indsGrupo={indsGrupo}
+                              indicadoresResponsaveis={indicadoresResponsaveis}
+                              responsaveis={responsaveis}
+                              isAdmin={Boolean(isAdmin)}
+                              currentUserId={currentUserId}
+                              areaId={areaId!}
+                              gruposExistentes={grupos.filter(g => g !== 'SEM GRUPO')}
+                              onUpdate={recarregar}
+                            />
+                          );
+                        })}
                       </div>
-                    ))}
+                    )}
+
+                    {/* Admin: form novo indicador da área (fora de grupos) */}
+                    {isAdmin && areaId && (
+                      <div className="pt-2 border-t border-purple-200">
+                        <FormNovoIndicadorArea
+                          areaId={areaId}
+                          onSalvo={recarregar}
+                          gruposExistentes={grupos.filter(g => g !== 'SEM GRUPO')}
+                        />
+                      </div>
+                    )}
+
                   </div>
                 )}
-              </div>
-            )}
-          </section>
+              </section>
+            );
+          })()}
         </>
       )}
     </div>
