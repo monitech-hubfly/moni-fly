@@ -47,15 +47,15 @@ type SecaoId =
   | 'credito'
   | 'formularios';
 
-const SECOES_ABERTAS: Record<SecaoId, boolean> = {
-  franqueado: true,
-  condominio: true,
-  negocio: true,
-  modeloImob: true,
-  empresas: true,
-  preObra: true,
-  credito: true,
-  formularios: true,
+const SECOES_FECHADAS: Record<SecaoId, boolean> = {
+  franqueado: false,
+  condominio: false,
+  negocio: false,
+  modeloImob: false,
+  empresas: false,
+  preObra: false,
+  credito: false,
+  formularios: false,
 };
 
 type Props = {
@@ -379,7 +379,11 @@ export function PipelineCardDrawerDadosSecoes({
   credito,
   fasesPrazo,
 }: Props) {
-  const [abertas, setAbertas] = useState<Record<SecaoId, boolean>>(SECOES_ABERTAS);
+  const [abertas, setAbertas] = useState<Record<SecaoId, boolean>>(SECOES_FECHADAS);
+
+  useEffect(() => {
+    setAbertas(SECOES_FECHADAS);
+  }, [card.id]);
 
   const toggle = (id: SecaoId) => {
     setAbertas((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -482,7 +486,6 @@ export function PipelineCardDrawerDadosSecoes({
             onSalvar={() => {}}
             salvando={false}
             podeEditar={false}
-            blocosIniciaisAbertos
           />
         )}
       </DrawerCollapsible>
