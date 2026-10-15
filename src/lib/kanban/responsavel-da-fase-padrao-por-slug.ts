@@ -297,11 +297,13 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   pl_200_preparacao_terreno: 'moni',
   pl_300_estruturas: 'moni',
   pl_400_infraestrutura: 'moni',
+  pl_compatibilizacao: 'moni',
   pl_500_garagem: 'moni',
   pl_600_piscina: 'moni',
   pl_700_deck: 'moni',
   pl_800_escada_pisantes: 'moni',
   pl_900_paisagismo: 'moni',
+  pl_em_obra: 'moni',
   projetos_locais_concluido: 'moni',
 
   // Funil Projetos Legais
