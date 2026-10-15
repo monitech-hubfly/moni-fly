@@ -176,9 +176,7 @@ export function PipelineCardMiniDrawer({ card, onClose }: Props) {
             loading={loading}
             preObra={drawerData?.preObra ?? null}
             credito={drawerData?.credito ?? null}
-            fases={drawerData?.fases ?? []}
             fasesPrazo={drawerData?.fasesPrazo ?? []}
-            linhasCronologia={drawerData?.linhasCronologia ?? []}
           />
 
           <h3

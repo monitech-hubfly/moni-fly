@@ -3,18 +3,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { formatDataHoraHistorico } from '@/components/kanban-shared/kanban-card-modal-helpers';
-import { KanbanCardModalAtasReuniao } from '@/components/kanban-shared/KanbanCardModalAtasReuniao';
 import { KanbanCardModalCondominio } from '@/components/kanban-shared/KanbanCardModalCondominio';
 import { KanbanCardModalCreditoSessao } from '@/components/kanban-shared/KanbanCardModalCreditoSessao';
 import { KanbanCardModalDadosPreObraOperacoes } from '@/components/kanban-shared/KanbanCardModalDadosPreObraOperacoes';
 import { KanbanCardModalEmpresas } from '@/components/kanban-shared/KanbanCardModalEmpresas';
 import { KanbanCardModalNegociacaoLinhasField } from '@/components/kanban-shared/KanbanCardModalNegociacaoLinhasField';
-import { KanbanCardModalRelacionamentos } from '@/components/kanban-shared/KanbanCardModalRelacionamentos';
 import { KanbanCardModalSimulacoesImob } from '@/components/kanban-shared/KanbanCardModalSimulacoesImob';
-import { FaseChecklistSidebarResumo } from '@/components/kanban-shared/FaseChecklistSidebarResumo';
 import { RespostasFormularioLista } from '@/components/formularios/RespostasFormularioLista';
-import type { KanbanFase } from '@/components/kanban-shared/types';
 import { listarRespostasDoCard } from '@/lib/actions/formulario-actions';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
@@ -24,7 +19,6 @@ import {
   type FaseNegocioPrazoOpcao,
 } from '@/lib/kanban/dados-negocio-prazo';
 import { creditoLateralVazio, type CreditoLateral } from '@/lib/kanban/credito-lateral';
-import type { LinhaCronologiaFase } from '@/lib/kanban/kanban-card-timeline';
 import {
   displayOrDash,
   fmtMoedaKanban,
@@ -44,7 +38,6 @@ import {
 import type { FormularioRespostaListaItem } from '@/types/formularios';
 
 type SecaoId =
-  | 'cronologia'
   | 'franqueado'
   | 'condominio'
   | 'negocio'
@@ -52,13 +45,9 @@ type SecaoId =
   | 'empresas'
   | 'preObra'
   | 'credito'
-  | 'atas'
-  | 'vinculos'
-  | 'formularios'
-  | 'checklist';
+  | 'formularios';
 
 const SECOES_ABERTAS: Record<SecaoId, boolean> = {
-  cronologia: true,
   franqueado: true,
   condominio: true,
   negocio: true,
@@ -66,10 +55,7 @@ const SECOES_ABERTAS: Record<SecaoId, boolean> = {
   empresas: true,
   preObra: true,
   credito: true,
-  atas: true,
-  vinculos: true,
   formularios: true,
-  checklist: true,
 };
 
 type Props = {
@@ -78,20 +64,13 @@ type Props = {
   loading: boolean;
   preObra: OperacoesPreObraDraft | null;
   credito: CreditoLateral | null;
-  fases: KanbanFase[];
   fasesPrazo: FaseNegocioPrazoOpcao[];
-  linhasCronologia: LinhaCronologiaFase[];
 };
 
 function fmtDataBr(iso: string | null | undefined): string {
   const s = String(iso ?? '').trim();
   if (!s) return '—';
   return formatIsoDateOnlyPtBr(s) ?? s;
-}
-
-function fmtDataHora(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  return formatDataHoraHistorico(iso) || fmtDataBr(iso);
 }
 
 function enderecoCasaLinha(rede: RedeFranqueadoModalRow | null): string {
@@ -398,9 +377,7 @@ export function PipelineCardDrawerDadosSecoes({
   loading,
   preObra,
   credito,
-  fases,
   fasesPrazo,
-  linhasCronologia,
 }: Props) {
   const [abertas, setAbertas] = useState<Record<SecaoId, boolean>>(SECOES_ABERTAS);
 
@@ -421,39 +398,6 @@ export function PipelineCardDrawerDadosSecoes({
       >
         Lateral do card
       </h3>
-
-      <DrawerCollapsible id="cronologia" label="ID e datas do funil" aberto={abertas.cronologia} onToggle={toggle}>
-        <div className="space-y-2">
-          <CampoReadonly label="ID do card" valor={card.id} />
-          <CampoReadonly label="Data de entrada no funil" valor={fmtDataHora(card.created_at)} />
-          <div className="border-t pt-2" style={{ borderColor: 'var(--moni-border-subtle, var(--moni-border-default))' }}>
-            <p className="mb-1 text-[11px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Por fase
-            </p>
-            {linhasCronologia.length === 0 ? (
-              <TextoCarregando texto={loading ? 'Carregando datas…' : 'Nenhuma fase registrada.'} />
-            ) : (
-              <div className="max-h-56 space-y-1.5 overflow-y-auto">
-                {linhasCronologia.map((row) => (
-                  <div
-                    key={row.faseId}
-                    className="rounded-[var(--moni-radius-md)] px-2 py-1.5"
-                    style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-50)' }}
-                  >
-                    <div className="text-[11px] font-medium" style={{ color: 'var(--moni-text-primary)' }}>
-                      {row.faseNome}
-                    </div>
-                    <div className="mt-0.5 grid grid-cols-2 gap-1 text-[10px]">
-                      <span>Entrada: {row.entrouEm ? fmtDataHora(row.entrouEm) : '—'}</span>
-                      <span>Saída: {row.saiuEm ? fmtDataHora(row.saiuEm) : '—'}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </DrawerCollapsible>
 
       <DrawerCollapsible id="franqueado" label="Dados do Franqueado" aberto={abertas.franqueado} onToggle={toggle}>
         <SecaoFranqueado rede={detalhes?.rede ?? null} loading={loading} />
@@ -543,35 +487,8 @@ export function PipelineCardDrawerDadosSecoes({
         )}
       </DrawerCollapsible>
 
-      <DrawerCollapsible id="atas" label="Atas de reunião" aberto={abertas.atas} onToggle={toggle}>
-        <KanbanCardModalAtasReuniao cardId={card.id} origem={card.origem} />
-      </DrawerCollapsible>
-
-      <DrawerCollapsible id="vinculos" label="Vínculos" aberto={abertas.vinculos} onToggle={toggle}>
-        <KanbanCardModalRelacionamentos
-          cardId={card.id}
-          cardTitulo={card.titulo}
-          kanbanId={card.kanban_id}
-          kanbanNome={card.kanban_nome}
-          basePath="/rede-franqueados"
-          podeGerenciar={false}
-          projetoId={card.projeto_id}
-          cardDesabilitado
-        />
-      </DrawerCollapsible>
-
       <DrawerCollapsible id="formularios" label="Formulários" aberto={abertas.formularios} onToggle={toggle}>
         <SecaoFormularios cardId={card.id} />
-      </DrawerCollapsible>
-
-      <DrawerCollapsible id="checklist" label="Checklist das fases" aberto={abertas.checklist} onToggle={toggle}>
-        <FaseChecklistSidebarResumo
-          cardId={card.id}
-          fases={fases}
-          linhasCronologia={linhasCronologia}
-          faseAtualId={card.fase_id}
-          areaAtuacao={detalhes?.rede?.area_atuacao}
-        />
       </DrawerCollapsible>
     </div>
   );
