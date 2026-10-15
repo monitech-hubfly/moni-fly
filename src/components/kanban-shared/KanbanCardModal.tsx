@@ -8126,9 +8126,9 @@ export function KanbanCardModal({
                 responsaveisOpcoes={responsaveisOpcoes}
                 basePath={basePath}
                 fases={fases}
-                linhasCronologia={linhasCronologiaFases}
                 faseAtualId={card.fase_id}
                 areaAtuacao={modalDetalhes.rede?.area_atuacao}
+                negocioEspelho={negocioEspelhoChecklist}
                 structuralRefreshKey={`${card.fase_id}-${historico.length}-${condominioTick}`}
               />
             )}
