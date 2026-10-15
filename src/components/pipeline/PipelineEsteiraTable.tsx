@@ -97,22 +97,35 @@ export function PipelineEsteiraTable({ cards, esteiraCalculadora = {}, onCardCli
       .map(([chave, { rep }]) => {
         const pack =
           esteiraCalculadora[chave] ?? resolverPackEsteiraCalculadora(rep, esteiraCalculadora);
-        if (!pack || pack.linhas.length === 0) return null;
-
-        const datas = computarDatasEsteiraCalculadora(pack.linhas);
-        const faseAtual = resolverFaseAtualCalculadora(pack.linhas);
-        const ordemAtual = ordemGlobalFaseCalculadora(pack.linhas, faseAtual);
+        const linhasCalc = pack?.linhas ?? [];
+        const datas = computarDatasEsteiraCalculadora(linhasCalc);
+        const faseAtual = resolverFaseAtualCalculadora(linhasCalc);
+        const ordemAtual =
+          linhasCalc.length > 0
+            ? ordemGlobalFaseCalculadora(linhasCalc, faseAtual)
+            : (rep.fase_ordem ?? 0);
+        const faseLabel = faseAtual
+          ? labelFaseAtualCalculadora(faseAtual)
+          : String(rep.fase_nome ?? '').trim() || '—';
+        const segmento = faseAtual
+          ? segmentoBadgeFaseCalculadora(faseAtual)
+          : rep.kanban_id === KANBAN_IDS.OPERACOES
+            ? 'op'
+            : 'port';
+        const display = rep as PipelineCardDisplay;
 
         return {
           chave,
           card: rep,
           datas,
-          faseAtual,
+          faseLabel,
+          segmento,
           ordemAtual,
-          isCurAtrasado: faseAtual?.status === 'atual_atrasada',
+          isCurAtrasado:
+            faseAtual?.status === 'atual_atrasada' ||
+            (!faseAtual && display.sla?.status === 'atrasado'),
         };
       })
-      .filter((linha): linha is NonNullable<typeof linha> => linha != null)
       .sort((a, b) => {
         if (b.ordemAtual !== a.ordemAtual) return b.ordemAtual - a.ordemAtual;
         return String(a.card.titulo ?? '').localeCompare(String(b.card.titulo ?? ''), 'pt-BR');
@@ -169,11 +182,9 @@ export function PipelineEsteiraTable({ cards, esteiraCalculadora = {}, onCardCli
           </tr>
         </thead>
         <tbody>
-          {linhas.map(({ chave, card, datas, faseAtual, ordemAtual, isCurAtrasado }) => {
-            const segmento = segmentoBadgeFaseCalculadora(faseAtual);
+          {linhas.map(({ chave, card, datas, faseLabel, segmento, ordemAtual, isCurAtrasado }) => {
             const badgeCls = isCurAtrasado ? 'atrasado' : segmento;
             const nomeAbrev = abreviarNome(card.franqueado_nome);
-            const faseLabel = labelFaseAtualCalculadora(faseAtual);
             const projetoLabel = tituloProjetoEsteira(card);
 
             return (
