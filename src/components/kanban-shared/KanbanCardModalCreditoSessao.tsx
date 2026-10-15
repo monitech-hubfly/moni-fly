@@ -12,12 +12,14 @@ import {
   type CreditoTranche,
 } from '@/lib/kanban/credito-lateral';
 import { fmtMoedaKanban } from '@/lib/kanban/kanban-card-modal-detalhes';
+import { isTipoTerrenoEmAbertoZero } from '@/lib/kanban/tipo-negociacao-terreno';
 
 type Props = {
   draft: CreditoLateral;
   onChange: (next: CreditoLateral) => void;
   valorTerreno: string;
   valorObra: string;
+  tipoNegocio: string;
   bookEmpreendimento: string;
   checkAnaliseCredito: string;
   onBookChange: (value: string) => void;
@@ -25,6 +27,8 @@ type Props = {
   onSalvar: () => void;
   salvando: boolean;
   podeEditar: boolean;
+  /** Drawer somente leitura: terreno, obra e alavancagem já abertos. */
+  blocosIniciaisAbertos?: boolean;
 };
 
 const labelCls = 'text-[11px] font-medium';
@@ -254,6 +258,7 @@ export function KanbanCardModalCreditoSessao({
   onChange,
   valorTerreno,
   valorObra,
+  tipoNegocio,
   bookEmpreendimento,
   checkAnaliseCredito,
   onBookChange,
@@ -261,9 +266,14 @@ export function KanbanCardModalCreditoSessao({
   onSalvar,
   salvando,
   podeEditar,
+  blocosIniciaisAbertos = false,
 }: Props) {
   const travado = !podeEditar;
-  const [abertos, setAbertos] = useState({ terreno: false, obra: false, alavancagem: false });
+  const [abertos, setAbertos] = useState({
+    terreno: blocosIniciaisAbertos,
+    obra: blocosIniciaisAbertos,
+    alavancagem: blocosIniciaisAbertos,
+  });
 
   function alternar(bloco: keyof typeof abertos) {
     setAbertos((atual) => ({ ...atual, [bloco]: !atual[bloco] }));
@@ -287,7 +297,14 @@ export function KanbanCardModalCreditoSessao({
       </div>
       <BlocoRecolhivel titulo="Terreno" aberto={abertos.terreno} onToggle={() => alternar('terreno')}>
       <CampoLeitura label="Valor do Terreno" valor={valorTerreno.trim() ? fmtMoedaKanban(valorTerreno) : ''} />
-      <CampoLeitura label="Valor do Terreno em aberto" valor={rotuloMoeda(valorTerreno, draft.terreno_tranches)} />
+      <CampoLeitura
+        label="Valor do Terreno em aberto"
+        valor={
+          isTipoTerrenoEmAbertoZero(tipoNegocio)
+            ? fmtMoedaKanban(formatCreditoMoeda(0))
+            : rotuloMoeda(valorTerreno, draft.terreno_tranches)
+        }
+      />
       <TranchesEditor
         tranches={draft.terreno_tranches}
         podeEditar={podeEditar}

@@ -32,6 +32,12 @@ export function isTipoPermutaVGV(tipo: string | null | undefined): boolean {
   return String(tipo ?? '').trim() === '100% Permuta + % do VGV';
 }
 
+/** 100% Permuta e 100% Permuta + % do VGV: valor do terreno em aberto fica zerado. */
+export function isTipoTerrenoEmAbertoZero(tipo: string | null | undefined): boolean {
+  const v = String(tipo ?? '').trim();
+  return v === '100% Permuta' || v === '100% Permuta + % do VGV';
+}
+
 /** Retorna true se divida_terreno deve ser exibida (Permuta Parcial, 100% C&V Moní ou 100% C&V). */
 export function isTipoDividaTerreno(tipo: string | null | undefined): boolean {
   const v = String(tipo ?? '').trim();

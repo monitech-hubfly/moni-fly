@@ -6246,6 +6246,7 @@ export function KanbanCardModal({
                         onChange={setCreditoDraft}
                         valorTerreno={negocioDraft.valor_terreno}
                         valorObra={negocioDraft.custo_obra}
+                        tipoNegocio={negocioDraft.tipo_aquisicao_terreno}
                         bookEmpreendimento={negocioDraft.book_empreendimento}
                         checkAnaliseCredito={negocioDraft.check_analise_credito}
                         onBookChange={(book_empreendimento) =>
@@ -8033,6 +8034,7 @@ export function KanbanCardModal({
                 onChange={setCreditoDraft}
                 valorTerreno={negocioDraft.valor_terreno}
                 valorObra={negocioDraft.custo_obra}
+                tipoNegocio={negocioDraft.tipo_aquisicao_terreno}
                 bookEmpreendimento={negocioDraft.book_empreendimento}
                 checkAnaliseCredito={negocioDraft.check_analise_credito}
                 onBookChange={(book_empreendimento) =>
