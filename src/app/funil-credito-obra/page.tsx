@@ -14,6 +14,7 @@ import { KanbanBoard } from '@/components/kanban-shared/KanbanBoard';
 import { KanbanWrapper } from '@/components/kanban-shared/KanbanWrapper';
 import { fetchKanbanBoardSnapshot } from '@/components/kanban-shared/fetchKanbanBoardSnapshot';
 import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance';
+import { estadoModalDePageSearchParams } from '@/lib/kanban/kanban-url-modal-state';
 
 export default async function PainelCreditoPage({
   searchParams,
@@ -53,6 +54,7 @@ export default async function PainelCreditoPage({
         fases={snapshot.fases}
         cardQueryParam="kanbanCard"
         enableNovoCardModal
+        initialUrlState={estadoModalDePageSearchParams(searchParams, 'kanbanCard')}
       >
         <div className="min-h-0 bg-[var(--moni-surface-50)]">
           <Suspense fallback={null}>

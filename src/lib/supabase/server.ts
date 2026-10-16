@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient as createJsClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 export async function createClient() {
@@ -20,6 +21,26 @@ export async function createClient() {
           // Ignore in Server Components
         }
       },
+    },
+  });
+}
+
+/**
+ * Client PostgREST com o JWT da sessão no Authorization.
+ * `createServerClient` autentica getUser() via cookies, mas o REST pode sair com a anon key
+ * (RLS trata como anon → 0 rows em kanban_cards / profiles).
+ */
+export function createClientWithAccessToken(accessToken: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createJsClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
     },
   });
 }

@@ -401,6 +401,9 @@
   --moni-bp-tablet:  1024px;
   --moni-bp-desktop: 1440px;
 
+  /* Largura da navegação lateral (AppShell). Overlays fixed usam este valor. */
+  --moni-sidebar-width: 14rem;
+
   /* --------------------------------------------------
      KANBAN CARD — tamanhos
   -------------------------------------------------- */

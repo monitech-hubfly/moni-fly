@@ -14,6 +14,7 @@ Funis Kanban e fluxos operacionais: Step One, Portfólio, Acoplamento, Crédito,
 | [operacoes.md](operacoes.md) | Operações | `/operacoes` |
 | [contabilidade.md](contabilidade.md) | Contabilidade | `/painel-contabilidade` |
 | [motor-01-loteadores.md](motor-01-loteadores.md) | Loteadores / Moní INC | `/loteadores`, `/funil-moni-inc` |
+| [simulador-pagamentos.md](simulador-pagamentos.md) | Simulador de Pagamentos (Helenna + jornada) | `/loteadores/.../simulador-template`, `/empreendimento/[slug]` |
 | [moni-capital.md](moni-capital.md) | Moní Capital (Divify) | `/funil-moni-capital` |
 | [obra-pos-obra.md](obra-pos-obra.md) | Obra e pós-obra | `/pre-obra`, flags `prev_*` |
 

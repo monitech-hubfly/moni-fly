@@ -27,10 +27,10 @@ const SHELL_STYLE: React.CSSProperties = {
 
 const SIDEBAR_STYLE: React.CSSProperties = {
   boxSizing: 'border-box',
-  flex: '0 0 14rem',
-  width: '14rem',
-  maxWidth: '14rem',
-  minWidth: '14rem',
+  flex: '0 0 var(--moni-sidebar-width)',
+  width: 'var(--moni-sidebar-width)',
+  maxWidth: 'var(--moni-sidebar-width)',
+  minWidth: 'var(--moni-sidebar-width)',
   minHeight: 0,
   overflow: 'hidden',
   position: 'relative',
@@ -55,7 +55,9 @@ export function AppShell({ user, userRole, children }: AppShellProps) {
     isPublicGuiaLeituraPagePath(pathname) ||
     isCalculadoraPublicLeituraPath(pathname) ||
     isSimuladorPublicoPath(pathname) ||
-    isExternalTokenAccessPath(pathname);
+    isExternalTokenAccessPath(pathname) ||
+    pathname === '/empreendimento' ||
+    pathname.startsWith('/empreendimento/');
 
   if (!user || publicStandalone) {
     return (
