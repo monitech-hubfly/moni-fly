@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Hub Fly — Dashboards Gerais KPIs · Mockup</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0C2633;--navy2:#163b50;--green:#2F4A3A;--earth:#4A3929;
+  --gold:#D4AD68;--gold-l:#faf3e0;--gold-b:#e8d4a0;
+  --red:#c0392b;--red-l:#fdf2f2;
+  --ok:#1e7a3a;--ok-l:#f0faf5;--ok-b:#b8dfc9;
+  --border:0.5px solid #e2e8f0;--bmd:0.5px solid #cbd5e0;
+  --rlg:12px;--rmd:8px;--rsm:6px;
+  --sh:0 2px 12px rgba(12,38,51,.08);--shlg:0 8px 32px rgba(12,38,51,.14);
+  --tp:#0C2633;--ts:#4a5568;--tt:#94a3b8;--bg:#f8fafc;--wh:#fff
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tp);line-height:1.5;font-size:14px;min-height:100vh}
+
+/* ── HEADER ── */
+.hdr{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.hdr h1{font-size:15px;font-weight:800;letter-spacing:-.3px}
+.hdr p{font-size:11px;opacity:.5;margin-top:2px}
+.badge{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.badge-gold{background:var(--gold);color:var(--navy)}
+.badge-out{border:.5px solid rgba(255,255,255,.4);color:rgba(255,255,255,.8)}
+
+/* ── FILTER BAR ── */
+.filter-bar{background:#fff;border-bottom:var(--border);padding:10px 24px;position:sticky;top:0;z-index:200;box-shadow:0 1px 6px rgba(0,0,0,.06)}
+.fbr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn-filt{display:flex;align-items:center;gap:6px;padding:6px 14px;border:.5px solid #cbd5e0;border-radius:20px;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:var(--tp);transition:all .15s;white-space:nowrap}
+.btn-filt:hover,.btn-filt.open{background:var(--navy);color:#fff;border-color:var(--navy)}
+.fcnt{background:var(--gold);color:var(--navy);border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;min-width:18px;text-align:center;display:none}
+.fcnt.show{display:inline-block}
+.sep{width:.5px;height:20px;background:#e2e8f0;flex-shrink:0}
+.pseg{display:flex;border:.5px solid #cbd5e0;border-radius:20px;overflow:hidden;flex-shrink:0}
+.pseg button{padding:5px 11px;border:none;background:#fff;cursor:pointer;font-size:11px;font-weight:500;color:var(--ts);transition:all .15s;border-right:.5px solid #cbd5e0;white-space:nowrap}
+.pseg button:last-child{border-right:none}
+.pseg button.act{background:var(--navy);color:#fff;font-weight:700}
+.pchips{display:flex;gap:4px;flex-wrap:wrap}
+.pc{padding:4px 10px;border:.5px solid #cbd5e0;border-radius:20px;font-size:11px;cursor:pointer;background:#fff;color:var(--ts);transition:all .15s;white-space:nowrap}
+.pc:hover{border-color:var(--navy);color:var(--navy)}
+.pc.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn-chave{display:flex;align-items:center;gap:5px;padding:5px 12px;border:.5px solid #cbd5e0;border-radius:20px;cursor:pointer;font-size:11px;color:var(--ts);background:#fff;transition:all .15s;margin-left:auto;white-space:nowrap}
+.btn-chave.on{background:#fce7f3;border-color:#f9a8d4;color:#be185d;font-weight:600}
+/* active chips row */
+.achips{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;min-height:0}
+.achip{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;line-height:1.4}
+.ac-area{background:#e0e7ff;color:#3730a3}
+.ac-per{background:var(--gold-l);color:var(--earth)}
+.ac-chave{background:#fce7f3;color:#be185d}
+.achip button{border:none;background:transparent;cursor:pointer;font-size:14px;color:inherit;line-height:1;padding:0;margin-left:1px;opacity:.7}
+.achip button:hover{opacity:1}
+
+/* ── FILTER PANEL ── */
+.fp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:400;display:none}
+.fp-overlay.open{display:block}
+.fp-box{position:fixed;top:108px;left:24px;background:#fff;border-radius:var(--rlg);box-shadow:var(--shlg);padding:20px;min-width:320px;max-width:460px;z-index:401}
+.fp-label{font-size:11px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px}
+.fp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px}
+.fpc{padding:5px 12px;border:.5px solid #cbd5e0;border-radius:20px;font-size:12px;cursor:pointer;background:#fff;color:var(--ts);transition:all .15s}
+.fpc:hover{border-color:var(--navy);color:var(--navy)}
+.fpc.sel{background:var(--navy);color:#fff;border-color:var(--navy)}
+.fp-div{height:.5px;background:#e2e8f0;margin:14px 0}
+.fp-actions{display:flex;gap:8px;justify-content:flex-end}
+.btn-sm{padding:7px 16px;border-radius:var(--rmd);font-size:12px;font-weight:600;cursor:pointer;border:.5px solid;transition:all .15s}
+.btn-clear{background:#fff;color:var(--ts);border-color:#cbd5e0}.btn-clear:hover{border-color:var(--navy);color:var(--navy)}
+.btn-apply{background:var(--navy);color:#fff;border-color:var(--navy)}.btn-apply:hover{background:var(--navy2)}
+
+/* ── MAIN ── */
+.main{padding:20px 24px;max-width:1320px;margin:0 auto}
+
+/* ── AREA CARD ── */
+.area-card{background:#fff;border:var(--border);border-radius:var(--rlg);box-shadow:var(--sh);margin-bottom:16px;overflow:hidden}
+.area-hdr{display:flex;align-items:center;justify-content:space-between;padding:13px 20px;cursor:pointer;background:#f8fafc;transition:background .15s;border-bottom:var(--border)}
+.area-hdr:hover{background:#f1f5f9}
+.area-title{font-size:14px;font-weight:700;color:var(--tp);display:flex;align-items:center;gap:8px}
+.abadge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.area-chevron{font-size:18px;color:var(--tt);transition:transform .2s}
+.area-chevron.up{transform:rotate(180deg)}
+.area-body{display:none}
+.area-body.open{display:block}
+
+/* ── GROUPS ── */
+.grp{border-bottom:var(--border)}
+.grp:last-child{border-bottom:none}
+.grp-hdr{display:flex;align-items:center;justify-content:space-between;padding:11px 20px;cursor:pointer;transition:background .15s}
+.grp-hdr:hover{background:#f8fafc}
+.grp-title{font-size:11px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+.g-n{background:var(--navy);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700}
+.g-n.gold{background:var(--gold-b);color:var(--earth)}
+.g-n.gray{background:#e2e8f0;color:var(--ts)}
+.grp-chevron{font-size:15px;color:var(--tt);transition:transform .2s}
+.grp-chevron.up{transform:rotate(180deg)}
+.grp-body{display:none;padding:16px 20px}
+.grp-body.open{display:block}
+
+/* ── UX VALIDATION BOX ── */
+.ux-box{background:var(--gold-l);border:.5px solid var(--gold-b);border-radius:var(--rmd);padding:12px 16px;margin-bottom:16px}
+.ux-box-top{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ux-box-title{font-size:11px;font-weight:700;color:var(--earth);text-transform:uppercase;letter-spacing:.4px}
+.ux-tag{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:var(--gold-b);color:var(--earth)}
+.ux-opts{display:flex;gap:20px;flex-wrap:wrap}
+.ux-opt{flex:1;min-width:200px}
+.ux-opt-label{font-size:10px;font-weight:700;color:var(--earth);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.opt-badge{padding:2px 8px;border-radius:10px;font-size:10px;background:var(--navy);color:#fff;font-weight:700}
+.ux-opt-desc{font-size:11px;color:var(--earth);margin-top:5px;opacity:.8}
+
+/* ── TOGGLE ── */
+.tgl-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ts)}
+.tgl{position:relative;width:32px;height:18px;cursor:pointer;flex-shrink:0}
+.tgl input{display:none}
+.tgl-track{position:absolute;inset:0;background:#e2e8f0;border-radius:9px;transition:background .2s}
+.tgl input:checked+.tgl-track{background:var(--navy)}
+.tgl-thumb{position:absolute;top:3px;left:3px;width:12px;height:12px;background:#fff;border-radius:50%;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);pointer-events:none}
+.tgl input:checked~.tgl-thumb{left:17px}
+
+/* ── SEGMENTED ── */
+.seg{display:inline-flex;border:.5px solid #cbd5e0;border-radius:20px;overflow:hidden}
+.seg button{padding:5px 11px;border:none;background:#fff;cursor:pointer;font-size:11px;font-weight:500;color:var(--ts);border-right:.5px solid #cbd5e0;transition:all .15s;white-space:nowrap}
+.seg button:last-child{border-right:none}
+.seg button.act{background:var(--navy);color:#fff;font-weight:700}
+
+/* ── GANTT ── */
+.gantt-wrap{overflow-x:auto;margin-top:4px;border:.5px solid #e2e8f0;border-radius:var(--rmd)}
+.gantt-tbl{width:100%;min-width:680px;border-collapse:collapse}
+.gantt-head th{padding:7px 4px;font-size:10px;font-weight:600;color:var(--ts);text-align:center;border-bottom:var(--border);white-space:nowrap;background:#f8fafc}
+.gantt-head th.u-col{text-align:left;min-width:150px;padding:7px 10px;border-right:var(--border)}
+.gantt-row td{border-bottom:var(--border);vertical-align:middle}
+.gantt-row:last-child td{border-bottom:none}
+.u-cell{display:flex;align-items:center;gap:6px;padding:10px 10px;border-right:var(--border);min-width:150px}
+.u-av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+.u-info{flex:1}
+.u-name{font-size:12px;font-weight:600;color:var(--tp)}
+.u-role{font-size:10px;color:var(--tt)}
+.star-btn{border:none;background:transparent;cursor:pointer;font-size:15px;color:#d4d4d4;padding:0;line-height:1;flex-shrink:0;transition:color .15s}
+.star-btn.on{color:var(--gold)}
+.star-btn:hover{color:var(--gold)}
+.tl-cell{position:relative;height:40px;padding:0}
+.gantt-bar{position:absolute;border-radius:6px;top:9px;height:22px;display:flex;align-items:center;padding:0 7px;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;box-shadow:0 1px 4px rgba(0,0,0,.15);transition:opacity .15s}
+.gantt-bar:hover{opacity:.85}
+.gantt-bar.filha{top:14px;height:14px;border-radius:4px;font-size:9px;opacity:.9}
+/* child rows */
+.row-filha{display:none}
+.row-filha.vis{display:table-row}
+.row-filha .u-cell{padding-left:28px;background:#f8fafc}
+.row-filha .u-name{font-size:11px;color:var(--ts)}
+.row-filha .u-av{width:20px;height:20px;font-size:9px}
+
+/* ── INDICATOR GRID ── */
+.ind-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:960px){.ind-grid{grid-template-columns:1fr}}
+.ind-card{border:.5px solid #e2e8f0;border-radius:var(--rlg);padding:14px;background:#fff}
+.ind-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px}
+.ind-info{flex:1}
+.ind-name{font-size:13px;font-weight:700;color:var(--tp);display:flex;align-items:center;gap:6px}
+.ind-unit{font-size:10px;font-weight:400;color:var(--tt)}
+.ind-badges{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+.mbadge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600}
+.mb-set{background:var(--ok-l);color:var(--ok)}
+.mb-unset{background:#f1f5f9;color:var(--tt)}
+.mb-chave{background:var(--gold-l);color:var(--earth)}
+.ind-actions{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.btn-star-ind{border:none;background:transparent;cursor:pointer;font-size:15px;color:#d4d4d4;padding:2px;line-height:1;transition:color .15s}
+.btn-star-ind.on{color:var(--gold)}
+.btn-star-ind:hover{color:var(--gold)}
+.btn-edit{font-size:10px;padding:3px 8px;border:.5px solid #cbd5e0;border-radius:6px;background:#fff;cursor:pointer;color:var(--ts);transition:all .15s}
+.btn-edit:hover{border-color:var(--navy);color:var(--navy)}
+/* meta edit inline */
+.meta-edit{display:none;align-items:center;gap:8px;margin-bottom:10px;padding:8px 10px;background:#f8fafc;border-radius:var(--rmd);border:.5px solid #e2e8f0;flex-wrap:wrap}
+.meta-edit.open{display:flex}
+.meta-edit label{font-size:11px;color:var(--ts);white-space:nowrap;font-weight:500}
+.meta-edit input[type=number]{width:80px;padding:4px 8px;border:.5px solid #cbd5e0;border-radius:6px;font-size:13px;font-weight:700;text-align:center;color:var(--navy)}
+.meta-edit select{padding:4px 8px;border:.5px solid #cbd5e0;border-radius:6px;font-size:12px;color:var(--ts)}
+.btn-save{padding:5px 12px;border-radius:6px;background:var(--navy);color:#fff;border:none;cursor:pointer;font-size:11px;font-weight:700}
+.btn-save:hover{background:var(--navy2)}
+.btn-cancel-edit{padding:5px 10px;border-radius:6px;background:#fff;color:var(--ts);border:.5px solid #cbd5e0;cursor:pointer;font-size:11px}
+/* chart container */
+.chart-area{position:relative}
+.chart-note{font-size:10px;color:var(--tt);margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cl-item{display:flex;align-items:center;gap:4px}
+/* no meta */
+.no-meta-wrap{text-align:center;padding:20px 0 12px}
+.no-meta-icon{font-size:28px;margin-bottom:6px}
+.no-meta-txt{font-size:12px;color:var(--tt);margin-bottom:10px}
+.btn-define{padding:6px 14px;border:.5px solid var(--gold-b);border-radius:var(--rmd);background:var(--gold-l);color:var(--earth);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-define:hover{background:var(--gold-b)}
+
+/* ── MISC ── */
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.txt-sm{font-size:11px;color:var(--ts)}
+.empty-state{text-align:center;padding:40px 20px;color:var(--tt);font-size:13px}
+
+/* ── TOOLTIP ── */
+.tooltip{position:fixed;background:var(--navy);color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:600;pointer-events:none;z-index:999;display:none;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div>
+    <h1>Dashboards Gerais Moní / KPIs</h1>
+    <p>Visão consolidada por área — Direção</p>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center">
+    <span class="badge badge-gold">Mockup</span>
+    <span class="badge badge-out">Validação</span>
+  </div>
+</header>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <div class="fbr">
+    <button class="btn-filt" id="btnFiltros" onclick="togglePanel()">
+      ⊞ Filtros <span class="fcnt" id="fcnt">0</span>
+    </button>
+    <div class="sep"></div>
+    <div class="pseg" id="pseg">
+      <button class="act" data-pt="semanal" onclick="setPT(this)">Semanal</button>
+      <button data-pt="mensal" onclick="setPT(this)">Mensal</button>
+      <button data-pt="bimestral" onclick="setPT(this)">Bimestral</button>
+      <button data-pt="trimestral" onclick="setPT(this)">Trimestral</button>
+      <button data-pt="semestral" onclick="setPT(this)">Semestral</button>
+    </div>
+    <div class="pchips" id="pchips"></div>
+    <button class="btn-chave" id="btnChave" onclick="toggleChave()">★ KPIs Chaves</button>
+  </div>
+  <div class="achips" id="achips"></div>
+</div>
+
+<!-- FILTER PANEL -->
+<div class="fp-overlay" id="fpOverlay" onclick="closePanel()"></div>
+<div class="fp-box" id="fpBox" style="display:none">
+  <div class="fp-label">Filtrar por Área</div>
+  <div class="fp-chips" id="fpChips"></div>
+  <div class="fp-div"></div>
+  <div class="fp-actions">
+    <button class="btn-sm btn-clear" onclick="clearAreas()">Limpar</button>
+    <button class="btn-sm btn-apply" onclick="applyPanel()">Aplicar</button>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<main class="main" id="mainContent"></main>
+
+<script>
+// ═══════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════
+const AREAS_ALL = ['Desenvolvimento','Produto','Jurídico','Crédito Obra'];
+
+const AC = {
+  'Desenvolvimento': {bg:'#dbeafe',text:'#1d4ed8'},
+  'Produto':         {bg:'#fce7f3',text:'#be185d'},
+  'Jurídico':        {bg:'#dcfce7',text:'#15803d'},
+  'Crédito Obra':    {bg:'#faf3e0',text:'#4A3929'},
+};
+
+const PERIODS = {
+  semanal:     [{id:'S40',l:'S40',s:'03/10'},{id:'S41',l:'S41',s:'10/10'},{id:'S42',l:'S42',s:'17/10'},{id:'S43',l:'S43',s:'24/10'},{id:'S44',l:'S44',s:'31/10'},{id:'S45',l:'S45',s:'07/11'},{id:'S46',l:'S46',s:'14/11'},{id:'S47',l:'S47',s:'21/11'},{id:'S48',l:'S48',s:'28/11'}],
+  mensal:      [{id:'ago',l:'Ago/26'},{id:'set',l:'Set/26'},{id:'out',l:'Out/26'},{id:'nov',l:'Nov/26'},{id:'dez',l:'Dez/26'}],
+  bimestral:   [{id:'bi1',l:'Jul-Ago/26'},{id:'bi2',l:'Set-Out/26'},{id:'bi3',l:'Nov-Dez/26'}],
+  trimestral:  [{id:'q2',l:'Q2/26'},{id:'q3',l:'Q3/26'},{id:'q4',l:'Q4/26'}],
+  semestral:   [{id:'s1',l:'1º Sem/26'},{id:'s2',l:'2º Sem/26'}],
+};
+
+// GANTT DATA — 9 weeks (S40–S48), index 0–8
+const GANTT = {
+  'Desenvolvimento': [
+    {name:'Danilo Nyitray',  ini:'DN', bg:'#1d4ed8', isChave:false, id:'u1',
+     metas:[
+       {id:'g1', l:'Hub Fly — Dev Geral',   c:'#1d4ed8', s:0, e:8, isChave:false,
+        filhas:[{id:'g1a',l:'Módulo KPIs',      c:'#93c5fd',s:0,e:2},{id:'g1b',l:'Bone Day PROD',c:'#93c5fd',s:3,e:5},{id:'g1c',l:'Testes E2E',c:'#93c5fd',s:6,e:8}]},
+       {id:'g2', l:'Bugs — Correção Semanal',c:'#2F4A3A', s:0, e:8, isChave:true, filhas:[]},
+     ]},
+    {name:'Rafael Souza',   ini:'RS', bg:'#7c3aed', isChave:false, id:'u2',
+     metas:[
+       {id:'g3', l:'Refactor Auth', c:'#7c3aed', s:1, e:4, isChave:false,
+        filhas:[{id:'g3a',l:'OAuth Setup',c:'#c4b5fd',s:1,e:2},{id:'g3b',l:'Testes Auth',c:'#c4b5fd',s:3,e:4}]},
+       {id:'g4', l:'CI/CD Pipeline', c:'#0d9488', s:4, e:7, isChave:true, filhas:[]},
+     ]},
+  ],
+  'Produto': [
+    {name:'Ana Ferreira',   ini:'AF', bg:'#be185d', isChave:false, id:'u3',
+     metas:[
+       {id:'g5', l:'NPS Q4 Campanha',    c:'#be185d', s:0, e:3, isChave:true,
+        filhas:[{id:'g5a',l:'Pesquisa Franqueados',c:'#f9a8d4',s:0,e:1},{id:'g5b',l:'Análise Resultados',c:'#f9a8d4',s:2,e:3}]},
+       {id:'g6', l:'Homologações Q4',    c:'#7c3aed', s:4, e:8, isChave:false, filhas:[]},
+     ]},
+    {name:'Carlos Melo',   ini:'CM', bg:'#0d9488', isChave:false, id:'u4',
+     metas:[
+       {id:'g7', l:'Catálogo de Casas',  c:'#0d9488', s:0, e:5, isChave:false, filhas:[]},
+       {id:'g8', l:'BCA Update v2',      c:'#D4AD68', s:5, e:8, isChave:true,  filhas:[]},
+     ]},
+  ],
+  'Jurídico': [
+    {name:'Mariana Costa',  ini:'MC', bg:'#be185d', isChave:false, id:'u5',
+     metas:[
+       {id:'g9',  l:'Contratos SPE — Revisão', c:'#be185d', s:0, e:5, isChave:true,
+        filhas:[{id:'g9a',l:'Contratos Norte',c:'#f9a8d4',s:0,e:2},{id:'g9b',l:'Contratos Sul',c:'#f9a8d4',s:3,e:5}]},
+       {id:'g10', l:'Checklist Legal Gate',    c:'#0d9488', s:5, e:8, isChave:false, filhas:[]},
+     ]},
+  ],
+  'Crédito Obra': [
+    {name:'Pedro Lima',     ini:'PL', bg:'#D4AD68', isChave:false, id:'u6',
+     metas:[
+       {id:'g11', l:'Tranche Q4 — Crédito',   c:'#D4AD68', s:0, e:6, isChave:true,  filhas:[]},
+       {id:'g12', l:'Relatório Mensal',        c:'#4A3929', s:6, e:8, isChave:false, filhas:[]},
+     ]},
+    {name:'Luciana Ramos',  ini:'LR', bg:'#1d4ed8', isChave:false, id:'u7',
+     metas:[
+       {id:'g13', l:'Análise de Risco',       c:'#1d4ed8', s:1, e:5, isChave:false, filhas:[]},
+       {id:'g14', l:'Docs Garantias',         c:'#7c3aed', s:5, e:8, isChave:true,  filhas:[]},
+     ]},
+  ],
+};
+
+// INDICATORS — 9 values (S40–S48)
+// targets: array of 9 (pode mudar no meio)
+const IND = {
+  'Desenvolvimento': {
+    comMeta:[
+      {id:'i1', name:'Commits por Semana', unit:'commits', isChave:true,
+       vals:[12,18,14,20,16,22,19,25,21],
+       targets:[15,15,15,15,20,20,20,20,20], targetChangeAt:4, editMeta:20},
+      {id:'i2', name:'PRs Revisados / Semana', unit:'PRs', isChave:false,
+       vals:[6,8,7,9,10,8,11,9,12],
+       targets:[8,8,8,8,8,8,8,8,8], targetChangeAt:null, editMeta:8},
+    ],
+    semMeta:[
+      {id:'i3', name:'Bugs Abertos', unit:'bugs', isChave:false, vals:[5,7,4,6,8,5,3,6,4]},
+      {id:'i4', name:'Tempo de Deploy', unit:'min', isChave:false, vals:[8.5,7.2,9.1,6.8,8.0,7.5,6.2,5.8,6.5]},
+    ]
+  },
+  'Produto': {
+    comMeta:[
+      {id:'i5', name:'NPS Franqueados', unit:'pts', isChave:true,
+       vals:[72,75,71,78,80,82,79,85,83],
+       targets:[75,75,75,75,80,80,80,80,80], targetChangeAt:4, editMeta:80},
+      {id:'i6', name:'Configurações Vendidas', unit:'un.', isChave:false,
+       vals:[3,4,2,5,6,4,7,5,8],
+       targets:[4,4,4,4,6,6,6,6,6], targetChangeAt:4, editMeta:6},
+    ],
+    semMeta:[
+      {id:'i7', name:'Homologações Concluídas', unit:'un.', isChave:false, vals:[2,3,1,4,2,3,5,3,4]},
+    ]
+  },
+  'Jurídico': {
+    comMeta:[
+      {id:'i8', name:'Contratos Revisados', unit:'un.', isChave:true,
+       vals:[4,6,5,7,8,6,9,7,10],
+       targets:[5,5,5,5,7,7,7,7,7], targetChangeAt:4, editMeta:7},
+    ],
+    semMeta:[
+      {id:'i9', name:'Pendências Abertas', unit:'itens', isChave:false, vals:[3,5,4,2,6,3,4,2,3]},
+      {id:'i10', name:'Tempo Médio Resposta', unit:'dias', isChave:false, vals:[2.5,3.0,2.0,1.8,2.2,1.5,1.2,1.8,1.0]},
+    ]
+  },
+  'Crédito Obra': {
+    comMeta:[
+      {id:'i11', name:'Volume de Crédito', unit:'M R$', isChave:true,
+       vals:[1.2,1.5,1.1,1.8,2.0,1.7,2.2,1.9,2.4],
+       targets:[1.5,1.5,1.5,1.5,2.0,2.0,2.0,2.0,2.0], targetChangeAt:4, editMeta:2.0},
+    ],
+    semMeta:[
+      {id:'i12', name:'Distratos do Período', unit:'un.', isChave:false, vals:[1,0,2,1,0,1,0,1,0]},
+    ]
+  },
+};
+
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+const S = {
+  selectedAreas: ['Desenvolvimento','Produto'],
+  pendingAreas:  ['Desenvolvimento','Produto'],
+  periodType: 'semanal',
+  selectedPeriods: new Set(['S42','S43','S44','S45']),
+  apenasChaves: false,
+  // per area
+  expandedAreas:  new Set(['Desenvolvimento','Produto']),
+  expandedGrp:    {}, // key = area+grpIdx => true/false
+  showFilhasMode: {}, // per area: 'mae'|'ambas'|'filha'
+  starredItems:   new Set(),
+  metaOverride:   {}, // indicatorId => {value, fromPeriodIdx}
+};
+AREAS_ALL.forEach(a => {
+  S.expandedGrp[a+'_0'] = true;
+  S.expandedGrp[a+'_1'] = true;
+  S.expandedGrp[a+'_2'] = false;
+  S.showFilhasMode[a] = 'mae';
+});
+
+// ═══════════════════════════════════════════════
+//  FILTER BAR
+// ═══════════════════════════════════════════════
+function togglePanel(){
+  const open = document.getElementById('fpOverlay').classList.toggle('open');
+  document.getElementById('fpBox').style.display = open ? 'block' : 'none';
+  document.getElementById('btnFiltros').classList.toggle('open', open);
+  if(open) buildFpChips();
+}
+function closePanel(){
+  document.getElementById('fpOverlay').classList.remove('open');
+  document.getElementById('fpBox').style.display = 'none';
+  document.getElementById('btnFiltros').classList.remove('open');
+}
+function buildFpChips(){
+  const el = document.getElementById('fpChips');
+  el.innerHTML = AREAS_ALL.map(a =>
+    `<button class="fpc${S.pendingAreas.includes(a)?' sel':''}" onclick="togglePendingArea('${a}')">${a}</button>`
+  ).join('');
+}
+function togglePendingArea(a){
+  const i = S.pendingAreas.indexOf(a);
+  if(i>=0) S.pendingAreas.splice(i,1); else S.pendingAreas.push(a);
+  buildFpChips();
+}
+function clearAreas(){ S.pendingAreas=[]; buildFpChips(); }
+function applyPanel(){
+  S.selectedAreas = [...S.pendingAreas];
+  closePanel();
+  updateFilterCount();
+  updateActiveChips();
+  renderMain();
+}
+
+function setPT(btn){
+  document.querySelectorAll('#pseg button').forEach(b=>b.classList.remove('act'));
+  btn.classList.add('act');
+  S.periodType = btn.dataset.pt;
+  S.selectedPeriods.clear();
+  // default selection
+  const all = PERIODS[S.periodType];
+  const defaults = all.length<=4 ? all : all.slice(all.length-4);
+  defaults.forEach(p => S.selectedPeriods.add(p.id));
+  updatePeriodChips();
+  updateActiveChips();
+  renderMain();
+}
+
+function updatePeriodChips(){
+  const el = document.getElementById('pchips');
+  const all = PERIODS[S.periodType];
+  el.innerHTML = all.map(p =>
+    `<button class="pc${S.selectedPeriods.has(p.id)?' on':''}" onclick="togglePeriod('${p.id}')" title="${p.s||p.l}">${p.l}</button>`
+  ).join('');
+}
+
+function togglePeriod(id){
+  if(S.selectedPeriods.has(id)) S.selectedPeriods.delete(id);
+  else S.selectedPeriods.add(id);
+  document.querySelectorAll('#pchips .pc').forEach(b=>{
+    const pid = b.getAttribute('onclick').match(/'([^']+)'/)[1];
+    b.classList.toggle('on', S.selectedPeriods.has(pid));
+  });
+  updateActiveChips();
+  renderMain();
+}
+
+function toggleChave(){
+  S.apenasChaves = !S.apenasChaves;
+  const btn = document.getElementById('btnChave');
+  btn.classList.toggle('on', S.apenasChaves);
+  updateActiveChips();
+  renderMain();
+}
+
+function updateFilterCount(){
+  const cnt = S.selectedAreas.length;
+  const el = document.getElementById('fcnt');
+  el.textContent = cnt;
+  el.classList.toggle('show', cnt>0);
+}
+
+function updateActiveChips(){
+  const el = document.getElementById('achips');
+  let chips = [];
+  S.selectedAreas.forEach(a => {
+    chips.push(`<span class="achip ac-area">${a}<button onclick="removeArea('${a}')">×</button></span>`);
+  });
+  const activePeriods = PERIODS[S.periodType].filter(p => S.selectedPeriods.has(p.id));
+  activePeriods.forEach(p => {
+    chips.push(`<span class="achip ac-per">${p.l}<button onclick="removePeriod('${p.id}')">×</button></span>`);
+  });
+  if(S.apenasChaves) chips.push(`<span class="achip ac-chave">★ KPIs Chaves<button onclick="toggleChave()">×</button></span>`);
+  el.innerHTML = chips.join('');
+}
+
+function removeArea(a){
+  S.selectedAreas = S.selectedAreas.filter(x=>x!==a);
+  S.pendingAreas  = S.pendingAreas.filter(x=>x!==a);
+  updateFilterCount(); updateActiveChips(); renderMain();
+}
+function removePeriod(id){
+  S.selectedPeriods.delete(id);
+  updatePeriodChips(); updateActiveChips(); renderMain();
+}
+
+// ═══════════════════════════════════════════════
+//  MAIN RENDER
+// ═══════════════════════════════════════════════
+function renderMain(){
+  const el = document.getElementById('mainContent');
+  if(!S.selectedAreas.length){
+    el.innerHTML = '<div class="empty-state">Nenhuma área selecionada.<br>Use o filtro acima para escolher as áreas.</div>';
+    return;
+  }
+  el.innerHTML = S.selectedAreas.map(a => renderArea(a)).join('');
+}
+
+function renderArea(area){
+  const col = AC[area]||{bg:'#f1f5f9',text:'#4a5568'};
+  const isOpen = S.expandedAreas.has(area);
+  return `
+  <div class="area-card" id="ac-${eid(area)}">
+    <div class="area-hdr" onclick="toggleArea('${area}')">
+      <div class="area-title">
+        <span class="abadge" style="background:${col.bg};color:${col.text}">${area}</span>
+      </div>
+      <span class="area-chevron ${isOpen?'up':''}">▾</span>
+    </div>
+    <div class="area-body ${isOpen?'open':''}" id="ab-${eid(area)}">
+      ${renderGroups(area)}
+    </div>
+  </div>`;
+}
+
+function renderGroups(area){
+  return [
+    renderGrp(area, 0, 'Plano de Entregas', 'navy', renderGanttGroup(area)),
+    renderGrp(area, 1, 'Indicadores com Meta Definida', 'gold', renderIndicatorsWithMeta(area)),
+    renderGrp(area, 2, 'Indicadores sem Meta Definida', 'gray', renderIndicatorsNoMeta(area)),
+  ].join('');
+}
+
+function renderGrp(area, idx, label, style, content){
+  const key = area+'_'+idx;
+  const open = S.expandedGrp[key];
+  const nStyle = idx===0?'':'';
+  const nClass = style==='gold'?'gold':style==='gray'?'gray':'';
+  // count items
+  let cnt = '';
+  if(idx===1){ const d=IND[area]; cnt=(d&&d.comMeta?d.comMeta.length:0); }
+  if(idx===2){ const d=IND[area]; cnt=(d&&d.semMeta?d.semMeta.length:0); }
+  if(idx===0){ const d=GANTT[area]; cnt=(d?d.length:0)+' usuários'; }
+  return `
+  <div class="grp">
+    <div class="grp-hdr" onclick="toggleGrp('${area}',${idx})">
+      <div class="grp-title">
+        ${idx===0?'📅':idx===1?'📈':'📊'}
+        ${label}
+        ${cnt!==''?`<span class="g-n ${nClass}">${cnt}</span>`:''}
+      </div>
+      <span class="grp-chevron ${open?'up':''}">▾</span>
+    </div>
+    <div class="grp-body ${open?'open':''}" id="gb-${eid(area)}-${idx}">
+      ${content}
+    </div>
+  </div>`;
+}
+
+function toggleArea(area){
+  const isOpen = S.expandedAreas.has(area);
+  if(isOpen) S.expandedAreas.delete(area); else S.expandedAreas.add(area);
+  const body = document.getElementById('ab-'+eid(area));
+  const chev = document.querySelector(`#ac-${eid(area)} .area-chevron`);
+  body.classList.toggle('open', !isOpen);
+  chev.classList.toggle('up', !isOpen);
+}
+
+function toggleGrp(area, idx){
+  const key = area+'_'+idx;
+  S.expandedGrp[key] = !S.expandedGrp[key];
+  const body = document.getElementById('gb-'+eid(area)+'-'+idx);
+  const chev = body.previousElementSibling.querySelector('.grp-chevron');
+  body.classList.toggle('open', S.expandedGrp[key]);
+  chev.classList.toggle('up', S.expandedGrp[key]);
+}
+
+// ═══════════════════════════════════════════════
+//  GANTT GROUP
+// ═══════════════════════════════════════════════
+function renderGanttGroup(area){
+  const users = GANTT[area]||[];
+  const mode = S.showFilhasMode[area]; // 'mae'|'ambas'|'filha'
+
+  const showChildren = mode==='ambas'||mode==='filha';
+  const onlyChildren = mode==='filha';
+
+  // compute visible users/metas
+  let rows = [];
+  users.forEach(u => {
+    const userMetas = u.metas;
+    // apenasChaves filter
+    const visibleMetas = S.apenasChaves
+      ? userMetas.filter(m=>m.isChave||S.starredItems.has(m.id))
+      : userMetas;
+    if(!visibleMetas.length && S.apenasChaves) return;
+
+    if(!onlyChildren){
+      rows.push({type:'user', user:u, metas:visibleMetas});
+    }
+    if(showChildren){
+      visibleMetas.forEach(m=>{
+        m.filhas.forEach(f=>{
+          if(onlyChildren){
+            rows.push({type:'filha-only', meta:m, filha:f, user:u});
+          } else {
+            rows.push({type:'filha', meta:m, filha:f, user:u});
+          }
+        });
+      });
+    }
+  });
+
+  const weeks = PERIODS.semanal; // always show all 9 weeks in gantt
+  const N = weeks.length;
+
+  // Compact segmented control (no UX box)
+  const segCtrl = `
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--ts);font-weight:600">Visualizar:</span>
+    <div class="seg">
+      <button class="${mode==='mae'?'act':''}"   onclick="onSegB('${area}','mae')">Apenas mães</button>
+      <button class="${mode==='ambas'?'act':''}" onclick="onSegB('${area}','ambas')">Mães + filhas</button>
+      <button class="${mode==='filha'?'act':''}" onclick="onSegB('${area}','filha')">Apenas filhas</button>
+    </div>
+  </div>`;
+
+  // Build gantt rows
+  const headCols = weeks.map(w=>`<th>${w.l}<div style="font-size:9px;color:var(--tt);font-weight:400">${w.s}</div></th>`).join('');
+
+  const bodyRows = rows.map(row=>{
+    if(row.type==='user'){
+      const u = row.user;
+      const starred = S.starredItems.has(u.id);
+      const userCell = `<td><div class="u-cell">
+        <div class="u-av" style="background:${u.bg}">${u.ini}</div>
+        <div class="u-info"><div class="u-name">${u.name}</div><div class="u-role">${row.metas.length} meta${row.metas.length!==1?'s':''}</div></div>
+        <button class="star-btn ${starred?'on':''}" onclick="toggleStar('${u.id}')" title="${starred?'Remover chave':'Marcar como chave'}">⭐</button>
+      </div></td>`;
+      const tlCell = `<td class="tl-cell" colspan="${N}">${row.metas.map(m=>{
+        const left = (m.s/N*100).toFixed(1)+'%';
+        const width = ((m.e-m.s+1)/N*100).toFixed(1)+'%';
+        const isStarred = m.isChave || S.starredItems.has(m.id);
+        return `<div class="gantt-bar" style="left:${left};width:${width};background:${m.c}" title="${m.l}">
+          ${isStarred?'⭐ ':''}${m.l}
+        </div>`;
+      }).join('')}</td>`;
+      return `<tr class="gantt-row">${userCell}${tlCell}</tr>`;
+    } else {
+      // filha or filha-only
+      const f = row.filha;
+      const u = row.user;
+      const fCell = `<td><div class="u-cell" style="padding-left:28px;background:#f8fafc">
+        <div class="u-av" style="background:${f.c};width:20px;height:20px;font-size:9px">⤷</div>
+        <div class="u-info"><div class="u-name" style="font-size:11px;color:var(--ts)">${f.l}</div><div class="u-role">Meta filha de ${u.name.split(' ')[0]}</div></div>
+      </div></td>`;
+      const left = (f.s/N*100).toFixed(1)+'%';
+      const width = ((f.e-f.s+1)/N*100).toFixed(1)+'%';
+      const tlCell = `<td class="tl-cell" colspan="${N}"><div class="gantt-bar filha" style="left:${left};width:${width};background:${f.c}">${f.l}</div></td>`;
+      return `<tr class="gantt-row">${fCell}${tlCell}</tr>`;
+    }
+  }).join('');
+
+  if(!rows.length){
+    return segCtrl + '<div style="text-align:center;padding:20px;color:var(--tt);font-size:12px">Nenhuma entrega para os filtros selecionados.</div>';
+  }
+
+  return `${segCtrl}
+  <div class="gantt-wrap">
+    <table class="gantt-tbl">
+      <thead class="gantt-head">
+        <tr><th class="u-col">Usuário / Metas</th>${headCols}</tr>
+      </thead>
+      <tbody>${bodyRows}</tbody>
+    </table>
+  </div>`;
+}
+
+function onSegB(area, mode){
+  S.showFilhasMode[area] = mode;
+  renderMain();
+}
+function toggleStar(id){
+  if(S.starredItems.has(id)) S.starredItems.delete(id);
+  else S.starredItems.add(id);
+  renderMain();
+}
+
+// ═══════════════════════════════════════════════
+//  INDICATORS
+// ═══════════════════════════════════════════════
+function renderIndicatorsWithMeta(area){
+  const d = IND[area];
+  if(!d||!d.comMeta||!d.comMeta.length) return '<div class="txt-sm" style="padding:8px 0;color:var(--tt)">Nenhum indicador com meta para esta área.</div>';
+  let items = d.comMeta;
+  if(S.apenasChaves) items = items.filter(i=>i.isChave||S.starredItems.has(i.id));
+  if(!items.length) return '<div class="txt-sm" style="padding:8px 0;color:var(--tt)">Nenhum indicador chave nesta área.</div>';
+  return `<div class="ind-grid">${items.map(i=>renderIndCard(i, area, true)).join('')}</div>`;
+}
+
+function renderIndicatorsNoMeta(area){
+  const d = IND[area];
+  if(!d||!d.semMeta||!d.semMeta.length) return '<div class="txt-sm" style="padding:8px 0;color:var(--tt)">Todos os indicadores desta área já possuem meta definida.</div>';
+  let items = d.semMeta;
+  if(S.apenasChaves) items = items.filter(i=>i.isChave||S.starredItems.has(i.id));
+  if(!items.length) return '<div class="txt-sm" style="padding:8px 0;color:var(--tt)">Nenhum indicador chave sem meta.</div>';
+  return `<div class="ind-grid">${items.map(i=>renderIndCard(i, area, false)).join('')}</div>`;
+}
+
+function renderIndCard(ind, area, hasMeta){
+  const starred = ind.isChave || S.starredItems.has(ind.id);
+  const override = S.metaOverride[ind.id];
+  // Get periods
+  const allPeriods = PERIODS[S.periodType];
+  const selPeriods = allPeriods.filter(p => S.selectedPeriods.has(p.id));
+  const displayPeriods = selPeriods.length > 0 ? selPeriods : allPeriods.slice(-4);
+
+  // Map period to value (use weekly data, cycling if needed)
+  const baseVals = ind.vals||[];
+  const pVals = displayPeriods.map((p,i)=>{
+    // for weekly: find index in S40-S48
+    if(S.periodType==='semanal'){
+      const wi = PERIODS.semanal.findIndex(w=>w.id===p.id);
+      return wi>=0 && wi<baseVals.length ? baseVals[wi] : baseVals[i%baseVals.length];
+    }
+    // for other: group/aggregate (mock: just space out)
+    return baseVals[Math.min(Math.floor(i*(baseVals.length/displayPeriods.length)), baseVals.length-1)];
+  });
+
+  let pTargets = null;
+  if(hasMeta && ind.targets){
+    pTargets = displayPeriods.map((p,i)=>{
+      let t;
+      if(S.periodType==='semanal'){
+        const wi = PERIODS.semanal.findIndex(w=>w.id===p.id);
+        t = wi>=0 && wi<ind.targets.length ? ind.targets[wi] : ind.targets[ind.targets.length-1];
+      } else {
+        t = ind.targets[Math.min(Math.floor(i*(ind.targets.length/displayPeriods.length)), ind.targets.length-1)];
+      }
+      // apply override
+      if(override && i >= (override.fromIdx||0)) t = override.value;
+      return t;
+    });
+  }
+
+  const chart = buildChart(pVals, pTargets, displayPeriods, ind.unit, ind.id);
+
+  const metaStr = hasMeta && pTargets ? `Meta atual: <strong>${pTargets[pTargets.length-1]} ${ind.unit}</strong>` : '';
+  const changeNote = hasMeta && ind.targetChangeAt!=null && S.periodType==='semanal' ? `<span style="color:#c0392b;font-weight:600">↑ Meta ajustada a partir de S${40+ind.targetChangeAt}</span>` : '';
+
+  return `
+  <div class="ind-card" id="ic-${ind.id}">
+    <div class="ind-hdr">
+      <div class="ind-info">
+        <div class="ind-name">${ind.name} <span class="ind-unit">(${ind.unit})</span></div>
+        <div class="ind-badges">
+          ${hasMeta?'<span class="mbadge mb-set">✓ Meta definida</span>':'<span class="mbadge mb-unset">Sem meta</span>'}
+          ${starred?'<span class="mbadge mb-chave">⭐ Chave</span>':''}
+        </div>
+      </div>
+      <div class="ind-actions">
+        <button class="btn-star-ind ${starred?'on':''}" onclick="toggleStar('${ind.id}')" title="${starred?'Remover chave':'Marcar como chave'}">⭐</button>
+        ${hasMeta?`<button class="btn-edit" onclick="toggleEditMeta('${ind.id}')">✎ Editar meta</button>`:''}
+      </div>
+    </div>
+    ${hasMeta?`
+    <div class="meta-edit" id="me-${ind.id}">
+      <label>Nova meta:</label>
+      <input type="number" id="mv-${ind.id}" value="${override?override.value:ind.editMeta}" step="0.5"/>
+      <label>A partir de:</label>
+      <select id="mf-${ind.id}">
+        ${displayPeriods.map((p,i)=>`<option value="${i}" ${(override&&override.fromIdx===i)?'selected':i===0?'selected':''}>Período ${p.l}</option>`).join('')}
+      </select>
+      <button class="btn-save" onclick="saveMeta('${ind.id}','${area}')">Salvar</button>
+      <button class="btn-cancel-edit" onclick="toggleEditMeta('${ind.id}')">Cancelar</button>
+    </div>`:''}
+    <div class="chart-area">${chart}</div>
+    <div class="chart-note">
+      <div class="cl-item"><div style="width:12px;height:10px;background:#1e7a3a;border-radius:2px"></div> Acima da meta</div>
+      <div class="cl-item"><div style="width:12px;height:10px;background:#c0392b;border-radius:2px"></div> Abaixo da meta</div>
+      ${hasMeta?`<div class="cl-item"><div style="width:18px;height:0;border-top:2px dashed #c0392b"></div> Meta</div>`:''}
+      ${metaStr?`<span style="margin-left:auto;font-size:10px;color:var(--ts)">${metaStr}</span>`:''}
+      ${changeNote?`<span>${changeNote}</span>`:''}
+    </div>
+    ${!hasMeta?`
+    <div class="no-meta-wrap">
+      <div class="no-meta-icon">🎯</div>
+      <div class="no-meta-txt">A direção ainda não definiu uma meta para este indicador.</div>
+      <button class="btn-define" onclick="defineMetaPrompt('${ind.id}','${area}')">+ Definir meta</button>
+    </div>`:''}
+  </div>`;
+}
+
+function buildChart(vals, targets, periods, unit, id){
+  const W=520, H=130, PL=35, PR=10, PT=18, PB=28;
+  const cW=W-PL-PR, cH=H-PT-PB;
+  const N=vals.length;
+  const maxV = Math.max(...vals, ...(targets||[0]))*1.25 || 10;
+  const barW = Math.max((cW/N)*0.45, 6);
+  const step = cW/N;
+
+  let s = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:130px;overflow:visible">`;
+
+  // Y gridlines
+  const yticks = 4;
+  for(let i=0;i<=yticks;i++){
+    const y = PT + cH - (i/yticks)*cH;
+    const v = ((i/yticks)*maxV).toFixed(1);
+    s += `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="#f1f5f9" stroke-width="0.5"/>`;
+    s += `<text x="${PL-3}" y="${y+3}" text-anchor="end" font-size="8" fill="#94a3b8">${v}</text>`;
+  }
+
+  // Bars
+  vals.forEach((v,i)=>{
+    const x = PL + i*step + step/2 - barW/2;
+    const bH = Math.max((v/maxV)*cH, 2);
+    const y = PT+cH-bH;
+    const pct = targets ? (v>=targets[i]?'ok':'bad') : 'neutral';
+    const fill = pct==='ok'?'#1e7a3a':pct==='bad'?'#c0392b':'#0C2633';
+    s += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${bH.toFixed(1)}" fill="${fill}" rx="2" opacity="0.9"/>`;
+    s += `<text x="${(x+barW/2).toFixed(1)}" y="${(y-3).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="#4a5568" font-weight="600">${v}</text>`;
+  });
+
+  // Target line (dashed, changes allowed)
+  if(targets && targets.length){
+    // Group into segments where target doesn't change
+    let segments = [];
+    let cur = {from:0, val:targets[0]};
+    for(let i=1;i<targets.length;i++){
+      if(targets[i]!==targets[i-1]){
+        segments.push({...cur, to:i-1});
+        cur={from:i, val:targets[i]};
+      }
+    }
+    segments.push({...cur, to:targets.length-1});
+
+    segments.forEach(seg=>{
+      const x1 = PL + seg.from*step + step/2;
+      const x2 = PL + seg.to*step + step/2;
+      const ty = (PT + cH - (seg.val/maxV)*cH).toFixed(1);
+      s += `<line x1="${x1.toFixed(1)}" y1="${ty}" x2="${x2.toFixed(1)}" y2="${ty}" stroke="#c0392b" stroke-width="2" stroke-dasharray="5,3"/>`;
+      // label at segment start (change point)
+      if(seg.from>0){
+        s += `<circle cx="${x1.toFixed(1)}" cy="${ty}" r="4" fill="#c0392b"/>`;
+        s += `<text x="${x1.toFixed(1)}" y="${(parseFloat(ty)-8).toFixed(1)}" text-anchor="middle" font-size="9" fill="#c0392b" font-weight="700">Meta: ${seg.val}</text>`;
+      }
+    });
+  }
+
+  // X labels
+  periods.forEach((p,i)=>{
+    const x = PL + i*step + step/2;
+    s += `<text x="${x.toFixed(1)}" y="${H-4}" text-anchor="middle" font-size="9" fill="#94a3b8">${p.l}</text>`;
+  });
+
+  // Axes
+  s += `<line x1="${PL}" y1="${PT}" x2="${PL}" y2="${PT+cH}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+  s += `<line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+  s += '</svg>';
+  return s;
+}
+
+function toggleEditMeta(id){
+  const el = document.getElementById('me-'+id);
+  if(!el) return;
+  el.classList.toggle('open');
+}
+
+function saveMeta(id, area){
+  const val = parseFloat(document.getElementById('mv-'+id).value);
+  const fromIdx = parseInt(document.getElementById('mf-'+id).value);
+  if(isNaN(val)) return;
+  S.metaOverride[id] = {value:val, fromIdx};
+  toggleEditMeta(id);
+  // Update targets in IND data
+  const d = IND[area];
+  if(d){
+    const ind = [...(d.comMeta||[])].find(i=>i.id===id);
+    if(ind){
+      for(let i=fromIdx;i<ind.targets.length;i++) ind.targets[i]=val;
+      ind.targetChangeAt = fromIdx;
+      ind.editMeta = val;
+    }
+  }
+  renderMain();
+}
+
+function defineMetaPrompt(id, area){
+  // Move indicator to comMeta
+  const d = IND[area];
+  if(!d) return;
+  const idx = d.semMeta.findIndex(i=>i.id===id);
+  if(idx<0) return;
+  const [ind] = d.semMeta.splice(idx,1);
+  const avg = (ind.vals.reduce((a,b)=>a+b,0)/ind.vals.length).toFixed(1);
+  ind.targets = ind.vals.map(()=>parseFloat(avg));
+  ind.targetChangeAt = null;
+  ind.editMeta = parseFloat(avg);
+  d.comMeta.push(ind);
+  renderMain();
+  setTimeout(()=>toggleEditMeta(id), 100);
+}
+
+// ═══════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════
+function eid(s){ return s.replace(/[^a-zA-Z0-9]/g,'_'); }
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+function init(){
+  updateFilterCount();
+  updatePeriodChips();
+  updateActiveChips();
+  renderMain();
+}
+init();
+</script>
+</body>
+</html>

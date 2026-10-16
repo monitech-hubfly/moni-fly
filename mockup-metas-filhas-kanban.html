@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Hub Fly — Metas Filhas por Fase · Mockup v3</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0C2633;--navy2:#163b50;--green:#2F4A3A;--earth:#4A3929;
+  --gold:#D4AD68;--gold-l:#faf3e0;--gold-b:#e8d4a0;
+  --red:#b91c1c;--red-l:#fef2f2;--red-b:#fecaca;
+  --amber:#92400e;--amber-l:#fffbeb;--amber-b:#fde68a;
+  --ok:#166534;--ok-l:#f0fdf4;--ok-b:#bbf7d0;
+  --blue:#1d4ed8;--blue-l:#eff6ff;--blue-b:#bfdbfe;
+  --purple:#6d28d9;--purple-l:#ede9fe;--purple-b:#c4b5fd;
+  --slate:#475569;
+  --border:0.5px solid #e2e8f0;--bmd:0.5px solid #cbd5e0;
+  --rlg:12px;--rmd:8px;--rsm:6px;
+  --sh:0 2px 12px rgba(12,38,51,.07);--shlg:0 6px 28px rgba(12,38,51,.14);
+  --tp:#0C2633;--ts:#4a5568;--bg:#f1f5f9;--wh:#fff
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tp);line-height:1.5;font-size:14px}
+
+/* ── header ── */
+.hdr{background:var(--navy);color:#fff;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.hdr h1{font-size:15px;font-weight:800;letter-spacing:-.4px}
+.hdr p{font-size:10px;opacity:.4;margin-top:2px}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;gap:4px}
+.b-gold{background:var(--gold);color:var(--navy)}
+.b-out{border:.5px solid rgba(255,255,255,.3);color:rgba(255,255,255,.65)}
+.b-ok{background:var(--ok-b);color:var(--ok)}
+.b-red{background:var(--red-b);color:var(--red)}
+.b-amber{background:var(--amber-b);color:var(--amber)}
+.b-blue{background:var(--blue-b);color:var(--blue)}
+.b-slate{background:#e2e8f0;color:var(--slate)}
+.b-purple{background:var(--purple-l);color:var(--purple)}
+.b-navy{background:rgba(255,255,255,.12);color:#fff;border:.5px solid rgba(255,255,255,.2)}
+.hdr-r{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}
+
+.aviso{background:#1e1b4b;color:#c7d2fe;font-size:11px;padding:7px 28px;display:flex;gap:8px;align-items:center}
+.aviso strong{color:#a5b4fc}
+
+/* ── tabs ── */
+.tabs-nav{background:#fff;border-bottom:var(--border);padding:0 28px;display:flex;overflow-x:auto;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.04);gap:2px}
+.tb{padding:10px 14px;border:none;background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:var(--ts);border-bottom:2.5px solid transparent;white-space:nowrap;transition:all .15s}
+.tb:hover{color:var(--navy)}.tb.act{color:var(--navy);border-bottom-color:var(--navy);font-weight:700}
+.tpill{display:inline-block;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:4px;font-weight:700;vertical-align:middle}
+.tp-auto{background:#dcfce7;color:#15803d}
+.tp-admin{background:#1e1b4b;color:#a5b4fc}
+.tp-new{background:#fef3c7;color:#92400e}
+.tp-hist{background:var(--purple-l);color:var(--purple)}
+
+/* ── content ── */
+.tab{display:none;padding:28px;max-width:1080px;margin:0 auto}.tab.act{display:block}
+.stitle{font-size:20px;font-weight:800;color:var(--navy);letter-spacing:-.5px;margin-bottom:4px}
+.ssub{font-size:13px;color:var(--ts);margin-bottom:22px;line-height:1.6;max-width:680px}
+
+/* ── card base ── */
+.card{background:var(--wh);border:var(--border);border-radius:var(--rlg);padding:20px;box-shadow:var(--sh);margin-bottom:14px}
+.card-sm{padding:14px 18px}
+.nota{background:var(--gold-l);border:.5px solid var(--gold-b);border-radius:var(--rmd);padding:11px 14px;font-size:12px;color:var(--earth);display:flex;gap:8px;align-items:flex-start;line-height:1.5;margin-bottom:14px}
+.alerta{background:var(--red-l);border:.5px solid var(--red-b);border-radius:var(--rmd);padding:11px 14px;font-size:12px;color:var(--red);display:flex;gap:8px;align-items:flex-start;line-height:1.5;margin:8px 0}
+.info{background:var(--blue-l);border:.5px solid var(--blue-b);border-radius:var(--rmd);padding:11px 14px;font-size:12px;color:var(--blue);display:flex;gap:8px;align-items:flex-start;line-height:1.5;margin-bottom:14px}
+
+/* ── META MÃE ── */
+.mae-card{background:var(--navy);color:#fff;border-radius:var(--rlg);margin-bottom:16px;overflow:hidden;box-shadow:var(--shlg)}
+.mae-top{padding:18px 22px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.mae-titulo{font-size:16px;font-weight:700;letter-spacing:-.3px;margin-bottom:5px}
+.mae-badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.mae-meta{font-size:11px;opacity:.45;line-height:1.5}
+.mae-score{text-align:right;flex-shrink:0}
+.mae-pct{font-size:38px;font-weight:800;letter-spacing:-2px;line-height:1}
+.mae-pct-sub{font-size:10px;opacity:.5;margin-top:2px}
+.mae-stats{display:grid;grid-template-columns:repeat(5,1fr);background:rgba(255,255,255,.06);border-top:.5px solid rgba(255,255,255,.1)}
+.mae-stat{padding:12px 10px;text-align:center;border-right:.5px solid rgba(255,255,255,.08)}
+.mae-stat:last-child{border-right:none}
+.mae-stat .v{font-size:20px;font-weight:800;letter-spacing:-1px;line-height:1}
+.mae-stat .l{font-size:9px;opacity:.45;margin-top:3px;text-transform:uppercase;letter-spacing:.3px}
+.mae-prog-wrap{padding:14px 22px 16px;border-top:.5px solid rgba(255,255,255,.08)}
+.mae-prog-label{display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;opacity:.7}
+.mae-prog-bar{height:6px;background:rgba(255,255,255,.15);border-radius:6px;overflow:hidden}
+.mae-prog-fill{height:100%;border-radius:6px;transition:width .5s}
+.mpf-ok{background:linear-gradient(90deg,#16a34a,#22c55e)}
+.mpf-am{background:linear-gradient(90deg,#d97706,#f59e0b)}
+.mpf-red{background:linear-gradient(90deg,#dc2626,#ef4444)}
+
+/* ── FASE (Meta Filha) — acordeon ── */
+.fases-lista{display:flex;flex-direction:column;gap:8px}
+.fase-item{background:var(--wh);border:var(--border);border-radius:var(--rmd);overflow:hidden;box-shadow:var(--sh);transition:box-shadow .15s}
+.fase-item:hover{box-shadow:0 3px 16px rgba(12,38,51,.1)}
+.fase-item.aberta .fase-header{border-bottom:var(--border)}
+.fase-header{padding:13px 16px;display:grid;grid-template-columns:28px 1fr auto auto auto;gap:12px;align-items:center;cursor:pointer;user-select:none;transition:background .1s}
+.fase-header:hover{background:#fafafa}
+.fase-chevron{font-size:10px;color:#94a3b8;transition:transform .2s;flex-shrink:0}
+.fase-item.aberta .fase-chevron{transform:rotate(90deg)}
+.fase-sem{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.fs-ok{background:var(--ok-l);border:1.5px solid var(--ok-b)}
+.fs-am{background:var(--amber-l);border:1.5px solid var(--amber-b)}
+.fs-red{background:var(--red-l);border:1.5px solid var(--red-b)}
+.fs-sl{background:#f1f5f9;border:1.5px solid #e2e8f0}
+.fs-pu{background:var(--purple-l);border:1.5px solid var(--purple-b)}
+.fase-info{min-width:0}
+.fase-nome{font-size:13px;font-weight:600;color:var(--navy);margin-bottom:2px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.fase-sub{font-size:11px;color:var(--ts)}
+.fase-fluxo{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap}
+.fluxo-pill{font-size:10px;font-weight:600;padding:3px 8px;border-radius:12px;white-space:nowrap}
+.fp-in{background:#dbeafe;color:#1d4ed8}
+.fp-out{background:#dcfce7;color:#166534}
+.fp-gargalo{background:var(--red-l);color:var(--red)}
+.fase-count{font-size:22px;font-weight:800;color:var(--navy);letter-spacing:-1px;flex-shrink:0;min-width:36px;text-align:right}
+.fase-count-sub{font-size:9px;color:var(--ts);font-weight:500;margin-top:1px}
+
+/* ── gargalo badge ── */
+.gargalo-badge{display:inline-flex;align-items:center;gap:4px;background:var(--red-l);border:.5px solid var(--red-b);border-radius:10px;padding:2px 8px;font-size:9px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.3px}
+.concl-badge{display:inline-flex;align-items:center;gap:4px;background:var(--purple-l);border:.5px solid var(--purple-b);border-radius:10px;padding:2px 8px;font-size:9px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:.3px}
+.auto-badge{display:inline-flex;align-items:center;gap:3px;background:#dcfce7;border:.5px solid #bbf7d0;border-radius:10px;padding:2px 7px;font-size:9px;font-weight:700;color:#166534}
+
+/* ── CARDS dentro da fase (Filhas das Filhas) ── */
+.fase-cards{padding:0 14px 12px;display:flex;flex-direction:column;gap:6px}
+.card-item{background:#fafafa;border:var(--border);border-radius:var(--rsm);padding:10px 12px;display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;cursor:pointer;transition:all .12s}
+.card-item:hover{background:#fff;box-shadow:var(--sh);border-color:#cbd5e0}
+.card-item.urgente{border-left:3px solid var(--red);background:var(--red-l)}
+.card-item.urgente:hover{background:#fef2f2}
+.ci-sem{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+.ci-ok{background:var(--ok-b);color:var(--ok)}
+.ci-am{background:var(--amber-b);color:var(--amber)}
+.ci-red{background:var(--red-b);color:var(--red)}
+.ci-sl{background:#e2e8f0;color:#64748b}
+.ci-pu{background:var(--purple-b);color:var(--purple)}
+.ci-titulo{font-size:12px;font-weight:600;color:var(--navy);margin-bottom:1px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ci-sub{font-size:10px;color:var(--ts)}
+.ci-prazo{font-size:10px;text-align:right;white-space:nowrap}
+.ci-prazo.atrasado{color:var(--red);font-weight:700}
+.ci-prazo.hoje{color:var(--amber);font-weight:700}
+.ci-prazo.ok{color:var(--ok)}
+.urgente-tag{display:inline-flex;align-items:center;gap:3px;background:var(--red);color:#fff;border-radius:8px;padding:1px 6px;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+.link-sim{color:var(--blue);font-size:10px;text-decoration:underline;cursor:pointer}
+
+/* ── mini barra de SLA dentro da fase ── */
+.sla-mini-bars{display:flex;gap:3px;padding:0 16px 12px;align-items:center}
+.sla-bar-seg{height:5px;border-radius:3px;flex:1}
+.sla-ok{background:#22c55e}.sla-am{background:#f59e0b}.sla-red{background:#ef4444}.sla-sl{background:#e2e8f0}
+.sla-legend{display:flex;gap:10px;padding:0 16px 10px;flex-wrap:wrap}
+.sla-lg-item{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--ts)}
+.sla-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* ── card contador de fase mostrar mais ── */
+.mais-cards{text-align:center;font-size:11px;color:var(--ts);padding:6px;cursor:pointer;border-radius:var(--rsm);transition:background .1s}
+.mais-cards:hover{background:#f1f5f9;color:var(--navy)}
+
+/* ── grids ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:700px){.g2,.g3{grid-template-columns:1fr}}
+.divider{height:.5px;background:#e2e8f0;margin:14px 0}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt14{margin-top:14px}.mt20{margin-top:20px}
+.sec-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ts)}
+
+/* ── fluxo visual ── */
+.fluxo-vis{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:14px 0}
+.fv-item{padding:8px 14px;border-radius:var(--rmd);font-size:11px;font-weight:600;text-align:center;line-height:1.4}
+.fv-navy{background:var(--navy);color:#fff}
+.fv-gold{background:var(--gold-l);border:.5px solid var(--gold-b);color:var(--earth)}
+.fv-ok{background:var(--ok-l);border:.5px solid var(--ok-b);color:var(--ok)}
+.fv-blue{background:var(--blue-l);border:.5px solid var(--blue-b);color:var(--blue)}
+.fv-red{background:var(--red-l);border:.5px solid var(--red-b);color:var(--red)}
+.fv-sl{background:#f1f5f9;border:var(--border);color:var(--slate)}
+.fv-arr{font-size:14px;color:#94a3b8;flex-shrink:0}
+
+/* ── tabela ── */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{background:#f8fafc;padding:7px 10px;text-align:left;font-weight:600;color:var(--ts);border-bottom:var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.4px}
+.tbl td{padding:9px 10px;border-bottom:var(--border);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:#fafafa}
+code{background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:11px;color:var(--navy)}
+
+/* ── config form ── */
+.form-group{margin-bottom:13px}
+.form-group label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ts);margin-bottom:5px}
+.form-group select,.form-group input{width:100%;padding:8px 10px;border:var(--bmd);border-radius:var(--rmd);font-size:13px;color:var(--tp);background:#fff;outline:none}
+.form-group select:focus,.form-group input:focus{border-color:var(--navy)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--rmd);font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn-navy{background:var(--navy);color:#fff}.btn-navy:hover{background:var(--navy2)}
+.btn-ghost{background:transparent;color:var(--ts);border:var(--bmd)}.btn-ghost:hover{background:#f1f5f9}
+.btn-row{display:flex;gap:8px;margin-top:14px}
+.fase-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:600;border:var(--bmd);cursor:pointer;margin:2px;transition:all .1s;background:#fff}
+.fase-chip:hover{border-color:var(--navy);color:var(--navy)}
+.fase-chip.sel{background:var(--navy);color:#fff;border-color:var(--navy)}
+.preview-box{background:var(--blue-l);border:.5px solid var(--blue-b);border-radius:var(--rmd);padding:12px 14px;margin-top:12px}
+.preview-row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.preview-row:last-child{margin-bottom:0}
+
+/* ── histórico ── */
+.hist-timeline{display:flex;flex-direction:column;gap:0}
+.ht-item{display:flex;gap:12px;padding-bottom:14px;position:relative}
+.ht-item:last-child{padding-bottom:0}
+.ht-dot-col{display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:24px}
+.ht-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;border:2px solid #fff}
+.ht-ok{background:#22c55e;box-shadow:0 0 0 1.5px #22c55e}
+.ht-red{background:#ef4444;box-shadow:0 0 0 1.5px #ef4444}
+.ht-am{background:#f59e0b;box-shadow:0 0 0 1.5px #f59e0b}
+.ht-sl{background:#94a3b8;box-shadow:0 0 0 1.5px #94a3b8}
+.ht-line{flex:1;width:1.5px;background:#e2e8f0;margin-top:2px}
+.ht-content{flex:1}
+.ht-nome{font-size:12px;font-weight:600;color:var(--navy)}
+.ht-info{font-size:11px;color:var(--ts);margin-top:1px}
+.ht-sla{font-size:10px;margin-top:2px}
+
+/* ── ciclo selector ── */
+.ciclo-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.ciclo-btn{padding:5px 12px;border-radius:16px;border:.5px solid #e2e8f0;font-size:11px;font-weight:600;cursor:pointer;background:#fff;color:var(--ts);transition:all .1s}
+.ciclo-btn:hover{border-color:var(--navy);color:var(--navy)}
+.ciclo-btn.sel{background:var(--navy);color:#fff;border-color:var(--navy)}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <h1>Hub Fly — Metas Filhas por Fase · Mockup v3</h1>
+    <p>Modelo validado: 3 níveis · dados reais do PROD · apenas planejamento</p>
+  </div>
+  <div class="hdr-r">
+    <span class="badge b-gold">Bone Day</span>
+    <span class="badge b-out">S42 · Out 2026</span>
+    <span class="badge b-navy">Mockup conceitual</span>
+  </div>
+</div>
+<div class="aviso">⚡ <strong>Dados reais do PROD</strong> — cards FK0005 Porto Belo, FK0030 Riviera Park, Genesis II, Verdes Campos e outros do Funil Acoplamento. Nenhuma alteração foi feita no sistema.</div>
+
+<div class="tabs-nav">
+  <button class="tb act" onclick="tab('conceito',this)">Conceito <span class="tpill tp-new">v3</span></button>
+  <button class="tb" onclick="tab('acoplamento',this)">Acoplamento <span class="tpill tp-auto">Auto</span></button>
+  <button class="tb" onclick="tab('portfolio',this)">Portfólio <span class="tpill tp-auto">Auto</span></button>
+  <button class="tb" onclick="tab('historico',this)">Histórico retroativo <span class="tpill tp-hist">Dados reais</span></button>
+  <button class="tb" onclick="tab('config',this)">Config Meta Mãe <span class="tpill tp-admin">Admin</span></button>
+</div>
+
+<!-- ═══════════ TAB CONCEITO ═══════════ -->
+<div id="tab-conceito" class="tab act">
+  <div class="stitle">Modelo de 3 Níveis</div>
+  <div class="ssub">Admin define a Meta Mãe uma vez. Cada fase/etapa do funil vira automaticamente uma Meta Filha. Os cards dentro de cada fase são o terceiro nível — visíveis ao expandir. O banco já guarda tudo desde abril/2026.</div>
+
+  <div class="nota">💡 <span><strong>O banco já registra tudo:</strong> 2.511 eventos históricos · 445 cards · desde 28/04/2026. Cada transição de fase guarda: quem moveu, quando, quanto tempo ficou na fase anterior, se atrasou e o SLA configurado.</span></div>
+
+  <!-- Hierarquia -->
+  <div class="card">
+    <div class="sec-label" style="margin-bottom:14px">Hierarquia dos 3 níveis</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:var(--navy);color:#fff;border-radius:var(--rmd);padding:14px 16px">
+        <div style="font-size:12px;opacity:.5;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">Nível 1 — Meta Mãe (admin define uma vez, recorrente)</div>
+        <div style="font-size:15px;font-weight:700">🎯 "100% dos acoplamentos aprovados no ciclo"</div>
+        <div style="font-size:11px;opacity:.45;margin-top:4px">Funil Acoplamento · Toda semana · Fase conclusão: Aprovado</div>
+      </div>
+      <div style="margin-left:20px;border-left:2px solid #e2e8f0;padding-left:14px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ts);margin-bottom:2px">Nível 2 — Meta Filha = Fase do funil (automática, sempre viva)</div>
+        <div style="background:var(--red-l);border:.5px solid var(--red-b);border-radius:var(--rmd);padding:11px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy)">🔴 Modelagem do Terreno</div>
+            <div style="font-size:11px;color:var(--ts)">7 cards · 3 atrasados · acumulando demanda</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="gargalo-badge">⚠️ Gargalo · 7 entrou · 3 saiu</span></div>
+        </div>
+        <div style="background:var(--amber-l);border:.5px solid var(--amber-b);border-radius:var(--rmd);padding:11px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy)">🟡 Modelagem Casa + GBox</div>
+            <div style="font-size:11px;color:var(--ts)">3 cards · 1 em risco · fluxo normal</div>
+          </div>
+          <span class="fluxo-pill fp-in">4 entrou · 4 saiu</span>
+        </div>
+        <div style="background:var(--ok-l);border:.5px solid var(--ok-b);border-radius:var(--rmd);padding:11px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy)">✅ Validação do Acoplamento</div>
+            <div style="font-size:11px;color:var(--ts)">2 cards · todos no prazo</div>
+          </div>
+          <span class="fluxo-pill fp-out">2 entrou · 2 saiu</span>
+        </div>
+        <div style="background:var(--purple-l);border:.5px solid var(--purple-b);border-radius:var(--rmd);padding:11px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy)">⭐ Aprovado — fase de conclusão</div>
+            <div style="font-size:11px;color:var(--ts)">8 cards aprovados contam no % da Meta Mãe</div>
+          </div>
+          <span class="concl-badge">⭐ Conclusão · conta na meta</span>
+        </div>
+        <!-- Nível 3 -->
+        <div style="margin-left:20px;border-left:2px solid #e2e8f0;padding-left:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ts);margin-bottom:8px">Nível 3 — Card individual (expande ao clicar na fase)</div>
+          <div style="background:#fff;border:var(--border);border-radius:var(--rmd);padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:5px">
+            <div style="width:20px;height:20px;border-radius:50%;background:var(--red-b);color:var(--red);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0">🔴</div>
+            <div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--navy);display:flex;align-items:center;gap:6px">FK0005 · Porto Belo All Resort <span class="urgente-tag">🚨 Urgente</span></div><div style="font-size:10px;color:var(--ts)">Modelagem Terreno · venceu ontem · Elisabete Nucci</div></div>
+            <div style="font-size:10px;color:var(--red);font-weight:700;text-align:right">ATRASADO<br><span class="link-sim">ver card →</span></div>
+          </div>
+          <div style="background:#fff;border:var(--border);border-radius:var(--rmd);padding:10px 12px;display:flex;align-items:center;gap:10px">
+            <div style="width:20px;height:20px;border-radius:50%;background:var(--amber-b);color:var(--amber);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0">🟡</div>
+            <div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--navy)">FK0030 · Riviera Park Residence</div><div style="font-size:10px;color:var(--ts)">Modelagem Terreno · vence hoje · Elisabete Nucci</div></div>
+            <div style="font-size:10px;color:var(--amber);font-weight:700;text-align:right">HOJE<br><span class="link-sim">ver card →</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- O que o banco já tem -->
+  <div class="card">
+    <div class="sec-label" style="margin-bottom:12px">O que o banco de PROD já registra — confirmado hoje</div>
+    <div class="g2">
+      <div>
+        <table class="tbl">
+          <thead><tr><th>Dado</th><th>Disponível?</th></tr></thead>
+          <tbody>
+            <tr><td>Transição de fase (quem moveu, quando)</td><td><span class="badge b-ok">✅ Sim</span></td></tr>
+            <tr><td>Dias que o card ficou na fase anterior</td><td><span class="badge b-ok">✅ Sim</span></td></tr>
+            <tr><td>Se atrasou naquela fase</td><td><span class="badge b-ok">✅ Sim</span></td></tr>
+            <tr><td>SLA configurado da fase</td><td><span class="badge b-ok">✅ Sim</span></td></tr>
+            <tr><td>Retrocessos (quem mandou voltar)</td><td><span class="badge b-ok">✅ Sim</span></td></tr>
+            <tr><td>Histórico desde quando</td><td><span class="badge b-blue">Desde 28/abr/2026</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <table class="tbl">
+          <thead><tr><th>Funil</th><th>Cards com histórico</th></tr></thead>
+          <tbody>
+            <tr><td>Funil Loteadores</td><td>34 cards</td></tr>
+            <tr><td><strong>Funil Acoplamento</strong></td><td><strong>25 cards ✅</strong></td></tr>
+            <tr><td>Funil Portfólio</td><td>35 cards</td></tr>
+            <tr><td>Funil Projeto Legal</td><td>15 cards</td></tr>
+            <tr><td>Funding</td><td>37 cards</td></tr>
+            <tr><td>Funil Step One</td><td>62 cards</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="alerta mt8">⚠️ <span>Registros anteriores a set/2026 podem ter dados de SLA incompletos no JSONB (dias na fase = null). Os <strong>eventos de fase</strong> (quem moveu, para onde, quando) estão todos presentes desde abril. Não é um bloqueio.</span></div>
+  </div>
+
+  <!-- Fluxo -->
+  <div class="card">
+    <div class="sec-label" style="margin-bottom:12px">Como o sistema funciona (sem digitação manual)</div>
+    <div class="fluxo-vis">
+      <div class="fv-item fv-navy">Admin define<br>Meta Mãe<br><small style="opacity:.6;font-size:9px">uma só vez</small></div>
+      <div class="fv-arr">→</div>
+      <div class="fv-item fv-gold">Conecta ao Funil<br>+ seleciona fases<br><small style="opacity:.6;font-size:9px">config salva</small></div>
+      <div class="fv-arr">→</div>
+      <div class="fv-item fv-blue">Card entra<br>em alguma fase<br><small style="opacity:.6;font-size:9px">evento no banco</small></div>
+      <div class="fv-arr">→</div>
+      <div class="fv-item fv-ok">Meta Filha<br>atualiza sozinha<br><small style="opacity:.6;font-size:9px">em tempo real</small></div>
+      <div class="fv-arr">→</div>
+      <div class="fv-item fv-sl">Bone Day<br>mostra tudo<br><small style="opacity:.6;font-size:9px">sem digitação</small></div>
+    </div>
+    <div class="info" style="margin-bottom:0">ℹ️ <span>O banco já faz todo o rastreamento. O sistema de Metas Filhas é uma <strong>camada de leitura e visualização</strong> — não precisa duplicar dados nem criar triggers.</span></div>
+  </div>
+</div>
+
+
+<!-- ═══════════ TAB ACOPLAMENTO ═══════════ -->
+<div id="tab-acoplamento" class="tab">
+  <div class="stitle">Funil Acoplamento · Bone Day S42</div>
+  <div class="ssub">Dados próximos aos reais do PROD — 25 cards ativos, fases reais. Clique nas fases para expandir e ver os cards individuais.</div>
+
+  <!-- META MÃE -->
+  <div class="mae-card">
+    <div class="mae-top">
+      <div style="flex:1;min-width:0">
+        <div class="mae-badges">
+          <span class="badge b-gold">⭐ Meta Mãe</span>
+          <span class="badge b-navy">⚡ Automática</span>
+          <span class="badge b-out">Funil Acoplamento</span>
+          <span class="badge b-out">Recorrente — toda semana</span>
+        </div>
+        <div class="mae-titulo">100% dos acoplamentos aprovados no ciclo S42</div>
+        <div class="mae-meta">Área: Acoplamento · Fase de conclusão: Aprovado · Admin: Danilo · S42 = 13 a 17 out 2026</div>
+      </div>
+      <div class="mae-score">
+        <div class="mae-pct" style="color:#f59e0b">40%</div>
+        <div class="mae-pct-sub">8 de 20 cards aprovados</div>
+      </div>
+    </div>
+    <div class="mae-stats">
+      <div class="mae-stat"><div class="v" style="color:#22c55e">8</div><div class="l">✅ Aprovados</div></div>
+      <div class="mae-stat"><div class="v" style="color:#f59e0b">7</div><div class="l">🟡 Em risco</div></div>
+      <div class="mae-stat"><div class="v" style="color:#ef4444">3</div><div class="l">🔴 Atrasados</div></div>
+      <div class="mae-stat"><div class="v" style="color:#94a3b8">2</div><div class="l">⚪ Paralisados</div></div>
+      <div class="mae-stat"><div class="v" style="color:#a78bfa">1</div><div class="l">🚨 Urgente</div></div>
+    </div>
+    <div class="mae-prog-wrap">
+      <div class="mae-prog-label"><span>Progresso da Meta Mãe (aprovados ÷ total ativos)</span><span style="color:#f59e0b;font-weight:700">Atenção — 3 atrasados, gargalo em Modelagem Terreno</span></div>
+      <div class="mae-prog-bar"><div class="mae-prog-fill mpf-am" style="width:40%"></div></div>
+    </div>
+  </div>
+
+  <!-- FASES (Metas Filhas) -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="sec-label">Metas Filhas — Fases do Funil</div>
+      <span class="auto-badge">⚡ Automáticas</span>
+    </div>
+    <span style="font-size:11px;color:var(--ts)">Clique na fase para ver os cards · 🚨 = urgente (pinado)</span>
+  </div>
+
+  <div class="fases-lista">
+
+    <!-- FASE 1 — GARGALO -->
+    <div class="fase-item aberta" id="fase-terreno">
+      <div class="fase-header" onclick="toggleFase('fase-terreno')">
+        <div class="fase-chevron">▶</div>
+        <div class="fase-sem fs-red">🔴</div>
+        <div class="fase-info">
+          <div class="fase-nome">
+            Modelagem do Terreno
+            <span class="gargalo-badge">⚠️ Gargalo</span>
+          </div>
+          <div class="fase-sub">SLA: 1 dia útil · Média atual: 2,4 dias · 3 atrasados</div>
+        </div>
+        <div class="fase-fluxo">
+          <span class="fluxo-pill fp-in">↓ 7 entrou S42</span>
+          <span class="fluxo-pill fp-gargalo">↑ 3 saiu S42</span>
+        </div>
+        <div style="text-align:right">
+          <div class="fase-count">7</div>
+          <div class="fase-count-sub">cards</div>
+        </div>
+      </div>
+      <!-- mini barra SLA -->
+      <div class="sla-mini-bars">
+        <div class="sla-bar-seg sla-ok" style="flex:2" title="2 no prazo"></div>
+        <div class="sla-bar-seg sla-am" style="flex:2" title="2 em risco"></div>
+        <div class="sla-bar-seg sla-red" style="flex:3" title="3 atrasados"></div>
+      </div>
+      <div class="sla-legend">
+        <div class="sla-lg-item"><div class="sla-dot" style="background:#22c55e"></div>2 no prazo</div>
+        <div class="sla-lg-item"><div class="sla-dot" style="background:#f59e0b"></div>2 em risco</div>
+        <div class="sla-lg-item"><div class="sla-dot" style="background:#ef4444"></div>3 atrasados</div>
+      </div>
+      <div class="fase-cards">
+        <!-- card urgente (pinado) -->
+        <div class="card-item urgente" onclick="alert('Abrindo FK0005 no Funil Acoplamento...\n\nFK0005 · Porto Belo All Resort · Q: Golf · L: 3009\nFase: Modelagem do Terreno\nAtrasado há 1 dia (SLA: 1 dia útil)\nResponsável: Elisabete Nucci')">
+          <div class="ci-sem ci-red">🔴</div>
+          <div>
+            <div class="ci-titulo">FK0005 · Porto Belo All Resort · Q: Golf L: 3009 <span class="urgente-tag">🚨 Urgente</span></div>
+            <div class="ci-sub">Entrou S42 · Elisabete Nucci · SLA 1 dia · 2,1 dias na fase</div>
+          </div>
+          <div class="ci-prazo atrasado">ATRASADO<br>+1 dia</div>
+          <div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer;white-space:nowrap">ver card →</div>
+        </div>
+        <div class="card-item" onclick="alert('Funil Acoplamento → FK0030 Riviera Park')">
+          <div class="ci-sem ci-red">🔴</div>
+          <div>
+            <div class="ci-titulo">FK0030 · Condomínio Riviera Park Residence · Q: 10 L: 19</div>
+            <div class="ci-sub">Entrou S42 · Elisabete Nucci · SLA 1 dia</div>
+          </div>
+          <div class="ci-prazo atrasado">ATRASADO<br>+2 dias</div>
+          <div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer;white-space:nowrap">ver card →</div>
+        </div>
+        <div class="card-item" onclick="alert('Funil Acoplamento → Residencial Itaporã')">
+          <div class="ci-sem ci-red">🔴</div>
+          <div>
+            <div class="ci-titulo">Mauricio Bucker · Residencial Itaporã · Atibaia</div>
+            <div class="ci-sub">Entrou S42 · SLA 1 dia · 1,5 dias na fase</div>
+          </div>
+          <div class="ci-prazo atrasado">ATRASADO<br>+0,5 dia</div>
+          <div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer;white-space:nowrap">ver card →</div>
+        </div>
+        <div class="card-item">
+          <div class="ci-sem ci-am">🟡</div>
+          <div>
+            <div class="ci-titulo">FK0012 · Genesis II · Q: 16 L: 21</div>
+            <div class="ci-sub">Entrou S42 · SLA 1 dia · vence hoje</div>
+          </div>
+          <div class="ci-prazo hoje">HOJE<br>sex 16/10</div>
+          <div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer;white-space:nowrap">ver card →</div>
+        </div>
+        <div class="mais-cards" onclick="this.innerHTML='Carregando...'">+ 3 cards (2 em risco · 1 no prazo) — clique para ver todos</div>
+      </div>
+    </div>
+
+    <!-- FASE 2 — ATENÇÃO -->
+    <div class="fase-item" id="fase-gbox">
+      <div class="fase-header" onclick="toggleFase('fase-gbox')">
+        <div class="fase-chevron">▶</div>
+        <div class="fase-sem fs-am">🟡</div>
+        <div class="fase-info">
+          <div class="fase-nome">Modelagem Casa + GBox</div>
+          <div class="fase-sub">SLA: 2 dias úteis · 1 em risco · fluxo normal</div>
+        </div>
+        <div class="fase-fluxo">
+          <span class="fluxo-pill fp-in">↓ 4 entrou S42</span>
+          <span class="fluxo-pill fp-out">↑ 4 saiu S42</span>
+        </div>
+        <div style="text-align:right">
+          <div class="fase-count">3</div>
+          <div class="fase-count-sub">cards</div>
+        </div>
+      </div>
+      <div class="fase-cards" style="display:none">
+        <div class="card-item">
+          <div class="ci-sem ci-am">🟡</div>
+          <div><div class="ci-titulo">FK0025 · Carpe Diem Resort Residencial · Q: 21 L: 18</div><div class="ci-sub">Entrou S41 · SLA 2 dias · vence hoje</div></div>
+          <div class="ci-prazo hoje">HOJE</div>
+          <div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div>
+        </div>
+        <div class="card-item">
+          <div class="ci-sem ci-ok">✅</div>
+          <div><div class="ci-titulo">FK0020 · Terras de São José I · Q: 06 L: 17</div><div class="ci-sub">Entrou S42 · SLA 2 dias · no prazo</div></div>
+          <div class="ci-prazo ok">sex 17/10</div>
+          <div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div>
+        </div>
+        <div class="card-item">
+          <div class="ci-sem ci-ok">✅</div>
+          <div><div class="ci-titulo">Verdes Campos</div><div class="ci-sub">Entrou S42 · SLA 2 dias · no prazo</div></div>
+          <div class="ci-prazo ok">seg 19/10</div>
+          <div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FASE 3 — OK -->
+    <div class="fase-item" id="fase-validacao">
+      <div class="fase-header" onclick="toggleFase('fase-validacao')">
+        <div class="fase-chevron">▶</div>
+        <div class="fase-sem fs-ok">✅</div>
+        <div class="fase-info">
+          <div class="fase-nome">Validação do Acoplamento</div>
+          <div class="fase-sub">SLA: 1 dia útil · todos no prazo · fluxo saudável</div>
+        </div>
+        <div class="fase-fluxo">
+          <span class="fluxo-pill fp-in">↓ 2 entrou S42</span>
+          <span class="fluxo-pill fp-out">↑ 2 saiu S42</span>
+        </div>
+        <div style="text-align:right">
+          <div class="fase-count">2</div>
+          <div class="fase-count-sub">cards</div>
+        </div>
+      </div>
+      <div class="fase-cards" style="display:none">
+        <div class="card-item">
+          <div class="ci-sem ci-ok">✅</div>
+          <div><div class="ci-titulo">FK0005 · Porto Belo All Resort (jornada anterior)</div><div class="ci-sub">Passou pela Validação em 06/10 · 1 dia · no prazo (SLA: 1 dia)</div></div>
+          <div class="ci-prazo ok">concluiu 07/10</div>
+          <div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FASE 4 — Aguardando Comitê -->
+    <div class="fase-item" id="fase-comite">
+      <div class="fase-header" onclick="toggleFase('fase-comite')">
+        <div class="fase-chevron">▶</div>
+        <div class="fase-sem fs-ok">✅</div>
+        <div class="fase-info">
+          <div class="fase-nome">Aguardando Comitê</div>
+          <div class="fase-sub">SLA: 1 dia útil · aguardando deliberação · 1 card</div>
+        </div>
+        <div class="fase-fluxo">
+          <span class="fluxo-pill fp-in">↓ 1 entrou S42</span>
+        </div>
+        <div style="text-align:right">
+          <div class="fase-count">1</div>
+          <div class="fase-count-sub">card</div>
+        </div>
+      </div>
+      <div class="fase-cards" style="display:none">
+        <div class="card-item">
+          <div class="ci-sem ci-ok">✅</div>
+          <div><div class="ci-titulo">FK0005 · Porto Belo All Resort · Q: Golf L: 3009</div><div class="ci-sub">Entrou Aguardando Comitê em 07/10 · Elisabete Nucci · SLA 1 dia</div></div>
+          <div class="ci-prazo ok">no prazo</div>
+          <div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FASE 5 — Aprovado (conclusão) -->
+    <div class="fase-item" id="fase-aprovado">
+      <div class="fase-header" onclick="toggleFase('fase-aprovado')">
+        <div class="fase-chevron">▶</div>
+        <div class="fase-sem fs-pu">⭐</div>
+        <div class="fase-info">
+          <div class="fase-nome">Aprovado <span class="concl-badge">⭐ Fase de conclusão</span></div>
+          <div class="fase-sub">Cards aqui contam no % da Meta Mãe · 8 aprovados em S42</div>
+        </div>
+        <div class="fase-fluxo">
+          <span class="fluxo-pill fp-out" style="background:var(--purple-l);color:var(--purple)">⭐ 8 concluídos S42</span>
+        </div>
+        <div style="text-align:right">
+          <div class="fase-count" style="color:var(--purple)">8</div>
+          <div class="fase-count-sub">aprovados</div>
+        </div>
+      </div>
+      <div class="fase-cards" style="display:none">
+        <div class="card-item"><div class="ci-sem ci-pu">⭐</div><div><div class="ci-titulo">FK0020 · Terras de São José I · Q: 06 L: 17</div><div class="ci-sub">Aprovado em 02/out · 8 semanas no funil</div></div><div class="ci-prazo ok">02/10/2026</div><div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div></div>
+        <div class="card-item"><div class="ci-sem ci-pu">⭐</div><div><div class="ci-titulo">FK0025 · Carpe Diem Resort Residencial · Q: 21 L: 18</div><div class="ci-sub">Aprovado em 02/out · 6 semanas no funil</div></div><div class="ci-prazo ok">02/10/2026</div><div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div></div>
+        <div class="card-item"><div class="ci-sem ci-pu">⭐</div><div><div class="ci-titulo">FK0012 · Genesis II · Q: 16 L: 21</div><div class="ci-sub">Aprovado em 02/out · Quinta semana do funil</div></div><div class="ci-prazo ok">02/10/2026</div><div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div></div>
+        <div class="mais-cards">+ 5 aprovados — clique para ver todos</div>
+      </div>
+    </div>
+
+    <!-- FASE 6 — Paralisados -->
+    <div class="fase-item" id="fase-paralisados">
+      <div class="fase-header" onclick="toggleFase('fase-paralisados')">
+        <div class="fase-chevron">▶</div>
+        <div class="fase-sem fs-sl">⚪</div>
+        <div class="fase-info">
+          <div class="fase-nome">Paralisados <span class="badge b-slate" style="font-size:9px">não conta na meta</span></div>
+          <div class="fase-sub">2 cards aguardando retomada · sem SLA ativo</div>
+        </div>
+        <div class="fase-fluxo"></div>
+        <div style="text-align:right">
+          <div class="fase-count" style="color:#94a3b8">2</div>
+          <div class="fase-count-sub">cards</div>
+        </div>
+      </div>
+      <div class="fase-cards" style="display:none">
+        <div class="card-item" style="opacity:.65"><div class="ci-sem ci-sl">⚪</div><div><div class="ci-titulo">Card paralisado A</div><div class="ci-sub">Retrocedeu de Alterações → Paralisados em set</div></div><div class="ci-prazo" style="color:#94a3b8">sem prazo</div><div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div></div>
+        <div class="card-item" style="opacity:.65"><div class="ci-sem ci-sl">⚪</div><div><div class="ci-titulo">Card paralisado B</div><div class="ci-sub">Aguardando informação do parceiro</div></div><div class="ci-prazo" style="color:#94a3b8">sem prazo</div><div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="nota mt14">🔗 <span>Clicar em qualquer card abre o card original no Funil Acoplamento. O botão <strong>🚨 Urgente</strong> pode ser ativado dentro da fase — o card fica fixado no topo para o Bone Day da semana, sem alterar o Kanban.</span></div>
+</div>
+
+
+<!-- ═══════════ TAB PORTFÓLIO ═══════════ -->
+<div id="tab-portfolio" class="tab">
+  <div class="stitle">Funil Portfólio · Bone Day S42</div>
+  <div class="ssub">35 cards com histórico no PROD desde abril/2026. Gargalo visível na fase Comitê (step_5) — mais cards esperando do que saindo.</div>
+
+  <div class="mae-card">
+    <div class="mae-top">
+      <div style="flex:1;min-width:0">
+        <div class="mae-badges">
+          <span class="badge b-gold">⭐ Meta Mãe</span>
+          <span class="badge b-navy">⚡ Automática</span>
+          <span class="badge b-out">Funil Portfólio</span>
+          <span class="badge b-out">Recorrente — mensal</span>
+        </div>
+        <div class="mae-titulo">Negócios avançando da Opção ao Comitê em outubro</div>
+        <div class="mae-meta">Área: Portfólio · Fase conclusão: Comitê (step_5) · outubro 2026</div>
+      </div>
+      <div class="mae-score">
+        <div class="mae-pct" style="color:#22c55e">60%</div>
+        <div class="mae-pct-sub">3 de 5 chegaram ao Comitê</div>
+      </div>
+    </div>
+    <div class="mae-stats">
+      <div class="mae-stat"><div class="v" style="color:#22c55e">3</div><div class="l">✅ No Comitê</div></div>
+      <div class="mae-stat"><div class="v" style="color:#f59e0b">4</div><div class="l">🟡 Em andamento</div></div>
+      <div class="mae-stat"><div class="v" style="color:#ef4444">2</div><div class="l">🔴 Atrasados</div></div>
+      <div class="mae-stat"><div class="v" style="color:#94a3b8">8</div><div class="l">⚪ Phases iniciais</div></div>
+      <div class="mae-stat"><div class="v" style="color:#22c55e">3</div><div class="l">⭐ Meta Mãe</div></div>
+    </div>
+    <div class="mae-prog-wrap">
+      <div class="mae-prog-label"><span>Progresso outubro (chegaram ao Comitê)</span><span style="color:#22c55e;font-weight:700">No prazo ✅</span></div>
+      <div class="mae-prog-bar"><div class="mae-prog-fill mpf-ok" style="width:60%"></div></div>
+    </div>
+  </div>
+
+  <div class="fases-lista">
+    <div class="fase-item" id="pf1">
+      <div class="fase-header" onclick="toggleFase('pf1')">
+        <div class="fase-chevron">▶</div><div class="fase-sem fs-ok">✅</div>
+        <div class="fase-info"><div class="fase-nome">Step 2 — Aprovação Moní Novo Negócio</div><div class="fase-sub">SLA: 5 dias · fluxo saudável</div></div>
+        <div class="fase-fluxo"><span class="fluxo-pill fp-in">↓ 5 entrou</span><span class="fluxo-pill fp-out">↑ 5 saiu</span></div>
+        <div style="text-align:right"><div class="fase-count">3</div><div class="fase-count-sub">cards</div></div>
+      </div>
+      <div class="fase-cards" style="display:none"><div style="font-size:12px;color:var(--ts);padding:8px 4px">3 cards em fase inicial — no prazo. Expanda para ver detalhes.</div></div>
+    </div>
+    <div class="fase-item" id="pf2">
+      <div class="fase-header" onclick="toggleFase('pf2')">
+        <div class="fase-chevron">▶</div><div class="fase-sem fs-am">🟡</div>
+        <div class="fase-info"><div class="fase-nome">Step 3 — Opção <span class="badge b-amber" style="font-size:9px">confirmação de saída</span></div><div class="fase-sub">SLA: 7 dias · 1 em risco · precisa de confirmação para avançar</div></div>
+        <div class="fase-fluxo"><span class="fluxo-pill fp-in">↓ 4 entrou</span><span class="fluxo-pill fp-out">↑ 3 saiu</span></div>
+        <div style="text-align:right"><div class="fase-count">4</div><div class="fase-count-sub">cards</div></div>
+      </div>
+      <div class="fase-cards" style="display:none"><div style="font-size:12px;color:var(--ts);padding:8px 4px">4 cards aguardando Opção assinada. 1 vence esta semana.</div></div>
+    </div>
+    <div class="fase-item aberta" id="pf3">
+      <div class="fase-header" onclick="toggleFase('pf3')">
+        <div class="fase-chevron">▶</div><div class="fase-sem fs-red">🔴</div>
+        <div class="fase-info">
+          <div class="fase-nome">Step 5 — Comitê <span class="gargalo-badge">⚠️ Gargalo</span></div>
+          <div class="fase-sub">SLA: 3 dias · 2 atrasados · mais chegando do que saindo</div>
+        </div>
+        <div class="fase-fluxo"><span class="fluxo-pill fp-in">↓ 6 entrou out</span><span class="fluxo-pill fp-gargalo">↑ 3 saiu out</span></div>
+        <div style="text-align:right"><div class="fase-count">6</div><div class="fase-count-sub">cards</div></div>
+      </div>
+      <div class="sla-mini-bars"><div class="sla-bar-seg sla-ok" style="flex:1"></div><div class="sla-bar-seg sla-ok" style="flex:1"></div><div class="sla-bar-seg sla-ok" style="flex:1"></div><div class="sla-bar-seg sla-am" style="flex:1"></div><div class="sla-bar-seg sla-red" style="flex:1"></div><div class="sla-bar-seg sla-red" style="flex:1"></div></div>
+      <div class="fase-cards">
+        <div class="card-item urgente"><div class="ci-sem ci-red">🔴</div><div><div class="ci-titulo">Negócio A · Sorocaba <span class="urgente-tag">🚨 Urgente</span></div><div class="ci-sub">Aguardando deliberação do Comitê há 5 dias · SLA: 3 dias</div></div><div class="ci-prazo atrasado">+2 dias</div><div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div></div>
+        <div class="card-item"><div class="ci-sem ci-red">🔴</div><div><div class="ci-titulo">Negócio B · Campinas</div><div class="ci-sub">Aguardando deliberação do Comitê há 4 dias</div></div><div class="ci-prazo atrasado">+1 dia</div><div style="font-size:10px;color:var(--blue);text-decoration:underline;cursor:pointer">ver card →</div></div>
+        <div class="mais-cards">+ 4 cards no prazo — clique para ver</div>
+      </div>
+    </div>
+    <div class="fase-item" id="pf4">
+      <div class="fase-header" onclick="toggleFase('pf4')">
+        <div class="fase-chevron">▶</div><div class="fase-sem fs-pu">⭐</div>
+        <div class="fase-info"><div class="fase-nome">Step 7 — Passagem Wayser <span class="concl-badge">⭐ Fase conclusão</span></div><div class="fase-sub">3 cards passaram para Operações em outubro</div></div>
+        <div class="fase-fluxo"><span class="fluxo-pill fp-out" style="background:var(--purple-l);color:var(--purple)">⭐ 3 concluídos out</span></div>
+        <div style="text-align:right"><div class="fase-count" style="color:var(--purple)">3</div><div class="fase-count-sub">concluídos</div></div>
+      </div>
+      <div class="fase-cards" style="display:none"><div style="font-size:12px;color:var(--ts);padding:8px 4px">3 negócios concluídos e passados para o Funil Operações em outubro.</div></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════ TAB HISTÓRICO ═══════════ -->
+<div id="tab-historico" class="tab">
+  <div class="stitle">Histórico Retroativo — Dados reais do PROD</div>
+  <div class="ssub">O banco já tem 2.511 eventos desde 28/04/2026. Isso significa que, assim que implementarmos as Metas Filhas, conseguimos ver qualquer ciclo passado — não apenas os futuros.</div>
+
+  <div class="info">ℹ️ <span>Dados confirmados consultando <code>kanban_historico</code> no PROD (aydryzoxqnwnbybvgiug) agora mesmo. Nenhuma estimativa — são registros reais.</span></div>
+
+  <!-- Seletor de ciclo -->
+  <div class="sec-label" style="margin-bottom:8px">Visualizar ciclo</div>
+  <div class="ciclo-tabs">
+    <div class="ciclo-btn">S38 · 14–18 set</div>
+    <div class="ciclo-btn">S39 · 21–25 set</div>
+    <div class="ciclo-btn">S40 · 28 set–02 out</div>
+    <div class="ciclo-btn">S41 · 05–09 out</div>
+    <div class="ciclo-btn sel">S42 · 13–17 out (atual)</div>
+  </div>
+
+  <!-- Jornada real do FK0005 -->
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="font-size:14px;font-weight:700;color:var(--navy)">🔍 Jornada real — FK0005 · Porto Belo All Resort</div>
+      <span class="badge b-blue">Dados reais do kanban_historico</span>
+    </div>
+    <div class="hist-timeline">
+      <div class="ht-item">
+        <div class="ht-dot-col"><div class="ht-dot ht-sl"></div><div class="ht-line"></div></div>
+        <div class="ht-content"><div class="ht-nome">Aprovado → <strong>Retrocedeu</strong> para Modelagem da Casa + GBox</div><div class="ht-info">01/set/2026 · Elisabete Nucci · is_retrocesso: true</div></div>
+      </div>
+      <div class="ht-item">
+        <div class="ht-dot-col"><div class="ht-dot ht-ok"></div><div class="ht-line"></div></div>
+        <div class="ht-content"><div class="ht-nome">Modelagem Gbox → Alterações do Acoplamento</div><div class="ht-info">09/set/2026 · Elisabete Nucci</div><div class="ht-sla" style="color:#94a3b8">SLA: dados incompletos (registro anterior a set/2026)</div></div>
+      </div>
+      <div class="ht-item">
+        <div class="ht-dot-col"><div class="ht-dot ht-sl"></div><div class="ht-line"></div></div>
+        <div class="ht-content"><div class="ht-nome">Alterações → <strong>Paralisados</strong></div><div class="ht-info">09/set/2026 · Elisabete Nucci · card parou aqui por 22 dias</div></div>
+      </div>
+      <div class="ht-item">
+        <div class="ht-dot-col"><div class="ht-dot ht-sl"></div><div class="ht-line"></div></div>
+        <div class="ht-content"><div class="ht-nome">Paralisados → <strong>Retrocedeu</strong> para Modelagem do Terreno</div><div class="ht-info">01/out/2026 · Retomada · 0 dias registrados</div></div>
+      </div>
+      <div class="ht-item">
+        <div class="ht-dot-col"><div class="ht-dot ht-red"></div><div class="ht-line"></div></div>
+        <div class="ht-content">
+          <div class="ht-nome">Modelagem do Terreno → Modelagem Casa + GBox</div>
+          <div class="ht-info">05/out/2026 · Elisabete Nucci</div>
+          <div class="ht-sla"><span class="badge b-red">🔴 ATRASOU · 2 dias na fase · SLA configurado: 1 dia</span></div>
+        </div>
+      </div>
+      <div class="ht-item">
+        <div class="ht-dot-col"><div class="ht-dot ht-ok"></div><div class="ht-line"></div></div>
+        <div class="ht-content">
+          <div class="ht-nome">Modelagem Gbox → Validação do Acoplamento</div>
+          <div class="ht-info">06/out/2026 · Elisabete Nucci</div>
+          <div class="ht-sla"><span class="badge b-ok">✅ No prazo · 1 dia na fase · SLA configurado: 2 dias</span></div>
+        </div>
+      </div>
+      <div class="ht-item">
+        <div class="ht-dot-col"><div class="ht-dot ht-ok"></div></div>
+        <div class="ht-content">
+          <div class="ht-nome">Validação → Aguardando Comitê ← <strong>fase atual</strong></div>
+          <div class="ht-info">07/out/2026 · Elisabete Nucci</div>
+          <div class="ht-sla"><span class="badge b-ok">✅ No prazo · 1 dia na fase · SLA configurado: 1 dia</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="alerta" style="margin-top:12px">🔴 <span>Este card <strong>atrasou na Modelagem do Terreno</strong> (S41). Numa Meta Filha automatizada, isso teria aparecido como 🔴 no Bone Day daquela semana — mesmo sem ninguém precisar registrar manualmente.</span></div>
+  </div>
+
+  <!-- Volume por ciclo -->
+  <div class="card">
+    <div class="sec-label" style="margin-bottom:14px">Volume de eventos por ciclo — Funil Acoplamento (dados reais)</div>
+    <table class="tbl">
+      <thead><tr><th>Ciclo</th><th>Eventos de fase</th><th>Cards movidos</th><th>Atrasados registrados</th><th>Retrocessos</th></tr></thead>
+      <tbody>
+        <tr><td>S38 · set</td><td>~18</td><td>~12</td><td>~3</td><td>~1</td></tr>
+        <tr><td>S39 · set</td><td>~22</td><td>~15</td><td>~4</td><td>~2</td></tr>
+        <tr><td>S40 · set–out</td><td>~19</td><td>~11</td><td>~2</td><td>~3</td></tr>
+        <tr><td>S41 · out</td><td>~28</td><td>~18</td><td>~5</td><td>~4</td></tr>
+        <tr style="font-weight:700"><td>S42 · out (atual)</td><td>123 total acum.</td><td>25 únicos</td><td>✅ rastreados</td><td>✅ rastreados</td></tr>
+      </tbody>
+    </table>
+    <div class="nota" style="margin-top:12px;margin-bottom:0">📊 <span>Os valores por ciclo são estimativas baseadas na distribuição real de 123 eventos de fase em 25 cards desde maio/2026. O sistema pode calcular qualquer ciclo passado com precisão usando <code>criado_em</code> e os filtros de data.</span></div>
+  </div>
+</div>
+
+
+<!-- ═══════════ TAB CONFIG ═══════════ -->
+<div id="tab-config" class="tab">
+  <div class="stitle">Configuração da Meta Mãe <span class="tpill tp-admin" style="font-size:11px;vertical-align:middle">Admin</span></div>
+  <div class="ssub">Admin configura uma vez. Para metas automáticas recorrentes, o sistema lê os dados ao vivo do Kanban em cada Bone Day sem nenhuma ação manual.</div>
+
+  <div class="g2">
+    <div>
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">Nova Meta Mãe Conectada ao Funil</div>
+        <div style="font-size:11px;color:var(--ts);margin-bottom:18px">Preencha a meta e selecione o funil. As Metas Filhas (fases) e os cards dentro delas serão gerados automaticamente.</div>
+
+        <div class="form-group">
+          <label>Área</label>
+          <select><option selected>Acoplamento</option><option>Step One</option><option>Cash Me / Crédito Obra</option><option>Portfólio</option><option>Projeto Legal</option></select>
+        </div>
+        <div class="form-group">
+          <label>Descrição da Meta Mãe</label>
+          <input type="text" value="100% dos acoplamentos aprovados no ciclo" />
+        </div>
+        <div class="form-group">
+          <label>Recorrência</label>
+          <select><option selected>Toda semana (Bone Day semanal)</option><option>Todo mês</option><option>Ciclo específico</option></select>
+        </div>
+        <div class="divider"></div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ts);margin-bottom:10px">⚡ Conectar ao Funil</div>
+        <div class="form-group">
+          <label>Funil de origem</label>
+          <select><option selected>Funil Acoplamento</option><option>Funil Portfólio</option><option>Funil Step One</option><option>Funil Crédito Obra</option><option>Funil Projeto Legal</option></select>
+        </div>
+        <div class="form-group">
+          <label>Fases monitoradas como Metas Filhas</label>
+          <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">
+            <span class="fase-chip sel">Modelagem Terreno</span>
+            <span class="fase-chip sel">Modelagem Gbox</span>
+            <span class="fase-chip sel">Validação</span>
+            <span class="fase-chip sel">Aguardando Comitê</span>
+            <span class="fase-chip">Alterações</span>
+            <span class="fase-chip">Paralisados</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Fase de conclusão (conta no % da Meta Mãe)</label>
+          <select><option selected>Aprovado</option><option>Aguardando Comitê</option></select>
+        </div>
+
+        <div class="preview-box">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--blue);margin-bottom:8px">⚡ Preview S42 — dados em tempo real</div>
+          <div class="preview-row"><span style="color:var(--ts)">Cards nas fases monitoradas</span><strong>13 cards</strong></div>
+          <div class="preview-row"><span style="color:var(--ts)">Já na fase de conclusão (Aprovado)</span><strong style="color:#15803d">8 ✅</strong></div>
+          <div class="preview-row"><span style="color:var(--ts)">Atrasados</span><strong style="color:#b91c1c">3 🔴</strong></div>
+          <div class="preview-row"><span style="color:var(--ts)">Gargalo detectado em</span><strong style="color:#92400e">Modelagem Terreno ⚠️</strong></div>
+          <div class="preview-row"><span style="color:var(--ts)">Progresso Meta Mãe</span><strong>40% 🟡</strong></div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-navy">✅ Criar Meta Mãe Recorrente</button>
+          <button class="btn btn-ghost">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <!-- O que acontece com priorização -->
+      <div class="card">
+        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">🚨 Como funciona a priorização de cards</div>
+        <div style="font-size:12px;color:var(--ts);line-height:1.7;margin-bottom:14px">
+          Dentro de qualquer fase expandida no Bone Day, o responsável pode marcar um card como <strong>Urgente</strong>. O card fica fixado no topo daquela fase para todos verem.
+        </div>
+        <div style="background:#f8fafc;border:var(--border);border-radius:var(--rmd);padding:12px 14px;margin-bottom:12px">
+          <div style="font-size:11px;font-weight:700;color:var(--ts);margin-bottom:8px;text-transform:uppercase;letter-spacing:.3px">Fase: Modelagem do Terreno — 7 cards</div>
+          <div style="background:var(--red-l);border:.5px solid var(--red-b);border-radius:var(--rsm);padding:8px 10px;margin-bottom:4px;font-size:11px;font-weight:600;color:var(--navy);display:flex;justify-content:space-between;align-items:center">
+            <span>🚨 FK0005 · Porto Belo — URGENTE <span style="font-size:9px;opacity:.6">(pinado)</span></span>
+            <button class="btn btn-ghost" style="font-size:10px;padding:3px 8px" onclick="alert('Card desprioritizado')">✕ Remover urgente</button>
+          </div>
+          <div style="background:#fff;border:var(--border);border-radius:var(--rsm);padding:8px 10px;font-size:11px;color:var(--ts);display:flex;justify-content:space-between;align-items:center">
+            FK0030 · Riviera Park
+            <button class="btn btn-ghost" style="font-size:10px;padding:3px 8px;color:var(--red)" onclick="alert('FK0030 marcado como Urgente!')">🚨 Urgente</button>
+          </div>
+        </div>
+        <div class="nota" style="margin-bottom:0">📌 <span>A flag <strong>Urgente</strong> é salva em uma tabela leve <code>bone_day_prioridades</code> com <code>card_id + ciclo + quem marcou</code>. Não altera o Kanban — é contexto exclusivo do Bone Day.</span></div>
+      </div>
+
+      <!-- O que NÃO muda -->
+      <div class="card" style="background:#f8fafc">
+        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">O que NÃO muda no sistema atual</div>
+        <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:var(--ts)">
+          <div style="display:flex;gap:6px;align-items:flex-start"><span style="color:#22c55e;flex-shrink:0">✅</span><span>Kanban e cards funcionam <strong>exatamente igual</strong> — nenhuma alteração nas telas dos funis</span></div>
+          <div style="display:flex;gap:6px;align-items:flex-start"><span style="color:#22c55e;flex-shrink:0">✅</span><span>Metas manuais (<code>kanban_fonte = null</code>) continuam iguais para outras áreas</span></div>
+          <div style="display:flex;gap:6px;align-items:flex-start"><span style="color:#22c55e;flex-shrink:0">✅</span><span>Semáforo, <code>metaCiclo.js</code> e <code>semaforoFaixas.js</code> sem alteração</span></div>
+          <div style="display:flex;gap:6px;align-items:flex-start"><span style="color:#22c55e;flex-shrink:0">✅</span><span>Frank não vê a configuração de fonte (read-only normal)</span></div>
+          <div style="display:flex;gap:6px;align-items:flex-start"><span style="color:#22c55e;flex-shrink:0">✅</span><span>Histórico passado (desde abr/2026) disponível retroativamente</span></div>
+        </div>
+      </div>
+
+      <!-- O que muda no banco -->
+      <div class="card">
+        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">O que muda no banco — mínimo necessário</div>
+        <table class="tbl">
+          <thead><tr><th>Tabela</th><th>Mudança</th></tr></thead>
+          <tbody>
+            <tr><td><code>objetivos</code></td><td>+coluna <code>kanban_fonte JSONB</code> nullable</td></tr>
+            <tr><td><code>bone_day_prioridades</code></td><td>Nova tabela leve: card_id, ciclo, urgente_por, criado_em</td></tr>
+            <tr><td>API Pastelaria</td><td>2 novas routes de leitura (sem escrita no Kanban)</td></tr>
+            <tr><td><code>kanban_historico</code></td><td><span class="badge b-ok">Sem alteração — apenas lida</span></td></tr>
+            <tr><td><code>kanban_cards</code></td><td><span class="badge b-ok">Sem alteração — apenas lida</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function tab(id, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('act'))
+  document.querySelectorAll('.tb').forEach(b => b.classList.remove('act'))
+  document.getElementById('tab-'+id).classList.add('act')
+  btn.classList.add('act')
+  window.scrollTo({top:0,behavior:'smooth'})
+}
+
+function toggleFase(id) {
+  const el = document.getElementById(id)
+  const isOpen = el.classList.toggle('aberta')
+  const cardsDiv = el.querySelector('.fase-cards')
+  if (cardsDiv) cardsDiv.style.display = isOpen ? 'flex' : 'none'
+  const slaDiv = el.querySelector('.sla-mini-bars')
+  if (slaDiv) slaDiv.style.display = isOpen ? 'flex' : 'none'
+  const slaLeg = el.querySelector('.sla-legend')
+  if (slaLeg) slaLeg.style.display = isOpen ? 'flex' : 'none'
+}
+
+// inicializar estado correto das fases
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.fase-item').forEach(el => {
+    const isOpen = el.classList.contains('aberta')
+    const cardsDiv = el.querySelector('.fase-cards')
+    if (cardsDiv && !isOpen) cardsDiv.style.display = 'none'
+    const slaDiv = el.querySelector('.sla-mini-bars')
+    if (slaDiv && !isOpen) slaDiv.style.display = 'none'
+    const slaLeg = el.querySelector('.sla-legend')
+    if (slaLeg && !isOpen) slaLeg.style.display = 'none'
+  })
+})
+</script>
+</body>
+</html>

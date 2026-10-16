@@ -1,0 +1,2572 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Hub Fly — TO DO & Planning · Versão Final</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0C2633;--navy2:#163b50;--green:#2F4A3A;--earth:#4A3929;
+  --gold:#D4AD68;--gold-l:#faf3e0;--gold-b:#e8d4a0;
+  --red:#c0392b;--red-l:#fdf2f2;--red-b:#e8c0c0;
+  --amber:#b7791f;--amber-l:#fffbeb;
+  --ok:#1e7a3a;--ok-l:#f0faf5;--ok-b:#b8dfc9;
+  --vc:#15803d;--vc-l:#dcfce7;--vc-b:#86efac;
+  --blue:#1d4ed8;--blue-l:#dbeafe;
+  --border:0.5px solid #e2e8f0;--bmd:0.5px solid #cbd5e0;
+  --rlg:12px;--rmd:8px;--rsm:6px;
+  --sh:0 2px 12px rgba(12,38,51,.08);--shlg:0 4px 24px rgba(12,38,51,.14);
+  --tp:#0C2633;--ts:#4a5568;--tt:#94a3b8;--bg:#f8fafc;--wh:#fff
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tp);line-height:1.5;min-height:100vh;font-size:14px}
+/* ── header ── */
+.hdr{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.hdr h1{font-size:15px;font-weight:800;letter-spacing:-.3px}
+.hdr p{font-size:11px;opacity:.5;margin-top:2px}
+.hbadge{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.hb-gold{background:var(--gold);color:var(--navy)}.hb-out{border:.5px solid rgba(255,255,255,.4);color:rgba(255,255,255,.8)}
+.hdr-badges{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}
+/* ── tabs ── */
+.tabs-nav{background:#fff;border-bottom:var(--border);padding:0 24px;display:flex;overflow-x:auto;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.05);gap:2px}
+.tb{padding:11px 14px;border:none;background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:var(--ts);border-bottom:2.5px solid transparent;white-space:nowrap;transition:all .15s}
+.tb:hover{color:var(--navy)}.tb.act{color:var(--navy);border-bottom-color:var(--navy);font-weight:700}
+.tpill{display:inline-block;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:3px;font-weight:700;vertical-align:middle}
+.tp-admin{background:#1e1b4b;color:#a5b4fc}
+.tp-user{background:var(--vc-l);color:var(--vc)}
+.tp-train{background:var(--gold-l);color:var(--earth)}
+.tp-dash{background:#ede9fe;color:#7c3aed}
+/* ── content ── */
+.tab{display:none;padding:24px;max-width:1100px;margin:0 auto}.tab.act{display:block}
+.stitle{font-size:18px;font-weight:800;color:var(--navy);margin-bottom:5px;letter-spacing:-.4px}
+.ssub{font-size:13px;color:var(--ts);margin-bottom:20px;line-height:1.6}
+/* ── card ── */
+.card{background:var(--wh);border:var(--border);border-radius:var(--rlg);padding:20px;box-shadow:var(--sh);margin-bottom:14px}
+.card-sm{padding:14px}
+.ctitle{font-size:13px;font-weight:700;color:var(--tp);margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.csubt{font-size:11px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
+/* ── grids ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:640px){.g2,.g3,.g4{grid-template-columns:1fr}}
+.divider{height:.5px;background:#e2e8f0;margin:14px 0}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+/* ── scores ── */
+.score-big{font-size:48px;font-weight:800;letter-spacing:-2px;line-height:1;transition:all .4s}
+.score-zone{font-size:12px;font-weight:600;margin-top:5px}
+.c-ve{color:#1e7a3a}.c-vc{color:#15803d}.c-am{color:#92400e}.c-vm{color:#b91c1c}.c-nn{color:#64748b}
+.sbar-wrap{height:6px;background:#e2e8f0;border-radius:4px;margin-top:8px;overflow:hidden}
+.sbar{height:100%;border-radius:4px;transition:width .5s ease,background .5s ease}
+/* ── simulators ── */
+.num-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.num-row label{font-size:12px;color:var(--ts);flex:1}
+.nc{display:flex;align-items:center;gap:4px}
+.nb{width:26px;height:26px;border:var(--bmd);border-radius:var(--rsm);background:#fff;cursor:pointer;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;color:var(--ts);transition:all .1s;line-height:1}
+.nb:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+.nv{min-width:30px;text-align:center;font-size:15px;font-weight:700;color:var(--navy)}
+.sl-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.sl-row label{font-size:12px;color:var(--ts);min-width:160px;flex-shrink:0}
+.sl-row input[type=range]{flex:1;accent-color:var(--navy);cursor:pointer}
+.slv{font-size:13px;font-weight:700;color:var(--navy);min-width:50px;text-align:right}
+/* ── zone legend ── */
+.zl{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
+.zi{font-size:11px;display:flex;align-items:center;gap:4px}
+.zdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+/* ── tables ── */
+.tt{width:100%;border-collapse:collapse;font-size:12px}
+.tt th{background:#f8fafc;padding:8px 10px;text-align:left;font-weight:600;color:var(--ts);border-bottom:var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+.tt td{padding:8px 10px;border-bottom:var(--border)}
+.tt tr:last-child td{border-bottom:none}
+.tt tr:hover td{background:#fafafa}
+.tbdg{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.t1{background:#fefce8;color:#a16207}.t2{background:#fef2f2;color:#b91c1c}.t3{background:#1e1b4b;color:#a5b4fc}
+/* ── detail rows ── */
+.dr{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:var(--border);font-size:12px}
+.dr:last-child{border-bottom:none}
+.dk{color:var(--ts)}.dv{font-weight:700;color:var(--navy)}
+/* ── info boxes ── */
+.ib{padding:11px 15px;border-radius:var(--rmd);font-size:12px;line-height:1.6;border:.5px solid;margin-bottom:10px}
+.ib-b{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
+.ib-g{background:var(--gold-l);border-color:var(--gold-b);color:var(--earth)}
+.ib-ok{background:var(--ok-l);border-color:var(--ok-b);color:var(--green)}
+.ib-r{background:var(--red-l);border-color:var(--red-b);color:var(--red)}
+.ib-p{background:#f5f3ff;border-color:#ddd6fe;color:#5b21b6}
+.ib-gray{background:#f8fafc;border-color:#e2e8f0;color:var(--ts)}
+/* ── buttons ── */
+.btn{padding:8px 16px;border-radius:var(--rmd);font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all .15s;display:inline-flex;align-items:center;gap:5px}
+.btn-p{background:var(--navy);color:#fff}.btn-p:hover{background:var(--navy2)}
+.btn-o{background:#fff;color:var(--navy);border:var(--bmd)}.btn-o:hover{border-color:var(--navy)}
+.btn-g{background:var(--gold);color:var(--navy)}.btn-g:hover{opacity:.9}
+.btn-sm{padding:5px 11px;font-size:11px}
+.btn-ok{background:var(--ok-l);color:var(--ok);border:.5px solid var(--ok-b)}.btn-ok:hover{background:var(--ok);color:#fff}
+.btn-d{background:var(--red-l);color:var(--red);border:.5px solid var(--red-b)}.btn-d:hover{background:var(--red);color:#fff}
+/* ── tags ── */
+.tag{display:inline-flex;align-items:center;gap:3px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.tag-n{background:#dbeafe;color:#1d4ed8}.tag-f{background:var(--vc-l);color:var(--vc)}
+.tag-a{background:var(--gold-l);color:var(--earth)}.tag-r{background:var(--red-l);color:var(--red)}
+.tag-admin{background:#1e1b4b;color:#a5b4fc;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700;vertical-align:middle;margin-left:3px}
+.tag-user{background:var(--vc-l);color:var(--vc);font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700;vertical-align:middle;margin-left:3px}
+/* ── live badge ── */
+.live{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:var(--ok);background:var(--ok-l);padding:2px 8px;border-radius:10px;border:.5px solid var(--ok-b)}
+.ldot{width:5px;height:5px;border-radius:50%;background:var(--ok);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+/* ── formula ── */
+.fml{background:var(--navy);color:#fff;padding:12px 18px;border-radius:var(--rmd);font-family:'Courier New',monospace;font-size:11.5px;margin:10px 0;line-height:1.8}
+/* ── modal ── */
+.mov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center}
+.mov.open{display:flex}
+.mbox{background:#fff;border-radius:var(--rlg);box-shadow:var(--shlg);width:480px;max-width:96vw;overflow:hidden}
+.mbox-lg{width:600px}
+.mhdr{background:var(--navy);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+.mhdr h3{font-size:14px;font-weight:700}
+.mclose{background:none;border:none;color:rgba(255,255,255,.6);font-size:20px;cursor:pointer;line-height:1;padding:0}.mclose:hover{color:#fff}
+.mbody{padding:20px}
+.mftr{padding:13px 20px;border-top:var(--border);display:flex;justify-content:flex-end;gap:8px}
+.ff{margin-bottom:12px}
+.fl{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ts);margin-bottom:4px}
+.fi,.fs{width:100%;padding:9px 12px;border:var(--bmd);border-radius:var(--rmd);font-size:13px;color:var(--tp);outline:none;background:#fff;transition:border-color .2s}
+.fi:focus,.fs:focus{border-color:var(--navy)}
+.fi-sm{padding:6px 10px;font-size:12px}
+/* ── BD Plano ── */
+.bd-header{background:var(--navy);color:#fff;padding:16px 20px;border-radius:var(--rlg);margin-bottom:14px}
+.bd-header h2{font-size:15px;font-weight:800}
+.bd-header p{font-size:11px;opacity:.6;margin-top:2px}
+.bd-ciclo{font-size:11px;font-weight:600;background:rgba(255,255,255,.12);padding:4px 10px;border-radius:20px;margin-top:8px;display:inline-block}
+.cbadge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;vertical-align:middle;letter-spacing:.3px;text-transform:uppercase}
+.cb-ok{background:var(--ok-l);color:var(--ok);border:.5px solid var(--ok-b)}
+.cb-muda{background:var(--gold-l);color:var(--earth);border:.5px solid var(--gold-b)}
+.cb-novo{background:#ede9fe;color:#7c3aed;border:.5px solid #c4b5fd}
+/* ── bloco ── */
+.bloco{border:.5px solid #e2e8f0;border-radius:var(--rlg);margin-bottom:10px;overflow:hidden}
+.b-gray{border-color:#e2e8f0}.b-verde{border-color:var(--ok-b);background:#fafff8}.b-amber{border-color:var(--gold-b);background:#faf8f2}
+.bloco-hdr{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:#fff}
+.bloco-hdr:hover{background:#fafafa}
+.bloco-title{font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bloco-body{padding:14px 16px 16px;border-top:var(--border);display:none}
+.bloco-body.open{display:block}
+/* ── meta card BD ── */
+.meta-card-bd{background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:12px 14px;margin-bottom:8px}
+.meta-hdr-bd{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.meta-nome-bd{font-size:13px;font-weight:700;color:var(--navy);flex:1}
+.meta-badges-bd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0}
+.meta-hdr-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
+/* ── filha linha densa ── */
+.filha-densa{display:flex;align-items:center;gap:6px;padding:5px 4px;border-bottom:.5px solid #f1f5f9;min-height:28px;font-size:12px}
+.filha-densa:last-child{border-bottom:none}
+.fd-check{width:16px;height:16px;border-radius:50%;border:.5px solid #cbd5e0;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:10px}
+.fd-desc{flex:1;color:var(--tp)}
+.fd-sema{font-size:10px;font-weight:700;padding:1px 5px;border-radius:10px;flex-shrink:0}
+.fd-status{font-size:10px;color:var(--tt);flex-shrink:0}
+/* ── filha header concluídas ── */
+.filhas-conc-toggle{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:#64748b;cursor:pointer;padding:5px 2px;border-top:.5px solid #e2e8f0;margin-top:4px;user-select:none}
+/* ── indicador linha ── */
+.ind-linha{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:.5px solid #f1f5f9;font-size:12px}
+.ind-linha:last-child{border-bottom:none}
+.ind-dot-sema{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ind-nome-l{flex:1;font-weight:600;color:var(--tp)}
+.ind-faixa-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;white-space:nowrap}
+/* ── meta card TO DO ── */
+.todo-meta-card{background:#fff;border:.5px solid #e2e8f0;border-radius:var(--rmd);margin-bottom:10px;overflow:hidden;box-shadow:var(--sh)}
+.todo-meta-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;cursor:pointer;flex-wrap:wrap}
+.todo-meta-hdr:hover{background:#fafafa}
+.todo-meta-nome{font-size:13px;font-weight:700;color:var(--navy);flex:1}
+.todo-hdr-btns{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.meta-hdr-btn{width:28px;height:28px;border-radius:6px;border:.5px solid #e2e8f0;background:#f8fafc;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:13px;transition:all .15s;flex-shrink:0}
+.meta-hdr-btn:hover{border-color:var(--navy);background:var(--navy);color:#fff}
+.meta-hdr-btn.concluir-icon-btn{background:var(--ok-l);border-color:var(--ok-b);color:var(--ok)}
+.meta-hdr-btn.concluir-icon-btn:hover{background:var(--ok);color:#fff}
+.todo-meta-body{padding:8px 14px 12px;border-top:.5px solid #f1f5f9;display:none}
+.todo-meta-body.open{display:block}
+/* ── score cards ── */
+.score-card{background:#fff;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:16px;box-shadow:var(--sh)}
+.sc-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ts);margin-bottom:4px}
+.sc-score{font-size:40px;font-weight:800;letter-spacing:-1.5px;line-height:1}
+.sc-details{margin-top:10px;font-size:11px}
+.sc-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:.5px solid #f1f5f9}
+.sc-row:last-child{border-bottom:none}
+.sc-k{color:var(--tt)}.sc-v{font-weight:600;color:var(--ts)}
+/* ── carômetro banner ── */
+.caro-banner{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+/* ── backlog card ── */
+.bk-card{background:#fff;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:10px 14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--sh)}
+.bk-icon{width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.bk-body{flex:1}
+.bk-title{font-size:12.5px;font-weight:700;color:var(--navy)}
+.bk-meta{font-size:11px;color:var(--tt);margin-top:2px}
+.bk-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+/* ── agenda ── */
+.agenda-dia{margin-bottom:12px}
+.agenda-dia-hdr{font-size:12px;font-weight:700;color:var(--navy);background:#f1f5f9;padding:6px 12px;border-radius:6px;margin-bottom:6px}
+.agenda-item{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:12px;color:var(--ts);border-left:2px solid #e2e8f0}
+.agenda-item.hoje{border-left-color:var(--navy);background:#f8fafc;color:var(--navy);font-weight:600}
+/* ── modelo toggle ── */
+.modelo-toggle{display:flex;border:.5px solid #e2e8f0;border-radius:var(--rmd);overflow:hidden;margin-bottom:16px;background:#f8fafc}
+.mt-btn{flex:1;padding:10px;text-align:center;cursor:pointer;font-size:12px;font-weight:600;color:var(--ts);border:none;background:transparent;transition:all .2s}
+.mt-btn.act{background:var(--navy);color:#fff}
+/* ── timeline ── */
+.timeline-wrap{overflow-x:auto;padding-bottom:8px}
+.timeline-grid{display:grid;gap:0;min-width:500px}
+.tl-week{display:flex;align-items:stretch}
+.tl-wlabel{width:60px;font-size:10px;font-weight:700;color:var(--ts);display:flex;align-items:center;flex-shrink:0;padding:4px 0}
+.tl-bar{flex:1;height:28px;border-radius:4px;transition:all .4s;position:relative;display:flex;align-items:center;padding:0 8px}
+.tl-pct{font-size:10px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.tl-event{font-size:9px;color:var(--ts);padding:2px 0 6px 60px}
+/* ── chamado ── */
+.chamado-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:.5px solid #f1f5f9;font-size:12px}
+.chamado-row:last-child{border-bottom:none}
+/* ── training script ── */
+.script-box{background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:16px;font-size:12px;line-height:1.7}
+.script-q{font-weight:700;color:var(--navy);margin-top:12px;margin-bottom:4px}
+.script-q:first-child{margin-top:0}
+.script-a{color:var(--ts);border-left:2px solid var(--gold);padding-left:10px}
+/* ── dashboard ── */
+.dash-score-row{display:grid;grid-template-columns:180px 1fr 1fr 1fr 80px;align-items:center;gap:10px;padding:10px 14px;border-bottom:.5px solid #f1f5f9;font-size:12px}
+.dash-score-row:last-child{border-bottom:none}
+.dash-hdr{font-size:10px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:.3px;padding:8px 14px;background:#f8fafc}
+.mini-bar{height:6px;background:#e2e8f0;border-radius:4px;margin-top:3px;overflow:hidden}
+.mini-bar-fill{height:100%;border-radius:4px}
+/* ── batch filha row ── */
+.batch-filha-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:.5px solid #f8fafc}
+.batch-filha-row:last-child{border-bottom:none}
+/* ── chips ── */
+.chip{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;border:.5px solid}
+.chip-sla-ok{background:var(--ok-l);border-color:var(--ok-b);color:var(--ok)}
+.chip-sla-warn{background:var(--gold-l);border-color:var(--gold-b);color:var(--earth)}
+.chip-sla-red{background:var(--red-l);border-color:var(--red-b);color:var(--red)}
+/* ── model comparison ── */
+.model-panel{border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:14px;transition:all .3s}
+.model-panel.active-model{border-color:var(--navy);box-shadow:0 0 0 2px rgba(12,38,51,.1)}
+/* ── group accordion ── */
+.group-acc{border:.5px solid #e2e8f0;border-radius:var(--rlg);margin-bottom:10px;overflow:hidden;background:#fff;box-shadow:var(--sh)}
+.group-hdr{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;cursor:pointer;border-bottom:.5px solid transparent}
+.group-hdr:hover{background:#fafafa}
+.group-hdr.open{border-bottom-color:#e2e8f0}
+.group-title{font-size:14px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px}
+.group-body{padding:16px 18px;display:none}
+.group-body.open{display:block}
+/* ── warn banner ── */
+.warn-banner{background:var(--gold-l);border-bottom:.5px solid var(--gold-b);padding:8px 24px;font-size:11px;color:var(--earth);display:flex;align-items:center;gap:6px}
+/* ── scrollable sim ── */
+.sim-box{background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:14px}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ HEADER ═══════════════════════════ -->
+<div class="hdr">
+  <div>
+    <h1>Hub Fly — TO DO & Planning · Versão Final</h1>
+    <p>Fluxo completo: Admin cria plano → Usuário acompanha → Como calcular → Dashboard</p>
+  </div>
+  <div class="hdr-badges">
+    <span class="hbadge hb-gold">Validação</span>
+    <span class="hbadge hb-out">S40 · Out/2026</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ ALERTA CICLO ═══════════════════════════ -->
+<div class="warn-banner">
+  📅 Ciclo atual: <strong>Outubro 2026</strong> · S40–S45 · Fechamento em 31/Out
+  &nbsp;&nbsp;|&nbsp;&nbsp; Usuário simulado: <strong>Danilo Novais</strong>
+  &nbsp;&nbsp;|&nbsp;&nbsp; Semana atual: <strong>S40 (28/Set–04/Out)</strong>
+</div>
+
+<!-- ═══════════════════════════ TABS NAV ═══════════════════════════ -->
+<div class="tabs-nav">
+  <button class="tb act" onclick="showTab('t-bd')">① Boné Day — Plano <span class="tpill tp-admin">Admin</span></button>
+  <button class="tb" onclick="showTab('t-todo')">② TO DO & Planning <span class="tpill tp-user">Usuário</span></button>
+  <button class="tb" onclick="showTab('t-calc')">③ Como Calcular <span class="tpill tp-train">Treinamento</span></button>
+  <button class="tb" onclick="showTab('t-dash')">④ Dashboard <span class="tpill tp-dash">Gestão</span></button>
+  <button class="tb" onclick="showTab('t-exemplos')">⑤ Exemplos & Simulação <span class="tpill tp-train">Treinamento</span></button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 1: BONÉ DAY — PLANO (ADMIN)
+═══════════════════════════════════════════════════════════════ -->
+<div id="t-bd" class="tab act">
+
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;font-size:11px;color:var(--ts)">
+  <strong>Legenda:</strong>
+  <span class="cbadge cb-ok">INALTERADO</span>
+  <span class="cbadge cb-muda">MUDA</span>
+  <span class="cbadge cb-novo">NOVO</span>
+  <span class="tag-admin">Admin</span> ação do administrador
+  <span class="tag-user">Usuário</span> ação do usuário
+</div>
+
+<div class="bd-header">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div>
+      <h2>🎩 Boné Day — Plano do Mês</h2>
+      <p>Admin configura o plano: metas, agenda macro e indicadores do time</p>
+      <div class="bd-ciclo">Admin · Outubro 2026 · S40–S45</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:.5px solid rgba(255,255,255,.3);font-size:11px" id="btn-simular-virada" onclick="simularVirada()">🔁 Simular virada de ciclo</button>
+      <select class="fs" style="width:auto;font-size:11px;background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)"><option>Outubro 2026</option><option>Novembro 2026</option></select>
+    </div>
+  </div>
+</div>
+
+<!-- BLOCO 0: Concluídas -->
+<div class="bloco b-verde">
+  <div class="bloco-hdr" onclick="toggleBloco('bl0')">
+    <div class="bloco-title" style="color:#15803d">
+      ✓ Metas Concluídas
+      <span style="font-size:10px;background:#bbf7d0;color:#15803d;padding:2px 8px;border-radius:20px">1</span>
+      <span class="cbadge cb-ok">INALTERADO</span>
+    </div>
+    <span style="color:#15803d;font-size:11px" id="bl0-arr">▼</span>
+  </div>
+  <div class="bloco-body" id="bl0-body">
+    <div class="meta-card-bd" style="opacity:.7">
+      <div class="meta-hdr-bd">
+        <div class="meta-nome-bd">✅ Revisão Manual de Franqueados — Agosto 2026</div>
+        <div class="meta-badges-bd">
+          <span class="chip" style="background:var(--ok-l);border-color:var(--ok-b);color:var(--ok)">Concluída S38</span>
+          <span class="tag" style="background:#f1f5f9;color:#64748b;font-size:10px">Atingível - Projeto</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BLOCO 1: Não concluídas relançadas -->
+<div class="bloco b-amber" id="bl1">
+  <div class="bloco-hdr" onclick="toggleBloco('bl1')">
+    <div class="bloco-title" style="color:#92400e">
+      ⚠ Metas Relançadas
+      <span style="font-size:10px;background:#fde68a;color:#92400e;padding:2px 8px;border-radius:20px" id="bl1-count">0</span>
+      <span class="cbadge cb-muda">NOVO — aparece após virada de ciclo</span>
+    </div>
+    <span style="color:#92400e;font-size:11px" id="bl1-arr">▼</span>
+  </div>
+  <div class="bloco-body" id="bl1-body">
+    <div id="bl1-relancadas-list">
+      <div class="ib ib-g">Clique em "🔁 Simular virada de ciclo" acima para ver como ficam as metas relançadas.</div>
+    </div>
+  </div>
+</div>
+
+<!-- BLOCO 2: Metas & Indicadores -->
+<div class="bloco b-gray" id="bl2">
+  <div class="bloco-hdr" onclick="toggleBloco('bl2')">
+    <div class="bloco-title" style="color:var(--navy)">
+      Metas &amp; Indicadores
+      <span style="font-size:10px;background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:20px">3 metas · 10 filhas</span>
+      <span class="cbadge cb-muda">MUDA → Batch de filhas</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+      <button class="btn btn-sm" style="background:var(--navy);color:#fff;border:none;font-size:11px" onclick="openModal('modal-batch-filha')">+ Adicionar Metas Filhas <span class="tag-admin">Admin</span></button>
+      <button class="btn btn-o btn-sm" onclick="openModal('modal-nova-meta')">+ Nova Meta <span class="tag-admin">Admin</span></button>
+      <span style="color:var(--ts);font-size:11px" id="bl2-arr">▲</span>
+    </div>
+  </div>
+  <div class="bloco-body open" id="bl2-body">
+    <div id="bd-metas-list"></div>
+  </div>
+</div>
+
+<!-- BLOCO 3: Agenda Macro -->
+<div class="bloco b-gray" id="bl3">
+  <div class="bloco-hdr" onclick="toggleBloco('bl3')">
+    <div class="bloco-title" style="color:var(--navy)">
+      Agenda Macro do Mês
+      <span class="cbadge cb-ok">INALTERADO</span>
+    </div>
+    <span style="color:var(--ts);font-size:11px" id="bl3-arr">▼</span>
+  </div>
+  <div class="bloco-body" id="bl3-body">
+    <table class="tt">
+      <thead><tr><th>Semana</th><th>Evento</th><th>Responsável</th><th>Data</th></tr></thead>
+      <tbody>
+        <tr><td>S40</td><td>🎩 Abertura Boné Day</td><td>Todo time</td><td>28/Set</td></tr>
+        <tr><td>S41</td><td>📊 Check-in Metas Filhas</td><td>Líderes</td><td>05/Out</td></tr>
+        <tr><td>S43</td><td>📋 Revisão Indicadores</td><td>Admin</td><td>19/Out</td></tr>
+        <tr><td>S45</td><td>🏁 Fechamento Boné Day</td><td>Todo time</td><td>31/Out</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- BLOCO 4: Indicadores da Área -->
+<div class="bloco" id="bl4" style="border-color:#c7d2fe;background:#fafafa">
+  <div class="bloco-hdr" onclick="toggleBloco('bl4')" style="background:#f5f3ff">
+    <div class="bloco-title" style="color:#5b21b6">
+      Indicadores da Área
+      <span style="font-size:10px;background:#ede9fe;color:#7c3aed;padding:2px 8px;border-radius:20px">2 grupos · 4 indicadores</span>
+      <span class="cbadge cb-novo">NOVO — separado das Metas</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+      <button class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;font-size:11px" onclick="openModal('modal-novo-ind')">+ Novo Indicador <span class="tag-admin">Admin</span></button>
+      <span style="color:#7c3aed;font-size:11px" id="bl4-arr">▲</span>
+    </div>
+  </div>
+  <div class="bloco-body open" id="bl4-body">
+    <div class="ib" style="background:#ede9fe;border-color:#c4b5fd;color:#5b21b6;margin-bottom:12px">
+      <strong>Novo bloco!</strong> Indicadores ficam aqui no Plano e são preenchidos semanalmente no TO DO & Planning. <strong>Não afetam o Carômetro</strong> — alimentam Dashboards gerenciais.
+    </div>
+    <div id="bd-inds-list"></div>
+  </div>
+</div>
+
+</div><!-- /tab bd -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 2: TO DO & PLANNING (USUÁRIO)
+═══════════════════════════════════════════════════════════════ -->
+<div id="t-todo" class="tab">
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+  <div>
+    <div class="stitle">📋 TO DO & Planning</div>
+    <div class="ssub" style="margin-bottom:0">Danilo Novais · S40 (28/Set–04/Out) · Outubro 2026</div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <select class="fs" style="width:auto;font-size:11px"><option>S40 — atual</option><option>S39</option><option>S41</option></select>
+    <button class="btn btn-o btn-sm">📤 Exportar</button>
+  </div>
+</div>
+
+<!-- Banner de mudanças desta versão -->
+<div style="background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:10px 16px;margin-bottom:14px;font-size:11px">
+  <strong style="color:var(--navy);font-size:11px">O que muda nesta versão:</strong>
+  <div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">
+    <span><span class="cbadge cb-muda">MUDA</span> Grupo 1 — Carômetro com bolinha diária + score semanal + tiers visíveis</span>
+    <span><span class="cbadge cb-novo">NOVO</span> Grupo 4 — Metas separado de Indicadores (agora Grupo 5)</span>
+    <span><span class="cbadge cb-novo">NOVO</span> Ações rápidas no header de cada meta (💬 🚧 ➕ ✓)</span>
+    <span><span class="cbadge cb-ok">INALTERADO</span> Backlog e Agenda</span>
+  </div>
+</div>
+
+<!-- ── GRUPO 1: Meu Carômetro ── -->
+<div class="group-acc">
+  <div class="group-hdr open" onclick="toggleGroup('g1')">
+    <div class="group-title">
+      <span>🎯</span>
+      <span>Meu Carômetro</span>
+      <span id="g1-alerta" style="font-size:10px;font-weight:600;color:var(--amber);background:var(--gold-l);padding:2px 8px;border-radius:10px">⚠️ Sirene com chamado Tier 2 aberto</span>
+    </div>
+    <span id="g1-arr" style="color:var(--ts);font-size:11px">▲</span>
+  </div>
+  <div class="group-body open" id="g1-body">
+
+    <div class="ib ib-b" style="margin-bottom:10px;font-size:11px">
+      🔄 <strong>Cada ciclo começa zerado.</strong> O que aconteceu no mês anterior não impacta este mês.
+      Sirene e Engajamento fecham <strong>toda sexta-feira</strong>. Indicadores fecham no <strong>último dia do ciclo</strong>.
+    </div>
+
+    <!-- LEGENDA UNIFICADA DE TIERS -->
+    <div style="background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:10px 14px;margin-bottom:14px">
+      <div style="font-size:10px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">📋 Como funcionam os Tiers</div>
+      <!-- Tabela unificada 3 tiers -->
+      <div style="border:.5px solid #e2e8f0;border-radius:6px;overflow:hidden;font-size:11px;margin-bottom:8px">
+        <div style="display:grid;grid-template-columns:56px 1fr 50px;background:#f1f5f9;padding:5px 10px;font-size:10px;font-weight:700;color:var(--ts);border-bottom:.5px solid #e2e8f0">
+          <span>Tier</span><span>Quando (1ª semana conta a partir do prazo/fechamento)</span><span style="text-align:right">Penalidade</span>
+        </div>
+        <div style="display:grid;grid-template-columns:56px 1fr 50px;padding:6px 10px;border-bottom:.5px solid #f1f5f9;align-items:center">
+          <span style="font-weight:700;color:var(--amber)">Tier 1</span>
+          <span style="color:var(--ts);font-size:10px">1ª semana em atraso / após fechamento</span>
+          <span style="text-align:right;font-weight:700;color:var(--amber)">−15%</span>
+        </div>
+        <div style="display:grid;grid-template-columns:56px 1fr 50px;padding:6px 10px;border-bottom:.5px solid #f1f5f9;align-items:center">
+          <span style="font-weight:700;color:var(--red)">Tier 2</span>
+          <span style="color:var(--ts);font-size:10px">2ª semana em atraso / após fechamento</span>
+          <span style="text-align:right;font-weight:700;color:var(--red)">−30%</span>
+        </div>
+        <div style="display:grid;grid-template-columns:56px 1fr 50px;padding:6px 10px;align-items:center">
+          <span style="font-weight:700;color:#7c3aed">Tier 3</span>
+          <span style="color:var(--ts);font-size:10px">3ª semana ou mais em atraso / após fechamento</span>
+          <span style="text-align:right;font-weight:700;color:#7c3aed">−50%</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;font-size:10px;color:var(--tt);flex-wrap:wrap">
+        <span>🚨 <strong>Sirene & Engajamento:</strong> conta semanas desde o prazo do chamado/filha</span>
+        <span>📈 <strong>Indicadores:</strong> conta semanas desde o fechamento do ciclo (só Atingível-Projeto)</span>
+        <span>🔁 <strong>Recorrentes:</strong> não geram penalidade de Tier — têm score próprio calculado pela <strong>média semanal das Filhas</strong> no ciclo</span>
+      </div>
+    </div>
+
+    <!-- 3 cards de score -->
+    <div class="g3" style="margin-bottom:14px">
+
+      <!-- ══ SIRENE ══ -->
+      <div style="background:#fff;border:.5px solid #e2e8f0;border-radius:var(--rmd);overflow:hidden;box-shadow:var(--sh)">
+        <div style="background:var(--navy);padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+          <div style="color:#fff;font-size:11px;font-weight:700;letter-spacing:.3px">🚨 Sirene — Chamados</div>
+          <span style="font-size:10px;color:rgba(255,255,255,.65)">Fecha toda sexta</span>
+        </div>
+        <div style="padding:14px">
+
+          <!-- Botões de score: semanal (accordion) + mensal (estático) -->
+          <div style="display:flex;gap:8px;margin-bottom:4px">
+            <button onclick="toggleCaro('sir-semanal','btn-sir-semanal')" id="btn-sir-semanal" style="flex:1.3;background:#fff5f5;border:.5px solid #fecaca;border-radius:8px;padding:10px;text-align:center;cursor:pointer;width:100%">
+              <div style="font-size:9px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Semana S40 — prévia</div>
+              <div style="font-size:36px;font-weight:800;line-height:1;color:#b91c1c">37%</div>
+              <div style="font-size:10px;font-weight:600;color:#b91c1c;margin-top:4px">😟 Vermelho</div>
+              <div style="font-size:9px;color:#991b1b;margin-top:5px;border-top:.5px solid #fecaca;padding-top:4px">▼ como foi calculado</div>
+            </button>
+            <div style="flex:1;background:#f0fdf4;border:.5px solid #bbf7d0;border-radius:8px;padding:10px;text-align:center">
+              <div style="font-size:9px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Ciclo Out/26 — prévia</div>
+              <div style="font-size:28px;font-weight:800;line-height:1;color:#15803d">80%</div>
+              <div style="font-size:10px;font-weight:600;color:#15803d;margin-top:4px">🙂 Verde Claro</div>
+              <div style="font-size:9px;color:#166534;margin-top:5px;border-top:.5px solid #bbf7d0;padding-top:4px">Média S37–S40</div>
+            </div>
+          </div>
+          <!-- Accordion S40 -->
+          <div id="sir-semanal" style="display:none;background:#fafafa;border:.5px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:10px;font-size:11px;margin-bottom:12px">
+            <div style="font-weight:700;color:var(--navy);margin-bottom:6px">📅 S40 (28/Set–04/Out) — como chegamos em 37%</div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:.5px solid #f1f5f9;color:var(--ts)"><span>Concluídos esta semana ✓</span><span style="font-weight:700;color:var(--ok)">2</span></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:.5px solid #f1f5f9;color:var(--ts)"><span>Em aberto com atraso</span><span style="font-weight:700;color:var(--red)">1</span></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:.5px solid #f1f5f9;color:var(--ts)"><span>Vence hoje</span><span style="font-weight:700;color:var(--ts)">0</span></div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:.5px solid #e2e8f0"><span style="font-weight:700">Bolinha base = 2 ÷ (2+1+0)</span><span style="font-weight:800;color:#92400e">67%</span></div>
+            <div style="font-size:10px;color:var(--red);font-weight:700;padding:4px 0">Tier deduction (Tier 2 = −30%):</div>
+            <div style="display:flex;justify-content:space-between;padding:2px 0;font-size:10px;color:var(--ts)"><span>RS-445 · 2ª semana em atraso → Tier 2</span><span style="color:var(--red);font-weight:700">−30%</span></div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:.5px solid #e2e8f0;margin-top:3px"><span style="font-weight:700">Score S40 = 67% − 30%</span><span style="font-weight:800;color:#b91c1c">= 37%</span></div>
+            <div style="margin-top:6px;font-size:10px;color:var(--tt);border-top:.5px solid #f1f5f9;padding-top:5px">Histórico: S37 100% · S38 100% · S39 85% · S40 37% (prévia) → mensal: <strong>80%</strong></div>
+          </div>
+
+          <!-- Tier counters compactos -->
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+            <span style="font-size:10px;color:var(--tt)">Tiers ativos:</span>
+            <span style="font-size:10px;background:#f1f5f9;color:var(--ts);padding:2px 8px;border-radius:10px;font-weight:600">T1: 0</span>
+            <span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:10px;font-weight:700">T2: 1 ⚠️</span>
+            <span style="font-size:10px;background:#f1f5f9;color:var(--ts);padding:2px 8px;border-radius:10px;font-weight:600">T3: 0</span>
+          </div>
+
+          <!-- Em aberto -->
+          <div style="margin-bottom:10px">
+            <div style="font-size:10px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Em aberto</div>
+            <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#fff5f5;border:.5px solid #fecaca;border-radius:6px">
+              <span class="tbdg t2" style="font-size:10px;white-space:nowrap">Tier 2</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:11px;font-weight:700;color:var(--tp)">RS-445 — Irregularidade escritura</div>
+                <div style="font-size:10px;color:var(--tt)">Prazo S38 · 2 semanas em aberto · −30%</div>
+              </div>
+              <button class="btn btn-ok btn-sm" style="font-size:10px;white-space:nowrap" onclick="fecharChamado()">✓ Resolver</button>
+            </div>
+          </div>
+          <div style="padding:7px 10px;background:var(--ok-l);border:.5px solid var(--ok-b);border-radius:6px;font-size:11px;color:var(--green)">
+            💡 Resolva RS-445 → semanal: <strong>37%→100%</strong> · mensal: <strong>80%→96%</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ENGAJAMENTO ══ -->
+      <div style="background:#fff;border:.5px solid #e2e8f0;border-radius:var(--rmd);overflow:hidden;box-shadow:var(--sh)">
+        <div style="background:var(--moni-green-800,#2F4A3A);padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+          <div style="color:#fff;font-size:11px;font-weight:700;letter-spacing:.3px">⚡ Engajamento — Metas Filhas</div>
+          <span style="font-size:10px;color:rgba(255,255,255,.65)">Fecha toda sexta</span>
+        </div>
+        <div style="padding:14px">
+
+          <div style="display:flex;gap:8px;margin-bottom:4px">
+            <button onclick="toggleCaro('eng-semanal','btn-eng-semanal')" id="btn-eng-semanal" style="flex:1.3;background:#fffbeb;border:.5px solid #fde68a;border-radius:8px;padding:10px;text-align:center;cursor:pointer;width:100%">
+              <div style="font-size:9px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Semana S40 — prévia</div>
+              <div style="font-size:36px;font-weight:800;line-height:1;color:#b45309">57%</div>
+              <div style="font-size:10px;font-weight:600;color:#b45309;margin-top:4px">😐 Amarelo</div>
+              <div style="font-size:9px;color:#92400e;margin-top:5px;border-top:.5px solid #fde68a;padding-top:4px">▼ como foi calculado</div>
+            </button>
+            <div style="flex:1;background:#f0fdf4;border:.5px solid #bbf7d0;border-radius:8px;padding:10px;text-align:center">
+              <div style="font-size:9px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Ciclo Out/26 — prévia</div>
+              <div style="font-size:28px;font-weight:800;line-height:1;color:#15803d">77%</div>
+              <div style="font-size:10px;font-weight:600;color:#15803d;margin-top:4px">🙂 Verde Claro</div>
+              <div style="font-size:9px;color:#166534;margin-top:5px;border-top:.5px solid #bbf7d0;padding-top:4px">Média S37–S40</div>
+            </div>
+          </div>
+          <!-- Accordion S40 -->
+          <div id="eng-semanal" style="display:none;background:#fafafa;border:.5px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:10px;font-size:11px;margin-bottom:12px">
+            <div style="font-weight:700;color:var(--navy);margin-bottom:6px">📊 S40 (28/Set–04/Out) — composição do score</div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:.5px solid #f1f5f9;color:var(--ts)"><span>Filhas concluídas S40 ✓</span><span style="font-weight:700;color:var(--ok)">2</span></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:.5px solid #f1f5f9;color:var(--ts)"><span>F9 — Métricas TI (atrasada S39)</span><span style="font-weight:700;color:var(--amber)">1 · Tier 1</span></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:.5px solid #f1f5f9;color:var(--ts)"><span>Vence esta semana</span><span style="font-weight:700;color:var(--ts)">0</span></div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:.5px solid #e2e8f0"><span style="font-weight:700">Base = 2 ÷ (2+1+0)</span><span style="font-weight:800;color:#b45309">67%</span></div>
+            <div style="font-size:10px;color:var(--amber);font-weight:700;padding:4px 0">Tier deduction (Tier 1 = −15%):</div>
+            <div style="display:flex;justify-content:space-between;padding:2px 0;font-size:10px;color:var(--ts)"><span>F9 · 1ª semana em atraso → Tier 1</span><span style="color:var(--amber);font-weight:700">−15%</span></div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:.5px solid #e2e8f0;margin-top:2px"><span style="font-weight:700">Score S40 = 67% − 15%</span><span style="font-weight:800;color:#b45309">= 57%</span></div>
+            <div style="margin-top:6px;font-size:10px;color:var(--tt);border-top:.5px solid #f1f5f9;padding-top:5px">Histórico: S37 100% · S38 83% · S39 70% · S40 57% (prévia) → mensal: <strong>77%</strong></div>
+          </div>
+
+          <!-- Tier counters -->
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+            <span style="font-size:10px;color:var(--tt)">Tiers ativos:</span>
+            <span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-weight:700">T1: 1 ⚠️</span>
+            <span style="font-size:10px;background:#f1f5f9;color:var(--ts);padding:2px 8px;border-radius:10px;font-weight:600">T2: 0</span>
+            <span style="font-size:10px;background:#f1f5f9;color:var(--ts);padding:2px 8px;border-radius:10px;font-weight:600">T3: 0</span>
+          </div>
+
+          <!-- Filhas em aberto -->
+          <div style="margin-bottom:10px">
+            <div style="font-size:10px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Filhas em aberto</div>
+            <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#fffbeb;border:.5px solid #fde68a;border-radius:6px">
+              <span style="font-size:10px;font-weight:700;background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:10px;white-space:nowrap">Tier 1 · −15%</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:11px;font-weight:700;color:var(--tp)">F9 — Métricas TI</div>
+                <div style="font-size:10px;color:var(--tt)">Prazo S39 · 1 semana em aberto</div>
+              </div>
+              <button class="btn btn-ok btn-sm" style="font-size:10px;white-space:nowrap">✓ Concluir</button>
+            </div>
+          </div>
+          <div style="padding:7px 10px;background:var(--gold-l);border:.5px solid var(--gold-b);border-radius:6px;font-size:11px;color:var(--earth)">
+            ⚠️ F9 sem conclusão em S41 → vira Tier 2 (−30%): score de S41 cai mais <strong>−15%</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ INDICADORES ══ -->
+      <div style="background:#fff;border:.5px solid #e2e8f0;border-radius:var(--rmd);overflow:hidden;box-shadow:var(--sh)">
+        <div style="background:var(--moni-earth-800,#4A3929);padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+          <div style="color:#fff;font-size:11px;font-weight:700;letter-spacing:.3px">📈 Indicadores — Metas Mãe</div>
+          <span style="font-size:10px;color:rgba(255,255,255,.65)">Fecha no ciclo</span>
+        </div>
+        <div style="padding:14px">
+
+          <!-- Score prévia do ciclo -->
+          <div style="background:#f8fafc;border:.5px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center;margin-bottom:12px">
+            <div style="font-size:9px;font-weight:700;color:var(--tt);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Ciclo Out/26 — prévia</div>
+            <div style="font-size:40px;font-weight:800;line-height:1;color:#94a3b8">—</div>
+            <div style="font-size:11px;font-weight:600;color:#64748b;margin-top:5px">⏳ Score calculado em 31/Out</div>
+            <div style="font-size:10px;color:var(--tt);margin-top:3px">Valores abaixo são prévias até o fechamento</div>
+          </div>
+
+          <!-- Metas Mãe do ciclo -->
+          <div style="border:.5px solid #e2e8f0;border-radius:6px;overflow:hidden;font-size:11px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:.5px solid #f1f5f9;gap:8px">
+              <div>
+                <div style="font-weight:600;color:var(--tp)">🔑 Homologação Produto v2</div>
+                <div style="font-size:10px;color:var(--tt)">Atingível-Projeto · Em andamento</div>
+              </div>
+              <span style="font-size:10px;font-weight:700;color:var(--amber);background:var(--gold-l);padding:2px 8px;border-radius:10px;white-space:nowrap">Em andamento</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:.5px solid #f1f5f9;gap:8px;background:#f5f3ff">
+              <div>
+                <div style="font-weight:600;color:var(--tp)">🔁 Qualificação Frank</div>
+                <div style="font-size:10px;color:#7c3aed">Recorrente · Nunca penaliza</div>
+              </div>
+              <span style="font-size:10px;font-weight:700;color:#7c3aed;background:#ede9fe;padding:2px 8px;border-radius:10px;white-space:nowrap">Sem risco</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;gap:8px">
+              <div>
+                <div style="font-weight:600;color:var(--tp)">Dashboard de KPIs</div>
+                <div style="font-size:10px;color:var(--tt)">Atingível-Projeto · Em andamento</div>
+              </div>
+              <span style="font-size:10px;font-weight:700;color:var(--amber);background:var(--gold-l);padding:2px 8px;border-radius:10px;white-space:nowrap">Em andamento</span>
+            </div>
+          </div>
+
+          <!-- Nota final -->
+          <div style="padding:7px 10px;background:#f5f3ff;border:.5px solid #ddd6fe;border-radius:6px;font-size:11px;color:#5b21b6">
+            ℹ️ Valores são <strong>prévias</strong> — score definitivo calculado no fechamento (31/Out). Metas Recorrentes não geram penalidade de Tier — têm score próprio pela média semanal das Filhas.
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /g3 -->
+
+  </div>
+</div>
+
+<!-- ── GRUPO 2: Backlog ── -->
+<div class="group-acc">
+  <div class="group-hdr" onclick="toggleGroup('g2')">
+    <div class="group-title">
+      <span>📦</span>
+      <span>Backlog</span>
+      <span style="font-size:10px;font-weight:600;color:#1d4ed8;background:#dbeafe;padding:2px 8px;border-radius:10px">3 itens</span>
+    </div>
+    <span id="g2-arr" style="color:var(--ts);font-size:11px">▼</span>
+  </div>
+  <div class="group-body" id="g2-body">
+
+    <!-- Banner de mudanças -->
+    <div style="background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:10px 14px;margin-bottom:14px;font-size:11px">
+      <strong style="color:var(--navy);font-size:11px">O que muda neste grupo:</strong>
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+        <span><span class="cbadge cb-novo">NOVO</span> Chamados Sirene aparecem aqui com badge de Tier e botão "Resolver agora"</span>
+        <span><span class="cbadge cb-novo">NOVO</span> Lista ordenada por urgência: Tier 2+ e SLA vencendo sobem para o topo</span>
+        <span><span class="cbadge cb-muda">MUDA</span> Cards Kanban e Sirene reunidos em uma única lista (hoje são separados)</span>
+        <span><span class="cbadge cb-ok">INALTERADO</span> Botão "Abrir card" abre o mesmo modal do Kanban já existente</span>
+      </div>
+    </div>
+
+    <div class="ib ib-b" style="margin-bottom:14px">Tarefas pendentes dos Kanbans e Chamados Sirene que requerem sua ação nesta semana, ordenadas por urgência.</div>
+
+    <!-- Kanban cards -->
+    <div class="csubt">Cards Kanban <span class="cbadge cb-ok" style="font-size:9px;margin-left:4px">INALTERADO</span></div>
+    <div class="bk-card">
+      <div class="bk-icon" style="background:#e8f5e9;color:var(--green)">📄</div>
+      <div class="bk-body">
+        <div class="bk-title">Contrato SP-2201 — Revisão Jurídica</div>
+        <div class="bk-meta">Portfólio + Operações · Em análise · Adicionado S39</div>
+      </div>
+      <div class="bk-right">
+        <span class="chip chip-sla-warn">⚠️ SLA Vencendo</span>
+        <button class="btn btn-o btn-sm">Abrir card</button>
+      </div>
+    </div>
+    <div class="bk-card">
+      <div class="bk-icon" style="background:#eff6ff;color:#1d4ed8">👤</div>
+      <div class="bk-body">
+        <div class="bk-title">Franqueado João Mendes — Due Diligence</div>
+        <div class="bk-meta">Funil Step One · Aguardando docs · Adicionado S38</div>
+      </div>
+      <div class="bk-right">
+        <span class="chip chip-sla-ok">✓ SLA OK</span>
+        <button class="btn btn-o btn-sm">Abrir card</button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Sirene -->
+    <div class="csubt">Chamados Sirene <span class="cbadge cb-novo" style="font-size:9px;margin-left:4px">NOVO</span></div>
+    <div class="bk-card" style="border-color:var(--red-b)">
+      <div class="bk-icon" style="background:var(--red-l);color:var(--red)">🚨</div>
+      <div class="bk-body">
+        <div class="bk-title">Irregularidade escritura terreno RS-445</div>
+        <div class="bk-meta">Chamado Jurídico · Prazo S38 · <strong style="color:var(--red)">Tier 2 — 2 sem. atrasado</strong></div>
+      </div>
+      <div class="bk-right">
+        <span class="chip chip-sla-red">Tier 2</span>
+        <button class="btn btn-d btn-sm" onclick="fecharChamado()">Resolver agora</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── GRUPO 3: Agenda da Semana ── -->
+<div class="group-acc">
+  <div class="group-hdr" onclick="toggleGroup('g3')">
+    <div class="group-title">
+      <span>📅</span>
+      <span>Agenda da Semana</span>
+      <span style="font-size:10px;font-weight:600;color:var(--ts);background:#f1f5f9;padding:2px 8px;border-radius:10px">S40 · 28/Set – 04/Out</span>
+    </div>
+    <span id="g3-arr" style="color:var(--ts);font-size:11px">▼</span>
+  </div>
+  <div class="group-body" id="g3-body">
+
+    <!-- Banner de mudanças -->
+    <div style="background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:10px 14px;margin-bottom:14px;font-size:11px">
+      <strong style="color:var(--navy);font-size:11px">O que muda neste grupo:</strong>
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+        <span><span class="cbadge cb-novo">NOVO</span> Agenda populada automaticamente a partir do <strong>gantt_planejamento</strong> — sem preenchimento manual</span>
+        <span><span class="cbadge cb-novo">NOVO</span> Dia de hoje destacado com ações prioritárias (chamados Tier 2+, fechamentos de semana)</span>
+        <span><span class="cbadge cb-novo">NOVO</span> Atividades com prazo vencendo hoje aparecem em vermelho no dia correspondente</span>
+        <span><span class="cbadge cb-ok">INALTERADO</span> Eventos avulsos do calendário continuam aparecendo normalmente</span>
+      </div>
+    </div>
+
+    <div class="agenda-dia">
+      <div class="agenda-dia-hdr">Seg 28/Set <span class="cbadge cb-ok" style="font-size:9px;margin-left:4px;font-weight:600">gantt automático</span></div>
+      <div class="agenda-item">📞 Call alinhamento produto 14h</div>
+      <div class="agenda-item">📝 Revisar contrato SP-2201</div>
+    </div>
+    <div class="agenda-dia">
+      <div class="agenda-dia-hdr">Ter 29/Set</div>
+      <div class="agenda-item">🎯 Sessão NPS Frank Time Norte 10h</div>
+    </div>
+    <div class="agenda-dia">
+      <div class="agenda-dia-hdr">Qua 30/Set</div>
+      <div class="agenda-item">📊 Reunião Dashboard KPIs 15h</div>
+    </div>
+    <div class="agenda-dia">
+      <div class="agenda-dia-hdr" style="background:var(--navy);color:#fff">⭐ Qui 01/Out — Hoje</div>
+      <div class="agenda-item hoje">✅ Revisão das filhas S40 e replanejar atrasadas</div>
+      <div class="agenda-item hoje">🚨 Resolver chamado RS-445 (Tier 2!)</div>
+    </div>
+    <div class="agenda-dia">
+      <div class="agenda-dia-hdr">Sex 02/Out</div>
+      <div class="agenda-item">🎩 Boné Day — Fechamento S40 + abertura S41</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── GRUPO 4: Minhas Metas ── -->
+<div class="group-acc">
+  <div class="group-hdr" onclick="toggleGroup('g4')">
+    <div class="group-title">
+      <span>🎯</span>
+      <span>Minhas Metas</span>
+      <span style="font-size:10px;font-weight:600;color:var(--ts);background:#f1f5f9;padding:2px 8px;border-radius:10px" id="g4-count">3 metas · 10 filhas</span>
+    </div>
+    <span id="g4-arr" style="color:var(--ts);font-size:11px">▼</span>
+  </div>
+  <div class="group-body" id="g4-body">
+    <div class="ib ib-b" style="margin-bottom:12px;font-size:11px">
+      Ações rápidas no header de cada meta: 💬 comentário · 🚧 bloqueio · ➕ nova filha · ✓ concluir
+    </div>
+    <div id="todo-metas-list"></div>
+  </div>
+</div>
+
+<!-- ── GRUPO 5: Indicadores da Área ── -->
+<div class="group-acc">
+  <div class="group-hdr" onclick="toggleGroup('g5')">
+    <div class="group-title">
+      <span>📈</span>
+      <span>Indicadores da Área</span>
+      <span style="font-size:10px;font-weight:600;color:#7c3aed;background:#ede9fe;padding:2px 8px;border-radius:10px">Preenchimento semanal</span>
+    </div>
+    <span id="g5-arr" style="color:var(--ts);font-size:11px">▼</span>
+  </div>
+  <div class="group-body" id="g5-body">
+    <div class="ib" style="background:#ede9fe;border-color:#c4b5fd;color:#5b21b6;font-size:11px;margin-bottom:12px">
+      Preencha o valor atual de cada indicador. O semáforo atualiza automaticamente. Não afeta o score do Carômetro — alimenta o Dashboard gerencial.
+    </div>
+    <div id="todo-inds-list"></div>
+  </div>
+</div>
+
+</div><!-- /tab todo -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 3: COMO CALCULAR (TREINAMENTO)
+═══════════════════════════════════════════════════════════════ -->
+<div id="t-calc" class="tab">
+
+<div class="stitle">③ Como Calcular — Guia de Treinamento</div>
+<div class="ssub">Explicação completa dos 3 scores do Carômetro para treinar o time. Use junto com a simulação ao vivo.</div>
+
+<!-- Visão geral -->
+<div class="card">
+  <div class="ctitle">📊 Os 3 Scores do Carômetro — Visão Geral</div>
+  <table class="tt">
+    <thead><tr><th>Score</th><th>O que mede</th><th>Frequência</th><th>Quem impacta</th><th>Reseta</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>🚨 Sirene</strong></td>
+        <td>Chamados respondidos dentro do prazo</td>
+        <td><strong style="color:var(--blue)">Diária</strong></td>
+        <td>Quem tem chamados abertos</td>
+        <td style="color:var(--blue);font-weight:600">Não reseta — acumulado contínuo</td>
+      </tr>
+      <tr>
+        <td><strong>⚡ Engajamento</strong></td>
+        <td>Meta Filhas concluídas na semana prevista</td>
+        <td><strong style="color:var(--ok)">Semanal</strong></td>
+        <td>Quem tem Meta Filhas</td>
+        <td>A cada ciclo mensal</td>
+      </tr>
+      <tr>
+        <td><strong>📈 Indicadores</strong></td>
+        <td>Metas Mãe concluídas (só Atingível-Projeto penaliza)</td>
+        <td><strong style="color:var(--amber)">Mensal</strong></td>
+        <td>Quem tem Metas Mãe</td>
+        <td>A cada ciclo mensal</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="ib ib-ok" style="margin-top:12px;margin-bottom:0">
+    🔄 <strong>Regra de ouro:</strong> <strong>Engajamento</strong> e <strong>Indicadores</strong> começam zerados a cada ciclo mensal — o que aconteceu no mês anterior não impacta o seguinte.<br>
+    <span style="color:var(--blue)">🚨 <strong>Sirene é contínua</strong> — você sempre enxerga todos os chamados em aberto, independente do mês. Não há reset.</span>
+  </div>
+</div>
+
+<!-- ════ SIRENE ════ -->
+<div class="card">
+  <div class="ctitle">🚨 Score Sirene — Chamados no Prazo
+    <span class="live"><span class="ldot"></span>ao vivo</span>
+  </div>
+
+  <div class="g2" style="margin-bottom:16px">
+    <!-- Regras -->
+    <div>
+      <div class="ib ib-b" style="margin-bottom:10px">
+        <strong>Bolinha diária:</strong> snapshot do dia (igual ao PROD). Sobe/desce conforme você fecha chamados.<br>
+        <strong>Score semanal:</strong> fecha toda sexta. Usa a mesma base + penalidade extra para chamados abertos por 2+ semanas.
+      </div>
+      <table class="tt">
+        <thead><tr><th>Situação do Chamado</th><th>Tier</th><th>Penalidade no score semanal</th></tr></thead>
+        <tbody>
+          <tr><td>✅ Concluído no prazo</td><td>—</td><td style="color:var(--ok)">0% (bom!)</td></tr>
+          <tr><td>Concluído fora do prazo</td><td>—</td><td>0% (só conta na base)</td></tr>
+          <tr><td>🔴 Aberto — 1ª semana em atraso</td><td style="font-weight:700;color:var(--amber)">Tier 1</td><td style="color:var(--amber)"><strong>−15% por chamado</strong></td></tr>
+          <tr><td>🔴🔴 Aberto — 2ª semana em atraso</td><td style="font-weight:700;color:var(--red)">Tier 2</td><td style="color:var(--red)"><strong>−30% por chamado</strong></td></tr>
+          <tr><td>🔴🔴🔴 Aberto — 3ª+ semana</td><td style="font-weight:700;color:#7c3aed">Tier 3</td><td style="color:#7c3aed"><strong>−50% por chamado</strong></td></tr>
+        </tbody>
+      </table>
+      <div class="fml" style="margin-top:10px">Bolinha = concl_semana / (concl + atrasados + vence_hoje) × 100<br>Score semanal = Bolinha − Σ (tier_extra × qtd_chamados)<br>Mínimo: 0%</div>
+    </div>
+
+    <!-- Simulador -->
+    <div>
+      <div class="csubt">🎮 Simulador ao vivo</div>
+      <div class="sim-box" style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">1. Bolinha do dia (base PROD)</div>
+        <div class="num-row"><label>✅ Concluídos esta semana</label><div class="nc"><button class="nb" onclick="adjSirNew('sNP',-1)">−</button><span class="nv" id="sNP">2</span><button class="nb" onclick="adjSirNew('sNP',1)">+</button></div></div>
+        <div class="num-row"><label>🔴 Em aberto com atraso</label><div class="nc"><button class="nb" onclick="adjSirNew('sAT',-1)">−</button><span class="nv" id="sAT">1</span><button class="nb" onclick="adjSirNew('sAT',1)">+</button></div></div>
+        <div class="num-row"><label>⏰ Vence hoje (aberto)</label><div class="nc"><button class="nb" onclick="adjSirNew('sVH',-1)">−</button><span class="nv" id="sVH">0</span><button class="nb" onclick="adjSirNew('sVH',1)">+</button></div></div>
+        <div style="padding:6px 0;border-top:.5px solid #e2e8f0;margin-top:4px;font-size:12px;display:flex;justify-content:space-between">
+          <span style="color:var(--ts)">Bolinha do dia</span>
+          <strong id="sir-bolinha-result" style="color:var(--navy)">67%</strong>
+        </div>
+      </div>
+      <div class="sim-box">
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">2. Tier extra (score semanal)</div>
+        <div class="num-row"><label>Tier 1 abertos (−15% cada)</label><div class="nc"><button class="nb" onclick="adjSirNew('sTier2',-1)">−</button><span class="nv" id="sTier2">0</span><button class="nb" onclick="adjSirNew('sTier2',1)">+</button></div></div>
+        <div class="num-row"><label>Tier 2 abertos (−30% cada)</label><div class="nc"><button class="nb" onclick="adjSirNew('sTier3',-1)">−</button><span class="nv" id="sTier3">1</span><button class="nb" onclick="adjSirNew('sTier3',1)">+</button></div></div>
+        <div class="num-row"><label>Tier 3 abertos (−50% cada)</label><div class="nc"><button class="nb" onclick="adjSirNew('sTier4',-1)">−</button><span class="nv" id="sTier4">0</span><button class="nb" onclick="adjSirNew('sTier4',1)">+</button></div></div>
+        <div style="padding:6px 0;border-top:.5px solid #e2e8f0;margin-top:4px;font-size:12px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:var(--ts)">Bolinha base</span><strong id="sir-sem-base">67%</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:var(--red)">Tier extra total</span><strong id="sir-sem-tier" style="color:var(--red)">−15%</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;border-top:.5px solid #e2e8f0;padding-top:4px">
+            <span style="font-weight:700">Score Semanal</span><strong id="sir-sem-final" style="font-size:16px;color:var(--navy)">52%</strong>
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <div class="sbar-wrap"><div class="sbar" id="sir-sem-bar" style="width:52%;background:#f2c94c"></div></div>
+          <div id="sir-sem-zone" style="font-size:11px;font-weight:600;color:var(--amber);margin-top:4px">😐 Amarelo — Atenção</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ ENGAJAMENTO ════ -->
+<div class="card">
+  <div class="ctitle">⚡ Score Engajamento — Metas Filhas
+    <span class="live"><span class="ldot"></span>ao vivo</span>
+  </div>
+
+  <div class="g2" style="margin-bottom:16px">
+    <div>
+      <div class="ib ib-b" style="margin-bottom:10px">
+        Mesma lógica da Sirene. <strong>Score semanal</strong> (fecha sexta) usando a base PROD + penalidade extra por filhas abertas há 2+ semanas.
+      </div>
+      <table class="tt">
+        <thead><tr><th>Situação da Filha</th><th>Tier</th><th>Penalidade no score semanal</th></tr></thead>
+        <tbody>
+          <tr><td>✅ Concluída esta semana</td><td>—</td><td style="color:var(--ok)">0% (bom!)</td></tr>
+          <tr><td>Concluída fora do prazo</td><td>—</td><td>0% (só conta na base)</td></tr>
+          <tr><td>🔴 Aberta — 1ª semana em atraso</td><td style="font-weight:700;color:var(--amber)">Tier 1</td><td style="color:var(--amber)"><strong>−15% por filha</strong></td></tr>
+          <tr><td>🔴🔴 Aberta — 2ª semana em atraso</td><td style="font-weight:700;color:var(--red)">Tier 2</td><td style="color:var(--red)"><strong>−30% por filha</strong></td></tr>
+          <tr><td>🔴🔴🔴 Aberta — 3ª+ semana</td><td style="font-weight:700;color:#7c3aed">Tier 3</td><td style="color:#7c3aed"><strong>−50% por filha</strong></td></tr>
+        </tbody>
+      </table>
+      <div class="fml" style="margin-top:10px">Base = concl_semana / (concl + atrasadas + vence_semana) × 100<br>Score semanal = Base − Σ (tier_extra × qtd_filhas)<br>Mínimo: 0%</div>
+    </div>
+
+    <div>
+      <div class="csubt">🎮 Simulador</div>
+      <div class="sim-box" style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">1. Base semanal</div>
+        <div class="num-row"><label>✅ Filhas concluídas</label><div class="nc"><button class="nb" onclick="adjEngNew('eNP',-1)">−</button><span class="nv" id="eNP">2</span><button class="nb" onclick="adjEngNew('eNP',1)">+</button></div></div>
+        <div class="num-row"><label>🔴 Filhas atrasadas abertas</label><div class="nc"><button class="nb" onclick="adjEngNew('eAT',-1)">−</button><span class="nv" id="eAT">1</span><button class="nb" onclick="adjEngNew('eAT',1)">+</button></div></div>
+        <div class="num-row"><label>⏰ Vence esta semana</label><div class="nc"><button class="nb" onclick="adjEngNew('eVS',-1)">−</button><span class="nv" id="eVS">0</span><button class="nb" onclick="adjEngNew('eVS',1)">+</button></div></div>
+        <div style="padding:6px 0;border-top:.5px solid #e2e8f0;margin-top:4px;font-size:12px;display:flex;justify-content:space-between">
+          <span style="color:var(--ts)">Base</span>
+          <strong id="eng-base-result" style="color:var(--navy)">67%</strong>
+        </div>
+      </div>
+      <div class="sim-box">
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">2. Tier extra</div>
+        <div class="num-row"><label>Tier 1 filhas (−15% cada)</label><div class="nc"><button class="nb" onclick="adjEngNew('eTier2',-1)">−</button><span class="nv" id="eTier2">1</span><button class="nb" onclick="adjEngNew('eTier2',1)">+</button></div></div>
+        <div class="num-row"><label>Tier 2 filhas (−30% cada)</label><div class="nc"><button class="nb" onclick="adjEngNew('eTier3',-1)">−</button><span class="nv" id="eTier3">0</span><button class="nb" onclick="adjEngNew('eTier3',1)">+</button></div></div>
+        <div class="num-row"><label>Tier 3 filhas (−50% cada)</label><div class="nc"><button class="nb" onclick="adjEngNew('eTier4',-1)">−</button><span class="nv" id="eTier4">0</span><button class="nb" onclick="adjEngNew('eTier4',1)">+</button></div></div>
+        <div style="padding:6px 0;border-top:.5px solid #e2e8f0;margin-top:4px;font-size:12px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--ts)">Base</span><strong id="eng-sem-base">67%</strong></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--red)">Tier extra</span><strong id="eng-sem-tier" style="color:var(--red)">0%</strong></div>
+          <div style="display:flex;justify-content:space-between;border-top:.5px solid #e2e8f0;padding-top:4px">
+            <span style="font-weight:700">Score Semanal</span><strong id="eng-sem-final" style="font-size:16px;color:var(--navy)">67%</strong>
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <div class="sbar-wrap"><div class="sbar" id="eng-sem-bar" style="width:67%;background:#52b36f"></div></div>
+          <div id="eng-sem-zone" style="font-size:11px;font-weight:600;color:var(--ok);margin-top:4px">🙂 Verde Claro</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ INDICADORES ════ -->
+<div class="card">
+  <div class="ctitle">📈 Score Indicadores — Metas Mãe no Fechamento</div>
+
+  <div class="g2" style="margin-bottom:16px">
+    <div>
+      <div class="ib ib-b" style="margin-bottom:10px">
+        Calculado <strong>apenas no fechamento do ciclo</strong>. Durante o mês mostra "—".
+        Somente <strong>Atingível-Projeto</strong> penaliza quando não fechada. Metas Recorrentes não geram penalidade de Tier — têm score próprio calculado pela média semanal das Filhas.
+      </div>
+      <table class="tt">
+        <thead><tr><th>Situação da Meta Mãe</th><th>Semanas após fechamento</th><th>Penalidade</th></tr></thead>
+        <tbody>
+          <tr><td>✅ Concluída até o fechamento</td><td>—</td><td style="color:var(--ok)">0% (bom!)</td></tr>
+          <tr><td>🔁 Recorrente não concluída (relançada)</td><td>qualquer</td><td style="color:#7c3aed"><strong>Nunca penaliza</strong></td></tr>
+          <tr><td>Atingível — 1ª semana após fechamento</td><td>Tier 1</td><td style="color:var(--amber)"><strong>−15% por meta</strong></td></tr>
+          <tr><td>Atingível — 2ª semana</td><td>Tier 2</td><td style="color:var(--red)"><strong>−30% por meta</strong></td></tr>
+          <tr><td>Atingível — 3ª+ semana</td><td>Tier 3</td><td style="color:#7c3aed"><strong>−50% por meta</strong></td></tr>
+        </tbody>
+      </table>
+      <div class="fml" style="margin-top:10px">Score fechamento = metas concluídas / total Atingível × 100 − Σ tier_pós<br>Recorrentes: excluídas do cálculo de penalidade<br>Mínimo: 0%</div>
+    </div>
+
+    <div>
+      <div class="ib ib-ok" style="margin-bottom:10px">
+        <strong>Por que Recorrente nunca penaliza?</strong><br>
+        Foram projetadas para se repetirem todo ciclo. Penalizar seria punir o comportamento esperado do sistema.
+      </div>
+      <div class="ib ib-g" style="margin-bottom:10px">
+        <strong>Por que Atingível-Projeto penaliza?</strong><br>
+        É uma meta pontual que deveria encerrar naquele ciclo. Se não concluiu e precisou reabrir, há penalidade crescente por semana de atraso.
+      </div>
+      <div class="sim-box">
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">🎮 Simulador de fechamento</div>
+        <div class="num-row"><label>✅ Atingíveis concluídas</label><div class="nc"><button class="nb" onclick="adjInd('iOK',-1)">−</button><span class="nv" id="iOK">2</span><button class="nb" onclick="adjInd('iOK',1)">+</button></div></div>
+        <div class="num-row"><label>Atingíveis Tier 1 (−15% cada)</label><div class="nc"><button class="nb" onclick="adjInd('iT1',-1)">−</button><span class="nv" id="iT1">1</span><button class="nb" onclick="adjInd('iT1',1)">+</button></div></div>
+        <div class="num-row"><label>Atingíveis Tier 2 (−30% cada)</label><div class="nc"><button class="nb" onclick="adjInd('iT2',-1)">−</button><span class="nv" id="iT2">0</span><button class="nb" onclick="adjInd('iT2',1)">+</button></div></div>
+        <div class="num-row"><label>Atingíveis Tier 3 (−50% cada)</label><div class="nc"><button class="nb" onclick="adjInd('iT3',-1)">−</button><span class="nv" id="iT3">0</span><button class="nb" onclick="adjInd('iT3',1)">+</button></div></div>
+        <div style="padding:6px 0;border-top:.5px solid #e2e8f0;margin-top:4px;font-size:12px">
+          <div style="display:flex;justify-content:space-between;border-top:.5px solid #e2e8f0;padding-top:4px">
+            <span style="font-weight:700">Score Fechamento</span><strong id="ind-final" style="font-size:16px;color:var(--navy)">—</strong>
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <div class="sbar-wrap"><div class="sbar" id="ind-bar" style="width:0%;background:#94a3b8"></div></div>
+          <div id="ind-zone" style="font-size:11px;font-weight:600;color:#64748b;margin-top:4px">⏳ Aguardando fechamento do ciclo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ TIMELINE VISUAL ════ -->
+<div class="card">
+  <div class="ctitle">🗓️ Simulação Visual — Como o Score Evolui no Mês
+    <span class="live"><span class="ldot"></span>interativo</span>
+  </div>
+
+  <div class="ib ib-b" style="margin-bottom:14px">
+    Arraste o slider para ver como o score Sirene e Engajamento evoluem ao longo de um ciclo de exemplo.
+    <strong>Cenário:</strong> 3 chamados Sirene, 6 filhas de metas.
+  </div>
+
+  <div class="sl-row">
+    <label>📅 Semana do ciclo</label>
+    <input type="range" id="tl-week" min="1" max="6" value="4" oninput="renderTimeline()"/>
+    <span class="slv" id="tl-week-v">S40</span>
+  </div>
+
+  <div class="g2">
+    <div>
+      <div class="csubt">🚨 Sirene — Modelo B (proposto)</div>
+      <div class="timeline-wrap">
+        <div id="tl-sirene-grid"></div>
+      </div>
+    </div>
+    <div>
+      <div class="csubt">⚡ Engajamento — Acumulado</div>
+      <div class="timeline-wrap">
+        <div id="tl-eng-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+  <div style="font-size:12px;color:var(--ts);background:#f8fafc;padding:12px;border-radius:var(--rmd);line-height:1.7" id="tl-narrative">
+    Selecione uma semana acima para ver o que aconteceu naquele momento.
+  </div>
+</div>
+
+<!-- ════ SCRIPT DE TREINAMENTO ════ -->
+<div class="card">
+  <div class="ctitle">🎓 Como Explicar Para o Time — Roteiro</div>
+  <div class="script-box">
+
+    <div class="script-q">❓ "O que é o Carômetro?"</div>
+    <div class="script-a">O Carômetro é o painel de saúde do seu trabalho. Ele mostra três notas: uma sobre como você responde chamados (Sirene), uma sobre como você cumpre suas tarefas semanais (Engajamento), e uma sobre se você concluiu suas metas do mês (Indicadores). As três notas em verde = você está bem!</div>
+
+    <div class="script-q">❓ "Por que o score de Sirene caiu ontem?"</div>
+    <div class="script-a">Você tem um chamado em aberto que passou do prazo. Enquanto ele estiver aberto, o score fica abaixo de 100%. No Modelo B (proposto), assim que você resolver o chamado, o score volta para 100% no mesmo dia. A solução é simples: resolva o chamado.</div>
+
+    <div class="script-q">❓ "O que é Tier 1, Tier 2?"</div>
+    <div class="script-a">São os graus de atraso. Tier 1 = atrasado há 1 semana (penalidade menor). Tier 2 = atrasado há 2 semanas ou mais (penalidade maior). Quanto mais tempo passa, mais impacto no score. A moral: resolva logo.</div>
+
+    <div class="script-q">❓ "Se eu atrasei o chamado mas já resolvi, fico penalizado para sempre?"</div>
+    <div class="script-a">Depende do modelo. No Modelo A (histórico atual), sim — a pontuação baixa fica registrada. No Modelo B (proposto), não — quando você fecha o chamado, ele sai do cálculo e o score recupera. Por isso estamos discutindo adotar o Modelo B: ele premia quem age rápido mesmo depois de atrasar.</div>
+
+    <div class="script-q">❓ "O que são Meta Filhas e por que preciso delas?"</div>
+    <div class="script-a">Metas Filhas são as etapas concretas para concluir sua Meta Mãe. Você cria cada filha com uma semana prevista de conclusão. Toda semana o sistema verifica quais filhas foram entregues no prazo — isso alimenta o score de Engajamento. Sem filhas = sem score de Engajamento.</div>
+
+    <div class="script-q">❓ "Minha Meta Recorrente vai penalizar meu score quando for relançada?"</div>
+    <div class="script-a">Não. Metas Recorrentes são por design repetidas todo mês — isso é esperado. Só Metas do tipo Atingível-Projeto penalizam quando relançadas, porque são metas pontuais que deveriam ter sido concluídas no mês.</div>
+
+    <div class="script-q">❓ "O mês anterior impacta meu score deste mês?"</div>
+    <div class="script-a">Não. Cada ciclo começa do zero. O que aconteceu em setembro fica no histórico para consulta, mas não afeta os scores de outubro. Você sempre tem uma nova chance a cada ciclo.</div>
+
+    <div class="script-q">❓ "Quando o score de Indicadores é calculado?"</div>
+    <div class="script-a">Somente no fechamento do ciclo — último dia do mês de negócio. Durante o mês ele aparece como "—". Não dá para melhorar durante o mês, mas você pode se preparar concluindo suas Metas Mãe antes do fechamento.</div>
+
+  </div>
+</div>
+
+</div><!-- /tab calc -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 4: DASHBOARD (GESTÃO)
+═══════════════════════════════════════════════════════════════ -->
+<div id="t-dash" class="tab">
+
+<div class="stitle">④ Dashboard — Métricas do Time</div>
+<div class="ssub">Visão gerencial: scores por pessoa, status de metas e fechamento do ciclo.</div>
+
+<!-- Score geral -->
+<div class="card">
+  <div class="ctitle">🏆 Scores do Time — Outubro 2026 (S40 em andamento)</div>
+  <div class="ib ib-b" style="margin-bottom:14px">Score de Indicadores mostrará valores apenas no fechamento (31/Out). Sirene e Engajamento atualizam diariamente e semanalmente.</div>
+
+  <div class="dash-hdr">
+    <div style="display:grid;grid-template-columns:180px 1fr 1fr 1fr 80px;gap:10px">
+      <div>Pessoa</div><div>🚨 Sirene</div><div>⚡ Engajamento</div><div>📈 Indicadores</div><div>Status</div>
+    </div>
+  </div>
+
+  <div id="dash-scores-list"></div>
+</div>
+
+<!-- Metas do time -->
+<div class="g2">
+  <div class="card">
+    <div class="ctitle">📋 Status Metas do Time</div>
+    <table class="tt">
+      <thead><tr><th>Meta</th><th>Tipo</th><th>Responsável</th><th>Filhas</th><th>Status</th></tr></thead>
+      <tbody id="dash-metas-tbody"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <div class="ctitle">🚨 Chamados em Atraso</div>
+    <table class="tt">
+      <thead><tr><th>Chamado</th><th>Responsável</th><th>Tier</th><th>Ação</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Irregularidade escritura RS-445</td>
+          <td>Danilo</td>
+          <td><span class="tbdg t2">Tier 2</span></td>
+          <td><button class="btn btn-d btn-sm" onclick="fecharChamado()">Resolver</button></td>
+        </tr>
+        <tr>
+          <td>Contrato MG-334 revisão</td>
+          <td>Fernanda</td>
+          <td><span class="tbdg t1">Tier 1</span></td>
+          <td><button class="btn btn-ok btn-sm">Resolver</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Fechamento do ciclo -->
+<div class="card">
+  <div class="ctitle">🏁 Projeção de Fechamento — Outubro 2026</div>
+  <div class="g3" id="dash-fechamento"></div>
+</div>
+
+</div><!-- /tab dash -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 5: EXEMPLOS & SIMULAÇÃO
+═══════════════════════════════════════════════════════════════ -->
+<div id="t-exemplos" class="tab">
+
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+  <div>
+    <h2 style="font-family:var(--moni-font-display,serif);font-size:18px;color:var(--navy);margin:0">Exemplos & Simulação</h2>
+    <p style="font-size:11px;color:var(--ts);margin:3px 0 0">Como cada indicador se comporta dia a dia, semana a semana e no fechamento do ciclo — com exemplos reais para facilitar o treinamento.</p>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+    <span style="font-size:10px;background:var(--ok-l);color:var(--ok);border:.5px solid var(--ok-b);padding:3px 10px;border-radius:10px;font-weight:700">≥85% Verde Escuro</span>
+    <span style="font-size:10px;background:#f0fdf4;color:#15803d;border:.5px solid #bbf7d0;padding:3px 10px;border-radius:10px;font-weight:700">≥70% Verde Claro</span>
+    <span style="font-size:10px;background:var(--gold-l);color:var(--earth);border:.5px solid var(--gold-b);padding:3px 10px;border-radius:10px;font-weight:700">≥50% Amarelo</span>
+    <span style="font-size:10px;background:#fff5f5;color:#b91c1c;border:.5px solid #fecaca;padding:3px 10px;border-radius:10px;font-weight:700">&lt;50% Vermelho</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     BLOCO 1: SIRENE — DIA A DIA
+══════════════════════════════════════ -->
+<div class="card" style="margin-bottom:20px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <div style="background:var(--navy);color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700">🚨 Sirene — Comportamento Dia a Dia</div>
+    <span style="font-size:11px;color:var(--ts)">Semana S40 (28/Set – 04/Out) · Ciclo Outubro 2026</span>
+  </div>
+
+  <!-- Cenário -->
+  <div style="background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:12px 14px;margin-bottom:14px;font-size:11px">
+    <strong style="color:var(--navy)">Cenário:</strong> Danilo tem 3 chamados no ciclo.
+    <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap">
+      <span style="background:var(--ok-l);color:var(--ok);padding:3px 10px;border-radius:6px;font-size:10px;font-weight:600;border:.5px solid var(--ok-b)">✅ C1 — Produto V2 · concluído S39</span>
+      <span style="background:var(--ok-l);color:var(--ok);padding:3px 10px;border-radius:6px;font-size:10px;font-weight:600;border:.5px solid var(--ok-b)">✅ C2 — Cliente TI · concluído S39</span>
+      <span style="background:#fff5f5;color:#b91c1c;padding:3px 10px;border-radius:6px;font-size:10px;font-weight:600;border:.5px solid #fecaca">🔴 RS-445 — Escritura · Prazo S38 · 2ª semana aberto → Tier 2 (−30%)</span>
+    </div>
+  </div>
+
+  <!-- Tabela dia a dia -->
+  <div style="overflow-x:auto;margin-bottom:14px">
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead>
+        <tr style="background:#f1f5f9">
+          <th style="padding:7px 10px;text-align:left;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts);white-space:nowrap">Dia</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Conclui esta sem.</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Em atraso</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Vence hoje</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Bolinha base</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Tier (RS-445)</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Score prévia</th>
+          <th style="padding:7px 10px;text-align:left;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Zona</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:.5px solid #f1f5f9">
+          <td style="padding:7px 10px;font-weight:600;color:var(--tp);white-space:nowrap">Seg 28/Set</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">0</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--red);font-weight:700">1</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">0</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">0 ÷ (0+1+0) = <strong>0%</strong></td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fee2e2;color:#b91c1c;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700">T2 −30%</span></td>
+          <td style="padding:7px 10px;text-align:center;font-size:13px;font-weight:800;color:#b91c1c">0%</td>
+          <td style="padding:7px 10px"><span style="background:#fff5f5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">😟 Vermelho</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9">
+          <td style="padding:7px 10px;font-weight:600;color:var(--tp);white-space:nowrap">Ter 29/Set</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">0</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--red);font-weight:700">1</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">0</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">0 ÷ 1 = <strong>0%</strong></td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fee2e2;color:#b91c1c;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700">T2 −30%</span></td>
+          <td style="padding:7px 10px;text-align:center;font-size:13px;font-weight:800;color:#b91c1c">0%</td>
+          <td style="padding:7px 10px"><span style="background:#fff5f5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">😟 Vermelho</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#fffbeb">
+          <td style="padding:7px 10px;font-weight:600;color:var(--tp);white-space:nowrap">Qua 30/Set ⭐</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">1 ← novo</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--red);font-weight:700">1</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">0</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">1 ÷ (1+1) = <strong>50%</strong></td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fee2e2;color:#b91c1c;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700">T2 −30%</span></td>
+          <td style="padding:7px 10px;text-align:center;font-size:13px;font-weight:800;color:#b91c1c">20%</td>
+          <td style="padding:7px 10px"><span style="background:#fff5f5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">😟 Vermelho</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#fffbeb">
+          <td style="padding:7px 10px;font-weight:600;color:var(--tp);white-space:nowrap">Qui 01/Out ⭐</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">2 ← novo</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--red);font-weight:700">1</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">0</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">2 ÷ (2+1) = <strong>67%</strong></td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fee2e2;color:#b91c1c;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700">T2 −30%</span></td>
+          <td style="padding:7px 10px;text-align:center;font-size:13px;font-weight:800;color:#b91c1c">37%</td>
+          <td style="padding:7px 10px"><span style="background:#fff5f5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">😟 Vermelho</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #e2e8f0;background:#f0fdf4">
+          <td style="padding:7px 10px;font-weight:700;color:var(--navy);white-space:nowrap">Sex 02/Out ✓ FECHA</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">2</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--red);font-weight:700">1</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">0</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">2 ÷ 3 = <strong>67%</strong></td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fee2e2;color:#b91c1c;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700">T2 −30%</span></td>
+          <td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:#b91c1c">37%</td>
+          <td style="padding:7px 10px"><span style="background:#fff5f5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;border:.5px solid #fecaca">😟 Score S40 = 37%</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#fdf4ff">
+          <td style="padding:7px 10px;font-weight:600;color:#5b21b6;white-space:nowrap">Sex 09/Out — S41</td>
+          <td style="padding:7px 10px;text-align:center;font-size:10px;color:var(--tt)">depende da semana</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--red);font-weight:700">1</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">—</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">—</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fdf4ff;color:#7c3aed;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;border:.5px solid #ddd6fe">T3 −50%</span></td>
+          <td style="padding:7px 10px;text-align:center;font-size:11px;font-weight:700;color:#7c3aed">piora</td>
+          <td style="padding:7px 10px"><span style="font-size:10px;color:#7c3aed;font-weight:600">RS-445 vira Tier 3</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Se resolver -->
+  <div style="background:var(--ok-l);border:.5px solid var(--ok-b);border-radius:var(--rmd);padding:10px 14px;margin-bottom:12px">
+    <div style="font-size:11px;font-weight:700;color:var(--ok);margin-bottom:6px">✅ E se resolver RS-445 na Qua (30/Set)?</div>
+    <div style="display:flex;gap:16px;font-size:11px;flex-wrap:wrap">
+      <span>Qua: 1 concluído / 0 atrasados → base = <strong>100%</strong> · sem tier → score = <strong>100%</strong></span>
+      <span>Sex fechamento: Score S40 = <strong>100%</strong> (Verde Escuro ✓)</span>
+    </div>
+  </div>
+
+  <div style="background:#f1f5f9;border-radius:6px;padding:10px 14px;font-size:11px;color:var(--ts)">
+    <strong style="color:var(--navy)">Lição:</strong> O RS-445 aberto arrasta o score para Vermelho mesmo com outros chamados em dia.
+    Resolver na semana evita que ele suba de Tier — quanto mais tempo aberto, pior o impacto.
+    Um chamado Tier 2 sozinho já custa −30% no score semanal.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     BLOCO 2: ENGAJAMENTO — SEMANA A SEMANA
+══════════════════════════════════════ -->
+<div class="card" style="margin-bottom:20px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <div style="background:var(--moni-green-800,#2F4A3A);color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700">⚡ Engajamento — Comportamento Semana a Semana</div>
+    <span style="font-size:11px;color:var(--ts)">Ciclo Outubro 2026 · S37–S41</span>
+  </div>
+
+  <div style="background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:12px 14px;margin-bottom:14px;font-size:11px">
+    <strong style="color:var(--navy)">Cenário:</strong> Danilo tem 6 filhas no ciclo Out/26.
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+      <span style="font-size:10px;background:#f1f5f9;padding:2px 8px;border-radius:6px">F1–F3: concluídas no prazo ✅</span>
+      <span style="font-size:10px;background:#f1f5f9;padding:2px 8px;border-radius:6px">F4–F5: concluídas, mas com atraso</span>
+      <span style="font-size:10px;background:#fff5f5;border:.5px solid #fecaca;padding:2px 8px;border-radius:6px">F6 (Métricas TI): atrasada · prazo S39 → Tier 1 em S40</span>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto;margin-bottom:14px">
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead>
+        <tr style="background:#f1f5f9">
+          <th style="padding:7px 10px;text-align:left;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts);white-space:nowrap">Semana</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Concluídas ✓</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Atrasadas</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Tier ativo</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Base</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Deduction</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Score semanal</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Score mensal (prévia)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#f0fdf4">
+          <td style="padding:7px 10px;font-weight:600;color:var(--tp);white-space:nowrap">S37 · Set 07–13</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">F1 ✓</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--tt)">—</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--tt);font-size:10px">Nenhum</td>
+          <td style="padding:7px 10px;text-align:center">1/1 = 100%</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">0%</td>
+          <td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:#15803d">100%</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:var(--ok-l);color:var(--ok);padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">100% ✓</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#f0fdf4">
+          <td style="padding:7px 10px;font-weight:600;color:var(--tp);white-space:nowrap">S38 · Set 14–20</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">F2✓ F3✓</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--tt)">—</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--tt);font-size:10px">Nenhum</td>
+          <td style="padding:7px 10px;text-align:center">2/2 = 100%</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">0%</td>
+          <td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:#15803d">100%</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:var(--ok-l);color:var(--ok);padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">100% ✓</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#fffbeb">
+          <td style="padding:7px 10px;font-weight:600;color:var(--tp);white-space:nowrap">S39 · Set 21–27</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">F4✓ F5✓</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--amber);font-weight:700">F6</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700">T1 (1ª sem)</span></td>
+          <td style="padding:7px 10px;text-align:center">2/3 = 67%</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--amber);font-weight:700">−15%</td>
+          <td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:#b45309">52%</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:var(--gold-l);color:var(--earth);padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">84% ⚠️</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#fffbeb">
+          <td style="padding:7px 10px;font-weight:600;color:var(--tp);white-space:nowrap">S40 · Set 28–Out 04</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">0</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--red);font-weight:700">F6</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700">T1 (1ª sem) → ainda</span></td>
+          <td style="padding:7px 10px;text-align:center">0/1 = 0%</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--amber);font-weight:700">−15%</td>
+          <td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:#b91c1c">0%</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fff5f5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">63% ⬇️</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#f0fdf4">
+          <td style="padding:7px 10px;font-weight:600;color:var(--tp);white-space:nowrap">S40 — SE fechar F6 ✅</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">F6 ✓</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--tt)">—</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--tt);font-size:10px">Nenhum</td>
+          <td style="padding:7px 10px;text-align:center">1/1 = 100%</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">0%</td>
+          <td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:#15803d">100%</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:var(--ok-l);color:var(--ok);padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">88% ✓</span></td>
+        </tr>
+        <tr style="background:#fff5f5">
+          <td style="padding:7px 10px;font-weight:600;color:#5b21b6;white-space:nowrap">S41 — SE não fechar</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--tt)">—</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--red);font-weight:700">F6</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fee2e2;color:#b91c1c;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700">T2 (2ª sem)</span></td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">0/1 = 0%</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--red);font-weight:700">−30%</td>
+          <td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:#b91c1c">0%</td>
+          <td style="padding:7px 10px;text-align:center"><span style="font-size:10px;color:#b91c1c;font-weight:700">piora ainda mais</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="background:#f1f5f9;border-radius:6px;padding:10px 14px;font-size:11px;color:var(--ts)">
+    <strong style="color:var(--navy)">Lição:</strong> Uma única filha atrasada impacta o score de toda a semana.
+    Quanto mais semanas em aberto, mais o Tier aumenta. Fechar F6 em S40 recupera o score para 100% na semana e
+    leva o mensal de 63% para 88%.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     BLOCO 3: INDICADORES — FECHAMENTO DO CICLO
+══════════════════════════════════════ -->
+<div class="card" style="margin-bottom:20px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <div style="background:var(--moni-earth-800,#4A3929);color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700">📈 Indicadores — Fechamento do Ciclo</div>
+    <span style="font-size:11px;color:var(--ts)">Ciclo Outubro 2026 · Fechamento 31/Out</span>
+  </div>
+
+  <div style="background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rmd);padding:12px 14px;margin-bottom:14px;font-size:11px">
+    <strong style="color:var(--navy)">Cenário:</strong> Danilo tem 3 Metas Mãe no ciclo Out/26.
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:8px">
+      <div style="background:#fff;border:.5px solid #e2e8f0;border-radius:6px;padding:8px 10px">
+        <div style="font-size:10px;font-weight:700;color:var(--amber)">🔑 META A — Atingível-Projeto</div>
+        <div style="font-size:10px;color:var(--ts);margin-top:2px">Homologação Produto v2 · Prazo: 31/Out</div>
+      </div>
+      <div style="background:#fff;border:.5px solid #e2e8f0;border-radius:6px;padding:8px 10px">
+        <div style="font-size:10px;font-weight:700;color:var(--amber)">🔑 META B — Atingível-Projeto</div>
+        <div style="font-size:10px;color:var(--ts);margin-top:2px">Dashboard de KPIs · Prazo: 31/Out</div>
+      </div>
+      <div style="background:#f5f3ff;border:.5px solid #ddd6fe;border-radius:6px;padding:8px 10px">
+        <div style="font-size:10px;font-weight:700;color:#7c3aed">🔁 META C — Recorrente</div>
+        <div style="font-size:10px;color:#5b21b6;margin-top:2px">Qualificação Frank · Score = média semanal das Filhas</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto;margin-bottom:14px">
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead>
+        <tr style="background:#f1f5f9">
+          <th style="padding:7px 10px;text-align:left;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts);white-space:nowrap">Momento</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Meta A</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Meta B</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Meta C (Recorrente)</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Score do Ciclo</th>
+          <th style="padding:7px 10px;text-align:left;border-bottom:.5px solid #e2e8f0;font-weight:700;color:var(--ts)">Zona</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#f8fafc">
+          <td style="padding:7px 10px;font-weight:600;color:var(--ts);white-space:nowrap">Durante Out/26 (S37–S44)</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--amber);font-size:10px">Em andamento</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--amber);font-size:10px">Em andamento</td>
+          <td style="padding:7px 10px;text-align:center;color:#7c3aed;font-size:10px">Em andamento</td>
+          <td style="padding:7px 10px;text-align:center;font-size:18px;font-weight:800;color:#94a3b8">—</td>
+          <td style="padding:7px 10px"><span style="font-size:10px;color:#64748b">⏳ Ainda não calculado</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#f0fdf4">
+          <td style="padding:7px 10px;font-weight:700;color:var(--navy);white-space:nowrap">31/Out — CENÁRIO 1 ✅<br><span style="font-size:10px;font-weight:400">Ambas concluídas no prazo</span></td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">✅ Concluída</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">✅ Concluída</td>
+          <td style="padding:7px 10px;text-align:center;color:#7c3aed;font-size:10px">Relançada<br>Sem penalidade</td>
+          <td style="padding:7px 10px;text-align:center;font-size:16px;font-weight:800;color:#15803d">100%</td>
+          <td style="padding:7px 10px"><span style="background:var(--ok-l);color:var(--ok);padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">😁 Verde Escuro</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#fffbeb">
+          <td style="padding:7px 10px;font-weight:700;color:var(--navy);white-space:nowrap">31/Out — CENÁRIO 2 ⚠️<br><span style="font-size:10px;font-weight:400">Meta A concluída, Meta B não</span></td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">✅ Concluída</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--red);font-weight:700">🔴 Não concluída</td>
+          <td style="padding:7px 10px;text-align:center;color:#7c3aed;font-size:10px">Relançada<br>Sem penalidade</td>
+          <td style="padding:7px 10px;text-align:center;font-size:16px;font-weight:800;color:#b91c1c">50%</td>
+          <td style="padding:7px 10px"><span style="background:var(--gold-l);color:var(--earth);padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">😐 Amarelo</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#fff5f5">
+          <td style="padding:7px 10px;font-weight:600;color:var(--red);white-space:nowrap">07/Nov — 1ª sem. pós-fech.<br><span style="font-size:10px;font-weight:400">Meta B ainda não entregue</span></td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">✅</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fee2e2;color:#b91c1c;padding:1px 6px;border-radius:6px;font-size:10px;font-weight:700">Tier 1 −15%</span></td>
+          <td style="padding:7px 10px;text-align:center;color:#7c3aed;font-size:10px">Sem penalidade</td>
+          <td style="padding:7px 10px;text-align:center;font-size:16px;font-weight:800;color:#b91c1c">35%</td>
+          <td style="padding:7px 10px"><span style="background:#fff5f5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">😟 Vermelho</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#fff5f5">
+          <td style="padding:7px 10px;font-weight:600;color:var(--red);white-space:nowrap">14/Nov — 2ª sem. pós-fech.<br><span style="font-size:10px;font-weight:400">Meta B ainda não entregue</span></td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">✅</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#fee2e2;color:#b91c1c;padding:1px 6px;border-radius:6px;font-size:10px;font-weight:700">Tier 2 −30%</span></td>
+          <td style="padding:7px 10px;text-align:center;color:#7c3aed;font-size:10px">Sem penalidade</td>
+          <td style="padding:7px 10px;text-align:center;font-size:16px;font-weight:800;color:#b91c1c">20%</td>
+          <td style="padding:7px 10px"><span style="background:#fff5f5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">😟 Vermelho grave</span></td>
+        </tr>
+        <tr style="background:#f5f3ff">
+          <td style="padding:7px 10px;font-weight:600;color:#5b21b6;white-space:nowrap">Após 14/Nov — Meta C<br><span style="font-size:10px;font-weight:400">Recorrente relançada em Nov</span></td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ok);font-weight:700">✅</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts);font-size:10px">aguardando</td>
+          <td style="padding:7px 10px;text-align:center"><span style="background:#ede9fe;color:#7c3aed;padding:1px 6px;border-radius:6px;font-size:10px;font-weight:700">Sem penalidade ✓</span></td>
+          <td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:#7c3aed">—</td>
+          <td style="padding:7px 10px"><span style="font-size:10px;color:#7c3aed;font-weight:600">Meta C nunca penaliza</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="background:#f1f5f9;border-radius:6px;padding:10px 14px;font-size:11px;color:var(--ts)">
+    <strong style="color:var(--navy)">Lição:</strong> Durante o ciclo, o score de Indicadores (Atingível-Projeto) mostra "—" (prévia). No fechamento (31/Out), é calculado uma única vez.
+    Só Atingível-Projeto gera penalidade de Tier pós-fechamento, e essa penalidade aumenta a cada semana de atraso.
+    Metas Recorrentes não geram Tier — mas têm score próprio calculado pela média semanal das Filhas (veja abaixo).
+  </div>
+</div>
+
+<!-- ══ SUB-SEÇÃO: SCORE DA META MÃE RECORRENTE (Opção B) ══ -->
+<div class="card">
+  <div style="font-size:13px;font-weight:700;color:#5b21b6;margin-bottom:4px">🔁 Score da Meta Mãe Recorrente — Como é calculado</div>
+  <div style="font-size:11px;color:var(--ts);margin-bottom:14px">
+    A Meta Mãe Recorrente nunca é "concluída" em si — ela reabre todo mês automaticamente. Mas ela tem <strong>Metas Filhas semanais</strong> que o colaborador precisa concluir. O score da Mãe é a <strong>média das bolinhas de cada semana do ciclo</strong>.
+  </div>
+
+  <!-- Fórmula -->
+  <div style="background:#f5f3ff;border:.5px solid #ddd6fe;border-radius:var(--rmd);padding:10px 14px;margin-bottom:14px;font-size:11px">
+    <div style="font-weight:700;color:#5b21b6;margin-bottom:6px">📐 Fórmula</div>
+    <div style="font-family:monospace;background:#ede9fe;border-radius:6px;padding:8px 12px;font-size:11px;color:#3b0764;margin-bottom:6px">
+      Bolinha semana = filhas_concluídas / (concluídas + atrasadas + vence_semana) × 100<br>
+      Score Mãe = média(bolinha_S1, bolinha_S2, bolinha_S3, bolinha_S4)
+    </div>
+    <div style="color:var(--ts)">A média captura o comportamento semana a semana — uma semana com zero filhas concluídas impacta o score mesmo que as outras sejam perfeitas.</div>
+  </div>
+
+  <!-- Exemplo simulado: META C — Qualificação Frank -->
+  <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">📋 Exemplo: META C — Qualificação Frank (Out/26)</div>
+  <div style="overflow-x:auto;margin-bottom:14px">
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead>
+        <tr style="background:#f5f3ff">
+          <th style="padding:7px 10px;text-align:left;border-bottom:.5px solid #ddd6fe;font-weight:700;color:#5b21b6">Semana</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #ddd6fe;font-weight:700;color:#5b21b6">Filhas<br>concluídas</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #ddd6fe;font-weight:700;color:#5b21b6">Total<br>esperadas</th>
+          <th style="padding:7px 10px;text-align:center;border-bottom:.5px solid #ddd6fe;font-weight:700;color:#5b21b6">Bolinha<br>da semana</th>
+          <th style="padding:7px 10px;text-align:left;border-bottom:.5px solid #ddd6fe;font-weight:700;color:#5b21b6">Zona</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#f0fdf4">
+          <td style="padding:7px 10px;font-weight:600;color:var(--ts)">S37 (1ª semana)</td>
+          <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--ok)">1</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">1</td>
+          <td style="padding:7px 10px;text-align:center;font-size:15px;font-weight:800;color:#15803d">100%</td>
+          <td style="padding:7px 10px"><span style="background:var(--ok-l);color:var(--ok);padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">Verde Escuro</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#fff5f5">
+          <td style="padding:7px 10px;font-weight:600;color:var(--ts)">S38 (2ª semana)</td>
+          <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--red)">0</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">1</td>
+          <td style="padding:7px 10px;text-align:center;font-size:15px;font-weight:800;color:#b91c1c">0%</td>
+          <td style="padding:7px 10px"><span style="background:#fff5f5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">Vermelho</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #f1f5f9;background:#f0fdf4">
+          <td style="padding:7px 10px;font-weight:600;color:var(--ts)">S39 (3ª semana)</td>
+          <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--ok)">1</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">1</td>
+          <td style="padding:7px 10px;text-align:center;font-size:15px;font-weight:800;color:#15803d">100%</td>
+          <td style="padding:7px 10px"><span style="background:var(--ok-l);color:var(--ok);padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">Verde Escuro</span></td>
+        </tr>
+        <tr style="border-bottom:.5px solid #ddd6fe;background:#fffbeb">
+          <td style="padding:7px 10px;font-weight:600;color:var(--ts)">S40 (4ª semana)</td>
+          <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--amber)">1</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--ts)">2</td>
+          <td style="padding:7px 10px;text-align:center;font-size:15px;font-weight:800;color:#b45309">50%</td>
+          <td style="padding:7px 10px"><span style="background:var(--gold-l);color:var(--earth);padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">Amarelo</span></td>
+        </tr>
+        <tr style="background:#f5f3ff">
+          <td style="padding:7px 10px;font-weight:700;color:#5b21b6" colspan="3">Score Mãe Out/26 = média(100% + 0% + 100% + 50%) ÷ 4</td>
+          <td style="padding:7px 10px;text-align:center;font-size:16px;font-weight:800;color:#7c3aed">62,5%</td>
+          <td style="padding:7px 10px"><span style="background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">😐 Amarelo</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Por que B é melhor que A -->
+  <div style="background:#fff7ed;border:.5px solid #fed7aa;border-radius:var(--rmd);padding:10px 14px;font-size:11px;margin-bottom:12px">
+    <strong style="color:var(--earth)">⚖️ Por que média semanal e não taxa total do mês?</strong><br>
+    <span style="color:var(--ts)">Se usássemos só a taxa total: 3 filhas concluídas de 5 esperadas = <strong>60%</strong>. Parece ok.<br>
+    Mas a média semanal revela que na S38 o colaborador não entregou <strong>nada</strong> — e isso impacta o score (62,5%). Em ciclos onde alguém some por 2 semanas e "recupera" no final, a média semanal é muito mais justa e honesta.</span>
+  </div>
+
+  <div style="background:#f1f5f9;border-radius:6px;padding:10px 14px;font-size:11px;color:var(--ts)">
+    <strong style="color:#5b21b6">🔁 Lição:</strong> Consistência semana a semana é o que importa na Recorrente. Uma semana zerada puxa a média para baixo e não pode ser recuperada pelas outras. O score da Mãe Recorrente é calculado ao fechar o ciclo — igual ao Engajamento e Indicadores.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     BLOCO 4: COMPARATIVO RÁPIDO
+══════════════════════════════════════ -->
+<div class="card">
+  <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px">📊 Comparativo Rápido — Os 3 indicadores lado a lado</div>
+  <div class="g3" style="gap:12px">
+    <div style="background:#f8fafc;border:.5px solid var(--navy);border-radius:var(--rmd);padding:12px">
+      <div style="font-size:10px;font-weight:700;color:var(--navy);text-transform:uppercase;margin-bottom:8px">🚨 Sirene</div>
+      <div style="font-size:10px;color:var(--ts);line-height:1.6">
+        <div>📅 Atualiza: <strong>todo dia</strong></div>
+        <div>📋 Fecha: <strong>toda sexta</strong></div>
+        <div>⏱ Conta: <strong>semanas desde o prazo</strong></div>
+        <div style="color:var(--blue);font-weight:600">🔄 Não reseta — acumulado contínuo</div>
+        <div style="margin-top:6px;padding-top:6px;border-top:.5px solid #e2e8f0">Tier 1 (1ª sem) = −15%<br>Tier 2 (2ª sem) = −30%<br>Tier 3 (3ª+ sem) = −50%</div>
+      </div>
+    </div>
+    <div style="background:#f8fafc;border:.5px solid #2F4A3A;border-radius:var(--rmd);padding:12px">
+      <div style="font-size:10px;font-weight:700;color:#2F4A3A;text-transform:uppercase;margin-bottom:8px">⚡ Engajamento</div>
+      <div style="font-size:10px;color:var(--ts);line-height:1.6">
+        <div>📅 Atualiza: <strong>todo dia</strong></div>
+        <div>📋 Fecha: <strong>toda sexta</strong></div>
+        <div>⏱ Conta: <strong>semanas desde o prazo da filha</strong></div>
+        <div>🔄 Zera: <strong>a cada ciclo mensal</strong></div>
+        <div style="margin-top:6px;padding-top:6px;border-top:.5px solid #e2e8f0">Tier 1 (1ª sem) = −15%<br>Tier 2 (2ª sem) = −30%<br>Tier 3 (3ª+ sem) = −50%</div>
+      </div>
+    </div>
+    <div style="background:#f8fafc;border:.5px solid var(--earth);border-radius:var(--rmd);padding:12px">
+      <div style="font-size:10px;font-weight:700;color:var(--earth);text-transform:uppercase;margin-bottom:8px">📈 Indicadores</div>
+      <div style="font-size:10px;color:var(--ts);line-height:1.6">
+        <div>📅 Atualiza: <strong>no fechamento do ciclo</strong></div>
+        <div>📋 Fecha: <strong>último dia do mês</strong></div>
+        <div>⏱ Conta: <strong>semanas após fechamento</strong></div>
+        <div>🔄 Zera: <strong>a cada ciclo mensal</strong></div>
+        <div style="color:#7c3aed;font-weight:600">🔁 Recorrente: score = média semanal das Filhas</div>
+        <div style="margin-top:6px;padding-top:6px;border-top:.5px solid #e2e8f0">Tier 1 (1ª sem pós) = −15%<br>Tier 2 (2ª sem pós) = −30%<br>Tier 3 (3ª+ sem pós) = −50%<br><span style="color:#7c3aed">Recorrente: sem penalidade de Tier</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /tab exemplos -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MODAIS
+═══════════════════════════════════════════════════════════════ -->
+
+<!-- Modal: Nova Meta -->
+<div class="mov" id="modal-nova-meta">
+  <div class="mbox">
+    <div class="mhdr"><h3>+ Nova Meta <span class="tag-admin">Admin</span></h3><button class="mclose" onclick="closeModal('modal-nova-meta')">×</button></div>
+    <div class="mbody">
+      <div class="ff"><label class="fl">Descrição *</label><input class="fi" id="nm-desc" placeholder="Ex: Qualificação Frank Mensal"/></div>
+      <div class="g2">
+        <div class="ff"><label class="fl">Tipo</label>
+          <select class="fs" id="nm-tipo">
+            <option value="Atingível - Projeto">Atingível - Projeto</option>
+            <option value="Recorrente">Recorrente</option>
+          </select>
+        </div>
+        <div class="ff"><label class="fl">Meta Chave?</label>
+          <select class="fs" id="nm-chave"><option value="0">Não</option><option value="1">Sim 🔑</option></select>
+        </div>
+      </div>
+      <div class="ff"><label class="fl">Data de Fim Esperada *</label><input type="date" class="fi" id="nm-fim" value="2026-10-31"/></div>
+      <div class="ib ib-b" style="margin-bottom:0;font-size:11px">
+        <strong>Atingível - Projeto:</strong> meta pontual, concluída uma vez.<br>
+        <strong>Recorrente:</strong> se repete todo mês. Relançamento automático — sem penalidade.
+      </div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-o btn-sm" onclick="closeModal('modal-nova-meta')">Cancelar</button>
+      <button class="btn btn-p btn-sm" onclick="addMeta()">Criar Meta</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Batch Filhas -->
+<div class="mov" id="modal-batch-filha">
+  <div class="mbox mbox-lg">
+    <div class="mhdr"><h3>+ Adicionar Metas Filhas <span class="tag-admin">Admin</span></h3><button class="mclose" onclick="closeModal('modal-batch-filha')">×</button></div>
+    <div class="mbody">
+      <div class="ff">
+        <label class="fl">Meta Mãe *</label>
+        <select class="fs" id="batch-meta-sel" onchange="renderBatchModal()"></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 120px 30px;gap:8px;padding:6px 0;border-bottom:.5px solid #e2e8f0;margin-bottom:6px">
+        <div style="font-size:10px;font-weight:700;color:var(--ts)">DESCRIÇÃO DA FILHA</div>
+        <div style="font-size:10px;font-weight:700;color:var(--ts)">DATA PREVISTA</div>
+        <div></div>
+      </div>
+      <div id="batch-filhas-rows"></div>
+      <button class="btn btn-o btn-sm" style="margin-top:8px" onclick="addBatchRow()">+ Mais uma filha</button>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-o btn-sm" onclick="closeModal('modal-batch-filha')">Cancelar</button>
+      <button class="btn btn-p btn-sm" id="btn-salvar-batch" onclick="salvarBatch()">Salvar filhas (1)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Novo Indicador -->
+<div class="mov" id="modal-novo-ind">
+  <div class="mbox">
+    <div class="mhdr"><h3>+ Novo Indicador <span class="tag-admin">Admin</span></h3><button class="mclose" onclick="closeModal('modal-novo-ind')">×</button></div>
+    <div class="mbody">
+      <div class="ff"><label class="fl">Nome do Indicador *</label><input class="fi" id="ni-nome" placeholder="Ex: Taxa de Conversão Frank"/></div>
+      <div class="g2">
+        <div class="ff"><label class="fl">Unidade</label>
+          <select class="fs" id="ni-unid"><option>%</option><option>un</option><option>R$</option><option>pts</option><option>dias</option></select>
+        </div>
+        <div class="ff"><label class="fl">Grupo</label>
+          <input class="fi" id="ni-grupo" placeholder="Ex: Marketing" value="Geral"/>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="ff"><label class="fl">🟢 Verde a partir de</label><input class="fi" type="number" id="ni-verde" value="15"/></div>
+        <div class="ff"><label class="fl">🟡 Amarelo a partir de</label><input class="fi" type="number" id="ni-am" value="8"/></div>
+      </div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-o btn-sm" onclick="closeModal('modal-novo-ind')">Cancelar</button>
+      <button class="btn btn-p btn-sm" onclick="addIndicador()">Criar Indicador</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Novo Comentário -->
+<div class="mov" id="modal-comentario">
+  <div class="mbox">
+    <div class="mhdr"><h3>💬 Novo Comentário</h3><button class="mclose" onclick="closeModal('modal-comentario')">×</button></div>
+    <div class="mbody">
+      <div class="ff"><label class="fl">Meta</label><input class="fi" id="com-meta" readonly style="background:#f8fafc"/></div>
+      <div class="ff"><label class="fl">Comentário *</label><textarea class="fi" id="com-txt" rows="3" placeholder="Ex: Reunião realizada, aguardando aprovação..."></textarea></div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-o btn-sm" onclick="closeModal('modal-comentario')">Cancelar</button>
+      <button class="btn btn-p btn-sm" onclick="salvarComentario()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Bloqueio -->
+<div class="mov" id="modal-bloqueio">
+  <div class="mbox">
+    <div class="mhdr"><h3>🚧 Registrar Bloqueio</h3><button class="mclose" onclick="closeModal('modal-bloqueio')">×</button></div>
+    <div class="mbody">
+      <div class="ff"><label class="fl">Meta</label><input class="fi" id="blo-meta" readonly style="background:#f8fafc"/></div>
+      <div class="ff"><label class="fl">Descrição do Bloqueio *</label><textarea class="fi" id="blo-txt" rows="3" placeholder="Ex: Aguardando documentação do franqueado para prosseguir..."></textarea></div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-o btn-sm" onclick="closeModal('modal-bloqueio')">Cancelar</button>
+      <button class="btn btn-d btn-sm" onclick="salvarBloqueio()">Registrar Bloqueio</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nova Filha (TO DO) -->
+<div class="mov" id="modal-nova-filha-todo">
+  <div class="mbox">
+    <div class="mhdr"><h3>➕ Nova Meta Filha <span class="tag-user">Usuário</span></h3><button class="mclose" onclick="closeModal('modal-nova-filha-todo')">×</button></div>
+    <div class="mbody">
+      <div class="ff"><label class="fl">Meta Mãe</label><input class="fi" id="nft-meta" readonly style="background:#f8fafc"/></div>
+      <div class="ff"><label class="fl">Descrição *</label><input class="fi" id="nft-desc" placeholder="Ex: Aplicar questionário NPS time Sul"/></div>
+      <div class="ff"><label class="fl">Data prevista *</label><input type="date" class="fi" id="nft-data" value="2026-10-10"/></div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-o btn-sm" onclick="closeModal('modal-nova-filha-todo')">Cancelar</button>
+      <button class="btn btn-p btn-sm" onclick="salvarFilhaTodo()">Criar Filha</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════════════════ -->
+<script>
+// ── Estado Global ──────────────────────────────────────────────
+const SIM_WEEK = 40;
+let bdRelancando = false;
+let batchRows = [{ desc: '', data: '' }];
+let todoMetaOpen = {};
+let todoConcluidasOpen = {};
+
+const simMetas = [
+  {
+    id: 'm1', desc: 'Homologação Produto v2', tipo: 'Atingível - Projeto', chave: true,
+    fim: '2026-10-31', concluida: false, comentarios: [], bloqueio: null,
+    filhas: [
+      { id: 'f1', desc: 'Documentação técnica', s: 38, done: true, doneS: 38 },
+      { id: 'f2', desc: 'Testes de regressão', s: 39, done: true, doneS: 40 },
+      { id: 'f3', desc: 'Aprovação stakeholders', s: 40, done: false },
+      { id: 'f4', desc: 'Deploy produção', s: 41, done: false },
+    ]
+  },
+  {
+    id: 'm2', desc: 'Qualificação Frank Mensal', tipo: 'Recorrente', chave: false,
+    fim: '2026-10-31', concluida: false, comentarios: [], bloqueio: null,
+    filhas: [
+      { id: 'f5', desc: 'Sessão treinamento time Norte', s: 38, done: true, doneS: 38 },
+      { id: 'f6', desc: 'Sessão treinamento time Sul', s: 39, done: true, doneS: 39 },
+      { id: 'f7', desc: 'Aplicar avaliação NPS', s: 40, done: false },
+      { id: 'f8', desc: 'Relatório resultado mensal', s: 42, done: false },
+    ]
+  },
+  {
+    id: 'm3', desc: 'Atualização Dashboard KPIs', tipo: 'Atingível - Projeto', chave: false,
+    fim: '2026-10-31', concluida: false, comentarios: [], bloqueio: null,
+    filhas: [
+      { id: 'f9', desc: 'Levantar métricas com TI', s: 39, done: false },
+      { id: 'f10', desc: 'Construir painel Power BI', s: 41, done: false },
+    ]
+  }
+];
+
+const simInds = [
+  { id: 'i1', nome: 'Taxa de Conversão Frank', unid: '%', verde: 15, am: 8, grupo: 'Comercial', valor: null },
+  { id: 'i2', nome: 'NPS Franqueados', unid: 'pts', verde: 70, am: 50, grupo: 'Qualidade', valor: null },
+  { id: 'i3', nome: 'Contratos Revisados', unid: 'un', verde: 10, am: 5, grupo: 'Jurídico', valor: null },
+  { id: 'i4', nome: 'SLA Chamados (dias médio)', unid: 'dias', verde: 3, am: 7, grupo: 'Operações', valor: null },
+];
+
+const dashPessoas = [
+  { nome: 'Danilo Novais', sirene: 70, eng: 63, ind: null },
+  { nome: 'Ingrid Silva', sirene: 85, eng: 80, ind: null },
+  { nome: 'Fernanda Costa', sirene: 55, eng: 72, ind: null },
+];
+
+// ── Navegação ──────────────────────────────────────────────────
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('act'));
+  document.querySelectorAll('.tb').forEach(t => t.classList.remove('act'));
+  document.getElementById(id).classList.add('act');
+  const idx = ['t-bd','t-todo','t-calc','t-dash','t-exemplos'].indexOf(id);
+  document.querySelectorAll('.tb')[idx].classList.add('act');
+}
+
+function toggleBloco(id) {
+  const body = document.getElementById(id + '-body');
+  const arr = document.getElementById(id + '-arr');
+  if (!body) return;
+  body.classList.toggle('open');
+  if (arr) arr.textContent = body.classList.contains('open') ? '▲' : '▼';
+}
+
+function toggleGroup(id) {
+  const body = document.getElementById(id + '-body');
+  const hdr = body.previousElementSibling;
+  const arr = document.getElementById(id + '-arr');
+  body.classList.toggle('open');
+  hdr.classList.toggle('open');
+  if (arr) arr.textContent = body.classList.contains('open') ? '▲' : '▼';
+}
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('open');
+  if (id === 'modal-batch-filha') populateBatchMataSelect();
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('open');
+}
+
+// ── Filha status ──────────────────────────────────────────────
+function filhaStatus(f) {
+  if (f.done) {
+    const onTime = (f.doneS || SIM_WEEK) <= f.s;
+    return { cls: onTime ? 'ok' : 'fp', txt: onTime ? 'No prazo' : 'Fora do Prazo',
+      bg: onTime ? '#dcfce7' : '#f1f5f9', color: onTime ? '#15803d' : '#6b7280' };
+  }
+  const atraso = SIM_WEEK - f.s;
+  if (f.s > SIM_WEEK) return { cls: 'fut', txt: 'Futura', bg: '#f1f5f9', color: '#94a3b8' };
+  if (atraso === 0) return { cls: 'cur', txt: 'Vence essa semana', bg: '#dbeafe', color: '#1d4ed8' };
+  if (atraso === 1) return { cls: 'ov1', txt: 'Atrasada Tier 1', bg: '#fffbeb', color: '#92400e' };
+  return { cls: 'ov2', txt: 'Atrasada Tier 2+', bg: '#fef2f2', color: '#b91c1c' };
+}
+
+// ── Render BD Plano ──────────────────────────────────────────────
+function renderBDMetas() {
+  const el = document.getElementById('bd-metas-list');
+  if (!el) return;
+  el.innerHTML = simMetas.map(m => {
+    const isRelancada = bdRelancando && m.tipo === 'Recorrente';
+    const pendentes = m.filhas.filter(f => !f.done);
+    const concluidas = m.filhas.filter(f => f.done);
+    const filhasHtml = m.filhas.map(f => {
+      const st = filhaStatus(f);
+      let semaHtml, descHtml;
+      if (isRelancada && !f.done) {
+        semaHtml = `<span style="font-size:10px;color:#94a3b8;font-style:italic">⚠️ Aguardando prazo</span>`;
+        descHtml = `<span style="color:var(--ts);font-style:italic">${f.desc}</span>`;
+      } else {
+        semaHtml = `<span class="fd-sema" style="background:${st.bg};color:${st.color}">S${f.s}</span>`;
+        descHtml = `<span style="color:var(--tp)">${f.desc}</span>`;
+      }
+      return `<div class="filha-densa">
+        <div class="fd-check" style="${f.done ? 'background:#dcfce7;border-color:#86efac;color:#15803d' : ''}">${f.done ? '✓' : ''}</div>
+        <div style="flex:1;font-size:12px">${descHtml}</div>
+        ${semaHtml}
+        <span style="font-size:10px;color:${st.color};flex-shrink:0">${st.txt}</span>
+      </div>`;
+    }).join('');
+    const relancadaWarning = isRelancada ? `<div class="ib" style="background:#fffbeb;border-color:#fde68a;color:#92400e;font-size:11px;margin-bottom:8px">⚠️ Meta relançada — filhas aguardando replanejamento de datas</div>` : '';
+    return `<div class="meta-card-bd">
+      <div class="meta-hdr-bd">
+        <div class="meta-nome-bd">${m.chave ? '🔑 ' : ''}${m.desc}</div>
+        <div class="meta-badges-bd">
+          <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:${m.tipo==='Recorrente'?'#ede9fe':'#dbeafe'};color:${m.tipo==='Recorrente'?'#7c3aed':'#1d4ed8'}">${m.tipo}</span>
+          <span style="font-size:10px;color:var(--tt)">Fim: ${m.fim}</span>
+          <button class="btn btn-o btn-sm" style="font-size:10px;padding:3px 8px" onclick="openFilhaBatch('${m.id}')">+ Filhas</button>
+          <button class="btn btn-o btn-sm" style="font-size:10px;padding:3px 8px">✏️ Editar</button>
+        </div>
+      </div>
+      <div style="margin-top:10px;padding:8px 0">
+        ${relancadaWarning}
+        <div style="font-size:10px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">
+          ${m.filhas.length} filhas · ${concluidas.length} concluídas · ${pendentes.length} abertas
+        </div>
+        ${filhasHtml}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderBDInds() {
+  const el = document.getElementById('bd-inds-list');
+  if (!el) return;
+  const grupos = {};
+  simInds.forEach(ind => {
+    if (!grupos[ind.grupo]) grupos[ind.grupo] = [];
+    grupos[ind.grupo].push(ind);
+  });
+  el.innerHTML = Object.entries(grupos).map(([g, inds]) => `
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;padding:4px 0;border-bottom:.5px solid #e9d5ff">📁 ${g}</div>
+      ${inds.map(ind => `
+        <div class="ind-linha">
+          <div class="ind-dot-sema" style="background:#d1d5db"></div>
+          <div class="ind-nome-l">${ind.nome}</div>
+          <span class="ind-faixa-badge" style="background:#dcfce7;color:#15803d">🟢 ≥${ind.verde}</span>
+          <span class="ind-faixa-badge" style="background:#fefce8;color:#a16207">🟡 ≥${ind.am}</span>
+          <span class="ind-faixa-badge" style="background:#fef2f2;color:#b91c1c">🔴 &lt;${ind.am}</span>
+          <span style="font-size:10px;color:var(--tt)">${ind.unid}</span>
+          <button class="btn btn-o btn-sm" style="font-size:10px;padding:3px 8px">✏️</button>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+// ── Render TO DO Metas ──────────────────────────────────────────────
+function renderTodoMetas() {
+  const el = document.getElementById('todo-metas-list');
+  if (!el) return;
+
+  el.innerHTML = simMetas.map(m => {
+    const isOpen = todoMetaOpen[m.id];
+    const concOpen = todoConcluidasOpen[m.id];
+    const pendentes = m.filhas.filter(f => !f.done);
+    const concluidas = m.filhas.filter(f => f.done);
+
+    const pendentesHtml = pendentes.map(f => {
+      const st = filhaStatus(f);
+      return `<div class="filha-densa">
+        <div class="fd-check" style="cursor:pointer;border-color:${st.color}" onclick="toggleFilha('${f.id}','${m.id}')"></div>
+        <div style="flex:1;font-size:12px">${f.desc}</div>
+        <span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;background:${st.bg};color:${st.color};flex-shrink:0">S${f.s}</span>
+        <span style="font-size:10px;color:${st.color};flex-shrink:0;min-width:100px;text-align:right">${st.txt}</span>
+      </div>`;
+    }).join('') || '<div style="font-size:12px;color:var(--tt);padding:8px 0">Nenhuma filha pendente 🎉</div>';
+
+    const concluidasHtml = concluidas.map(f => {
+      const st = filhaStatus(f);
+      return `<div class="filha-densa" style="opacity:.6">
+        <div class="fd-check" style="background:#dcfce7;border-color:#86efac;color:#15803d">✓</div>
+        <div style="flex:1;font-size:12px;text-decoration:line-through;color:var(--ts)">${f.desc}</div>
+        <span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;background:${st.bg};color:${st.color};flex-shrink:0">S${f.s}</span>
+        <span style="font-size:10px;color:${st.color};flex-shrink:0">${st.txt}</span>
+      </div>`;
+    }).join('');
+
+    const comentariosHtml = m.comentarios && m.comentarios.length > 0 ?
+      m.comentarios.map(c => `<div class="ib ib-b" style="font-size:11px;margin-bottom:6px">💬 ${c}</div>`).join('') : '';
+    const bloqueioHtml = m.bloqueio ? `<div class="ib ib-r" style="font-size:11px;margin-bottom:6px">🚧 ${m.bloqueio}</div>` : '';
+
+    return `<div class="todo-meta-card">
+      <div class="todo-meta-hdr" onclick="toggleTodoMeta('${m.id}')">
+        <div style="display:flex;flex-direction:column;gap:3px;flex:1">
+          <div class="todo-meta-nome">${m.chave ? '🔑 ' : ''}${m.desc}</div>
+          <div style="font-size:11px;color:var(--tt)">${m.tipo} · ${concluidas.length}/${m.filhas.length} filhas concluídas</div>
+        </div>
+        <div class="todo-hdr-btns" onclick="event.stopPropagation()">
+          <button class="meta-hdr-btn" title="Comentário" onclick="openComMeta('${m.id}','${m.desc}')">💬</button>
+          <button class="meta-hdr-btn" title="Bloqueio" onclick="openBloMeta('${m.id}','${m.desc}')">🚧</button>
+          <button class="meta-hdr-btn" title="Nova filha" onclick="openFilhaTodo('${m.id}','${m.desc}')">➕</button>
+          <button class="meta-hdr-btn concluir-icon-btn" title="Concluir Meta" id="btn-conc-${m.id}" onclick="concluirMeta('${m.id}')">${m.concluida ? '✓' : '✓'}</button>
+        </div>
+      </div>
+      ${isOpen ? `<div class="todo-meta-body open">
+        ${comentariosHtml}${bloqueioHtml}
+        <div style="font-size:11px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">${pendentes.length} pendentes</div>
+        ${pendentesHtml}
+        ${concluidas.length > 0 ? `
+        <div class="filhas-conc-toggle" onclick="toggleConc('${m.id}')">
+          ${concOpen ? '▾' : '▸'} ${concluidas.length} concluída${concluidas.length>1?'s':''} — clique para ${concOpen?'recolher':'ver'}
+        </div>
+        ${concOpen ? `<div style="margin-top:4px">${concluidasHtml}</div>` : ''}` : ''}
+        <div style="margin-top:10px;display:flex;gap:6px">
+          <button class="btn btn-o btn-sm" onclick="openFilhaTodo('${m.id}','${m.desc}')">+ Nova filha</button>
+        </div>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderTodoInds() {
+  const el = document.getElementById('todo-inds-list');
+  if (!el) return;
+  const grupos = {};
+  simInds.forEach(ind => {
+    if (!grupos[ind.grupo]) grupos[ind.grupo] = [];
+    grupos[ind.grupo].push(ind);
+  });
+  el.innerHTML = Object.entries(grupos).map(([g, inds]) => `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">📁 ${g}</div>
+      ${inds.map(ind => {
+        const hasVal = ind.valor !== null;
+        const sema = hasVal ? getIndSema(ind) : null;
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rmd);margin-bottom:6px;flex-wrap:wrap">
+          <div style="width:8px;height:8px;border-radius:50%;background:${hasVal ? sema.bg : '#d1d5db'};flex-shrink:0"></div>
+          <div style="flex:1;font-size:12px;font-weight:600">${ind.nome}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <input type="number" style="width:70px;padding:4px 8px;border:.5px solid #cbd5e0;border-radius:6px;font-size:13px;font-weight:600;text-align:center"
+              placeholder="—" value="${ind.valor||''}"
+              oninput="updateIndValor('${ind.id}', this.value)" />
+            <span style="font-size:11px;font-weight:600;color:var(--tt)">${ind.unid}</span>
+            ${hasVal ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${sema.bg};color:${sema.color}">${sema.label}</span>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `).join('');
+}
+
+function getIndSema(ind) {
+  const v = parseFloat(ind.valor);
+  if (isNaN(v)) return { bg: '#f1f5f9', color: '#64748b', label: '—' };
+  const isAsc = ind.unid !== 'dias'; // dias: menor é melhor
+  const verde = parseFloat(ind.verde), am = parseFloat(ind.am);
+  if (isAsc) {
+    if (v >= verde) return { bg: '#dcfce7', color: '#15803d', label: '🟢 Verde' };
+    if (v >= verde * 0.85) return { bg: '#bbf7d0', color: '#15803d', label: '🟢 Verde Claro' };
+    if (v >= am) return { bg: '#fefce8', color: '#a16207', label: '🟡 Amarelo' };
+    return { bg: '#fef2f2', color: '#b91c1c', label: '🔴 Vermelho' };
+  } else {
+    if (v <= verde) return { bg: '#dcfce7', color: '#15803d', label: '🟢 Verde' };
+    if (v <= verde * 1.15) return { bg: '#bbf7d0', color: '#15803d', label: '🟢 Verde Claro' };
+    if (v <= am) return { bg: '#fefce8', color: '#a16207', label: '🟡 Amarelo' };
+    return { bg: '#fef2f2', color: '#b91c1c', label: '🔴 Vermelho' };
+  }
+}
+
+function updateIndValor(id, val) {
+  const ind = simInds.find(i => i.id === id);
+  if (ind) ind.valor = val === '' ? null : val;
+  renderTodoInds();
+}
+
+// ── TO DO Ações ──────────────────────────────────────────────
+function toggleTodoMeta(id) {
+  todoMetaOpen[id] = !todoMetaOpen[id];
+  renderTodoMetas();
+}
+function toggleConc(id) {
+  todoConcluidasOpen[id] = !todoConcluidasOpen[id];
+  renderTodoMetas();
+}
+function toggleFilha(fid, mid) {
+  const m = simMetas.find(m => m.id === mid);
+  if (!m) return;
+  const f = m.filhas.find(f => f.id === fid);
+  if (!f) return;
+  f.done = !f.done;
+  if (f.done) f.doneS = SIM_WEEK;
+  else delete f.doneS;
+  renderTodoMetas();
+}
+function openComMeta(mid, nome) {
+  document.getElementById('com-meta').value = nome;
+  document.getElementById('com-txt').value = '';
+  document.getElementById('com-txt').dataset.mid = mid;
+  openModal('modal-comentario');
+}
+function salvarComentario() {
+  const mid = document.getElementById('com-txt').dataset.mid;
+  const txt = document.getElementById('com-txt').value.trim();
+  if (!txt) return;
+  const m = simMetas.find(m => m.id === mid);
+  if (m) m.comentarios.push(txt);
+  closeModal('modal-comentario');
+  renderTodoMetas();
+}
+function openBloMeta(mid, nome) {
+  document.getElementById('blo-meta').value = nome;
+  document.getElementById('blo-txt').value = '';
+  document.getElementById('blo-txt').dataset.mid = mid;
+  openModal('modal-bloqueio');
+}
+function salvarBloqueio() {
+  const mid = document.getElementById('blo-txt').dataset.mid;
+  const txt = document.getElementById('blo-txt').value.trim();
+  if (!txt) return;
+  const m = simMetas.find(m => m.id === mid);
+  if (m) m.bloqueio = txt;
+  closeModal('modal-bloqueio');
+  renderTodoMetas();
+}
+function openFilhaTodo(mid, nome) {
+  document.getElementById('nft-meta').value = nome;
+  document.getElementById('nft-desc').value = '';
+  document.getElementById('nft-desc').dataset.mid = mid;
+  openModal('modal-nova-filha-todo');
+}
+function salvarFilhaTodo() {
+  const mid = document.getElementById('nft-desc').dataset.mid;
+  const desc = document.getElementById('nft-desc').value.trim();
+  const data = document.getElementById('nft-data').value;
+  if (!desc) return;
+  const m = simMetas.find(m => m.id === mid);
+  if (!m) return;
+  const s = data ? isoWeek(data) : SIM_WEEK + 1;
+  m.filhas.push({ id: 'f' + Date.now(), desc, s, done: false });
+  closeModal('modal-nova-filha-todo');
+  renderTodoMetas();
+}
+function concluirMeta(mid) {
+  const btn = document.getElementById('btn-conc-' + mid);
+  if (!btn) return;
+  if (btn.dataset.confirm === '1') {
+    const m = simMetas.find(m => m.id === mid);
+    if (m) m.concluida = true;
+    renderTodoMetas();
+  } else {
+    btn.dataset.confirm = '1';
+    btn.title = 'Clique novamente para confirmar';
+    btn.style.background = '#15803d';
+    btn.style.color = '#fff';
+    btn.textContent = '✓?';
+    setTimeout(() => {
+      if (btn && btn.dataset.confirm === '1') {
+        btn.dataset.confirm = '';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.textContent = '✓';
+      }
+    }, 3000);
+  }
+}
+
+// ── BD Ações ──────────────────────────────────────────────
+function addMeta() {
+  const desc = document.getElementById('nm-desc').value.trim();
+  if (!desc) return;
+  const tipo = document.getElementById('nm-tipo').value;
+  const chave = document.getElementById('nm-chave').value === '1';
+  const fim = document.getElementById('nm-fim').value;
+  simMetas.push({ id: 'm' + Date.now(), desc, tipo, chave, fim, concluida: false, comentarios: [], bloqueio: null, filhas: [] });
+  closeModal('modal-nova-meta');
+  renderBDMetas();
+  renderTodoMetas();
+  populateBatchMataSelect();
+}
+function addIndicador() {
+  const nome = document.getElementById('ni-nome').value.trim();
+  if (!nome) return;
+  simInds.push({
+    id: 'i' + Date.now(), nome,
+    unid: document.getElementById('ni-unid').value,
+    verde: parseFloat(document.getElementById('ni-verde').value) || 10,
+    am: parseFloat(document.getElementById('ni-am').value) || 5,
+    grupo: document.getElementById('ni-grupo').value || 'Geral',
+    valor: null
+  });
+  closeModal('modal-novo-ind');
+  renderBDInds();
+  renderTodoInds();
+}
+function openFilhaBatch(mid) {
+  openModal('modal-batch-filha');
+  setTimeout(() => {
+    const sel = document.getElementById('batch-meta-sel');
+    if (sel) sel.value = mid;
+    renderBatchModal();
+  }, 50);
+}
+function populateBatchMataSelect() {
+  const sel = document.getElementById('batch-meta-sel');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = simMetas.map(m => `<option value="${m.id}">${m.desc} (${m.tipo})</option>`).join('');
+  if (prev) sel.value = prev;
+  renderBatchModal();
+}
+function renderBatchModal() {
+  const el = document.getElementById('batch-filhas-rows');
+  if (!el) return;
+  const btnSalvar = document.getElementById('btn-salvar-batch');
+  if (btnSalvar) btnSalvar.textContent = `Salvar filhas (${batchRows.length})`;
+  el.innerHTML = batchRows.map((r, i) => `
+    <div class="batch-filha-row">
+      <input class="fi fi-sm" style="flex:1" placeholder="Descrição da filha *" value="${r.desc}"
+        oninput="batchRows[${i}].desc = this.value; updateBatchCount()" />
+      <input type="date" class="fi fi-sm" style="width:140px" value="${r.data}"
+        oninput="batchRows[${i}].data = this.value" />
+      <button class="nb" style="flex-shrink:0" onclick="removeBatchRow(${i})" title="Remover">×</button>
+    </div>
+  `).join('');
+}
+function updateBatchCount() {
+  const btn = document.getElementById('btn-salvar-batch');
+  if (btn) btn.textContent = `Salvar filhas (${batchRows.length})`;
+}
+function addBatchRow() {
+  batchRows.push({ desc: '', data: '' });
+  renderBatchModal();
+}
+function removeBatchRow(i) {
+  if (batchRows.length <= 1) return;
+  batchRows.splice(i, 1);
+  renderBatchModal();
+}
+function salvarBatch() {
+  const mid = document.getElementById('batch-meta-sel').value;
+  const m = simMetas.find(m => m.id === mid);
+  if (!m) return;
+  let saved = 0;
+  batchRows.forEach(r => {
+    if (!r.desc.trim()) return;
+    const s = r.data ? isoWeek(r.data) : SIM_WEEK + 1;
+    m.filhas.push({ id: 'f' + Date.now() + Math.random(), desc: r.desc.trim(), s, done: false });
+    saved++;
+  });
+  if (saved === 0) { alert('Preencha pelo menos uma filha!'); return; }
+  batchRows = [{ desc: '', data: '' }];
+  closeModal('modal-batch-filha');
+  renderBDMetas();
+  renderTodoMetas();
+}
+
+// ── Simular virada ──────────────────────────────────────────────
+function simularVirada() {
+  const btn = document.getElementById('btn-simular-virada');
+  if (!btn) return;
+  if (btn.dataset.confirm === '1') {
+    bdRelancando = !bdRelancando;
+    btn.dataset.confirm = '';
+    btn.textContent = bdRelancando ? '🔁 Ciclo relançado (ativo)' : '🔁 Simular virada de ciclo';
+    btn.style.background = bdRelancando ? 'var(--gold)' : 'rgba(255,255,255,.15)';
+    btn.style.color = bdRelancando ? 'var(--navy)' : '#fff';
+    // update bl1
+    const bl1count = document.getElementById('bl1-count');
+    const bl1list = document.getElementById('bl1-relancadas-list');
+    const recorrentes = simMetas.filter(m => m.tipo === 'Recorrente');
+    if (bl1count) bl1count.textContent = bdRelancando ? recorrentes.length : '0';
+    if (bl1list) {
+      bl1list.innerHTML = bdRelancando ? recorrentes.map(m => `
+        <div class="meta-card-bd" style="border-color:var(--gold-b);background:var(--gold-l)">
+          <div class="meta-hdr-bd">
+            <div class="meta-nome-bd">🔁 ${m.desc}</div>
+            <div class="meta-badges-bd">
+              <span style="background:#ede9fe;color:#7c3aed;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">Recorrente — relançada</span>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--earth);margin-top:8px">⚠️ Filhas aguardam replanejamento de datas pelo usuário</div>
+        </div>
+      `).join('') : `<div class="ib ib-g">Clique em "🔁 Simular virada de ciclo" acima para ver como ficam as metas relançadas.</div>`;
+    }
+    renderBDMetas();
+  } else {
+    btn.dataset.confirm = '1';
+    btn.textContent = '⚠️ Confirmar simulação?';
+    btn.style.background = 'var(--gold)';
+    btn.style.color = 'var(--navy)';
+    setTimeout(() => {
+      if (btn.dataset.confirm === '1') {
+        btn.dataset.confirm = '';
+        btn.textContent = bdRelancando ? '🔁 Ciclo relançado (ativo)' : '🔁 Simular virada de ciclo';
+        btn.style.background = bdRelancando ? 'var(--gold)' : 'rgba(255,255,255,.15)';
+        btn.style.color = bdRelancando ? 'var(--navy)' : '#fff';
+      }
+    }, 3000);
+  }
+}
+
+// ── Sirene: fechar chamado simulação ──────────────────────────────────────────────
+function fecharChamado() {
+  alert('✅ Chamado RS-445 marcado como resolvido!\n\nScore Sirene (Modelo B): 100% — sem pendências!\n\nEsta ação atualizaria o Carômetro imediatamente.');
+}
+
+// ── Simuladores Treinamento ──────────────────────────────────────────────
+let modeloAtivo = 'A';
+const sirVals = { snp: 3, sfp: 1, st1: 0, st2: 1, bt1: 0, bt2: 1, bt3: 0 };
+const engVals = { enp: 4, efp: 1, et1: 1, et2: 0 };
+
+function setModelo(m) {
+  // função mantida por compatibilidade — Modelo A/B substituído pelo novo modelo
+}
+
+// ── Simulador Sirene novo (bolinha + score semanal) ──────────────
+// sTier2=Tier1(−15%), sTier3=Tier2(−30%), sTier4=Tier3(−50%) — labels reaproveitados por compatibilidade
+const sirNewVals = { sNP:2, sAT:1, sVH:0, sTier2:0, sTier3:1, sTier4:0 };
+function adjSirNew(k, d) {
+  sirNewVals[k] = Math.max(0, (sirNewVals[k] || 0) + d);
+  document.getElementById(k).textContent = sirNewVals[k];
+  calcSireneNew();
+}
+function calcSireneNew() {
+  const total = sirNewVals.sNP + sirNewVals.sAT + sirNewVals.sVH;
+  const bolinha = total === 0 ? 100 : Math.max(0, Math.round((sirNewVals.sNP / total) * 100));
+  // sTier2=T1(−15%), sTier3=T2(−30%), sTier4=T3(−50%)
+  const tierExtra = sirNewVals.sTier2 * 15 + sirNewVals.sTier3 * 30 + sirNewVals.sTier4 * 50;
+  const semanal = Math.max(0, bolinha - tierExtra);
+  // Bolinha do dia
+  const cb = scoreColor(bolinha);
+  const el_bNum = document.getElementById('sir-bolinha-result');
+  const el_bBar = document.getElementById('sir-sem-bar');
+  if (el_bNum) el_bNum.textContent = bolinha + '%';
+  // Score semanal
+  const cs = scoreColor(semanal);
+  const el_base = document.getElementById('sir-sem-base');
+  const el_tier = document.getElementById('sir-sem-tier');
+  const el_final = document.getElementById('sir-sem-final');
+  const el_bar = document.getElementById('sir-sem-bar');
+  const el_zone = document.getElementById('sir-sem-zone');
+  if (el_base) el_base.textContent = bolinha + '%';
+  if (el_tier) el_tier.textContent = '−' + tierExtra + '%';
+  if (el_final) { el_final.textContent = semanal + '%'; el_final.style.color = cs.bar; }
+  if (el_bar) { el_bar.style.width = semanal + '%'; el_bar.style.background = cs.bar; }
+  if (el_zone) { el_zone.textContent = cs.emoji + ' ' + cs.label; el_zone.style.color = cs.bar; }
+}
+
+// ── Simulador Engajamento novo ─────────────────────────────────
+const engNewVals = { eNP:2, eAT:1, eVS:0, eTier2:0, eTier3:0, eTier4:0 };
+function adjEngNew(k, d) {
+  engNewVals[k] = Math.max(0, (engNewVals[k] || 0) + d);
+  document.getElementById(k).textContent = engNewVals[k];
+  calcEngNew();
+}
+function calcEngNew() {
+  const total = engNewVals.eNP + engNewVals.eAT + engNewVals.eVS;
+  const base = total === 0 ? 100 : Math.max(0, Math.round((engNewVals.eNP / total) * 100));
+  const tierExtra = engNewVals.eTier2 * 15 + engNewVals.eTier3 * 30 + engNewVals.eTier4 * 50;
+  const semanal = Math.max(0, base - tierExtra);
+  const cs = scoreColor(semanal);
+  const el_base = document.getElementById('eng-base-result');
+  const el_sb = document.getElementById('eng-sem-base');
+  const el_tier = document.getElementById('eng-sem-tier');
+  const el_final = document.getElementById('eng-sem-final');
+  const el_bar = document.getElementById('eng-sem-bar');
+  const el_zone = document.getElementById('eng-sem-zone');
+  if (el_base) el_base.textContent = base + '%';
+  if (el_sb) el_sb.textContent = base + '%';
+  if (el_tier) el_tier.textContent = '−' + tierExtra + '%';
+  if (el_final) { el_final.textContent = semanal + '%'; el_final.style.color = cs.bar; }
+  if (el_bar) { el_bar.style.width = semanal + '%'; el_bar.style.background = cs.bar; }
+  if (el_zone) { el_zone.textContent = cs.emoji + ' ' + cs.label; el_zone.style.color = cs.bar; }
+}
+
+// ── Simulador Indicadores ─────────────────────────────────────
+const indVals = { iOK:2, iT1:1, iT2:0, iT3:0 };
+function adjInd(k, d) {
+  indVals[k] = Math.max(0, (indVals[k] || 0) + d);
+  document.getElementById(k).textContent = indVals[k];
+  calcInd();
+}
+function calcInd() {
+  const total = indVals.iOK + indVals.iT1 + indVals.iT2 + indVals.iT3;
+  const base = total === 0 ? 100 : Math.round((indVals.iOK / total) * 100);
+  const tierPen = indVals.iT1 * 15 + indVals.iT2 * 30 + indVals.iT3 * 50;
+  const pct = Math.max(0, base - tierPen);
+  const cs = scoreColor(pct);
+  const el_f = document.getElementById('ind-final');
+  const el_b = document.getElementById('ind-bar');
+  const el_z = document.getElementById('ind-zone');
+  if (el_f) { el_f.textContent = pct + '%'; el_f.style.color = cs.bar; }
+  if (el_b) { el_b.style.width = pct + '%'; el_b.style.background = cs.bar; }
+  if (el_z) { el_z.textContent = cs.emoji + ' ' + cs.label; el_z.style.color = cs.bar; }
+}
+
+// ── Accordion Carômetro (um painel aberto por vez) ───────────
+let caroAberto = null;
+let caroBtn = null;
+
+function toggleCaro(panelId, btnId) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+
+  // fecha o anterior se for diferente
+  if (caroAberto && caroAberto !== panelId) {
+    const prev = document.getElementById(caroAberto);
+    if (prev) prev.style.display = 'none';
+    const prevBtn = document.getElementById(caroBtn);
+    if (prevBtn) {
+      const hint = prevBtn.querySelector('div:last-child');
+      if (hint) hint.textContent = '▼ como foi calculado';
+    }
+  }
+
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  caroAberto = isOpen ? null : panelId;
+  caroBtn = isOpen ? null : btnId;
+
+  const btn = document.getElementById(btnId);
+  if (btn) {
+    const hint = btn.querySelector('div:last-child');
+    if (hint) hint.textContent = isOpen ? '▼ como foi calculado' : '▲ fechar detalhamento';
+  }
+}
+
+// compat shims para funções antigas
+function toggleDiaSirene() {}
+function toggleDiaEng() {}
+
+// compat shims (evita erros nos elementos antigos que podem ter sumido)
+function adjSir() {}
+function adjSirB() {}
+function adjEng() {}
+function setModelo(m) {}
+
+function scoreColor(pct) {
+  if (pct >= 85) return { cls: 'c-ve', label: 'Verde Escuro — Excelente', emoji: '😁', bar: '#1e7a3a' };
+  if (pct >= 70) return { cls: 'c-vc', label: 'Verde Claro — Bom', emoji: '🙂', bar: '#52b36f' };
+  if (pct >= 50) return { cls: 'c-am', label: 'Amarelo — Atenção', emoji: '😐', bar: '#b45309' };
+  return { cls: 'c-vm', label: 'Vermelho — Urgente', emoji: '😟', bar: '#b91c1c' };
+}
+
+// ── Timeline ──────────────────────────────────────────────
+// Cenário: ciclo começa S37, semanas S37-S42
+const tlWeeks = ['S37', 'S38', 'S39', 'S40', 'S41', 'S42'];
+const tlSireneB = [100, 100, 85, 70, 70, 100]; // 85 porque tier1 em S39, 70 porque tier2 em S40, 100 se resolver
+const tlEng = [null, 100, 83, 63, 70, 78]; // null = sem dados; acumula com as filhas
+
+const tlEvents = [
+  '', // S37: sem eventos
+  'S38: Chamados s1 (✓ prazo) e s2 (FP) · Filhas F1+F5 concluídas no prazo → Engajamento 100%',
+  'S39: s3 aberto entra em Tier 1 → Sirene B cai para 85% · F2 concluída FP, F6 no prazo → Engajamento 83%',
+  'S40: s3 vira Tier 2 → Sirene B cai para 70% · F9 atrasada Tier 1 → Engajamento 63% (semana atual)',
+  'S41: s3 ainda aberto (Tier 2) · Novas filhas entram — Engajamento pode subir se forem concluídas',
+  'S42: Se s3 for resolvido → Sirene B volta para 100% · Meta Recorrente avança bem',
+];
+
+function renderTimeline() {
+  const w = parseInt(document.getElementById('tl-week').value);
+  document.getElementById('tl-week-v').textContent = tlWeeks[w - 1];
+  document.getElementById('tl-narrative').innerHTML = `<strong>${tlWeeks[w-1]}:</strong> ${tlEvents[w-1] || 'Início do ciclo — sem dados ainda.'}`;
+
+  const sirHtml = tlWeeks.slice(0, w).map((wk, i) => {
+    const pct = tlSireneB[i];
+    const c = scoreColor(pct);
+    return `<div class="tl-week">
+      <div class="tl-wlabel">${wk}</div>
+      <div class="tl-bar" style="background:${c.bar};width:${Math.max(pct, 8)}%"><span class="tl-pct">${pct}%</span></div>
+    </div>`;
+  }).join('');
+  document.getElementById('tl-sirene-grid').innerHTML = sirHtml;
+
+  const engHtml = tlWeeks.slice(0, w).map((wk, i) => {
+    const pct = tlEng[i];
+    if (pct === null) return `<div class="tl-week"><div class="tl-wlabel">${wk}</div><div style="height:28px;display:flex;align-items:center;padding-left:8px;font-size:10px;color:var(--tt)">sem dados</div></div>`;
+    const c = scoreColor(pct);
+    return `<div class="tl-week">
+      <div class="tl-wlabel">${wk}</div>
+      <div class="tl-bar" style="background:${c.bar};width:${Math.max(pct, 8)}%"><span class="tl-pct">${pct}%</span></div>
+    </div>`;
+  }).join('');
+  document.getElementById('tl-eng-grid').innerHTML = engHtml;
+}
+
+// ── Dashboard ──────────────────────────────────────────────
+function renderDash() {
+  const el = document.getElementById('dash-scores-list');
+  if (!el) return;
+  el.innerHTML = dashPessoas.map(p => {
+    const scS = scoreColor(p.sirene), scE = scoreColor(p.eng);
+    return `<div class="dash-score-row">
+      <div style="font-weight:600">${p.nome}</div>
+      <div>
+        <div style="font-weight:700;color:${p.sirene >= 60 ? 'var(--ok)' : p.sirene >= 30 ? 'var(--amber)' : 'var(--red)'}">${p.sirene}%</div>
+        <div class="mini-bar"><div class="mini-bar-fill" style="width:${p.sirene}%;background:${scS.bar}"></div></div>
+        <div style="font-size:10px;color:var(--tt)">${scS.emoji} ${scS.label.split(' — ')[0]}</div>
+      </div>
+      <div>
+        <div style="font-weight:700;color:${p.eng >= 60 ? 'var(--ok)' : p.eng >= 30 ? 'var(--amber)' : 'var(--red)'}">${p.eng}%</div>
+        <div class="mini-bar"><div class="mini-bar-fill" style="width:${p.eng}%;background:${scE.bar}"></div></div>
+        <div style="font-size:10px;color:var(--tt)">${scE.emoji} ${scE.label.split(' — ')[0]}</div>
+      </div>
+      <div>
+        <div style="font-weight:700;color:var(--tt)">—</div>
+        <div style="font-size:10px;color:var(--tt)">Fechamento 31/Out</div>
+      </div>
+      <div>
+        <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:${p.sirene>=60&&p.eng>=60?'var(--ok-l)':'var(--gold-l)'};color:${p.sirene>=60&&p.eng>=60?'var(--ok)':'var(--earth)'}">
+          ${p.sirene >= 60 && p.eng >= 60 ? '🟢 OK' : '🟡 Atenção'}
+        </span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const metaEl = document.getElementById('dash-metas-tbody');
+  if (metaEl) {
+    metaEl.innerHTML = simMetas.map(m => {
+      const conc = m.filhas.filter(f => f.done).length;
+      const total = m.filhas.length;
+      return `<tr>
+        <td style="font-weight:600">${m.desc}</td>
+        <td><span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px;background:${m.tipo==='Recorrente'?'#ede9fe':'#dbeafe'};color:${m.tipo==='Recorrente'?'#7c3aed':'#1d4ed8'}">${m.tipo}</span></td>
+        <td>Danilo</td>
+        <td>${conc}/${total}</td>
+        <td><span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px;background:var(--gold-l);color:var(--earth)">Em andamento</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  const fechEl = document.getElementById('dash-fechamento');
+  if (fechEl) {
+    const media = p => Math.round(dashPessoas.reduce((s, d) => s + d[p], 0) / dashPessoas.length);
+    const mS = media('sirene'), mE = media('eng');
+    fechEl.innerHTML = [
+      { titulo: '🚨 Sirene do Time', valor: mS + '%', desc: 'Média do time — Modelo B', color: scoreColor(mS).bar },
+      { titulo: '⚡ Engajamento do Time', valor: mE + '%', desc: 'Média das filhas concluídas', color: scoreColor(mE).bar },
+      { titulo: '📈 Indicadores', valor: '—', desc: 'Calculado em 31/Out', color: '#94a3b8' },
+    ].map(item => `
+      <div class="card card-sm" style="border-top:3px solid ${item.color}">
+        <div style="font-size:11px;font-weight:700;color:var(--ts);margin-bottom:6px">${item.titulo}</div>
+        <div style="font-size:32px;font-weight:800;color:var(--navy)">${item.valor}</div>
+        <div style="font-size:11px;color:var(--tt);margin-top:4px">${item.desc}</div>
+      </div>
+    `).join('');
+  }
+}
+
+// ── Utils ──────────────────────────────────────────────
+function isoWeek(dateStr) {
+  if (!dateStr) return SIM_WEEK;
+  const d = new Date(dateStr + 'T12:00:00');
+  const jan4 = new Date(d.getFullYear(), 0, 4);
+  const dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000);
+  const weekOfYear = Math.ceil((dayOfYear + jan4.getDay()) / 7);
+  return weekOfYear;
+}
+
+// ── Init ──────────────────────────────────────────────
+simMetas.forEach(m => { todoMetaOpen[m.id] = true; todoConcluidasOpen[m.id] = false; });
+
+renderBDMetas();
+renderBDInds();
+renderTodoMetas();
+renderTodoInds();
+renderDash();
+calcSireneNew();
+calcEngNew();
+calcInd();
+renderTimeline();
+populateBatchMataSelect();
+
+// Abre grupos 1, 4 e 5 do TO DO por padrão
+setTimeout(() => {
+  ['g4', 'g5'].forEach(gid => {
+    const body = document.getElementById(gid + '-body');
+    const hdr = body ? body.previousElementSibling : null;
+    if (body && !body.classList.contains('open')) {
+      body.classList.add('open');
+      if (hdr) hdr.classList.add('open');
+      const arr = document.getElementById(gid + '-arr');
+      if (arr) arr.textContent = '▲';
+    }
+  });
+}, 100);
+</script>
+</body>
+</html>

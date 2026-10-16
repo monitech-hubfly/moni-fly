@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador — Meu Carômetro</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f5f7; color: #1a1a2e; font-size: 14px; line-height: 1.5; }
+  .page { max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  /* Header */
+  .page-header { margin-bottom: 28px; }
+  .page-header h1 { font-size: 24px; font-weight: 700; color: #0c2633; letter-spacing: -.5px; }
+  .page-header p  { color: #6b7280; font-size: 13px; margin-top: 4px; }
+
+  /* Tabs */
+  .tab-bar { display: flex; border-bottom: 1.5px solid #d1d5db; margin-bottom: 28px; }
+  .tab-btn { padding: 10px 28px; font-size: 13px; font-weight: 500; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; color: #6b7280; margin-bottom: -1.5px; }
+  .tab-btn.active { color: #0c2633; font-weight: 700; border-bottom-color: #0c2633; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Sections */
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 15px; font-weight: 700; color: #0c2633; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .badge { font-size: 11px; font-weight: 600; color: #6b7280; background: #f0f0f0; padding: 2px 8px; border-radius: 20px; }
+
+  /* Card */
+  .card { background: #fff; border: .5px solid #e5e7eb; border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+
+  /* Callout */
+  .callout { background: #eff6ff; border-left: 3px solid #3b82f6; border-radius: 6px; padding: 10px 14px; font-size: 12.5px; color: #1e40af; line-height: 1.6; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f9fafb; text-align: left; padding: 8px 10px; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb; }
+  td { padding: 7px 10px; border-bottom: 1px solid #f3f4f6; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) td { background: #f9fafb; }
+  .tc { text-align: center; }
+  .tr { text-align: right; font-weight: 600; }
+
+  hr.div { border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }
+
+  /* Presets */
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .preset-btn { padding: 5px 14px; font-size: 12px; font-weight: 500; background: #f3f4f6; border: .5px solid #d1d5db; border-radius: 20px; cursor: pointer; color: #374151; }
+  .preset-btn:hover { background: #e5e7eb; }
+
+  /* Day Grid */
+  .day-grid { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .day-grid th { background: #f9fafb; padding: 6px; font-size: 11px; font-weight: 700; text-align: center; color: #6b7280; border-bottom: 1.5px solid #d1d5db; }
+  .day-grid th.th-day { text-align: left; width: 110px; }
+  .day-grid td { padding: 3px 4px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+  .day-grid td.td-day { color: #6b7280; font-size: 12px; }
+  .day-grid td.td-day.cur { color: #0c2633; font-weight: 600; }
+  .day-grid input[type=number] { width: 44px; text-align: center; padding: 4px 2px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; -moz-appearance: textfield; appearance: textfield; }
+  .day-grid input[type=number]::-webkit-inner-spin-button, .day-grid input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .day-grid input[type=number]:focus { outline: none; border-color: #3b82f6; }
+  .td-acum { text-align: center; font-weight: 700; color: #9ca3af; }
+  .td-score { text-align: right; font-weight: 800; font-size: 13px; padding-right: 4px; }
+  .week-sep td { background: #f0f4f8; padding: 5px 8px; font-weight: 700; font-size: 11px; border-top: 1.5px solid #d1d5db; border-bottom: 1.5px solid #d1d5db; }
+  .lbl-s41 { border-left: 3px solid #9ca3af; color: #374151; }
+  .lbl-s42 { border-left: 3px solid #2563eb; color: #2563eb !important; }
+  .wscore-row td { background: #f0f4f8; padding: 6px 8px; border-bottom: 2px solid #e5e7eb; }
+  .wscore-lbl { color: #6b7280; font-size: 12px; font-weight: 500; }
+  .wscore-num { font-size: 17px; font-weight: 800; }
+  .carry-lbl { color: #dc2626; font-size: 11px; }
+
+  /* Cycle */
+  .cycle-ins { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  .ci-g { display: flex; align-items: center; gap: 6px; }
+  .ci-g label { font-size: 12px; color: #6b7280; font-weight: 600; width: 36px; }
+  .ci-g input { width: 70px; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; text-align: center; -moz-appearance: textfield; appearance: textfield; }
+  .ci-g input::-webkit-inner-spin-button, .ci-g input::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+  /* Score stat */
+  .score-stat { display: inline-flex; flex-direction: column; align-items: flex-end; padding: 12px 20px; background: #f9fafb; border-radius: 10px; border: .5px solid #e5e7eb; margin-top: 12px; }
+  .score-stat .val { font-size: 32px; font-weight: 800; line-height: 1; }
+  .score-stat .lbl { font-size: 11px; color: #6b7280; margin-top: 3px; }
+
+  /* Toggle */
+  .tog-wrap { display: flex; align-items: center; gap: 10px; }
+  .tog-wrap span { font-size: 13px; color: #9ca3af; }
+  .tog-wrap span.on { color: #0c2633; font-weight: 600; }
+  .toggle { position: relative; display: inline-block; width: 40px; height: 22px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .tsl { position: absolute; cursor: pointer; inset: 0; background: #d1d5db; border-radius: 22px; transition: .2s; }
+  .tsl::before { content:''; position: absolute; width: 16px; height: 16px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s; }
+  .toggle input:checked + .tsl { background: #0c2633; }
+  .toggle input:checked + .tsl::before { transform: translateX(18px); }
+
+  /* Collapsible */
+  .coll-hdr { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .coll-arr { color: #9ca3af; font-size: 11px; }
+  .coll-body { margin-top: 14px; }
+  .coll-body.hidden { display: none; }
+
+  /* ═══ META TREE ═══ */
+  .meta-tree { display: flex; flex-direction: column; gap: 14px; }
+
+  .meta-card { background: #fff; border: .5px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+
+  .meta-hdr { background: #f9fafb; border-bottom: 1px solid #e5e7eb; padding: 11px 16px; display: flex; align-items: center; gap: 10px; }
+  .meta-hdr-left { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .meta-dot { width: 8px; height: 8px; border-radius: 50%; background: #0c2633; flex-shrink: 0; }
+  .meta-name-inp { flex: 1; border: none; background: transparent; font-weight: 700; font-size: 14px; color: #0c2633; outline: none; min-width: 0; }
+  .meta-score-pill { font-size: 13px; font-weight: 800; padding: 2px 12px; border-radius: 20px; flex-shrink: 0; white-space: nowrap; }
+  .meta-detail { font-size: 11px; color: #9ca3af; flex-shrink: 0; }
+  .meta-rem { background: none; border: none; color: #d1d5db; cursor: pointer; font-size: 16px; padding: 0 2px; flex-shrink: 0; }
+  .meta-rem:hover { color: #dc2626; }
+
+  .meta-items { padding: 2px 0 0; }
+
+  .item-row { display: flex; align-items: center; gap: 8px; padding: 6px 16px; border-bottom: 1px solid #f3f4f6; }
+  .item-row:last-child { border-bottom: none; }
+  .item-bul { color: #d1d5db; font-size: 12px; flex-shrink: 0; }
+  .item-name-inp { flex: 1; border: none; background: transparent; font-size: 13px; color: #374151; outline: none; min-width: 0; }
+  .item-name-inp:focus { border-bottom: 1px solid #d1d5db; }
+  .status-sel { padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 20px; font-size: 12px; cursor: pointer; font-weight: 500; outline: none; min-width: 195px; }
+  .item-pts { font-size: 12px; font-weight: 700; min-width: 54px; text-align: right; flex-shrink: 0; }
+  .item-rem { background: none; border: none; color: #e5e7eb; cursor: pointer; font-size: 14px; padding: 0 2px; flex-shrink: 0; }
+  .item-rem:hover { color: #dc2626; }
+
+  /* Ind row controls */
+  .ind-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 5px; }
+  .ind-tipo { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; background: #f9fafb; outline: none; }
+  .ind-num { width: 60px; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; text-align: center; -moz-appearance: textfield; appearance: textfield; }
+  .ind-num::-webkit-inner-spin-button, .ind-num::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .ind-sem { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; background: #f9fafb; outline: none; }
+  .ind-past { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #6b7280; cursor: pointer; }
+  .ind-score { font-size: 14px; font-weight: 800; min-width: 54px; text-align: right; }
+
+  /* Add buttons */
+  .add-item-btn { display: block; width: calc(100% - 32px); margin: 6px 16px; padding: 6px; background: none; border: 1px dashed #e5e7eb; border-radius: 6px; font-size: 12px; color: #9ca3af; cursor: pointer; text-align: center; }
+  .add-item-btn:hover { border-color: #9ca3af; color: #374151; background: #f9fafb; }
+  .add-meta-btn { display: block; width: 100%; padding: 12px; background: none; border: 1.5px dashed #d1d5db; border-radius: 12px; font-size: 13px; color: #9ca3af; cursor: pointer; text-align: center; }
+  .add-meta-btn:hover { border-color: #9ca3af; background: #f9fafb; color: #374151; }
+
+  /* Score colors */
+  .sg  { color: #16a34a; }
+  .sa  { color: #d97706; }
+  .sr  { color: #dc2626; }
+  .sn  { color: #9ca3af; }
+  .sg-bg { background: #dcfce7; color: #15803d; }
+  .sa-bg { background: #fef9c3; color: #854d0e; }
+  .sr-bg { background: #fee2e2; color: #991b1b; }
+  .sn-bg { background: #f3f4f6; color: #6b7280; }
+
+  /* Final score */
+  .final-block { background: #f9fafb; border: .5px solid #e5e7eb; border-radius: 10px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; margin-top: 16px; gap: 12px; }
+  .final-lbl { font-size: 13px; color: #6b7280; font-weight: 500; }
+  .final-detail { font-size: 12px; color: #9ca3af; margin-top: 3px; }
+  .final-num { font-size: 38px; font-weight: 800; line-height: 1; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <h1>Simulador — Meu Carômetro</h1>
+    <p>Como a métrica funciona · Exemplos práticos · Simulador interativo · Outubro 2026</p>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('sirene',this)">Sirene</button>
+    <button class="tab-btn"        onclick="showTab('eng',this)">Engajamento</button>
+    <button class="tab-btn"        onclick="showTab('ind',this)">Indicadores</button>
+  </div>
+
+  <!-- ══════════════════════════════════ SIRENE -->
+  <div id="tab-sirene" class="tab-content active">
+
+    <div class="section">
+      <div class="card">
+        <div class="coll-hdr" onclick="toggleC('sc')">
+          <div class="section-title" style="margin:0">Como funciona — Sirene</div>
+          <span class="coll-arr" id="sc-arr">▲</span>
+        </div>
+        <div class="coll-body" id="sc-body">
+          <p style="color:#6b7280;font-size:13px;margin-bottom:12px">Score calculado semanalmente. Chamados/tópicos concluídos geram crédito conforme o tier. Chamados em aberto com prazo vencido entram no denominador sem gerar crédito.</p>
+          <table>
+            <thead><tr><th>Tier</th><th>Critério</th><th>Crédito</th></tr></thead>
+            <tbody>
+              <tr><td><strong>NP</strong></td><td>Concluído antes do prazo</td><td>100 pts</td></tr>
+              <tr><td><strong>T1</strong></td><td>Concluído com 1–6 dias de atraso</td><td>75 pts</td></tr>
+              <tr><td><strong>T2</strong></td><td>Concluído com 7–14 dias de atraso</td><td>50 pts</td></tr>
+              <tr><td><strong>T3</strong></td><td>Concluído com 15+ dias de atraso</td><td>20 pts</td></tr>
+              <tr><td><strong>Atrasado</strong></td><td>Em aberto com prazo vencido — não fechado ainda</td><td>0 pts (penaliza denominador)</td></tr>
+              <tr><td><strong>Futuro</strong></td><td>Em aberto com prazo no futuro</td><td>Ignorado — não entra</td></tr>
+            </tbody>
+          </table>
+          <div class="callout" style="margin-top:12px">
+            <strong>Fórmula:</strong> Score = Crédito total ÷ (Total relevante × 100) × 100<br>
+            Total relevante = concluídos (todos os tiers) + atrasados em aberto · Se total = 0 → 100%
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Comparativo de cenários</div>
+      <div class="card"><table>
+        <thead><tr><th>Cenário</th><th class="tc">NP</th><th class="tc">T1</th><th class="tc">T2</th><th class="tc">T3</th><th class="tc">Atrasados</th><th class="tr">Score</th></tr></thead>
+        <tbody id="s-comp"></tbody>
+      </table></div>
+    </div>
+
+    <hr class="div">
+
+    <div class="section">
+      <div class="section-title">Calendário diário — 2 semanas <span class="badge">S41 + S42</span></div>
+      <p style="color:#6b7280;font-size:12.5px;margin-bottom:10px">
+        Preencha NP/T1/T2/T3 (fechamentos do dia) e <strong>Atras. hoje</strong> (chamados cujo prazo venceu hoje sem ser fechado).
+        O acumulado de atrasados carrega entre dias e semanas automaticamente.
+      </p>
+      <div class="presets" id="s-presets"></div>
+      <div class="card" style="padding:12px;overflow-x:auto">
+        <table class="day-grid" id="s-grid"></table>
+      </div>
+    </div>
+
+    <hr class="div">
+
+    <div class="section">
+      <div class="section-title">Simulação do Ciclo — Outubro 2026</div>
+      <p style="color:#6b7280;font-size:12.5px;margin-bottom:10px">S41 e S42 vêm do calendário. Preencha S40, S43 e S44 manualmente.</p>
+      <div class="card">
+        <table><thead><tr><th>Semana</th><th class="tc">Score</th><th>Origem</th></tr></thead>
+          <tbody id="s-cy-rows"></tbody></table>
+        <div class="cycle-ins" id="s-cy-ins"></div>
+        <div id="s-cy-avg-w" style="display:none">
+          <div class="score-stat"><span class="val" id="s-cy-avg">—</span><span class="lbl">Média do ciclo</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ ENGAJAMENTO -->
+  <div id="tab-eng" class="tab-content">
+
+    <div class="section">
+      <div class="card">
+        <div class="coll-hdr" onclick="toggleC('ec')">
+          <div class="section-title" style="margin:0">Como funciona — Engajamento</div>
+          <span class="coll-arr" id="ec-arr">▲</span>
+        </div>
+        <div class="coll-body" id="ec-body">
+          <div class="tog-wrap" style="margin-bottom:14px">
+            <span id="e-lbl-base">Sub-scores A+B+C</span>
+            <label class="toggle"><input type="checkbox" id="e-tog" checked onchange="toggleEng()"><span class="tsl"></span></label>
+            <span id="e-lbl-filhas" class="on">Metas Filhas <span style="font-size:11px;background:#dcfce7;color:#15803d;padding:1px 6px;border-radius:10px;margin-left:4px">ativo em DEV</span></span>
+          </div>
+          <div id="e-info-f">
+            <p style="color:#6b7280;font-size:13px;margin-bottom:12px">
+              Quando há Metas Filhas configuradas, o score do Engajamento usa o sistema de tiers das filhas (mesma lógica do Sirene).
+              Enquanto a filha está <strong>aberta com prazo futuro</strong>, ela é ignorada —
+              só entra no score quando <strong>concluída (NP/T1/T2/T3)</strong> ou <strong>vencida em aberto</strong>.
+            </p>
+            <table>
+              <thead><tr><th>Status da filha</th><th>Crédito</th><th>Entra no denominador?</th></tr></thead>
+              <tbody>
+                <tr><td>Aberta — prazo futuro</td><td>—</td><td>Não — ignorada</td></tr>
+                <tr><td><strong>Concluída NP</strong></td><td>100 pts</td><td>Sim</td></tr>
+                <tr><td><strong>Concluída T1</strong> (1–6d atraso)</td><td>75 pts</td><td>Sim</td></tr>
+                <tr><td><strong>Concluída T2</strong> (7–14d atraso)</td><td>50 pts</td><td>Sim</td></tr>
+                <tr><td><strong>Concluída T3</strong> (15+d atraso)</td><td>20 pts</td><td>Sim</td></tr>
+                <tr><td><strong>Vencida em aberto</strong></td><td>0 pts</td><td>Sim — penaliza</td></tr>
+              </tbody>
+            </table>
+            <div class="callout" style="margin-top:12px">
+              <strong>Fórmula:</strong> Score = Crédito total ÷ (Total relevante × 100) × 100<br>
+              Se não há filhas relevantes (todas abertas) → score = 100%. Se não há filhas configuradas → usa sub-scores A+B+C.
+            </div>
+          </div>
+          <div id="e-info-b" style="display:none">
+            <p style="color:#6b7280;font-size:13px;margin-bottom:12px">Score = média de 3 sub-scores calculados semanalmente:</p>
+            <table>
+              <thead><tr><th>Sub-score</th><th>Fórmula</th></tr></thead>
+              <tbody>
+                <tr><td><strong>A: Atividades da Agenda</strong></td><td>realizadas ÷ agendadas × 100</td></tr>
+                <tr><td><strong>B: Cards com SLA em dia</strong></td><td>em dia ÷ total com SLA (excl. bloqueados) × 100</td></tr>
+                <tr><td><strong>C: Próximas Atividades</strong></td><td>concluídas ÷ (concluídas + atrasadas) × 100</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Comparativo de cenários</div>
+      <div class="card" id="e-comp"></div>
+    </div>
+
+    <hr class="div">
+
+    <div class="section">
+      <div class="section-title" id="e-tree-title">Metas Mãe e suas Filhas <span class="badge">semana atual · S42</span></div>
+      <p style="color:#6b7280;font-size:12.5px;margin-bottom:12px" id="e-tree-desc">
+        Configure o status de cada filha. O score de Engajamento é calculado sobre todas as filhas relevantes de todas as metas.
+      </p>
+      <div class="meta-tree" id="e-tree"></div>
+      <button class="add-meta-btn" style="margin-top:10px" onclick="addEngMeta()">+ Adicionar Meta Mãe</button>
+      <div class="final-block" id="e-final">
+        <div>
+          <div class="final-lbl">Score de Engajamento</div>
+          <div class="final-detail" id="e-final-det">—</div>
+        </div>
+        <div class="final-num sn" id="e-final-num">—</div>
+      </div>
+    </div>
+
+    <hr class="div">
+
+    <div class="section">
+      <div class="section-title">Simulação do Ciclo — Outubro 2026</div>
+      <p style="color:#6b7280;font-size:12.5px;margin-bottom:10px">S42 (semana atual) vem da simulação acima. Preencha as demais manualmente.</p>
+      <div class="card">
+        <table><thead><tr><th>Semana</th><th class="tc">Score</th><th>Origem</th></tr></thead>
+          <tbody id="e-cy-rows"></tbody></table>
+        <div class="cycle-ins" id="e-cy-ins"></div>
+        <div id="e-cy-avg-w" style="display:none">
+          <div class="score-stat"><span class="val" id="e-cy-avg">—</span><span class="lbl">Média do ciclo</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ INDICADORES -->
+  <div id="tab-ind" class="tab-content">
+
+    <div class="section">
+      <div class="card">
+        <div class="coll-hdr" onclick="toggleC('ic')">
+          <div class="section-title" style="margin:0">Como funciona — Indicadores</div>
+          <span class="coll-arr" id="ic-arr">▲</span>
+        </div>
+        <div class="coll-body" id="ic-body">
+          <p style="color:#6b7280;font-size:13px;margin-bottom:12px">
+            Cada Meta Mãe tem um prazo de entrega. Quando concluída, ganha crédito pelo tier (mesma lógica do Sirene/Engajamento). Metas abertas com prazo futuro são ignoradas. O score final é a média simples das metas relevantes.
+          </p>
+          <table>
+            <thead><tr><th>Status da meta</th><th>Crédito</th></tr></thead>
+            <tbody>
+              <tr><td>Aberta — prazo futuro</td><td>Ignorada — não entra no score</td></tr>
+              <tr><td><strong>Entregue NP</strong></td><td>100 pts</td></tr>
+              <tr><td><strong>Entregue T1</strong> (1–6d de atraso)</td><td>75 pts</td></tr>
+              <tr><td><strong>Entregue T2</strong> (7–14d de atraso)</td><td>50 pts</td></tr>
+              <tr><td><strong>Entregue T3</strong> (15+d de atraso)</td><td>20 pts</td></tr>
+              <tr><td><strong>Vencida em aberto</strong></td><td>0 pts — penaliza a média</td></tr>
+            </tbody>
+          </table>
+          <div class="callout" style="margin-top:12px">
+            <strong>Score final = média simples</strong> dos pontos de cada meta relevante. Se todas estiverem abertas → score = 100%.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Comparativo de cenários</div>
+      <div class="card"><table>
+        <thead><tr><th>Cenário (3 metas)</th><th class="tc">Meta A</th><th class="tc">Meta B</th><th class="tc">Meta C</th><th class="tr">Score final</th></tr></thead>
+        <tbody>
+          <tr><td>Todas entregues no prazo</td><td class="tc">NP</td><td class="tc">NP</td><td class="tc">NP</td><td class="tr sg">100%</td></tr>
+          <tr><td>2 NP + 1 T1</td><td class="tc">NP</td><td class="tc">NP</td><td class="tc">T1</td><td class="tr sg">92%</td></tr>
+          <tr><td>1 NP + 1 T2 + 1 vencida</td><td class="tc">NP</td><td class="tc">T2</td><td class="tc">Vencida</td><td class="tr sa">50%</td></tr>
+          <tr><td>Todas vencidas</td><td class="tc">Venc.</td><td class="tc">Venc.</td><td class="tc">Venc.</td><td class="tr sr">0%</td></tr>
+          <tr><td>1 entregue NP + 2 abertas (ignoradas)</td><td class="tc">NP</td><td class="tc">Aberta</td><td class="tc">Aberta</td><td class="tr sg">100%</td></tr>
+          <tr><td>Todas abertas — sem dados ainda</td><td class="tc">Aberta</td><td class="tc">Aberta</td><td class="tc">Aberta</td><td class="tr sn">100%</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <hr class="div">
+
+    <div class="section">
+      <div class="section-title">Metas Mãe — status de entrega <span class="badge">semana atual · S42</span></div>
+      <p style="color:#6b7280;font-size:12.5px;margin-bottom:12px">
+        Defina o status de entrega de cada Meta Mãe. Score final = média simples das metas relevantes.
+      </p>
+      <div class="meta-tree" id="i-tree"></div>
+      <button class="add-meta-btn" style="margin-top:10px" onclick="addIndMeta()">+ Adicionar Meta Mãe</button>
+      <div class="final-block" style="margin-top:16px">
+        <div>
+          <div class="final-lbl">Score de Indicadores</div>
+          <div class="final-detail" id="i-final-det">—</div>
+        </div>
+        <div class="final-num sn" id="i-final-num">—</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+// ════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════
+const DAY_LABELS = [
+  'Seg 05/10','Ter 06/10','Qua 07/10','Qui 08/10','Sex 09/10',
+  'Seg 12/10','Ter 13/10','Qua 14/10','Qui 15/10','Sex 16/10',
+];
+const WEEK_NAMES = ['S41 — passada','S42 — atual'];
+const CYC = ['S40','S41','S42','S43','S44'];
+const SEM = {vazio:0,verde_escuro:100,verde_claro:67,amarelo:50,vermelho:0};
+const STATUS_OPTS = [
+  {v:'aberta',  l:'Aberta — prazo futuro (ignorada)'},
+  {v:'np',      l:'Concluída NP  +100 pts'},
+  {v:'t1',      l:'Concluída T1 (1–6d)  +75 pts'},
+  {v:'t2',      l:'Concluída T2 (7–14d)  +50 pts'},
+  {v:'t3',      l:'Concluída T3 (15+d)  +20 pts'},
+  {v:'vencida', l:'Vencida em aberto  0 pts'},
+];
+const SC = {aberta:{bg:'#f3f4f6',cl:'#6b7280'},np:{bg:'#dcfce7',cl:'#15803d'},t1:{bg:'#fef9c3',cl:'#854d0e'},t2:{bg:'#fed7aa',cl:'#92400e'},t3:{bg:'#fee2e2',cl:'#7f1d1d'},vencida:{bg:'#fce7f3',cl:'#9d174d'}};
+const PTS = {np:100,t1:75,t2:50,t3:20,vencida:0,aberta:null};
+
+// ════════════════════════════════════
+// STATE
+// ════════════════════════════════════
+const mkDay = () => ({np:0,t1:0,t2:0,t3:0,atras:0});
+const state = {
+  sirene: {
+    days: Array.from({length:10}, mkDay),
+    manual: [null,null,null,null,null],
+  },
+  eng: {
+    usarFilhas: true,
+    metas: [
+      { nome: 'Captação de Franqueados', filhas: [
+        {nome:'Prospectar 10 leads qualificados',   status:'np'},
+        {nome:'Realizar 5 visitas técnicas',         status:'t1'},
+        {nome:'Enviar proposta comercial',           status:'aberta'},
+        {nome:'Fechar contrato de franquia',         status:'vencida'},
+      ]},
+      { nome: 'Onboarding de Novas Franquias', filhas: [
+        {nome:'Realizar treinamento inicial',        status:'np'},
+        {nome:'Entregar manual operacional',         status:'t2'},
+        {nome:'Acompanhamento operacional 30 dias',  status:'aberta'},
+      ]},
+    ],
+    manual: [null,null,null,null,null],
+  },
+  ind: {
+    metas: [
+      {nome:'Captação de Franqueados',       status:'np'},
+      {nome:'Resultado Financeiro',          status:'t2'},
+      {nome:'Onboarding de Novas Franquias', status:'aberta'},
+      {nome:'Expansão de Produto',           status:'vencida'},
+    ],
+  },
+};
+
+// ════════════════════════════════════
+// CALCULATIONS
+// ════════════════════════════════════
+function tiersStr(np,t1,t2,t3,atras){
+  const c=np*100+t1*75+t2*50+t3*20, tot=np+t1+t2+t3+atras;
+  return tot===0?'100%':Math.max(0,Math.round(c/(tot*100)*100))+'%';
+}
+function calcTiersWeek(days,wk,prevA){
+  const s=wk*5; let a=prevA,cr=0,cl=0; const rows=[];
+  for(let i=0;i<5;i++){
+    const d=days[s+i]||mkDay(), cc=d.np+d.t1+d.t2+d.t3;
+    cr+=d.np*100+d.t1*75+d.t2*50+d.t3*20;
+    a=Math.max(0,a+d.atras-cc); cl+=cc;
+    const tot=cl+a;
+    rows.push({a,score:tot===0?100:Math.max(0,Math.round(cr/(tot*100)*100))});
+  }
+  const tot=cl+a;
+  return{ws:tot===0?100:Math.max(0,Math.round(cr/(tot*100)*100)),ea:a,rows};
+}
+function calcEngAll(metas){
+  let np=0,t1=0,t2=0,t3=0,venc=0;
+  for(const m of metas) for(const f of m.filhas){
+    if(f.status==='np')      np++;
+    else if(f.status==='t1') t1++;
+    else if(f.status==='t2') t2++;
+    else if(f.status==='t3') t3++;
+    else if(f.status==='vencida') venc++;
+  }
+  const cr=np*100+t1*75+t2*50+t3*20, rel=np+t1+t2+t3+venc;
+  return{score:rel===0?100:Math.max(0,Math.round(cr/(rel*100)*100)),np,t1,t2,t3,venc,rel,cr};
+}
+function calcMetaEngScore(meta){
+  let np=0,t1=0,t2=0,t3=0,venc=0;
+  for(const f of meta.filhas){
+    if(f.status==='np')      np++;
+    else if(f.status==='t1') t1++;
+    else if(f.status==='t2') t2++;
+    else if(f.status==='t3') t3++;
+    else if(f.status==='vencida') venc++;
+  }
+  const rel=np+t1+t2+t3+venc; if(rel===0) return null;
+  return Math.max(0,Math.round((np*100+t1*75+t2*50+t3*20)/(rel*100)*100));
+}
+function calcIndFinal(metas){
+  const rel=metas.filter(m=>m.status!=='aberta');
+  if(rel.length===0) return 100;
+  const soma=rel.reduce((acc,m)=>acc+(PTS[m.status]??0),0);
+  return Math.round(soma/rel.length);
+}
+function scc(n){ return n>=80?'sg':n>=50?'sa':'sr'; }
+function scCol(n){ return n>=80?'#16a34a':n>=50?'#d97706':'#dc2626'; }
+function pillCls(n){ return n===null?'sn-bg':n>=80?'sg-bg':n>=50?'sa-bg':'sr-bg'; }
+
+// ════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════
+function showTab(id,btn){
+  document.querySelectorAll('.tab-content').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+function toggleC(id){
+  const b=document.getElementById(id+'-body'),a=document.getElementById(id+'-arr');
+  b.classList.toggle('hidden'); a.textContent=b.classList.contains('hidden')?'▼':'▲';
+}
+function colorSel(sel){
+  const c=SC[sel.value]||SC.aberta;
+  sel.style.background=c.bg; sel.style.color=c.cl;
+  sel.style.fontWeight=sel.value!=='aberta'?'600':'400';
+}
+function buildCycleRows(prefix,autoIdxs){
+  document.getElementById(prefix+'-cy-rows').innerHTML=CYC.map((w,i)=>{
+    const isAuto=autoIdxs.includes(i);
+    return`<tr><td>${i===2?w+' (atual)':w}</td><td class="tc" id="${prefix}-cy-${i}" style="font-weight:700;color:#9ca3af">—</td><td style="color:#9ca3af;font-size:12px">${isAuto?'← simulador':'← manual'}</td></tr>`;
+  }).join('');
+}
+function updateCycleDsp(prefix,scores){
+  for(let i=0;i<5;i++){
+    const el=document.getElementById(prefix+'-cy-'+i);
+    if(el){el.textContent=scores[i]!==null?scores[i]+'%':'—'; el.style.color=scores[i]!==null?scCol(scores[i]):'#9ca3af';}
+  }
+  const valid=scores.filter(s=>s!==null);
+  const avg=valid.length>0?Math.round(valid.reduce((a,b)=>a+b,0)/valid.length):null;
+  const aw=document.getElementById(prefix+'-cy-avg-w'),ae=document.getElementById(prefix+'-cy-avg');
+  if(aw&&ae){aw.style.display=avg!==null?'block':'none'; ae.textContent=avg!==null?avg+'%':'—'; ae.className='val '+(avg!==null?scc(avg):'');}
+}
+
+// ════════════════════════════════════
+// SIRENE
+// ════════════════════════════════════
+const SIRENE_COMP=[
+  ['Semana perfeita (10 NP)',       10,0,0,0,0],
+  ['Mix: 3 NP + 1 T1 + 1 atras.',   3,1,0,0,1],
+  ['Só T1 e T2',                     0,3,2,0,0],
+  ['3 em aberto, nada fechado',      0,0,0,0,3],
+  ['1 NP + 1 T2 + 2 atrasados',      1,0,1,0,2],
+  ['Semana sem chamados relevantes', 0,0,0,0,0],
+];
+const S_PRES=[
+  {label:'Semana perfeita', days:Array.from({length:10},()=>({np:2,t1:0,t2:0,t3:0,atras:0}))},
+  {label:'Acúmulo crítico', days:[
+    {np:0,t1:0,t2:0,t3:0,atras:2},{np:0,t1:0,t2:0,t3:0,atras:2},{np:1,t1:0,t2:0,t3:0,atras:1},
+    {np:0,t1:0,t2:0,t3:0,atras:0},{np:1,t1:0,t2:0,t3:0,atras:1},{np:0,t1:0,t2:0,t3:0,atras:2},
+    {np:1,t1:0,t2:0,t3:0,atras:0},{np:0,t1:0,t2:0,t3:0,atras:1},{np:1,t1:1,t2:0,t3:0,atras:0},
+    {np:0,t1:0,t2:0,t3:0,atras:0},
+  ]},
+  {label:'Recuperação S42', days:[
+    {np:0,t1:0,t2:0,t3:0,atras:3},{np:0,t1:0,t2:0,t3:0,atras:2},{np:1,t1:0,t2:0,t3:0,atras:1},
+    {np:0,t1:0,t2:0,t3:0,atras:0},{np:1,t1:0,t2:0,t3:0,atras:1},{np:3,t1:2,t2:1,t3:0,atras:0},
+    {np:2,t1:1,t2:0,t3:0,atras:0},{np:2,t1:0,t2:0,t3:0,atras:0},{np:2,t1:0,t2:0,t3:0,atras:0},
+    {np:1,t1:1,t2:0,t3:0,atras:0},
+  ]},
+  {label:'Limpar', days:Array.from({length:10},mkDay)},
+];
+
+function buildSirene(){
+  document.getElementById('s-comp').innerHTML=SIRENE_COMP.map(([l,...a])=>{
+    const s=tiersStr(...a),cls=parseInt(s)>=80?'sg':parseInt(s)>=50?'sa':'sr';
+    return`<tr><td>${l}</td><td class="tc">${a[0]}</td><td class="tc">${a[1]}</td><td class="tc">${a[2]}</td><td class="tc">${a[3]}</td><td class="tc">${a[4]}</td><td class="tr ${cls}">${s}</td></tr>`;
+  }).join('');
+  document.getElementById('s-presets').innerHTML=S_PRES.map((p,i)=>
+    `<button class="preset-btn" onclick="applyS(${i})">${p.label}</button>`).join('');
+  buildSireneGrid();
+  document.getElementById('s-cy-ins').innerHTML=[0,3,4].map(i=>
+    `<div class="ci-g"><label>${CYC[i]}:</label><input type="number" min="0" max="100" placeholder="0–100" oninput="updManS(${i},this.value)"></div>`).join('');
+  buildCycleRows('s',[1,2]);
+  refreshS();
+}
+
+function buildSireneGrid(){
+  const g=document.getElementById('s-grid');
+  const flds=['np','t1','t2','t3','atras'];
+  let h=`<thead><tr>
+    <th class="th-day">Dia</th>
+    <th class="tc">NP</th><th class="tc">T1</th><th class="tc">T2</th><th class="tc">T3</th>
+    <th class="tc" title="Chamados cujo prazo venceu hoje sem ser fechado">Atras. hoje</th>
+    <th class="tc">Acum.</th>
+    <th style="text-align:right;padding-right:4px">Score dia</th>
+  </tr></thead><tbody>`;
+  for(let wk=0;wk<2;wk++){
+    const cur=wk===1;
+    h+=`<tr class="week-sep"><td colspan="8" class="${cur?'lbl-s42':'lbl-s41'}">${WEEK_NAMES[wk]}</td></tr>`;
+    for(let i=0;i<5;i++){
+      const di=wk*5+i, d=state.sirene.days[di];
+      h+=`<tr><td class="td-day${cur?' cur':''}">${DAY_LABELS[di]}</td>
+        ${flds.map(f=>`<td><input type="number" min="0" value="${d[f]}" oninput="updDayS('${f}',${di},this.value)"></td>`).join('')}
+        <td class="td-acum" id="s-ac-${di}">0</td>
+        <td class="td-score" id="s-sc-${di}">—</td>
+      </tr>`;
+    }
+    h+=`<tr class="wscore-row">
+      <td colspan="6"><span class="wscore-lbl">Score ${WEEK_NAMES[wk].split('—')[0].trim()}</span><span class="carry-lbl" id="s-cy2-${wk}"></span></td>
+      <td colspan="2" style="text-align:right"><span class="wscore-num" id="s-ws-${wk}">—</span></td>
+    </tr>`;
+  }
+  g.innerHTML=h+'</tbody>';
+}
+
+function refreshS(){
+  const {days,manual}=state.sirene;
+  const w1=calcTiersWeek(days,0,0), w2=calcTiersWeek(days,1,w1.ea);
+  const all=[...w1.rows,...w2.rows];
+  for(let di=0;di<10;di++){
+    const r=all[di];
+    const ac=document.getElementById('s-ac-'+di),sc=document.getElementById('s-sc-'+di);
+    if(ac){ac.textContent=r.a; ac.style.color=r.a>0?'#dc2626':'#9ca3af'; ac.style.fontWeight=r.a>0?'700':'400';}
+    if(sc){sc.textContent=r.score+'%'; sc.style.color=scCol(r.score);}
+  }
+  ['s-ws-0','s-ws-1'].forEach((id,i)=>{const el=document.getElementById(id),w=i===0?w1:w2; if(el){el.textContent=w.ws+'%';el.style.color=scCol(w.ws);}});
+  const cy0=document.getElementById('s-cy2-0'); if(cy0)cy0.textContent=w1.ea>0?` · ${w1.ea} acumulado${w1.ea>1?'s':''} →`:'';
+  updateCycleDsp('s',[manual[0],w1.ws,w2.ws,manual[3],manual[4]]);
+}
+
+function applyS(idx){ state.sirene.days=S_PRES[idx].days.map(d=>({...d})); buildSireneGrid(); refreshS(); }
+function updDayS(f,di,v){ state.sirene.days[di][f]=Math.max(0,parseInt(v)||0); refreshS(); }
+function updManS(i,v){ const n=parseInt(v,10); state.sirene.manual[i]=v===''||isNaN(n)?null:Math.min(100,Math.max(0,n)); refreshS(); }
+
+// ════════════════════════════════════
+// ENGAJAMENTO
+// ════════════════════════════════════
+const ENG_F_COMP=[
+  ['Todas no prazo',           4,0,0,0,0],
+  ['Mix: 2NP + 1T1 + 1 venc.', 2,1,0,0,1],
+  ['T2 + muitas vencidas',     0,0,2,0,3],
+  ['Sem filhas relevantes',    0,0,0,0,0],
+  ['Só vencidas (crítico)',    0,0,0,0,5],
+];
+
+function buildEng(){
+  buildEngComp();
+  renderEngTree();
+  document.getElementById('e-cy-ins').innerHTML=[0,1,3,4].map(i=>{
+    const lbl=i===1?'S41':CYC[i];
+    return`<div class="ci-g"><label>${lbl}:</label><input type="number" min="0" max="100" placeholder="0–100" oninput="updManE(${i},this.value)"></div>`;
+  }).join('');
+  buildCycleRows('e',[2]);
+  refreshE();
+}
+
+function buildEngComp(){
+  const uf=state.eng.usarFilhas;
+  document.getElementById('e-comp').innerHTML=uf
+    ?`<table><thead><tr><th>Cenário</th><th class="tc">NP</th><th class="tc">T1</th><th class="tc">T2</th><th class="tc">T3</th><th class="tc">Vencidas</th><th class="tr">Score</th></tr></thead><tbody>${
+        ENG_F_COMP.map(([l,...a])=>{const s=tiersStr(...a),cls=parseInt(s)>=80?'sg':parseInt(s)>=50?'sa':'sr';return`<tr><td>${l}</td><td class="tc">${a[0]}</td><td class="tc">${a[1]}</td><td class="tc">${a[2]}</td><td class="tc">${a[3]}</td><td class="tc">${a[4]}</td><td class="tr ${cls}">${s}</td></tr>`;}).join('')
+      }</tbody></table>`
+    :`<table><thead><tr><th>Cenário</th><th class="tc">A</th><th class="tc">B</th><th class="tc">C</th><th class="tr">Score médio</th></tr></thead><tbody>
+        <tr><td>Excelente</td><td class="tc">100%</td><td class="tc">100%</td><td class="tc">100%</td><td class="tr sg">100%</td></tr>
+        <tr><td>Bom</td><td class="tc">90%</td><td class="tc">80%</td><td class="tc">70%</td><td class="tr sg">80%</td></tr>
+        <tr><td>Regular</td><td class="tc">60%</td><td class="tc">80%</td><td class="tc">40%</td><td class="tr sa">60%</td></tr>
+        <tr><td>Fraco</td><td class="tc">30%</td><td class="tc">50%</td><td class="tc">20%</td><td class="tr sr">33%</td></tr>
+      </tbody></table>`;
+}
+
+function renderEngTree(){
+  document.getElementById('e-tree').innerHTML=state.eng.metas.map((m,mi)=>{
+    const ms=calcMetaEngScore(m);
+    const pill=ms===null
+      ?`<span class="meta-score-pill sn-bg">sem relevantes</span>`
+      :`<span class="meta-score-pill ${pillCls(ms)}">${ms}%</span>`;
+    const filhasH=m.filhas.map((f,fi)=>{
+      const pts=PTS[f.status];
+      const ptsStr=pts===null?`<span class="sn">—</span>`:pts>0?`<span class="sg">+${pts} pts</span>`:`<span class="sr">0 pts</span>`;
+      const opts=STATUS_OPTS.map(o=>`<option value="${o.v}"${o.v===f.status?' selected':''}>${o.l}</option>`).join('');
+      return`<div class="item-row">
+        <span class="item-bul">└</span>
+        <input class="item-name-inp" value="${f.nome}" onchange="updFN(${mi},${fi},this.value)">
+        <select class="status-sel" onchange="updFS(${mi},${fi},this.value);colorSel(this)" id="esel-${mi}-${fi}">${opts}</select>
+        <span class="item-pts" id="epts-${mi}-${fi}">${ptsStr}</span>
+        <button class="item-rem" onclick="remF(${mi},${fi})">×</button>
+      </div>`;
+    }).join('');
+    const rel=m.filhas.filter(f=>f.status!=='aberta').length;
+    const open=m.filhas.filter(f=>f.status==='aberta').length;
+    const det=`${rel} relevante${rel!==1?'s':''}${open>0?' · '+open+' aberta'+(open!==1?'s':''):''}`;
+    return`<div class="meta-card">
+      <div class="meta-hdr">
+        <div class="meta-hdr-left">
+          <span class="meta-dot"></span>
+          <input class="meta-name-inp" value="${m.nome}" onchange="updMN('eng',${mi},this.value)">
+          ${pill}
+          <span class="meta-detail">${det}</span>
+        </div>
+        <button class="meta-rem" onclick="remEM(${mi})">×</button>
+      </div>
+      <div class="meta-items">${filhasH}</div>
+      <button class="add-item-btn" onclick="addF(${mi})">+ Adicionar filha</button>
+    </div>`;
+  }).join('');
+  // Apply colors
+  state.eng.metas.forEach((m,mi)=>m.filhas.forEach((_,fi)=>{const s=document.getElementById('esel-'+mi+'-'+fi);if(s)colorSel(s);}));
+}
+
+function refreshE(){
+  renderEngTree();
+  const res=calcEngAll(state.eng.metas);
+  const fn=document.getElementById('e-final-num'),fd=document.getElementById('e-final-det');
+  if(fn){fn.textContent=res.score+'%'; fn.className='final-num '+scc(res.score);}
+  if(fd){
+    if(res.rel===0) fd.textContent='Sem filhas relevantes ainda — todas abertas → score = 100%';
+    else fd.textContent=`Crédito: ${res.cr} pts · Relevantes: ${res.rel} · ${res.np} NP · ${res.t1} T1 · ${res.t2} T2 · ${res.t3} T3 · ${res.venc} vencidas`;
+  }
+  const scores=[state.eng.manual[0],state.eng.manual[1],res.score,state.eng.manual[3],state.eng.manual[4]];
+  updateCycleDsp('e',scores);
+}
+
+function toggleEng(){
+  state.eng.usarFilhas=document.getElementById('e-tog').checked;
+  document.getElementById('e-lbl-filhas').className=state.eng.usarFilhas?'on':'';
+  document.getElementById('e-lbl-base').className=state.eng.usarFilhas?'':'on';
+  document.getElementById('e-info-f').style.display=state.eng.usarFilhas?'':'none';
+  document.getElementById('e-info-b').style.display=state.eng.usarFilhas?'none':'';
+  buildEngComp();
+}
+
+function updFS(mi,fi,v){ state.eng.metas[mi].filhas[fi].status=v; refreshE(); }
+function updFN(mi,fi,v){ state.eng.metas[mi].filhas[fi].nome=v; }
+function remF(mi,fi){ state.eng.metas[mi].filhas.splice(fi,1); refreshE(); }
+function addF(mi){ state.eng.metas[mi].filhas.push({nome:'Nova filha',status:'aberta'}); refreshE(); }
+function remEM(mi){ state.eng.metas.splice(mi,1); refreshE(); }
+function addEngMeta(){ state.eng.metas.push({nome:'Nova Meta Mãe',filhas:[{nome:'Meta filha',status:'aberta'}]}); refreshE(); }
+function updManE(i,v){ const n=parseInt(v,10); state.eng.manual[i]=v===''||isNaN(n)?null:Math.min(100,Math.max(0,n)); refreshE(); }
+function updMN(tab,mi,v){ if(tab==='eng')state.eng.metas[mi].nome=v; else state.ind.metas[mi].nome=v; }
+
+// ════════════════════════════════════
+// INDICADORES
+// ════════════════════════════════════
+function buildInd(){ refreshI(); }
+
+function renderIndTree(){
+  document.getElementById('i-tree').innerHTML=state.ind.metas.map((m,mi)=>{
+    const pts=PTS[m.status];
+    const ptsStr=pts===null?`<span class="sn">—</span>`:pts>0?`<span class="sg">+${pts} pts</span>`:`<span class="sr">0 pts</span>`;
+    const opts=STATUS_OPTS.map(o=>`<option value="${o.v}"${o.v===m.status?' selected':''}>${o.l}</option>`).join('');
+    return`<div class="meta-card">
+      <div class="meta-hdr" style="border-bottom:none">
+        <div class="meta-hdr-left">
+          <span class="meta-dot"></span>
+          <input class="meta-name-inp" value="${m.nome}" onchange="updIname(${mi},this.value)">
+          <select class="status-sel" onchange="updIstatus(${mi},this.value);colorSel(this)" id="isel-${mi}">${opts}</select>
+          <span class="item-pts">${ptsStr}</span>
+        </div>
+        <button class="meta-rem" onclick="remIM(${mi})">×</button>
+      </div>
+    </div>`;
+  }).join('');
+  state.ind.metas.forEach((_,mi)=>{const s=document.getElementById('isel-'+mi);if(s)colorSel(s);});
+}
+
+function refreshI(){
+  renderIndTree();
+  const final=calcIndFinal(state.ind.metas);
+  const fn=document.getElementById('i-final-num'),fd=document.getElementById('i-final-det');
+  if(fn){fn.textContent=final+'%'; fn.className='final-num '+scc(final);}
+  if(fd){
+    const rel=state.ind.metas.filter(m=>m.status!=='aberta');
+    if(rel.length===0){fd.textContent='Sem metas relevantes — todas abertas → score = 100%';}
+    else{
+      const np=rel.filter(m=>m.status==='np').length,t1=rel.filter(m=>m.status==='t1').length,
+            t2=rel.filter(m=>m.status==='t2').length,t3=rel.filter(m=>m.status==='t3').length,
+            venc=rel.filter(m=>m.status==='vencida').length;
+      fd.textContent=`${rel.length} relevante${rel.length!==1?'s':''} · ${np} NP · ${t1} T1 · ${t2} T2 · ${t3} T3 · ${venc} vencida${venc!==1?'s':''}`;
+    }
+  }
+}
+
+function updIstatus(mi,v){ state.ind.metas[mi].status=v; refreshI(); }
+function updIname(mi,v){ state.ind.metas[mi].nome=v; }
+function remIM(mi){ state.ind.metas.splice(mi,1); refreshI(); }
+function addIndMeta(){ state.ind.metas.push({nome:'Nova Meta Mãe',status:'aberta'}); refreshI(); }
+
+// ════════════════════════════════════
+// INIT
+// ════════════════════════════════════
+buildSirene();
+buildEng();
+buildInd();
+</script>
+</body>
+</html>
