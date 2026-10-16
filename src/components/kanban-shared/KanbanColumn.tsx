@@ -15,6 +15,7 @@ import {
 } from 'react';
 import {
   desvincularTagCard,
+  registrarConfirmacaoFaseLoteadores,
 } from '@/lib/actions/card-actions';
 import {
   calcularSlaKanbanCard,
@@ -50,7 +51,6 @@ import {
 } from '@/lib/kanban/kanban-sla-justificativa';
 import { obterJustificativaSlaFase } from '@/lib/actions/kanban-sla-justificativa';
 import { KanbanSlaJustificativaModal } from './KanbanSlaJustificativaModal';
-import { registrarConfirmacaoFaseLoteadores } from '@/lib/actions/card-actions';
 import {
   deveConfirmarSaidaFaseLoteadores,
   loteadoresAssinouTituloPorSlug,

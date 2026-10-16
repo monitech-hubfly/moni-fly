@@ -2,9 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { tryCreateAdminClient } from '@/lib/supabase/admin';
 import {
   mapTemplateRow,
-  rowToTemplateConfig,
   TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_FRACAO,
 } from '@/lib/loteamento-simulador-template';
+import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
 import { parsePlanilhaLotesBuffer } from '@/lib/simulador/parse-planilha-lotes';
 import type { LotePublico, SimuladorPublicoView } from '@/app/simulador/[id]/types';
 
@@ -183,7 +183,7 @@ export async function carregarSimuladorPublico(token: string): Promise<Simulador
       template.taxa_juros_financiamento_anual ?? TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_FRACAO,
     kanbanCardId: template.kanban_card_id,
     redeLoteadorId: template.rede_loteador_id,
-    config: rowToTemplateConfig(template),
+    config: montarTemplateParaEngine(template),
     lotes,
   };
 }

@@ -1,9 +1,18 @@
 import { parseDecimalInput } from '@/lib/condominios';
 import { parseMoneyText } from '@/lib/dashboard-novos-negocios/parseMoney';
-import type { TemplateConfig } from '@/lib/simulador/calcular-oferta';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type PremissaEntradaTipo = 'percentual' | 'valor_fixo';
+export type TipoTaxaGestao = 'percentual' | 'fixo';
+export type TipoJurosCp = 'mes_a_mes' | 'total';
+
+export function parseTipoTaxaGestao(raw: unknown): TipoTaxaGestao {
+  return String(raw ?? '').trim().toLowerCase() === 'fixo' ? 'fixo' : 'percentual';
+}
+
+export function parseTipoJurosCp(raw: unknown): TipoJurosCp {
+  return String(raw ?? '').trim().toLowerCase() === 'total' ? 'total' : 'mes_a_mes';
+}
 
 export type PremissaEntrada = {
   tipo: PremissaEntradaTipo;
@@ -16,14 +25,32 @@ export const JUROS_CREDITO_PONTE_PADRAO_UI = '2,5';
 export const TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_FRACAO = 0.1;
 export const TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI = '10';
 export const PCT_ITBI_PADRAO_UI = '3';
-export const PCT_IMPOSTOS_PADRAO_UI = '4,4';
+export const PCT_IMPOSTOS_PADRAO_UI = '6';
 export const PCT_TAXA_PLATAFORMA_PADRAO_UI = '8';
 export const PCT_TAXA_GESTAO_PADRAO_UI = '7';
-export const PCT_COMISSAO_CORRETOR_PADRAO_UI = '5';
+export const VALOR_TAXA_GESTAO_FIXO_PADRAO_UI = '90.000';
+export const PCT_COMISSAO_CORRETOR_PADRAO_UI = '6';
 export const PRAZO_OBRA_MESES_PADRAO = 7;
 export const PRAZO_OBRA_MESES_MINIMO = 3;
 
 export const TOAST_TEMPLATE_SALVO = 'Template salvo!';
+
+const SLUG_JORNADA_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Slug da jornada pública (`imob_card_modelo.page_slug`). Vazio → null. */
+export function normalizarSlugJornadaPublica(
+  raw: string,
+): { ok: true; slug: string | null } | { ok: false; error: string } {
+  const slug = String(raw ?? '').trim().toLowerCase();
+  if (!slug) return { ok: true, slug: null };
+  if (!SLUG_JORNADA_RE.test(slug)) {
+    return {
+      ok: false,
+      error: 'Use apenas letras minúsculas, números e hífens. Ex: residencial-alfa-goiania',
+    };
+  }
+  return { ok: true, slug };
+}
 
 export type LoteamentoSimuladorTemplateRow = {
   id: string;
@@ -33,12 +60,15 @@ export type LoteamentoSimuladorTemplateRow = {
   pct_itbi: number;
   pct_taxa_plataforma: number;
   pct_taxa_gestao: number;
+  tipo_taxa_gestao: TipoTaxaGestao;
+  pct_plataforma_entrada: number;
   pct_lucro_loteadora: number;
   pct_lucro_moni: number;
   pct_lucro_franqueado: number;
   pct_impostos: number;
   pct_comissao_corretor: number;
   taxa_juros_credito_ponte: number;
+  tipo_juros_cp: TipoJurosCp;
   taxa_juros_financiamento_anual: number | null;
   taxa_juros_parcelado_mes: number | null;
   valor_lote_padrao: number | null;
@@ -58,9 +88,13 @@ export type LoteamentoSimuladorTemplateDraft = {
   pct_itbi: string;
   pct_impostos: string;
   taxa_juros_credito_ponte: string;
+  tipo_juros_cp: TipoJurosCp;
   taxa_juros_financiamento_anual: string;
   pct_taxa_plataforma: string;
   pct_taxa_gestao: string;
+  tipo_taxa_gestao: TipoTaxaGestao;
+  valor_taxa_gestao: string;
+  pct_plataforma_entrada: string;
   pct_lucro_loteadora: string;
   pct_lucro_moni: string;
   pct_lucro_franqueado: string;
@@ -95,14 +129,8 @@ export const PCT_FIELDS = [
   {
     key: 'pct_taxa_plataforma',
     label: 'Taxa de plataforma',
-    hint: 'Sobre custo da casa + lote; parcelas iguais na obra.',
+    hint: 'Sobre custo da casa + customização. Sem fatia na entrada, dilui na obra.',
     placeholder: PCT_TAXA_PLATAFORMA_PADRAO_UI,
-  },
-  {
-    key: 'pct_taxa_gestao',
-    label: 'Taxa de gestão',
-    hint: 'Sobre custo da casa + lote; parcelas iguais na obra.',
-    placeholder: PCT_TAXA_GESTAO_PADRAO_UI,
   },
   {
     key: 'pct_lucro_loteadora',
@@ -133,7 +161,6 @@ export const PCT_FIELDS = [
     | 'taxa_juros_credito_ponte'
     | 'taxa_juros_financiamento_anual'
     | 'pct_taxa_plataforma'
-    | 'pct_taxa_gestao'
     | 'pct_lucro_loteadora'
     | 'pct_lucro_moni'
     | 'pct_lucro_franqueado'
@@ -151,9 +178,13 @@ export function emptySimuladorTemplateDraft(): LoteamentoSimuladorTemplateDraft 
     pct_itbi: PCT_ITBI_PADRAO_UI,
     pct_impostos: PCT_IMPOSTOS_PADRAO_UI,
     taxa_juros_credito_ponte: JUROS_CREDITO_PONTE_PADRAO_UI,
+    tipo_juros_cp: 'mes_a_mes',
     taxa_juros_financiamento_anual: TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI,
     pct_taxa_plataforma: PCT_TAXA_PLATAFORMA_PADRAO_UI,
     pct_taxa_gestao: PCT_TAXA_GESTAO_PADRAO_UI,
+    tipo_taxa_gestao: 'percentual',
+    valor_taxa_gestao: VALOR_TAXA_GESTAO_FIXO_PADRAO_UI,
+    pct_plataforma_entrada: '0',
     pct_lucro_loteadora: '',
     pct_lucro_moni: '',
     pct_lucro_franqueado: '',
@@ -249,8 +280,9 @@ function premissaParaDraft(p: PremissaEntrada | null): {
   };
 }
 
+/** 0 é valor válido; só usa a sugestão quando o campo ainda não foi gravado. */
 function percentualUiOuSugestao(fracao: number | null | undefined, sugestao: string): string {
-  if (fracao == null) return sugestao;
+  if (fracao == null || !Number.isFinite(Number(fracao))) return sugestao;
   return fracaoParaPercentualUi(fracao);
 }
 
@@ -265,13 +297,14 @@ export function rowToSimuladorTemplateDraft(
     row.premissa_entrada_lote_parcial;
   const entradaDraft = premissaParaDraft(entrada);
   const prazo = row.prazo_obra_meses || row.prazo_desembolso_sugerido || PRAZO_OBRA_MESES_PADRAO;
+  const jurosFracao = normalizarTaxaMensalFracao(row.taxa_juros_credito_ponte);
   return {
     nome: row.nome ?? '',
     pct_itbi: percentualUiOuSugestao(row.pct_itbi, PCT_ITBI_PADRAO_UI),
     pct_impostos: percentualUiOuSugestao(row.pct_impostos, PCT_IMPOSTOS_PADRAO_UI),
-    taxa_juros_credito_ponte: row.taxa_juros_credito_ponte == null
-      ? JUROS_CREDITO_PONTE_PADRAO_UI
-      : fracaoParaPercentualUi(normalizarTaxaMensalFracao(row.taxa_juros_credito_ponte)),    taxa_juros_financiamento_anual:
+    taxa_juros_credito_ponte: percentualUiOuSugestao(jurosFracao, JUROS_CREDITO_PONTE_PADRAO_UI),
+    tipo_juros_cp: parseTipoJurosCp(row.tipo_juros_cp),
+    taxa_juros_financiamento_anual:
       row.taxa_juros_financiamento_anual == null
         ? TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI
         : percentualUiOuSugestao(
@@ -279,7 +312,18 @@ export function rowToSimuladorTemplateDraft(
             TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI,
           ),
     pct_taxa_plataforma: percentualUiOuSugestao(row.pct_taxa_plataforma, PCT_TAXA_PLATAFORMA_PADRAO_UI),
-    pct_taxa_gestao: percentualUiOuSugestao(row.pct_taxa_gestao, PCT_TAXA_GESTAO_PADRAO_UI),
+    pct_taxa_gestao:
+      parseTipoTaxaGestao(row.tipo_taxa_gestao) === 'fixo'
+        ? PCT_TAXA_GESTAO_PADRAO_UI
+        : percentualUiOuSugestao(row.pct_taxa_gestao, PCT_TAXA_GESTAO_PADRAO_UI),
+    tipo_taxa_gestao: parseTipoTaxaGestao(row.tipo_taxa_gestao),
+    valor_taxa_gestao:
+      parseTipoTaxaGestao(row.tipo_taxa_gestao) === 'fixo'
+        ? row.pct_taxa_gestao == null || !Number.isFinite(Number(row.pct_taxa_gestao))
+          ? VALOR_TAXA_GESTAO_FIXO_PADRAO_UI
+          : numeroParaInputBr(row.pct_taxa_gestao)
+        : VALOR_TAXA_GESTAO_FIXO_PADRAO_UI,
+    pct_plataforma_entrada: fracaoParaPercentualUi(row.pct_plataforma_entrada),
     pct_lucro_loteadora: fracaoParaPercentualUi(row.pct_lucro_loteadora),
     pct_lucro_moni: fracaoParaPercentualUi(row.pct_lucro_moni),
     pct_lucro_franqueado: fracaoParaPercentualUi(row.pct_lucro_franqueado),
@@ -309,12 +353,15 @@ export function mapTemplateRow(raw: Record<string, unknown>): LoteamentoSimulado
     pct_itbi: Number(raw.pct_itbi ?? 0),
     pct_taxa_plataforma: Number(raw.pct_taxa_plataforma ?? 0),
     pct_taxa_gestao: Number(raw.pct_taxa_gestao ?? 0),
+    tipo_taxa_gestao: parseTipoTaxaGestao(raw.tipo_taxa_gestao),
+    pct_plataforma_entrada: Number(raw.pct_plataforma_entrada ?? 0),
     pct_lucro_loteadora: Number(raw.pct_lucro_loteadora ?? 0),
     pct_lucro_moni: Number(raw.pct_lucro_moni ?? 0),
     pct_lucro_franqueado: Number(raw.pct_lucro_franqueado ?? 0),
     pct_impostos: Number(raw.pct_impostos ?? 0),
     pct_comissao_corretor: Number(raw.pct_comissao_corretor ?? 0),
     taxa_juros_credito_ponte: Number(raw.taxa_juros_credito_ponte ?? 0),
+    tipo_juros_cp: parseTipoJurosCp(raw.tipo_juros_cp),
     taxa_juros_financiamento_anual: numOrNull(raw.taxa_juros_financiamento_anual),
     taxa_juros_parcelado_mes: numOrNull(raw.taxa_juros_parcelado_mes),
     valor_lote_padrao: raw.valor_lote_padrao == null ? null : Number(raw.valor_lote_padrao),
@@ -391,6 +438,18 @@ export function isColunaSimulador547Ausente(message: string | undefined): boolea
   return /parcela_mensal/i.test(message ?? '');
 }
 
+export function isColunaSimulador571Ausente(message: string | undefined): boolean {
+  return /valor_acoplamento/i.test(message ?? '');
+}
+
+export function isColunaSimulador575Ausente(message: string | undefined): boolean {
+  return /tipo_taxa_gestao|pct_plataforma_entrada/i.test(message ?? '');
+}
+
+export function isColunaSimulador576Ausente(message: string | undefined): boolean {
+  return /tipo_juros_cp/i.test(message ?? '');
+}
+
 export function isColunaSimulador548Ausente(message: string | undefined): boolean {
   return /'nome' column of 'simulacoes_pagamento'|simulacoes_pagamento\.nome|column "nome" of relation "simulacoes_pagamento"/i.test(
     message ?? '',
@@ -445,6 +504,7 @@ export type SimuladorOfertaDraft = {
   valor_lote: string;
   valor_casa: string;
   valor_customizacao: string;
+  valor_acoplamento: string;
   valor_ja_pago: string;
   prazo_meses: string;
   parcela_mensal: string;
@@ -468,43 +528,13 @@ export function emptySimuladorOfertaDraft(taxaAnualUi?: string): SimuladorOferta
     valor_lote: '',
     valor_casa: '',
     valor_customizacao: '',
+    valor_acoplamento: '',
     valor_ja_pago: '',
     prazo_meses: '',
     parcela_mensal: '',
     renda_cliente: '',
     prazo_financiamento_anos: '',
     taxa_financiamento_anual: taxaAnualUi?.trim() || TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI,
-  };
-}
-
-/** Banco (frações + JSON da entrada) → motor de cálculo. */
-export function rowToTemplateConfig(row: LoteamentoSimuladorTemplateRow): TemplateConfig {
-  const entrada =
-    row.entrada_minima_loteadora ??
-    row.premissa_entrada_lote_nao_pago ??
-    row.premissa_entrada_lote_parcial;
-  return {
-    percentual_itbi: Number(row.pct_itbi ?? 0),
-    percentual_impostos: Number(row.pct_impostos ?? 0),
-    percentual_taxa_plataforma: Number(row.pct_taxa_plataforma ?? 0),
-    percentual_taxa_gestao: Number(row.pct_taxa_gestao ?? 0),
-    percentual_lucro_loteadora: Number(row.pct_lucro_loteadora ?? 0),
-    percentual_lucro_moni: Number(row.pct_lucro_moni ?? 0),
-    percentual_lucro_franqueado: Number(row.pct_lucro_franqueado ?? 0),
-    percentual_comissao_corretor: Number(row.pct_comissao_corretor ?? 0),
-    prazo_obra_meses: row.prazo_obra_meses || row.prazo_desembolso_sugerido || PRAZO_OBRA_MESES_PADRAO,
-    taxa_juros_credito_ponte: normalizarTaxaMensalFracao(row.taxa_juros_credito_ponte),
-    taxa_juros_parcelado_mes: Number(row.taxa_juros_parcelado_mes ?? 0),
-    taxa_juros_financiamento_anual:
-      row.taxa_juros_financiamento_anual == null
-        ? TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_FRACAO
-        : row.taxa_juros_financiamento_anual,
-    entrada_minima_loteadora: entrada
-      ? {
-          tipo: entrada.tipo === 'valor_fixo' ? 'fixo' : 'percentual',
-          valor: entrada.valor,
-        }
-      : null,
   };
 }
 
@@ -535,6 +565,7 @@ export type SimulacaoPagamentoResumo = {
   valor_lote: number | null;
   valor_casa: number | null;
   valor_customizacao: number | null;
+  valor_acoplamento: number | null;
   valor_ja_pago: number | null;
   prazo_meses: number | null;
   renda_cliente: number | null;
@@ -603,6 +634,7 @@ export function mapSimulacaoRow(raw: Record<string, unknown>): SimulacaoPagament
     valor_lote: pick('valor_lote'),
     valor_casa: pick('valor_casa'),
     valor_customizacao: pick('valor_customizacao'),
+    valor_acoplamento: pick('valor_acoplamento'),
     valor_ja_pago: pick('valor_ja_pago'),
     prazo_meses: pick('prazo_meses'),
     renda_cliente: rendaCliente ?? rendaInformada,
@@ -646,6 +678,8 @@ export function valoresImobDaSimulacao(oferta: SimulacaoPagamentoResumo): {
   parcelas_mensais: number | null;
   prazo_total_meses: number | null;
   parcela_unica: number | null;
+  valor_acoplamento: number | null;
+  valor_base_casa: number | null;
 } {
   const prazoTotal =
     oferta.prazo_total_meses != null && Number.isFinite(oferta.prazo_total_meses)
@@ -660,5 +694,7 @@ export function valoresImobDaSimulacao(oferta: SimulacaoPagamentoResumo): {
       oferta.parcela_mensal_confirmada ?? oferta.parcela_mensal_sugerida ?? oferta.parcela_mensal,
     prazo_total_meses: prazoTotal != null && prazoTotal > 0 ? prazoTotal : null,
     parcela_unica: oferta.parcela_unica_confirmada ?? oferta.parcela_unica_sugerida,
+    valor_acoplamento: oferta.valor_acoplamento,
+    valor_base_casa: oferta.valor_casa,
   };
 }

@@ -2,6 +2,7 @@ import { guardLoginRequired } from '@/lib/auth-guard';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { KanbanStepOneBoardLoader } from '@/components/kanban-shared/KanbanStepOneBoardLoader';
+import { estadoModalDePageSearchParams } from '@/lib/kanban/kanban-url-modal-state';
 import { KanbanTabs } from './KanbanTabs';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +31,11 @@ export default async function FunilStepOnePage({
         <KanbanTabs />
       </Suspense>
 
-      <KanbanStepOneBoardLoader userId={user.id} activeTab={activeTab} />
+      <KanbanStepOneBoardLoader
+        userId={user.id}
+        activeTab={activeTab}
+        initialUrlState={estadoModalDePageSearchParams(searchParams)}
+      />
     </div>
   );
 }

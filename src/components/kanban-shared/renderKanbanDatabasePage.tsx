@@ -5,10 +5,10 @@ import type { PainelKanbanTabsVariant } from '@/app/steps-viabilidade/PainelKanb
 import { KanbanBoardSkeleton } from './KanbanBoardSkeleton';
 import { KanbanDatabaseBoardCardsLoader } from './KanbanDatabaseBoardCardsLoader';
 import { KanbanNotFound } from './KanbanNotFound';
-import { PontosJuridicosVisao } from '@/app/funil-juridico/PontosJuridicosVisao';
 import { KanbanPainelTabsShell } from './KanbanPainelTabsShell';
 import { KanbanWrapper } from './KanbanWrapper';
 import { fetchKanbanBoardShell } from './fetchKanbanBoardSnapshot';
+import { estadoModalDePageSearchParams } from '@/lib/kanban/kanban-url-modal-state';
 import type { CamposPorFaseMap, KanbanNomeDisplay } from './types';
 
 export type KanbanDatabasePageConfig = {
@@ -35,16 +35,10 @@ export async function renderKanbanDatabasePage(
   config: KanbanDatabasePageConfig,
 ) {
   /** Com `?tab=painel` + `?card=` o RSC não montava o board; o modal fechava ao falhar o load. */
-  const modalCardAberto = Boolean(
-    primeiroQuery(searchParams.card) || primeiroQuery(searchParams.kanbanCard),
-  );
-  const tabParam = primeiroQuery(searchParams.tab);
+  const initialUrlState = estadoModalDePageSearchParams(searchParams);
+  const modalCardAberto = Boolean(initialUrlState.cardId);
   const activeTab =
-    tabParam === 'pontos' && config.tabsVariant === 'juridico' && !modalCardAberto
-      ? 'pontos'
-      : tabParam === 'painel' && !modalCardAberto
-        ? 'painel'
-        : 'kanban';
+    primeiroQuery(searchParams.tab) === 'painel' && !modalCardAberto ? 'painel' : 'kanban';
 
   const supabase = await createClient();
   const {
@@ -73,33 +67,28 @@ export async function renderKanbanDatabasePage(
         Wrapper + modais FORA do Suspense dos cards: `router.refresh()` só remonta o board,
         sem fechar/reabrir pop-ups (?card= / ?novo=).
       */}
-      {activeTab === 'pontos' ? (
+      <KanbanWrapper
+        basePath={config.basePath}
+        isAdmin={shell.isAdmin}
+        kanbanId={shell.kanban.id}
+        kanbanNome={config.kanbanNomeDisplay}
+        fases={shell.fases}
+        camposPorFase={config.camposPorFase}
+        enableNovoCardModal={exibirNovoCard}
+        initialUrlState={initialUrlState}
+      >
         <Suspense fallback={<KanbanBoardSkeleton />}>
-          <PontosJuridicosVisao />
+          <KanbanDatabaseBoardCardsLoader
+            userId={user.id}
+            config={config}
+            activeTab={activeTab}
+            kanbanId={shell.kanban.id}
+            fases={shell.fases}
+            isAdmin={shell.isAdmin}
+            role={shell.role}
+          />
         </Suspense>
-      ) : (
-        <KanbanWrapper
-          basePath={config.basePath}
-          isAdmin={shell.isAdmin}
-          kanbanId={shell.kanban.id}
-          kanbanNome={config.kanbanNomeDisplay}
-          fases={shell.fases}
-          camposPorFase={config.camposPorFase}
-          enableNovoCardModal={exibirNovoCard}
-        >
-          <Suspense fallback={<KanbanBoardSkeleton />}>
-            <KanbanDatabaseBoardCardsLoader
-              userId={user.id}
-              config={config}
-              activeTab={activeTab}
-              kanbanId={shell.kanban.id}
-              fases={shell.fases}
-              isAdmin={shell.isAdmin}
-              role={shell.role}
-            />
-          </Suspense>
-        </KanbanWrapper>
-      )}
+      </KanbanWrapper>
     </div>
   );
 }

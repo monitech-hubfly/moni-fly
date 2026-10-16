@@ -7,6 +7,7 @@ import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { carregarSimuladorOfertaDoCard } from '@/lib/actions/loteamento-simulador-template';
 import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
 import { rotuloEmpreendimentoOrigem } from '@/lib/kanban/imob-simulacoes-card';
+import { parseMoneyText } from '@/lib/dashboard-novos-negocios/parseMoney';
 import { OfertaDetalheCliente } from '@/components/simulador/OfertaDetalheCliente';
 
 export const dynamic = 'force-dynamic';
@@ -88,6 +89,7 @@ export default async function SimuladorOfertaDetalhePage({ params }: Props) {
   const oferta = loaded.oferta;
 
   let empreendimentoLabel: string | null = null;
+  let valorBaseCasaInicial: number | null = null;
   if (oferta.empreendimento_id) {
     const imob = await carregarImobSimulacoesCard(supabase, id);
     if (imob.ok) {
@@ -97,6 +99,8 @@ export default async function SimuladorOfertaDetalhePage({ params }: Props) {
       const idx = empreendimentos.findIndex((it) => it.id === oferta.empreendimento_id);
       if (idx >= 0) {
         empreendimentoLabel = rotuloEmpreendimentoOrigem(empreendimentos[idx], idx + 1);
+        const base = parseMoneyText(empreendimentos[idx].valor_base_casa);
+        valorBaseCasaInicial = base != null && base > 0 ? base : null;
       }
     }
   }
@@ -144,6 +148,7 @@ export default async function SimuladorOfertaDetalhePage({ params }: Props) {
           oferta={oferta}
           template={loaded.template}
           cardId={id}
+          valorBaseCasaInicial={valorBaseCasaInicial}
         />
       </div>
     </main>

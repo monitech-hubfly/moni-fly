@@ -19,7 +19,6 @@ import { validarMotivoArquivamento } from '@/lib/kanban/motivos-arquivamento';
 import type { PortfolioConfirmacaoFaseTipo } from '@/lib/kanban/portfolio-confirmacao-fase';
 import type { OperacoesConfirmacaoFaseTipo } from '@/lib/kanban/operacoes-confirmacao-fase';
 import type { LoteadoresConfirmacaoFaseTipo } from '@/lib/kanban/loteadores-confirmacao-fase';
-import type { HistoricoItem } from '@/components/kanban-shared/kanban-card-modal-helpers';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
@@ -38,10 +37,6 @@ import {
   limparTagAcoplamentoPaiDoFilhoArquivado,
 } from '@/lib/kanban/acoplamento-tag-pai';
 import { createClient } from '@/lib/supabase/server';
-import {
-  movimentoExigeGateConclusaoAtendimentoJuridico,
-  movimentoExigeGatePontosRodadaJuridico,
-} from '@/lib/kanban/juridico-atendimento-pendencias';
 import { usuarioConcluiuCasasUniversidade012 } from '@/lib/universidade/queries';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
 import {
@@ -219,17 +214,13 @@ export async function vincularTagCard(
   cardId: string,
   tagId: string,
   basePath?: string,
-): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from('kanban_card_tags')
-      .insert({ card_id: cardId, tag_id: tagId })
-      .select('id')
-      .single();
+    const { error } = await supabase.from('kanban_card_tags').insert({ card_id: cardId, tag_id: tagId });
     if (error) return { ok: false, error: error.message };
     revalidatePath(basePath ?? '/');
-    return { ok: true, id: String((data as { id?: string } | null)?.id ?? '') };
+    return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -267,8 +258,6 @@ export type CriarSubInteracaoInput = {
   origem?: 'nativo' | 'legado';
   /** Quando true, rejeita se chamado não for editável na Sirene. */
   viaSirene?: boolean;
-  /** Fallback quando `interacao_id` é sintético (`chamado-<id>`) ou a RLS esconde `kanban_atividades`. */
-  sirene_chamado_id?: number | null;
 };
 
 export type ChamadoCategoriaDb = 'chamado' | 'melhoria';
@@ -471,87 +460,6 @@ async function todosResponsaveisDoChamado(
     }
   }
   return [...set];
-}
-
-function idChamadoSintetico(interacaoId: string): number | null {
-  const m = /^chamado-(\d+)$/.exec(interacaoId.trim());
-  if (!m) return null;
-  const n = Number(m[1]);
-  return Number.isFinite(n) ? n : null;
-}
-
-type AtividadeChamadoRow = {
-  id: string;
-  titulo: string | null;
-  card_id: string | null;
-  categoria: string | null;
-  origem: string | null;
-  sirene_chamado_id: number | null;
-};
-
-/** Lê a interação do chamado. Se a RLS esconder a linha, usa o client admin e, se faltar, cria o espelho. */
-async function resolverKanbanAtividadeDoChamado(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  interacaoId: string,
-  sireneChamadoId: number | null | undefined,
-  criadoPor: string,
-): Promise<AtividadeChamadoRow | null> {
-  const select = 'id, titulo, card_id, categoria, origem, sirene_chamado_id';
-  const sintetico = idChamadoSintetico(interacaoId);
-  if (!sintetico) {
-    const { data } = await supabase
-      .from('kanban_atividades')
-      .select(select)
-      .eq('id', interacaoId)
-      .maybeSingle();
-    if (data) return data as AtividadeChamadoRow;
-  }
-
-  const admin = createAdminClient();
-  if (!sintetico) {
-    const { data } = await admin.from('kanban_atividades').select(select).eq('id', interacaoId).maybeSingle();
-    if (data) return data as AtividadeChamadoRow;
-  }
-
-  const sid = sireneChamadoId ?? sintetico;
-  if (sid == null) return null;
-
-  const { data: porChamado } = await admin
-    .from('kanban_atividades')
-    .select(select)
-    .eq('sirene_chamado_id', sid)
-    .limit(1)
-    .maybeSingle();
-  if (porChamado) return porChamado as AtividadeChamadoRow;
-
-  const { data: sc } = await admin
-    .from('sirene_chamados')
-    .select('id, incendio, created_at')
-    .eq('id', sid)
-    .maybeSingle();
-  if (!sc) return null;
-  const chamado = sc as { id: number; incendio?: string | null; created_at?: string | null };
-  const agora = new Date().toISOString();
-  const { data: criada, error } = await admin
-    .from('kanban_atividades')
-    .insert({
-      card_id: null,
-      titulo: (chamado.incendio ?? '').trim() || `Chamado #${chamado.id}`,
-      descricao: null,
-      tipo: 'chamado_padrao',
-      status: 'pendente',
-      trava: false,
-      origem: 'sirene',
-      criado_por: criadoPor,
-      created_at: chamado.created_at ?? agora,
-      updated_at: agora,
-      times_ids: [],
-      sirene_chamado_id: chamado.id,
-    } as never)
-    .select(select)
-    .single();
-  if (error || !criada) return null;
-  return criada as AtividadeChamadoRow;
 }
 
 async function assertEditableFromSirene(
@@ -1058,27 +966,18 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login para criar uma atividade.' };
 
+  const bloqueio = await assertEditableFromSirene(supabase, input.interacao_id, input.viaSirene);
+  if (bloqueio) return bloqueio;
+
   const nome = (input.nome ?? input.descricao ?? '').trim();
   if (!nome) return { ok: false, error: 'Informe o nome da atividade.' };
 
-  const interacaoRow = await resolverKanbanAtividadeDoChamado(
-    supabase,
-    input.interacao_id,
-    input.sirene_chamado_id,
-    user.id,
-  );
+  const { data: interacaoRow } = await supabase
+    .from('kanban_atividades')
+    .select('titulo, card_id, categoria, origem, sirene_chamado_id')
+    .eq('id', input.interacao_id)
+    .maybeSingle();
   if (!interacaoRow) return { ok: false, error: 'Chamado não encontrado.' };
-  const interacaoId = interacaoRow.id;
-
-  if (
-    input.viaSirene &&
-    !chamadoEditavelNaSirene({
-      origem: String(interacaoRow.origem ?? ''),
-      card_id: interacaoRow.card_id,
-    })
-  ) {
-    return { ok: false, error: 'Este chamado só pode ser alterado no card vinculado.' };
-  }
 
   const categoria = ((interacaoRow as { categoria?: ChamadoCategoriaDb }).categoria ?? 'chamado') as ChamadoCategoriaDb;
   const admin = createAdminClient();
@@ -1101,13 +1000,13 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   if (!val.ok) return val;
 
   const timeLabel = nomesTimes[0] ?? '—';
-  const existentes = await todosResponsaveisDoChamado(supabase, interacaoId);
+  const existentes = await todosResponsaveisDoChamado(supabase, input.interacao_id);
   const novosResp = respIds.filter((id) => !existentes.includes(id));
 
   const { data: maxRow } = await supabase
     .from('sirene_topicos')
     .select('ordem')
-    .eq('interacao_id', interacaoId)
+    .eq('interacao_id', input.interacao_id)
     .order('ordem', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -1119,7 +1018,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   const prazoNovaSub = dataCampoCalendarioIso(input.data_fim);
   const row = {
     chamado_id: (interacaoRow as { sirene_chamado_id?: number | null }).sirene_chamado_id ?? null,
-    interacao_id: interacaoId,
+    interacao_id: input.interacao_id,
     ordem: proxOrdem,
     nome,
     descricao: nome,
@@ -1140,18 +1039,18 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   if (error) return { ok: false, error: error.message };
 
   if (statusAtiv === 'em_andamento') {
-    await supabase.from('kanban_atividades').update({ status: 'em_andamento' }).eq('id', interacaoId);
+    await supabase.from('kanban_atividades').update({ status: 'em_andamento' }).eq('id', input.interacao_id);
   }
 
   const cardId = String((interacaoRow as { card_id?: string }).card_id ?? '');
   if (novosResp.length > 0) {
     const tituloChamado = String((interacaoRow as { titulo?: string }).titulo ?? 'Chamado').trim();
-    await notificarEventoChamado(interacaoId, {
+    await notificarEventoChamado(input.interacao_id, {
       userIds: novosResp,
       tipo: 'kanban_atividade_criada',
       mensagem: `Nova Atividade Criada — ${tituloChamado || 'Chamado'}`,
       excluirUserId: user.id,
-      basePath: input.basePath?.trim() || (cardId ? undefined : `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`),
+      basePath: input.basePath?.trim() || (cardId ? undefined : `/sirene/chamados?interacao=${encodeURIComponent(input.interacao_id)}`),
     });
   }
 
@@ -1813,34 +1712,7 @@ export async function arquivarInteracao(
         })
         .eq('id', sid);
       if (scErr) return { ok: false, error: scErr.message };
-
-      // Cascata: arquiva tópicos Sirene vinculados ao chamado pelo chamado_id.
-      // Sem isso, tópicos órfãos continuam aparecendo no Backlog do TO DO & Planning
-      // mesmo após o chamado-pai ser arquivado (o módulo Sirene os oculta, mas o
-      // Backlog consulta apenas o status do próprio tópico).
-      await supabase
-        .from('sirene_topicos')
-        .update({
-          arquivado: true,
-          arquivado_em: new Date().toISOString(),
-          arquivado_por: user.id,
-          status: 'concluido',
-        })
-        .eq('chamado_id', sid)
-        .eq('arquivado', false);
     }
-
-    // Cascata: arquiva tópicos Sirene vinculados pela interacao_id (sem chamado_id direto).
-    await supabase
-      .from('sirene_topicos')
-      .update({
-        arquivado: true,
-        arquivado_em: new Date().toISOString(),
-        arquivado_por: user.id,
-        status: 'concluido',
-      })
-      .eq('interacao_id', interacaoId)
-      .eq('arquivado', false);
 
     const bp = basePath?.trim() || '/';
     revalidatePath(bp);
@@ -1965,11 +1837,6 @@ export type CriarCardKanbanInput = {
   lote?: string;
   redeFranqueadoId?: string;
   origemTipo?: 'hipotese_direta';
-  /** Funil Jurídico: abertura sem franqueado (candidato). */
-  juridicoNomeCandidato?: string;
-  juridicoEstado?: string;
-  juridicoCidade?: string;
-  juridicoObservacoes?: string;
 };
 
 export type CriarCardFundingInput = {
@@ -2053,6 +1920,8 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
       montarTituloCardLoteadores({
         nomeLoteador: (input.nomeLoteador ?? '').trim() || titulo,
         nomeCondominio,
+        quadra,
+        lote,
         tituloFallback: titulo,
       }) ?? titulo;
   }
@@ -2073,32 +1942,15 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   if (input.origemTipo === 'hipotese_direta') {
     insertPayload.origem_tipo = 'hipotese_direta';
   }
-  if (kanbanId === KANBAN_IDS.JURIDICO) {
-    insertPayload.juridico_bolinha_count = 1;
-    const nomeCandidato = (input.juridicoNomeCandidato ?? '').trim();
-    if (nomeCandidato) {
-      insertPayload.juridico_nome_candidato = nomeCandidato;
-      insertPayload.juridico_estado = (input.juridicoEstado ?? '').trim() || null;
-      insertPayload.juridico_cidade = (input.juridicoCidade ?? '').trim() || null;
-      insertPayload.juridico_observacoes = (input.juridicoObservacoes ?? '').trim() || null;
-    }
-  }
 
   const { data: cardRow, error } = await supabase.from('kanban_cards').insert(insertPayload as never).select('id').single();
   if (error) return { ok: false, error: error.message };
 
   const cardId = String((cardRow as { id: string }).id);
-  const {
-    aplicarResponsavelFasePadraoAoCard,
-    aplicarResponsavelDaFasePadraoSeVazio,
-    aplicarResponsaveisPadraoTodasFasesJuridico,
-  } = await import('@/lib/kanban/responsavel-fase-checklist');
-  if (kanbanId === KANBAN_IDS.JURIDICO) {
-    await aplicarResponsaveisPadraoTodasFasesJuridico(supabase, cardId, user.id);
-  } else {
-    await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, user.id);
-    await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
-  }
+  const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
+    await import('@/lib/kanban/responsavel-fase-checklist');
+  await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, user.id);
+  await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
 
   const bp = (input.basePath ?? '').trim() || '/';
   revalidatePath(bp);
@@ -2802,9 +2654,6 @@ export type RelacionamentoCardRow = {
   fase_nome: string;
   tipo: TipoRelacionamentoDisplay;
   vinculo_id: string | null;
-  arquivado?: boolean | null;
-  concluido?: boolean | null;
-  created_at?: string | null;
 };
 
 async function perfilEhAdminOuConsultor(
@@ -4208,20 +4057,19 @@ export async function registrarConfirmacaoFasePortfolio(input: {
 
   const { data: cardRow, error: cardErr } = await supabase
     .from('kanban_cards')
-    .select('kanban_id, rede_franqueado_id')
+    .select('kanban_id')
     .eq('id', cardId)
     .maybeSingle();
   if (cardErr) return { ok: false, error: cardErr.message };
-  const typedCard = cardRow as { kanban_id?: string | null; rede_franqueado_id?: string | null } | null;
-  if (String(typedCard?.kanban_id ?? '') !== KANBAN_IDS.PORTFOLIO) {
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.PORTFOLIO) {
     return { ok: false, error: 'Confirmação aplicável apenas ao Funil Portfólio.' };
   }
 
   const now = new Date().toISOString();
   const patchByTipo = {
-    opcao:           { opcao_assinada: true,                    opcao_assinada_em: now },
-    comite:          { comite_aprovado: true,                   comite_aprovado_em: now },
-    cto_precedentes: { portfolio_cto_precedentes_assinado: true, portfolio_cto_precedentes_assinado_em: now },
+    opcao: { opcao_assinada: true, opcao_assinada_em: now },
+    comite: { comite_aprovado: true, comite_aprovado_em: now },
+    contrato: { contrato_assinado: true, contrato_assinado_em: now },
   } as const;
 
   const { error: updErr } = await supabase
@@ -4231,13 +4079,183 @@ export async function registrarConfirmacaoFasePortfolio(input: {
 
   if (updErr) return { ok: false, error: updErr.message };
 
-  // Assinatura de Cto c/ Precedentes → incrementa contratos_12m na rede
-  if (tipo === 'cto_precedentes' && typedCard?.rede_franqueado_id) {
-    await supabase.rpc('incrementar_contratos_12m_rede', {
-      p_rede_id: typedCard.rede_franqueado_id,
-    });
-    // Erro silencioso: o card já foi atualizado; o diagnóstico pode ser corrigido manualmente
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export async function registrarConfirmacaoFaseLoteadores(input: {
+  cardId: string;
+  tipo: LoteadoresConfirmacaoFaseTipo;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar a confirmação.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  const tipo = input.tipo;
+  if (!cardId || !tipo) return { ok: false, error: 'Dados inválidos.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.LOTEADORES) {
+    return { ok: false, error: 'Confirmação aplicável apenas ao Funil Loteadores.' };
   }
+
+  const now = new Date().toISOString();
+  const patchByTipo: Record<LoteadoresConfirmacaoFaseTipo, Record<string, boolean | string>> = {
+    opcao: {
+      loteadores_opcao_assinada: true,
+      loteadores_opcao_assinada_em: now,
+    },
+    comite: {
+      comite_aprovado: true,
+      comite_aprovado_em: now,
+    },
+    cto_precedentes: {
+      loteadores_cto_precedentes_assinado: true,
+      loteadores_cto_precedentes_assinado_em: now,
+    },
+    cto_showroom: {
+      loteadores_cto_showroom_assinado: true,
+      loteadores_cto_showroom_assinado_em: now,
+    },
+    cto_parceria: {
+      loteadores_cto_parceria_assinado: true,
+      loteadores_cto_parceria_assinado_em: now,
+    },
+  };
+
+  const patch = patchByTipo[tipo];
+  if (!patch) return { ok: false, error: 'Tipo de confirmação inválido.' };
+
+  const { error: updErr } = await supabase
+    .from('kanban_cards')
+    .update(patch as never)
+    .eq('id', cardId);
+
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Retorna os motivos de perda cadastrados. */
+export async function buscarMotivosPerda(): Promise<{ id: string; descricao: string }[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('kanban_motivos_perda')
+    .select('id, descricao')
+    .eq('ativo', true)
+    .order('descricao');
+  return (data ?? []) as { id: string; descricao: string }[];
+}
+
+/** Registra o resultado "perda" num card Kanban. */
+export async function registrarPerda(input: {
+  cardId: string;
+  motivoId: string;
+  justificativa?: string | null;
+  basePath?: string;
+  kanbanNome?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar a perda.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { error } = await supabase
+    .from('kanban_cards')
+    .update({
+      resultado: 'perda',
+      motivo_perda_id: input.motivoId || null,
+      justificativa_perda: input.justificativa ? String(input.justificativa).trim() : null,
+      arquivado: true,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', cardId);
+
+  if (error) return { ok: false, error: error.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Registra o resultado "ganho" num card Kanban. */
+export async function registrarGanho(input: {
+  cardId: string;
+  justificativa?: string | null;
+  basePath?: string;
+  kanbanNome?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar o ganho.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { error } = await supabase
+    .from('kanban_cards')
+    .update({
+      resultado: 'ganho',
+      justificativa_ganho: input.justificativa ? String(input.justificativa).trim() : null,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', cardId);
+
+  if (error) return { ok: false, error: error.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Reativa um card marcado como perda — limpa resultado e desarquiva. */
+export async function reativarPerdaCard(input: {
+  cardId: string;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para reativar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { error } = await supabase
+    .from('kanban_cards')
+    .update({
+      resultado: null,
+      motivo_perda_id: null,
+      justificativa_perda: null,
+      arquivado: false,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', cardId);
+
+  if (error) return { ok: false, error: error.message };
 
   const base = String(input.basePath ?? '/').trim() || '/';
   revalidatePath(base);
@@ -4505,8 +4523,6 @@ export type SalvarProximaAtividadeInput = {
   proxima_atividade?: string | null;
   prazo_atividade?: string | null;
   basePath?: string;
-  /** Se true, não revalida paths após salvar (útil em cenários de batch). */
-  skipRevalidate?: boolean;
 };
 
 /** Salva próxima atividade e prazo em `kanban_cards` (todos os funis). */
@@ -4553,11 +4569,9 @@ export async function salvarProximaAtividade(input: SalvarProximaAtividadeInput)
   const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
   if (updErr) return { ok: false, error: updErr.message };
 
-  if (!input.skipRevalidate) {
-    const base = String(input.basePath ?? '/').trim() || '/';
-    revalidatePath(base);
-    revalidatePath('/');
-  }
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
   return { ok: true };
 }
 
@@ -4779,8 +4793,6 @@ export async function moverCardParaFase(input: {
   motivoReprovacaoAcoplamento?: string;
   /** Obrigatório ao avançar de fase com SLA vencido (quando ainda não há justificativa na fase). */
   justificativaSlaQuebra?: string;
-  /** Se true, não revalida paths após mover (usado em operações DnD em batch). */
-  skipRevalidate?: boolean;
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -4832,21 +4844,11 @@ export async function moverCardParaFase(input: {
   if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
   if (!gateBook.ok) return gateBook;
 
-  if (movimentoExigeGateConclusaoAtendimentoJuridico(novaFaseSlug)) {
-    const { verificarGateConclusaoAtendimentoJuridico } = await import(
-      '@/lib/actions/juridico-pontos-actions'
-    );
-    const gateConclusao = await verificarGateConclusaoAtendimentoJuridico(cardId);
-    if (!gateConclusao.ok) return gateConclusao;
-  }
-
-  if (movimentoExigeGatePontosRodadaJuridico(novaFaseSlug)) {
-    const { verificarGatePontosRodadaEnvioParceiro } = await import(
-      '@/lib/actions/juridico-pontos-actions'
-    );
-    const gateRodada = await verificarGatePontosRodadaEnvioParceiro(cardId);
-    if (!gateRodada.ok) return gateRodada;
-  }
+  const { data: cardKanban } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
 
   if (
     novaFaseSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO &&
@@ -4863,13 +4865,6 @@ export async function moverCardParaFase(input: {
       .eq('id', cardId);
     if (errMot) return { ok: false, error: errMot.message };
   }
-
-  const faseAnteriorBastao =
-    novaFaseSlug === FASE_SLUGS.JURIDICO_SUBIR_ASSINATURA ||
-    novaFaseSlug === FASE_SLUGS.JURIDICO_POS_ASSINATURA ||
-    novaFaseSlug === FASE_SLUGS.JURIDICO_ATENDIMENTOS_CONCLUIDOS
-      ? faseAnteriorId
-      : null;
 
   const { error: updErr } = await supabase
     .from('kanban_cards')
@@ -4900,28 +4895,13 @@ export async function moverCardParaFase(input: {
   }
 
   await executarBastoes(cardId, novaFaseSlug);
-  const bastaoVolta = await executarBastaoDeVolta(cardId, novaFaseSlug, {
-    faseAnteriorId: faseAnteriorBastao,
-    userId: user.id,
-  });
-  if (!bastaoVolta.ok) return bastaoVolta;
-  if (kanbanIdMovimento === KANBAN_IDS.ACOPLAMENTO) {
-    await sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug);
-  }
+  await executarBastaoDeVolta(cardId, novaFaseSlug);
+  await sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug);
 
-  const {
-    aplicarResponsaveisPadraoTodasFasesJuridico,
-    propagarResponsavelFaseAoEntrarFase,
-    propagarResponsavelDaFaseAoEntrarFase,
-  } = await import('@/lib/kanban/responsavel-fase-checklist');
-  if (kanbanIdMovimento === KANBAN_IDS.JURIDICO) {
-    await aplicarResponsaveisPadraoTodasFasesJuridico(supabase, cardId, user.id);
-  } else {
-    await Promise.all([
-      propagarResponsavelFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id),
-      propagarResponsavelDaFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id),
-    ]);
-  }
+  const { propagarResponsavelFaseAoEntrarFase, propagarResponsavelDaFaseAoEntrarFase } =
+    await import('@/lib/kanban/responsavel-fase-checklist');
+  await propagarResponsavelFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id);
+  await propagarResponsavelDaFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id);
 
   void notificarUniversidadeSeAvancoStep2({
     cardId,
@@ -5241,37 +5221,6 @@ export async function aprovarPassagemFase(aprovacaoId: string): Promise<ActionRe
   const gate = await obterGateComiteLoteadores(admin, aprovRow.card_id, novaFaseSlug);
   if (!gate.ok) return gate;
 
-  if (movimentoExigeGateConclusaoAtendimentoJuridico(novaFaseSlug)) {
-    const { verificarGateConclusaoAtendimentoJuridico } = await import(
-      '@/lib/actions/juridico-pontos-actions'
-    );
-    const gateConclusao = await verificarGateConclusaoAtendimentoJuridico(aprovRow.card_id);
-    if (!gateConclusao.ok) return gateConclusao;
-  }
-
-  if (movimentoExigeGatePontosRodadaJuridico(novaFaseSlug)) {
-    const { verificarGatePontosRodadaEnvioParceiro } = await import(
-      '@/lib/actions/juridico-pontos-actions'
-    );
-    const gateRodada = await verificarGatePontosRodadaEnvioParceiro(aprovRow.card_id);
-    if (!gateRodada.ok) return gateRodada;
-  }
-
-  let faseAnteriorAprovacao: string | null = null;
-  if (
-    novaFaseSlug === FASE_SLUGS.JURIDICO_SUBIR_ASSINATURA ||
-    novaFaseSlug === FASE_SLUGS.JURIDICO_POS_ASSINATURA ||
-    novaFaseSlug === FASE_SLUGS.JURIDICO_ATENDIMENTOS_CONCLUIDOS
-  ) {
-    const { data: antesAprov } = await admin
-      .from('kanban_cards')
-      .select('fase_id')
-      .eq('id', aprovRow.card_id)
-      .maybeSingle();
-    faseAnteriorAprovacao =
-      String((antesAprov as { fase_id?: string | null } | null)?.fase_id ?? '').trim() || null;
-  }
-
   const now = new Date().toISOString();
   const { error: cErr } = await admin
     .from('kanban_cards')
@@ -5279,11 +5228,7 @@ export async function aprovarPassagemFase(aprovacaoId: string): Promise<ActionRe
     .eq('id', aprovRow.card_id);
   if (cErr) return { ok: false, error: cErr.message };
   await executarBastoes(aprovRow.card_id, novaFaseSlug);
-  const bastaoAprovacao = await executarBastaoDeVolta(aprovRow.card_id, novaFaseSlug, {
-    faseAnteriorId: faseAnteriorAprovacao,
-    userId: user.id,
-  });
-  if (!bastaoAprovacao.ok) return bastaoAprovacao;
+  await executarBastaoDeVolta(aprovRow.card_id, novaFaseSlug);
   await sincronizarTagAcoplamentoPaiDoFilho(aprovRow.card_id, novaFaseSlug);
 
   const { data: kbNome } = await admin
@@ -5771,15 +5716,6 @@ export async function upsertFaseChecklistResposta(input: {
   }
 
   const campoSlug = String((itemRow as { campo_slug?: string | null } | null)?.campo_slug ?? '').trim();
-  if (campoSlug === 'juridico_tipo_contrato_confirmado') {
-    const { isJuridicoTipoDocumento } = await import('@/lib/kanban/juridico-tipo-documento');
-    const tipoDoc = isJuridicoTipoDocumento(nextValor) ? String(nextValor).trim() : null;
-    const { error: tipoErr } = await supabase
-      .from('kanban_cards')
-      .update({ juridico_tipo_contrato: tipoDoc } as never)
-      .eq('id', input.card_id);
-    if (tipoErr) return { ok: false, error: tipoErr.message };
-  }
   if (campoSlug && ['preco_atratividade', 'produto_atratividade', 'showroom_interesse', 'linhas_receita'].includes(campoSlug)) {
     const { atualizarScoreLoteadorR1 } = await import('@/lib/actions/loteador-externo-actions');
     await atualizarScoreLoteadorR1(input.card_id);
@@ -5860,213 +5796,4 @@ export async function salvarLinksBcaAcoplamentoNegocio(input: {
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
   return { ok: true, linkGbox: sync.linkGbox, linkAcoplamento: sync.linkAcoplamento };
-}
-
-// ---------------------------------------------------------------------------
-// Funil Loteadores — confirmação de fase (contrato/opção/comitê)
-// ---------------------------------------------------------------------------
-
-export async function registrarConfirmacaoFaseLoteadores(input: {
-  cardId: string;
-  tipo: LoteadoresConfirmacaoFaseTipo;
-  basePath?: string;
-}): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login para registrar a confirmação.' };
-
-  const cardId = String(input.cardId ?? '').trim();
-  const tipo = input.tipo;
-  if (!cardId || !tipo) return { ok: false, error: 'Dados inválidos.' };
-
-  const { data: cardRow, error: cardErr } = await supabase
-    .from('kanban_cards')
-    .select('kanban_id')
-    .eq('id', cardId)
-    .maybeSingle();
-  if (cardErr) return { ok: false, error: cardErr.message };
-  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.LOTEADORES) {
-    return { ok: false, error: 'Confirmação aplicável apenas ao Funil Loteadores.' };
-  }
-
-  const now = new Date().toISOString();
-  const patchByTipo: Record<LoteadoresConfirmacaoFaseTipo, Record<string, boolean | string>> = {
-    opcao:          { opcao_assinada: true,            opcao_assinada_em: now },
-    comite:         { comite_aprovado: true,            comite_aprovado_em: now },
-    cto_precedentes: { loteadores_cto_precedentes_assinado: true, loteadores_cto_precedentes_assinado_em: now },
-    cto_showroom:   { loteadores_cto_showroom_assinado: true, loteadores_cto_showroom_assinado_em: now },
-    cto_parceria:   { loteadores_cto_parceria_assinado: true, loteadores_cto_parceria_assinado_em: now },
-  };
-
-  const patch = patchByTipo[tipo];
-  if (!patch) return { ok: false, error: 'Tipo de confirmação inválido.' };
-
-  const { error: updErr } = await supabase
-    .from('kanban_cards')
-    .update(patch as never)
-    .eq('id', cardId);
-
-  if (updErr) return { ok: false, error: updErr.message };
-
-  const base = String(input.basePath ?? '/').trim() || '/';
-  revalidatePath(base);
-  revalidatePath('/');
-  return { ok: true };
-}
-
-// ---------------------------------------------------------------------------
-// Perda / Ganho de cards Kanban
-// ---------------------------------------------------------------------------
-
-/** Retorna os motivos de perda cadastrados. */
-export async function buscarMotivosPerda(): Promise<{ id: string; descricao: string }[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('kanban_motivos_perda')
-    .select('id, descricao')
-    .eq('ativo', true)
-    .order('descricao');
-  return (data ?? []) as { id: string; descricao: string }[];
-}
-
-/** Registra o resultado "perda" num card Kanban. */
-export async function registrarPerda(input: {
-  cardId: string;
-  motivoId: string;
-  justificativa?: string | null;
-  basePath?: string;
-  kanbanNome?: string;
-}): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login para registrar a perda.' };
-
-  const cardId = String(input.cardId ?? '').trim();
-  if (!cardId) return { ok: false, error: 'Card inválido.' };
-
-  const { error } = await supabase
-    .from('kanban_cards')
-    .update({
-      resultado: 'perda',
-      motivo_perda_id: input.motivoId || null,
-      justificativa_perda: input.justificativa ? String(input.justificativa).trim() : null,
-      arquivado: true,
-      updated_at: new Date().toISOString(),
-    } as never)
-    .eq('id', cardId);
-
-  if (error) return { ok: false, error: error.message };
-
-  const base = String(input.basePath ?? '/').trim() || '/';
-  revalidatePath(base);
-  revalidatePath('/');
-  return { ok: true };
-}
-
-/** Registra o resultado "ganho" num card Kanban. */
-export async function registrarGanho(input: {
-  cardId: string;
-  justificativa?: string | null;
-  basePath?: string;
-  kanbanNome?: string;
-}): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login para registrar o ganho.' };
-
-  const cardId = String(input.cardId ?? '').trim();
-  if (!cardId) return { ok: false, error: 'Card inválido.' };
-
-  const { error } = await supabase
-    .from('kanban_cards')
-    .update({
-      resultado: 'ganho',
-      justificativa_ganho: input.justificativa ? String(input.justificativa).trim() : null,
-      updated_at: new Date().toISOString(),
-    } as never)
-    .eq('id', cardId);
-
-  if (error) return { ok: false, error: error.message };
-
-  const base = String(input.basePath ?? '/').trim() || '/';
-  revalidatePath(base);
-  revalidatePath('/');
-  return { ok: true };
-}
-
-/** Reativa um card marcado como perda — limpa resultado e desarquiva. */
-export async function reativarPerdaCard(input: {
-  cardId: string;
-  basePath?: string;
-}): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login para reativar.' };
-
-  const cardId = String(input.cardId ?? '').trim();
-  if (!cardId) return { ok: false, error: 'Card inválido.' };
-
-  const { error } = await supabase
-    .from('kanban_cards')
-    .update({
-      resultado: null,
-      motivo_perda_id: null,
-      justificativa_perda: null,
-      arquivado: false,
-      updated_at: new Date().toISOString(),
-    } as never)
-    .eq('id', cardId);
-
-  if (error) return { ok: false, error: error.message };
-
-  const base = String(input.basePath ?? '/').trim() || '/';
-  revalidatePath(base);
-  revalidatePath('/');
-  return { ok: true };
-}
-
-// ---------------------------------------------------------------------------
-// Histórico unificado de card (audit_log)
-// ---------------------------------------------------------------------------
-
-/** Carrega o histórico de ações registradas em audit_log para um card. */
-export async function carregarHistoricoUnificadoCard(input: {
-  cardId: string;
-  origem?: 'nativo' | 'legado';
-}): Promise<{ ok: true; items: HistoricoItem[] } | { ok: false; error: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-
-  const cardId = String(input.cardId ?? '').trim();
-  if (!cardId) return { ok: false, error: 'Card inválido.' };
-
-  const { data, error } = await supabase
-    .from('audit_log')
-    .select('id, acao, usuario, detalhe:snapshot_depois, criado_em:created_at')
-    .or(`entidade_id.eq.${cardId},recurso_id.eq.${cardId}`)
-    .order('created_at', { ascending: false })
-    .limit(200);
-
-  if (error) return { ok: false, error: error.message };
-
-  const items: HistoricoItem[] = (data ?? []).map((row) => ({
-    id: String(row.id ?? ''),
-    acao: String((row as { acao?: string | null }).acao ?? '—'),
-    usuario_nome: String((row as { usuario?: string | null }).usuario ?? '') || null,
-    detalhe: (row as { detalhe?: Record<string, unknown> | null }).detalhe ?? null,
-    criado_em: String((row as { criado_em?: string | null }).criado_em ?? ''),
-  }));
-
-  return { ok: true, items };
 }

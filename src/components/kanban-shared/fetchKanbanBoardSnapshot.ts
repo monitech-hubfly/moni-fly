@@ -920,6 +920,14 @@ export async function fetchKanbanBoardSnapshot(
     ]);
     timer.mark('fases+cards-fast');
 
+    if (cardsRes.error) {
+      console.error(
+        '[kanban-board] select fast falhou — board sem cards:',
+        kanbanNomeDb,
+        cardsRes.error.message,
+      );
+    }
+
     const cardsNativoRaw = ((cardsRes.data ?? []) as KanbanCardRow[]).map((c) =>
       mapNativoFastRow(c, kanbanIdStr),
     );
@@ -1185,6 +1193,14 @@ export async function fetchKanbanBoardSnapshot(
           )
         : Promise.resolve(emptyRes),
     ]);
+
+    if (cardsRes.error) {
+      console.error(
+        '[kanban-board] select cards falhou — board sem cards ativos:',
+        kanbanNomeDb,
+        cardsRes.error.message,
+      );
+    }
 
     cardsRaw = (cardsRes.data ?? []) as unknown[];
     conclRaw = (conclRes.data ?? []) as unknown[];

@@ -5,13 +5,16 @@ import { autoCurarCardsFunilStepOneAusentes } from '@/lib/kanban/ensure-funil-st
 import { KanbanStepOneBoardCardsLoader } from './KanbanStepOneBoardCardsLoader';
 import { KanbanWrapper } from './KanbanWrapper';
 import { fetchKanbanBoardShell } from './fetchKanbanBoardSnapshot';
+import type { UrlModalState } from '@/lib/kanban/kanban-url-modal-state';
 
 export async function KanbanStepOneBoardLoader({
   userId,
   activeTab,
+  initialUrlState,
 }: {
   userId: string;
   activeTab: string;
+  initialUrlState?: UrlModalState;
 }) {
   const supabase = await createClient();
   const shell = await fetchKanbanBoardShell(supabase, 'Funil Step One', userId);
@@ -51,6 +54,7 @@ export async function KanbanStepOneBoardLoader({
       kanbanNome="Funil Step One"
       fases={shell.fases}
       enableNovoCardModal
+      initialUrlState={initialUrlState}
     >
       <Suspense fallback={null}>
         <KanbanStepOneBoardCardsLoader

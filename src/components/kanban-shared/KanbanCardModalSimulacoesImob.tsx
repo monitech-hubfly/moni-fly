@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import {
   criarImobSimulacaoEmpreendimento,
@@ -293,7 +293,6 @@ function EmpreendimentoBloco({
   ofertasExistentes,
   excluindoOfertaId,
   onExcluirOferta,
-  isDirty,
 }: {
   item: ImobCardEmpreendimentoDraft;
   index: number;
@@ -306,15 +305,15 @@ function EmpreendimentoBloco({
   uploadingOferta: boolean;
   erroUpload?: string | null;
   onChange: (key: keyof ImobCardEmpreendimentoDraft, value: string) => void;
-  onSalvar: () => void;
+  onSalvar: () => Promise<boolean>;
   onExcluir: () => void;
   onUploadOferta: (file: File) => void;
   ofertasExistentes: { id: string; nome: string }[];
   excluindoOfertaId: string | null;
   onExcluirOferta: (ofertaId: string) => void;
-  isDirty: boolean;
 }) {
-  const setMoney = (key: ImobMoneyKey, value: string) => onChange(key, value);
+  const [isDirty, setIsDirty] = useState(false);
+  const setMoney = (key: ImobMoneyKey, value: string) => handleCampo(key, value);
   const produtoOpcoes = opcoesProdutoModeloComValorAtual(item.produto_modelo);
   const isShowroom = kind === 'showroom';
   const tituloFinal = isShowroom
@@ -322,8 +321,29 @@ function EmpreendimentoBloco({
       ? `Showroom ${index + 1} de ${total}`
       : 'Showroom'
     : total > 1
-      ? `Empreendimento ${index + 1} de ${total}`
-      : `Empreendimento ${index + 1}`;
+      ? `Oferta ${index + 1} de ${total}`
+      : `Oferta ${index + 1}`;
+  const temIdNoBanco = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    String(item.id ?? '').trim(),
+  );
+  const salvando = salvandoId === item.id;
+  const podeSalvarOferta = podeEditar && isDirty && !salvando;
+  const podeCriarOferta = podeEditar && templateSalvo && temIdNoBanco && !isDirty && !salvando;
+
+  function marcarDirty() {
+    setIsDirty(true);
+  }
+
+  function handleCampo(key: keyof ImobCardEmpreendimentoDraft, value: string) {
+    marcarDirty();
+    onChange(key, value);
+  }
+
+  async function handleClickSalvar() {
+    if (!podeSalvarOferta) return;
+    const ok = await onSalvar();
+    if (ok) setIsDirty(false);
+  }
 
   return (
     <div
@@ -343,7 +363,7 @@ function EmpreendimentoBloco({
             onClick={onExcluir}
             className="inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 text-[11px] sm:min-h-0"
             style={{ color: 'var(--moni-text-secondary)' }}
-            aria-label={isShowroom ? 'Remover showroom' : 'Remover empreendimento'}
+            aria-label={isShowroom ? 'Remover showroom' : 'Remover oferta'}
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden />
             Remover
@@ -363,7 +383,7 @@ function EmpreendimentoBloco({
             {podeEditar ? (
               <select
                 value={item.produto_modelo ?? ''}
-                onChange={(e) => onChange('produto_modelo', e.target.value)}
+                onChange={(e) => handleCampo('produto_modelo', e.target.value)}
                 className={inputCls}
                 style={inputStyle}
               >
@@ -384,51 +404,51 @@ function EmpreendimentoBloco({
             label="Título da oferta"
             value={item.titulo_oferta}
             podeEditar={podeEditar}
-            onChange={(v) => onChange('titulo_oferta', v)}
+            onChange={(v) => handleCampo('titulo_oferta', v)}
           />
           <CampoTexto
             label="Ano de lançamento"
             value={item.ano_lancamento}
             podeEditar={podeEditar}
-            onChange={(v) => onChange('ano_lancamento', v.replace(/\D/g, '').slice(0, 4))}
+            onChange={(v) => handleCampo('ano_lancamento', v.replace(/\D/g, '').slice(0, 4))}
             placeholder="AAAA"
           />
           <CampoTexto
             label="Quartos"
             value={item.quartos}
             podeEditar={podeEditar}
-            onChange={(v) => onChange('quartos', v)}
+            onChange={(v) => handleCampo('quartos', v)}
           />
           <CampoTexto
             label="Banheiros"
             value={item.banheiros}
             podeEditar={podeEditar}
-            onChange={(v) => onChange('banheiros', v)}
+            onChange={(v) => handleCampo('banheiros', v)}
           />
           <CampoTexto
             label="Vagas"
             value={item.vagas}
             podeEditar={podeEditar}
-            onChange={(v) => onChange('vagas', v)}
+            onChange={(v) => handleCampo('vagas', v)}
           />
           <CampoTexto
             label="Área de Vendas (m²)"
             value={item.area_vendas_m2}
             podeEditar={podeEditar}
-            onChange={(v) => onChange('area_vendas_m2', v)}
+            onChange={(v) => handleCampo('area_vendas_m2', v)}
           />
           <CampoTexto
             label="Link Modelo"
             value={item.link_modelo}
             podeEditar={podeEditar}
-            onChange={(v) => onChange('link_modelo', v)}
+            onChange={(v) => handleCampo('link_modelo', v)}
             placeholder="https://"
           />
           <CampoTexto
             label="Link Imagens e Planta"
             value={item.link_imagens_planta}
             podeEditar={podeEditar}
-            onChange={(v) => onChange('link_imagens_planta', v)}
+            onChange={(v) => handleCampo('link_imagens_planta', v)}
             placeholder="https://"
           />
           <div className="sm:col-span-2">
@@ -436,7 +456,7 @@ function EmpreendimentoBloco({
               label="Descrição"
               value={item.descricao}
               podeEditar={podeEditar}
-              onChange={(v) => onChange('descricao', v)}
+              onChange={(v) => handleCampo('descricao', v)}
               multiline
             />
           </div>
@@ -447,25 +467,77 @@ function EmpreendimentoBloco({
           nome={item.imagem_oferta_nome ?? ''}
               podeEditar={podeEditar}
               uploading={uploadingOferta}
-              onUpload={onUploadOferta}
+              onUpload={(file) => {
+                marcarDirty();
+                onUploadOferta(file);
+              }}
               erroLocal={erroUpload}
             />
           </div>
+          {!isShowroom ? (
+            <div className="sm:col-span-2">
+              <CampoMoeda
+                label="Valor base da casa (R$)"
+                value={item.valor_base_casa ?? ''}
+                podeEditar={podeEditar}
+                onChange={(v) => setMoney('valor_base_casa', v)}
+              />
+              <p className="mt-0.5 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Custo de construção (input “Valor da casa” do simulador), antes do markup. Obrigatório.
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
+
+      {isShowroom ? (
+        <div>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Dados gerais da simulação
+          </p>
+          <div className="space-y-2">
+            <CampoMoeda
+              label="Valor do imóvel à vista (R$)"
+              value={item.valor_avista ?? ''}
+              podeEditar={podeEditar}
+              onChange={(v) => setMoney('valor_avista', v)}
+            />
+            <CampoMoeda
+              label="Valor do acoplamento (R$)"
+              value={item.valor_acoplamento ?? ''}
+              podeEditar={podeEditar}
+              onChange={(v) => setMoney('valor_acoplamento', v)}
+            />
+            <CampoMoeda
+              label="Entrada (R$)"
+              value={item.entrada ?? ''}
+              podeEditar={podeEditar}
+              onChange={(v) => setMoney('entrada', v)}
+            />
+            <CampoMoeda
+              label="Parcelas mensais (R$)"
+              value={item.parcelas_mensais ?? ''}
+              podeEditar={podeEditar}
+              onChange={(v) => setMoney('parcelas_mensais', v)}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {podeEditar ? (
         <button
           type="button"
-          onClick={onSalvar}
-          disabled={salvandoId === item.id}
-          className="min-h-[44px] w-full rounded-md px-3 py-1.5 text-xs font-medium sm:min-h-0"
+          onClick={() => void handleClickSalvar()}
+          disabled={!podeSalvarOferta}
+          className={`min-h-[44px] w-full rounded-md px-3 py-1.5 text-xs font-medium sm:min-h-0 ${
+            !podeSalvarOferta ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
           style={{
             background: 'var(--moni-navy-800)',
             color: 'var(--moni-text-inverse, #fff)',
           }}
         >
-          {salvandoId === item.id ? 'Salvando…' : isShowroom ? 'Salvar showroom' : 'Salvar empreendimento'}
+          {salvando ? 'Salvando…' : isShowroom ? 'Salvar showroom' : 'Salvar oferta'}
         </button>
       ) : null}
 
@@ -477,9 +549,10 @@ function EmpreendimentoBloco({
                 <li key={o.id} className="flex items-center gap-1">
                   <Link
                     href={`/loteadores/${cardId}/simulador-template/ofertas/${o.id}`}
-                    className="flex-1 text-xs underline"
-                    style={{ color: 'var(--moni-text-primary)' }}
+                    className={btnOutlineCls}
+                    style={{ ...btnOutlineStyle, flex: 1 }}
                   >
+                    <Pencil className="mr-1 h-3 w-3 shrink-0" aria-hidden />
                     {o.nome}
                   </Link>
                   <button
@@ -504,51 +577,32 @@ function EmpreendimentoBloco({
             </ul>
           ) : null}
           {podeEditar ? (
-            templateSalvo && !isDirty ? (
-              <Link
-                href={`/loteadores/${cardId}/simulador-template/ofertas?empreendimento=${item.id}`}
-                className={btnOutlineCls}
-                style={btnOutlineStyle}
-              >
-                {ofertasExistentes.length > 0 ? 'Criar nova oferta' : 'Criar Oferta'}
-              </Link>
+            templateSalvo ? (
+              podeCriarOferta ? (
+                <Link
+                  href={`/loteadores/${cardId}/simulador-template/ofertas?empreendimento=${item.id}`}
+                  className={btnOutlineCls}
+                  style={btnOutlineStyle}
+                >
+                  {ofertasExistentes.length > 0 ? 'Criar nova oferta' : 'Criar Oferta'}
+                </Link>
+              ) : (
+                <span
+                  className={`${btnOutlineCls} opacity-50 cursor-not-allowed`}
+                  style={btnOutlineStyle}
+                  aria-disabled="true"
+                >
+                  {ofertasExistentes.length > 0 ? 'Criar nova oferta' : 'Criar Oferta'}
+                </span>
+              )
             ) : (
               <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                {isDirty
-                  ? 'Salve o empreendimento acima para criar uma oferta.'
-                  : 'Crie o template do loteador acima antes de gerar a oferta.'}
+                Crie o template do loteador acima antes de gerar a oferta.
               </p>
             )
           ) : null}
         </div>
-      ) : (
-      <div>
-        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Dados gerais da simulação
-        </p>
-        <div className="space-y-2">
-          <CampoMoeda
-            label="Valor do imóvel à vista (R$)"
-            value={item.valor_avista ?? ''}
-            podeEditar={podeEditar}
-            onChange={(v) => setMoney('valor_avista', v)}
-          />
-          <CampoMoeda
-            label="Entrada (R$)"
-            value={item.entrada ?? ''}
-            podeEditar={podeEditar}
-            onChange={(v) => setMoney('entrada', v)}
-          />
-          <CampoMoeda
-            label="Parcelas mensais (R$)"
-            value={item.parcelas_mensais ?? ''}
-            podeEditar={podeEditar}
-            onChange={(v) => setMoney('parcelas_mensais', v)}
-          />
-        </div>
-      </div>
-      )}
-
+      ) : null}
     </div>
   );
 }
@@ -604,7 +658,6 @@ export function KanbanCardModalSimulacoesImob({
     new Map(),
   );
   const [excluindoOfertaId, setExcluindoOfertaId] = useState<string | null>(null);
-  const [dirtyEmpIds, setDirtyEmpIds] = useState<Set<string>>(new Set());
 
   const carregarOfertas = useCallback(async () => {
     if (!mostrarTemplate) return;
@@ -647,6 +700,12 @@ export function KanbanCardModalSimulacoesImob({
 
   const showrooms = itens.filter((it) => (it.tipo ?? 'empreendimento') === 'showroom');
   const empreendimentos = itens.filter((it) => (it.tipo ?? 'empreendimento') !== 'showroom');
+  const slugJornada = String(modelo.page_slug ?? '').trim();
+  const temOfertaCadastrada = Array.from(ofertasPorEmp.values()).some((list) => list.length > 0);
+  const podeAcessarJornada = temOfertaCadastrada && Boolean(slugJornada);
+  const tituloJornadaDesabilitada = !temOfertaCadastrada
+    ? 'Crie pelo menos uma oferta para habilitar'
+    : 'Este empreendimento ainda não tem slug da jornada pública.';
 
   const recarregar = useCallback(async () => {
     setLoading(true);
@@ -789,7 +848,7 @@ export function KanbanCardModalSimulacoesImob({
     }
   }
 
-  async function handleSalvar(item: ImobCardEmpreendimentoDraft) {
+  async function handleSalvar(item: ImobCardEmpreendimentoDraft): Promise<boolean> {
     setSalvandoId(item.id);
     setErro(null);
     setMsg(null);
@@ -797,10 +856,10 @@ export function KanbanCardModalSimulacoesImob({
     setSalvandoId(null);
     if (!r.ok) {
       setErro(r.error);
-      return;
+      return false;
     }
-    setDirtyEmpIds((prev) => { const n = new Set(prev); n.delete(item.id); return n; });
-    setMsg(item.tipo === 'showroom' ? 'Showroom salvo.' : 'Empreendimento salvo.');
+    setMsg(item.tipo === 'showroom' ? 'Showroom salvo.' : 'Oferta salva.');
+    return true;
   }
 
   async function handleCriar(tipo: 'empreendimento' | 'showroom') {
@@ -817,8 +876,10 @@ export function KanbanCardModalSimulacoesImob({
   }
 
   async function handleExcluir(id: string, tipo: 'empreendimento' | 'showroom') {
-    const label = tipo === 'showroom' ? 'showroom' : 'empreendimento';
-    if (!window.confirm(`Remover este ${label} da simulação?`)) return;
+    const ok = window.confirm(
+      tipo === 'showroom' ? 'Remover este showroom da simulação?' : 'Remover esta oferta da simulação?',
+    );
+    if (!ok) return;
     setErro(null);
     setMsg(null);
     const r = await excluirImobSimulacaoEmpreendimento(cardId, id);
@@ -1050,13 +1111,12 @@ export function KanbanCardModalSimulacoesImob({
                 uploadingOferta={uploadingOfertaId === item.id}
                 erroUpload={erroUploadOferta?.id === item.id ? erroUploadOferta.msg : null}
                 onChange={(key, value) => patchDraft(setItens, item.id, key, value)}
-                onSalvar={() => void handleSalvar(item)}
+                onSalvar={() => handleSalvar(item)}
                 onExcluir={() => void handleExcluir(item.id, 'showroom')}
                 onUploadOferta={(f) => void handleUploadOferta(item.id, f)}
                 ofertasExistentes={[]}
                 excluindoOfertaId={null}
                 onExcluirOferta={() => {}}
-                isDirty={false}
               />
             ))}
           </div>
@@ -1080,13 +1140,13 @@ export function KanbanCardModalSimulacoesImob({
       </div>
 
       <p className="text-[10px] leading-snug" style={{ color: 'var(--moni-text-tertiary)' }}>
-        Por empreendimento: oferta e parâmetros do simulador. Valor quitado, sinal e parcela mensal do
+        Por oferta: parâmetros do simulador. Valor quitado, sinal e parcela mensal do
         cliente são preenchidos na simulação, não neste card.
       </p>
 
       {empreendimentos.length === 0 ? (
         <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
-          Nenhum empreendimento neste card.
+          Nenhuma oferta neste card.
         </p>
       ) : (
         <div className="space-y-3">
@@ -1103,17 +1163,13 @@ export function KanbanCardModalSimulacoesImob({
               salvandoId={salvandoId}
               uploadingOferta={uploadingOfertaId === item.id}
               erroUpload={erroUploadOferta?.id === item.id ? erroUploadOferta.msg : null}
-              onChange={(key, value) => {
-                patchDraft(setItens, item.id, key, value);
-                setDirtyEmpIds((prev) => new Set([...prev, item.id]));
-              }}
-              onSalvar={() => void handleSalvar(item)}
+              onChange={(key, value) => patchDraft(setItens, item.id, key, value)}
+              onSalvar={() => handleSalvar(item)}
               onExcluir={() => void handleExcluir(item.id, 'empreendimento')}
               onUploadOferta={(f) => void handleUploadOferta(item.id, f)}
               ofertasExistentes={ofertasPorEmp.get(item.id) ?? []}
               excluindoOfertaId={excluindoOfertaId}
               onExcluirOferta={handleExcluirOferta}
-              isDirty={dirtyEmpIds.has(item.id)}
             />
           ))}
         </div>
@@ -1132,8 +1188,46 @@ export function KanbanCardModalSimulacoesImob({
           }}
         >
           <Plus className="h-3.5 w-3.5" aria-hidden />
-          {criandoTipo === 'empreendimento' ? 'Adicionando…' : 'Adicionar empreendimento'}
+          {criandoTipo === 'empreendimento' ? 'Adicionando…' : 'Adicionar oferta'}
         </button>
+      ) : null}
+
+      {mostrarTemplate ? (
+        <div
+          className="space-y-2 rounded-lg p-2"
+          style={{
+            border: '0.5px solid var(--moni-border-default)',
+            background: 'var(--moni-surface-50)',
+          }}
+        >
+          <p
+            className="text-[10px] font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--moni-text-tertiary)' }}
+          >
+            Jornada do Cliente - Moní
+          </p>
+          {podeAcessarJornada ? (
+            <a
+              href={`/empreendimento/${encodeURIComponent(slugJornada)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={btnDarkCls}
+              style={btnDarkStyle}
+            >
+              Acessar Jornada
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              title={tituloJornadaDesabilitada}
+              className={`${btnDarkCls} cursor-not-allowed opacity-50`}
+              style={btnDarkStyle}
+            >
+              Acessar Jornada
+            </button>
+          )}
+        </div>
       ) : null}
     </div>
   );

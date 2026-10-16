@@ -7,31 +7,32 @@ import { NovoCardModal } from '@/app/funil-stepone/NovoCardModal';
 import { NovoCardFundingModal } from '@/app/funil-funding/NovoCardFundingModal';
 import { NovoCardMarketingModal } from '@/app/marketing/NovoCardMarketingModal';
 import { NovoCardMoniCareModal } from '@/app/manutencoes/NovoCardMoniCareModal';
-import { NovoCardControladoriaModal } from '@/app/funil-controladoria/NovoCardControladoriaModal';
-import { NovoCardJuridicoModal } from '@/app/funil-juridico/NovoCardJuridicoModal';
-import { NovoCardVCLModal } from '@/components/venda-casas-loteadores/NovoCardVCLModal';
 import { hrefAbrirCardNaRota } from '@/lib/kanban/kanban-card-href';
 import { isMarketingKanbanId } from '@/lib/kanban/funis-marketing';
 import { isMoniCareKanbanId } from '@/lib/kanban/funil-moni-care';
-import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
-
-function isControladoriaKanbanId(id: string): boolean {
-  return id === KANBAN_IDS.CONTROLADORIA_CONTABIL || id === KANBAN_IDS.CONTROLADORIA_FISCAL;
-}
-
-function isVCLKanbanId(id: string): boolean {
-  return (
-    id === KANBAN_IDS.VCL_NAO_VENDIDOS ||
-    id === KANBAN_IDS.VCL_VENDIDOS ||
-    id === KANBAN_IDS.VCL_SHOWROOM
-  );
-}
+import {
+  URL_MODAL_FECHADO,
+  estadoModalDoWindow,
+  lerCardIdDaUrl,
+  urlStateIgual,
+  type UrlModalState,
+} from '@/lib/kanban/kanban-url-modal-state';
 import type { CamposPorFaseMap, KanbanFase, KanbanNomeDisplay } from './types';
 
-/** Modal pesado — carrega só quando há `?card=` (code-split + sem SSR). */
+export type { UrlModalState };
+
+function KanbanCardModalLoading() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="text-white">Carregando…</div>
+    </div>
+  );
+}
+
+/** Modal pesado — code-split. Overlay no `loading` para o drawer aparecer na hora. */
 const KanbanCardModal = dynamic(
   () => import('./KanbanCardModal').then((m) => m.KanbanCardModal),
-  { ssr: false },
+  { ssr: false, loading: KanbanCardModalLoading },
 );
 
 export type KanbanWrapperProps = {
@@ -46,14 +47,8 @@ export type KanbanWrapperProps = {
   tabBloqueiaCard?: string;
   /** Usa o `NovoCardModal` do Funil quando `?novo=true`. Desligado em outros kanbans. */
   enableNovoCardModal?: boolean;
-};
-
-type UrlModalState = {
-  cardId: string | null;
-  deepLinkInteracaoId: string | null;
-  deepLinkTopicoId: string | null;
-  cardOrigem: 'legado' | 'nativo';
-  novoAberto: boolean;
+  /** `?card=` lido no servidor — SSR e cliente começam iguais, sem esperar hidratação. */
+  initialUrlState?: UrlModalState;
 };
 
 type KanbanOpenCardFn = (cardId: string, origem?: 'legado' | 'nativo') => void;
@@ -63,59 +58,6 @@ const KanbanOpenCardContext = createContext<KanbanOpenCardFn | null>(null);
 /** Abre card no modal sem esperar o RSC sincronizar `useSearchParams`. */
 export function useKanbanOpenCard(): KanbanOpenCardFn | null {
   return useContext(KanbanOpenCardContext);
-}
-
-type SearchParamsLike = { get: (key: string) => string | null };
-
-function lerCardIdDaUrl(sp: SearchParamsLike, cardQueryParam: string): string | null {
-  return (
-    sp.get(cardQueryParam) ||
-    (cardQueryParam !== 'card' ? sp.get('card') : null) ||
-    (cardQueryParam !== 'kanbanCard' ? sp.get('kanbanCard') : null)
-  );
-}
-
-function estadoModalDaSearchParams(
-  searchParams: SearchParamsLike,
-  cardQueryParam: string,
-  tabBloqueiaCard: string,
-): UrlModalState {
-  const tab = searchParams.get('tab');
-  const origemParam = searchParams.get('origem');
-  return {
-    cardId: lerCardIdDaUrl(searchParams, cardQueryParam),
-    deepLinkInteracaoId: searchParams.get('interacao'),
-    deepLinkTopicoId: searchParams.get('topico'),
-    cardOrigem: origemParam === 'legado' ? 'legado' : 'nativo',
-    novoAberto: tab === tabBloqueiaCard ? false : searchParams.get('novo') === 'true',
-  };
-}
-
-function estadoModalDoWindow(cardQueryParam: string, tabBloqueiaCard: string): UrlModalState {
-  if (typeof window === 'undefined') {
-    return {
-      cardId: null,
-      deepLinkInteracaoId: null,
-      deepLinkTopicoId: null,
-      cardOrigem: 'nativo',
-      novoAberto: false,
-    };
-  }
-  return estadoModalDaSearchParams(
-    new URLSearchParams(window.location.search),
-    cardQueryParam,
-    tabBloqueiaCard,
-  );
-}
-
-function urlStateIgual(a: UrlModalState, b: UrlModalState): boolean {
-  return (
-    a.cardId === b.cardId &&
-    a.deepLinkInteracaoId === b.deepLinkInteracaoId &&
-    a.deepLinkTopicoId === b.deepLinkTopicoId &&
-    a.cardOrigem === b.cardOrigem &&
-    a.novoAberto === b.novoAberto
-  );
 }
 
 /** Reaplica `?card=` após `router.refresh()` quando o card foi aberto via `history.replaceState`. */
@@ -213,26 +155,6 @@ function KanbanModals({
             basePath={basePath}
             onClose={onCloseModals}
           />
-        ) : isControladoriaKanbanId(kanbanId) ? (
-          <NovoCardControladoriaModal
-            kanbanId={kanbanId}
-            basePath={basePath}
-            onClose={onCloseModals}
-          />
-        ) : kanbanId === KANBAN_IDS.JURIDICO || kanbanNome === 'Funil Jurídico' ? (
-          <NovoCardJuridicoModal
-            kanbanId={kanbanId}
-            kanbanNome={kanbanNome}
-            basePath={basePath}
-            onClose={onCloseModals}
-          />
-        ) : isVCLKanbanId(kanbanId) ? (
-          <NovoCardVCLModal
-            kanbanId={kanbanId}
-            kanbanNome={kanbanNome}
-            basePath={basePath}
-            onClose={onCloseModals}
-          />
         ) : (
           <NovoCardModal
             kanbanId={kanbanId}
@@ -265,11 +187,14 @@ export function KanbanWrapper({
   cardQueryParam = 'card',
   tabBloqueiaCard = 'painel',
   enableNovoCardModal = false,
+  initialUrlState,
 }: KanbanWrapperProps) {
   const router = useRouter();
-  const [urlState, setUrlState] = useState<UrlModalState>(() =>
-    estadoModalDoWindow(cardQueryParam, tabBloqueiaCard),
-  );
+  const [urlState, setUrlState] = useState<UrlModalState>(() => initialUrlState ?? URL_MODAL_FECHADO);
+
+  useEffect(() => {
+    void import('./KanbanCardModal');
+  }, []);
 
   const onUrlChange = useCallback(
     (s: UrlModalState) => {

@@ -9,12 +9,20 @@ export type CardResultadoItem = {
 
 export function linhasComposicaoPreco(
   resultado: ResultadoCalculo,
-  valores: { valor_lote: number; valor_casa: number; valor_customizacao: number },
+  valores: {
+    valor_lote: number;
+    valor_casa: number;
+    valor_customizacao: number;
+    valor_acoplamento?: number;
+  },
 ): Array<{ label: string; valor: number; destaque?: boolean }> {
+  const valorCasa = resultado.valor_casa ?? valores.valor_casa ?? 0;
+  const valorAcoplamento = resultado.valor_acoplamento ?? valores.valor_acoplamento ?? 0;
+  const valorCustomizacao = resultado.valor_customizacao ?? valores.valor_customizacao ?? 0;
   return [
     {
-      label: 'Custo da casa + customização',
-      valor: valores.valor_casa + valores.valor_customizacao,
+      label: 'Custo da casa + acoplamento + customização',
+      valor: valorCasa + valorAcoplamento + valorCustomizacao,
     },
     { label: 'Custo do lote', valor: valores.valor_lote },
     { label: 'ITBI', valor: resultado.itbi_amount },

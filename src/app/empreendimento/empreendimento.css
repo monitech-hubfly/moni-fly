@@ -1,0 +1,1153 @@
+/* src/app/empreendimento/empreendimento.css */
+/* Tokens do sistema Moní — jornada pública */
+
+:root {
+  --j-navy: #0C2633;
+  --j-navy-dark: #081a24;
+  --j-gold: #C9A96E;
+  --j-gold-light: #dfc08e;
+  --j-cream: #F5F2EC;
+  --j-cream-dark: #e8e4db;
+  --j-text: #1a1a1a;
+  --j-text-soft: #4a4a4a;
+  --j-text-muted: #7a7a7a;
+  --j-border: #d4cfc6;
+  --j-surface: #ffffff;
+  --j-surface-raised: #faf9f6;
+  --j-selected-bg: #f0ede6;
+  --j-selected-border: #C9A96E;
+  --j-font-display: var(--font-cormorant, Georgia, serif);
+  --j-font-hero: var(--font-playfair, Georgia, serif);
+  --j-font-sans: var(--font-inter, system-ui, sans-serif);
+  --j-radius: 10px;
+  --j-radius-sm: 6px;
+  --j-shadow: 0 2px 12px rgba(12, 38, 51, 0.08);
+  --j-shadow-lg: 0 4px 24px rgba(12, 38, 51, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --j-cream: #0e2030;
+    --j-cream-dark: #0a1a28;
+    --j-text: #f0ede6;
+    --j-text-soft: #c8c4bc;
+    --j-text-muted: #8a8680;
+    --j-border: #1e3a4a;
+    --j-surface: #0f2030;
+    --j-surface-raised: #0a1a28;
+    --j-selected-bg: #1a3040;
+    --j-selected-border: #C9A96E;
+    --j-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    --j-shadow-lg: 0 4px 24px rgba(0,0,0,0.4);
+  }
+}
+
+:root[data-theme="dark"] {
+  --j-cream: #0e2030;
+  --j-cream-dark: #0a1a28;
+  --j-text: #f0ede6;
+  --j-text-soft: #c8c4bc;
+  --j-text-muted: #8a8680;
+  --j-border: #1e3a4a;
+  --j-surface: #0f2030;
+  --j-surface-raised: #0a1a28;
+  --j-selected-bg: #1a3040;
+  --j-selected-border: #C9A96E;
+}
+
+/* ─────────────────────── Layout geral ─────────────────────── */
+
+.jornadaWrap {
+  min-height: 100dvh;
+  background: var(--j-cream);
+  color: var(--j-text);
+  font-family: var(--j-font-sans);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 16px 48px;
+}
+
+/* ─────────────────────── Header ─────────────────────── */
+
+.jornadaHeader {
+  width: 100%;
+  max-width: 680px;
+  padding: 36px 0 24px;
+  text-align: center;
+}
+
+.jornadaTitulo {
+  font-family: var(--j-font-display);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 600;
+  color: var(--j-navy);
+  margin: 0 0 8px;
+  line-height: 1.2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .jornadaTitulo {
+    color: var(--j-gold);
+  }
+}
+
+:root[data-theme="dark"] .jornadaTitulo { color: var(--j-gold); }
+
+.jornadaDescricao {
+  color: var(--j-text-soft);
+  font-size: 1rem;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ─────────────────────── Progress bar ─────────────────────── */
+
+.jornadaProgress {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 0 32px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.jornadaStep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex: 1;
+  min-width: 64px;
+}
+
+.jornadaStepDot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--j-border);
+  color: var(--j-text-muted);
+  border: 2px solid var(--j-border);
+  position: relative;
+  z-index: 1;
+  transition: all 0.2s;
+}
+
+.jornadaStep.active .jornadaStepDot {
+  background: var(--j-navy);
+  border-color: var(--j-navy);
+  color: #fff;
+}
+
+.jornadaStep.done .jornadaStepDot {
+  background: var(--j-gold);
+  border-color: var(--j-gold);
+  color: var(--j-navy);
+}
+
+.jornadaStepLabel {
+  font-size: 10px;
+  margin-top: 6px;
+  color: var(--j-text-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.jornadaStep.active .jornadaStepLabel {
+  color: var(--j-text);
+  font-weight: 600;
+}
+
+.jornadaStep.done .jornadaStepLabel {
+  color: var(--j-gold);
+}
+
+.jornadaStepLine {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  right: -50%;
+  height: 2px;
+  background: var(--j-border);
+  z-index: 0;
+}
+
+.jornadaStepLine.done {
+  background: var(--j-gold);
+}
+
+/* ─────────────────────── Cards ─────────────────────── */
+
+.jornadaMain {
+  width: 100%;
+  max-width: 680px;
+}
+
+.jornadaCard {
+  background: var(--j-surface);
+  border-radius: var(--j-radius);
+  box-shadow: var(--j-shadow);
+  padding: 32px 28px;
+}
+
+.jornadaCardTitle {
+  font-family: var(--j-font-display);
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--j-navy);
+  margin: 0 0 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .jornadaCardTitle { color: var(--j-gold); }
+}
+:root[data-theme="dark"] .jornadaCardTitle { color: var(--j-gold); }
+
+.jornadaCardSub {
+  color: var(--j-text-soft);
+  margin: 0 0 24px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+/* ─────────────────────── Inputs ─────────────────────── */
+
+.jornadaField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.jornadaField label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--j-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.jornadaField input,
+.jornadaField select {
+  border: 1.5px solid var(--j-border);
+  border-radius: var(--j-radius-sm);
+  padding: 12px 14px;
+  font-size: 1rem;
+  background: var(--j-surface-raised);
+  color: var(--j-text);
+  font-family: var(--j-font-sans);
+  transition: border-color 0.15s;
+  outline: none;
+}
+
+.jornadaField select {
+  min-height: 44px;
+  width: 100%;
+  cursor: pointer;
+  appearance: auto;
+}
+
+.jornadaField input:focus,
+.jornadaField select:focus {
+  border-color: var(--j-navy);
+}
+
+.jornadaToggleRow {
+  display: flex;
+  gap: 8px;
+}
+
+.jornadaToggleBtn {
+  flex: 1;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: var(--j-radius-sm);
+  border: 1.5px solid var(--j-border);
+  background: var(--j-surface-raised);
+  color: var(--j-text);
+  font-family: var(--j-font-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.jornadaToggleBtn.selected {
+  background: var(--j-selected-bg);
+  border-color: var(--j-selected-border);
+}
+
+.jornadaToggleBtn:hover {
+  border-color: var(--j-gold);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .jornadaField input:focus,
+  :root:not([data-theme="light"]) .jornadaField select:focus { border-color: var(--j-gold); }
+}
+:root[data-theme="dark"] .jornadaField input:focus,
+:root[data-theme="dark"] .jornadaField select:focus { border-color: var(--j-gold); }
+
+/* ─────────────────────── Botões ─────────────────────── */
+
+.jornadaBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 28px;
+  border-radius: var(--j-radius-sm);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-family: var(--j-font-sans);
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.jornadaBtnPrimary {
+  background: var(--j-navy);
+  color: #fff;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.jornadaBtnPrimary:hover:not(:disabled) {
+  background: var(--j-navy-dark);
+}
+
+.jornadaBtnPrimary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.jornadaBtnSecondary {
+  background: transparent;
+  color: var(--j-text-soft);
+  border: 1.5px solid var(--j-border);
+}
+
+.jornadaBtnSecondary:hover {
+  border-color: var(--j-text-soft);
+  color: var(--j-text);
+}
+
+.jornadaBtnRow {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.jornadaBtnRow .jornadaBtnPrimary {
+  flex: 1;
+  width: auto;
+  margin-top: 0;
+  min-width: 140px;
+}
+
+/* ─────────────────────── Grid de lotes ─────────────────────── */
+
+.jornadaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.jornadaLoteCard {
+  background: var(--j-surface-raised);
+  border: 2px solid var(--j-border);
+  border-radius: var(--j-radius-sm);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--j-font-sans);
+}
+
+.jornadaLoteCard:hover {
+  border-color: var(--j-gold);
+}
+
+.jornadaLoteCard.selected {
+  background: var(--j-selected-bg);
+  border-color: var(--j-selected-border);
+}
+
+.jornadaLoteCodigo {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--j-navy);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .jornadaLoteCodigo { color: var(--j-gold-light); }
+}
+:root[data-theme="dark"] .jornadaLoteCodigo { color: var(--j-gold-light); }
+
+.jornadaLoteValor {
+  font-size: 0.875rem;
+  color: var(--j-text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─────────────────────── Ofertas ─────────────────────── */
+
+.jornadaOfertasList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.jornadaOfertaCard {
+  background: var(--j-surface-raised);
+  border: 2px solid var(--j-border);
+  border-radius: var(--j-radius-sm);
+  padding: 18px 20px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--j-font-sans);
+  width: 100%;
+}
+
+.jornadaOfertaCard:hover {
+  border-color: var(--j-gold);
+}
+
+.jornadaOfertaCard.selected {
+  background: var(--j-selected-bg);
+  border-color: var(--j-selected-border);
+}
+
+.jornadaOfertaHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.jornadaOfertaNome {
+  font-weight: 700;
+  color: var(--j-text);
+}
+
+.jornadaOfertaModelo {
+  font-size: 0.8125rem;
+  background: var(--j-cream-dark);
+  color: var(--j-text-soft);
+  padding: 2px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.jornadaOfertaValor {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9375rem;
+  margin-bottom: 4px;
+}
+
+.jornadaOfertaLabel {
+  color: var(--j-text-muted);
+  font-size: 0.875rem;
+}
+
+.jornadaOfertaDesc {
+  font-size: 0.875rem;
+  color: var(--j-text-soft);
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+
+/* ─────────────────────── Passo 4 — Casa ─────────────────────── */
+
+.jornadaSection {
+  margin-bottom: 28px;
+}
+
+.jornadaSectionTitle {
+  font-family: var(--j-font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--j-text);
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.jornadaSectionBadge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--j-navy);
+  color: #fff;
+  font-family: var(--j-font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.jornadaIncluido {
+  font-family: var(--j-font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: #d4edda;
+  color: #1a6130;
+  padding: 2px 8px;
+  border-radius: 99px;
+  margin-left: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .jornadaIncluido {
+    background: #1a4a25;
+    color: #7ddba8;
+  }
+}
+:root[data-theme="dark"] .jornadaIncluido { background: #1a4a25; color: #7ddba8; }
+
+.jornadaModelosGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.jornadaModeloCard {
+  background: var(--j-surface-raised);
+  border: 2px solid var(--j-border);
+  border-radius: var(--j-radius-sm);
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--j-font-sans);
+  text-align: left;
+}
+
+.jornadaModeloCard:hover { border-color: var(--j-gold); }
+.jornadaModeloCard.selected { background: var(--j-selected-bg); border-color: var(--j-selected-border); }
+
+.jornadaModeloNome {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--j-text);
+}
+
+.jornadaModeloAtribs {
+  display: flex;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--j-text-muted);
+}
+
+.jornadaModeloValor {
+  font-size: 0.9rem;
+  color: var(--j-gold);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Acoplamento */
+.jornadaAcoplamentoList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--j-surface-raised);
+  border-radius: var(--j-radius-sm);
+  border: 1px solid var(--j-border);
+  overflow: hidden;
+}
+
+.jornadaAcoplamentoList li {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 16px;
+  font-size: 0.9375rem;
+  border-bottom: 1px solid var(--j-border);
+  font-variant-numeric: tabular-nums;
+}
+
+.jornadaAcoplamentoList li:last-child { border-bottom: none; }
+
+.jornadaAcoplamentoTotal {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--j-surface-raised);
+  border: 1.5px solid var(--j-border);
+  border-radius: var(--j-radius-sm);
+  font-family: var(--j-font-sans);
+}
+
+.jornadaAcoplamentoTotal strong {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--j-text);
+}
+
+.jornadaAcoplamentoTotal span {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--j-gold);
+  white-space: nowrap;
+}
+
+.jornadaAcoplamentoTotal + .jornadaKitDesc {
+  margin-top: 8px;
+}
+
+/* Kit */
+.jornadaKitToggle {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--j-surface-raised);
+  border: 1.5px solid var(--j-border);
+  border-radius: var(--j-radius-sm);
+  cursor: pointer;
+}
+
+.jornadaKitToggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--j-gold);
+  flex-shrink: 0;
+}
+
+.jornadaKitInfo { flex: 1; }
+
+.jornadaKitNome { font-weight: 600; font-size: 0.9375rem; }
+
+.jornadaKitDesc {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--j-text-muted);
+  margin-top: 2px;
+}
+
+.jornadaKitValor {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--j-gold);
+  white-space: nowrap;
+}
+
+/* Gadgets */
+.jornadaGadgetList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jornadaGadgetLabel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--j-surface-raised);
+  border: 1.5px solid var(--j-border);
+  border-radius: var(--j-radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.jornadaGadgetLabel:has(input:checked) {
+  border-color: var(--j-gold);
+  background: var(--j-selected-bg);
+}
+
+.jornadaGadgetLabel input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--j-gold);
+  flex-shrink: 0;
+}
+
+.jornadaGadgetNome { flex: 1; font-size: 0.9375rem; }
+
+.jornadaGadgetValor {
+  color: var(--j-text-soft);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Resumo Passo 4 */
+.jornadaResumo {
+  background: var(--j-navy);
+  color: #fff;
+  border-radius: var(--j-radius-sm);
+  padding: 20px;
+  margin-top: 24px;
+}
+
+.jornadaResumoRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9375rem;
+  padding: 6px 0;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+.jornadaResumoTotal {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.125rem;
+  font-weight: 700;
+  border-top: 1px solid rgba(255,255,255,0.2);
+  margin-top: 8px;
+  padding-top: 12px;
+  color: var(--j-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─────────────────────── Passo 5 — Simulação ─────────────────────── */
+
+.jornadaSimOferta {
+  background: var(--j-surface-raised);
+  border: 1px solid var(--j-border);
+  border-radius: var(--j-radius-sm);
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+
+.jornadaSimOferta h3 {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--j-text-muted);
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+
+.jornadaSimOferta .jornadaBtnRow {
+  margin-top: 12px;
+}
+
+.jornadaSimNota {
+  font-size: 0.875rem;
+  color: var(--j-text-muted);
+  background: var(--j-surface-raised);
+  border-left: 3px solid var(--j-gold);
+  padding: 12px 16px;
+  border-radius: 0 var(--j-radius-sm) var(--j-radius-sm) 0;
+  line-height: 1.5;
+}
+
+/* ─────────────────────── Passo 6 — Memorial ─────────────────────── */
+
+.jornadaMemorial {
+  background: var(--j-surface-raised);
+  border: 1px solid var(--j-border);
+  border-radius: var(--j-radius-sm);
+  padding: 24px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.jornadaMemSection h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--j-gold);
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.jornadaMemSection p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--j-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.jornadaMemTotal {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--j-navy);
+  border-top: 2px solid var(--j-gold);
+  padding-top: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .jornadaMemTotal { color: var(--j-gold); }
+}
+:root[data-theme="dark"] .jornadaMemTotal { color: var(--j-gold); }
+
+/* ─────────────────────── Passo 7 — Concluído ─────────────────────── */
+
+.jornadaCardConcluido {
+  text-align: center;
+  padding-top: 48px;
+  padding-bottom: 48px;
+}
+
+.jornadaConcluidoIcon {
+  margin-bottom: 20px;
+}
+
+.jornadaConcluidoNota {
+  background: var(--j-surface-raised);
+  border: 1px solid var(--j-border);
+  border-radius: var(--j-radius-sm);
+  padding: 16px 20px;
+  margin-top: 24px;
+  text-align: left;
+}
+
+.jornadaConcluidoNota p {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--j-text-soft);
+  line-height: 1.6;
+}
+
+/* ─────────────────────── Passo 5 — Resultado do motor ─────────────────────── */
+
+.jornadaSimulacaoCompleta {
+  --moni-navy-800: var(--j-navy);
+  --moni-navy-900: var(--j-navy-dark);
+  --moni-gold-400: var(--j-gold);
+  --moni-gold-50: var(--j-cream);
+  --moni-gold-200: var(--j-gold-light);
+  --moni-gold-800: var(--j-navy);
+  --moni-font-display: var(--j-font-display);
+  --moni-font-sans: var(--j-font-sans);
+  --moni-text-primary: var(--j-text);
+  --moni-text-secondary: var(--j-text-soft);
+  --moni-text-tertiary: var(--j-text-muted);
+  --moni-border-default: var(--j-border);
+  --moni-border-width: 0.5px;
+  --moni-surface-0: var(--j-surface);
+  --moni-surface-50: var(--j-surface-raised);
+  --moni-radius-lg: var(--j-radius);
+  --moni-radius-md: var(--j-radius-sm);
+  --moni-shadow-card: var(--j-shadow);
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+
+.jornadaSimCard {
+  overflow: hidden;
+  border-radius: var(--j-radius);
+  border: 0.5px solid var(--j-border);
+  background: var(--j-surface);
+  box-shadow: var(--j-shadow);
+}
+
+.jornadaSimHero {
+  background: var(--j-navy);
+  color: #fff;
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.jornadaSimHeroLabel {
+  margin: 0;
+  font-family: var(--j-font-sans);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--j-gold);
+}
+
+.jornadaSimHeroValor {
+  margin: 4px 0 0;
+  font-family: var(--j-font-hero);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.jornadaSimMetricas {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.jornadaSimMetrica {
+  padding: 12px 8px;
+  text-align: center;
+  border-top: 0.5px solid var(--j-border);
+}
+
+.jornadaSimMetricaLabel {
+  margin: 0;
+  font-family: var(--j-font-sans);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--j-text-muted);
+}
+
+.jornadaSimMetricaValor {
+  margin: 4px 0 0;
+  font-family: var(--j-font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--j-text);
+}
+
+.jornadaSimMetricaSub {
+  margin: 2px 0 0;
+  font-family: var(--j-font-sans);
+  font-size: 10px;
+  color: var(--j-text-muted);
+}
+
+.jornadaSimCardHint {
+  margin: 0;
+  padding: 12px 16px;
+  font-family: var(--j-font-sans);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--j-text-muted);
+}
+
+.jornadaSimLinkPersonalizar {
+  align-self: center;
+  margin-inline: auto;
+  background: transparent;
+  color: var(--j-gold);
+  border: 0.5px solid color-mix(in srgb, var(--j-gold) 50%, transparent);
+  border-radius: var(--j-radius-sm);
+  font-family: var(--j-font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  padding: 8px 16px;
+  width: auto;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.jornadaFluxoCliente {
+  width: 100%;
+  table-layout: fixed;
+  font-family: var(--j-font-sans);
+  font-size: 0.875rem;
+  border-collapse: collapse;
+}
+
+.jornadaFluxoCliente th {
+  font-weight: 500;
+  color: var(--j-text-muted);
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.jornadaFluxoCliente td {
+  padding: 10px 12px;
+  color: var(--j-text);
+  border-top: 0.5px solid var(--j-border);
+  font-variant-numeric: tabular-nums;
+}
+
+.jornadaFluxoCliente th,
+.jornadaFluxoCliente td {
+  width: 50%;
+  text-align: center;
+}
+
+.jornadaSimAcoes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jornadaSimBtnOutline,
+.jornadaSimBtnGold {
+  display: flex;
+  min-height: 44px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--j-radius-sm);
+  padding: 0 12px;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: var(--j-font-sans);
+  cursor: pointer;
+  width: 100%;
+}
+
+.jornadaSimBtnOutline {
+  background: transparent;
+  color: var(--j-navy);
+  border: 0.5px solid var(--j-navy);
+}
+
+.jornadaSimBtnGold {
+  background: var(--j-gold);
+  color: var(--j-navy);
+  border: none;
+  font-weight: 700;
+}
+
+@media (min-width: 640px) {
+  .jornadaSimAcoes { flex-direction: row; }
+}
+
+.jornadaSimAlerta {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: var(--j-radius-sm);
+  border: 0.5px solid var(--j-border);
+  background: var(--j-cream);
+  color: var(--j-text-soft);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.jornadaSimNotaAsterisco {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--j-text-muted);
+  font-family: var(--j-font-sans);
+}
+
+.jornadaPersonalizar {
+  display: block;
+  margin: 0;
+  background: var(--j-surface-raised);
+  border: 0.5px solid var(--j-border);
+  border-radius: var(--j-radius);
+  padding: 18px 20px;
+}
+
+.jornadaPersonalizar h3 {
+  margin: 0 0 6px;
+  font-family: var(--j-font-display);
+  font-size: 1.375rem;
+  font-weight: 600;
+  color: var(--j-navy);
+}
+
+.jornadaPersonalizar > p {
+  margin: 0 0 16px;
+  font-size: 0.875rem;
+  color: var(--j-text-soft);
+  line-height: 1.5;
+}
+
+.jornadaPersonalizar .jornadaField {
+  margin-bottom: 14px;
+}
+
+.jornadaSimAvisoMinimo {
+  margin: 4px 0 0;
+  font-size: 0.6875rem;
+  color: var(--j-gold);
+  font-family: var(--j-font-sans);
+}
+
+.jornadaSimFeedback {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: var(--j-radius-sm);
+  border: 0.5px solid var(--j-gold);
+  background: color-mix(in srgb, var(--j-gold) 18%, var(--j-surface));
+  color: var(--j-navy);
+  font-size: 0.8125rem;
+  font-family: var(--j-font-sans);
+  line-height: 1.4;
+}
+
+.jornadaSimCard.is-recalculada {
+  box-shadow: 0 0 0 1px var(--j-gold);
+}
+
+.jornadaSimBtnRecalc {
+  display: flex;
+  min-height: 44px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  border: none;
+  border-radius: var(--j-radius-sm);
+  padding: 0 12px;
+  background: var(--j-navy);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--j-font-sans);
+  cursor: pointer;
+}
+
+.jornadaSimBtnRecalc:hover {
+  background: var(--j-navy-dark);
+}
+
+.jornadaSimAvisoMinimo.is-abaixo {
+  color: var(--j-navy);
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .jornadaPersonalizar h3 { color: var(--j-gold); }
+  :root:not([data-theme="light"]) .jornadaSimBtnOutline { color: var(--j-gold); border-color: var(--j-gold); }
+}
+:root[data-theme="dark"] .jornadaPersonalizar h3 { color: var(--j-gold); }
+:root[data-theme="dark"] .jornadaSimBtnOutline { color: var(--j-gold); border-color: var(--j-gold); }
+
+#jornada-resultado-simulacao {
+  margin-bottom: 20px;
+}
+
+@media (max-width: 640px) {
+  .jornadaSimHeroValor { font-size: 1.125rem; }
+  .jornadaSimMetricaValor { font-size: 0.75rem; }
+  .jornadaSimulacaoCompleta { gap: 12px; }
+}
+
+/* ─────────────────────── Misc ─────────────────────── */
+
+.jornadaEmpty {
+  color: var(--j-text-muted);
+  font-size: 0.9375rem;
+  padding: 24px 0;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .jornadaCard { padding: 24px 18px; }
+  .jornadaGrid { grid-template-columns: repeat(2, 1fr); }
+  .jornadaModelosGrid { grid-template-columns: 1fr 1fr; }
+  .jornadaStepLabel { font-size: 8px; }
+}

@@ -50,10 +50,10 @@ body:has(.moni-app-shell) {
 
 .moni-app-sidebar {
   box-sizing: border-box !important;
-  flex: 0 0 14rem !important;
-  width: 14rem !important;
-  max-width: 14rem !important;
-  min-width: 14rem !important;
+  flex: 0 0 var(--moni-sidebar-width) !important;
+  width: var(--moni-sidebar-width) !important;
+  max-width: var(--moni-sidebar-width) !important;
+  min-width: var(--moni-sidebar-width) !important;
   min-height: 0 !important;
   overflow: hidden !important;
   position: relative !important;
@@ -80,6 +80,17 @@ body:has(.moni-app-shell) {
   flex: 1 1 0% !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
+}
+
+/*
+ * contain:layout no shell faz position:fixed ser relativo ao shell inteiro
+ * (sidebar + conteúdo). Um overlay inset-0 começa em left:0 e a sidebar
+ * (z-index 40, acima do stacking context do main) cobre a faixa esquerda.
+ * Recua esses overlays para a coluna de conteúdo — a mesma largura do menu.
+ * Menus com left/top calculados (sem inset-0) não entram aqui.
+ */
+.moni-app-main .fixed.inset-0 {
+  left: var(--moni-sidebar-width) !important;
 }
 
 /*

@@ -5,10 +5,11 @@ import { createClient } from '@/lib/supabase/server';
 import { isRedeStaffRole } from '@/lib/authz';
 import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { carregarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
-import { rowToTemplateConfig } from '@/lib/loteamento-simulador-template';
+import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
 import { CalculadoraOferta } from '@/components/simulador/CalculadoraOferta';
 import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
 import { rotuloEmpreendimentoOrigem } from '@/lib/kanban/imob-simulacoes-card';
+import { parseMoneyText } from '@/lib/dashboard-novos-negocios/parseMoney';
 import { SimuladorOfertasClient } from './SimuladorOfertasClient';
 
 export const dynamic = 'force-dynamic';
@@ -87,6 +88,7 @@ export default async function SimuladorOfertasPage({ params, searchParams }: Pro
   }
 
   let empreendimentoLabel: string | null = null;
+  let valorBaseCasaInicial: number | null = null;
   if (criandoParaEmpreendimento) {
     const imob = await carregarImobSimulacoesCard(supabase, id);
     if (imob.ok) {
@@ -94,6 +96,8 @@ export default async function SimuladorOfertasPage({ params, searchParams }: Pro
       const idx = empreendimentos.findIndex((it) => it.id === empreendimentoId);
       if (idx >= 0) {
         empreendimentoLabel = rotuloEmpreendimentoOrigem(empreendimentos[idx], idx + 1);
+        const base = parseMoneyText(empreendimentos[idx].valor_base_casa);
+        valorBaseCasaInicial = base != null && base > 0 ? base : null;
       }
     }
   }
@@ -132,16 +136,17 @@ export default async function SimuladorOfertasPage({ params, searchParams }: Pro
             <>
               {criandoParaEmpreendimento ? (
                 <CalculadoraOferta
-                  template={rowToTemplateConfig(loaded.template)}
+                  template={montarTemplateParaEngine(loaded.template)}
                   loteadorId={id}
                   kanbanCardId={id}
                   empreendimentoId={empreendimentoId}
+                  valorBaseCasaInicial={valorBaseCasaInicial}
                 />
               ) : (
                 <SimuladorOfertasClient
                   cardId={id}
                   ofertas={loaded.simulacoes}
-                  prazoObraMeses={rowToTemplateConfig(loaded.template).prazo_obra_meses}
+                  prazoObraMeses={montarTemplateParaEngine(loaded.template).prazo_obra_meses}
                 />
               )}
             </>

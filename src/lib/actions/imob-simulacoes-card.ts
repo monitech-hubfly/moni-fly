@@ -245,12 +245,45 @@ export async function salvarImobSimulacaoEmpreendimento(
   if (!check.ok) return check;
 
   const patch = draftToImobPatch(draft);
+  if (normalizeImobBlocoTipo(draft.tipo) !== 'showroom') {
+    const base = Number(patch.valor_base_casa);
+    if (!Number.isFinite(base) || base <= 0) {
+      return {
+        ok: false,
+        error: 'Informe o valor base da casa (custo de construção, antes do markup).',
+      };
+    }
+  }
   const { error } = await auth.supabase
     .from('imob_card_empreendimentos')
     .update(patch as never)
     .eq('id', draft.id)
     .eq('card_id', cardId);
   if (error) {
+    if (/valor_base_casa/i.test(error.message)) {
+      const { valor_base_casa, ...sem573 } = patch;
+      void valor_base_casa;
+      const retry = await auth.supabase
+        .from('imob_card_empreendimentos')
+        .update(sem573 as never)
+        .eq('id', draft.id)
+        .eq('card_id', cardId);
+      if (retry.error) return { ok: false, error: retry.error.message };
+      revalidatePath('/');
+      return { ok: true };
+    }
+    if (/valor_acoplamento/i.test(error.message)) {
+      const { valor_acoplamento, ...sem571 } = patch;
+      void valor_acoplamento;
+      const retry = await auth.supabase
+        .from('imob_card_empreendimentos')
+        .update(sem571 as never)
+        .eq('id', draft.id)
+        .eq('card_id', cardId);
+      if (retry.error) return { ok: false, error: retry.error.message };
+      revalidatePath('/');
+      return { ok: true };
+    }
     if (/parcela_unica|simulacao_pagamento_id|schema cache|does not exist/i.test(error.message)) {
       const { parcela_unica, simulacao_pagamento_id, ...sem550 } = patch;
       void parcela_unica;
@@ -280,6 +313,8 @@ export async function vincularOfertaAoEmpreendimentoImob(
     parcelas_mensais: number | null;
     parcela_unica: number | null;
     prazo_total_meses: number | null;
+    valor_acoplamento?: number | null;
+    valor_base_casa?: number | null;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const auth = await requireUser();
@@ -288,21 +323,76 @@ export async function vincularOfertaAoEmpreendimentoImob(
   const check = await assertCardExiste(auth.supabase, cardId);
   if (!check.ok) return check;
 
-  const { error } = await auth.supabase
+  const payload = {
+    simulacao_pagamento_id: valores.simulacao_pagamento_id,
+    valor_avista: valores.valor_avista,
+    entrada: valores.entrada,
+    parcelas_mensais: valores.parcelas_mensais,
+    prazo_total_meses: valores.prazo_total_meses,
+    parcela_unica: valores.parcela_unica,
+    valor_acoplamento: valores.valor_acoplamento ?? null,
+    valor_base_casa: valores.valor_base_casa ?? 0,
+    updated_at: new Date().toISOString(),
+  };
+  let { error } = await auth.supabase
     .from('imob_card_empreendimentos')
-    .update({
-      simulacao_pagamento_id: valores.simulacao_pagamento_id,
-      valor_avista: valores.valor_avista,
-      entrada: valores.entrada,
-      parcelas_mensais: valores.parcelas_mensais,
-      prazo_total_meses: valores.prazo_total_meses,
-      parcela_unica: valores.parcela_unica,
-      updated_at: new Date().toISOString(),
-    } as never)
+    .update(payload as never)
     .eq('id', empreendimentoId)
     .eq('card_id', cardId)
     .eq('tipo', 'empreendimento');
+  if (error && /valor_base_casa/i.test(error.message)) {
+    const { valor_base_casa: _omit, ...sem573 } = payload;
+    void _omit;
+    const retry573 = await auth.supabase
+      .from('imob_card_empreendimentos')
+      .update(sem573 as never)
+      .eq('id', empreendimentoId)
+      .eq('card_id', cardId)
+      .eq('tipo', 'empreendimento');
+    if (!retry573.error) {
+      revalidatePath('/');
+      revalidatePath('/hub-funis');
+      revalidatePath('/loteadores');
+      revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
+      return { ok: true };
+    }
+    error = retry573.error;
+  }
   if (error) {
+    if (/valor_acoplamento/i.test(error.message)) {
+      const { error: retryAcopl } = await auth.supabase
+        .from('imob_card_empreendimentos')
+        .update({
+          simulacao_pagamento_id: valores.simulacao_pagamento_id,
+          valor_avista: valores.valor_avista,
+          entrada: valores.entrada,
+          parcelas_mensais: valores.parcelas_mensais,
+          prazo_total_meses: valores.prazo_total_meses,
+          parcela_unica: valores.parcela_unica,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq('id', empreendimentoId)
+        .eq('card_id', cardId)
+        .eq('tipo', 'empreendimento');
+      if (retryAcopl) {
+        if (/prazo_total_meses/i.test(retryAcopl.message)) {
+          // cai no retry abaixo sem acoplamento
+        } else if (/parcela_unica|simulacao_pagamento_id|schema cache|does not exist/i.test(retryAcopl.message)) {
+          return {
+            ok: false,
+            error: 'Falta a migration 550 (parcela_unica / vínculo da oferta) neste banco.',
+          };
+        } else {
+          return { ok: false, error: retryAcopl.message };
+        }
+      } else {
+        revalidatePath('/');
+        revalidatePath('/hub-funis');
+        revalidatePath('/loteadores');
+        revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
+        return { ok: true };
+      }
+    }
     if (/prazo_total_meses/i.test(error.message)) {
       const { error: retryErr } = await auth.supabase
         .from('imob_card_empreendimentos')

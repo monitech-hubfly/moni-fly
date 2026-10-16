@@ -9,6 +9,7 @@ import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance'
 import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
+import { estadoModalDePageSearchParams } from '@/lib/kanban/kanban-url-modal-state';
 
 export const dynamic = 'force-dynamic';
 
@@ -180,6 +181,7 @@ export default async function FunilMoniIncPage({
       kanbanId={kanban.id}
       kanbanNome={KANBAN_NOME_FUNIL_LOTEADORES}
       fases={fases}
+      initialUrlState={estadoModalDePageSearchParams(searchParams)}
     >
       <div className="min-h-0 bg-stone-50">
         <Suspense fallback={null}>
