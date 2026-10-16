@@ -148,7 +148,7 @@ export const PCT_FIELDS: readonly SimuladorPctField[] = [
   {
     key: 'pct_taxa_plataforma',
     label: 'Taxa de plataforma',
-    hint: 'Sobre custo da casa + customização. Sem fatia na entrada, dilui na obra.',
+    hint: 'Sobre custo da casa + customização. Sem fatia na entrada, diluída nos 3 primeiros meses de obra.',
     placeholder: PCT_TAXA_PLATAFORMA_PADRAO_UI,
   },
   {
@@ -193,7 +193,7 @@ export function emptySimuladorTemplateDraft(): LoteamentoSimuladorTemplateDraft 
     pct_comissao_corretor: PCT_COMISSAO_CORRETOR_PADRAO_UI,
     entrada_minima_tipo: 'percentual',
     entrada_minima_valor: '',
-    taxa_juros_parcelado_mes: '',
+    taxa_juros_parcelado_mes: '0',
     prazo_obra_meses: String(PRAZO_OBRA_MESES_PADRAO),
   };
 }
