@@ -105,7 +105,26 @@ export type LoteamentoSimuladorTemplateDraft = {
   prazo_obra_meses: string;
 };
 
-export const PCT_FIELDS = [
+type SimuladorPctField = {
+  key: keyof Pick<
+    LoteamentoSimuladorTemplateDraft,
+    | 'pct_itbi'
+    | 'pct_impostos'
+    | 'taxa_juros_credito_ponte'
+    | 'taxa_juros_financiamento_anual'
+    | 'pct_taxa_plataforma'
+    | 'pct_lucro_loteadora'
+    | 'pct_lucro_moni'
+    | 'pct_lucro_franqueado'
+    | 'pct_comissao_corretor'
+  >;
+  label: string;
+  hint: string;
+  placeholder?: string;
+  suffix?: string;
+};
+
+export const PCT_FIELDS: readonly SimuladorPctField[] = [
   { key: 'pct_itbi', label: 'ITBI', hint: 'Sobre o valor do lote, pago na quitação.', placeholder: PCT_ITBI_PADRAO_UI },
   {
     key: 'pct_impostos',
@@ -153,24 +172,7 @@ export const PCT_FIELDS = [
     hint: 'Sobre o VTP; paga na entrada.',
     placeholder: PCT_COMISSAO_CORRETOR_PADRAO_UI,
   },
-] as const satisfies ReadonlyArray<{
-  key: keyof Pick<
-    LoteamentoSimuladorTemplateDraft,
-    | 'pct_itbi'
-    | 'pct_impostos'
-    | 'taxa_juros_credito_ponte'
-    | 'taxa_juros_financiamento_anual'
-    | 'pct_taxa_plataforma'
-    | 'pct_lucro_loteadora'
-    | 'pct_lucro_moni'
-    | 'pct_lucro_franqueado'
-    | 'pct_comissao_corretor'
-  >;
-  label: string;
-  hint: string;
-  placeholder?: string;
-  suffix?: string;
-}>;
+];
 
 export function emptySimuladorTemplateDraft(): LoteamentoSimuladorTemplateDraft {
   return {
