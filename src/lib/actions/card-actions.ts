@@ -37,6 +37,7 @@ import {
   limparTagAcoplamentoPaiDoFilhoArquivado,
 } from '@/lib/kanban/acoplamento-tag-pai';
 import { createClient } from '@/lib/supabase/server';
+import type { HistoricoItem } from '@/components/kanban-shared/kanban-card-modal-helpers';
 import { usuarioConcluiuCasasUniversidade012 } from '@/lib/universidade/queries';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
 import {
@@ -5813,4 +5814,32 @@ export async function salvarLinksBcaAcoplamentoNegocio(input: {
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
   return { ok: true, linkGbox: sync.linkGbox, linkAcoplamento: sync.linkAcoplamento };
+}
+
+export async function carregarHistoricoUnificadoCard(input: {
+  cardId: string;
+  origem?: 'nativo' | 'legado';
+}): Promise<{ ok: true; items: HistoricoItem[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('id, acao, usuario, detalhe:snapshot_depois, criado_em:created_at')
+    .or(`entidade_id.eq.${cardId},recurso_id.eq.${cardId}`)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) return { ok: false, error: error.message };
+  const items: HistoricoItem[] = (data ?? []).map((row) => ({
+    id: String(row.id ?? ''),
+    acao: String((row as { acao?: string | null }).acao ?? '—'),
+    usuario_nome: String((row as { usuario?: string | null }).usuario ?? '') || null,
+    detalhe: (row as { detalhe?: Record<string, unknown> | null }).detalhe ?? null,
+    criado_em: String((row as { criado_em?: string | null }).criado_em ?? ''),
+  }));
+  return { ok: true, items };
 }
