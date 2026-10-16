@@ -114,7 +114,7 @@ async function carregarLotesDaPlanilha(
       } else if (typeof (data as Blob).arrayBuffer === 'function') {
         buf = await (data as Blob).arrayBuffer();
       } else {
-        const view = data as Uint8Array;
+        const view = new Uint8Array(await (data as Blob).arrayBuffer());
         buf = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
       }
       return parsePlanilhaLotesBuffer(buf, planilhaNome).map((l, i) => ({

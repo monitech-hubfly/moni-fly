@@ -484,6 +484,7 @@ export function calcularOferta(
     const jurosAnterior = juros_obra_total;
     const sim = simularFase2({
       ...paramsFase2,
+      tipo_juros_cp: tipo_juros_cp as 'mes_a_mes' | 'total',
       excedente_parcela_unica: excedenteParcelaUnica(parcela_unica, min_quitar_lote),
     });
     juros_obra_total = sim.juros_obra_total;
@@ -567,6 +568,7 @@ export function calcularOferta(
   const liquidacao_entrega = lucros_cp + impostos_amount;
   const fase2Fluxo = simularFase2({
     ...paramsFase2,
+    tipo_juros_cp: tipo_juros_cp as 'mes_a_mes' | 'total',
     parcela_mensal: mensal_fluxo,
     excedente_parcela_unica:
       excedenteParcelaUnica(parcela_unica_fluxo, quitacao_real_fluxo) +

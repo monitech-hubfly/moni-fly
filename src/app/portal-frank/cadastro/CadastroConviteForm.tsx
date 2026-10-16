@@ -153,7 +153,12 @@ export function CadastroConviteForm({ token, emailConvite, redePrefill }: Props)
           Informações da franquia são definidas pela Moní. Atualize apenas seus dados de contato e endereço quando
           aplicável.
         </p>
-        <RedeFrankDadosCampos franquiaSomenteLeitura={franquiaRo} value={dadosRede} onChange={setDadosRede} />
+        <RedeFrankDadosCampos
+          franquiaSomenteLeitura={franquiaRo}
+          value={dadosRede}
+          onChange={setDadosRede}
+          incluirSocios
+        />
       </section>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

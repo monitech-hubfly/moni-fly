@@ -144,7 +144,7 @@ BEGIN
   SELECT jsonb_build_object(
     'card_id',               v_card_id,
     'slug',                  icm.page_slug,
-    'titulo',                COALESCE(icm.page_titulo, kc.title),
+    'titulo',                COALESCE(icm.page_titulo, kc.titulo),
     'descricao',             icm.page_descricao,
     'status_imovel',         icm.status_imovel,
     'imagem_principal_path', icm.imagem_principal_path,
