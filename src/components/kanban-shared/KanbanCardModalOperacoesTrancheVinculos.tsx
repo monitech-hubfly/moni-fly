@@ -17,6 +17,70 @@ import {
   trancheNumeroFromIndex,
 } from '@/lib/kanban/credito-obra-tag-tranche';
 
+// ---------------------------------------------------------------------------
+// KanbanCardModalOperacoesTrancheVinculoForm — formulário para uma tranche
+// ---------------------------------------------------------------------------
+
+type TrancheVinculoFormProps = {
+  cardId: string;
+  trancheIndex: number;
+  basePath: string;
+  refreshKey: number;
+  podeGerenciar: boolean;
+  cardDesabilitado?: boolean;
+  onVoltar?: () => void;
+  onConcluido?: () => void;
+};
+
+export function KanbanCardModalOperacoesTrancheVinculoForm({
+  cardId,
+  trancheIndex,
+  basePath,
+  refreshKey,
+  podeGerenciar,
+  cardDesabilitado = false,
+  onVoltar,
+  onConcluido,
+}: TrancheVinculoFormProps) {
+  const cfg = configTrancheVinculo(trancheIndex);
+
+  return (
+    <div
+      className="space-y-3"
+      style={{ fontFamily: 'var(--moni-font-sans)' }}
+    >
+      {onVoltar && (
+        <button
+          type="button"
+          onClick={onVoltar}
+          className="flex items-center gap-1.5 text-[11px]"
+          style={{ color: 'var(--moni-text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          ← Voltar
+        </button>
+      )}
+
+      <p
+        className="text-[13px] font-semibold"
+        style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-display)' }}
+      >
+        {cfg?.nome ?? `Tranche ${trancheIndex + 1}`}
+      </p>
+
+      <div style={{ borderRadius: 'var(--moni-radius-md)', overflow: 'hidden' }}>
+        <KanbanCardModalOperacoesTrancheVinculosSidebar
+          cardId={cardId}
+          basePath={basePath}
+          refreshKey={refreshKey}
+          podeGerenciar={podeGerenciar}
+          cardDesabilitado={cardDesabilitado}
+          onConcluido={onConcluido}
+        />
+      </div>
+    </div>
+  );
+}
+
 const DIVIFY_OPEN_KEY = 'divify-open';
 
 function lerDivifyOpen(): boolean {
@@ -109,19 +173,23 @@ type SidebarProps = {
   cardId: string;
   /** Slug da fase atual (modal) — fallback local para presumir 1ª tranche CO. */
   faseSlug?: string | null;
-  basePath: string;
+  basePath?: string;
   refreshKey: number;
-  podeGerenciar: boolean;
+  podeGerenciar?: boolean;
   cardDesabilitado?: boolean;
   onConcluido?: () => void;
+  /** Índice da tranche selecionada (optional - used by parent to highlight). */
+  trancheSelecionado?: number | null;
+  /** Callback ao selecionar uma tranche (optional). */
+  onSelecionar?: (index: number) => void;
 };
 
 export function KanbanCardModalOperacoesTrancheVinculosSidebar({
   cardId,
   faseSlug,
-  basePath,
+  basePath = '/',
   refreshKey,
-  podeGerenciar,
+  podeGerenciar = false,
   cardDesabilitado = false,
   onConcluido,
 }: SidebarProps) {

@@ -243,7 +243,6 @@ import { KanbanCardSlaBolinha } from './KanbanCardPrazoIndicadores';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, augmentKanbanFasesComFasesDosCards, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal, loadHistoricoCalculadoraEsteira, buildVisitsCalculadoraEsteiraSyncGroup } from '@/lib/kanban/kanban-card-historico';
-import {
 import { carregarImobSimulacoesCard } from '@/lib/kanban/carregar-imob-simulacoes-card';
 import { existeSimuladorTemplateDoCard } from '@/lib/loteamento-simulador-template';
 import {
@@ -1088,44 +1087,40 @@ export function KanbanCardModal({
     try {
       const supabase = createClient();
 
-      try {
-        const {
-          data: { user: sessUser },
-        } = await supabase.auth.getUser();
-        let uid: string | null = null;
-        let unome = '—';
-        let admTeam = false;
-        if (sessUser) {
-          uid = sessUser.id;
+      void (async () => {
+        try {
+          const {
+            data: { user: sessUser },
+          } = await supabase.auth.getUser();
+          if (!sessUser) {
+            setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
+            return;
+          }
           const { data: me } = await supabase
             .from('profiles')
             .select('full_name, role, cargo')
             .eq('id', sessUser.id)
             .maybeSingle();
           const fn = String((me as { full_name?: string | null } | null)?.full_name ?? '').trim();
-          unome = fn || '—';
           const rl = String((me as { role?: string | null } | null)?.role ?? '').toLowerCase();
-          admTeam =
-            isRedeStaffRole(rl) ||
-            rl === 'consultor' ||
-            rl === 'supervisor' ||
-            staffPeloContexto;
           const cg = String((me as { cargo?: string | null } | null)?.cargo ?? '')
             .trim()
             .toLowerCase();
           setModalSessao({
-            userId: uid,
-            uploaderNome: unome,
-            ehAdminOuTeam: admTeam,
+            userId: sessUser.id,
+            uploaderNome: fn || '—',
+            ehAdminOuTeam:
+              isRedeStaffRole(rl) ||
+              rl === 'consultor' ||
+              rl === 'supervisor' ||
+              staffPeloContexto,
             roleNorm: rl,
             cargoNorm: cg,
           });
-        } else {
+        } catch {
           setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
         }
-      } catch {
-        setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
-      }
+      })();
 
       type LoadedShape = {
         id: string;
@@ -1427,6 +1422,13 @@ export function KanbanCardModal({
         processo_meta: loaded.processo_meta ?? null,
         profiles,
       };
+
+      setCard(cardParaEstado);
+      const drEarly = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
+      setDataReuniao(drEarly && dataIsoInputValida(drEarly) ? drEarly : '');
+      setHoraReuniao(loaded.hora_reuniao ? String(loaded.hora_reuniao).trim().slice(0, 5) : '');
+      setDataFollowup(loaded.data_followup ? String(loaded.data_followup).slice(0, 10) : '');
+      if (!silencioso) setLoading(false);
 
       if (origem !== 'legado' && cardParaEstado.kanban_id) {
         const brief: KanbanCardBrief = {

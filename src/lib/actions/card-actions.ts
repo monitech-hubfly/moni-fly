@@ -18,6 +18,7 @@ import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
 import { validarMotivoArquivamento } from '@/lib/kanban/motivos-arquivamento';
 import type { PortfolioConfirmacaoFaseTipo } from '@/lib/kanban/portfolio-confirmacao-fase';
 import type { OperacoesConfirmacaoFaseTipo } from '@/lib/kanban/operacoes-confirmacao-fase';
+import type { LoteadoresConfirmacaoFaseTipo } from '@/lib/kanban/loteadores-confirmacao-fase';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
@@ -4048,6 +4049,184 @@ export async function registrarConfirmacaoFasePortfolio(input: {
     .eq('id', cardId);
 
   if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export async function registrarConfirmacaoFaseLoteadores(input: {
+  cardId: string;
+  tipo: LoteadoresConfirmacaoFaseTipo;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar a confirmação.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  const tipo = input.tipo;
+  if (!cardId || !tipo) return { ok: false, error: 'Dados inválidos.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.LOTEADORES) {
+    return { ok: false, error: 'Confirmação aplicável apenas ao Funil Loteadores.' };
+  }
+
+  const now = new Date().toISOString();
+  const patchByTipo: Record<LoteadoresConfirmacaoFaseTipo, Record<string, boolean | string>> = {
+    opcao: {
+      loteadores_opcao_assinada: true,
+      loteadores_opcao_assinada_em: now,
+    },
+    comite: {
+      comite_aprovado: true,
+      comite_aprovado_em: now,
+    },
+    cto_precedentes: {
+      loteadores_cto_precedentes_assinado: true,
+      loteadores_cto_precedentes_assinado_em: now,
+    },
+    cto_showroom: {
+      loteadores_cto_showroom_assinado: true,
+      loteadores_cto_showroom_assinado_em: now,
+    },
+    cto_parceria: {
+      loteadores_cto_parceria_assinado: true,
+      loteadores_cto_parceria_assinado_em: now,
+    },
+  };
+
+  const patch = patchByTipo[tipo];
+  if (!patch) return { ok: false, error: 'Tipo de confirmação inválido.' };
+
+  const { error: updErr } = await supabase
+    .from('kanban_cards')
+    .update(patch as never)
+    .eq('id', cardId);
+
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Retorna os motivos de perda cadastrados. */
+export async function buscarMotivosPerda(): Promise<{ id: string; descricao: string }[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('kanban_motivos_perda')
+    .select('id, descricao')
+    .eq('ativo', true)
+    .order('descricao');
+  return (data ?? []) as { id: string; descricao: string }[];
+}
+
+/** Registra o resultado "perda" num card Kanban. */
+export async function registrarPerda(input: {
+  cardId: string;
+  motivoId: string;
+  justificativa?: string | null;
+  basePath?: string;
+  kanbanNome?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar a perda.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { error } = await supabase
+    .from('kanban_cards')
+    .update({
+      resultado: 'perda',
+      motivo_perda_id: input.motivoId || null,
+      justificativa_perda: input.justificativa ? String(input.justificativa).trim() : null,
+      arquivado: true,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', cardId);
+
+  if (error) return { ok: false, error: error.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Registra o resultado "ganho" num card Kanban. */
+export async function registrarGanho(input: {
+  cardId: string;
+  justificativa?: string | null;
+  basePath?: string;
+  kanbanNome?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar o ganho.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { error } = await supabase
+    .from('kanban_cards')
+    .update({
+      resultado: 'ganho',
+      justificativa_ganho: input.justificativa ? String(input.justificativa).trim() : null,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', cardId);
+
+  if (error) return { ok: false, error: error.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Reativa um card marcado como perda — limpa resultado e desarquiva. */
+export async function reativarPerdaCard(input: {
+  cardId: string;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para reativar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { error } = await supabase
+    .from('kanban_cards')
+    .update({
+      resultado: null,
+      motivo_perda_id: null,
+      justificativa_perda: null,
+      arquivado: false,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', cardId);
+
+  if (error) return { ok: false, error: error.message };
 
   const base = String(input.basePath ?? '/').trim() || '/';
   revalidatePath(base);

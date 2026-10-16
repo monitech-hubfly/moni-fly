@@ -8,6 +8,7 @@ import { KanbanNotFound } from './KanbanNotFound';
 import { KanbanPainelTabsShell } from './KanbanPainelTabsShell';
 import { KanbanWrapper } from './KanbanWrapper';
 import { fetchKanbanBoardShell } from './fetchKanbanBoardSnapshot';
+import { estadoModalDePageSearchParams } from '@/lib/kanban/kanban-url-modal-state';
 import type { CamposPorFaseMap, KanbanNomeDisplay } from './types';
 
 export type KanbanDatabasePageConfig = {
@@ -34,9 +35,8 @@ export async function renderKanbanDatabasePage(
   config: KanbanDatabasePageConfig,
 ) {
   /** Com `?tab=painel` + `?card=` o RSC não montava o board; o modal fechava ao falhar o load. */
-  const modalCardAberto = Boolean(
-    primeiroQuery(searchParams.card) || primeiroQuery(searchParams.kanbanCard),
-  );
+  const initialUrlState = estadoModalDePageSearchParams(searchParams);
+  const modalCardAberto = Boolean(initialUrlState.cardId);
   const activeTab =
     primeiroQuery(searchParams.tab) === 'painel' && !modalCardAberto ? 'painel' : 'kanban';
 
@@ -75,6 +75,7 @@ export async function renderKanbanDatabasePage(
         fases={shell.fases}
         camposPorFase={config.camposPorFase}
         enableNovoCardModal={exibirNovoCard}
+        initialUrlState={initialUrlState}
       >
         <Suspense fallback={<KanbanBoardSkeleton />}>
           <KanbanDatabaseBoardCardsLoader

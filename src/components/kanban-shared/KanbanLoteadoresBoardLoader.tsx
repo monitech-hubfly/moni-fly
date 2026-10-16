@@ -1,63 +1,68 @@
 import { Suspense } from 'react';
-import { guardLoginRequired } from '@/lib/auth-guard';
-import { createClient } from '@/lib/supabase/server';
 import { KanbanTabs } from '@/app/funil-moni-inc/KanbanTabs';
 import {
   isStaffKanbanLoteadores,
-  KANBAN_NOME_FUNIL_LOTEADORES,
   resolverPrimeiraFaseContatoLoteadores,
 } from '@/lib/kanban/funil-loteadores';
+import type { UrlModalState } from '@/lib/kanban/kanban-url-modal-state';
+import { KanbanBoardSkeleton } from './KanbanBoardSkeleton';
 import { KanbanLoteadoresBoardCardsLoader } from './KanbanLoteadoresBoardCardsLoader';
-import { KanbanNotFound } from './KanbanNotFound';
 import { KanbanWrapper } from './KanbanWrapper';
-import { fetchKanbanBoardShell } from './fetchKanbanBoardSnapshot';
+import type { KanbanFase } from './types';
 
 const BASE_PATH = '/loteadores';
 
-export async function KanbanLoteadoresBoardLoader({
+export function KanbanLoteadoresBoardLoader({
   userId,
   activeTab,
+  kanbanId,
+  fases,
+  role,
+  isAdmin,
+  accessToken,
+  initialUrlState,
 }: {
   userId: string;
   activeTab: 'kanban' | 'painel';
+  kanbanId: string;
+  fases: KanbanFase[];
+  role: string;
+  isAdmin: boolean;
+  accessToken: string | null;
+  initialUrlState: UrlModalState;
 }) {
-  const supabase = await createClient();
-  const shell = await fetchKanbanBoardShell(supabase, KANBAN_NOME_FUNIL_LOTEADORES, userId);
-
-  if (!shell.kanban) {
-    return <KanbanNotFound kanbanNomeDb={KANBAN_NOME_FUNIL_LOTEADORES} />;
-  }
-
-  const isStaff = shell.isAdmin || isStaffKanbanLoteadores(shell.role);
-  const primeiraFaseContatoId = resolverPrimeiraFaseContatoLoteadores(shell.fases ?? []);
+  const isStaff = isAdmin || isStaffKanbanLoteadores(role);
+  const primeiraFaseContatoId = resolverPrimeiraFaseContatoLoteadores(fases ?? []);
   const exibirNovoCard = isStaff && Boolean(primeiraFaseContatoId);
 
   return (
     <KanbanWrapper
       basePath={BASE_PATH}
       isAdmin={isStaff}
-      kanbanId={shell.kanban.id}
+      kanbanId={kanbanId}
       kanbanNome="Funil Loteadores"
-      fases={shell.fases ?? []}
+      fases={fases ?? []}
+      initialUrlState={initialUrlState}
     >
       <Suspense fallback={null}>
         <KanbanTabs
           basePath={BASE_PATH}
           tabsVariant="portfolio"
-          kanbanId={shell.kanban.id}
+          kanbanId={kanbanId}
           isAdmin={isStaff}
           primeiraFaseContatoId={primeiraFaseContatoId}
         />
       </Suspense>
 
-      <Suspense fallback={null}>
+      <Suspense fallback={<KanbanBoardSkeleton />}>
         <KanbanLoteadoresBoardCardsLoader
           userId={userId}
           activeTab={activeTab}
-          kanbanId={shell.kanban.id}
-          fases={shell.fases ?? []}
-          role={shell.role}
+          kanbanId={kanbanId}
+          fases={fases ?? []}
+          role={role}
           exibirNovoCard={exibirNovoCard}
+          accessToken={accessToken}
         />
       </Suspense>
     </KanbanWrapper>
