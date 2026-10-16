@@ -20,7 +20,9 @@ export type OfertaEmpreendimento = {
   id: string;
   nome: string | null;
   ordem: number;
-  valor_avista: number | null; // preço da casa definido pela Helena na criação da oferta
+  valor_avista: number | null; // preço final (VTE à vista) mostrado no step 3
+  valor_base_casa: number | null; // custo de construção, input do engine no step 5
+  valor_acoplamento: number | null; // referência da oferta; na jornada o lote substitui
   titulo_oferta: string | null;
   produto_modelo: string | null; // nome do modelo de casa (ex: "Casa Helena 3Q")
   descricao: string | null;
@@ -39,6 +41,16 @@ export type TemplateConfigPublico = {
   perc_cp: number | null;
   num_meses_cp: number | null;
   itbi_percentual: number | null;
+  pct_taxa_plataforma?: number | null;
+  pct_taxa_gestao?: number | null;
+  tipo_taxa_gestao?: string | null;
+  tipo_juros_cp?: 'mes_a_mes' | 'total';
+  pct_plataforma_entrada?: number | null;
+  pct_impostos?: number | null;
+  pct_comissao_corretor?: number | null;
+  pct_lucro_loteadora?: number | null;
+  pct_lucro_moni?: number | null;
+  pct_lucro_franqueado?: number | null;
 };
 
 export type EmpreendimentoPublico = {
@@ -65,6 +77,8 @@ export type JornadaSessao = {
   telefone_cliente: string | null;
   lote_codigo: string | null;
   lote_valor: number | null;
+  lote_ja_adquirido: boolean | null;
+  valor_ja_pago: number | null;
   empreendimento_id: string | null; // ID da oferta selecionada
   itens_selecionados: string[]; // IDs dos gadgets/kit selecionados
   valor_acoplamento: number | null;
@@ -88,6 +102,8 @@ export type JornadaLocal = {
 
   // Passo 2
   loteSelecionado: LotePublicoEmp | null;
+  loteJaAdquirido: boolean | null;
+  valorJaPago: number;
 
   // Passo 3 — oferta selecionada (já inclui qual modelo de casa)
   ofertaSelecionada: OfertaEmpreendimento | null;
@@ -100,10 +116,14 @@ export type JornadaLocal = {
   valorAcoplamento: number; // do lote selecionado (obrigatório)
   valorKit: number;         // kit moní, se selecionado
   valorGadgets: number;     // soma dos gadgets selecionados
-  valorCasa: number;        // valor_avista da oferta (preço da casa)
-  valorCustomizacao: number; // acoplamento + kit + gadgets
+  valorCasa: number;        // valor_avista da oferta (preço final ao cliente)
+  valorCustomizacao: number; // kit + gadgets (acoplamento vai separado ao engine)
   valorLote: number;        // = lote.valor
 
   // Passo 5
   simulacaoId: string | null;
+  rendaMensal: number | null;
+  prazoObraMeses: number;
+  prazoFinanciamento: number;
+  taxaJuros: number;
 };

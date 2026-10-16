@@ -43,6 +43,8 @@ function parseOferta(raw: unknown): OfertaEmpreendimento | null {
     nome: r.nome != null ? String(r.nome) : null,
     ordem: Number(r.ordem ?? 0),
     valor_avista: r.valor_avista != null ? Number(r.valor_avista) : null,
+    valor_base_casa: r.valor_base_casa != null ? Number(r.valor_base_casa) : null,
+    valor_acoplamento: r.valor_acoplamento != null ? Number(r.valor_acoplamento) : null,
     titulo_oferta: r.titulo_oferta != null ? String(r.titulo_oferta) : null,
     produto_modelo: r.produto_modelo != null ? String(r.produto_modelo) : null,
     descricao: r.descricao != null ? String(r.descricao) : null,
@@ -69,6 +71,22 @@ function parseTemplate(raw: unknown): TemplateConfigPublico | null {
     perc_cp: r.perc_cp != null ? Number(r.perc_cp) : null,
     num_meses_cp: r.num_meses_cp != null ? Number(r.num_meses_cp) : null,
     itbi_percentual: r.itbi_percentual != null ? Number(r.itbi_percentual) : null,
+    pct_taxa_plataforma: r.pct_taxa_plataforma != null ? Number(r.pct_taxa_plataforma) : null,
+    pct_taxa_gestao: r.pct_taxa_gestao != null ? Number(r.pct_taxa_gestao) : null,
+    tipo_taxa_gestao: r.tipo_taxa_gestao != null ? String(r.tipo_taxa_gestao) : null,
+    tipo_juros_cp:
+      r.tipo_juros_cp == null
+        ? undefined
+        : String(r.tipo_juros_cp).trim().toLowerCase() === 'total'
+          ? 'total'
+          : 'mes_a_mes',
+    pct_plataforma_entrada:
+      r.pct_plataforma_entrada != null ? Number(r.pct_plataforma_entrada) : null,
+    pct_impostos: r.pct_impostos != null ? Number(r.pct_impostos) : null,
+    pct_comissao_corretor: r.pct_comissao_corretor != null ? Number(r.pct_comissao_corretor) : null,
+    pct_lucro_loteadora: r.pct_lucro_loteadora != null ? Number(r.pct_lucro_loteadora) : null,
+    pct_lucro_moni: r.pct_lucro_moni != null ? Number(r.pct_lucro_moni) : null,
+    pct_lucro_franqueado: r.pct_lucro_franqueado != null ? Number(r.pct_lucro_franqueado) : null,
   };
 }
 
@@ -124,7 +142,11 @@ export async function carregarEmpreendimento(
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('empreendimento_publico_carregar', { p_slug: s });
 
-  if (error || !data || typeof data !== 'object') return null;
+  if (error) {
+    console.error('[empreendimento] empreendimento_publico_carregar:', error.message);
+    return null;
+  }
+  if (!data || typeof data !== 'object') return null;
 
   const raw = data as Record<string, unknown>;
   const card_id = String(raw.card_id ?? '').trim();

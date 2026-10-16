@@ -68,6 +68,9 @@ export async function carregarJornadaSessao(
     telefone_cliente: raw.telefone_cliente != null ? String(raw.telefone_cliente) : null,
     lote_codigo: raw.lote_codigo != null ? String(raw.lote_codigo) : null,
     lote_valor: raw.lote_valor != null ? Number(raw.lote_valor) : null,
+    lote_ja_adquirido:
+      raw.lote_ja_adquirido == null ? null : Boolean(raw.lote_ja_adquirido),
+    valor_ja_pago: raw.valor_ja_pago != null ? Number(raw.valor_ja_pago) : null,
     empreendimento_id: raw.empreendimento_id != null ? String(raw.empreendimento_id) : null,
     itens_selecionados: Array.isArray(raw.itens_selecionados)
       ? (raw.itens_selecionados as string[])
@@ -93,8 +96,14 @@ type GravarSimulacaoInput = {
   valorLote: number;
   valorCasa: number;
   valorCustomizacao: number;
+  valorJaPago: number;
+  rendaCliente: number | null;
+  prazoObraMeses: number;
+  prazoFinanciamentoAnos: number;
+  taxaFinanciamentoAnual: number;
   nomeCliente: string;
   telefoneCliente: string;
+  condicaoLote: 'nao_pago' | 'parcial' | 'quitado' | 'recurso_proprio';
 };
 
 type GravarSimulacaoResult =
@@ -108,7 +117,8 @@ export async function gravarSimulacaoJornada(
   const {
     templateId, cardId, sessaoToken,
     valorLote, valorCasa, valorCustomizacao,
-    nomeCliente, telefoneCliente,
+    valorJaPago, rendaCliente, prazoObraMeses, prazoFinanciamentoAnos, taxaFinanciamentoAnual,
+    nomeCliente, telefoneCliente, condicaoLote,
   } = input;
 
   // Insere rascunho em simulacoes_pagamento com os valores da jornada
@@ -116,12 +126,18 @@ export async function gravarSimulacaoJornada(
     .from('simulacoes_pagamento')
     .insert({
       template_id: templateId,
-      nome_cliente: nomeCliente,
-      telefone_cliente: telefoneCliente,
+      kanban_card_id: cardId,
+      cliente_nome: nomeCliente,
+      cliente_telefone: telefoneCliente,
       valor_lote: valorLote,
       valor_casa: valorCasa,
       valor_customizacao: valorCustomizacao,
-      via_corretor: false, // jornada pública do cliente
+      valor_ja_pago: valorJaPago,
+      renda_cliente: rendaCliente,
+      prazo_meses: prazoObraMeses,
+      prazo_financiamento_anos: prazoFinanciamentoAnos,
+      taxa_financiamento_anual: taxaFinanciamentoAnual / 100,
+      condicao_lote: condicaoLote,
       status: 'rascunho',
     })
     .select('id')
