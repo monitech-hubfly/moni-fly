@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { normalizeAccessRole } from '@/lib/authz';
-import type { ImobEmpreendimentoPatch } from '@/lib/imob-empreendimentos';
+import { negocioDbFromPatch, type ImobEmpreendimentoPatch } from '@/lib/imob-empreendimentos';
 import { labelStatusImovel } from '@/lib/kanban/imob-simulacoes-card';
 
 type Ok = { ok: true; mensagem: string; id?: string };
@@ -58,6 +58,7 @@ export async function criarImobEmpreendimento(patch: ImobEmpreendimentoPatch): P
     imagem_url: patch.imagem_url ?? null,
     card_id: patch.card_id ?? null,
     condominio_id: patch.condominio_id ?? null,
+    ...negocioDbFromPatch(patch),
   };
 
   const { data, error } = await gate.supabase
@@ -93,6 +94,7 @@ export async function atualizarImobEmpreendimento(
   if (patch.imagem_url !== undefined) row.imagem_url = patch.imagem_url;
   if (patch.card_id !== undefined) row.card_id = patch.card_id;
   if (patch.condominio_id !== undefined) row.condominio_id = patch.condominio_id;
+  Object.assign(row, negocioDbFromPatch(patch));
 
   if (Object.keys(row).length === 0) return { ok: false, error: 'Nada para atualizar.' };
 

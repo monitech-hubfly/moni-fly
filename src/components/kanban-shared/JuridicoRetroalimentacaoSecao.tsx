@@ -3,15 +3,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ResolverRepositorioPonto } from '@/components/kanban-shared/JuridicoPontoRepositorio';
 import {
-  carregarRetroalimentacaoAtendimento,
   confirmarDocumentoFinalAssinado,
   type PontoJuridicoRow,
 } from '@/lib/actions/juridico-pontos-actions';
 import {
+  avaliarPendenciasAtendimentoJuridico,
+  type PendenciasAtendimentoJuridico,
+} from '@/lib/kanban/juridico-atendimento-pendencias';
+import {
   JURIDICO_PONTO_APLICACAO_LABEL,
   type JuridicoPontoAplicacao,
 } from '@/lib/kanban/juridico-pontos';
-import type { PendenciasAtendimentoJuridico } from '@/lib/kanban/juridico-atendimento-pendencias';
+import { lerDocumentoFinalAssinadoNoCard, lerPontosJuridicosNoCard } from '@/lib/kanban/juridico-pontos-leitura';
 
 const titulo =
   'text-[11px] font-semibold tracking-wide uppercase';
@@ -48,15 +51,46 @@ export function JuridicoRetroalimentacaoSecao({
   const [salvandoDoc, setSalvandoDoc] = useState(false);
 
   const carregar = useCallback(async () => {
-    const res = await carregarRetroalimentacaoAtendimento(cardId);
-    if (!res.ok) {
-      setErro(res.error);
+    const [pontosRes, docRes] = await Promise.all([
+      lerPontosJuridicosNoCard(cardId),
+      lerDocumentoFinalAssinadoNoCard(cardId),
+    ]);
+    if (!pontosRes.ok) {
+      setErro(pontosRes.error);
+      setPendencias(null);
+      return;
+    }
+    if (!docRes.ok) {
+      setErro(docRes.error);
       setPendencias(null);
       return;
     }
     setErro(null);
-    setPendencias(res.pendencias);
-    setPontos(res.pontos);
+    setPontos(pontosRes.pontos);
+    setPendencias(
+      avaliarPendenciasAtendimentoJuridico(
+        docRes.registrado,
+        pontosRes.pontos.map((ponto) => ({
+          id: ponto.id,
+          tipo: ponto.tipo,
+          duvidaRecebida: ponto.duvida_recebida,
+          resposta: ponto.resposta,
+          faqStatus: ponto.faq_status,
+          faqArticleId: ponto.faq_article_id,
+          clausulaTrecho: ponto.clausula_trecho,
+          solicitacaoAlteracao: ponto.solicitacao_alteracao,
+          decisao: ponto.decisao,
+          textoFinalAprovado: ponto.texto_final_aprovado,
+          aplicacaoFutura: ponto.aplicacao_futura,
+          motivoResposta: ponto.motivo_resposta,
+          repositorioTipoId: ponto.repositorio_tipo_id,
+          repositorioVariacaoId: ponto.repositorio_variacao_id,
+          novaVariacaoNome: ponto.repositorio_nova_variacao_nome,
+          novaVariacaoQuando: ponto.repositorio_nova_variacao_quando_utilizar,
+          temVersaoRepositorio: ponto.tem_versao_repositorio,
+        })),
+      ),
+    );
   }, [cardId]);
 
   useEffect(() => {

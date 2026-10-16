@@ -6,11 +6,13 @@ import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoa
 import { usePipelineDatasetLazy } from '@/components/pipeline/usePipelineDatasetLazy';
 import { DiagnosticoPainelReadOnly } from '@/components/diagnostico-rede/DiagnosticoPainelReadOnly';
 import type { RedeFranqueadoDetalheRow } from '@/lib/rede-franqueados';
+import { FranqueadoFormulariosPainel } from '@/components/formularios/FranqueadoFormulariosPainel';
 
-type TabId = 'cadastro' | 'painel';
+type TabId = 'cadastro' | 'painel' | 'formularios';
 
 const TAB_CADASTRO = { id: 'cadastro' as const, label: 'Cadastro' };
 const TAB_PAINEL = { id: 'painel' as const, label: 'Painel da Unidade' };
+const TAB_FORMULARIOS = { id: 'formularios' as const, label: 'Formulários' };
 
 type Props = {
   redeId: string;
@@ -18,6 +20,7 @@ type Props = {
   /** Linha completa do franqueado — necessária para o painel de diagnóstico read-only. */
   row?: RedeFranqueadoDetalheRow | null;
   internalView?: boolean;
+  podeGerarFormulario?: boolean;
 };
 
 export function RedeFranqueadoDetalheTabs({
@@ -25,9 +28,10 @@ export function RedeFranqueadoDetalheTabs({
   cadastro,
   row,
   internalView = true,
+  podeGerarFormulario = false,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('cadastro');
-  const tabs = [TAB_CADASTRO, TAB_PAINEL];
+  const tabs = [TAB_CADASTRO, TAB_PAINEL, TAB_FORMULARIOS];
 
   const { dataset: pipelineDataset, loading: pipelineLoading, error: pipelineError } = usePipelineDatasetLazy({
     mode: 'unidade',
@@ -123,6 +127,9 @@ export function RedeFranqueadoDetalheTabs({
               />
             ) : null}
           </div>
+        ) : null}
+        {activeTab === 'formularios' ? (
+          <FranqueadoFormulariosPainel redeFranqueadoId={redeId} podeGerar={podeGerarFormulario} />
         ) : null}
       </div>
     </>

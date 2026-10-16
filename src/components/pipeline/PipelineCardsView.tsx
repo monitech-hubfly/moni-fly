@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type {
   PipelineCardDisplay,
   PipelineCardRow,
@@ -55,6 +55,10 @@ export type PipelineCardsViewProps = {
   defaultGroupBy?: PipelineGroupBy;
   dataset: PipelineCardsDataset;
   className?: string;
+  onRequestEsteiraCalculadora?: () => void;
+  onRequestHistorico?: () => void;
+  esteiraCalculadoraCarregando?: boolean;
+  historicoCarregando?: boolean;
 };
 
 const panelStyle: React.CSSProperties = {
@@ -240,6 +244,10 @@ export function PipelineCardsView({
   defaultGroupBy = 'franquia',
   dataset,
   className,
+  onRequestEsteiraCalculadora,
+  onRequestHistorico,
+  esteiraCalculadoraCarregando = false,
+  historicoCarregando = false,
 }: PipelineCardsViewProps) {
   const viewMode = resolvePipelineViewMode(mode);
   const [funilRedeVisao, setFunilRedeVisao] = useState<'mes' | 'provisionado'>('mes');
@@ -247,6 +255,14 @@ export function PipelineCardsView({
   const [groupBy, setGroupBy] = useState<PipelineGroupBy>(viewMode === 'franqueadora' ? 'franquia' : defaultGroupBy);
   const [filtros, setFiltros] = useState<PipelineCardsFiltros>(PIPELINE_CARDS_FILTROS_DEFAULT);
   const [drawerCard, setDrawerCard] = useState<PipelineCardDisplay | null>(null);
+
+  useEffect(() => {
+    if (listaLayout === 'esteira') onRequestEsteiraCalculadora?.();
+  }, [listaLayout, onRequestEsteiraCalculadora]);
+
+  useEffect(() => {
+    if (funilRedeVisao === 'provisionado') onRequestHistorico?.();
+  }, [funilRedeVisao, onRequestHistorico]);
 
   const scoped = useMemo(() => filtrarDatasetPorModo(dataset, mode, franqueadoId), [dataset, mode, franqueadoId]);
   const cardsEnriquecidos = useMemo(() => scoped.cards.map(enriquecerPipelineCard), [scoped.cards]);
@@ -568,6 +584,17 @@ export function PipelineCardsView({
       <p className="mb-4 text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
         {cardsFiltrados.length} card{cardsFiltrados.length === 1 ? '' : 's'} · {PIPELINE_READONLY_NOTA}
       </p>
+
+      {listaLayout === 'esteira' && esteiraCalculadoraCarregando ? (
+        <p className="mb-3 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Calculando datas da esteira…
+        </p>
+      ) : null}
+      {funilRedeVisao === 'provisionado' && historicoCarregando ? (
+        <p className="mb-3 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Carregando visão provisionada…
+        </p>
+      ) : null}
 
       {listaLayout === 'esteira' ? (
         <PipelineEsteiraTable

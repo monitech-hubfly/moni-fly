@@ -3483,14 +3483,26 @@ export async function getDashboardData(
 
   if (filteredChamadoIds.length > 0) {
     const chunk = 200;
+    const slices: number[][] = [];
     for (let i = 0; i < filteredChamadoIds.length; i += chunk) {
-      const slice = filteredChamadoIds.slice(i, i + chunk);
-      const { data: atividadesRows } = await queryClient
-        .from('kanban_atividades')
-        .select('tipo, categoria, sirene_chamado_id, data_vencimento')
-        .in('sirene_chamado_id', slice);
+      slices.push(filteredChamadoIds.slice(i, i + chunk));
+    }
+    const atividadeParts: unknown[][] = new Array(slices.length);
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(6, slices.length) }, async () => {
+      while (cursor < slices.length) {
+        const i = cursor++;
+        const slice = slices[i]!;
+        const { data: atividadesRows } = await queryClient
+          .from('kanban_atividades')
+          .select('tipo, categoria, sirene_chamado_id, data_vencimento')
+          .in('sirene_chamado_id', slice);
+        atividadeParts[i] = atividadesRows ?? [];
+      }
+    });
+    await Promise.all(workers);
 
-      for (const row of atividadesRows ?? []) {
+    for (const row of atividadeParts.flat()) {
         const cid = Number((row as { sirene_chamado_id?: number | null }).sirene_chamado_id);
         if (!Number.isFinite(cid)) continue;
         const sla = slaStatusFromDate((row as { data_vencimento?: string | null }).data_vencimento);
@@ -3506,7 +3518,6 @@ export async function getDashboardData(
           comTrava: comTravaByChamadoId.get(cid) ?? false,
           atrasado,
         });
-      }
     }
   }
 

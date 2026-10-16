@@ -117,7 +117,32 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_FASE_SLUG: Partial<Record<string, stri
   mkt_grav_aprovacao: 'rafael.abreu@moni.casa',
   mkt_grav_revisao: 'joao.paulo@moni.casa',
   mkt_grav_videos_concluidos: 'rafael.abreu@moni.casa',
+  /** Portfólio depois de Convertidos — Renata Bendassi, sem herdar a fase anterior. */
+  atualizacao_material: 'renata.silva@moni.casa',
+  material_em_atualizacao: 'renata.silva@moni.casa',
+  comite_alvara: 'renata.silva@moni.casa',
+  revisoes_comite_alvara: 'renata.silva@moni.casa',
+  demais_comites_alvara: 'renata.silva@moni.casa',
+  enviar_termo_recompra: 'renata.silva@moni.casa',
+  juridico_termo_recompra: 'renata.silva@moni.casa',
+  assinaturas_termo_recompra: 'renata.silva@moni.casa',
+  termo_recompra_assinado: 'renata.silva@moni.casa',
+  portfolio_concluidos: 'renata.silva@moni.casa',
 };
+
+/** Nestas fases o responsável do card é o e-mail do slug, não o da fase anterior. */
+const SLUGS_RESPONSAVEL_CARD_FIXO = new Set<string>([
+  'atualizacao_material',
+  'material_em_atualizacao',
+  'comite_alvara',
+  'revisoes_comite_alvara',
+  'demais_comites_alvara',
+  'enviar_termo_recompra',
+  'juridico_termo_recompra',
+  'assinaturas_termo_recompra',
+  'termo_recompra_assinado',
+  'portfolio_concluidos',
+]);
 
 /** Fallback Moní quando o funil não tem e-mail mapeado. */
 const MONI_EMAIL_FALLBACK = 'renata.silva@moni.casa';
@@ -881,12 +906,16 @@ export async function aplicarResponsaveisPadraoTodasFasesJuridico(
     .eq('kanban_id', kid)
     .eq('ativo', true);
 
-  for (const fase of fases ?? []) {
-    const fid = String((fase as { id?: string }).id ?? '').trim();
-    if (!fid) continue;
-    await aplicarResponsavelFasePadraoAoCard(supabase, cid, fid, kid, preenchidoPor);
-    await aplicarResponsavelDaFasePadraoSeVazio(supabase, cid, fid, preenchidoPor);
-  }
+  await Promise.all(
+    (fases ?? []).map(async (fase) => {
+      const fid = String((fase as { id?: string }).id ?? '').trim();
+      if (!fid) return;
+      await Promise.all([
+        aplicarResponsavelFasePadraoAoCard(supabase, cid, fid, kid, preenchidoPor),
+        aplicarResponsavelDaFasePadraoSeVazio(supabase, cid, fid, preenchidoPor),
+      ]);
+    }),
+  );
 }
 
 /** Valores salvos de «Responsável da fase» por fase (batch — calculadora). */
@@ -1005,36 +1034,6 @@ export async function resolverProfileIdPorValorChecklistUsuario(
   return valorResponsavelValido(exact?.id ?? lista[0]?.id);
 }
 
-async function buscarRespostaValor(
-  supabase: SupabaseClient,
-  cardId: string,
-  itemIds: string[],
-): Promise<string | null> {
-  if (itemIds.length === 0) return null;
-  const { data } = await supabase
-    .from('kanban_fase_checklist_respostas')
-    .select('item_id, valor')
-    .eq('card_id', cardId)
-    .in('item_id', itemIds);
-  for (const row of data ?? []) {
-    const v = valorResponsavelValido((row as { valor?: string | null }).valor);
-    if (v) return v;
-  }
-  return null;
-}
-
-async function itemIdsResponsavelPorFase(
-  supabase: SupabaseClient,
-  faseId: string,
-): Promise<string[]> {
-  const { data } = await supabase
-    .from('kanban_fase_checklist_itens')
-    .select('id, campo_slug')
-    .eq('fase_id', faseId)
-    .in('campo_slug', [...CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO]);
-  return ((data ?? []) as { id: string }[]).map((r) => r.id);
-}
-
 /**
  * Valor de responsável da fase imediatamente anterior (por ordem do kanban).
  * Na 1ª fase, usa o owner padrão do funil (ou franqueado da rede no Step One).
@@ -1073,11 +1072,47 @@ export async function buscarValorResponsavelFaseAnterior(
 
   const lista = (fases ?? []) as FaseOrdemRow[];
   const anteriores = lista.filter((f) => f.ordem < ordemAtual).sort((a, b) => b.ordem - a.ordem);
+  if (anteriores.length === 0) {
+    return resolverResponsavelPadraoPorFase(supabase, kanbanId, faseSlugAtual);
+  }
+
+  const faseIds = anteriores.map((f) => f.id);
+  const { data: itens } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('id, fase_id')
+    .in('fase_id', faseIds)
+    .in('campo_slug', [...CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO]);
+
+  const itensPorFase = new Map<string, string[]>();
+  const itemIds: string[] = [];
+  for (const row of itens ?? []) {
+    const itemId = String((row as { id?: string }).id ?? '').trim();
+    const faseId = String((row as { fase_id?: string }).fase_id ?? '').trim();
+    if (!itemId || !faseId) continue;
+    const listaFase = itensPorFase.get(faseId) ?? [];
+    listaFase.push(itemId);
+    itensPorFase.set(faseId, listaFase);
+    itemIds.push(itemId);
+  }
+
+  const valorPorItem = new Map<string, string>();
+  if (itemIds.length > 0) {
+    const { data: respostas } = await supabase
+      .from('kanban_fase_checklist_respostas')
+      .select('item_id, valor')
+      .eq('card_id', cid)
+      .in('item_id', itemIds);
+    for (const row of respostas ?? []) {
+      const itemId = String((row as { item_id?: string }).item_id ?? '').trim();
+      const valor = valorResponsavelValido((row as { valor?: string | null }).valor);
+      if (itemId && valor) valorPorItem.set(itemId, valor);
+    }
+  }
 
   for (const fase of anteriores) {
-    const itemIds = await itemIdsResponsavelPorFase(supabase, fase.id);
-    const valor = await buscarRespostaValor(supabase, cid, itemIds);
-    if (valor) {
+    for (const itemId of itensPorFase.get(fase.id) ?? []) {
+      const valor = valorPorItem.get(itemId);
+      if (!valor) continue;
       return substituirThaisPorHelennaSeLoteadores(supabase, kanbanId, valor);
     }
   }
@@ -1201,13 +1236,19 @@ export async function propagarResponsavelFaseAoEntrarFase(
     return;
   } else {
     const valorAtualValido = valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor);
-    if (valorAtualValido) {
+    const responsavelFixo = SLUGS_RESPONSAVEL_CARD_FIXO.has(faseSlug);
+    if (responsavelFixo && kanbanId) {
+      valorDestino = await resolverResponsavelPadraoPorFase(supabase, kanbanId, faseSlug);
+    }
+    if (!valorDestino && valorAtualValido) {
       await espelharResponsavelCardProjetoLegal(supabase, cid, kanbanId, valorAtualValido);
       return;
     }
-    valorDestino = await buscarValorResponsavelFaseAnterior(supabase, cid, fid);
-    if (!valorDestino && kanbanId) {
-      valorDestino = await resolverResponsavelPadraoPorFase(supabase, kanbanId, faseSlug);
+    if (!valorDestino) {
+      valorDestino = await buscarValorResponsavelFaseAnterior(supabase, cid, fid);
+      if (!valorDestino && kanbanId) {
+        valorDestino = await resolverResponsavelPadraoPorFase(supabase, kanbanId, faseSlug);
+      }
     }
   }
 

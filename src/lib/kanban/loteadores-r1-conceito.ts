@@ -31,6 +31,7 @@ export function formatInteresseLoteadorR1(score: number, classificacao: string):
 export type ChecklistVisibleWhen = {
   campo_slug?: string;
   valor?: string;
+  valores?: string[];
 };
 
 export function isChecklistItemVisivelPorCondicao(
@@ -39,11 +40,16 @@ export function isChecklistItemVisivelPorCondicao(
   respostas: Map<string, { valor?: string }>,
 ): boolean {
   const when = item.config_json?.visible_when as ChecklistVisibleWhen | undefined;
-  if (!when?.campo_slug || when.valor === undefined) return true;
+  const valores = Array.isArray(when?.valores)
+    ? when.valores.map((v) => String(v))
+    : when?.valor !== undefined
+      ? [String(when.valor)]
+      : null;
+  if (!when?.campo_slug || !valores || valores.length === 0) return true;
 
   const refItem = itens.find((i) => i.campo_slug === when.campo_slug);
   if (!refItem) return true;
 
   const atual = respostas.get(refItem.id)?.valor?.trim() ?? '';
-  return atual === String(when.valor);
+  return valores.includes(atual);
 }

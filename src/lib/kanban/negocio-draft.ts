@@ -27,6 +27,7 @@ export type NegocioDraftKanban = {
   link_pasta_drive: string;
   link_bca: string;
   link_gbox: string;
+  link_gbox_ozempic: string;
   link_mapa_competidores: string;
   link_acoplamento: string;
   link_apresentacao_comite: string;
@@ -40,6 +41,20 @@ export type NegocioDraftKanban = {
   prazo_opcao: NegocioPrazoDraft;
   prazo_instrumento_garantidor: NegocioPrazoDraft;
   negociacao_linhas: NegociacaoLinhaDraft[];
+  // Novos campos
+  pct_compra_parcial_terreno: string;
+  pct_vgv_terrenista: string;
+  m2_terreno: string;
+  m2_casa: string;
+  extrato_modelo_configurado: string;
+  data_aprovacao_comite: string;
+  obs_opcao: string;
+  data_ass_opcao_terreno: string;
+  obs_instrumento_garantidor: string;
+  data_ass_contrato_terreno: string;
+  valor_recompra: string;
+  book_empreendimento: string;
+  check_analise_credito: string;
 };
 
 export function negocioDraftVazio(): NegocioDraftKanban {
@@ -54,6 +69,7 @@ export function negocioDraftVazio(): NegocioDraftKanban {
     link_pasta_drive: '',
     link_bca: '',
     link_gbox: '',
+    link_gbox_ozempic: '',
     link_mapa_competidores: '',
     link_acoplamento: '',
     link_apresentacao_comite: '',
@@ -67,6 +83,19 @@ export function negocioDraftVazio(): NegocioDraftKanban {
     prazo_opcao: { ...NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO },
     prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO },
     negociacao_linhas: negociacaoLinhasDraftPadrao(),
+    pct_compra_parcial_terreno: '',
+    pct_vgv_terrenista: '',
+    m2_terreno: '',
+    m2_casa: '',
+    extrato_modelo_configurado: '',
+    data_aprovacao_comite: '',
+    obs_opcao: '',
+    data_ass_opcao_terreno: '',
+    obs_instrumento_garantidor: '',
+    data_ass_contrato_terreno: '',
+    valor_recompra: '',
+    book_empreendimento: '',
+    check_analise_credito: '',
   };
 }
 
@@ -88,6 +117,7 @@ export function negocioDraftFromProcesso(
     link_pasta_drive: proc.link_pasta_drive ?? '',
     link_bca: proc.link_bca ?? '',
     link_gbox: proc.link_gbox ?? '',
+    link_gbox_ozempic: proc.link_gbox_ozempic ?? '',
     link_mapa_competidores: proc.link_mapa_competidores ?? '',
     link_acoplamento: proc.link_acoplamento ?? '',
     link_apresentacao_comite: proc.link_apresentacao_comite ?? '',
@@ -104,5 +134,21 @@ export function negocioDraftFromProcesso(
       prazos100Cv?.prazo_instrumento_garantidor ??
       negocioPrazoInstrumentoDraftFromProcesso(proc, opcoes),
     negociacao_linhas: negociacaoLinhasDraftFromLinhas(proc.negociacao_linhas ?? []),
+    pct_compra_parcial_terreno: proc.pct_compra_parcial_terreno != null ? String(proc.pct_compra_parcial_terreno) : '',
+    pct_vgv_terrenista: proc.pct_vgv_terrenista != null ? String(proc.pct_vgv_terrenista) : '',
+    m2_terreno: proc.m2_terreno != null ? String(proc.m2_terreno) : '',
+    m2_casa: proc.m2_casa != null ? String(proc.m2_casa) : '',
+    extrato_modelo_configurado: proc.extrato_modelo_configurado ?? '',
+    data_aprovacao_comite: proc.data_aprovacao_comite ?? '',
+    obs_opcao: proc.obs_opcao ?? '',
+    data_ass_opcao_terreno: proc.data_ass_opcao_terreno ?? '',
+    obs_instrumento_garantidor: proc.obs_instrumento_garantidor ?? '',
+    data_ass_contrato_terreno: proc.data_ass_contrato_terreno ?? '',
+    valor_recompra: moedaCampoValorInicial(proc.valor_recompra),
+    book_empreendimento: proc.book_empreendimento ?? '',
+    check_analise_credito:
+      proc.check_analise_credito === 'true' || proc.check_analise_credito === 'false'
+        ? ''
+        : (proc.check_analise_credito ?? ''),
   };
 }

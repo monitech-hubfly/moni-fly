@@ -28,6 +28,14 @@ export const KANBAN_IDS = {
   CONTROLADORIA_CONTABIL: 'c7ada001-0000-0000-0000-000000000001',
   /** Funil Controladoria — Rotina Fiscal (migration 567) */
   CONTROLADORIA_FISCAL: 'c7ada002-0000-0000-0000-000000000002',
+  /** Venda Casas Frank's — tela Em Construção (migration 605) */
+  VENDA_CASAS_FRANKS:    'fc000001-0000-0000-0000-000000000001',
+  /** Venda Casas Loteadores — Lotes Não Vendidos (migration 605) */
+  VCL_NAO_VENDIDOS:      'fc000002-0000-0000-0000-000000000001',
+  /** Venda Casas Loteadores — Lotes Vendidos (migration 605) */
+  VCL_VENDIDOS:          'fc000003-0000-0000-0000-000000000001',
+  /** Venda Casas Loteadores — Showroom (migration 605) */
+  VCL_SHOWROOM:          'fc000004-0000-0000-0000-000000000001',
 } as const
 
 /** Nome canônico em `kanbans.nome` — Funil Crédito Obra. */
@@ -66,6 +74,9 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Corretores': KANBAN_IDS.CORRETORES,
   'Funil Controladoria — Rotina Contábil': KANBAN_IDS.CONTROLADORIA_CONTABIL,
   'Funil Controladoria — Rotina Fiscal':   KANBAN_IDS.CONTROLADORIA_FISCAL,
+  'Venda Casas Loteadores - Lotes Não Vendidos': KANBAN_IDS.VCL_NAO_VENDIDOS,
+  'Venda Casas Loteadores - Lotes Vendidos':     KANBAN_IDS.VCL_VENDIDOS,
+  'Venda Casas Loteadores - Showroom':           KANBAN_IDS.VCL_SHOWROOM,
 };
 
 export const FASE_IDS = {
@@ -95,6 +106,16 @@ export const FASE_IDS = {
   PORTFOLIO_CAPTACAO_CAPITAL: 'd7e79cd4-a8ba-4239-b7b4-b82ad07acb11',
   PORTFOLIO_PASSAGEM_WAYSER: '5f48a367-699b-4dc4-a310-377fc7d0ff88', // → Operações
   PORTFOLIO_CONVERTIDOS:     'eda6139e-65f4-43d4-955f-026a488524be',
+  PORTFOLIO_ATUALIZACAO_MATERIAL: 'b8e1a001-6d30-4f8a-9c15-2d8e4f6a1c01',
+  PORTFOLIO_MATERIAL_EM_ATUALIZACAO: 'b8e1a00a-6d30-4f8a-9c15-2d8e4f6a1c0a',
+  PORTFOLIO_COMITE_ALVARA: 'b8e1a002-6d30-4f8a-9c15-2d8e4f6a1c02',
+  PORTFOLIO_REVISOES_COMITE_ALVARA: 'b8e1a003-6d30-4f8a-9c15-2d8e4f6a1c03',
+  PORTFOLIO_DEMAIS_COMITES_ALVARA: 'b8e1a004-6d30-4f8a-9c15-2d8e4f6a1c04',
+  PORTFOLIO_ENVIAR_TERMO_RECOMPRA: 'b8e1a005-6d30-4f8a-9c15-2d8e4f6a1c05',
+  PORTFOLIO_JURIDICO_TERMO_RECOMPRA: 'b8e1a006-6d30-4f8a-9c15-2d8e4f6a1c06', // → Jurídico (tag Termo Recompra)
+  PORTFOLIO_ASSINATURAS_TERMO_RECOMPRA: 'b8e1a007-6d30-4f8a-9c15-2d8e4f6a1c07',
+  PORTFOLIO_TERMO_RECOMPRA_ASSINADO: 'b8e1a008-6d30-4f8a-9c15-2d8e4f6a1c08',
+  PORTFOLIO_CONCLUIDOS: 'b8e1a009-6d30-4f8a-9c15-2d8e4f6a1c09',
   // Acoplamento — bastão de volta
   ACOPLAMENTO_APROVADO:      'b6a83104-e74f-4d0b-902b-2c4227227411',
   ACOPLAMENTO_REPROVADO:     '6d383485-9c9e-4f41-9d2a-c23c20b950c9',
@@ -114,6 +135,10 @@ export const FASE_IDS = {
   CAPITAL_NAO_ELEGIVEL:      '023e7fb8-c40e-479a-949e-126fa55de1a4',
   // Operações
   OPERACOES_PLANIALTIMETRICO: 'c3bea524-aeae-4b87-ba1f-5c83943d4770',
+  OPERACOES_COMUNIQUE_SE_CONDOMINIO: 'b7c4e2a1-6d30-4f8a-9c15-2d8e4f6a1c11',
+  OPERACOES_COMUNIQUE_SE_PREFEITURA: 'b7c4e2a2-6d30-4f8a-9c15-2d8e4f6a1c12',
+  OPERACOES_COMITE_OPS_APROVADO: 'b7c4e2a4-6d30-4f8a-9c15-2d8e4f6a1c14',
+  OPERACOES_INSTRUMENTO_GARANTIDOR: 'b7c4e2a3-6d30-4f8a-9c15-2d8e4f6a1c13',
   OPERACOES_AGUARDANDO_CREDITO: '8b83e671-ef0c-4028-8b52-8f56579e8df0',
   OPERACOES_ENTREGUE:        '5b85ac83-a546-4c1d-9bf0-e5e40cf3d937',
   // Loteadores
@@ -143,6 +168,19 @@ export const FASE_SLUGS = {
   CAPTACAO_CAPITAL:   'captacao_moni_capital',
   PASSAGEM_WAYSER:    'passagem_wayser',
   PORTFOLIO_CONVERTIDOS: 'convertidos',
+  /** Funil Portfólio — depois de Convertidos. Nome: Atualizar Material. */
+  PORTFOLIO_ATUALIZACAO_MATERIAL: 'atualizacao_material',
+  /** Funil Portfólio — logo após Atualizar Material. */
+  PORTFOLIO_MATERIAL_EM_ATUALIZACAO: 'material_em_atualizacao',
+  PORTFOLIO_COMITE_ALVARA: 'comite_alvara',
+  PORTFOLIO_REVISOES_COMITE_ALVARA: 'revisoes_comite_alvara',
+  PORTFOLIO_DEMAIS_COMITES_ALVARA: 'demais_comites_alvara',
+  PORTFOLIO_ENVIAR_TERMO_RECOMPRA: 'enviar_termo_recompra',
+  PORTFOLIO_JURIDICO_TERMO_RECOMPRA: 'juridico_termo_recompra',
+  PORTFOLIO_ASSINATURAS_TERMO_RECOMPRA: 'assinaturas_termo_recompra',
+  PORTFOLIO_TERMO_RECOMPRA_ASSINADO: 'termo_recompra_assinado',
+  /** Funil Portfólio — fase de conclusão. */
+  PORTFOLIO_CONCLUIDOS: 'portfolio_concluidos',
   PORTFOLIO_REVISOES_COMITE: 'revisoes_comite',
   /** Demais Comitês — slug legado segundo_comite. */
   PORTFOLIO_SEGUNDO_COMITE: 'segundo_comite',
@@ -152,6 +190,8 @@ export const FASE_SLUGS = {
   AGUARDANDO_CREDITO: 'aguardando_credito',
   PROD_PUBLICADO: 'prod_publicado',
   APROVACAO_CONDOMINIO: 'aprovacao_condominio',
+  /** Funil Pré Obra e Obra — logo após Aprovação no Condomínio. */
+  COMUNIQUE_SE_CONDOMINIO: 'comunique_se_condominio',
   /** Fase do Funil Portfólio — dispara bastão para Funil Acoplamento. */
   ACOPLAMENTO: 'acoplamento',
   PORTFOLIO_ENVIAR_ACOPLAMENTO_FRANK: 'enviar_acoplamento_frank',
@@ -227,16 +267,27 @@ export const FASE_SLUGS = {
 
   /** Funil Acoplamento — primeira fase (entrada). */
   ACOPLAMENTO_NOVO: 'novo_acoplamento',
-  /** Funil Acoplamento — gate Gbox/Acoplamento antes de avançar. */
+  /** Funil Acoplamento — Modelagem da Casa. Slug estável da antiga fase Casa + GBox. */
   MODELAGEM_CASA_GBOX: 'modelagem_casa_gbox',
+  /** Funil Acoplamento — logo após Modelagem da Casa. */
+  GBOX_ACOPLAMENTO: 'gbox_acoplamento',
+  /** Funil Acoplamento — Alterações do Acoplamento. */
+  ACOPLAMENTO_ALTERACOES: 'alteracoes_acoplamento',
   /** Funil Acoplamento — entre Validação e Alterações. */
   ACOPLAMENTO_AGUARDANDO_COMITE: 'aguardando_comite_acoplamento',
   APROVACAO_PREFEITURA: 'aprovacao_prefeitura',
+  /** Funil Pré Obra e Obra — logo após Aprovação na Prefeitura. */
+  COMUNIQUE_SE_PREFEITURA: 'comunique_se_prefeitura',
   /** Funil Operações — Transferência do Terreno (slug legado: processos_cartorarios). */
   PROCESSOS_CARTORARIOS: 'processos_cartorarios',
   /** Funil Operações — fase Em Obra. */
   EM_OBRA:            'em_obra',
+  /** Funil Pré Obra e Obra — Comitê Ops. Slug estável da antiga fase combinada. */
   REVISAO_BCA:        'revisao_bca',
+  /** Funil Pré Obra e Obra — logo após Comitê Ops. */
+  COMITE_OPS_APROVADO: 'comite_ops_aprovado',
+  /** Funil Pré Obra e Obra — logo após Comitê Ops Aprovado. */
+  INSTRUMENTO_GARANTIDOR: 'instrumento_garantidor',
   PROJETO_LEGAL:      'projeto_legal',
   LOTEADOR_JURIDICO:  'loteador_juridico',
   // Gatilhos de VOLTA
@@ -306,9 +357,10 @@ export const FASE_SLUGS = {
   CONTABILIDADE_SPE:           'contabilidade_spe',
   CONTABILIDADE_GESTORA:       'contabilidade_gestora',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',
-  // Funil Jurídico — 8 fases (migration 565) + slugs legados
+  // Funil Jurídico — 9 fases (migration 565 + 606) + slugs legados
   JURIDICO_RECEBIMENTO:            'juridico_recebimento',
   JURIDICO_ANALISE_INICIAL:        'juridico_analise_inicial',
+  JURIDICO_CRIANDO_DOC:            'juridico_criando_doc',
   JURIDICO_ALTERACOES_RESPOSTAS:   'juridico_alteracoes_respostas',
   JURIDICO_TRATATIVAS:             'juridico_tratativas',
   JURIDICO_ASSINATURA:             'juridico_assinatura',
@@ -479,6 +531,16 @@ export const FASE_SLUGS = {
   COR_CONVERTIDO: 'cor_convertido',
   /** Fase terminal de perda — motivo obrigatório */
   COR_PERDIDO: 'cor_perdido',
+
+  // ─── Venda Casas Loteadores (VCL) — migration 605 ────────────────────────
+  VCL_LEADS:              'vcl_leads',
+  VCL_1_CONTATO:          'vcl_1_contato',
+  VCL_QUALIFICADOS:       'vcl_qualificados',
+  VCL_R1_REALIZADA:       'vcl_r1_realizada',
+  VCL_PROPOSTA:           'vcl_proposta',
+  VCL_ASSINATURA_CONTRATO: 'vcl_assinatura_contrato',
+  /** Fase terminal — coluna de conclusão (verde). */
+  VCL_CONTRATO_ASSINADO:  'vcl_contrato_assinado',
 } as const
 
 /** Funil Corretores — confirmação ao sair de Forecast para Convertido. */

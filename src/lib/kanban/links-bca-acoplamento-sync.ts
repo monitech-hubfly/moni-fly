@@ -107,21 +107,23 @@ type ItensChecklistModelagem = {
 async function obterItensChecklistModelagemCasa(
   db: ReturnType<typeof createAdminClient>,
 ): Promise<ItensChecklistModelagem | null> {
-  const { data: fase } = await db
+  const { data: fases } = await db
     .from('kanban_fases')
     .select('id')
     .eq('kanban_id', KANBAN_IDS.ACOPLAMENTO)
-    .eq('slug', FASE_SLUGS.MODELAGEM_CASA_GBOX)
-    .eq('ativo', true)
-    .maybeSingle();
+    .in('slug', [FASE_SLUGS.MODELAGEM_CASA_GBOX, FASE_SLUGS.GBOX_ACOPLAMENTO])
+    .eq('ativo', true);
 
-  if (!fase?.id) return null;
-  const faseId = String(fase.id);
+  const faseIds = (fases ?? [])
+    .map((fase) => String((fase as { id?: string }).id ?? '').trim())
+    .filter(Boolean);
+  if (faseIds.length === 0) return null;
+  const faseId = faseIds[0]!;
 
   const { data: itens } = await db
     .from('kanban_fase_checklist_itens')
     .select('id, label')
-    .eq('fase_id', faseId);
+    .in('fase_id', faseIds);
 
   let gboxItemId: string | null = null;
   let acoplamentoItemId: string | null = null;
@@ -173,7 +175,7 @@ async function registrarHistoricoLinks(
   if (error) console.error('[links-gbox-acoplamento] historico:', error.message);
 }
 
-/** Lê Gbox/Acoplamento salvos manualmente no checklist Modelagem Casa+GBox do card. */
+/** Lê Gbox e Acoplamento salvos no checklist das fases Modelagem da Casa e Gbox. */
 export async function lerLinksGboxAcoplamentoChecklistCard(
   db: ReturnType<typeof createAdminClient>,
   cardId: string,
@@ -291,7 +293,138 @@ export function isChecklistItemSyncBcaAcoplamento(label: string | null | undefin
   return isChecklistItemSyncGboxAcoplamento(label);
 }
 
-/** Gate: saída da fase Modelagem Casa+GBox exige links (exceto para Reprovado/Paralisados). */
+type CampoObrigatorioAcoplamento = {
+  chave: string;
+  label: string;
+  coluna?: 'link_acoplamento' | 'link_gbox' | 'link_gbox_ozempic';
+};
+
+const CAMPOS_OBRIGATORIOS_CASA: CampoObrigatorioAcoplamento[] = [
+  { chave: 'negocio:link_acoplamento', label: 'Acoplamento', coluna: 'link_acoplamento' },
+  { chave: 'acoplamento:acoplamento_pontos_sondagem', label: 'Acoplamento com os pontos de sondagem' },
+  { chave: 'acoplamento:pranchas_pdf', label: 'Pranchas em PDF (plantas e cortes)' },
+  { chave: 'acoplamento:imagens_3d', label: 'Imagens 3D' },
+  { chave: 'acoplamento:video_360_acoplamento', label: 'Vídeo 360 do acoplamento' },
+  { chave: 'acoplamento:tabela_metragens', label: 'Tabela de metragens (área útil e total de venda)' },
+];
+
+const CAMPOS_OBRIGATORIOS_GBOX: CampoObrigatorioAcoplamento[] = [
+  ...CAMPOS_OBRIGATORIOS_CASA,
+  { chave: 'negocio:link_gbox', label: 'Gbox', coluna: 'link_gbox' },
+];
+
+function textoChecklist(raw: unknown): string | null {
+  if (raw == null) return null;
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    return s || null;
+  }
+  if (typeof raw === 'number' || typeof raw === 'boolean') {
+    const s = String(raw).trim();
+    return s || null;
+  }
+  return null;
+}
+
+/** Copia Acoplamento, Gbox e GBOX Ozempic para os cards vinculados. */
+export async function propagarLinksAcoplamentoVinculados(params: {
+  cardId: string;
+  usuarioId: string;
+  linkGbox?: string | null;
+  linkAcoplamento?: string | null;
+  linkGboxOzempic?: string | null;
+  bookEmpreendimento?: string | null;
+  checkAnaliseCredito?: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const cardId = String(params.cardId ?? '').trim();
+  if (!cardId) return { ok: true };
+
+  const patch: Record<string, string | null> = {};
+  if (params.linkGbox !== undefined) patch.link_gbox = params.linkGbox;
+  if (params.linkAcoplamento !== undefined) patch.link_acoplamento = params.linkAcoplamento;
+  if (params.linkGboxOzempic !== undefined) patch.link_gbox_ozempic = params.linkGboxOzempic;
+  if (params.bookEmpreendimento !== undefined) patch.book_empreendimento = params.bookEmpreendimento;
+  if (params.checkAnaliseCredito !== undefined) patch.check_analise_credito = params.checkAnaliseCredito;
+  if (Object.keys(patch).length === 0) return { ok: true };
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
+  const { propagarCamposProcesso, listarKanbanCardIdsSyncGroup } = await import(
+    '@/lib/kanban/card-sync-group'
+  );
+  const { data: card } = await db
+    .from('kanban_cards')
+    .select('processo_step_one_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  const processoId = String(
+    (card as { processo_step_one_id?: string | null } | null)?.processo_step_one_id ?? '',
+  ).trim();
+  if (!processoId) return { ok: true };
+
+  let sync = await propagarCamposProcesso(
+    db,
+    cardId,
+    processoId,
+    patch as Parameters<typeof propagarCamposProcesso>[3],
+  );
+  if (!sync.ok && params.linkGboxOzempic !== undefined && /column|does not exist|schema cache/i.test(sync.error)) {
+    const semOzempic = { ...patch };
+    delete semOzempic.link_gbox_ozempic;
+    if (Object.keys(semOzempic).length > 0) {
+      sync = await propagarCamposProcesso(
+        db,
+        cardId,
+        processoId,
+        semOzempic as Parameters<typeof propagarCamposProcesso>[3],
+      );
+    } else {
+      sync = { ok: true };
+    }
+  }
+  if (!sync.ok) return sync;
+
+  const chaves: { chave: string; valor: string | null }[] = [];
+  if (params.linkAcoplamento !== undefined) {
+    chaves.push({ chave: 'negocio:link_acoplamento', valor: params.linkAcoplamento });
+  }
+  if (params.linkGbox !== undefined) chaves.push({ chave: 'negocio:link_gbox', valor: params.linkGbox });
+  if (params.linkGboxOzempic !== undefined) {
+    chaves.push({ chave: 'negocio:link_gbox_ozempic', valor: params.linkGboxOzempic });
+  }
+  if (params.bookEmpreendimento !== undefined) {
+    chaves.push({ chave: 'negocio:book_empreendimento', valor: params.bookEmpreendimento });
+  }
+  if (params.checkAnaliseCredito !== undefined) {
+    chaves.push({ chave: 'negocio:check_analise_credito', valor: params.checkAnaliseCredito });
+  }
+  const cardIds = await listarKanbanCardIdsSyncGroup(db, cardId);
+  if (cardIds.length === 0 || chaves.length === 0) return { ok: true };
+
+  const agora = new Date().toISOString();
+  const rows = cardIds.flatMap((id) =>
+    chaves.map((linha) => ({
+      card_id: id,
+      chave: linha.chave,
+      valor: linha.valor,
+      atualizado_por: params.usuarioId,
+      atualizado_em: agora,
+    })),
+  );
+  const { error } = await db.from('kanban_card_checklist_compartilhado').upsert(rows as never, {
+    onConflict: 'card_id,chave',
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Gate: sair da fase exige os campos obrigatórios daquela fase. */
 export async function verificarGateAcoplamentoModelagemCasa(
   cardId: string,
   novaFaseId: string,
@@ -321,9 +454,16 @@ export async function verificarGateAcoplamentoModelagemCasa(
   const ordemAtual = Number((faseAtual as { ordem?: number } | null)?.ordem ?? 0);
   const ordemDest = Number((faseDest as { ordem?: number } | null)?.ordem ?? 0);
 
-  if (slugAtual !== FASE_SLUGS.MODELAGEM_CASA_GBOX) return { ok: true };
+  const saindoDaCasa = slugAtual === FASE_SLUGS.MODELAGEM_CASA_GBOX;
+  const saindoDoGbox = slugAtual === FASE_SLUGS.GBOX_ACOPLAMENTO;
+  const saindoDasAlteracoes = slugAtual === FASE_SLUGS.ACOPLAMENTO_ALTERACOES;
+  if (!saindoDaCasa && !saindoDoGbox && !saindoDasAlteracoes) return { ok: true };
   if (ordemDest <= ordemAtual) return { ok: true };
   if (slugDest === FASE_SLUGS.ACOPLAMENTO_REPROVADO) return { ok: true };
+
+  const pulouGbox = saindoDaCasa && slugDest !== FASE_SLUGS.GBOX_ACOPLAMENTO;
+  const exigidos =
+    saindoDoGbox || saindoDasAlteracoes || pulouGbox ? CAMPOS_OBRIGATORIOS_GBOX : CAMPOS_OBRIGATORIOS_CASA;
 
   let db: ReturnType<typeof createAdminClient>;
   try {
@@ -333,29 +473,62 @@ export async function verificarGateAcoplamentoModelagemCasa(
     return { ok: false, error: msg };
   }
 
-  const [{ linkGbox: gboxChecklist, linkAcoplamento: acopChecklist }, processoId] = await Promise.all([
-    lerLinksGboxAcoplamentoChecklistCard(db, cid),
+  const chaves = exigidos.map((campo) => campo.chave);
+  const [{ data: compartilhados }, { data: respostas }, processoId] = await Promise.all([
+    db.from('kanban_card_checklist_compartilhado').select('chave, valor').eq('card_id', cid).in('chave', chaves),
+    db
+      .from('kanban_fase_checklist_respostas')
+      .select('valor, item:kanban_fase_checklist_itens!inner(chave_compartilhada)')
+      .eq('card_id', cid),
     resolverProcessoIdDoCard(db, cid),
   ]);
 
-  let linkGbox = normLink(gboxChecklist);
-  let linkAcoplamento = normLink(acopChecklist);
-
-  if (processoId && (!linkGbox || !linkAcoplamento)) {
-    const { data: proc } = await db
-      .from('processo_step_one')
-      .select('link_gbox, link_acoplamento')
-      .eq('id', processoId)
-      .maybeSingle();
-    linkGbox = linkGbox ?? normLink(proc?.link_gbox);
-    linkAcoplamento = linkAcoplamento ?? normLink(proc?.link_acoplamento);
+  const porChave = new Map<string, string>();
+  for (const row of respostas ?? []) {
+    const item = (row as { item?: { chave_compartilhada?: string | null } | { chave_compartilhada?: string | null }[] })
+      .item;
+    const chave = String(
+      (Array.isArray(item) ? item[0]?.chave_compartilhada : item?.chave_compartilhada) ?? '',
+    ).trim();
+    const valor = textoChecklist((row as { valor?: unknown }).valor);
+    if (chave && valor && !porChave.has(chave)) porChave.set(chave, valor);
+  }
+  for (const row of compartilhados ?? []) {
+    const chave = String((row as { chave?: string }).chave ?? '').trim();
+    const valor = textoChecklist((row as { valor?: unknown }).valor);
+    if (chave && valor) porChave.set(chave, valor);
   }
 
-  if (!linkGboxAcoplamentoPreenchidos(linkGbox, linkAcoplamento)) {
+  if (processoId) {
+    const { data: proc, error: procErr } = await db
+      .from('processo_step_one')
+      .select('link_gbox, link_acoplamento, link_gbox_ozempic')
+      .eq('id', processoId)
+      .maybeSingle();
+    const procRow = (!procErr && proc ? proc : null) as Record<string, unknown> | null;
+    const procFallback =
+      procErr && processoId
+        ? (
+            await db
+              .from('processo_step_one')
+              .select('link_gbox, link_acoplamento')
+              .eq('id', processoId)
+              .maybeSingle()
+          ).data
+        : procRow;
+    const fonte = (procFallback ?? {}) as Record<string, unknown>;
+    for (const campo of exigidos) {
+      if (!campo.coluna || porChave.get(campo.chave)) continue;
+      const valor = textoChecklist(fonte[campo.coluna]);
+      if (valor) porChave.set(campo.chave, valor);
+    }
+  }
+
+  const faltando = exigidos.filter((campo) => !porChave.get(campo.chave)).map((campo) => campo.label);
+  if (faltando.length > 0) {
     return {
       ok: false,
-      error:
-        'Preencha os links de Gbox e Acoplamento no checklist da fase ou em Dados do Negócio antes de avançar.',
+      error: `Preencha antes de avançar: ${faltando.join(', ')}.`,
     };
   }
 

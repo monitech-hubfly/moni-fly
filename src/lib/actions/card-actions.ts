@@ -2403,6 +2403,35 @@ export async function salvarDadosNegocioKanban(input: {
   const upd = await updateProcessoNegocioCampos(supabase, dedicado.processoId, payloadNegocio);
   if (!upd.ok) return upd;
 
+  const { checklistLinhasFromNegocioPayload } = await import('@/lib/kanban/negocio-checklist-sync');
+  const linhasNegocio = checklistLinhasFromNegocioPayload(payloadNegocio);
+  if (linhasNegocio.length > 0) {
+    const agora = new Date().toISOString();
+    const { error: espelhoErr } = await supabase.from('kanban_card_checklist_compartilhado').upsert(
+      linhasNegocio.map((linha) => ({
+        card_id: cardId,
+        chave: linha.chave,
+        valor: linha.valor,
+        atualizado_por: user.id,
+        atualizado_em: agora,
+      })),
+      { onConflict: 'card_id,chave' },
+    );
+    if (espelhoErr) return { ok: false, error: espelhoErr.message };
+  }
+
+  const { propagarLinksAcoplamentoVinculados } = await import('@/lib/kanban/links-bca-acoplamento-sync');
+  const propLinks = await propagarLinksAcoplamentoVinculados({
+    cardId,
+    usuarioId: user.id,
+    linkGbox: payloadNegocio.link_gbox,
+    linkAcoplamento: payloadNegocio.link_acoplamento,
+    linkGboxOzempic: payloadNegocio.link_gbox_ozempic,
+    bookEmpreendimento: payloadNegocio.book_empreendimento,
+    checkAnaliseCredito: payloadNegocio.check_analise_credito,
+  });
+  if (!propLinks.ok) return propLinks;
+
   const linkPlanilhaMapa =
     payloadNegocio.link_gbox !== undefined
       ? payloadNegocio.link_gbox
@@ -3270,9 +3299,11 @@ export async function criarVinculoCard(input: {
     return { ok: false, error: msg };
   }
 
-  const shadowOrig = await garantirShadowKanbanCardLegadoPorId(db, orig);
+  const [shadowOrig, shadowDest] = await Promise.all([
+    garantirShadowKanbanCardLegadoPorId(db, orig),
+    garantirShadowKanbanCardLegadoPorId(db, dest),
+  ]);
   if (!shadowOrig.ok) return { ok: false, error: shadowOrig.error };
-  const shadowDest = await garantirShadowKanbanCardLegadoPorId(db, dest);
   if (!shadowDest.ok) return { ok: false, error: shadowDest.error };
 
   const { error } = await inserirKanbanCardVinculo(db, {
@@ -3287,19 +3318,15 @@ export async function criarVinculoCard(input: {
     return { ok: false, error: error.message };
   }
 
-  const healOrig = await reconciliarFranqueadoNoSyncGroup(db, orig);
-  if (!healOrig.ok) return { ok: false, error: healOrig.error };
-  const healDest = await reconciliarFranqueadoNoSyncGroup(db, dest);
-  if (!healDest.ok) return { ok: false, error: healDest.error };
+  const heal = await reconciliarFranqueadoNoSyncGroup(db, orig);
+  if (!heal.ok) return { ok: false, error: heal.error };
 
-  revalidatePath(input.basePath?.trim() || '/');
-  revalidatePath('/');
   return { ok: true };
 }
 
 export async function removerVinculoCard(
   vinculoId: string,
-  basePath?: string,
+  _basePath?: string,
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -3316,8 +3343,6 @@ export async function removerVinculoCard(
   const { error } = await supabase.from('kanban_card_vinculos').delete().eq('id', vid);
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath(basePath?.trim() || '/');
-  revalidatePath('/');
   return { ok: true };
 }
 
@@ -3956,6 +3981,10 @@ async function obterGateComiteLoteadores(
   novaFaseSlug: string,
   kanbanNomeHint?: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (String(novaFaseSlug ?? '').trim() !== FASE_SLUGS.LOTEADORES_COMITE) {
+    return { ok: true };
+  }
+
   const { data: cardRow, error } = await supabase
     .from('kanban_cards')
     .select('kanban_id, acoplamento_concluido, kanbans ( nome )')
@@ -4242,13 +4271,31 @@ function timestampCampoCalendarioIso(input: string | null | undefined): string |
 
 export type SalvarDadosPreObraOperacoesInput = {
   cardId: string;
+  docs_condominio?: string | null;
+  docs_lote?: string | null;
+  link_projeto_legal?: string | null;
   condominio_aprovada_em?: string | null;
   prefeitura_aprovada_em?: string | null;
   alvara_emitido_em?: string | null;
+  data_envio_credito_obra?: string | null;
+  data_aprovacao_credito_obra?: string | null;
+  data_inicio_obra?: string | null;
+  datas_comunique_se_condominio?: string[];
+  datas_comunique_se_prefeitura?: string[];
   basePath?: string;
 };
 
-/** Salva datas reais de pré-obra no card nativo do Funil Operações (prev_* recalculados pelo trigger). */
+function textoPreObraOuNull(valor: string | null | undefined): string | null {
+  const s = String(valor ?? '').trim();
+  return s || null;
+}
+
+function dataPreObraOuNull(valor: string | null | undefined): string | null {
+  const head = String(valor ?? '').trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : null;
+}
+
+/** Salva Dados Pré Obra no card e espelha nas fases (`preobra:<campo>`). Vale para todos os funis. */
 export async function salvarDadosPreObraOperacoes(
   input: SalvarDadosPreObraOperacoesInput,
 ): Promise<ActionResult> {
@@ -4263,30 +4310,198 @@ export async function salvarDadosPreObraOperacoes(
 
   const { data: cardRow, error: cardErr } = await supabase
     .from('kanban_cards')
-    .select('kanban_id')
+    .select('id')
     .eq('id', cardId)
     .maybeSingle();
   if (cardErr) return { ok: false, error: cardErr.message };
-  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.OPERACOES) {
-    return { ok: false, error: 'Pré-obra aplicável apenas ao Funil Operações.' };
-  }
+  if (!cardRow) return { ok: false, error: 'Card não encontrado.' };
 
-  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const espelhoRaw: Record<string, unknown> = {
+    docs_condominio: textoPreObraOuNull(input.docs_condominio),
+    docs_lote: textoPreObraOuNull(input.docs_lote),
+    link_projeto_legal: textoPreObraOuNull(input.link_projeto_legal),
+    condominio_aprovada_em: dataPreObraOuNull(input.condominio_aprovada_em),
+    prefeitura_aprovada_em: dataPreObraOuNull(input.prefeitura_aprovada_em),
+    alvara_emitido_em: dataPreObraOuNull(input.alvara_emitido_em),
+    data_envio_credito_obra: dataPreObraOuNull(input.data_envio_credito_obra),
+    data_aprovacao_credito_obra: dataPreObraOuNull(input.data_aprovacao_credito_obra),
+    data_inicio_obra: dataPreObraOuNull(input.data_inicio_obra),
+    datas_comunique_se_condominio: input.datas_comunique_se_condominio ?? [],
+    datas_comunique_se_prefeitura: input.datas_comunique_se_prefeitura ?? [],
+  };
 
-  if (input.condominio_aprovada_em !== undefined) {
-    update.condominio_aprovada_em = timestampCampoCalendarioIso(input.condominio_aprovada_em);
-  }
-  if (input.prefeitura_aprovada_em !== undefined) {
-    const ts = timestampCampoCalendarioIso(input.prefeitura_aprovada_em);
-    update.prefeitura_aprovada_em = ts;
-    update.prefeitura_aprovada = ts != null;
-  }
-  if (input.alvara_emitido_em !== undefined) {
-    update.alvara_emitido_em = timestampCampoCalendarioIso(input.alvara_emitido_em);
-  }
+  const update: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+    docs_condominio: espelhoRaw.docs_condominio,
+    docs_lote: espelhoRaw.docs_lote,
+    link_projeto_legal: espelhoRaw.link_projeto_legal,
+    condominio_aprovada_em: timestampCampoCalendarioIso(input.condominio_aprovada_em),
+    prefeitura_aprovada_em: timestampCampoCalendarioIso(input.prefeitura_aprovada_em),
+    prefeitura_aprovada: timestampCampoCalendarioIso(input.prefeitura_aprovada_em) != null,
+    alvara_emitido_em: timestampCampoCalendarioIso(input.alvara_emitido_em),
+    data_envio_credito_obra: espelhoRaw.data_envio_credito_obra,
+    data_aprovacao_credito_obra: espelhoRaw.data_aprovacao_credito_obra,
+    data_inicio_obra: espelhoRaw.data_inicio_obra,
+    datas_comunique_se_condominio:
+      Array.isArray(espelhoRaw.datas_comunique_se_condominio) &&
+      (espelhoRaw.datas_comunique_se_condominio as string[]).length > 0
+        ? espelhoRaw.datas_comunique_se_condominio
+        : null,
+    datas_comunique_se_prefeitura:
+      Array.isArray(espelhoRaw.datas_comunique_se_prefeitura) &&
+      (espelhoRaw.datas_comunique_se_prefeitura as string[]).length > 0
+        ? espelhoRaw.datas_comunique_se_prefeitura
+        : null,
+  };
 
   const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
   if (updErr) return { ok: false, error: updErr.message };
+
+  const { checklistLinhasFromPreObraCard } = await import('@/lib/kanban/preobra-checklist-sync');
+  const linhas = checklistLinhasFromPreObraCard(espelhoRaw);
+  if (linhas.length > 0) {
+    const agora = new Date().toISOString();
+    const { error: espelhoErr } = await supabase.from('kanban_card_checklist_compartilhado').upsert(
+      linhas.map((linha) => ({
+        card_id: cardId,
+        chave: linha.chave,
+        valor: linha.valor,
+        atualizado_por: user.id,
+        atualizado_em: agora,
+      })),
+      { onConflict: 'card_id,chave' },
+    );
+    if (espelhoErr) return { ok: false, error: espelhoErr.message };
+  }
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export type SalvarCreditoLateralInput = {
+  cardId: string;
+  creditoLateral: import('@/lib/kanban/credito-lateral').CreditoLateral;
+  processoId?: string | null;
+  basePath?: string;
+};
+
+/** Grava a seção Crédito no card e atualiza a dívida da obra no processo. */
+export async function salvarCreditoLateral(input: SalvarCreditoLateralInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { creditoLateralFromRaw, formatCreditoMoeda, restanteCredito } = await import(
+    '@/lib/kanban/credito-lateral'
+  );
+  const credito = creditoLateralFromRaw(input.creditoLateral);
+  const { error: updErr } = await supabase
+    .from('kanban_cards')
+    .update({ credito_lateral: credito, updated_at: new Date().toISOString() } as never)
+    .eq('id', cardId);
+  if (updErr) {
+    if (/credito_lateral|does not exist|PGRST204|42703/i.test(updErr.message)) {
+      return { ok: false, error: 'A seção Crédito ainda não está disponível neste banco.' };
+    }
+    return { ok: false, error: updErr.message };
+  }
+
+  const processoId = String(input.processoId ?? '').trim();
+  if (processoId) {
+    const { data: proc } = await supabase
+      .from('processo_step_one')
+      .select('custo_obra')
+      .eq('id', processoId)
+      .maybeSingle();
+    const restante = restanteCredito(
+      (proc as { custo_obra?: string | null } | null)?.custo_obra,
+      credito.obra_tranches,
+    );
+    const dividaObra = restante == null ? null : formatCreditoMoeda(restante);
+    const { updateProcessoNegocioCampos } = await import('@/lib/kanban/kanban-card-modal-detalhes');
+    const upd = await updateProcessoNegocioCampos(supabase, processoId, { divida_obra: dividaObra });
+    if (!upd.ok) return upd;
+    const { checklistLinhasFromNegocioPayload } = await import('@/lib/kanban/negocio-checklist-sync');
+    const linhas = checklistLinhasFromNegocioPayload({ divida_obra: dividaObra });
+    if (linhas.length > 0) {
+      const agora = new Date().toISOString();
+      const { error: espelhoErr } = await supabase.from('kanban_card_checklist_compartilhado').upsert(
+        linhas.map((linha) => ({
+          card_id: cardId,
+          chave: linha.chave,
+          valor: linha.valor,
+          atualizado_por: user.id,
+          atualizado_em: agora,
+        })),
+        { onConflict: 'card_id,chave' },
+      );
+      if (espelhoErr) return { ok: false, error: espelhoErr.message };
+    }
+  }
+
+  try {
+    const admin = createAdminClient();
+    const { listarKanbanCardIdsSyncGroup } = await import('@/lib/kanban/card-sync-group');
+    const ids = await listarKanbanCardIdsSyncGroup(admin, cardId);
+    const outros = ids.filter((id) => id !== cardId);
+    if (outros.length > 0) {
+      const { error: copyErr } = await admin
+        .from('kanban_cards')
+        .update({ credito_lateral: credito, updated_at: new Date().toISOString() } as never)
+        .in('id', outros);
+      if (copyErr && !/credito_lateral|does not exist|PGRST204|42703/i.test(copyErr.message)) {
+        return { ok: false, error: copyErr.message };
+      }
+      const { data: vinculados } = await admin
+        .from('kanban_cards')
+        .select('id, processo_step_one_id')
+        .in('id', outros);
+      const { updateProcessoNegocioCampos } = await import('@/lib/kanban/kanban-card-modal-detalhes');
+      const { checklistLinhasFromNegocioPayload } = await import('@/lib/kanban/negocio-checklist-sync');
+      const agora = new Date().toISOString();
+      for (const row of vinculados ?? []) {
+        const vinculadoId = String((row as { id?: string }).id ?? '').trim();
+        const pid = String((row as { processo_step_one_id?: string | null }).processo_step_one_id ?? '').trim();
+        if (!vinculadoId || !pid) continue;
+        const { data: procVinc } = await admin
+          .from('processo_step_one')
+          .select('custo_obra')
+          .eq('id', pid)
+          .maybeSingle();
+        const restanteVinc = restanteCredito(
+          (procVinc as { custo_obra?: string | null } | null)?.custo_obra,
+          credito.obra_tranches,
+        );
+        const dividaVinc = restanteVinc == null ? null : formatCreditoMoeda(restanteVinc);
+        const updVinc = await updateProcessoNegocioCampos(admin, pid, { divida_obra: dividaVinc });
+        if (!updVinc.ok) return updVinc;
+        const linhasVinc = checklistLinhasFromNegocioPayload({ divida_obra: dividaVinc });
+        if (linhasVinc.length > 0) {
+          const { error: espelhoVincErr } = await admin.from('kanban_card_checklist_compartilhado').upsert(
+            linhasVinc.map((linha) => ({
+              card_id: vinculadoId,
+              chave: linha.chave,
+              valor: linha.valor,
+              atualizado_por: user.id,
+              atualizado_em: agora,
+            })),
+            { onConflict: 'card_id,chave' },
+          );
+          if (espelhoVincErr) return { ok: false, error: espelhoVincErr.message };
+        }
+      }
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
 
   const base = String(input.basePath ?? '/').trim() || '/';
   revalidatePath(base);
@@ -4599,22 +4814,35 @@ export async function moverCardParaFase(input: {
   if (!faseRow?.id) return { ok: false, error: 'Fase de destino não encontrada.' };
 
   const novaFaseSlug = String((faseRow as { slug?: string | null }).slug ?? '').trim();
-  const gate = await obterGateComiteLoteadores(supabase, cardId, novaFaseSlug, input.kanbanNome);
-  if (!gate.ok) return gate;
 
-  const gateAcoplamento = await verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId);
-  if (!gateAcoplamento.ok) return gateAcoplamento;
-
-  const gateChecklistLegal = await verificarGateChecklistLegalPortfolio(cardId, novaFaseId);
-  if (!gateChecklistLegal.ok) return gateChecklistLegal;
+  const { data: cardKanban } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id, fase_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  const kanbanIdMovimento = String(
+    (cardKanban as { kanban_id?: string } | null)?.kanban_id ?? '',
+  ).trim();
+  const faseAnteriorId =
+    String((cardKanban as { fase_id?: string | null } | null)?.fase_id ?? '').trim() || null;
 
   const { verificarGateJustificativaSla } = await import('@/lib/actions/kanban-sla-justificativa');
-  const gateSlaJustificativa = await verificarGateJustificativaSla(
-    cardId,
-    novaFaseId,
-    input.justificativaSlaQuebra,
-  );
+  const [gate, gateAcoplamento, gateChecklistLegal, gateSlaJustificativa, gateBook] = await Promise.all([
+    obterGateComiteLoteadores(supabase, cardId, novaFaseSlug, input.kanbanNome),
+    kanbanIdMovimento === KANBAN_IDS.ACOPLAMENTO
+      ? verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId)
+      : Promise.resolve({ ok: true as const }),
+    verificarGateChecklistLegalPortfolio(cardId, novaFaseId),
+    verificarGateJustificativaSla(cardId, novaFaseId, input.justificativaSlaQuebra),
+    kanbanIdMovimento === KANBAN_IDS.CREDITO_OBRA
+      ? verificarGateBookFaseCredito(cardId, novaFaseId)
+      : Promise.resolve({ ok: true as const }),
+  ]);
+  if (!gate.ok) return gate;
+  if (!gateAcoplamento.ok) return gateAcoplamento;
+  if (!gateChecklistLegal.ok) return gateChecklistLegal;
   if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
+  if (!gateBook.ok) return gateBook;
 
   const { data: cardKanban } = await supabase
     .from('kanban_cards')
@@ -4624,7 +4852,7 @@ export async function moverCardParaFase(input: {
 
   if (
     novaFaseSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO &&
-    String((cardKanban as { kanban_id?: string } | null)?.kanban_id ?? '') === KANBAN_IDS.ACOPLAMENTO
+    kanbanIdMovimento === KANBAN_IDS.ACOPLAMENTO
   ) {
     const motivo = String(input.motivoReprovacaoAcoplamento ?? '').trim();
     if (!motivo) {
@@ -4645,7 +4873,7 @@ export async function moverCardParaFase(input: {
 
   if (updErr) return { ok: false, error: updErr.message };
 
-  if (novaFaseSlug) {
+  if (novaFaseSlug && kanbanIdMovimento === KANBAN_IDS.STEP_ONE) {
     const { data: procRow } = await supabase
       .from('processo_step_one')
       .select('id')
@@ -4659,8 +4887,12 @@ export async function moverCardParaFase(input: {
     }
   }
 
-  const { aplicarSlaInicioDocumentacaoAoMoverFase } = await import('@/lib/actions/kanban-credito-obra-docs');
-  await aplicarSlaInicioDocumentacaoAoMoverFase(supabase, cardId, novaFaseSlug);
+  if (novaFaseSlug === FASE_SLUGS.CO_DOCUMENTACAO_ALVARA) {
+    const { aplicarSlaInicioDocumentacaoAoMoverFase } = await import(
+      '@/lib/actions/kanban-credito-obra-docs'
+    );
+    await aplicarSlaInicioDocumentacaoAoMoverFase(supabase, cardId, novaFaseSlug);
+  }
 
   await executarBastoes(cardId, novaFaseSlug);
   await executarBastaoDeVolta(cardId, novaFaseSlug);
@@ -4677,8 +4909,71 @@ export async function moverCardParaFase(input: {
     kanbanNombre: String(input.kanbanNome ?? '').trim(),
   });
 
-  revalidatePath(input.basePath?.trim() || '/');
+  if (!input.skipRevalidate) {
+    const basePath = input.basePath?.trim();
+    if (basePath) revalidatePath(basePath);
+  }
   return { ok: true };
+}
+
+function textoBookChecklist(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  return s || null;
+}
+
+/** Sair da fase Book do Funil Crédito exige o link do Book do empreendimento. */
+export async function verificarGateBookFaseCredito(
+  cardId: string,
+  novaFaseId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const cid = String(cardId ?? '').trim();
+  const fid = String(novaFaseId ?? '').trim();
+  if (!cid || !fid) return { ok: true };
+
+  const { data: card } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id, fase_id, processo_step_one_id')
+    .eq('id', cid)
+    .maybeSingle();
+  if (String((card as { kanban_id?: string } | null)?.kanban_id ?? '') !== KANBAN_IDS.CREDITO_OBRA) {
+    return { ok: true };
+  }
+
+  const faseAtualId = String((card as { fase_id?: string | null } | null)?.fase_id ?? '').trim();
+  const [{ data: faseAtual }, { data: faseDest }] = await Promise.all([
+    supabase.from('kanban_fases').select('slug, ordem').eq('id', faseAtualId).maybeSingle(),
+    supabase.from('kanban_fases').select('ordem').eq('id', fid).maybeSingle(),
+  ]);
+  if (String((faseAtual as { slug?: string } | null)?.slug ?? '') !== FASE_SLUGS.CO_BOOK) return { ok: true };
+  const ordemAtual = Number((faseAtual as { ordem?: number } | null)?.ordem ?? 0);
+  const ordemDest = Number((faseDest as { ordem?: number } | null)?.ordem ?? 0);
+  if (ordemDest <= ordemAtual) return { ok: true };
+
+  const { data: comp } = await supabase
+    .from('kanban_card_checklist_compartilhado')
+    .select('valor')
+    .eq('card_id', cid)
+    .eq('chave', 'negocio:book_empreendimento')
+    .maybeSingle();
+  if (textoBookChecklist((comp as { valor?: unknown } | null)?.valor)) return { ok: true };
+
+  const processoId = String(
+    (card as { processo_step_one_id?: string | null } | null)?.processo_step_one_id ?? '',
+  ).trim();
+  if (processoId) {
+    const { data: proc } = await supabase
+      .from('processo_step_one')
+      .select('book_empreendimento')
+      .eq('id', processoId)
+      .maybeSingle();
+    if (String((proc as { book_empreendimento?: string | null } | null)?.book_empreendimento ?? '').trim()) {
+      return { ok: true };
+    }
+  }
+
+  return { ok: false, error: 'Preencha o Book do empreendimento antes de avançar.' };
 }
 
 // ─── Aprovação de passagem de fase ───────────────────────────────────────────
@@ -5329,6 +5624,65 @@ export async function upsertFaseChecklistResposta(input: {
         );
         if (clearErr) return { ok: false, error: clearErr.message };
         chavesDesmarcadas = chaves;
+      }
+    }
+
+    if (chaveCompartilhada.startsWith('negocio:')) {
+      const { processoPatchFromChecklistNegocio } = await import('@/lib/kanban/negocio-checklist-sync');
+      const { updateProcessoNegocioCampos } = await import('@/lib/kanban/kanban-card-modal-detalhes');
+      const patch = processoPatchFromChecklistNegocio(chaveCompartilhada, nextValor);
+      if (patch) {
+        const { data: cardNegocio } = await supabase
+          .from('kanban_cards')
+          .select('processo_step_one_id')
+          .eq('id', input.card_id)
+          .maybeSingle();
+        const processoId = String(
+          (cardNegocio as { processo_step_one_id?: string | null } | null)?.processo_step_one_id ?? '',
+        ).trim();
+        if (processoId) {
+          const syncNegocio = await updateProcessoNegocioCampos(supabase, processoId, patch);
+          if (!syncNegocio.ok) return { ok: false, error: syncNegocio.error };
+          const { propagarLinksAcoplamentoVinculados } = await import(
+            '@/lib/kanban/links-bca-acoplamento-sync'
+          );
+          const prop = await propagarLinksAcoplamentoVinculados({
+            cardId: input.card_id,
+            usuarioId: user.id,
+            linkGbox: patch.link_gbox,
+            linkAcoplamento: patch.link_acoplamento,
+            linkGboxOzempic: patch.link_gbox_ozempic,
+            bookEmpreendimento: patch.book_empreendimento,
+            checkAnaliseCredito: patch.check_analise_credito,
+          });
+          if (!prop.ok) return prop;
+        }
+      }
+    }
+
+    if (chaveCompartilhada.startsWith('preobra:')) {
+      const { preobraCardPatchFromChecklist, colunaDataPreObraEhTimestamp } = await import(
+        '@/lib/kanban/preobra-checklist-sync'
+      );
+      const patch = preobraCardPatchFromChecklist(chaveCompartilhada, nextValor);
+      if (patch) {
+        const updateCard: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        for (const [coluna, valor] of Object.entries(patch)) {
+          if (colunaDataPreObraEhTimestamp(coluna)) {
+            const ts = timestampCampoCalendarioIso(valor == null ? null : String(valor));
+            updateCard[coluna] = ts;
+            if (coluna === 'prefeitura_aprovada_em') updateCard.prefeitura_aprovada = ts != null;
+          } else if (Array.isArray(valor)) {
+            updateCard[coluna] = valor.length > 0 ? valor : null;
+          } else {
+            updateCard[coluna] = valor;
+          }
+        }
+        const { error: preobraErr } = await supabase
+          .from('kanban_cards')
+          .update(updateCard as never)
+          .eq('id', input.card_id);
+        if (preobraErr) return { ok: false, error: preobraErr.message };
       }
     }
 

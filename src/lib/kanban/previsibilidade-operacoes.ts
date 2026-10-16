@@ -1,5 +1,6 @@
 import { formatLocalYmd, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { datasPreObraFromValor } from '@/lib/kanban/preobra-checklist-sync';
 import {
   extrairDatasAprovacaoPreObraDaCalculadora,
   type CalculadoraFaseLinha,
@@ -164,9 +165,17 @@ export type FasePrevisibilidadeMarco = {
 
 /** Formulário Dados Pré Obra no drawer do Funil Operações. */
 export type OperacoesPreObraDraft = {
+  docs_condominio: string;
+  docs_lote: string;
+  link_projeto_legal: string;
   condominio_aprovada_em: string;
+  datas_comunique_se_condominio: string[];
   prefeitura_aprovada_em: string;
+  datas_comunique_se_prefeitura: string[];
   alvara_emitido_em: string;
+  data_envio_credito_obra: string;
+  data_aprovacao_credito_obra: string;
+  data_inicio_obra: string;
   prev_aprovacao_condominio: string;
   prev_aprovacao_prefeitura: string;
   prev_emissao_alvara: string;
@@ -175,9 +184,17 @@ export type OperacoesPreObraDraft = {
 };
 
 export const OPERACOES_PRE_OBRA_DRAFT_EMPTY: OperacoesPreObraDraft = {
+  docs_condominio: '',
+  docs_lote: '',
+  link_projeto_legal: '',
   condominio_aprovada_em: '',
+  datas_comunique_se_condominio: [],
   prefeitura_aprovada_em: '',
+  datas_comunique_se_prefeitura: [],
   alvara_emitido_em: '',
+  data_envio_credito_obra: '',
+  data_aprovacao_credito_obra: '',
+  data_inicio_obra: '',
   prev_aprovacao_condominio: '',
   prev_aprovacao_prefeitura: '',
   prev_emissao_alvara: '',
@@ -234,20 +251,36 @@ export function patchOperacoesPreObraAlinharComCalculadora(
 }
 
 export function operacoesPreObraDraftFromCard(raw: {
+  docs_condominio?: string | null;
+  docs_lote?: string | null;
+  link_projeto_legal?: string | null;
   condominio_aprovada_em?: string | null;
+  datas_comunique_se_condominio?: unknown;
   prefeitura_aprovada_em?: string | null;
+  datas_comunique_se_prefeitura?: unknown;
   alvara_emitido_em?: string | null;
+  data_envio_credito_obra?: string | null;
+  data_aprovacao_credito_obra?: string | null;
+  data_inicio_obra?: string | null;
   prev_aprovacao_condominio?: string | null;
   prev_aprovacao_prefeitura?: string | null;
   prev_emissao_alvara?: string | null;
   prev_envio_credito_obra?: string | null;
   prev_inicio_obra?: string | null;
 } | null): OperacoesPreObraDraft {
-  if (!raw) return { ...OPERACOES_PRE_OBRA_DRAFT_EMPTY };
+  if (!raw) return { ...OPERACOES_PRE_OBRA_DRAFT_EMPTY, datas_comunique_se_condominio: [], datas_comunique_se_prefeitura: [] };
   return {
+    docs_condominio: String(raw.docs_condominio ?? ''),
+    docs_lote: String(raw.docs_lote ?? ''),
+    link_projeto_legal: String(raw.link_projeto_legal ?? ''),
     condominio_aprovada_em: tsOrDateToInput(raw.condominio_aprovada_em),
+    datas_comunique_se_condominio: datasPreObraFromValor(raw.datas_comunique_se_condominio),
     prefeitura_aprovada_em: tsOrDateToInput(raw.prefeitura_aprovada_em),
+    datas_comunique_se_prefeitura: datasPreObraFromValor(raw.datas_comunique_se_prefeitura),
     alvara_emitido_em: tsOrDateToInput(raw.alvara_emitido_em),
+    data_envio_credito_obra: tsOrDateToInput(raw.data_envio_credito_obra),
+    data_aprovacao_credito_obra: tsOrDateToInput(raw.data_aprovacao_credito_obra),
+    data_inicio_obra: tsOrDateToInput(raw.data_inicio_obra),
     prev_aprovacao_condominio: tsOrDateToInput(raw.prev_aprovacao_condominio),
     prev_aprovacao_prefeitura: tsOrDateToInput(raw.prev_aprovacao_prefeitura),
     prev_emissao_alvara: tsOrDateToInput(raw.prev_emissao_alvara),

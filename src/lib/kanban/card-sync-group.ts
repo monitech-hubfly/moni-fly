@@ -403,6 +403,7 @@ export const PROCESSO_CAMPOS_SYNC = [
   'link_pasta_drive',
   'link_bca',
   'link_gbox',
+  'link_gbox_ozempic',
   'link_acoplamento',
   'link_mapa_competidores',
   'link_apresentacao_comite',
@@ -442,6 +443,19 @@ export const PROCESSO_CAMPOS_SYNC = [
   'prazo_instrumento_garantidor_modo',
   'prazo_instrumento_garantidor_fase_id',
   'prazo_instrumento_garantidor_data',
+  'pct_compra_parcial_terreno',
+  'pct_vgv_terrenista',
+  'm2_terreno',
+  'm2_casa',
+  'extrato_modelo_configurado',
+  'data_aprovacao_comite',
+  'obs_opcao',
+  'data_ass_opcao_terreno',
+  'obs_instrumento_garantidor',
+  'data_ass_contrato_terreno',
+  'valor_recompra',
+  'book_empreendimento',
+  'check_analise_credito',
 ] as const;
 
 export type ProcessoCamposSync = Partial<Record<(typeof PROCESSO_CAMPOS_SYNC)[number], string | null>>;
@@ -546,84 +560,9 @@ async function expandirVinculos(db: SyncDb, ids: Set<string>): Promise<void> {
   }
 }
 
-const mapaOrigemCache = new WeakMap<object, Promise<Map<string, string> | null>>();
-
-/**
- * id → origem_card_id numa única leitura (a tabela cabe em poucas páginas).
- * Evita uma ida ao banco por elo da cadeia ao abrir o card.
- */
-async function carregarMapaOrigem(db: SyncDb): Promise<Map<string, string> | null> {
-  const hit = mapaOrigemCache.get(db);
-  if (hit) return hit;
-
-  const pending = (async () => {
-    const map = new Map<string, string>();
-    const pageSize = 1000;
-    for (let from = 0; from < 20000; from += pageSize) {
-      const { data, error } = await db
-        .from('kanban_cards')
-        .select('id, origem_card_id')
-        .order('id', { ascending: true })
-        .range(from, from + pageSize - 1);
-      if (error) return null;
-      const rows = data ?? [];
-      for (const row of rows) {
-        const id = String((row as { id?: string }).id ?? '').trim();
-        if (!id) continue;
-        map.set(id, String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim());
-      }
-      if (rows.length < pageSize) break;
-    }
-    return map;
-  })();
-
-  mapaOrigemCache.set(db, pending);
-  return pending;
-}
-
-function filhosPorPai(mapa: Map<string, string>): Map<string, string[]> {
-  const filhos = new Map<string, string[]>();
-  for (const [id, pai] of mapa) {
-    if (!pai) continue;
-    const list = filhos.get(pai);
-    if (list) list.push(id);
-    else filhos.set(pai, [id]);
-  }
-  return filhos;
-}
-
-/** Sobe `origem_card_id` até a raiz e inclui todos os descendentes. */
+/** Sobe `origem_card_id` até a raiz e inclui só os descendentes dessa cadeia. */
 async function expandirOrigemCardId(db: SyncDb, ids: Set<string>): Promise<void> {
-  const mapa = await carregarMapaOrigem(db);
-  if (!mapa) {
-    await expandirOrigemCardIdPorConsulta(db, ids);
-    return;
-  }
-
-  const cardIds = [...ids];
-  for (const cid of cardIds) {
-    let cur = cid;
-    for (let depth = 0; depth < 32; depth++) {
-      const pai = mapa.get(cur) ?? '';
-      if (!pai || ids.has(pai)) break;
-      ids.add(pai);
-      cur = pai;
-    }
-  }
-
-  const filhos = filhosPorPai(mapa);
-  let frontier = [...ids];
-  for (let depth = 0; depth < 32 && frontier.length > 0; depth++) {
-    const novos: string[] = [];
-    for (const id of frontier) {
-      for (const filho of filhos.get(id) ?? []) {
-        if (!filho || ids.has(filho)) continue;
-        ids.add(filho);
-        novos.push(filho);
-      }
-    }
-    frontier = novos;
-  }
+  await expandirOrigemCardIdPorConsulta(db, ids);
 }
 
 async function expandirOrigemCardIdPorConsulta(db: SyncDb, ids: Set<string>): Promise<void> {
@@ -739,12 +678,9 @@ export async function resolverCardPrimarioSyncGroup(db: SyncDb, cardId: string):
   const idSet = new Set(ids);
   if (ids.length === 0) return cardId;
 
-  const mapa = await carregarMapaOrigem(db);
   let cur = cardId;
   for (let depth = 0; depth < 32; depth++) {
-    const pai = mapa
-      ? (mapa.get(cur) ?? '')
-      : await origemCardIdPorConsulta(db, cur);
+    const pai = await origemCardIdPorConsulta(db, cur);
     if (!pai || !idSet.has(pai)) return cur;
     cur = pai;
   }
@@ -1375,10 +1311,9 @@ function coalesceTextoMarco(atual: unknown, candidato: unknown): string | null |
 async function listarCadeiaOrigemCardIds(db: SyncDb, startCardId: string): Promise<string[]> {
   const ids: string[] = [];
   let cur = String(startCardId ?? '').trim();
-  const mapa = await carregarMapaOrigem(db);
   for (let depth = 0; depth < 32 && cur; depth++) {
     ids.push(cur);
-    const pai = mapa ? (mapa.get(cur) ?? '') : await origemCardIdPorConsulta(db, cur);
+    const pai = await origemCardIdPorConsulta(db, cur);
     if (!pai || ids.includes(pai)) break;
     cur = pai;
   }

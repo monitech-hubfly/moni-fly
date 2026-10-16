@@ -5,10 +5,10 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
+  useState,
   type CSSProperties,
   type ReactNode,
 } from 'react';
-
 type Props = {
   children: ReactNode;
   className?: string;
@@ -24,13 +24,103 @@ function scrollRootOf(wrap: HTMLElement | null): HTMLElement | null {
   return root instanceof HTMLElement ? root : null;
 }
 
+function columnHeaderRow(thead: HTMLTableSectionElement): HTMLTableRowElement | null {
+  let best: HTMLTableRowElement | null = null;
+  for (const row of thead.rows) {
+    if (!best || row.cells.length > best.cells.length) best = row;
+  }
+  return best;
+}
+
 /**
- * Planilha: scroll X no wrap; Y no wrap só depois que título/abas/métricas saíram da tela.
- * O cabeçalho da tabela gruda no topo; o restante da página sobe normalmente.
+ * Planilha: scroll X no wrap; Y no wrap depois que título/abas/métricas saem da tela.
+ * Se o scroll da página levar o thead para fora da área visível, uma cópia fixa
+ * permanece no topo — o nome das colunas não some.
  */
 export function MoniTabelaScrollSync({ children, className = '' }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
+  const pinRef = useRef<HTMLDivElement | null>(null);
+  const pinScrollRef = useRef<HTMLDivElement | null>(null);
+  const pinTableRef = useRef<HTMLTableElement | null>(null);
+  const pinSigRef = useRef('');
+  const [pinMounted, setPinMounted] = useState(false);
+
+  const syncHeaderPin = useCallback(() => {
+    const wrap = wrapRef.current;
+    const main = mainRef.current;
+    const pin = pinRef.current;
+    const pinScroll = pinScrollRef.current;
+    const pinTable = pinTableRef.current;
+    if (!wrap || !main || !pin || !pinScroll || !pinTable) return;
+
+    const scrollRoot = scrollRootOf(wrap);
+    const table = main.querySelector('table');
+    const thead = table?.tHead ?? null;
+    if (!scrollRoot || !table || !thead || thead.rows.length === 0) {
+      pin.classList.remove('is-on');
+      wrap.classList.remove('moni-tabela-head-covered');
+      return;
+    }
+
+    const rootRect = scrollRoot.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    const theadRect = thead.getBoundingClientRect();
+    const tableRect = table.getBoundingClientRect();
+    const visibleTop = Math.max(rootRect.top, Math.min(wrapRect.top, rootRect.bottom));
+    const theadH = thead.offsetHeight;
+    const headerFora =
+      theadRect.top < visibleTop - PIN_EPS_PX && tableRect.bottom > visibleTop + Math.min(theadH, 24);
+
+    pin.classList.toggle('is-on', headerFora);
+    wrap.classList.toggle('moni-tabela-head-covered', headerFora);
+    if (!headerFora) return;
+
+    pin.style.top = `${Math.round(visibleTop)}px`;
+    pin.style.left = `${Math.round(wrapRect.left)}px`;
+    pin.style.width = `${wrap.clientWidth}px`;
+    pin.style.height = `${theadH}px`;
+
+    const sig = `${table.className}|${thead.innerText}|${thead.rows.length}|${[...thead.rows].map((r) => r.cells.length).join(',')}`;
+    if (pinSigRef.current !== sig) {
+      pinSigRef.current = sig;
+      const clone = thead.cloneNode(true) as HTMLTableSectionElement;
+      clone.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+      pinTable.className = table.className;
+      pinTable.replaceChildren(clone);
+    }
+
+    if (!pinTable.onclick) {
+      pinTable.onclick = (event) => {
+        const liveTable = main.querySelector('table');
+        const liveHead = liveTable?.tHead;
+        if (!liveHead) return;
+        const target = event.target instanceof Element ? event.target.closest('button, a') : null;
+        if (!target || !pinTable.contains(target)) return;
+        event.preventDefault();
+        const selector = target.tagName === 'A' ? 'a' : 'button';
+        const clones = [...pinTable.querySelectorAll(selector)];
+        const reals = [...liveHead.querySelectorAll(selector)];
+        const index = clones.indexOf(target as HTMLAnchorElement | HTMLButtonElement);
+        const real = reals[index];
+        if (real instanceof HTMLElement) real.click();
+      };
+    }
+
+    const sourceRow = columnHeaderRow(thead);
+    const colgroup = document.createElement('colgroup');
+    if (sourceRow) {
+      for (const cell of sourceRow.cells) {
+        const col = document.createElement('col');
+        col.style.width = `${cell.getBoundingClientRect().width}px`;
+        colgroup.appendChild(col);
+      }
+    }
+    pinTable.querySelector('colgroup')?.remove();
+    pinTable.prepend(colgroup);
+    pinTable.style.width = `${table.scrollWidth}px`;
+    pinScroll.scrollLeft = wrap.scrollLeft;
+  }, []);
 
   const updateLayout = useCallback(() => {
     const wrap = wrapRef.current;
@@ -55,12 +145,35 @@ export function MoniTabelaScrollSync({ children, className = '' }: Props) {
     const available = Math.floor(bottom - rootTop - footerH - GAP_ABAIXO_PX);
     const maxH = Math.max(MIN_TABELA_VIEWPORT_PX, available);
     wrap.style.setProperty('--moni-tabela-scroll-max-height', `${maxH}px`);
+    syncHeaderPin();
+  }, [syncHeaderPin]);
+
+  useEffect(() => {
+    const pin = document.createElement('div');
+    pin.className = 'moni-tabela-head-pin moni-tabela-scroll-main';
+    const pinScroll = document.createElement('div');
+    pinScroll.className = 'moni-tabela-head-pin-scroll';
+    const pinTable = document.createElement('table');
+    pinScroll.appendChild(pinTable);
+    pin.appendChild(pinScroll);
+    document.body.appendChild(pin);
+    pinRef.current = pin;
+    pinScrollRef.current = pinScroll;
+    pinTableRef.current = pinTable;
+    setPinMounted(true);
+    return () => {
+      pin.remove();
+      pinRef.current = null;
+      pinScrollRef.current = null;
+      pinTableRef.current = null;
+      pinSigRef.current = '';
+    };
   }, []);
 
   useLayoutEffect(() => {
     updateLayout();
     requestAnimationFrame(updateLayout);
-  }, [updateLayout, children]);
+  }, [updateLayout, children, pinMounted]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -97,15 +210,29 @@ export function MoniTabelaScrollSync({ children, className = '' }: Props) {
     if (parent) ro.observe(parent);
     if (scrollRoot) ro.observe(scrollRoot);
 
+    let pinFrame = 0;
+    const onScroll = () => {
+      if (pinFrame) return;
+      pinFrame = requestAnimationFrame(() => {
+        pinFrame = 0;
+        syncHeaderPin();
+      });
+    };
+
     wrap.addEventListener('wheel', onWheel, { passive: false });
+    wrap.addEventListener('scroll', onScroll, { passive: true });
+    scrollRoot?.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', updateLayout);
 
     return () => {
       ro.disconnect();
+      if (pinFrame) cancelAnimationFrame(pinFrame);
       wrap.removeEventListener('wheel', onWheel);
+      wrap.removeEventListener('scroll', onScroll);
+      scrollRoot?.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', updateLayout);
     };
-  }, [updateLayout]);
+  }, [updateLayout, syncHeaderPin, pinMounted]);
 
   const style = {
     '--moni-tabela-thead-row1-height': '0px',

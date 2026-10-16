@@ -114,6 +114,7 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
             redeId={id}
             row={row}
             internalView
+            podeGerarFormulario={staff}
             cadastro={
               staff ? (
                 <RedeFranqueadoDetalheDocs

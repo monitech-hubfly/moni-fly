@@ -1,14 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
 import { searchFaqArticles } from '@/lib/actions/faq-actions';
 import {
   enviarPontoParaCentralAjuda,
   excluirPontoJuridico,
   listarCatalogoFaqJuridico,
-  listarPontosJuridicos,
-  moverPontoJuridico,
+  reordenarPontosJuridicos,
   salvarPontoJuridico,
   type PontoJuridicoRow,
 } from '@/lib/actions/juridico-pontos-actions';
@@ -21,10 +31,12 @@ import {
   JURIDICO_PONTO_FAQ_LABEL,
   JURIDICO_PONTO_FAQ_STATUS,
   pendenciasPontoJuridicoConcluido,
+  rodadaAtualJuridico,
   statusVisualPontoJuridico,
   type JuridicoPontoConclusao,
   type JuridicoPontoTipo,
 } from '@/lib/kanban/juridico-pontos';
+import { lerPontosJuridicosNoCard } from '@/lib/kanban/juridico-pontos-leitura';
 import { gerarRespostaRodada, textoCopiaFinais } from '@/lib/kanban/juridico-resposta-rodada';
 
 type Rascunho = {
@@ -149,11 +161,60 @@ function conclusaoDoPonto(ponto: {
   };
 }
 
+function blocoCopia(rotulo: string, valor: string | null | undefined): string | null {
+  const texto = String(valor ?? '').trim();
+  if (!texto) return null;
+  return `${rotulo}:\n${texto}`;
+}
+
 function textoCopia(ponto: PontoJuridicoRow): string | null {
-  if (ponto.tipo === 'duvida') return ponto.resposta;
-  if (ponto.decisao === 'aceita' || ponto.decisao === 'aceita_parcialmente') return ponto.texto_final_aprovado;
-  if (ponto.decisao === 'nao_aceita') return ponto.motivo_resposta;
+  if (ponto.tipo === 'duvida') {
+    const partes = [blocoCopia('Pergunta', ponto.duvida_recebida), blocoCopia('Resposta', ponto.resposta)].filter(
+      (parte): parte is string => Boolean(parte),
+    );
+    return partes.length > 0 ? partes.join('\n\n') : null;
+  }
+  if (ponto.decisao === 'aceita' || ponto.decisao === 'aceita_parcialmente') {
+    const texto = String(ponto.texto_final_aprovado ?? '').trim();
+    return texto.length > 0 ? texto : null;
+  }
+  if (ponto.decisao === 'nao_aceita') {
+    const partes = [
+      blocoCopia('Pergunta', ponto.solicitacao_alteracao),
+      blocoCopia('Resposta', ponto.motivo_resposta),
+    ].filter((parte): parte is string => Boolean(parte));
+    return partes.length > 0 ? partes.join('\n\n') : null;
+  }
   return null;
+}
+
+async function copiarTexto(texto: string): Promise<boolean> {
+  const valor = texto.trim();
+  if (!valor) return false;
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(valor);
+      return true;
+    }
+  } catch {
+    // Segue para o fallback quando a permissão da área de transferência falha.
+  }
+  try {
+    const area = document.createElement('textarea');
+    area.value = valor;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.top = '0';
+    area.style.left = '-9999px';
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
+    const ok = document.execCommand('copy');
+    area.remove();
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 function rotuloCopia(ponto: PontoJuridicoRow): string | null {
@@ -168,12 +229,14 @@ export function JuridicoPontosSecao({
   cardId,
   podeEditar,
   exibirGerarResposta = false,
+  rodadaGravada = 1,
 }: {
   cardId: string;
   podeEditar: boolean;
   exibirGerarResposta?: boolean;
+  rodadaGravada?: number | null;
 }) {
-  const [rodadaAtual, setRodadaAtual] = useState(1);
+  const rodadaAtual = rodadaAtualJuridico(rodadaGravada);
   const [pontos, setPontos] = useState<PontoJuridicoRow[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -188,30 +251,50 @@ export function JuridicoPontosSecao({
   const [copiaAviso, setCopiaAviso] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
-    const res = await listarPontosJuridicos(cardId);
+    const res = await lerPontosJuridicosNoCard(cardId);
     if (!res.ok) {
       setErro(res.error);
-      setPontos([]);
       return;
     }
     setErro(null);
-    setRodadaAtual(res.rodadaAtual);
     setPontos(res.pontos);
   }, [cardId]);
+
+  const ordemReq = useRef(0);
+  const reordenar = useCallback(
+    async (ids: string[]) => {
+      const ticket = ++ordemReq.current;
+      const ordem = new Map(ids.map((id, indice) => [id, indice + 1]));
+      setPontos((prev) => prev.map((ponto) => (ordem.has(ponto.id) ? { ...ponto, ordem: ordem.get(ponto.id) ?? ponto.ordem } : ponto)));
+      const res = await reordenarPontosJuridicos(cardId, ids);
+      if (ticket !== ordemReq.current) return;
+      if (!res.ok) {
+        setErro(res.error);
+        await carregar();
+      }
+    },
+    [cardId, carregar],
+  );
 
   useEffect(() => {
     let vivo = true;
     setCarregando(true);
-    void listarPontosJuridicos(cardId).then((res) => {
-      if (!vivo) return;
-      if (!res.ok) setErro(res.error);
-      else {
-        setErro(null);
-        setRodadaAtual(res.rodadaAtual);
-        setPontos(res.pontos);
-      }
-      setCarregando(false);
-    });
+    void lerPontosJuridicosNoCard(cardId)
+      .then((res) => {
+        if (!vivo) return;
+        if (!res.ok) setErro(res.error);
+        else {
+          setErro(null);
+          setPontos(res.pontos);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!vivo) return;
+        setErro(e instanceof Error ? e.message : 'Não foi possível carregar os pontos.');
+      })
+      .finally(() => {
+        if (vivo) setCarregando(false);
+      });
     return () => {
       vivo = false;
     };
@@ -265,12 +348,8 @@ export function JuridicoPontosSecao({
   }
 
   async function copiar(texto: string, aviso: string) {
-    try {
-      await navigator.clipboard.writeText(texto);
-      setCopiaAviso(aviso);
-    } catch {
-      setCopiaAviso('Não foi possível copiar.');
-    }
+    const ok = await copiarTexto(texto);
+    setCopiaAviso(ok ? aviso : 'Não foi possível copiar.');
   }
 
   async function salvar() {
@@ -362,12 +441,12 @@ export function JuridicoPontosSecao({
           borderRadius: 'var(--moni-radius-lg)',
         }}
       >
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs font-semibold" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}>
             Rodada {rodadaAtual}
           </p>
           {exibirGerarResposta ? (
-            <button type="button" style={botaoSecundario} onClick={abrirResposta}>
+            <button type="button" style={botaoAcao} onClick={abrirResposta}>
               Gerar resposta da rodada
             </button>
           ) : null}
@@ -377,48 +456,43 @@ export function JuridicoPontosSecao({
             {avisoResposta}
           </p>
         ) : null}
-        {carregando ? (
+        {carregando && pontos.length === 0 ? (
           <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
             Carregando pontos…
           </p>
         ) : (
-          atuais.map((ponto, indice) => (
-            <CardPonto
-              key={ponto.id}
-              ponto={ponto}
-              numero={indice + 1}
-              podeEditar={podeEditar}
-              podeSubir={indice > 0}
-              podeDescer={indice < atuais.length - 1}
-              editando={rascunho?.id === ponto.id}
-              rascunho={rascunho?.id === ponto.id ? rascunho : null}
-              artigos={artigos}
-              buscaFaq={buscaFaq}
-              salvando={salvando}
-              onEditar={() => {
-                setEscolhendo(false);
-                setRascunho(rascunhoDe(ponto));
-                setBuscaFaq('');
-                setArtigos([]);
-              }}
-              onChange={setRascunho}
-              onBuscaFaq={(termo) => void buscarFaq(termo)}
-              onSalvar={() => void salvar()}
-              onEnviarFaq={(dados) => void enviarFaq(dados)}
-              onCancelar={() => setRascunho(null)}
-              onResolvido={() => void carregar()}
-              onExcluir={async () => {
-                const res = await excluirPontoJuridico(cardId, ponto.id);
-                if (!res.ok) setErro(res.error);
-                else await carregar();
-              }}
-              onMover={async (direcao) => {
-                const res = await moverPontoJuridico(cardId, ponto.id, direcao);
-                if (!res.ok) setErro(res.error);
-                else await carregar();
-              }}
-            />
-          ))
+          <ListaPontosOrdenavel pontos={atuais} podeEditar={podeEditar} onReordenar={(ids) => void reordenar(ids)}>
+            {(ponto, indice) => (
+              <CardPonto
+                key={ponto.id}
+                ponto={ponto}
+                numero={indice + 1}
+                podeEditar={podeEditar}
+                editando={rascunho?.id === ponto.id}
+                rascunho={rascunho?.id === ponto.id ? rascunho : null}
+                artigos={artigos}
+                buscaFaq={buscaFaq}
+                salvando={salvando}
+                onEditar={() => {
+                  setEscolhendo(false);
+                  setRascunho(rascunhoDe(ponto));
+                  setBuscaFaq('');
+                  setArtigos([]);
+                }}
+                onChange={setRascunho}
+                onBuscaFaq={(termo) => void buscarFaq(termo)}
+                onSalvar={() => void salvar()}
+                onEnviarFaq={(dados) => void enviarFaq(dados)}
+                onCancelar={() => setRascunho(null)}
+                onResolvido={() => void carregar()}
+                onExcluir={async () => {
+                  const res = await excluirPontoJuridico(cardId, ponto.id);
+                  if (!res.ok) setErro(res.error);
+                  else await carregar();
+                }}
+              />
+            )}
+          </ListaPontosOrdenavel>
         )}
         {!carregando && atuais.length === 0 && !rascunho ? (
           <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
@@ -459,7 +533,7 @@ export function JuridicoPontosSecao({
               </button>
             </div>
           ) : (
-            <button type="button" style={botaoPrimario} onClick={() => setEscolhendo(true)}>
+            <button type="button" style={botaoPrimarioCompacto} onClick={() => setEscolhendo(true)}>
               + Adicionar ponto
             </button>
           )
@@ -501,18 +575,18 @@ export function JuridicoPontosSecao({
               </span>
             </button>
             {aberta ? (
-              <div className="space-y-2 px-3 pb-3">
-                {lista
-                  .slice()
-                  .sort((a, b) => a.ordem - b.ordem)
-                  .map((ponto, indice) => (
+              <div className="px-3 pb-3">
+                <ListaPontosOrdenavel
+                  pontos={lista.slice().sort((a, b) => a.ordem - b.ordem)}
+                  podeEditar={podeEditar}
+                  onReordenar={(ids) => void reordenar(ids)}
+                >
+                  {(ponto, indice) => (
                     <CardPonto
                       key={ponto.id}
                       ponto={ponto}
                       numero={indice + 1}
                       podeEditar={podeEditar}
-                      podeSubir={indice > 0}
-                      podeDescer={indice < lista.length - 1}
                       editando={rascunho?.id === ponto.id}
                       rascunho={rascunho?.id === ponto.id ? rascunho : null}
                       artigos={artigos}
@@ -530,13 +604,9 @@ export function JuridicoPontosSecao({
                         if (!res.ok) setErro(res.error);
                         else await carregar();
                       }}
-                      onMover={async (direcao) => {
-                        const res = await moverPontoJuridico(cardId, ponto.id, direcao);
-                        if (!res.ok) setErro(res.error);
-                        else await carregar();
-                      }}
                     />
-                  ))}
+                  )}
+                </ListaPontosOrdenavel>
               </div>
             ) : null}
           </div>
@@ -569,6 +639,30 @@ const botaoSecundario = {
   padding: '0 12px',
   border: 'var(--moni-border-width) solid var(--moni-border-default)',
 } as const;
+
+const botaoAcao = {
+  ...botaoSecundario,
+  minHeight: 32,
+  height: 32,
+  width: 'auto',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 12,
+  lineHeight: 1,
+  padding: '0 10px',
+  whiteSpace: 'nowrap' as const,
+};
+
+const botaoPrimarioCompacto = {
+  ...botaoPrimario,
+  minHeight: 32,
+  height: 32,
+  width: 'auto',
+  fontSize: 12,
+  lineHeight: 1,
+  padding: '0 12px',
+};
 
 function ModalRespostaRodada({
   texto,
@@ -672,12 +766,44 @@ function ModalRespostaRodada({
   );
 }
 
+function ListaPontosOrdenavel({
+  pontos,
+  podeEditar,
+  onReordenar,
+  children,
+}: {
+  pontos: PontoJuridicoRow[];
+  podeEditar: boolean;
+  onReordenar: (ids: string[]) => void;
+  children: (ponto: PontoJuridicoRow, indice: number) => ReactNode;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+  const ids = pontos.map((ponto) => ponto.id);
+
+  function aoSoltar(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!podeEditar || !over || active.id === over.id) return;
+    const antigo = ids.indexOf(String(active.id));
+    const novo = ids.indexOf(String(over.id));
+    if (antigo < 0 || novo < 0) return;
+    onReordenar(arrayMove(ids, antigo, novo));
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={aoSoltar}>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        <div className="space-y-2">{pontos.map((ponto, indice) => children(ponto, indice))}</div>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
 function CardPonto({
   ponto,
   numero,
   podeEditar,
-  podeSubir,
-  podeDescer,
   editando,
   rascunho,
   artigos,
@@ -691,13 +817,10 @@ function CardPonto({
   onCancelar,
   onResolvido,
   onExcluir,
-  onMover,
 }: {
   ponto: PontoJuridicoRow;
   numero: number;
   podeEditar: boolean;
-  podeSubir: boolean;
-  podeDescer: boolean;
   editando: boolean;
   rascunho: Rascunho | null;
   artigos: { id: string; question: string }[];
@@ -711,9 +834,13 @@ function CardPonto({
   onCancelar: () => void;
   onResolvido: () => void;
   onExcluir: () => Promise<void>;
-  onMover: (direcao: 'subir' | 'descer') => Promise<void>;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: ponto.id,
+    disabled: !podeEditar || editando,
+  });
   const [confirmando, setConfirmando] = useState(false);
+  const [copiaEstado, setCopiaEstado] = useState<'idle' | 'ok' | 'erro'>('idle');
   const status = statusVisualPontoJuridico(conclusaoDoPonto(ponto));
   const copia = textoCopia(ponto);
   const rotulo = rotuloCopia(ponto);
@@ -723,35 +850,53 @@ function CardPonto({
       ? ponto.duvida_recebida || 'Dúvida sem texto'
       : ponto.clausula_trecho || ponto.solicitacao_alteracao || 'Alteração sem texto';
 
+  const estiloArraste = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.72 : 1,
+    zIndex: isDragging ? 2 : undefined,
+  };
+
   if (editando && rascunho) {
     return (
-      <FormularioPonto
-        rascunho={rascunho}
-        artigos={artigos}
-        buscaFaq={buscaFaq}
-        salvando={salvando}
-        onChange={onChange}
-        onBuscaFaq={onBuscaFaq}
-        onSalvar={onSalvar}
-        onEnviarFaq={onEnviarFaq}
-        onCancelar={onCancelar}
-        ponto={ponto}
-        onResolvido={onResolvido}
-      />
+      <div ref={setNodeRef} id={`juridico-ponto-${ponto.id}`} style={estiloArraste}>
+        <FormularioPonto
+          rascunho={rascunho}
+          artigos={artigos}
+          buscaFaq={buscaFaq}
+          salvando={salvando}
+          onChange={onChange}
+          onBuscaFaq={onBuscaFaq}
+          onSalvar={onSalvar}
+          onEnviarFaq={onEnviarFaq}
+          onCancelar={onCancelar}
+          ponto={ponto}
+          onResolvido={onResolvido}
+        />
+      </div>
     );
   }
 
   return (
     <article
+      ref={setNodeRef}
       id={`juridico-ponto-${ponto.id}`}
       className="space-y-1.5 p-3"
       style={{
+        ...estiloArraste,
         background: 'var(--moni-surface-0)',
         border: 'var(--moni-border-width) solid var(--moni-border-default)',
         borderRadius: 'var(--moni-radius-md)',
+        boxShadow: isDragging ? 'var(--moni-shadow-card)' : undefined,
+        cursor: podeEditar ? (isDragging ? 'grabbing' : 'grab') : undefined,
       }}
+      {...(podeEditar ? attributes : {})}
+      {...(podeEditar ? listeners : {})}
     >
       <div className="flex flex-wrap items-center gap-2">
+        {podeEditar ? (
+          <GripVertical size={14} aria-hidden style={{ color: 'var(--moni-text-tertiary)', flexShrink: 0 }} />
+        ) : null}
         <strong className="text-[11px] tracking-wide" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}>
           {titulo}
         </strong>
@@ -773,48 +918,50 @@ function CardPonto({
           {ponto.faq_pergunta ? ` · ${ponto.faq_pergunta}` : ''}
         </p>
       ) : null}
-      <ResolverRepositorioPonto
-        ponto={ponto}
-        podeEditar={podeEditar}
-        sujo={false}
-        nome={ponto.repositorio_nova_variacao_nome ?? ''}
-        quando={ponto.repositorio_nova_variacao_quando_utilizar ?? ''}
-        onResolvido={onResolvido}
-      />
-      {ponto.faq_slug && ponto.faq_article_id ? (
-        <a
-          href={`/universidade/faq/${encodeURIComponent(ponto.faq_slug)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center text-[12px] font-semibold"
-          style={{ minHeight: 44, color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
-        >
-          Ver na Central de Ajuda
-        </a>
-      ) : null}
-      <div className="flex flex-wrap gap-2 pt-1">
+      <div onPointerDown={(e) => e.stopPropagation()}>
+        <ResolverRepositorioPonto
+          ponto={ponto}
+          podeEditar={podeEditar}
+          sujo={false}
+          nome={ponto.repositorio_nova_variacao_nome ?? ''}
+          quando={ponto.repositorio_nova_variacao_quando_utilizar ?? ''}
+          onResolvido={onResolvido}
+        />
+        {ponto.faq_slug && ponto.faq_article_id ? (
+          <a
+            href={`/universidade/faq/${encodeURIComponent(ponto.faq_slug)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center text-[12px] font-semibold"
+            style={{ minHeight: 44, color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
+          >
+            Ver na Central de Ajuda
+          </a>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 pt-1" onPointerDown={(e) => e.stopPropagation()}>
         {podeEditar ? (
-          <button type="button" style={botaoSecundario} onClick={onEditar}>
+          <button type="button" style={botaoAcao} onClick={onEditar}>
             Editar
-          </button>
-        ) : null}
-        {podeEditar && podeSubir ? (
-          <button type="button" style={botaoSecundario} onClick={() => void onMover('subir')}>
-            Subir
-          </button>
-        ) : null}
-        {podeEditar && podeDescer ? (
-          <button type="button" style={botaoSecundario} onClick={() => void onMover('descer')}>
-            Descer
           </button>
         ) : null}
         {rotulo && copia ? (
           <button
             type="button"
-            style={botaoSecundario}
-            onClick={() => void navigator.clipboard.writeText(copia)}
+            style={{
+              ...botaoAcao,
+              ...(copiaEstado === 'ok'
+                ? { background: 'var(--moni-green-50)', color: 'var(--moni-green-800)', border: 'var(--moni-border-width) solid var(--moni-green-400)' }
+                : null),
+            }}
+            onClick={() => {
+              void copiarTexto(copia).then((ok) => {
+                setCopiaEstado(ok ? 'ok' : 'erro');
+                window.setTimeout(() => setCopiaEstado('idle'), 2000);
+              });
+            }}
           >
-            {rotulo}
+            {copiaEstado === 'ok' ? 'Copiado' : copiaEstado === 'erro' ? 'Não copiou' : rotulo}
           </button>
         ) : null}
         {podeEditar ? (
@@ -822,7 +969,7 @@ function CardPonto({
             <>
               <button
                 type="button"
-                style={botaoSecundario}
+                style={botaoAcao}
                 onClick={() => {
                   setConfirmando(false);
                   void onExcluir();
@@ -830,12 +977,12 @@ function CardPonto({
               >
                 Confirmar exclusão
               </button>
-              <button type="button" style={botaoSecundario} onClick={() => setConfirmando(false)}>
+              <button type="button" style={botaoAcao} onClick={() => setConfirmando(false)}>
                 Manter
               </button>
             </>
           ) : (
-            <button type="button" style={botaoSecundario} onClick={() => setConfirmando(true)}>
+            <button type="button" style={botaoAcao} onClick={() => setConfirmando(true)}>
               Excluir
             </button>
           )

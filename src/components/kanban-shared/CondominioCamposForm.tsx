@@ -308,18 +308,20 @@ export function CondominioCamposForm({
           placeholder="Links"
         />
       </label>
-      <div className="col-span-2 border-t border-stone-100 pt-2">
-        <p className="mb-2 text-[11px] font-semibold text-stone-600">Prazos de aprovação</p>
-        <CondominioPrazosAprovacaoFields
-          draft={{
-            prazo_aprovacao_condominio_dias: draft.prazo_aprovacao_condominio_dias,
-            prazo_aprovacao_condominio_sla_tipo: draft.prazo_aprovacao_condominio_sla_tipo,
-            prazo_aprovacao_prefeitura_dias: draft.prazo_aprovacao_prefeitura_dias,
-            prazo_aprovacao_prefeitura_sla_tipo: draft.prazo_aprovacao_prefeitura_sla_tipo,
-          }}
-          onChange={onChange}
-        />
-      </div>
+      {!omitPrazos ? (
+        <div className="col-span-2 border-t border-stone-100 pt-2">
+          <p className="mb-2 text-[11px] font-semibold text-stone-600">Prazos de aprovação</p>
+          <CondominioPrazosAprovacaoFields
+            draft={{
+              prazo_aprovacao_condominio_dias: draft.prazo_aprovacao_condominio_dias,
+              prazo_aprovacao_condominio_sla_tipo: draft.prazo_aprovacao_condominio_sla_tipo,
+              prazo_aprovacao_prefeitura_dias: draft.prazo_aprovacao_prefeitura_dias,
+              prazo_aprovacao_prefeitura_sla_tipo: draft.prazo_aprovacao_prefeitura_sla_tipo,
+            }}
+            onChange={onChange}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { createAdminClient } from '@/lib/supabase/admin';
 export const JURIDICO_PORTFOLIO_TAG_OPCAO = 'Opção';
 export const JURIDICO_PORTFOLIO_TAG_CTO_PRECEDENTES = 'Cto c/ Precedentes';
 export const JURIDICO_PORTFOLIO_TAG_CTO_SEM_PRECEDENTES = 'Cto s/ Precedentes';
+export const JURIDICO_PORTFOLIO_TAG_TERMO_RECOMPRA = 'Termo Recompra';
 export const JURIDICO_TAG_NDA = 'NDA';
 export const JURIDICO_TAG_CTO_PARCERIA = 'Cto de Parceria';
 export const JURIDICO_TAG_COF = 'COF';
@@ -14,6 +15,7 @@ export const JURIDICO_PORTFOLIO_TAGS = [
   { nome: JURIDICO_PORTFOLIO_TAG_OPCAO, cor: '#3e7490', preservarSeExistir: false },
   { nome: JURIDICO_PORTFOLIO_TAG_CTO_PRECEDENTES, cor: '#2f4a3a', preservarSeExistir: false },
   { nome: JURIDICO_PORTFOLIO_TAG_CTO_SEM_PRECEDENTES, cor: '#4a3929', preservarSeExistir: false },
+  { nome: JURIDICO_PORTFOLIO_TAG_TERMO_RECOMPRA, cor: '#D4AD68', preservarSeExistir: false },
   { nome: JURIDICO_TAG_NDA, cor: '#3e7490', preservarSeExistir: true },
   { nome: JURIDICO_TAG_CTO_PARCERIA, cor: '#2f4a3a', preservarSeExistir: true },
   { nome: JURIDICO_TAG_COF, cor: '#3e7490', preservarSeExistir: true },
