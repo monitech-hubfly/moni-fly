@@ -4844,7 +4844,7 @@ export async function moverCardParaFase(input: {
   if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
   if (!gateBook.ok) return gateBook;
 
-  const { data: cardKanban } = await supabase
+  const { data: cardKanbanMovimento } = await supabase
     .from('kanban_cards')
     .select('kanban_id')
     .eq('id', cardId)
@@ -4852,7 +4852,8 @@ export async function moverCardParaFase(input: {
 
   if (
     novaFaseSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO &&
-    kanbanIdMovimento === KANBAN_IDS.ACOPLAMENTO
+    String((cardKanbanMovimento as { kanban_id?: string } | null)?.kanban_id ?? '') ===
+      KANBAN_IDS.ACOPLAMENTO
   ) {
     const motivo = String(input.motivoReprovacaoAcoplamento ?? '').trim();
     if (!motivo) {
