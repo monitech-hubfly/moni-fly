@@ -7,6 +7,8 @@ import { NovoCardModal } from '@/app/funil-stepone/NovoCardModal';
 import { NovoCardFundingModal } from '@/app/funil-funding/NovoCardFundingModal';
 import { NovoCardMarketingModal } from '@/app/marketing/NovoCardMarketingModal';
 import { NovoCardMoniCareModal } from '@/app/manutencoes/NovoCardMoniCareModal';
+import { NovoCardVCLModal } from '@/components/venda-casas-loteadores/NovoCardVCLModal';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { hrefAbrirCardNaRota } from '@/lib/kanban/kanban-card-href';
 import { isMarketingKanbanId } from '@/lib/kanban/funis-marketing';
 import { isMoniCareKanbanId } from '@/lib/kanban/funil-moni-care';
@@ -100,6 +102,14 @@ function KanbanUrlSync({
   return null;
 }
 
+function isVCLKanbanId(id: string): boolean {
+  return (
+    id === KANBAN_IDS.VCL_NAO_VENDIDOS ||
+    id === KANBAN_IDS.VCL_VENDIDOS ||
+    id === KANBAN_IDS.VCL_SHOWROOM
+  );
+}
+
 function KanbanModals({
   basePath,
   isAdmin,
@@ -150,6 +160,13 @@ function KanbanModals({
           />
         ) : isMarketingKanbanId(kanbanId) ? (
           <NovoCardMarketingModal
+            kanbanId={kanbanId}
+            kanbanNome={kanbanNome}
+            basePath={basePath}
+            onClose={onCloseModals}
+          />
+        ) : isVCLKanbanId(kanbanId) ? (
+          <NovoCardVCLModal
             kanbanId={kanbanId}
             kanbanNome={kanbanNome}
             basePath={basePath}
