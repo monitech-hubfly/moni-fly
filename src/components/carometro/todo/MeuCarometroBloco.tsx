@@ -46,7 +46,7 @@ export function MeuCarometroBloco() {
       ) : (
         <>
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">
-            MEU CARÔMETRO — {lPrevia} · clique na bolinha esquerda = detalhes
+            MEU CARÔMETRO — {lPrevia}
           </h2>
 
           <div className="grid grid-cols-3 gap-4">
@@ -85,23 +85,23 @@ export function MeuCarometroBloco() {
             />
           </div>
 
-          {/* Legenda carinhas */}
+          {/* Legenda de cores */}
           <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-gray-500">
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-700" />
-              😁 ≥90% Verde Escuro
+              ≥90% Verde Escuro
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />
-              🙂 70–89% Verde Claro
+              70–89% Verde Claro
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-600" />
-              😐 50–69% Amarelo
+              50–69% Amarelo
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-600" />
-              😟 &lt;50% Vermelho
+              &lt;50% Vermelho
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300" />
@@ -112,13 +112,12 @@ export function MeuCarometroBloco() {
           {/* Legenda Tiers */}
           <div className="border-t border-gray-100 pt-2">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center mb-1.5">
-              Crédito parcial por Tier — Sirene &amp; Engajamento
+              Penalidades por Atraso (Tier) — Sirene / Engajamento e Indicadores
             </p>
             <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-[11px] text-gray-500">
-              <span><span className="font-bold text-yellow-700">T1</span> · 1–6d = <span className="font-semibold">75%</span> crédito ao resolver</span>
-              <span><span className="font-bold text-red-600">T2</span> · 7–14d = <span className="font-semibold">50%</span> crédito</span>
-              <span><span className="font-bold text-purple-700">T3</span> · 15+d = <span className="font-semibold">20%</span> crédito</span>
-              <span className="text-gray-400">Em aberto = 0% até resolver</span>
+              <span><span className="font-bold text-yellow-700">T1</span> · 1–6d = <span className="font-semibold">-25%</span></span>
+              <span><span className="font-bold text-red-600">T2</span> · 7–14d = <span className="font-semibold">-50%</span></span>
+              <span><span className="font-bold text-purple-700">T3</span> · 15+d = <span className="font-semibold">-80%</span></span>
             </div>
           </div>
         </>

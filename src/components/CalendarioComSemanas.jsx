@@ -13,12 +13,24 @@ function getSemanaISO(d) {
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 
+/** Formata um objeto Date local como 'YYYY-MM-DD'. */
+function toISODate(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
 export default function CalendarioComSemanas({
   ano: anoProp,
   className = '',
   mesInicial,
   selectedSemanaNum,
-  onSelectSemanaNumero
+  onSelectSemanaNumero,
+  /** Data selecionada no formato 'YYYY-MM-DD' (para seleção de dia individual). */
+  selectedDate,
+  /** Callback chamado com 'YYYY-MM-DD' ao clicar num dia. */
+  onSelectDate,
 }) {
   const ano = anoProp || new Date().getFullYear()
   const [mesAtual, setMesAtual] = useState(mesInicial ?? new Date().getMonth())
@@ -59,6 +71,7 @@ export default function CalendarioComSemanas({
     const h = new Date()
     return d.getDate() === h.getDate() && d.getMonth() === h.getMonth() && d.getFullYear() === h.getFullYear()
   }
+  const ehSelecionado = (d) => selectedDate === toISODate(d)
 
   return (
     <div className={`calendario-com-semanas ${className}`}>
@@ -117,14 +130,21 @@ export default function CalendarioComSemanas({
                 )}
               </td>
 
-              {s.dias.map((d, j) => (
-                <td
-                  key={j}
-                  className={`calendario-dia ${ehDoMes(d) ? '' : 'calendario-dia-fora'} ${ehHoje(d) ? 'calendario-dia-hoje' : ''}`}
-                >
-                  {d.getDate()}
-                </td>
-              ))}
+              {s.dias.map((d, j) => {
+                const selecionado = ehSelecionado(d)
+                const hoje = ehHoje(d)
+                const doMes = ehDoMes(d)
+                return (
+                  <td
+                    key={j}
+                    className={`calendario-dia ${doMes ? '' : 'calendario-dia-fora'} ${hoje ? 'calendario-dia-hoje' : ''} ${selecionado ? 'calendario-dia-selecionado' : ''}`}
+                    style={onSelectDate ? { cursor: 'pointer' } : undefined}
+                    onClick={onSelectDate ? () => onSelectDate(toISODate(d)) : undefined}
+                  >
+                    {d.getDate()}
+                  </td>
+                )
+              })}
             </tr>
           ))}
         </tbody>

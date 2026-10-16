@@ -64,10 +64,11 @@ function extractEngajamentoScore(engajamento: unknown): number | null {
   return extractScore(engajamento);
 }
 
-function extractIndicadoresScore(indicadores: unknown): number | null {
-  // stored as { media: number | null, porIndicador: [...] }
-  if (!indicadores || typeof indicadores !== 'object') return null;
-  const v = (indicadores as Record<string, unknown>)['media'];
+function extractIndicadoresScore(indicadores: unknown, indicadoresPrevia?: unknown): number | null {
+  // Preferir indicadores_previa (prévia dinâmica "se fechasse hoje") quando disponível
+  const fonte = indicadoresPrevia ?? indicadores;
+  if (!fonte || typeof fonte !== 'object') return null;
+  const v = (fonte as Record<string, unknown>)['media'];
   if (typeof v === 'number') return Math.round(v);
   return null;
 }
@@ -156,7 +157,7 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
       // 4. Buscar snapshots no intervalo
       const { data: rows, error: rowsErr } = await supabase
         .from('carometro_status_diario')
-        .select('area_id, profile_id, data, sirene, engajamento, indicadores')
+        .select('area_id, profile_id, data, sirene, engajamento, indicadores, indicadores_previa')
         .in('area_id', areaIds)
         .gte('data', startStr)
         .lte('data', endStr);
@@ -167,6 +168,7 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
       type StatusRow = {
         area_id: string; profile_id: string; data: string;
         sirene: unknown; engajamento: unknown; indicadores: unknown;
+        indicadores_previa: unknown;
       };
       const statusRows = (rows ?? []) as StatusRow[];
       const mapa = new Map<string, Map<string, Map<number, DiaDetalhe[]>>>();
@@ -183,7 +185,8 @@ export function useDashboardGeral(nSemanas = 8): UseDashboardGeralResult {
           data:             r.data,
           sireneScore:      extractSireneScore(r.sirene),
           engajamentoScore: extractEngajamentoScore(r.engajamento),
-          indicadoresScore: extractIndicadoresScore(r.indicadores),
+          // Usa prévia dinâmica se disponível, senão resultado real
+          indicadoresScore: extractIndicadoresScore(r.indicadores, r.indicadores_previa),
         });
       }
 

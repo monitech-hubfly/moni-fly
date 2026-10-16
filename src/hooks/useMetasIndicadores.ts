@@ -62,6 +62,10 @@ export type MetaItem = {
   profile_id: string | null;
   responsavel_nome: string | null;
   comentariosCount: number;
+  /** Data de início da meta (YYYY-MM-DD) */
+  data_inicio: string | null;
+  /** Data de fim/prazo da meta (YYYY-MM-DD) */
+  data_fim: string | null;
 };
 
 export type SubMetaItem = {
@@ -72,6 +76,9 @@ export type SubMetaItem = {
   objetivo_pai_id: string;
   profile_id: string | null;
   is_minha: boolean;
+  status: string;
+  data_inicio: string | null;
+  data_fim: string | null;
 };
 
 export type IndicadorItemMeta = {
@@ -145,18 +152,19 @@ export function useMetasIndicadores(
       const hoje    = new Date();
       const semana  = isoWeek(hoje);
       const anoISO  = isoWeekYear(hoje);
+      const semRel      = semana;
+      const semAnterior = semana > 1 ? semana - 1 : 52;
 
-      // Busca o usuário autenticado para usar como fallback quando effectiveProfileId é null
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      const lookupProfileId = effectiveProfileId ?? authUser?.id ?? null;
+      // ── Rodada 1: tudo que não depende de IDs (paralelo) ──────────────────
       let objQuery = supabase
         .from('objetivos')
-        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, objetivo_pai_id, profile_id')
+        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, objetivo_pai_id, profile_id, data_inicio, data_fim')
         .eq('area_id', areaId)
         .in('status', ['ativo', 'concluido', 'relancada']);
       if (mes) objQuery = objQuery.eq('mes', mes);
 
-      const [objRes, indRes, respRes] = await Promise.all([
+      const [authRes, objRes, indRes, respRes] = await Promise.all([
+        supabase.auth.getUser(),
         objQuery,
         supabase
           .from('indicadores')
@@ -170,6 +178,9 @@ export function useMetasIndicadores(
           .eq('ativo', true)
           .order('nome'),
       ]);
+
+      const authUser       = authRes.data.user;
+      const lookupProfileId = effectiveProfileId ?? authUser?.id ?? null;
 
       const respArr = (respRes.data ?? []) as ResponsavelItem[];
       setResponsaveis(respArr);
@@ -185,24 +196,74 @@ export function useMetasIndicadores(
         status: string;
         ordem: number | null; objetivo_pai_id: string | null;
         profile_id: string | null;
+        data_inicio: string | null;
+        data_fim: string | null;
       };
-      const objArr = (objRes.data ?? []) as ObjRow[];
+      const objArr    = (objRes.data ?? []) as ObjRow[];
+      const metaIds   = objArr.filter(o => !o.objetivo_pai_id).map(o => o.id);
+      const allObjIds = objArr.map(o => o.id);
 
-      // Buscar contagem de comentários para as metas principais
-      const metaIds = objArr.filter(o => !o.objetivo_pai_id).map(o => o.id);
+      type IndRow = {
+        id: string; nome: string; indicador_chave: boolean | null;
+        semaforo_faixas: unknown; tipo: string | null;
+        objetivo_id: string | null; profile_id: string | null;
+      };
+      const indArr = (indRes.data ?? []) as IndRow[];
+      const indIds = indArr.map(i => i.id);
+
+      // ── Rodada 2: queries que precisam dos IDs (paralelo) ─────────────────
+      // audit_log (contagem de comentários), indicador_lancamentos e
+      // objetivo_responsaveis disparados simultaneamente.
+      let lancsQueryBuilder: any = supabase
+        .from('indicador_lancamentos')
+        .select('indicador_id, valor, semana, profile_id')
+        .in('semana', [semAnterior, semRel]);
+      if (indIds.length > 0) lancsQueryBuilder = lancsQueryBuilder.in('indicador_id', indIds);
+      else lancsQueryBuilder = lancsQueryBuilder.eq('indicador_id', '00000000-0000-0000-0000-000000000000'); // noop se sem indicadores
+      if (lookupProfileId) lancsQueryBuilder = lancsQueryBuilder.or(`profile_id.eq.${lookupProfileId},profile_id.is.null`);
+
+      const [comRes, lancRes, orRes] = await Promise.all([
+        // Comentários por meta
+        metaIds.length > 0
+          ? supabase.from('audit_log').select('entidade_id').eq('entidade', 'objetivos').eq('operacao', 'COMMENT').in('entidade_id', metaIds)
+          : Promise.resolve({ data: [] as { entidade_id: string }[], error: null }),
+        // Lançamentos de indicadores
+        indIds.length > 0 ? lancsQueryBuilder : Promise.resolve({ data: [] as unknown[], error: null }),
+        // Responsáveis por objetivo
+        allObjIds.length > 0
+          ? supabase.from('objetivo_responsaveis').select('objetivo_id, profile_id, concluido, concluido_em, data_inicio, data_fim, dias_uteis').in('objetivo_id', allObjIds)
+          : Promise.resolve({ data: [] as unknown[], error: null }),
+      ]);
+
+      // ── Processar comentários ──────────────────────────────────────────────
       const comCountMap = new Map<string, number>();
-      if (metaIds.length > 0) {
-        const { data: comData } = await supabase
-          .from('audit_log')
-          .select('entidade_id')
-          .eq('entidade', 'objetivos')
-          .eq('operacao', 'COMMENT')
-          .in('entidade_id', metaIds);
-        ((comData ?? []) as { entidade_id: string }[]).forEach(r => {
-          comCountMap.set(r.entidade_id, (comCountMap.get(r.entidade_id) ?? 0) + 1);
-        });
+      ((comRes.data ?? []) as { entidade_id: string }[]).forEach(r => {
+        comCountMap.set(r.entidade_id, (comCountMap.get(r.entidade_id) ?? 0) + 1);
+      });
+
+      // ── Processar lançamentos ──────────────────────────────────────────────
+      const lancMap         = new Map<string, string>();
+      const lancMapAnterior = new Map<string, string>();
+      for (const l of (lancRes.data ?? []) as { indicador_id: string; valor: unknown; semana: number; profile_id: string | null }[]) {
+        const val   = String(l.valor ?? '');
+        const isOwn = l.profile_id === lookupProfileId;
+        if (l.semana === semRel)      { if (isOwn || !lancMap.has(l.indicador_id))         lancMap.set(l.indicador_id, val); }
+        else if (l.semana === semAnterior) { if (isOwn || !lancMapAnterior.has(l.indicador_id)) lancMapAnterior.set(l.indicador_id, val); }
       }
 
+      setSemanaAnterior(semAnterior);
+      setAnoRelativo(anoISO);
+      setSemanaRelativa(semRel);
+
+      // ── Processar objetivo_responsaveis ────────────────────────────────────
+      type ORRow = {
+        objetivo_id: string; profile_id: string;
+        concluido: boolean | null; concluido_em: string | null;
+        data_inicio: string | null; data_fim: string | null; dias_uteis: number | null;
+      };
+      const orRows = (orRes.data ?? []) as ORRow[];
+
+      // ── Processar metas e sub-metas ────────────────────────────────────────
       const metasArr: MetaItem[] = objArr
         .filter(o => !o.objetivo_pai_id)
         .map(o => ({
@@ -213,6 +274,8 @@ export function useMetasIndicadores(
           profile_id: o.profile_id,
           responsavel_nome: o.profile_id ? (respByProfileId.get(o.profile_id) ?? null) : null,
           comentariosCount: comCountMap.get(o.id) ?? 0,
+          data_inicio: (o as Record<string, unknown>).data_inicio as string | null ?? null,
+          data_fim:    (o as Record<string, unknown>).data_fim    as string | null ?? null,
         }))
         .sort((a, b) => {
           if (a.is_chave !== b.is_chave) return a.is_chave ? -1 : 1;
@@ -227,68 +290,10 @@ export function useMetasIndicadores(
           objetivo_pai_id: o.objetivo_pai_id!,
           profile_id: o.profile_id,
           is_minha: o.profile_id === effectiveProfileId,
+          status: o.status,
+          data_inicio: o.data_inicio ?? null,
+          data_fim: o.data_fim ?? null,
         }));
-
-      // Indicadores + lançamentos
-      type IndRow = {
-        id: string; nome: string; indicador_chave: boolean | null;
-        semaforo_faixas: unknown; tipo: string | null;
-        objetivo_id: string | null; profile_id: string | null;
-      };
-      const indArr = (indRes.data ?? []) as IndRow[];
-      const indIds = indArr.map(i => i.id);
-
-      const lancMap         = new Map<string, string>();
-      const lancMapAnterior = new Map<string, string>();
-      // Sempre usa a semana ISO atual e a anterior (ignora tabela periodos,
-      // que pode ter períodos longos com data_inicio no passado).
-      const semRel      = semana;
-      const semAnterior = semana > 1 ? semana - 1 : 52;
-      if (indIds.length > 0) {
-        // Filtra lançamentos do usuário efetivo OU sem profile_id (legado)
-        let lancsQuery: any = supabase
-          .from('indicador_lancamentos')
-          .select('indicador_id, valor, semana, profile_id')
-          .in('indicador_id', indIds)
-          .in('semana', [semAnterior, semRel]);
-        // Usa lookupProfileId (já inclui fallback authUser) para o filtro
-        if (lookupProfileId) {
-          lancsQuery = lancsQuery.or(`profile_id.eq.${lookupProfileId},profile_id.is.null`);
-        }
-        const { data: lancs } = await lancsQuery;
-
-        // Prioriza a linha com profile_id do usuário sobre linhas legadas (profile_id null)
-        for (const l of (lancs ?? []) as { indicador_id: string; valor: unknown; semana: number; profile_id: string | null }[]) {
-          const val = String(l.valor ?? '');
-          const isOwn = l.profile_id === lookupProfileId;
-          if (l.semana === semRel) {
-            if (isOwn || !lancMap.has(l.indicador_id)) lancMap.set(l.indicador_id, val);
-          } else if (l.semana === semAnterior) {
-            if (isOwn || !lancMapAnterior.has(l.indicador_id)) lancMapAnterior.set(l.indicador_id, val);
-          }
-        }
-      }
-
-      setSemanaAnterior(semAnterior);
-      setAnoRelativo(anoISO);
-      setSemanaRelativa(semRel);
-
-      // Buscar objetivo_responsaveis com concluido para TODOS os objetivos da área
-      // (precisa estar antes do mapeamento de indicadores para calcular corHex de is_projeto_relativo)
-      const allObjIds = (objRes.data ?? []).map((o: { id: string }) => o.id);
-      type ORRow = {
-        objetivo_id: string; profile_id: string;
-        concluido: boolean | null; concluido_em: string | null;
-        data_inicio: string | null; data_fim: string | null; dias_uteis: number | null;
-      };
-      let orRows: ORRow[] = [];
-      if (allObjIds.length > 0) {
-        const { data: orData } = await supabase
-          .from('objetivo_responsaveis')
-          .select('objetivo_id, profile_id, concluido, concluido_em, data_inicio, data_fim, dias_uteis')
-          .in('objetivo_id', allObjIds);
-        orRows = (orData ?? []) as ORRow[];
-      }
 
       // Índice: objetivo_id → datas do usuário efetivo (para is_projeto_relativo)
       const orByObjForUser = new Map<string, { data_inicio: string | null; data_fim: string | null; dias_uteis: number | null }>();

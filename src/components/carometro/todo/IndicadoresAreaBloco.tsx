@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import { useMetasIndicadores, type ResponsavelItem } from '@/hooks/useMetasIndicadores';
 import { isoWeek } from '@/utils/periodos';
+import { semanasDoMes } from '@/hooks/usePlanoBoneDay';
 import { registrarLog } from '@/hooks/useAuditLog';
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -37,46 +38,96 @@ type IndAreaRow = {
 type IndRespAreaRow = { indicador_id: string; profile_id: string };
 type LancRow = { indicador_id: string; valor: string; semana: number };
 
-// ── IndicadorLinhaOtimizada ───────────────────────────────────────────────────
+// Larguras fixas apenas para nome/unit/avatar; semanas usam flex-1
+const COL_NOME = 'w-[160px]';
+const COL_UNIT = 'w-[28px]';
+const COL_AVT  = 'w-[36px]';
+
+// ── Cabeçalho de semanas (renderizado acima das linhas de cada grupo) ──────────
+function SemanasHeader({
+  semanas,
+  anoRelativo,
+  semanaAtual,
+}: {
+  semanas: number[];
+  anoRelativo: number;
+  semanaAtual: number;
+}) {
+  return (
+    <div className="flex items-end pb-1 border-b border-gray-200">
+      <div className={`${COL_NOME} flex-shrink-0`} />
+      <div className={`${COL_UNIT} flex-shrink-0`} />
+      {/* semanas ocupam todo o espaço restante */}
+      <div className="flex-1 flex">
+        {semanas.map(s => {
+          const info = isoWeekToDates(s, anoRelativo);
+          const isAtual = s === semanaAtual;
+          return (
+            <div key={s} className="flex-1 flex flex-col items-center px-0.5">
+              <span className={`text-[8px] font-bold whitespace-nowrap ${isAtual ? 'text-blue-500' : 'text-gray-400'}`}>
+                {info.label}{isAtual ? ' ★' : ''}
+              </span>
+              <span className={`text-[7px] whitespace-nowrap ${isAtual ? 'text-blue-300' : 'text-gray-300'}`}>
+                {info.range}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className={`${COL_AVT} flex-shrink-0`} />
+    </div>
+  );
+}
+
+// ── Linha de indicador ────────────────────────────────────────────────────────
 function IndicadorLinhaOtimizada({
   ind,
   responsaveisIds,
   responsaveis,
-  valorAtual,
-  valorAnterior,
-  semanaAtual,
-  semanaAnterior,
+  valores,
+  semanas,
   anoRelativo,
+  semanaAtual,
   onLancar,
   onToast,
 }: {
   ind: IndAreaRow;
   responsaveisIds: string[];
   responsaveis: ResponsavelItem[];
-  valorAtual: string;
-  valorAnterior: string;
-  semanaAtual: number;
-  semanaAnterior: number;
+  valores: Record<number, string>;
+  semanas: number[];
   anoRelativo: number;
+  semanaAtual: number;
   onLancar: (indId: string, valor: string, semana: number) => Promise<boolean>;
   onToast?: (msg: string) => void;
 }) {
-  const [editAtual,         setEditAtual]         = useState(valorAtual);
-  const [editAnterior,      setEditAnterior]      = useState(valorAnterior);
-  const [salvandoAtual,     setSalvandoAtual]     = useState(false);
-  const [salvandoAnterior,  setSalvandoAnterior]  = useState(false);
+  const [edits,    setEdits]    = useState<Record<number, string>>(() => {
+    const init: Record<number, string> = {};
+    for (const s of semanas) init[s] = valores[s] ?? '';
+    return init;
+  });
+  const [salvando, setSalvando] = useState<Record<number, boolean>>({});
 
-  useEffect(() => { setEditAtual(valorAtual); },     [valorAtual]);
-  useEffect(() => { setEditAnterior(valorAnterior); }, [valorAnterior]);
+  // Sincroniza valores externos (ao recarregar dados)
+  useEffect(() => {
+    setEdits(prev => {
+      const next = { ...prev };
+      for (const s of semanas) {
+        if (valores[s] !== undefined) next[s] = valores[s];
+      }
+      return next;
+    });
+  }, [valores, semanas]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const infoAtual    = anoRelativo > 0
-    ? isoWeekToDates(semanaAtual,    anoRelativo)
-    : { label: `S${semanaAtual}`,    range: '' };
-  const infoAnterior = anoRelativo > 0
-    ? isoWeekToDates(semanaAnterior, anoRelativo)
-    : { label: `S${semanaAnterior}`, range: '' };
+  const handleSalvar = async (semana: number) => {
+    const v = (edits[semana] ?? '').trim();
+    if (!v) return;
+    setSalvando(prev => ({ ...prev, [semana]: true }));
+    const ok = await onLancar(ind.id, v, semana);
+    setSalvando(prev => ({ ...prev, [semana]: false }));
+    onToast?.(ok ? 'Valor salvo!' : 'Erro ao salvar');
+  };
 
-  // Badge de unidade
   const unidade = (() => {
     const t = (ind.tipo ?? '').toLowerCase();
     if (t === 'booleano' || t === 'boolean') return 'S/N';
@@ -84,96 +135,63 @@ function IndicadorLinhaOtimizada({
     return 'qtd';
   })();
 
-  const handleSalvarAtual = async () => {
-    const v = editAtual.trim();
-    if (!v) return;
-    setSalvandoAtual(true);
-    const ok = await onLancar(ind.id, v, semanaAtual);
-    setSalvandoAtual(false);
-    onToast?.(ok ? 'Valor salvo!' : 'Erro ao salvar');
-  };
-
-  const handleSalvarAnterior = async () => {
-    const v = editAnterior.trim();
-    if (!v) return;
-    setSalvandoAnterior(true);
-    const ok = await onLancar(ind.id, v, semanaAnterior);
-    setSalvandoAnterior(false);
-    onToast?.(ok ? 'Valor salvo!' : 'Erro ao salvar');
-  };
-
   return (
-    <div className="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-b-0">
-      {/* Chave */}
-      <span className="w-3 flex-shrink-0 text-center text-[10px]">
-        {ind.indicador_chave ? '⭐' : ''}
-      </span>
-
+    <div className="flex items-center py-1.5 border-b border-gray-50 last:border-b-0">
       {/* Nome */}
-      <span className="flex-1 min-w-0 text-xs text-gray-800 truncate" title={ind.nome}>
-        {ind.nome}
-      </span>
-
-      {/* Unidade */}
-      <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
-        {unidade}
-      </span>
-
-      {/* S anterior — neutro */}
-      <div className="flex flex-col items-center gap-0.5 w-[88px] flex-shrink-0">
-        <span className="text-[8px] text-gray-400 whitespace-nowrap">
-          {infoAnterior.label} · {infoAnterior.range}
+      <div className={`${COL_NOME} flex-shrink-0 flex items-center gap-1 min-w-0 pr-1`}>
+        {ind.indicador_chave && <span className="text-[9px] flex-shrink-0">⭐</span>}
+        <span className="text-xs text-gray-800 truncate leading-tight" title={ind.nome}>
+          {ind.nome}
         </span>
-        <input
-          type="text"
-          value={editAnterior}
-          onChange={e => setEditAnterior(e.target.value)}
-          onBlur={() => { void handleSalvarAnterior(); }}
-          onKeyDown={e => { if (e.key === 'Enter') void handleSalvarAnterior(); }}
-          disabled={salvandoAnterior}
-          placeholder="—"
-          className="w-full text-xs text-center border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white disabled:opacity-50 transition-colors"
-        />
       </div>
 
-      {/* S atual — accent */}
-      <div className="flex flex-col items-center gap-0.5 w-[88px] flex-shrink-0">
-        <span className="text-[8px] text-blue-500 font-semibold whitespace-nowrap">
-          {infoAtual.label} · {infoAtual.range} ★
+      {/* Unidade */}
+      <div className={`${COL_UNIT} flex-shrink-0 text-center`}>
+        <span className="text-[8px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded font-medium">
+          {unidade}
         </span>
-        <input
-          type="text"
-          value={editAtual}
-          onChange={e => setEditAtual(e.target.value)}
-          onBlur={() => { void handleSalvarAtual(); }}
-          onKeyDown={e => { if (e.key === 'Enter') void handleSalvarAtual(); }}
-          disabled={salvandoAtual}
-          placeholder="—"
-          className="w-full text-xs text-center border border-blue-300 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-blue-50 disabled:opacity-50 transition-colors"
-        />
+      </div>
+
+      {/* Colunas de semana — flex-1 distribuindo igualmente */}
+      <div className="flex-1 flex gap-1">
+        {semanas.map(s => {
+          const isAtual = s === semanaAtual;
+          return (
+            <input
+              key={s}
+              type="text"
+              value={edits[s] ?? ''}
+              onChange={e => setEdits(prev => ({ ...prev, [s]: e.target.value }))}
+              onBlur={() => { void handleSalvar(s); }}
+              onKeyDown={e => { if (e.key === 'Enter') void handleSalvar(s); }}
+              disabled={salvando[s]}
+              placeholder="—"
+              className={`flex-1 min-w-0 text-xs text-center rounded px-1 py-1.5 focus:outline-none focus:ring-1 disabled:opacity-50 transition-colors ${
+                isAtual
+                  ? 'border border-blue-300 bg-blue-50 focus:ring-blue-400'
+                  : 'border border-gray-200 bg-white focus:ring-gray-300'
+              }`}
+            />
+          );
+        })}
       </div>
 
       {/* Avatares responsáveis */}
-      <div className="flex items-center gap-0.5 flex-shrink-0">
-        {responsaveisIds.length === 0 ? (
-          <span className="text-[9px] text-gray-300">—</span>
-        ) : (
-          responsaveisIds.slice(0, 3).map(pid => {
-            const nome = responsaveis.find(r => r.profile_id === pid)?.nome ?? '?';
-            const inicial = nome.charAt(0).toUpperCase();
-            return (
-              <span
-                key={pid}
-                title={nome}
-                className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold border border-blue-200 flex-shrink-0 cursor-default"
-              >
-                {inicial}
-              </span>
-            );
-          })
-        )}
-        {responsaveisIds.length > 3 && (
-          <span className="text-[9px] text-gray-400 ml-0.5">+{responsaveisIds.length - 3}</span>
+      <div className={`${COL_AVT} flex-shrink-0 flex items-center justify-end gap-0.5 pl-1`}>
+        {responsaveisIds.slice(0, 1).map(pid => {
+          const nome = responsaveis.find(r => r.profile_id === pid)?.nome ?? '?';
+          return (
+            <span
+              key={pid}
+              title={nome}
+              className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold border border-blue-200 flex-shrink-0 cursor-default"
+            >
+              {nome.charAt(0).toUpperCase()}
+            </span>
+          );
+        })}
+        {responsaveisIds.length > 1 && (
+          <span className="text-[8px] text-gray-400">+{responsaveisIds.length - 1}</span>
         )}
       </div>
     </div>
@@ -181,24 +199,30 @@ function IndicadorLinhaOtimizada({
 }
 
 // ── Bloco principal ───────────────────────────────────────────────────────────
-export function IndicadoresAreaBloco() {
+export function IndicadoresAreaBloco({
+  onSummaryChange,
+}: {
+  onSummaryChange?: (totalMeus: number, total: number) => void;
+} = {}) {
   const supabase = useMemo(() => createClient(), []);
   const { effectiveProfileId, areaId } = useEffectiveUser();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [indsArea,      setIndsArea]      = useState<IndAreaRow[]>([]);
   const [indsAreaResp,  setIndsAreaResp]  = useState<Record<string, string[]>>({});
+  // valoresLanc: "indId-semana" -> valor
   const [valoresLanc,   setValoresLanc]   = useState<Record<string, string>>({});
   const [isLoading,     setIsLoading]     = useState(true);
   const [toastMsg,      setToastMsg]      = useState<string | null>(null);
 
-  // Semanas para lançamentos
-  const hoje           = new Date();
-  const semanaAtual    = isoWeek(hoje);
-  const semanaAnterior = semanaAtual > 1 ? semanaAtual - 1 : 52;
-  const anoRelativo    = hoje.getFullYear();
+  // Semana atual e semanas do mês atual
+  const hoje         = new Date();
+  const semanaAtual  = isoWeek(hoje);
+  const anoRelativo  = hoje.getFullYear();
+  const mesAtual     = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  const semanas      = useMemo(() => semanasDoMes(mesAtual), [mesAtual]);
 
-  // Responsáveis da área (nomes para exibir avatar)
+  // Responsáveis da área (para exibir nomes/avatares)
   const { responsaveis } = useMetasIndicadores(effectiveProfileId, areaId, null);
 
   useEffect(() => {
@@ -226,7 +250,7 @@ export function IndicadoresAreaBloco() {
     if (indsArr.length > 0) {
       const ids = indsArr.map(i => i.id);
 
-      // Carregar responsáveis e lançamentos em paralelo
+      // Carregar responsáveis e lançamentos de todas as semanas do mês em paralelo
       const [pivotRes, lancRes] = await Promise.all([
         supabase
           .from('indicadores_responsaveis')
@@ -235,10 +259,9 @@ export function IndicadoresAreaBloco() {
         (supabase.from('indicador_lancamentos') as any)
           .select('indicador_id, valor, semana')
           .in('indicador_id', ids)
-          .in('semana', [semanaAtual, semanaAnterior]),
+          .in('semana', semanas),
       ]);
 
-      // Mapa de responsáveis
       const respMap: Record<string, string[]> = {};
       for (const r of ((pivotRes.data ?? []) as IndRespAreaRow[])) {
         if (!respMap[r.indicador_id]) respMap[r.indicador_id] = [];
@@ -246,7 +269,6 @@ export function IndicadoresAreaBloco() {
       }
       setIndsAreaResp(respMap);
 
-      // Mapa de lançamentos: chave = "indId-semana"
       const lancMap: Record<string, string> = {};
       for (const l of ((lancRes.data ?? []) as LancRow[])) {
         lancMap[`${l.indicador_id}-${l.semana}`] = l.valor;
@@ -255,7 +277,7 @@ export function IndicadoresAreaBloco() {
     }
 
     setIsLoading(false);
-  }, [supabase, areaId, semanaAtual, semanaAnterior]);
+  }, [supabase, areaId, semanas]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { void carregarInds(); }, [carregarInds]);
 
@@ -292,11 +314,18 @@ export function IndicadoresAreaBloco() {
       if (saveErr) { console.error('[IndicadoresArea] lancamento', saveErr); return false; }
       const op = existing?.id ? 'UPDATE' : 'INSERT';
       log({ modulo: 'Planejamento', entidade: 'indicador_lancamentos', entidade_id: indId, operacao: op, descricao: `Valor: "${valor}" — semana ${semana}` });
-      // Atualizar estado local para refletir imediatamente
       setValoresLanc(prev => ({ ...prev, [`${indId}-${semana}`]: valor }));
       return true;
     } catch (e) { console.error('[IndicadoresArea]', e); return false; }
   }, [supabase, effectiveProfileId, currentUserId, anoRelativo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Summary callback ──────────────────────────────────────────────────────
+  const uid = effectiveProfileId ?? currentUserId;
+  const totalMeus = indsArea.filter(i => uid && (indsAreaResp[i.id] ?? []).includes(uid)).length;
+
+  useEffect(() => {
+    onSummaryChange?.(totalMeus, indsArea.length);
+  }, [totalMeus, indsArea.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) {
     return (
@@ -314,52 +343,54 @@ export function IndicadoresAreaBloco() {
     );
   }
 
-  const uid = effectiveProfileId ?? currentUserId;
   const grupos = Array.from(new Set(indsArea.map(i => i.grupo ?? 'SEM GRUPO')));
-  const totalMeus = indsArea.filter(i => uid && (indsAreaResp[i.id] ?? []).includes(uid)).length;
 
   return (
     <>
-      <div className="p-4 flex flex-col gap-4">
-        {/* Badge resumo */}
-        <div className="flex items-center gap-2">
-          {totalMeus > 0 && (
-            <span className="text-[10px] bg-blue-100 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5">
-              {totalMeus} meu{totalMeus !== 1 ? 's' : ''}
-            </span>
-          )}
-          <span className="text-[10px] text-gray-400">
-            {indsArea.length} indicador{indsArea.length !== 1 ? 'es' : ''} no total
-          </span>
-        </div>
-
-        {/* Grupos */}
+      <div className="p-4 overflow-x-auto">
         {grupos.map(grupo => {
           const indsGrupo = indsArea.filter(i => (i.grupo ?? 'SEM GRUPO') === grupo);
           return (
-            <div key={grupo} className="flex flex-col gap-1">
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-200 pb-1">
+            <div key={grupo} className="mb-4 last:mb-0">
+              {/* Título do grupo */}
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">
                 {grupo}
                 <span className="ml-1.5 font-normal text-gray-400 normal-case tracking-normal">
                   ({indsGrupo.length})
                 </span>
               </p>
+
+              {/* Cabeçalho das semanas */}
+              <SemanasHeader
+                semanas={semanas}
+                anoRelativo={anoRelativo}
+                semanaAtual={semanaAtual}
+              />
+
+              {/* Linhas de indicadores */}
               <div className="flex flex-col">
-                {indsGrupo.map(ind => (
-                  <IndicadorLinhaOtimizada
-                    key={ind.id}
-                    ind={ind}
-                    responsaveisIds={indsAreaResp[ind.id] ?? []}
-                    responsaveis={responsaveis as ResponsavelItem[]}
-                    valorAtual={valoresLanc[`${ind.id}-${semanaAtual}`] ?? ''}
-                    valorAnterior={valoresLanc[`${ind.id}-${semanaAnterior}`] ?? ''}
-                    semanaAtual={semanaAtual}
-                    semanaAnterior={semanaAnterior}
-                    anoRelativo={anoRelativo}
-                    onLancar={handleLancarIndicador}
-                    onToast={showToast}
-                  />
-                ))}
+                {indsGrupo.map(ind => {
+                  // Montar mapa semana->valor para este indicador
+                  const valores: Record<number, string> = {};
+                  for (const s of semanas) {
+                    const v = valoresLanc[`${ind.id}-${s}`];
+                    if (v !== undefined) valores[s] = v;
+                  }
+                  return (
+                    <IndicadorLinhaOtimizada
+                      key={ind.id}
+                      ind={ind}
+                      responsaveisIds={indsAreaResp[ind.id] ?? []}
+                      responsaveis={responsaveis as ResponsavelItem[]}
+                      valores={valores}
+                      semanas={semanas}
+                      anoRelativo={anoRelativo}
+                      semanaAtual={semanaAtual}
+                      onLancar={handleLancarIndicador}
+                      onToast={showToast}
+                    />
+                  );
+                })}
               </div>
             </div>
           );

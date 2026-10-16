@@ -7,18 +7,19 @@ import { isoWeek } from '@/utils/periodos';
 import { useDashboardGeral, type AreaDashboard, type DiaDetalhe } from '@/hooks/useDashboardGeral';
 
 // ── Helpers de cor/imagem ─────────────────────────────────────────────────────
+// Thresholds alinhados com MeuCarometroCard (v2): ≥90 verde-escuro, ≥70 verde-claro, ≥50 amarelo
 function getCarinhaImg(score: number | null): string {
   if (score === null) return '/carometro/carometro-emoji-branco.png';
-  if (score >= 75) return '/carometro/carometro-emoji-verde-escuro.png';
-  if (score >= 60) return '/carometro/carometro-emoji-verde-claro.png';
-  if (score >= 30) return '/carometro/carometro-emoji-amarelo.png';
+  if (score >= 90) return '/carometro/carometro-emoji-verde-escuro.png';
+  if (score >= 70) return '/carometro/carometro-emoji-verde-claro.png';
+  if (score >= 50) return '/carometro/carometro-emoji-amarelo.png';
   return '/carometro/carometro-emoji-vermelho.png';
 }
 function scoreTextCls(score: number | null): string {
   if (score === null) return 'text-gray-400';
-  if (score >= 75) return 'text-green-700';
-  if (score >= 60) return 'text-green-500';
-  if (score >= 30) return 'text-yellow-600';
+  if (score >= 90) return 'text-green-700';
+  if (score >= 70) return 'text-green-500';
+  if (score >= 50) return 'text-yellow-600';
   return 'text-red-600';
 }
 
