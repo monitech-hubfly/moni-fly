@@ -311,7 +311,6 @@ const CAMPOS_OBRIGATORIOS_CASA: CampoObrigatorioAcoplamento[] = [
 const CAMPOS_OBRIGATORIOS_GBOX: CampoObrigatorioAcoplamento[] = [
   ...CAMPOS_OBRIGATORIOS_CASA,
   { chave: 'negocio:link_gbox', label: 'Gbox', coluna: 'link_gbox' },
-  { chave: 'negocio:link_gbox_ozempic', label: 'Gbox — Versão Ozempic', coluna: 'link_gbox_ozempic' },
 ];
 
 function textoChecklist(raw: unknown): string | null {
