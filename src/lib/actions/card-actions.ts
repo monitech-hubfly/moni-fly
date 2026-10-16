@@ -1837,6 +1837,10 @@ export type CriarCardKanbanInput = {
   lote?: string;
   redeFranqueadoId?: string;
   origemTipo?: 'hipotese_direta';
+  juridicoNomeCandidato?: string;
+  juridicoEstado?: string;
+  juridicoCidade?: string;
+  juridicoObservacoes?: string;
 };
 
 export type CriarCardFundingInput = {
