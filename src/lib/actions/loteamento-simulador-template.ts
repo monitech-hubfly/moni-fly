@@ -1,6 +1,5 @@
 'use server';
 
-import { randomBytes } from 'node:crypto';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { isRedeStaffRole } from '@/lib/authz';
@@ -14,6 +13,9 @@ import {
   isColunaSimulador546Ausente,
   isColunaSimulador547Ausente,
   isColunaSimulador548Ausente,
+  isColunaSimulador571Ausente,
+  isColunaSimulador575Ausente,
+  isColunaSimulador576Ausente,
   isColunaSimuladorAjusteAusente,
   isTabelaSimuladorAusente,
   mapTemplateRow,
@@ -27,6 +29,7 @@ import {
   TOAST_TEMPLATE_SALVO,
   inferirCondicaoLote,
   valoresImobDaSimulacao,
+  normalizarSlugJornadaPublica,
   type LoteamentoSimuladorTemplateDraft,
   type LoteamentoSimuladorTemplateRow,
   type SimulacaoPagamentoResumo,
@@ -38,6 +41,8 @@ type Ok = {
   ok: true;
   template: LoteamentoSimuladorTemplateRow;
   link: string | null;
+  linkMoni: string | null;
+  pageSlug: string | null;
   mensagem: string;
 };
 type Err = { ok: false; error: string };
@@ -49,11 +54,13 @@ type AuthOk = {
 
 const TABELA = 'loteamento_simulador_templates';
 
-function revalidateAposMutacaoSimulador(cardId: string) {
+function revalidateAposMutacaoSimulador(cardId: string, slugJornada?: string | null) {
   revalidatePath('/hub-funis');
   revalidatePath('/loteadores');
   revalidatePath(`/loteadores/${cardId}/simulador-template`);
   revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
+  const slug = String(slugJornada ?? '').trim();
+  if (slug) revalidatePath(`/empreendimento/${slug}`);
 }
 
 async function requireUser(): Promise<AuthOk | Err> {
@@ -89,12 +96,65 @@ function linkCompleto(token: string | null | undefined): string | null {
   return `${getPublicAppUrl()}/simulador/${t}`;
 }
 
+function linkJornadaPublica(slug: string | null | undefined): string | null {
+  const s = String(slug ?? '').trim();
+  if (!s) return null;
+  return `${getPublicAppUrl()}/empreendimento/${encodeURIComponent(s)}`;
+}
+
+function erroSlugJornada(message: string, code?: string): Err {
+  if (code === '23505' || /duplicate key|idx_imob_card_modelo_page_slug/i.test(message)) {
+    return { ok: false, error: 'Este slug já está em uso por outro empreendimento.' };
+  }
+  if (/page_slug|schema cache|does not exist|could not find/i.test(message)) {
+    return { ok: false, error: 'Coluna page_slug ainda não existe neste banco. Aplique a migration 560 no DEV.' };
+  }
+  return { ok: false, error: message };
+}
+
+async function persistirSlugJornadaDoCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+  slug: string | null,
+): Promise<{ ok: true; slug: string | null } | Err> {
+  const patch = { page_slug: slug, updated_at: new Date().toISOString() };
+  const upd = await supabase
+    .from('imob_card_modelo')
+    .update(patch as never)
+    .eq('card_id', cardId)
+    .select('card_id');
+  if (upd.error) return erroSlugJornada(upd.error.message, upd.error.code);
+  if ((upd.data ?? []).length > 0) return { ok: true, slug };
+
+  const ins = await supabase.from('imob_card_modelo').insert({ card_id: cardId, ...patch } as never);
+  if (ins.error) return erroSlugJornada(ins.error.message, ins.error.code);
+  return { ok: true, slug };
+}
+
+async function carregarSlugJornadaDoCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('imob_card_modelo')
+    .select('page_slug')
+    .eq('card_id', cardId)
+    .maybeSingle();
+  if (error) {
+    if (!/page_slug|schema cache|does not exist|could not find/i.test(error.message)) {
+      console.warn('[simulador-template] slug da jornada:', error.message);
+    }
+    return null;
+  }
+  return String((data as { page_slug?: string | null } | null)?.page_slug ?? '').trim() || null;
+}
+
 function mensagemTabelaAusente(): string {
   return 'Tabela do simulador ainda não existe neste banco. Aplique a migration 544 no DEV.';
 }
 
 function mensagemColunaAusente(): string {
-  return 'Faltam colunas do simulador neste banco. Aplique as migrations 545, 546, 547 e 548 no DEV.';
+  return 'Faltam colunas do simulador neste banco. Aplique as migrations 545, 546, 547, 548, 575 e 576 no DEV.';
 }
 
 function erroBancoSimulador(message: string): Err {
@@ -102,6 +162,9 @@ function erroBancoSimulador(message: string): Err {
     isColunaSimulador548Ausente(message) ||
     isColunaSimulador547Ausente(message) ||
     isColunaSimulador546Ausente(message) ||
+    isColunaSimulador571Ausente(message) ||
+    isColunaSimulador575Ausente(message) ||
+    isColunaSimulador576Ausente(message) ||
     isColunaSimuladorAjusteAusente(message)
   ) {
     return { ok: false, error: mensagemColunaAusente() };
@@ -157,6 +220,8 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
       redeLoteadorId: string | null;
       template: LoteamentoSimuladorTemplateRow | null;
       link: string | null;
+      linkMoni: string | null;
+      empreendimentoSlug: string | null;
       simulacoes: SimulacaoPagamentoResumo[];
     }
   | Err
@@ -181,7 +246,10 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
 
   const row = Array.isArray(data) ? data[0] : data;
   const template = row ? mapTemplateRow(row as Record<string, unknown>) : null;
-  const simulacoes = template ? await listarSimulacoesDoTemplateId(auth.supabase, template.id) : [];
+  const [simulacoes, empreendimentoSlug] = await Promise.all([
+    template ? listarSimulacoesDoTemplateId(auth.supabase, template.id) : Promise.resolve([]),
+    carregarSlugJornadaDoCard(auth.supabase, cardId),
+  ]);
   return {
     ok: true,
     cardTitulo: card.titulo,
@@ -189,8 +257,23 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
     redeLoteadorId: card.redeLoteadorId,
     template,
     link: linkCompleto(template?.link_token),
+    linkMoni: linkJornadaPublica(empreendimentoSlug),
+    empreendimentoSlug,
     simulacoes,
   };
+}
+
+function rowSemColunas576(row: Record<string, unknown>): Record<string, unknown> {
+  const { tipo_juros_cp, ...rest } = row;
+  void tipo_juros_cp;
+  return rest;
+}
+
+function rowSemColunas575(row: Record<string, unknown>): Record<string, unknown> {
+  const { tipo_taxa_gestao, pct_plataforma_entrada, ...rest } = row;
+  void tipo_taxa_gestao;
+  void pct_plataforma_entrada;
+  return rest;
 }
 
 function rowSemColunas546(row: Record<string, unknown>): Record<string, unknown> {
@@ -236,18 +319,32 @@ function draftParaRow(
       nome,
       pct_itbi: percentualUiParaFracao(draft.pct_itbi),
       pct_taxa_plataforma: percentualUiParaFracao(draft.pct_taxa_plataforma),
-      pct_taxa_gestao: percentualUiParaFracao(draft.pct_taxa_gestao),
+      pct_taxa_gestao:
+        draft.tipo_taxa_gestao === 'fixo'
+          ? Math.max(
+              0,
+              parseMoneyText(draft.valor_taxa_gestao) ?? parseDecimalInput(draft.valor_taxa_gestao) ?? 0,
+            )
+          : percentualUiParaFracao(draft.pct_taxa_gestao),
+      tipo_taxa_gestao: draft.tipo_taxa_gestao === 'fixo' ? 'fixo' : 'percentual',
+      pct_plataforma_entrada: Math.min(
+        1,
+        Math.max(0, percentualUiOpcionalParaFracao(draft.pct_plataforma_entrada) ?? 0),
+      ),
       pct_lucro_loteadora: percentualUiParaFracao(draft.pct_lucro_loteadora),
       pct_lucro_moni: percentualUiParaFracao(draft.pct_lucro_moni),
       pct_lucro_franqueado: percentualUiParaFracao(draft.pct_lucro_franqueado),
       pct_impostos: percentualUiParaFracao(draft.pct_impostos),
       pct_comissao_corretor: percentualUiParaFracao(draft.pct_comissao_corretor),
-      taxa_juros_credito_ponte: draft.taxa_juros_credito_ponte.trim()
-        ? percentualUiParaFracao(draft.taxa_juros_credito_ponte)
-        : JUROS_CREDITO_PONTE_PADRAO_FRACAO,
-      taxa_juros_financiamento_anual: draft.taxa_juros_financiamento_anual.trim()
-        ? percentualUiParaFracao(draft.taxa_juros_financiamento_anual)
-        : TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_FRACAO,
+      taxa_juros_credito_ponte:
+        draft.taxa_juros_credito_ponte.trim() === ''
+          ? JUROS_CREDITO_PONTE_PADRAO_FRACAO
+          : percentualUiParaFracao(draft.taxa_juros_credito_ponte),
+      tipo_juros_cp: draft.tipo_juros_cp === 'total' ? 'total' : 'mes_a_mes',
+      taxa_juros_financiamento_anual:
+        draft.taxa_juros_financiamento_anual.trim() === ''
+          ? TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_FRACAO
+          : percentualUiParaFracao(draft.taxa_juros_financiamento_anual),
       taxa_juros_parcelado_mes: percentualUiOpcionalParaFracao(draft.taxa_juros_parcelado_mes),
       entrada_minima_loteadora: montarPremissa(
         draft.entrada_minima_tipo,
@@ -263,11 +360,15 @@ function draftParaRow(
 export async function salvarSimuladorTemplateDoCard(
   cardId: string,
   draft: LoteamentoSimuladorTemplateDraft,
+  pageSlugRaw = '',
 ): Promise<Ok | Err> {
   const auth = await requireStaff();
   if (!auth.ok) return auth;
   const card = await carregarCardLoteadores(auth.supabase, cardId);
   if (!card.ok) return card;
+
+  const slugNorm = normalizarSlugJornadaPublica(pageSlugRaw);
+  if (!slugNorm.ok) return slugNorm;
 
   const packed = draftParaRow(draft, {
     cardId,
@@ -289,8 +390,10 @@ export async function salvarSimuladorTemplateDoCard(
 
   const payloads = [
     row,
-    rowSemColunas546(row),
-    rowSemColunas545(rowSemColunas546(row)),
+    rowSemColunas576(row),
+    rowSemColunas575(rowSemColunas576(row)),
+    rowSemColunas546(rowSemColunas575(rowSemColunas576(row))),
+    rowSemColunas545(rowSemColunas546(rowSemColunas575(rowSemColunas576(row)))),
   ];
   let saved: Record<string, unknown> | null = null;
   let lastError: string | null = null;
@@ -307,7 +410,12 @@ export async function salvarSimuladorTemplateDoCard(
         break;
       }
       lastError = error.message;
-      if (!isColunaSimulador546Ausente(error.message) && !isColunaSimuladorAjusteAusente(error.message)) {
+      if (
+        !isColunaSimulador546Ausente(error.message) &&
+        !isColunaSimuladorAjusteAusente(error.message) &&
+        !isColunaSimulador575Ausente(error.message) &&
+        !isColunaSimulador576Ausente(error.message)
+      ) {
         return erroBancoSimulador(error.message);
       }
     } else {
@@ -321,7 +429,12 @@ export async function salvarSimuladorTemplateDoCard(
         break;
       }
       lastError = error.message;
-      if (!isColunaSimulador546Ausente(error.message) && !isColunaSimuladorAjusteAusente(error.message)) {
+      if (
+        !isColunaSimulador546Ausente(error.message) &&
+        !isColunaSimuladorAjusteAusente(error.message) &&
+        !isColunaSimulador575Ausente(error.message) &&
+        !isColunaSimulador576Ausente(error.message)
+      ) {
         return erroBancoSimulador(error.message);
       }
     }
@@ -331,11 +444,16 @@ export async function salvarSimuladorTemplateDoCard(
   }
 
   const template = mapTemplateRow(saved);
-  revalidateAposMutacaoSimulador(cardId);
+  const slugSalvo = await persistirSlugJornadaDoCard(auth.supabase, cardId, slugNorm.slug);
+  if (!slugSalvo.ok) return slugSalvo;
+
+  revalidateAposMutacaoSimulador(cardId, slugSalvo.slug);
   return {
     ok: true,
     template,
     link: linkCompleto(template.link_token),
+    linkMoni: linkJornadaPublica(slugSalvo.slug),
+    pageSlug: slugSalvo.slug,
     mensagem: TOAST_TEMPLATE_SALVO,
   };
 }
@@ -360,43 +478,6 @@ async function listarSimulacoesDoTemplateId(
   return (data ?? [])
     .map((r) => mapSimulacaoRow(r as Record<string, unknown>))
     .filter((s) => Boolean(s.nome?.trim()));
-}
-
-export async function regenerarLinkSimuladorTemplate(cardId: string): Promise<Ok | Err> {
-  const auth = await requireStaff();
-  if (!auth.ok) return auth;
-  const card = await carregarCardLoteadores(auth.supabase, cardId);
-  if (!card.ok) return card;
-
-  const novoToken = randomBytes(32).toString('hex');
-  const { data: existente, error: errExist } = await auth.supabase
-    .from(TABELA)
-    .select('id')
-    .eq('kanban_card_id', cardId)
-    .maybeSingle();
-  if (errExist && errExist.code !== 'PGRST116') {
-    return erroBancoSimulador(errExist.message);
-  }
-  if (!existente?.id) {
-    return { ok: false, error: 'Salve o template antes de gerar o link.' };
-  }
-
-  const { data, error } = await auth.supabase
-    .from(TABELA)
-    .update({ link_token: novoToken, updated_by: auth.userId } as never)
-    .eq('id', existente.id)
-    .select('*')
-    .single();
-  if (error) return erroBancoSimulador(error.message);
-
-  const template = mapTemplateRow(data as Record<string, unknown>);
-  revalidateAposMutacaoSimulador(cardId);
-  return {
-    ok: true,
-    template,
-    link: linkCompleto(template.link_token),
-    mensagem: 'Novo link gerado. O QR anterior deixa de funcionar.',
-  };
 }
 
 function parseMoedaCampo(raw: string, label: string, opts?: { obrigatorio?: boolean; padrao?: number }):
@@ -467,6 +548,8 @@ export async function criarSimuladorOfertaDoCard(
   if (!valorCasa.ok) return valorCasa;
   const valorCustom = parseMoedaCampo(draft.valor_customizacao, 'o valor da customização', { padrao: 0 });
   if (!valorCustom.ok) return valorCustom;
+  const valorAcoplamento = parseMoedaCampo(draft.valor_acoplamento ?? '', 'o valor do acoplamento', { padrao: 0 });
+  if (!valorAcoplamento.ok) return valorAcoplamento;
   const valorPago = parseMoedaCampo(draft.valor_ja_pago, 'o valor já pago à loteadora', { padrao: 0 });
   if (!valorPago.ok) return valorPago;
   const prazoMeses = parseInteiroCampo(draft.prazo_meses, 'o prazo total do contrato', { obrigatorio: true });
@@ -503,6 +586,7 @@ export async function criarSimuladorOfertaDoCard(
     valor_lote: valorLote.valor,
     valor_casa: valorCasa.valor,
     valor_customizacao: valorCustom.valor,
+    valor_acoplamento: valorAcoplamento.valor,
     valor_ja_pago: valorPago.valor,
     prazo_meses: prazoMeses.valor,
     parcela_mensal: parcelaMensal.valor,
@@ -542,6 +626,7 @@ export async function criarSimuladorOfertaDoCard(
     valor_lote: valorLote.valor,
     valor_casa: valorCasa.valor,
     valor_customizacao: valorCustom.valor,
+    valor_acoplamento: valorAcoplamento.valor,
     valor_ja_pago: valorPago.valor,
     prazo_meses: prazoMeses.valor,
     parcela_mensal: parcelaMensal.valor,
@@ -561,7 +646,17 @@ export async function criarSimuladorOfertaDoCard(
     .single();
 
   let saved = data as Record<string, unknown> | null;
-  if (error && isColunaSimulador547Ausente(error.message)) {
+  if (error && isColunaSimulador571Ausente(error.message)) {
+    const { valor_acoplamento, ...sem571 } = rowCheio;
+    void valor_acoplamento;
+    const retry571 = await auth.supabase
+      .from('simulacoes_pagamento')
+      .insert(sem571 as never)
+      .select('*')
+      .single();
+    if (retry571.error) return erroBancoSimulador(retry571.error.message);
+    saved = retry571.data as Record<string, unknown>;
+  } else if (error && isColunaSimulador547Ausente(error.message)) {
     const { parcela_mensal, ...sem547 } = rowCheio;
     void parcela_mensal;
     const retry547 = await auth.supabase
@@ -761,6 +856,8 @@ export async function atualizarSimuladorOferta(
   if (!valorCasa.ok) return valorCasa;
   const valorCustom = parseMoedaCampo(draft.valor_customizacao, 'o valor da customização', { padrao: 0 });
   if (!valorCustom.ok) return valorCustom;
+  const valorAcoplamento = parseMoedaCampo(draft.valor_acoplamento ?? '', 'o valor do acoplamento', { padrao: 0 });
+  if (!valorAcoplamento.ok) return valorAcoplamento;
   const valorPago = parseMoedaCampo(draft.valor_ja_pago, 'o valor já pago à loteadora', { padrao: 0 });
   if (!valorPago.ok) return valorPago;
   const prazoMeses = parseInteiroCampo(draft.prazo_meses, 'o prazo total do contrato', { obrigatorio: true });
@@ -795,6 +892,7 @@ export async function atualizarSimuladorOferta(
     valor_lote: valorLote.valor,
     valor_casa: valorCasa.valor,
     valor_customizacao: valorCustom.valor,
+    valor_acoplamento: valorAcoplamento.valor,
     valor_ja_pago: valorPago.valor,
     prazo_meses: prazoMeses.valor,
     parcela_mensal: parcelaMensal.valor,
@@ -828,6 +926,7 @@ export async function atualizarSimuladorOferta(
     valor_lote: valorLote.valor,
     valor_casa: valorCasa.valor,
     valor_customizacao: valorCustom.valor,
+    valor_acoplamento: valorAcoplamento.valor,
     valor_ja_pago: valorPago.valor,
     prazo_meses: prazoMeses.valor,
     parcela_mensal: parcelaMensal.valor,
@@ -851,7 +950,13 @@ export async function atualizarSimuladorOferta(
 
   let saved = data as Record<string, unknown> | null;
 
-  if (error && isColunaSimulador547Ausente(error.message)) {
+  if (error && isColunaSimulador571Ausente(error.message)) {
+    const { valor_acoplamento, ...sem571 } = rowCheio;
+    void valor_acoplamento;
+    const retry571 = await doUpdate(sem571);
+    if (retry571.error) return erroBancoSimulador(retry571.error.message);
+    saved = retry571.data as Record<string, unknown>;
+  } else if (error && isColunaSimulador547Ausente(error.message)) {
     const { parcela_mensal, ...sem547 } = rowCheio;
     void parcela_mensal;
     const retry547 = await doUpdate(sem547);
@@ -889,6 +994,15 @@ export async function atualizarSimuladorOferta(
   if (!saved) return { ok: false, error: 'Oferta não encontrada ou sem permissão.' };
 
   const oferta = mapSimulacaoRow(saved);
+  const empId = String(draft.empreendimento_id ?? oferta.empreendimento_id ?? '').trim();
+  if (empId) {
+    const valores = valoresImobDaSimulacao(oferta);
+    const vinculo = await vincularOfertaAoEmpreendimentoImob(cid, empId, {
+      simulacao_pagamento_id: oferta.id,
+      ...valores,
+    });
+    if (!vinculo.ok) return vinculo;
+  }
 
   revalidateAposMutacaoSimulador(cid);
   revalidatePath(`/loteadores/${cid}/simulador-template/ofertas/${oid}`);

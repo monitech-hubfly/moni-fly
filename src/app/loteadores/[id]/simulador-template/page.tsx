@@ -86,14 +86,16 @@ export default async function SimuladorTemplatePage({ params }: Props) {
         {loaded.loteadorNome ? ` · ${loaded.loteadorNome}` : ''}
       </p>
       <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
-        Percentuais e premissas deste loteamento. Ao salvar, o link e o QR para o corretor aparecem nesta tela.
+        Percentuais e premissas deste loteamento.
       </p>
       <div className="mt-8">
         <SimuladorTemplateForm
           cardId={id}
           cardTitulo={loaded.cardTitulo}
           draftInicial={rowToSimuladorTemplateDraft(loaded.template)}
-          linkInicial={loaded.link}
+          jaSalvoInicial={Boolean(loaded.template)}
+          pageSlugInicial={loaded.empreendimentoSlug}
+          linkMoniInicial={loaded.linkMoni}
         />
       </div>
     </main>
