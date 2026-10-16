@@ -33,6 +33,8 @@ export type SireneSnapshot = {
   concluidos_t1?:       number;
   concluidos_t2?:       number;
   concluidos_t3?:       number;
+  // Chamados em aberto com prazo vencido há 15+ dias (além do T3) — ativam cap de 50%
+  super_atrasados?:     number;
 };
 
 export type EngajamentoSnapshot = {
@@ -333,6 +335,15 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         if (!prazo) return false;
         return prazo < hojeStr;
       }).length;
+      // Ultra-atrasado = aberto com prazo vencido há MAIS de 15 dias (além do tier T3)
+      // Ativa cap de 50% no score enquanto qualquer um desses estiver em aberto
+      const topicosUltraAtrasados = topicosAbertos.filter(t => {
+        const prazo = t.data_fim || t.prazo_proposto;
+        if (!prazo) return false;
+        const prazoDate = new Date(prazo + 'T00:00:00');
+        const diasAtraso = Math.floor((hoje.getTime() - prazoDate.getTime()) / (1000 * 60 * 60 * 24));
+        return diasAtraso > 15;
+      }).length;
       // Vence hoje = open com prazo = hoje
       const topicosVenceHoje = topicosAbertos.filter(t => {
         const prazo = t.data_fim || t.prazo_proposto;
@@ -370,9 +381,14 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       // Chamados em aberto atrasados ou que vencem hoje = 0% de crédito
       const sireneTotal = topicosConcluidos.length + topicosAtrasados + topicosVenceHoje;
       const creditoTotal = creditosConcluidos; // abertos/atrasados contribuem 0
-      const sireneScore = sireneTotal === 0
+      const sireneScoreRaw = sireneTotal === 0
         ? 100
         : Math.max(0, Math.round((creditoTotal / (sireneTotal * 100)) * 100));
+      // Cap: enquanto houver chamados abertos com 15+ dias de atraso (além do T3),
+      // o score máximo é 50% — independente de quantos chamados novos sejam fechados.
+      const sireneScore = topicosUltraAtrasados > 0
+        ? Math.min(sireneScoreRaw, 50)
+        : sireneScoreRaw;
 
       const sireneRuntime: SireneSnapshot = {
         atrasados:            topicosAtrasados,
@@ -387,6 +403,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         concluidos_t1:        sireneT1,
         concluidos_t2:        sireneT2,
         concluidos_t3:        sireneT3,
+        super_atrasados:      topicosUltraAtrasados,
       };
 
       // ── Engajamento (3 sub-scores independentes) ────────────────────────────────
@@ -976,11 +993,12 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  // Subscription realtime: canal criado UMA vez; usa ref para não recriar o canal e evitar
-  // "Lock broken by another request with the 'steal' option"
+  // Subscription realtime: nome único por instância para evitar conflito de lock no StrictMode
+  // (React StrictMode monta/desmonta efeitos 2x em dev, causando "Lock broken by another request")
+  const channelSuffix = useRef(`${Date.now()}-${Math.random().toString(36).slice(2)}`);
   useEffect(() => {
     const channel = supabase
-      .channel('indicadores-realtime')
+      .channel(`indicadores-realtime-${channelSuffix.current}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'indicador_lancamentos' },
